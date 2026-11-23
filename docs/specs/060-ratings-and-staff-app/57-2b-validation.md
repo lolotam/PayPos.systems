@@ -69,8 +69,9 @@ time) grow linearly with tenant size (measured below). (A) was deleted.
 
 **Cost the design accepts, stated explicitly (review comment on `own-service-lines.membership.ts`, MEDIUM).** The first
 statement of every page (her performer rows) has no month predicate and no `LIMIT`: it reads **all of her lifetime
-`line_performers` rows** on every page, grows with her tenure (about 600 rows per year at the fixture's rate, so a
-long-serving employee reads thousands), and sends that id list back as the `ANY(...)` list of the second and third
+`line_performers` rows** on every page, grows with her tenure (the fixture puts 602 of her lines in ONE month, so at
+that rate about 7,200 rows per year; both scaled fixtures keep her own history at 602 lines and grow only the
+colleagues' volume, so no run here measures this growth term), and sends that id list back as the `ANY(...)` list of the second and third
 statements. Month and keyset pagination are applied afterwards, in memory, over those ids. There is no bound that does
 not need a schema change: `line_performers` carries no date (the month lives on `service_sessions`), and a month-first
 read is candidate (A), which was measured and deleted for moving about ten times the rows. A bound would need a date
@@ -442,6 +443,15 @@ fixture is measured and under the bound in both states for five- and six-stateme
 Raw files (outside the repository): `F:/Dev/Temp/57-2b/dbtime-regular-7d9e6d20d.jsonl` and
 `F:/Dev/Temp/57-2b/dbtime-scale-7d9e6d20d.jsonl`.
 
+### Correction to the conditions of the run above (learned afterwards, 2026-11-23)
+
+The window of the per-node-timing run was 10:45:41–10:55:18 UTC (13:45:41–13:55:18 Kuwait). The other team sharing
+this host later reported that one of its lanes had a database test process alive on its own cluster
+(`127.0.0.1:55401`) from 10:27 to 10:52 UTC, and started another file at 10:55 UTC. Whether that process was working
+or hung at exit is not known. The overlap may have affected the figures above; its effect is not established. The
+figures are kept exactly as recorded, and **this first run is used neither as acceptance evidence nor for any causal
+comparison** with the run below (manager decision, 2026-11-23). It is not repeated.
+
 ## Measurement tool corrected after the failing run: `TIMING OFF` (manager decision 2026-11-23) — method fixed before the run
 
 The result above (per-node timing on: 4 of 21 samples at or above 200 ms at 66,002 lines with stale statistics, worst
@@ -481,7 +491,8 @@ all 21 judged samples of the accepted attempt were at or above 200 ms (459.4–7
 Head: `11c7c39746a900cf3b021e6b09f987856d0fd38d` (the pushed code of `8f78adffb` plus the `TIMING OFF` statement and the
 separated violation lists; no product code differs). One run per fixture in the announced window, private lane
 `127.0.0.1:55404`. Host processor load before each run: 100 % on 6 of 6 samples, then 100,100,100,99,100,100. Harness
-specs first: 12 of 12. Regular run 14:07:31–14:14:16 Kuwait, 4 tests passed. Scaled run 14:15:10–14:23:52 Kuwait: the
+specs first: 12 of 12. Regular run 14:07:31–14:14:16 Kuwait (11:07:31–11:14:16 UTC), 4 tests passed. Scaled run 14:15:10–14:23:52 Kuwait
+(11:15:10–11:23:52 UTC): the
 stale-statistics test failed with 21 violations; the normal-statistics test passed (the cases are now separate).
 
 `execution_ms_sum` per judged sample, ms. **Bold** = at or above 200.
@@ -521,9 +532,16 @@ hits, none read from disk; every node has loops = 1.
 
 What this run shows, and what it corrects:
 
-- **The reading offered after the first run is not supported.** Turning per-node timing off did not bring the scaled
-  stale case under the bound; the sums are higher than in the per-node-timing run (100–350 ms). Instrumentation
-  overhead was not the main cost.
+- **The reading offered after the first run is not supported by this run.** With per-node timing off the scaled
+  stale case is still over the bound. No comparison with the first run's figures is drawn (see the correction
+  above): this run stands on its own.
+- Host conditions of this run: the other team reports its last database test process stopped at 11:11 UTC; the
+  regular run began at 11:07:31 UTC and so overlapped its tail for about four minutes (it passed); the scaled run
+  began at 11:15:10 UTC. The other team then confirmed from its lanes' records: its database test process ran until
+  11:11 UTC, so only the regular run overlapped it; during the scaled run (11:15:10–11:23:52 UTC) none of its lanes
+  ran anything database-backed, one lane ran unit and typecheck gates (processor load, no database work) and one
+  pushed and wrote replies. The scaled result therefore has no known database-test overlap; host processor load
+  was 100 % and is recorded as a diagnostic only.
 - The cost is the stale plan itself: four statements each walk the tenant's ~66,000 rows through a company-leading
   index and discard all but the wanted ids, about 67,000 buffer hits and 105–245 ms each on this host. On 2026-11-22
   the same four scans touched 1,792–2,255 blocks and took 9.5–12.3 ms; the fixture seeding order was changed since
@@ -550,4 +568,21 @@ under the bound in both states, first page and cursor.
 
 Raw files (outside the repository): `F:/Dev/Temp/57-2b/timing-off-regular-11c7c3974.jsonl` and
 `F:/Dev/Temp/57-2b/timing-off-scale-11c7c3974.jsonl`.
+
+### Decision after the `TIMING OFF` run (manager, design approver, 2026-11-23)
+
+The run is not repeated because of the overlap: the other team's database test process ended at 11:11 UTC, during the
+regular run, which passed; the 66,002-line run began at 11:15:10 UTC, 4 min 10 s later, and failed 21 of 21 samples
+(459.4–745.2 ms). **The failure stands.**
+
+Authorized next, and nothing wider: one bounded LOCAL experiment with a new statement shape for the four id-list
+reads, inside plan §5.1 — existing indexes only; company, business, `withTenant` and RLS kept; the same result shape,
+cursor pages, authorized columns and the six-statement maximum; no index, statistics change, planner setting or
+migration; the alternatives already rejected (the `LATERAL` / `OFFSET 0` rewrites of §5.2 and dropping `business_id`)
+are not tried again. Order: the heaviest read first on large data; if the plan shape improves, baseline and candidate
+of all four statements on two identical copies of one fixed fixture, by the same `TIMING OFF` method and statistics
+state, without piling up a new large tenant per attempt; rows, buffers and plans kept; results compared for equality.
+The final measurement (regular fixture and 66,002 lines, stale and normal) is made only after a fix is fixed in the
+code. If no shape reaches the bound, the outcome is an evidence card for the smallest index or statistics exception —
+the plan is not edited and the 200 ms bound is not relaxed.
 

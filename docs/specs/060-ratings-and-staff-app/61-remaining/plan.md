@@ -168,6 +168,10 @@ probes a table once per outer row can therefore become quadratic. Naming an inde
    insert. First page and a cursor page each complete in **under 200 ms** including driver materialisation, with heap
    and RSS recorded, on the approved fixture of **600 visits / 602 own lines**. The statistics state and the plans
    are recorded with the result.
+   **Superseded for timing (2026-11-23):** the operative timing rule is `spec.md` AC-57-2b-9 — the 200 ms bound is
+   judged on the sum of PostgreSQL `Execution Time` over the page's statements, in an explicit run on the delivery
+   head, at the regular fixture and at 66,002 lines; wall-clock time including the driver is a diagnostic only. The
+   sentence above is kept as the original method.
 2. **Normal-statistics run** of the same fixture, also under 200 ms. `ANALYZE` may prepare only this run.
 3. **Plan evidence, not index names:** no table is read once per outer row through a tenant-wide scan; where a probe
    by id exists, the id is an index condition, not a join filter.
@@ -272,7 +276,7 @@ Design of record: `../plan-61.md` §5 (61-1c…61-1i), §6 (61-2a…61-2d), §7 
 | 61-2b | Builds on 61-2a's wiring in `customers.module.ts`; §6's rule; ADR-0011 addendum withdrawing §8 | AC-2b-1…6 |
 | 61-2c | Reuses 61-2b's access reader | AC-2c-1…4 |
 | 61-2d | Lovable base style; check whether spec 074's navigation model (074-1/074-2, merged) owns nav items and register there if so | AC-2d-1…4 |
-| 57-2b | §5; `queries/own-service-lines.query.ts` (split so no file passes 300 lines), the route added to `http/own-work.controller.ts`, contracts `orders/own-service-lines.ts` and its OpenAPI file, a separate performance spec | AC-57-2b-1…8 |
+| 57-2b | §5; `queries/own-service-lines.query.ts` (split so no file passes 300 lines), the route added to `http/own-work.controller.ts`, contracts `orders/own-service-lines.ts` and its OpenAPI file, a separate performance spec | AC-57-2b-1…9 |
 | 57-4 | `apps/pos/src/my-work/{api,model,ui}` reached from `apps/pos/src/personal-staff`; generated hooks only (tips, service lines, `/v1/staff/me/private-view` and its `/touch`); the PIN step, idle close, throttled touch and cache clearing as one reusable piece | AC-57-4-1…8 |
 | 61-3 | The card is a component under `apps/pos/src/my-work/ui/` on 57-4's screen, inside the same private view | AC-3-1…3 |
 
@@ -325,6 +329,13 @@ Calibration from merged work (production / test / generated): #1135 67 / 342 / 7
 - Rolling the whole release back is safe only where no such row exists. Before a rollback below this PR, a
   read-only check counts the `low_rating*` inbox rows of the target; the count and the check time are recorded,
   without row data. With a count above zero the rollback stops at the floor. The additive migrations stay.
+- A zero inbox count is the API gate only; it does not make a WORKER rollback safe. A submitted low rating travels
+  two outbox hops (`LowRatingSubmitted`, then `LowRatingReceived`), and either can still be pending while the inbox
+  is empty; an older worker would leave the first unacknowledged (retried, then parked) or reject the second. Before
+  lowering the worker below this PR: stop new production of these events (rating issuance closed, or the API already
+  below 61-1i), then confirm by a read-only count that the outbox holds no undelivered `LowRatingSubmitted` or
+  `LowRatingReceived` row, parked ones included; record the counts and the check time. A count above zero stops the
+  worker rollback until those events are delivered by a worker at or above this PR.
 - API not below 61-1b while the permission rows exist.
 - A rollback that would cross a floor is the manager's decision; a production, server or secret change is Waleed's.
 
@@ -355,6 +366,17 @@ Calibration from merged work (production / test / generated): #1135 67 / 342 / 7
 5. **DEP-1, read-only:** the staging check of §4 item 3.
 6. **Abu Salem's RT-Q17 pick** is still PENDING on the page; a different pick changes only `noticeComment` (61-1h)
    and the comment column (61-2b).
+7. **Review round 2 (2026-11-23), recorded follow-ups, none in this PR:**
+   - **Deploy order:** the admin ratings screen takes its month from the `month` field of the averages response, so
+     the API of this PR is deployed before the admin; against an older API the month field stays disabled.
+   - **Ratings read rule:** the API now applies the 61-1g rule of the worker: the `read:ratings:branch` ALLOW must be
+     on the covering manager membership itself (owner answer of 2026-11-22). Both sides run one shared case table.
+   - **Follow-up migration candidates:** an index on `(company_id, employee_id, branch_id, submitted_at)` to bound the
+     employee-filtered ratings page, and a composite foreign key from `low_rating_notices` to the rating's business
+     and branch. Migrations 0240 and 0241 are not changed here.
+   - **L2 (accepted P2), second path:** the in-flight open guard of the reception private view is per controller, so
+     a remount (close and reopen, offline and online) can leave an abandoned open that reaches the server last. Same
+     bound as L2: her own rows only, for at most the idle limit.
 
 ### ملخص للمالك (بالعربي)
 
