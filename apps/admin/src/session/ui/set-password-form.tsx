@@ -7,6 +7,7 @@ import { t } from '@pospay/i18n';
 import { Button, CircleAlert, EmptyState } from '@pospay/ui';
 import { useForm } from 'react-hook-form';
 
+import { useMounted } from '@/shared/browser/use-mounted';
 import { useLocale } from '@/shared/locale/locale-context';
 
 import { TextField } from './text-field';
@@ -21,18 +22,19 @@ export function SetPasswordForm({
   onSubmit: (newPassword: string) => Promise<void>;
 }) {
   const locale = useLocale();
+  const mounted = useMounted();
   const form = useForm<SetPasswordInput>({
     resolver: zodResolver(setPasswordInput),
     defaultValues: { password: '', confirm: '' },
   });
-  const errors = form.formState.errors;
-  const confirmError = errors.confirm
+  const confirmError = form.formState.errors.confirm
     ? form.getValues('confirm') === ''
       ? 'admin.passwordRequired'
       : 'admin.setPasswordMismatch'
     : undefined;
   return (
     <form
+      method="post"
       className="flex flex-col gap-4"
       noValidate
       onSubmit={form.handleSubmit((values) => onSubmit(values.password))}
@@ -42,7 +44,7 @@ export function SetPasswordForm({
         type="password"
         autoComplete="new-password"
         label={t(locale, 'admin.newPasswordLabel')}
-        error={errors.password ? 'admin.setPasswordLength' : undefined}
+        error={form.formState.errors.password ? 'admin.setPasswordLength' : undefined}
         disabled={pending}
         {...form.register('password')}
       />
@@ -64,7 +66,7 @@ export function SetPasswordForm({
           className="p-4"
         />
       ) : null}
-      <Button type="submit" disabled={pending}>
+      <Button type="submit" disabled={pending || !mounted}>
         {t(locale, 'admin.setPasswordSubmit')}
       </Button>
     </form>
