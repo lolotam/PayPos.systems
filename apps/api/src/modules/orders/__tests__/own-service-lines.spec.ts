@@ -134,8 +134,14 @@ it('walks lines with tied sort keys without a gap or a duplicate, and a cancelle
   const second = await read({ limit: 1, cursor: first.next_cursor }, hidden);
   expect(second.items[0]?.line_id).not.toBe(first.next_cursor);
   const walked: string[] = [];
+  const seenCursors = new Set<string>();
   let cursor: string | undefined;
   do {
+    // مؤشر اتشاف قبل كده معناه إن الصفحات بتلف في مكانها: الاختبار بيفشل فوراً بدل ما يكمل قراءات لحد المهلة.
+    if (cursor !== undefined) {
+      expect(seenCursors.has(cursor), `cursor ${cursor} repeated`).toBe(false);
+      seenCursors.add(cursor);
+    }
     const page = await read({ limit: 1, ...(cursor ? { cursor } : {}) }, hidden);
     walked.push(...page.items.map((line) => line.line_id));
     cursor = page.next_cursor ?? undefined;

@@ -8,6 +8,7 @@ import {
   periodInstant,
   periodIsValid,
   ratingsMonth,
+  resolvedRatingsMonth,
 } from './ratings-period.js';
 
 /**
@@ -43,5 +44,9 @@ export const ratingAverageItem = responseObject({
 });
 export type RatingAverageItem = z.infer<typeof ratingAverageItem>;
 
-export const ratingAverages = responseObject({ items: z.array(ratingAverageItem) });
+/** متوسطات الموظفات؛ `month` هو شهر الفترة بتوقيت النشاط (من `month` أو الافتراضي)، وnull لما اتبعت `from`/`to`. */
+export const ratingAverages = responseObject({
+  items: z.array(ratingAverageItem),
+  month: resolvedRatingsMonth,
+});
 export type RatingAverages = z.infer<typeof ratingAverages>;

@@ -35,10 +35,8 @@ export function ratingCommentReadersStatement(
   userIds: readonly string[],
 ) {
   const moment = at.toISOString();
-  const users = sql`ARRAY[${sql.join(
-    userIds.map((userId) => sql`${userId}::uuid`),
-    sql`, `,
-  )}]::uuid[]`;
+  // المرشحون بيتبعتوا كمعامل واحد (مصفوفة uuid بصيغة النص) مش معامل لكل مستخدم، لأن عددهم بلا سقف وPostgreSQL بيرفض أكتر من 65535 معامل في الجملة.
+  const users = sql`${`{${userIds.join(',')}}`}::text::uuid[]`;
   const managerRoles = sql.join(
     SYSTEM_ROLES.filter((role) => MANAGER_CODES.includes(role.code)).map(
       (role) => sql`${role.id}::uuid`,

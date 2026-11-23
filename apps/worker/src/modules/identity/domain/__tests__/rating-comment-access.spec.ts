@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import { expect, it } from 'vitest';
 import {
   decideRatingCommentReaders,
@@ -6,6 +7,7 @@ import {
   type RatingCommentInput,
   type RatingCommentMembership,
 } from '../rating-comment-access.ts';
+import { RULE_CASES } from './ratings-comment-rule-cases.ts';
 
 const branch: RatingCommentBranch = {
   companyId: '01920000-0000-7000-8000-0000000000a0',
@@ -179,4 +181,41 @@ it('scans the grants and memberships once, however many recipients there are, wi
   });
   expect(readers).toEqual(users.filter((user) => user !== denied));
   expect(CountingArray.scans).toBe(2);
+});
+
+/** بصمة الجدول المشترك؛ نفس القيمة بالحرف في spec الـ API، فتعديل جانب واحد يكسر الجانب التاني. */
+const TABLE_FINGERPRINT = 'ede383d62237ee519593a30865c7c2b1159f345ced48ab10b80b1376ea47fa3b';
+const MANAGER_ROLES = ['owner', 'general_manager', 'business_manager', 'branch_manager'];
+const sharedBranches = { b1: 'b1', b2: 'b2' } as const;
+
+it('the shared comment-reader rule table is the same one the API ratings read is tested against', () => {
+  expect(createHash('sha256').update(JSON.stringify(RULE_CASES)).digest('hex')).toBe(
+    TABLE_FINGERPRINT,
+  );
+});
+
+it.each(RULE_CASES.map((c) => [c.name, c] as const))('shared rule table: %s', (_name, c) => {
+  const covers = (scopeType: string, scopeId: string) =>
+    (scopeType === 'COMPANY' && scopeId === 'C') ||
+    (scopeType === 'BUSINESS' && scopeId === 'B') ||
+    (scopeType === 'BRANCH' && scopeId === sharedBranches[c.branch]);
+  const readers = decideRatingCommentReaders({
+    branch: { companyId: 'C', businessId: 'B', branchId: sharedBranches[c.branch] },
+    userIds: ['u'],
+    memberships: c.memberships.map((m) => ({
+      userId: 'u',
+      membershipId: m.id,
+      manager: m.role !== null && MANAGER_ROLES.includes(m.role),
+      covers: covers(m.scopeType, m.scopeId),
+    })),
+    owners: c.owner ? ['u'] : [],
+    grants: c.grants.map((g) => ({
+      userId: 'u',
+      membershipId: g.membership,
+      effect: g.effect,
+      scopeType: g.scopeType,
+      scopeId: g.scopeId,
+    })),
+  });
+  expect(readers).toEqual(c.readable ? ['u'] : []);
 });

@@ -13,7 +13,7 @@ export const ratingsListPaths = {
     get: {
       operationId: 'listRatings',
       description:
-        'Newest-first keyset page of the ratings of one business. Only a caller whose current role is owner, general manager, business manager or branch manager and who holds read:ratings:branch reads it; rows are limited to the branches inside that scope. from is inclusive and to is exclusive on submitted_at; month (YYYY-MM) instead selects that calendar month in the business time zone, resolved by the server, and cannot be combined with from or to. The comment is the customer text as written. Cache-Control: no-store.',
+        'Newest-first keyset page of the ratings of one business. Only a caller whose current role is owner, general manager, business manager or branch manager and who holds read:ratings:branch reads it; rows are limited to the branches inside that scope. from is inclusive and to is exclusive on submitted_at; month (YYYY-MM) instead selects that calendar month in the business time zone, resolved by the server, and cannot be combined with from or to. The comment is the customer text as written. month in the response is the YYYY-MM the server used in the business time zone when the request sent month, and null otherwise. Cache-Control: no-store.',
       parameters: [
         { in: 'path', name: 'businessId', required: true, schema: uuid },
         { in: 'header', name: 'x-company-id', required: true, schema: uuid },

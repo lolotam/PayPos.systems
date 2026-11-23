@@ -60,7 +60,7 @@ export function periodPredicate(at: SQL, period: RatingsPeriod): SQL {
  * @param now عينة الساعة المشتركة
  * @param reads قراءات tenancy اللي customers مش بتقراها بنفسها
  * @param defaultsToCurrentMonth هل الغياب التام للفترة معناه الشهر الحالي (المتوسطات) ولا مفتوح (القائمة)
- * @returns الفترة الجاهزة للـ SQL
+ * @returns الفترة الجاهزة للـ SQL مع `month`: الشهر `YYYY-MM` بتوقيت النشاط لما الفترة شهر (المطلوب أو الحالي بالتوقيت من قاعدة البيانات)، وnull لنطاق `from`/`to` أو المفتوح
  */
 export async function resolvePeriod(
   tx: Tx,
@@ -69,11 +69,18 @@ export async function resolvePeriod(
   now: Date,
   reads: RatingsListReads,
   defaultsToCurrentMonth: boolean,
-): Promise<RatingsPeriod> {
+): Promise<{ readonly period: RatingsPeriod; readonly month: string | null }> {
   if (query.from !== undefined || query.to !== undefined)
-    return { kind: 'range', from: query.from, to: query.to };
-  if (query.month === undefined && !defaultsToCurrentMonth) return { kind: 'range' };
+    return { period: { kind: 'range', from: query.from, to: query.to }, month: null };
+  if (query.month === undefined && !defaultsToCurrentMonth)
+    return { period: { kind: 'range' }, month: null };
   const timeZone = await reads.timeZone(tx, scope);
   if (timeZone === null) throw new ApiError('FORBIDDEN');
-  return monthPeriod(timeZone, query.month, now);
+  const period = monthPeriod(timeZone, query.month, now);
+  if (query.month !== undefined) return { period, month: query.month };
+  // الشهر الحالي بيتسمّى من نفس تعبير الفترة في SQL، فالاسم والنافذة ما يختلفوش على حدود الشهر أو تغيير الساعة.
+  const [row] = await tx.execute<{ month: string }>(
+    sql`SELECT to_char(${period.localStart}, 'YYYY-MM') AS month`,
+  );
+  return { period, month: row?.month ?? null };
 }

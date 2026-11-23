@@ -24,6 +24,11 @@ const saveColumns = (columns: string[] | null) => f.h.owner`
 
 beforeAll(async () => {
   f = await ownRatingFixture();
+  // التقييمان بيتزرعوا مرة هنا، فكل من RS-05 وRS-05a يقدر يشتغل لوحده وبأي ترتيب.
+  await f.seedStars([
+    { employeeId: f.employeeId, stars: 4, at: at(2) },
+    { employeeId: f.employeeId, stars: 5, at: at(3) },
+  ]);
 });
 afterAll(async () => {
   await f?.db.close();
@@ -31,10 +36,6 @@ afterAll(async () => {
 });
 
 it('RS-05 answers exactly HIDDEN with ratings present while the manager left rating_average out', async () => {
-  await f.seedStars([
-    { employeeId: f.employeeId, stars: 4, at: at(2) },
-    { employeeId: f.employeeId, stars: 5, at: at(3) },
-  ]);
   await saveColumns(['date', 'tip']);
   try {
     const response = await read();

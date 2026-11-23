@@ -104,6 +104,7 @@ it('returns stars, instants, business date, branch, performers and the comment e
       },
     ],
     next_cursor: null,
+    month: null,
   });
 });
 
@@ -161,7 +162,11 @@ it('never returns a branch outside the scope, with or without the branch filter'
     const all = await page({ limit: 100 });
     expect(all.items.length).toBeGreaterThan(0);
     expect(all.items.every((item) => item.branch.id === A.branch)).toBe(true);
-    expect(await page({ branch_id: second })).toEqual({ items: [], next_cursor: null });
+    expect(await page({ branch_id: second })).toEqual({
+      items: [],
+      next_cursor: null,
+      month: null,
+    });
   } finally {
     access = everything;
   }
@@ -178,7 +183,7 @@ it('refuses with FORBIDDEN when no branch is readable', async () => {
 
 it('returns nothing of another tenant, even when the business id belongs to it', async () => {
   await seedRating(db, B, { stars: 1, at: at(12), performers: [B.employees[0]] });
-  const empty = { items: [], next_cursor: null };
+  const empty = { items: [], next_cursor: null, month: null };
   expect(await page({}, { ...context, businessId: B.business })).toEqual(empty);
   expect((await page({ limit: 100 })).items.every((item) => item.stars !== 1)).toBe(true);
 });
@@ -307,6 +312,7 @@ it('month lists that calendar month of the business zone and the cursor stays va
     cursor = following.next_cursor;
   }
   expect(seen).toEqual([kept[0], kept[1], kept[2]]);
+  expect(march.month).toBe('2027-03');
   expect(idsOf(await page({ month: '2027-04' }))).toEqual([next]);
   expect(await refusal(page({ month: '2027-03', from: '2027-03-01T00:00:00Z' }))).toBe(
     'VALIDATION_FAILED',

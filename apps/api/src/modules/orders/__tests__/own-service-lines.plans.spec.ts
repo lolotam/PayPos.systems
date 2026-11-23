@@ -87,3 +87,42 @@ it('tolerates a sequential scan or a missing company_id on the analysed small ca
     'join',
   );
 });
+
+it('refuses a scan of a protected table whose own index condition has no company_id, in any statement', () => {
+  const unscoped = (table: string) =>
+    page(false).map((entry) =>
+      entry.statement.endsWith(table)
+        ? { ...entry, plan: scan(table, { 'Index Cond': '(id = ANY ($1))' }) }
+        : entry,
+    );
+  for (const table of ['line_performers', 'service_lines', 'service_sessions'])
+    expect(planViolations('x', unscoped(table), plain).join('|')).toContain(
+      `no company_id Index Cond on the ${table} scan`,
+    );
+});
+
+it('does not take a company_id condition on a sibling node for the protected scan, and checks every bitmap index', () => {
+  const bitmap = (conds: string[]): PlanNode => ({
+    'Node Type': 'Bitmap Heap Scan',
+    'Relation Name': 'service_lines',
+    'Actual Loops': 1,
+    Plans: conds.map((cond) => ({ 'Node Type': 'Bitmap Index Scan', 'Index Cond': cond })),
+  });
+  const withPlan = (plan: PlanNode) =>
+    page(false).map((entry) =>
+      entry.statement.endsWith('service_lines') ? { ...entry, plan } : entry,
+    );
+  const sibling: PlanNode = {
+    'Node Type': 'Aggregate',
+    Plans: [scan('line_performers'), bitmap(['(id = ANY ($1))'])],
+  };
+  expect(planViolations('x', withPlan(sibling), plain).join('|')).toContain(
+    'no company_id Index Cond on the service_lines scan',
+  );
+  expect(
+    planViolations('x', withPlan(bitmap(['(company_id = $1)', '(id = $2)'])), plain).join('|'),
+  ).toContain('no company_id Index Cond on the service_lines scan');
+  expect(
+    planViolations('x', withPlan(bitmap(['(company_id = $1)', '(company_id = $1)'])), plain),
+  ).toEqual([]);
+});

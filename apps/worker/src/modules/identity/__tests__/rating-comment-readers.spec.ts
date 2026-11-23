@@ -211,3 +211,12 @@ it('the reader runs one statement on the caller transaction and none for an empt
     expect(after[0]?.id).toBe(before[0]?.id);
   });
 });
+
+it('answers for more candidates than the PostgreSQL parameter limit in one statement, with the real reader among them', async () => {
+  const manager = await member('among many', { roleId: role('branch_manager') });
+  const strangers = Array.from(
+    { length: 70_000 },
+    (_, n) => `01920000-0000-7000-8000-${String(n).padStart(12, '0')}`,
+  );
+  expect(await read([...strangers, manager.user])).toEqual([manager.user]);
+});

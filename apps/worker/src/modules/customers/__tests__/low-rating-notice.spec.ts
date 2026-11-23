@@ -60,6 +60,16 @@ it('RT-22/RT-23: a 2-star rating without a comment makes one event with the save
   expect(await f.notices(row.ratingId)).toMatchObject([{ recipient_count: 3 }]);
 });
 
+it('the ledger row carries the business and branch of the stored rating it decided', async () => {
+  const row = await f.rating(2);
+  await f.deliver(await f.event(row));
+  const joined = await f.owner`SELECT n.business_id = r.business_id AS same_business,
+      n.branch_id = r.branch_id AS same_branch
+    FROM low_rating_notices n JOIN ratings r ON r.company_id = n.company_id AND r.id = n.rating_id
+    WHERE n.company_id = ${f.tenant.company} AND n.rating_id = ${row.ratingId}`;
+  expect(joined.map((r) => [r['same_business'], r['same_branch']])).toEqual([[true, true]]);
+});
+
 it('a 1-star rating is low too; a 3-star rating makes no event and no ledger row', async () => {
   const one = await f.rating(1);
   await f.deliver(await f.event(one));

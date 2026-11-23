@@ -98,3 +98,9 @@ export function monthExcludesRange(query: {
 }): boolean {
   return query.month === undefined || (query.from === undefined && query.to === undefined);
 }
+
+/**
+ * الشهر `YYYY-MM` الذي استخدمه السيرفر فعلًا بتوقيت النشاط لما الفترة جات من `month` أو من الشهر الحالي الافتراضي للمتوسطات،
+ * وnull لما اتبعت `from`/`to` صراحة أو القائمة بلا فترة. اختياري في المخطط عشان متصفح أحدث على سيرفر أقدم أثناء النشر ما يفشلش في التحقق.
+ */
+export const resolvedRatingsMonth = ratingsMonth.nullable().optional();

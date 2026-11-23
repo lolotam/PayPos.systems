@@ -28,6 +28,17 @@ const readsCancellations = (all: PlanNode[]) =>
   all.some((node) => node['Relation Name'] === CANCELLATIONS_TABLE);
 // شروط الفهرس لكل عقد الجملة (عقدة الجدول نفسها لا تحمل شرط فهرسها في Bitmap Heap Scan بل عقدة الفهرس تحتها).
 const indexConditions = (all: PlanNode[]) => all.map((node) => node['Index Cond'] ?? '').join(' ');
+// هل مسح هذا الجدول مقيّد بالمستأجر في شرط فهرسه هو: عقدة Index Scan بشرطها، وفي Bitmap Heap Scan كل عقد Bitmap Index Scan تحتها
+// (BitmapOr يعني كل فرع). شرط `company_id` في عقدة جدول آخر أو في Filter فقط لا يكفي: ده مسح فهرس عابر للمستأجرين بيصفّي متأخراً.
+const scanIsTenantScoped = (scan: PlanNode): boolean => {
+  const bitmapIndexes = nodes(scan).filter((node) => node['Node Type'] === 'Bitmap Index Scan');
+  if (scan['Node Type'] === 'Bitmap Heap Scan')
+    return (
+      bitmapIndexes.length > 0 &&
+      bitmapIndexes.every((node) => /company_id/.test(node['Index Cond'] ?? ''))
+    );
+  return /company_id/.test(scan['Index Cond'] ?? '');
+};
 const flat = (text: string) => text.replace(/\s+/g, ' ').slice(0, 60);
 
 // البند 3 (أ): عدد الجمل ثابت، لا join، لا Seq Scan، ولا جدول يُقرأ أكثر من مرة (Actual Loops = 1) في أي جملة، على الجداول الأربعة
@@ -52,11 +63,17 @@ export function planViolations(
     const all = nodes(plan);
     // جدول الإلغاءات الصغير بعد ما autovacuum يحلّله يختار له المخطط Seq Scan بحق؛ فالفحصان على جملته (Index Cond وSeq Scan) يتعفيان وقتها بس.
     const exempt = tolerance.cancellationsAnalysed === true && readsCancellations(all);
-    if (readsCancellations(all) && !exempt && !/company_id/.test(indexConditions(all)))
-      found.push(`${label}: no company_id Index Cond in ${flat(statement)}`);
     if (all.some((node) => /Join|Nested Loop/.test(node['Node Type'])))
       found.push(`${label}: join in ${flat(statement)}`);
     const scans = all.filter((node) => TABLES.includes(node['Relation Name'] ?? ''));
+    // كل جدول محمي مقروء لازم يكون مسحه مقيّداً بالمستأجر في شرط فهرسه؛ الإعفاء المحلي لمسح جدول الإلغاءات المحلَّل فقط، مش لباقي الجمل.
+    for (const scan of scans) {
+      const tolerated = exempt && scan['Relation Name'] === CANCELLATIONS_TABLE;
+      if (!tolerated && !scanIsTenantScoped(scan))
+        found.push(
+          `${label}: no company_id Index Cond on the ${scan['Relation Name']} scan in ${flat(statement)}`,
+        );
+    }
     if (!exempt && scans.some((node) => node['Node Type'] === 'Seq Scan'))
       found.push(`${label}: sequential scan in ${flat(statement)}`);
     if (scans.some((node) => (node['Actual Loops'] ?? 1) !== 1))
