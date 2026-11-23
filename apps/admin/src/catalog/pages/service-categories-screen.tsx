@@ -1,10 +1,12 @@
 'use client';
 import type { WorkspaceBranch, WorkspaceBusinessRead, WorkspaceCompanyRead } from '@pospay/contracts';
 import { t } from '@pospay/i18n';
-import { EmptyState, Store } from '@pospay/ui';
+import { EmptyState, PageShell, Store } from '@pospay/ui';
 import { useState } from 'react';
+import { useScreenCreateAction } from '../model/use-screen-create-action';
 import { BranchServiceCategoriesSection } from './branch-service-categories-section';
 import { ServiceCategoriesPage } from './service-categories-page';
+import { ServiceCategoriesHeader } from '../ui/service-categories-header';
 import { ServiceCategoryScopeSelect } from '../ui/service-category-scope-select';
 import { useLocale } from '@/shared/locale/locale-context';
 
@@ -40,6 +42,8 @@ function openingBranch(
   return remembered?.id ?? activeBranches[0]?.id ?? null;
 }
 
+// عضوية الفرع أوسع من فرع واحد بس، فمفيش طريقة تعرف منها إذن الوصول لمستوى النشاط
+// على نشاط مختار — القرار ده مؤجل لقرار المالك (issue #1133) والسلوك الحالي بيفضل زي ما هو.
 export function ServiceCategoriesScreen({
   companyId,
   business,
@@ -52,12 +56,13 @@ export function ServiceCategoriesScreen({
   const [branchId, setBranchId] = useState<string | null>(() =>
     openingBranch(scope, activeBranches, rememberedBranchId),
   );
-  // عضوية الفرع أوسع من فرع واحد بس، فمفيش طريقة تعرف منها إذن الوصول لمستوى النشاط
-  // على نشاط مختار — القرار ده مؤجل لقرار المالك (issue #1133) والسلوك الحالي بيفضل زي ما هو.
   const businessReach = scope !== 'BRANCH';
   const branchScopeEmpty = scope === 'BRANCH' && activeBranches.length === 0;
+  const businessView = branchId === null;
+  const { setHandler, action } = useScreenCreateAction({ companyId, businessId: business.id, userId }, branchId);
   return (
-    <section className="flex min-w-0 flex-col gap-8 text-start">
+    <PageShell layout="list">
+      <ServiceCategoriesHeader businessView={businessView} showLead={businessView && !branchScopeEmpty} action={branchScopeEmpty ? null : action} />
       <ServiceCategoryScopeSelect
         branches={activeBranches}
         includeBusiness={businessReach}
@@ -80,6 +85,7 @@ export function ServiceCategoriesScreen({
                 companyId={companyId}
                 business={business}
                 userId={userId}
+                embed={{ setHandler, active: businessView }}
               />
             </div>
           ) : null}
@@ -90,10 +96,11 @@ export function ServiceCategoriesScreen({
               businessId={business.id}
               userId={userId}
               branchId={branchId}
+              embed={{ setHandler, active: true }}
             />
           ) : null}
         </>
       )}
-    </section>
+    </PageShell>
   );
 }

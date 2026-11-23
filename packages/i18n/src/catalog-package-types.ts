@@ -26,6 +26,7 @@ export const catalogPackageTypesEn = {
     'Changes apply to future sales. Existing customers keep their purchased sessions, values and expiry.',
   freeWarning:
     'A service priced 0.000 has sessions worth 0.000, unless every service in the package is free.',
+  basics: 'Package details',
   components: 'Package services',
   service: 'Service',
   sessions: 'Sessions',
@@ -70,6 +71,7 @@ export const catalogPackageTypesAr = {
   snapshotHelp:
     'التعديلات تسري على المبيعات الجديدة. العملاء السابقون يحتفظون بجلساتهم وقيمها وتاريخ انتهائها.',
   freeWarning: 'جلسات الخدمة ذات السعر 0.000 قيمتها 0.000، إلا إذا كانت كل خدمات الباقة مجانية.',
+  basics: 'بيانات الباقة',
   components: 'خدمات الباقة',
   service: 'الخدمة',
   sessions: 'الجلسات',
