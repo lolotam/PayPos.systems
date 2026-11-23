@@ -58,6 +58,13 @@ const report = (label: string, plan: MeasuredPlan): void => {
     history: HISTORY,
     outboxRowsExamined: examined(plan.nodes),
     executionMs: plan.executionMs,
+    recheckRemoved: plan.nodes.map((node) => node['Rows Removed by Index Recheck'] ?? 0),
+    heapBlocks: plan.nodes
+      .filter(
+        (node) =>
+          node['Exact Heap Blocks'] !== undefined || node['Lossy Heap Blocks'] !== undefined,
+      )
+      .map((node) => ({ exact: node['Exact Heap Blocks'], lossy: node['Lossy Heap Blocks'] })),
     nodes: plan.nodes.map((node) => [
       node['Node Type'],
       node['Index Name'] ?? node['Relation Name'],

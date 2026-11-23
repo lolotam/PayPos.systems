@@ -7,16 +7,20 @@
 -- (NOLOGIN، عضو في لا شيء، بلا أعضاء)، ولا يغيّر هذا الملف أي صفة له.
 -- ALTER FUNCTION ... OWNER TO في آخر الملف يحتاج أن يكون منفّذ الـ migration هو مالك الـ bootstrap superuser المسجّل استثناءً في
 -- ADR-0003 §3 (نفس تسلسل الهجرة 0030 مع pospay_suppression_reader)؛ لا يعمل بدور بلا superuser.
+-- CREATE POLICY يأخذ ACCESS EXCLUSIVE على جدوله. المسارات الحيّة التي تكتب في الجدولين في معاملة واحدة تسجّل consumed_events أولًا ثم تكتب في outbox
+-- (apps/worker/src/outbox/deliver.ts:73 ثم معالج المستهلك؛ لا كاتب في الـAPI يلمس consumed_events)، فالسياستان هنا بنفس الترتيب كي لا يتبادل قفلا الهجرة والمعاملة الحيّة الانتظار؛ والمهلة القصيرة تجعل الهجرة تفشل سريعًا وتُعاد.
+SET LOCAL lock_timeout = '5s';
+--> statement-breakpoint
 GRANT USAGE ON SCHEMA public TO pospay_approval_reader;
 REVOKE CREATE ON SCHEMA public FROM pospay_approval_reader;
 GRANT EXECUTE ON FUNCTION public.app_company_id() TO pospay_approval_reader;
-GRANT SELECT (company_id, id, event_type, created_at) ON public.outbox TO pospay_approval_reader;
 GRANT SELECT (company_id, consumer_id, event_id) ON public.consumed_events TO pospay_approval_reader;
---> statement-breakpoint
-CREATE POLICY outbox_approval_reader_select ON public.outbox FOR SELECT TO pospay_approval_reader
-  USING (company_id = public.app_company_id());
+GRANT SELECT (company_id, id, event_type, created_at) ON public.outbox TO pospay_approval_reader;
 --> statement-breakpoint
 CREATE POLICY consumed_events_approval_reader_select ON public.consumed_events FOR SELECT TO pospay_approval_reader
+  USING (company_id = public.app_company_id());
+--> statement-breakpoint
+CREATE POLICY outbox_approval_reader_select ON public.outbox FOR SELECT TO pospay_approval_reader
   USING (company_id = public.app_company_id());
 --> statement-breakpoint
 -- الأنواع الستة ومعرّف المستهلك مكتوبان هنا حرفيًا لأن الدالة SQL ثابتة بلا تنفيذ ديناميكي؛ اختبار الدالة المثبّتة

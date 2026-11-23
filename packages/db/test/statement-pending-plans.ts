@@ -10,6 +10,9 @@ export interface PlanNode {
   'Actual Rows': number;
   'Actual Loops': number;
   'Rows Removed by Filter'?: number;
+  'Rows Removed by Index Recheck'?: number;
+  'Exact Heap Blocks'?: number;
+  'Lossy Heap Blocks'?: number;
   Plans?: PlanNode[];
 }
 
@@ -89,13 +92,17 @@ export async function planAsReader(
   throw new Error('unreachable: the plan transaction always rolls back');
 }
 
-/** الصفوف التي فحصتها عقد القراءة من outbox، مع ما أُسقط بالفلتر، مضروبة في مرات التكرار. */
+/** الصفوف التي فحصتها عقد القراءة من outbox، مع ما أُسقط بالفلتر وبإعادة فحص الفهرس، مضروبة في مرات التكرار. */
 export const examined = (nodes: PlanNode[]): number =>
   nodes
     .filter((node) => node['Relation Name'] === 'outbox')
     .reduce(
       (sum, node) =>
-        sum + (node['Actual Rows'] + (node['Rows Removed by Filter'] ?? 0)) * node['Actual Loops'],
+        sum +
+        (node['Actual Rows'] +
+          (node['Rows Removed by Filter'] ?? 0) +
+          (node['Rows Removed by Index Recheck'] ?? 0)) *
+          node['Actual Loops'],
       0,
     );
 

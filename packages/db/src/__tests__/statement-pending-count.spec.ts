@@ -193,7 +193,10 @@ describe('group 3: the cutoff and the result type', () => {
 describe('group 4: search-path attacks', () => {
   it('shadowing outbox, consumed_events and the helper in pg_temp cannot redirect or widen the read', async () => {
     await clean();
+    // حدثان حقيقيان: واحد معلَّم وواحد غير معلَّم. جدولا pg_temp فارغان، فلو وصلت الدالة إلى consumed_events المؤقت لحسبت الاثنين (2) لا واحدًا.
     await seedEvent(A.company, eventId(1), 'SalaryChanged');
+    await seedEvent(A.company, eventId(2), 'SalaryChanged');
+    await markEvent(A.company, eventId(2));
 
     const counted = await asApp(A.company, async (tx) => {
       await tx`CREATE TEMP TABLE outbox (company_id uuid, id uuid, event_type text, created_at timestamptz)`;

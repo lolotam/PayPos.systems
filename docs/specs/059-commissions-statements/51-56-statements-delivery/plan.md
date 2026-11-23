@@ -257,7 +257,7 @@ migrations on their own private cluster and **take a number, run `pnpm db:genera
 (PP-130: a second open migration PR is stacked on the first's branch; the manager retargets it before
 `--delete-branch`). Proposed order, each waiting for the one before it to merge:
 
-1. 53-1 (function file, then the index file)
+1. 53-1 (the function file only; the index file was withdrawn by CS-Q56, ADR-0012 addendum 2026-11-23)
 2. 51-1 PR 1b (`commission_carries`)
 3. #486 (data step + CHECK)
 4. 51-1 PR 2 (review permission)
