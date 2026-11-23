@@ -332,10 +332,18 @@ Calibration from merged work (production / test / generated): #1135 67 / 342 / 7
 - A zero inbox count is the API gate only; it does not make a WORKER rollback safe. A submitted low rating travels
   two outbox hops (`LowRatingSubmitted`, then `LowRatingReceived`), and either can still be pending while the inbox
   is empty; an older worker would leave the first unacknowledged (retried, then parked) or reject the second. Before
-  lowering the worker below this PR: stop new production of these events (rating issuance closed, or the API already
-  below 61-1i), then confirm by a read-only count that the outbox holds no undelivered `LowRatingSubmitted` or
-  `LowRatingReceived` row, parked ones included; record the counts and the check time. A count above zero stops the
-  worker rollback until those events are delivered by a worker at or above this PR.
+  lowering the worker below this PR, in this order:
+  1. **Stop the source, not only issuance.** Closed issuance stops new links but does not invalidate a link issued
+     earlier, and a customer can still submit through one. So either the API is already below 61-1i (it no longer
+     emits the event), or a read-only count shows no usable rating link in the target (unconsumed and unexpired);
+     with a count above zero the rollback waits for the seven-day expiry of the last one. No submission may be in
+     flight when the counts below are read.
+  2. **Drain both hops with a worker at or above this PR**, then confirm by a read-only count that the outbox holds
+     no undelivered `LowRatingSubmitted` or `LowRatingReceived` row, parked ones included.
+  3. **Count the inbox rows after the drain, not before**, because the compatible worker can still write a
+     `low_rating*` inbox row while the outbox drains; that count is the API gate of the bullet above.
+  Each count and its check time are recorded, without row data. A count above zero at any step stops the rollback
+  at the floor.
 - API not below 61-1b while the permission rows exist.
 - A rollback that would cross a floor is the manager's decision; a production, server or secret change is Waleed's.
 

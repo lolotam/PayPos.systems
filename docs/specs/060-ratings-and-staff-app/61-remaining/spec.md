@@ -219,8 +219,10 @@ the checkpoint (plan §7).
 
 - **AC-2c-1 (RT-24)** A rating with performers سارة and هند counts for both; each average is the mean of that
   employee's attributed ratings in the range, as a one-decimal string rounded half up (`"4.5"`), with its count.
-- **AC-2c-2** Without `from`/`to` the range is the current calendar month in the business time zone, by
-  `submitted_at`.
+- **AC-2c-2** With none of `month`, `from` and `to`, the range is the current calendar month in the business time
+  zone, by `submitted_at`. An explicit `month` (`YYYY-MM`) selects that calendar month in the business time zone and
+  cannot be combined with `from` or `to`. The response names the month the server used in `month` (null with
+  `from`/`to`).
 - **AC-2c-3** Same access rule and scope as 61-2b (403 paths, out-of-scope branches excluded).
 - **AC-2c-4** Result shape and `EXPLAIN ANALYZE` are asserted.
 - **Not in this checkpoint:** a screen.
@@ -375,8 +377,10 @@ This umbrella does not restate the slice design; it lives where the implementer 
   consumer and lose the bell.
 - `apps/pos/src` has no work-screen folder on the base; 57-4 creates `apps/pos/src/my-work/` (FR-A09) and 61-3's card
   lives there.
-- While rating sends stay dormant in the shipped worker, no rating can be submitted on a deployed build; plan §4
-  rests on that and names the read-only staging check that confirms it.
+- While rating sends stay dormant in the shipped worker, no **new** rating link is issued on a deployed build. A
+  link issued earlier stays usable until its seven-day expiry, so a submission is excluded only where no unconsumed,
+  unexpired link exists; plan §4 names the read-only staging check that confirms it, and plan §9 orders the
+  rollback checks on that basis.
 
 ## 10. Clarifications
 
