@@ -11,7 +11,6 @@ import { useSessionIdentity } from '@/session/api/use-session';
 import { isForbidden, issueField } from '../api/create-company-client';
 import { useCreateCompany } from '../api/use-create-company';
 import { useWorkspaces } from '../api/use-workspaces';
-import { useStoredAttempt } from '../model/create-company-attempt';
 import { CreateCompanyForm } from './create-company-form';
 import { CreateCompanySuccess } from './create-company-success';
 
@@ -22,7 +21,7 @@ export function CreateCompanyScreen() {
   const userId = identity.status === 'settled' ? (identity.userId ?? undefined) : undefined;
   const workspaces = useWorkspaces(mounted);
   const create = useCreateCompany(userId);
-  const stored = useStoredAttempt(userId, create.isPending, create.isSuccess, create.isError);
+  const stored = create.stored;
   const error = create.error;
   // مفيش endpoint يسأل عن صلاحية الإنشاء قبل المحاولة، فالشاشة بتظهر لكل مستخدم مسجّل من غير
   // شركة و403 بيترجّع بعد المحاولة نفسها، وحقل الاسم المرفوض من السيرفر بيرجع لنص حقلته.

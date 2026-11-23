@@ -40,15 +40,16 @@ function viewOf(
   isError: boolean,
   error: unknown,
   locale: Locale,
+  hasRead: boolean,
   resolved: ResolvedSelection,
   companies: readonly WorkspaceCompanyRead[],
   choose: (next: SelectionChoice) => void,
 ): WorkspaceController {
   const shared = { companies, choose };
   if (!mounted || pending) return { ...shared, status: 'loading' };
-  // فشل إعادة الجلب والليستة القديمة موجودة ما يهدمش الصفحة: فشل أول تحميل بس هو اللي
-  // بيعرض حالة الخطأ، ولتّما شاشة إنشاء الشركة بتكمل بإعادة التحميل بتاعتها (077).
-  if (isError && companies.length === 0) {
+  // فشل إعادة الجلب بعد قراءة ناجحة ما يهدمش الصفحة: المحتوى القديم بيفضل شغال وشاشة إنشاء
+  // الشركة بتكمل بإعادة التحميل بتاعتها (077)؛ فشل أول تحميل بس هو اللي بيعرض حالة الخطأ.
+  if (isError && !hasRead) {
     return { ...shared, status: 'error', message: envelopeMessage(error, locale) };
   }
   if (resolved.status === 'empty') return { ...shared, status: 'empty' };
@@ -87,6 +88,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
     query.isError,
     query.error,
     locale,
+    query.data !== undefined,
     resolved,
     companies,
     choose,

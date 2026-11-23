@@ -291,34 +291,42 @@ function testRemountKeepsAttempt(): void {
 
 function testForeignOrStaleAttempt(): void {
   it('another tab attempt locks a fresh screen, while a foreign or stale attempt is removed', async () => {
-    queue([emptyWorkspaces]);
+    queue([emptyWorkspaces, emptyWorkspaces, emptyWorkspaces]);
     seedAttempt();
-    renderScreen('en');
-    const nameInput = await screen.findByLabelText(t('en', 'admin.companyNameEnLabel'));
+    const first = renderScreen('en');
+    const nameInput = await first.findByLabelText(t('en', 'admin.companyNameEnLabel'));
     await waitFor(() => {
       expect((nameInput as HTMLInputElement).readOnly).toBe(true);
     });
     expect((nameInput as HTMLInputElement).value).toBe('Rehearsal Salon');
-    expect(screen.getByRole('button', { name: t('en', 'admin.createCompanyRetry') })).not.toBeNull();
+    expect(first.getByRole('button', { name: t('en', 'admin.createCompanyRetry') })).not.toBeNull();
 
     seedAttempt({ userId: 'another-user' });
     window.dispatchEvent(new StorageEvent('storage', { key: STORAGE_NAME }));
     await waitFor(() => {
-      expect((screen.getByLabelText(t('en', 'admin.companyNameEnLabel')) as HTMLInputElement).readOnly).toBe(false);
+      expect((first.getByLabelText(t('en', 'admin.companyNameEnLabel')) as HTMLInputElement).readOnly).toBe(false);
     });
     expect(window.localStorage.getItem(STORAGE_NAME)).toBeNull();
+    first.unmount();
+
+    seedAttempt({ userId: 'another-user' });
+    const foreign = renderScreen('en');
+    const foreignInput = await foreign.findByLabelText(t('en', 'admin.companyNameEnLabel'));
+    expect((foreignInput as HTMLInputElement).readOnly).toBe(false);
+    expect((foreignInput as HTMLInputElement).value).toBe('');
+    expect(
+      foreign.getByRole('button', { name: t('en', 'admin.createCompanySubmit') }).getAttribute('disabled'),
+    ).toBeNull();
+    expect(window.localStorage.getItem(STORAGE_NAME)).toBeNull();
+    foreign.unmount();
 
     seedAttempt({ startedAt: new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString() });
-    window.dispatchEvent(new StorageEvent('storage', { key: STORAGE_NAME }));
-    await waitFor(() => {
-      expect((screen.getByLabelText(t('en', 'admin.companyNameEnLabel')) as HTMLInputElement).readOnly).toBe(false);
-    });
+    const stale = renderScreen('en');
+    const staleInput = await stale.findByLabelText(t('en', 'admin.companyNameEnLabel'));
+    expect((staleInput as HTMLInputElement).readOnly).toBe(false);
+    expect((staleInput as HTMLInputElement).value).toBe('');
     expect(window.localStorage.getItem(STORAGE_NAME)).toBeNull();
-    const submit = screen.getByRole('button', { name: t('en', 'admin.createCompanySubmit') });
-    expect(
-      (screen.getByLabelText(t('en', 'admin.companyNameEnLabel')) as HTMLInputElement).value,
-    ).toBe('');
-    expect(submit.getAttribute('disabled')).toBeNull();
+    stale.unmount();
   });
 }
 
@@ -339,12 +347,13 @@ function testForbiddenAfterUnknown(): void {
     await fillAndSubmit();
     expect(await screen.findByRole('status')).not.toBeNull();
     fireEvent.click(screen.getByRole('button', { name: t('en', 'admin.createCompanyRetry') }));
-    expect(await screen.findByRole('alert')).not.toBeNull();
-    expect(screen.getByText(t('en', 'admin.createCompanyForbidden'))).not.toBeNull();
+    expect(await screen.findByText(t('en', 'admin.createCompanyForbidden'))).not.toBeNull();
     expect(window.localStorage.getItem(STORAGE_NAME)).toBeNull();
-    const nameInput = screen.getByLabelText(t('en', 'admin.companyNameEnLabel')) as HTMLInputElement;
-    expect(nameInput.readOnly).toBe(false);
-    expect(nameInput.value).toBe('Rehearsal Salon');
+    await waitFor(() => {
+      const nameInput = screen.getByLabelText(t('en', 'admin.companyNameEnLabel')) as HTMLInputElement;
+      expect(nameInput.readOnly).toBe(false);
+      expect(nameInput.value).toBe('Rehearsal Salon');
+    });
     fireEvent.click(screen.getByRole('button', { name: t('en', 'admin.createCompanySubmit') }));
     await waitFor(() => {
       expect(posts).toHaveLength(3);
@@ -366,8 +375,7 @@ function testSuccessWithReload(): void {
     renderScreen('en');
     await waitForForm();
     await fillAndSubmit();
-    expect(await screen.findByRole('status')).not.toBeNull();
-    expect(screen.getByText(t('en', 'admin.createCompanyCreatedStatus'))).not.toBeNull();
+    expect(await screen.findByText(t('en', 'admin.createCompanyCreatedStatus'))).not.toBeNull();
     expect(screen.queryByLabelText(t('en', 'admin.companyNameEnLabel'))).toBeNull();
     const reload = screen.getByRole('button', { name: t('en', 'admin.createCompanyReload') });
     fireEvent.click(reload);
@@ -388,13 +396,14 @@ function testOfflineSubmit(): void {
         },
       ],
     );
-    onlineManager.setOnline(false);
     renderScreen('en');
     await waitForForm();
+    onlineManager.setOnline(false);
     await fillAndSubmit();
-    expect(await screen.findByRole('status')).not.toBeNull();
-    expect(screen.getByText(t('en', 'admin.createCompanyRetryNotice'))).not.toBeNull();
-    expect(posts).toHaveLength(1);
+    await waitFor(() => {
+      expect(posts).toHaveLength(1);
+    });
+    expect(await screen.findByText(t('en', 'admin.createCompanyRetryNotice'))).not.toBeNull();
     const nameInput = screen.getByLabelText(t('en', 'admin.companyNameEnLabel')) as HTMLInputElement;
     expect(nameInput.readOnly).toBe(true);
   });

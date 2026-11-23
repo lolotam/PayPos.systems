@@ -1,7 +1,6 @@
 'use client';
 
 import { createCompanyInput, type CreateCompanyInput } from '@pospay/contracts';
-import { useEffect, useState } from 'react';
 
 // اسم ثابت واحد: المحاولة غير المحسومة بتعيش هنا خارج المكوّن، عشان إعادة تركيب الصفحة أو تبويب
 // تاني ما يقدروش يبعت مفتاح جديد ويعملوا شركة تانية والطلب الأول لسه شغال على السيرفر.
@@ -77,26 +76,4 @@ export function isUndecided(error: unknown): boolean {
   const status = (error as { status?: unknown }).status;
   if (typeof status !== 'number') return true;
   return status >= 500 || status === 408 || status === 409 || status === 429;
-}
-
-/** بيقرا المحاولة المخزّنة، يتبع كتابة تبويب تاني عبر حدث storage، ويعيد القراءة كل ما الطلب يستقر. */
-export function useStoredAttempt(
-  userId: string | undefined,
-  isPending: boolean,
-  isSuccess: boolean,
-  isError: boolean,
-): StoredAttempt | null {
-  const [stored, setStored] = useState<StoredAttempt | null>(() => readAttempt(userId));
-  useEffect(() => {
-    setStored(readAttempt(userId));
-  }, [isError, isPending, isSuccess, userId]);
-  useEffect(() => {
-    if (userId === undefined) return undefined;
-    const onStorage = (event: StorageEvent) => {
-      if (event.key === ATTEMPT_STORAGE_NAME || event.key === null) setStored(readAttempt(userId));
-    };
-    window.addEventListener('storage', onStorage);
-    return () => window.removeEventListener('storage', onStorage);
-  }, [userId]);
-  return stored;
 }
