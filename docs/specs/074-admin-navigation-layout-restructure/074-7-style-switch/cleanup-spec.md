@@ -43,7 +43,35 @@ Stop and report if anything that stays needs a behaviour change, or if code plus
 
 ## Implementation notes
 
-*(filled by the implementer)*
+**Carried assertions checked before any deletion.** `git log` for `_frame/*-nav-item*` since 7b shows no file added after the carried-assertion table was written; the last addition is `ratings-nav-item` (#1228), whose row the release spec carries («Integration of main after #1228»). Every spec deleted here has its row in that table, including `dashboard-account` (whose `title` assertions are recorded there as not carried on purpose). Nothing was carried afresh and no carried test was edited.
+
+**Deleted (42 files, all by `git rm`, in four commits that each kept the gates green).**
+
+- `dashboard-sidebar.tsx` first (the only mounted-into-nothing importer), then `dashboard-navigation.tsx`, `staff-navigation.tsx` + `staff-navigation.spec.tsx`, then the 17 `*-nav-item.tsx` and their 12 specs, then the session and workspace leftovers. The plan's order (nav items first) was inverted for one reason: `staff-navigation` and `dashboard-navigation` import the nav items, so deleting the importers first keeps `tsc --noEmit` green after every commit.
+- Nav items with specs: `alert-rules`, `attendance-board`, `attendance-report`, `business-identity`, `commission-plans`, `employee-app-link`, `imported-refunds`, `leave-report`, `ratings`, `session-day`, `session`, `staff-app-columns`. Nav items with no spec (assertions carried from code in 7b): `attendance-actions`, `attendance-statement`, `catalog`, `company-employee-numbers`, `package-sale`.
+- Session and workspace parts whose only importers were the deleted sidebar/enrol page (searches recorded before each deletion): `src/session/ui/enrol-link.tsx`, `src/session/ui/sign-out-button.tsx` (the whole component went, so the «sidebar tone» question disappears with it), `src/session/pages/enrol-page.tsx` + `src/session/pages/enrol-gate.tsx` (item 4 of «In scope»; neither has a spec), `src/shared/frame/app-frame.tsx` (the `apps/pos` hits in the search are pos's own file of the same relative path), `src/workspace/ui/workspace-selector.tsx` + `workspace-selector.spec.tsx`, and `src/workspace/ui/select-field.tsx` + `branch-label.tsx`, which only the deleted selector and its spec imported.
+
+**Left in place, with the reason.**
+
+- `_frame/two-factor-gate.tsx` and its session read — live (R2 of the 7b correction round); untouched.
+- `_frame/dashboard-mocks.tsx`, `dashboard-test-support.tsx`, `bell-probe.tsx`, `passthrough-provider.tsx` — live test helpers of the frame specs.
+- `src/session/pages/two-factor-page.tsx` (used by `app/login/two-factor/page.tsx`), `guest-frame.tsx` and the rest of `src/session/**` — not old-sidebar parts, importers live.
+- `src/session/nav.ts` and `src/workspace/nav.ts` / `nav-types.ts` — the model's source data, consumed by `navigation-model.ts` and the frames.
+- Three stale text references that the boundary rules of this slice forbid touching, left for a later docs-cleanup: the Arabic comment «كما في business-identity-nav-item» in `_frame/menu/use-visibility-conditions.ts` (menu production file), the mention of `WorkspaceSelector` in the comment of `_frame/frames/frame-workspace-switcher.tsx` (frames area), and the «(was …-nav-item.spec)» describe names in the carried specs, which are historical labels, not imports.
+
+**i18n:** catalogs untouched — the i18n suite has no unused-key gate, so item 5's condition never fires.
+
+**Commission page specs** (item 3). In `commission-plans-page.spec.tsx` and `commission-overrides-page.spec.tsx` the only change is the import and the two render sites each (`renderScreen` and the identity-switch rerender): `<CommissionPlansNavItem />` became `<VisibleIdsProbe />` (`_frame/menu/visible-ids-probe.tsx`), the test-only renderer of the real `useVisiblePageIds`. The probe lists the two entries as links by the same label keys and routes (`commissionPlanBuilder.navTitle` → `/commissions/plans`, `commissionOverrides.navTitle` → `/commissions/overrides`) because the model entries carry the same condition `commission-plans-access`, computed from the same query keys (`usePlanAccess`, `useCommissionPlanEmployees`) the page uses — so every existing assertion keeps its subject: the denial hidden/reshown-link assertions (`queryByRole('link', { name: …navTitle })` in CM-13, P1-1a, P1-1b, P1-2i, P1-2ii, the 503/403/404/500 shapes, and «nav and page share one access state: deny reaches the nav through the page client» with its `href` check) now assert the model-driven entry; no assertion text was changed, weakened or dropped, and the 22 tests pass.
+
+**Carry-overs.**
+
+1. *Not-found recovery.* `dashboard-content.tsx` now wraps the page in a `Fragment` keyed by `${companyId}:${businessId}` for the two routes that decide «not found» locally (`/approvals`, `/soon/<page>`; constant `REMOUNTS_ON_WORKSPACE_CHANGE`). The key sits in `DashboardContent` — above Next's not-found boundary in the layout's children slot — so a workspace switch remounts the boundary and the route re-decides at the same address. The doc comment states the why. Tests: `approvals-route.spec.tsx` «shows the inbox again after a workspace without it and back, at the same address» and `soon-route.spec.tsx` «shows the Under development page again after a salon without the entry and back at the same address» (new helper `enterWorkspaceAt` in `dashboard-test-support.tsx` picks a selection with distinct ids so the key really changes). Mutation check: replacing the keyed fragment with plain `children` fails exactly those two tests; the restored code passes.
+2. *Empty-group redirect test.* `overview-route.spec.tsx` «sends a group with nothing visible to Home» now also asserts the visible outcome while redirecting: the loading status (`role="status"`, `admin.loading`) and no overview content (the team heading absent). No existing assertion changed.
+3. *Release spec wording.* «In scope» item 3's parenthetical («the layout's `SessionGate` already does both; do not read the session twice») reworded to what shipped: the gate is the page's own server component (`_frame/two-factor-gate.tsx`) because a layout is not re-rendered on client navigation.
+
+**Gates on head `00611580e` + docs commits** (all real runs): `tsc --noEmit` clean after every commit; `eslint .` in `apps/admin`: 0 errors, 27 warnings (all pre-existing in untouched files; the seven files this slice changed lint clean); `pnpm lint:docs` 0 errors, 30 warnings (pre-existing `TODO` notices); `pnpm module-map:check` ok; `pnpm --filter @pospay/admin test` 386 files / 3,236 tests passing (one earlier run flaked two 5-second timeouts in files this slice never touched — `frames/style-a-frame.spec.tsx` «is on every not-built page…» and `src/orders/ui/session-draft-lines.spec.tsx` «caps draft rows at twenty…»; both pass alone, and the final full run passed everything); `pnpm build` in `apps/admin` passes, every dashboard route still `ƒ` dynamic.
+
+**Size** (`git diff --numstat origin/main...HEAD`, docs excluded): +98 −2,074 = 2,172 added plus removed lines of code and tests, against an estimate of 1,700 and the 2,600 stop threshold (spec cap 3,400). Docs: +69 −4 across the spec copy, this file's notes, `release-spec.md` item 3 and `pr-sequence.md`.
 
 ## Carry-overs from the 7b reviews (small, in scope)
 
