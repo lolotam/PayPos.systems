@@ -14,6 +14,11 @@ export function ratingsKey(companyId: string, userId: string, businessId: string
   return ['ratings', companyId, userId, businessId] as const;
 }
 
+/** الجيل الأول بلا لاحقة، فمفاتيح الكاش القائمة تفضل زي ما هي؛ كل جيل بعده مفتاح مستقل بلا حالة قديمة. */
+export function epochSuffix(epoch: number): readonly number[] {
+  return epoch > 0 ? [epoch] : [];
+}
+
 export async function readRatingsPage(
   companyId: string,
   businessId: string,

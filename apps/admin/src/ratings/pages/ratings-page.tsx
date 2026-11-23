@@ -3,10 +3,9 @@
 import type { WorkspaceBusinessRead } from '@pospay/contracts';
 import { t } from '@pospay/i18n';
 import { PageHeader } from '@pospay/ui';
-import { useMemo, useState } from 'react';
+import { useState } from 'react';
 import { readAccessProof } from '@/shared/api/read-access-proof';
 import { useLocale } from '@/shared/locale/locale-context';
-import { ratingsKey } from '../api/ratings-client';
 import { useRatingAverages } from '../api/use-rating-averages';
 import { useRatingsList } from '../api/use-ratings-list';
 import {
@@ -15,7 +14,7 @@ import {
   initialRatingsFilters,
   listRange,
 } from '../model/ratings-filters';
-import { useRatingsGate } from '../model/use-ratings-gate';
+import { firstEpochs, useRatingsGate } from '../model/use-ratings-gate';
 import { useRatingsMonth } from '../model/use-ratings-month';
 import { RatingAveragesPanel } from '../ui/rating-averages-panel';
 import { RatingsFiltersBar } from '../ui/ratings-filters';
@@ -33,7 +32,14 @@ export function RatingsPage({
 }) {
   const locale = useLocale();
   const [filters, setFilters] = useState(initialRatingsFilters);
-  const averages = useRatingAverages(companyId, userId, business.id, averagesQuery(filters));
+  const [epochs, setEpochs] = useState(firstEpochs);
+  const averages = useRatingAverages(
+    companyId,
+    userId,
+    business.id,
+    averagesQuery(filters),
+    epochs.averages,
+  );
   const month = useRatingsMonth(averages, filters.month);
   // أسماء الموظفات من قراءة ناجحة في الزيارة الحالية فقط، مش من الكاش.
   const employees = readAccessProof(averages) === 'granted' ? (averages.data?.items ?? []) : [];
@@ -44,12 +50,9 @@ export function RatingsPage({
     business.id,
     listRange(filters, month),
     employeeId,
+    epochs.list,
   );
-  const scope = useMemo(
-    () => ratingsKey(companyId, userId, business.id),
-    [companyId, userId, business.id],
-  );
-  const gate = useRatingsGate(scope, averages, list);
+  const gate = useRatingsGate(averages, list, epochs, setEpochs);
   const open = gate === 'open';
   // شهر مجهول بعد فشل المتوسطات: القائمة ما بتقرأش، وخطأ المتوسطات هو اللي بيتعرض.
   const listWaiting = month === null && readAccessProof(averages) !== 'pending';

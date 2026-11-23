@@ -1,91 +1,109 @@
 'use client';
 
-import { useQueryClient } from '@tanstack/react-query';
-import { useEffect, useState } from 'react';
+import { type Dispatch, type SetStateAction, useState } from 'react';
 import { readAccessProof } from '@/shared/api/read-access-proof';
 
 type Read = Parameters<typeof readAccessProof>[0] & {
   data: unknown;
   isFetching: boolean;
-  refetch: () => unknown;
+  errorUpdateCount: number;
+  errorUpdatedAt: number;
 };
 
-/** القراءات اللي لازم تتبدأ من جديد بعد الإلغاء: كل قراءة كانت بتتقرأ أو معروضة وقت ما الرفض اتلاحظ. */
-interface Reread {
-  averages: boolean;
-  list: boolean;
+/** جيل كل قراءة: جزء من مفتاح الاستعلام، فزيادته بتبدأ قراءة جديدة تمامًا بلا أي بيانات أو طلب شغال من القديمة. */
+export interface RatingsEpochs {
+  averages: number;
+  list: number;
 }
 
-/** البيانات اللي كانت مع كل قراءة وقت بداية الرفض: أي بيانات ماسكاها لسه نفس الكائن ما اتقرتش من جديد بعد الرفض. */
+export const firstEpochs: RatingsEpochs = { averages: 0, list: 0 };
+
+/** ما تحفظه البوابة عن قراءة واحدة. */
+interface ReadSeal {
+  /** علامة آخر رفض اتلاحظ للقراءة دي؛ بتتغير مع كل رفض جديد حتى لو الصفحة مرفوضة أصلًا. */
+  mark: string | null;
+  /** القراءة اتبدلت بعد رفض وكانت ماسكة بيانات: الصفحة بتستنى قراءتها الجديدة ولا تعرض حاجة قبلها. */
+  owed: boolean;
+}
+
 interface Seal {
-  refused: boolean;
-  averages: unknown;
-  list: unknown;
-  reread: Reread;
+  averages: ReadSeal;
+  list: ReadSeal;
 }
 
 const unsealed: Seal = {
-  refused: false,
-  averages: undefined,
-  list: undefined,
-  reread: { averages: false, list: false },
+  averages: { mark: null, owed: false },
+  list: { mark: null, owed: false },
 };
 
-function readBeforeRefusal(query: Read, sealed: unknown): boolean {
-  return readAccessProof(query) === 'granted' && query.data !== undefined && query.data === sealed;
+/** علامة الرفض: رقم الجيل مع عدّاد وتوقيت آخر خطأ، فكل 401/403 جديد له علامة جديدة وعودة الحالة بالإلغاء لنفس العلامة مش رفض جديد. */
+function denialMark(query: Read, epoch: number): string | null {
+  return readAccessProof(query) === 'refused'
+    ? `${epoch}:${query.errorUpdateCount}:${query.errorUpdatedAt}`
+    : null;
 }
 
-/** القراءة اللي اترفضت هي دليل الرفض نفسه فما تتعادش؛ أي تانية معروضة أو شغالة بنعتبرها بدأت قبل الرفض. */
-function needsReread(query: Read): boolean {
-  const proof = readAccessProof(query);
-  return proof === 'granted' || (proof !== 'refused' && query.isFetching);
+/** كل قراءة ماسكة بيانات أو شغالة بتتبدل، إلا قراءة مرفوضة واقفة: هي دليل الرفض نفسه وأي نجاح ليها طلب جديد أصلًا. */
+function mustRestart(query: Read): boolean {
+  const idleDenial = readAccessProof(query) === 'refused' && !query.isFetching;
+  return !idleDenial && (query.data !== undefined || query.isFetching);
 }
+
+function sealRead(prev: ReadSeal, query: Read, mark: string | null, restart: boolean): ReadSeal {
+  const waiting = readAccessProof(query) === 'pending' && query.isFetching;
+  return {
+    mark: mark ?? prev.mark,
+    owed: restart ? query.data !== undefined : prev.owed && waiting,
+  };
+}
+
+const isNew = (mark: string | null, seen: string | null) => mark !== null && mark !== seen;
+
+const sameRead = (a: ReadSeal, b: ReadSeal) => a.mark === b.mark && a.owed === b.owed;
 
 /**
- * قاعدة الوصول واحدة للمسارين (المتوسطات والقائمة)، فرفض (401/403) من أي واحد منهم رفض للصفحة كلها: ما يظهرش لا متوسطات ولا
- * تعليقات، حتى لو القراءة التانية لسه ناجحة من قبل الرفض أو فشلت فشل عابر. وبعد ما الرفض يتشال، أي قراءة كانت قبله بتتعاد
- * ولا تظهر إلا بعد قراءة ناجحة جديدة.
+ * قاعدة الوصول واحدة للمسارين (المتوسطات والقائمة)، فرفض (401/403) من أي واحد منهم رفض للصفحة كلها: رسالة رفض واحدة، وما
+ * يظهرش لا متوسطات ولا تعليقات، حتى لو القراءة التانية لسه ناجحة من قبل الرفض أو فشلت فشل عابر.
  *
- * لحظة ما الرفض يتلاحظ بنلغي كل القراءات الشغالة في نطاق الصفحة ونبدأها من جديد، حتى القراءة الأولى اللي ما لهاش بيانات
- * لسه: ردّ طلب بدأ قبل الرفض ممكن الخادم قيّمه بنطاق أوسع، ولو سبناه يكمّل كان هيظهر لما الرفض يتشال.
+ * القاعدة: بعد أي رفض يتلاحظ، ما يظهرش أي حاجة اتطلبت قبله. يعني لا صفحات قديمة (حتى لو الصفحة التالية فشلت أو كانت شغالة)،
+ * ولا قراءة أولى أو صفحة تالية أو إعادة محاولة كانت شغالة، ولا قراءة خلصت بين الرسم والتأثير. وكل رفض جديد بيجدّد الحاجز حتى لو
+ * الصفحة مرفوضة أصلًا، لأن علامة كل قراءة بتتغير مع كل رفض مش مع تحوّل الصفحة من مفتوحة لمرفوضة.
  *
- * @param scope مفتاح نطاق استعلامات الصفحة (`ratingsKey`) لإلغاء قراءاتها
+ * التنفيذ بإسقاط الحالة مش بتتبع الكائنات: لحظة ما الرفض يتلاحظ، وفي نفس الرسم قبل ما يتعرض، بنزوّد جيل كل قراءة ماسكة بيانات
+ * أو شغالة، فمفتاحها بيتغير وتبدأ قراءة جديدة من أول صفحة، والمفتاح القديم ما حدش بيراقبه فأي رد ليه يقع في كاش ما بيتعرضش.
+ * مفيش تأثير جانبي متأخر، فمفيش لحظة بين الملاحظة والتنفيذ. القراءة المرفوضة الواقفة هي الوحيدة اللي بتتساب: هي دليل الرفض،
+ * وأي نجاح ليها بعد كده طلب جديد أصلًا. وبعد ما الرفض يتشال، القراءة اللي كانت ماسكة بيانات بتفضل `rereading` لحد ما
+ * قراءتها الجديدة تخلص.
+ *
  * @param averages حالة استعلام المتوسطات
  * @param list حالة استعلام القائمة
- * @returns `refused` رسالة رفض واحدة، `rereading` بانتظار إعادة قراءة، وإلا `open`
+ * @param epochs جيل القراءتين الحالي (حالة الصفحة، لأنه جزء من مفتاحي الاستعلامين)
+ * @param setEpochs تعديل الأجيال لما رفض جديد يتلاحظ
+ * @returns `refused` رسالة رفض واحدة، `rereading` بانتظار قراءة جديدة لبيانات اتشالت، وإلا `open`
  */
 export function useRatingsGate(
-  scope: readonly unknown[],
   averages: Read,
   list: Read,
+  epochs: RatingsEpochs,
+  setEpochs: Dispatch<SetStateAction<RatingsEpochs>>,
 ): 'open' | 'refused' | 'rereading' {
-  const queryClient = useQueryClient();
-  const refused = readAccessProof(averages) === 'refused' || readAccessProof(list) === 'refused';
   const [seal, setSeal] = useState<Seal>(unsealed);
-  if (refused !== seal.refused)
-    setSeal(
-      refused
-        ? {
-            refused: true,
-            averages: averages.data,
-            list: list.data,
-            reread: { averages: needsReread(averages), list: needsReread(list) },
-          }
-        : { ...seal, refused: false },
-    );
-  const staleAverages = readBeforeRefusal(averages, seal.averages);
-  const staleList = readBeforeRefusal(list, seal.list);
-  const { refused: sealed, reread } = seal;
-  const refetchAverages = averages.refetch;
-  const refetchList = list.refetch;
-  // الإلغاء بيرجّع القراءة لحالتها قبل الطلب (قراءة أولى بلا بيانات بتفضل واقفة)، وإعادة القراءة بعده بتبدأ طلب جديد بعد الرفض.
-  useEffect(() => {
-    if (!sealed) return;
-    void queryClient.cancelQueries({ queryKey: scope }).then(() => {
-      if (reread.averages) void refetchAverages();
-      if (reread.list) void refetchList();
+  const averagesMark = denialMark(averages, epochs.averages);
+  const listMark = denialMark(list, epochs.list);
+  const denied = isNew(averagesMark, seal.averages.mark) || isNew(listMark, seal.list.mark);
+  const restartAverages = denied && mustRestart(averages);
+  const restartList = denied && mustRestart(list);
+  const next: Seal = {
+    averages: sealRead(seal.averages, averages, averagesMark, restartAverages),
+    list: sealRead(seal.list, list, listMark, restartList),
+  };
+  if (!sameRead(seal.averages, next.averages) || !sameRead(seal.list, next.list)) setSeal(next);
+  if (restartAverages || restartList)
+    setEpochs({
+      averages: epochs.averages + (restartAverages ? 1 : 0),
+      list: epochs.list + (restartList ? 1 : 0),
     });
-  }, [sealed, reread, scope, queryClient, refetchAverages, refetchList]);
-  if (refused) return 'refused';
-  return staleAverages || staleList ? 'rereading' : 'open';
+  if (readAccessProof(averages) === 'refused' || readAccessProof(list) === 'refused')
+    return 'refused';
+  return next.averages.owed || next.list.owed ? 'rereading' : 'open';
 }
