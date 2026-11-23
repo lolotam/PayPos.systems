@@ -4,6 +4,7 @@ import {
   attendanceReportEn,
 } from './attendance-actions-catalog.js';
 import { staffDuplicateNameEn } from './staff-duplicate-name-catalog.js';
+import { staffAccessAdminEn } from './staff-access-admin-catalog.js';
 import { attendanceChangeEn } from './attendance-change.js';
 import { inAppEn } from './in-app-catalog.js';
 import { permissionCodesEn } from './permission-codes-catalog.js';
@@ -296,6 +297,7 @@ export const en = {
   },
   staff: {
     ...staffDuplicateNameEn,
+    ...staffAccessAdminEn,
     ...employeeNumberAdminEn,
     listTitle: 'Employees',
     listLead: 'Manage employee records and working branches.',

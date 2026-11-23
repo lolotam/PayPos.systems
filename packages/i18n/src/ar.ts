@@ -4,6 +4,7 @@ import {
   attendanceReportAr,
 } from './attendance-actions-catalog.js';
 import { staffDuplicateNameAr } from './staff-duplicate-name-catalog.js';
+import { staffAccessAdminAr } from './staff-access-admin-catalog.js';
 import { attendanceChangeAr } from './attendance-change.js';
 import { inAppAr } from './in-app-catalog.js';
 import { catalogPackageTypesAr, packageTypeErrorsAr } from './catalog-package-types.js';
@@ -290,6 +291,7 @@ export const ar: Catalog = {
   },
   staff: {
     ...staffDuplicateNameAr,
+    ...staffAccessAdminAr,
     ...employeeNumberAdminAr,
     listTitle: 'الموظفون',
     listLead: 'أدر بيانات الموظفين وفروع العمل.',
