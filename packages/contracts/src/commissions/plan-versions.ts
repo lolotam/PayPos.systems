@@ -68,7 +68,7 @@ export const commissionPlanDate = z.iso
   .date()
   .regex(/^(?!0000)/)
   .meta({ id: 'CommissionPlanDate' });
-const commissionRepairPeriod = z
+export const commissionRepairPeriod = z
   .string()
   .regex(/^(?!0000-)[0-9]{4}-(0[1-9]|1[0-2])$/)
   .meta({ id: 'CommissionRepairPeriod' });
@@ -115,6 +115,7 @@ export const commissionPlanVersionListQuery = z
   .strictObject({
     cursor: z.coerce.number().int().min(1).max(COMMISSION_PLAN_VERSION_CURSOR_MAX).optional(),
     limit: z.coerce.number().int().min(1).max(100).default(20),
+    kind: z.enum(['ordinary']).optional(),
   })
   .meta({ id: 'CommissionPlanVersionListQuery' });
 
