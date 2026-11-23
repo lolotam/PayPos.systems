@@ -155,6 +155,35 @@ describe('style A More sheet, current section and focus', () => {
     expect(screen.queryByRole('dialog')).toBeNull();
   });
 
+  it.each([
+    ['visible', false],
+    ['hidden', true],
+  ])(
+    'ignores an earlier %s aside outside the frame when choosing the focus target',
+    async (_state, hidden) => {
+      frameState.pathname = '/staff';
+      renderFrame(
+        <>
+          <aside hidden={hidden}>
+            <a href="/elsewhere" aria-current="page">
+              Other section
+            </a>
+          </aside>
+          <StyleAFrame>Page body</StyleAFrame>
+        </>,
+      );
+      moreButton().focus();
+      fireEvent.click(moreButton());
+      resizeTo(820);
+      const sidebar = screen.getByRole('navigation', { name: label('shell.navigation') });
+      await waitFor(() =>
+        expect(document.activeElement).toBe(
+          within(sidebar).getByRole('link', { name: label('adminNav.groupATeam') }),
+        ),
+      );
+    },
+  );
+
   it('does not mark More while the current page is on the bottom bar', () => {
     frameState.pathname = '/staff';
     renderFrame(<StyleAFrame>Page body</StyleAFrame>);

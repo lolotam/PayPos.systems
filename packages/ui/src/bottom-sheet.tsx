@@ -51,7 +51,7 @@ export function BottomSheet({
           onCloseAutoFocus={(event) => {
             event.preventDefault();
             const active = document.activeElement;
-            if (active instanceof HTMLElement && active !== document.body) return;
+            if (active !== null && active !== document.body) return;
             const target = closeFocusTarget?.() ?? openerRef?.current ?? opener.current;
             if (target instanceof HTMLElement && target.isConnected) target.focus();
           }}

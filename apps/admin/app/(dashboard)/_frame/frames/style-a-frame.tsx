@@ -2,7 +2,7 @@
 
 import { t } from '@pospay/i18n';
 import { BrandLockup, BrandMark, CollapsibleSidebar, NavTabs, Pills } from '@pospay/ui';
-import { useMemo, type ReactNode } from 'react';
+import { useMemo, useRef, type ReactNode } from 'react';
 
 import { useLocale } from '@/shared/locale/locale-context';
 
@@ -29,12 +29,13 @@ export function StyleAFrame({ children }: { children: ReactNode }) {
   const labels = useFrameLabels();
   const ctx = useMenuContext();
   const navigationKey = useNavigationKey();
+  const frameRef = useRef<HTMLDivElement>(null);
   const view = useMemo(() => buildStyleAView(ctx), [ctx]);
   // صف التبويب الوحيد يُخفى إلا إذا حمل علامة «قريبًا»: هو الرابط المرئي الذي يوصل إلى الصفحة غير المبنية.
   const showTabs = view.tabs.length > 1 || view.tabs.some((tab) => tab.status !== undefined);
   return (
     <>
-      <div className="group relative flex min-h-dvh">
+      <div ref={frameRef} className="group relative flex min-h-dvh">
         <FrameChrome>
           <CollapsibleSidebar
             title={labels.chrome.navigation}
@@ -74,7 +75,7 @@ export function StyleAFrame({ children }: { children: ReactNode }) {
           </main>
         </div>
       </div>
-      <PhoneBar view={view} routeKey={navigationKey} />
+      <PhoneBar view={view} routeKey={navigationKey} frameRef={frameRef} />
     </>
   );
 }

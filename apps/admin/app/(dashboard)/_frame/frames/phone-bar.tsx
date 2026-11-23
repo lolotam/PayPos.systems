@@ -1,7 +1,7 @@
 'use client';
 
 import { BottomNav } from '@pospay/ui';
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, type RefObject } from 'react';
 
 import type { StyleAView } from '../menu/style-views';
 import { FrameChrome } from './frame-chrome';
@@ -13,9 +13,10 @@ import { useRouteScopedState } from './use-route-scoped-state';
 const PHONE_QUERY = '(width < 600px)';
 
 // بعد تجاوز عرض الهاتف يختفي زر «المزيد» بـ CSS، فيذهب التركيز إلى رابط القسم الحالي في الشريط الجانبي الظاهر.
-const visibleSectionLink = () =>
-  document.querySelector<HTMLElement>('aside a[aria-current="page"]') ??
-  document.querySelector<HTMLElement>('aside a[href]');
+// البحث داخل جذر الإطار لا في المستند كله: صفحة أو تخطيط قد يرسمان <aside> قبله فيأخذ رابطه التركيز خطأً.
+const visibleSectionLink = (frame: HTMLElement | null) =>
+  frame?.querySelector<HTMLElement>('aside a[aria-current="page"]') ??
+  frame?.querySelector<HTMLElement>('aside a[href]');
 
 /**
  * الشريط السفلي لهاتف النمط A: أربعة أقسام و«المزيد» الذي يفتح ورقة بقية الأقسام.
@@ -23,12 +24,20 @@ const visibleSectionLink = () =>
  * عند عبور عرض الهاتف: الشريط وزره يختفيان بـ CSS لكن Radix يُبقي الورقة والغطاء في body فتغطّيان واجهة التابلت.
  * الزر الذي ضُغط يُسجَّل ليعود إليه التركيز، فالضغط قد لا ينقل التركيز إليه.
  */
-export function PhoneBar({ view, routeKey }: { view: StyleAView; routeKey: string }) {
+export function PhoneBar({
+  view,
+  routeKey,
+  frameRef,
+}: {
+  view: StyleAView;
+  routeKey: string;
+  frameRef: RefObject<HTMLElement | null>;
+}) {
   const labels = useFrameLabels();
   const phone = useMediaQuery(PHONE_QUERY);
   const [moreOpen, setMoreOpen] = useRouteScopedState(routeKey, false);
   const openerRef = useRef<HTMLButtonElement>(null);
-  const closeFocusTarget = () => (phone ? undefined : visibleSectionLink());
+  const closeFocusTarget = () => (phone ? undefined : visibleSectionLink(frameRef.current));
   useEffect(() => {
     if (!phone) setMoreOpen(false);
   }, [phone, setMoreOpen]);

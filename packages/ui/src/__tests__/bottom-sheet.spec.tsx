@@ -4,19 +4,27 @@ import { expect, it } from 'vitest';
 import { BottomSheet } from '../bottom-sheet.js';
 import { DirectionProvider } from '../direction-provider.js';
 
-function Host({ dir = 'ltr' }: { dir?: 'ltr' | 'rtl' }) {
+function Host({
+  dir = 'ltr',
+  destination = 'heading',
+}: {
+  dir?: 'ltr' | 'rtl';
+  destination?: 'heading' | 'svg';
+}) {
   const [open, setOpen] = useState(false);
   const openerRef = useRef<HTMLButtonElement>(null);
-  const destinationRef = useRef<HTMLHeadingElement>(null);
+  const headingRef = useRef<HTMLHeadingElement>(null);
+  const svgRef = useRef<SVGSVGElement>(null);
   const [navigated, setNavigated] = useState(false);
   useEffect(() => {
-    if (navigated) destinationRef.current?.focus();
-  }, [navigated]);
+    if (navigated) (destination === 'svg' ? svgRef : headingRef).current?.focus();
+  }, [navigated, destination]);
   return (
     <DirectionProvider dir={dir}>
-      <h1 ref={destinationRef} tabIndex={-1}>
+      <h1 ref={headingRef} tabIndex={-1}>
         Destination
       </h1>
+      <svg ref={svgRef} tabIndex={-1} aria-label="Graphic destination" />
       <input aria-label="Outside field" />
       <button ref={openerRef} type="button" onClick={() => setOpen(true)}>
         More
@@ -103,11 +111,17 @@ it('returns focus to the button that opened it even when the click did not move 
   expect(document.activeElement).not.toBe(field);
 });
 
-it('leaves focus on the destination that took it while the sheet closed after a navigation', async () => {
-  render(<Host />);
-  fireEvent.click(screen.getByRole('button', { name: 'More' }));
-  fireEvent.click(screen.getByRole('link', { name: 'Reports' }));
-  expect(screen.queryByRole('dialog')).toBeNull();
-  await new Promise((resolve) => setTimeout(resolve, 20));
-  expect(document.activeElement).toBe(screen.getByRole('heading'));
-});
+it.each([
+  ['heading', () => screen.getByRole('heading')],
+  ['svg', () => screen.getByLabelText('Graphic destination')],
+] as const)(
+  'leaves focus on the %s destination that took it while the sheet closed after a navigation',
+  async (destination, expected) => {
+    render(<Host destination={destination} />);
+    fireEvent.click(screen.getByRole('button', { name: 'More' }));
+    fireEvent.click(screen.getByRole('link', { name: 'Reports' }));
+    expect(screen.queryByRole('dialog')).toBeNull();
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    expect(document.activeElement).toBe(expected());
+  },
+);
