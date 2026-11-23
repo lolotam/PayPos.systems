@@ -84,7 +84,7 @@ export async function memberWithGrants(
     const role = ids.newId();
     const membership = ids.newId();
     await f.h.owner`INSERT INTO roles(id,company_id,code,name_en)
-      VALUES (${role},${f.company},${`statement_${label}_${index}_${role.slice(-8)}`},'Statement test role')`;
+      VALUES (${role},${f.company},${roleCode(label, role)},'Statement test role')`;
     await f.h.owner`INSERT INTO role_permissions(role_id,role_owner_key,company_id,permission_code)
       VALUES (${role},${f.company},${f.company},${grant.permission})`;
     await f.h.owner`INSERT INTO memberships(
@@ -94,6 +94,14 @@ export async function memberWithGrants(
     membershipIds.push(membership);
   }
   return { cookie, userId, membershipIds };
+}
+
+/** كود دور صالح لقيد roles_code_format: حروف صغيرة وشرطة سفلية بس، فالمعرّف بيتحوّل لحروف. */
+function roleCode(label: string, roleId: string): string {
+  const suffix = [...roleId.slice(-8).replaceAll('-', '')]
+    .map((digit) => String.fromCharCode(97 + Number.parseInt(digit, 16)))
+    .join('');
+  return `statement_${label.replaceAll('-', '_')}_${suffix}`;
 }
 
 /** معرّف النطاق: النشاط، أو أحد فرعيه. */

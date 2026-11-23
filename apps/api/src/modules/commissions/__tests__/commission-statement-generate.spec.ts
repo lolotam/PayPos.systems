@@ -70,7 +70,7 @@ describe('CM-27 generating a month that has ended', () => {
 
   it('never puts a phone number or an amount into the audit entry', async () => {
     const [entry] = await f.h.owner`SELECT after FROM audit_log
-      WHERE action='commission_statement.generated' ORDER BY created_at DESC LIMIT 1`;
+      WHERE action='commission_statement.generated' ORDER BY at DESC LIMIT 1`;
     expect(Object.keys(entry?.['after'] as object).sort()).toEqual([
       'input_fingerprint',
       'period',
