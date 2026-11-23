@@ -3,8 +3,9 @@ import { screen, within } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { ApprovalsRoute } from './approvals-route';
-import { renderDashboard, resetDashboardState } from './dashboard-test-support';
+import { enterWorkspace, renderDashboard, resetDashboardState } from './dashboard-test-support';
 import { frameState, resetFrameState, stubViewport } from './frames/frame-test-support';
+import { NotFoundProbe } from './frames/not-found-probe';
 
 const inbox = vi.hoisted(() => ({
   value: {
@@ -95,3 +96,35 @@ describe('the Approvals inbox route', () => {
     ).toBe('page');
   });
 });
+
+describe('the Approvals inbox by its direct address', () => {
+  it.each(['owner', 'general_manager', 'business_manager', 'branch_manager'])(
+    'opens for the %s',
+    (role) => {
+      enterWorkspace('salon', role);
+      renderDashboard(
+        <NotFoundProbe>
+          <ApprovalsRoute />
+        </NotFoundProbe>,
+      );
+      expect(
+        main().getByRole('heading', { level: 1, name: label('adminNavPages.approvalsInbox') }),
+      ).toBeTruthy();
+    },
+  );
+
+  it.each(['cashier', 'accountant', 'viewer', 'custom_admin'])(
+    'shows not found to the %s, as the menu and the Soon address do',
+    (role) => {
+      enterWorkspace('salon', role);
+      renderDashboard(
+        <NotFoundProbe>
+          <ApprovalsRoute />
+        </NotFoundProbe>,
+      );
+      expect(screen.getByText('Not found')).toBeTruthy();
+      expect(screen.queryByRole('heading', { name: label('adminNavPages.approvalsInbox') })).toBeNull();
+    },
+  );
+});
+

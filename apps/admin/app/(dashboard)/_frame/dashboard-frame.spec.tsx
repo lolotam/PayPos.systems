@@ -235,13 +235,13 @@ describe('reaching a page behind More on a phone in style A', () => {
 });
 
 describe('the workspace switcher that the browser tests open', () => {
-  // الأسلوب B يرسم قبل المبدّل أزرار وحدات تفتح حوارات بنص أيضًا، فمحدد الاختبارات يخص C (الافتراضي) وA.
-  it.each(['A', 'C'] as const)(
-    'in style %s, the first dialog button with text opens the Workspaces dialog with a Company field',
+  // أزرار الوحدات في B تفتح حوارات بنص أيضًا لكنها داخل nav؛ محدد الاختبارات يستثني ما داخل nav.
+  it.each(['A', 'B', 'C'] as const)(
+    'in style %s, the first dialog button with text outside a nav opens the Workspaces dialog with a Company field',
     (style) => {
       renderDashboard(page(), style);
       const trigger = [...document.querySelectorAll('button[aria-haspopup="dialog"]')].find(
-        (button) => (button.textContent ?? '').trim() !== '',
+        (button) => (button.textContent ?? '').trim() !== '' && button.closest('nav') === null,
       );
       expect(trigger?.textContent).toContain('Synthetic business');
       fireEvent.click(trigger as Element);

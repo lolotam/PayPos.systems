@@ -93,7 +93,8 @@ describe('/soon/<page>', () => {
 
   it('forwards a built child entry to its parent list', () => {
     renderDashboard(route('customer-packages'));
-    expect(frameState.replace).toHaveBeenCalledTimes(1);
+    expect(frameState.replace).toHaveBeenCalledWith('/orders/service-sessions');
+    expect(frameState.pathname).toBe('/orders/service-sessions');
   });
 });
 

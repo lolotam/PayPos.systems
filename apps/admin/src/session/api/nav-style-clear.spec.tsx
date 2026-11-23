@@ -25,6 +25,9 @@ function storedStyle(): string | undefined {
     ?.split('=')[1];
 }
 
+// ما يراه المتصفح لحظة الانتقال نفسها: الكوكي يجب أن يكون ممسوحًا قبلها لا بعدها.
+let cookieAtNavigation: string | undefined = 'not navigated';
+
 function pickStyleB(): void {
   document.cookie = 'pospay_nav_style=B; Path=/';
   expect(storedStyle()).toBe('B');
@@ -33,6 +36,10 @@ function pickStyleB(): void {
 describe('the device navigation style around sign-in and sign-out', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    cookieAtNavigation = 'not navigated';
+    page.loadPage.mockImplementation(() => {
+      cookieAtNavigation = storedStyle();
+    });
     pickStyleB();
   });
   afterEach(clearNavStyleCookie);
@@ -41,8 +48,8 @@ describe('the device navigation style around sign-in and sign-out', () => {
     calls.signOutSession.mockResolvedValue(true);
     const { result } = renderHook(() => useSignOut());
     await act(() => result.current.submit());
-    expect(storedStyle()).toBeUndefined();
     expect(page.loadPage).toHaveBeenCalledWith('/login');
+    expect(cookieAtNavigation).toBeUndefined();
   });
 
   it('keeps the style when the server refused the sign-out', async () => {
@@ -58,8 +65,8 @@ describe('the device navigation style around sign-in and sign-out', () => {
     calls.signInWithPassword.mockResolvedValue('done');
     const { result } = renderHook(() => useSignIn());
     await act(() => result.current.submit({ email: 'a@b.co', password: 'x' }));
-    expect(storedStyle()).toBeUndefined();
     expect(page.loadPage).toHaveBeenCalledWith('/');
+    expect(cookieAtNavigation).toBeUndefined();
   });
 
   it('keeps the style while the password step only asks for the second factor', async () => {
@@ -82,8 +89,8 @@ describe('the device navigation style around sign-in and sign-out', () => {
     calls.verifyTotpCode.mockResolvedValue(undefined);
     const { result } = renderHook(() => useVerifyTotp());
     await act(() => result.current.submit({ code: '123456' }));
-    expect(storedStyle()).toBeUndefined();
     expect(page.loadPage).toHaveBeenCalledWith('/');
+    expect(cookieAtNavigation).toBeUndefined();
   });
 
   it('keeps the style when the second-factor code is refused', async () => {

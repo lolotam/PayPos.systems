@@ -52,7 +52,7 @@ const ATTENDANCE_PATHS = [
 
 function everythingVisible(): MenuContext {
   return {
-    translate: (key) => key,
+    translate: (key) => t('en', key),
     pathname: '/',
     visibleIds: frameState.visible,
   };
@@ -167,6 +167,27 @@ describe('catalog, sales and the entries that never had a read (was the nav item
         'attendance-statement',
       ]),
     );
+  });
+
+  it.each([
+    ['employees', 'staff.listTitle', '/staff'],
+    ['employee-numbers', 'companyEmployeeNumbers.title', '/staff/employee-numbers'],
+    ['attendance-board', 'attendanceBoard.title', '/staff/attendance'],
+    ['attendance-exceptions', 'attendanceActions.exceptions', '/staff/attendance-exceptions'],
+    ['attendance-requests', 'attendanceActions.requests', '/staff/attendance-requests'],
+    ['attendance-report', 'attendanceReport.title', '/staff/attendance-report'],
+    ['attendance-statement', 'attendanceStatementScreen.title', '/staff/attendance-statement'],
+    ['services', 'catalogServices.listTitle', '/catalog'],
+    ['categories', 'catalogServiceCategories.navTitle', '/catalog/categories'],
+    ['package-types', 'catalogPackageTypes.listTitle', '/catalog/package-types'],
+    ['sell-package', 'packageSale.navTitle', '/orders/package-sales/new'],
+    ['sessions-day-list', 'serviceLineEdit.title', '/orders/service-sessions'],
+    ['record-visit', 'serviceSessions.title', '/orders/service-sessions/new'],
+  ] as const)('names the %s entry and links it to its own address', (id, labelKey, href) => {
+    const pages = resolveTopLevels('C', everythingVisible())
+      .flatMap((item) => item.lists)
+      .flatMap((list) => list.pages);
+    expect(pages.find((page) => page.id === id)).toMatchObject({ label: t('en', labelKey), href });
   });
 
   it('links the day list and the reception entry at their own addresses', () => {

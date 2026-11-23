@@ -46,7 +46,7 @@ beforeEach(() => {
 });
 
 describe('alerts and notifications (was alert-rules-nav-item.spec)', () => {
-  const ID = 'alerts-and-notifications';
+  const ID = { label: 'alertRules.title', href: '/alert-rules' } as const;
   const rules = { business_id: REF, branch_id: null, alerts_enabled: true, rules: [] };
 
   it('is hidden while the business rules read is pending', () => {
@@ -83,7 +83,7 @@ describe('alerts and notifications (was alert-rules-nav-item.spec)', () => {
 });
 
 describe('business identity (was business-identity-nav-item.spec)', () => {
-  const ID = 'business-identity';
+  const ID = { label: 'businessIdentity.title', href: '/business-identity' } as const;
   const PATH = '/v1/businesses/{businessId}/settings/identity-capability';
 
   it('is hidden when the capability read says the caller cannot manage identity', async () => {
@@ -120,8 +120,11 @@ describe('business identity (was business-identity-nav-item.spec)', () => {
 });
 
 describe('commission plans and overrides (was commission-plans-nav-item.spec)', () => {
-  const PLANS = 'commission-plans';
-  const OVERRIDES = 'commission-overrides';
+  const PLANS = { label: 'commissionPlanBuilder.navTitle', href: '/commissions/plans' } as const;
+  const OVERRIDES = {
+    label: 'commissionOverrides.navTitle',
+    href: '/commissions/overrides',
+  } as const;
 
   it('hides both entries while the first employees page is pending', () => {
     carriedApi.GET.mockReturnValue(new Promise(() => undefined));
@@ -158,7 +161,7 @@ describe('commission plans and overrides (was commission-plans-nav-item.spec)', 
 });
 
 describe('staff app link (was employee-app-link-nav-item.spec)', () => {
-  const ID = 'staff-app-link';
+  const ID = { label: 'employeeAppLink.title', href: '/staff/employee-app-link' } as const;
 
   it('is shown when the guarded read succeeds', async () => {
     carriedApi.GET.mockResolvedValue({
@@ -182,7 +185,7 @@ describe('staff app link (was employee-app-link-nav-item.spec)', () => {
 });
 
 describe('imported refunds (was imported-refunds-nav-item.spec)', () => {
-  const ID = 'imported-refunds';
+  const ID = { label: 'importedRefunds.title', href: '/imported-refunds' } as const;
   const PATH = '/v1/businesses/{businessId}/settings/imported-refunds';
 
   it('is hidden while the guarded read is pending', () => {
@@ -217,7 +220,7 @@ describe('imported refunds (was imported-refunds-nav-item.spec)', () => {
 });
 
 describe('imported refunds, after a business switch or a refetch', () => {
-  const ID = 'imported-refunds';
+  const ID = { label: 'importedRefunds.title', href: '/imported-refunds' } as const;
   const PATH = '/v1/businesses/{businessId}/settings/imported-refunds';
 
   it('is hidden on switching to a previously cached business until its own read authorizes it', async () => {
@@ -257,7 +260,7 @@ describe('imported refunds, after a business switch or a refetch', () => {
 });
 
 describe('leave history report (was leave-report-nav-item.spec)', () => {
-  const ID = 'leave-history-report';
+  const ID = { label: 'leaveHistory.reportTitle', href: '/staff/leave-history' } as const;
 
   beforeEach(() => {
     carriedState.workspace = readyWorkspace(true, leaveId);
@@ -290,7 +293,7 @@ describe('leave history report (was leave-report-nav-item.spec)', () => {
 });
 
 describe('staff app columns (was staff-app-columns-nav-item.spec)', () => {
-  const ID = 'staff-app-columns';
+  const ID = { label: 'staffAppColumns.title', href: '/staff-app-columns' } as const;
   const settings = {
     business_id: REF,
     columns: ['date', 'time'],

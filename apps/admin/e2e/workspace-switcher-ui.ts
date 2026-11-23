@@ -9,12 +9,16 @@ async function documentLocale(root: Root): Promise<Locale> {
 
 /**
  * زر مبدّل مساحة العمل في الإطارات الثلاثة. اسمه المتاح هو الاسم التجاري والفرع (أو «اختر الشركة» قبل الاختيار)،
- * فلا اسم ثابت له. الذي يميّزه: يفتح حوارًا (`aria-haspopup="dialog"`) وعليه نص مرئي، بخلاف زر باحث الصفحات في
- * النمط C فأيقونته بلا نص. وهو في الإطار قبل `main` في ترتيب الصفحة في الأنماط الثلاثة، فـ `first()` لا يلتقط
- * زر حوار يرسمه محتوى الصفحة. هذا صحيح في C (الافتراضي بعد كل دخول) وA؛ في B تسبقه أزرار وحدات بنص فلا يصلح.
+ * فلا اسم ثابت له. الذي يميّزه: يفتح حوارًا (`aria-haspopup="dialog"`) وعليه نص مرئي وليس داخل `nav`.
+ * أزرار الوحدات في النمط B تفتح حوارات بنص أيضًا لكنها داخل `nav`، وزر باحث الصفحات في C وزر درج الهاتف في B
+ * أيقونتان بلا نص؛ فيبقى المبدّل وحده في الأنماط الثلاثة. وهو في الإطار قبل `main` في ترتيب الصفحة، فـ `first()` لا
+ * يلتقط زر حوار يرسمه محتوى الصفحة.
  */
 function switcherTrigger(root: Root): Locator {
-  return root.locator('button[aria-haspopup="dialog"]').filter({ hasText: /\S/u }).first();
+  return root
+    .locator('xpath=//button[@aria-haspopup="dialog"][not(ancestor::nav)]')
+    .filter({ hasText: /\S/u })
+    .first();
 }
 
 async function openSwitcher(root: Root, locale: Locale): Promise<Locator> {
