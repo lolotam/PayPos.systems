@@ -62,6 +62,8 @@ export function manualEnv(dropTimer: (ms: number) => boolean = () => false) {
   return { env, clock, advance, pending: () => timers.size };
 }
 
+let currentRoot: HTMLElement | undefined;
+
 export function build(dropTimer?: (ms: number) => boolean) {
   const time = manualEnv(dropTimer);
   const calls = {
@@ -76,9 +78,18 @@ export function build(dropTimer?: (ms: number) => boolean) {
   };
   const onLeave = vi.fn();
   const controller = new PrivateWindowController({ env: time.env, calls }, onLeave);
-  const stop = controller.start();
+  const detach = controller.start();
   const flush = () => new Promise((resolve) => setTimeout(resolve, 0));
-  return { ...time, calls, onLeave, controller, stop, flush };
+  // حاوية العرض الخاص الحقيقية في المستند: الإدخال بيتحسب بس لو هدفه جواها.
+  const root = document.createElement('div');
+  document.body.append(root);
+  controller.attachRoot(root);
+  currentRoot = root;
+  const stop = () => {
+    detach();
+    root.remove();
+  };
+  return { ...time, calls, onLeave, controller, stop, flush, root };
 }
 export type Built = ReturnType<typeof build>;
 
@@ -90,7 +101,9 @@ export const epochOf = (controller: PrivateWindowController): number => {
 export const submit = (t: Built, pin = '4321') =>
   t.controller.submitPin(pin, epochOf(t.controller));
 export const blur = () => window.dispatchEvent(new Event('blur'));
-export const keydown = () => document.dispatchEvent(new Event('keydown'));
+/** إدخال جوّا حاوية العرض الخاص (افتراضياً حاوية آخر `build`) أو في هدف تاني للتجربة. */
+export const keydown = (target: EventTarget = currentRoot ?? document) =>
+  target.dispatchEvent(new Event('keydown', { bubbles: true }));
 
 /** بيسجّل الحالة المعروضة عند كل إشعار للمشتركين. */
 export function watch(controller: PrivateWindowController) {

@@ -1,50 +1,21 @@
-const PARTS = ['year', 'month', 'day', 'hour', 'minute', 'second'] as const;
-
-/** فرق توقيت النطاق عن UTC بالمللي ثانية عند لحظة معينة (موجب شرق جرينتش). */
-function offsetMs(instant: number, timeZone: string): number {
-  const parts = new Intl.DateTimeFormat('en-US', {
-    timeZone,
-    hourCycle: 'h23',
-    year: 'numeric',
-    month: 'numeric',
-    day: 'numeric',
-    hour: 'numeric',
-    minute: 'numeric',
-    second: 'numeric',
-  }).formatToParts(new Date(instant));
-  const [year, month, day, hour, minute, second] = PARTS.map((type) =>
-    Number(parts.find((part) => part.type === type)?.value),
-  ) as [number, number, number, number, number, number];
-  return Date.UTC(year, month - 1, day, hour, minute, second) - Math.floor(instant / 1000) * 1000;
-}
-
-/** بداية شهر `YYYY-MM` بتوقيت النطاق كلحظة UTC، بمحاولتين عشان تغيّر التوقيت الصيفي. */
-function monthStart(month: string, timeZone: string): Date {
-  const [year, number] = month.split('-').map(Number) as [number, number];
-  const wall = Date.UTC(year, number - 1, 1);
-  const first = wall - offsetMs(wall, timeZone);
-  return new Date(wall - offsetMs(first, timeZone));
-}
+const MONTH_PATTERN = /^(\d{4})-(0[1-9]|1[0-2])$/;
+const FIRST_MONTH_YEAR = 2000;
+const LAST_MONTH_YEAR = 2999;
 
 /**
- * نطاق الشهر الذي تحدده الشاشة للطلبين: `from` شاملة و`to` حصرية على وقت التسجيل (عقد 61-2b).
- * الحدود بتوقيت الفرع المحدد لأن توقيت النشاط نفسه مش متاح في المتصفح.
+ * يقبل شهرًا كاملًا بصيغة `YYYY-MM` وبسنة معقولة فقط (2000 إلى 2999، نفس حدود عقد `month` في الـAPI). المتصفح الذي لا يدعم
+ * حقل الشهر يعرضه كنص عادي، فالقيمة الجزئية أو الغلط (`2026-` أو `abc`) لازم ما توصلش للطلب.
  *
- * @param month الشهر بصيغة `YYYY-MM`
- * @param timeZone توقيت الفرع المحدد أو الفرع الأول عند «كل الفروع»
- * @returns بداية الشهر وبداية الشهر التالي بصيغة ISO
+ * @param value النص كما كتبه المستخدم أو اختاره المتصفح
+ * @returns الشهر نفسه لو صالح، وإلا null
  */
-export function ratingsMonthRange(month: string, timeZone: string): { from: string; to: string } {
-  const [year, number] = month.split('-').map(Number) as [number, number];
-  const next = number === 12 ? `${year + 1}-01` : `${year}-${String(number + 1).padStart(2, '0')}`;
-  return {
-    from: monthStart(month, timeZone).toISOString(),
-    to: monthStart(next, timeZone).toISOString(),
-  };
+export function parseRatingsMonth(value: string): string | null {
+  const year = Number(MONTH_PATTERN.exec(value)?.[1]);
+  return year >= FIRST_MONTH_YEAR && year <= LAST_MONTH_YEAR ? value : null;
 }
 
 /**
- * الشهر الحالي `YYYY-MM` بتوقيت النطاق، قيمة افتراضية لمحدد الشهر.
+ * الشهر الحالي `YYYY-MM` بتوقيت النطاق، قيمة افتراضية لمحدد الشهر فقط؛ نافذة الطلب نفسها بيحسبها الـAPI بتوقيت النشاط.
  *
  * @param now اللحظة الحالية (مُمرَّرة عشان الاختبار)
  * @param timeZone توقيت النطاق

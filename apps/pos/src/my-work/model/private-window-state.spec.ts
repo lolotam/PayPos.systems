@@ -45,6 +45,17 @@ it('records the server month as home only for the current-month first page and a
   expect(shownMonth(state.data)).toBe('2026-10');
 });
 
+it('drops the tips already shown when a retry starts, so a failed tips refresh leaves no old amounts', () => {
+  let state = open();
+  state = reducePrivateWindow(state, {
+    type: 'tipsLoaded',
+    tips: { month: '2026-11', status: 'VISIBLE', total_cash: '12.500', total_card: '7.250' },
+  });
+  state = reducePrivateWindow(state, { type: 'retry' });
+  expect(state.phase === 'open' && state.data.tips).toBeUndefined();
+  expect(state.phase === 'open' && state.data.lines.status).toBe('pending');
+});
+
 it('ignores data actions when no window is open', () => {
   const pin: PrivateWindowState = { phase: 'pin', problem: null, epoch: 0, waiting: false };
   expect(

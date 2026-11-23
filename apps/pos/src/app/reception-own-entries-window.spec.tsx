@@ -2,7 +2,13 @@ import { act, fireEvent, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { t } from '@pospay/i18n';
 import { fullLine, hiddenTips, linesPage } from '@/my-work/ui/work-fixtures';
-import { installFetch, json, myWorkEntries, renderWork } from '@/my-work/ui/work-test-kit';
+import {
+  installFetch,
+  json,
+  myWorkEntries,
+  renderWork,
+  typeInMyWork,
+} from '@/my-work/ui/work-test-kit';
 import { ReceptionOwnEntries } from './reception-own-entries';
 
 vi.mock('@/shared/api/device-auth', () => ({ currentDeviceToken: async () => 'paired-device' }));
@@ -69,7 +75,7 @@ const advance = (ms: number) => act(() => vi.advanceTimersByTimeAsync(ms));
 const typeEvery = async (stepMs: number, steps: number) => {
   for (let step = 0; step < steps; step += 1) {
     await advance(stepMs);
-    fireEvent.keyDown(document.body, { key: 'a' });
+    typeInMyWork('a');
   }
 };
 const closedToPin = async () => {
@@ -128,7 +134,7 @@ it('moves the close time only to what a successful touch answered, never by her 
   mountEntries();
   await signIn();
   await advance(50_000);
-  fireEvent.keyDown(document.body, { key: 'a' });
+  typeInMyWork('a');
   await advance(38_000);
   expect(screen.getByText('Haircut')).toBeTruthy();
   await advance(3_000);
@@ -140,7 +146,7 @@ it('returns to the PIN step at once when a touch says the window expired and lea
   const view = mountEntries();
   await signIn();
   await advance(21_000);
-  fireEvent.keyDown(document.body, { key: 'a' });
+  typeInMyWork('a');
   await closedToPin();
   expect(screen.getByText(t('en', 'errors.PRIVATE_VIEW_EXPIRED'))).toBeTruthy();
   expect(myWorkEntries(view.client).length).toBe(0);
@@ -149,7 +155,7 @@ it('returns to the PIN step at once when a touch says the window expired and lea
   mountEntries();
   await signIn();
   await advance(21_000);
-  fireEvent.keyDown(document.body, { key: 'a' });
+  typeInMyWork('a');
   await waitFor(() =>
     expect(
       screen.getByRole('button', { name: label('myWork.title') }).getAttribute('aria-expanded'),

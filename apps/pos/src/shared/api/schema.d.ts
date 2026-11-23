@@ -62,7 +62,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** @description Newest-first keyset page of the ratings of one business. Only a caller whose current role is owner, general manager, business manager or branch manager and who holds read:ratings:branch reads it; rows are limited to the branches inside that scope. from is inclusive and to is exclusive on submitted_at. The comment is the customer text as written. Cache-Control: no-store. */
+        /** @description Newest-first keyset page of the ratings of one business. Only a caller whose current role is owner, general manager, business manager or branch manager and who holds read:ratings:branch reads it; rows are limited to the branches inside that scope. from is inclusive and to is exclusive on submitted_at; month (YYYY-MM) instead selects that calendar month in the business time zone, resolved by the server, and cannot be combined with from or to. The comment is the customer text as written. Cache-Control: no-store. */
         get: operations["listRatings"];
         put?: never;
         post?: never;
@@ -79,7 +79,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** @description Per-employee average stars of one business over a range, for the same callers and branch scope as the ratings list. average is a one-decimal string rounded half up; a rating with two performers counts for both. from is inclusive and to is exclusive on submitted_at; with neither, the range is the current calendar month in the business time zone. Cache-Control: no-store. */
+        /** @description Per-employee average stars of one business over a range, for the same callers and branch scope as the ratings list. average is a one-decimal string rounded half up; a rating with two performers counts for both. from is inclusive and to is exclusive on submitted_at; month (YYYY-MM) instead selects that calendar month in the business time zone and cannot be combined with from or to; with none of the three, the range is the current calendar month in the business time zone. Cache-Control: no-store. */
         get: operations["listRatingAverages"];
         put?: never;
         post?: never;
@@ -9155,7 +9155,7 @@ export interface components {
                     }[];
                     customer_name: string | null;
                     phone_last3: string;
-                    /** @description Max 1000 chars; no URLs, HTML tags, Markdown link/image, known-TLD hosts; LF, CR, tab only. */
+                    /** @description The customer comment as stored, shown as plain text; at most 1000 characters. */
                     comment: string;
                 };
             }[];
@@ -9799,6 +9799,7 @@ export interface operations {
                 employee_id?: string;
                 from?: string;
                 to?: string;
+                month?: string;
                 cursor?: string;
                 limit?: number;
             };
@@ -9891,6 +9892,7 @@ export interface operations {
                 employee_id?: string;
                 from?: string;
                 to?: string;
+                month?: string;
             };
             header: {
                 "x-company-id": string;

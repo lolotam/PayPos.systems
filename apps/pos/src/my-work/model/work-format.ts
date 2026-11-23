@@ -62,8 +62,43 @@ export function formatBusinessDate(date: string, locale: Locale): string {
 }
 
 /**
+ * منسّق بتوقيت النشاط. التوقيت جاي من السيرفر وممكن يبقى اسم IANA جديد على متصفح أو WebView قديم، فالمنسّق بيرمي RangeError.
+ * بدل ما القائمة كلها تقع بنرجع لـ UTC ومعاه اسمه ظاهر في النص، وعمره ما بنرجع لتوقيت الجهاز (AC-57-4-9).
+ *
+ * @param locale لغة العرض
+ * @param timeZone اسم IANA لتوقيت النشاط من الرد
+ * @param options حقول التنسيق بتوقيت النشاط
+ * @param fallback حقول التنسيق لو التوقيت مش معروف؛ فيها الساعة عشان اسم UTC يتكتب جنب لحظة واضحة (dateStyle لوحده ما بيقبلش اسم التوقيت)
+ * @returns المنسّق
+ */
+function businessFormatter(
+  locale: Locale,
+  timeZone: string,
+  options: Intl.DateTimeFormatOptions,
+  fallback: Intl.DateTimeFormatOptions,
+): Intl.DateTimeFormat {
+  try {
+    return new Intl.DateTimeFormat(locale, { timeZone, numberingSystem: 'latn', ...options });
+  } catch (error) {
+    if (!(error instanceof RangeError)) throw error;
+    return new Intl.DateTimeFormat(locale, {
+      timeZone: 'UTC',
+      timeZoneName: 'short',
+      numberingSystem: 'latn',
+      ...fallback,
+    });
+  }
+}
+
+const TIME_FIELDS: Intl.DateTimeFormatOptions = {
+  hour: '2-digit',
+  minute: '2-digit',
+  hourCycle: 'h23',
+};
+
+/**
  * ساعة الخدمة بالدقيقة بتوقيت النشاط دايماً، على الموبايل الشخصي وعلى جهاز الاستقبال، ومن غير
- * ما توقيت الجهاز يدخل (AC-57-4-9). التوقيت جاي من رد «شغلي» نفسه.
+ * ما توقيت الجهاز يدخل (AC-57-4-9). التوقيت جاي من رد «شغلي» نفسه؛ لو الجهاز مش عارفه بتتعرض بـ UTC مكتوب جنبها.
  *
  * @param instant لحظة الخدمة
  * @param locale لغة العرض
@@ -71,13 +106,7 @@ export function formatBusinessDate(date: string, locale: Locale): string {
  * @returns الساعة للعرض
  */
 export function formatLineTime(instant: string, locale: Locale, timeZone: string): string {
-  return new Intl.DateTimeFormat(locale, {
-    timeZone,
-    hour: '2-digit',
-    minute: '2-digit',
-    hourCycle: 'h23',
-    numberingSystem: 'latn',
-  }).format(new Date(instant));
+  return businessFormatter(locale, timeZone, TIME_FIELDS, TIME_FIELDS).format(new Date(instant));
 }
 
 /**
@@ -89,9 +118,10 @@ export function formatLineTime(instant: string, locale: Locale, timeZone: string
  * @returns التاريخ للعرض
  */
 export function formatCancelledOn(instant: string, locale: Locale, timeZone: string): string {
-  return new Intl.DateTimeFormat(locale, {
+  return businessFormatter(
+    locale,
     timeZone,
-    dateStyle: 'long',
-    numberingSystem: 'latn',
-  }).format(new Date(instant));
+    { dateStyle: 'long' },
+    { year: 'numeric', month: 'long', day: 'numeric', ...TIME_FIELDS },
+  ).format(new Date(instant));
 }

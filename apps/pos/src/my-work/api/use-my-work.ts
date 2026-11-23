@@ -23,8 +23,13 @@ async function guarded<T>(read: () => Promise<T>, signal: AbortSignal, onRefused
   }
 }
 
+/** مؤشر الصفحة التالية ومعاه شهر الصفحة اللي طلعته: الصفحات التالية بتتطلب بالشهر ده مش بـ«الحالي» اللي ممكن يكون اتغيّر. */
+type PageParam = { cursor: string; month: string };
+
 /**
  * خدمات الشهر بالأحدث أول، صفحة بصفحة، على موبايلها الشخصي (جهاز الاستقبال بيستعمل المتحكم).
+ * الصفحة الأولى من غير شهر بتتحدد بشهر السيرفر، وكل صفحة بعدها بتتبعت بالشهر اللي رجعته الصفحة اللي قبلها،
+ * فعبور منتصف الليل بين صفحتين مبيخلطش الشهور ومبيبوّظش المؤشر.
  *
  * @param context مين بيفتح الشاشة
  * @param month الشهر المطلوب أو undefined للحالي
@@ -39,21 +44,22 @@ export function useWorkLines(
   return useInfiniteQuery({
     ...PERSONAL_READ,
     queryKey: ['my-work', context.identity, 'lines', month ?? 'current'],
-    initialPageParam: undefined as string | undefined,
+    initialPageParam: undefined as PageParam | undefined,
     queryFn: ({ pageParam, signal }) =>
       guarded(
         () =>
           workCalls.lines({
             mode: context.mode,
-            month,
+            month: pageParam?.month ?? month,
             windowId: undefined,
-            cursor: pageParam,
+            cursor: pageParam?.cursor,
             signal,
           }),
         signal,
         onRefused,
       ),
-    getNextPageParam: (page) => page.next_cursor ?? undefined,
+    getNextPageParam: (page) =>
+      page.next_cursor ? { cursor: page.next_cursor, month: page.month } : undefined,
   });
 }
 

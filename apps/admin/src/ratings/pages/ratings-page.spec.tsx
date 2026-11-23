@@ -16,8 +16,6 @@ const layla = '01920000-0000-7000-8000-0000000000e1';
 const noor = '01920000-0000-7000-8000-0000000000e2';
 const listPath = '/v1/businesses/{businessId}/ratings';
 const averagesPath = '/v1/businesses/{businessId}/ratings/averages';
-const novemberFrom = '2026-10-31T21:00:00.000Z';
-const octoberFrom = '2026-09-30T21:00:00.000Z';
 
 const business: WorkspaceBusinessRead = {
   id: companyId,
@@ -114,13 +112,16 @@ it('shows the averages best first and the ratings with their comments as plain t
   expect(screen.getByText(t('en', 'ratings.noComment'))).toBeTruthy();
 });
 
-it('asks both endpoints for the current month of the branch time zone', async () => {
+it('asks both endpoints for the month itself and no browser-computed range', async () => {
   serve({ list: () => answer([rating('01')]) });
   renderPage();
   await screen.findAllByRole('table');
-  const expected = { from: novemberFrom, to: '2026-11-30T21:00:00.000Z' };
-  expect(queryOf(listPath)).toMatchObject({ ...expected, limit: 20 });
-  expect(queryOf(averagesPath)).toMatchObject(expected);
+  expect(queryOf(listPath)).toMatchObject({ month: '2026-11', limit: 20 });
+  expect(queryOf(averagesPath)).toMatchObject({ month: '2026-11' });
+  for (const path of [listPath, averagesPath]) {
+    expect(queryOf(path)).not.toHaveProperty('from');
+    expect(queryOf(path)).not.toHaveProperty('to');
+  }
   expect((screen.getByLabelText(t('en', 'ratings.month')) as HTMLInputElement).value).toBe(
     '2026-11',
   );
@@ -130,7 +131,7 @@ it('changing the month changes the request and replaces the visible rows', async
   serve({
     list: (query) =>
       answer(
-        query.from === octoberFrom
+        query.month === '2026-10'
           ? [rating('03', { comment: 'October comment' })]
           : [rating('01', { comment: 'November comment' })],
       ),
@@ -143,10 +144,8 @@ it('changing the month changes the request and replaces the visible rows', async
   expect(await screen.findByText('October comment')).toBeTruthy();
   expect(screen.queryByText('November comment')).toBeNull();
   const last = api.GET.mock.calls.filter(([path]) => path === listPath).at(-1);
-  expect(last?.[1].params.query).toMatchObject({
-    from: octoberFrom,
-    to: '2026-10-31T21:00:00.000Z',
-  });
+  expect(last?.[1].params.query).toMatchObject({ month: '2026-10' });
+  expect(last?.[1].params.query).not.toHaveProperty('from');
 });
 
 it('narrows the list by employee on the server and the averages on screen', async () => {

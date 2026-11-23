@@ -1,7 +1,7 @@
 import { act, fireEvent, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { fullLine, linesPage, visibleTips } from '@/my-work/ui/work-fixtures';
-import { json } from '@/my-work/ui/work-test-kit';
+import { json, typeInMyWork } from '@/my-work/ui/work-test-kit';
 import {
   gate,
   label,
@@ -69,7 +69,7 @@ it('removes the tips and the lines when an activity touch is forbidden', async (
   await signIn();
   expect(await screen.findByText(label('myWork.tipsTitle'))).toBeTruthy();
   await act(() => vi.advanceTimersByTimeAsync(21_000));
-  fireEvent.keyDown(document.body, { key: 'a' });
+  typeInMyWork('a');
   await closedWithRefusal(fetched);
   expect(screen.queryByText(label('myWork.tipsTitle'))).toBeNull();
 });

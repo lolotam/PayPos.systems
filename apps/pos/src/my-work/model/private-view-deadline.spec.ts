@@ -31,3 +31,14 @@ it('ignores the idle value of a touch that was sent before an already confirmed 
   expect(stale.idleAt).toBe(100_000);
   expect(stale.sentAt).toBe(40_000);
 });
+
+it('also closes 60 seconds after the last input when that is earlier than the confirmed idle deadline', () => {
+  const touched = touchedDeadlines(
+    openedDeadlines(1_000, remaining(60_000, 300_000)),
+    21_000,
+    remaining(60_000, 280_000),
+  );
+  expect(closeAt(touched)).toBe(81_000);
+  expect(closeAt(touched, 62_000)).toBe(62_000);
+  expect(closeAt(touched, 500_000)).toBe(81_000);
+});

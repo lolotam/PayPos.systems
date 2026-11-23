@@ -99,3 +99,18 @@ it('AC-57-4-9 follows the zone it is given, so a business west of UTC keeps the 
   expect(formatLineTime(instant, 'en', 'America/New_York')).toBe('16:30');
   expect(formatCancelledOn(instant, 'en', 'America/New_York')).toBe('November 14, 2026');
 });
+
+it('AC-57-4-9 labels UTC instead of throwing or using the device zone for a zone this runtime does not know', () => {
+  const instant = '2026-11-14T21:30:00Z';
+  const previous = process.env.TZ;
+  try {
+    for (const processZone of ['America/Los_Angeles', 'Pacific/Auckland']) {
+      process.env.TZ = processZone;
+      expect(formatLineTime(instant, 'en', 'Not/A_Zone')).toBe('21:30 UTC');
+      expect(formatCancelledOn(instant, 'en', 'Not/A_Zone')).toBe('November 14, 2026 at 21:30 UTC');
+    }
+  } finally {
+    if (previous === undefined) delete process.env.TZ;
+    else process.env.TZ = previous;
+  }
+});

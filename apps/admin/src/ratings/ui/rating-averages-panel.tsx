@@ -3,6 +3,7 @@
 import type { RatingAverages } from '@pospay/contracts';
 import { t } from '@pospay/i18n';
 import type { UseQueryResult } from '@tanstack/react-query';
+import { readAccessProof } from '@/shared/api/read-access-proof';
 import { useLocale } from '@/shared/locale/locale-context';
 import { sortAverages } from '../model/rating-text';
 import { ratingsFailureMessage } from '../model/ratings-failure';
@@ -18,8 +19,9 @@ export function RatingAveragesPanel({
   employeeId: string;
 }) {
   const locale = useLocale();
-  if (averages.isPending) return <RatingsNotice kind="loading" />;
-  if (averages.isError)
+  const proof = readAccessProof(averages);
+  if (proof === 'pending') return <RatingsNotice kind="loading" />;
+  if (proof !== 'granted' || !averages.data)
     return <RatingsNotice kind="error" message={ratingsFailureMessage(averages.error, locale)} />;
   const items = averages.data.items.filter(
     (item) => !employeeId || item.employee_id === employeeId,

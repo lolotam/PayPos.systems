@@ -21,6 +21,7 @@ export const ratingsEn = {
   emptyList: 'No ratings match these filters.',
   notAllowed: 'You are not allowed to view ratings.',
   loadMore: 'Show more',
+  retry: 'Try again',
 };
 export const ratingsAr: Record<keyof typeof ratingsEn, string> = {
   title: 'التقييمات',
@@ -45,4 +46,5 @@ export const ratingsAr: Record<keyof typeof ratingsEn, string> = {
   emptyList: 'مفيش تقييمات بالفلاتر دي.',
   notAllowed: 'لا تملك صلاحية عرض التقييمات.',
   loadMore: 'عرض المزيد',
+  retry: 'إعادة المحاولة',
 };
