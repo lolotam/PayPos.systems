@@ -1,43 +1,14 @@
+import type { OpenBlockedCorrection } from '../canonical-input.ts';
 import type {
-  CanonicalInputRows,
-  RevisedLine,
-  RevisedSale,
-  RevisedTip,
-} from '../canonical-input.ts';
-import type { ReceivedCommissionCorrection } from '../period-input-types.ts';
+  StatementBuildInput,
+  StatementLineSource,
+  StatementMonthRows as BuilderMonthRows,
+} from '../statement-types.ts';
 
-/** بند الشهر مع حقول المستدعي اللي بصمة المدخلات ما بتملكهاش: الفرع والجلسة والعميل (D-26). */
-export interface StatementLineSource extends RevisedLine {
-  readonly branchId: string;
-  readonly sessionId: string;
-  readonly customerId: string | null;
-}
-
-/** بيع الباقة مع فرعه. */
-export interface StatementSaleSource extends RevisedSale {
-  readonly branchId: string;
-}
-
-/** بقشيش الشهر مع فرعه. */
-export interface StatementTipSource extends RevisedTip {
-  readonly branchId: string;
-}
-
-/** تصحيح مستلم مع معرّفه وإسناد فروعه المجمّد. */
-export interface StatementCorrectionSource extends ReceivedCommissionCorrection {
-  readonly id: string;
-  readonly sourceBranchId: string;
-  readonly sourceBusinessDate: string;
-  readonly attachedBranchIds: readonly string[];
-}
-
-/** صفوف الشهر كلها لنشاط واحد، بحقول المستدعي. */
-export interface StatementMonthRows extends CanonicalInputRows {
-  readonly lines: readonly StatementLineSource[];
-  readonly sales: readonly StatementSaleSource[];
-  readonly tips: readonly StatementTipSource[];
-  readonly corrections: readonly StatementCorrectionSource[];
-}
+/** صفوف الشهر كاملة لبصمة المدخلات: صفوف الباني مع التصحيحات الموقوفة اللي الباني ما بيقراهاش. */
+export type StatementMonthRows = BuilderMonthRows & {
+  readonly blocked: readonly OpenBlockedCorrection[];
+};
 
 export const PERIOD = '2026-10';
 export const SARA = 'employee-sara';
@@ -236,5 +207,49 @@ export function octoberRows(): StatementMonthRows {
     ...octoberSalesAndTips(),
     ...octoberPlanning(),
     ...octoberAdjustments(),
+  };
+}
+
+/**
+ * مدخل بناء الكشف لأكتوبر: سارة منقولة من السالمية لحولي يوم 15، ونور في السالمية الشهر كله.
+ *
+ * @param month صفوف الشهر، وافتراضها أكتوبر الكامل
+ * @returns مدخل الباني
+ */
+export function octoberInput(month: BuilderMonthRows = octoberRows()): StatementBuildInput {
+  return {
+    period: PERIOD,
+    month,
+    employees: [
+      { employeeId: SARA, employeeNumber: 1, nameAr: 'سارة', nameEn: 'Sara' },
+      { employeeId: NOOR, employeeNumber: 2, nameAr: null, nameEn: 'Noor' },
+    ],
+    attachments: [
+      { employeeId: SARA, branchId: SALMIYA, from: '2026-01-01', to: '2026-10-15' },
+      { employeeId: SARA, branchId: HAWALLI, from: '2026-10-15', to: null },
+      { employeeId: NOOR, branchId: SALMIYA, from: '2026-02-01', to: null },
+    ],
+    names: {
+      branches: new Map([
+        [SALMIYA, { nameAr: 'السالمية', nameEn: 'Salmiya' }],
+        [HAWALLI, { nameAr: 'حولي', nameEn: 'Hawalli' }],
+      ]),
+      services: new Map([
+        ['service-1', { nameAr: 'قص', nameEn: 'Cut' }],
+        ['service-2', { nameAr: null, nameEn: 'Colour' }],
+      ]),
+      customers: new Map([['customer-1', 'Customer One']]),
+    },
+    correctionLineDetails: new Map([
+      [
+        'old-1',
+        {
+          sessionId: 'session-old',
+          serviceId: 'service-1',
+          customerId: 'customer-1',
+          businessDate: '2026-09-28',
+        },
+      ],
+    ]),
   };
 }
