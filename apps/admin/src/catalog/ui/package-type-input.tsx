@@ -13,6 +13,8 @@ type Props = Omit<ComponentProps<typeof Input>, 'name' | 'id'> & {
   errorMessage: MessageKey;
   options?: RegisterOptions<CreatePackageTypeInput>;
   helpId?: string;
+  /** فئات عرض العمود على شبكة الـ12 عمودًا؛ بلا شبكة (نموذج التعديل) لا أثر لها. */
+  span?: string;
 };
 
 export function PackageTypeInput({
@@ -22,6 +24,7 @@ export function PackageTypeInput({
   errorMessage,
   options,
   helpId,
+  span = '',
   ...input
 }: Props) {
   const locale = useLocale();
@@ -29,7 +32,7 @@ export function PackageTypeInput({
   const { error } = getFieldState(name, formState);
   const description = [helpId, error ? `${id}-error` : undefined].filter(Boolean).join(' ');
   return (
-    <>
+    <div className={`flex min-w-0 flex-col gap-3 ${span}`}>
       <Label htmlFor={id}>{t(locale, label)}</Label>
       <Input
         {...input}
@@ -39,6 +42,6 @@ export function PackageTypeInput({
         aria-describedby={description || undefined}
       />
       {error ? <p id={`${id}-error`}>{t(locale, errorMessage)}</p> : null}
-    </>
+    </div>
   );
 }

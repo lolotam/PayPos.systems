@@ -1,7 +1,8 @@
 'use client';
 import type { CustomerPackageListItem } from '@pospay/contracts';
 import { t } from '@pospay/i18n';
-import { Button } from '@pospay/ui';
+import type { ReactNode } from 'react';
+import { Button, DataTableFrame } from '@pospay/ui';
 import { useLocale } from '@/shared/locale/locale-context';
 import { CustomerPackageCard } from './customer-package-card';
 
@@ -33,38 +34,42 @@ export function CustomerPackageList({
   selectedId: string | null;
 }) {
   const locale = useLocale();
-  if (state === 'loading') return <p role="status">{t(locale, 'customerPackages.loading')}</p>;
+  const frame = (body: ReactNode, footer?: ReactNode) => (
+    <DataTableFrame footer={footer}>
+      <div className="flex flex-col gap-3 p-4">{body}</div>
+    </DataTableFrame>
+  );
+  if (state === 'loading') return frame(<p role="status">{t(locale, 'customerPackages.loading')}</p>);
   if (state === 'error' && errorMessage !== 'loadFailed') {
     const messageKey =
       errorMessage === 'notAllowed' ? 'customerPackages.notAllowed' : 'customerPackages.notFound';
-    return <p role="alert">{t(locale, messageKey)}</p>;
+    return frame(<p role="alert">{t(locale, messageKey)}</p>);
   }
-  if (state === 'empty') return <p role="status">{t(locale, 'customerPackages.empty')}</p>;
-  return (
-    <>
-      {items.map((item) => (
-        <CustomerPackageCard
-          key={item.id}
-          item={item}
-          selected={selectedId === item.id}
-          onSelect={onSelect}
-        />
-      ))}
-      {state === 'error' ? (
-        // خطأ عابر: الصفحات المصرّح بها بتفضل ظاهرة، والإعادة بتجيب الصفحة الجاية بس — أو تعيد
-        // أول تحميل لو مفيش صفحات محفوظة لسه.
-        <p role="alert">
-          {t(locale, 'customerPackages.loadFailed')}{' '}
-          <Button type="button" variant="outline" disabled={isFetching} onClick={onRetry}>
-            {t(locale, 'customerPackages.retry')}
-          </Button>
-        </p>
-      ) : null}
-      {hasMore && state !== 'error' ? (
-        <Button type="button" variant="outline" disabled={isFetching} onClick={onMore}>
-          {t(locale, 'customerPackages.loadMore')}
+  if (state === 'empty') return frame(<p role="status">{t(locale, 'customerPackages.empty')}</p>);
+  // خطأ عابر: الصفحات المصرّح بها بتفضل ظاهرة، والإعادة بتجيب الصفحة الجاية بس — أو تعيد
+  // أول تحميل لو مفيش صفحات محفوظة لسه.
+  const footer =
+    state === 'error' ? (
+      <p role="alert">
+        {t(locale, 'customerPackages.loadFailed')}{' '}
+        <Button type="button" variant="outline" disabled={isFetching} onClick={onRetry}>
+          {t(locale, 'customerPackages.retry')}
         </Button>
-      ) : null}
-    </>
+      </p>
+    ) : hasMore ? (
+      <Button type="button" variant="outline" disabled={isFetching} onClick={onMore}>
+        {t(locale, 'customerPackages.loadMore')}
+      </Button>
+    ) : undefined;
+  return frame(
+    items.map((item) => (
+      <CustomerPackageCard
+        key={item.id}
+        item={item}
+        selected={selectedId === item.id}
+        onSelect={onSelect}
+      />
+    )),
+    footer,
   );
 }

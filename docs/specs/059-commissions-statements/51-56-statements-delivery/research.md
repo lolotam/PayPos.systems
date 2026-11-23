@@ -54,8 +54,14 @@ canonical documents leave open. None is a money, permission or tenant rule. R1 w
 
 - **Decision:** the block's `first_event_id`, as plan-55-2.md §1 already proposes; the block reader is widened to
   return it. The reply is 201 `{ version, blocked_correction: { id, code, resolved } }`.
-- **Rationale:** `commission_corrections.event_id` is `NOT NULL` and a repair has no event of its own; the block's
-  first event is the change the correction answers. plan-55-2.md marks this as provisional; it is confirmed here.
+- **Rationale:** `commission_corrections.event_id` is `NOT NULL`; the correction's `event_id` is not the repair's own
+  event but the block's first event, the change the correction answers. plan-55-2.md marks this as provisional; it is
+  confirmed here.
+- **Correction (PosPay manager, PR #1221, 2026-11-22):** an earlier wording said the repair has no event of its own.
+  That was wrong: CLAUDE.md §6 requires an outbox event in the same transaction for an endpoint with money effects, so
+  the repair appends its own `CommissionPeriodRepairSaved` (a repair saved, never the block closed: under CM-52b the
+  block can stay `NO_SALARY`). Payload: ids and the block's outcome only; it is not one of the six counted types of
+  ADR-0012 and no consumer re-runs a correction.
 - **Alternatives considered:** a synthetic id (breaks the meaning of the column); a nullable column (a migration and a
   weaker invariant).
 
@@ -137,7 +143,7 @@ canonical documents leave open. None is a money, permission or tenant rule. R1 w
 | Gap | Source | Proposed owner | Status |
 | --- | --- | --- | --- |
 | The owner alert when a counted event is parked | ADR-0012 §3 | 53-2 (design round A4) | decided here |
-| The cost of the coverage gate inside the approval transaction against the 200 ms rule | FR-020, FR-032, CLAUDE.md §6 | 53-2 preparation measures it; then Waleed chooses (T3, design round A3) | open |
+| The cost of the coverage gate inside the approval transaction against the 200 ms rule | FR-020, FR-032, CLAUDE.md §6 | measured; Waleed chose the stored bootstrap proof (CS-Q54, R11) | decided |
 | The assertion that the consumer's registered types equal the function's six | ADR-0012 §1 | 53-1: the six names and the consumer id are constants in `packages/domain` read by the worker registration, with independent tests of the registration and of the installed function (design round A2) | decided here |
 | The export button in admin | plan-56-1.md gives it to 53-3 | 53-3 hosts the screen; lane D adds the button after 53-3 merges | decided here |
 | Erasure against approval | spec 059 §7 _Deferred_ | not in this delivery | deferred |
@@ -150,7 +156,7 @@ The round spec 059 requires before 53-1 and 53-2. Its findings, and what this de
 | --- | --- | --- |
 | A1 | 53-1's brief must pin ADR-0012 §1–§2 in full, not by reference: the owner role's attributes and its membership in nothing in both directions, its ownership of this function only, `USAGE` on the schema and `EXECUTE` on `app_company_id()` with no `CREATE`, `SELECT` limited to the four `outbox` columns and the three `consumed_events` columns, `search_path = pg_catalog, pg_temp`, `row_security = on`, `NOT LEAKPROOF`, qualified names, `ENABLE`/`FORCE` RLS with a tenant policy and the company predicate inside the query, and the ownership transfer, revokes and the single `EXECUTE` grant in one transaction. Tests must prove the **effective** privileges and the refusal of a missing or malformed context even on an empty table; the function inventory checks only the name, `prosecdef` and `proconfig` | adopted: lane C's brief, addendum |
 | A2 | The shared constant is sound but not sufficient. Put the six type names and the consumer id `commissions.project-inputs` in `packages/domain` as dependency-free constants read by the worker registration; keep an independent test of the actual registration, and test the installed function with one row per type, a non-counted type, another consumer's mark and the strict `<` bound | adopted: replaces the «one exported constant» line of _Open gaps_ |
-| A3 | The coverage gate. FR-020 and FR-032 oblige a coverage check after the lock and before the count for lines, tips, salaries and package sales; ADR-0054 says 53-2 reuses `compareCoverage` with API-side readers. A live comparison has unbounded pages and cannot be shown to fit 200 ms; a bare «proven» flag proves nothing. Recommended if the live comparison cannot be bounded: the worker writes a proof bound to the company, the scope and the replay point, and approval checks inside its transaction that the proof applies and is still valid, then counts. That needs an ADR-0054 amendment, an owner for storage and invalidation, and a migration | **open, T3**: lane C measures the live comparison first; the choice is technical and goes to Waleed with the numbers. If the stored proof is chosen, 53-2 gains a migration and an ADR-0054 addendum, and the migration queue gains a turn |
+| A3 | The coverage gate. FR-020 and FR-032 oblige a coverage check after the lock and before the count for lines, tips, salaries and package sales; ADR-0054 says 53-2 reuses `compareCoverage` with API-side readers. A live comparison has unbounded pages and cannot be shown to fit 200 ms; a bare «proven» flag proves nothing. Recommended if the live comparison cannot be bounded: the worker writes a proof bound to the company, the scope and the replay point, and approval checks inside its transaction that the proof applies and is still valid, then counts. That needs an ADR-0054 amendment, an owner for storage and invalidation, and a migration | **decided, CS-Q54 (R11)**: the stored bootstrap proof; 53-2 gains a migration and an ADR-0054 addendum, and the migration queue gains a turn |
 | A4 | The parked-event alert of ADR-0012 §3: both parking paths only log `outbox event parked` (`apps/worker/src/outbox/deliver.ts`, `dispatch-loop.ts`); nothing notifies the owner | 53-2 owns the result and the group 5 test; the implementation sits at the worker and notifications boundary, independent of the approval rollback, covering both paths; a parked event still counts |
 | A5 | Locks: one ascending call from the source month through the current month is sufficient; choose from the statuses the lock returned; under READ COMMITTED re-check status, access and fingerprints after the wait; never take an employee lock after the month locks (55-2f locks the employee first) | adopted: lane C's brief, addendum |
 | A6 | «A departed employee is not re-carried» cannot be decided from what the API reads today (the staff reader returns identity, name and number). It needs the employment dates, or an equivalent overlap result, from a staff reader bound at the root. The balance arrives once; when the month that received it is approved, it is not carried again if her employment does not overlap that month | adopted: 53-2 adds the reader with its module-map Port row |
@@ -171,3 +177,39 @@ The round spec 059 requires before 53-1 and 53-2. Its findings, and what this de
 - **Limits:** sale and tip corrections carry no line detail; no new field is exposed. CS-Q9 fixes the columns of the
   corrections section, CS-Q30 hides the customer's name from the employee, and management reads and the export stay
   within the existing permission.
+
+## R11 — The approval-time coverage gate is a stored bootstrap proof (53-2) — **decided by Waleed, CS-Q54**
+
+- **Owner answer (2026-11-22, chat, relayed by the PosPay manager, verbatim):** «إثبات تأسيسي مخزّن (المقترح)، بشرط تقييد
+  إصداره وإبطاله عند تغيّر شروط التغطية». Recorded in [owner-questions.ar.md](../owner-questions.ar.md) §63.
+- **Why not the live comparison.** Measured through the worker coverage readers in one tenant transaction, 200-row
+  pages, on a loaded laptop (noisy): lines 1 000 rows 76 ms, 5 000 rows 206 ms, 20 000 rows 2 083 ms, 50 000 rows a
+  statement timeout; salaries (one employee, the worst case) 3 000 rows 3 688 ms; package sales 5 000 rows 2 833 ms.
+  **Tips were not measured**, and neither was a comparison restricted to the statement's business and month.
+- **What the proof is for** (advice of `pospay-advisor`, PP-136, which changed the proposal). After the bootstrap every
+  input arrives as a counted event, and the ADR-0012 count — already inside the approval transaction — keeps approval
+  closed while one has no consumer mark. What the count cannot see is a source row whose event never existed. The proof
+  closes exactly that gap, so it is a per-company «bootstrap verified» fact with a version, not a check recomputed at
+  every approval. A worker rollback is not an invalidator: CS-Q43 gives that case to the count.
+- **The contract the ADR-0054 addendum must make testable** (the owner's two conditions and the PosPay manager's
+  bounds), before any code of the gate:
+  1. **Issuance is separated from the API by database privilege.** A facade that runs with the same grants as the API
+     is not a fence. A write attempted with the API's role is refused, and a test proves it.
+  2. **Whole-company scope, verified by the issuer.** The proof names every business of the company, the day range of
+     the tip check, the six counted types, the consumer id and the replay bound it proved up to, and is issued from a
+     run taken in the quiet window. A run that cannot prove the whole scope issues nothing.
+  3. **Invalidation fails closed.** A change of the coverage conditions — the counted types or the consumer id, a new
+     bootstrapped input type, a repair or data step that writes source rows without events, a purge of unmarked outbox
+     rows — invalidates the proof before any silent write, and in doubt approval stays closed.
+  4. **A business created after the proof started** is admitted by a stated rule (its inputs can only have arrived as
+     counted events).
+  5. **Opening approval is a separate decision.** The proof is necessary, not sufficient.
+- **In the approval transaction:** after the period lock, the current proof and the ADR-0012 count are both checked.
+  Tests: no proof; a proof of an older version or a narrower scope; another company's proof; a write attempted from
+  the API; an invalidation racing the approval.
+- **Evidence still owed before the gate is written:** whether any older release marks a counted type it does not
+  handle as consumed (`apps/worker/src/outbox/deliver.ts` marks inside the loop of matching consumers), checked on the
+  releases concerned with a rollback that keeps the events; and that no outbox retention job is planned.
+- **Alternatives considered:** the live comparison inside the approval transaction (ADR-0054's earlier wording: cannot
+  be shown to fit 200 ms and lengthens the period lock); a background comparison with a two-step approval (changes
+  FR-032's single action, a product decision for both owners, not offered).

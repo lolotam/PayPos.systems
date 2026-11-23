@@ -102,6 +102,7 @@ export {
   type BottomNavProps,
 } from './bottom-nav.js';
 export { HubCard, type HubCardItem, type HubCardProps } from './hub-card.js';
+export { BottomSheet, type BottomSheetProps } from './bottom-sheet.js';
 export {
   WorkspaceSwitcher,
   type WorkspaceSwitcherLabels,

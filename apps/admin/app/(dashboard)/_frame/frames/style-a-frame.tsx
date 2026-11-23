@@ -1,0 +1,78 @@
+'use client';
+
+import { t } from '@pospay/i18n';
+import { BrandLockup, BrandMark, CollapsibleSidebar, NavTabs, Pills } from '@pospay/ui';
+import { useMemo, type ReactNode } from 'react';
+
+import { useLocale } from '@/shared/locale/locale-context';
+
+import { useMenuContext } from '../menu/use-menu-context';
+import { buildStyleAView } from '../menu/style-views';
+import { FrameChrome } from './frame-chrome';
+import { FrameTopBar } from './frame-top-bar';
+import { PhoneBar } from './phone-bar';
+import { useFrameLabels } from './use-frame-labels';
+
+// عمود الصفحة يتبع عرض الشريط الجانبي: 80px مطويًا أو على التابلت، و264px موسّعًا من 1024px.
+// الشريط ثابت ويحمل data-collapsed حين يطوى، فنقرأ ذلك بـ CSS دون نسخ حالته إلى هنا.
+const PAGE_COLUMN_CLASS =
+  'flex min-h-dvh min-w-0 flex-1 flex-col min-[600px]:ms-20 min-[1024px]:ms-66 min-[1024px]:group-has-[aside[data-collapsed]]:ms-20';
+
+/**
+ * النمط A: شريط جانبي بمجموعات وتبويبات للمجموعة الحالية وحبوب للصفحات فوق المحتوى.
+ * رأس الشريط للشعار فقط لأنه يخفي رأسه وتذييله في وضع الأيقونات؛ مبدّل مساحة العمل وقائمة الحساب
+ * في الشريط العلوي فتبقى ظاهرة بكل عرض. على الهاتف الشريط السفلي أربعة أقسام و«المزيد».
+ */
+export function StyleAFrame({ children }: { children: ReactNode }) {
+  const locale = useLocale();
+  const labels = useFrameLabels();
+  const ctx = useMenuContext();
+  const view = useMemo(() => buildStyleAView(ctx), [ctx]);
+  return (
+    <>
+      <div className="group relative flex min-h-dvh">
+        <FrameChrome>
+          <CollapsibleSidebar
+            title={labels.chrome.navigation}
+            collapseLabel={labels.chrome.collapse}
+            expandLabel={labels.chrome.expand}
+            groups={view.groups}
+            currentGroupId={view.currentGroupId}
+            currentPageId={view.currentPageId}
+            header={
+              <BrandLockup
+                tone="sidebar"
+                title={t(locale, 'brand.title')}
+                latinName={t(locale, 'brand.latinName')}
+                arabicName={t(locale, 'brand.arabicName')}
+              />
+            }
+          />
+        </FrameChrome>
+        <div className={PAGE_COLUMN_CLASS}>
+          <FrameTopBar
+            start={
+              <BrandMark title={t(locale, 'brand.title')} className="size-9 min-[600px]:hidden" />
+            }
+          />
+          {view.tabs.length > 1 ? (
+            <FrameChrome>
+              <NavTabs items={view.tabs} labels={labels.tabs} />
+            </FrameChrome>
+          ) : null}
+          <main className="min-w-0 flex-1 px-4 pt-4 pb-20 min-[600px]:pb-6 min-[768px]:px-6">
+            {view.pills.length > 0 ? (
+              <FrameChrome>
+                <Pills items={view.pills} labels={labels.pills} className="mb-4" />
+              </FrameChrome>
+            ) : null}
+            {children}
+          </main>
+        </div>
+      </div>
+      <FrameChrome>
+        <PhoneBar view={view} pathname={ctx.pathname} />
+      </FrameChrome>
+    </>
+  );
+}

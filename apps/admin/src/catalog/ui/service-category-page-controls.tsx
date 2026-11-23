@@ -4,11 +4,13 @@ import type { UseQueryResult } from '@tanstack/react-query';
 import { t } from '@pospay/i18n';
 import { Button, PageHeader } from '@pospay/ui';
 import { useLocale } from '@/shared/locale/locale-context';
+import { useRegisterCreateAction, type CreateEmbed } from '../model/use-register-create-action';
 import type { TrackedServiceCategoryClosing } from '../model/service-category-closing';
 import { ServiceCategoriesListPanel } from './service-categories-list-panel';
 import { ServiceCategoryStatusTabs } from './service-category-status-tabs';
 
 export function ServiceCategoryPageControls({
+  embed,
   status,
   onCreate,
   onStatus,
@@ -19,6 +21,7 @@ export function ServiceCategoryPageControls({
   onSelect,
   onPage,
 }: {
+  embed: CreateEmbed | undefined;
   status: 'open' | 'closed' | 'all';
   onCreate: () => void;
   onStatus: (status: 'open' | 'closed' | 'all') => void;
@@ -30,16 +33,19 @@ export function ServiceCategoryPageControls({
   onPage: (cursor: string | undefined) => void;
 }) {
   const locale = useLocale();
+  useRegisterCreateAction(embed, onCreate);
   return (
     <>
-      <PageHeader
-        title={t(locale, 'catalogServiceCategories.listTitle')}
-        description={t(locale, 'catalogServiceCategories.listLead')}
-        action={<Button onClick={onCreate}>{t(locale, 'catalogServiceCategories.create')}</Button>}
-      />
-      <ServiceCategoryStatusTabs value={status} onChange={onStatus} />
+      {embed === undefined ? (
+        <PageHeader
+          title={t(locale, 'catalogServiceCategories.listTitle')}
+          description={t(locale, 'catalogServiceCategories.listLead')}
+          action={<Button onClick={onCreate}>{t(locale, 'catalogServiceCategories.create')}</Button>}
+        />
+      ) : null}
       <ServiceCategoriesListPanel
         list={list}
+        filter={<ServiceCategoryStatusTabs value={status} onChange={onStatus} />}
         selectedId={selectedId}
         cursor={cursor}
         tracked={tracked}

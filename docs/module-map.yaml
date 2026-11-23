@@ -24,6 +24,7 @@ imports:
 packages_restricted:
   auth: [identity]
   commissions-engine: [commissions]
+  commissions-posting: [commissions]
   documents: [reporting]
   notifications: [notifications]
   payments: [payments]

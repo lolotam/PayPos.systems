@@ -27,7 +27,7 @@ function visibleNavigationKey(
     .join('\u0000');
 }
 
-export function TopNav({ modules, visiblePageIds, ...chromeProps }: TopNavProps) {
+export function TopNav({ modules, visiblePageIds, resetKey, ...chromeProps }: TopNavProps) {
   const isPhone = useNavigationMedia('(width < 700px)');
   const isCompact = useNavigationMedia('(width < 1024px)');
   const layout = isPhone ? 'phone' : isCompact ? 'tablet' : 'desktop';
@@ -35,9 +35,10 @@ export function TopNav({ modules, visiblePageIds, ...chromeProps }: TopNavProps)
     () => modules.filter((module) => moduleHasVisiblePages(module, visiblePageIds)),
     [modules, visiblePageIds],
   );
+  // الجلسة تُمحى عند تغيّر هذا المفتاح، فمفتاح المستضيف يغلق ما فُتح دون إعادة بناء الشريط.
   const visibilityKey = useMemo(
-    () => visibleNavigationKey(visibleModules, visiblePageIds),
-    [visibleModules, visiblePageIds],
+    () => `${visibleNavigationKey(visibleModules, visiblePageIds)}\u0003${resetKey ?? ''}`,
+    [visibleModules, visiblePageIds, resetKey],
   );
   return (
     <TopNavContent

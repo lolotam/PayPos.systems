@@ -14,6 +14,7 @@
   "dependencies": {
     "@pospay/auth": "workspace:*",
     "@pospay/commissions-engine": "workspace:*",
+    "@pospay/commissions-posting": "workspace:*",
     "@pospay/contracts": "workspace:*",
     "@pospay/documents": "workspace:*",
     "@pospay/notifications": "workspace:*",

@@ -5,9 +5,14 @@ import { Label } from '@pospay/ui';
 import { useFormContext } from 'react-hook-form';
 import { useLocale } from '@/shared/locale/locale-context';
 
-type Props = { index: number; services: PackageTypeDetail['components'] };
+type Props = {
+  index: number;
+  services: PackageTypeDetail['components'];
+  /** فئات عرض العمود على شبكة الصف؛ بلا شبكة (لوحة التعديل) لا أثر لها. */
+  span?: string;
+};
 
-export function PackageServiceField({ index, services }: Props) {
+export function PackageServiceField({ index, services, span = '' }: Props) {
   const locale = useLocale();
   const {
     register,
@@ -15,7 +20,7 @@ export function PackageServiceField({ index, services }: Props) {
   } = useFormContext<CreatePackageTypeInput>();
   const error = errors.components?.[index];
   return (
-    <>
+    <div className={`flex min-w-0 flex-col gap-2 ${span}`}>
       <Label htmlFor={`package-service-${index}`}>{t(locale, 'catalogPackageTypes.service')}</Label>
       <select
         id={`package-service-${index}`}
@@ -41,6 +46,6 @@ export function PackageServiceField({ index, services }: Props) {
           )}
         </p>
       ) : null}
-    </>
+    </div>
   );
 }

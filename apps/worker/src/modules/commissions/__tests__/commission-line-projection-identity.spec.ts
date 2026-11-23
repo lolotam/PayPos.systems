@@ -27,7 +27,7 @@ import {
   onCommissionInputEvent,
   type CommissionInputUseCases,
 } from '../events/handlers/on-commission-input-event.handler.ts';
-import { createCommissionCorrectionScope } from '../persistence/commission-correction.scope.ts';
+import { createCommissionCorrectionScope } from '@pospay/commissions-posting';
 import { createCommissionLineProjectionScope } from '../persistence/commission-line-projection.scope.ts';
 import { noCommissionBlockNotices } from './commission-block-notice.fakes.ts';
 import {

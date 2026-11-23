@@ -1,0 +1,63 @@
+'use client';
+
+import { BottomSheet, cn, shellNavLinkClass } from '@pospay/ui';
+import type { RefObject } from 'react';
+
+import type { ResolvedTopLevel } from '../menu/resolve-top-levels';
+
+/**
+ * ورقة «المزيد» على هاتف النمط A: بقية الأقسام، وقوائمها الفرعية روابط مباشرة (app-map.md)،
+ * فالطريق «المزيد ثم القائمة الفرعية ثم الصفحة» ثلاث ضغطات. الورقة مودالية تحبس التركيز
+ * وتُغلق بالهروب ويعود التركيز إلى زر «المزيد»، وإغلاقها عند الانتقال يتولاه الإطار بتغيّر المسار.
+ */
+export function MoreSheet({
+  open,
+  onOpenChange,
+  groups,
+  title,
+  closeLabel,
+  currentPageId,
+  openerRef,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  groups: readonly ResolvedTopLevel[];
+  title: string;
+  closeLabel: string;
+  currentPageId: string | undefined;
+  openerRef: RefObject<HTMLElement | null>;
+}) {
+  return (
+    <BottomSheet
+      open={open}
+      onOpenChange={onOpenChange}
+      title={title}
+      closeLabel={closeLabel}
+      openerRef={openerRef}
+    >
+      {groups.map((group) => (
+        <section key={group.id} aria-labelledby={`more-${group.id}`} className="mb-3">
+          <h2 id={`more-${group.id}`} className="text-sm font-semibold">
+            {group.label}
+          </h2>
+          <ul>
+            {group.lists.map((list) => {
+              const current = list.pages.some((page) => page.id === currentPageId);
+              return (
+                <li key={list.id}>
+                  <a
+                    href={list.href}
+                    aria-current={current ? 'page' : undefined}
+                    className={cn(shellNavLinkClass, current && 'font-semibold')}
+                  >
+                    {list.label}
+                  </a>
+                </li>
+              );
+            })}
+          </ul>
+        </section>
+      ))}
+    </BottomSheet>
+  );
+}

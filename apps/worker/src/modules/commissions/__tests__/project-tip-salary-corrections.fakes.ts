@@ -1,9 +1,16 @@
-import type { CommissionAttachmentInterval } from '../domain/commission-correction-attribution.ts';
 import type {
+  CommissionAttachmentInterval,
   CommissionCorrectionDraft,
   CommissionFrozenSource,
   CommissionPostedCorrection,
-} from '../domain/commission-correction-step.ts';
+  CommissionOpenBlock,
+  CommissionBlockCodeUpdateInput,
+  CommissionBlockInsertInput,
+  CommissionBlockResolutionInput,
+  CommissionMonthProjection,
+  CommissionCorrectionInsertInput,
+  CommissionCorrectionScope,
+} from '@pospay/commissions-posting';
 import type {
   CommissionPeriodEmployee,
   LockedCommissionPeriod,
@@ -12,15 +19,6 @@ import type {
   CommissionSalaryProjectionRow,
   CommissionTipProjectionSession,
 } from '../domain/commission-tip-salary-inputs.ts';
-import type { CommissionOpenBlock } from '../domain/commission-blocked-correction.ts';
-import type {
-  CommissionBlockCodeUpdateInput,
-  CommissionBlockInsertInput,
-  CommissionBlockResolutionInput,
-  CommissionMonthProjection,
-  CommissionCorrectionInsertInput,
-  CommissionCorrectionScope,
-} from '../ports/commission-correction.port.ts';
 import type {
   CommissionPeriodLockInput,
   CommissionPeriodReopenInput,
