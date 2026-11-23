@@ -312,8 +312,8 @@ export function buildStatement(input: StatementBuildInput): StatementBuild {
   const failures: StatementPricingFailure[] = [];
   for (const { ctx, assembled } of prepared) {
     const built = employeeRows(scope, ctx, assembled);
-    rows.push(...built.rows);
-    failures.push(...built.failures);
+    for (const row of built.rows) rows.push(row);
+    for (const failure of built.failures) failures.push(failure);
   }
   return { rows, attachments: frozen, failures };
 }

@@ -82,6 +82,29 @@ function branchName(names: StatementNames, branchId: string): StatementName {
 }
 
 /**
+ * أسماء بند للتجميد: اسم الخدمة الإنجليزي إجباري لأن الخدمة دايمًا ليها اسم، واسم العميل إجباري لما
+ * `customerId` مش null، فغياب أي منهم من الخرائط خلل في القارئ مش حالة عمل (D-20)، زي غياب اسم الفرع.
+ * الاسم العربي للخدمة اختياري، وبند من غير عميل ما ليهوش اسم.
+ *
+ * @param names الأسماء المقروءة
+ * @param serviceId الخدمة
+ * @param customerId العميل أو null
+ * @returns اسم الخدمة واسم العميل (null لما مفيش عميل)
+ */
+function lineNames(
+  names: StatementNames,
+  serviceId: string,
+  customerId: string | null,
+): { service: StatementName; customerName: string | null } {
+  const service = names.services.get(serviceId);
+  if (service === undefined) throw new RangeError('Statement service name is missing');
+  if (customerId === null) return { service, customerName: null };
+  const customerName = names.customers.get(customerId);
+  if (customerName === undefined) throw new RangeError('Statement customer name is missing');
+  return { service, customerName };
+}
+
+/**
  * مكان المصدر: فرعه واسمه ويوم عمله وفروع الموظفة في اليوم ده.
  *
  * @param row الصف
@@ -140,8 +163,7 @@ export function commissionRow(
   amount: bigint,
 ): StatementRow {
   const base = blank(ctx.label, 'COMMISSION', lineRef(line), amount);
-  const service = ctx.names.services.get(line.serviceId);
-  const customer = line.customerId === null ? null : ctx.names.customers.get(line.customerId);
+  const { service, customerName } = lineNames(ctx.names, line.serviceId, line.customerId);
   return {
     ...placed(
       base,
@@ -153,10 +175,10 @@ export function commissionRow(
     lineId: line.lineId,
     sessionId: line.sessionId,
     serviceId: line.serviceId,
-    serviceNameAr: service?.nameAr ?? null,
-    serviceNameEn: service?.nameEn ?? null,
+    serviceNameAr: service.nameAr,
+    serviceNameEn: service.nameEn,
     customerId: line.customerId,
-    customerName: customer ?? null,
+    customerName,
     businessDate: line.businessDate,
   };
 }
@@ -244,9 +266,7 @@ export function correctionRow(
   const lineId = correction.sourceRef.startsWith('line:') ? correction.sourceRef.slice(5) : null;
   // TODO(spec): رأس البند ممكن يكون غايب؛ سلوك الفشل أو البديل بيتحدد بعد إثبات قارئ 51-1 PR 2
   const head = lineId === null ? undefined : ctx.correctionLineDetails.get(lineId);
-  const service = head === undefined ? undefined : ctx.names.services.get(head.serviceId);
-  const customerId = head?.customerId ?? null;
-  const customer = customerId === null ? undefined : ctx.names.customers.get(customerId);
+  const detail = head === undefined ? null : lineNames(ctx.names, head.serviceId, head.customerId);
   return {
     ...placedRow,
     previousAmount: moneyToString(correction.previousAmount),
@@ -255,10 +275,10 @@ export function correctionRow(
     lineId: head === undefined ? null : lineId,
     sessionId: head?.sessionId ?? null,
     serviceId: head?.serviceId ?? null,
-    serviceNameAr: service?.nameAr ?? null,
-    serviceNameEn: service?.nameEn ?? null,
-    customerId,
-    customerName: customer ?? null,
+    serviceNameAr: detail?.service.nameAr ?? null,
+    serviceNameEn: detail?.service.nameEn ?? null,
+    customerId: head?.customerId ?? null,
+    customerName: detail?.customerName ?? null,
     businessDate: head?.businessDate ?? null,
   };
 }
