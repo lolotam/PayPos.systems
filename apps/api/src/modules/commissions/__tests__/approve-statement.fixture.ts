@@ -119,3 +119,26 @@ export async function resetStatementToDraft(f: StatementFixture, period = PERIOD
       WHERE company_id = ${f.company} AND business_id = ${f.business} AND period = ${period}`;
   });
 }
+
+/** يمسح الإثبات وحالة التغطية ومفتاح الاعتماد للشركة ليبدأ الاختبار من إغلاق كامل (وضع replica للمالك فقط). */
+export async function resetCoverage(f: StatementFixture): Promise<void> {
+  await f.h.owner`DELETE FROM company_feature_overrides
+    WHERE company_id = ${f.company} AND flag = ${SWITCH_FLAG}`;
+  await asReplicaOwner(f.h.owner, async (tx) => {
+    await tx`DELETE FROM commission_coverage_proofs WHERE company_id = ${f.company}`;
+    await tx`DELETE FROM commission_coverage_state WHERE company_id = ${f.company}`;
+  });
+}
+
+/** يراجع الشهر ويفتح المفتاح ويصدر الإثبات ثم يعتمد بمفتاح إعادة إرسال؛ يرجّع رد الاعتماد وبصمتي المراجعة. */
+export async function approveReviewedMonth(
+  f: StatementFixture,
+  approver: Approver,
+  key: string,
+  period = PERIOD,
+) {
+  const fingerprints = await reviewedStatement(f, approver, period);
+  await openSwitch(f, approver.userId);
+  await issueProof(f);
+  return { response: await approve(f, approver.cookie, key, fingerprints, period), fingerprints };
+}

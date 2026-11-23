@@ -129,6 +129,23 @@ describe('the uniform refusals come first', () => {
     expect(await approvalFootprint(f)).toMatchObject({ status: 'REVIEWED', lines: 0, audits: 0 });
   });
 
+  it('refuses branch grants that cover every branch of the business too (CM-38b)', async () => {
+    const everyBranch = await memberWithGrants(f, 'every-branch-approver', [
+      { permission: APPROVE, scope: 'BRANCH' },
+      { permission: APPROVE, scope: 'SECOND_BRANCH' },
+      { permission: READ, scope: 'BRANCH' },
+      { permission: READ, scope: 'SECOND_BRANCH' },
+    ]);
+    await openSwitch(f, approver.userId);
+    await issueProof(f);
+
+    const response = await approve(f, everyBranch.cookie, 'forbidden-4', fingerprints);
+
+    expect(response.status).toBe(403);
+    expect((response.body as { code: string }).code).toBe('FORBIDDEN');
+    expect(await approvalFootprint(f)).toMatchObject({ status: 'REVIEWED', lines: 0, audits: 0 });
+  });
+
   it('answers 422 COMMISSION_PERIOD_NOT_ENDED for a month that has not ended', async () => {
     const response = await approve(f, approver.cookie, 'forbidden-3', fingerprints, '2026-12');
 
