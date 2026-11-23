@@ -39,14 +39,12 @@ export function useSessionIdentity(enabled: boolean): {
   status: 'pending' | 'failed' | 'settled';
 } {
   const query = useSessionAccountQuery(enabled);
-  const status = !enabled
-    ? 'pending'
-    : query.isError
-      ? 'failed'
-      : query.isSuccess
-        ? 'settled'
-        : 'pending';
-  return { userId: enabled && query.isSuccess ? (query.data?.id ?? null) : null, status };
+  const failed = enabled && query.isError;
+  const settled = enabled && query.isSuccess;
+  return {
+    userId: settled ? (query.data?.id ?? null) : null,
+    status: failed ? 'failed' : settled ? 'settled' : 'pending',
+  };
 }
 
 export function useSessionUser(enabled: boolean): string | null {
