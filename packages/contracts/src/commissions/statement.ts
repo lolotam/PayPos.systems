@@ -8,7 +8,7 @@ import { commissionEstimateMoney, commissionEstimatePeriod } from './estimate.js
 const statementDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
 
 /** بصمة SHA-256 بحروف صغيرة hex: نفس صيغة أعمدة البصمة في جدول الكشوف. */
-const statementFingerprint = z.string().regex(/^[0-9a-f]{64}$/);
+export const statementFingerprint = z.string().regex(/^[0-9a-f]{64}$/);
 
 /** حالة الكشف المفتوح: المغلق (APPROVED, PAID) بيرجع رفض لحد ما 53-2 تكتب صفوفه المجمّدة. */
 export const commissionStatementStatus = z

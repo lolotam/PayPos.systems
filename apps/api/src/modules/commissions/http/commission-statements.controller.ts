@@ -1,15 +1,38 @@
-import { Controller, Get, Header, HttpCode, Inject, Param, Post, Req } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  Header,
+  HttpCode,
+  Inject,
+  Param,
+  Post,
+  Req,
+} from '@nestjs/common';
 import {
   commissionEstimatePeriod,
   commissionStatementBranchView,
+  commissionStatementReviewInput,
+  commissionStatementReviewResult,
+  commissionStatementReturnInput,
+  commissionStatementReturnResult,
   commissionStatementView,
   id,
   type CommissionStatementBranchView,
+  type CommissionStatementReviewInput,
+  type CommissionStatementReviewResult,
+  type CommissionStatementReturnInput,
+  type CommissionStatementReturnResult,
   type CommissionStatementView,
 } from '@pospay/contracts';
 import type { FastifyRequest } from 'fastify';
 
-import { Authenticated, Require, RequiresFeature } from '../../../shared/access.decorators.ts';
+import {
+  Authenticated,
+  Require,
+  RequireAny,
+  RequiresFeature,
+} from '../../../shared/access.decorators.ts';
 import { actorOf } from '../../../shared/actor.ts';
 import { ApiError } from '../../../shared/errors.ts';
 import { Idempotency, type IdempotencyInput } from '../../../shared/idempotency.ts';
@@ -17,6 +40,8 @@ import { bindVerifiedCompany } from '../../../shared/request-context.ts';
 import { ZodValidationPipe } from '../../../shared/zod-validation.pipe.ts';
 import { GenerateCommissionStatementUseCase } from '../use-cases/generate-statement/generate-statement.usecase.ts';
 import type { GetCommissionStatementUseCase } from '../use-cases/get-statement/get-statement.usecase.ts';
+import { ReviewCommissionStatementUseCase } from '../use-cases/review-statement/review-statement.usecase.ts';
+import { ReturnCommissionStatementUseCase } from '../use-cases/return-statement/return-statement.usecase.ts';
 import { commissionEstimateActor } from './commission-estimate.controller.ts';
 import { mapCommissionWriteError } from './commission-input-errors.ts';
 
@@ -24,7 +49,7 @@ export const GET_COMMISSION_STATEMENT = Symbol('GET_COMMISSION_STATEMENT');
 
 // القراءة بـ @Authenticated زي التقدير: صلاحية القارئ ممكن تكون على مستوى الفرع، فالنطاق بيتحل جوّه
 // معاملة القراءة والرفض الموحّد بييجي من هناك (CS-Q20). الإنشاء بـ @Require لأنه مقصور على قارئ النشاط كله،
-// وفحصه بيتعاد جوّه معاملته بعد القفل.
+// وفحصه بيتعاد جوّه معاملته بعد القفل. الإرجاع بـ @RequireAny لأن صاحبه مراجع **أو** معتمد (FR-031).
 @Controller('businesses/:businessId/commission-statements')
 export class CommissionStatementsController {
   constructor(
@@ -32,6 +57,10 @@ export class CommissionStatementsController {
     private readonly getStatement: GetCommissionStatementUseCase | null,
     @Inject(GenerateCommissionStatementUseCase)
     private readonly generate: GenerateCommissionStatementUseCase | null,
+    @Inject(ReviewCommissionStatementUseCase)
+    private readonly review: ReviewCommissionStatementUseCase | null,
+    @Inject(ReturnCommissionStatementUseCase)
+    private readonly returnStatement: ReturnCommissionStatementUseCase | null,
   ) {}
 
   @Get(':period')
@@ -71,6 +100,67 @@ export class CommissionStatementsController {
     try {
       return commissionStatementView.parse(
         await this.generate.execute({ ...actorOf(request), businessId, period, ...idem }),
+      );
+    } catch (error) {
+      return mapCommissionWriteError(error);
+    }
+  }
+
+  @Post(':period/review')
+  @HttpCode(200)
+  @Header('Cache-Control', 'no-store')
+  @Require('review:commissions:business', { business: 'businessId' })
+  @RequiresFeature('commissions')
+  async reviewStatement(
+    @Param('businessId', new ZodValidationPipe(id.toLowerCase())) businessId: string,
+    @Param('period', new ZodValidationPipe(commissionEstimatePeriod)) period: string,
+    @Body(new ZodValidationPipe(commissionStatementReviewInput))
+    input: CommissionStatementReviewInput,
+    @Idempotency() idem: IdempotencyInput,
+    @Req() request: FastifyRequest,
+  ): Promise<CommissionStatementReviewResult> {
+    if (this.review === null) throw new ApiError('NOT_READY');
+    try {
+      return commissionStatementReviewResult.parse(
+        await this.review.execute({
+          ...actorOf(request),
+          businessId,
+          period,
+          expectedFingerprint: input.expected_fingerprint,
+          expectedStatementFingerprint: input.expected_statement_fingerprint,
+          ...idem,
+        }),
+      );
+    } catch (error) {
+      return mapCommissionWriteError(error);
+    }
+  }
+
+  @Post(':period/return')
+  @HttpCode(200)
+  @Header('Cache-Control', 'no-store')
+  @RequireAny(['review:commissions:business', 'approve:commissions:business'], {
+    business: 'businessId',
+  })
+  @RequiresFeature('commissions')
+  async returnReviewedStatement(
+    @Param('businessId', new ZodValidationPipe(id.toLowerCase())) businessId: string,
+    @Param('period', new ZodValidationPipe(commissionEstimatePeriod)) period: string,
+    @Body(new ZodValidationPipe(commissionStatementReturnInput))
+    input: CommissionStatementReturnInput,
+    @Idempotency() idem: IdempotencyInput,
+    @Req() request: FastifyRequest,
+  ): Promise<CommissionStatementReturnResult> {
+    if (this.returnStatement === null) throw new ApiError('NOT_READY');
+    try {
+      return commissionStatementReturnResult.parse(
+        await this.returnStatement.execute({
+          ...actorOf(request),
+          businessId,
+          period,
+          reason: input.reason,
+          ...idem,
+        }),
       );
     } catch (error) {
       return mapCommissionWriteError(error);
