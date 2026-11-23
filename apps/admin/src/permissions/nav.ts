@@ -28,13 +28,15 @@ export const PERMISSIONS_NAV_PAGES: readonly NavigationPageEntry[] = [
   },
   {
     id: 'invitations',
+    route: '/invitations',
     labelKey: 'adminNavPages.invitations',
     icon: 'UserRound',
-    state: 'soon',
+    state: 'live',
+    visible: 'invitations-owner',
+    formerSoonId: 'invitations',
     section: 'setup',
     submenu: 'access',
     businessTypes: [],
-    roles: COMPANY_MANAGERS,
     appMapEntry: true,
   },
   {

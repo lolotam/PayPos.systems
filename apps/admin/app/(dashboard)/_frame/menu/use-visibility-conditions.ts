@@ -54,6 +54,8 @@ export function useVisibilityConditions(): VisibilityConditions {
   const leaveAccess = open && leave.allowed;
   const columnsAccess = open && !columns.isPending && !columns.isError;
   const ratingsAccess = open && readAccessProof(ratings) === 'granted';
+  // دعوات الأعضاء للمالك فقط (spec 076 G1): الدور مأخوذ من العضوية المؤكدة في الـ workspace.
+  const invitationsOwner = ready?.company.role_code === 'owner';
   return useMemo(
     () => ({
       always: true,
@@ -62,6 +64,7 @@ export function useVisibilityConditions(): VisibilityConditions {
       'commission-plans-access': plansAccess,
       'employee-app-link-access': appLinkAccess,
       'imported-refunds-access': refundsAccess,
+      'invitations-owner': invitationsOwner,
       'leave-report-access': leaveAccess,
       'ratings-access': ratingsAccess,
       'staff-app-columns-access': columnsAccess,
@@ -72,6 +75,7 @@ export function useVisibilityConditions(): VisibilityConditions {
       plansAccess,
       appLinkAccess,
       refundsAccess,
+      invitationsOwner,
       leaveAccess,
       ratingsAccess,
       columnsAccess,

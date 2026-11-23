@@ -82,6 +82,7 @@ export type NavigationVisibilityCondition =
   | 'commission-plans-access'
   | 'employee-app-link-access'
   | 'imported-refunds-access'
+  | 'invitations-owner'
   | 'leave-report-access'
   | 'ratings-access'
   | 'staff-app-columns-access';

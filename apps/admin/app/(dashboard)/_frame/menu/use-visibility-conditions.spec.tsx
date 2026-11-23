@@ -97,6 +97,8 @@ it('keeps every guarded condition closed while the reads are loading', () => {
     'commission-plans-access': false,
     'employee-app-link-access': false,
     'imported-refunds-access': false,
+    // دعوات الأعضاء مش شرط قراءة: بتيجي من الدور اللي في الـ workspace الجاهز أصلاً، فبتظهر فوراً (spec 076 G1).
+    'invitations-owner': true,
     'leave-report-access': false,
     'ratings-access': false,
     'staff-app-columns-access': false,

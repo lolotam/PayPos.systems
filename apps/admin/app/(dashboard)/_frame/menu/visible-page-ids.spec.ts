@@ -12,6 +12,7 @@ const closed: VisibilityConditions = {
   'commission-plans-access': false,
   'employee-app-link-access': false,
   'imported-refunds-access': false,
+  'invitations-owner': false,
   'leave-report-access': false,
   'ratings-access': false,
   'staff-app-columns-access': false,
