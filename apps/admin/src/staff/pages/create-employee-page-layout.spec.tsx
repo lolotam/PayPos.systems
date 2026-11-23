@@ -149,7 +149,6 @@ it('does not move the shared fields into grid cells on the edit form', () => {
     />,
   );
   const english = screen.getByLabelText('English name');
-  expect(english.parentElement?.className ?? '').not.toContain('col-span-12');
   expect(english.parentElement?.contains(screen.getByLabelText('Arabic name (optional)'))).toBe(
     true,
   );

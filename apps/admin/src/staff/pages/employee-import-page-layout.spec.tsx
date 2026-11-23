@@ -121,3 +121,20 @@ it('shows the rows to fix below the card, stacked, with every cell after the row
   ]);
   expect(cells[0]?.textContent).toBe('4');
 });
+
+// الإطار يلوّن الترويسة بخلفية وخط صغير باهت؛ هذا الجدول كان على main بترويسة عادية في جدول text-sm، فتعود محليًا بـ`!`.
+const HEADER_ROW_CLASSES = ['bg-transparent!'];
+const HEADER_CELL_CLASSES = ['text-sm!', 'font-bold!', 'text-inherit!'];
+
+it('keeps the plain desktop header look of the rows-to-fix table inside the frame', () => {
+  previewWithErrors();
+  const table = screen.getByRole('table');
+  const headRow = table.querySelector('thead') as HTMLElement;
+  HEADER_ROW_CLASSES.forEach((name) => expect(headRow.classList.contains(name)).toBe(true));
+  const headers = within(table).getAllByRole('columnheader');
+  expect(headers).toHaveLength(3);
+  headers.forEach((header) =>
+    HEADER_CELL_CLASSES.forEach((name) => expect(header.classList.contains(name)).toBe(true)),
+  );
+  expect(table.className.split(' ')).toContain('text-sm');
+});

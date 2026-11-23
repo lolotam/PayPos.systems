@@ -75,7 +75,7 @@ The employee picker chooses whose data the screen shows; it does not narrow rows
 
 ### Requests and states against `origin/main`
 
-No hook call, query key, enabled flag or request was added, removed or reordered. Each page has the same single owner of each query as on `main`; only wrapper elements moved. States on `main` and now (loading, refusal, denied, empty, data, paging) render the same content; the card now surrounds them where the template says so. Employee numbers still renders no search box while access is refused; Employees and Document types still render no form while the read is pending or refused.
+No new network query observer, query key, enabled flag or request was added, removed or reordered. Each page has the same single owner of each query as on `main`; only wrapper elements moved. Presentation components that moved or were split out call `useLocale`, and `usePlanAccess` subscribers (local cache state) already existed on `main`; neither is a network observer. States on `main` and now (loading, refusal, denied, empty, data, paging) render the same content; the card now surrounds them where the template says so. Employee numbers still renders no search box while access is refused; Employees and Document types still render no form while the read is pending or refused.
 
 ### Shared files
 
@@ -93,13 +93,17 @@ None. `packages/i18n`: `employeeImport.sectionTemplate`, `employeeImport.section
 ### Open points
 
 1. The plan builder form (Commission plans) and the add/edit form (Document types) have no stated destination; both stay where they are.
-2. Employees and Employee numbers keep the employee number as the first column, so on a phone it is the card title; no document says to reorder columns.
+2. Employees keeps the employee number as its first column, so on a phone the number is the card title; Employee numbers starts with the Name, so the name is the card title. No document says to reorder columns.
 3. The inner fields of the Document types form and of the plan builder were not put on the 12-column grid: the spec names only the pages' frames.
 4. Document types keeps its title in both the page header and the card (as Package types does).
 
 ### Not verified in a browser
 
 Widths, 12-column spans, stacking under 600px, 44px targets, the Arabic layout, how the form card looks around the disabled fieldset, and the document popup browser job (the popup flow and the `/staff` row and Edit button it reads are unchanged in structure; the job itself was not run).
+
+### Table header look against `origin/main` (correction round 1)
+
+`DataTableFrame` gives its tables a header look (`bg-secondary` header row, `text-xs font-medium text-muted-foreground` cells). Where the table was already in the frame on `main` nothing changes: Employees, Employee numbers, Document types, Plan versions and the override Services table (the first three only had the frame moved up one level, into the panel that owns the card). Only the Import «rows to fix» table was a plain `text-sm` table on `main`; it now restores its header locally with `bg-transparent!` on the header row and `text-sm! font-bold! text-inherit!` on each header cell (Tailwind 4 important suffix, so no `packages/ui` change). Row separators and cell padding still come from the frame: they are layout, and the stacked-row look needs them. Proving test: `employee-import-page-layout.spec.tsx`, «keeps the plain desktop header look…».
 
 ### Sizes
 

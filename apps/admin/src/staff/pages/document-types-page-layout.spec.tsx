@@ -60,13 +60,29 @@ it('holds the table in one card and puts the add form after it, below the card',
   expect(follows(card, add)).toBe(true);
 });
 
-it('keeps the card while loading and when the read fails', async () => {
-  api.GET.mockReturnValue(new Promise(() => undefined));
-  renderPage();
-  const card = screen
+function frameCard() {
+  return screen
     .getByRole('heading', { level: 2, name: 'Document types' })
     .closest('.rounded-card') as HTMLElement;
-  expect(card.contains(screen.getByRole('status'))).toBe(true);
+}
+
+it('keeps the card, with the loading state inside it and no add form, while the read is pending', () => {
+  api.GET.mockReturnValue(new Promise(() => undefined));
+  renderPage();
+  expect(frameCard().contains(screen.getByRole('status'))).toBe(true);
+  expect(screen.queryByRole('button', { name: 'Add type' })).toBeNull();
+});
+
+it('shows the unavailable message inside the card and no add form when the read is refused', async () => {
+  api.GET.mockResolvedValue({
+    error: { code: 'FORBIDDEN', message_en: 'Synthetic refusal', message_ar: 'Synthetic ar' },
+    response: { status: 403 },
+  });
+  renderPage();
+  const alert = await screen.findByRole('alert');
+  expect(alert.textContent).toBe('Document types are not available to you.');
+  expect(frameCard().contains(alert)).toBe(true);
+  expect(screen.queryByRole('table')).toBeNull();
   expect(screen.queryByRole('button', { name: 'Add type' })).toBeNull();
 });
 
