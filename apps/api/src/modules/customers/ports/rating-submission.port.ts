@@ -46,9 +46,21 @@ export interface RatingViewScope {
   businessNames(businessId: string): Promise<BusinessNames | null>;
 }
 
+/** التقييم اللي اتحفظ في معاملة الاستهلاك: معرّفه ونطاقه، من غير ما يتقرا حاجة زيادة. */
+export interface ConsumedRating {
+  /** معرّف التقييم المحفوظ. */
+  readonly ratingId: string;
+  /** طلب التقييم اللي اتستهلك. */
+  readonly requestId: string;
+  /** النشاط صاحب الطلب. */
+  readonly businessId: string;
+  /** الفرع صاحب الطلب. */
+  readonly branchId: string;
+}
+
 /**
  * حدود معاملة إرسال التقييم: قفل الطلب واستهلاكه مع حفظ التقييم ونسبه.
- * الاستهلاك والتقييم في نفس المعاملة: لو فشلت النسبة، بيرجع الاستهلاك كله.
+ * الاستهلاك والتقييم والحدث الصغير للتقييم المنخفض في نفس المعاملة: لو فشل أي واحد، بيرجع الكل.
  */
 export interface RatingSubmitScope {
   /**
@@ -62,9 +74,17 @@ export interface RatingSubmitScope {
    * بيستهلك الطلب ويحفظ التقييم مع نسبة لكل موظف متصوّر في الطلب.
    *
    * @param input بصمة التوكن واللحظة والنجوم والملاحظة
-   * @returns true لو اتستهلك الطلب وحُفظ التقييم، وfalse لو الطلب مش متاح
+   * @returns التقييم المحفوظ، أو null لو الطلب مش متاح
    */
-  consumeAndRate(input: ConsumeAndRateInput): Promise<boolean>;
+  consumeAndRate(input: ConsumeAndRateInput): Promise<ConsumedRating | null>;
+  /**
+   * بيلحق حدث `LowRatingSubmitted` في أوتبوكس نفس المعاملة: معرّفات التقييم والنجوم بس، من غير قاعدة ولا اسم ولا تعليق.
+   *
+   * @param rating التقييم اللي اتحفظ دلوقتي
+   * @param stars  عدد النجوم المحفوظ
+   * @returns اكتمال الإلحاق جوه المعاملة، من غير commit مستقل
+   */
+  appendLowRatingSubmitted(rating: ConsumedRating, stars: number): Promise<void>;
 }
 
 /** معاملة صفحة التقييم: بتعمل جوه الشركة المختارة من بادئة الرابط (ADR-0011 §1). */

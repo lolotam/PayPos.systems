@@ -29,6 +29,7 @@ const DEFAULT = [
   'share',
   'estimated_commission',
   'tip',
+  'rating_average',
 ];
 const URL = (business: string) => `/v1/businesses/${business}/settings/staff-columns`;
 
@@ -88,7 +89,7 @@ const storedRow = async () => {
   );
 };
 
-it('MY-17 nothing saved: every adapter gets the MY-Q3 default and two months, rating_average hidden', async () => {
+it('MY-17 nothing saved: every adapter gets the MY-Q3 default (rating_average included) and two months', async () => {
   expect(await throughAdapters()).toEqual(everyAdapter(DEFAULT, 2));
   const read = await get();
   expect(read.statusCode).toBe(200);
@@ -179,14 +180,14 @@ it('MY-13 a value saved under the old 1-24 range is read as 12 by the GET and ev
   expect((await put({ columns: null, months_back: null })).statusCode).toBe(200);
 });
 
-it('MY-19 an unknown, duplicate, rating_comments, customer_phone or rating_average code is 422 and nothing is saved', async () => {
+it('MY-19 an unknown, duplicate, rating_comments or customer_phone code is 422 and nothing is saved', async () => {
   const before = { row: await stored(), audits: await audits() };
   for (const columns of [
     ['date', 'bogus'],
     ['date', 'date'],
     ['date', 'rating_comments'],
     ['customer_phone'],
-    ['rating_average'],
+    ['rating_average', 'rating_average'],
     ['x'.repeat(100)],
     Array.from({ length: 33 }, () => 'date'),
   ]) {
@@ -203,6 +204,24 @@ it('MY-19 an unknown, duplicate, rating_comments, customer_phone or rating_avera
         WHERE company_id = ${f.company} AND business_id = ${f.business}`,
     ).rejects.toThrow(/business_settings_staff_columns/);
   }
+});
+
+it('D-A7 rating_average is accepted in a saved set and reaches every adapter, and leaving it out removes it', async () => {
+  const saved = await put({ columns: ['tip', 'rating_average'], months_back: null });
+  expect(saved.statusCode).toBe(200);
+  expect(staffColumnsSettings.parse(saved.json())).toMatchObject({
+    columns: ['tip', 'rating_average'],
+    columns_default: false,
+  });
+  expect((await stored()).staff_columns).toEqual(['tip', 'rating_average']);
+  expect(await throughAdapters()).toEqual(everyAdapter(['tip', 'rating_average'], 2));
+  expect(staffColumnsSettings.parse((await get()).json()).columns).toEqual([
+    'tip',
+    'rating_average',
+  ]);
+  expect((await put({ columns: ['tip'], months_back: null })).statusCode).toBe(200);
+  expect(await throughAdapters()).toEqual(everyAdapter(['tip'], 2));
+  expect((await put({ columns: null, months_back: null })).statusCode).toBe(200);
 });
 
 it('MY-18 the same columns in another order are not a change: the row and the audit log stay as they were', async () => {

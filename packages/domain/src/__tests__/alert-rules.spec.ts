@@ -177,3 +177,38 @@ describe('DISCOUNT_SELF_APPROVED', () => {
     expect(alertKindAllowsBranchOverride('DISCOUNT_SELF_APPROVED')).toBe(true);
   });
 });
+
+describe('LOW_RATING', () => {
+  it('the RT-Q8 default: on, in-app, the four managers, branch override allowed, no fixed recipient', () => {
+    expect(ALERT_KINDS).toContain('LOW_RATING');
+    expect(effectiveAlertRule('LOW_RATING', null, null, null)).toMatchObject({
+      kind: 'LOW_RATING',
+      source: 'DEFAULT',
+      enabled: true,
+      masterOff: false,
+      recipientRoles: ['owner', 'general_manager', 'business_manager', 'branch_manager'],
+      channels: ['IN_APP'],
+      delayMinutes: null,
+      leadMinutes: null,
+      fixedRecipients: [],
+    });
+    expect(alertKindAllowsBranchOverride('LOW_RATING')).toBe(true);
+  });
+
+  it('a branch rule replaces the default whole and the master switch empties it', () => {
+    const branch = rule({ enabled: false, recipientRoles: ['branch_manager'] });
+    const overridden = effectiveAlertRule('LOW_RATING', null, branch, null);
+    expect(overridden.source).toBe('BRANCH');
+    expect(overridden.enabled).toBe(false);
+    expect(overridden.recipientRoles).toEqual([]);
+    expect(overridden.channels).toEqual([]);
+    expect(overridden.fixedRecipients).toEqual([]);
+    expect(effectiveAlertRule('LOW_RATING', null, null, false).masterOff).toBe(true);
+  });
+
+  it('a delay or lead is not part of this kind and is refused (FR-B16)', () => {
+    expect(alertRuleViolation('LOW_RATING', rule({ delayMinutes: 5 }))).toBe('DELAY_NOT_ALLOWED');
+    expect(alertRuleViolation('LOW_RATING', rule({ leadMinutes: 5 }))).toBe('LEAD_NOT_ALLOWED');
+    expect(alertRuleViolation('LOW_RATING', rule())).toBeNull();
+  });
+});

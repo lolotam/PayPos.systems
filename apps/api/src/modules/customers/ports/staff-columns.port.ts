@@ -7,7 +7,7 @@ import type { Tx } from '@pospay/db';
  */
 export interface StaffColumnsPort {
   /**
-   * بيرجّع الأعمدة المسموحة: المحفوظة أو افتراضي MY-Q3، وrating_average متشال لحد ما التقييم يرجع.
+   * بيرجّع الأعمدة المسموحة: المحفوظة أو افتراضي MY-Q3، وفيه rating_average.
    *
    * @param tx         معاملة القراية
    * @param companyId  الشركة

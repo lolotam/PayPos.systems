@@ -113,6 +113,8 @@ export {
 export { readOwnAttendanceAccess } from './persistence/own-attendance-access.ts';
 
 export { readOwnServiceSessionsAccess } from './persistence/own-service-sessions-access.ts';
+export { readOwnRatingsAccess } from './persistence/own-ratings-access.ts';
+export { readRatingsReadAccess } from './persistence/ratings-read-access.ts';
 export {
   lockDiscountApprovalAccess,
   readDiscountApprovalAccess,

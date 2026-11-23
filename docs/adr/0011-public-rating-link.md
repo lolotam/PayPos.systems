@@ -4,6 +4,7 @@
 - **Date:** 2026-10-02
 - **Amended:** 2026-10-21 (§8, comment visibility)
 - **Amended:** 2026-10-30 (§1, ADR-0057)
+- **Amended:** 2026-11-22 (§8 withdrawn, RT-Q7b: comments for the four manager roles only)
 - **Slice:** Phase 1 · G3 · before PRs 58–60
 
 ## Context
@@ -95,7 +96,9 @@ opt-out accessible until expiry; do not return the submitted rating/comment to t
 
 The comment is **optional plain text, at most 1,000 Unicode characters**, with no images, attachments or links.
 Enforce the limit and reject link-bearing content on the server; render accepted text with escaping, never HTML,
-Markdown or automatic linkification. Comments are visible to **every holder of `read:service-sessions:branch`**, within that holder's authorized
+Markdown or automatic linkification. **Superseded by the addendum of 2026-11-22 below: comments follow
+`read:ratings:branch`, held by the four manager roles only; reception is not eligible.** Original text, kept as history:
+comments are visible to **every holder of `read:service-sessions:branch`**, within that holder's authorized
 scope, reception included when granted it; the staff app, public responses and other tenants never expose them (§8,
 2026-10-21; until then the rule was owner/manager only, §7). The owner decided this policy;
 it overrides any earlier staff-comment visibility toggle. The orchestrator requires owner approval of ar/en
@@ -138,7 +141,9 @@ CLAUDE.md amendment; companion-document synchronization belongs to the orchestra
   at 30 requests/minute, bilingual 429/Retry-After and trusted-proxy spoof rejection; unauthenticated routes still
   pass route-access coverage.
 - **Comments:** absent/empty and 1,000-character comments accepted, 1,001 rejected (including Unicode input),
-  links/images rejected and markup never executed; invalid input leaves the token unconsumed. A holder of
+  links/images rejected and markup never executed; invalid input leaves the token unconsumed. **Superseded by the
+  addendum of 2026-11-22: the test is that a current manager holding `read:ratings:branch` reads comments in her
+  scope and reception does not.** Original text, kept as history: a holder of
   `read:service-sessions:branch` reads comments in its scope, reception included (§8); a caller without it, the staff
   app, public and cross-tenant reads cannot reveal comments.
 
@@ -199,6 +204,26 @@ to `tenancy`. Waleed chose to record the view as a second named exception to the
 - the expiry and name rules are pure `domain/` functions with unit tests, shared with opt-out and submit.
 
 This is not a general permission for reads in `use-cases/`. Any other read keeps the `queries/` path.
+
+## Addendum 2026-11-22 — §8 is withdrawn; comments follow the ratings-read permission (61-2b, RT-Q7b)
+
+§8 gave comment visibility to every holder of `read:service-sessions:branch`. Abu Salem answered RT-Q7 (batch 40,
+2026-10-22, binding) with a new permission `read:ratings:branch`, grantable only to a membership whose role is owner,
+general manager, business manager or branch manager, and the follow-up RT-Q7b the same day: comments show only to the
+owner and the three managers. RT-Q7b was asked about holders of `read:service-sessions:branch`, which no longer gates
+ratings, so this addendum **withdraws the §8 amendment** and restores the owner/manager-only rule of §4 and §7 in its
+new form:
+
+- `GET /v1/businesses/:businessId/ratings` returns the comment to every caller it serves, because the caller's current
+  system role is one of the four manager roles and `read:ratings:branch` is effective in the branch's scope (a
+  branch-level DENY removes that branch). A role changed to a non-manager after a grant reads nothing; a custom role
+  never reads, even if it holds the code.
+- The comment is returned as written (RT-Q17): no masking of phone numbers or other text. Rendering stays escaped
+  text, never HTML, Markdown or linkification (§4).
+- The staff app, the public page, the low-rating notice for a recipient without the permission, and cross-tenant reads
+  still never expose a comment, and it is still never returned to the browser that submitted it.
+- The §6 comment test is amended accordingly: only the four manager roles in scope read comments; reception and every
+  other role, the staff app, the public page and another tenant cannot.
 
 ## Open questions for the owner
 

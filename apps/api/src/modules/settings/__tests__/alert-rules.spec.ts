@@ -1,4 +1,4 @@
-import { alertRules, type SetAlertRulesInput } from '@pospay/contracts';
+import { alertKind, alertRules, type SetAlertRulesInput } from '@pospay/contracts';
 import type { AlertKind } from '@pospay/domain';
 import { afterAll, beforeAll, expect, it } from 'vitest';
 import {
@@ -106,7 +106,14 @@ it('reads the AL-Q5 defaults for every kind before anything is saved', async () 
   expect(response.status).toBe(200);
   const view = alertRules.parse(response.body);
   expect(view.alerts_enabled).toBe(true);
-  expect(view.rules).toHaveLength(15);
+  expect(view.rules).toHaveLength(16);
+  expect(view.rules.find((r) => r.kind === 'LOW_RATING')).toMatchObject({
+    source: 'DEFAULT',
+    enabled: true,
+    channels: ['IN_APP'],
+    revision: null,
+    rule_id: null,
+  });
   expect(view.rules.find((r) => r.kind === 'SHIFT_NOT_CLOCKED_IN')).toMatchObject({
     source: 'DEFAULT',
     enabled: true,
@@ -140,6 +147,49 @@ it('RT-26b: a branch override wins for its branch only; deleting it returns to t
   });
   // المسح تاني من غير صف مخزن: القيم مش بتتفق، فالنظام يرفض ويكتبش حاجة.
   expect((await reset(f.branch, 'SHIFT_NOT_CLOCKED_IN')).status).toBe(409);
+});
+
+const lowRating = (enabled: boolean, roles: ('owner' | 'branch_manager')[]): RuleValues => ({
+  kind: 'LOW_RATING',
+  enabled,
+  recipient_roles: roles,
+  channels: ['IN_APP'],
+  delay_minutes: null,
+  lead_minutes: null,
+});
+
+it('61-1d: a LOW_RATING business rule and a branch override save and read back through the alert-rules routes', async () => {
+  const business = await put(null, [lowRating(true, ['owner'])]);
+  expect(business.status).toBe(200);
+  expect(alertRules.parse(business.body).rules.find((r) => r.kind === 'LOW_RATING')).toMatchObject({
+    source: 'BUSINESS',
+    enabled: true,
+    recipient_roles: ['owner'],
+    revision: 1,
+  });
+  const override = await put(f.branch, [lowRating(true, ['owner', 'branch_manager'])]);
+  expect(override.status).toBe(200);
+  expect(alertRules.parse(override.body).rules.find((r) => r.kind === 'LOW_RATING')).toMatchObject({
+    source: 'BRANCH',
+    recipient_roles: ['owner', 'branch_manager'],
+    revision: 1,
+  });
+  const read = await f.h.send('GET', path(f.branch), { cookie: f.cookie, company: f.company });
+  expect(read.status).toBe(200);
+  expect(alertRules.parse(read.body).rules.find((r) => r.kind === 'LOW_RATING')).toMatchObject({
+    source: 'BRANCH',
+    recipient_roles: ['owner', 'branch_manager'],
+  });
+  expect(await effective(f.branch, 'LOW_RATING')).toMatchObject({
+    source: 'BRANCH',
+    recipientRoles: ['owner', 'branch_manager'],
+  });
+  expect(await effective(f.siblingBranch, 'LOW_RATING')).toMatchObject({
+    source: 'BUSINESS',
+    recipientRoles: ['owner'],
+  });
+  expect((await reset(f.branch, 'LOW_RATING')).status).toBe(204);
+  expect(await effective(f.branch, 'LOW_RATING')).toMatchObject({ source: 'BUSINESS' });
 });
 
 it('RT-26: one kind off carries no recipients; the master switch stops every kind and both branches', async () => {
@@ -302,4 +352,20 @@ it('an unknown business id is a 403, not a screen of defaults', async () => {
   });
   expect(response.status).toBe(403);
   expect(response.body).toMatchObject({ code: 'FORBIDDEN' });
+});
+
+it('one update carrying every alert kind exactly once is accepted and saves each of them', async () => {
+  const read = await f.h.send('GET', path(null), { cookie: f.cookie, company: f.company });
+  const all: RuleValues[] = alertRules.parse(read.body).rules.map((rule) => ({
+    kind: rule.kind,
+    enabled: rule.enabled,
+    recipient_roles: rule.recipient_roles,
+    channels: rule.channels,
+    delay_minutes: rule.delay_minutes,
+    lead_minutes: rule.lead_minutes,
+  }));
+  expect(all).toHaveLength(alertKind.options.length);
+  const saved = await put(null, all);
+  expect(saved.status).toBe(200);
+  expect(alertRules.parse(saved.body).rules.every((rule) => rule.source === 'BUSINESS')).toBe(true);
 });

@@ -55,6 +55,7 @@ vi.mock('@/commissions/api/use-commission-plan-employees', () => ({
   useCommissionPlanEmployees: () => ({}),
 }));
 vi.mock('@/staff/api/use-employee-app-link', () => ({ useEmployeeAppLink: () => ({}) }));
+vi.mock('@/ratings/api/use-ratings-access', () => ({ useRatingsAccess: () => ({}) }));
 vi.mock('@/settings/imported-refunds/api/use-imported-refunds', () => ({
   useImportedRefunds: () => ({}),
 }));

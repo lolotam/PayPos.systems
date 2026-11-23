@@ -97,7 +97,7 @@ owner chose each grouping on 2026-11-21 from three options per section (`owner-q
 | Customers | Customers | 2 | Soon | every business type | Owner, General manager, Business manager, Branch manager, Marketing |
 | Customers | Tags and blocks | 2 | Soon | every business type | Owner, General manager, Business manager, Branch manager, Marketing |
 | Customers | Customer wallet (prepaid balance) | — | Soon | every business type | Owner, General manager, Accountant, Business manager, Branch manager |
-| Customers | Ratings and reviews | 1 | Soon | every business type | Owner, General manager, Business manager, Branch manager, Marketing |
+| Customers | Ratings and reviews | 1 | Live | every business type | Owner, General manager, Business manager, Branch manager, Marketing |
 | Appointments | Calendar | 4 | Soon | Salon, spa, barber, clinic, services company | Owner, General manager, Business manager, Branch manager |
 | Appointments | Resources (chairs, rooms) | 4 | Soon | Salon, spa, barber, clinic, services company | Owner, General manager, Business manager, Branch manager |
 | Appointments | Waitlist | 4 | Soon | Salon, spa, barber, clinic, services company | Owner, General manager, Business manager, Branch manager |
@@ -276,7 +276,7 @@ own there.
 
 ## Counts
 
-- Management area: 128 mapped pages. In this project: 30 Live, 2 New, 96 Soon.
+- Management area: 128 mapped pages. In this project: 31 Live, 2 New, 95 Soon.
 - Other areas: 24 menu pages. In this project: 0 Live, 0 Soon, 24 not mapped here (the cashier app has its own spec).
 - Child pages such as customer package details have no menu entry of their own. Only the pages listed in the map are counted.
 

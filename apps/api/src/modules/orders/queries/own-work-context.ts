@@ -9,8 +9,13 @@ export interface OwnWorkContext {
   userId: string;
   branchId?: string;
 }
+export interface OwnWorkBranch {
+  id: string;
+  name_ar: string | null;
+  name_en: string;
+}
 export interface OwnWorkReads {
-  /** يثبت الأهلية والسلطة الحالية دون تضييق فروع التاريخ. */
+  /** يثبت الأهلية والسلطة الحالية دون تضييق فروع التاريخ، ويرجع توقيت النشاط الذي حُسب به الشهر الحالي. */
   context(
     tx: Tx,
     context: OwnWorkContext,
@@ -18,6 +23,8 @@ export interface OwnWorkReads {
   ): Promise<{
     employeeId: string;
     currentMonth: string;
+    timeZone: string;
+    branches: readonly OwnWorkBranch[];
   } | null>;
   /** يفحص نافذة الشهور بدالة النطاق المحقونة. */
   periodAllowed(month: string, currentMonth: string, monthsBack: number): boolean;

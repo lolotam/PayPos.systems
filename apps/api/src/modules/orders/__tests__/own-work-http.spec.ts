@@ -245,12 +245,3 @@ it('returns visible own tips through the personal route without a private-view w
   expect(capturedLogs).not.toContain(phone);
   expect(capturedLogs).not.toContain('+999999998123');
 });
-
-it('does not register the reserved service-lines endpoint', async () => {
-  const response = await f.h.app.inject({
-    method: 'GET',
-    url: '/v1/staff/me/service-lines',
-    headers: { cookie: personalCookie, origin: personalOrigin },
-  });
-  expect(response.statusCode).toBe(404);
-});

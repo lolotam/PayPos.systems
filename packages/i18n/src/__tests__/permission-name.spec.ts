@@ -6,6 +6,7 @@ const LABELLED_CODES = [
   'read:commissions:own',
   'read:attendance:own',
   'read:ratings:own',
+  'read:ratings:branch',
   'read:salaries:business',
   'manage:salaries:business',
   'read:schedules:branch',
@@ -92,6 +93,13 @@ it('MY-Q5 manage:staff-app-columns:business has an Arabic and an English name', 
     expect(permissionName(locale, 'manage:staff-app-columns:business')).not.toBe(
       'manage:staff-app-columns:business',
     );
+});
+
+it('RT-Q7 read:ratings:branch has an Arabic and an English name', () => {
+  expect(permissionName('ar', 'read:ratings:branch')).toBe('قراءة التقييمات');
+  expect(permissionName('en', 'read:ratings:branch')).toBe('Read ratings');
+  for (const locale of ['ar', 'en'] as const)
+    expect(permissionName(locale, 'read:ratings:branch')).not.toBe('read:ratings:branch');
 });
 
 it('PK-Q13 sell:packages:branch has an Arabic and an English name', () => {

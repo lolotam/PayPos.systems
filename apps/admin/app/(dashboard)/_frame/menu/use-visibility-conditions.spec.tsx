@@ -15,6 +15,7 @@ const state = vi.hoisted(() => ({
   denied: false,
   appLink: {} as Read,
   refunds: {} as Read & { isFetchedAfterMount?: boolean },
+  ratings: {} as Read & { isFetchedAfterMount?: boolean },
   leave: { allowed: false } as { allowed: boolean },
   columns: {} as Read,
 }));
@@ -42,6 +43,7 @@ vi.mock('@/staff/api/use-employee-app-link', () => ({ useEmployeeAppLink: () => 
 vi.mock('@/settings/imported-refunds/api/use-imported-refunds', () => ({
   useImportedRefunds: () => state.refunds,
 }));
+vi.mock('@/ratings/api/use-ratings-access', () => ({ useRatingsAccess: () => state.ratings }));
 vi.mock('@/staff/api/use-leave-report-access', () => ({ useLeaveReportAccess: () => state.leave }));
 vi.mock('@/settings/staff-app-columns/api/use-staff-columns', () => ({
   useStaffColumns: () => state.columns,
@@ -58,6 +60,7 @@ beforeEach(() => {
   state.denied = false;
   state.appLink = { isSuccess: false };
   state.refunds = { isSuccess: false, isError: false, isFetchedAfterMount: false };
+  state.ratings = { isSuccess: false, isError: false, isFetchedAfterMount: false };
   state.leave = { allowed: false };
   state.columns = { isPending: true, isError: false };
   state.workspace = {
@@ -95,6 +98,7 @@ it('keeps every guarded condition closed while the reads are loading', () => {
     'employee-app-link-access': false,
     'imported-refunds-access': false,
     'leave-report-access': false,
+    'ratings-access': false,
     'staff-app-columns-access': false,
   });
 });
@@ -133,6 +137,15 @@ it('opens imported refunds only after a fresh granted read', () => {
   expect(conditions()['imported-refunds-access']).toBe(false);
   state.refunds = { isSuccess: true, isFetchedAfterMount: true };
   expect(conditions()['imported-refunds-access']).toBe(true);
+});
+
+it('opens ratings only after a fresh granted read, and closes it again when a later read fails', () => {
+  state.ratings = { isSuccess: true, isFetchedAfterMount: false };
+  expect(conditions()['ratings-access']).toBe(false);
+  state.ratings = { isSuccess: true, isFetchedAfterMount: true };
+  expect(conditions()['ratings-access']).toBe(true);
+  state.ratings = { isSuccess: false, isError: true, isFetchedAfterMount: true };
+  expect(conditions()['ratings-access']).toBe(false);
 });
 
 it('opens staff app columns unless the read is pending or failed', () => {

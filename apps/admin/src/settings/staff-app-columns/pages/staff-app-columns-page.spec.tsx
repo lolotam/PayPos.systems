@@ -35,7 +35,7 @@ it('shows the stored columns as ticked boxes with an example beside each one', a
   expect(checkbox(t('en', 'staffAppColumns.label_date')).checked).toBe(true);
   expect(checkbox(t('en', 'staffAppColumns.label_service')).checked).toBe(true);
   expect(checkbox(t('en', 'staffAppColumns.label_time')).checked).toBe(false);
-  expect(screen.getAllByRole('checkbox')).toHaveLength(10);
+  expect(screen.getAllByRole('checkbox')).toHaveLength(11);
   expect(
     screen
       .getAllByRole('checkbox')
@@ -51,6 +51,7 @@ it('shows the stored columns as ticked boxes with an example beside each one', a
     t('en', 'staffAppColumns.label_share'),
     t('en', 'staffAppColumns.label_estimated_commission'),
     t('en', 'staffAppColumns.label_tip'),
+    t('en', 'staffAppColumns.label_rating_average'),
   ]);
   expect(screen.getByText(t('en', 'staffAppColumns.example_date'))).toBeTruthy();
   expect(screen.getByText(t('en', 'staffAppColumns.example_share'))).toBeTruthy();
@@ -125,6 +126,38 @@ it('saves the change and shows what the server stored', async () => {
   expect(options.params.header['x-company-id']).toBe(companyId);
   expect(options.params.header['Idempotency-Key']).toBeTruthy();
   expect(options.body).toEqual({ columns: ['date', 'net'], months_back: 4 });
+});
+
+it('D-A7 offers the rating average box, shows it ticked when stored, and saves it once ticked', async () => {
+  const label = t('en', 'staffAppColumns.label_rating_average');
+  api.GET.mockResolvedValue({ data: settings({ columns: ['date'], columns_default: false }) });
+  api.PUT.mockResolvedValue({
+    data: settings({ columns: ['date', 'rating_average'], columns_default: false }),
+  });
+  renderPage();
+  expect(await screen.findByRole('checkbox', { name: label })).toBeTruthy();
+  expect(screen.getByText(t('en', 'staffAppColumns.example_rating_average'))).toBeTruthy();
+  expect(checkbox(label).checked).toBe(false);
+  fireEvent.click(checkbox(label));
+  expect(checkbox(label).checked).toBe(true);
+  fireEvent.click(screen.getByRole('button', { name: t('en', 'staffAppColumns.save') }));
+  expect(await screen.findByText(t('en', 'staffAppColumns.saved'))).toBeTruthy();
+  expect(api.PUT.mock.calls[0]?.[1].body).toEqual({
+    columns: ['date', 'rating_average'],
+    months_back: null,
+  });
+  expect(checkbox(label).checked).toBe(true);
+});
+
+it('D-A7 shows the rating average box already ticked for a business on the default', async () => {
+  api.GET.mockResolvedValue({
+    data: settings({ columns: ['date', 'rating_average'], columns_default: true }),
+  });
+  renderPage();
+  const box = await screen.findByRole('checkbox', {
+    name: t('en', 'staffAppColumns.label_rating_average'),
+  });
+  expect((box as HTMLInputElement).checked).toBe(true);
 });
 
 it('keeps an untouched default column set on the default when only the months changed', async () => {
@@ -259,4 +292,5 @@ it('shows the Arabic screen with the Arabic column names', async () => {
   expect(
     await screen.findByRole('checkbox', { name: t('ar', 'staffAppColumns.label_date') }),
   ).toBeTruthy();
+  expect(checkbox(t('ar', 'staffAppColumns.label_rating_average'))).toBeTruthy();
 });

@@ -48,3 +48,18 @@ export function ratingBusinessName(
   if (nameAr !== null && nameAr.trim().length > 0) return nameAr;
   return nameEn;
 }
+
+/** أعلى عدد نجوم يعتبر تقييماً منخفضاً: نجمة أو نجمتان (RT-22). */
+export const LOW_RATING_MAX_STARS = 2;
+
+/**
+ * بيحدد هل التقييم منخفض فيستحق إشعار المديرين.
+ * قاعدة العمل: نجمة أو نجمتان تقييم منخفض، وثلاث نجوم أو أكتر لا؛ القرار هنا في الحدود بس،
+ * وقاعدة التنبيه والمستلمين بيقررهم عامل customers بعد كده من المحفوظ.
+ *
+ * @param stars عدد النجوم المحفوظ من 1 إلى 5
+ * @returns `true` لو النجوم لا تزيد عن نجمتين
+ */
+export function isLowRating(stars: number): boolean {
+  return stars <= LOW_RATING_MAX_STARS;
+}

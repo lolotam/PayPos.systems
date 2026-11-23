@@ -17,7 +17,7 @@ describe('staff columns (spec 060 D-A6, D-A7)', () => {
     expect([...staffColumnCode.options]).toEqual(STAFF_COLUMN_CODES);
   });
 
-  it('MY-17 nothing saved: her work and her money, without list_price, discount, net or rating_average', () => {
+  it('MY-17 nothing saved: her work, her money and her rating average, without list_price, discount or net', () => {
     expect(effectiveStaffColumns(null)).toEqual([
       'date',
       'time',
@@ -26,8 +26,9 @@ describe('staff columns (spec 060 D-A6, D-A7)', () => {
       'share',
       'estimated_commission',
       'tip',
+      'rating_average',
     ]);
-    expect(DEFAULT_STAFF_COLUMNS).toContain('rating_average');
+    expect(effectiveStaffColumns(null)).toEqual([...DEFAULT_STAFF_COLUMNS]);
   });
 
   it('MY-18 a saved set is returned in enum order', () => {
@@ -44,7 +45,7 @@ describe('staff columns (spec 060 D-A6, D-A7)', () => {
     expect(effectiveStaffColumns(['date', 'service'])).not.toContain('estimated_commission');
   });
 
-  it('MY-19 refuses unknown, duplicate, rating_comments, customer_phone and the postponed rating_average', () => {
+  it('MY-19 refuses unknown, duplicate, rating_comments and customer_phone, and accepts rating_average', () => {
     expect(
       invalidStaffColumns([
         'date',
@@ -55,11 +56,7 @@ describe('staff columns (spec 060 D-A6, D-A7)', () => {
         'rating_average',
         'bogus',
       ]),
-    ).toEqual(['bogus', 'date', 'rating_comments', 'customer_phone', 'rating_average']);
-  });
-
-  it('FR-A08 rating_average never reaches a consumer, even from a stored set', () => {
-    expect(effectiveStaffColumns(['rating_average', 'tip'])).toEqual(['tip']);
+    ).toEqual(['bogus', 'date', 'rating_comments', 'customer_phone']);
   });
 
   it('MY-13 months back: unset is 2, saved values from 1 to 12 pass, 0, 13 and fractions do not', () => {
@@ -71,6 +68,21 @@ describe('staff columns (spec 060 D-A6, D-A7)', () => {
     for (const valid of [1, 2, 3, 12]) expect(isValidStaffMonthsBack(valid)).toBe(true);
     for (const invalid of [0, 13, 24, 25, -1, 1.5])
       expect(isValidStaffMonthsBack(invalid)).toBe(false);
+  });
+});
+
+describe('rating_average is an ordinary staff column (spec 060 D-A7, FR-A08)', () => {
+  it('D-A7 rating_average is an ordinary column: a saved set may hold it, once', () => {
+    expect(invalidStaffColumns(['rating_average'])).toEqual([]);
+    expect(invalidStaffColumns(['tip', 'rating_average'])).toEqual([]);
+    expect(invalidStaffColumns(['rating_average', 'rating_average'])).toEqual(['rating_average']);
+    expect(canonicalStaffColumns(['rating_average', 'date'])).toEqual(['date', 'rating_average']);
+  });
+
+  it('FR-A08 rating_average reaches a consumer from a stored set, and is absent when the set leaves it out', () => {
+    expect(effectiveStaffColumns(['rating_average', 'tip'])).toEqual(['tip', 'rating_average']);
+    expect(effectiveStaffColumns(['tip'])).not.toContain('rating_average');
+    expect(effectiveStaffColumns([])).toEqual([]);
   });
 });
 

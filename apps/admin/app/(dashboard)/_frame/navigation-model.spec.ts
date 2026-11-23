@@ -323,6 +323,7 @@ describe('navigation visibility and count boundaries', () => {
         ['commission-plans', 'commission-plans-access'],
         ['imported-refunds', 'imported-refunds-access'],
         ['leave-history-report', 'leave-report-access'],
+        ['ratings-and-reviews', 'ratings-access'],
         ['staff-app-columns', 'staff-app-columns-access'],
         ['staff-app-link', 'employee-app-link-access'],
       ].sort(),

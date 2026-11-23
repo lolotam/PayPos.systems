@@ -79,13 +79,15 @@ export const CUSTOMERS_NAV_PAGES: readonly NavigationPageEntry[] = [
   },
   {
     id: 'ratings-and-reviews',
-    labelKey: 'adminNavPages.ratingsAndReviews',
+    route: '/ratings',
+    formerSoonId: 'ratings-and-reviews',
+    labelKey: 'ratings.title',
     icon: 'Star',
-    state: 'soon',
+    visible: 'ratings-access',
+    state: 'live',
     section: 'customers',
     submenu: 'customers',
     businessTypes: [],
-    roles: MARKETING_OPS,
     appMapEntry: true,
   },
   {

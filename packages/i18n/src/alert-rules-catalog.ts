@@ -43,6 +43,7 @@ export const alertRulesEn = {
   kind_ATTENDANCE_CHANGE_REQUESTED: 'Attendance change requested',
   kind_ATTENDANCE_CHANGE_DECIDED: 'Attendance change request decided',
   kind_DISCOUNT_SELF_APPROVED: "Discount approved on the approver's own work",
+  kind_LOW_RATING: 'Low customer rating',
 };
 
 /** نفس مفاتيح شاشة التنبيهات بالعربي. */
@@ -90,4 +91,5 @@ export const alertRulesAr: Record<keyof typeof alertRulesEn, string> = {
   kind_ATTENDANCE_CHANGE_REQUESTED: 'طلب تعديل حضور',
   kind_ATTENDANCE_CHANGE_DECIDED: 'الرد على طلب تعديل الحضور',
   kind_DISCOUNT_SELF_APPROVED: 'موافقة على خصم على شغل الموافِق',
+  kind_LOW_RATING: 'تقييم منخفض من عميل',
 };

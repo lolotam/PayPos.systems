@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import type {
   ConsumeAndRateInput,
+  ConsumedRating,
   RatingSubmitScope,
   RatingSubmitTransactions,
 } from '../../ports/rating-submission.port.ts';
@@ -11,12 +12,19 @@ import { SubmitRatingUseCase } from './submit-rating.usecase.ts';
 const COMPANY = '01920000-0000-7000-8000-000000000aa1';
 const TOKEN = `${COMPANY}.${'A'.repeat(43)}`;
 const NOW = new Date('2026-06-02T00:00:00Z');
+const RATED: ConsumedRating = {
+  ratingId: '01920000-0000-7000-8000-000000000dd1',
+  requestId: '01920000-0000-7000-8000-000000000dd2',
+  businessId: '01920000-0000-7000-8000-000000000dd3',
+  branchId: '01920000-0000-7000-8000-000000000dd4',
+};
 
 interface Fakes {
   readonly calls: string[];
   readonly hashed: string[];
   readonly runs: number;
   readonly consumed: ConsumeAndRateInput[];
+  readonly appended: { rating: ConsumedRating; stars: number }[];
   readonly transactions: RatingSubmitTransactions;
 }
 
@@ -24,6 +32,7 @@ function fakes(options: { locked?: boolean; consumed?: boolean } = {}): Fakes {
   const calls: string[] = [];
   const hashed: string[] = [];
   const consumed: ConsumeAndRateInput[] = [];
+  const appended: { rating: ConsumedRating; stars: number }[] = [];
   let runs = 0;
   const scope: RatingSubmitScope = {
     lockRequest: async () => {
@@ -33,7 +42,11 @@ function fakes(options: { locked?: boolean; consumed?: boolean } = {}): Fakes {
     consumeAndRate: async (input) => {
       calls.push('consumeAndRate');
       consumed.push(input);
-      return options.consumed ?? true;
+      return options.consumed === false ? null : RATED;
+    },
+    appendLowRatingSubmitted: async (rating, stars) => {
+      calls.push('appendLowRatingSubmitted');
+      appended.push({ rating, stars });
     },
   };
   const transactions: RatingSubmitTransactions = {
@@ -49,6 +62,7 @@ function fakes(options: { locked?: boolean; consumed?: boolean } = {}): Fakes {
       return runs;
     },
     consumed,
+    appended,
     transactions,
   };
 }
@@ -149,5 +163,67 @@ describe('refusing an unusable rating link', () => {
     const outcome = await useCase(fake).execute({ token: TOKEN, body: { stars: 5 } });
     expect(outcome).toBe('UNAVAILABLE');
     expect(fake.calls).toEqual(['lockRequest', 'clock', 'consumeAndRate']);
+  });
+});
+
+describe('the low rating event', () => {
+  it.each([1, 2])('appends the event after the rating is stored for %i stars', async (stars) => {
+    const fake = fakes();
+    const outcome = await useCase(fake).execute({ token: TOKEN, body: { stars } });
+    expect(outcome).toBe('SUBMITTED');
+    expect(fake.calls).toEqual([
+      'lockRequest',
+      'clock',
+      'consumeAndRate',
+      'appendLowRatingSubmitted',
+    ]);
+    expect(fake.appended).toEqual([{ rating: RATED, stars }]);
+    expect(fake.runs).toBe(1);
+  });
+
+  it.each([3, 4, 5])('appends nothing for %i stars', async (stars) => {
+    const fake = fakes();
+    const outcome = await useCase(fake).execute({ token: TOKEN, body: { stars } });
+    expect(outcome).toBe('SUBMITTED');
+    expect(fake.calls).toEqual(['lockRequest', 'clock', 'consumeAndRate']);
+    expect(fake.appended).toEqual([]);
+  });
+
+  it('appends nothing when the request could not be consumed', async () => {
+    const fake = fakes({ consumed: false });
+    const outcome = await useCase(fake).execute({ token: TOKEN, body: { stars: 1 } });
+    expect(outcome).toBe('UNAVAILABLE');
+    expect(fake.appended).toEqual([]);
+  });
+
+  it('appends nothing when the link has no request or the body is invalid', async () => {
+    const missing = fakes({ locked: false });
+    expect(await useCase(missing).execute({ token: TOKEN, body: { stars: 1 } })).toBe(
+      'UNAVAILABLE',
+    );
+    const invalid = fakes();
+    expect(await useCase(invalid).execute({ token: TOKEN, body: { stars: 0 } })).toBe('INVALID');
+    expect(missing.appended).toEqual([]);
+    expect(invalid.appended).toEqual([]);
+  });
+
+  it('lets a failed append reach the caller so the transaction rolls back', async () => {
+    const fake = fakes();
+    const failing: RatingSubmitTransactions = {
+      run: async (companyId, work) =>
+        fake.transactions.run(companyId, (scope) =>
+          work({
+            ...scope,
+            appendLowRatingSubmitted: async () => {
+              throw new Error('OUTBOX_DOWN');
+            },
+          }),
+        ),
+    };
+    const hash: RatingTokenHash = { sha256: (token) => Buffer.from(token, 'utf8') };
+    const useCaseWithFailure = new SubmitRatingUseCase(failing, hash, { now: () => NOW });
+    await expect(useCaseWithFailure.execute({ token: TOKEN, body: { stars: 2 } })).rejects.toThrow(
+      'OUTBOX_DOWN',
+    );
   });
 });

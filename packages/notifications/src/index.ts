@@ -30,6 +30,13 @@ export { shiftNotClockedIn } from './templates/shift-not-clocked-in.ts';
 export { attendanceExceptionRaised } from './templates/attendance-exception-raised.ts';
 export { documentExpiring } from './templates/document-expiring.ts';
 export { breakNotReturned } from './templates/break-not-returned.ts';
+export {
+  lowRating,
+  lowRatingWithComment,
+  validLowRatingTemplate,
+  type LowRatingDetailsParameter,
+  type LowRatingTemplateDefinition,
+} from './templates/low-rating.ts';
 export { validateParameters, templateComponents } from './templates/definition.ts';
 export type {
   TemplateDefinition,
