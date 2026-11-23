@@ -30,6 +30,8 @@ function uuidArray(ids: readonly string[]): string {
   return `{${ids.join(',')}}`;
 }
 
+const UUID_TEXT = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
+
 /** طلب قراءة مصادر الكشف: الشركة والنشاط والشهر. */
 export interface CommissionStatementSourceRequest {
   readonly companyId: string;
@@ -114,8 +116,14 @@ async function readCorrectionLineHeads(
   companyId: string,
   sourceRefs: readonly string[],
 ): Promise<ReadonlyMap<string, StatementLineHead>> {
+  // `source_ref` عمود نصي، فبنقبل بس اللي شكله UUID قبل ما يدخل مصفوفة الاستعلام؛ مرجع تالف ما يكسرش الكشف.
   const lineIds = [
-    ...new Set(sourceRefs.filter((ref) => ref.startsWith('line:')).map((ref) => ref.slice(5))),
+    ...new Set(
+      sourceRefs
+        .filter((ref) => ref.startsWith('line:'))
+        .map((ref) => ref.slice(5))
+        .filter((id) => UUID_TEXT.test(id)),
+    ),
   ].sort();
   const heads = new Map<string, StatementLineHead>();
   if (lineIds.length === 0) return heads;
