@@ -1,0 +1,157 @@
+import { fireEvent, render, screen, within } from '@testing-library/react';
+import { beforeEach, expect, it, vi } from 'vitest';
+import { EmployeeImportPage } from './employee-import-page';
+
+const state = vi.hoisted(() => {
+  const mutation = () => ({
+    isPending: false,
+    isError: false,
+    isSuccess: false,
+    error: null as unknown,
+    data: undefined as Record<string, unknown> | undefined,
+    mutate: vi.fn(),
+    reset: vi.fn(),
+  });
+  return {
+    template: {
+      isPending: false,
+      isError: false,
+      data: { file_name: 'employees.xlsx', content_base64: 'UEsD' },
+    },
+    preview: mutation(),
+    commit: mutation(),
+    status: {
+      timedOut: false,
+      isError: false,
+      error: null as unknown,
+      data: undefined as Record<string, unknown> | undefined,
+    },
+  };
+});
+vi.mock('@/shared/locale/locale-context', () => ({ useLocale: () => 'en' }));
+vi.mock('../api/use-employee-import', () => ({ useEmployeeImport: () => state }));
+
+const business = {
+  id: 'business',
+  name_en: 'Synthetic salon',
+  name_ar: null,
+  business_type: 'salon' as const,
+  country: null,
+  vertical_type: 'salon' as const,
+  timezone: 'Asia/Kuwait',
+  branches: [],
+};
+// الإطار يضيف أصناف التكديس على غلاف الجدول فقط عند تفعيل stacked؛ لا شيء مرئيًا يميّزها في jsdom.
+const STACKED_CLASS = 'max-[599.99px]:[&_table]:block';
+
+function follows(first: Node, second: Node) {
+  return Boolean(first.compareDocumentPosition(second) & Node.DOCUMENT_POSITION_FOLLOWING);
+}
+
+function renderPage() {
+  render(<EmployeeImportPage companyId="company" business={business} userId="user" />);
+}
+
+function previewWithErrors() {
+  state.preview.isSuccess = true;
+  state.preview.data = {
+    preview_id: 'p',
+    row_count: 2,
+    error_count: 1,
+    errors: [{ row: 4, column: 'name_en', code: 'IMPORT_NAME_INVALID' }],
+  };
+  state.preview.mutate.mockImplementation((_, callbacks) =>
+    callbacks?.onSuccess(state.preview.data),
+  );
+  renderPage();
+  fireEvent.change(screen.getByLabelText('Choose the filled .xlsx file'), {
+    target: { files: [new File(['synthetic'], 'employees.xlsx')] },
+  });
+  fireEvent.click(screen.getByRole('button', { name: 'Preview' }));
+}
+
+beforeEach(() => {
+  state.preview.isSuccess = false;
+  state.preview.data = undefined;
+  state.commit.isSuccess = false;
+  state.commit.data = undefined;
+  state.status.data = undefined;
+  state.preview.mutate.mockReset();
+});
+
+it('opens as a form page and shows its full lead in the card, not as the header description', () => {
+  renderPage();
+  const heading = screen.getByRole('heading', { level: 1, name: 'Import employees' });
+  expect(heading.closest('[data-page-shell="form"]')).not.toBeNull();
+  expect(document.querySelector('[data-page-header-description]')).toBeNull();
+  const lead = screen.getByText(
+    'Download the template, fill it, upload it and preview before committing.',
+  );
+  const card = screen.getByRole('heading', { level: 2, name: 'Template' }).closest('.rounded-card');
+  expect(heading.closest('header')?.contains(lead)).toBe(false);
+  expect(card?.contains(lead)).toBe(true);
+  expect(follows(lead, screen.getByRole('heading', { level: 2, name: 'Template' }))).toBe(true);
+  expect(lead.className.split(' ')).not.toContain('truncate');
+});
+
+// حجم الحقل من مكوّن Input المشترك (min-h-12، 48px كما في design.md §6)، وهو نفسه حقل شعار النشاط.
+const FILE_INPUT_SIZE_CLASSES = ['min-h-12', 'w-full'];
+
+it('sizes the file picker like the shared input and keeps its accepted type', () => {
+  renderPage();
+  const input = screen.getByLabelText('Choose the filled .xlsx file');
+  FILE_INPUT_SIZE_CLASSES.forEach((name) => expect(input.classList.contains(name)).toBe(true));
+  expect(input.getAttribute('type')).toBe('file');
+  expect(input.getAttribute('accept')).toBe('.xlsx');
+});
+
+it('holds two titled sections in one card, then the actions at the foot with commit last', () => {
+  renderPage();
+  const template = screen.getByRole('heading', { level: 2, name: 'Template' });
+  const file = screen.getByRole('heading', { level: 2, name: 'File' });
+  const card = template.closest('.rounded-card') as HTMLElement;
+  const download = within(card).getByRole('button', { name: 'Download template' });
+  const choose = within(card).getByLabelText('Choose the filled .xlsx file');
+  const preview = within(card).getByRole('button', { name: 'Preview' });
+  const commit = within(card).getByRole('button', { name: 'Commit import' });
+  expect(card.contains(file)).toBe(true);
+  expect(follows(template, download)).toBe(true);
+  expect(follows(download, file)).toBe(true);
+  expect(follows(file, choose)).toBe(true);
+  expect(follows(choose, preview)).toBe(true);
+  expect(follows(preview, commit)).toBe(true);
+});
+
+it('shows the rows to fix below the card, stacked, with every cell after the row number labelled', () => {
+  previewWithErrors();
+  const table = screen.getByRole('table');
+  const card = screen.getByRole('heading', { level: 2, name: 'Template' }).closest('.rounded-card');
+  expect(card?.contains(table)).toBe(false);
+  expect(follows(card as HTMLElement, table)).toBe(true);
+  expect(table.parentElement?.className).toContain(STACKED_CLASS);
+  expect(within(table).getByText('Rows to fix')).toBeTruthy();
+  const cells = within(screen.getAllByRole('row')[1] as HTMLElement).getAllByRole('cell');
+  expect(cells.map((cell) => cell.getAttribute('data-cell-label'))).toEqual([
+    null,
+    'Column',
+    'Reason',
+  ]);
+  expect(cells[0]?.textContent).toBe('4');
+});
+
+// الإطار يلوّن الترويسة بخلفية وخط صغير باهت؛ هذا الجدول كان على main بترويسة عادية في جدول text-sm، فتعود محليًا بـ`!`.
+const HEADER_ROW_CLASSES = ['bg-transparent!'];
+const HEADER_CELL_CLASSES = ['text-sm!', 'font-bold!', 'text-inherit!'];
+
+it('keeps the plain desktop header look of the rows-to-fix table inside the frame', () => {
+  previewWithErrors();
+  const table = screen.getByRole('table');
+  const headRow = table.querySelector('thead') as HTMLElement;
+  HEADER_ROW_CLASSES.forEach((name) => expect(headRow.classList.contains(name)).toBe(true));
+  const headers = within(table).getAllByRole('columnheader');
+  expect(headers).toHaveLength(3);
+  headers.forEach((header) =>
+    HEADER_CELL_CLASSES.forEach((name) => expect(header.classList.contains(name)).toBe(true)),
+  );
+  expect(table.className.split(' ')).toContain('text-sm');
+});

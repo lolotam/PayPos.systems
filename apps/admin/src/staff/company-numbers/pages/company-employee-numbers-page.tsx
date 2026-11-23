@@ -1,6 +1,6 @@
 'use client';
 import { t } from '@pospay/i18n';
-import { PageHeader } from '@pospay/ui';
+import { PageHeader, PageShell } from '@pospay/ui';
 import { useLocale } from '@/shared/locale/locale-context';
 import { EmployeeListSearch } from '../../ui/employee-list-search';
 import { useCompanyNumbersScreen } from '../api/use-company-numbers-screen';
@@ -16,20 +16,22 @@ export function CompanyEmployeeNumbersPage({
   const locale = useLocale();
   const screen = useCompanyNumbersScreen(companyId, userId);
   return (
-    <section className="flex min-w-0 flex-col gap-6 text-start">
+    <PageShell layout="list">
       <PageHeader
         title={t(locale, 'companyEmployeeNumbers.title')}
         description={t(locale, 'companyEmployeeNumbers.lead')}
       />
-      {screen.denied ? null : (
-        <EmployeeListSearch
-          value={screen.text}
-          onChange={screen.onSearch}
-          disabled={screen.pending}
-        />
-      )}
       <CompanyEmployeeNumbersPanel
         list={screen.list}
+        filter={
+          screen.denied ? null : (
+            <EmployeeListSearch
+              value={screen.text}
+              onChange={screen.onSearch}
+              disabled={screen.pending}
+            />
+          )
+        }
         cursor={screen.cursor}
         editingId={screen.editingId}
         pending={screen.pending}
@@ -39,6 +41,6 @@ export function CompanyEmployeeNumbersPage({
         onPage={screen.onPage}
         onSubmit={screen.onSubmit}
       />
-    </section>
+    </PageShell>
   );
 }

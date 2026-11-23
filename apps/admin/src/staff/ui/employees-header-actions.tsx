@@ -6,6 +6,7 @@ import Link from 'next/link';
 import { useLocale } from '@/shared/locale/locale-context';
 import { EmployeeAppLinkButton } from './employee-app-link-button';
 
+/** الإجراءات الثانوية في ترويسة الموظفين؛ الإجراء الرئيسي (إضافة موظف) يضعه الـPageHeader في طرفه. */
 export function EmployeesHeaderActions(props: {
   companyId: string;
   userId: string;
@@ -13,7 +14,7 @@ export function EmployeesHeaderActions(props: {
 }) {
   const locale = useLocale();
   return (
-    <div className="flex flex-wrap gap-2">
+    <>
       <EmployeeAppLinkButton
         companyId={props.companyId}
         userId={props.userId}
@@ -22,9 +23,6 @@ export function EmployeesHeaderActions(props: {
       <Button asChild variant="outline">
         <Link href="/staff/document-types">{t(locale, 'employeeDocuments.typesLink')}</Link>
       </Button>
-      <Button asChild>
-        <Link href="/staff/create">{t(locale, 'staff.create')}</Link>
-      </Button>
-    </div>
+    </>
   );
 }
