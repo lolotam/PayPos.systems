@@ -38,6 +38,10 @@ composition_roots:
   staff-otp-db: [packages/auth/src/staff-otp/api.ts, packages/auth/src/staff-otp/execution.ts, packages/auth/src/config.ts, packages/auth/src/personal-sessions.ts, packages/auth/src/approve-phone-binding.ts, packages/auth/src/operator/staging-staff-identity.ts]
 sync_writes:
   - { from: identity, to: tenancy, symbol: registerCompany, file: apps/api/src/modules/identity/persistence/tenancy-company-registry.adapter.ts }
+  - { from: staff, to: identity, symbol: grantStaffMembership, file: apps/api/src/modules/staff/persistence/staff-access.adapter.ts }
+  - { from: staff, to: identity, symbol: saveTemporaryStaffPin, file: apps/api/src/modules/staff/persistence/staff-access.adapter.ts }
+  - { from: staff, to: identity, symbol: provisionStaffUser, file: apps/api/src/modules/staff/persistence/staff-access-auth.adapter.ts }
+  - { from: staff, to: identity, symbol: cancelStaffUser, file: apps/api/src/modules/staff/persistence/staff-access-auth.adapter.ts }
 reads:
   - { from: orders, to: staff, symbol: readOwnEmployee, file: apps/api/src/modules/orders/persistence/own-work-context.adapter.ts }
   - { from: orders, to: identity, symbol: readOwnServiceSessionsAccess, file: apps/api/src/modules/orders/persistence/own-work-context.adapter.ts }
@@ -225,3 +229,10 @@ reads:
   - { from: orders, to: tenancy, symbol: packageSalePlace, file: apps/api/src/modules/orders/persistence/package-sale-context.adapter.ts }
   - { from: orders, to: staff, symbol: readSessionPerformerOptions, file: apps/api/src/modules/orders/persistence/package-sale-context.adapter.ts }
   - { from: catalog, to: tenancy, symbol: packageSalePlace, file: apps/api/src/modules/catalog/persistence/package-sale-place.adapter.ts }
+  - { from: staff, to: identity, symbol: staffAccessGrantedEvent, file: apps/api/src/modules/staff/persistence/staff-access.adapter.ts }
+  - { from: staff, to: identity, symbol: readStaffAccessAuthority, file: apps/api/src/modules/staff/persistence/staff-access.adapter.ts }
+  - { from: staff, to: identity, symbol: readStaffAccessAuthority, file: apps/api/src/modules/staff/persistence/staff-access-auth.adapter.ts }
+  - { from: staff, to: identity, symbol: hashStaffPin, file: apps/api/src/modules/staff/persistence/staff-access-auth.adapter.ts }
+  - { from: staff, to: identity, symbol: readStaffAccessState, file: apps/api/src/modules/staff/persistence/employee-access-reads.adapter.ts }
+  - { from: staff, to: identity, symbol: readStaffAccessAuthority, file: apps/api/src/modules/staff/persistence/employee-access-reads.adapter.ts }
+  - { from: staff, to: identity, symbol: readStaffUser, file: apps/api/src/modules/staff/persistence/employee-access-reads.adapter.ts }

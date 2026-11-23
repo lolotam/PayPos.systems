@@ -222,6 +222,16 @@ The consumer owns the interface. The adapter lives in the consumer's `persistenc
 | ---------- | ----------------- | --------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
 | `identity` | `CompanyRegistry` | `tenancy` (`registerCompany`, exported from `tenancy/index.ts`) | `onboard-company` creates the company and its first owner membership in one transaction; a company without an owner must never be observable |
 
+**The spec 076 bounded exception (ADR-0063, provisional number).** The staff use case `grant-employee-access`
+opens the tenant transaction and identity functions write inside it and on the auth side: a membership and a
+temporary PIN inside the caller's `tx` (`grantStaffMembership`, `saveTemporaryStaffPin`), and the staff user in
+its own auth transaction (`provisionStaffUser`, `cancelStaffUser`). Only `identity` imports `packages/auth`, so
+`staff` reaches all of them through identity's `index.ts` with the caller's transaction, the existing pattern of
+`employeeUserLinkAvailable` and `lockEmployeeManagementAccess`. An event cannot serve: the grant must refuse on
+the employee lock and end in one observable final state per operation id (FR-F1-6). Each arrow below is checked
+by `pnpm module-map:check` against the real files, and the alternative — identity writing `employees` — would put
+an HR table in identity.
+
 No other port may write. A second synchronous write needs its own ADR and a row here.
 
 > `payments → orders` and `orders → catalog` exist as ports in **both directions of the list** without creating a cycle, because neither module imports the other — the adapters do. If a new port would create a cycle **between adapters**, use an event instead.
@@ -409,6 +419,10 @@ composition_roots:
 # (ADR-0010 addendum 2026-10-31).
 sync_writes:
   - identity -> tenancy.registerCompany @ apps/api/src/modules/identity/persistence/tenancy-company-registry.adapter.ts
+  - staff -> identity.grantStaffMembership @ apps/api/src/modules/staff/persistence/staff-access.adapter.ts
+  - staff -> identity.saveTemporaryStaffPin @ apps/api/src/modules/staff/persistence/staff-access.adapter.ts
+  - staff -> identity.provisionStaffUser @ apps/api/src/modules/staff/persistence/staff-access-auth.adapter.ts
+  - staff -> identity.cancelStaffUser @ apps/api/src/modules/staff/persistence/staff-access-auth.adapter.ts
 reads:
   - orders -> staff.readOwnEmployee @ apps/api/src/modules/orders/persistence/own-work-context.adapter.ts
   - orders -> identity.readOwnServiceSessionsAccess @ apps/api/src/modules/orders/persistence/own-work-context.adapter.ts
@@ -596,6 +610,13 @@ reads:
   - orders -> tenancy.packageSalePlace @ apps/api/src/modules/orders/persistence/package-sale-context.adapter.ts
   - orders -> staff.readSessionPerformerOptions @ apps/api/src/modules/orders/persistence/package-sale-context.adapter.ts
   - catalog -> tenancy.packageSalePlace @ apps/api/src/modules/catalog/persistence/package-sale-place.adapter.ts
+  - staff -> identity.staffAccessGrantedEvent @ apps/api/src/modules/staff/persistence/staff-access.adapter.ts
+  - staff -> identity.readStaffAccessAuthority @ apps/api/src/modules/staff/persistence/staff-access.adapter.ts
+  - staff -> identity.readStaffAccessAuthority @ apps/api/src/modules/staff/persistence/staff-access-auth.adapter.ts
+  - staff -> identity.hashStaffPin @ apps/api/src/modules/staff/persistence/staff-access-auth.adapter.ts
+  - staff -> identity.readStaffAccessState @ apps/api/src/modules/staff/persistence/employee-access-reads.adapter.ts
+  - staff -> identity.readStaffAccessAuthority @ apps/api/src/modules/staff/persistence/employee-access-reads.adapter.ts
+  - staff -> identity.readStaffUser @ apps/api/src/modules/staff/persistence/employee-access-reads.adapter.ts
 ```
 
 The check (`pnpm module-map:check`, plan v4 T12b): `docs/module-map.yaml` is generated from this block and must be

@@ -128,3 +128,21 @@ export {
   lockActiveDeviceBusiness,
   lockApproverPinRevision,
 } from './persistence/discount-approval-device.ts';
+export { STAFF_ACCESS_ROLES, staffAccessSystemRole } from './domain/staff-access-roles.ts';
+export type { StaffAccessRole } from './domain/staff-access-roles.ts';
+export { StaffUserRefused } from './domain/staff-access-errors.ts';
+export type { StaffUserFacade } from './ports/staff-users.port.ts';
+export { STAFF_ACCESS_GRANTED, staffAccessGrantedEvent, type StaffAccessGranted } from './events/published.ts';
+export {
+  cancelStaffUser,
+  grantStaffMembership,
+  hashStaffPin,
+  provisionStaffUser,
+  readStaffUser,
+  saveTemporaryStaffPin,
+} from './persistence/staff-user-auth.ts';
+export {
+  readStaffAccessAuthority,
+  readStaffAccessState,
+  type StaffAccessStateRow,
+} from './persistence/staff-access.ts';
