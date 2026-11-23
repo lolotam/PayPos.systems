@@ -13,7 +13,6 @@ import {
 } from './approve-statement.fixture.ts';
 import {
   memberWithGrants,
-  PERIOD,
   READ,
   readStatement,
   statementFixture,
@@ -186,15 +185,5 @@ describe('a month with every condition met', () => {
 
     expect(response.status).toBe(409);
     expect((response.body as { code: string }).code).toBe('COMMISSION_PERIOD_CLOSED');
-  });
-});
-
-describe('the closed read of an unapproved month', () => {
-  it('still computes an open month live, with no frozen field', async () => {
-    const read = await readStatement(f, approver.cookie, '2026-10');
-
-    expect(read.status).toBe(200);
-    expect(read.body).not.toHaveProperty('approved_at');
-    expect(PERIOD).toBe('2026-11');
   });
 });

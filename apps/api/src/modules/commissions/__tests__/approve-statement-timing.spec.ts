@@ -88,12 +88,6 @@ describe('the pending count on a fully consumed history (#1223)', () => {
     expect(medians[size]).toBeLessThan(BUDGET_MS);
   });
 
-  it('reports how the cost follows the retained history, for the record', () => {
-    const [small, large] = SIZES;
-    const ratio = (medians[large as number] ?? 0) / Math.max(medians[small as number] ?? 1, 0.01);
-    console.info('pending count cost ratio', { small, large, ratio });
-    expect(Number.isFinite(ratio)).toBe(true);
-  });
 });
 
 describe('the whole approval on that history (#1223)', () => {

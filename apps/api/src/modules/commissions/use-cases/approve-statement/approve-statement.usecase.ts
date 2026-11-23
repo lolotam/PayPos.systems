@@ -157,11 +157,15 @@ async function freezeApproval(
   if (frozenFingerprint !== computed.statementFingerprint) {
     refuse('COMMISSION_FINGERPRINT_STALE', staleDetails(computed, 'STATEMENT'));
   }
-  const writes: CarryWrite[] = carries.map((carry) => ({
-    ...carry,
-    targetPeriod: target?.period ?? '',
-    targetStatementId: target?.statementId ?? '',
-  }));
+  if (carries.length > 0 && target === null) throw new Error('No open month can receive the carries');
+  const writes: CarryWrite[] =
+    target === null
+      ? []
+      : carries.map((carry) => ({
+          ...carry,
+          targetPeriod: target.period,
+          targetStatementId: target.statementId,
+        }));
   await scope.writeCarries(statementId, period, writes);
   await scope.audit(statementId, period, {
     inputFingerprint: computed.inputFingerprint,
