@@ -31,7 +31,7 @@ owner chose each grouping on 2026-11-21 from three options per section (`owner-q
 |---|---|---|---|---|
 | Dashboard (today at a glance) | 1 | Live | every business type | By page permission |
 | Shift dashboard (current shift and what needs attention) | 2 | Soon | every business type | Owner, General manager, Business manager, Branch manager |
-| Approvals inbox (everything waiting for a decision, one count) | 1 | New | every business type | Owner, General manager, Business manager, Branch manager (by kind) |
+| Approvals inbox (everything waiting for a decision, one count) | 1 | Live | every business type | Owner, General manager, Business manager, Branch manager (by kind) |
 | Daily sales dashboard | 2 | Soon | every business type | Owner, General manager, Accountant, Business manager, Branch manager, Viewer |
 | All-businesses dashboard | 5 | Soon | every business type | Owner, General manager |
 
@@ -183,7 +183,7 @@ owner chose each grouping on 2026-11-21 from three options per section (`owner-q
 | Access | Activity log (who did what, and when) | — | Soon | every business type | Owner, General manager |
 | Staff app | Staff app link | 1 | Live | every business type | Owner, General manager, Business manager |
 | Staff app | Staff app columns | 1 | Live | every business type | Owner, General manager, Business manager |
-| Appearance | Appearance (navigation style, light and dark) | 1 | New | every business type | Every signed-in admin user (NAV-Q1) |
+| Appearance | Appearance (navigation style, light and dark) | 1 | Live | every business type | Every signed-in admin user (NAV-Q1) |
 | Plan | Subscription and billing | 5 | Soon | every business type | Owner |
 | Developers | API keys and webhooks | 5 | Soon | every business type | Owner, General manager |
 | Compliance | ZATCA e-invoicing | 6 | Soon | Country: Saudi Arabia (any business type) | Owner, General manager, Accountant |
@@ -276,7 +276,7 @@ own there.
 
 ## Counts
 
-- Management area: 128 mapped pages. In this project: 30 Live, 2 New, 96 Soon.
+- Management area: 128 mapped pages. In this project: 32 Live, 0 New, 96 Soon.
 - Other areas: 24 menu pages. In this project: 0 Live, 0 Soon, 24 not mapped here (the cashier app has its own spec).
 - Child pages such as customer package details have no menu entry of their own. Only the pages listed in the map are counted.
 

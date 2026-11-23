@@ -101,9 +101,6 @@ export type NavigationBusinessType = VerticalType | PlannedVerticalType;
 /** أكواد الأدوار البشرية المعتمدة في @pospay/contracts (PRD §3.2). */
 export type NavigationRoleCode = Employee['role_code'];
 
-/** مسارات الصفحات الجديدة المخططة للخطوة 7 فقط؛ ليست مسارات حية قبل الخطوة 7. */
-export type PlannedStep7Route = '/approvals' | '/appearance';
-
 interface BaseNavigationPageEntry {
   readonly id: string;
   readonly labelKey: MessageKey;
@@ -140,11 +137,10 @@ export interface EmbeddedLivePageEntry extends LiveNavigationPageEntry {
   readonly appMapEntry: true;
 }
 
-/** صفحة غير مبنية (أو مخططة للخطوة 7 بـ plannedRoute) تفتح /soon/<id> وتُفلتر بنوع النشاط والدور (NAV-Q14). */
+/** صفحة غير مبنية تفتح /soon/<id> وتُفلتر بنوع النشاط والدور (NAV-Q14). */
 export interface SoonNavigationPageEntry extends BaseNavigationPageEntry {
   readonly state: 'soon';
   readonly route?: undefined;
-  readonly plannedRoute?: PlannedStep7Route;
   readonly parent?: undefined;
   readonly roles: readonly [NavigationRoleCode, ...NavigationRoleCode[]];
   readonly appMapEntry: true;

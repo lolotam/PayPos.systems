@@ -38,7 +38,7 @@ const MANAGE = [
   ['1. Home', [
     ['', 'Dashboard (today at a glance)', '1', L, L, '', R_LIVE],
     ['', 'Shift dashboard (current shift and what needs attention)', '2', S, S, '', R_OPS_MGR],
-    ['', 'Approvals inbox (everything waiting for a decision, one count)', '1', N, N, '', R_APPROVALS],
+    ['', 'Approvals inbox (everything waiting for a decision, one count)', '1', L, N, '', R_APPROVALS],
     ['', 'Daily sales dashboard', '2', S, S, '', R_OPS_RPT],
     ['', 'All-businesses dashboard', '5', S, S, '', R_CO_MGR],
   ]],
@@ -172,7 +172,7 @@ const MANAGE = [
     ['Access', 'Activity log (who did what, and when)', '—', S, S, '', R_CO_MGR],
     ['Staff app', 'Staff app link', '1', L, S, '', R_BIZ_MGR],
     ['Staff app', 'Staff app columns', '1', L, S, '', R_BIZ_MGR],
-    ['Appearance', 'Appearance (navigation style, light and dark)', '1', N, 'Live (today\'s Settings page; gains the style choice)', '', R_ALL_ADMIN],
+    ['Appearance', 'Appearance (navigation style, light and dark)', '1', L, 'Live (today\'s Settings page; gains the style choice)', '', R_ALL_ADMIN],
     ['Plan', 'Subscription and billing', '5', S, S, '', R_OWNER],
     ['Developers', 'API keys and webhooks', '5', S, S, '', R_CO_MGR],
     ['Compliance', 'ZATCA e-invoicing', '6', S, S, 'Country: Saudi Arabia (any business type)', R_FIN],

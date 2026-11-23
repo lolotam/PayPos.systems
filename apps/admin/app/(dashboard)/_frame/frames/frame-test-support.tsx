@@ -40,6 +40,8 @@ export const frameState = {
   locale: 'en' as 'en' | 'ar',
   visible: [] as readonly string[],
   push: vi.fn(setPathname),
+  replace: vi.fn(setPathname),
+  params: {} as Record<string, string>,
   workspace: undefined as WorkspaceController | undefined,
 };
 
@@ -59,13 +61,24 @@ function useExternal<T>(read: () => T): T {
   );
 }
 
+/** ما يرميه `notFound()` المحاكى؛ يلتقطه `NotFoundProbe` فيرسم «Not found». */
+export const NOT_FOUND_MESSAGE = 'NEXT_NOT_FOUND';
+
 export const navigationMock = {
   usePathname: () => useExternal(() => frameState.pathname),
   useSearchParams: () => {
     const search = useExternal(() => frameState.search);
     return useMemo(() => new URLSearchParams(search), [search]);
   },
-  useRouter: () => ({ push: frameState.push, refresh: () => undefined }),
+  useRouter: () => ({
+    push: frameState.push,
+    replace: frameState.replace,
+    refresh: () => undefined,
+  }),
+  useParams: () => frameState.params,
+  notFound: (): never => {
+    throw new Error(NOT_FOUND_MESSAGE);
+  },
 };
 export const localeMock = {
   useLocale: () => frameState.locale,
@@ -175,8 +188,11 @@ export function resetFrameState(): void {
   frameState.search = '';
   window.history.replaceState(null, '', window.location.pathname);
   frameState.locale = 'en';
+  frameState.params = {};
   frameState.push.mockReset();
   frameState.push.mockImplementation(setPathname);
+  frameState.replace.mockReset();
+  frameState.replace.mockImplementation(setPathname);
   vi.unstubAllGlobals();
   selectBusiness('restaurant');
 }

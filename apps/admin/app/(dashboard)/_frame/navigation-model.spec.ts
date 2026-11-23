@@ -21,7 +21,6 @@ import type {
   LiveRoutePageEntry,
   NavigationPageEntry,
   NavigationStyle,
-  SoonNavigationPageEntry,
   TopLevelNavigationPageEntry,
 } from '@/workspace/nav-types';
 
@@ -45,6 +44,8 @@ const HERE = fileURLToPath(new URL('.', import.meta.url));
 const ADMIN_APP_DIR = resolve(HERE, '../..');
 const REPO_ROOT = resolve(ADMIN_APP_DIR, '../../..');
 const SPEC_DIR = join(REPO_ROOT, 'docs/specs/074-admin-navigation-layout-restructure');
+// عناوين يملكها الإطار نفسه لا الصفحات: نظرة المجموعة وصفحة «قريبًا»؛ ليست مدخلًا في القوائم.
+const FRAME_HOST_ROUTES = ['/overview/[group]', '/soon/[page]'];
 const ARABIC_SCRIPT = /[\u0600-\u06FF]/;
 
 function collectRouteFiles(dir: string): string[] {
@@ -65,12 +66,10 @@ function fileToRoute(filePath: string, baseDir: string): string {
 
 function listAdminDashboardRoutes(): string[] {
   const dashboardDir = join(ADMIN_APP_DIR, '(dashboard)');
-  const dashboardRoutes = collectRouteFiles(dashboardDir).map((file) =>
-    fileToRoute(file, dashboardDir),
-  );
-  const twoFactorPage = join(ADMIN_APP_DIR, 'security/two-factor/page.tsx');
-  expect(readFileSync(twoFactorPage, 'utf8').length).toBeGreaterThan(0);
-  return [...dashboardRoutes, '/security/two-factor'].sort();
+  return collectRouteFiles(dashboardDir)
+    .map((file) => fileToRoute(file, dashboardDir))
+    .filter((route) => !FRAME_HOST_ROUTES.includes(route))
+    .sort();
 }
 
 function parseManagementAppMapRows(): { live: number; soon: number; fresh: number; total: number } {
@@ -100,10 +99,6 @@ function isLiveEntry(
   return entry.state === 'live';
 }
 
-function isPlannedStep7Entry(entry: NavigationPageEntry): entry is SoonNavigationPageEntry {
-  return entry.state === 'soon' && entry.plannedRoute !== undefined;
-}
-
 function requiredMenuEntryForPathname(pathname: string): TopLevelNavigationPageEntry {
   const entry = resolveMenuEntryForPathname(pathname);
   if (entry === undefined) throw new Error(`No active menu entry for ${pathname}`);
@@ -129,7 +124,7 @@ function flattenGroupingPageIds(style: NavigationStyle): string[] {
 }
 
 describe('navigation model route coverage (074-1 + 074-2)', () => {
-  it('covers every (dashboard) page.tsx route plus /security/two-factor exactly once', () => {
+  it('covers every (dashboard) page.tsx route, the Authenticator page included, exactly once', () => {
     const diskRoutes = listAdminDashboardRoutes();
     const liveRoutes = NAVIGATION_PAGES.filter(isLiveRoutePage).map((entry) => entry.route);
 
@@ -189,19 +184,15 @@ describe('navigation model alignment with generated app-map', () => {
   it('matches the Management-area status totals and records roles in the app map', () => {
     const mapCounts = parseManagementAppMapRows();
     const liveAppMap = APP_MAP_MANAGEMENT_PAGES.filter((entry) => entry.state === 'live');
-    const plannedStep7 = APP_MAP_MANAGEMENT_PAGES.filter(isPlannedStep7Entry);
-    const regularSoon = APP_MAP_MANAGEMENT_PAGES.filter(
-      (entry) => entry.state === 'soon' && !isPlannedStep7Entry(entry),
-    );
+    const soonAppMap = APP_MAP_MANAGEMENT_PAGES.filter((entry) => entry.state === 'soon');
 
     expect(APP_MAP_MANAGEMENT_PAGES).toHaveLength(mapCounts.total);
     expect(liveAppMap).toHaveLength(mapCounts.live);
-    expect(plannedStep7).toHaveLength(mapCounts.fresh);
-    expect(regularSoon).toHaveLength(mapCounts.soon);
-    expect(plannedStep7.map((entry) => entry.plannedRoute).sort()).toEqual([
-      '/appearance',
-      '/approvals',
-    ]);
+    expect(mapCounts.fresh).toBe(0);
+    expect(soonAppMap).toHaveLength(mapCounts.soon);
+    expect(liveAppMap.map((entry) => entry.id)).toEqual(
+      expect.arrayContaining(['appearance', 'approvals-inbox']),
+    );
 
     expect(readFileSync(join(SPEC_DIR, 'app-map.md'), 'utf8')).not.toContain('| not set |');
   });
@@ -379,13 +370,9 @@ describe('navigation Soon-entry filtering boundaries', () => {
       expect(isSoonEntryShownForRole(billing, 'custom_admin')).toBe(false);
     }
 
-    expect(appearance.state).toBe('soon');
-    if (appearance.state === 'soon') {
-      expect(appearance.plannedRoute).toBe('/appearance');
-      expect(isSoonEntryShownForRole(appearance, 'viewer')).toBe(true);
-      expect(isSoonEntryShownForRole(appearance, 'cashier')).toBe(true);
-      expect(isSoonEntryShownForRole(appearance, 'custom_admin')).toBe(true);
-    }
+    expect(appearance).toMatchObject({ state: 'live', route: '/appearance', visible: 'always' });
+    expect(isEntryShownForWorkspace(appearance, null, null)).toBe(true);
+    expect(pageEntryHref(appearance)).toBe('/appearance');
 
     expect(pageEntryHref(scheduleSettings)).toBe('/schedules');
     expect(parseNavigationStyle('A')).toBe('A');
