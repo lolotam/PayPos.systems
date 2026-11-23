@@ -24,7 +24,7 @@ jobs:
     outputs:
       code: ${{ steps.diff.outputs.code }}
       package-groups: ${{ steps.diff.outputs.package-groups }}
-      timing-control: ${{ steps.diff.outputs.timing-control }}
+      timing-mode: ${{ steps.diff.outputs.timing-mode }}
     steps:
       - uses: actions/checkout@v7
         with:
@@ -57,14 +57,17 @@ jobs:
             done < "$files"
           fi
           echo "code=$code" >> "$GITHUB_OUTPUT"
-          # Temporary paired benchmark: first attempt is the control, reruns use the candidate.
-          if [ "$EVENT" = "pull_request" ] && [ "$HEAD_BRANCH" = "ci/parallel-packages-weighted-api" ] && [ "$RUN_ATTEMPT" = "1" ]; then
-            echo 'timing-control=true' >> "$GITHUB_OUTPUT"
-            echo 'package-groups=["all"]' >> "$GITHUB_OUTPUT"
-          else
-            echo 'timing-control=false' >> "$GITHUB_OUTPUT"
-            echo 'package-groups=["admin","pos","libraries"]' >> "$GITHUB_OUTPUT"
+          # The draft PR compares three layouts on one merge commit. Other branches use the normal layout.
+          mode=baseline
+          groups='["all"]'
+          if [ "$EVENT" = "pull_request" ] && [ "$HEAD_BRANCH" = "ci/parallel-packages-weighted-api" ]; then
+            case "$RUN_ATTEMPT" in
+              2) mode=admin; groups='["non-admin","admin-1","admin-2","admin-3"]' ;;
+              3) mode=api ;;
+            esac
           fi
+          echo "timing-mode=$mode" >> "$GITHUB_OUTPUT"
+          echo "package-groups=$groups" >> "$GITHUB_OUTPUT"
 
   check:
     name: typecheck · lint · test · lint:docs
@@ -231,9 +234,8 @@ jobs:
         uses: actions/cache@v6
         with:
           path: .turbo/cache
-          key: turbo-${{ runner.os }}-packages-${{ matrix.group }}-${{ github.sha }}
+          key: turbo-${{ runner.os }}-packages-${{ github.sha }}
           restore-keys: |
-            turbo-${{ runner.os }}-packages-${{ matrix.group }}-
             turbo-${{ runner.os }}-packages-
             turbo-${{ runner.os }}-
 
@@ -249,11 +251,11 @@ jobs:
           fi
           case "$PACKAGE_GROUP" in
             all) pnpm turbo run test "${cache_args[@]}" --filter=!@pospay/domain --filter=!@pospay/api --filter=!@pospay/worker ;;
-            admin) pnpm turbo run test "${cache_args[@]}" --filter=@pospay/admin ;;
-            pos) pnpm turbo run test "${cache_args[@]}" --filter=@pospay/pos ;;
-            libraries)
-              pnpm turbo run test "${cache_args[@]}" --filter=!@pospay/admin --filter=!@pospay/pos \
+            non-admin)
+              pnpm turbo run test "${cache_args[@]}" --filter=!@pospay/admin \
                 --filter=!@pospay/domain --filter=!@pospay/api --filter=!@pospay/worker ;;
+            admin-[1-3])
+              pnpm turbo run test "${cache_args[@]}" --filter=@pospay/admin -- --shard="${PACKAGE_GROUP#admin-}/3" ;;
             *) exit 1 ;;
           esac
 
@@ -337,11 +339,11 @@ jobs:
 
       - name: api integration · RLS negative · EXPLAIN (shard ${{ matrix.shard }}/8)
         env:
-          TIMING_CONTROL: ${{ needs.changes.outputs.timing-control }}
+          TIMING_MODE: ${{ needs.changes.outputs.timing-mode }}
           API_SHARD: ${{ matrix.shard }}/8
         run: |
           args=(--shard="$API_SHARD")
-          if [ "$TIMING_CONTROL" != "true" ]; then args+=(--config vitest.ci.config.ts); fi
+          if [ "$TIMING_MODE" = "api" ]; then args+=(--config vitest.ci.config.ts); fi
           pnpm --filter @pospay/api exec vitest run "${args[@]}"
 
       # With `continue-on-error`, a telemetry failure shows as step `outcome: failure` while its
