@@ -52,6 +52,9 @@ describe('the read path that feeds the input fingerprint (from review round 1 of
   it.todo(
     'guarantees unique source rows (employee_id, source_ref) and unique attachment keys (employee_id, branch_id, attached_from); the builder StatementDuplicateKeyError is only the second line of defence',
   );
+  it.todo(
+    'the service, customer and branch name readers return every referenced id, including historical and deleted ones, with the D-21 placeholder when a name was erased (never null); the builder refuses a missing required name with a RangeError. Also add this line to the delivery docs when PR 2 is written',
+  );
 });
 
 describe('CM-29 a month that has not ended', () => {
