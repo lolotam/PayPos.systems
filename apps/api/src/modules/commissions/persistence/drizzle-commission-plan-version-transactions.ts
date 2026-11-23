@@ -11,6 +11,7 @@ import {
   createCommissionPlanVersionScope,
   type CommissionPlanVersionReaders,
 } from './commission-plan-version-scope.ts';
+import { refuseAfterBusyClaim } from './refuse-after-busy-claim.ts';
 
 const OPERATION = 'create-commission-plan-version';
 
@@ -19,7 +20,7 @@ export function createCommissionPlanVersionTransactions(
   ids: IdGenerator,
   readers: CommissionPlanVersionReaders,
 ): CommissionPlanVersionTransactions {
-  return {
+  const transactions: CommissionPlanVersionTransactions = {
     run: async (command, work) =>
       database.withTenant(
         command.companyId,
@@ -49,6 +50,15 @@ export function createCommissionPlanVersionTransactions(
           return result.body as Awaited<ReturnType<typeof work>>;
         },
         { userId: command.userId },
+      ),
+  };
+  return {
+    run: (command, work) =>
+      refuseAfterBusyClaim(
+        database,
+        command,
+        () => transactions.run(command, work),
+        (tx) => createCommissionPlanVersionScope(tx, command, ids, readers),
       ),
   };
 }

@@ -10,9 +10,10 @@ import { expect } from 'vitest';
  *   وصول الطلب الأول للبوابة     10000   (قبل بدء الطلب التاني)
  *   مراقبة الانتظار على الـ claim  2000   ┐ جوه نافذة الـ claim 5000،
  *   سحب الصلاحية                  1500   ┘ والهامش المتبقي 1500
+ *   انتظار انتهاء الطلب التاني     8000   (وضع holdUntilSecondSettles فقط: مهلة الـ claim 5000 + هامش 3000)
  *   جمع نتيجتي الطلبين            5000   (بعد فتح البوابة)
- *   سقف المساعد كله              18500   (deadline واحد؛ كل خطوة بتاخد min(ميزانيتها، المتبقي))
- *   مهلة الاختبار              30000   = السقف + إعداد وتحقق (≈ 2000) + هامش (REPLAY_TEST_TIMEOUT_MS)
+ *   سقف المساعد كله              26500   (deadline واحد؛ كل خطوة بتاخد min(ميزانيتها، المتبقي))
+ *   مهلة الاختبار              40000   = السقف + إعداد وتحقق (≈ 2000) + هامش (REPLAY_TEST_TIMEOUT_MS)
  *
  * استعلامات الاتصال المالك بتتلغي (cancel) لما ميزانيتها تخلص، والطلبان نفسيهما (ملك التطبيق) بنتوقف عن انتظارهم
  * عند انتهاء مهلة الجمع وبيتقفلوا مع الـ fixture.
@@ -20,11 +21,12 @@ import { expect } from 'vitest';
 const GATE_REACH_BUDGET_MS = 10_000;
 const OBSERVE_BUDGET_MS = 2_000;
 const REVOKE_BUDGET_MS = 1_500;
+const SETTLE_BUDGET_MS = 8_000;
 const COLLECT_BUDGET_MS = 5_000;
-const TOTAL_BUDGET_MS = 18_500;
+const TOTAL_BUDGET_MS = 26_500;
 const POLL_STATEMENT_MS = 1_000;
-/** مهلة الاختبار الصريحة للسيناريوهات الأربعة (بدل تغيير الإعداد العام). */
-export const REPLAY_TEST_TIMEOUT_MS = 30_000;
+/** مهلة الاختبار الصريحة للسيناريوهات (بدل تغيير الإعداد العام). */
+export const REPLAY_TEST_TIMEOUT_MS = 40_000;
 
 const STILL_PENDING = Symbol('still pending');
 
@@ -170,8 +172,10 @@ export interface ReplayAccessBarrier {
   readonly startFirst: (gate: Promise<void>, reachedGate: () => void) => Promise<unknown>;
   /** يبدأ الطلب التاني على نفس المفتاح (بصمة زي الأول أو مختلفة) وشغله لازم يرمي لو اتنفّذ. */
   readonly startSecond: () => Promise<unknown>;
-  /** يسحب الصلاحية بـ SQL مباشر؛ ده بيتخطى أقفال مسار إدارة الصلاحيات، فالاختبار بيثبت ترتيب الفحص بعد الانتظار بس. */
-  readonly revoke: () => Promise<unknown>;
+  /** يسحب الصلاحية بـ SQL مباشر؛ ده بيتخطى أقفال مسار إدارة الصلاحيات، فالاختبار بيثبت ترتيب الفحص بعد الانتظار بس. لو غاب الصلاحية بتفضل ممنوحة. */
+  readonly revoke?: () => Promise<unknown>;
+  /** يفضّل البوابة مقفولة لحد ما الطلب التاني ينتهي (بنهاية مهلة الـ claim مثلاً)، بدل فتحها بعد السحب مباشرة. */
+  readonly holdUntilSecondSettles?: boolean;
 }
 
 export interface ReplayAccessOutcome {
@@ -215,6 +219,17 @@ function trackSecond(start: () => Promise<unknown>) {
     },
   );
   return { state, outcome };
+}
+
+const revokeIfAny = async (barrier: ReplayAccessBarrier) => {
+  if (barrier.revoke !== undefined) await barrier.revoke();
+};
+
+/** يستنى الطلب التاني لحد ما ينتهي (بنجاح أو بخطأ) أو يفشل لو عدّت الميزانية. */
+async function holdUntilSettled(second: ReturnType<typeof trackSecond>, ms: number) {
+  if ((await within(second.outcome, ms)) === STILL_PENDING) {
+    throw new Error(`the second request did not settle within ${ms} ms`);
+  }
 }
 
 const describeFirst = (first: Promise<unknown>) =>
@@ -263,7 +278,10 @@ export async function replayAfterRevocation(
     second = trackSecond(barrier.startSecond);
     const stop = () => firstFailed || second?.state.settled === true;
     blocked = await claimWaiterObserved(barrier.owner, barrier.pids, stop);
-    if (blocked) await withTimeout(barrier.revoke(), left(REVOKE_BUDGET_MS), 'revoking');
+    if (blocked) await withTimeout(revokeIfAny(barrier), left(REVOKE_BUDGET_MS), 'revoking');
+    if (blocked && barrier.holdUntilSecondSettles === true) {
+      await holdUntilSettled(second, left(SETTLE_BUDGET_MS));
+    }
   } catch (error) {
     failure = error;
   } finally {
