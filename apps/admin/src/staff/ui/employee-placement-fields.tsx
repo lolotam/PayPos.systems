@@ -9,45 +9,56 @@ import { Label, Select } from '@pospay/ui';
 import { Controller, useFormContext } from 'react-hook-form';
 import { useLocale } from '@/shared/locale/locale-context';
 import { displayName } from '@/workspace/model/display-name';
+import { EmployeeFieldCell } from './employee-field-cell';
 
-export function EmployeePlacementFields({ branches }: { branches: readonly WorkspaceBranch[] }) {
+export function EmployeePlacementFields({
+  branches,
+  grid = false,
+}: {
+  branches: readonly WorkspaceBranch[];
+  grid?: boolean;
+}) {
   const locale = useLocale();
   const { control } = useFormContext<CreateEmployeeInput>();
   return (
     <>
-      <Label htmlFor="employee-branch">{t(locale, 'staff.primaryBranch')}</Label>
-      <Controller
-        name="primary_branch_id"
-        control={control}
-        render={({ field }) => (
-          <Select
-            id="employee-branch"
-            value={field.value}
-            onValueChange={field.onChange}
-            placeholder={t(locale, 'admin.chooseBranch')}
-            options={branches.map((branch) => ({
-              value: branch.id,
-              label: displayName(branch, locale),
-            }))}
-          />
-        )}
-      />
-      <Label htmlFor="employee-role">{t(locale, 'staff.role')}</Label>
-      <Controller
-        name="role_code"
-        control={control}
-        render={({ field }) => (
-          <Select
-            id="employee-role"
-            value={field.value}
-            onValueChange={field.onChange}
-            options={employeeRoleCode.options.map((role) => ({
-              value: role,
-              label: t(locale, `roles.${role}`),
-            }))}
-          />
-        )}
-      />
+      <EmployeeFieldCell grid={grid} span={6}>
+        <Label htmlFor="employee-branch">{t(locale, 'staff.primaryBranch')}</Label>
+        <Controller
+          name="primary_branch_id"
+          control={control}
+          render={({ field }) => (
+            <Select
+              id="employee-branch"
+              value={field.value}
+              onValueChange={field.onChange}
+              placeholder={t(locale, 'admin.chooseBranch')}
+              options={branches.map((branch) => ({
+                value: branch.id,
+                label: displayName(branch, locale),
+              }))}
+            />
+          )}
+        />
+      </EmployeeFieldCell>
+      <EmployeeFieldCell grid={grid} span={6}>
+        <Label htmlFor="employee-role">{t(locale, 'staff.role')}</Label>
+        <Controller
+          name="role_code"
+          control={control}
+          render={({ field }) => (
+            <Select
+              id="employee-role"
+              value={field.value}
+              onValueChange={field.onChange}
+              options={employeeRoleCode.options.map((role) => ({
+                value: role,
+                label: t(locale, `roles.${role}`),
+              }))}
+            />
+          )}
+        />
+      </EmployeeFieldCell>
     </>
   );
 }

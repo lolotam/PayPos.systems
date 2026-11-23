@@ -25,6 +25,11 @@ export function planVersionsKey(scope: PlanScope, employeeId: string) {
   return [...scope, 'versions', employeeId] as const;
 }
 
+/** مفتاح قراءة أحدث نسخة عادية للمحرّر: خارج مفتاح التاريخ عشان إضافة النسخة الجديدة للتاريخ ما تلمسوش. */
+export function planSeedKey(scope: PlanScope, employeeId: string) {
+  return [...scope, 'seed-version', employeeId] as const;
+}
+
 /** مفتاح جدول خدمات الشاشة: خدمات النشاط مع التجاوز الحالي لكل خدمة. */
 export function planOverrideServicesKey(scope: PlanScope, employeeId: string) {
   return [...scope, 'override-services', employeeId] as const;
@@ -58,6 +63,7 @@ export async function denyPlanAccess(client: QueryClient, scope: PlanScope): Pro
   await client.cancelQueries({ queryKey: scope }, { revert: false });
   client.removeQueries({ queryKey: planEmployeesKey(scope) });
   client.removeQueries({ queryKey: [...scope, 'versions'] });
+  client.removeQueries({ queryKey: [...scope, 'seed-version'] });
   client.removeQueries({ queryKey: [...scope, 'override-services'] });
   client.removeQueries({ queryKey: [...scope, 'override-history'] });
 }

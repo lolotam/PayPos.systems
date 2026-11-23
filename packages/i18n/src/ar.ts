@@ -317,6 +317,8 @@ export const ar: Catalog = {
     create: 'إضافة موظف',
     created: 'تمت إضافة الموظف:',
     invalid: 'راجع بيانات الموظف والتواريخ ومعرف المستخدم.',
+    sectionIdentity: 'بيانات الموظف',
+    sectionEmployment: 'التوظيف',
   },
   catalogServices: catalogServicesAr,
   catalogServiceImport: serviceImportAr,

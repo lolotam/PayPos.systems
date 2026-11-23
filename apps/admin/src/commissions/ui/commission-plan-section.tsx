@@ -5,8 +5,10 @@ import type {
   CommissionPlanVersion,
   CommissionPlanVersionList,
 } from '@pospay/contracts';
-import { useEffect, useMemo, useState } from 'react';
-import { isPlanNotFound, type PlanScope } from '../api/plan-access';
+import type { UseQueryResult } from '@tanstack/react-query';
+import { useEffect, useState } from 'react';
+import { isPlanNotFound, usePlanAccess, type PlanScope } from '../api/plan-access';
+import { useCommissionPlanSeed } from '../api/use-commission-plan-seed';
 import { useCommissionPlanVersions } from '../api/use-commission-plan-versions';
 import { useSaveCommissionPlan, type PlanAttemptMemory } from '../api/use-save-commission-plan';
 import type { PlanDraft } from '../model/plan-draft';
@@ -16,16 +18,34 @@ import { planRefusalMessage } from './plan-server-messages';
 import { PlanBuilderForm } from './plan-builder-form';
 import { PlanHistoryTable } from './plan-history-table';
 
-/** مسودة بلوك الموظفة: أحدث نسخة مخزّنة، أو مسودة فاضية بيوم النشاط لو التاريخ لسه فاضي. */
-function sectionDraft(page: CommissionPlanVersionList, timeZone: string): PlanDraft {
-  const newest = page.items[0];
-  return newest !== undefined ? draftFromVersion(newest) : emptyPlanDraft(timeZone, new Date());
+/** مسودة بلوك الموظفة: أحدث نسخة عادية، أو مسودة فاضية بيوم النشاط لما القراءة تأكد إن مفيش نسخة عادية. */
+function sectionDraft(newest: CommissionPlanVersion | null, timeZone: string): PlanDraft {
+  return newest !== null ? draftFromVersion(newest) : emptyPlanDraft(timeZone, new Date());
+}
+
+/** المسودة بتتثبّت مرة واحدة بعد نجاح أول صفحة تاريخ وبذرة مش أقدم من أحدث نسخة عادية فيها (غير كده البذرة بتتجدد). */
+function useInitialDraft(
+  seed: Pick<UseQueryResult<CommissionPlanVersion | null>, 'data' | 'refetch'>,
+  firstPage: CommissionPlanVersionList | undefined,
+  timeZone: string,
+): PlanDraft | null {
+  const [initial, setInitial] = useState<PlanDraft | null>(null);
+  const { data, refetch } = seed;
+  const newest = firstPage?.items.find((item) => item.repair_period === null)?.version ?? 0;
+  const stale = data !== undefined && newest > (data?.version ?? 0);
+  useEffect(() => {
+    if (initial === null && stale) void refetch();
+  }, [initial, stale, refetch]);
+  if (initial === null && data !== undefined && firstPage !== undefined && !stale) {
+    setInitial(sectionDraft(data, timeZone));
+  }
+  return initial;
 }
 
 /**
- * بلوك موظفة واحدة: المحرّر بيركب بس بعد نجاح أول صفحة تاريخ، وقيم النموذج بتعيش جوّه الفورم
- * نفسها فما بتتأثرش بإعادة جلب ولا تحميل صفحات أكتر؛ الحفظ الناجح بس هو اللي بيصفّر التاريخ
- * ويرجّع يركّب المحرّر على النسخة المخزّنة بعد ما الصفحة الأولى ترجع منها.
+ * بلوك موظفة واحدة: المحرّر بيركب بس بعد نجاح قراءة أحدث نسخة عادية (مش من أول صفحة تاريخ، لأنها
+ * ممكن تبقى كلها إصلاحات)، وفشل القراءة بيظهر رسالة من غير محرّر، وقيم النموذج بتعيش جوّه الفورم
+ * نفسها فما بتتأثرش بإعادة جلب ولا تحميل صفحات أكتر؛ الحفظ الناجح بس هو اللي بيرجّع يركّب المحرّر.
  */
 export function CommissionPlanSection({
   scope,
@@ -43,13 +63,11 @@ export function CommissionPlanSection({
   const locale = useLocale();
   const versions = useCommissionPlanVersions(scope, employee.id);
   const save = useSaveCommissionPlan(scope, employee.id, memory);
-  const failure = versions.isError ? versions.error : null;
+  const seed = useCommissionPlanSeed(scope, employee.id);
+  const failure = versions.isError ? versions.error : seed.isError ? seed.error : null;
   const notFound = failure !== null && isPlanNotFound(failure);
-  const firstPage = versions.data?.pages[0];
-  const initial = useMemo(
-    () => (firstPage === undefined ? null : sectionDraft(firstPage, timeZone)),
-    [firstPage, timeZone],
-  );
+  const access = usePlanAccess(scope);
+  const initial = useInitialDraft(seed, versions.data?.pages[0], timeZone);
   // مفتاح النموذج من آخر نسخة محفوظة ناجحة بس: الحفظ اللي بيستنى أو بيرفض ما بيغيّرش المفتاح
   // فالمحرّر ما بيتركّبش من جديد وتعديلات المدير بتفضل مكانها لحد ما نجاح حقيقي يعيد الأساس.
   const [saved, setSaved] = useState<CommissionPlanVersion | null>(null);
@@ -63,7 +81,7 @@ export function CommissionPlanSection({
     <div className="flex flex-col gap-4">
       <p className="font-semibold">{employeeLabel}</p>
       {failure !== null ? <p role="alert">{planRefusalMessage(failure, locale)}</p> : null}
-      {initial !== null ? (
+      {initial !== null && !access.denied ? (
         <PlanBuilderForm
           key={saved === null ? 'initial' : saved.id}
           initial={saved === null ? initial : draftFromVersion(saved)}

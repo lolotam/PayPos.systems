@@ -3,7 +3,7 @@
 import { planScope, restorePlanAccess, usePlanAccess } from '../api/plan-access';
 import { usePlanAttemptMemory } from '../api/use-save-commission-plan';
 import { t } from '@pospay/i18n';
-import { PageHeader } from '@pospay/ui';
+import { PageHeader, PageShell } from '@pospay/ui';
 import { useQueryClient } from '@tanstack/react-query';
 import { useEffect } from 'react';
 import { useLocale } from '@/shared/locale/locale-context';
@@ -36,13 +36,13 @@ export function CommissionPlansPage({
     <CommissionPlanSection key={selection.employee.id} scope={scope} {...selection} memory={memory} />
   );
   return (
-    <div className="flex flex-col gap-4">
+    <PageShell layout="list">
       <PageHeader title={t(locale, 'commissionPlanBuilder.pageTitle')} />
       {access.denied ? (
         <CommissionPlansDenied onRetry={() => restorePlanAccess(client, scope)} />
       ) : (
         <CommissionPlansBoard scope={scope} renderSection={renderSection} />
       )}
-    </div>
+    </PageShell>
   );
 }
