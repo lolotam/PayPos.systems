@@ -1,5 +1,8 @@
 import type { MarkCommissionStatementPaidResponse } from '@pospay/contracts';
-import { roundCashPayable } from '@pospay/commissions-engine';
+import {
+  computeStatementPayable,
+  roundCashPayable,
+} from '@pospay/commissions-engine';
 import { localDate } from '@pospay/i18n';
 
 import type { Clock } from '../../../../shared/ports/clock.port.ts';
@@ -58,7 +61,7 @@ export async function markStatementPaid(
   const frozen = await scope.frozenLines(locked.statementId);
   const payments = statementPayments(
     command.input.paid_method,
-    frozenEmployeePayables(frozen),
+    frozenEmployeePayables(frozen, computeStatementPayable),
     roundCashPayable,
   );
   const record = {

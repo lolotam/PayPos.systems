@@ -1,5 +1,4 @@
 import { assertMoney, moneyToString, parseMoney, sumMoney, type Money } from '@pospay/domain';
-
 /** أنواع البنود المجمّدة في كشف الشهر؛ نفس قائمة kind في قاعدة البيانات (spec 059 §4). */
 export type FrozenStatementLineKind =
   | 'COMMISSION'
@@ -12,6 +11,19 @@ export type FrozenStatementLineKind =
   | 'CARRY_COMMISSION'
   | 'CARRY_TIP_CARD'
   | 'EMPLOYEE';
+
+const FROZEN_KINDS: ReadonlySet<string> = new Set<string>([
+  'COMMISSION',
+  'SALE',
+  'TIP_CARD',
+  'TIP_CASH',
+  'CORRECTION',
+  'CORRECTION_TIP_CARD',
+  'CORRECTION_TIP_CASH',
+  'CARRY_COMMISSION',
+  'CARRY_TIP_CARD',
+  'EMPLOYEE',
+]);
 
 /** بند مجمّد واحد بيدخل في حساب صافي صاحبه: هوية الموظفة ونوع البند ومبلغه كنص numeric. */
 export interface FrozenStatementLine {
@@ -36,79 +48,61 @@ export interface StatementPayments {
   readonly paidTotal: string;
 }
 
-const COMMISSION_SIDE: ReadonlySet<string> = new Set([
-  'COMMISSION',
-  'SALE',
-  'CORRECTION',
-  'CARRY_COMMISSION',
-]);
-const CARD_TIP_SIDE: ReadonlySet<string> = new Set([
-  'TIP_CARD',
-  'CORRECTION_TIP_CARD',
-  'CARRY_TIP_CARD',
-]);
-const INFORMATIONAL_SIDE: ReadonlySet<string> = new Set(['TIP_CASH', 'CORRECTION_TIP_CASH']);
+/** بيتحسب مستحق موظفة من بنودها؛ محرك العمولة بيوفّر القاعدة (computeStatementPayable) والـ domain بيجمّع. */
+export type StatementPayableOf = (
+  rows: readonly {
+    readonly kind: Exclude<FrozenStatementLineKind, 'EMPLOYEE'>;
+    readonly amount: string;
+  }[],
+) => { readonly payable: Money };
 
 /**
- * الجانب السالب بيتقفل عند صفر (CS-Q7 وCS-Q29)؛ الصافي ما بياخدش سالب.
+ * بيجمّع بنود كل موظفة ويحسب صافي صرفها (قاعدة §9): الجانبان (العمولة وبقشيش الكارت) بيتجمعوا
+ * لوحدهم وكل واحد بيتقفل عند صفر لو سالب، وبقشيش الكاش للعلم بس ومش داخل الصافي (D-36).
+ * قاعدة المبلغ نفسها بتيجي محقونة من محرك العمولة (computeStatementPayable) عشان تتكتب مرة واحدة،
+ * والـ domain هنا بيتولى التجميع وشكل الكشف: بند بنوع مش معروف، أو بند لموظفة من غير صف EMPLOYEE
+ * مجمّد، بيكسر شكل الكشف وفلوسه هتضيع بصمت — بيترفض.
  *
- * @param value المبلغ بالفلوس
- * @returns المبلغ نفسه لو صفر أو أكتر، وصفر لو سالب
- */
-function nonNegative(value: Money): Money {
-  return value < 0n ? 0n : value;
-}
-
-/**
- * بيحسب صافي صرف كل موظفة من بنودها المجمّدة (قاعدة §9): جانب العمولة (عمولة + بيع + تصحيحات +
- * أرصدة مرحّلة) وجانب بقشيش الكارت (بقشيش كارت + تصحيحاته + رصيده المرحّل) كل واحد بيتقفل عند صفر
- * لو طلع سالب، ومجموعهم هو الصافي؛ وبقشيش الكاش للعلم بس ومش داخل الصافي (D-36).
- * الموظفة اللي مالهاش صف EMPLOYEE مجمّد مش هتاخد صف دفع، فأي بند تاني ليها بيكسر شكل الكشف
- * وبيترفض — الفلوس ما تضيعش بصمت جوه كشف معتمد.
- *
- * @param lines البنود المجمّدة للكشف من معاملة الصرف نفسها
+ * @param lines     البنود المجمّدة للكشف من معاملة الصرف نفسها
+ * @param payableOf حاسبة المستحق المحقونة من محرك العمولة
  * @returns صافي واحد لكل موظفة عندها صف EMPLOYEE مجمّد، بالفلوس
  */
 export function frozenEmployeePayables(
   lines: readonly FrozenStatementLine[],
+  payableOf: StatementPayableOf,
 ): Map<string, Money> {
-  const sides = new Map<string, { commission: Money[]; cardTips: Money[]; employeeRow: boolean }>();
+  const grouped = new Map<
+    string,
+    {
+      rows: { kind: Exclude<FrozenStatementLineKind, 'EMPLOYEE'>; amount: string }[];
+      employeeRow: boolean;
+    }
+  >();
   for (const line of lines) {
-    const amount = parseMoney(line.amount);
-    if (
-      line.kind !== 'EMPLOYEE' &&
-      !COMMISSION_SIDE.has(line.kind) &&
-      !CARD_TIP_SIDE.has(line.kind) &&
-      !INFORMATIONAL_SIDE.has(line.kind)
-    ) {
+    if (!FROZEN_KINDS.has(line.kind)) {
       throw new Error(`A frozen statement line has an unknown kind: ${line.kind}`);
     }
-    const current = sides.get(line.employeeId) ?? {
-      commission: [],
-      cardTips: [],
-      employeeRow: false,
-    };
-    if (line.kind === 'EMPLOYEE') {
-      current.employeeRow = true;
-    } else if (COMMISSION_SIDE.has(line.kind)) {
-      current.commission.push(amount);
-    } else if (CARD_TIP_SIDE.has(line.kind)) {
-      current.cardTips.push(amount);
+    const current = grouped.get(line.employeeId) ?? { rows: [], employeeRow: false };
+    if (line.kind === 'EMPLOYEE') current.employeeRow = true;
+    else {
+      // الفحص فوق بيمنع أي نوع مش من الأنواع العشرة، والفرع ده بيستبعد صف EMPLOYEE،
+      // فالنوع هنا واحد من الأنواع التسعة اللي بيدخلوا في حساب المستحق.
+      current.rows.push({
+        kind: line.kind as Exclude<FrozenStatementLineKind, 'EMPLOYEE'>,
+        amount: line.amount,
+      });
     }
-    sides.set(line.employeeId, current);
+    grouped.set(line.employeeId, current);
   }
   const payables = new Map<string, Money>();
-  for (const [employeeId, side] of sides) {
+  for (const [employeeId, group] of grouped) {
     // أي بند لموظفة من غير صف EMPLOYEE مجمّد بيكسر شكل الكشف، وفلوسها هتضيع بصمت — بيترفض.
-    if (!side.employeeRow) {
+    if (!group.employeeRow) {
       throw new Error(
         `A frozen statement line belongs to employee ${employeeId} with no frozen EMPLOYEE row`,
       );
     }
-    payables.set(
-      employeeId,
-      sumMoney([nonNegative(sumMoney(side.commission)), nonNegative(sumMoney(side.cardTips))]),
-    );
+    payables.set(employeeId, payableOf(group.rows).payable);
   }
   return payables;
 }

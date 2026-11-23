@@ -17,15 +17,13 @@ export const commissionStatementPaidMethod = z
   .enum(['WITH_SALARY', 'BANK_TRANSFER', 'CASH'])
   .meta({ id: 'CommissionStatementPaidMethod' });
 
-/**
- * طلب تسجيل صرف كشف شهر: الطريقة وتاريخ الصرف اللي بيصرّحه الدافع (FR-037)،
- * والملاحظة اختيارية من قرار CS-Q6 من غير حدّ طول في القرار.
- */
+/** طلب تسجيل صرف كشف شهر: الطريقة وتاريخ الصرف اللي بيصرّحه الدافع (FR-037)،
+ * والملاحظة اختيارية بنفس حد ملاحظة الإجازة (staff/leave.ts:11: 500 حرف). */
 export const markCommissionStatementPaidInput = z
   .strictObject({
     paid_method: commissionStatementPaidMethod,
     paid_on: commissionPlanDate,
-    paid_note: z.string().min(1).optional(),
+    paid_note: z.string().trim().min(1).max(500).optional(),
   })
   .meta({ id: 'MarkCommissionStatementPaidInput' });
 
@@ -47,7 +45,7 @@ export const markCommissionStatementPaidResponse = responseObject({
   paid_at: timestamp,
   paid_on: commissionPlanDate,
   paid_method: commissionStatementPaidMethod,
-  paid_note: z.string().min(1).nullable(),
+  paid_note: z.string().trim().min(1).max(500).nullable(),
   paid_total: commissionEstimateMoney,
   payments: z.array(commissionStatementPaymentRow),
 })

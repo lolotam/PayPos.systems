@@ -27,7 +27,6 @@ export const commissionPlanErrorsEn = {
     'This month is before the business started on PosPay; choose a later month.',
   COMMISSION_REPAIR_NOT_ALLOWED:
     'There is no plan-missing blocked correction for this employee and month.',
-<<<<<<< HEAD
   COMMISSION_PERIOD_NOT_ENDED: 'This month has not ended yet; generate its statement after it ends.',
   COMMISSION_STATEMENT_BLOCKED:
     'The statement has an employee with no plan or salary, or an open blocked correction; resolve it before review.',
