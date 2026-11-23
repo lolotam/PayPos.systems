@@ -7,6 +7,8 @@ import type {
   StatementNames,
 } from '@pospay/commissions-engine';
 
+import type { StatementFingerprints } from '../domain/statement-change-cause.ts';
+
 /** حالة الكشف المخزّنة ببصماتها؛ `null` يعني مفيش صف كشف للشهر ده لسه. */
 export interface CommissionStatementRecord {
   readonly status: 'DRAFT' | 'REVIEWED' | 'APPROVED' | 'PAID';
@@ -118,10 +120,7 @@ export interface CommissionStatementGenerateScope {
    * @param fingerprints البصمتان اللي اتخزّنت واللي الباني طلّعها
    * @returns اكتمال التدقيق
    */
-  audit(
-    period: string,
-    fingerprints: { readonly input: string; readonly statement: string },
-  ): Promise<void>;
+  audit(period: string, fingerprints: StatementFingerprints): Promise<void>;
 }
 
 /** حد المعاملة الذرية وإعادة الإرسال لإنشاء الكشف. */

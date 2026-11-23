@@ -733,7 +733,7 @@ Named tests; each is an integration test against real Postgres (T2 stack, ADR-00
 - **FR-025** `POST /v1/businesses/:businessId/commission-statements/:period/generate` refuses a month that has not ended
   (business timezone, D-16) with 422 `COMMISSION_PERIOD_NOT_ENDED`; under the lock it ensures the DRAFT row, computes the view
   (CM-27) and the fingerprint, stores `current_fingerprint` and returns the view. `GET …/:period` **writes nothing and takes
-  no lock**: it computes the same view and fingerprint on read (D-7), returns `generated: false` when no statement row exists,
+  no lock**: it computes the same view and fingerprint on read (D-7), returns `generated: false` when the month's `current_fingerprint` is null (no row at all, or a row an input writer created that nobody has generated yet, research R6),
   and for a closed month returns its frozen lines. **Only for a business-wide reader** (§6 _Permissions_), the open
   month's view returns **both** fingerprints (D-6), the input fingerprint and the statement fingerprint of the rows the
   builder would freeze now; a REVIEWED statement is shown as **changed since review** when either differs from its
