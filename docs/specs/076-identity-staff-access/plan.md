@@ -144,7 +144,7 @@ Rules that follow:
   through its `operation_id`; a `PENDING` record older than 24 hours can be cancelled by the granter, which deletes
   the staff user by `operation_id` in one auth transaction and the record in one tenant transaction.
 - The synthetic email is `staff-<operation_id>@<reserved domain>`, never derived from the phone (F3 changes the
-  phone). The reserved domain is a constant in `packages/auth` and a `.invalid` name.
+  phone). The reserved domain is the exported constant `STAFF_SYNTHETIC_EMAIL_DOMAIN = "staff.pospay.invalid"` in `packages/auth`; G1 refuses invitations to it.
 - The adoption rule of revision 1 is gone: a phone that belongs to any user is refused, whatever the company.
 - Two concurrent grants for one employee serialize on the unique `(company_id, employee_id)`; two for one phone on
   the unique phone constraint, and the loser answers `STAFF_ACCESS_PHONE_TAKEN`.
