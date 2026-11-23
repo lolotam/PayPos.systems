@@ -53,6 +53,16 @@ function useProbe(
   return ready ? readAccessProof(query) : 'idle';
 }
 
+/**
+ * يرفع الخطأ برمز الحالة عند أي رد 4xx/5xx. القرار من رمز الحالة لا من جسم الخطأ: openapi-fetch يعطي
+ * error غير معرّف لرد 403 بلا جسم، فلو اعتمدنا عليه لمرّ الرد إلى المحلل وفشل بلا رمز، وقرأه
+ * readAccessProof فشلًا بدل رفض.
+ */
+function rejectOnHttpError(result: { error?: unknown; response: { status: number } }): void {
+  if (result.response.status < 400) return;
+  throw { ...(result.error as object | undefined), status: result.response.status };
+}
+
 const header = (scope: ApprovalAccessScope) => ({ 'x-company-id': scope.companyId });
 
 /**
@@ -72,7 +82,7 @@ export function useApprovalKindProbes(scope: ApprovalAccessScope | null): Approv
         params: { header: header(s), path: { businessId: s.businessId }, query: { limit: 1 } },
         signal,
       });
-      if (result.error) throw { ...result.error, status: result.response.status };
+      rejectOnHttpError(result);
       return leavePage.parse(result.data);
     },
   );
@@ -92,7 +102,7 @@ export function useApprovalKindProbes(scope: ApprovalAccessScope | null): Approv
           signal,
         },
       );
-      if (result.error) throw { ...result.error, status: result.response.status };
+      rejectOnHttpError(result);
       return attendanceChangeRequestPage.parse(result.data);
     },
   );
@@ -112,7 +122,7 @@ export function useApprovalKindProbes(scope: ApprovalAccessScope | null): Approv
           signal,
         },
       );
-      if (result.error) throw { ...result.error, status: result.response.status };
+      rejectOnHttpError(result);
       return attendanceExceptionPage.parse(result.data);
     },
   );

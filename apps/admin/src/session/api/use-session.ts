@@ -13,8 +13,8 @@ export function useSession(enabled: boolean) {
   });
 }
 
-export function useSessionAccount(enabled: boolean): SessionAccount | null {
-  const query = useQuery({
+function useSessionAccountQuery(enabled: boolean) {
+  return useQuery({
     queryKey: ['session', 'user'],
     queryFn: readSessionAccount,
     enabled,
@@ -23,7 +23,30 @@ export function useSessionAccount(enabled: boolean): SessionAccount | null {
     staleTime: 0,
     refetchOnWindowFocus: 'always',
   });
+}
+
+export function useSessionAccount(enabled: boolean): SessionAccount | null {
+  const query = useSessionAccountQuery(enabled);
   return enabled && query.isSuccess ? query.data : null;
+}
+
+/**
+ * معرّف المستخدم مع حال قراءة هويته: `pending` قبل التركيب أو أثناء القراءة، و`failed` إن فشلت،
+ * و`settled` بعد نجاحها (ويبقى المعرّف فارغًا إن لم يكن هناك مستخدم). null وحده لا يفرّق بينها.
+ */
+export function useSessionIdentity(enabled: boolean): {
+  userId: string | null;
+  status: 'pending' | 'failed' | 'settled';
+} {
+  const query = useSessionAccountQuery(enabled);
+  const status = !enabled
+    ? 'pending'
+    : query.isError
+      ? 'failed'
+      : query.isSuccess
+        ? 'settled'
+        : 'pending';
+  return { userId: enabled && query.isSuccess ? (query.data?.id ?? null) : null, status };
 }
 
 export function useSessionUser(enabled: boolean): string | null {

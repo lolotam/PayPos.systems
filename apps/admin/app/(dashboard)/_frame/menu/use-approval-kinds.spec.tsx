@@ -24,7 +24,11 @@ vi.mock(
   '@/workspace/model/workspace-provider',
   async () => (await import('../frames/frame-test-support')).workspaceMock,
 );
-vi.mock('@/session/api/use-session', () => ({ useSessionUser: () => 'user-1' }));
+const identity = vi.hoisted(() => ({
+  userId: 'user-1' as string | null,
+  status: 'settled' as 'pending' | 'failed' | 'settled',
+}));
+vi.mock('@/session/api/use-session', () => ({ useSessionIdentity: () => identity }));
 
 const EXCEPTIONS = '/v1/businesses/{businessId}/branches/{branchId}/attendance-exceptions';
 const bodies: Record<string, unknown> = {
@@ -53,6 +57,8 @@ function renderKinds<T = ReturnType<typeof useApprovalKinds>>(
 }
 
 beforeEach(() => {
+  identity.userId = 'user-1';
+  identity.status = 'settled';
   api.GET.mockReset();
   selectBusiness('restaurant');
   frameState.visible = [
@@ -90,11 +96,11 @@ it('lists all three kinds once every page read succeeds', async () => {
 });
 
 describe('the inbox state', () => {
-  const answerExcept = (path: string, status: number, code: string) =>
+  const answerExcept = (path: string, status: number, code?: string) =>
     api.GET.mockImplementation((requested: string) =>
       Promise.resolve(
         requested === path
-          ? { error: { code }, response: { status } }
+          ? { error: code === undefined ? undefined : { code }, response: { status } }
           : { data: bodies[requested], response: { status: 200 } },
       ),
     );
@@ -109,6 +115,28 @@ describe('the inbox state', () => {
     const { result } = renderKinds(useApprovalInbox);
     await waitFor(() => expect(result.current.state).toBe('failed'));
     expect(result.current.kinds).toHaveLength(2);
+  });
+
+  it('treats a refusal with an empty body as a refusal, not as a failure', async () => {
+    answerExcept(EXCEPTIONS, 403);
+    const { result } = renderKinds(useApprovalInbox);
+    await waitFor(() => expect(result.current.kinds).toHaveLength(2));
+    expect(result.current.state).toBe('settled');
+  });
+
+  it('is failed, not empty, when the workspace itself failed to load', () => {
+    frameState.workspace = { status: 'error', message: 'down', companies: [], choose: vi.fn() };
+    const { result } = renderKinds(useApprovalInbox);
+    expect(result.current).toEqual({ kinds: [], state: 'failed' });
+  });
+
+  it.each([
+    ['failed', 'failed'],
+    ['pending', 'loading'],
+  ] as const)('maps the user identity read "%s" to the inbox state "%s"', (status, expected) => {
+    identity.userId = null;
+    identity.status = status;
+    expect(renderKinds(useApprovalInbox).result.current.state).toBe(expected);
   });
 
   it('settles with no kinds when every read is refused', async () => {

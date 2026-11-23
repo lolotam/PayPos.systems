@@ -50,3 +50,14 @@ it('says the lists could not be checked when a check failed, and still lists the
   expect(screen.getByRole('alert').textContent).toBe(t('en', 'adminNav.approvalsInboxFailed'));
   expect(screen.getByRole('link', { name: 'Leave approvals' })).toBeTruthy();
 });
+
+it('keeps the known links but still shows loading while another check is running', () => {
+  render(
+    <ApprovalsInboxPage
+      kinds={[{ id: 'leave-approvals', label: 'Leave approvals', href: '/leave' }]}
+      state="loading"
+    />,
+  );
+  expect(screen.getByRole('status').textContent).toBe(t('en', 'admin.loading'));
+  expect(screen.getByRole('link', { name: 'Leave approvals' })).toBeTruthy();
+});

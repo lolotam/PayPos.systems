@@ -1,6 +1,6 @@
 'use client';
 
-import { useSessionUser } from '@/session/api/use-session';
+import { useSessionIdentity } from '@/session/api/use-session';
 import { useMounted } from '@/shared/browser/use-mounted';
 import {
   approvalAccessOf,
@@ -16,11 +16,12 @@ import { useMenuContext } from './use-menu-context';
 /**
  * أنواع الاعتماد التي يستطيع المستخدم فتح صفحتها الآن مع حال التحقق منها، للصفحة التي ستضيفها 7b.
  * الفرع المستعمل هو فرع مساحة العمل ثم أول فرع للنشاط، كما تفعل مساراتا الحضور.
- * بلا نطاق (مساحة العمل أو الجلسة لم تصلا بعد) يبقى الحال «ينتظر» حتى لا يُعرض فراغ قبل أوانه.
+ * بلا نطاق يتبع الحال مساحة العمل والهوية: ينتظر حتى تصلا، ويفشل إن فشلت إحداهما، حتى لا يُعرض فراغ
+ * يوحي بأن لا قائمة متاحة والحقيقة أن المساحة أو الهوية لم تُقرأ.
  */
 export function useApprovalInbox(): { kinds: ApprovalKindItem[]; state: ApprovalProbeState } {
   const ctx = useMenuContext();
-  const userId = useSessionUser(useMounted());
+  const { userId, status: identity } = useSessionIdentity(useMounted());
   const workspace = useWorkspace();
   const business = workspace.status === 'ready' ? workspace.business : undefined;
   const companyId = workspace.status === 'ready' ? workspace.company.id : undefined;
@@ -31,10 +32,12 @@ export function useApprovalInbox(): { kinds: ApprovalKindItem[]; state: Approval
       ? { companyId, businessId: business.id, branchId, userId }
       : null;
   const probes = useApprovalKindProbes(scope);
-  const waiting = scope === null && (workspace.status === 'loading' || userId === null);
+  const failed = workspace.status === 'error' || identity === 'failed';
+  const waiting = workspace.status === 'loading' || identity === 'pending';
+  const withoutScope = failed ? 'failed' : waiting ? 'loading' : 'settled';
   return {
     kinds: buildApprovalKinds(ctx, approvalAccessOf(probes)),
-    state: waiting ? 'loading' : approvalStateOf(probes),
+    state: scope === null ? withoutScope : approvalStateOf(probes),
   };
 }
 
