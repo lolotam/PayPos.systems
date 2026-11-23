@@ -4,7 +4,7 @@ Parent: [`spec.md`](./spec.md) and [`plan.md`](./plan.md) of this folder (074-7a
 
 ## Owner decision
 
-Waleed, card of 2026-11-23, «PR صغير مستقل قبل 7b (Recommended)», recorded as PP-233: PR #1226 (074-7a) merges as reviewed under its 5,000-line cap, and the findings left by its reviews are fixed here, in one separate PR that merges before 074-7b starts. Tier Medium. Cap: 900 added plus removed lines of code and tests, docs counted separately. Review pipeline PP-228. The Next `Link` prefetch finding is not part of this slice (#1227).
+Waleed, card of 2026-11-23, «PR صغير مستقل قبل 7b (Recommended)», recorded as PP-233: PR #1226 (074-7a) merges as reviewed under its 5,000-line cap, and the findings left by its reviews are fixed here, in one separate PR that merges before 074-7b starts. Tier Medium. Cap: 900 added plus removed lines of code and tests, docs counted separately. Review pipeline PP-228. The cap was raised once, to 1,050 added plus removed lines of code and tests, by the owner's card of 2026-11-23 («رفع السقف إلى 1,050 ونقفل كل الـ 14 بند (Recommended)»), so that all fourteen items close in this PR. The Next `Link` prefetch finding is not part of this slice (#1227).
 
 ## What changes for a user
 
@@ -90,3 +90,16 @@ Estimate: 330 production, 480 tests. If the count passes 800 before step 6, stop
 - `useApprovalKinds` and `useApprovalKindAccess` have no production caller yet (7b will call `useApprovalInbox`); they stay because existing specs pin their shapes.
 
 Not verified: real-browser focus, scroll containment (item 14 uses stubbed rects) and breakpoint behaviour (#1192).
+
+## Correction round 1 (PP-228 review of head e65171ef5)
+
+Main moved (`a3e52e119`, 55-2f) and was merged without conflict.
+
+**Done in this round (points 1–4 of the brief):**
+
+1. **Query string in the navigation key (item 7, P1).** New `frames/use-navigation-key.ts` returns the pathname plus the query (`useSearchParams`). It now keys: the account menu and workspace switcher (`resetKey`), the More sheet, the C floating panel, the C page finder and the B drawer and mega menu (`TopNav.resetKey`). Decision per overlay: every keyed overlay is modal or closes on an outside press, so the URL cannot change between opening and closing through the user using the page (a filter change needs the page, which the overlay blocks); closing on any URL move, Back and Forward included, is therefore right. What is not keyed by the query: the desktop panel's visibility (a user preference) and the previewed workspace of the desktop panel (kept per pathname, so a filter change on a list page does not reset a preview in use; `usePanelState` takes both keys). Tests: `frame-actions.spec.tsx` (account menu and switcher, forward, Back, forward again on `/packages?package=…`), `style-c-frame-panel.spec.tsx` (floating panel, finder, preview kept), `style-a-frame-fixes.spec.tsx` (sheet). Replacing the key with the bare pathname fails five of these tests. `useSearchParams` in a client component can need a `Suspense` boundary when a page is prerendered; 7b mounts the frames in a dynamic layout, to be confirmed in its build.
+2. **Empty-body refusal (item 12, P1).** `use-approval-kind-access.ts` decides from `response.status >= 400` (helper `rejectOnHttpError`), not from the body. Test: a 403 with `error: undefined` lists the other kinds and settles; it failed before the fix with state `failed`.
+3. **Workspace and identity failures (item 12, P1).** `useSessionIdentity` (new, in `use-session.ts`) passes the identity query state (`pending`, `failed`, `settled`). With no scope the inbox state is `failed` when the workspace status is `error` or the identity read failed, `loading` while either is pending, `settled` otherwise. Tests in `use-approval-kinds.spec.tsx` (workspace error; identity failed and pending). The spec's mock of `use-session` now provides `useSessionIdentity` instead of `useSessionUser`.
+4. **Loading beside known links (item 12, P1).** The page shows its `role="status"` loading text whenever `state` is `loading`, also with links. Test: one kind with state `loading`; red before the fix.
+
+**Not done (size).** The cap of 1,050 was passed after points 1–4 (1,105), so work stopped as the brief says. Left: point 5 (scope the fallback focus target of item 2 to the frame's own root, with a test holding an earlier `<aside>`), point 6 (item 4: one component per file in the two spec files; measured earlier at +31 −32 lines), and the three small points. For the small points: `BottomSheet`'s guard can drop the `instanceof HTMLElement` test (`document.activeElement` is an `Element`, so an SVG destination is covered); `WorkspaceSwitcher`'s reset close not calling `onOpenChange` is already stated in the prop's doc comment; the B local list's `max-h-dvh` adds to the header height, so on a short viewport the last items can need a page scroll, to be checked in the #1192 browser pass.
