@@ -1,6 +1,7 @@
 'use client';
 
 import { type Dispatch, type SetStateAction, useState } from 'react';
+import { nextRatingsEpoch } from '@/ratings/api/ratings-client';
 import { readAccessProof } from '@/shared/api/read-access-proof';
 
 type Read = Parameters<typeof readAccessProof>[0] & {
@@ -100,8 +101,8 @@ export function useRatingsGate(
   if (!sameRead(seal.averages, next.averages) || !sameRead(seal.list, next.list)) setSeal(next);
   if (restartAverages || restartList)
     setEpochs({
-      averages: epochs.averages + (restartAverages ? 1 : 0),
-      list: epochs.list + (restartList ? 1 : 0),
+      averages: restartAverages ? nextRatingsEpoch() : epochs.averages,
+      list: restartList ? nextRatingsEpoch() : epochs.list,
     });
   if (readAccessProof(averages) === 'refused' || readAccessProof(list) === 'refused')
     return 'refused';
