@@ -33,6 +33,12 @@ async function resetAttendanceReportsOnAccessLoss(
   void client.resetQueries({ queryKey });
 }
 
+/** مفتاح تنزيل CSV لفرع وشهر: به يقرأ مكوّن الرسائل حالة التنزيل من الكاش بلا مراقب ثانٍ ولا طلب. */
+export function attendanceReportCsvKey(scope: AttendanceReportScope, month: string) {
+  const { companyId, businessId, branchId, userId } = scope;
+  return ['attendance-report-csv', companyId, businessId, userId, branchId, month];
+}
+
 export function useAttendanceReportCsv(
   scope: AttendanceReportScope,
   month: string,
@@ -43,7 +49,7 @@ export function useAttendanceReportCsv(
   const downloads = useRef(new Set<() => void>());
   const { companyId, businessId, branchId, userId } = scope;
   const download = useMutation({
-    mutationKey: ['attendance-report-csv', companyId, businessId, userId, branchId, month],
+    mutationKey: attendanceReportCsvKey(scope, month),
     gcTime: 0,
     retry: false,
     onError: (error) => resetAttendanceReportsOnAccessLoss(client, scope, error),
@@ -84,7 +90,7 @@ export function useAttendanceReportCsv(
       for (const release of releases) release();
       releases.clear();
       const cache = client.getMutationCache();
-      const key = ['attendance-report-csv', companyId, businessId, userId, branchId, month];
+      const key = attendanceReportCsvKey({ companyId, businessId, branchId, userId }, month);
       for (const mutation of cache.findAll({ mutationKey: key, exact: true }))
         cache.remove(mutation);
     };

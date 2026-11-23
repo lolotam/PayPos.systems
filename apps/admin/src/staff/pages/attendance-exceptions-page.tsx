@@ -1,18 +1,15 @@
 'use client';
 import type { WorkspaceBranch } from '@pospay/contracts';
 import { t } from '@pospay/i18n';
-import { PageHeader } from '@pospay/ui';
+import { PageHeader, PageShell } from '@pospay/ui';
 import { useState } from 'react';
 import { useLocale } from '@/shared/locale/locale-context';
 import type { AttendanceBoardScope } from '../api/use-attendance-board';
 import { useAttendanceExceptions } from '../api/use-attendance-actions-read';
 import { attendancePages } from '../model/attendance-action-display';
 import { boardAccessLost } from '../model/attendance-board-display';
-import { AttendanceExceptionTabs } from '../ui/attendance-exception-tabs';
-import { AttendanceActionPagination } from '../ui/attendance-action-pagination';
-import { AttendanceActionBranch } from '../ui/attendance-action-branch';
-import { AttendanceActionFeedback } from '../ui/attendance-action-feedback';
-import { AttendanceActionsTable } from '../ui/attendance-actions-table';
+import { AttendanceExceptionFilters } from '../ui/attendance-exception-filters';
+import { AttendanceActionCard } from '../ui/attendance-action-card';
 import { attendanceExceptionColumns, type ExceptionRow } from '../ui/attendance-exception-columns';
 import { AttendanceExceptionEditor } from '../ui/attendance-exception-editor';
 export function AttendanceExceptionsPage({
@@ -31,35 +28,25 @@ export function AttendanceExceptionsPage({
   const timezone = branches.find((branch) => branch.id === scope.branchId)?.effective_timezone;
   const items = boardAccessLost(query.error) ? [] : attendancePages(query.data?.pages);
   return (
-    <section className="flex min-w-0 flex-col gap-6 text-start">
+    <PageShell layout="list">
       <PageHeader title={t(locale, 'attendanceActions.exceptions')} />
-      <AttendanceActionBranch branches={branches} branchId={scope.branchId} onBranch={onBranch} />
-      <AttendanceExceptionTabs
-        status={status}
-        onStatus={(next) => {
-          setSelection(undefined);
-          setStatus(next);
-        }}
-      />
-      <AttendanceActionFeedback
-        error={query.error}
-        loading={query.isPending}
-        onRetry={() => {
-          void query.refetch();
-        }}
-      />
-      {timezone && query.data && !boardAccessLost(query.error) ? (
-        <AttendanceActionsTable
-          items={items}
-          columns={attendanceExceptionColumns(locale, timezone, setSelection)}
-        />
-      ) : null}
-      <AttendanceActionPagination
-        hasMore={query.hasNextPage && !boardAccessLost(query.error)}
-        fetching={query.isFetching}
-        onMore={() => {
-          void query.fetchNextPage();
-        }}
+      <AttendanceActionCard
+        query={query}
+        tableReady={Boolean(timezone)}
+        items={items}
+        columns={timezone ? attendanceExceptionColumns(locale, timezone, setSelection) : []}
+        filters={
+          <AttendanceExceptionFilters
+            branches={branches}
+            branchId={scope.branchId}
+            status={status}
+            onBranch={onBranch}
+            onStatus={(next) => {
+              setSelection(undefined);
+              setStatus(next);
+            }}
+          />
+        }
       />
       {selection &&
       items.some(
@@ -72,6 +59,6 @@ export function AttendanceExceptionsPage({
           onClose={() => setSelection(undefined)}
         />
       ) : null}
-    </section>
+    </PageShell>
   );
 }

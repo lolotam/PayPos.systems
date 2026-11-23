@@ -21,9 +21,14 @@ export function AttendanceRequestRowActions({
   const locale = useLocale();
   const restoreEligible = canRestoreAttendance(row);
   const { capabilities } = useAttendanceCapabilities(scope, restoreEligible);
+  const decide = row.status === 'PENDING' && row.can_decide;
+  const withdraw = row.status === 'PENDING' && row.can_cancel;
+  const restore = restoreEligible && capabilities.request_change;
+  // بلا أي زر لا نرسم غلافًا فارغًا، فتنكمش الخلية تحت 600px.
+  if (!decide && !withdraw && !restore) return null;
   return (
     <div className="flex flex-wrap gap-2">
-      {row.status === 'PENDING' && row.can_decide ? (
+      {decide ? (
         <>
           <Button variant="outline" onClick={() => onAction(row, 'approve')}>
             {t(locale, 'attendanceActions.approve')}
@@ -33,12 +38,12 @@ export function AttendanceRequestRowActions({
           </Button>
         </>
       ) : null}
-      {row.status === 'PENDING' && row.can_cancel ? (
+      {withdraw ? (
         <Button variant="outline" onClick={() => onAction(row, 'withdraw')}>
           {t(locale, 'attendanceActions.withdraw')}
         </Button>
       ) : null}
-      {restoreEligible && capabilities.request_change ? (
+      {restore ? (
         <Button variant="outline" onClick={() => onAction(row, 'restore')}>
           {t(locale, 'attendanceActions.restore')}
         </Button>

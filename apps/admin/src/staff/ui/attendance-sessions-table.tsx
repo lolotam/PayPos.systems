@@ -1,6 +1,7 @@
 'use client';
 import type { AttendanceBoard } from '@pospay/contracts';
 import { t } from '@pospay/i18n';
+import { DataTableFrame } from '@pospay/ui';
 import { useMemo, useState } from 'react';
 import { useLocale } from '@/shared/locale/locale-context';
 import type { AttendanceBoardScope } from '../api/use-attendance-board';
@@ -36,14 +37,20 @@ export function AttendanceSessionsTable({
   );
   return (
     <section aria-labelledby="attendance-sessions" className="flex min-w-0 flex-col gap-3">
-      <h2 id="attendance-sessions" className="text-lg font-semibold">
-        {t(locale, 'attendanceBoard.sessions')}
-      </h2>
-      {board.sessions.length ? (
-        <AttendanceActionsTable items={board.sessions} columns={columns} />
-      ) : (
-        <p>{t(locale, 'attendanceBoard.emptySessions')}</p>
-      )}
+      <DataTableFrame
+        stacked
+        title={
+          <span id="attendance-sessions" className="text-lg font-semibold">
+            {t(locale, 'attendanceBoard.sessions')}
+          </span>
+        }
+      >
+        {board.sessions.length ? (
+          <AttendanceActionsTable items={board.sessions} columns={columns} />
+        ) : (
+          <p className="p-4">{t(locale, 'attendanceBoard.emptySessions')}</p>
+        )}
+      </DataTableFrame>
       {selection &&
       (selection.action === 'history' ||
         attendanceSessionActions(selection.row, capabilities, board.owner)[
