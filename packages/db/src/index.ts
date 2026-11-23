@@ -14,6 +14,15 @@ export {
   type IdentitySchema,
   type PlatformAuditEntry,
 } from './auth-database.ts';
+export {
+  memberInvitationQueries,
+  type IdentityInvitationMarker,
+  type IdentityMemberAccount,
+  type InvitedMemberInsertion,
+  type InvitedMemberRow,
+  type MemberInvitationQueries,
+  type VerificationRow,
+} from './member-invitation-database.ts';
 export { appendAuditLog, appendAuditLogs, type AuditEntry } from './audit-log.ts';
 export {
   attendanceMonthlyInputsStatement,

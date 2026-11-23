@@ -1706,14 +1706,14 @@
     {
       "idx": 245,
       "version": "7",
-      "when": 1795463038403,
+      "when": 1795465438382,
       "tag": "0245_2026-11-23_member-invitations",
       "breakpoints": true
     },
     {
       "idx": 246,
       "version": "7",
-      "when": 1795463155864,
+      "when": 1795465457329,
       "tag": "0246_2026-11-23_member-invitations-rls",
       "breakpoints": true
     }

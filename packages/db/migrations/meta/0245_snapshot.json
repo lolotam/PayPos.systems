@@ -1,5 +1,5 @@
 {
-  "id": "d6423be7-de36-47f3-aa25-4c26db82a1e5",
+  "id": "56fe8405-5416-47b5-a9f6-bbd1410d3f18",
   "prevId": "4ffa056f-00a7-46c7-a3c7-f73b881a34d0",
   "version": "7",
   "dialect": "postgresql",
@@ -5704,6 +5704,42 @@
             },
             {
               "expression": "user_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "member_invitations_invited_by_idx": {
+          "name": "member_invitations_invited_by_idx",
+          "columns": [
+            {
+              "expression": "invited_by",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "member_invitations_membership_idx": {
+          "name": "member_invitations_membership_idx",
+          "columns": [
+            {
+              "expression": "company_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "membership_id",
               "isExpression": false,
               "asc": true,
               "nulls": "last"

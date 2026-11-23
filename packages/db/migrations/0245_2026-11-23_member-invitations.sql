@@ -26,5 +26,7 @@ ALTER TABLE "member_invitations" ADD CONSTRAINT "member_invitations_invited_by_u
 ALTER TABLE "member_invitations" ADD CONSTRAINT "member_invitations_membership_fk" FOREIGN KEY ("company_id","membership_id") REFERENCES "public"."memberships"("company_id","id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 CREATE INDEX "member_invitations_company_id_state_idx" ON "member_invitations" USING btree ("company_id","state");--> statement-breakpoint
 CREATE INDEX "member_invitations_company_id_user_id_idx" ON "member_invitations" USING btree ("company_id","user_id");--> statement-breakpoint
+CREATE INDEX "member_invitations_invited_by_idx" ON "member_invitations" USING btree ("invited_by");--> statement-breakpoint
+CREATE INDEX "member_invitations_membership_idx" ON "member_invitations" USING btree ("company_id","membership_id");--> statement-breakpoint
 CREATE UNIQUE INDEX "user_invitation_operation_id_key" ON "user" USING btree ("invitation_operation_id");--> statement-breakpoint
 ALTER TABLE "user" ADD CONSTRAINT "user_invitation_marker" CHECK (num_nonnulls("user"."invited_by_company_id", "user"."invitation_operation_id") <> 1);

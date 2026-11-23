@@ -1,5 +1,5 @@
--- RLS و Grants لجدول دعوات الأعضاء (G1) — على نفس نمط جداول الـ tenant التانية (0244).
--- الجدول فيه بصمة الإيميل المدعوّ وعمود الدور والنطاق فقط: مفيش توكن ولا رابط ولا إيميل صريح.
+-- الـ RLS والمنح في ملف مستقل عن الجدول زي 0232/0233/0244: حماية المستأجر إجبارية على كل الأدوار.
+-- الجدول فيه بصمة الإيميل المدعوّ وأدوار العضوية بس: مفيش توكن ولا رابط ولا إيميل صريح.
 ALTER TABLE member_invitations ENABLE ROW LEVEL SECURITY;
 --> statement-breakpoint
 ALTER TABLE member_invitations FORCE ROW LEVEL SECURITY;

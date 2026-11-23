@@ -6,6 +6,10 @@ import { account, session, twoFactor, user, verification } from '../schema/ident
 
 import { assertionConsumer } from './passkey-assertion.ts';
 import { passkey } from '../schema/identity-passkey.ts';
+import {
+  memberInvitationQueries,
+  type MemberInvitationQueries,
+} from './member-invitation-database.ts';
 
 const identitySchema = { user, session, account, verification, twoFactor, passkey };
 
@@ -38,6 +42,8 @@ export interface AuthDatabase {
   activePlatformPermissions(userId: string): Promise<readonly string[]>;
   /** بيضيف سطر في platform_audit_log — الجدول insert-only لـ pospay_auth. */
   recordPlatformAction(entry: PlatformAuditEntry): Promise<void>;
+  /** القراءات والكتابات اللي دعوة الأعضاء محتاجاها على جداول الهوية (G1) — SQL جوه packages/db بس. */
+  readonly memberInvitations: MemberInvitationQueries;
   /** استهلاك تحدي حضور مع قفل الاعتماد وتحديث عداده. */
   readonly consumeAssertion: ReturnType<typeof assertionConsumer>;
   close(): Promise<void>;
@@ -85,6 +91,7 @@ export function createAuthDatabase(options: {
         VALUES (${entry.id}, ${entry.actor}, ${entry.action}, ${entry.targetUserId},
                 ${JSON.stringify(entry.details)}::jsonb)`;
     },
+    memberInvitations: memberInvitationQueries(db),
     consumeAssertion: assertionConsumer(client),
     close: () => client.end({ timeout: 5 }),
   };

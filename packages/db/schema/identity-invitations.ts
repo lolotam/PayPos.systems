@@ -52,6 +52,9 @@ export const memberInvitations = pgTable(
     unique('member_invitations_company_id_email_hash_key').on(t.companyId, t.emailHash),
     index('member_invitations_company_id_state_idx').on(t.companyId, t.state),
     index('member_invitations_company_id_user_id_idx').on(t.companyId, t.userId),
+    // كل مفتاح أجنبي له فهرس (CLAUDE.md §5).
+    index('member_invitations_invited_by_idx').on(t.invitedBy),
+    index('member_invitations_membership_idx').on(t.companyId, t.membershipId),
     check('member_invitations_state', sql`${t.state} IN ${STATES}`),
     check('member_invitations_scope_type', sql`${t.scopeType} IN ${SCOPE_TYPES}`),
     check(

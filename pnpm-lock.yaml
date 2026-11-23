@@ -719,9 +719,6 @@ importers:
       better-auth:
         specifier: 1.7.5
         version: 1.7.5(drizzle-kit@0.31.10)(drizzle-orm@0.45.2(kysely@0.29.6)(postgres@3.4.9(patch_hash=8d9701312739097739235b63e6efd6d6a76d73801da8959087d23f809e992a50)))(next@16.3.7(@playwright/test@1.63.0)(@types/node@24.13.6)(react-dom@19.3.0(react@19.3.0))(react@19.3.0))(react-dom@19.3.0(react@19.3.0))(react@19.3.0)(vitest@5.0.1(@types/node@24.13.6)(jsdom@30.1.1(@noble/hashes@2.4.0))(vite@8.3.1(@types/node@24.13.6)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15)))
-      drizzle-orm:
-        specifier: 0.45.2
-        version: 0.45.2(kysely@0.29.6)(postgres@3.4.9(patch_hash=8d9701312739097739235b63e6efd6d6a76d73801da8959087d23f809e992a50))
     devDependencies:
       '@pospay/config':
         specifier: workspace:*
