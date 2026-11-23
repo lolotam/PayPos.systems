@@ -1,5 +1,10 @@
 import { employeeNameMatchKey } from '@pospay/domain';
-import { createDatabase, lockStatementPeriods, type StatementStatus } from '@pospay/db';
+import {
+  createDatabase,
+  lockStatementPeriods,
+  type StatementStatus,
+  type TenantWrappers,
+} from '@pospay/db';
 import { systemUuidV7 } from '@pospay/ids';
 import type { CreateCommissionPlanVersionInput } from '@pospay/contracts';
 
@@ -58,9 +63,18 @@ async function seedCommissionBusiness(h: CommissionHarness, cookie: string, comp
   return { business, branch: branchResponse.body['id'] as string };
 }
 
-export async function commissionPlanVersionsFixture(clock?: () => Date) {
+/** يلفّ غلاف قاعدة التطبيق في الحارس عشان اختبار يسجّل اتصالات معاملات الطلبات الحقيقية. */
+export type DatabaseWrap = (database: TenantWrappers) => TenantWrappers;
+
+export async function commissionPlanVersionsFixture(
+  clock?: () => Date,
+  wrapDatabase?: DatabaseWrap,
+) {
   let now = COMMISSION_NOW;
-  const h = await startHarness({ commissionsClock: { now: () => clock?.() ?? now } });
+  const h = await startHarness({
+    commissionsClock: { now: () => clock?.() ?? now },
+    ...(wrapDatabase === undefined ? {} : { wrapDatabase }),
+  });
   const cookie = await h.signedInOperator('commission-plan-owner@example.test');
   const company = await h.onboard(cookie, 'Commission plan employer');
   const { business, branch } = await seedCommissionBusiness(h, cookie, company);
