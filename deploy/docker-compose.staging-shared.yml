@@ -91,6 +91,8 @@ services:
       VAPID_SUBJECT: ${VAPID_SUBJECT:-}
       TRUSTED_PROXY_CIDRS: ${TRUSTED_PROXY_CIDRS:-}
       COOKIE_DOMAIN: ${COOKIE_DOMAIN:-.staging.pospay.systems}
+      # The session cookie name carries the environment, so a production cookie is never read here.
+      AUTH_COOKIE_PREFIX: ${AUTH_COOKIE_PREFIX:-pospay-stg}
       # Private files on Cloudflare R2 (packages/storage); any of endpoint, bucket and the two keys missing = uploads answer STORAGE_NOT_CONFIGURED.
       STORAGE_ENDPOINT: ${STORAGE_ENDPOINT:-}
       STORAGE_REGION: ${STORAGE_REGION:-auto}
@@ -112,6 +114,8 @@ services:
       <<: [*app-env, *staff-otp-env]
       AUTH_DATABASE_URL: postgres://pospay_auth:${POSTGRES_AUTH_PASSWORD:?}@${DB_HOST:?}:5432/${DB_NAME:?}
       AUTH_TRUSTED_ORIGINS: ${AUTH_TRUSTED_ORIGINS:-https://${ADMIN_STAGING_HOST:?},https://${POS_STAGING_HOST:?}}
+      # Same prefix as the api, so a worker that reads the session configuration uses this environment's name.
+      AUTH_COOKIE_PREFIX: ${AUTH_COOKIE_PREFIX:-pospay-stg}
 
       DISPATCHER_DATABASE_URL: postgres://pospay_dispatcher:${POSTGRES_DISPATCHER_PASSWORD:?}@${DB_HOST:?}:5432/${DB_NAME:?}
       # Rating token key (ADR-0057): worker only; empty = capability DISABLED.
