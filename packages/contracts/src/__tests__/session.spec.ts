@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { confirmPasswordInput, loginInput, totpCodeInput } from '../identity/session.js';
+import { confirmPasswordInput, loginInput, setPasswordInput, totpCodeInput } from '../identity/session.js';
 
 describe('session contracts', () => {
   it('accepts valid email and non-empty password, rejecting invalid email or empty password', () => {
@@ -31,5 +31,17 @@ describe('session contracts', () => {
     expect(confirmPasswordInput.safeParse({ password: 'secret' }).success).toBe(true);
     expect(confirmPasswordInput.safeParse({ password: '' }).success).toBe(false);
     expect(confirmPasswordInput.safeParse({ password: 'secret', other: true }).success).toBe(false);
+  });
+
+  it('accepts a matching 8–128 character set-password pair and rejects short, long, or mismatched ones', () => {
+    const valid = { password: 'correct-horse', confirm: 'correct-horse' };
+    expect(setPasswordInput.safeParse(valid).success).toBe(true);
+    expect(setPasswordInput.safeParse({ password: 'a'.repeat(128), confirm: 'a'.repeat(128) }).success).toBe(true);
+
+    expect(setPasswordInput.safeParse({ password: 'short7', confirm: 'short7' }).success).toBe(false);
+    expect(setPasswordInput.safeParse({ password: 'a'.repeat(129), confirm: 'a'.repeat(129) }).success).toBe(false);
+    expect(setPasswordInput.safeParse({ password: 'correct-horse', confirm: 'different' }).success).toBe(false);
+    expect(setPasswordInput.safeParse({ password: 'correct-horse', confirm: '' }).success).toBe(false);
+    expect(setPasswordInput.safeParse({ ...valid, extra: 1 }).success).toBe(false);
   });
 });
