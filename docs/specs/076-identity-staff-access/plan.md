@@ -156,9 +156,13 @@ has.
 - The existing-account path requires `existing_account_confirmed: true`; without it the API answers 422
   `MEMBER_EXISTING_ACCOUNT_UNCONFIRMED` carrying nothing but the code, and the screen shows the full email for
   confirmation (D10).
-- `redirectTo` of the link: the set-password page of PR-D (`feat/admin-set-password-page`); take the route from
-  that branch when the manager sends its head. Until then use `${adminOrigin}/set-password`, the default of
-  `packages/auth/scripts/create-user.ts:34-35`.
+- `redirectTo` of the link: `<admin origin>/set-password`, the page of PR #1252 (`feat/admin-set-password-page`,
+  head c225a7050; `apps/admin/app/set-password/page.tsx`). It is the default `packages/auth/scripts/create-user.ts`
+  already builds from `AUTH_TRUSTED_ORIGINS[0]`. A valid link redirects to `<callbackURL>?token=<token>`, an
+  invalid, expired or used one to `<callbackURL>?error=INVALID_TOKEN`; the page completes with
+  `POST /v1/auth/reset-password {token,newPassword}` (contract `setPasswordInput` in
+  `packages/contracts/src/identity/session.ts`) and does not sign the user in. G1 builds on it after it merges and
+  repeats none of it.
 - Admin: page under `apps/admin/src/permissions/` behind the existing `invitations` nav entry, switched to live
   and to the owner only; the link is shown once with a copy button and is not kept in any client cache
   (`gcTime: 0`, cleared on leave).
@@ -192,7 +196,7 @@ has.
 
 ## 8. Open items for the implementer briefs
 
-1. PR-D's set-password route and `callbackURL` (manager sends the head).
+1. (Resolved 2026-11-23) PR-D's set-password route and `callbackURL`: see §5.
 2. F2's choice between a marked session and a short-lived proof.
 3. Whether `user.staff_access_company_id` is enough to tell a staff user, or a boolean plus the company is
    clearer; decide in F1's step 0 and state it in the ADR.
