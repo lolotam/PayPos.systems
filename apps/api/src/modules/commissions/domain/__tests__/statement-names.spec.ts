@@ -31,20 +31,13 @@ describe('completing the names a statement refers to (D-21)', () => {
 });
 
 describe('when a statement month has ended (FR-025)', () => {
-  it('has not ended on any day of the same month', () => {
-    expect(isStatementPeriodEnded('2026-11', '2026-11-01')).toBe(false);
-    expect(isStatementPeriodEnded('2026-11', '2026-11-30')).toBe(false);
-  });
-
-  it('ends on the first day of the next month in the business time zone', () => {
-    expect(isStatementPeriodEnded('2026-11', '2026-12-01')).toBe(true);
-  });
-
-  it('has not ended for a future month', () => {
-    expect(isStatementPeriodEnded('2027-01', '2026-12-31')).toBe(false);
-  });
-
-  it('crosses the year', () => {
-    expect(isStatementPeriodEnded('2026-12', '2027-01-01')).toBe(true);
+  it.each([
+    ['2026-11', '2026-11-01', false],
+    ['2026-11', '2026-11-30', false],
+    ['2026-11', '2026-12-01', true],
+    ['2027-01', '2026-12-31', false],
+    ['2026-12', '2027-01-01', true],
+  ])('month %s on local day %s has ended: %s', (period, today, ended) => {
+    expect(isStatementPeriodEnded(period, today)).toBe(ended);
   });
 });
