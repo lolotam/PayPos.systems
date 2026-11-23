@@ -1,5 +1,6 @@
 import { COMMISSION_COVERAGE_PROOF_VERSION } from '@pospay/domain';
 
+import { asReplicaOwner } from '../../../../../../packages/db/test/owner-cleanup.ts';
 import {
   generateStatement,
   memberWithGrants,
@@ -103,4 +104,18 @@ export async function approvalFootprint(
     FROM commission_statements s
     WHERE s.company_id = ${f.company} AND s.business_id = ${f.business} AND s.period = ${period}`;
   return row as { status: string; lines: number; audits: number; carries: number };
+}
+
+/** يعيد شهر الاختبار إلى DRAFT بلا صفوف مجمّدة ولا مرحّلات (وضع replica للمالك فقط، فالتريغرات تمنع ذلك على الإنتاج). */
+export async function resetStatementToDraft(f: StatementFixture, period = PERIOD): Promise<void> {
+  await asReplicaOwner(f.h.owner, async (tx) => {
+    await tx`DELETE FROM commission_carries WHERE company_id = ${f.company}`;
+    await tx`DELETE FROM commission_statement_lines WHERE company_id = ${f.company}`;
+    await tx`DELETE FROM commission_statement_attachments WHERE company_id = ${f.company}`;
+    await tx`UPDATE commission_statements SET status = 'DRAFT', reviewed_fingerprint = NULL,
+        reviewed_statement_fingerprint = NULL, reviewed_by = NULL, reviewed_membership_id = NULL,
+        reviewed_at = NULL, input_fingerprint = NULL, statement_fingerprint = NULL, approved_by = NULL,
+        approved_at = NULL, approval_xact_id = NULL
+      WHERE company_id = ${f.company} AND business_id = ${f.business} AND period = ${period}`;
+  });
 }

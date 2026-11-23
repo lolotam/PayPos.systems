@@ -11,6 +11,7 @@ import {
   approverMember,
   issueProof,
   openSwitch,
+  resetStatementToDraft,
   reviewedStatement,
   type Approver,
 } from './approve-statement.fixture.ts';
@@ -43,6 +44,7 @@ describe('a pending commission event (CM-35)', () => {
       await tx`DELETE FROM commission_coverage_state WHERE company_id = ${f.company}`;
       await tx`DELETE FROM outbox WHERE company_id = ${f.company}`;
     });
+    await resetStatementToDraft(f);
     await f.h.owner`DELETE FROM consumed_events WHERE company_id = ${f.company}`;
     await f.h.owner`DELETE FROM company_feature_overrides WHERE company_id = ${f.company} AND flag = 'commission_statement_approval'`;
   });
@@ -123,7 +125,9 @@ describe('the carry and freeze statements', () => {
       ]);
     });
 
-    await expect(again).rejects.toThrow(/commission_carries_source_key|duplicate key/);
+    await expect(again).rejects.toMatchObject({
+      cause: { message: expect.stringMatching(/commission_carries_source_key|duplicate key/) },
+    });
   });
 
   it('refuses to freeze rows into a statement that is not being approved by this transaction', async () => {
@@ -139,6 +143,8 @@ describe('the carry and freeze statements', () => {
       ]);
     });
 
-    await expect(freezing).rejects.toThrow(/frozen_by_approval|frozen only by the transaction/);
+    await expect(freezing).rejects.toMatchObject({
+      cause: { message: expect.stringMatching(/frozen only by the transaction/) },
+    });
   });
 });

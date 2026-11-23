@@ -10,7 +10,9 @@ import { seedTwoTenants, TENANT } from '../../test/tenancy-fixtures.ts';
 // ADR-0054 (إضافة 2026-11-22) §1 و§2 و§7: دوال إثبات التغطية بالأدوار الفعلية. المُصدِر يُستدعى بدور المرسِل، والبوابة
 // والإبطال بدور التطبيق تحت سياق الشركة، ولا أحد منهما يلمس الجدولين مباشرة.
 const { A, B } = TENANT;
-const PROOF_A = '01980000-0000-7000-8000-00000000aa01';
+let proofCounter = 0;
+const nextProofId = (): string =>
+  `01980000-0000-7000-8000-${(0xaa0100 + ++proofCounter).toString(16).padStart(12, '0')}`;
 const STATE_ID = '01980000-0000-7000-8000-00000000aa02';
 const CONSUMER = 'commissions.project-inputs';
 
@@ -101,7 +103,7 @@ async function issue(overrides: IssueOverrides = {}): Promise<number> {
   const id = await identity();
   const businesses = [...(overrides.businesses ?? [A.business])];
   const [row] = await dispatcher<{ generation: string }[]>`SELECT public.issue_commission_coverage_proof(
-      ${overrides.company ?? A.company}::uuid, ${PROOF_A}::uuid, ${overrides.generation ?? 0}::bigint,
+      ${overrides.company ?? A.company}::uuid, ${nextProofId()}::uuid, ${overrides.generation ?? 0}::bigint,
       ${overrides.version ?? COMMISSION_COVERAGE_PROOF_VERSION}::integer, ${businesses}::uuid[],
       ${overrides.tipFrom ?? '2026-01-01'}::date, ${overrides.tipTo ?? id.bound}::date,
       ${overrides.verifiedBound ?? id.bound}::date, ${overrides.reportThrough ?? null}::uuid,
@@ -221,7 +223,7 @@ describe('the bounds of an issuance (#1223 items 2 and 13)', () => {
     expect(results.filter((r) => r.status === 'fulfilled')).toHaveLength(1);
     expect(
       results.filter(
-        (r) => r.status === 'rejected' && /COVERAGE_GENERATION_MOVED|duplicate key/.test(String(r.reason)),
+        (r) => r.status === 'rejected' && /COVERAGE_GENERATION_MOVED/.test(String(r.reason)),
       ),
     ).toHaveLength(1);
   });

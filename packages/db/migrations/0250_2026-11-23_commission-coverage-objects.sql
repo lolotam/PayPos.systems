@@ -194,7 +194,7 @@ BEGIN
     run_id, release, issued_by)
   VALUES (p_company, p_proof_id, next_generation, p_version, company_businesses, p_tip_from, p_tip_to, tip_bound,
     counted, consumer, p_report_through_id, verified_through, pg_catalog.current_database()::text,
-    public.pospay_system_id(), p_run_id, p_release, pg_catalog.session_user::text);
+    public.pospay_system_id(), p_run_id, p_release, session_user::text);
   RETURN next_generation;
 END $$;
 --> statement-breakpoint
