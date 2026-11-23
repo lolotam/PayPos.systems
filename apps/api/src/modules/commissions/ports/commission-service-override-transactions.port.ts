@@ -48,6 +48,7 @@ export interface CommissionServiceOverrideScope extends CommissionInputLockScope
 export interface CommissionServiceOverrideTransactions {
   /**
    * ينفذ التحقق والأقفال والكتابة والتدقيق مع مطالبة idempotent في معاملة شركة واحدة.
+   * لو انتهى انتظار المطالبة بخطأ الانشغال فالمعاملة بتتلغي، وبتتقرا الصلاحية مرة كمان في معاملة منفصلة قبل الرد.
    *
    * @param command هوية الفاعل والطلب ومفتاح إعادة الإرسال
    * @param work خطوات حالة الاستخدام على المعاملة
