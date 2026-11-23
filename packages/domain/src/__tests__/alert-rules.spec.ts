@@ -141,6 +141,53 @@ describe('alertRuleViolation', () => {
   });
 });
 
+describe('alertRuleViolation: branch manager on statement kinds (issue #486)', () => {
+  const STATEMENT_KINDS = ['STATEMENT_AWAITING_REVIEW', 'STATEMENT_AWAITING_APPROVAL'] as const;
+
+  it('refuses the branch manager on every statement kind, alone or with other roles', () => {
+    for (const kind of STATEMENT_KINDS) {
+      expect(alertRuleViolation(kind, rule({ recipientRoles: ['branch_manager'] }))).toBe(
+        'ROLE_NOT_ALLOWED_FOR_KIND',
+      );
+      expect(alertRuleViolation(kind, rule({ recipientRoles: ['owner', 'branch_manager'] }))).toBe(
+        'ROLE_NOT_ALLOWED_FOR_KIND',
+      );
+    }
+  });
+
+  it('still accepts the other three roles and an empty list on the statement kinds', () => {
+    for (const kind of STATEMENT_KINDS) {
+      expect(
+        alertRuleViolation(
+          kind,
+          rule({ recipientRoles: ['owner', 'general_manager', 'business_manager'] }),
+        ),
+      ).toBeNull();
+      expect(alertRuleViolation(kind, rule({ recipientRoles: [] }))).toBeNull();
+    }
+  });
+
+  it('keeps accepting the branch manager on every other kind that takes roles', () => {
+    const refused = new Set<string>(STATEMENT_KINDS);
+    for (const kind of ALERT_KINDS) {
+      const definition = ALERT_KIND_DEFINITIONS[kind];
+      if (refused.has(kind) || definition.employeeOnly) continue;
+      const settings = {
+        ...ALERT_KIND_DEFINITIONS[kind].defaults,
+        recipientRoles: ['branch_manager'] as const,
+      };
+      expect(alertRuleViolation(kind, settings)).toBeNull();
+    }
+  });
+
+  it('declares the refused role on exactly the two statement kinds', () => {
+    const declared = ALERT_KINDS.filter(
+      (kind) => ALERT_KIND_DEFINITIONS[kind].refusedRecipientRoles.length > 0,
+    );
+    expect(declared).toEqual([...STATEMENT_KINDS]);
+  });
+});
+
 describe('sameAlertRuleSettings', () => {
   it('ignores role order and sees every field change', () => {
     expect(sameAlertRuleSettings(rule(), rule({ recipientRoles: ['branch_manager', 'owner'] }))).toBe(true);

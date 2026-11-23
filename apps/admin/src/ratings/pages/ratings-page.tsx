@@ -14,7 +14,7 @@ import {
   initialRatingsFilters,
   listRange,
 } from '../model/ratings-filters';
-import { useRatingsGate } from '../model/use-ratings-gate';
+import { firstEpochs, useRatingsGate } from '../model/use-ratings-gate';
 import { useRatingsMonth } from '../model/use-ratings-month';
 import { RatingAveragesPanel } from '../ui/rating-averages-panel';
 import { RatingsFiltersBar } from '../ui/ratings-filters';
@@ -32,7 +32,14 @@ export function RatingsPage({
 }) {
   const locale = useLocale();
   const [filters, setFilters] = useState(initialRatingsFilters);
-  const averages = useRatingAverages(companyId, userId, business.id, averagesQuery(filters));
+  const [epochs, setEpochs] = useState(firstEpochs);
+  const averages = useRatingAverages(
+    companyId,
+    userId,
+    business.id,
+    averagesQuery(filters),
+    epochs.averages,
+  );
   const month = useRatingsMonth(averages, filters.month);
   // أسماء الموظفات من قراءة ناجحة في الزيارة الحالية فقط، مش من الكاش.
   const employees = readAccessProof(averages) === 'granted' ? (averages.data?.items ?? []) : [];
@@ -43,8 +50,9 @@ export function RatingsPage({
     business.id,
     listRange(filters, month),
     employeeId,
+    epochs.list,
   );
-  const gate = useRatingsGate(averages, list);
+  const gate = useRatingsGate(averages, list, epochs, setEpochs);
   const open = gate === 'open';
   // شهر مجهول بعد فشل المتوسطات: القائمة ما بتقرأش، وخطأ المتوسطات هو اللي بيتعرض.
   const listWaiting = month === null && readAccessProof(averages) !== 'pending';
