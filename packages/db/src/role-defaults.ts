@@ -144,6 +144,8 @@ export const ROLE_DEFAULTS = {
   'read:commissions:business': [...managers, 'accountant', 'branch_manager'],
   // CS-Q2b = PP-25.1: إنشاء الكشف ومراجعته للمالك والمدير العام ومدير النشاط افتراضياً، والمالك وحده يمنحها أو يسحبها.
   'review:commissions:business': managers,
+  // قرار CS-Q4: الصرف للمالك والمدير العام والمحاسب افتراضياً، وقابلة للمنح لأي دور بشري، والجهاز ممنوع.
+  'pay:commissions:business': ['owner', 'general_manager', 'accountant'],
   'view:notifications:business': managers,
   'manage:employees:business': managers,
   'read:services:business': managers,

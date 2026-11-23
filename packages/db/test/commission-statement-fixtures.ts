@@ -168,8 +168,20 @@ export async function walkCommissionStatement(
       WHERE company_id=${tenant.company} AND id=${statementId}`);
     await options.afterApproved?.(tx, statementId);
     if (options.to === 'PAID') {
-      await tx.execute(sql`UPDATE commission_statements SET status='PAID'
+      // الشهر المدفوع بيمشي بالمسار اللي قاعدة البيانات بتقبله: أعمدة الصرف كاملة وصف دفع لكل
+      // موظفة مجمّدة (54-1). المبالغ صفر لأن البذرة مش بتقيس القاعدة، والتريغر بس هو اللي بيفحصها.
+      await tx.execute(sql`UPDATE commission_statements SET status='PAID', paid_by=${reviewer},
+        paid_at='2026-11-03T08:00:00Z', paid_on='2026-11-03', paid_method='WITH_SALARY'
         WHERE company_id=${tenant.company} AND id=${statementId}`);
+      const frozen = await tx.execute<{ employee_id: string }>(sql`
+        SELECT DISTINCT employee_id FROM commission_statement_lines
+        WHERE company_id=${tenant.company} AND statement_id=${statementId} AND kind='EMPLOYEE'`);
+      for (const line of frozen) {
+        await tx.execute(sql`INSERT INTO commission_statement_payments(
+          company_id,id,business_id,statement_id,employee_id,exact_payable,paid_amount)
+          VALUES (${tenant.company},${ids.newId()},${tenant.business},${statementId},
+            ${line.employee_id},'0.000','0.000')`);
+      }
     }
   });
   return statementId;

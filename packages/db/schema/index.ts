@@ -45,6 +45,7 @@ export * from './orders-package-redemptions.ts';
 export * from './orders-package-sales.ts';
 export * from './orders-discount-proposals.ts';
 export * from './commissions-statements.ts';
+export * from './commissions-statement-payments.ts';
 export * from './commissions-statement-exports.ts';
 export * from './commissions-plan-versions.ts';
 export * from './commissions-service-overrides.ts';

@@ -257,6 +257,16 @@ export const FUNCTION_INVENTORY = [
     proconfig: ['search_path=pg_catalog, public'],
   },
   {
+    proname: 'commission_statement_payments_insert_guard',
+    prosecdef: false,
+    proconfig: ['search_path=pg_catalog, public'],
+  },
+  {
+    proname: 'commission_statements_payment_complete',
+    prosecdef: false,
+    proconfig: ['search_path=pg_catalog, public'],
+  },
+  {
     proname: 'rating_requests_insert_guard',
     prosecdef: false,
     proconfig: ['search_path=pg_catalog, public'],

@@ -1,4 +1,5 @@
 // كشف العمولة يتغير عبر أعمدة الحالة والمراجعة فقط؛ هوية الشهر ودليل المعاملة بلا UPDATE للتطبيق.
+// أعمدة الصرف الخمسة (54-1) بتتكتب في انتقال APPROVED → PAID بس، ودليل الدفع بلا منحة أصلاً.
 const COMMISSION_STATEMENT_COLUMNS = [
   'status',
   'current_fingerprint',
@@ -12,6 +13,11 @@ const COMMISSION_STATEMENT_COLUMNS = [
   'approved_by',
   'approved_at',
   'revision',
+  'paid_by',
+  'paid_at',
+  'paid_on',
+  'paid_method',
+  'paid_note',
 ];
 
 // صف طلب التصدير بيتجمّع مرة واحدة بس؛ فالتحديث الوحيد المسموح هو وقت التحميل.
@@ -34,6 +40,8 @@ export const COMMISSION_STATEMENT_TABLE_GRANTS = [
   'commission_statement_exports:SELECT',
   'commission_statement_lines:INSERT',
   'commission_statement_lines:SELECT',
+  'commission_statement_payments:INSERT',
+  'commission_statement_payments:SELECT',
   'commission_statements:INSERT',
   'commission_statements:SELECT',
 ];

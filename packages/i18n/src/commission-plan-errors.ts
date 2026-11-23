@@ -9,6 +9,9 @@ export const commissionPlanErrorsAr = {
   COMMISSION_PERIOD_NOT_ENDED: 'الشهر ده لسه ما خلصش، اعمل الكشف بعد نهايته.',
   COMMISSION_STATEMENT_BLOCKED:
     'الكشف فيه موظفة من غير خطة أو مرتب أو تصحيح موقوف، لازم يتحل قبل المراجعة.',
+  COMMISSION_STATEMENT_NOT_APPROVED: 'الكشف لازم يتعمد الأول قبل ما يتصرف.',
+  COMMISSION_STATEMENT_ALREADY_PAID: 'الكشف ده اتصرّف خلاص.',
+  COMMISSION_PAID_ON_INVALID: 'تاريخ الصرف لازم يكون بعد تاريخ الاعتماد ومش بعد النهارده.',
   COMMISSION_PLAN_EMPLOYEE_CURSOR_UNAVAILABLE:
     'تعذّر تحميل قائمة الموظفين بسبب بيانات محفوظة تحتاج إصلاحًا. تواصل مع الدعم.',
   EMPLOYEE_NOT_FOUND: 'الموظفة غير موجودة في النشاط ده.',
@@ -24,9 +27,14 @@ export const commissionPlanErrorsEn = {
     'This month is before the business started on PosPay; choose a later month.',
   COMMISSION_REPAIR_NOT_ALLOWED:
     'There is no plan-missing blocked correction for this employee and month.',
+<<<<<<< HEAD
   COMMISSION_PERIOD_NOT_ENDED: 'This month has not ended yet; generate its statement after it ends.',
   COMMISSION_STATEMENT_BLOCKED:
     'The statement has an employee with no plan or salary, or an open blocked correction; resolve it before review.',
+  COMMISSION_STATEMENT_NOT_APPROVED: 'The statement must be approved before it can be paid.',
+  COMMISSION_STATEMENT_ALREADY_PAID: 'This statement is already paid.',
+  COMMISSION_PAID_ON_INVALID:
+    'The payment date must not be before the approval date and not after today.',
   COMMISSION_PLAN_EMPLOYEE_CURSOR_UNAVAILABLE:
     'The employee list cannot be loaded because stored data needs repair. Contact support.',
   EMPLOYEE_NOT_FOUND: 'The employee was not found in this business.',
