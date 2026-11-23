@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react';
 import type { WorkContext } from '../model/work-context';
 import { workForbidden } from '../model/work-error';
 import { type OnRefused, useWorkLines } from './use-my-work';
+import { useReadThisVisit } from './use-read-this-visit';
 
 /**
  * خدمات موبايلها الشخصي ومعاها رفض الصلاحية (403) على أي صفحة، الأولى أو اللي بعدها: بيتسجّل في الحالة،
@@ -12,7 +13,8 @@ import { type OnRefused, useWorkLines } from './use-my-work';
  * @param context مين بيفتح الشاشة
  * @param month الشهر المطلوب أو undefined للحالي
  * @param onRefused معالج انتهاء الجلسة (401)
- * @returns استعلام الصفحات، وخطأ الرفض لو الشهر الحالي مرفوض، ودالة تصفير الرفض
+ * @returns استعلام الصفحات، وهل نجحت قراءة السيرفر للشهر ده في الزيارة الحالية (قبلها الصفحات اللي في الكاش ما تتعرضش)،
+ * وخطأ الرفض لو الشهر الحالي مرفوض، ودالة تصفير الرفض
  */
 export function usePersonalLines(
   context: WorkContext,
@@ -32,8 +34,9 @@ export function usePersonalLines(
     },
     deniedHere === undefined,
   );
+  const proven = useReadThisVisit(`${context.identity}:lines:${key}`, lines);
   useEffect(() => {
     if (deniedHere) cache.removeQueries({ queryKey: ['my-work', context.identity, 'lines'] });
   }, [cache, context.identity, deniedHere]);
-  return { lines, deniedError: deniedHere?.error, resetDenied: () => setDenied(undefined) };
+  return { lines, proven, deniedError: deniedHere?.error, resetDenied: () => setDenied(undefined) };
 }
