@@ -1,8 +1,13 @@
 'use client';
 
-import type { CommissionPlanEmployeeListItem, CommissionPlanVersion } from '@pospay/contracts';
-import { useEffect, useMemo, useState } from 'react';
-import { isPlanNotFound, type PlanScope } from '../api/plan-access';
+import type {
+  CommissionPlanEmployeeListItem,
+  CommissionPlanVersion,
+  CommissionPlanVersionList,
+} from '@pospay/contracts';
+import type { UseQueryResult } from '@tanstack/react-query';
+import { useEffect, useState } from 'react';
+import { isPlanNotFound, usePlanAccess, type PlanScope } from '../api/plan-access';
 import { useCommissionPlanSeed } from '../api/use-commission-plan-seed';
 import { useCommissionPlanVersions } from '../api/use-commission-plan-versions';
 import { useSaveCommissionPlan, type PlanAttemptMemory } from '../api/use-save-commission-plan';
@@ -16,6 +21,25 @@ import { PlanHistoryTable } from './plan-history-table';
 /** مسودة بلوك الموظفة: أحدث نسخة عادية، أو مسودة فاضية بيوم النشاط لما القراءة تأكد إن مفيش نسخة عادية. */
 function sectionDraft(newest: CommissionPlanVersion | null, timeZone: string): PlanDraft {
   return newest !== null ? draftFromVersion(newest) : emptyPlanDraft(timeZone, new Date());
+}
+
+/** المسودة بتتثبّت مرة واحدة بعد نجاح أول صفحة تاريخ وبذرة مش أقدم من أحدث نسخة عادية فيها (غير كده البذرة بتتجدد). */
+function useInitialDraft(
+  seed: Pick<UseQueryResult<CommissionPlanVersion | null>, 'data' | 'refetch'>,
+  firstPage: CommissionPlanVersionList | undefined,
+  timeZone: string,
+): PlanDraft | null {
+  const [initial, setInitial] = useState<PlanDraft | null>(null);
+  const { data, refetch } = seed;
+  const newest = firstPage?.items.find((item) => item.repair_period === null)?.version ?? 0;
+  const stale = data !== undefined && newest > (data?.version ?? 0);
+  useEffect(() => {
+    if (initial === null && stale) void refetch();
+  }, [initial, stale, refetch]);
+  if (initial === null && data !== undefined && firstPage !== undefined && !stale) {
+    setInitial(sectionDraft(data, timeZone));
+  }
+  return initial;
 }
 
 /**
@@ -42,12 +66,8 @@ export function CommissionPlanSection({
   const seed = useCommissionPlanSeed(scope, employee.id);
   const failure = versions.isError ? versions.error : seed.isError ? seed.error : null;
   const notFound = failure !== null && isPlanNotFound(failure);
-  const seedVersion = seed.data;
-  const initial = useMemo(
-    () =>
-      seedVersion === undefined || versions.isPending ? null : sectionDraft(seedVersion, timeZone),
-    [seedVersion, versions.isPending, timeZone],
-  );
+  const access = usePlanAccess(scope);
+  const initial = useInitialDraft(seed, versions.data?.pages[0], timeZone);
   // مفتاح النموذج من آخر نسخة محفوظة ناجحة بس: الحفظ اللي بيستنى أو بيرفض ما بيغيّرش المفتاح
   // فالمحرّر ما بيتركّبش من جديد وتعديلات المدير بتفضل مكانها لحد ما نجاح حقيقي يعيد الأساس.
   const [saved, setSaved] = useState<CommissionPlanVersion | null>(null);
@@ -61,7 +81,7 @@ export function CommissionPlanSection({
     <div className="flex flex-col gap-4">
       <p className="font-semibold">{employeeLabel}</p>
       {failure !== null ? <p role="alert">{planRefusalMessage(failure, locale)}</p> : null}
-      {initial !== null ? (
+      {initial !== null && !access.denied ? (
         <PlanBuilderForm
           key={saved === null ? 'initial' : saved.id}
           initial={saved === null ? initial : draftFromVersion(saved)}

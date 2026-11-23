@@ -260,8 +260,7 @@ it('refuses a change of month after the lock as TRANSACTION_RETRY_REQUIRED, with
   ).rejects.toMatchObject({ code: 'TRANSACTION_RETRY_REQUIRED' });
 
   expect(s.locks).toHaveLength(1);
-  expect(s.calls).not.toContain('readOpenBlock');
-  expect(s.calls).not.toContain('insert');
+  expect(s.calls).toEqual(['lockEmployee', 'lockPeriods']);
 });
 
 it('checks access after the locks and before it reads the block', async () => {

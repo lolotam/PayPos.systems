@@ -1,4 +1,9 @@
-import { runIdempotent, type IdGenerator, type TenantWrappers } from '@pospay/db';
+import {
+  IdempotencyKeyReusedError,
+  runIdempotent,
+  type IdGenerator,
+  type TenantWrappers,
+} from '@pospay/db';
 
 import type { Clock } from '../../../shared/ports/clock.port.ts';
 import { CommissionPlanVersionError } from '../domain/errors.ts';
@@ -20,10 +25,11 @@ export function createCommissionPeriodRepairTransactions(
         command.companyId,
         async (tx) => {
           const scope = createCommissionPeriodRepairScope(tx, command, ids, readers, clock);
-          const accessFailure = await scope.recheckAccess();
-          if (accessFailure !== null) {
-            throw new CommissionPlanVersionError(accessFailure);
-          }
+          const assertAccess = async () => {
+            const failure = await scope.recheckAccess();
+            if (failure !== null) throw new CommissionPlanVersionError(failure);
+          };
+          await assertAccess();
           const result = await runIdempotent(
             tx,
             {
@@ -33,12 +39,13 @@ export function createCommissionPeriodRepairTransactions(
               fingerprint: command.fingerprint,
             },
             async () => ({ status: 201, body: await work(scope) }),
-          );
+          ).catch(async (error: unknown) => {
+            // طلب مختلف على نفس المفتاح بعد الانتظار: الـ 403 الموحّد بيسبق تعارض المفتاح.
+            if (error instanceof IdempotencyKeyReusedError) await assertAccess();
+            throw error;
+          });
           // الرد المخزّن ممكن يرجع بعد انتظار على نفس المفتاح، فالصلاحية بتتفحص تاني قبل ما نرجّعه.
-          if (result.replayed) {
-            const replayFailure = await scope.recheckAccess();
-            if (replayFailure !== null) throw new CommissionPlanVersionError(replayFailure);
-          }
+          if (result.replayed) await assertAccess();
           return result.body as Awaited<ReturnType<typeof work>>;
         },
         { userId: command.userId },

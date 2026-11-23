@@ -150,3 +150,30 @@ it('a 403 removes the cached seed with the other plan caches, so the editor disa
   await waitFor(() => expect(screen.queryByRole('button', { name: B.save })).toBeNull());
   expect(client.getQueryData(planSeedKey(scope, EMP_A_ID))).toBeUndefined();
 });
+
+it('never opens on a seed older than the newest ordinary version of the first history page: the seed is refreshed first', async () => {
+  const newer = versionItem(EMP_A_ID, 2, {
+    base: { enabled: true, calc: { kind: 'PCT', bps: 800 } },
+  });
+  let seedReads = 0;
+  routeGet(api.GET, async (_path, options) =>
+    options?.params?.query?.['kind'] === 'ordinary'
+      ? ok(versionPage([++seedReads === 1 ? ordinary : newer], null))
+      : ok(versionPage([newer, ordinary], null)),
+  );
+  mount();
+
+  await screen.findByRole('button', { name: B.save });
+
+  expect(bps()).toBe('800');
+  expect(seedReads).toBe(2);
+});
+
+it('a seed that succeeded but a failed first history page keeps the editor closed and shows the error', async () => {
+  route(ok(versionPage([ordinary], null)), refusal(500, 'INTERNAL'));
+  mount();
+
+  expect((await screen.findByRole('alert')).textContent).toBe('Synthetic refusal');
+
+  expect(screen.queryByRole('button', { name: B.save })).toBeNull();
+});

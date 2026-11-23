@@ -275,7 +275,9 @@ land, approval stays closed. Never reset or delete `published_at`, `attempts`, `
    upload starts the new `api` and the new `worker` together and nothing orders the worker before the API. `admin` waits only for
    `api` to be started (lines 151-153). The condition this release needs: every new worker replica is running and knows
    `CommissionPeriodRepairSaved` **before the API that emits it is made available**, then the new API, then the admin (an old API
-   answers 400 to the `kind=ordinary` read the new admin sends). Confirm it with the image tag of every worker container and the
+   answers 400 to the `kind=ordinary` read the new admin sends): after every worker is updated and confirmed, keep the OLD admin
+   image pinned until the new API's SHA and readiness are confirmed (`admin` only waits for `service_started`, line 153), then
+   update the admin. Confirm it with the image tag of every worker container and the
    PP-133 worker readiness receipt (top of this file). If the template cannot order them, prepare the order first (for example an
    operator-side variant of the uploaded file that pins only `worker` to the new SHA, confirmed, then the whole file); no deploy file
    changes in the PR that ships the event.
