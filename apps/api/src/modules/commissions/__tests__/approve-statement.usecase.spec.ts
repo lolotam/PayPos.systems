@@ -42,10 +42,22 @@ const PROOF: StoredCoverageProof = {
   databaseName: 'pospay_staging',
   systemId: '7301234567890123456',
 };
-const LOCKED: ApprovalLockedPeriod[] = [
-  { period: PERIOD, statementId: 'st-oct', status: 'REVIEWED' },
-  { period: '2026-11', statementId: 'st-nov', status: 'DRAFT' },
-];
+const oct = (status: ApprovalLockedPeriod['status']): ApprovalLockedPeriod => ({
+  period: PERIOD,
+  statementId: 'st-oct',
+  status,
+});
+const NOV_DRAFT: ApprovalLockedPeriod = { period: '2026-11', statementId: 'st-nov', status: 'DRAFT' };
+const LOCKED: ApprovalLockedPeriod[] = [oct('REVIEWED'), NOV_DRAFT];
+
+/** تواريخ عمل رنا: على رأس العمل، أو انتهى عقدها في سبتمبر فلا يتداخل عملها مع أكتوبر. */
+const employmentOf = (departed: boolean) =>
+  new Map([
+    [
+      RANA,
+      { hireDate: '2025-01-01', contractEnd: departed ? '2026-09-30' : null, deletedOn: null },
+    ],
+  ]);
 
 /** مصادر شهر أكتوبر وبصمتاها المحسوبتان، وبيها صف كشف REVIEWED مطابق لهما. */
 function reviewedSource(withCarry = false): {
@@ -139,19 +151,7 @@ function recordingScope(options: Options) {
     readSource: async () => (calls.push('readSource'), options.source),
     readLineShares: async () => (calls.push('readLineShares'), []),
     countPendingEvents: async () => (calls.push('countPendingEvents'), options.pending ?? 0),
-    readEmployment: async () => {
-      calls.push('readEmployment');
-      return new Map([
-        [
-          RANA,
-          {
-            hireDate: '2025-01-01',
-            contractEnd: options.departed === true ? '2026-09-30' : null,
-            deletedOn: null,
-          },
-        ],
-      ]);
-    },
+    readEmployment: async () => (calls.push('readEmployment'), employmentOf(options.departed === true)),
     markApproved: async () => void calls.push('markApproved'),
     freeze: async (_statementId, rows, attachments) => {
       calls.push('freeze');
@@ -290,7 +290,7 @@ describe('the checks before the lock and the status', () => {
 
   it('refuses an approved month with COMMISSION_PERIOD_CLOSED (CM-37, the second approver)', async () => {
     const { source, command } = reviewedSource();
-    const locked: ApprovalLockedPeriod[] = [{ ...LOCKED[0]!, status: 'APPROVED' }, LOCKED[1]!];
+    const locked: ApprovalLockedPeriod[] = [oct('APPROVED'), NOV_DRAFT];
     const { scope } = recordingScope({ source, locked });
 
     expect((await refusal(run(scope, command)))?.code).toBe('COMMISSION_PERIOD_CLOSED');
@@ -298,7 +298,7 @@ describe('the checks before the lock and the status', () => {
 
   it('refuses a statement returned to DRAFT while the approval waited (CM-37)', async () => {
     const { source, command } = reviewedSource();
-    const locked: ApprovalLockedPeriod[] = [{ ...LOCKED[0]!, status: 'DRAFT' }, LOCKED[1]!];
+    const locked: ApprovalLockedPeriod[] = [oct('DRAFT'), NOV_DRAFT];
     const { scope, calls } = recordingScope({ source, locked });
 
     expect((await refusal(run(scope, command)))?.code).toBe('COMMISSION_STATEMENT_NOT_REVIEWED');
@@ -307,7 +307,7 @@ describe('the checks before the lock and the status', () => {
 
   it('gives a permission revoked while waiting the uniform 403 before any status or coverage answer', async () => {
     const { source, command } = reviewedSource();
-    const locked: ApprovalLockedPeriod[] = [{ ...LOCKED[0]!, status: 'APPROVED' }, LOCKED[1]!];
+    const locked: ApprovalLockedPeriod[] = [oct('APPROVED'), NOV_DRAFT];
     const { scope } = recordingScope({ source, locked, access: 'FORBIDDEN', proof: null });
 
     expect((await refusal(run(scope, command)))?.code).toBe('FORBIDDEN');
@@ -394,7 +394,7 @@ describe('carries of negative balances (D-22)', () => {
   it('writes the carry into the earliest DRAFT month after the source, skipping a REVIEWED one', async () => {
     const { source, command } = reviewedSource(true);
     const locked: ApprovalLockedPeriod[] = [
-      LOCKED[0]!,
+      oct('REVIEWED'),
       { period: '2026-11', statementId: 'st-nov', status: 'REVIEWED' },
       { period: '2026-12', statementId: 'st-dec', status: 'DRAFT' },
     ];

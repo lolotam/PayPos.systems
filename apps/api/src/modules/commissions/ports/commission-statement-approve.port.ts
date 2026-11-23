@@ -1,9 +1,30 @@
 import type { StatementAttachmentRow, StatementRow } from '@pospay/commissions-engine';
 
-import type { PlannedCarry, ShareCheckLine } from '../domain/approval-plan.ts';
 import type { ExpectedCoverageRules, StoredCoverageProof } from '../domain/coverage-proof.ts';
 import type { EmploymentDates } from '../domain/employment-overlap.ts';
 import type { CommissionStatementSource } from './commission-statement.port.ts';
+
+/** رصيد سالب يترحّل عند الاعتماد: نوعه ومبلغه كما سيُخزَّن (سالب، بمقياس الفلس) (D-22). */
+export interface PlannedCarry {
+  readonly employeeId: string;
+  readonly kind: 'COMMISSION' | 'TIP_CARD';
+  readonly amount: bigint;
+}
+
+/** سطر بند للتحقق من اكتمال حصص مؤدياته (D-14): معرّف البند وحالته وحصة هذه المؤدية بنقاط الأساس. */
+export interface ShareCheckLine {
+  readonly lineId: string;
+  readonly status: 'ACTIVE' | 'CANCELLED';
+  readonly shareBps: bigint;
+}
+
+/** ما يُدقَّق عند الاعتماد: البصمتان وعدد الصفوف والمرحّلات، بلا أي مبلغ ولا اسم. */
+export interface ApprovalAuditDetail {
+  readonly inputFingerprint: string;
+  readonly statementFingerprint: string;
+  readonly rows: number;
+  readonly carries: number;
+}
 
 /** طلب الاعتماد بهوية الفاعل والبصمتين اللي شافهما المراجع ومفتاح إعادة الإرسال وبصمة الطلب. */
 export interface CommissionStatementApproveCommand {
@@ -157,19 +178,10 @@ export interface CommissionStatementApproveScope {
    *
    * @param statementId الكشف المعتمَد
    * @param period الشهر
-   * @param detail البصمتان وعدد الصفوف والمرحّلات
+   * @param detail ما يُدقَّق: البصمتان وعدد الصفوف والمرحّلات
    * @returns اكتمال التدقيق
    */
-  audit(
-    statementId: string,
-    period: string,
-    detail: {
-      readonly inputFingerprint: string;
-      readonly statementFingerprint: string;
-      readonly rows: number;
-      readonly carries: number;
-    },
-  ): Promise<void>;
+  audit(statementId: string, period: string, detail: ApprovalAuditDetail): Promise<void>;
   /**
    * وقت الاعتماد المخزّن على صف الكشف، كنص ISO بالـoffset، لرد الاعتماد.
    *

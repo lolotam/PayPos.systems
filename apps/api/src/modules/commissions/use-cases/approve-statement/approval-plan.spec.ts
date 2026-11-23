@@ -5,8 +5,8 @@ import {
   approvalBlockingIssues,
   incompleteLineShares,
   planApprovalCarries,
-} from '../approval-plan.ts';
-import type { EmploymentDates } from '../employment-overlap.ts';
+} from './approval-plan.ts';
+import type { EmploymentDates } from '../../domain/employment-overlap.ts';
 
 const LEILA = '0198aaaa-0000-7000-8000-0000000000a1';
 const RANA = '0198aaaa-0000-7000-8000-0000000000a2';
@@ -100,6 +100,9 @@ describe('planApprovalCarries (D-22)', () => {
     expect(planApprovalCarries('2026-10', [], new Map())).toEqual([]);
   });
 
+});
+
+describe('planApprovalCarries (departed and ordering)', () => {
   it('does not re-carry a departed employee, whose balance stays negative in the statement', () => {
     const rows = [
       row(RANA, 'EMPLOYEE', '0.000'),

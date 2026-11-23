@@ -14,7 +14,7 @@ import {
   approvalBlockingIssues,
   incompleteLineShares,
   planApprovalCarries,
-} from '../../domain/approval-plan.ts';
+} from './approval-plan.ts';
 import { coverageProofAdmits, isCoverageProofValid } from '../../domain/coverage-proof.ts';
 import { CommissionPlanVersionError } from '../../domain/errors.ts';
 import { periodsFromThrough } from '../../domain/period-range.ts';
@@ -23,6 +23,7 @@ import { isStatementPeriodEnded } from '../../domain/statement-period.ts';
 import type {
   CarryWrite,
   CommissionStatementApproveCommand,
+  PlannedCarry,
   CommissionStatementApproveScope,
   CommissionStatementApproveTransactions,
 } from '../../ports/commission-statement-approve.port.ts';
@@ -113,13 +114,45 @@ export async function approveStatement(
   if (carries.length > 0 && target === null)
     throw new Error('No open month can receive the carries');
 
+  return freezeApproval(
+    scope,
+    { businessId, period, statementId: statement.statementId, computed, carries, target },
+    hasher,
+  );
+}
+
+interface FreezeInput {
+  readonly businessId: string;
+  readonly period: string;
+  readonly statementId: string;
+  readonly computed: ReturnType<typeof computeStatement>;
+  readonly carries: readonly PlannedCarry[];
+  readonly target: { readonly period: string; readonly statementId: string } | null;
+}
+
+/**
+ * الجزء الكاتب من الاعتماد بعد اجتياز كل الفحوص: تحديث واحد إلى APPROVED ثم التجميد، ثم إعادة حساب بصمة الكشف من
+ * الصفوف المجمّدة نفسها ومقارنتها (أي اختلاف يلغي المعاملة كلها)، ثم المرحّلات والتدقيق، والرد من المجمّد وحده.
+ *
+ * @param scope خطوات المعاملة
+ * @param input الكشف والبصمتان المحسوبتان والمرحّلات وهدفها
+ * @param hasher منفذ التجزئة
+ * @returns الكشف المغلق من الصفوف المجمّدة وحدها
+ */
+async function freezeApproval(
+  scope: CommissionStatementApproveScope,
+  input: FreezeInput,
+  hasher: FingerprintHasher,
+): Promise<CommissionClosedStatementView | CommissionClosedStatementBranchView> {
+  const { businessId, period, statementId, computed, carries, target } = input;
+  const rows = computed.build.rows;
   await scope.markApproved({
-    statementId: statement.statementId,
+    statementId,
     inputFingerprint: computed.inputFingerprint,
     statementFingerprint: computed.statementFingerprint,
   });
-  await scope.freeze(statement.statementId, rows, computed.build.attachments);
-  const frozen = await scope.readFrozen(statement.statementId);
+  await scope.freeze(statementId, rows, computed.build.attachments);
+  const frozen = await scope.readFrozen(statementId);
   const frozenFingerprint = hasher.hash(statementFingerprintInput(frozen.rows, frozen.attachments));
   if (frozenFingerprint !== computed.statementFingerprint) {
     refuse('COMMISSION_FINGERPRINT_STALE', staleDetails(computed, 'STATEMENT'));
@@ -129,8 +162,8 @@ export async function approveStatement(
     targetPeriod: target?.period ?? '',
     targetStatementId: target?.statementId ?? '',
   }));
-  await scope.writeCarries(statement.statementId, period, writes);
-  await scope.audit(statement.statementId, period, {
+  await scope.writeCarries(statementId, period, writes);
+  await scope.audit(statementId, period, {
     inputFingerprint: computed.inputFingerprint,
     statementFingerprint: computed.statementFingerprint,
     rows: frozen.rows.length,
@@ -140,7 +173,7 @@ export async function approveStatement(
     businessId,
     period,
     status: 'APPROVED',
-    approvedAt: await scope.readApprovedAt(statement.statementId),
+    approvedAt: await scope.readApprovedAt(statementId),
     inputFingerprint: computed.inputFingerprint,
     statementFingerprint: computed.statementFingerprint,
     rows: frozen.rows,

@@ -4,21 +4,8 @@ import {
   type StatementViewIssue,
 } from '@pospay/commissions-engine';
 
-import { employmentOverlapsMonth, type EmploymentDates } from './employment-overlap.ts';
-
-/** رصيد سالب يترحّل عند الاعتماد: نوعه ومبلغه كما سيُخزَّن (سالب، بمقياس الفلس) (D-22). */
-export interface PlannedCarry {
-  readonly employeeId: string;
-  readonly kind: 'COMMISSION' | 'TIP_CARD';
-  readonly amount: bigint;
-}
-
-/** سطر بند للتحقق من اكتمال حصص مؤدياته (D-14): معرّف البند وحالته وحصة هذه المؤدية بنقاط الأساس. */
-export interface ShareCheckLine {
-  readonly lineId: string;
-  readonly status: 'ACTIVE' | 'CANCELLED';
-  readonly shareBps: bigint;
-}
+import { employmentOverlapsMonth, type EmploymentDates } from '../../domain/employment-overlap.ts';
+import type { PlannedCarry, ShareCheckLine } from '../../ports/commission-statement-approve.port.ts';
 
 const FULL_SHARE = 10000n;
 
