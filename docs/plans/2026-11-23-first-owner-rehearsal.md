@@ -5,7 +5,7 @@ find what is missing before go-live. Owner answer P3 (Waleed, 2026-11-23): «ص�
 account creates the company, so the owner row is theirs from the start.
 
 Who runs it: the manager (DEP-1), with a test email address that is not a real customer's. Steps on the server are
-one-shot containers on staging only, reached the way every staging step is (PP-144); nothing here touches production.
+one-shot containers on staging only, reached the way every staging deploy step is; nothing here touches production.
 Never paste a link, token, password or database URL into a thread, a PR or a file.
 
 Read against `origin/main@dc5b78786`. Commands marked **(to confirm)** were derived from the code, not run.
@@ -33,7 +33,7 @@ Read against `origin/main@dc5b78786`. Commands marked **(to confirm)** were deri
 | # | Gap | Evidence | Smallest fix |
 |---|---|---|---|
 | G1 | No admin page at `/set-password` | `apps/admin/app/` holds `login`, `security`, `(dashboard)` only | **PR-D** (brief in `briefs/2026-11-23-prod/`) |
-| G2 | No admin screen calls `POST /v1/companies` | no reference to `v1/companies` under `apps/admin` | none for one salon: step 8 uses the browser console; a screen belongs to the platform module (Phase 5) |
+| G2 | No admin screen calls `POST /v1/companies` | no reference to `v1/companies` under `apps/admin` | **PR-H**: a "create company" form for a signed-in user holding the grant (about 180 lines). Without it step 8 is a browser-console call, acceptable only with the manager present |
 | G3 | A fresh database has no plan row | point 6 above | the `seed` one-shot service in PR-A |
 | G4 | It is not known which image can run `platform:create-user` | the script lives in `packages/auth/scripts/`; the `migrate` image is built from `packages/db` only (`deploy/Dockerfile.api:12-13`) | step 1 decides; if none can, **PR-E**: an `ops` image target (the build stage with `pnpm`), about 30 lines in `deploy/Dockerfile.api` and `ci.yml` |
 
@@ -53,7 +53,8 @@ Expected from the Dockerfile: the `migrate` image lists `platform-grant.ts` and 
 not runnable from any image (Node does not run TypeScript from inside `node_modules`), stop here, record G4 as
 confirmed, and ask for PR-E. Do not copy files into a container by hand.
 
-**2. Reference data.** Check the plan row exists on staging (it does if staging was ever seeded):
+**2. Reference data (this step writes).** It re-applies the plan row and the access catalog on staging; skip it if
+a read-only `SELECT id FROM plans` as the migration owner already returns the provisional plan:
 
 ```sh
 docker run --rm --network dokploy-network --env MIGRATION_DATABASE_URL ghcr.io/lolotam/pospay-migrate:<sha> node scripts/seed.ts

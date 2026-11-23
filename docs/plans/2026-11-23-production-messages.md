@@ -45,7 +45,8 @@ Read against `origin/main@dc5b78786`. Owner answer (Waleed, 2026-11-23): «اش�
 - The admin origin is a literal `https://app.pospay.systems` (`email.module.ts:67`, `email-channel.adapter.ts:15`).
 - The reason is a recorded owner decision: hard-bounce and complaint suppression must exist **before live sending**
   (ADR-0014 §3, owner 2026-10-03). That needs the Resend webhook intake (signed, deduplicated), the feedback inbox,
-  reconciliation to the attempt, and suppression. None of it is in the repo.
+  reconciliation to the attempt, and suppression. A search for a Resend/Svix webhook, a feedback inbox or an email
+  suppression table in `apps/api/src`, `apps/worker/src`, `packages/db` and `packages/notifications/src` found none.
 
 **Missing**
 
@@ -103,8 +104,9 @@ customer-opened 24-hour window. Staff sign in with their PIN on the paired devic
 **STOP handling.** Meta's webhook must be subscribed to the production API so that a customer's "stop" suppresses the
 number (ADR-0013). Waleed subscribes the webhook in the Meta app with `WHATSAPP_WEBHOOK_VERIFY_TOKEN`, confirms it
 works, and only then sets `WHATSAPP_STOP_SUBSCRIPTION_CONFIRMED=true`. `WHATSAPP_STOP_BUTTON_ID` stays empty until
-a template with a STOP button is approved (`deploy/staging.env.example:50-51`). The webhook path was not looked up in
-this pass; the implementer reads it from the API's WhatsApp intake before Waleed registers it.
+a template with a STOP button is approved (`deploy/staging.env.example:50-51`). The webhook URL is
+`https://api.pospay.systems/v1/webhooks/whatsapp`
+(`apps/api/src/modules/notifications/http/whatsapp-webhook.controller.ts:19`).
 
 ## 4. What Waleed does, in order
 

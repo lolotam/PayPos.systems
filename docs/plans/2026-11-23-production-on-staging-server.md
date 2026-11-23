@@ -9,6 +9,8 @@ Companion documents:
 - `docs/adr/0062-production-topology-and-point-in-time-recovery.md` (Proposed) — topology, pgBackRest, the drill.
 - `docs/plans/2026-11-23-production-messages.md` — in-app, push, email and WhatsApp: what works on day one.
 - `docs/plans/2026-11-23-first-owner-rehearsal.md` — the staging rehearsal of the first company and owner.
+- `docs/plans/2026-11-23-staff-sign-in-gap.md` — **go-live blocker:** no product path gives an employee, a manager
+  or an accountant a sign-in.
 - `docs/plans/briefs/2026-11-23-prod/` — implementer briefs PR-A, PR-B, PR-C, PR-D.
 
 ## 0. Decisions taken (2026-11-23, ~21:00 Kuwait, manager thread)
@@ -58,12 +60,12 @@ pgBackRest. Details and limits: ADR-0062 §1–§3. Why it cannot share staging'
 
 | Risk | Mitigation |
 |---|---|
-| Staging or another project starves production | `mem_limit` and `cpus` on both stacks (ADR-0062 §1; production capped at 5.4 GB of the 11 GB available). |
+| Staging or another project starves production | `mem_limit` and `cpus` on both stacks (ADR-0062 §1; production capped at about 4.7 GB of the 11 GB available). |
 | Disk fills | The WAL spool is capped; Healthchecks alerts on every backup; a disk figure in each deploy receipt. |
 | A staging migration or seed mistake reaches production | Separate containers and passwords make it impossible. A SHA reaches production only after it ran on staging. |
 | Other projects reach the API port, the database or Redis | Only the three web services join `dokploy-network`. |
 | A volume clean-up deletes the database | Bind-mounted host directories, not named volumes. |
-| Production cookie sent to staging hosts | PR-B before go-live. |
+| Production cookie sent to staging hosts | PR-B before go-live stops staging **reading** it as a session. The browser still sends it, so the rule stays: no staging in a browser profile that holds a production session. |
 | The server is lost | Restore elsewhere from R2 alone: base backup + WAL + the key Waleed keeps off the server. Proven by the drill. |
 | Wrong stack deployed | Separate Dokploy project; every production deploy needs Waleed's yes. |
 
@@ -85,6 +87,8 @@ logical backup and restore check (`deploy/backup/`); the operator scripts `platf
 | Separate session cookie names | PR-B |
 | A page for the one-time set-password link — `apps/admin/app/` has no `set-password` route, while the link points there (`packages/auth/scripts/create-user.ts:35`) | PR-D |
 | An image that can run `platform:create-user` (not known) | rehearsal step 1; PR-E if needed |
+| A user, membership and PIN for an employee; a second admin user — no use case or route creates either (`apps/api/src/modules/identity/use-cases/`; `persistence/onboarding-transactions.ts:26` is the only product membership insert) | PR-F, PR-G (`2026-11-23-staff-sign-in-gap.md`) |
+| A screen that creates the company | PR-H (optional for one salon) |
 | Email sending — the adapter exists but the capability is a constant `false` (`packages/notifications/src/email-configuration.ts:10-12`) | PR-C1, PR-C2 |
 | WhatsApp to customers or the team — closed in production (`apps/worker/src/main.ts:111`) and no template names can be supplied (`packages/notifications/src/configuration.ts:46-48`) | Meta templates + a later slice |
 | Production backup env, cron lines, Healthchecks checks | Waleed + the manager, steps 7 and 9 |
@@ -108,7 +112,9 @@ logical backup and restore check (`deploy/backup/`); the operator scripts `platf
 5. **PR-A** (Heavy, deploy change, Waleed's yes): production compose, `-prod` images, Postgres image with pgBackRest,
    the `seed` service, required `TRUSTED_PROXY_CIDRS`, CPU limits, the env example.
    **PR-B** (Heavy, auth): cookie prefix. **PR-D** (Heavy, auth surface): the set-password page.
-   **PR-C1 → PR-C2** (email) run beside them and do not block go-live unless Waleed says email must work on day one.
+   **PR-F** (Heavy, auth): staff access for an employee — without it nobody but the owner can sign in and
+   attendance cannot start. **PR-C1 → PR-C2** (email) run beside them and do not block go-live unless Waleed says
+   email must work on day one. **PR-G** (second admin) and **PR-H** (create-company screen) follow.
 6. **M:** the first-owner rehearsal on staging (`2026-11-23-first-owner-rehearsal.md`) as soon as PR-D is on staging;
    step 1 of it can run today and decides whether PR-E is needed.
 
@@ -174,6 +180,10 @@ Product:
 
 - **P1. Staff sign-in by WhatsApp code.** (1) *Recommended:* PIN on the paired reception device for launch; the code
   after Meta approves the template. (2) Wait for the template before go-live.
+- **P0. Staff sign-ins for the first salon** (`2026-11-23-staff-sign-in-gap.md`). (1) *Recommended:* build PR-F
+  before go-live, PR-G right after. (2) Approve an audited operator script on production for the first salon's
+  staff (lifts PP-58.3's staging-only limit; Waleed's decision). (3) Go live with the owner account only and no
+  attendance until PR-F merges.
 - **P2. "My work" on staff phones (row 57) on day one?** (1) *Recommended:* yes if the rehearsal shows it works with
   PIN sign-in on a personal phone; otherwise after launch. (2) After launch.
 
@@ -197,5 +207,8 @@ Configuration and delivery gaps only; code-level review items stay out of this p
   sign-in refuses every request without it (pipeline skill §6).
 - **B10. Email and customer WhatsApp are off by code,** so the owner's day-one expectation for them cannot be met by
   configuration alone (`2026-11-23-production-messages.md`).
+- **B11. Nobody but the owner can sign in.** No use case creates a user or a membership for an employee, a manager
+  or an accountant, and card clock-in needs a staff session
+  (`apps/api/src/modules/staff/http/clock-by-card.controller.ts:38-40`) — `2026-11-23-staff-sign-in-gap.md`; PR-F.
 - **Not found, not a defect yet:** no master-encryption-key variable in `.env.example` or
   `deploy/staging.env.example`; `CLAUDE.md` §8 requires one once per-tenant third-party credentials are stored.

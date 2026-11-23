@@ -17,10 +17,11 @@ other. Production keeps today's names, so nothing changes for production users.
 ## Design (fixed, do not redesign)
 
 - New optional API setting `AUTH_COOKIE_PREFIX`, validated `^[a-z][a-z0-9-]{1,30}$`, default `pospay`.
-- It replaces the literal in `cookiePrefix` and in every place that builds or reads a session cookie name from that
-  literal: the normal session cookie (`config.ts:301`), the staff cookie (`staff-sessions.ts:20`) and the personal
-  staff cookie in `personal-sessions.ts`. Derive the three names from one helper in `packages/auth`; no second
-  literal anywhere.
+- It replaces the literal in `cookiePrefix` (`config.ts:250`) and in the normal session cookie name built from it
+  (`config.ts:301`). Derive both from one helper in `packages/auth`; no second literal.
+- The staff cookie (`staff-sessions.ts:20`) and the personal staff cookie (`personal-sessions.ts:9`) are host-only
+  by rule (`CLAUDE.md` §8, ADR-0019, ADR-0027) and are **out of scope**. First confirm from the code that neither is
+  set with a `Domain` attribute; if one is, stop and report instead of widening the change.
 - Staging sets `AUTH_COOKIE_PREFIX=pospay-stg` in `deploy/docker-compose.staging-shared.yml` (api and worker, since
   the worker builds the auth configuration too). Production leaves it unset.
 - The admin UI cookies (`pospay_company_id`, `pospay_locale` and the like in `apps/admin/src/shared/`) are not
@@ -28,8 +29,7 @@ other. Production keeps today's names, so nothing changes for production users.
 
 ## Files
 
-- `packages/auth/src/config.ts`, `staff-sessions.ts`, `personal-sessions.ts` (+ the helper file if you add one) and
-  their specs.
+- `packages/auth/src/config.ts` (+ the helper file if you add one) and its specs.
 - `apps/api/src/shared/config.ts` (the setting), `apps/api/src/main.ts` (pass it), the worker's auth wiring if it
   reads the same options.
 - `packages/contracts/src/openapi.ts` only if it names the cookie; regenerate the OpenAPI file if it changes.
@@ -39,16 +39,16 @@ other. Production keeps today's names, so nothing changes for production users.
 
 ## Do not touch
 
-The cookie domain logic, session lifetimes, the staff eight-hour deadline, any guard, any migration, the three admin
-UI cookies, and anything under `deploy/` other than the two staging files.
+The cookie domain logic, session lifetimes, the staff and personal cookies, any guard, any migration, the admin UI
+cookies, and anything under `deploy/` other than the two staging files.
 
 ## Tests
 
-- Unit: with the prefix unset the three cookie names equal today's exact strings (a regression lock); with
-  `pospay-stg` they all carry it; an invalid prefix fails configuration.
+- Unit: with the prefix unset the session cookie name equals today's exact string (a regression lock); with
+  `pospay-stg` it carries the prefix; an invalid prefix fails configuration; the staff and personal names are
+  unchanged in both cases.
 - Integration (API): a request carrying only a session cookie under the **other** prefix is unauthenticated (401);
   sign-in sets the cookie under the configured prefix; sign-out clears it.
-- Staff and personal sessions: one case each proving the configured name is the one set and the one read.
 - No test may assert only that a mock was called.
 
 ## Local gates
@@ -64,7 +64,7 @@ read). Production is unaffected. No snapshot is needed: there is no migration.
 
 ## Size estimate
 
-About 150 lines: production code 50, tests 80, config and env 20. Cap 300.
+About 110 lines: production code 35, tests 55, config and env 20. Cap 220.
 
 ## Report
 

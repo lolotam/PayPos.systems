@@ -30,7 +30,8 @@ Postgres also cannot take WAL archiving without changing its `archive_command` f
   projects.
 - Postgres data, the WAL spool and Redis data are **bind-mounted host directories** under `/opt/pospay-prod/`, not
   named volumes, so a Docker volume clean-up cannot remove them.
-- Limits (the sum is 5.4 GB of memory and stays under the 11 GB available):
+- Limits. Memory: about 4.4 GB steady, 4.7 GB while `migrate` runs, under the 11 GB available. The `cpus` values
+  are ceilings, not reservations; they add up to more than the 4 CPUs on purpose:
 
   | Service | `mem_limit` | `cpus` |
   |---|---|---|
@@ -75,7 +76,9 @@ Postgres 18, and that it works against R2's S3 API.
   `archive-async=y` with a local spool; encryption on. Every credential arrives as a `PGBACKREST_*` environment
   variable from Dokploy; nothing is written into the image or the repo.
 - Schedule (host cron, `docker exec` into the Postgres container, each run pinging Healthchecks):
-  full backup weekly (Friday 02:00 Kuwait), differential backup daily (02:00 Kuwait), WAL continuously.
+  full backup weekly (Friday 02:00 Kuwait), differential backup daily (02:00 Kuwait), WAL continuously, and
+  `pgbackrest check` every 15 minutes with its own Healthchecks check, so a stalled or dropped archive alerts
+  within the hour.
 - Retention: `repo1-retention-full=2` — two full backups with their differentials and WAL, a recovery window of 7 to
   14 days.
 - **The nightly logical dump stays** (`deploy/backup/`, restic to R2) as an independent second path with its own
@@ -99,20 +102,23 @@ Before any real salon data, on the server, into a **scratch** Postgres container
 2. `pgbackrest --stanza=pospay-prod --type=time --target="T1" restore` into the scratch directory; start it.
 3. Prove: the first marker exists, the second does not; `companies` and migration counts match the source at `T1`.
 4. Point a throw-away `api` at the scratch database and run the write smoke test (record a service session, change
-   its performers). This proves the write seal of ADR-0050 (`write_system_id`, `write_xid`) accepts writes on a
-   restored cluster; `docs/runbook.md:61-69` and issue #338 are the reason this step exists.
+   its performers). ADR-0050 classes PITR as safe for the write seal: `system_identifier` and the XID history both
+   survive (`docs/adr/0050-restore-stable-write-seal.md:55-58`). This step confirms it on the real restore.
+   The opposite rule also holds and goes into the runbook: a **logical dump is never restored into a PITR-restored
+   or otherwise copied cluster**, only into a freshly initialised one (`docs/runbook.md:61-69`).
 5. Record: backup label, `T1`, restore start and end, total time against the 2-hour RTO, and the WAL gap at `T1`
    against the 5-minute RPO. Destroy the scratch container and directory.
-6. `pgbackrest check` passes and Healthchecks shows the three check-ins (WAL archive, backup, logical dump).
+6. `pgbackrest check` passes and Healthchecks shows the check-ins (archive check, backup, logical dump).
 
 A failed step blocks go-live. The drill is repeated after every Postgres major upgrade and at least every quarter.
 
 ### 6. Cost on this server
 
 - **RAM:** Postgres up to 2 GB, Redis up to 256 MB; a backup or restore adds a short-lived pgBackRest process inside
-  the Postgres limit. The whole production stack is capped at 5.4 GB.
+  the Postgres limit. The whole production stack is capped at about 4.7 GB.
 - **Disk:** data directory (small for one salon; under 5 GB expected in the first year — an estimate), the WAL spool
-  (capped by `archive-push-queue-max=4GB`, after which Postgres drops WAL from the queue rather than fill the disk),
+  (capped by `archive-push-queue-max=4GB`; past the cap pgBackRest drops WAL rather than fill the disk, which
+  **breaks the WAL chain** - nothing after the gap is recoverable until the next backup completes, so it must alert),
   and a scratch copy of the database during a drill. Well inside 159 GB.
 - **R2:** two full backups plus differentials and compressed WAL. Idle minutes produce small compressed segments;
   the real figure is measured in the first week and reported. One bucket and one token for this, one for the dump.
