@@ -23,6 +23,9 @@ export function CreateCompanyScreen() {
   const create = useCreateCompany(userId);
   const stored = create.stored;
   const error = create.error;
+  // علامة الإنشاء بتخلي حالة النجاح تعيش بعد إعادة التركيب وفي تبويب تاني: النموذج ما يترسمش
+  // طول ما الشركة منشأة والقراءة ما شوفتهاش، بجانب نجاح الـ mutation نفسه في الجلسة الحالية.
+  const created = create.isSuccess || stored?.createdAt !== undefined;
   // مفيش endpoint يسأل عن صلاحية الإنشاء قبل المحاولة، فالشاشة بتظهر لكل مستخدم مسجّل من غير
   // شركة و403 بيترجّع بعد المحاولة نفسها، وحقل الاسم المرفوض من السيرفر بيرجع لنص حقلته.
   const forbidden = isForbidden(error);
@@ -32,7 +35,7 @@ export function CreateCompanyScreen() {
     : error === null || error === undefined
       ? null
       : envelopeMessage(error, locale);
-  if (create.isSuccess) {
+  if (created) {
     return (
       <CreateCompanySuccess
         reload={workspaces.isError || workspaces.isPending}

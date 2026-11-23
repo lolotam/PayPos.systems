@@ -43,7 +43,14 @@ key»: values are only editable when no undecided attempt exists.)
 
 **Decided** means 201 success, or a 4xx answer other than 408, 409 and 429. On a decided refusal
 the stored attempt is removed and the form becomes editable again with its values kept and the
-error shown. After a 201 the stored attempt is removed as well. The mutation runs with
+error shown. **On a 201 the attempt is NOT removed: it is marked created** (a `createdAt` field
+on the same stored object, same storage name, same user-id and 23-hour rules). While a created
+attempt exists for this user the screen shows the success state — the `role="status"` message
+and «Reload» — never the form, also after a remount and in another tab. The stored attempt is
+removed only when the workspaces read returns at least one company: the hook checks the query
+cache after the invalidation's refetch settles, and again when the screen unmounts while the
+cache shows a company (no extra request in either place); otherwise a created attempt lives until
+the 23-hour cap. Retrying a created attempt is refused. The mutation runs with
 `networkMode: 'always'`, so a submit while the browser is offline fails at once as a network
 failure (attempt kept) instead of being queued silently.
 
@@ -60,13 +67,14 @@ path (`packages/contracts` must not change in this slice).
 
 ## Outcomes
 
-- **201** — the stored attempt is removed and the screen switches to a success state that cannot
-  submit: a `role="status"` message that the company was created and the workspace is loading,
-  and, if the workspaces refresh fails or stays paused, a button «Reload» that refetches the
-  workspaces read. The form is not rendered in this state. When the refresh succeeds the
-  workspace provider resolves the new company (a one-company list is chosen for the user
-  automatically), `workspace.status` becomes `ready`, and the dashboard content replaces the
-  screen. No full page reload.
+- **201** — the attempt is marked created (kept in storage) and the screen switches to a success
+  state that cannot submit: a `role="status"` message that the company was created and the
+  workspace is loading, and, if the workspaces refresh fails or stays paused, a button «Reload»
+  that refetches the workspaces read. The form is not rendered in this state — not after a
+  remount and not in another tab — until the workspaces read shows the company, which also
+  removes the stored attempt. When the refresh succeeds the workspace provider resolves the new
+  company (a one-company list is chosen for the user automatically), `workspace.status` becomes
+  `ready`, and the dashboard content replaces the screen. No full page reload.
 - **403** — the refusal alert as above; no workspaces refetch; the attempt is removed.
 - **`unknown_plan` (HTTP 400, `VALIDATION_FAILED`), other validation errors** — an error alert
   with `role="alert"`; the attempt is removed and the form stays usable and filled. Server
@@ -87,8 +95,10 @@ permissions, migrations, dependencies, or `apps/admin/src/session/**`.
    Arabic (RTL).
 2. Valid submit sends exactly one request carrying `name_en`, `name_ar` when given, the
    provisional plan id (written literally in the test, not imported), and an `Idempotency-Key`
-   header; on 201 the attempt is removed, the workspaces read refetches and the dashboard content
-   replaces the screen (or the success state with «Reload» when the refresh fails).
+   header; on 201 the attempt is marked created (kept in storage), the workspaces read refetches
+   and the dashboard content replaces the screen (or the success state with «Reload» when the
+   refresh fails — the state survives a remount, and the marker is cleared once the read shows
+   the company).
 3. Empty English name: field error shown (referenced by `aria-describedby`), no request sent.
 4. 403: refusal alert with `role="alert"`, form keeps its values, no workspaces refetch.
 5. Unknown outcome (network failure, 500): fields read-only with the sent values, notice with
@@ -102,6 +112,8 @@ permissions, migrations, dependencies, or `apps/admin/src/session/**`.
 
 ## Notes (recorded, not built in this slice)
 
+- The workspace provider keeps the last view when a refetch fails after a successful read
+  (`hasRead`); a failed first read still shows the error state (provider spec).
 - The created company is not selected explicitly: the workspace provider selects the only company
   of the fresh workspaces list.
 - Two tabs that both submit different names within the same instant, before either has written

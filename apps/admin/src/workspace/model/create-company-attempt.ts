@@ -9,12 +9,14 @@ export const ATTEMPT_STORAGE_NAME = 'pospay.admin.create-company-attempt';
 // السيرفر بيحتفظ بسجل مفتاح الـ Idempotency 24 ساعة، فأي محاولة أقدم من 23 تعتبر ميتة وتتنضف.
 const ATTEMPT_MAX_AGE_MS = 23 * 60 * 60 * 1000;
 
-/** محاولة إنشاء لسه نتيجتها مجهولة، محفوظة باسم المستخدم عشان تبويب تاني ما ياخدهوش بالغلط. */
+/** محاولة إنشاء محفوظة: بلا `createdAt` لسه نتيجتها مجهولة، وبالعلامة معناها الشركة اتعملت
+ * والقراءة ما شوفتهاش لسه — الاتنين بيمشوا بسقف الـ 23 ساعة نفسه. */
 export type StoredAttempt = {
   userId: string;
   key: string;
   body: CreateCompanyInput;
   startedAt: string;
+  createdAt?: string;
 };
 
 function expired(stored: StoredAttempt): boolean {
@@ -33,6 +35,7 @@ function parseAttempt(raw: string): StoredAttempt | null {
       typeof candidate.startedAt !== 'string' ||
       typeof candidate.body !== 'object' ||
       candidate.body === null ||
+      (candidate.createdAt !== undefined && typeof candidate.createdAt !== 'string') ||
       !createCompanyInput.safeParse(candidate.body).success
     ) {
       return null;
@@ -42,6 +45,7 @@ function parseAttempt(raw: string): StoredAttempt | null {
       key: candidate.key,
       body: candidate.body as CreateCompanyInput,
       startedAt: candidate.startedAt,
+      ...(candidate.createdAt === undefined ? {} : { createdAt: candidate.createdAt as string }),
     };
   } catch {
     return null;
@@ -69,6 +73,16 @@ export function writeAttempt(attempt: StoredAttempt): void {
 export function removeAttempt(): void {
   if (typeof window === 'undefined') return;
   window.localStorage.removeItem(ATTEMPT_STORAGE_NAME);
+}
+
+/** بينشّئ علامة الإنشاء على محاولة نفس المستخدم بعد جواب 201؛ بتاعت مستخدم تاني ما بتتلمنش. */
+export function markCreated(userId: string): StoredAttempt | null {
+  if (typeof window === 'undefined') return null;
+  const stored = readAttempt(userId);
+  if (stored === null) return null;
+  const created: StoredAttempt = { ...stored, createdAt: new Date().toISOString() };
+  window.localStorage.setItem(ATTEMPT_STORAGE_NAME, JSON.stringify(created));
+  return created;
 }
 
 /** الجواب مش قاطع: الرقم ضايع (فشل شبكة) أو 5xx أو 408/409/429 — الشركة ممكن تكون اتعملت فعلًا. */

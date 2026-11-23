@@ -29,8 +29,7 @@ function answer(data: unknown, status: number) {
   return { data: status < 400 ? data : undefined, error: status < 400 ? undefined : data, response: { status, ok: status < 400 } };
 }
 
-function mount(userId = USER) {
-  const client = createQueryClient();
+function mount(client = createQueryClient(), userId = USER) {
   function wrapper({ children }: { children: ReactNode }) {
     return <QueryClientProvider client={client}>{children}</QueryClientProvider>;
   }
@@ -158,7 +157,9 @@ it('a 409 in-progress answer keeps the key so the retry reuses it', async () => 
     await hook.result.current.mutateAsync({ kind: 'retry' });
   });
   expect(sentKey(1)).toBe(heldKey);
-  expect(storedRaw()).toBeNull();
+  expect(storedRaw()).not.toBeNull();
+  const stored = JSON.parse(storedRaw() ?? '{}') as { createdAt?: string };
+  expect(stored.createdAt).toMatch(/^\d{4}-\d{2}-\d{2}T/);
 });
 
 it('a 5xx keeps the key because the request may have committed', async () => {
@@ -208,18 +209,41 @@ it('a retry with nothing stored refuses without sending', async () => {
   expect(api.POST).not.toHaveBeenCalled();
 });
 
-it('a successful create removes the attempt and marks the workspaces read stale', async () => {
+it('a successful create keeps a created marker while the workspaces read is still empty', async () => {
   const client = createQueryClient();
   client.setQueryData(['me', 'workspaces'], { companies: [] });
-  function wrapper({ children }: { children: ReactNode }) {
-    return <QueryClientProvider client={client}>{children}</QueryClientProvider>;
-  }
-  const hook = renderHook(() => useCreateCompany(USER), { wrapper });
+  const hook = mount(client);
   api.POST.mockResolvedValueOnce(answer(CREATED, 201));
   await act(async () => {
     await hook.result.current.mutateAsync({ kind: 'new', body: BODY });
   });
   const query = client.getQueryState(['me', 'workspaces']);
   expect(query?.isInvalidated).toBe(true);
+  const stored = JSON.parse(storedRaw() ?? '{}') as { createdAt?: string; key?: string };
+  expect(stored.createdAt).toMatch(/^\d{4}-\d{2}-\d{2}T/);
+  expect(stored.key).toBe(sentKey(0));
+});
+
+it('a successful create clears the marker once the workspaces read shows a company', async () => {
+  const client = createQueryClient();
+  client.setQueryData(['me', 'workspaces'], { companies: [CREATED] });
+  const hook = mount(client);
+  api.POST.mockResolvedValueOnce(answer(CREATED, 201));
+  await act(async () => {
+    await hook.result.current.mutateAsync({ kind: 'new', body: BODY });
+  });
   expect(storedRaw()).toBeNull();
+});
+
+it('a refused new submit leaves the stored attempt untouched with the same key', async () => {
+  seedAttempt();
+  const hook = mount();
+  await act(async () => {
+    await expect(hook.result.current.mutateAsync({ kind: 'new', body: CHANGED_BODY })).rejects.toThrow(
+      'undecided',
+    );
+  });
+  expect(api.POST).not.toHaveBeenCalled();
+  const stored = JSON.parse(storedRaw() ?? '{}') as { key?: string };
+  expect(stored.key).toBe('01920000-0000-7000-8000-0000000000f1');
 });

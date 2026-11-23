@@ -121,7 +121,9 @@ async function waitForForm(): Promise<void> {
   });
 }
 
-function seedAttempt(overrides: { userId?: string; startedAt?: string } = {}): void {
+function seedAttempt(
+  overrides: { userId?: string; startedAt?: string; created?: boolean } = {},
+): void {
   window.localStorage.setItem(
     STORAGE_NAME,
     JSON.stringify({
@@ -129,6 +131,7 @@ function seedAttempt(overrides: { userId?: string; startedAt?: string } = {}): v
       key: STORED_KEY,
       body: POST_BODY,
       startedAt: new Date().toISOString(),
+      ...(overrides.created ? { createdAt: new Date().toISOString() } : {}),
       ...overrides,
     }),
   );
@@ -362,27 +365,48 @@ function testForbiddenAfterUnknown(): void {
   });
 }
 
-function testSuccessWithReload(): void {
-  it('after a 201 with a failing refresh the success state shows Reload, with no form, until the refresh lands', async () => {
+function testSuccessSurvivesRemount(): void {
+  it('after a 201 with a failing refresh the success state survives a remount until the refresh lands', async () => {
     const { posts } = queue(
       [
         emptyWorkspaces,
+        () => jsonResponse({ code: 'UNEXPECTED', message_ar: 'Synthetic refusal (ar fixture)', message_en: 'Refresh failed fixture' }, 500),
         () => jsonResponse({ code: 'UNEXPECTED', message_ar: 'Synthetic refusal (ar fixture)', message_en: 'Refresh failed fixture' }, 500),
         () => jsonResponse({ companies: [WORKSPACE_COMPANY] }, 200),
       ],
       [() => jsonResponse(CREATED_COMPANY, 201)],
     );
-    renderScreen('en');
+    const first = renderScreen('en');
     await waitForForm();
     await fillAndSubmit();
+    expect(await first.findByText(t('en', 'admin.createCompanyCreatedStatus'))).not.toBeNull();
+    expect(first.queryByLabelText(t('en', 'admin.companyNameEnLabel'))).toBeNull();
+    first.unmount();
+
+    renderScreen('en');
     expect(await screen.findByText(t('en', 'admin.createCompanyCreatedStatus'))).not.toBeNull();
     expect(screen.queryByLabelText(t('en', 'admin.companyNameEnLabel'))).toBeNull();
+    expect(screen.queryByRole('button', { name: t('en', 'admin.createCompanySubmit') })).toBeNull();
+    expect(posts).toHaveLength(1);
     const reload = screen.getByRole('button', { name: t('en', 'admin.createCompanyReload') });
     fireEvent.click(reload);
     await waitFor(() => {
       expect(screen.getByTestId('dashboard-content')).not.toBeNull();
     });
-    expect(posts).toHaveLength(1);
+    expect(window.localStorage.getItem(STORAGE_NAME)).toBeNull();
+  });
+}
+
+function testCreatedMarkerOnFreshScreen(): void {
+  it('a fresh screen that finds a created attempt of the same user shows the success state', async () => {
+    const { posts } = queue([emptyWorkspaces]);
+    seedAttempt({ created: true });
+    renderScreen('en');
+    expect(await screen.findByText(t('en', 'admin.createCompanyCreatedStatus'))).not.toBeNull();
+    expect(screen.queryByLabelText(t('en', 'admin.companyNameEnLabel'))).toBeNull();
+    expect(screen.queryByRole('button', { name: t('en', 'admin.createCompanySubmit') })).toBeNull();
+    expect(screen.queryByRole('button', { name: t('en', 'admin.createCompanyRetry') })).toBeNull();
+    expect(posts).toHaveLength(0);
   });
 }
 
@@ -429,6 +453,7 @@ describe('CreateCompanyScreen', () => {
   testRemountKeepsAttempt();
   testForeignOrStaleAttempt();
   testForbiddenAfterUnknown();
-  testSuccessWithReload();
+  testSuccessSurvivesRemount();
+  testCreatedMarkerOnFreshScreen();
   testOfflineSubmit();
 });
