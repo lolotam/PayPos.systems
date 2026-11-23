@@ -61,6 +61,8 @@ beforeEach(() => {
   api.GET.mockReset();
   api.POST.mockReset();
   window.localStorage.clear();
+  // حرس القراءة قبل أي إرسال بيلتقي قراءة فاضية افتراضيًا؛ الاختبارات بتتجاوزه بصمت ما تلمسش.
+  api.GET.mockResolvedValue({ data: { companies: [] } });
 });
 
 it('sends the body and the header through the generated client path', async () => {
@@ -228,15 +230,74 @@ it('a successful create keeps a created marker while the workspaces read is stil
   expect(stored.key).toBe(sentKey(0));
 });
 
-it('a successful create clears the marker once the workspaces read shows a company', async () => {
-  const client = createQueryClient();
-  client.setQueryData(['me', 'workspaces'], { companies: [CREATED] });
-  const hook = mount(client);
-  api.POST.mockResolvedValueOnce(answer(CREATED, 201));
-  await act(async () => {
-    await hook.result.current.mutateAsync({ kind: 'new', body: BODY });
+it('a create when the workspaces read already shows a company sends no POST and removes the stored attempt', async () => {
+  seedAttempt();
+  api.GET.mockResolvedValueOnce({
+    data: {
+      companies: [
+        {
+          id: '01920000-0000-7000-8000-0000000000c9',
+          name_ar: null,
+          name_en: 'Guard Company',
+          role_code: 'owner',
+          scope: 'COMPANY',
+          businesses: [],
+        },
+      ],
+    },
   });
+  const hook = mount();
+  await act(async () => {
+    const result = await hook.result.current.mutateAsync({ kind: 'new', body: BODY });
+    expect(result).toBeNull();
+  });
+  expect(api.POST).not.toHaveBeenCalled();
   expect(storedRaw()).toBeNull();
+});
+
+it('a retry when the workspaces read shows a company sends no POST and removes the stored attempt', async () => {
+  seedAttempt();
+  const client = createQueryClient();
+  const hook = mount(client);
+  api.GET.mockResolvedValueOnce({
+    data: {
+      companies: [
+        {
+          id: '01920000-0000-7000-8000-0000000000c9',
+          name_ar: null,
+          name_en: 'Guard Company',
+          role_code: 'owner',
+          scope: 'COMPANY',
+          businesses: [],
+        },
+      ],
+    },
+  });
+  await act(async () => {
+    const result = await hook.result.current.mutateAsync({ kind: 'retry' });
+    expect(result).toBeNull();
+  });
+  expect(api.POST).not.toHaveBeenCalled();
+  expect(storedRaw()).toBeNull();
+});
+
+it('a failing workspaces read refuses the create and keeps the stored attempt', async () => {
+  seedAttempt();
+  const hook = mount();
+  api.GET.mockResolvedValueOnce({
+    data: undefined,
+    error: { code: 'UNEXPECTED', message_ar: 'خطأ', message_en: 'Unexpected' },
+    response: { status: 500, ok: false },
+  });
+  await act(async () => {
+    await expect(hook.result.current.mutateAsync({ kind: 'retry' })).rejects.toMatchObject({
+      code: 'UNEXPECTED',
+    });
+  });
+  expect(api.POST).not.toHaveBeenCalled();
+  expect(storedRaw()).not.toBeNull();
+  const stored = JSON.parse(storedRaw() ?? '{}') as { key?: string };
+  expect(stored.key).toBe('01920000-0000-7000-8000-0000000000f1');
 });
 
 it('a refused new submit leaves the stored attempt untouched with the same key', async () => {

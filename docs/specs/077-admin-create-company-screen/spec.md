@@ -41,6 +41,17 @@ the SAME key and the SAME body. The user cannot edit the values or send anything
 attempt is decided. (This **replaces** the earlier rule «changing the form values creates a new
 key»: values are only editable when no undecided attempt exists.)
 
+**Guard before any send:** for a `new` call AND for a `retry`, the mutation first refetches the
+workspaces read once (`fetchQuery` on the existing `['me','workspaces']` query with its existing
+query function, `staleTime: 0`, one GET, no new endpoint). If it returns at least one company,
+no POST is sent, the stored attempt is removed, and the mutation resolves so the provider shows
+that company's dashboard. If the read itself fails, no POST is sent and the failure is thrown
+as-is: the screen shows its error and stays in the state it was in (an existing attempt stays
+kept). This closes the remaining paths to a second company (a stale second tab whose marker
+another tab removed, a retry refused with 403 after the first request had committed, an expired
+attempt). If «Try again» finds nothing stored (expired or removed by another tab), the form
+unlocks with the values that were shown and no request is sent — no raw error text is surfaced.
+
 **Decided** means 201 success, or a 4xx answer other than 408, 409 and 429. On a decided refusal
 the stored attempt is removed and the form becomes editable again with its values kept and the
 error shown. **On a 201 the attempt is NOT removed: it is marked created** (a `createdAt` field
@@ -113,7 +124,11 @@ permissions, migrations, dependencies, or `apps/admin/src/session/**`.
 ## Notes (recorded, not built in this slice)
 
 - The workspace provider keeps the last view when a refetch fails after a successful read
-  (`hasRead`); a failed first read still shows the error state (provider spec).
+  (`hasRead`) — but only for failures that are not about access: a 401 or 403 on the workspaces
+  read still shows the error state as before (provider spec).
+- Storage failures are swallowed (`create-company-attempt.ts`): a failed read means «no stored
+  attempt», a failed write or remove is ignored, and the screen then works as a plain form
+  protected by the guard above.
 - The created company is not selected explicitly: the workspace provider selects the only company
   of the fresh workspaces list.
 - Two tabs that both submit different names within the same instant, before either has written

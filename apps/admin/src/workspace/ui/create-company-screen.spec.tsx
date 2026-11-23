@@ -41,7 +41,7 @@ function testFormVisible(): void {
 function testValidSubmit(): void {
   it('a valid submit sends one request with the names, the plan id and the key, then enters the new company', async () => {
     const { posts } = queue(
-      [emptyWorkspaces, () => jsonResponse({ companies: [WORKSPACE_COMPANY] }, 200)],
+      [emptyWorkspaces, emptyWorkspaces, () => jsonResponse({ companies: [WORKSPACE_COMPANY] }, 200)],
       [() => jsonResponse(CREATED_COMPANY, 201)],
     );
     renderScreen('en');
@@ -108,6 +108,63 @@ function testFirstRefusal(): void {
   });
 }
 
+function testGuardBlocksWhenCompanyExists(): void {
+  it('a submit when the workspaces read now shows a company sends no POST and enters the dashboard', async () => {
+    const { posts } = queue(
+      [emptyWorkspaces, () => jsonResponse({ companies: [WORKSPACE_COMPANY] }, 200)],
+    );
+    renderScreen('en');
+    await waitForForm();
+    await fillAndSubmit();
+    await waitFor(() => {
+      expect(screen.getByTestId('dashboard-content')).not.toBeNull();
+    });
+    expect(posts).toHaveLength(0);
+    expect(window.localStorage.getItem(STORAGE_NAME)).toBeNull();
+  });
+}
+
+function testGuardFailureKeepsForm(): void {
+  it('a failing workspaces read before the create shows the error and keeps the editable form', async () => {
+    const { posts } = queue([
+      emptyWorkspaces,
+      () => jsonResponse(ENVELOPE('UNEXPECTED', 'Guard failed fixture'), 500),
+    ]);
+    renderScreen('en');
+    await waitForForm();
+    await fillAndSubmit();
+    expect(await screen.findByText('Guard failed fixture')).not.toBeNull();
+    const nameInput = screen.getByLabelText(t('en', 'admin.companyNameEnLabel')) as HTMLInputElement;
+    expect(nameInput.readOnly).toBe(false);
+    expect(nameInput.value).toBe('Rehearsal Salon');
+    expect(posts).toHaveLength(0);
+  });
+}
+
+function testStorageThrowing(): void {
+  it('with storage throwing on every call the form works, sends one POST and shows the success state', async () => {
+    const { posts } = queue(
+      [emptyWorkspaces, emptyWorkspaces],
+      [() => jsonResponse(CREATED_COMPANY, 201)],
+    );
+    vi.spyOn(Storage.prototype, 'getItem').mockImplementation(() => {
+      throw new TypeError('blocked');
+    });
+    vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => {
+      throw new TypeError('blocked');
+    });
+    vi.spyOn(Storage.prototype, 'removeItem').mockImplementation(() => {
+      throw new TypeError('blocked');
+    });
+    renderScreen('en');
+    await waitForForm();
+    await fillAndSubmit();
+    expect(await screen.findByText(t('en', 'admin.createCompanyCreatedStatus'))).not.toBeNull();
+    expect(screen.queryByLabelText(t('en', 'admin.companyNameEnLabel'))).toBeNull();
+    expect(posts).toHaveLength(1);
+  });
+}
+
 describe('CreateCompanyScreen', () => {
   beforeEach(() => {
     mockFetch.mockReset();
@@ -117,6 +174,7 @@ describe('CreateCompanyScreen', () => {
 
   afterEach(() => {
     onlineManager.setOnline(true);
+    vi.restoreAllMocks();
   });
 
   testFormVisible();
@@ -124,4 +182,7 @@ describe('CreateCompanyScreen', () => {
   testEmptyEnglishName();
   testFieldErrorDescribed();
   testFirstRefusal();
+  testGuardBlocksWhenCompanyExists();
+  testGuardFailureKeepsForm();
+  testStorageThrowing();
 });

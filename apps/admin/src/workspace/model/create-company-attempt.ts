@@ -52,14 +52,31 @@ function parseAttempt(raw: string): StoredAttempt | null {
   }
 }
 
+// الوصول للتخزين ممكن يرمي (إعدادات خصوصية أو تخزين مليان): القراءة بترجع null والكتابة
+// والشيل بترمض بصمت — الشاشة ساعتها بتنزل لنموذج عادي محمي بحرس قراءة مساحات العمل (077).
+function attemptStorage(): Storage | null {
+  try {
+    return window.localStorage;
+  } catch {
+    return null;
+  }
+}
+
 /** بيقرا المحاولة غير المحسومة لنفس المستخدم؛ بتاعت مستخدم تاني أو قديمة أو تالفة بتتشال ويرجّع null. */
 export function readAttempt(userId: string | undefined): StoredAttempt | null {
   if (typeof window === 'undefined' || userId === undefined) return null;
-  const raw = window.localStorage.getItem(ATTEMPT_STORAGE_NAME);
+  const storage = attemptStorage();
+  if (storage === null) return null;
+  let raw: string | null;
+  try {
+    raw = storage.getItem(ATTEMPT_STORAGE_NAME);
+  } catch {
+    return null;
+  }
   if (raw === null) return null;
   const stored = parseAttempt(raw);
   if (stored === null || stored.userId !== userId || expired(stored)) {
-    window.localStorage.removeItem(ATTEMPT_STORAGE_NAME);
+    removeAttempt();
     return null;
   }
   return stored;
@@ -67,12 +84,24 @@ export function readAttempt(userId: string | undefined): StoredAttempt | null {
 
 export function writeAttempt(attempt: StoredAttempt): void {
   if (typeof window === 'undefined') return;
-  window.localStorage.setItem(ATTEMPT_STORAGE_NAME, JSON.stringify(attempt));
+  const storage = attemptStorage();
+  if (storage === null) return;
+  try {
+    storage.setItem(ATTEMPT_STORAGE_NAME, JSON.stringify(attempt));
+  } catch {
+    // التخزين مرفوض: بترمض، وحرس قراءة مساحات العمل في الـ mutationFn بيحمي من شركة تانية برضه.
+  }
 }
 
 export function removeAttempt(): void {
   if (typeof window === 'undefined') return;
-  window.localStorage.removeItem(ATTEMPT_STORAGE_NAME);
+  const storage = attemptStorage();
+  if (storage === null) return;
+  try {
+    storage.removeItem(ATTEMPT_STORAGE_NAME);
+  } catch {
+    // بترمض: ما فيش محاولة تتشال من التخزين، والحالة المحلية بتظل هي المرجع.
+  }
 }
 
 /** بينشّئ علامة الإنشاء على محاولة نفس المستخدم بعد جواب 201؛ بتاعت مستخدم تاني ما بتتلمنش. */
@@ -81,7 +110,7 @@ export function markCreated(userId: string): StoredAttempt | null {
   const stored = readAttempt(userId);
   if (stored === null) return null;
   const created: StoredAttempt = { ...stored, createdAt: new Date().toISOString() };
-  window.localStorage.setItem(ATTEMPT_STORAGE_NAME, JSON.stringify(created));
+  writeAttempt(created);
   return created;
 }
 

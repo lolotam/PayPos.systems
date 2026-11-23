@@ -14,6 +14,7 @@ import {
   type StoredAttempt,
 } from '../model/create-company-attempt';
 import { createCompany } from './create-company-client';
+import { fetchWorkspaces } from './use-workspaces';
 
 /** نداء الإنشاء: إرسال جديد بالقيم المكتوبة، أو إعادة بنفس المفتاح والجسم المخزّنين لمحاولة غير محسومة. */
 export type CreateCompanyCall = { kind: 'new'; body: CreateCompanyInput } | { kind: 'retry' };
@@ -28,22 +29,39 @@ function workspacesCompanies(client: ReturnType<typeof useQueryClient>): readonl
 }
 
 /**
- * النجاح ما يشيلش المحاولة: بينشّئ علامة الإنشاء لحد ما قراءة مساحات العمل تشوف الشركة فعليًا
- * — القراءة بيتعمل من الكاش بعد انتظار إعادة الجلب بتاعة الـ invalidation، من غير طلب جديد —
- * عشان إعادة تركيب الصفحة أو تبويب تاني ما يقدرش يبعت مفتاح جديد ويعمل شركة تانية.
- * والرفض القاطع (4xx غير 408/409/429) بس هو اللي بيشرحها؛ فشل الشبكة والـ 5xx بيبقوها.
+ * حرس قبل أي إرسال (جديد أو إعادة): قراءة واحدة محدثة لمساحات العمل (staleTime صفر عشان
+ * تتجاوز الكاش الطازج)؛ لو فيها شركة يبقى مفيش POST خالص — المحاولة بتتشال واللوحة بتظهر
+ * من الكاش، وده بيقفل آخر طرق الشركة التانية (تبويب قديم، إعادة بعد 403، محاولة منتهية).
+ * لو القراءة نفسها فشلت الطلب ما بيتبعثش والخطأ بيرجع زي ما هو — الحالة بتفضل زي ما كانت
+ * والمحاولة الموجودة بتفضل محفوظة لأن الرمي حصل قبل أي كتابة أو شيل.
  */
 async function runCreateCall(
   deps: CreateDeps,
   client: ReturnType<typeof useQueryClient>,
   call: CreateCompanyCall,
-): Promise<Company> {
+): Promise<Company | null> {
   const { userId, setStored } = deps;
+  const read = await client.fetchQuery({
+    queryKey: ['me', 'workspaces'],
+    queryFn: fetchWorkspaces,
+    staleTime: 0,
+  });
+  if (read.companies.length > 0) {
+    removeAttempt();
+    setStored(null);
+    return null;
+  }
   let key: string;
   let body: CreateCompanyInput;
   if (call.kind === 'retry') {
     const held = readAttempt(userId);
-    if (held === null) throw new TypeError('no undecided attempt to retry');
+    if (held === null) {
+      // «إعادة المحاولة» لقيت مفيش (انتهت أو تبويب تاني شالها): بيتفتح النموذج بالقيم
+      // الظاهرة بدل ما يفضل مقفول ويرمي خطأ خام في وش المستخدم.
+      removeAttempt();
+      setStored(null);
+      throw new TypeError('no undecided attempt to retry');
+    }
     if (held.createdAt !== undefined) throw new TypeError('the stored attempt is already created');
     key = held.key;
     body = held.body;

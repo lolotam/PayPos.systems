@@ -23,7 +23,7 @@ import {
 function testNetworkRetrySameKey(): void {
   it('a retry after a network failure locks the fields and resends the same key and body', async () => {
     const { posts } = queue(
-      [emptyWorkspaces, () => jsonResponse({ companies: [WORKSPACE_COMPANY] }, 200)],
+      [emptyWorkspaces, emptyWorkspaces, emptyWorkspaces, () => jsonResponse({ companies: [WORKSPACE_COMPANY] }, 200)],
       [
         () => {
           throw new TypeError('network died');
@@ -34,8 +34,7 @@ function testNetworkRetrySameKey(): void {
     renderScreen('en');
     await waitForForm();
     await fillAndSubmit();
-    expect(await screen.findByRole('status')).not.toBeNull();
-    expect(screen.getByText(t('en', 'admin.createCompanyRetryNotice'))).not.toBeNull();
+    expect(await screen.findByText(t('en', 'admin.createCompanyRetryNotice'))).not.toBeNull();
     const nameInput = screen.getByLabelText(t('en', 'admin.companyNameEnLabel')) as HTMLInputElement;
     expect(nameInput.readOnly).toBe(true);
     expect(nameInput.value).toBe('Rehearsal Salon');
@@ -54,7 +53,7 @@ function testNetworkRetrySameKey(): void {
 function testServer500Retry(): void {
   it('a 500 shows its own message in the locked retry state and the retry answer is the one that lands', async () => {
     const { posts } = queue(
-      [emptyWorkspaces, () => jsonResponse({ companies: [WORKSPACE_COMPANY] }, 200)],
+      [emptyWorkspaces, emptyWorkspaces, emptyWorkspaces, () => jsonResponse({ companies: [WORKSPACE_COMPANY] }, 200)],
       [
         () => jsonResponse(ENVELOPE('UNEXPECTED', 'First refusal fixture'), 500),
         () => jsonResponse(CREATED_COMPANY, 201),
@@ -80,7 +79,7 @@ function testServer500Retry(): void {
 function testRemountKeepsAttempt(): void {
   it('an undecided attempt survives a remount and its retry reuses the same key', async () => {
     const { posts } = queue(
-      [emptyWorkspaces, emptyWorkspaces, () => jsonResponse({ companies: [WORKSPACE_COMPANY] }, 200)],
+      [emptyWorkspaces, emptyWorkspaces, emptyWorkspaces, () => jsonResponse({ companies: [WORKSPACE_COMPANY] }, 200)],
       [
         () => {
           throw new TypeError('network died');
@@ -112,7 +111,7 @@ function testRemountKeepsAttempt(): void {
 function testForbiddenAfterUnknown(): void {
   it('a 403 after an undecided attempt removes it, unlocks the form and the next submit uses a new key', async () => {
     const { posts } = queue(
-      [emptyWorkspaces],
+      [emptyWorkspaces, emptyWorkspaces, emptyWorkspaces, emptyWorkspaces],
       [
         () => {
           throw new TypeError('network died');
@@ -146,6 +145,7 @@ function testSuccessSurvivesRemount(): void {
     const client = createQueryClient();
     const { posts } = queue(
       [
+        emptyWorkspaces,
         emptyWorkspaces,
         () => jsonResponse(ENVELOPE('UNEXPECTED', 'Refresh failed fixture'), 500),
         () => jsonResponse(ENVELOPE('UNEXPECTED', 'Refresh failed fixture'), 500),
@@ -228,6 +228,30 @@ function testForeignOrStaleAttempt(): void {
   });
 }
 
+function testRetryOnExpiredAttemptUnlocks(): void {
+  it('a retry on an expired attempt unlocks the form with its values and sends no request', async () => {
+    const { posts } = queue([emptyWorkspaces, emptyWorkspaces]);
+    seedAttempt();
+    renderScreen('en');
+    const locked = await screen.findByLabelText(t('en', 'admin.companyNameEnLabel'));
+    await waitFor(() => {
+      expect((locked as HTMLInputElement).readOnly).toBe(true);
+    });
+    // المحاولة بتنتهي بعد ما الشاشة اقفلت: الحالة المحلية لسه شايفة المقفول فزر «إعادة المحاولة» موجود،
+    // والقراءة الجديدة وقت الإعادة هي اللي بتبين إنها انتهت.
+    seedAttempt({ startedAt: new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString() });
+    fireEvent.click(screen.getByRole('button', { name: t('en', 'admin.createCompanyRetry') }));
+    await waitFor(() => {
+      const input = screen.getByLabelText(t('en', 'admin.companyNameEnLabel')) as HTMLInputElement;
+      expect(input.readOnly).toBe(false);
+      expect(input.value).toBe('Rehearsal Salon');
+    });
+    expect(screen.queryByRole('button', { name: t('en', 'admin.createCompanyRetry') })).toBeNull();
+    expect(posts).toHaveLength(0);
+    expect(window.localStorage.getItem(STORAGE_NAME)).toBeNull();
+  });
+}
+
 function testOfflineSubmit(): void {
   it('an offline submit fails at once into the locked retry state', async () => {
     const { posts } = queue(
@@ -269,5 +293,6 @@ describe('CreateCompanyScreen retry and created marker', () => {
   testForbiddenAfterUnknown();
   testSuccessSurvivesRemount();
   testCreatedMarkerOnFreshScreen();
+  testRetryOnExpiredAttemptUnlocks();
   testOfflineSubmit();
 });

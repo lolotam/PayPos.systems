@@ -1,7 +1,6 @@
 import { render, screen, waitFor } from '@testing-library/react';
 import { act } from 'react';
 import { QueryClientProvider, type QueryClient } from '@tanstack/react-query';
-import { t } from '@pospay/i18n';
 import { DirectionProvider } from '@pospay/ui';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -79,7 +78,51 @@ describe('WorkspaceProvider refresh failures', () => {
     expect(reads).toBeGreaterThanOrEqual(1);
   });
 
-  it('a refetch failure after a successful read keeps the selected company and shows no error', async () => {
+  it('a refetch failing with 401 shows the error state and drops the page content', async () => {
+    const client = createQueryClient();
+    let reads = 0;
+    mockFetch.mockImplementation(async () => {
+      reads += 1;
+      return reads === 1
+        ? jsonResponse({ companies: [COMPANY] }, 200)
+        : jsonResponse(
+            { code: 'UNAUTHORIZED', message_ar: 'Synthetic refusal (ar fixture)', message_en: 'Access refused fixture' },
+            401,
+          );
+    });
+    renderProvider(client);
+    expect(await screen.findByTestId('ws-company')).not.toBeNull();
+    await act(async () => {
+      await client.refetchQueries({ queryKey: ['me', 'workspaces'] });
+    });
+    expect(await screen.findByRole('alert')).not.toBeNull();
+    expect(screen.getByText('Access refused fixture')).not.toBeNull();
+    expect(screen.queryByTestId('ws-status')).toBeNull();
+  });
+
+  it('a refetch failing with 403 shows the error state and drops the page content', async () => {
+    const client = createQueryClient();
+    let reads = 0;
+    mockFetch.mockImplementation(async () => {
+      reads += 1;
+      return reads === 1
+        ? jsonResponse({ companies: [COMPANY] }, 200)
+        : jsonResponse(
+            { code: 'FORBIDDEN', message_ar: 'Synthetic refusal (ar fixture)', message_en: 'Access removed fixture' },
+            403,
+          );
+    });
+    renderProvider(client);
+    expect(await screen.findByTestId('ws-company')).not.toBeNull();
+    await act(async () => {
+      await client.refetchQueries({ queryKey: ['me', 'workspaces'] });
+    });
+    expect(await screen.findByRole('alert')).not.toBeNull();
+    expect(screen.getByText('Access removed fixture')).not.toBeNull();
+    expect(screen.queryByTestId('ws-status')).toBeNull();
+  });
+
+  it('a refetch failing with 500 keeps the selected company and shows no error', async () => {
     const client = createQueryClient();
     let reads = 0;
     mockFetch.mockImplementation(async () => {
@@ -103,6 +146,26 @@ describe('WorkspaceProvider refresh failures', () => {
     });
     expect(screen.getByTestId('ws-company').textContent).toBe('Provider Company');
     expect(screen.queryByRole('alert')).toBeNull();
-    expect(screen.queryByText(t('en', 'admin.unexpected'))).toBeNull();
+    expect(screen.queryByText('Refetch failed fixture')).toBeNull();
+  });
+
+  it('a refetch failing with a network error keeps the selected company', async () => {
+    const client = createQueryClient();
+    let reads = 0;
+    mockFetch.mockImplementation(async () => {
+      reads += 1;
+      if (reads > 1) throw new TypeError('network died');
+      return jsonResponse({ companies: [COMPANY] }, 200);
+    });
+    renderProvider(client);
+    expect(await screen.findByTestId('ws-company')).not.toBeNull();
+    await act(async () => {
+      await client.refetchQueries({ queryKey: ['me', 'workspaces'] });
+    });
+    await waitFor(() => {
+      expect(screen.getByTestId('ws-status').textContent).toBe('ready');
+    });
+    expect(screen.getByTestId('ws-company').textContent).toBe('Provider Company');
+    expect(screen.queryByRole('alert')).toBeNull();
   });
 });
