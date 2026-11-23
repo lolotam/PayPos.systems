@@ -1,5 +1,7 @@
 # 101 · Admin navigation styles (planned — spec 074) — أنماط تنقّل لوحة الإدارة الثلاثة (مخطط — مواصفة 074)
 
+> **Update 2026-11-23 (074-7b):** the step 7 part of this plan is now built; its runnable journey is [102](102-choose-navigation-style.md). Step 12 (saving the choice on the account) is still planned.
+
 > **Step 074-3 + 074-8 note (2026-11-22) — ملاحظة الخطوة 074-3 + 074-8:** three pages already use the shared page layout **before step 7**: Services (`/catalog`) on the list template, Add service (`/catalog/create`) on the 840px form template, and Business identity (`/business-identity`) on the two-column template (main 2fr / side 1fr from 1024px), including the Services table's stacked rows under 600px and the shared `PageHeader`/`PageShell`/`DataTableFrame`/`PageShell` parts in `packages/ui`. Nothing in the frame changes yet: the sidebar, the theme switch and every route stay as they are until step 7, and steps 074-9 and 074-11 skip these three pages because they are already migrated.
 >
 > **ملاحظة بالعربي:** ثلاث صفحات تستخدم تخطيط الصفحة المشترك **قبل الخطوة 7**: الخدمات (`/catalog`) على قالب القائمة، إضافة خدمة (`/catalog/create`) على قالب النماذج بعرض 840px، وهوية النشاط (`/business-identity`) على القالب ثنائي الأعمدة (الرئيسي 2fr والجانبي 1fr من 1024px)، مع صفوف الجدول المكدّسة تحت 600px وأجزاء `PageHeader` و`PageShell` و`DataTableFrame` المشتركة في `packages/ui`. لا يتغير الإطار بعد: الشريط الجانبي ومفتاح الوضع وكل المسارات تبقى كما هي حتى الخطوة 7، والخطوتان 074-9 و074-11 تتخطيان هذه الصفحات الثلاث لأنها مهيّرة بالفعل.

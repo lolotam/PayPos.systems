@@ -35,29 +35,30 @@ export function FrameWorkspaceSwitcher() {
   const branch = ready?.branch;
   const choose = (next: SelectionChoice) => workspace.choose(next);
   return (
-    <WorkspaceSwitcher
-      labels={labels.switcher}
-      businessName={
-        business === undefined
-          ? t(locale, company === undefined ? 'admin.chooseCompany' : 'admin.chooseBusiness')
-          : nameOf(business, locale)
-      }
-      branchName={nameOf(branch, locale)}
-      companyValue={company?.id ?? ''}
-      businessValue={business?.id ?? ''}
-      branchValue={branch?.id ?? ''}
-      companyOptions={optionsOf(workspace.companies, locale)}
-      businessOptions={optionsOf(company?.businesses ?? [], locale)}
-      branchOptions={optionsOf(business?.branches ?? [], locale)}
-      businessDisabled={company === undefined}
-      branchDisabled={business === undefined}
-      onCompanyChange={(companyId) => choose({ companyId })}
-      onBusinessChange={(businessId) => choose({ companyId: company?.id, businessId })}
-      onBranchChange={(branchId) =>
-        choose({ companyId: company?.id, businessId: business?.id, branchId })
-      }
-      resetKey={navigationKey}
-      className="max-w-56"
-    />
+    <div className="min-w-0 max-w-56 flex-[1_1_10rem]">
+      <WorkspaceSwitcher
+        labels={labels.switcher}
+        businessName={
+          business === undefined
+            ? t(locale, company === undefined ? 'admin.chooseCompany' : 'admin.chooseBusiness')
+            : nameOf(business, locale)
+        }
+        branchName={nameOf(branch, locale)}
+        companyValue={company?.id ?? ''}
+        businessValue={business?.id ?? ''}
+        branchValue={branch?.id ?? ''}
+        companyOptions={optionsOf(workspace.companies, locale)}
+        businessOptions={optionsOf(company?.businesses ?? [], locale)}
+        branchOptions={optionsOf(business?.branches ?? [], locale)}
+        businessDisabled={company === undefined}
+        branchDisabled={business === undefined}
+        onCompanyChange={(companyId) => choose({ companyId })}
+        onBusinessChange={(businessId) => choose({ companyId: company?.id, businessId })}
+        onBranchChange={(branchId) =>
+          choose({ companyId: company?.id, businessId: business?.id, branchId })
+        }
+        resetKey={navigationKey}
+      />
+    </div>
   );
 }

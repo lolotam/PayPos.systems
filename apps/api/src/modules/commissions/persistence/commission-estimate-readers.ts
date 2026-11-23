@@ -4,100 +4,28 @@ import {
   commissionRuleOf,
   projectPackageSaleStatus,
   type CommissionPlanVersion,
-  type CommissionSalary,
+  type RevisedSalary,
   type ServiceCommissionOverride,
+  type StatementCorrectionSource,
+  type StatementLineSource,
+  type StatementMonthRows,
+  type StatementSaleSource,
+  type StatementTipSource,
 } from '@pospay/commissions-engine';
 import { parseMoney } from '@pospay/domain';
 import type { Tx } from '@pospay/db';
 import { sql, type SQL } from 'drizzle-orm';
 
 import { readIncomingCarries } from './commission-carry-reader.ts';
-
 import type {
-  CommissionEstimateCorrection,
-  CommissionEstimateLine,
-  CommissionEstimateMonthRows,
-  CommissionEstimateSale,
-  CommissionEstimateTip,
-} from '@pospay/commissions-engine';
-
-type LineRow = {
-  employeeId: string;
-  serviceId: string;
-  branchId: string;
-  lineId: string;
-  occurredAt: string;
-  recordedAt: string;
-  businessDate: string;
-  netShare: string;
-  shareBps: number;
-  counts: boolean;
-  ruleKind: string;
-  rulePctBps: number | null;
-  ruleFixedAmount: string | null;
-  status: string;
-};
-
-type SaleRow = {
-  saleId: string;
-  sellerEmployeeId: string | null;
-  branchId: string;
-  businessDate: string;
-  pricePaid: string;
-  refundedAmount: string;
-  status: string;
-};
-
-type TipRow = {
-  sessionId: string;
-  employeeId: string;
-  branchId: string;
-  method: string;
-  amount: string;
-  businessDate: string;
-};
-
-type SalaryRow = {
-  employeeId: string;
-  effectiveFrom: string;
-  amount: string;
-};
-
-type PlanVersionRow = {
-  employeeId: string;
-  version: number;
-  effectiveFrom: string;
-  wholePeriod: boolean;
-  repairPeriod: string | null;
-  plan: unknown;
-  createdAt: string;
-};
-
-type OverrideRow = {
-  id: string;
-  employeeId: string;
-  serviceId: string;
-  effectiveFrom: string;
-  ruleKind: string;
-  rulePctBps: number | null;
-  ruleFixedAmount: string | null;
-  createdAt: string;
-};
-
-type CorrectionRow = {
-  employeeId: string;
-  sourcePeriod: string;
-  targetPeriod: string;
-  sourceRef: string;
-  kind: string;
-  amount: string;
-  previousAmount: string;
-  newAmount: string;
-  generation: number;
-  sourceBranchId: string;
-  sourceBusinessDate: string;
-  attachedBranchIds: string[];
-};
+  CorrectionRow,
+  LineRow,
+  OverrideRow,
+  PlanVersionRow,
+  SalaryRow,
+  SaleRow,
+  TipRow,
+} from './commission-month-row-types.ts';
 
 /**
  * شرط الموظفة الواحد: من غير موظفة بيفضل الشرط فاضي، ومع موظفة بيقصر القراءة
@@ -110,7 +38,8 @@ function employeeFilter(alias: string, column: string, employeeId: string | null
 
 /**
  * يقرأ صفوف شهر النشاط من إسقاط العمولة نفسه، كلها في نفس المعاملة عشان الأرقام
- * تيجي من لقطة واحدة.
+ * تيجي من لقطة واحدة. الصفوف بتشيل كمان نسخة الرأس والجلسة والعميل ومعرّف التصحيح اللي الكشف
+ * وبصمته محتاجينهم؛ التقدير بيتجاهلهم.
  *
  * @param tx معاملة القراءة الحالية
  * @param companyId الشركة المؤكدة
@@ -125,7 +54,7 @@ export async function readEstimateMonth(
   businessId: string,
   period: string,
   employeeId: string | null,
-): Promise<CommissionEstimateMonthRows> {
+): Promise<StatementMonthRows> {
   const lines = await readLines(tx, companyId, businessId, period, employeeId);
   const sales = await readSales(tx, companyId, businessId, period, employeeId);
   const tips = await readTips(tx, companyId, businessId, period, employeeId);
@@ -143,10 +72,11 @@ async function readLines(
   businessId: string,
   period: string,
   employeeId: string | null,
-): Promise<CommissionEstimateLine[]> {
+): Promise<StatementLineSource[]> {
   const rows = await tx.execute<LineRow>(sql`SELECT
     l.employee_id AS "employeeId", l.service_id AS "serviceId",
     h.branch_id AS "branchId", l.line_id AS "lineId",
+    h.session_id AS "sessionId", h.customer_id AS "customerId", h.revision AS "revision",
     (extract(epoch from l.occurred_at)*1000000)::bigint::text AS "occurredAt",
     (extract(epoch from l.recorded_at)*1000000)::bigint::text AS "recordedAt",
     l.business_date::text AS "businessDate", l.net_share::text AS "netShare",
@@ -164,6 +94,9 @@ async function readLines(
     serviceId: row.serviceId,
     branchId: row.branchId,
     lineId: row.lineId,
+    sessionId: row.sessionId,
+    customerId: row.customerId,
+    revision: BigInt(row.revision),
     occurredAt: BigInt(row.occurredAt),
     recordedAt: BigInt(row.recordedAt),
     businessDate: row.businessDate,
@@ -181,11 +114,12 @@ async function readSales(
   businessId: string,
   period: string,
   employeeId: string | null,
-): Promise<CommissionEstimateSale[]> {
+): Promise<StatementSaleSource[]> {
   const rows = await tx.execute<SaleRow>(sql`SELECT
     sale_id AS "saleId", seller_employee_id AS "sellerEmployeeId", branch_id AS "branchId",
     business_date::text AS "businessDate", price_paid::text AS "pricePaid",
-    refunded_amount::text AS "refundedAmount", status AS "status"
+    refunded_amount::text AS "refundedAmount", status AS "status",
+    revision AS "revision"
     FROM commission_sales
     WHERE company_id = ${companyId} AND business_id = ${businessId}::uuid
       AND period = ${period}
@@ -199,6 +133,7 @@ async function readSales(
     pricePaid: parseMoney(row.pricePaid),
     refundedAmount: parseMoney(row.refundedAmount),
     status: projectPackageSaleStatus(row.status),
+    revision: BigInt(row.revision),
   }));
 }
 
@@ -208,10 +143,11 @@ async function readTips(
   businessId: string,
   period: string,
   employeeId: string | null,
-): Promise<CommissionEstimateTip[]> {
+): Promise<StatementTipSource[]> {
   const rows = await tx.execute<TipRow>(sql`SELECT
     t.session_id AS "sessionId", t.employee_id AS "employeeId", h.branch_id AS "branchId",
-    t.method AS "method", t.amount::text AS amount, h.business_date::text AS "businessDate"
+    t.method AS "method", t.amount::text AS amount, h.business_date::text AS "businessDate",
+    h.revision AS "revision"
     FROM commission_tips t
     JOIN commission_tip_heads h ON h.company_id = t.company_id
       AND h.business_id = t.business_id AND h.session_id = t.session_id
@@ -226,6 +162,7 @@ async function readTips(
     businessDate: row.businessDate,
     method: row.method === 'CASH' ? 'CASH' : 'CARD',
     amount: parseMoney(row.amount),
+    revision: BigInt(row.revision),
   }));
 }
 
@@ -235,9 +172,10 @@ async function readSalaries(
   businessId: string,
   period: string,
   employeeId: string | null,
-): Promise<CommissionSalary[]> {
+): Promise<RevisedSalary[]> {
   const rows = await tx.execute<SalaryRow>(sql`SELECT
-    employee_id AS "employeeId", effective_from::text AS "effectiveFrom", amount::text AS amount
+    employee_id AS "employeeId", effective_from::text AS "effectiveFrom", amount::text AS amount,
+    revision AS "revision"
     FROM commission_salaries
     WHERE company_id = ${companyId} AND business_id = ${businessId}::uuid
       AND effective_from <= (date_trunc('month', (${period} || '-01')::date) + interval '1 month - 1 day')::date
@@ -247,6 +185,7 @@ async function readSalaries(
     employeeId: row.employeeId,
     effectiveFrom: row.effectiveFrom,
     amount: parseMoney(row.amount),
+    revision: BigInt(row.revision),
   }));
 }
 
@@ -300,9 +239,9 @@ async function readCorrections(
   businessId: string,
   period: string,
   employeeId: string | null,
-): Promise<CommissionEstimateCorrection[]> {
+): Promise<StatementCorrectionSource[]> {
   const rows = await tx.execute<CorrectionRow>(sql`SELECT
-    employee_id AS "employeeId", source_period AS "sourcePeriod",
+    id AS "id", employee_id AS "employeeId", source_period AS "sourcePeriod",
     target_period AS "targetPeriod", source_ref AS "sourceRef", kind AS "kind",
     amount::text AS amount, previous_amount::text AS "previousAmount",
     new_amount::text AS "newAmount", generation AS "generation",
@@ -314,11 +253,12 @@ async function readCorrections(
       ${employeeFilter('commission_corrections', 'employee_id', employeeId)}
     ORDER BY employee_id, source_ref, generation`);
   return rows.map((row) => ({
+    id: row.id,
     employeeId: row.employeeId,
     sourcePeriod: row.sourcePeriod,
     targetPeriod: row.targetPeriod,
     sourceRef: row.sourceRef,
-    kind: row.kind as CommissionEstimateCorrection['kind'],
+    kind: row.kind as StatementCorrectionSource['kind'],
     amount: parseMoney(row.amount),
     previousAmount: parseMoney(row.previousAmount),
     newAmount: parseMoney(row.newAmount),

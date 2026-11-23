@@ -157,6 +157,18 @@ describe('the new value of the fields that matter most', () => {
     expect(saraOf(moved).lines.map((line) => line.line_id)).toEqual(['line-2']);
   });
 
+  it('leaves the salary amount out of the input: the same effective date and revision with another amount is the same input (D-10)', () => {
+    const rows = fullRows();
+    const sameRevision = {
+      ...rows,
+      salaries: rows.salaries.map((s) =>
+        s.effectiveFrom === '2026-10-01' ? { ...s, amount: s.amount + 1n } : s,
+      ),
+    };
+    expect(text(sameRevision)).toBe(BASE);
+    expect(BASE).not.toContain('400.000');
+  });
+
   it('moves the input when a newer salary revision arrives alone, and not for an unselected entry', () => {
     const rows = fullRows();
     const newer = {

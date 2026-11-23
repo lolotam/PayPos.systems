@@ -733,7 +733,7 @@ Named tests; each is an integration test against real Postgres (T2 stack, ADR-00
 - **FR-025** `POST /v1/businesses/:businessId/commission-statements/:period/generate` refuses a month that has not ended
   (business timezone, D-16) with 422 `COMMISSION_PERIOD_NOT_ENDED`; under the lock it ensures the DRAFT row, computes the view
   (CM-27) and the fingerprint, stores `current_fingerprint` and returns the view. `GET …/:period` **writes nothing and takes
-  no lock**: it computes the same view and fingerprint on read (D-7), returns `generated: false` when no statement row exists,
+  no lock**: it computes the same view and fingerprint on read (D-7), returns `generated: false` when the month's `current_fingerprint` is null (no row at all, or a row an input writer created that nobody has generated yet, research R6),
   and for a closed month returns its frozen lines. **Only for a business-wide reader** (§6 _Permissions_), the open
   month's view returns **both** fingerprints (D-6), the input fingerprint and the statement fingerprint of the rows the
   builder would freeze now; a REVIEWED statement is shown as **changed since review** when either differs from its
@@ -1084,7 +1084,7 @@ Two fingerprints (D-6), both serialized by `canonicalJson`, hashed with SHA-256 
 **The input fingerprint** (`current_fingerprint`, `reviewed_fingerprint`, `input_fingerprint`). The canonical input of one business and month: for each employee in ascending id, the ACTIVE projected lines of the month
 (`line_id`, `revision`, `occurred_at`, `recorded_at`, `business_date`, `net_share`, `share_bps`, `rule_snapshot`, `counts`),
 the sales (`sale_id`, `revision`, `price_paid`, `refunded_amount`), the tip rows (`session_id`, `revision`, `method`, `amount`),
-the salary entry selected for the month's last day (SPEC §5.5), the plan versions and overrides that can apply in the month,
+the salary entry selected for the month's last day (SPEC §5.5) as `effective_from` and `revision` only, never its amount (an amount change always arrives as a newer revision, D-10, and an unkeyed digest of a salary amount would let a reviewer without salary access recover it by trying values; 51-1 PR 2 review, 2026-11-23), the plan versions and overrides that can apply in the month,
 the corrections received by the month, the open blocked corrections whose stored `target_statement_id` is this month's
 statement, the incoming carries whose `target_statement_id` is this month's statement (`source_statement_id`, `kind`, `amount`, D-22). Every list sorted by its identity; money as KWD strings. **The branch attribution is not in
 the input fingerprint** (D-26; ADR-0054 §6): the input fingerprint is exactly what a writer's change moves (D-6). Staff

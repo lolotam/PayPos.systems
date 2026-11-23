@@ -63,6 +63,7 @@ services:
       POSTGRES_NOTIFICATIONS_PASSWORD: ${POSTGRES_NOTIFICATIONS_PASSWORD:-}
     networks: [dokploy-network]
     mem_limit: 256m
+    cpus: 0.5
 
   api:
     image: ${REGISTRY:-ghcr.io/lolotam}/pospay-api:${IMAGE_TAG:?}
@@ -92,6 +93,8 @@ services:
       VAPID_SUBJECT: ${VAPID_SUBJECT:-}
       TRUSTED_PROXY_CIDRS: ${TRUSTED_PROXY_CIDRS:-}
       COOKIE_DOMAIN: ${COOKIE_DOMAIN:-.staging.pospay.systems}
+      # The session cookie name carries the environment, so a production cookie is never read here.
+      AUTH_COOKIE_PREFIX: ${AUTH_COOKIE_PREFIX:-pospay-stg}
       # Private files on Cloudflare R2 (packages/storage); any of endpoint, bucket and the two keys missing = uploads answer STORAGE_NOT_CONFIGURED.
       STORAGE_ENDPOINT: ${STORAGE_ENDPOINT:-}
       STORAGE_REGION: ${STORAGE_REGION:-auto}
@@ -103,6 +106,7 @@ services:
         condition: service_completed_successfully
     networks: [dokploy-network]
     mem_limit: 512m
+    cpus: 1.0
 
   worker:
     image: ${REGISTRY:-ghcr.io/lolotam}/pospay-worker:${IMAGE_TAG:?}
@@ -113,6 +117,8 @@ services:
       <<: [*app-env, *staff-otp-env]
       AUTH_DATABASE_URL: postgres://pospay_auth:${POSTGRES_AUTH_PASSWORD:?}@${DB_HOST:?}:5432/${DB_NAME:?}
       AUTH_TRUSTED_ORIGINS: ${AUTH_TRUSTED_ORIGINS:-https://${ADMIN_STAGING_HOST:?},https://${POS_STAGING_HOST:?}}
+      # Same prefix as the api, so a worker that reads the session configuration uses this environment's name.
+      AUTH_COOKIE_PREFIX: ${AUTH_COOKIE_PREFIX:-pospay-stg}
 
       DISPATCHER_DATABASE_URL: postgres://pospay_dispatcher:${POSTGRES_DISPATCHER_PASSWORD:?}@${DB_HOST:?}:5432/${DB_NAME:?}
       # Rating token key (ADR-0057): worker only; empty = capability DISABLED.
@@ -142,6 +148,7 @@ services:
         condition: service_completed_successfully
     networks: [dokploy-network]
     mem_limit: 1g
+    cpus: 1.0
 
   # The staging back-office and cashier. Both bake the API origin at build time, so CI builds staging variants with
   # https://api.staging.pospay.systems (pospay-admin-staging, pospay-pos-staging); the plain images are origin-less.
@@ -154,6 +161,7 @@ services:
         condition: service_started
     networks: [dokploy-network]
     mem_limit: 512m
+    cpus: 0.5
 
   pos:
     image: ${REGISTRY:-ghcr.io/lolotam}/pospay-pos-staging:${IMAGE_TAG:?}
@@ -163,6 +171,7 @@ services:
         condition: service_completed_successfully
     networks: [dokploy-network]
     mem_limit: 128m
+    cpus: 0.25
 
 networks:
   dokploy-network:

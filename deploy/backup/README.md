@@ -1,8 +1,8 @@
 # Backups
 
 Two recovery paths (plan T13): **logical** — a nightly `pg_dump` in restic, whole-database restore to last night —
-and **physical / PITR** — a base backup plus continuous WAL, any point since. This folder holds the logical path.
-The physical path changes the shared Postgres's `archive_command`, so it waits for Waleed's go-ahead on the server.
+and **physical / PITR** — a base backup plus continuous WAL, any point since. This folder holds the logical path
+files; the physical path runs inside the production Postgres image with pgBackRest (see Production below).
 
 ## Logical backup
 
@@ -44,3 +44,103 @@ docker run --rm --network dokploy-network --env-file /opt/pospay-staging/backup.
 
 Restores into a scratch database it names itself (`restore_check_<time>_<pid>`, refused if it exists), counts rows,
 prints the time against the 2-hour RTO, and drops only that database. It never restores over the live one.
+
+## Production — PITR with pgBackRest (ADR-0062)
+
+The production Postgres runs in the `pospay-prod` compose (`deploy/docker-compose.prod.yml`) from the
+`pospay-postgres` image: `postgres:18` plus pgBackRest, stanza `pospay-prod`, repository in its own R2 bucket,
+`archive-async` with a spool under `/opt/pospay-prod/spool/`, encrypted with the cipher pass Waleed keeps off the
+server (ADR-0062 §2-3). pgBackRest refuses root, so every command below runs `-u postgres`.
+
+Resolve the container by its compose label, never by name: Dokploy passes its own project name to
+`docker compose -p`, so the container is not `pospay-prod-postgres-1`. Exactly one production Postgres runs on the
+server; add the project label if another compose ever runs one:
+
+```sh
+PG_C="$(docker ps -q --filter 'label=com.docker.compose.service=postgres' | head -n1)"
+# stricter, once the Dokploy project name is known:
+PG_C="$(docker ps -q --filter 'label=com.docker.compose.service=postgres' \
+  --filter 'label=com.docker.compose.project=<dokploy-project>' | head -n1)"
+```
+
+Schedule (host cron, ADR-0062 §3): full backup weekly Friday 02:00 Kuwait = Thursday 23:00 UTC, differential daily
+at 02:00 Kuwait = 23:00 UTC except the full day, `pgbackrest check` every 15 minutes — each pinging its own
+Healthchecks check, so a stalled archive alerts within the hour. `/etc/cron.d/pospay-backup-prod`:
+
+```cron
+0 23 * * 4   root  docker exec -u postgres "$(docker ps -q --filter 'label=com.docker.compose.service=postgres' | head -n1)" pgbackrest --stanza=pospay-prod backup --type=full      && curl -fsS -m 10 <full-hc-url> || curl -fsS -m 10 <full-hc-url>/fail
+0 23 * * 0-3,5-6 root docker exec -u postgres "$(docker ps -q --filter 'label=com.docker.compose.service=postgres' | head -n1)" pgbackrest --stanza=pospay-prod backup --type=diff && curl -fsS -m 10 <diff-hc-url> || curl -fsS -m 10 <diff-hc-url>/fail
+*/15 * * * * root  docker exec -u postgres "$(docker ps -q --filter 'label=com.docker.compose.service=postgres' | head -n1)" pgbackrest --stanza=pospay-prod check                 && curl -fsS -m 10 <check-hc-url> || curl -fsS -m 10 <check-hc-url>/fail
+```
+
+**`pgbackrest check` staying green does not prove the WAL chain is complete.** When the spool queue reaches the
+4 GB cap, pgBackRest answers Postgres with success and **drops** the segment, logging only a warning
+(`dropped WAL file '...' because archive queue exceeded 4GB`) into the Postgres log — `check` can pass afterwards.
+Everything after a drop is unrecoverable until the next full backup covers it, so a dedicated 15-minute check
+greps the log and alerts, and the rule is: after any drop alert, run `backup --type=full` immediately and treat
+the window since the previous full backup as unrecoverable:
+
+```cron
+*/15 * * * * root  if docker logs --since 15m "$(docker ps -q --filter 'label=com.docker.compose.service=postgres' | head -n1)" 2>&1 | grep -q 'dropped WAL file'; then curl -fsS -m 10 <drop-hc-url>/fail; else curl -fsS -m 10 <drop-hc-url>; fi
+```
+
+### First-deploy setup
+
+```sh
+install -d -o 999 -g 999 /opt/pospay-prod/postgres /opt/pospay-prod/spool /opt/pospay-prod/redis
+# once, after the first `pospay-prod` deploy (the stanza must exist before the first backup):
+docker exec -u postgres "$PG_C" pgbackrest --stanza=pospay-prod stanza-create
+```
+
+### The nightly logical dump stays as the second path
+
+Same image and script as staging, on the production network, with its own bucket, password and Healthchecks check
+(ADR-0062 §3). `/opt/pospay-prod/backup.env` (mode 600, server only) has the same keys as the staging one with
+`PGHOST=postgres` — the compose service name on `pospay-prod-internal`. 22:00 UTC (01:00 Kuwait), one hour ahead of
+the pgBackRest window:
+
+```cron
+0 22 * * * root docker run --rm --network pospay-prod-internal --env-file /opt/pospay-prod/backup.env ghcr.io/lolotam/pospay-backup:<sha> >> /var/log/pospay-backup-prod.log 2>&1 && curl -fsS -m 10 <dump-hc-url> || curl -fsS -m 10 <dump-hc-url>/fail
+```
+
+### The restore drill — the launch gate (ADR-0062 §5)
+
+Before any real data, on the server, into a scratch directory — never over the live one. One-time: write the
+repository settings into `/opt/pospay-prod/pgbackrest-drill.env` (mode 600) — the same `PGBACKREST_REPO1_*` values
+the compose receives (type, path, endpoint, bucket, region, keys, cipher type and cipher pass): both drill
+containers need them, because the restored Postgres runs recovery through the same pgBackRest and would otherwise
+be unable to fetch WAL. `T1` is the chosen recovery target; `<sha>` is the pinned `pospay-postgres` SHA:
+
+```sh
+install -d -o 999 -g 999 /opt/pospay-drill
+docker run --rm -d --name pospay-pitr-drill --env-file /opt/pospay-prod/pgbackrest-drill.env \
+  -v /opt/pospay-drill:/var/lib/postgresql "ghcr.io/lolotam/pospay-postgres:<sha>" sleep infinity
+# 1. full backup; a marker row; note the time T1; a second marker row; force a WAL switch:
+docker exec -u postgres "$PG_C" pgbackrest --stanza=pospay-prod backup --type=full
+docker exec "$PG_C" psql -U pospay_owner -d pospay \
+  -c "CREATE TABLE pitr_drill_marker (at timestamptz PRIMARY KEY, label text)" \
+  -c "INSERT INTO pitr_drill_marker VALUES (now(), 'kept')"
+T1="$(date -u -d '+1 second' '+%Y-%m-%d %H:%M:%S')"; sleep 2   # T1 lands between the two markers
+docker exec "$PG_C" psql -U pospay_owner -d pospay \
+  -c "INSERT INTO pitr_drill_marker VALUES (now(), 'refused')"
+docker exec "$PG_C" psql -U pospay_owner -d pospay -c 'select pg_switch_wal()'
+# 2. restore to T1 into the scratch directory and start a scratch Postgres on it — the repository settings ride
+#    along on BOTH runs: recovery's restore_command calls pgbackrest archive-get, which needs the repo config and
+#    the cipher pass to fetch WAL:
+docker exec -u postgres pospay-pitr-drill \
+  pgbackrest --stanza=pospay-prod --pg1-path=/var/lib/postgresql/18/docker \
+  --type=time --target="$T1" --target-action=promote restore
+docker stop pospay-pitr-drill
+docker run --rm -d --name pospay-pitr-drill --env-file /opt/pospay-prod/pgbackrest-drill.env \
+  -v /opt/pospay-drill:/var/lib/postgresql "ghcr.io/lolotam/pospay-postgres:<sha>"
+# 3. prove: 'kept' present, 'refused' absent; companies and migration counts match the source at T1.
+docker exec pospay-pitr-drill psql -U pospay_owner -d pospay -c 'select * from pitr_drill_marker'
+# 4. write smoke: point a throw-away api at the scratch database and run the write smoke test of ADR-0062 §5 step 4.
+# 5. record backup label, T1, restore start/end, total time against the 2-hour RTO and the WAL gap at T1, then:
+docker rm -f pospay-pitr-drill && rm -rf /opt/pospay-drill
+# 6. pgbackrest check passes and Healthchecks shows the archive-check, backup and logical-dump check-ins.
+```
+
+A failed step blocks go-live; repeat after every Postgres major upgrade and at least every quarter. A logical dump
+is **never** restored into a PITR-restored or otherwise copied cluster — only into a freshly initialised one
+(`docs/runbook.md`, Restoring a logical dump).

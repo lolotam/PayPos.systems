@@ -58,6 +58,8 @@ const deviceForbidden = [
   'manage:commission-plans:business',
   // الجهاز لا يقرأ تقدير العمولة ولا كشفها أبداً؛ القراءة إدارية (CS-Q14).
   'read:commissions:business',
+  // الجهاز لا ينشئ كشف العمولة ولا يراجعه أبداً؛ المراجعة لتسجيل دخول إداري فردي (CS-Q2).
+  'review:commissions:business',
   'manage:employee-number:company',
   'view:notifications:business',
   'create:companies:platform',

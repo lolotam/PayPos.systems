@@ -9,6 +9,11 @@ export { employeeWorkplace } from './queries/employee-workplace.query.ts';
 export { businessDiscountScope } from './queries/business-discount-scope.query.ts';
 export { businessCalendar, businessTimeZone } from './queries/business-time-zone.query.ts';
 export { businessCountry } from './queries/business-country.query.ts';
+export {
+  commissionBranchNamesStatement,
+  readCommissionBranchNames,
+  type CommissionBranchName,
+} from './queries/commission-branch-names.query.ts';
 export { businessNames, businessNamesByIds } from './queries/business-names.query.ts';
 export { activeBusinessTimeZone } from './queries/active-business-time-zone.query.ts';
 export { packageSalePlace } from './queries/package-sale-place.query.ts';

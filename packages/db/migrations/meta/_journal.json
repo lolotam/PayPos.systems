@@ -1706,15 +1706,22 @@
     {
       "idx": 245,
       "version": "7",
-      "when": 1795456300000,
-      "tag": "0245_2026-11-23_platform-email-feedback",
+      "when": 1795459119343,
+      "tag": "0245_2026-11-23_statement-alert-roles-check",
       "breakpoints": true
     },
     {
       "idx": 246,
       "version": "7",
-      "when": 1795456400000,
-      "tag": "0246_2026-11-23_platform-email-feedback-indexes",
+      "when": 1795459136094,
+      "tag": "0246_2026-11-23_statement-alert-roles-validate",
+      "breakpoints": true
+    },
+    {
+      "idx": 247,
+      "version": "7",
+      "when": 1795464164017,
+      "tag": "0247_2026-11-23_review-commissions-permission",
       "breakpoints": true
     }
   ]
