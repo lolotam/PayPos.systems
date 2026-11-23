@@ -462,6 +462,7 @@ jobs:
       PUSH: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
       STAGING_API_URL: https://api.staging.pospay.systems
       STAGING_POS_URL: https://pos.staging.pospay.systems
+      PRODUCTION_API_URL: https://api.pospay.systems
       PRODUCTION_POS_URL: https://pos.pospay.systems
     steps:
       - uses: actions/checkout@v7
@@ -475,7 +476,7 @@ jobs:
           done
 
       # Build the shared stage alone, then cap target builds at two processes to contain runner memory use.
-      - name: build api · migrate · worker · backup · admin · pos (and the build stage)
+      - name: build api · migrate · worker · backup · postgres · admin · pos (and the build stage)
         run: |
           set -euo pipefail
           registry="$(echo "$REGISTRY" | tr '[:upper:]' '[:lower:]')"
@@ -495,11 +496,14 @@ jobs:
           build_target docker build -f deploy/Dockerfile.api --target migrate -t "$registry/pospay-migrate:$SHA" .
           build_target docker build -f deploy/Dockerfile.worker -t "$registry/pospay-worker:$SHA" .
           build_target docker build -f deploy/Dockerfile.backup -t "$registry/pospay-backup:$SHA" .
+          build_target docker build -f deploy/Dockerfile.postgres -t "$registry/pospay-postgres:$SHA" .
           build_target docker build -f deploy/Dockerfile.admin --build-arg NEXT_PUBLIC_POS_URL="$PRODUCTION_POS_URL" -t "$registry/pospay-admin:$SHA" .
           build_target docker build -f deploy/Dockerfile.pos -t "$registry/pospay-pos:$SHA" .
           if [ "$PUSH" = "true" ]; then
             build_target docker build -f deploy/Dockerfile.admin --build-arg NEXT_PUBLIC_API_URL="$STAGING_API_URL" --build-arg NEXT_PUBLIC_POS_URL="$STAGING_POS_URL" -t "$registry/pospay-admin-staging:$SHA" .
             build_target docker build -f deploy/Dockerfile.pos --build-arg VITE_API_URL="$STAGING_API_URL" -t "$registry/pospay-pos-staging:$SHA" .
+            build_target docker build -f deploy/Dockerfile.admin --build-arg NEXT_PUBLIC_API_URL="$PRODUCTION_API_URL" --build-arg NEXT_PUBLIC_POS_URL="$PRODUCTION_POS_URL" -t "$registry/pospay-admin-prod:$SHA" .
+            build_target docker build -f deploy/Dockerfile.pos --build-arg VITE_API_URL="$PRODUCTION_API_URL" -t "$registry/pospay-pos-prod:$SHA" .
           fi
           for pid in "${pids[@]}"; do
             if ! wait "$pid"; then failed=1; fi
@@ -513,9 +517,10 @@ jobs:
           images="pospay-build-stage:check $REGISTRY_LC/pospay-api:$SHA"
           images="$images $REGISTRY_LC/pospay-migrate:$SHA $REGISTRY_LC/pospay-worker:$SHA $REGISTRY_LC/pospay-backup:$SHA"
           images="$images $REGISTRY_LC/pospay-admin:$SHA"
-          images="$images $REGISTRY_LC/pospay-pos:$SHA"
+          images="$images $REGISTRY_LC/pospay-pos:$SHA $REGISTRY_LC/pospay-postgres:$SHA"
           if [ "$PUSH" = "true" ]; then
             images="$images $REGISTRY_LC/pospay-admin-staging:$SHA $REGISTRY_LC/pospay-pos-staging:$SHA"
+            images="$images $REGISTRY_LC/pospay-admin-prod:$SHA $REGISTRY_LC/pospay-pos-prod:$SHA"
           fi
           search='find / \( -name ".env" -o -name ".env.*" -o -name "*.env" \) ! -name "*.env.example" ! -name ".env.example" -not -path "/proc/*" 2>/dev/null; true'
           for image in $images; do
@@ -531,7 +536,7 @@ jobs:
           TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           echo "$TOKEN" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
-          for image in api migrate worker backup admin pos admin-staging pos-staging; do docker push "$REGISTRY_LC/pospay-$image:$SHA"; done
+          for image in api migrate worker backup postgres admin pos admin-staging pos-staging admin-prod pos-prod; do docker push "$REGISTRY_LC/pospay-$image:$SHA"; done
 
   admin-document-popup:
     name: admin document popup · production browser

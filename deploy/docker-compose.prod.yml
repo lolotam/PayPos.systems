@@ -1,0 +1,311 @@
+# PosPay production on the shared server, from ADR-0062 §1: one Dokploy compose service `pospay-prod` with its own
+# Postgres 18 (WAL-archived by pgBackRest to R2) and Redis 8 containers on the private `pospay-prod-internal`
+# network. The pre-production stack keeps its file and the server's shared Postgres and Redis; the two stacks share
+# only the server, Docker, Traefik and the application images.
+#
+# The three public hosts are Dokploy domains on the service's Domains tab, not labels in this file: api -> api:3000,
+# app -> admin:3000, pos -> pos:8080, HTTPS with Let's Encrypt (ADR-0001 §1, §6). Dokploy adds the Traefik labels on
+# deploy, so adding labels here would create a second router for the same host.
+#
+# Deploy and rollback upload this file with each ${IMAGE_TAG:?} replaced by one SHA proven on the pre-production
+# stack first (pipeline skill §6, step 4 and Restore). `postgres` is the exception: its image pin is the literal SHA
+# written below and changes only in a deliberate Postgres release, with a fresh snapshot right before it (PP-129
+# applied to production).
+#
+# Production runs its own Postgres and Redis, so DB_HOST and REDIS_HOST of the pre-production file become the
+# service names `postgres` and `redis` here, and every secret is a fresh value entered in the Dokploy UI per
+# deploy/prod.env.example — none copied from the other environment (secrets included, CLAUDE.md §8). compose
+# refuses to run without TRUSTED_PROXY_CIDRS.
+
+name: pospay-prod
+
+x-app-env: &app-env
+  NODE_ENV: production
+  LOG_LEVEL: ${LOG_LEVEL:-info}
+  DATABASE_URL: postgres://pospay_app:${POSTGRES_APP_PASSWORD:?}@postgres:5432/${DB_NAME:?}
+  REDIS_URL: redis://:${REDIS_PASSWORD:?}@redis:6379
+
+x-staff-otp-env: &staff-otp-env
+  STAFF_OTP_ENABLED: ${STAFF_OTP_ENABLED:-}
+  STAFF_OTP_POS_ORIGIN: ${STAFF_OTP_POS_ORIGIN:-https://${POS_HOST:?}}
+  STAFF_OTP_DERIVATION_KEY: ${STAFF_OTP_DERIVATION_KEY:-}
+  STAFF_OTP_DERIVATION_KEY_ID: ${STAFF_OTP_DERIVATION_KEY_ID:-}
+  STAFF_OTP_DERIVATION_RETIRED_KEYS: ${STAFF_OTP_DERIVATION_RETIRED_KEYS:-}
+  STAFF_OTP_VERIFICATION_KEY: ${STAFF_OTP_VERIFICATION_KEY:-}
+  STAFF_OTP_VERIFICATION_KEY_ID: ${STAFF_OTP_VERIFICATION_KEY_ID:-}
+  STAFF_OTP_VERIFICATION_RETIRED_KEYS: ${STAFF_OTP_VERIFICATION_RETIRED_KEYS:-}
+  STAFF_OTP_TEMPLATES_APPROVED: ${STAFF_OTP_TEMPLATES_APPROVED:-}
+  STAFF_OTP_TEMPLATE_AR: ${STAFF_OTP_TEMPLATE_AR:-}
+  STAFF_OTP_TEMPLATE_EN: ${STAFF_OTP_TEMPLATE_EN:-}
+  STAFF_OTP_COMPONENTS_AR: ${STAFF_OTP_COMPONENTS_AR:-}
+  STAFF_OTP_COMPONENTS_EN: ${STAFF_OTP_COMPONENTS_EN:-}
+  WHATSAPP_STOP_SUBSCRIPTION_CONFIRMED: ${WHATSAPP_STOP_SUBSCRIPTION_CONFIRMED:-}
+  NOTIFICATIONS_MODE: ${NOTIFICATIONS_MODE:-}
+  WHATSAPP_APP_SECRET: ${WHATSAPP_APP_SECRET:-}
+  WHATSAPP_WEBHOOK_VERIFY_TOKEN: ${WHATSAPP_WEBHOOK_VERIFY_TOKEN:-}
+  WHATSAPP_WABA_ID: ${WHATSAPP_WABA_ID:-}
+  WHATSAPP_PHONE_NUMBER_ID: ${WHATSAPP_PHONE_NUMBER_ID:-}
+  NOTIFICATION_PHONE_HASH_KEY: ${NOTIFICATION_PHONE_HASH_KEY:-}
+  NOTIFICATION_PHONE_HASH_KEY_ID: ${NOTIFICATION_PHONE_HASH_KEY_ID:-}
+  NOTIFICATION_MESSAGE_ID_HASH_KEY: ${NOTIFICATION_MESSAGE_ID_HASH_KEY:-}
+  # The notifications connection is built here from the internal host for the same reason as the migration URL;
+  # empty role password = the notifications capability stays off.
+  PLATFORM_NOTIFICATIONS_DATABASE_URL: ${POSTGRES_NOTIFICATIONS_PASSWORD:+postgres://pospay_notifications:${POSTGRES_NOTIFICATIONS_PASSWORD}@postgres:5432/${DB_NAME:?}}
+  WHATSAPP_GRAPH_API_VERSION: v23.0
+
+services:
+  # The WAL-archived Postgres (ADR-0062 §2-3). Its image is pinned by a literal SHA written here, never
+  # ${IMAGE_TAG}, so an application release never restarts the database; replace the pin only in a deliberate
+  # Postgres release with a snapshot right before it, and keep it unchanged when only the application rolls back
+  # (docs/runbook.md, Production deploy). The all-zero pin below fails closed until the first pospay-postgres SHA
+  # built on main is written in.
+  postgres:
+    image: ${REGISTRY:-ghcr.io/lolotam}/pospay-postgres:0000000000000000000000000000000000000000
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${DB_NAME:?}
+      POSTGRES_USER: pospay_owner
+      POSTGRES_PASSWORD: ${POSTGRES_OWNER_PASSWORD:?}
+      # Data checksums at initdb (ADR-0062 §3); the WAL-archive settings arrive as command flags below.
+      POSTGRES_INITDB_ARGS: --data-checksums
+      # pgBackRest reads every option from PGBACKREST_* variables; nothing is written into the image or the repo.
+      PGBACKREST_STANZA: pospay-prod
+      # The 18+ image keeps PGDATA at /var/lib/postgresql/18/docker (docker-library/postgres#1259); the mount below
+      # is the image's VOLUME parent, so a future major upgrade keeps the same host directory.
+      PGBACKREST_PG1_PATH: /var/lib/postgresql/18/docker
+      # initdb created pospay_owner (POSTGRES_USER above), not the OS postgres user pgBackRest runs as; without this
+      # the stanza's local connection targets a role that does not exist.
+      PGBACKREST_PG1_USER: pospay_owner
+      PGBACKREST_SPOOL_PATH: /spool
+      # Async archive-push returns after spooling, so a slow R2 never stalls commits; the queue cap drops WAL past
+      # 4 GB instead of filling the disk — that breaks the WAL chain, which is why the 15-minute check alerts
+      # (ADR-0062 §6).
+      PGBACKREST_ARCHIVE_ASYNC: 'y'
+      PGBACKREST_ARCHIVE_PUSH_QUEUE_MAX: 4GB
+      PGBACKREST_COMPRESS_TYPE: zst
+      PGBACKREST_REPO1_TYPE: s3
+      PGBACKREST_REPO1_PATH: ${PGBACKREST_REPO1_PATH:?}
+      PGBACKREST_REPO1_S3_ENDPOINT: ${PGBACKREST_REPO1_S3_ENDPOINT:?}
+      PGBACKREST_REPO1_S3_BUCKET: ${PGBACKREST_REPO1_S3_BUCKET:?}
+      PGBACKREST_REPO1_S3_REGION: ${PGBACKREST_REPO1_S3_REGION:-auto}
+      # R2 speaks the S3 API with path-style URIs (ADR-0062 §2).
+      PGBACKREST_REPO1_S3_URI_STYLE: path
+      PGBACKREST_REPO1_S3_KEY: ${PGBACKREST_REPO1_S3_KEY:?}
+      PGBACKREST_REPO1_S3_KEY_SECRET: ${PGBACKREST_REPO1_S3_KEY_SECRET:?}
+      PGBACKREST_REPO1_CIPHER_TYPE: aes-256-cbc
+      # The cipher pass lives only with Waleed, off the server; without it every backup is unreadable (ADR-0062 §4).
+      PGBACKREST_REPO1_CIPHER_PASS: ${PGBACKREST_REPO1_CIPHER_PASS:?}
+      # Two full backups with their differentials and WAL: a 7-14 day recovery window (ADR-0062 §3).
+      PGBACKREST_REPO1_RETENTION_FULL: '2'
+    command:
+      - postgres
+      - -c
+      - wal_level=replica
+      - -c
+      - archive_mode=on
+      - -c
+      - archive_command=pgbackrest --stanza=pospay-prod archive-push %p
+      - -c
+      - archive_timeout=60s
+    volumes:
+      # Bind mounts, not named volumes, so a Docker volume clean-up cannot remove them (ADR-0062 §1). Host
+      # directories are prepared by the deploy step: install -d -o 999 -g 999 for postgres, spool and redis.
+      - /opt/pospay-prod/postgres:/var/lib/postgresql
+      - /opt/pospay-prod/spool:/spool
+    healthcheck:
+      # -h forces TCP: over the Unix socket pg_isready can answer for the temporary initdb server of a first boot.
+      test: ['CMD-SHELL', 'pg_isready -h 127.0.0.1 -U "$${POSTGRES_USER}" -d "$${POSTGRES_DB}"']
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    networks: [pospay-prod-internal]
+    mem_limit: 2g
+    cpus: 1.5
+
+  redis:
+    # Own container and own password, never shared across environments: Redis keys carry no environment prefix.
+    image: redis:8-alpine
+    restart: unless-stopped
+    command:
+      - redis-server
+      - --requirepass
+      - ${REDIS_PASSWORD:?}
+      - --appendonly
+      - 'yes'
+      # 128 MB leaves Redis' allocator overhead inside the 256 MB limit of ADR-0062 §1; single-salon queues and
+      # rate-limit counters are far below it.
+      - --maxmemory
+      - 128mb
+      - --maxmemory-policy
+      - noeviction
+    volumes:
+      - /opt/pospay-prod/redis:/data
+    environment:
+      REDIS_PASSWORD: ${REDIS_PASSWORD:?}
+    healthcheck:
+      test: ['CMD-SHELL', 'redis-cli -a "$$REDIS_PASSWORD" --no-auth-warning ping | grep -q PONG']
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    networks: [pospay-prod-internal]
+    mem_limit: 256m
+    cpus: 0.25
+
+  # Migrations are their own step before new containers start (CLAUDE.md §10): the apps start only after this exits 0.
+  migrate:
+    image: ${REGISTRY:-ghcr.io/lolotam}/pospay-migrate:${IMAGE_TAG:?}
+    restart: 'no'
+    environment:
+      NODE_ENV: production
+      # Built here from the internal host, never taken from the environment: a pasted pre-production URL could
+      # otherwise point the migration owner at the wrong database.
+      MIGRATION_DATABASE_URL: postgres://pospay_owner:${POSTGRES_OWNER_PASSWORD:?}@postgres:5432/${DB_NAME:?}
+      POSTGRES_APP_PASSWORD: ${POSTGRES_APP_PASSWORD:?}
+      POSTGRES_AUTH_PASSWORD: ${POSTGRES_AUTH_PASSWORD:?}
+      POSTGRES_DISPATCHER_PASSWORD: ${POSTGRES_DISPATCHER_PASSWORD:?}
+      POSTGRES_NOTIFICATIONS_PASSWORD: ${POSTGRES_NOTIFICATIONS_PASSWORD:-}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks: [pospay-prod-internal]
+    mem_limit: 256m
+    cpus: 0.5
+
+  # One-shot reference-data seed: the provisional plan row and the access catalog a fresh database needs
+  # (packages/db/src/seed.ts). Idempotent — every insert is ON CONFLICT — so re-running is safe. `migrate` creates
+  # the roles and schema but never seeds; `api` and `worker` start only after this exits 0.
+  seed:
+    image: ${REGISTRY:-ghcr.io/lolotam}/pospay-migrate:${IMAGE_TAG:?}
+    command: ['node', 'scripts/seed.ts']
+    restart: 'no'
+    environment:
+      NODE_ENV: production
+      MIGRATION_DATABASE_URL: postgres://pospay_owner:${POSTGRES_OWNER_PASSWORD:?}@postgres:5432/${DB_NAME:?}
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    networks: [pospay-prod-internal]
+    mem_limit: 256m
+    cpus: 0.5
+
+  # The ${API_HOST} variable derives public URLs only and is never injected into this container: inside it,
+  # API_HOST is the listen address set by deploy/Dockerfile.api.
+  api:
+    image: ${REGISTRY:-ghcr.io/lolotam}/pospay-api:${IMAGE_TAG:?}
+    restart: unless-stopped
+    environment:
+      <<: [*app-env, *staff-otp-env]
+      AUTH_DATABASE_URL: postgres://pospay_auth:${POSTGRES_AUTH_PASSWORD:?}@postgres:5432/${DB_NAME:?}
+      DATABASE_POOL_MAX: ${DATABASE_POOL_MAX:-10}
+      BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET:?}
+      BETTER_AUTH_URL: https://${API_HOST:?}
+      AUTH_TRUSTED_ORIGINS: ${AUTH_TRUSTED_ORIGINS:-https://${ADMIN_HOST:?},https://${POS_HOST:?}}
+      WHATSAPP_APP_SECRET: ${WHATSAPP_APP_SECRET:-}
+      WHATSAPP_WEBHOOK_VERIFY_TOKEN: ${WHATSAPP_WEBHOOK_VERIFY_TOKEN:-}
+      WHATSAPP_WABA_ID: ${WHATSAPP_WABA_ID:-}
+      WHATSAPP_PHONE_NUMBER_ID: ${WHATSAPP_PHONE_NUMBER_ID:-}
+      NOTIFICATION_PHONE_HASH_KEY: ${NOTIFICATION_PHONE_HASH_KEY:-}
+      NOTIFICATION_PHONE_HASH_KEY_ID: ${NOTIFICATION_PHONE_HASH_KEY_ID:-}
+      NOTIFICATION_MESSAGE_ID_HASH_KEY: ${NOTIFICATION_MESSAGE_ID_HASH_KEY:-}
+      WHATSAPP_STOP_BUTTON_ID: ${WHATSAPP_STOP_BUTTON_ID:-}
+      VAPID_PUBLIC_KEY: ${VAPID_PUBLIC_KEY:-}
+      VAPID_SUBJECT: ${VAPID_SUBJECT:-}
+      # Required: empty CIDRs disable WhatsApp intake and rating links and leave every visitor on the proxy's
+      # address (plan gap B4).
+      TRUSTED_PROXY_CIDRS: ${TRUSTED_PROXY_CIDRS:?}
+      COOKIE_DOMAIN: ${COOKIE_DOMAIN:-.pospay.systems}
+      # The public origin customers' rating links open on (ADR-0057); empty = links stay off. The API validates it
+      # is https and neither the API origin nor a trusted origin.
+      RATING_PAGE_ORIGIN: ${RATING_PAGE_ORIGIN:-}
+      # Private files on Cloudflare R2 (packages/storage); any of endpoint, bucket and the two keys missing = uploads answer STORAGE_NOT_CONFIGURED.
+      STORAGE_ENDPOINT: ${STORAGE_ENDPOINT:-}
+      STORAGE_REGION: ${STORAGE_REGION:-auto}
+      STORAGE_BUCKET: ${STORAGE_BUCKET:-}
+      STORAGE_ACCESS_KEY_ID: ${STORAGE_ACCESS_KEY_ID:-}
+      STORAGE_SECRET_ACCESS_KEY: ${STORAGE_SECRET_ACCESS_KEY:-}
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      seed:
+        condition: service_completed_successfully
+    networks: [pospay-prod-internal, dokploy-network]
+    mem_limit: 512m
+    cpus: 1.0
+
+  worker:
+    image: ${REGISTRY:-ghcr.io/lolotam}/pospay-worker:${IMAGE_TAG:?}
+    init: true
+    stop_grace_period: 90s
+    restart: unless-stopped
+    environment:
+      <<: [*app-env, *staff-otp-env]
+      AUTH_DATABASE_URL: postgres://pospay_auth:${POSTGRES_AUTH_PASSWORD:?}@postgres:5432/${DB_NAME:?}
+      AUTH_TRUSTED_ORIGINS: ${AUTH_TRUSTED_ORIGINS:-https://${ADMIN_HOST:?},https://${POS_HOST:?}}
+
+      DISPATCHER_DATABASE_URL: postgres://pospay_dispatcher:${POSTGRES_DISPATCHER_PASSWORD:?}@postgres:5432/${DB_NAME:?}
+      # Rating token key (ADR-0057): worker only; empty = capability DISABLED.
+      RATING_TOKEN_DERIVATION_KEY: ${RATING_TOKEN_DERIVATION_KEY:-}
+      RATING_TOKEN_DERIVATION_KEY_VERSION: ${RATING_TOKEN_DERIVATION_KEY_VERSION:-}
+      RATING_TOKEN_DERIVATION_RETIRED_KEYS: ${RATING_TOKEN_DERIVATION_RETIRED_KEYS:-}
+      # ADR-0019: OTP activation independent; tenant outbound remains separately closed.
+      # Staff push (ADR-0052): production refuses fake mode, so an empty value is the default here; only `live` (staff OTP) or empty keep push enabled.
+      NOTIFICATIONS_MODE: ${NOTIFICATIONS_MODE:-}
+      VAPID_PUBLIC_KEY: ${VAPID_PUBLIC_KEY:-}
+      VAPID_SUBJECT: ${VAPID_SUBJECT:-}
+      VAPID_PRIVATE_KEY: ${VAPID_PRIVATE_KEY:-}
+      NOTIFICATION_PHONE_HASH_KEY: ${NOTIFICATION_PHONE_HASH_KEY:-}
+      NOTIFICATION_PHONE_HASH_KEY_ID: ${NOTIFICATION_PHONE_HASH_KEY_ID:-}
+      WHATSAPP_ACCESS_TOKEN: ${WHATSAPP_ACCESS_TOKEN:-}
+      WHATSAPP_PHONE_NUMBER_ID: ${WHATSAPP_PHONE_NUMBER_ID:-}
+      WHATSAPP_GRAPH_API_VERSION: v23.0
+      # The worker retires replaced files and reads imports from the same bucket.
+      STORAGE_ENDPOINT: ${STORAGE_ENDPOINT:-}
+      STORAGE_REGION: ${STORAGE_REGION:-auto}
+      STORAGE_BUCKET: ${STORAGE_BUCKET:-}
+      STORAGE_ACCESS_KEY_ID: ${STORAGE_ACCESS_KEY_ID:-}
+      STORAGE_SECRET_ACCESS_KEY: ${STORAGE_SECRET_ACCESS_KEY:-}
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      seed:
+        condition: service_completed_successfully
+    # Not on dokploy-network: no other project may reach the worker (ADR-0062 §1).
+    networks: [pospay-prod-internal]
+    mem_limit: 1g
+    cpus: 1.0
+
+  # The production back-office and cashier. Both bake the API origin at build time, so CI builds the `-prod`
+  # variants with https://api.pospay.systems (pospay-admin-prod, pospay-pos-prod); the plain images are origin-less.
+  # Hosts follow ADR-0001 §1: app.pospay.systems (back-office), pos.pospay.systems (cashier), api.pospay.systems (API).
+  admin:
+    image: ${REGISTRY:-ghcr.io/lolotam}/pospay-admin-prod:${IMAGE_TAG:?}
+    restart: unless-stopped
+    depends_on:
+      api:
+        condition: service_started
+    networks: [pospay-prod-internal, dokploy-network]
+    mem_limit: 512m
+    cpus: 0.5
+
+  pos:
+    image: ${REGISTRY:-ghcr.io/lolotam}/pospay-pos-prod:${IMAGE_TAG:?}
+    restart: unless-stopped
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      seed:
+        condition: service_completed_successfully
+      # A cashier must never open the app against an unseeded database or a dead API.
+      api:
+        condition: service_healthy
+    networks: [pospay-prod-internal, dokploy-network]
+    mem_limit: 128m
+    cpus: 0.25
+
+networks:
+  # Explicit name so host-side jobs — the logical dump of deploy/backup/README.md and the restore drill — join it
+  # deterministically. Not Docker-internal: the Postgres container needs outbound to push WAL to R2.
+  pospay-prod-internal:
+    name: pospay-prod-internal
+  dokploy-network:
+    external: true
