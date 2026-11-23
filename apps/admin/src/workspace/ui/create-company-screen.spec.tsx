@@ -1,10 +1,12 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
-import { onlineManager } from '@tanstack/react-query';
+import { onlineManager, type QueryClient } from '@tanstack/react-query';
 import type { Locale } from '@pospay/i18n';
 import { t } from '@pospay/i18n';
 import { DirectionProvider } from '@pospay/ui';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { QueryClientProvider } from '@tanstack/react-query';
+import { createQueryClient } from '@/shared/api/query-client';
 import { QueryProvider } from '@/shared/api/query-provider';
 import { LocaleProvider } from '@/shared/locale/locale-context';
 
@@ -66,20 +68,31 @@ function jsonResponse(data: unknown, status: number): Response {
 
 const emptyWorkspaces = () => jsonResponse({ companies: [] }, 200);
 
-function renderScreen(locale: Locale) {
-  return render(
+function renderScreen(locale: Locale, client?: QueryClient) {
+  const tree = (
     <DirectionProvider dir={locale === 'ar' ? 'rtl' : 'ltr'}>
       <LocaleProvider locale={locale} setLocale={() => undefined}>
-        <QueryProvider>
-          <WorkspaceProvider>
-            <WorkspaceBody>
-              <div data-testid="dashboard-content">Dashboard</div>
-            </WorkspaceBody>
-          </WorkspaceProvider>
-        </QueryProvider>
+        {client ? (
+          <QueryClientProvider client={client}>
+            <WorkspaceProvider>
+              <WorkspaceBody>
+                <div data-testid="dashboard-content">Dashboard</div>
+              </WorkspaceBody>
+            </WorkspaceProvider>
+          </QueryClientProvider>
+        ) : (
+          <QueryProvider>
+            <WorkspaceProvider>
+              <WorkspaceBody>
+                <div data-testid="dashboard-content">Dashboard</div>
+              </WorkspaceBody>
+            </WorkspaceProvider>
+          </QueryProvider>
+        )}
       </LocaleProvider>
-    </DirectionProvider>,
+    </DirectionProvider>
   );
+  return render(tree);
 }
 
 /** Routes GETs and POSTs through separate lanes in order; the last answer repeats when more is asked. */
@@ -367,6 +380,7 @@ function testForbiddenAfterUnknown(): void {
 
 function testSuccessSurvivesRemount(): void {
   it('after a 201 with a failing refresh the success state survives a remount until the refresh lands', async () => {
+    const client = createQueryClient();
     const { posts } = queue(
       [
         emptyWorkspaces,
@@ -376,14 +390,14 @@ function testSuccessSurvivesRemount(): void {
       ],
       [() => jsonResponse(CREATED_COMPANY, 201)],
     );
-    const first = renderScreen('en');
+    const first = renderScreen('en', client);
     await waitForForm();
     await fillAndSubmit();
     expect(await first.findByText(t('en', 'admin.createCompanyCreatedStatus'))).not.toBeNull();
     expect(first.queryByLabelText(t('en', 'admin.companyNameEnLabel'))).toBeNull();
     first.unmount();
 
-    renderScreen('en');
+    renderScreen('en', client);
     expect(await screen.findByText(t('en', 'admin.createCompanyCreatedStatus'))).not.toBeNull();
     expect(screen.queryByLabelText(t('en', 'admin.companyNameEnLabel'))).toBeNull();
     expect(screen.queryByRole('button', { name: t('en', 'admin.createCompanySubmit') })).toBeNull();

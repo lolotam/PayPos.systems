@@ -178,18 +178,20 @@ it('a 5xx keeps the key because the request may have committed', async () => {
   expect(sentKey(1)).toBe(heldKey);
 });
 
-it('a stored attempt of another user is ignored and removed', async () => {
+it('a stored attempt of another user is ignored and replaced', async () => {
   seedAttempt({ userId: 'another-user' });
   const hook = mount();
   api.POST.mockResolvedValueOnce(answer(CREATED, 201));
   await act(async () => {
     await hook.result.current.mutateAsync({ kind: 'new', body: BODY });
   });
-  expect(storedRaw()).toBeNull();
-  expect(sentKey(0)).not.toBe('01920000-0000-7000-8000-0000000000f1');
+  const stored = JSON.parse(storedRaw() ?? '{}') as { userId?: string; key?: string };
+  expect(stored.userId).toBe(USER);
+  expect(stored.key).toBe(sentKey(0));
+  expect(stored.key).not.toBe('01920000-0000-7000-8000-0000000000f1');
 });
 
-it('a stored attempt older than 23 hours is ignored and removed', async () => {
+it('a stored attempt older than 23 hours is ignored and replaced', async () => {
   const stale = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
   seedAttempt({ startedAt: stale });
   const hook = mount();
@@ -197,8 +199,10 @@ it('a stored attempt older than 23 hours is ignored and removed', async () => {
   await act(async () => {
     await hook.result.current.mutateAsync({ kind: 'new', body: BODY });
   });
-  expect(storedRaw()).toBeNull();
-  expect(sentKey(0)).not.toBe('01920000-0000-7000-8000-0000000000f1');
+  const stored = JSON.parse(storedRaw() ?? '{}') as { userId?: string; key?: string };
+  expect(stored.userId).toBe(USER);
+  expect(stored.key).toBe(sentKey(0));
+  expect(stored.key).not.toBe('01920000-0000-7000-8000-0000000000f1');
 });
 
 it('a retry with nothing stored refuses without sending', async () => {
