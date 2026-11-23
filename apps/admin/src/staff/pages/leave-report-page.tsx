@@ -1,7 +1,7 @@
 'use client';
 import type { WorkspaceBranch } from '@pospay/contracts';
 import { t } from '@pospay/i18n';
-import { PageHeader } from '@pospay/ui';
+import { PageHeader, PageShell } from '@pospay/ui';
 import { useState } from 'react';
 import { useLocale } from '@/shared/locale/locale-context';
 import { useLeaveReport } from '../api/use-leave-report';
@@ -22,22 +22,29 @@ export function LeaveReportPage({
   const report = useLeaveReport({ ...scope, branches });
   const [initial] = useState(() => fromHistoryQuery(report.query));
   return (
-    <section className="flex flex-col gap-6 text-start">
+    <PageShell layout="list">
       <PageHeader title={t(locale, 'leaveHistory.reportTitle')} />
-      <LeaveReportEmployeePicker
-        companyId={scope.companyId}
-        businessId={scope.businessId}
-        userId={scope.userId}
-        employeeId={report.employeeId}
-        onChange={report.chooseEmployee}
-      />
-      <LeaveHistoryFiltersForm
-        initial={initial}
-        absenceOffered={offeredAbsence(report.page?.absence_branch_ids ?? [])}
+      <LeaveReportResults
+        view={report}
         branches={branches}
-        onApply={report.apply}
+        filters={
+          <div className="flex flex-col gap-4">
+            <LeaveReportEmployeePicker
+              companyId={scope.companyId}
+              businessId={scope.businessId}
+              userId={scope.userId}
+              employeeId={report.employeeId}
+              onChange={report.chooseEmployee}
+            />
+            <LeaveHistoryFiltersForm
+              initial={initial}
+              absenceOffered={offeredAbsence(report.page?.absence_branch_ids ?? [])}
+              branches={branches}
+              onApply={report.apply}
+            />
+          </div>
+        }
       />
-      <LeaveReportResults view={report} branches={branches} />
-    </section>
+    </PageShell>
   );
 }

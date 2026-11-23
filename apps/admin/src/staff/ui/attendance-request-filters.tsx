@@ -1,28 +1,24 @@
 'use client';
 import type { AttendanceChangeListQuery, WorkspaceBranch } from '@pospay/contracts';
 import { t } from '@pospay/i18n';
-import { Button, Label, NativeSelect } from '@pospay/ui';
+import { Label, NativeSelect } from '@pospay/ui';
 import { useLocale } from '@/shared/locale/locale-context';
 import { AttendanceActionBranch } from './attendance-action-branch';
 type Props = {
   branches: WorkspaceBranch[];
   branchId: string;
   status: AttendanceChangeListQuery['status'];
-  canCreate: boolean;
   allowAllBranches: boolean;
   onBranch: (id: string) => void;
   onStatus: (status: AttendanceChangeListQuery['status']) => void;
-  onManual: () => void;
 };
 export function AttendanceRequestFilters({
   branches,
   branchId,
   status,
-  canCreate,
   allowAllBranches,
   onBranch,
   onStatus,
-  onManual,
 }: Props) {
   const locale = useLocale();
   return (
@@ -54,9 +50,6 @@ export function AttendanceRequestFilters({
           ))}
         </NativeSelect>
       </div>
-      {canCreate ? (
-        <Button onClick={onManual}>{t(locale, 'attendanceActions.manual')}</Button>
-      ) : null}
     </div>
   );
 }

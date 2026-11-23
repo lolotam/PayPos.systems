@@ -1,7 +1,7 @@
 'use client';
 import type { WorkspaceBranch } from '@pospay/contracts';
 import { t } from '@pospay/i18n';
-import { PageHeader } from '@pospay/ui';
+import { Card, PageHeader, PageShell } from '@pospay/ui';
 import { useEffect, useState, type Dispatch, type SetStateAction } from 'react';
 import { useLocale } from '@/shared/locale/locale-context';
 import { useAttendanceStatementDownload } from '../api/use-attendance-statement-download';
@@ -14,8 +14,6 @@ import { useAttendanceStatementShifts } from '../api/use-attendance-statement-sh
 import { useAttendanceStatementStatus } from '../api/use-attendance-statement-status';
 import {
   statementApplyPatch,
-  statementCollectCanRecover,
-  statementExpired,
   statementFormAccessLost,
   statementInitialDraft,
   statementPeriod,
@@ -27,7 +25,8 @@ import {
   type StatementPeriod,
 } from '../model/attendance-statement-display';
 import { AttendanceStatementForm } from '../ui/attendance-statement-form';
-import { AttendanceStatementProgress } from '../ui/attendance-statement-progress';
+import { AttendanceStatementNoAccess } from '../ui/attendance-statement-no-access';
+import { AttendanceStatementOutcome } from '../ui/attendance-statement-outcome';
 
 type Props = {
   scope: AttendanceStatementScope;
@@ -123,44 +122,38 @@ export function AttendanceStatementPage(props: Props) {
   const submit = () => request.mutate({ body: statementRequestBody(draft, period), draft });
   const reset = () => resetStatement({ request, download, setDraft }, props.timezone, locale);
   const renderFailure = status.error ?? download.error;
-  const expired = statementExpired(status.error) || statementExpired(download.error);
-  const collectRecovery = statementCollectCanRecover(download.error ?? status.error);
   if (statementFormAccessLost(shiftProps.error ?? employees.error, renderFailure, request.error)) {
-    return <p role="alert">{t(locale, 'attendanceStatementScreen.noAccess')}</p>;
+    return <AttendanceStatementNoAccess />;
   }
   return (
-    <section className="flex min-w-0 flex-col gap-6 text-start">
+    <PageShell layout="form">
       <PageHeader title={t(locale, 'attendanceStatementScreen.title')} />
-      <AttendanceStatementForm
-        branches={props.branches}
-        branchId={props.scope.branchId}
-        draft={draft}
-        {...shiftProps.formProps}
-        employees={employees.data ?? []}
-        employeesLoading={employees.isLoading}
-        employeesError={employees.error}
-        onEmployeesRetry={() => void employees.refetch()}
-        periodValid={periodValid}
-        locked={renderId !== undefined}
-        submitting={request.isPending}
-        onBranch={props.onBranch}
-        onChange={change}
-        onSubmit={submit}
-      />
-      <AttendanceStatementProgress
-        state={checkingAgain ? undefined : status.data?.state}
-        errorCode={status.data?.error_code}
-        error={request.error ?? download.error ?? status.error}
-        errorRoute={request.error ? 'request' : 'render'}
-        waiting={renderId !== undefined}
-        showCheckAgain={!expired && (collectRecovery || status.timedOut)}
-        collected={download.isSuccess}
-        downloading={download.isPending}
-        showNewRequest={expired || collectRecovery}
-        onDownload={() => download.mutate()}
+      <Card className="p-4 md:p-6">
+        <AttendanceStatementForm
+          branches={props.branches}
+          branchId={props.scope.branchId}
+          draft={draft}
+          {...shiftProps.formProps}
+          employees={employees.data ?? []}
+          employeesLoading={employees.isLoading}
+          employeesError={employees.error}
+          onEmployeesRetry={() => void employees.refetch()}
+          periodValid={periodValid}
+          locked={renderId !== undefined}
+          submitting={request.isPending}
+          onBranch={props.onBranch}
+          onChange={change}
+          onSubmit={submit}
+        />
+      </Card>
+      <AttendanceStatementOutcome
+        request={request}
+        status={status}
+        download={download}
+        checkingAgain={checkingAgain}
         onCheckAgain={() => void checkStatementAgain(download, status, setCheckingAgain)}
         onNewRequest={reset}
       />
-    </section>
+    </PageShell>
   );
 }

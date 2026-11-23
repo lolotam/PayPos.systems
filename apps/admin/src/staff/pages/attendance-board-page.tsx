@@ -1,7 +1,7 @@
 'use client';
 import type { WorkspaceBranch } from '@pospay/contracts';
 import { localDate, t } from '@pospay/i18n';
-import { PageHeader } from '@pospay/ui';
+import { PageHeader, PageShell } from '@pospay/ui';
 import { useLocale } from '@/shared/locale/locale-context';
 import { useAttendanceBoard, type AttendanceBoardScope } from '../api/use-attendance-board';
 import { boardAccessLost, boardTime } from '../model/attendance-board-display';
@@ -29,7 +29,7 @@ export function AttendanceBoardPage({ scope, branches, date, onDate, onBranch }:
       ? localDate(new Date(), timezone)
       : undefined;
   return (
-    <section className="flex min-w-0 flex-col gap-6 text-start">
+    <PageShell layout="list">
       <PageHeader title={t(locale, 'attendanceBoard.title')} />
       <AttendanceBoardFilters
         branches={branches}
@@ -55,7 +55,6 @@ export function AttendanceBoardPage({ scope, branches, date, onDate, onBranch }:
             {boardTime(data.generated_at, locale, data.timezone)}
           </p>
           <AttendanceInNow board={data} />
-          <AttendanceSessionsTable board={data} scope={scope} />
           <AttendanceRefusals
             board={data}
             pages={refusals.data?.pages}
@@ -70,8 +69,9 @@ export function AttendanceBoardPage({ scope, branches, date, onDate, onBranch }:
               void refusals.refetch();
             }}
           />
+          <AttendanceSessionsTable board={data} scope={scope} />
         </>
       ) : null}
-    </section>
+    </PageShell>
   );
 }
