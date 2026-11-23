@@ -254,7 +254,7 @@ describe('leave history report (was leave-report-nav-item.spec)', () => {
   const ID = 'leave-history-report';
 
   beforeEach(() => {
-    carriedState.workspace = { ...readyWorkspace(), company: { ...readyWorkspace().company, id: leaveId } };
+    carriedState.workspace = readyWorkspace(true, leaveId);
   });
 
   it('is shown when the probe read succeeds', async () => {

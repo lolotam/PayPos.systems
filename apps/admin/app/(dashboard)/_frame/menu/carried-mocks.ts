@@ -17,11 +17,11 @@ export const apiClientMock = { apiClient: () => carriedApi };
 export const sessionUserMock = { useSessionUser: () => carriedState.userId };
 export const workspaceReadMock = { useWorkspace: () => carriedState.workspace };
 
-export function readyWorkspace(withBusiness = true): WorkspaceController {
+export function readyWorkspace(withBusiness = true, id = REF): WorkspaceController {
   return {
     status: 'ready',
     company: {
-      id: REF,
+      id,
       name_ar: null,
       name_en: 'Synthetic company',
       businesses: [],
@@ -30,7 +30,7 @@ export function readyWorkspace(withBusiness = true): WorkspaceController {
     },
     business: withBusiness
       ? {
-          id: REF,
+          id,
           name_ar: null,
           name_en: 'Synthetic business',
           business_type: 'salon',
