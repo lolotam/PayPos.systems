@@ -1151,7 +1151,7 @@ reads 0 of company A's rows and every insert or update of a row for A fails as B
 | CM-R10 | `commission_statement_exports` | 56-1 |
 | CM-R11 | `commission_carries` | 51-1 |
 
-Plus, in 53-1, the ADR-0012 objects (role `pospay_approval_reader`, function, policies, outbox index) with the six types (D-9).
+Plus, in 53-1, the ADR-0012 objects (role `pospay_approval_reader`, function, policies; the outbox index was withdrawn, CS-Q56) with the six types (D-9).
 
 ### Events and the module map
 

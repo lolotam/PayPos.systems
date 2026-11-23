@@ -49,9 +49,8 @@ Then, exactly as ADR-0012 states and nothing more: role `pospay_approval_reader`
 `public.statement_pending_commission_events(approval_started_at timestamptz) RETURNS bigint`, `SECURITY DEFINER`,
 `STABLE`, with the pinned `search_path` and `row_security = on`, rejecting NULL and any value that is not its own
 transaction timestamp, tenant from `app_company_id()` only; the two `SELECT` policies; the column grants; the revokes;
-`EXECUTE` for `pospay_app` only. A second migration holds the index `(company_id, event_type, created_at, id)` alone,
-`CREATE INDEX CONCURRENTLY`. Update `function-inventory.ts` (both proconfig items), `table-grants.ts`,
-`privileges.spec.ts`, `schema/outbox.ts`. Tests: the five groups above (CM-39), including the search-path attacks and
+`EXECUTE` for `pospay_app` only. No index migration: the index was withdrawn (CS-Q56, 2026-11-23). Update `function-inventory.ts` (both proconfig items), `table-grants.ts`,
+`privileges.spec.ts`. Tests: the five groups above (CM-39), including the search-path attacks and
 the `EXPLAIN` of group 7. Size 350–500. No number and no push until «lane granted».
 
 ## Part 9 — 53-2: approve (Heavy: money, permission) — after 52-1, 53-1, 55-2f and #1032 are merged

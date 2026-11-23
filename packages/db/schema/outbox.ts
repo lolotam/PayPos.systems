@@ -76,11 +76,6 @@ export const outbox = pgTable(
       .on(t.companyId, t.id)
       .concurrently()
       .where(sql`${t.eventType} IN ('ServiceSessionRecorded','ServiceSessionLinesAdded','ServiceLineChanged','RatingClaimsDiscoveryRequested')`),
-    // عدّاد أحداث العمولة المعلّقة قبل الاعتماد (ADR-0012 §4 المجموعة 7): الشركة ثم النوع ثم قطع created_at،
-    // فيقرأ النوع الواحد مدى زمنيًا بدل مسح أحداث الشركة كلها؛ الـ anti-join على consumed_events يغطيه مفتاحه الأساسي.
-    index('outbox_commission_pending_count_idx')
-      .on(t.companyId, t.eventType, t.createdAt, t.id)
-      .concurrently(),
     check('outbox_event_type_format', sql`${t.eventType} ~ '^[A-Z][A-Za-z0-9]{1,99}$'`),
     check('outbox_aggregate_type_format', sql`${t.aggregateType} ~ '^[a-z][a-z0-9_]{1,62}$'`),
     check('outbox_attempts_non_negative', sql`${t.attempts} >= 0`),

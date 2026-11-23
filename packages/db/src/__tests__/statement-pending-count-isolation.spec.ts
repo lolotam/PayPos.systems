@@ -29,8 +29,38 @@ afterAll(async () => {
   await test.drop();
 });
 
+interface OverlapResult {
+  before: string;
+  after: string;
+  company: unknown;
+  pid: number;
+}
+
 const backendPid = async (tx: Tx): Promise<number> =>
   (await tx`SELECT pg_backend_pid() AS pid`)[0]?.['pid'] as number;
+
+/**
+ * حاجز لطرفين قابل للإجهاض: يفتح حين يصل الطرفان، وإن فشل أحدهما قبل وصوله يُرفض الحاجز فيخرج الآخر بدل أن ينتظر للأبد.
+ * بدون هذا يتحول فشل فرع واحد إلى تعليق ينتهي بمهلة CI لا برسالة الخطأ الأصلية.
+ */
+function abortableBarrier(parties: number) {
+  let arrived = 0;
+  let open!: () => void;
+  let fail!: (reason: unknown) => void;
+  const gate = new Promise<void>((resolve, reject) => {
+    open = resolve;
+    fail = reject;
+  });
+  gate.catch(() => undefined);
+  return {
+    async wait(): Promise<void> {
+      arrived += 1;
+      if (arrived === parties) open();
+      await gate;
+    },
+    abort: (reason: unknown): void => fail(reason),
+  };
+}
 
 describe('group 2: overlapping transactions on separate connections', () => {
   // كل معاملة تبقى مفتوحة حتى تدخل الأخرى؛ بلا هذا الحاجز قد تنتهي الأولى قبل أن تبدأ الثانية فلا يثبت التداخل.
@@ -41,31 +71,56 @@ describe('group 2: overlapping transactions on separate connections', () => {
     await seedEvent(B.company, eventId(2), 'SalaryChanged');
     const first = postgres(test.appUrl, { max: 1, onnotice: () => undefined });
     const second = postgres(test.appUrl, { max: 1, onnotice: () => undefined });
-    let arrived = 0;
-    let openTogether!: () => void;
-    const bothOpen = new Promise<void>((resolve) => (openTogether = resolve));
+    const barrier = abortableBarrier(2);
     const run = (connection: postgres.Sql, company: string) =>
-      connection.begin(async (tx) => {
-        await tx`SELECT set_config('app.company_id', ${company}, true)`;
-        const before = await pending(tx);
-        arrived += 1;
-        if (arrived === 2) openTogether();
-        await bothOpen;
-        const after = await pending(tx);
-        const [context] = await tx`SELECT current_setting('app.company_id', true) AS company`;
-        return { before, after, company: context?.['company'], pid: await backendPid(tx) };
+      connection
+        .begin(async (tx) => {
+          await tx`SELECT set_config('app.company_id', ${company}, true)`;
+          const before = await pending(tx);
+          await barrier.wait();
+          const after = await pending(tx);
+          const [context] = await tx`SELECT current_setting('app.company_id', true) AS company`;
+          return { before, after, company: context?.['company'], pid: await backendPid(tx) };
+        })
+        .catch((error: unknown) => {
+          barrier.abort(error);
+          throw error;
+        });
+
+    // كلا الفرعين يستقران قبل إغلاق الاتصالين، ثم يُعاد أول خطأ كما هو.
+    const settled = await Promise.allSettled([run(first, A.company), run(second, B.company)]);
+    await Promise.all([first.end(), second.end()]);
+    const failure = settled.find((result) => result.status === 'rejected');
+    if (failure?.status === 'rejected') throw failure.reason;
+    const [forA, forB] = settled.map(
+      (result) => (result as PromiseFulfilledResult<OverlapResult>).value,
+    );
+
+    expect(forA).toMatchObject({ before: '1', after: '1', company: A.company });
+    expect(forB).toMatchObject({ before: '2', after: '2', company: B.company });
+    expect(forA?.pid).not.toBe(forB?.pid);
+  });
+});
+
+describe('group 2: pooled calls on one backend', () => {
+  // A ثم B يُثبَّتان على نفس الاتصال ثم نداء بلا سياق: يجب أن يفشل بدل أن يرث سياق الشركة الأخيرة.
+  it('never counts another tenant, even with the same event id, and refuses a context-free call after A then B committed', async () => {
+    await clean();
+    await seedEvent(A.company, eventId(1), 'SalaryChanged');
+    await seedEvent(B.company, eventId(1), 'SalaryChanged');
+    await seedEvent(B.company, eventId(2), 'SalaryChanged');
+    const pids: number[] = [];
+    const counted = async (company: string | null) =>
+      asApp(company, async (tx) => {
+        pids.push(await backendPid(tx));
+        return pending(tx);
       });
 
-    try {
-      const [forA, forB] = await Promise.all([run(first, A.company), run(second, B.company)]);
-
-      expect(forA).toMatchObject({ before: '1', after: '1', company: A.company });
-      expect(forB).toMatchObject({ before: '2', after: '2', company: B.company });
-      expect(forA.pid).not.toBe(forB.pid);
-    } finally {
-      await first.end();
-      await second.end();
-    }
+    expect(await counted(A.company)).toBe('1');
+    expect(await counted(B.company)).toBe('2');
+    await expect(counted(null)).rejects.toThrow('TENANT_CONTEXT_MISSING');
+    expect(await counted(A.company)).toBe('1');
+    expect(new Set(pids).size).toBe(1);
   });
 });
 
