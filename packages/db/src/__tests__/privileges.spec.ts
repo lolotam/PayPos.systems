@@ -118,7 +118,7 @@ const REVIEWED_COLUMN_GRANTS = [
   ...CUSTOMER_COLUMN_GRANTS,
 ];
 
-const APP_ROLES = ['pospay_app', 'pospay_auth', 'pospay_dispatcher'];
+const APP_ROLES = ['pospay_app', 'pospay_auth', 'pospay_dispatcher', 'pospay_approval_reader'];
 const IDENTITY_TABLES = [
   'passkey',
   'auth_otp_challenges',
@@ -269,12 +269,12 @@ describe('no application role can switch to another role', () => {
 
 describe('effective access', () => {
   testAttendanceDecisionPrivileges(() => owner);
-  it('neither pospay_app nor pospay_dispatcher can reach a global-identity table', async () => {
+  it('neither pospay_app, pospay_dispatcher nor pospay_approval_reader can reach a global-identity table', async () => {
     const rows = await withClusterRoleLock(
       'shared',
       () => owner<{ role: string; table: string }[]>`
       SELECT r AS role, t AS table
-      FROM unnest(${['pospay_app', 'pospay_dispatcher']}::text[]) AS r, unnest(${IDENTITY_TABLES}::text[]) AS t
+      FROM unnest(${['pospay_app', 'pospay_dispatcher', 'pospay_approval_reader']}::text[]) AS r, unnest(${IDENTITY_TABLES}::text[]) AS t
       WHERE has_table_privilege(r, quote_ident(t), 'SELECT, INSERT, UPDATE, DELETE, TRUNCATE, REFERENCES, TRIGGER')`,
     );
     expect(rows).toEqual([]);

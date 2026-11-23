@@ -72,7 +72,8 @@ export function createCommissionStatementExportReader(
   ): Promise<CommissionStatementExportData> => useCase.execute(companyId, renderId, signal);
 }
 
-// الهوية والأنواع الستة ثوابت في @pospay/domain يقرؤها التسجيل هنا ودالة العدّ؛ التهيئة والتقرير يستعملان نفس الهوية.
+// الهوية والأنواع الستة ثوابت في @pospay/domain يقرؤها التسجيل هنا. دالة العدّ كُتبت قيمها حرفيًا في SQL، واختبار الدالة
+// المثبّتة يقارن تلك القيم بهذه الثوابت؛ التهيئة والتقرير يستعملان نفس الهوية.
 export { COMMISSION_INPUTS_CONSUMER_ID };
 
 export interface CommissionInputsConsumerDependencies {

@@ -229,4 +229,6 @@ export const ALLOWED_TABLE_GRANTS: Record<string, string[]> = {
   ],
   // Cross-tenant reader of outbox only (ADR-0003 §3); its UPDATE is column-level, listed in OUTBOX_COLUMN_GRANTS.
   pospay_dispatcher: ['outbox:SELECT'],
+  // دور دالة عدّ الاعتماد (ADR-0012 §2): لا صلاحية جدول ولا sequence إطلاقًا؛ قراءته أعمدة محدّدة فقط، في APPROVAL_READER_COLUMN_GRANTS.
+  pospay_approval_reader: [],
 };

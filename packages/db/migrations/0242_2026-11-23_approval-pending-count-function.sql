@@ -1,19 +1,12 @@
 -- ADR-0012 §1–§2 (تعديل 2026-10-22: ستة أنواع): عدّاد أحداث العمولة المعلّقة الذي يقرؤه الاعتماد.
--- pospay_app لا يقرأ outbox ولا consumed_events مباشرة؛ يقرأ عددًا واحدًا من دالة SECURITY DEFINER يملكها دور مخصّص.
+-- pospay_app لا يقرأ outbox أبدًا (لا SELECT عليه)، ويقرأ consumed_events تحت RLS بصلاحياته المعتادة؛ الجديد هنا أن يحصل
+-- على عدد واحد يربط الاثنين من دالة SECURITY DEFINER يملكها دور مخصّص، بلا قراءة صفوف outbox.
 -- المعامل approval_started_at يجب أن يصل نصًّا بلا فقد دقة ويُحوَّل داخل SQL (`$1::text::timestamptz`): معامل من نوع timestamptz يمرّ
 -- في السائق عبر Date الذي يقص الميكروثواني إلى ميلي ثانية، فترفضه الدالة لأنه لا يساوي توقيت معاملتها.
--- الدور pospay_approval_reader يُنشأ في bootstrapRoles قبل أي migration (NOLOGIN، عضو في لا شيء).
-ALTER ROLE pospay_approval_reader WITH NOLOGIN NOSUPERUSER NOBYPASSRLS NOINHERIT NOCREATEDB NOCREATEROLE NOREPLICATION;
---> statement-breakpoint
-DO $$ DECLARE m record; BEGIN
-  FOR m IN SELECT granted.rolname AS granted, member.rolname AS member, grantor.rolname AS grantor
-    FROM pg_auth_members a JOIN pg_roles granted ON granted.oid = a.roleid
-    JOIN pg_roles member ON member.oid = a.member JOIN pg_roles grantor ON grantor.oid = a.grantor
-    WHERE member.rolname = 'pospay_approval_reader' OR granted.rolname = 'pospay_approval_reader' LOOP
-    EXECUTE format('REVOKE %I FROM %I GRANTED BY %I CASCADE', m.granted, m.member, m.grantor);
-  END LOOP;
-END $$;
---> statement-breakpoint
+-- الدور pospay_approval_reader يُنشأ وتُثبَّت صفاته وتُشال عضوياته في bootstrapRoles تحت قفل الـ bootstrap قبل أي migration
+-- (NOLOGIN، عضو في لا شيء، بلا أعضاء)، ولا يغيّر هذا الملف أي صفة له.
+-- ALTER FUNCTION ... OWNER TO في آخر الملف يحتاج أن يكون منفّذ الـ migration هو مالك الـ bootstrap superuser المسجّل استثناءً في
+-- ADR-0003 §3 (نفس تسلسل الهجرة 0030 مع pospay_suppression_reader)؛ لا يعمل بدور بلا superuser.
 GRANT USAGE ON SCHEMA public TO pospay_approval_reader;
 REVOKE CREATE ON SCHEMA public FROM pospay_approval_reader;
 GRANT EXECUTE ON FUNCTION public.app_company_id() TO pospay_approval_reader;
