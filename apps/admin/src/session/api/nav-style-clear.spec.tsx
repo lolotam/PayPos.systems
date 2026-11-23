@@ -33,17 +33,17 @@ function pickStyleB(): void {
   expect(storedStyle()).toBe('B');
 }
 
-describe('the device navigation style around sign-in and sign-out', () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-    cookieAtNavigation = 'not navigated';
-    page.loadPage.mockImplementation(() => {
-      cookieAtNavigation = storedStyle();
-    });
-    pickStyleB();
+beforeEach(() => {
+  vi.clearAllMocks();
+  cookieAtNavigation = 'not navigated';
+  page.loadPage.mockImplementation(() => {
+    cookieAtNavigation = storedStyle();
   });
-  afterEach(clearNavStyleCookie);
+  pickStyleB();
+});
+afterEach(clearNavStyleCookie);
 
+describe('the device navigation style at sign-out', () => {
   it('clears the style before leaving after a confirmed sign-out', async () => {
     calls.signOutSession.mockResolvedValue(true);
     const { result } = renderHook(() => useSignOut());
@@ -61,6 +61,9 @@ describe('the device navigation style around sign-in and sign-out', () => {
     expect(result.current.failed).toBe(true);
   });
 
+});
+
+describe('the device navigation style at sign-in', () => {
   it('clears the style before entering the dashboard after a password sign-in', async () => {
     calls.signInWithPassword.mockResolvedValue('done');
     const { result } = renderHook(() => useSignIn());

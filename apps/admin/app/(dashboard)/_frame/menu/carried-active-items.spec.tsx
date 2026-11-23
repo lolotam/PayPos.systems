@@ -169,6 +169,9 @@ describe('catalog, sales and the entries that never had a read (was the nav item
     );
   });
 
+});
+
+describe('what the menus call each entry and where they link it (was the labels and hrefs of the nav items)', () => {
   it.each([
     ['employees', 'staff.listTitle', '/staff'],
     ['employee-numbers', 'companyEmployeeNumbers.title', '/staff/employee-numbers'],
