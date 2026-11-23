@@ -91,6 +91,16 @@ export class ProjectSessionTips {
   }
 }
 
+/**
+ * يحوّل حدث بقشيش الجلسة لمدخل الإسقاط؛ هوية كل موظفة في بنود البقشيش بتتوحّد لأحرف صغيرة هنا عند حدود الحدث.
+ * عقد SessionTipsChanged بيوحّدها أصلاً قبل وصول الحمولة هنا، فالسطر ده طبقة تانية خلف العقد: بيحمي لو
+ * اتغيّر العقد أو اتنادت الدالة بحمولة ما عدّتش عليه، لأن التجميع بالنص الخام وإسقاط المراجعة السابقة جاي
+ * من قاعدة البيانات بأحرف صغيرة، فاختلاف الحالة كان هيطلع زوجين لنفس الموظفة والشهر.
+ *
+ * @param event غلاف الحدث، وتجمّعه لازم يطابق الجلسة بلا حساسية للحالة
+ * @param payload حمولة SessionTipsChanged بعد التحقق بالعقد
+ * @returns مدخل الإسقاط ببنود بقشيش بهويات موظفات صغيرة
+ */
 export function normalizeSessionTipsEvent(
   event: CommissionInputEventEnvelope,
   payload: SessionTipsChanged,
@@ -110,7 +120,7 @@ export function normalizeSessionTipsEvent(
     businessDate: payload.business_date,
     revision: payload.revision,
     tips: payload.tips.map((tip) => ({
-      employeeId: tip.employee_id,
+      employeeId: tip.employee_id.toLowerCase(),
       method: tip.method,
       amount: tip.amount,
     })),
