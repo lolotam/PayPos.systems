@@ -146,6 +146,10 @@ describe('style A More sheet, current section and focus', () => {
       });
     await waitFor(() => expect(document.activeElement).toBe(section()));
   });
+});
+
+describe('style A More sheet and address changes', () => {
+  beforeEach(() => stubViewport(390));
 
   it('closes the sheet when only the query of the address changes', () => {
     frameState.pathname = '/staff';
