@@ -2,6 +2,7 @@ import type { ServiceCommissionOverride } from './commission-types.ts';
 import {
   attachedDuring,
   branchesOn,
+  collectCarries,
   collectCorrections,
   collectSources,
   collectTips,
@@ -9,127 +10,22 @@ import {
   daysInMonth,
   visibleTo,
 } from './estimate-visibility.ts';
-import { assembleCommissionPeriodInput } from './period-input-assembly.ts';
-import { computePeriodDetailed, type CommissionPeriodDetailedResult } from './period-commission.ts';
 import type {
-  ProjectedCommissionLine,
-  ProjectedCommissionTip,
-  ProjectedPackageSale,
-  ReceivedCommissionCorrection,
-} from './period-input-types.ts';
+  CommissionEstimateAttachment,
+  CommissionEstimateCorrection,
+  CommissionEstimateCorrectionProjection,
+  CommissionEstimateEmployeeProjection,
+  CommissionEstimateLine,
+  CommissionEstimateMonthRows,
+  CommissionEstimateProjection,
+  CommissionEstimateProjectionInput,
+  CommissionEstimateSale,
+  CommissionEstimateTip,
+} from './estimate-projection-types.ts';
+import { assembleCommissionPeriodInput, countsInPeriod } from './period-input-assembly.ts';
+import { computePeriodDetailed, type CommissionPeriodDetailedResult } from './period-commission.ts';
+import type { IncomingCommissionCarry } from './period-input-types.ts';
 import type { CommissionPlanVersion, CommissionSalary } from './plan-types.ts';
-
-/**
- * نطاق القارئ على مستوى النشاط (CS-Q20): النشاط كله أو فروع محددة. `businessWide`
- * يعني إن القارئ شايف كل موظفة النشاط وكل صف من صفوفهن.
- */
-export interface CommissionEstimateScope {
-  readonly businessWide: boolean;
-  readonly branchIds: readonly string[];
-}
-
-/** ارتباط موظفة بفرع بتاريخين: البداية داخلة والنهاية خارجة، والفارغة ارتباط مفتوح. */
-export interface CommissionEstimateAttachment {
-  readonly employeeId: string;
-  readonly branchId: string;
-  readonly from: string;
-  readonly to: string | null;
-}
-
-/** بند خدمة في شهر الموظفة مع فرعه؛ تاريخ العمل هو مفتاح الفلترة باليوم. */
-export interface CommissionEstimateLine extends ProjectedCommissionLine {
-  readonly branchId: string;
-}
-
-/** بيع باقة في شهر الموظفة مع فرعه؛ الحالة المحفوظة بتتحوّل لحالة المحرك. */
-export interface CommissionEstimateSale extends ProjectedPackageSale {
-  readonly branchId: string;
-}
-
-/** بقشيش الشهر مع فرعه ويومه؛ البقشيش بيعدّي من غير تسعير (D-1). */
-export interface CommissionEstimateTip extends ProjectedCommissionTip {
-  readonly branchId: string;
-}
-
-/** تصحيح مستلم في الشهر: نسبته المجمَّدة وفروعه المجمَّدة بتحددوا رؤيته (FR-040). */
-export interface CommissionEstimateCorrection extends ReceivedCommissionCorrection {
-  readonly sourceBranchId: string;
-  readonly sourceBusinessDate: string;
-  readonly attachedBranchIds: readonly string[];
-}
-
-/** صفوف الشهر كلها مقروءة مرة واحدة: البنود والبيع والبقشيش والرواتب والإصدارات والتجاوزات والتصحيحات. */
-export interface CommissionEstimateMonthRows {
-  readonly lines: readonly CommissionEstimateLine[];
-  readonly sales: readonly CommissionEstimateSale[];
-  readonly tips: readonly CommissionEstimateTip[];
-  readonly salaries: readonly CommissionSalary[];
-  readonly versions: readonly CommissionPlanVersion[];
-  readonly overrides: readonly ServiceCommissionOverride[];
-  readonly corrections: readonly CommissionEstimateCorrection[];
-}
-
-/** مدخلات الإسقاط: النطاق والشهر والموظفات ذات الصفوف وأسماء القارئ. */
-export interface CommissionEstimateProjectionInput {
-  readonly scope: CommissionEstimateScope;
-  readonly period: string;
-  /** الموظفات اللاتي عندهن صف في قارئ الأسماء؛ مين مش فيهم ما بتتعرضش. */
-  readonly employeeIds: readonly string[];
-  readonly month: CommissionEstimateMonthRows;
-  readonly attachments: readonly CommissionEstimateAttachment[];
-}
-
-/** حالة تسعير شهر الموظفة: OK أو سبب منع التسعير (D-57). */
-export type CommissionEstimateStatus = 'OK' | 'NO_PLAN' | 'NO_SALARY';
-
-/** مصدر مسعَّر: البند أو بيع الباقة، بمبلغه وفرع عمله ويومه. */
-export interface CommissionEstimateSourceProjection {
-  readonly sourceRef: string;
-  readonly kind: 'COMMISSION' | 'SALE';
-  readonly amount: bigint;
-  readonly branchId: string;
-  readonly businessDate: string;
-  readonly serviceId: string | null;
-}
-
-/** بيع الباقة المسعَّر. */
-export interface CommissionEstimateSaleProjection {
-  readonly saleId: string;
-  readonly amount: bigint;
-  readonly branchId: string;
-  readonly businessDate: string;
-}
-
-/** تصحيح مستلم في الشهر، بيعرض بمبلغه المجمد. */
-export interface CommissionEstimateCorrectionProjection {
-  readonly sourceRef: string;
-  readonly kind: 'COMMISSION' | 'SALE' | 'TIP_CARD' | 'TIP_CASH';
-  readonly amount: bigint;
-  readonly sourceBranchId: string;
-  readonly sourceBusinessDate: string;
-}
-
-/** تقدير موظفة واحدة: مصادرها المسعّرة وبقشيشها وتصحيحاتها ومجموعها وحالتها. */
-export interface CommissionEstimateEmployeeProjection {
-  readonly employeeId: string;
-  readonly status: CommissionEstimateStatus;
-  /** أرقامها جزئية: صف من شهرها خارج نطاق القارئ أو تغطية ناقصة لأيام الشهر. */
-  readonly partial: boolean;
-  /** null لما ما تسعّرش شهرها؛ المبلغ المجهول ما يتصدقش إنه صفر (FR-021). */
-  readonly total: bigint | null;
-  readonly sources: readonly CommissionEstimateSourceProjection[];
-  readonly sales: readonly CommissionEstimateSaleProjection[];
-  readonly tips: { readonly card: bigint; readonly cash: bigint };
-  readonly corrections: readonly CommissionEstimateCorrectionProjection[];
-}
-
-/** تقدير النشاط لشهر واحد: الموظفات المرئيات ومجموعهن المرئي. */
-export interface CommissionEstimateProjection {
-  readonly employees: readonly CommissionEstimateEmployeeProjection[];
-  /** المجموع جزئي للقارئ على مستوى الفروع؛ القارئ على مستوى النشاط بيشوف الكل. */
-  readonly partial: boolean;
-  readonly total: bigint | null;
-}
 
 /** صفوف شهر موظفة واحدة مجمّعة مرة واحدة، بدل ما كل موظفة تفلتر على المصفوفة كلها. */
 interface EmployeeMonth {
@@ -137,6 +33,7 @@ interface EmployeeMonth {
   sales: CommissionEstimateSale[];
   tips: CommissionEstimateTip[];
   corrections: CommissionEstimateCorrection[];
+  carries: IncomingCommissionCarry[];
   salaries: CommissionSalary[];
   versions: CommissionPlanVersion[];
   overrides: ServiceCommissionOverride[];
@@ -153,6 +50,7 @@ function emptyMonth(): EmployeeMonth {
     sales: [],
     tips: [],
     corrections: [],
+    carries: [],
     salaries: [],
     versions: [],
     overrides: [],
@@ -183,6 +81,7 @@ function groupMonthByEmployee(
   for (const tip of month.tips) of(tip.employeeId).tips.push(tip);
   for (const correction of month.corrections)
     of(correction.employeeId).corrections.push(correction);
+  for (const carry of month.carries ?? []) of(carry.employeeId).carries.push(carry);
   for (const salary of month.salaries) of(salary.employeeId).salaries.push(salary);
   for (const version of month.versions) of(version.employeeId).versions.push(version);
   for (const override of month.overrides) of(override.employeeId).overrides.push(override);
@@ -208,19 +107,6 @@ function groupAttachmentsByEmployee(
 }
 
 /**
- * هل المصدر بيدخل تسعير الشهر؟ نفس شرط `assembleCommissionPeriodInput`: ساري
- * وتاريخ عمله جوه الشهر.
- *
- * @param status حالة المصدر في الإسقاط
- * @param businessDate تاريخ العمل بصيغة YYYY-MM-DD
- * @param period الشهر بصيغة YYYY-MM
- * @returns هل المصدر ساري وفي الشهر
- */
-function countsInPeriod(status: string, businessDate: string, period: string): boolean {
-  return status === 'ACTIVE' && businessDate.slice(0, 7) === period;
-}
-
-/**
  * الموظفات المرشحات: كل موظفة عندها نشاط في الشهر — بند أو بيع ساري أو بقشيش أو
  * تصحيح — وكل موظفة مرتبطة بفرع من نطاق القارئ في أي يوم من الشهر (CS-Q20).
  * الارتباط لوحده بيجعل الموظفة مرئية، فموظفة مرتبطة بلا عمل في الشهر بتظهر
@@ -243,14 +129,16 @@ function candidateIds(
   // نفس شرط المجمّع المشترك: البند أو البيع الملغي أو اللي بره الشهر ما بيتسعّرش،
   // فما ينفعش يخلّي صاحبته مرشحة بصفر.
   for (const line of month.lines) {
-    if (countsInPeriod(line.status, line.businessDate, period)) ids.add(line.employeeId);
+    if (countsInPeriod(line, period)) ids.add(line.employeeId);
   }
   for (const sale of month.sales) {
     if (sale.sellerEmployeeId === null) continue;
-    if (countsInPeriod(sale.status, sale.businessDate, period)) ids.add(sale.sellerEmployeeId);
+    if (countsInPeriod(sale, period)) ids.add(sale.sellerEmployeeId);
   }
   for (const tip of month.tips) ids.add(tip.employeeId);
   for (const correction of month.corrections) ids.add(correction.employeeId);
+  // المرحّل مالوش فرع (D-22): بيخلّي الموظفة مرشحة للقارئ على مستوى النشاط بس.
+  if (scope === null) for (const carry of month.carries ?? []) ids.add(carry.employeeId);
   for (const [employeeId, attachments] of attachmentsByEmployee) {
     const relevant = attachments.some(
       (attachment) =>
@@ -334,6 +222,7 @@ function projectEmployee(
     overrides: month.overrides,
     tips: month.tips,
     corrections: month.corrections,
+    carries: month.carries,
   });
   const priced = computePeriodDetailed(assembled.input);
   const correctionVisible = assembled.corrections.some((correction) =>
@@ -351,11 +240,16 @@ function projectEmployee(
   const sources = collectSources(scope, attachments, assembled.lines, assembled.sales, priced);
   const tips = collectTips(scope, attachments, assembled.tips);
   const corrections = collectCorrections(scope, assembled.corrections);
-  const outside = sources.outside || tips.outside || corrections.outside;
+  const carries = collectCarries(scope, assembled.carries);
+  // المرحّل مالوش فرع، فأي مرحّل داخل بيخلّي أرقام القارئ على مستوى الفروع جزئية (D-22).
+  const outside =
+    sources.outside || tips.outside || corrections.outside || assembled.carries.length > 0;
   // "جزئي" بتوصف النطاق بس: صف بره فروع القارئ أو تغطية أيام ناقصة. رفض
   // التسعير بيتقال بالحالة وبالمجموع null، مش بالعلامة دي.
   const partial = scope === null ? false : outside || covered.size < daysInMonth(period);
-  if (failure !== null) return refusedMonth(employeeId, failure, partial, tips, corrections);
+  if (failure !== null) {
+    return refusedMonth(employeeId, failure, partial, { tips, corrections, carries });
+  }
   return {
     employeeId,
     status: 'OK',
@@ -365,6 +259,7 @@ function projectEmployee(
     sales: sources.sales,
     tips: { card: tips.card, cash: tips.cash },
     corrections: corrections.corrections,
+    carries,
   };
 }
 
@@ -376,19 +271,26 @@ function projectEmployee(
  * @param employeeId الموظفة
  * @param failure سبب منع التسعير
  * @param partial أرقامها جزئية: صف بره نطاق القارئ أو تغطية أيام ناقصة
- * @param tips البقشيش المرئي للقارئ
- * @param tips.card مجموع بقشيش الكارت المرئي
- * @param tips.cash مجموع بقشيش الكاش المرئي
- * @param corrections التصحيحات المرئية للقارئ
- * @param corrections.corrections تصحيحات الشهر المرئية
+ * @param passthrough الأقسام اللي بتعدّي من غير تسعير
+ * @param passthrough.tips البقشيش المرئي للقارئ
+ * @param passthrough.tips.card مجموع بقشيش الكارت المرئي
+ * @param passthrough.tips.cash مجموع بقشيش الكاش المرئي
+ * @param passthrough.corrections التصحيحات المرئية للقارئ
+ * @param passthrough.corrections.corrections تصحيحات الشهر المرئية
+ * @param passthrough.carries المرحّل الداخل المرئي للقارئ
  * @returns إسقاط الموظفة المرفوضة
  */
 function refusedMonth(
   employeeId: string,
   failure: 'NO_PLAN' | 'NO_SALARY',
   partial: boolean,
-  tips: { readonly card: bigint; readonly cash: bigint },
-  corrections: { readonly corrections: readonly CommissionEstimateCorrectionProjection[] },
+  passthrough: {
+    readonly tips: { readonly card: bigint; readonly cash: bigint };
+    readonly corrections: {
+      readonly corrections: readonly CommissionEstimateCorrectionProjection[];
+    };
+    readonly carries: CommissionEstimateEmployeeProjection['carries'];
+  },
 ): CommissionEstimateEmployeeProjection {
   return {
     employeeId,
@@ -397,8 +299,9 @@ function refusedMonth(
     total: null,
     sources: [],
     sales: [],
-    tips: { card: tips.card, cash: tips.cash },
-    corrections: corrections.corrections,
+    tips: { card: passthrough.tips.card, cash: passthrough.tips.cash },
+    corrections: passthrough.corrections.corrections,
+    carries: passthrough.carries,
   };
 }
 

@@ -1,14 +1,14 @@
 import { describe, expect, it } from 'vitest';
 
-import {
-  projectCommissionEstimate,
-  type CommissionEstimateAttachment,
-  type CommissionEstimateCorrection,
-  type CommissionEstimateLine,
-  type CommissionEstimateTip,
-  type CommissionEstimateMonthRows,
-  type CommissionEstimateProjectionInput,
-} from '../estimate-projection.ts';
+import { projectCommissionEstimate } from '../estimate-projection.ts';
+import type {
+  CommissionEstimateAttachment,
+  CommissionEstimateCorrection,
+  CommissionEstimateLine,
+  CommissionEstimateTip,
+  CommissionEstimateMonthRows,
+  CommissionEstimateProjectionInput,
+} from '../estimate-projection-types.ts';
 import type { CommissionPlanVersion } from '../plan-types.ts';
 
 const EMPLOYEE = '01920000-0000-7000-8000-0000000000e1';

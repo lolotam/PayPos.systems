@@ -3966,6 +3966,10 @@ export interface components {
             sales: components["schemas"]["CommissionEstimateSale"][];
             tips: components["schemas"]["CommissionEstimateTips"];
             corrections: components["schemas"]["CommissionEstimateCorrection"][];
+            carries: {
+                commission: components["schemas"]["CommissionEstimateMoney"];
+                tip_card: components["schemas"]["CommissionEstimateMoney"];
+            };
         };
         CommissionEstimate: {
             /** Format: uuid */

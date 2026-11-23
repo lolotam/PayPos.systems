@@ -39,6 +39,8 @@ export const ALLOWED_TABLE_GRANTS: Record<string, string[]> = {
     'cashier_pins:SELECT',
     'cashier_pins:UPDATE',
     ...COMMISSION_BLOCKED_CORRECTION_TABLE_GRANTS,
+    'commission_carries:INSERT',
+    'commission_carries:SELECT',
     ...COMMISSION_CORRECTION_TABLE_GRANTS,
     ...COMMISSION_LINE_TABLE_GRANTS,
     ...COMMISSION_PERIOD_GENERATION_TABLE_GRANTS,

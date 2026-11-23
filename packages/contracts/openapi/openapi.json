@@ -24074,6 +24074,21 @@
             "items": {
               "$ref": "#/components/schemas/CommissionEstimateCorrection"
             }
+          },
+          "carries": {
+            "type": "object",
+            "properties": {
+              "commission": {
+                "$ref": "#/components/schemas/CommissionEstimateMoney"
+              },
+              "tip_card": {
+                "$ref": "#/components/schemas/CommissionEstimateMoney"
+              }
+            },
+            "required": [
+              "commission",
+              "tip_card"
+            ]
           }
         },
         "required": [
@@ -24087,7 +24102,8 @@
           "sources",
           "sales",
           "tips",
-          "corrections"
+          "corrections",
+          "carries"
         ]
       },
       "CommissionEstimate": {
