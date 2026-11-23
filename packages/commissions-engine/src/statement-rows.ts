@@ -1,7 +1,8 @@
 import { moneyToString } from '@pospay/domain';
 
+import { parseCarryKind } from './carry-kind.ts';
 import { branchesOn } from './estimate-visibility.ts';
-import type { CommissionEstimateAttachment } from './estimate-projection.ts';
+import type { CommissionEstimateAttachment } from './estimate-projection-types.ts';
 import type { ReceivedCommissionCorrection } from './period-input-types.ts';
 import type {
   StatementCorrectionSource,
@@ -291,7 +292,7 @@ export function correctionRow(
  * @returns الصف
  */
 export function carryRow(ctx: EmployeeRowContext, carry: IncomingCommissionCarry): StatementRow {
-  const kind = carry.kind === 'COMMISSION' ? 'CARRY_COMMISSION' : 'CARRY_TIP_CARD';
+  const kind = parseCarryKind(carry.kind) === 'COMMISSION' ? 'CARRY_COMMISSION' : 'CARRY_TIP_CARD';
   const base = blank(ctx.label, kind, carryRef(carry), carry.amount);
   return { ...base, sourcePeriod: carry.sourcePeriod };
 }

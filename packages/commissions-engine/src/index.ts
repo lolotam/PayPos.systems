@@ -9,6 +9,7 @@ export type {
   RevisedSale,
   RevisedTip,
 } from './canonical-input.ts';
+export { parseCarryKind } from './carry-kind.ts';
 export { buildStatement, StatementCardConflictError } from './statement-builder.ts';
 export { StatementDuplicateKeyError } from './statement-uniqueness.ts';
 export {
@@ -51,7 +52,7 @@ export type {
   CommissionEstimateSourceProjection,
   CommissionEstimateStatus,
   CommissionEstimateTip,
-} from './estimate-projection.ts';
+} from './estimate-projection-types.ts';
 export type {
   AmountTierStep,
   CommissionCalc,

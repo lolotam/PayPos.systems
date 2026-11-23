@@ -101,5 +101,6 @@ function candidateIds(
   for (const sale of month.sales) if (sale.sellerEmployeeId !== null) ids.add(sale.sellerEmployeeId);
   for (const tip of month.tips) ids.add(tip.employeeId);
   for (const correction of month.corrections) ids.add(correction.employeeId);
+  for (const carry of month.carries ?? []) ids.add(carry.employeeId);
   return [...ids];
 }

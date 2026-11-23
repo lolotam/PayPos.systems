@@ -11,6 +11,8 @@ import { parseMoney } from '@pospay/domain';
 import type { Tx } from '@pospay/db';
 import { sql, type SQL } from 'drizzle-orm';
 
+import { readIncomingCarries } from './commission-carry-reader.ts';
+
 import type {
   CommissionEstimateCorrection,
   CommissionEstimateLine,
@@ -131,7 +133,8 @@ export async function readEstimateMonth(
   const versions = await readPlanVersions(tx, companyId, businessId, period, employeeId);
   const overrides = await readOverrides(tx, companyId, businessId, period, employeeId);
   const corrections = await readCorrections(tx, companyId, businessId, period, employeeId);
-  return { lines, sales, tips, salaries, versions, overrides, corrections };
+  const carries = await readIncomingCarries(tx, companyId, businessId, period, employeeId);
+  return { lines, sales, tips, salaries, versions, overrides, corrections, carries };
 }
 
 async function readLines(

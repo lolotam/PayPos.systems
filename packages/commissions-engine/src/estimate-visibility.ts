@@ -1,4 +1,6 @@
+import { parseCarryKind } from './carry-kind.ts';
 import type { CommissionPeriodDetailedResult } from './period-commission.ts';
+import type { IncomingCommissionCarry } from './period-input-types.ts';
 import type {
   CommissionEstimateAttachment,
   CommissionEstimateCorrection,
@@ -8,7 +10,7 @@ import type {
   CommissionEstimateSaleProjection,
   CommissionEstimateSourceProjection,
   CommissionEstimateTip,
-} from './estimate-projection.ts';
+} from './estimate-projection-types.ts';
 
 const MONTH_DAYS = [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31] as const;
 
@@ -246,4 +248,28 @@ export function collectCorrections(
     });
   }
   return { corrections: visible, outside };
+}
+
+/**
+ * المرحّل الداخل المرئي للقارئ (D-22، BR-06): مجموع كل نوع لوحده، من غير تقاصّ بين العمولة
+ * وبقشيش الكارت. المرحّل مالوش فرع، فالقارئ على مستوى الفروع ما بيشوفهوش خالص.
+ *
+ * @param scope فروع القارئ أو null لنطاق النشاط كله
+ * @param carries المرحّلات الداخلة للموظفة في الشهر
+ * @returns رصيد العمولة ورصيد بقشيش الكارت، أصفار للقارئ على مستوى الفروع. نوع غريب بيرمي للكل
+ * حتى القارئ على مستوى الفروع، لأن صف مرحّل بنوع مش معروف خلل في البيانات مش حالة عمل.
+ */
+export function collectCarries(
+  scope: ReadonlySet<string> | null,
+  carries: readonly IncomingCommissionCarry[],
+): { readonly commission: bigint; readonly tipCard: bigint } {
+  let commission = 0n;
+  let tipCard = 0n;
+  for (const carry of carries) {
+    const kind = parseCarryKind(carry.kind);
+    if (scope !== null) continue;
+    if (kind === 'COMMISSION') commission += carry.amount;
+    else tipCard += carry.amount;
+  }
+  return { commission, tipCard };
 }

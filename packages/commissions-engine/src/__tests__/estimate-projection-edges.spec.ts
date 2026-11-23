@@ -1,12 +1,12 @@
 import { expect, it } from 'vitest';
 
-import {
-  projectCommissionEstimate,
-  type CommissionEstimateCorrection,
-  type CommissionEstimateLine,
-  type CommissionEstimateMonthRows,
-  type CommissionEstimateSale,
-} from '../estimate-projection.ts';
+import { projectCommissionEstimate } from '../estimate-projection.ts';
+import type {
+  CommissionEstimateCorrection,
+  CommissionEstimateLine,
+  CommissionEstimateMonthRows,
+  CommissionEstimateSale,
+} from '../estimate-projection-types.ts';
 
 const EMPLOYEE = '01920000-0000-7000-8000-0000000000e1';
 const BRANCH = '01920000-0000-7000-8000-0000000000c1';
