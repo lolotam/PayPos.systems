@@ -106,6 +106,10 @@ export interface AppDependencies {
    * قبل أي حدّ أو قاعدة بيانات (ADR-0011 §4).
    */
   readonly ratingLinksAvailable?: boolean;
+  /** بوابة مسارات شريحة 076 (plan §1.1): مقفولة افتراضياً، فالمسارات بتجيب 503. */
+  readonly staffAccessRoutes?: boolean;
+  /** أصل لوحة الإدارة — صفحة تعيين كلمة المرور بتتبني عليه زي ما سكريبت الـ operator بيعمل. */
+  readonly adminOrigin?: string;
   readonly commissionsClock?: { now(): Date };
   readonly employeeCardKey?: Buffer;
   readonly personal?: PersonalAuthentication | null;
@@ -238,7 +242,10 @@ class AppModule {
         // Global guards run in this order (ADR-0003 §4): a verified session unless @Public(); then the company
         // membership and the permission at the target unless @Authenticated(); then the feature flag.
         { provide: APP_GUARD, useClass: SessionGuard },
-        ...identityProviders(deps.database, deps.ids ?? systemUuidV7(), deps.redis, deps.staff),
+        ...identityProviders(deps.database, deps.ids ?? systemUuidV7(), deps.redis, deps.staff, {
+          staffAccessRoutes: deps.staffAccessRoutes === true,
+          ...(deps.adminOrigin === undefined ? {} : { adminOrigin: deps.adminOrigin }),
+        }),
         {
           provide: RATE_LIMITER,
           useValue: limiter,

@@ -37,17 +37,24 @@ export const user = pgTable(
     phoneNumberVerified: boolean('phone_number_verified'),
     // ربط معتمد عبر واجهة المنصة المراجعة، وليس تغيير مدير الشركة للهاتف العام.
     phoneBindingApprovedAt: timestamp('phone_binding_approved_at', { withTimezone: true }),
+    // الشركة اللي دعت اليوزر (G1) — بتتكتب في packages/auth بس، وبتثبت ملكية رابط تعيين كلمة المرور.
+    invitedByCompanyId: uuid('invited_by_company_id'),
+    // معرّف عملية الدعوة = id صف الدعوة؛ بيدي ايدمبوتنسية لعملية الإنشاء وبيمنع تكرار اليوزر.
+    invitationOperationId: uuid('invitation_operation_id'),
     ...timestamps,
   },
   (t) => [
     uniqueIndex('user_email_key').on(t.email),
     uniqueIndex('user_phone_number_key').on(t.phoneNumber),
+    uniqueIndex('user_invitation_operation_id_key').on(t.invitationOperationId),
     check(
       'user_phone_number_e164',
       sql`${t.phoneNumber} IS NULL OR ${t.phoneNumber} ~ '^[+][1-9][0-9]{6,14}$'`,
     ),
     check('user_email_length', sql`char_length(${t.email}) BETWEEN 3 AND 320`),
     check('user_name_length', sql`char_length(${t.name}) BETWEEN 1 AND 255`),
+    // علامة الدعوة يا مع يا؛ الاتنين null معناها اليوزر مش مدعو من أي شركة.
+    check('user_invitation_marker', sql`num_nonnulls(${t.invitedByCompanyId}, ${t.invitationOperationId}) <> 1`),
   ],
 );
 

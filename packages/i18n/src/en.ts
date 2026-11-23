@@ -249,6 +249,13 @@ export const en = {
     PERMISSION_ROLE_NOT_ELIGIBLE:
       'The ratings-read permission can only be granted to management roles (owner, general manager, business manager, branch manager)',
     PERMISSION_OVERRIDE_ENDED: 'This override has already ended',
+    MEMBER_ALREADY_IN_COMPANY: 'This person already has a membership in this company',
+    MEMBER_INVITATION_EXISTS: 'This email already has an invitation in this company',
+    MEMBER_ROLE_NOT_INVITABLE:
+      'This role cannot be invited, or its scope does not match the role or belongs to another company',
+    MEMBER_EMAIL_NOT_INVITABLE: 'This email cannot be invited',
+    MEMBER_INVITATION_NOT_REISSUEABLE:
+      'A new link cannot be issued for this invitation; the member already set a password',
     ALERT_RULE_REVISION_CONFLICT: 'Another manager changed this alert rule. Reload before saving.',
     TRANSACTION_RETRY_REQUIRED:
       'The change conflicted with another transaction and was not saved. Please retry.',

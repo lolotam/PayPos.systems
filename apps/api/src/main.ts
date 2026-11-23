@@ -30,6 +30,7 @@ import { createActivePasskeyBindings, createPersonalEligibility } from './module
 import { membershipCompanies, staffOtpDependencies } from './modules/identity/index.ts';
 import { readConfig } from './shared/config.ts';
 import { closeOptional, optionalWithin } from './shared/optional-capability.ts';
+import { staffAccessRoutesEnabled } from './shared/staff-access-routes.ts';
 import { staffNativeOriginsFrom } from './shared/staff-origin.token.ts';
 
 const config = readConfig(process.env);
@@ -342,6 +343,11 @@ try {
       files,
       redis,
       corsOrigins: config.AUTH_TRUSTED_ORIGINS,
+      // البوابة بتتقرأ مرة واحدة هنا عند الإقلاع: مفيش مسار من شريحة 076 يوصل قبل ما تتدمج.
+      staffAccessRoutes: staffAccessRoutesEnabled(process.env),
+      ...(config.AUTH_TRUSTED_ORIGINS[0] === undefined
+        ? {}
+        : { adminOrigin: config.AUTH_TRUSTED_ORIGINS[0] }),
       ratingPageOrigin: config.RATING_PAGE_ORIGIN,
       push: readPushApiConfiguration(process.env),
       ratingLinksAvailable,

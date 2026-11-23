@@ -19,6 +19,18 @@ export {
   type CreatePlatformUserInput,
 } from './create-platform-user.ts';
 export {
+  InvitationLinkRefusedError,
+  MEMBER_INVITATION_LINK_TTL_MS,
+  PASSWORD_SET_LINK_TTL_MS,
+  STAFF_SYNTHETIC_EMAIL_DOMAIN,
+  isStaffSyntheticEmail,
+  type InvitedMemberOutcome,
+  type MemberAccountSummary,
+  type MemberInvitationAccounts,
+  type MemberInvitationMarker,
+  type SetPasswordLinkOptions,
+} from './member-invitations.ts';
+export {
   formatDeviceToken,
   hashDeviceSecret,
   newDeviceSecret,

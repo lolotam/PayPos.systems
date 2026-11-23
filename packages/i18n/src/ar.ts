@@ -249,6 +249,13 @@ export const ar: Catalog = {
     PERMISSION_ROLE_NOT_ELIGIBLE:
       'صلاحية قراءة التقييمات تُمنح لأدوار الإدارة فقط (المالك، المدير العام، مدير النشاط، مدير الفرع)',
     PERMISSION_OVERRIDE_ENDED: 'هذا الاستثناء انتهى بالفعل',
+    MEMBER_ALREADY_IN_COMPANY: 'الشخص ده عنده عضوية في الشركة بالفعل',
+    MEMBER_INVITATION_EXISTS: 'الإيميل ده عنده دعوة في الشركة بالفعل',
+    MEMBER_ROLE_NOT_INVITABLE:
+      'الدور ده ما بيتدعىش، أو نطاقه ما بيответش للدور أو بيتبع شركة تانية',
+    MEMBER_EMAIL_NOT_INVITABLE: 'الإيميل ده ما بيتدعىش',
+    MEMBER_INVITATION_NOT_REISSUEABLE:
+      'مينفعش نطلع رابط جديد للدعوة دي؛ العضو حط كلمة مروره بالفعل',
     TRANSACTION_RETRY_REQUIRED: 'تعارض التغيير مع عملية أخرى ولم يُحفظ. حاول مرة أخرى.',
     OTP_UNAVAILABLE: 'الدخول بواتساب غير متاح. اطلب مساعدة المدير للدخول بالرقم السري الخاص بك.',
     PASSKEY_ALREADY_BOUND: 'تم ربط مفتاح مرور بالفعل. اطلب من المدير فك الربط أولاً.',

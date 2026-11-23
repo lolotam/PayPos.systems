@@ -29,3 +29,19 @@ export interface DeviceRevoked {
 
 export const DEVICE_REGISTERED = 'DeviceRegistered';
 export const DEVICE_REVOKED = 'DeviceRevoked';
+
+/**
+ * بيتبعت مرة واحدة لما مالك الشركة يدعو عضو جديد، في نفس الـ transaction اللي كاتب العضوية
+ * (invite-member). مفيش إيميل ولا رابط ولا token في الـ payload.
+ */
+export interface MemberInvited {
+  readonly invitation_id: string;
+  readonly user_id: string;
+  readonly membership_id: string;
+  readonly role_code: string;
+  readonly scope_type: string;
+  readonly scope_id: string;
+  readonly invited_by: string;
+}
+
+export const MEMBER_INVITED = 'MemberInvited';

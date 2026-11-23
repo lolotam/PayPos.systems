@@ -1,5 +1,3 @@
-import { randomBytes } from 'node:crypto';
-
 import { drizzleAdapter } from '@better-auth/drizzle-adapter';
 import { createAuthDatabase, createStaffOtpDatabase } from '@pospay/db';
 import { betterAuth, type BetterAuthOptions } from 'better-auth';
@@ -8,6 +6,12 @@ import { createPersonalSessions, type PersonalSessions } from './personal-sessio
 import { configuredPrivateView, type PrivateViewFacade } from './private-view.ts';
 import { passkeyPolicy, registrationPlugin, isPasskeyRoute } from './passkey-policy.ts';
 import { createPasskeyFacade, type ActivePasskeyBindings, type PasskeyFacade } from './passkeys.ts';
+import {
+  createMemberInvitationAccounts,
+  issueSetPasswordLink,
+  type MemberInvitationAccounts,
+  type SetPasswordLinkOptions,
+} from './member-invitations.ts';
 import { sessionFromRecord } from './staff-session-fence.ts';
 import { createStaffSessions, type StaffSessions } from './staff-sessions.ts';
 
@@ -48,8 +52,6 @@ export interface AuthLogEntry {
 }
 
 export const AUTH_BASE_PATH = '/v1/auth';
-// TODO(spec): how long a set-password link lives — Better Auth's reset default (1 h) until decided.
-const SET_PASSWORD_LINK_TTL_MS = 60 * 60 * 1000;
 
 /**
  * الـ session اللي اتأكدنا منها — الـ ids بس، ومفيش token.
@@ -74,6 +76,8 @@ export interface AuthService {
   readonly personal: PersonalSessions;
   readonly passkeys: PasskeyFacade;
   readonly privateView: PrivateViewFacade;
+  /** جداول الهوية لعملية دعوة عضو (G1): بصمة الإيميل والبحث عنه وإنشاءه وعلامته. */
+  readonly members: MemberInvitationAccounts;
   /** بيرد على /v1/auth/* (sign-in، sign-out، الـ TOTP…). */
   handler(request: Request): Promise<Response>;
   /** بيرجّع الـ session لو الـ cookie صالح (ومعاها cookies التجديد)، وإلا null. */
@@ -82,9 +86,13 @@ export interface AuthService {
   provisionUser(input: { email: string; name: string; password: string }): Promise<string>;
   /**
    * رابط يستخدمه اليوزر مرة واحدة يحط بيه الباسورد بتاعه — للسكريبت بتاع الـ operator بس. الرابط فيه token، فبيتسلم
-   * للـ operator ومبيتكتبش في أي log.
+   * للـ operator ومبيتكتبش في أي log. العمر الافتراضي ساعة؛ الدعوة بتعدّله ل 48 ساعة.
    */
-  issuePasswordSetLink(userId: string, redirectTo: string): Promise<string>;
+  issuePasswordSetLink(
+    userId: string,
+    redirectTo: string,
+    options?: SetPasswordLinkOptions,
+  ): Promise<string>;
   /** بيمسح يوزر لسه متعمل ومفيش له سجل — التعويض لو خطوة بعد الإنشاء فشلت (createPlatformUser). */
   discardUser(userId: string): Promise<void>;
   /** بيسجل فعل على مستوى المنصة (إنشاء يوزر مثلاً) في platform_audit_log. */
@@ -122,11 +130,18 @@ export async function createAuth(options: AuthOptions): Promise<AuthService> {
   const staff = staffSessions(options, auth, database);
   const personal = personalSessions(options, auth, database);
   const passkeys = configuredPasskeys(options, auth, database);
+  const members = createMemberInvitationAccounts({
+    database,
+    ids: options.ids,
+    secret: options.secret,
+    baseUrl: (await auth.$context).baseURL,
+  });
   return {
     staff,
     personal,
     passkeys,
     privateView: configuredPrivateView(options, database),
+    members,
     handler: async (request) => {
       if (
         isPasskeyRoute(request.url) ||
@@ -154,8 +169,15 @@ export async function createAuth(options: AuthOptions): Promise<AuthService> {
       };
     },
     provisionUser: async (input) => provision(await auth.$context, input),
-    issuePasswordSetLink: async (userId, redirectTo) =>
-      issueSetPasswordLink(await auth.$context, userId, redirectTo),
+    issuePasswordSetLink: async (userId, redirectTo, linkOptions) =>
+      issueSetPasswordLink(
+        database,
+        options.ids,
+        (await auth.$context).baseURL,
+        userId,
+        redirectTo,
+        linkOptions ?? {},
+      ),
     discardUser: async (userId) => {
       await (await auth.$context).internalAdapter.deleteUser(userId);
     },
@@ -197,21 +219,6 @@ async function provision(
     throw error;
   }
   return user.id;
-}
-
-async function issueSetPasswordLink(
-  context: AuthContext,
-  userId: string,
-  redirectTo: string,
-): Promise<string> {
-  const token = randomBytes(24).toString('base64url');
-  // The same verification row Better Auth's own reset flow writes, consumed once by POST /reset-password.
-  await context.internalAdapter.createVerificationValue({
-    value: userId,
-    identifier: `reset-password:${token}`,
-    expiresAt: new Date(Date.now() + SET_PASSWORD_LINK_TTL_MS),
-  });
-  return `${context.baseURL}/reset-password/${token}?callbackURL=${encodeURIComponent(redirectTo)}`;
 }
 
 const STAFF_SESSION_FIELDS = {

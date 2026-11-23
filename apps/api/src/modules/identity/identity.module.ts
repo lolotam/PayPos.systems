@@ -50,6 +50,9 @@ import { createRedisPairingCodes } from './persistence/redis-pairing-codes.ts';
 import { createRedisPinAttempts } from './persistence/redis-pin-attempts.ts';
 import { createRedisDevicePinCap } from './persistence/redis-device-pin-cap.ts';
 import { createOnboardingTransactions } from './persistence/onboarding-transactions.ts';
+import { createMemberAccounts, createMemberPasswordState } from './persistence/member-accounts.adapter.ts';
+import { createMemberInvitationTransactions } from './persistence/member-invitation-transactions.ts';
+import { createInvitationRateLimiter } from './persistence/redis-invitation-rates.ts';
 import { tenancyCompanyRegistry } from './persistence/tenancy-company-registry.adapter.ts';
 import { createWorkspaceNames } from './persistence/workspace-names.adapter.ts';
 import type { WorkspaceNames } from './queries/my-workspaces.query.ts';
@@ -73,6 +76,16 @@ import {
 import { createStaffPinTransactions } from './persistence/staff-pin-transactions.ts';
 import { SignInStaffPin } from './use-cases/sign-in-staff-pin/sign-in-staff-pin.ts';
 import { ResetStaffPin } from './use-cases/reset-staff-pin/reset-staff-pin.ts';
+import { InviteMember } from './use-cases/invite-member/invite-member.ts';
+import { ReissueMemberInvitation } from './use-cases/reissue-member-invitation/reissue-member-invitation.ts';
+import { MemberInvitationsController } from './http/member-invitations.controller.ts';
+import {
+  INVITATION_RATE_LIMITER,
+  MEMBER_PASSWORD_STATE,
+  type InvitationRateLimiter,
+  type MemberPasswordState,
+} from './ports/member-invitations.port.ts';
+import { STAFF_ACCESS_ROUTES } from '../../shared/staff-access-routes.ts';
 import { PrivateViewController, PRIVATE_VIEW_WINDOWS } from './http/private-view.controller.ts';
 import { OpenPrivateView } from './use-cases/open-private-view/open-private-view.ts';
 import { AUTH_SERVICE } from '../../shared/session.guard.ts';
@@ -94,6 +107,7 @@ export const identityControllers = [
   PersonalOtpController,
   StaffPinController,
   PrivateViewController,
+  MemberInvitationsController,
 ];
 
 /** الربط العام يمر من composition root؛ تفاصيل القراءة والنقل تظل داخل الهوية. */
@@ -132,6 +146,12 @@ export function identityProviders(
     origin: string | null;
     nativeOrigins?: readonly string[];
   },
+  slice?: {
+    /** بوابة مسارات شريحة 076 (plan §1.1): مقفولة افتراضياً. */
+    staffAccessRoutes?: boolean;
+    /** أصل لوحة الإدارة — صفحة تعيين كلمة المرور بتتبني عليه. */
+    adminOrigin?: string;
+  },
 ): Provider[] {
   const reader = database === undefined ? null : createAccessReader(database);
   const names: WorkspaceNames | null = database === undefined ? null : createWorkspaceNames();
@@ -146,6 +166,7 @@ export function identityProviders(
   const devices = database === undefined ? null : deviceUseCases(database, ids, redis);
   return [
     ...permissionProviders(database, ids, redis),
+    ...memberInvitationProviders(database, ids, redis, slice),
     {
       provide: STAFF_AUTHENTICATION,
       useValue: database === undefined ? null : createStaffEligibility(database),
@@ -218,6 +239,78 @@ function permissionProviders(
               createPermissionOverrideTransactions(database, ids),
               createGrantInvalidator(redis),
             ),
+    },
+  ];
+}
+
+// ربط مسار دعوة العضو: الحساب على pospay_auth والصفوف على pospay_app، والبوابة مقفولة لحد ما الشريحة تتدمج.
+function memberInvitationProviders(
+  database: TenantWrappers | undefined,
+  ids: IdGenerator,
+  redis: Redis | undefined,
+  slice: { staffAccessRoutes?: boolean; adminOrigin?: string } | undefined,
+): Provider[] {
+  const redirectTo =
+    slice?.adminOrigin === undefined ? undefined : `${slice.adminOrigin}/set-password`;
+  const limiter = redis === undefined ? null : createInvitationRateLimiter(redis);
+  return [
+    { provide: STAFF_ACCESS_ROUTES, useValue: slice?.staffAccessRoutes === true },
+    { provide: INVITATION_RATE_LIMITER, useValue: limiter },
+    {
+      provide: MEMBER_PASSWORD_STATE,
+      useFactory: (auth: AuthService | null): MemberPasswordState | null =>
+        auth === null ? null : createMemberPasswordState(auth),
+      inject: [AUTH_SERVICE],
+    },
+    {
+      provide: InviteMember,
+      useFactory: (
+        auth: AuthService | null,
+        rateLimiter: InvitationRateLimiter | null,
+      ): InviteMember | null => {
+        if (
+          database === undefined ||
+          auth === null ||
+          rateLimiter === null ||
+          redirectTo === undefined
+        ) {
+          return null;
+        }
+        return new InviteMember({
+          transactions: createMemberInvitationTransactions(database, ids),
+          accounts: createMemberAccounts(auth),
+          limiter: rateLimiter,
+          invalidator: createGrantInvalidator(redis),
+          clock: systemClock,
+          ids,
+          redirectTo,
+        });
+      },
+      inject: [AUTH_SERVICE, INVITATION_RATE_LIMITER],
+    },
+    {
+      provide: ReissueMemberInvitation,
+      useFactory: (
+        auth: AuthService | null,
+        rateLimiter: InvitationRateLimiter | null,
+      ): ReissueMemberInvitation | null => {
+        if (
+          database === undefined ||
+          auth === null ||
+          rateLimiter === null ||
+          redirectTo === undefined
+        ) {
+          return null;
+        }
+        return new ReissueMemberInvitation({
+          transactions: createMemberInvitationTransactions(database, ids),
+          accounts: createMemberAccounts(auth),
+          limiter: rateLimiter,
+          clock: systemClock,
+          redirectTo,
+        });
+      },
+      inject: [AUTH_SERVICE, INVITATION_RATE_LIMITER],
     },
   ];
 }

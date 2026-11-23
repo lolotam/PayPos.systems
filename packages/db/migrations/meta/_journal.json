@@ -1702,6 +1702,20 @@
       "when": 1795456222039,
       "tag": "0244_2026-11-23_commission-carries-rls",
       "breakpoints": true
+    },
+    {
+      "idx": 245,
+      "version": "7",
+      "when": 1795463038403,
+      "tag": "0245_2026-11-23_member-invitations",
+      "breakpoints": true
+    },
+    {
+      "idx": 246,
+      "version": "7",
+      "when": 1795463155864,
+      "tag": "0246_2026-11-23_member-invitations-rls",
+      "breakpoints": true
     }
   ]
 }
