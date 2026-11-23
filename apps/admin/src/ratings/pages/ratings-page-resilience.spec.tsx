@@ -52,7 +52,7 @@ const failure = { code: 'X', message_ar: 'x', message_en: 'Synthetic server fail
 const ok = (data: unknown) => Promise.resolve({ data, response: { status: 200 } });
 const refuse = (status: number) => Promise.resolve({ error: failure, response: { status } });
 const page = (items: RatingsListItem[], next: string | null = null) =>
-  ok({ items, next_cursor: next });
+  ok({ items, next_cursor: next, month: '2026-11' });
 
 function freshClient() {
   return new QueryClient({ defaultOptions: { queries: { retry: false } } });
@@ -61,9 +61,9 @@ function freshClient() {
 function clientWithCachedRatings() {
   const client = freshClient();
   const scope = ratingsKey(companyId, 'user', companyId);
-  client.setQueryData([...scope, 'averages', novemberRange], { items: averageRows });
+  client.setQueryData([...scope, 'averages', {}], { items: averageRows, month: '2026-11' });
   client.setQueryData([...scope, 'list', { ...novemberRange, limit: 20 }], {
-    pages: [{ items: [rating('01', 'Cached comment')], next_cursor: null }],
+    pages: [{ items: [rating('01', 'Cached comment')], next_cursor: null, month: '2026-11' }],
     pageParams: [undefined],
   });
   return client;
@@ -93,14 +93,16 @@ it('never shows cached ratings before this visit has read them again, and drops 
   const { container } = renderPage(clientWithCachedRatings());
   expect(screen.queryByText('Cached comment')).toBeNull();
   expect(screen.queryByText('Layla Synthetic')).toBeNull();
-  expect(await screen.findAllByText(t('en', 'ratings.notAllowed'))).toHaveLength(2);
+  expect(await screen.findAllByText(t('en', 'ratings.notAllowed'))).toHaveLength(1);
   expect(container.textContent).not.toContain('Cached comment');
   expect(container.textContent).not.toContain('Layla Synthetic');
 });
 
 it('shows the fresh rows once this visit has read them again', async () => {
   api.GET.mockImplementation((path: string) =>
-    path === listPath ? page([rating('02', 'Fresh comment')]) : ok({ items: averageRows }),
+    path === listPath
+      ? page([rating('02', 'Fresh comment')])
+      : ok({ items: averageRows, month: '2026-11' }),
   );
   renderPage(clientWithCachedRatings());
   expect(screen.queryByText('Cached comment')).toBeNull();
@@ -111,7 +113,7 @@ it('shows the fresh rows once this visit has read them again', async () => {
 it('keeps the loaded ratings and offers a retry when the next page fails', async () => {
   let nextAttempts = 0;
   api.GET.mockImplementation((path: string, init: Init) => {
-    if (path !== listPath) return ok({ items: averageRows });
+    if (path !== listPath) return ok({ items: averageRows, month: '2026-11' });
     if (!init.params.query.cursor) return page([rating('01', 'First page comment')], 'cursor-2');
     nextAttempts += 1;
     return nextAttempts === 1 ? refuse(500) : page([rating('02', 'Second page comment')]);
@@ -129,7 +131,7 @@ it('keeps the loaded ratings and offers a retry when the next page fails', async
 
 it('hides the loaded ratings when the next page is refused', async () => {
   api.GET.mockImplementation((path: string, init: Init) => {
-    if (path !== listPath) return ok({ items: averageRows });
+    if (path !== listPath) return ok({ items: averageRows, month: '2026-11' });
     return init.params.query.cursor
       ? refuse(403)
       : page([rating('01', 'First page comment')], 'cursor-2');
@@ -143,7 +145,9 @@ it('hides the loaded ratings when the next page is refused', async () => {
 
 it('ignores a partial or malformed month typed into a plain text field', async () => {
   api.GET.mockImplementation((path: string) =>
-    path === listPath ? page([rating('01', 'November comment')]) : ok({ items: averageRows }),
+    path === listPath
+      ? page([rating('01', 'November comment')])
+      : ok({ items: averageRows, month: '2026-11' }),
   );
   renderPage();
   await screen.findByText('November comment');

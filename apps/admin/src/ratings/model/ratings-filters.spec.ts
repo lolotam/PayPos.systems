@@ -1,35 +1,39 @@
-import type { WorkspaceBranch } from '@pospay/contracts';
 import { describe, expect, it } from 'vitest';
 
-import { initialRatingsFilters, ratingsQuery } from './ratings-filters';
-
-const berlin = branch('01920000-0000-7000-8000-0000000000b1', 'Europe/Berlin');
-const kuwaitOne = branch('01920000-0000-7000-8000-0000000000b2', 'Asia/Kuwait');
-const kuwaitTwo = branch('01920000-0000-7000-8000-0000000000b3', 'Asia/Kuwait');
-
-function branch(id: string, effective_timezone: string): WorkspaceBranch {
-  return { id, name_ar: null, name_en: 'Synthetic branch', effective_timezone, is_active: true };
-}
+import {
+  availableEmployeeId,
+  averagesQuery,
+  initialRatingsFilters,
+  listRange,
+} from './ratings-filters';
 
 describe('the period the screen sends', () => {
-  it('sends only the month for all branches, never a browser-computed range', () => {
-    expect(ratingsQuery({ branchId: '', employeeId: '', month: '2026-10' })).toEqual({
-      month: '2026-10',
-    });
+  it('sends no month at all until the server has named one, and never a range', () => {
+    const filters = initialRatingsFilters();
+    expect(averagesQuery(filters)).toEqual({});
+    expect(listRange(filters, null)).toBeNull();
   });
 
-  it('sends the same month plus the branch when one branch is chosen', () => {
-    expect(ratingsQuery({ branchId: berlin.id, employeeId: '', month: '2026-10' })).toEqual({
-      branch_id: berlin.id,
-      month: '2026-10',
-    });
+  it('sends the chosen month, plus the branch when one branch is chosen', () => {
+    const filters = { branchId: 'b1', employeeId: '', month: '2026-10' };
+    expect(averagesQuery(filters)).toEqual({ branch_id: 'b1', month: '2026-10' });
+    expect(listRange(filters, '2026-10')).toEqual({ branch_id: 'b1', month: '2026-10' });
+  });
+
+  it('lists the month the server named while the averages are still sent without one', () => {
+    const filters = initialRatingsFilters();
+    expect(listRange(filters, '2026-11')).toEqual({ month: '2026-11' });
+    expect(averagesQuery(filters)).toEqual({});
   });
 });
 
-describe('the month the field opens on', () => {
-  it('is named by the zone most branches share, independent of branch order', () => {
-    const lateInUtc = new Date('2026-10-31T22:30:00.000Z');
-    expect(initialRatingsFilters([berlin, kuwaitOne, kuwaitTwo], lateInUtc).month).toBe('2026-11');
-    expect(initialRatingsFilters([kuwaitTwo, berlin, kuwaitOne], lateInUtc).month).toBe('2026-11');
+describe('availableEmployeeId', () => {
+  const options = [{ employee_id: 'e1' }, { employee_id: 'e2' }];
+
+  it('keeps a selection that is still an option and falls back to all otherwise', () => {
+    expect(availableEmployeeId('e2', options)).toBe('e2');
+    expect(availableEmployeeId('e9', options)).toBe('');
+    expect(availableEmployeeId('e1', [])).toBe('');
+    expect(availableEmployeeId('', options)).toBe('');
   });
 });

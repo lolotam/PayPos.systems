@@ -14,5 +14,7 @@ export function useRatingAverages(
     queryKey: [...ratingsKey(companyId, userId, businessId), 'averages', range],
     queryFn: ({ signal }) => readRatingAverages(companyId, businessId, range, signal),
     retry: false,
+    refetchOnMount: 'always',
+    staleTime: 0,
   });
 }

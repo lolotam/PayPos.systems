@@ -1,50 +1,59 @@
-import type { WorkspaceBranch } from '@pospay/contracts';
-import { currentRatingsMonth } from './ratings-period';
-
-/** فلاتر الشاشة كما اختارها المستخدم؛ السلسلة الفارغة معناها «الكل». */
+/**
+ * فلاتر الشاشة كما اختارها المستخدم؛ السلسلة الفارغة معناها «الكل». `month` فارغ (null) معناه «لسه ما اخترتش»: الشهر وقتها
+ * هو اللي الخادم سمّاه في رد المتوسطات (شهر النشاط الحالي بتوقيت النشاط)، والمتصفح ما بيخمّنش شهر ولا توقيت.
+ */
 export interface RatingsFilters {
   branchId: string;
   employeeId: string;
-  month: string;
+  month: string | null;
 }
 
 /**
- * ما تبعته الشاشة للمسارين لتحديد الفترة: الشهر `YYYY-MM` والفرع (اختياري). الـAPI هو اللي يحوّل الشهر لنافذة لحظات بتوقيت
- * النشاط (D-B12)، فالمتصفح ما بيحسبش `from` ولا `to` ولا يختار توقيتًا.
+ * ما تبعته الشاشة للمسارين لتحديد الفترة: الشهر `YYYY-MM` (اختياري) والفرع (اختياري). الـAPI هو اللي يحوّل الشهر لنافذة
+ * لحظات بتوقيت النشاط (D-B12)، فالمتصفح ما بيحسبش `from` ولا `to` ولا يختار توقيتًا.
  */
 export interface RatingsPeriodQuery {
   branch_id?: string;
-  month: string;
+  month?: string;
+}
+
+/** الفترة المعروفة الشهر للقائمة؛ بلا شهر ما فيش قراءة قائمة. */
+export type RatingsListRange = RatingsPeriodQuery & { month: string };
+
+export function initialRatingsFilters(): RatingsFilters {
+  return { branchId: '', employeeId: '', month: null };
 }
 
 /**
- * توقيت اسم الشهر الافتراضي عند فتح الشاشة فقط: التوقيت الأكثر اشتراكًا بين الفروع، والأبجدي عند التعادل. توقيت النشاط نفسه
- * مش في رد مساحات العمل، فده تقدير لتسمية الشهر الظاهر في الحقل، ومش مصدر لنافذة الطلب (الـAPI بيحسبها بتوقيت النشاط).
+ * الموظفة المختارة بشرط إنها لسه ضمن خيارات القائمة المعروضة؛ غير كده «الكل» (السلسلة الفارغة). كده الخانة المعروضة والطلب
+ * اللي بيتبعت بيتفقوا دايمًا حتى لو الخيارات اختفت (فشل قراءة المتوسطات) والاختيار القديم لسه محفوظ.
+ *
+ * @param selected معرّف الموظفة المختارة (فارغ = الكل)
+ * @param employees الموظفات اللي ظاهرة كخيارات حاليًا
+ * @returns المعرّف المختار لو متاح كخيار، وإلا سلسلة فارغة
  */
-function defaultMonthTimeZone(branches: readonly WorkspaceBranch[]): string {
-  const counts = new Map<string, number>();
-  for (const branch of branches)
-    counts.set(branch.effective_timezone, (counts.get(branch.effective_timezone) ?? 0) + 1);
-  const ranked = [...counts].sort(
-    ([a, countA], [b, countB]) => countB - countA || a.localeCompare(b),
-  );
-  return ranked[0]?.[0] ?? 'UTC';
+export function availableEmployeeId(
+  selected: string,
+  employees: readonly { employee_id: string }[],
+): string {
+  return employees.some((employee) => employee.employee_id === selected) ? selected : '';
 }
 
-export function initialRatingsFilters(
-  branches: readonly WorkspaceBranch[],
-  now: Date,
-): RatingsFilters {
+/** طلب المتوسطات: الشهر لو اختاره المستخدم، وإلا بلا شهر فيرد الخادم بشهره الافتراضي. */
+export function averagesQuery(filters: RatingsFilters): RatingsPeriodQuery {
   return {
-    branchId: '',
-    employeeId: '',
-    month: currentRatingsMonth(now, defaultMonthTimeZone(branches)),
+    ...(filters.branchId ? { branch_id: filters.branchId } : {}),
+    ...(filters.month ? { month: filters.month } : {}),
   };
 }
 
-/** الطلب المشترك للجدولين: الشهر المختار لكل الفروع أو لفرع واحد، بنفس الصيغة. */
-export function ratingsQuery(filters: RatingsFilters): RatingsPeriodQuery {
-  return filters.branchId
-    ? { branch_id: filters.branchId, month: filters.month }
-    : { month: filters.month };
+/**
+ * طلب القائمة: لازم يكون الشهر معروف (اختاره المستخدم أو سمّاه الخادم)، وإلا null والقائمة ما بتقرأش.
+ *
+ * @param filters الفلاتر الحالية
+ * @param month الشهر المعروف للشاشة (المختار أو اللي سمّاه الخادم)
+ * @returns الفترة بشهرها، أو null لو الشهر لسه مجهول
+ */
+export function listRange(filters: RatingsFilters, month: string | null): RatingsListRange | null {
+  return month ? { ...(filters.branchId ? { branch_id: filters.branchId } : {}), month } : null;
 }

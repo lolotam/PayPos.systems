@@ -13,20 +13,3 @@ export function parseRatingsMonth(value: string): string | null {
   const year = Number(MONTH_PATTERN.exec(value)?.[1]);
   return year >= FIRST_MONTH_YEAR && year <= LAST_MONTH_YEAR ? value : null;
 }
-
-/**
- * الشهر الحالي `YYYY-MM` بتوقيت النطاق، قيمة افتراضية لمحدد الشهر فقط؛ نافذة الطلب نفسها بيحسبها الـAPI بتوقيت النشاط.
- *
- * @param now اللحظة الحالية (مُمرَّرة عشان الاختبار)
- * @param timeZone توقيت النطاق
- * @returns الشهر بصيغة `YYYY-MM`
- */
-export function currentRatingsMonth(now: Date, timeZone: string): string {
-  const parts = new Intl.DateTimeFormat('en-CA', {
-    timeZone,
-    year: 'numeric',
-    month: '2-digit',
-  }).formatToParts(now);
-  const pick = (type: string) => parts.find((part) => part.type === type)?.value ?? '';
-  return `${pick('year')}-${pick('month')}`;
-}
