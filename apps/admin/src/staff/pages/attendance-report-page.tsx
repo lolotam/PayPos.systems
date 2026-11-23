@@ -7,9 +7,8 @@ import { useLocale } from '@/shared/locale/locale-context';
 import { useAttendanceReport, type AttendanceReportScope } from '../api/use-attendance-report';
 import { boardAccessLost } from '../model/attendance-board-display';
 import { AttendanceReportDownload } from '../ui/attendance-report-download';
-import { AttendanceReportFeedback } from '../ui/attendance-report-feedback';
 import { AttendanceReportFilters } from '../ui/attendance-report-filters';
-import { AttendanceReportTable } from '../ui/attendance-report-table';
+import { AttendanceReportResults } from '../ui/attendance-report-results';
 
 type Props = {
   scope: AttendanceReportScope;
@@ -62,25 +61,11 @@ export function AttendanceReportPage({
           </div>
         }
       >
-        <div className="p-4 empty:hidden">
-          <AttendanceReportFeedback
-            error={report.error}
-            hasData={Boolean(visible)}
-            loading={report.isPending}
-            fetching={report.isFetching}
-            onRetry={() => {
-              void report.refetch();
-            }}
-          />
-        </div>
-        {visible ? (
-          <>
-            <p className="p-4 text-sm text-muted-foreground">
-              {t(locale, 'attendanceReport.hoursFormat')}
-            </p>
-            <AttendanceReportTable key={`${selected.branchId}:${month}`} rows={report.data.rows} />
-          </>
-        ) : null}
+        <AttendanceReportResults
+          report={report}
+          visible={Boolean(visible)}
+          resetKey={`${selected.branchId}:${month}`}
+        />
       </DataTableFrame>
     </PageShell>
   );

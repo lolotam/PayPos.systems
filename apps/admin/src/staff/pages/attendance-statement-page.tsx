@@ -14,8 +14,6 @@ import { useAttendanceStatementShifts } from '../api/use-attendance-statement-sh
 import { useAttendanceStatementStatus } from '../api/use-attendance-statement-status';
 import {
   statementApplyPatch,
-  statementCollectCanRecover,
-  statementExpired,
   statementFormAccessLost,
   statementInitialDraft,
   statementPeriod,
@@ -27,7 +25,8 @@ import {
   type StatementPeriod,
 } from '../model/attendance-statement-display';
 import { AttendanceStatementForm } from '../ui/attendance-statement-form';
-import { AttendanceStatementProgress } from '../ui/attendance-statement-progress';
+import { AttendanceStatementNoAccess } from '../ui/attendance-statement-no-access';
+import { AttendanceStatementOutcome } from '../ui/attendance-statement-outcome';
 
 type Props = {
   scope: AttendanceStatementScope;
@@ -123,15 +122,8 @@ export function AttendanceStatementPage(props: Props) {
   const submit = () => request.mutate({ body: statementRequestBody(draft, period), draft });
   const reset = () => resetStatement({ request, download, setDraft }, props.timezone, locale);
   const renderFailure = status.error ?? download.error;
-  const expired = statementExpired(status.error) || statementExpired(download.error);
-  const collectRecovery = statementCollectCanRecover(download.error ?? status.error);
   if (statementFormAccessLost(shiftProps.error ?? employees.error, renderFailure, request.error)) {
-    return (
-      <PageShell layout="list">
-        <PageHeader title={t(locale, 'attendanceStatementScreen.title')} />
-        <p role="alert">{t(locale, 'attendanceStatementScreen.noAccess')}</p>
-      </PageShell>
-    );
+    return <AttendanceStatementNoAccess />;
   }
   return (
     <PageShell layout="list">
@@ -154,17 +146,11 @@ export function AttendanceStatementPage(props: Props) {
           onSubmit={submit}
         />
       </Card>
-      <AttendanceStatementProgress
-        state={checkingAgain ? undefined : status.data?.state}
-        errorCode={status.data?.error_code}
-        error={request.error ?? download.error ?? status.error}
-        errorRoute={request.error ? 'request' : 'render'}
-        waiting={renderId !== undefined}
-        showCheckAgain={!expired && (collectRecovery || status.timedOut)}
-        collected={download.isSuccess}
-        downloading={download.isPending}
-        showNewRequest={expired || collectRecovery}
-        onDownload={() => download.mutate()}
+      <AttendanceStatementOutcome
+        request={request}
+        status={status}
+        download={download}
+        checkingAgain={checkingAgain}
         onCheckAgain={() => void checkStatementAgain(download, status, setCheckingAgain)}
         onNewRequest={reset}
       />
