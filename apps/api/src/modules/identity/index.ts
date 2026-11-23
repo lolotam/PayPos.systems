@@ -128,6 +128,8 @@ export {
   lockActiveDeviceBusiness,
   lockApproverPinRevision,
 } from './persistence/discount-approval-device.ts';
+export { createGrantInvalidator } from './persistence/grant-invalidator.ts';
+export type { GrantInvalidator } from './ports/permission-overrides.port.ts';
 export { STAFF_ACCESS_ROLES, staffAccessSystemRole } from './domain/staff-access-roles.ts';
 export type { StaffAccessRole } from './domain/staff-access-roles.ts';
 export { StaffUserRefused } from './domain/staff-access-errors.ts';

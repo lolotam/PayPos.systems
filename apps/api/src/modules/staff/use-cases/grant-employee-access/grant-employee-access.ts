@@ -10,6 +10,8 @@ import type {
 } from '../../ports/staff-access.port.ts';
 import type { Clock } from '../../../../shared/ports/clock.port.ts';
 
+export { StaffAccessError };
+
 /** بيُنجز «إعطاء دخول» لموظفة على فرعها الأساسي بخطوات قابلة للاستئناف بمعرّف العملية (FR-F1-6). */
 export class GrantEmployeeAccessUseCase {
   constructor(

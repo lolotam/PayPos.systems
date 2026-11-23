@@ -146,6 +146,11 @@ export function createEmployeeUpdateTransactions(
                   ),
                 ),
               canLinkUser: (linkedUserId) => canLinkEmployeeUser(tx, companyId, linkedUserId),
+              hasAccessRecord: async (employeeId) => {
+                const rows = await tx.execute(sql`SELECT 1 FROM employee_staff_access
+                  WHERE company_id=${companyId} AND employee_id=${employeeId} LIMIT 1`);
+                return rows.length !== 0;
+              },
               save: (before, plan, date, attachments) =>
                 saveEmployee(tx, companyId, ids, before, plan, date, attachments),
             }),

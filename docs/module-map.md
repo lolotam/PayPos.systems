@@ -612,6 +612,7 @@ reads:
   - catalog -> tenancy.packageSalePlace @ apps/api/src/modules/catalog/persistence/package-sale-place.adapter.ts
   - staff -> identity.staffAccessGrantedEvent @ apps/api/src/modules/staff/persistence/staff-access.adapter.ts
   - staff -> identity.readStaffAccessAuthority @ apps/api/src/modules/staff/persistence/staff-access.adapter.ts
+  - staff -> identity.createGrantInvalidator @ apps/api/src/modules/staff/persistence/staff-access.adapter.ts
   - staff -> identity.readStaffAccessAuthority @ apps/api/src/modules/staff/persistence/staff-access-auth.adapter.ts
   - staff -> identity.hashStaffPin @ apps/api/src/modules/staff/persistence/staff-access-auth.adapter.ts
   - staff -> identity.readStaffAccessState @ apps/api/src/modules/staff/persistence/employee-access-reads.adapter.ts

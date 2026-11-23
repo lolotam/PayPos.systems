@@ -116,6 +116,11 @@ export interface AppDependencies {
     origin: string | null;
     nativeOrigins?: readonly string[];
   };
+  /**
+   * بوابة قدرة دخول الموظفات (spec 076 FR-F1-9): تُقرأ مرة واحدة عند التشغيل من STAFF_ACCESS_ROUTES،
+   * وكل مسارات القدرة ترد 503 ما دامت مطفأة. تشغيلها قرار deploy بعد دمج PRs الخمسة كلها.
+   */
+  readonly staffAccessRoutes?: boolean;
   readonly readiness: readonly ReadinessCheck[];
   /** Releases what main.ts opened (pools, clients). Runs on app.close() and on SIGTERM/SIGINT. */
   readonly onShutdown?: () => Promise<void>;
@@ -267,6 +272,8 @@ class AppModule {
           deps.files?.storage ?? null,
           deps.employeeCardKey ?? null,
           logger,
+          deps.auth?.service.staffUsers ?? null,
+          deps.staffAccessRoutes === true,
         ),
         ...filesProviders(deps.database, deps.ids ?? systemUuidV7(), deps.files),
       ],

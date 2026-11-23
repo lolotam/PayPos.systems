@@ -7,7 +7,8 @@ import { readFeatureEnabled } from './feature-reader.ts';
 import { createWorkspaceNames } from './workspace-names.adapter.ts';
 
 /**
- * العضوية داخل الشركة وحدها تثبت أهلية الربط؛ وقت العبارة يأتي بعد أقفال الإنشاء لا عند بدء المعاملة.
+ * أهلية ربط مستخدم بموظفة (FR-F1-8): عضوية سارية في الشركة ولا يكون مستخدم موظفة — حساب الموظفة
+ * يرتبط بموظفته من «إعطاء الدخول» وحده، ووجود سجل دخول له هنا هو العلامة داخل الشركة.
  *
  * @param tx معاملة الشركة التي تحتفظ بأقفال PR 7
  * @param companyId الشركة المتحقق منها
@@ -19,12 +20,14 @@ export async function employeeUserLinkAvailable(
   companyId: string,
   userId: string,
 ): Promise<boolean> {
-  const [row] = await tx.execute<{ available: boolean }>(sql`
+  const [row] = await tx.execute<{ available: boolean; staff: boolean }>(sql`
     SELECT EXISTS(SELECT 1 FROM memberships
       WHERE company_id=${companyId} AND user_id=${userId}
         AND starts_at <= statement_timestamp()
-        AND (ends_at IS NULL OR ends_at > statement_timestamp())) AS available`);
-  return row?.available === true;
+        AND (ends_at IS NULL OR ends_at > statement_timestamp())) AS available,
+      EXISTS(SELECT 1 FROM employee_staff_access
+      WHERE company_id=${companyId} AND user_id=${userId}) AS staff`);
+  return row?.available === true && row?.staff === false;
 }
 
 /**

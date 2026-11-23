@@ -7,6 +7,8 @@ import type {
 } from '../../ports/staff-access.port.ts';
 import type { Clock } from '../../../../shared/ports/clock.port.ts';
 
+export { StaffAccessError };
+
 /** أمر إلغاء سجل انتظار: الموظفة والمانح من الجلسة. */
 export interface CancelPendingStaffAccessCommand {
   readonly companyId: string;

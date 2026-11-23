@@ -8,11 +8,11 @@ import {
   provisionStaffUser,
   readStaffAccessAuthority,
 } from '../../identity/index.ts';
-import type { StaffUserFacade } from '../../identity/index.ts';
 import { StaffAccessError } from '../domain/errors.ts';
 import { transactionWriters } from '../../../shared/adapters/transaction-writers.ts';
 import type { AuditTrail } from '../../../shared/ports/audit-trail.port.ts';
 import type { StaffAccessRecordRow } from '../domain/staff-access.ts';
+import type { AuthFacadeForStaffAccess } from '../ports/staff-access-auth.port.ts';
 import type {
   CancelPendingScope,
   CancelPendingStaffAccessSteps,
@@ -36,7 +36,7 @@ interface CancelInput {
  * @param auth واجهة packages/auth على pospay_auth
  * @returns الخطوة الثانية بإنشاء المستخدم وتصوير الرقم
  */
-export function createStaffAccessUserSteps(auth: StaffUserFacade): StaffAccessUserSteps {
+export function createStaffAccessUserSteps(auth: AuthFacadeForStaffAccess): StaffAccessUserSteps {
   return {
     provision: async (input) => {
       try {
@@ -66,7 +66,7 @@ export function createStaffAccessUserSteps(auth: StaffUserFacade): StaffAccessUs
  * @param input معرّف العملية والشركة والمانح ومولّد المعرّفات
  */
 export async function cancelStaffUserThroughIdentity(
-  auth: StaffUserFacade,
+  auth: AuthFacadeForStaffAccess,
   input: { operationId: string; companyId: string; actorUserId: string; ids: { newId(): string } },
 ): Promise<void> {
   return cancelStaffUser(auth, input);

@@ -338,6 +338,7 @@ try {
         origin: process.env['STAFF_OTP_POS_ORIGIN'] || null,
         nativeOrigins: staffNativeOriginsFrom(process.env['STAFF_NATIVE_ORIGINS']),
       },
+      staffAccessRoutes: process.env['STAFF_ACCESS_ROUTES'] === 'on',
       database,
       files,
       redis,

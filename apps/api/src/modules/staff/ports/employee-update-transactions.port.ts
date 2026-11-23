@@ -45,6 +45,14 @@ export interface EmployeeUpdateScope {
    */
   canLinkUser(userId: string): Promise<boolean>;
   /**
+   * هل للموظفة سجل «إعطاء دخول»؟ وجوده يقفل أي تغيير لـ user_id من تعديل الوظيفة (FR-F1-8):
+   * الرابط يتغير فقط عبر مسار إعطاء الدخول نفسه.
+   *
+   * @param employeeId الموظفة
+   * @returns true لو يوجد سجل دخول لها
+   */
+  hasAccessRecord(employeeId: string): Promise<boolean>;
+  /**
    * يحفظ النسخة والتاريخ والتدقيق ذرياً؛ المعرفات الجديدة مصدرها المنفذ المحقون.
    *
    * @param before البيانات قبل التغيير

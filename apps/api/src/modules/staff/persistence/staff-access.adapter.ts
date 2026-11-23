@@ -1,13 +1,16 @@
 import type { IdGenerator, TenantWrappers, Tx } from '@pospay/db';
+import type { Redis } from 'ioredis';
 import { sql } from 'drizzle-orm';
 
 import {
+  createGrantInvalidator,
   grantStaffMembership,
   readStaffAccessAuthority,
   saveTemporaryStaffPin,
   staffAccessGrantedEvent,
   type StaffAccessGranted,
 } from '../../identity/index.ts';
+import type { GrantInvalidator } from '../../identity/index.ts';
 import { transactionWriters } from '../../../shared/adapters/transaction-writers.ts';
 import type { AuditTrail } from '../../../shared/ports/audit-trail.port.ts';
 import type { OutboxWriter } from '../../../shared/ports/outbox-writer.port.ts';
@@ -19,6 +22,7 @@ import type {
   GrantEmployeeAccessSteps,
   StaffAccessActor,
   StaffAccessEmployeeRow,
+  StaffAccessGrantCache,
 } from '../ports/staff-access.port.ts';
 
 interface BeginInput {
@@ -295,5 +299,19 @@ export function createGrantEmployeeAccessSteps(
       database.withTenant(actor.companyId, (tx) => work(commitScope(tx, actor, input)), {
         userId: actor.userId,
       }),
+  };
+}
+
+/**
+ * إبطال كاش المنح بعد الالتزام (الخطوة الرابعة) عبر مفاتيح identity نفسها — staff لا يعيد اختراع
+ * أسماء مفاتيح كاش identity، وidentity منشئ الإبطال هو مصدرها الوحيد.
+ *
+ * @param redis عميل Redis أو undefined في تطبيق بلا كاش
+ * @returns منفذ الإبطال الذي يستخدمه use case الإعطاء
+ */
+export function createStaffAccessGrantCache(redis?: Redis): StaffAccessGrantCache {
+  const invalidator: GrantInvalidator = createGrantInvalidator(redis);
+  return {
+    invalidate: (input) => invalidator.invalidate(input.companyId, input.membershipId),
   };
 }
