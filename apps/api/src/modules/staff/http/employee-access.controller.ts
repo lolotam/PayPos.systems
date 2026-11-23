@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, Get, HttpCode, Inject, Param, Post, Req } from '@nestjs/common';
+import { Body, Controller, Delete, Get, HttpCode, Inject, Param, Post, Req, UseGuards } from '@nestjs/common';
 import { grantStaffAccessInput, type GrantStaffAccessInput, id } from '@pospay/contracts';
 import type { TenantWrappers } from '@pospay/db';
 import type { FastifyRequest } from 'fastify';
@@ -7,6 +7,7 @@ import { Authenticated } from '../../../shared/access.decorators.ts';
 import { DATABASE } from '../../../shared/database.token.ts';
 import { actorOf } from '../../../shared/actor.ts';
 import { ApiError } from '../../../shared/errors.ts';
+import { SelectedCompanyGuard } from '../../../shared/selected-company.guard.ts';
 import { ZodValidationPipe } from '../../../shared/zod-validation.pipe.ts';
 import {
   EMPLOYEE_ACCESS_STATE_READS,
@@ -35,6 +36,7 @@ export class EmployeeAccessController {
   /** إعطاء الدخول: الخيارات صارمة والقرار كله داخل المعاملات؛ الرد هو الحالة بعد الالتزام. */
   @Post('staff-access')
   @Authenticated()
+  @UseGuards(SelectedCompanyGuard)
   @HttpCode(200)
   async grant(
     @Param('businessId', new ZodValidationPipe(id)) businessId: string,
@@ -63,6 +65,7 @@ export class EmployeeAccessController {
   /** حالة الدخول للوحة: الدور والفرع وآخر ثلاثة أرقام وصلاحية الإعطاء. */
   @Get('staff-access')
   @Authenticated()
+  @UseGuards(SelectedCompanyGuard)
   async state(
     @Param('businessId', new ZodValidationPipe(id)) businessId: string,
     @Param('employeeId', new ZodValidationPipe(id)) employeeId: string,
@@ -76,6 +79,7 @@ export class EmployeeAccessController {
   /** إلغاء سجل انتظار متجاوز: الحالة بعد الإلغاء ترجع NONE. */
   @Delete('staff-access/pending')
   @Authenticated()
+  @UseGuards(SelectedCompanyGuard)
   @HttpCode(200)
   async cancelPending(
     @Param('businessId', new ZodValidationPipe(id)) businessId: string,

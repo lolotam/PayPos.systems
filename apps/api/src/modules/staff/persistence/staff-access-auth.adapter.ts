@@ -152,7 +152,7 @@ async function deletePendingRecord(
   recordId: string,
 ): Promise<boolean> {
   const removed = await tx.execute(sql`DELETE FROM employee_staff_access
-    WHERE company_id=${actor.companyId} AND id=${recordId} AND state='PENDING'`);
+    WHERE company_id=${actor.companyId} AND id=${recordId} AND state='PENDING' RETURNING id`);
   if (removed.length === 0) return false;
   await audit.record({
     entity: 'employee_staff_access',

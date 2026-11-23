@@ -115,6 +115,7 @@ export class GrantEmployeeAccessUseCase {
           throw new StaffAccessError('STAFF_ACCESS_NOT_ALLOWED');
         if (!(await scope.authority(employee.businessId, employee.primaryBranchId)))
           throw new StaffAccessError('STAFF_ACCESS_NOT_ALLOWED');
+        await scope.bindUser({ recordId: record.id, userId });
         const granted = await scope.grantMembership({
           userId,
           branchId: employee.primaryBranchId,

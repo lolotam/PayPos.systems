@@ -108,6 +108,14 @@ export interface GrantCommitScope {
    */
   authority(businessId: string, branchId: string): Promise<boolean>;
   /**
+   * يثبت المستخدم المؤكَّد على السجل قبل فتح العضوية، ليُكتب الرفض والإرجاع معاً في التراجع الواحد.
+   *
+   * @param input معرّفات الربط
+   * @param input.recordId معرّف السجل
+   * @param input.userId المستخدم المؤكد من خطوة auth
+   */
+  bindUser(input: { recordId: string; userId: string }): Promise<void>;
+  /**
    * يفتح عضوية الفرع بدور النظام من جدول identity ويسجل تدقيقها.
    *
    * @param input بيانات العضوية الجديدة

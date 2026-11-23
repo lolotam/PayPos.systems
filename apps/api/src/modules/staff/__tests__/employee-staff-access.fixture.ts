@@ -1,0 +1,154 @@
+import { SYSTEM_ROLES, createDatabase } from '@pospay/db';
+import { systemUuidV7 } from '@pospay/ids';
+import { Writable } from 'node:stream';
+import { startHarness, type Harness } from '../../../../test/harness.ts';
+
+const ids = systemUuidV7();
+const logLines: string[] = [];
+const sink = new Writable({
+  write(chunk, _encoding, done) {
+    logLines.push(String(chunk));
+    done();
+  },
+});
+/** سطور الأخطاء الأخيرة من سجل الـ API لتشخيص أي 500 داخل الاختبارات. */
+export const recentErrorLogs = () => logLines.filter((line) => line.includes('"level":50')).slice(-3);
+
+/** دوال النظام بمعرّفاتها الثابتة لإنشاء عضوية مدير فرع حقيقية. */
+export const systemRoleId = (code: string): string => {
+  const role = SYSTEM_ROLES.find((candidate) => candidate.code === code);
+  if (role === undefined) throw new Error(`missing system role ${code}`);
+  return role.id;
+};
+
+export interface StaffAccessFixture {
+  readonly h: Harness;
+  readonly ownerCookie: string;
+  readonly company: string;
+  readonly business: string;
+  readonly salmiya: string;
+  readonly hawalli: string;
+  /** الموظفة على فرع السالمية. */
+  readonly sara: string;
+  /** الموظفة على فرع حولي. */
+  readonly nora: string;
+  /** المستخدم الملزم بصف مدير الفرع (من signedInOperator). */
+  readonly managerUserId: string;
+  readonly managerCookie: string;
+  readonly db: ReturnType<typeof createDatabase>;
+  readonly phoneCounter: { n: number };
+}
+
+/**
+ * شركة واحدة بنشاط وفرعين (السالمية وحولي) وموظفتين، وشركة ثانية للعزل.
+ * المالك افتراضياً يملك `manage:staff-access:branch` من بذرة 0246، ومدير الفرع كذلك بدوره النظامي.
+ */
+export async function staffAccessFixture(
+  options: Parameters<typeof startHarness>[0] = {},
+): Promise<StaffAccessFixture> {
+  const h = await startHarness({ ...options, logs: sink });
+  const onboardOrThrow = async (cookie: string, name: string) => {
+    const res = await h.send('POST', '/v1/companies', {
+      cookie,
+      key: `onboard-${name.replaceAll(' ', '-')}`,
+      body: { name_en: name, plan_id: (await import('@pospay/db')).PROVISIONAL_PLAN_ID },
+    });
+    if (res.status !== 201) {
+      console.log('ONBOARD FAILED', name, res.status, JSON.stringify(res.body));
+      throw new Error(`onboarding failed with ${res.status}`);
+    }
+    return res.body['id'] as string;
+  };
+  const ownerCookie = await h.signedInOperator('staff-access-owner@example.test');
+  const managerCookie = await h.signedInOperator('staff-access-manager@example.test');
+  const company = await onboardOrThrow(ownerCookie, 'Staff access employer');
+  const [managerUser] = await h.owner`SELECT id FROM "user" WHERE email='staff-access-manager@example.test'`;
+  const managerUserId = managerUser?.['id'] as string;
+  const business = ids.newId();
+  await h.owner`INSERT INTO businesses (company_id,id,name_en,vertical_type)
+    VALUES (${company},${business},'Staff access business','salon')`;
+  const salmiya = ids.newId();
+  const hawalli = ids.newId();
+  for (const branch of [salmiya, hawalli]) {
+    await h.owner`INSERT INTO branches (company_id,id,business_id,name_en)
+      VALUES (${company},${branch},${business},'Synthetic branch')`;
+  }
+  // مدير فرع السالمية بدوره النظامي ونطاق فرعها — حائز افتراضي للصلاحية من 0246.
+  const managerMembership = ids.newId();
+  await h.owner`INSERT INTO memberships(company_id,id,user_id,role_id,role_owner_key,scope_type,scope_id)
+    VALUES (${company},${managerMembership},${managerUserId},${systemRoleId('branch_manager')},'global','BRANCH',${salmiya})`;
+  const db = createDatabase({ url: h.urls.app, ids });
+  return {
+    h,
+    ownerCookie,
+    company,
+    business,
+    salmiya,
+    hawalli,
+    sara: salmiya,
+    nora: hawalli,
+    managerUserId,
+    managerCookie,
+    db,
+    phoneCounter: { n: 100 },
+  };
+}
+
+export type Fixture = StaffAccessFixture;
+
+/** موظفة جديدة على فرع داخل الشركة — كل اختبار يصنع موظفاته الخاصة حتى لا تتداخل الحالات. */
+export const addEmployee = async (
+  f: Fixture,
+  name: string,
+  branchId: string,
+  employeeNumber: number,
+): Promise<string> => {
+  const employeeId = ids.newId();
+  await f.h.owner`INSERT INTO employees (company_id,id,business_id,primary_branch_id,name_en,name_en_key,role_code,hire_date,employee_number)
+    VALUES (${f.company},${employeeId},${f.business},${branchId},${name},${name.toLowerCase()},'staff','2026-01-01',${employeeNumber})`;
+  return employeeId;
+};
+
+/** هاتف كانوني جديد لكل نداء. */
+export const nextPhone = (f: Fixture) => {
+  f.phoneCounter.n += 1;
+  return `+96551234${String(f.phoneCounter.n).padStart(2, '0')}`;
+};
+
+export const grantPath = (f: Fixture, employeeId: string) =>
+  `/v1/businesses/${f.business}/employees/${employeeId}/staff-access`;
+
+export const grant = (
+  f: Fixture,
+  employeeId: string,
+  phone: string,
+  cookie = f.ownerCookie,
+  body: Record<string, unknown> = {},
+) =>
+  f.h.send('POST', grantPath(f, employeeId), {
+    cookie,
+    company: f.company,
+    body: { phone, phone_confirmed: true, role: 'staff', pin: '1234', ...body },
+  }).then((response: { status: number; body: unknown }) => {
+    if (response.status >= 500) {
+      console.log('GRANT 500 BODY:', JSON.stringify(response.body));
+      console.log('RECENT ERROR LOGS:', recentErrorLogs().join('\n').slice(0, 2400));
+    }
+    return response;
+  });
+
+export const readState = (f: Fixture, employeeId: string, cookie = f.ownerCookie) =>
+  f.h.send('GET', grantPath(f, employeeId), { cookie, company: f.company });
+
+export const cancelPending = (f: Fixture, employeeId: string, cookie = f.ownerCookie) =>
+  f.h.send('DELETE', `${grantPath(f, employeeId)}/pending`, { cookie, company: f.company });
+
+/** صفوف تدقيق الشركة الخاصة بموظفة، بلا أي هاتف كامل داخلها. */
+export const auditRows = async (f: Fixture, employeeId: string) =>
+  f.h.owner`SELECT entity, entity_id, action, before, after FROM audit_log
+    WHERE entity_id = ${employeeId} OR (after->>'employee_id' = ${employeeId}) ORDER BY action`;
+
+/** مستخدمو الدخول المُنشأون في قاعدة الهوية. */
+export const staffUsersOf = async (f: Fixture) =>
+  f.h.owner`SELECT id, email, staff_access_operation_id, staff_access_company_id, phone_number,
+    phone_binding_approved_at FROM "user" WHERE staff_access_company_id = ${f.company}`;

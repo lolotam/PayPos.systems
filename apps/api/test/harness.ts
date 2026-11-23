@@ -234,6 +234,8 @@ interface HarnessOptions {
   trustedProxy?: readonly string[];
   /** من غير Redis مفيش حدّ على المسارات العامة، فبترد NOT_READY. */
   omitRedis?: boolean;
+  /** بوابة دخول الموظفات (FR-F1-9): المسارات ترد NOT_READY ما دامت مطفأة. */
+  staffAccessRoutes?: boolean;
   commissionsClock?: { now(): Date };
   /** يلفّ غلاف قاعدة التطبيق، عشان اختبار يسجّل اتصالات معاملات الطلبات الحقيقية. */
   wrapDatabase?: (database: TenantWrappers) => TenantWrappers;
@@ -368,16 +370,20 @@ function optionalWiring(options: HarnessOptions) {
 }
 
 function staffWiring(options: HarnessOptions, api: StaffOtpApi | undefined, auth: AuthService) {
-  return options.staffOrigin === undefined
-    ? {}
-    : {
-        staff: {
-          api: api ?? null,
-          sessions: auth.staff ?? null,
-          origin: options.staffOrigin,
-          nativeOrigins: options.staffNativeOrigins ?? [],
-        },
-      };
+  // بوابة دخول الموظفات: الاختبارات التي تحتاج المسارات تشغّلها صراحةً (FR-F1-9).
+  const gate = options.staffAccessRoutes === true ? { staffAccessRoutes: true } : {};
+  const origins =
+    options.staffOrigin === undefined
+      ? {}
+      : {
+          staff: {
+            api: api ?? null,
+            sessions: auth.staff ?? null,
+            origin: options.staffOrigin,
+            nativeOrigins: options.staffNativeOrigins ?? [],
+          },
+        };
+  return { ...gate, ...origins };
 }
 
 // الجلسة الشخصية لها مصدر وجلسة وأهلية؛ من غير ما تتركب المسار الشخصي مرفوض.
