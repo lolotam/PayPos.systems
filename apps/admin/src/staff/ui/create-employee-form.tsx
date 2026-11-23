@@ -6,7 +6,7 @@ import {
   type WorkspaceBranch,
 } from '@pospay/contracts';
 import { t } from '@pospay/i18n';
-import { Button } from '@pospay/ui';
+import { Button, Card, CardContent, CardFooter } from '@pospay/ui';
 import { FormProvider, useForm, useWatch } from 'react-hook-form';
 import { useLocale } from '@/shared/locale/locale-context';
 import {
@@ -16,10 +16,7 @@ import {
 } from '../model/use-create-employee-number';
 import { useNameCheckedSubmit } from '../model/use-name-checked-submit';
 import { DuplicateNameWarning } from './duplicate-name-warning';
-import { EmployeeContractFields } from './employee-contract-fields';
-import { EmployeeNameFields } from './employee-name-fields';
-import { EmployeeNumberField } from './employee-number-field';
-import { EmployeePlacementFields } from './employee-placement-fields';
+import { CreateEmployeeSections } from './create-employee-sections';
 
 type CreateEmployeeFormProps = {
   companyId: string;
@@ -75,24 +72,28 @@ export function CreateEmployeeForm(props: CreateEmployeeFormProps) {
         onSubmit={submitCreateEmployeeForm(form, number.shown, number.pending, (values) =>
           submit.submit(values),
         )}
-        className="flex flex-col gap-3 text-start"
+        className="grid gap-4 text-start"
       >
-        <fieldset
-          disabled={props.pending || submit.checking || !!submit.warning}
-          className="flex flex-col gap-3"
-        >
-          <EmployeeNameFields />
-          <EmployeePlacementFields branches={props.branches} />
-          <EmployeeContractFields />
-          <EmployeeNumberField
-            shown={number.shown}
-            hidden={number.pending}
-            message={number.message}
-          />
-          <Button type="submit" disabled={number.pending}>
-            {t(locale, 'staff.create')}
-          </Button>
-        </fieldset>
+        <Card>
+          <fieldset
+            disabled={props.pending || submit.checking || !!submit.warning}
+            className="min-w-0"
+          >
+            <CardContent className="grid gap-6">
+              <CreateEmployeeSections
+                branches={props.branches}
+                numberShown={number.shown}
+                numberHidden={number.pending}
+                numberMessage={number.message}
+              />
+            </CardContent>
+            <CardFooter>
+              <Button className="ms-auto" type="submit" disabled={number.pending}>
+                {t(locale, 'staff.create')}
+              </Button>
+            </CardFooter>
+          </fieldset>
+        </Card>
         {submit.warning ? (
           <DuplicateNameWarning
             matches={submit.warning}

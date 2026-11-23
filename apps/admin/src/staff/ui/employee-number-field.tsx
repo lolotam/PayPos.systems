@@ -11,10 +11,12 @@ export function EmployeeNumberField({
   shown,
   hidden,
   message,
+  grid = false,
 }: {
   shown: boolean;
   hidden: boolean;
   message: string | null;
+  grid?: boolean;
 }) {
   const locale = useLocale();
   const form = useFormContext<CreateEmployeeInput>();
@@ -27,7 +29,8 @@ export function EmployeeNumberField({
     message ?? '',
   );
   return (
-    <div hidden={hidden}>
+    // في الشبكة يحمل الغلاف الخارجي الخلية والإخفاء، ولا يأخذ صنف display فيبقى `hidden` فعّالًا.
+    <div hidden={hidden} className={grid ? 'col-span-12 min-w-0 md:col-span-4' : undefined}>
       <Label htmlFor="employee-number">{t(locale, 'staff.employeeNumber')}</Label>
       <Input
         id="employee-number"
