@@ -138,6 +138,19 @@ describe('the gate read', () => {
     expect(proof?.['out_database_name']).toBe((await identity()).name);
   });
 
+  it.each([
+    ['a proof of another rules version', "version = 2"],
+    ['a proof issued on another database name', "database_name = 'copied_database'"],
+  ])('withholds %s even when its generation is current (defence in depth)', async (_label, change) => {
+    await ensureState(A.company);
+    await issue();
+    await asReplicaOwner(owner, (tx) =>
+      tx.unsafe(`UPDATE commission_coverage_proofs SET ${change} WHERE company_id = '${A.company}'`),
+    );
+
+    expect(await gate(A.company)).toEqual([]);
+  });
+
   it('never shows one company the proof of another', async () => {
     await ensureState(A.company);
     await issue();

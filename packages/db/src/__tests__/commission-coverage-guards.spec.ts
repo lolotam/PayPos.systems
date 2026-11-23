@@ -92,6 +92,39 @@ describe('the issuer role', () => {
   });
 });
 
+describe('tenant isolation of the issuer role (CLAUDE.md section 5)', () => {
+  beforeEach(async () => {
+    await asReplicaOwner(owner, async (tx) => {
+      await tx`DELETE FROM commission_coverage_proofs`;
+      await tx`DELETE FROM commission_coverage_state`;
+    });
+  });
+
+  it.each(TABLES)('reads no %s row of another company, with or without a tenant context', async (table) => {
+    await seedProofRow();
+    const read = (company: string | null) =>
+      owner.begin(async (tx) => {
+        await tx`SET LOCAL ROLE pospay_coverage_issuer`;
+        if (company !== null) await tx`SELECT set_config('app.company_id', ${company}, true)`;
+        return tx.unsafe(`SELECT company_id FROM ${table}`);
+      });
+
+    expect((await read(TENANT.B.company)).length).toBe(0);
+    expect((await read(null)).length).toBe(0);
+    expect((await read(A.company)).length).toBe(1);
+  });
+
+  it('cannot write a row of another company even with its own context set to that company', async () => {
+    await expect(
+      owner.begin(async (tx) => {
+        await tx`SET LOCAL ROLE pospay_coverage_issuer`;
+        await tx`SELECT set_config('app.company_id', ${TENANT.B.company}, true)`;
+        await tx`INSERT INTO commission_coverage_state (company_id, id) VALUES (${A.company}, ${eventId(600)})`;
+      }),
+    ).rejects.toThrow(/row-level security/);
+  });
+});
+
 describe('the tables', () => {
   it.each(TABLES)('%s has row-level security enabled and forced, with no policy for PUBLIC or the app', async (table) => {
     const [flags] = await owner`SELECT relrowsecurity, relforcerowsecurity FROM pg_class

@@ -215,7 +215,8 @@ BEGIN
     p.consumer_id, p.database_name, p.system_id
     FROM public.commission_coverage_proofs p
     JOIN public.commission_coverage_state s ON s.company_id = p.company_id AND s.generation = p.generation
-    WHERE p.company_id = tenant;
+    WHERE p.company_id = tenant AND p.version = public.commission_coverage_required_version()
+      AND p.database_name = pg_catalog.current_database()::text;
 END $$;
 --> statement-breakpoint
 CREATE FUNCTION public.invalidate_commission_coverage(p_state_id uuid, p_reason text) RETURNS bigint
