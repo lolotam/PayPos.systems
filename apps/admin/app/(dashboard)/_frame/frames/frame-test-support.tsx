@@ -23,10 +23,14 @@ const OPEN: VisibilityConditions = {
 const listeners = new Set<() => void>();
 
 function setPathname(path: string): void {
-  const [pathname = '', search = ''] = path.split('?');
+  const [address = '', fragment] = path.split('#');
+  const [pathname = '', search = ''] = address.split('?');
   frameState.pathname = pathname;
   frameState.search = search;
+  const hash = fragment === undefined ? '' : `#${fragment}`;
+  window.history.replaceState(null, '', window.location.pathname + hash);
   for (const listener of listeners) listener();
+  window.dispatchEvent(new PopStateEvent('popstate'));
 }
 
 /** حالة قابلة للتعديل تقرؤها محاكيات الاختبار؛ كل ملف اختبار إطار يربطها بنفس الأسماء. */
@@ -169,6 +173,7 @@ export function renderFrame(ui: ReactElement, dir: 'ltr' | 'rtl' = 'ltr') {
 export function resetFrameState(): void {
   frameState.pathname = '/';
   frameState.search = '';
+  window.history.replaceState(null, '', window.location.pathname);
   frameState.locale = 'en';
   frameState.push.mockReset();
   frameState.push.mockImplementation(setPathname);
