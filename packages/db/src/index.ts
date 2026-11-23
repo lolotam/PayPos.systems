@@ -83,6 +83,7 @@ export {
   type StoredResponse,
 } from './idempotency.ts';
 export { appendOutboxEvent, appendOutboxEvents, type OutboxEvent } from './outbox.ts';
+export { invalidateCommissionCoverage } from './commission-coverage.ts';
 export {
   assertStatementPeriodsOpen,
   lockStatementPeriods,

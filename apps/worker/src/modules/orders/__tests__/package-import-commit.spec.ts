@@ -60,6 +60,17 @@ it('commits exact money, accepted actor, one audit/outbox, and duplicate jobs do
     )[0],
   ).toMatchObject({ recorded_by_membership_id: membership, provenance: 'IMPORTED', sold_at: null });
 });
+it('invalidates the commission coverage proof when an import creates sold package rows (ADR-0054 section 5)', async () => {
+  const id = await accepted('coverage');
+  await worker().execute(f.company, id);
+
+  const [state] = await f.owner`SELECT generation::int AS generation, reason FROM commission_coverage_state
+    WHERE company_id=${f.company}`;
+
+  expect(state).toMatchObject({ reason: 'PACKAGE_IMPORT' });
+  expect(state?.['generation']).toBeGreaterThanOrEqual(1);
+});
+
 it('competing accepted previews skip only external reference conflicts', async () => {
   const a = await accepted('race', 2);
   const b = await accepted('race', 2);
