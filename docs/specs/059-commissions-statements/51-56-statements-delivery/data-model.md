@@ -56,8 +56,7 @@ reason is never logged. **Isolation test:** CM-33c.
 
 No table. Role `pospay_approval_reader` (NOLOGIN, member of nothing); function
 `public.statement_pending_commission_events(approval_started_at timestamptz) RETURNS bigint`; `SELECT` policies for
-that role on `outbox` and `consumed_events`; column-level grants; the index `(company_id, event_type, created_at, id)`
-on `outbox`. Everything as ADR-0012 §1–§2 states; this file adds nothing to it.
+that role on `outbox` and `consumed_events`; column-level grants; no new index (withdrawn by CS-Q56, ADR-0012 addendum 2026-11-23). Everything as ADR-0012 §1–§2 states; this file adds nothing to it.
 
 ### Reminders — 56b-1
 

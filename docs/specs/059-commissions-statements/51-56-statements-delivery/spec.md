@@ -25,7 +25,7 @@
 | 4 | **51-1 PR 2** | FR-025…FR-028; CS-Q2b, CS-Q37 = PP-101.1; CM-27…CM-29, CM-33 (generate part) | Generate and GET statement, HTTP, the `review:commissions:business` permission with its defaults and owner-only granting |
 | 5 | **#486** | Issue #486; AL-Q7 = PP-29.1; spec 060 §Relates | `branch_manager` is refused on `STATEMENT_*` alert kinds and removed from stored rules |
 | 6 | **52-1** | FR-029…FR-031, FR-029b; CS-Q5, CS-Q26; CM-30…CM-33d | Review, return to draft, the `approve:commissions:business` permission, the `StatementAwaitingApproval` notice. Uses the merged 52-1b planner |
-| 7 | **53-1** | ADR-0012 §1–§4, D-9, D-27; CM-39 | The pending-event count: role, definer function over six types, policies, grants, index |
+| 7 | **53-1** | ADR-0012 §1–§4, D-9, D-27; CM-39 | The pending-event count: role, definer function over six types, policies, grants (no index: CS-Q56) |
 | 8 | **#1032** | Issue #1032; CS-Q41…CS-Q44, CS-Q51 | The coverage report can no longer print a false `COVERED` |
 | 9 | **53-2** | FR-032…FR-036; D-22; CM-33…CM-38b | Approve: freeze, attachment snapshot, carries, coverage gate, pending-count gate |
 | 10 | **53-3** | CM-36; CS-Q9, CS-Q20 | Approval race tests with barriers; the statement screen |
@@ -207,7 +207,7 @@ two fingerprints are those of D-6 and D-26. Carries follow D-22. Branch scope fo
 | 51-1 PR 2 | `review:commissions:business` catalog row and global role grants | reference data (pattern of 0239) |
 | #486 | Remove `branch_manager` from stored `STATEMENT_*` rules; a CHECK that refuses it | data step (ADR-0038) + constraint |
 | 52-1 | `commission_statement_returns` + RLS (CM-33c); `approve:commissions:business` reference data | table + reference data |
-| 53-1 | Role `pospay_approval_reader`, the definer function, policies, column grants; the outbox index alone in its own file | function + `CREATE INDEX CONCURRENTLY` |
+| 53-1 | Role `pospay_approval_reader`, the definer function, policies, column grants; no outbox index (withdrawn by CS-Q56) | the function migration |
 | 54-1 | Payment columns on `commission_statements`; the per-employee payment table + RLS; the widened column grant and update guard; `pay:commissions:business` reference data | expand-only + table + reference data |
 | 56b-1 | `commission_statement_reminders` + RLS (CM-R09); the global `operational_recovery_flags` ledger; grants named by the new ADR | table + global table |
 | 55-2f-0, 55-2f, #1032, 53-2, 53-3, 56-1c, 62-2c | none | — |
