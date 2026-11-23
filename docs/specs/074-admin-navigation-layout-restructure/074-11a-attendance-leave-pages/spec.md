@@ -65,7 +65,7 @@ All seven pages are now `PageShell layout="list"` with `PageHeader`. One shared 
 | Attendance board | Header, then the filters (outside any card), the last-updated line, In now, **Refusals (moved above the table)**, then the sessions table alone in its card (title «Sessions» is the card title; the section keeps its `aria-labelledby`) | `attendance-board-layout.spec.tsx` |
 | Attendance requests | One card: branch and status filters, table, Load more. The «Manual entry» button moved from the filter bar to the header action | `attendance-requests-layout.spec.tsx` |
 | Attendance exceptions | One card: branch picker and Open/Resolved tabs, table, Load more | `attendance-exceptions-layout.spec.tsx` |
-| Monthly report | One card: month and branch filters, Download, then the feedback, the hours note and the table | `attendance-report-layout.spec.tsx` |
+| Monthly report | One card: month and branch filters, a sort control shown under 600px only, the download status and alert, then the hours note and the table. **Download is the header action** | `attendance-report-layout.spec.tsx` |
 | Statement | The form in one card under the header; the request outcome below the card; the no-access state now shows the header and the shell around its message | `attendance-statement-layout.spec.tsx` |
 | Leave approvals | One card: the filter form, the table (with the decision editor under it, as on `main`), paging | `leave-inbox-page-layout.spec.tsx` |
 | Leave history report | One card: employee picker and filter form, then last-taken line, table, paging | `leave-report-page-layout.spec.tsx` |
@@ -77,28 +77,40 @@ Each spec asserts the structure with `within(card)` and document order, a stacke
 | Page | Result |
 |---|---|
 | Board | Unchanged: board read (30 s poll) and, only after board data and no access loss, the refusals read; the capabilities read still starts only when the sessions table mounts (visible board). The refusal block now sits above the table; its own states and Load more are untouched. |
-| Requests | The page keeps the access read (30 s poll). The list query still has one observer, now in `AttendanceRequestsList`, which is mounted at the same place always. `enabled` is `!inboxAccess.isPending && Boolean(timezone)`: with no time zone no list read is made, as on `main` where the list was not mounted. Difference: that component now stays mounted while the time zone flips, so its `removeQueries` cleanup (`useAttendanceActionScope`) runs at page unmount or scope change, not at the flip. The query is gone from the card while refused, as before. |
+| Requests | The page keeps the access read (30 s poll). The list query has one observer, in `AttendanceRequestsList`, which stays mounted so the filters keep their place. `enabled` is `!inboxAccess.isPending && Boolean(timezone)`: with no time zone no list read is made, as on `main`. **The list's lifetime follows the time zone exactly as on `main`** (round 1, P1): `useAttendanceRequestsLifetime` ends the selection and removes the requests cache at the moment the time zone disappears (and at unmount or scope change); the editor and the selected row are computed only while a time zone exists, so no render after the flip shows a row, a name, a reason or a decision control; when it returns the read starts fresh, with no old rows. Proven by `attendance-requests-lifetime.spec.tsx` (a `Profiler` reads every commit). |
 | Exceptions | Unchanged: one observer in the page, 30 s poll; the table needs a time zone, the message and Load more do not, as on `main`. |
-| Monthly report | Unchanged: one observer in the page, no poll; `AttendanceReportDownload` keeps its key `branch:month`. |
+| Monthly report | Unchanged requests: one report observer in the page, no poll. The CSV mutation is still owned by one keyed component (`AttendanceReportDownload`, key `branch:month`), now only the button, in the header; its status and alert text are shown by `AttendanceReportDownloadMessages`, keyed the same way, which only reads the mutation cache (`useMutationState`) and makes no request and no second mutation observer. Sorting state moved to the page (reset by the same `branch:month` key, as the remount did) so the header buttons and the new sort control share it. |
 | Statement | Unchanged: every hook stays in the page; the outcome state (`checkingAgain`) stays in the page. |
 | Leave approvals | Unchanged: one observer in the page (30 s poll, the inbox cache removal on 403 or 404); the editor, selection and mutations are inside the same keyed `EmployeeLeaveHistory`. |
 | Leave history report | Unchanged: one observer (`useLeaveReport`) in the page; the footer and the body come from the same `view`. |
 
+### Correction round 1 (review of head `60a97a097`)
+
+| Item | Result | Proving test |
+|---|---|---|
+| 1 P1 Requests lifetime | Fixed: selection, editor and cache follow the time zone as on `main` | `attendance-requests-lifetime.spec.tsx` (2 tests; both fail without the fix) |
+| 2 P2 sort under 600px | Fixed: «Sort by» select under 600px on the shared sorting state | `attendance-report-layout.spec.tsx`, «offers the same sorting…» (fails without the control) |
+| 3 P2 empty leave cell | Fixed: the leave cell renders nothing for an empty array | `attendance-report-layout.spec.tsx`, «gives no label to the leave cell…» (fails without the fix) |
+| 4 P2 Download in the header | Fixed with no second mutation observer and no change to when anything is requested | `attendance-report-layout.spec.tsx`, header, disabled states, busy and failed download |
+| 5 P3 Sessions title | Fixed: `text-lg font-semibold` back on the title text | `attendance-board-layout.spec.tsx` |
+| 6 P3 stacked class | Added, read from a literal, for every table (leave inbox through the closest ancestor, because the editor wrapper sits between) | the stacked-cell tests of the six table specs (fail when `stacked` is removed from the frame) |
+| 7 P3 refusals | Board: a refusal without a remount keeps the filter element and focus; both Leave pages: 500 and 403, no employee data in any commit after the refusal | board, inbox and report layout specs |
+
 ### Changed assertions
 
-None. No existing test file was edited. The DOM that moved without a test noticing: the empty `div` of the request row actions and of the session exceptions cell is no longer rendered when it has nothing in it; the board refusals block comes before the sessions section.
+One fixture change, no assertion changed: `staff/api/attendance-report-client.spec.tsx` («shows NOT_FOUND / FEATURE_DISABLED when the actual client receives a failed CSV download») rendered `AttendanceReportDownload` alone and read its alert; the alert now lives in `AttendanceReportDownloadMessages`, so the test renders both components with the same props and keeps its assertions (the alert text and the request URL). No other existing test file was edited. The DOM that moved without a test noticing: the empty `div` of the request row actions, of the session exceptions cell and of an empty leave cell is no longer rendered when it has nothing in it; the board refusals block comes before the sessions section.
 
 ### Shared `staff/ui` files touched
 
-Attendance only (no Team or Pay page uses them): `attendance-actions-table`, `attendance-request-row-actions`, `attendance-session-columns`, `attendance-sessions-table`, `attendance-requests-list`, `attendance-request-filters`, `attendance-report-table`, `attendance-report-header`, `leave-report-results`, `leave-report-rows-table`. Opt-in with an unchanged default, reachable from the employee leave page (10b): `leave-history-table` and `employee-leave-history` (prop `stacked`, default `false`). `packages/ui`: no change. i18n: no new key (every label is the existing column header).
+Attendance only (no Team or Pay page uses them): `attendance-actions-table`, `attendance-request-row-actions`, `attendance-session-columns`, `attendance-sessions-table`, `attendance-requests-list`, `attendance-request-filters`, `attendance-report-table`, `attendance-report-header`, `attendance-report-columns`, `attendance-report-download`, `attendance-report-results`, `leave-report-results`, `leave-report-rows-table`. Opt-in with an unchanged default, reachable from the employee leave page (10b): `leave-history-table` and `employee-leave-history` (prop `stacked`, default `false`). `packages/ui`: no change. i18n: one new key, `attendanceReport.sortBy` (`ar` and `en`), for the sort control; no existing text matched.
 
 ### Open points
 
 1. Statement is a form, not a list, though the table calls it «List»: it gets the list width and one card for the form.
-2. Manual entry (Requests) moved to the header action. Download (Monthly report) stays in the filter bar of the card because it owns a status and an alert and the header action is not shrinkable. A decision for the design owner.
+2. Manual entry (Requests) and Download (Monthly report) are the header actions (the owning session's decision, round 1). The download status and alert stay in the card under the filters.
 3. The leave decision editor and the last-taken line stay inside the card (between the table and the paging, and above the table), where they were in order on `main`.
 4. The first cell is the card title as the template says: the board shows the employee number, Requests the branch, Leave approvals the period, the Monthly report the employee number. A better title needs a column reorder, which this layout-only slice does not do.
-5. Under 600px the table header is visually hidden, so the Monthly report's sort buttons are not reachable on a phone.
+5. Under 600px the table header is visually hidden; the Monthly report gets a «Sort by» select (shown only under 600px, one new key `attendanceReport.sortBy`, `ar` and `en`) with every sortable column in both directions, on the same sorting state as the header buttons. Its visibility is a CSS class and not browser-verified.
 6. The editor padding inside the Leave approvals card uses a CSS selector on the last child.
 7. Branch pickers still read their own state (11b).
 
@@ -108,4 +120,4 @@ Widths, stacking under 600px, 44px targets, the padding of the messages and the 
 
 ### Sizes (against `origin/main`)
 
-Production +639 / −356, tests +824 / −0, i18n 0, docs excluded: 1,819 lines added plus removed outside docs, below the 2,800 cap (1,556 at the end of step 4, before the guard passes).
+After round 1: production +893 / −375, tests +1,113 / −0, i18n +2, docs excluded: 2,381 lines added plus removed outside docs, below the 2,800 cap (1,819 before round 1).
