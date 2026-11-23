@@ -75,7 +75,7 @@ export const myWorkAr: Record<keyof typeof myWorkEn, string> = {
   ratingNone: 'لسه مفيش تقييمات',
   pinTitle: 'اكتبي الرقم السري لعرض شغلك',
   pinLabel: 'الرقم السري (٤ أرقام)',
-  pinSubmit: 'اعرضي شغلي',
+  pinSubmit: 'اعرض شغلي',
   pinInvalid: 'الرقم السري غير صحيح.',
   pinFailed: 'تعذر فتح شغلك. حاولي مرة أخرى.',
   pinWaiting: 'بنخلّص المحاولة السابقة. استني لحظة.',
