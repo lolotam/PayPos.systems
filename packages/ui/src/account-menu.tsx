@@ -1,6 +1,7 @@
 'use client';
 
 import { DropdownMenu } from 'radix-ui';
+import { useState } from 'react';
 
 import { AccountMenuEntryItem, type AccountMenuEntry } from './account-menu-entry.js';
 import { UserRound } from './icons.js';
@@ -20,6 +21,8 @@ export type AccountMenuProps = {
   email?: string;
   /** المداخل بترتيبها المعطى — كل نص فيها مترجم من المستدعي، ومنها ما يخص الوضع والمظهر. */
   entries: readonly AccountMenuEntry[];
+  /** يغيّره المستضيف عند كل انتقال فتُغلق القائمة دون إعادة بناء زرها؛ الغياب لا يغيّر شيئًا. */
+  resetKey?: string | undefined;
   className?: string;
 };
 
@@ -31,9 +34,22 @@ const SEPARATOR_CLASS = 'my-1 h-px bg-border';
  * لا خانات حرة بعد المداخل: عناصر Radix لا تصلها لوحة المفاتيح، وأي تحكم
  * إضافي (مثل مبدّل الوضع) يدخل كمدخل من المداخل في خطوة 074-7.
  */
-export function AccountMenu({ labels, name, email, entries, className }: AccountMenuProps) {
+export function AccountMenu({
+  labels,
+  name,
+  email,
+  entries,
+  resetKey,
+  className,
+}: AccountMenuProps) {
+  const [open, setOpen] = useState(false);
+  const [seenResetKey, setSeenResetKey] = useState(resetKey);
+  if (seenResetKey !== resetKey) {
+    setSeenResetKey(resetKey);
+    setOpen(false);
+  }
   return (
-    <DropdownMenu.Root>
+    <DropdownMenu.Root open={open} onOpenChange={setOpen}>
       <DropdownMenu.Trigger asChild>
         <button
           type="button"

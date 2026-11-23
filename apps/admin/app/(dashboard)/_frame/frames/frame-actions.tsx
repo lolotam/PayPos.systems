@@ -10,6 +10,7 @@ import { useWorkspace } from '@/workspace/model/workspace-provider';
 
 import { useAccountEntries } from './use-account-entries';
 import { useFrameLabels } from './use-frame-labels';
+import { useNavigationKey } from './use-navigation-key';
 
 /**
  * إجراءات الشريط العلوي المشتركة بين الأنماط الثلاثة: الإشعارات واللغة وقائمة الحساب.
@@ -20,6 +21,7 @@ export function FrameActions() {
   const account = useSessionAccount(useMounted());
   const workspace = useWorkspace();
   const entries = useAccountEntries();
+  const navigationKey = useNavigationKey();
   const userId = account?.id ?? null;
   const companyId = workspace.status === 'ready' ? workspace.company.id : undefined;
   return (
@@ -36,6 +38,7 @@ export function FrameActions() {
         {...(account?.name ? { name: account.name } : {})}
         {...(account?.email ? { email: account.email } : {})}
         entries={entries}
+        resetKey={navigationKey}
       />
     </>
   );
