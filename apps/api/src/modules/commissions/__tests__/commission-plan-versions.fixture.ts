@@ -58,9 +58,9 @@ async function seedCommissionBusiness(h: CommissionHarness, cookie: string, comp
   return { business, branch: branchResponse.body['id'] as string };
 }
 
-export async function commissionPlanVersionsFixture() {
+export async function commissionPlanVersionsFixture(clock?: () => Date) {
   let now = COMMISSION_NOW;
-  const h = await startHarness({ commissionsClock: { now: () => now } });
+  const h = await startHarness({ commissionsClock: { now: () => clock?.() ?? now } });
   const cookie = await h.signedInOperator('commission-plan-owner@example.test');
   const company = await h.onboard(cookie, 'Commission plan employer');
   const { business, branch } = await seedCommissionBusiness(h, cookie, company);
@@ -103,7 +103,7 @@ export async function commissionPlanVersionsFixture() {
         cookie: actor,
         company,
       }),
-    list: (query: { limit: number; cursor?: number }) =>
+    list: (query: { limit: number; cursor?: number; kind?: 'ordinary' }) =>
       db.withTenant(company, (tx) =>
         listCommissionPlanVersions(tx, company, business, employee, query),
       ),
