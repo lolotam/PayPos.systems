@@ -1,17 +1,17 @@
 import { StatementPeriodClosedError } from '@pospay/db';
 import { describe, expect, it } from 'vitest';
 
-import type { Clock } from '../../../../shared/ports/clock.port.ts';
-import { CommissionPlanVersionError } from '../../domain/errors.ts';
+import type { Clock } from '../../../shared/ports/clock.port.ts';
+import { CommissionPlanVersionError } from '../domain/errors.ts';
 import type {
   CommissionStatementGenerateCommand,
   CommissionStatementGenerateScope,
   CommissionStatementGenerateTransactions,
   CommissionStatementSource,
-} from '../../ports/commission-statement.port.ts';
-import { CanonicalSha256FingerprintHasher } from '../../persistence/canonical-sha256-fingerprint-hasher.ts';
-import { computeStatement } from '../compute-statement-view/compute-statement-view.ts';
-import { GenerateCommissionStatementUseCase } from '../generate-statement/generate-statement.usecase.ts';
+} from '../ports/commission-statement.port.ts';
+import { CanonicalSha256FingerprintHasher } from '../persistence/canonical-sha256-fingerprint-hasher.ts';
+import { computeStatement } from '../use-cases/compute-statement-view/compute-statement-view.ts';
+import { GenerateCommissionStatementUseCase } from '../use-cases/generate-statement/generate-statement.usecase.ts';
 import { BUSINESS, PERIOD, statementRecord, statementSource } from './statement-source.fixture.ts';
 
 const hasher = new CanonicalSha256FingerprintHasher();

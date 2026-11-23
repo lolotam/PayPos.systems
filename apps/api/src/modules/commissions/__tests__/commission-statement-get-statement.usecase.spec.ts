@@ -1,10 +1,10 @@
 import { describe, expect, it } from 'vitest';
 
-import { CommissionPlanVersionError } from '../../domain/errors.ts';
-import type { CommissionStatementReader } from '../../ports/commission-statement.port.ts';
-import { CanonicalSha256FingerprintHasher } from '../../persistence/canonical-sha256-fingerprint-hasher.ts';
-import { computeStatement } from '../compute-statement-view/compute-statement-view.ts';
-import { GetCommissionStatementUseCase } from '../get-statement/get-statement.usecase.ts';
+import { CommissionPlanVersionError } from '../domain/errors.ts';
+import type { CommissionStatementReader } from '../ports/commission-statement.port.ts';
+import { CanonicalSha256FingerprintHasher } from '../persistence/canonical-sha256-fingerprint-hasher.ts';
+import { computeStatement } from '../use-cases/compute-statement-view/compute-statement-view.ts';
+import { GetCommissionStatementUseCase } from '../use-cases/get-statement/get-statement.usecase.ts';
 import {
   BUSINESS,
   PERIOD,

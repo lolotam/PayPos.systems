@@ -1,4 +1,4 @@
-import type { CommissionStatementSource } from '../../ports/commission-statement.port.ts';
+import type { CommissionStatementSource } from '../ports/commission-statement.port.ts';
 
 export const BUSINESS = '01920000-0000-7000-8000-0000000000a1';
 export const SALMIYA = '01920000-0000-7000-8000-0000000000b1';

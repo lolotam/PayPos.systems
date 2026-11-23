@@ -85,7 +85,9 @@ describe('the business-wide statement view', () => {
       'changed_since_review',
       'change_cause',
     ]) {
-      const { [field]: _removed, ...rest } = businessView as Record<string, unknown>;
+      const rest = Object.fromEntries(
+        Object.entries(businessView).filter(([key]) => key !== field),
+      );
       expect(commissionStatementView.safeParse(rest).success).toBe(false);
     }
   });
