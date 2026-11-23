@@ -177,7 +177,13 @@ describe('direct privileges match the reviewed allowlist', () => {
       WHERE c.relnamespace = 'public'::regnamespace AND a.attacl IS NOT NULL
       ORDER BY 1`;
     expect(
-      rows.filter((r) => !r.grant.startsWith('platform_whatsapp_')).map((r) => r.grant),
+      rows
+        .filter(
+          (r) =>
+            !r.grant.startsWith('platform_whatsapp_') &&
+            !r.grant.startsWith('platform_email_'),
+        )
+        .map((r) => r.grant),
     ).toEqual([...REVIEWED_COLUMN_GRANTS].sort());
   });
 

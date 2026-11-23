@@ -21696,6 +21696,74 @@
         "description": "Meta HMAC over original body bytes; STOP commits before enqueue and acknowledgement."
       }
     },
+    "/v1/webhooks/resend": {
+      "post": {
+        "operationId": "receiveResendWebhook",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ResendFeedbackEnvelope"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Stored scrubbed and enqueued",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResendFeedbackAcknowledgement"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "The API error envelope",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "security": [],
+        "parameters": [
+          {
+            "in": "header",
+            "name": "svix-id",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "maxLength": 128
+            }
+          },
+          {
+            "in": "header",
+            "name": "svix-timestamp",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "maxLength": 12
+            }
+          },
+          {
+            "in": "header",
+            "name": "svix-signature",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "maxLength": 512
+            }
+          }
+        ],
+        "description": "HMAC over the raw body; the scrubbed envelope is stored before the job is enqueued."
+      }
+    },
     "/v1/me/notifications": {
       "get": {
         "operationId": "listMyNotifications",
@@ -42831,6 +42899,66 @@
           "hub.mode",
           "hub.verify_token",
           "hub.challenge"
+        ]
+      },
+      "ResendFeedbackAcknowledgement": {
+        "type": "object",
+        "properties": {
+          "received": {
+            "type": "boolean",
+            "enum": [
+              true
+            ]
+          }
+        },
+        "required": [
+          "received"
+        ]
+      },
+      "ResendFeedbackEnvelope": {
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 64
+          },
+          "created_at": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 64
+          },
+          "data": {
+            "type": "object",
+            "properties": {
+              "email_id": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 256
+              },
+              "bounce": {
+                "type": "object",
+                "properties": {
+                  "type": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 64
+                  }
+                },
+                "required": [
+                  "type"
+                ]
+              }
+            },
+            "required": [
+              "email_id"
+            ]
+          }
+        },
+        "required": [
+          "type",
+          "created_at",
+          "data"
         ]
       },
       "InAppNotification": {

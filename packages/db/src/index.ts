@@ -117,6 +117,10 @@ export {
   createPlatformWhatsappDatabase,
   type PlatformWhatsappDatabase,
 } from './platform-whatsapp-database.ts';
+export {
+  createPlatformEmailDatabase,
+  type PlatformEmailDatabase,
+} from './platform-email-database.ts';
 export { createStaffOtpDatabase, type StaffOtpDatabase } from './staff-otp-database.ts';
 export {
   checkStaffPrivateView,

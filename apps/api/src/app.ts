@@ -38,7 +38,8 @@ import {
 } from './modules/identity/index.ts';
 import { settingsControllers, settingsProviders } from './modules/settings/index.ts';
 import { notificationsControllers, notificationsProviders } from './modules/notifications/index.ts';
-import { mountWhatsappSecurity, type WhatsappIntake } from './modules/notifications/index.ts';
+import { mountResendSecurity, mountWhatsappSecurity } from './modules/notifications/index.ts';
+import type { ResendIntake, WhatsappIntake } from './modules/notifications/index.ts';
 import {
   businessCalendar,
   businessTimeZone,
@@ -132,6 +133,8 @@ export interface AppDependencies {
   /** أصل صفحة التقييم العامة بالمطابقة التامة؛ مستقل عن ثقة تسجيل الدخول، والقيمة الفارغة تعطّل CORS للتقييم العام. */
   readonly ratingPageOrigin?: string;
   readonly whatsapp?: WhatsappIntake;
+  /** The signed email feedback intake; without it the webhook answers NOT_READY and stores nothing. */
+  readonly resend?: ResendIntake;
   /** The push public key and subject, when push is configured; without them the push routes answer NOT_READY. */
   readonly push?: PushApiConfiguration | null;
   readonly trustedProxy?: readonly string[];
@@ -259,7 +262,7 @@ class AppModule {
         ...ordersProviders(deps.database, deps.ids ?? systemUuidV7(), deps.ordersClock),
         ...commissionBindings(deps),
         ...settingsProviders(deps.database, deps.ids ?? systemUuidV7(), deps.redis),
-        ...notificationsProviders(deps.database, deps.whatsapp, deps.push),
+        ...notificationsProviders(deps.database, deps.whatsapp, deps.resend, deps.push),
         ...staffProviders(
           deps.database,
           deps.redis,
@@ -393,6 +396,7 @@ export async function createApp(
   const limiter = deps.redis === undefined ? null : createRedisRateLimiter(deps.redis);
   const adapter = buildAdapter(logger, deps.ids ?? systemUuidV7(), deps.trustedProxy ?? []);
   mountWhatsappSecurity(adapter, deps.whatsapp, deps.redis);
+  mountResendSecurity(adapter, deps.resend, deps.redis);
   adapter.getInstance().addHook('onRoute', (route) => {
     if (/^\/v1\/devices\/me\/staff-(otp\/(request|verify)|pin\/sign-in)$/.test(route.url))
       route.bodyLimit = 1024;

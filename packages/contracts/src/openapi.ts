@@ -170,6 +170,40 @@ const PATHS = {
         'Meta HMAC over original body bytes; STOP commits before enqueue and acknowledgement.',
     },
   },
+  '/v1/webhooks/resend': {
+    post: {
+      ...operation(
+        'receiveResendWebhook',
+        '200',
+        'Stored scrubbed and enqueued',
+        'ResendFeedbackAcknowledgement',
+        'ResendFeedbackEnvelope',
+      ),
+      security: [],
+      parameters: [
+        {
+          in: 'header',
+          name: 'svix-id',
+          required: true,
+          schema: { type: 'string', maxLength: 128 },
+        },
+        {
+          in: 'header',
+          name: 'svix-timestamp',
+          required: true,
+          schema: { type: 'string', maxLength: 12 },
+        },
+        {
+          in: 'header',
+          name: 'svix-signature',
+          required: true,
+          schema: { type: 'string', maxLength: 512 },
+        },
+      ],
+      description:
+        'HMAC over the raw body; the scrubbed envelope is stored before the job is enqueued.',
+    },
+  },
   ...notificationPaths,
   ...mePaths,
   ...devicePaths,

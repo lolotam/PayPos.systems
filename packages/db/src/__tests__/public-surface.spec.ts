@@ -40,6 +40,7 @@ const PUBLIC_EXPORTS = [
   'createAuthDatabase',
   'createDatabase',
   'createOutboxDispatcherDatabase',
+  'createPlatformEmailDatabase',
   'createPlatformWhatsappDatabase',
   'createStaffOtpDatabase',
   'currentAttachment',

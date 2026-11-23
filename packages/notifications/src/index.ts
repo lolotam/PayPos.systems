@@ -53,6 +53,23 @@ export {
   readWhatsappWebhookConfiguration,
   type WhatsappWebhookConfiguration,
 } from './webhook-configuration.ts';
+export {
+  createResendEventDigest,
+  readResendWebhookConfiguration,
+  resendBounceClass,
+  resendSigningKey,
+  verifyResendSignature,
+  RESEND_TIMESTAMP_WINDOW_SECONDS,
+  type ResendWebhookConfiguration,
+  type ResendWebhookHeaders,
+} from './resend-webhook.ts';
+export {
+  EMAIL_FEEDBACK_INBOX_ID,
+  EMAIL_FEEDBACK_JOB,
+  EMAIL_FEEDBACK_QUEUE,
+  EmailFeedbackQueueUnavailableError,
+  emailFeedbackJob,
+} from './email-feedback-queue.ts';
 export { notificationRedisOptions } from './redis-connection.ts';
 
 export {

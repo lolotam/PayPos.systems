@@ -16,7 +16,7 @@ import {
   readOtpTemplateApproval,
   readPushApiConfiguration,
 } from '@pospay/notifications';
-import { createDatabase, createPlatformWhatsappDatabase } from '@pospay/db';
+import { createDatabase, createPlatformEmailDatabase, createPlatformWhatsappDatabase } from '@pospay/db';
 import { systemUuidV7 } from '@pospay/ids';
 import { createLogger } from '@pospay/observability';
 import { Redis } from 'ioredis';
@@ -24,7 +24,7 @@ import { readEmailConfiguration } from '@pospay/notifications';
 
 import { createApp } from './app.ts';
 import { filesRuntime } from './modules/files/index.ts';
-import { createWhatsappIntake } from './modules/notifications/index.ts';
+import { createResendIntake, createWhatsappIntake } from './modules/notifications/index.ts';
 import { API_LOG_EVENTS } from './shared/log-events.ts';
 import { createActivePasskeyBindings, createPersonalEligibility } from './modules/staff/index.ts';
 import { membershipCompanies, staffOtpDependencies } from './modules/identity/index.ts';
@@ -60,7 +60,9 @@ const otpConfiguration = () =>
   readStaffOtpConfiguration(process.env, 'api', readOtpTemplateApproval(process.env));
 const intakeUrl = config.PLATFORM_NOTIFICATIONS_DATABASE_URL;
 let globalDatabase: ReturnType<typeof createPlatformWhatsappDatabase> | undefined;
+let emailDatabase: ReturnType<typeof createPlatformEmailDatabase> | undefined;
 let whatsapp: ReturnType<typeof createWhatsappIntake> | undefined;
+let resend: ReturnType<typeof createResendIntake> | undefined;
 
 // No offline queue: while Redis is down a command fails at once, so /ready reports it instead of hanging.
 const redis = new Redis(config.REDIS_URL, {
@@ -87,7 +89,9 @@ const release = async (): Promise<void> => {
   await Promise.race([
     Promise.allSettled([
       whatsapp?.close(true),
+      resend?.close(true),
       globalDatabase?.close(true),
+      emailDatabase?.close(true),
       database.close(),
       files?.close(),
       auth?.close(),
@@ -137,6 +141,34 @@ try {
       },
       'staff OTP capability',
     );
+  }
+  // The email feedback intake rides on the same restricted notifications database, but it needs its
+  // own webhook secret: without it the route answers NOT_READY and stores nothing.
+  if (intakeUrl !== undefined) {
+    try {
+      emailDatabase = createPlatformEmailDatabase({ url: intakeUrl });
+      const intake = createResendIntake(emailDatabase, config.REDIS_URL, process.env, logger);
+      resend = intake;
+      await optionalWithin(() => intake.ready());
+      logger.info(
+        { capability: { name: 'EMAIL_FEEDBACK_INTAKE', state: 'READY' } },
+        'email feedback intake capability',
+      );
+    } catch {
+      logger.warn(
+        {
+          capability: {
+            name: 'EMAIL_FEEDBACK_INTAKE',
+            state: 'UNAVAILABLE',
+            reason: 'SETUP_FAILED',
+          },
+        },
+        'email feedback intake capability',
+      );
+      await closeOptional([() => resend?.close(true), () => emailDatabase?.close(true)]);
+      resend = undefined;
+      emailDatabase = undefined;
+    }
   }
   auth = await createAuth({
     passkeyBindings: createActivePasskeyBindings(database, {
@@ -346,6 +378,7 @@ try {
       push: readPushApiConfiguration(process.env),
       ratingLinksAvailable,
       ...(whatsapp === undefined ? {} : { whatsapp }),
+      ...(resend === undefined ? {} : { resend }),
       trustedProxy: config.TRUSTED_PROXY_CIDRS,
     },
     { logger },

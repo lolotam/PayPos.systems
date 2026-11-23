@@ -3306,6 +3306,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/webhooks/resend": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @description HMAC over the raw body; the scrubbed envelope is stored before the job is enqueued. */
+        post: operations["receiveResendWebhook"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/me/notifications": {
         parameters: {
             query?: never;
@@ -8347,6 +8364,20 @@ export interface components {
             "hub.mode": "subscribe";
             "hub.verify_token": string;
             "hub.challenge": string;
+        };
+        ResendFeedbackAcknowledgement: {
+            /** @enum {boolean} */
+            received: true;
+        };
+        ResendFeedbackEnvelope: {
+            type: string;
+            created_at: string;
+            data: {
+                email_id: string;
+                bounce?: {
+                    type: string;
+                };
+            };
         };
         InAppNotification: {
             /** Format: uuid */
@@ -21741,6 +21772,43 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["WhatsappWebhookAcknowledgement"];
+                };
+            };
+            /** @description The API error envelope */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    receiveResendWebhook: {
+        parameters: {
+            query?: never;
+            header: {
+                "svix-id": string;
+                "svix-timestamp": string;
+                "svix-signature": string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ResendFeedbackEnvelope"];
+            };
+        };
+        responses: {
+            /** @description Stored scrubbed and enqueued */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResendFeedbackAcknowledgement"];
                 };
             };
             /** @description The API error envelope */

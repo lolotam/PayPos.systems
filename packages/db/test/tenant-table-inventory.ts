@@ -75,6 +75,7 @@ export const TENANT_TABLES = [
   'employee_number_sequences',
   'in_app_notifications',
   'notification_attempts',
+  'notification_attempt_feedback',
   'push_subscriptions',
   'push_attempts',
   'rating_requests',

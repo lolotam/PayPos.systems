@@ -62,6 +62,10 @@ The platform phone-binding CLI root (`apps/api/scripts/bind-phone.ts`) injects t
 ADR-0013 Part A: notification persistence alone uses the restricted global messaging DB facade
 for intake, inbox maintenance and manual additions. API/worker main roots create that facade;
 all other modules/packages are forbidden. Authorization uses the boolean function on its existing Tx.
+ADR-0014 addendum: the email feedback class rides on the same notifications role through its own
+facade (`createPlatformEmailDatabase`), wired only by the API/worker roots and reaching the three
+global tables — hashes and identifiers only, no company and no tenant RLS. It is a second global
+messaging intake, not a tenant write: no new module arrow, no tenant event and no dispatcher privilege.
 ADR-0019 auth uses createStaffOtpDatabase only inside packages/auth; application code may not import that facade, including alias/namespace/re-export forms. API identity outer Redis/BullMQ adapters implement auth-owned OtpRates/OtpSender, binding id-only transport at the API root. Worker notifications defines OtpExecution and receives the narrow auth execution facade at the worker root; its OTP adapter owns transient rendering/Channel. These auth transport/ledger capabilities are separate from business cross-module writes: no tenant event, new dispatcher privilege or auth-internal import is permitted.
 
 This adds no tenant exception, business import/write arrow, notifications → identity or staff → notifications.
@@ -394,6 +398,7 @@ composition_roots:
   staff-otp-db: [packages/auth/src/staff-otp/api.ts, packages/auth/src/staff-otp/execution.ts, packages/auth/src/config.ts, packages/auth/src/personal-sessions.ts, packages/auth/src/approve-phone-binding.ts, packages/auth/src/operator/staging-staff-identity.ts]
   rating-token: [apps/worker/src/rating-token-capability.ts]
   platform-whatsapp-db: [apps/api/src/main.ts, apps/worker/src/start-optional-capabilities.ts]
+  platform-email-db: [apps/api/src/main.ts, apps/worker/src/start-optional-capabilities.ts]
   notifications: [apps/api/src/app.ts, apps/api/src/main.ts, apps/api/scripts/bind-phone.ts, apps/api/scripts/staging-staff-user.ts, apps/worker/src/worker.ts, apps/worker/src/start-optional-capabilities.ts]
   documents: [apps/worker/src/main.ts]
 

@@ -211,6 +211,7 @@ export {
   whatsappMessage,
   WhatsappEnvelopeInvalidError,
 } from './whatsapp-webhook.js';
+export * from './resend-feedback.js';
 export {
   attendanceQrToken,
   attendanceQrBranch,

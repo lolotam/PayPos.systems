@@ -1,14 +1,14 @@
 import { createHash, randomUUID } from 'node:crypto';
 import { Readable } from 'node:stream';
-import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
+import type { FastifyInstance, FastifyRequest } from 'fastify';
 import type { FastifyAdapter } from '@nestjs/platform-fastify';
 import type { Redis } from 'ioredis';
 import { verifyWhatsappSignature } from '@pospay/notifications';
 import type { WhatsappIntake } from './whatsapp-webhook.controller.ts';
 import { ApiError } from '../../../shared/errors.ts';
+import { limited, refuse, RATE_SCRIPT } from './webhook-limit.ts';
 
 const ROUTE = '/v1/webhooks/whatsapp';
-const RATE = `local n = redis.call('INCR',KEYS[1]); if n == 1 then redis.call('EXPIRE',KEYS[1],60) end; return n`;
 const RESERVE = `local t = redis.call('TIME'); local now = t[1]*1000 + math.floor(t[2]/1000);
   redis.call('ZREMRANGEBYSCORE',KEYS[1],'-inf',now);
   if redis.call('ZCARD',KEYS[1]) >= 32 then return 0 end;
@@ -47,7 +47,7 @@ export function mountWhatsappSecurity(
         `whatsapp:ip:${request.method}:${ip}`,
         request.method === 'GET' ? 10 : 120,
         reply,
-        request,
+        () => redisUnavailable(request),
       ))
     )
       return;
@@ -119,37 +119,15 @@ async function verifiedPhoneNumberBudget(
   request: FastifyRequest,
 ): Promise<void> {
   try {
-    if (Number(await redis.eval(RATE, 1, `rate:whatsapp:phone-number:${id}`)) > 600)
+    if (
+      Number(
+        await redis.eval(RATE_SCRIPT, 1, `rate:whatsapp:phone-number:${id}`),
+      ) > 600
+    )
       throw new ApiError('TOO_MANY_REQUESTS');
   } catch (error) {
     if (error instanceof ApiError) throw error;
     redisUnavailable(request);
     throw new ApiError('NOT_READY');
   }
-}
-
-async function limited(
-  redis: Redis,
-  key: string,
-  limit: number,
-  reply: FastifyReply,
-  request: FastifyRequest,
-): Promise<boolean> {
-  try {
-    if (Number(await redis.eval(RATE, 1, `rate:${key}`)) <= limit) return true;
-    refuse(reply, 'TOO_MANY_REQUESTS');
-  } catch {
-    redisUnavailable(request);
-    refuse(reply, 'NOT_READY');
-  }
-  return false;
-}
-
-function refuse(
-  reply: FastifyReply,
-  code: 'NOT_READY' | 'TOO_MANY_REQUESTS' | 'UNSUPPORTED_MEDIA_TYPE',
-): void {
-  const error = new ApiError(code);
-  if (code === 'TOO_MANY_REQUESTS') void reply.header('retry-after', '60');
-  void reply.code(error.status).send(error.toEnvelope());
 }

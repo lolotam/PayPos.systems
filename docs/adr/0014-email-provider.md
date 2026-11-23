@@ -186,3 +186,71 @@ it; this record does not approve an unspecified SDK. Fake/synthetic adapter test
 None for the initial G5 provider/plan/region/sender/feedback policy: the decisions above settle them. Actual
 mailbox/display name, approved copy and operator assignment remain activation inputs. If overage is needed later,
 recommend retaining it disabled until an explicit budget alert/cap is approved; no automatic allowance expansion.
+
+## Amendment — 2026-11-23, spec 075 PR-C1a: the email feedback intake tables
+
+§3 requires the feedback inbox, the intake boundary, the grants and the retention to be classified **before**
+any migration. This amendment classifies the email class; it changes no sending behaviour and leaves the email
+capability disabled.
+
+### A. The global class — three platform tables
+
+`platform_email_suppressions`, `platform_email_feedback_inbox` and `platform_email_audit` are **global
+messaging control**, a second instance of the class ADR-0013 §1 established for WhatsApp: no `company_id`, no
+tenant RLS, no business/branch/user key, and never a tenant row. They hold hashes and provider identifiers
+only — the recipient hash, the key id, the scrubbed envelope, the event digest — and **never an address, a
+subject, a header, a tag or a bounce diagnostic**.
+
+| Table | Columns | Rules |
+| --- | --- | --- |
+| `platform_email_suppressions` | `recipient_hash bytea` PK (32 bytes), `hash_key_id text`, `source text`, `first_suppressed_at`, `last_suppressed_at`, `lifted_at` | `source IN ('BOUNCE','COMPLAINT','PROVIDER','MANUAL')`; `last >= first`; `lifted_at IS NULL` as a **validated** CHECK — there is no lift in this phase (owner decision ET-Q3) and no runtime role may UPDATE it |
+| `platform_email_feedback_inbox` | `id uuid` PK, `provider_event_digest bytea` UNIQUE (32 bytes), `provider_email_id text`, `event_type text`, `bounce_class text`, `provider_timestamp`, `received_at`, `raw_event jsonb`, `enqueue_confirmed_at`, `attempts smallint`, `next_attempt_at`, `resolved_at`, `quarantined_at`, `quarantine_reason text` | `event_type` in the six allowlisted events; `bounce_class IN ('PERMANENT','TRANSIENT')` or NULL; `resolved_at` and `quarantined_at` never both set; `quarantine_reason` from a fixed code list |
+| `platform_email_audit` | `id uuid` PK, `recipient_hash bytea`, `hash_key_id text`, `source text`, `inbox_id uuid` FK, `operator_id uuid`, `action text`, `reason text`, `occurred_at` | `action = 'SUPPRESS'`; a provider source requires `inbox_id` and no operator; `MANUAL` requires an operator and no inbox; the reason is a finite code |
+
+The permanent dedupe identity is `HMAC-SHA256(webhook key bytes, 'pospay:notifications:resend-event:v1\0' ||
+svix-id)`: the provider event id exists only in verified-intake memory, and only its digest reaches the
+database — the same rule ADR-0013 §2 set for the Meta message id. The digest survives the 30-day scrubbed
+payload cleanup, so a replay after retention is still refused.
+
+### B. The roles and the exact privileges
+
+The email class rides on the **same** `pospay_notifications` role as the WhatsApp class, so the role's
+privilege set is now the union of the two classes and nothing else; each class inventory requires its own
+entries and refuses anything outside the union.
+
+| Principal | Exact additional privileges |
+| --- | --- |
+| `pospay_notifications` | `SELECT, INSERT` on the inbox plus column-level `UPDATE` on `raw_event, enqueue_confirmed_at, attempts, next_attempt_at, resolved_at, quarantined_at, quarantine_reason`; `SELECT, INSERT` on the suppressions plus column-level `UPDATE` on `last_suppressed_at, source`; `INSERT` on the audit |
+| `pospay_email_suppression_reader` | new NOLOGIN role, no superuser, no BYPASSRLS, no role membership, `USAGE` on `public` and `SELECT` on `platform_email_suppressions` only; it owns the check function and owns no table |
+| `pospay_app` | `EXECUTE` on `public.platform_email_is_suppressed(bytea)` only, plus `SELECT, INSERT` on the tenant evidence table; no privilege on any of the three global tables |
+| `pospay_auth`, `pospay_dispatcher`, `PUBLIC` | no privilege on these tables and no EXECUTE on that function |
+
+`platform_email_is_suppressed(bytea)` is a `SECURITY DEFINER` boolean reader owned by
+`pospay_email_suppression_reader`, with `SET search_path = pg_catalog, pg_temp`, fully qualified static SQL,
+a non-null 32-byte argument check and a boolean result — the same shape as
+`platform_whatsapp_is_suppressed`, and it answers on the transaction the caller already holds: no new pool,
+no SET ROLE, no tenant-access exception. The reader role is separate from `pospay_suppression_reader` so the
+WhatsApp class inventory keeps asserting its own exact privilege set.
+
+### C. The tenant evidence table
+
+`notification_attempt_feedback` is a **tenant** table: `company_id`, `id`, `attempt_id`, `event_type`,
+`bounce_class`, `provider_event_digest`, `provider_timestamp`, `recorded_at`; primary key `(company_id, id)`,
+a composite foreign key `(company_id, attempt_id)` to `notification_attempts`, a unique
+`(company_id, provider_event_digest)`, row-level security on `company_id` with FORCE, and `SELECT, INSERT`
+for `pospay_app` only — insert-only, no UPDATE and no DELETE. The negative isolation test ships in the same
+PR that creates the table.
+
+### D. The intake boundary
+
+The API holds **one** Resend credential: the webhook signing secret. It holds no sending key and no
+recipient-hash key, so it cannot resolve a recipient and cannot send; the recipient hash and the sending key
+stay with the worker. The intake verifies the signature over the raw body with native `node:crypto` before the
+body is parsed, keeps a strict allowlist (`type`, `created_at`, `data.email_id`, `data.bounce.type`), stores
+the scrubbed envelope only, and enqueues one id-only job. The provider tags in the webhook body are never
+trusted; ADR-0014 §3 step 2 keeps the authenticated retrieval as the only source of the tenant correlation
+tags.
+
+The confirmed provider contract (header names, signing string, event names, bounce field, and the fact that
+`GET /emails/{id}` returns the tags and the recipient) is recorded in
+`docs/specs/075-notifications-email-feedback/resend-contract.md`.

@@ -118,6 +118,11 @@ export const FUNCTION_INVENTORY = [
     proconfig: ['search_path=public, pg_temp'],
   },
   {
+    proname: 'platform_email_is_suppressed',
+    prosecdef: true,
+    proconfig: ['search_path=pg_catalog, pg_temp'],
+  },
+  {
     proname: 'platform_whatsapp_is_suppressed',
     prosecdef: true,
     proconfig: ['search_path=pg_catalog, pg_temp'],

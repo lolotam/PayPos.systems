@@ -3,6 +3,12 @@ import {
   whatsappInboundJob,
   WhatsappQueueUnavailableError,
 } from '@pospay/notifications';
+import {
+  EMAIL_FEEDBACK_QUEUE,
+  EmailFeedbackQueueUnavailableError,
+  emailFeedbackJob,
+  readResendWebhookConfiguration,
+} from '@pospay/notifications';
 import { NotificationsController } from './http/notifications.controller.ts';
 import type { Provider } from '@nestjs/common';
 import type { TenantWrappers } from '@pospay/db';
@@ -19,9 +25,16 @@ import {
   WhatsappWebhookController,
   type WhatsappIntake,
 } from './http/whatsapp-webhook.controller.ts';
+import {
+  RESEND_WEBHOOK,
+  ResendWebhookController,
+  type ResendIntake,
+} from './http/resend-webhook.controller.ts';
+import { createEmailFeedbackInboxRepository } from './persistence/drizzle-email-feedback.repository.ts';
+import { ReceiveEmailFeedback } from './use-cases/receive-email-feedback/receive-email-feedback.ts';
 import { Queue } from 'bullmq';
 import { Redis } from 'ioredis';
-import type { PlatformWhatsappDatabase } from '@pospay/db';
+import type { PlatformEmailDatabase, PlatformWhatsappDatabase } from '@pospay/db';
 import { systemUuidV7 } from '@pospay/ids';
 import { readWhatsappWebhookConfiguration } from '@pospay/notifications';
 import type { Logger } from '@pospay/observability';
@@ -52,18 +65,21 @@ export const notificationsControllers = [
   NotificationsController,
   InAppNotificationsController,
   WhatsappWebhookController,
+  ResendWebhookController,
   PushSubscriptionController,
 ];
 
 export function notificationsProviders(
   database: TenantWrappers | undefined,
   whatsapp?: WhatsappIntake,
+  resend?: ResendIntake,
   push?: PushApiConfiguration | null,
 ): Provider[] {
   const repository = database === undefined ? null : createInAppRepository(database);
   const clock = { now: () => new Date() };
   return [
     { provide: WHATSAPP_WEBHOOK, useValue: whatsapp ?? null },
+    { provide: RESEND_WEBHOOK, useValue: resend ?? null },
     SelectedCompanyGuard,
     {
       provide: INBOX_WRITES,
@@ -107,7 +123,7 @@ export function createWhatsappIntake(
   logger: Logger,
 ) {
   const config = readWhatsappWebhookConfiguration(env);
-  const { queue, close } = intakeQueue(redisUrl, logger);
+  const { queue, close } = intakeQueue(redisUrl, logger, WHATSAPP_INBOUND_QUEUE, 'whatsapp inbox');
   queue.on('error', () => logger.warn({}, 'whatsapp inbox queue error'));
   const inbox = createWhatsappInboxRepository(database, systemUuidV7());
   const receive = new ReceiveWhatsappStop(
@@ -152,14 +168,65 @@ export function createWhatsappIntake(
   };
 }
 
-function intakeQueue(redisUrl: string, logger: Logger) {
+export function createResendIntake(
+  database: PlatformEmailDatabase,
+  redisUrl: string,
+  env: NodeJS.ProcessEnv,
+  logger: Logger,
+) {
+  const config = readResendWebhookConfiguration(env);
+  const { queue, close } = intakeQueue(redisUrl, logger, EMAIL_FEEDBACK_QUEUE, 'email feedback');
+  queue.on('error', () => logger.warn({}, 'email feedback queue error'));
+  const inbox = createEmailFeedbackInboxRepository(database, systemUuidV7());
+  const clock = { now: () => new Date() };
+  const receive = new ReceiveEmailFeedback(
+    inbox,
+    {
+      enqueue: async (id) => {
+        const job = emailFeedbackJob(id);
+        let timer: NodeJS.Timeout | undefined;
+        try {
+          await Promise.race([
+            queue.add(job.name, job.data, job.options).catch(() => {
+              throw new EmailFeedbackQueueUnavailableError();
+            }),
+            new Promise<never>((_, reject) => {
+              timer = setTimeout(() => reject(new EmailFeedbackQueueUnavailableError()), 200);
+            }),
+          ]);
+        } finally {
+          clearTimeout(timer);
+        }
+      },
+    },
+    clock,
+  );
+  let closed = false;
+  return {
+    config,
+    receive,
+    clock,
+    ready: async () => {
+      if (closed) throw new Error('EMAIL_FEEDBACK_CAPABILITY_UNAVAILABLE');
+      await database.ping();
+      if (closed) throw new Error('EMAIL_FEEDBACK_CAPABILITY_UNAVAILABLE');
+      await queue.waitUntilReady();
+    },
+    close: async (force = false) => {
+      closed = true;
+      await close(force);
+    },
+  };
+}
+
+function intakeQueue(redisUrl: string, logger: Logger, name: string, label: string) {
   const connection = new Redis({
     ...notificationRedisOptions(redisUrl),
     enableOfflineQueue: false,
     maxRetriesPerRequest: 1,
   });
-  connection.on('error', () => logger.warn({}, 'whatsapp inbox queue error'));
-  const queue = new Queue(WHATSAPP_INBOUND_QUEUE, { connection });
+  connection.on('error', () => logger.warn({}, `${label} queue error`));
+  const queue = new Queue(name, { connection });
   return {
     queue,
     close: async (force: boolean) => {
