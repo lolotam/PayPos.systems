@@ -130,26 +130,14 @@ export async function createAuth(options: AuthOptions): Promise<AuthService> {
   const staff = staffSessions(options, auth, database);
   const personal = personalSessions(options, auth, database);
   const passkeys = configuredPasskeys(options, auth, database);
-  const members = createMemberInvitationAccounts({
-    database,
-    ids: options.ids,
-    secret: options.secret,
-    baseUrl: (await auth.$context).baseURL,
-  });
+  const members = await configuredMembers(options, database, auth);
   return {
     staff,
     personal,
     passkeys,
     privateView: configuredPrivateView(options, database),
     members,
-    handler: async (request) => {
-      if (
-        isPasskeyRoute(request.url) ||
-        !(await normalPurpose(staff, request.headers, options.onLog))
-      )
-        return new Response(null, { status: 403 });
-      return auth.handler(request);
-    },
+    handler: (request) => normalHandler(staff, auth, options.onLog, request),
     getSession: async (headers) => {
       if (!(await normalPurpose(staff, headers, options.onLog))) return null;
       const { headers: out, response } = await auth.api.getSession({
@@ -169,15 +157,8 @@ export async function createAuth(options: AuthOptions): Promise<AuthService> {
       };
     },
     provisionUser: async (input) => provision(await auth.$context, input),
-    issuePasswordSetLink: async (userId, redirectTo, linkOptions) =>
-      issueSetPasswordLink(
-        database,
-        options.ids,
-        (await auth.$context).baseURL,
-        userId,
-        redirectTo,
-        linkOptions ?? {},
-      ),
+    issuePasswordSetLink: (userId, redirectTo, linkOptions) =>
+      passwordSetLinkIssuer(auth, database, options)(userId, redirectTo, linkOptions ?? {}),
     discardUser: async (userId) => {
       await (await auth.$context).internalAdapter.deleteUser(userId);
     },
@@ -191,6 +172,37 @@ export async function createAuth(options: AuthOptions): Promise<AuthService> {
 }
 
 type AuthContext = Awaited<ReturnType<typeof buildBetterAuth>['$context']>;
+
+/** حدود الدعوة على قاعدة الهوية — تركيبها هنا عشان createAuth يفضل خطوات تركيب بس. */
+async function configuredMembers(
+  options: AuthOptions,
+  database: ReturnType<typeof createAuthDatabase>,
+  auth: ReturnType<typeof buildBetterAuth>,
+): Promise<MemberInvitationAccounts> {
+  return createMemberInvitationAccounts({
+    database,
+    ids: options.ids,
+    secret: options.secret,
+    baseUrl: (await auth.$context).baseURL,
+  });
+}
+
+/** مُصدر رابط تعيين كلمة المرور بالخيارات — العمر الافتراضي ساعة (D9). */
+function passwordSetLinkIssuer(
+  auth: ReturnType<typeof buildBetterAuth>,
+  database: ReturnType<typeof createAuthDatabase>,
+  options: AuthOptions,
+): AuthService['issuePasswordSetLink'] {
+  return async (userId, redirectTo, linkOptions) =>
+    issueSetPasswordLink(
+      database,
+      options.ids,
+      (await auth.$context).baseURL,
+      userId,
+      redirectTo,
+      linkOptions ?? {},
+    );
+}
 
 async function provision(
   context: AuthContext,
@@ -336,6 +348,19 @@ function staffSessions(
       },
     },
   });
+}
+
+/** بيرد على /v1/auth/*: مسار passkey بيتخطى قفل جلسة الموظف، وأي جلسة موظف بترفض هنا. */
+async function normalHandler(
+  staff: StaffSessions,
+  auth: ReturnType<typeof buildBetterAuth>,
+  log: AuthOptions['onLog'],
+  request: Request,
+): Promise<Response> {
+  if (isPasskeyRoute(request.url) || !(await normalPurpose(staff, request.headers, log))) {
+    return new Response(null, { status: 403 });
+  }
+  return auth.handler(request);
 }
 
 async function normalPurpose(
