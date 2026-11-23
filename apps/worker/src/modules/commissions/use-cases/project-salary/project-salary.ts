@@ -104,6 +104,15 @@ export class ProjectSalary {
   }
 }
 
+/**
+ * يحوّل حدث الراتب لمدخل الإسقاط؛ هويتا الموظفة والنشاط بتتوحّدان لأحرف صغيرة هنا عند حدود الحدث، لأن العقد
+ * بيقبل UUID بأي حالة أحرف والـ jsonb بيحفظها كما اتبعتت، والتجميع والمقارنة بعد كده بالنص الخام
+ * (النشاط بيتقارن بنص uuid من قاعدة البيانات عند مطابقة منحة مستلمي إشعار الحجب).
+ *
+ * @param event غلاف الحدث، وتجمّعه لازم يطابق الموظفة بلا حساسية للحالة
+ * @param payload حمولة SalaryChanged بعد التحقق بالعقد
+ * @returns مدخل الإسقاط بهويتي الموظفة والنشاط الصغيرتين (النشاط null لو غاب من الحدث)
+ */
 export function normalizeSalaryEvent(
   event: CommissionInputEventEnvelope,
   payload: SalaryChanged,
@@ -117,8 +126,8 @@ export function normalizeSalaryEvent(
   return {
     companyId: event.companyId,
     eventId: event.id,
-    businessId: payload.business_id ?? null,
-    employeeId: payload.employee_id,
+    businessId: payload.business_id?.toLowerCase() ?? null,
+    employeeId: payload.employee_id.toLowerCase(),
     effectiveFrom: payload.effective_from,
     amount: payload.amount,
     revision: payload.revision,
