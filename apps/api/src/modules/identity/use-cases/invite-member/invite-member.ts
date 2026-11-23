@@ -4,7 +4,9 @@ import type { InviteMemberInput } from '@pospay/contracts';
 import { ApiError } from '../../../../shared/errors.ts';
 import type { Clock } from '../../../../shared/ports/clock.port.ts';
 import type { IdGenerator } from '../../../../shared/ports/id-generator.port.ts';
+import type { DomainEvent } from '../../../../shared/ports/outbox-writer.port.ts';
 import { invitationScopeFailure } from '../../domain/invitable-roles.ts';
+import { MEMBER_INVITED, type MemberInvited } from '../../events/published.ts';
 import type {
   InvitationRateLimiter,
   MemberAccounts,
@@ -21,6 +23,82 @@ export interface InviteMemberCommand {
 export interface InviteMemberResult {
   readonly invitation_id: string;
   readonly set_password_link: string | null;
+}
+
+/** خطوة ما قبل الكتابة: الحدّ، وإيميل الموظفة، والدور والنطاق، والدعوة الذاتية — كلها بترفض قبل أي كتابة. */
+async function assertInvitable(
+  limiter: InvitationRateLimiter,
+  accounts: MemberAccounts,
+  command: InviteMemberCommand,
+): Promise<{ userId: string } | null> {
+  const { actor, input } = command;
+  if (!(await limiter.allow(actor.userId))) throw new ApiError('TOO_MANY_REQUESTS');
+  if (isStaffSyntheticEmail(input.email)) throw new ApiError('MEMBER_EMAIL_NOT_INVITABLE');
+  const scopeFailure = invitationScopeFailure(input.role, input.scope.type);
+  if (scopeFailure !== null) throw new ApiError(scopeFailure);
+  // الحساب موجود بالإيميل: لو ده اليوزر نفسه فالمالك مش بيدعو نفسه.
+  const existing = await accounts.findByEmail(input.email);
+  if (existing !== null && existing.userId === actor.userId) {
+    throw new ApiError('MEMBER_EMAIL_NOT_INVITABLE');
+  }
+  return existing;
+}
+
+/** صفوف التدقيق: إنشاء الحساب للمدعوّ الجديد، ثم العضوية — بالترتيب اللي بتكتب بيه. */
+function auditEntries(
+  invitationId: string,
+  userId: string,
+  membershipId: string,
+  roleCode: string,
+  scope: { type: string; id: string },
+  createdByInvitation: boolean,
+) {
+  const membership = {
+    entity: 'membership',
+    entityId: membershipId,
+    action: 'created',
+    after: {
+      membership_id: membershipId,
+      user_id: userId,
+      role_code: roleCode,
+      scope_type: scope.type,
+      scope_id: scope.id,
+    },
+  };
+  if (!createdByInvitation) return [membership];
+  return [
+    {
+      entity: 'member_invitation',
+      entityId: invitationId,
+      action: 'user.created',
+      after: { user_id: userId, invitation_id: invitationId },
+    },
+    membership,
+  ];
+}
+
+/** حدث MemberInvited: معرّفات الحالة والدور بس — مفيش إيميل ولا رابط ولا token في الـ payload. */
+function invitedEvent(
+  invitationId: string,
+  userId: string,
+  membershipId: string,
+  role: { roleCode: string; scope: { type: string; id: string }; invitedBy: string },
+): DomainEvent {
+  const payload: MemberInvited = {
+    invitation_id: invitationId,
+    user_id: userId,
+    membership_id: membershipId,
+    role_code: role.roleCode,
+    scope_type: role.scope.type,
+    scope_id: role.scope.id,
+    invited_by: role.invitedBy,
+  };
+  return {
+    aggregateType: 'member_invitation',
+    aggregateId: invitationId,
+    eventType: MEMBER_INVITED,
+    payload,
+  };
 }
 
 /**
@@ -61,30 +139,22 @@ export class InviteMember {
    */
   async execute(command: InviteMemberCommand): Promise<InviteMemberResult> {
     const { actor, input } = command;
-    if (!(await this.#limiter.allow(actor.userId))) throw new ApiError('TOO_MANY_REQUESTS');
-    if (isStaffSyntheticEmail(input.email)) throw new ApiError('MEMBER_EMAIL_NOT_INVITABLE');
-    const scopeFailure = invitationScopeFailure(input.role, input.scope.type);
-    if (scopeFailure !== null) throw new ApiError(scopeFailure);
-    // الحساب موجود بالإيميل: لو ده اليوزر نفسه فالمالك مش بيدعو نفسه.
-    const existing = await this.#accounts.findByEmail(input.email);
-    if (existing !== null && existing.userId === actor.userId) {
-      throw new ApiError('MEMBER_EMAIL_NOT_INVITABLE');
-    }
-    const invitationId = this.#ids.newId();
+    const existing = await assertInvitable(this.#limiter, this.#accounts, command);
     const now = this.#clock.now();
     const scope = { type: input.scope.type, id: input.scope.id };
-    await this.#transactions.open({
+    const opened = await this.#transactions.open({
       companyId: actor.companyId,
       actorUserId: actor.userId,
-      invitationId,
+      invitationId: this.#ids.newId(),
       emailHash: this.#accounts.hashEmail(input.email),
       roleCode: input.role,
       scope,
       existingUserId: existing?.userId ?? null,
       now,
     });
+    if ('refusal' in opened) throw new ApiError(opened.refusal);
     const account = await this.#accounts.createInvitedMember({
-      operationId: invitationId,
+      operationId: opened.invitationId,
       companyId: actor.companyId,
       email: input.email,
       name: input.name,
@@ -93,31 +163,52 @@ export class InviteMember {
     const outcome = await this.#transactions.complete({
       companyId: actor.companyId,
       actorUserId: actor.userId,
-      invitationId,
+      invitationId: opened.invitationId,
       userId: account.userId,
       membershipId,
       roleCode: input.role,
       scope,
       createdByInvitation: account.createdByInvitation,
+      audit: auditEntries(
+        opened.invitationId,
+        account.userId,
+        membershipId,
+        input.role,
+        scope,
+        account.createdByInvitation,
+      ),
+      event: invitedEvent(opened.invitationId, account.userId, membershipId, {
+        roleCode: input.role,
+        scope,
+        invitedBy: actor.userId,
+      }),
       now,
     });
-    if (!outcome.ok) throw new ApiError('MEMBER_ALREADY_IN_COMPANY');
-    let link: string | null = null;
-    if (account.createdByInvitation) {
-      link = await this.#accounts.issueInvitationLink({
-        userId: account.userId,
-        companyId: actor.companyId,
-        redirectTo: this.#redirectTo,
-        lifetimeMs: MEMBER_INVITATION_LINK_TTL_MS,
-        now,
-      });
-      await this.#transactions.stampLink({
-        companyId: actor.companyId,
-        invitationId,
-        at: now,
-      });
+    if (!outcome.done) throw new ApiError('MEMBER_ALREADY_IN_COMPANY');
+    const link = await this.#issueLinkIfNeeded(outcome, account, actor.companyId, opened.invitationId, now);
+    if (!outcome.alreadyComplete) {
+      await this.#invalidator.invalidate(actor.companyId, membershipId);
     }
-    await this.#invalidator.invalidate(actor.companyId, membershipId);
-    return { invitation_id: invitationId, set_password_link: link };
+    return { invitation_id: opened.invitationId, set_password_link: link };
+  }
+
+  /** الرابط مرة واحدة: للمدعوّ الجديد فقط، ولو انقطعنا قبل إصداره بيطلع هنا؛ بعده بيطلع null. */
+  async #issueLinkIfNeeded(
+    outcome: { linkIssuedAt: Date | null },
+    account: { userId: string; createdByInvitation: boolean },
+    companyId: string,
+    invitationId: string,
+    now: Date,
+  ): Promise<string | null> {
+    if (!account.createdByInvitation || outcome.linkIssuedAt !== null) return null;
+    const link = await this.#accounts.issueInvitationLink({
+      userId: account.userId,
+      companyId,
+      redirectTo: this.#redirectTo,
+      lifetimeMs: MEMBER_INVITATION_LINK_TTL_MS,
+      now,
+    });
+    await this.#transactions.stampLink({ companyId, invitationId, at: now });
+    return link;
   }
 }

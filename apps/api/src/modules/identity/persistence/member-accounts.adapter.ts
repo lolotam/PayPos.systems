@@ -1,6 +1,6 @@
 import type { AuthService } from '@pospay/auth';
 
-import type { MemberAccounts, MemberPasswordState } from '../ports/member-invitations.port.ts';
+import type { MemberAccounts } from '../ports/member-invitations.port.ts';
 
 /**
  * بيوقّف حدود جداول الهوية على خدمة الاعتماد — الخدمة الوحيدة اللي تقدر تلمس جداول Better Auth.
@@ -18,14 +18,4 @@ export function createMemberAccounts(auth: AuthService): MemberAccounts {
     readMarker: (userId) => auth.members.readMarker(userId),
     issueInvitationLink: (input) => auth.members.issueInvitationLink(input),
   };
-}
-
-/**
- * بيقول إن العضو حط كلمة مروره — بيستعمل لعرض حالة الدعوة من غير ما نكتب في مسار القراءة.
- *
- * @param auth خدمة الاعتماد
- * @returns قارئ حالة كلمة المرور
- */
-export function createMemberPasswordState(auth: AuthService): MemberPasswordState {
-  return async (userId) => (await auth.members.readMarker(userId))?.hasPassword ?? false;
 }

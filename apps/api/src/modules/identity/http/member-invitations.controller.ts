@@ -15,13 +15,15 @@ import { DATABASE } from '../../../shared/database.token.ts';
 import { ApiError } from '../../../shared/errors.ts';
 import { STAFF_ACCESS_ROUTES } from '../../../shared/staff-access-routes.ts';
 import { ZodValidationPipe } from '../../../shared/zod-validation.pipe.ts';
-import {
-  MEMBER_PASSWORD_STATE,
-  type MemberPasswordState,
-} from '../ports/member-invitations.port.ts';
 import { listMemberInvitations } from '../queries/member-invitations.query.ts';
 import { InviteMember } from '../use-cases/invite-member/invite-member.ts';
 import { ReissueMemberInvitation } from '../use-cases/reissue-member-invitation/reissue-member-invitation.ts';
+
+/** بيقول إن العضو حط كلمة مروره — القارئ من جداول الهوية، مربوط في identity.module.ts. */
+export type MemberPasswordState = (userId: string) => Promise<boolean>;
+
+/** رمز الحقن لقراءة حالة كلمة المرور من جداول الهوية. */
+export const MEMBER_PASSWORD_STATE = Symbol('MEMBER_PASSWORD_STATE');
 
 @Controller('memberships/invitations')
 export class MemberInvitationsController {
