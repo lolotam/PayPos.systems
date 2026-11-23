@@ -37,7 +37,7 @@ function rowContract(row: StatementSourceRow): CommissionStatementRow {
 }
 
 /** موظفة الكشف بشكل العقد، مجاميعها من صفوفها المرئية. */
-function employeeContract(employee: StatementViewEmployee): CommissionStatementEmployee {
+export function employeeContract(employee: StatementViewEmployee): CommissionStatementEmployee {
   return {
     employee_id: employee.employeeId,
     employee_number: employee.employeeNumber,

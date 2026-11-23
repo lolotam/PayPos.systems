@@ -15,6 +15,8 @@ export type CommissionPlanVersionErrorCode =
   | 'COMMISSION_FINGERPRINT_STALE'
   | 'COMMISSION_RETURN_REASON_INVALID'
   | 'COMMISSION_STATEMENT_NOT_REVIEWED'
+  | 'COMMISSION_UPDATES_PENDING'
+  | 'COMMISSION_COVERAGE_NOT_PROVEN'
   | 'TRANSACTION_RETRY_REQUIRED';
 
 /** رفض الكتابة بكود مستقل عن HTTP، وتفاصيل كود المحرك عند الحاجة. */
