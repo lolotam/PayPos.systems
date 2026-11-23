@@ -395,6 +395,15 @@ Calibration from merged work (production / test / generated): #1135 67 / 342 / 7
      employee by her PIN and ends at the server's idle limit counted from its opening on the server. It widens
      neither the identity nor the duration and shows no rows again. Evidence: `private-window-controller-memory.spec.ts`
      (late open closed by its id, no reference to her rows kept) and the controller generation tests.
+8. **Review round 3 (2026-11-23), recorded, none blocking:**
+   - **Rollout note:** the alert-rules GET now always returns a `LOW_RATING` row, and an admin tab opened before
+     the deploy parses the response with its older bundled enum and rejects the page until it is reloaded. Reload the
+     admin after the deploy.
+   - **Owner question, PENDING:** the own rating average when `read:ratings:own` is denied on one branch and allowed
+     on another (`../owner-questions.ar.md`); the code follows the current spec (business-wide) until answered.
+   - **Deferred:** one snapshot for the alert rule and the recipients of a low-rating notice in the worker (the
+     consumer runs READ COMMITTED with a single decision timestamp; a snapshot read needs a new option in
+     `packages/db`), and the same snapshot option for the own-tips route.
 
 ### ملخص للمالك (بالعربي)
 
