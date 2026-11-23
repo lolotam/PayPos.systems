@@ -4,9 +4,11 @@ import { useLocale } from '@/shared/locale/locale-context';
 import type { LinesView } from '../model/private-window-state';
 import { monthOutOfRange, workForbidden } from '../model/work-error';
 import { WorkLineRow } from './work-line-row';
+import { WorkLinesMore } from './work-lines-more';
 
 /**
- * قائمة خدمات الشهر بحالاتها: تحميل، شهر خارج الحد، ممنوع، فشل مع إعادة، فاضي، والمزيد بالـ cursor.
+ * قائمة خدمات الشهر بحالاتها: تحميل، شهر خارج الحد، ممنوع، فشل مع إعادة، فاضي، والمزيد بالـ cursor
+ * (فشل «المزيد» بيسيب الصفحات ظاهرة وبيتعرض جنب الزر).
  *
  * الوقت وتاريخ الإلغاء بيتعرضوا بتوقيت النشاط اللي جاي مع كل صفحة، مش بتوقيت الجهاز (AC-57-4-9).
  *
@@ -52,11 +54,7 @@ export function WorkLines({
           <WorkLineRow key={item.line_id} item={item} timeZone={timeZone} />
         ))}
       </ul>
-      {lines.pages.at(-1)?.next_cursor ? (
-        <Button variant="outline" disabled={lines.fetchingMore} onClick={onLoadMore}>
-          {t(locale, 'myWork.loadMore')}
-        </Button>
-      ) : null}
+      <WorkLinesMore lines={lines} onLoadMore={onLoadMore} />
     </>
   );
 }

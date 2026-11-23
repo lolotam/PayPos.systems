@@ -1,5 +1,5 @@
 import type { StaffSessionContext } from '@pospay/contracts';
-import { ReceptionWorkEntry } from '@/personal-staff/ui/own-work-entry';
+import { ReceptionWorkEntry } from '@/personal-staff/ui/reception-work-entry';
 import { OwnLeaveEntry } from './own-leave-entry';
 
 /**

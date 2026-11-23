@@ -142,7 +142,6 @@ it('hides the tips already shown when a retry refreshes them and that refresh fa
     total_cash: '12.500',
     total_card: '7.250',
   } as const;
-  t.calls.lines.mockRejectedValueOnce(new WorkHttpError('NOT_READY', 503));
   t.calls.tips.mockResolvedValueOnce(visible);
   await submit(t);
   await t.flush();
@@ -153,4 +152,30 @@ it('hides the tips already shown when a retry refreshes them and that refresh fa
   await t.flush();
   const after = t.controller.getState();
   expect(after.phase === 'open' && after.data.tips).toBeUndefined();
+  expect(after.phase === 'open' && after.data.tipsFailed).toBe(true);
+});
+
+it('asks for the tips of the month the first lines page returned when no month was asked for', async () => {
+  const t = make();
+  t.calls.lines.mockResolvedValueOnce(page('2026-11'));
+  await submit(t);
+  await t.flush();
+  expect(t.calls.tips).toHaveBeenCalledTimes(1);
+  expect(t.calls.tips).toHaveBeenLastCalledWith(expect.objectContaining({ month: '2026-11' }));
+});
+
+it('retries only the tips after a tips failure and leaves the shown lines alone', async () => {
+  const t = make();
+  t.calls.tips.mockRejectedValueOnce(new WorkHttpError('NOT_READY', 503));
+  await submit(t);
+  await t.flush();
+  const failed = t.controller.getState();
+  expect(failed.phase === 'open' && failed.data.tipsFailed).toBe(true);
+  t.controller.retryTips();
+  await t.flush();
+  const after = t.controller.getState();
+  expect(after.phase === 'open' && after.data.tipsFailed).toBe(false);
+  expect(after.phase === 'open' && after.data.tips?.status).toBe('HIDDEN');
+  expect(t.calls.lines).toHaveBeenCalledTimes(1);
+  expect(t.calls.tips).toHaveBeenLastCalledWith(expect.objectContaining({ month: '2026-11' }));
 });

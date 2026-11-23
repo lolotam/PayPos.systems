@@ -19,11 +19,8 @@ export function ReceptionWork({
   onLeave: () => void;
   estimateAllowed: boolean;
 }) {
-  const { state, controller, attachRoot, submitPin, stepMonth, retry, loadMore } = usePrivateWindow(
-    {
-      onLeave,
-    },
-  );
+  const { state, controller, attachRoot, submitPin, stepMonth, retry, retryTips, loadMore } =
+    usePrivateWindow({ onLeave });
   if (state.phase === 'leave') return null;
   if (state.phase !== 'open')
     return (
@@ -42,6 +39,7 @@ export function ReceptionWork({
         estimateAllowed={estimateAllowed}
         onMonth={stepMonth}
         onRetry={retry}
+        onRetryTips={retryTips}
         onLoadMore={loadMore}
       />
     </div>

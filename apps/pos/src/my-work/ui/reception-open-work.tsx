@@ -11,6 +11,7 @@ import { MyWorkCards } from './my-work-cards';
  * @param props.estimateAllowed هل كارت التقدير مسموح
  * @param props.onMonth تغيير الشهر
  * @param props.onRetry إعادة المحاولة
+ * @param props.onRetryTips إعادة قراءة الإكراميات بس
  * @param props.onLoadMore تحميل الصفحة التالية
  */
 export function ReceptionOpenWork({
@@ -18,12 +19,14 @@ export function ReceptionOpenWork({
   estimateAllowed,
   onMonth,
   onRetry,
+  onRetryTips,
   onLoadMore,
 }: {
   controller: PrivateWindowController;
   estimateAllowed: boolean;
   onMonth: (month: string) => void;
   onRetry: () => void;
+  onRetryTips: () => void;
   onLoadMore: () => void;
 }) {
   const data = usePrivateWindowData(controller);
@@ -34,10 +37,12 @@ export function ReceptionOpenWork({
       home={data.home}
       lines={data.lines}
       tips={data.tips}
+      tipsFailed={data.tipsFailed}
       rating={undefined}
       estimateAllowed={estimateAllowed}
       onMonth={onMonth}
       onRetry={onRetry}
+      onRetryTips={onRetryTips}
       onLoadMore={onLoadMore}
     />
   );

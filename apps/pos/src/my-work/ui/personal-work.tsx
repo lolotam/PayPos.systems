@@ -4,17 +4,20 @@ import type { OwnServiceLines } from '@pospay/contracts';
 import { useRatingSummary, useWorkLines, useWorkTips } from '../api/use-my-work';
 import type { LinesView } from '../model/private-window-state';
 import type { WorkContext } from '../model/work-context';
-import { sessionEnded } from '../model/work-error';
+import { monthOutOfRange, sessionEnded } from '../model/work-error';
 import { MyWorkCards } from './my-work-cards';
 
 type LinesQuery = UseInfiniteQueryResult<{ pages: OwnServiceLines[] }, Error>;
 
 function toLinesView(query: LinesQuery): LinesView {
+  // فشل صفحة إضافية: الصفحات المحمّلة تفضل ظاهرة، والخطأ يتعرض جنب زر التحميل مش بدل القائمة.
+  const appendFailed = query.isError && query.isFetchNextPageError;
   return {
-    status: query.isPending ? 'pending' : query.isError ? 'error' : 'ready',
+    status: query.isPending ? 'pending' : query.isError && !appendFailed ? 'error' : 'ready',
     pages: query.data?.pages ?? [],
     error: query.error,
     fetchingMore: query.isFetchingNextPage,
+    moreError: appendFailed && !query.isFetchingNextPage ? query.error : undefined,
   };
 }
 
@@ -51,17 +54,21 @@ export function PersonalWork({
   const [month, setMonth] = useState<string>();
   const [home, setHome] = useState<string>();
   const lines = useWorkLines(context, month, onRefused);
-  const tips = useWorkTips(context, month, onRefused);
-  const rating = useRatingSummary(context, onRefused);
   const serverMonth = lines.data?.pages[0]?.month;
+  const shown = month ?? serverMonth;
+  // الإكراميات بتتطلب بالشهر المعروض (شهر أول صفحة خدمات لو مفيش شهر صريح) فمتبانش تحت شهر غير شهرها.
+  const tips = useWorkTips(context, shown, onRefused);
+  const rating = useRatingSummary(context, onRefused);
   if (month === undefined && serverMonth !== undefined && home !== serverMonth)
     setHome(serverMonth);
   return (
     <MyWorkCards
-      month={month ?? serverMonth}
+      month={shown}
       home={home}
       lines={toLinesView(lines)}
-      tips={tips.data}
+      tips={tips.data?.month === shown ? tips.data : undefined}
+      tipsFailed={tips.isError && !monthOutOfRange(tips.error)}
+      onRetryTips={() => void tips.refetch()}
       rating={rating.data}
       estimateAllowed={estimateAllowed}
       onMonth={setMonth}

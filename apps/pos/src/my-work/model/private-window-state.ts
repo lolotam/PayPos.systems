@@ -14,6 +14,8 @@ export type LinesView = {
   pages: readonly OwnServiceLines[];
   error: unknown;
   fetchingMore: boolean;
+  /** فشل تحميل صفحة إضافية: الصفحات المحمّلة تفضل ظاهرة والخطأ بيتعرض جنب زر التحميل (مش بدل القائمة). */
+  moreError: unknown;
 };
 
 /** بيانات الشاشة المفتوحة: عايشة في الذاكرة بس ومبتتحطش في أي كاش أو تخزين. */
@@ -24,6 +26,8 @@ export type WorkData = {
   home: string | undefined;
   lines: LinesView;
   tips: OwnTips | undefined;
+  /** قراءة الإكراميات فشلت (نقل أو سيرفر)؛ غير حالة HIDDEN اللي بتخفي البلوك بقرار الصلاحيات. */
+  tipsFailed: boolean;
 };
 
 export type PrivateWindowState =
@@ -48,19 +52,23 @@ export type PrivateWindowAction =
   | { type: 'linesMore' }
   | { type: 'linesLoaded'; page: OwnServiceLines; append: boolean }
   | { type: 'linesFailed'; error: unknown }
-  | { type: 'tipsLoaded'; tips: OwnTips };
+  | { type: 'tipsLoaded'; tips: OwnTips }
+  | { type: 'tipsFailed' }
+  | { type: 'tipsRetry' };
 
 export const PENDING_LINES: LinesView = {
   status: 'pending',
   pages: [],
   error: undefined,
   fetchingMore: false,
+  moreError: undefined,
 };
 const EMPTY_DATA: WorkData = {
   month: undefined,
   home: undefined,
   lines: PENDING_LINES,
   tips: undefined,
+  tipsFailed: false,
 };
 
 /**
@@ -76,24 +84,41 @@ export function shownMonth(data: WorkData): string | undefined {
 function reduceData(data: WorkData, action: PrivateWindowAction): WorkData {
   switch (action.type) {
     case 'month':
-      return { ...data, month: action.month, lines: PENDING_LINES, tips: undefined };
+      return {
+        ...data,
+        month: action.month,
+        lines: PENDING_LINES,
+        tips: undefined,
+        tipsFailed: false,
+      };
     case 'retry':
       // الإعادة بتقرا الخدمات والإكراميات مع بعض، فالإكراميات القديمة بتتشال لحد ما الجديدة توصل (فشلها يفضّل البلوك مخفي)
-      return { ...data, lines: PENDING_LINES, tips: undefined };
+      return { ...data, lines: PENDING_LINES, tips: undefined, tipsFailed: false };
     case 'linesMore':
-      return { ...data, lines: { ...data.lines, fetchingMore: true } };
+      return { ...data, lines: { ...data.lines, fetchingMore: true, moreError: undefined } };
     case 'linesLoaded': {
       const pages = action.append ? [...data.lines.pages, action.page] : [action.page];
       const home = data.month === undefined && !action.append ? action.page.month : data.home;
       return { ...data, home, lines: { ...PENDING_LINES, status: 'ready', pages } };
     }
     case 'linesFailed':
+      // فشل صفحة إضافية ما بيشيلش الصفحات اللي اتحمّلت: بيفضل الـ status جاهز والخطأ في moreError.
       return {
         ...data,
-        lines: { ...data.lines, status: 'error', error: action.error, fetchingMore: false },
+        lines: data.lines.fetchingMore
+          ? { ...data.lines, fetchingMore: false, moreError: action.error }
+          : { ...data.lines, status: 'error', error: action.error, fetchingMore: false },
       };
-    case 'tipsLoaded':
-      return { ...data, tips: action.tips };
+    case 'tipsLoaded': {
+      // الإكراميات بتتعرض بس لو شهرها هو الشهر المعروض؛ رد شهر تاني مبيتحطش تحت عنوان شهر مختلف.
+      const shown = shownMonth(data);
+      if (shown !== undefined && shown !== action.tips.month) return data;
+      return { ...data, tips: action.tips, tipsFailed: false };
+    }
+    case 'tipsFailed':
+      return { ...data, tips: undefined, tipsFailed: true };
+    case 'tipsRetry':
+      return { ...data, tips: undefined, tipsFailed: false };
     default:
       return data;
   }

@@ -15,11 +15,14 @@ export type MyWorkCardsProps = {
   home: string | undefined;
   lines: LinesView;
   tips: OwnTips | undefined;
+  /** قراءة الإكراميات فشلت (مش مخفية): بيظهر خطأ صغير بإعادة محاولة بدل ما البلوك يختفي. */
+  tipsFailed: boolean;
   /** ملخص التقييم: موبايلها الشخصي بس (AC-3-4)، وجهاز الاستقبال بيبعت undefined. */
   rating: OwnRatingSummary | undefined;
   estimateAllowed: boolean;
   onMonth: (month: string) => void;
   onRetry: () => void;
+  onRetryTips: () => void;
   onLoadMore: () => void;
 };
 
@@ -28,6 +31,7 @@ export type MyWorkCardsProps = {
  * على موبايلها الشخصي ومن متحكم النافذة على جهاز الاستقبال، ومعاه نفس العرض في الحالتين.
  * قاعدة AC-3-4: مسار rating-summary للجلسة الشخصية بس، فمفيش كارت تقييم على جهاز الاستقبال.
  * قاعدة AC-57-4-4 (معدّلة): كارت التقدير ما بيتعرضش من أي مدخل إنتاج لحد 57-5.
+ * «السابق» بيتقفل وطلب الشهر لسه معلّق، فمفيش ضغطات متتالية تعدّي حد الشهور قبل ما السيرفر يرد 422.
  */
 export function MyWorkCards(props: MyWorkCardsProps) {
   const { month, home, lines } = props;
@@ -36,7 +40,9 @@ export function MyWorkCards(props: MyWorkCardsProps) {
       <MonthStepper
         month={month}
         canGoBack={
-          month !== undefined && !(lines.status === 'error' && monthOutOfRange(lines.error))
+          month !== undefined &&
+          lines.status !== 'pending' &&
+          !(lines.status === 'error' && monthOutOfRange(lines.error))
         }
         canGoForward={month !== undefined && home !== undefined && month !== home}
         onPrevious={() => month && props.onMonth(previousMonth(month))}
@@ -44,7 +50,7 @@ export function MyWorkCards(props: MyWorkCardsProps) {
       />
       <EstimateCard allowed={props.estimateAllowed} />
       <RatingSummaryCard summary={props.rating} />
-      <TipsBlock tips={props.tips} />
+      <TipsBlock tips={props.tips} failed={props.tipsFailed} onRetry={props.onRetryTips} />
       <WorkLines lines={lines} onRetry={props.onRetry} onLoadMore={props.onLoadMore} />
     </div>
   );

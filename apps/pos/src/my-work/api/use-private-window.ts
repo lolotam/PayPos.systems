@@ -74,5 +74,6 @@ export function usePrivateWindow({ onLeave, deps }: PrivateWindowOptions) {
     stepMonth: useCallback((month: string) => controller.stepMonth(month), [controller]),
     loadMore: useCallback(() => controller.loadMore(), [controller]),
     retry: useCallback(() => controller.retry(), [controller]),
+    retryTips: useCallback(() => controller.retryTips(), [controller]),
   };
 }
