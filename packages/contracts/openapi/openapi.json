@@ -4301,6 +4301,125 @@
         }
       }
     },
+    "/v1/businesses/{businessId}/commission-statements/{period}/mark-paid": {
+      "post": {
+        "operationId": "markCommissionStatementPaid",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "x-company-id",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "in": "path",
+            "name": "businessId",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "in": "path",
+            "name": "period",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/CommissionStatementPeriod"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 255
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MarkCommissionStatementPaidInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The statement now reads PAID with its payment record",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MarkCommissionStatementPaidResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Uniform 403 refusal",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "COMMISSION_STATEMENT_NOT_APPROVED when the statement is DRAFT or REVIEWED, or COMMISSION_STATEMENT_ALREADY_PAID when it is PAID and a new Idempotency-Key is sent (CM-41).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/CommissionStatementNotApprovedError"
+                    },
+                    {
+                      "$ref": "#/components/schemas/CommissionStatementAlreadyPaidError"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "COMMISSION_PAID_ON_INVALID when paid_on is after today or before the approval month, or IDEMPOTENCY_KEY_REUSED when the same Idempotency-Key is sent with another body (CM-41).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/CommissionPaidOnInvalidError"
+                    },
+                    {
+                      "$ref": "#/components/schemas/CommissionStatementIdempotencyKeyReusedError"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Bilingual refusal",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/v1/businesses/{businessId}/employees/{employeeId}/commission-period-repairs": {
       "post": {
         "operationId": "createCommissionPeriodRepair",
@@ -23231,6 +23350,222 @@
         "additionalProperties": false
       },
       "CommissionPlanIdempotencyKeyReusedError": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "string",
+            "enum": [
+              "IDEMPOTENCY_KEY_REUSED"
+            ]
+          },
+          "message_ar": {
+            "type": "string",
+            "minLength": 1
+          },
+          "message_en": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": [
+          "code",
+          "message_ar",
+          "message_en"
+        ],
+        "additionalProperties": false
+      },
+      "CommissionStatementPeriod": {
+        "type": "string",
+        "pattern": "^(?!0000-)[0-9]{4}-(0[1-9]|1[0-2])$"
+      },
+      "CommissionStatementPaidMethod": {
+        "type": "string",
+        "enum": [
+          "WITH_SALARY",
+          "BANK_TRANSFER",
+          "CASH"
+        ]
+      },
+      "MarkCommissionStatementPaidInput": {
+        "type": "object",
+        "properties": {
+          "paid_method": {
+            "$ref": "#/components/schemas/CommissionStatementPaidMethod"
+          },
+          "paid_on": {
+            "$ref": "#/components/schemas/CommissionPlanDate"
+          },
+          "paid_note": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": [
+          "paid_method",
+          "paid_on"
+        ],
+        "additionalProperties": false
+      },
+      "CommissionStatementPaymentRow": {
+        "type": "object",
+        "properties": {
+          "employee_id": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "exact_payable": {
+            "$ref": "#/components/schemas/CommissionEstimateMoney"
+          },
+          "paid_amount": {
+            "$ref": "#/components/schemas/CommissionEstimateMoney"
+          }
+        },
+        "required": [
+          "employee_id",
+          "exact_payable",
+          "paid_amount"
+        ],
+        "additionalProperties": false
+      },
+      "MarkCommissionStatementPaidResponse": {
+        "type": "object",
+        "properties": {
+          "business_id": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "period": {
+            "$ref": "#/components/schemas/CommissionStatementPeriod"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "PAID"
+            ]
+          },
+          "paid_by": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "paid_at": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+          },
+          "paid_on": {
+            "$ref": "#/components/schemas/CommissionPlanDate"
+          },
+          "paid_method": {
+            "$ref": "#/components/schemas/CommissionStatementPaidMethod"
+          },
+          "paid_note": {
+            "nullable": true,
+            "type": "string",
+            "minLength": 1
+          },
+          "paid_total": {
+            "$ref": "#/components/schemas/CommissionEstimateMoney"
+          },
+          "payments": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CommissionStatementPaymentRow"
+            }
+          }
+        },
+        "required": [
+          "business_id",
+          "period",
+          "status",
+          "paid_by",
+          "paid_at",
+          "paid_on",
+          "paid_method",
+          "paid_note",
+          "paid_total",
+          "payments"
+        ],
+        "additionalProperties": false
+      },
+      "CommissionStatementNotApprovedError": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "string",
+            "enum": [
+              "COMMISSION_STATEMENT_NOT_APPROVED"
+            ]
+          },
+          "message_ar": {
+            "type": "string",
+            "minLength": 1
+          },
+          "message_en": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": [
+          "code",
+          "message_ar",
+          "message_en"
+        ],
+        "additionalProperties": false
+      },
+      "CommissionStatementAlreadyPaidError": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "string",
+            "enum": [
+              "COMMISSION_STATEMENT_ALREADY_PAID"
+            ]
+          },
+          "message_ar": {
+            "type": "string",
+            "minLength": 1
+          },
+          "message_en": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": [
+          "code",
+          "message_ar",
+          "message_en"
+        ],
+        "additionalProperties": false
+      },
+      "CommissionPaidOnInvalidError": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "string",
+            "enum": [
+              "COMMISSION_PAID_ON_INVALID"
+            ]
+          },
+          "message_ar": {
+            "type": "string",
+            "minLength": 1
+          },
+          "message_en": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": [
+          "code",
+          "message_ar",
+          "message_en"
+        ],
+        "additionalProperties": false
+      },
+      "CommissionStatementIdempotencyKeyReusedError": {
         "type": "object",
         "properties": {
           "code": {
