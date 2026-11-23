@@ -67,20 +67,7 @@ export {
   type MembershipPermissions,
 } from './identity/permissions.js';
 export { buildOpenApiDocument } from './openapi.js';
-export {
-  inviteMemberInput,
-  invitableRole,
-  invitationScopeType,
-  memberInvitation,
-  memberInvitationPage,
-  memberInvitationResult,
-  type InvitableRole,
-  type InvitationScopeType,
-  type InviteMemberInput,
-  type MemberInvitation,
-  type MemberInvitationPage,
-  type MemberInvitationResult,
-} from './identity/member-invitation.js';
+export * from './identity/member-invitation.js';
 export {
   business,
   createBusinessInput,
