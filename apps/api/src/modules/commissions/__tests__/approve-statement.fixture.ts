@@ -13,6 +13,9 @@ import {
 export const APPROVE = 'approve:commissions:business';
 export const SWITCH_FLAG = 'commission_statement_approval';
 
+// مفتاح إعادة إرسال جديد لكل توليد، لأن إعادة استعمال المفتاح بنفس الطلب ترجّع الرد المخزّن القديم لا الحساب الحالي.
+let generateKey = 0;
+
 export interface Approver {
   readonly cookie: string;
   readonly userId: string;
@@ -42,7 +45,13 @@ export async function reviewedStatement(
   reviewer: Approver,
   period = PERIOD,
 ): Promise<{ input: string; statement: string }> {
-  const response = await generateStatement(f, f.cookie, `generate-${period}-${reviewer.userId}`, period);
+  generateKey += 1;
+  const response = await generateStatement(
+    f,
+    f.cookie,
+    `generate-${period}-${reviewer.userId}-${generateKey}`,
+    period,
+  );
   const body = response.body as { current_fingerprint: string; current_statement_fingerprint: string };
   await f.h.owner`UPDATE commission_statements SET status = 'REVIEWED',
       reviewed_fingerprint = ${body.current_fingerprint},

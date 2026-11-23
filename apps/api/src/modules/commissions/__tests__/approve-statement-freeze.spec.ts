@@ -118,6 +118,7 @@ describe('a failure while freezing rolls everything back (CM-34)', () => {
     ['the audit entry is written, after every freeze and carry write', 'INSERT INTO audit_log'],
   ])('leaves the month REVIEWED with no lines, carries or audit when it fails as %s', async (_label, marker) => {
     const fingerprints = await freshReviewedMonth();
+    const auditsBefore = (await approvalFootprint(f)).audits;
     const database = createDatabase({ url: f.h.urls.app, ids });
     try {
       const useCase = new ApproveCommissionStatementUseCase(
@@ -134,14 +135,20 @@ describe('a failure while freezing rolls everything back (CM-34)', () => {
           expectedFingerprint: fingerprints.input,
           expectedStatementFingerprint: fingerprints.statement,
           key: `fault-${marker.length}`,
-          fingerprint: 'fault-request',
+          fingerprint: 'f'.repeat(64),
         }),
       ).rejects.toThrow('injected freeze failure');
     } finally {
       await database.close();
     }
 
-    expect(await approvalFootprint(f)).toMatchObject({ status: 'REVIEWED', lines: 0, audits: 0, carries: 0 });
+    // سجل التدقيق للإضافة فقط فلا يُمسح بين الاختبارات؛ المقارنة بما كان قبل المحاولة الفاشلة.
+    expect(await approvalFootprint(f)).toMatchObject({
+      status: 'REVIEWED',
+      lines: 0,
+      audits: auditsBefore,
+      carries: 0,
+    });
     const [stored] = await f.h.owner`SELECT input_fingerprint, statement_fingerprint, approved_by, approved_at
       FROM commission_statements
       WHERE company_id = ${f.company} AND business_id = ${f.business} AND period = ${PERIOD}`;
@@ -178,10 +185,9 @@ describe('the frozen snapshot of a transferred employee (CM-34d)', () => {
       [f.branch, f.secondBranch].sort(),
     );
 
-    await f.h.owner`UPDATE employee_branches SET "to" = '2026-11-10'::date
-      WHERE company_id = ${f.company} AND employee_id = ${mona} AND branch_id = ${f.branch}`;
-    await f.h.owner`UPDATE employee_branches SET "from" = '2026-11-10'::date
-      WHERE company_id = ${f.company} AND employee_id = ${mona} AND branch_id = ${f.secondBranch}`;
+    await f.h.owner`UPDATE employee_branches SET "to" = '2026-11-20'::date
+      WHERE company_id = ${f.company} AND employee_id = ${mona} AND branch_id = ${f.secondBranch}
+        AND "to" IS NULL`;
 
     expect(await attachments()).toEqual(before.attachments);
     expect(await employeeRow()).toEqual(before.row);
@@ -221,7 +227,7 @@ describe('a correction received by the month (CM-34d)', () => {
 
     const { response } = await approveReviewedMonth(f, approver, 'freeze-correction');
 
-    expect(response.status).toBe(200);
+    expect([response.status, (response.body as { code?: string }).code]).toEqual([200, undefined]);
     const frozen = await f.h.owner`SELECT kind, previous_amount::text AS previous_amount,
         new_amount::text AS new_amount, amount::text AS amount, source_period
       FROM commission_statement_lines
