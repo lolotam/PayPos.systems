@@ -65,10 +65,25 @@ Postgres 18 and Redis 8 containers on the private `pospay-prod-internal` network
 pinned-compose upload of the pipeline skill §6, applied to the production file: every `${IMAGE_TAG:?}` line is
 replaced by one staging-proven SHA, and every production deploy needs Waleed's yes. `postgres` is not pinned by
 `IMAGE_TAG` — its `pospay-postgres` image tag is a literal SHA written in the file, changed only in a deliberate
-Postgres release with a PP-129 snapshot right before it. The environment is entered in the Dokploy UI from
-`deploy/prod.env.example` (every secret freshly generated, none copied from staging); compose refuses to run without
-`TRUSTED_PROXY_CIDRS`. First-deploy host preparation, the pgBackRest schedule and the timed restore drill (the
-launch gate before any real data): `deploy/backup/README.md`, Production section, and ADR-0062 §5.
+Postgres release with a PP-129 snapshot right before it. Pin that literal on the first published `pospay-postgres`
+image after this file merges (and prefer `tag@sha256:<digest>` once pushed, so the bytes are pinned, not the tag).
+Before choosing an older SHA for rollback, confirm that SHA still has its images in GHCR — including the
+`-prod` front ends (`pospay-admin-prod`, `pospay-pos-prod`), which exist only for SHAs released after PR-A. An
+application rollback keeps the `postgres` pin exactly as it is: the database never rolls back with the app, and a
+Postgres image change is its own release with its own snapshot. The environment is entered in the Dokploy UI from
+`deploy/prod.env.example` (every secret freshly generated, none copied from staging; passwords from a URL-safe
+alphabet — compose cannot percent-encode them); compose refuses to run without `TRUSTED_PROXY_CIDRS`. Resolving the
+Postgres container, the pgBackRest schedule, the WAL-drop alert and the timed restore drill (the launch gate before
+any real data): `deploy/backup/README.md`, Production section, and ADR-0062 §5.
+
+**Production session cookie and staging hosts.** `COOKIE_DOMAIN` defaults to `.pospay.systems`, so the browser
+sends the production session cookie to every `*.pospay.systems` host — including the staging hosts under
+`*.staging.pospay.systems`. PR-B makes staging refuse it *as a session*, but the browser still sends it, and the
+cookie's reach is why a host-only API-host cookie is not a drop-in: the admin's server-side session gate reads the
+cookie jar on the admin host (`apps/admin/src/session/api/server-session.ts`, used by `SessionGate`/
+`enrol-gate`) and would classify every signed-in user as anonymous, redirecting them to `/login`. Until that is
+redesigned, the value stays, and the operator rule holds: **never open staging in a browser profile that holds a
+production session** (plan §1, risk row "Production cookie sent to staging hosts").
 
 ## Restoring a logical dump
 

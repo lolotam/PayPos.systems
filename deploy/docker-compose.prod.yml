@@ -48,14 +48,17 @@ x-staff-otp-env: &staff-otp-env
   NOTIFICATION_PHONE_HASH_KEY: ${NOTIFICATION_PHONE_HASH_KEY:-}
   NOTIFICATION_PHONE_HASH_KEY_ID: ${NOTIFICATION_PHONE_HASH_KEY_ID:-}
   NOTIFICATION_MESSAGE_ID_HASH_KEY: ${NOTIFICATION_MESSAGE_ID_HASH_KEY:-}
-  PLATFORM_NOTIFICATIONS_DATABASE_URL: ${PLATFORM_NOTIFICATIONS_DATABASE_URL:-}
+  # The notifications connection is built here from the internal host for the same reason as the migration URL;
+  # empty role password = the notifications capability stays off.
+  PLATFORM_NOTIFICATIONS_DATABASE_URL: ${POSTGRES_NOTIFICATIONS_PASSWORD:+postgres://pospay_notifications:${POSTGRES_NOTIFICATIONS_PASSWORD}@postgres:5432/${DB_NAME:?}}
   WHATSAPP_GRAPH_API_VERSION: v23.0
 
 services:
   # The WAL-archived Postgres (ADR-0062 §2-3). Its image is pinned by a literal SHA written here, never
   # ${IMAGE_TAG}, so an application release never restarts the database; replace the pin only in a deliberate
-  # Postgres release with a snapshot right before it. The all-zero pin below fails closed until the first
-  # pospay-postgres SHA built on main is written in.
+  # Postgres release with a snapshot right before it, and keep it unchanged when only the application rolls back
+  # (docs/runbook.md, Production deploy). The all-zero pin below fails closed until the first pospay-postgres SHA
+  # built on main is written in.
   postgres:
     image: ${REGISTRY:-ghcr.io/lolotam}/pospay-postgres:0000000000000000000000000000000000000000
     restart: unless-stopped
@@ -70,6 +73,9 @@ services:
       # The 18+ image keeps PGDATA at /var/lib/postgresql/18/docker (docker-library/postgres#1259); the mount below
       # is the image's VOLUME parent, so a future major upgrade keeps the same host directory.
       PGBACKREST_PG1_PATH: /var/lib/postgresql/18/docker
+      # initdb created pospay_owner (POSTGRES_USER above), not the OS postgres user pgBackRest runs as; without this
+      # the stanza's local connection targets a role that does not exist.
+      PGBACKREST_PG1_USER: pospay_owner
       PGBACKREST_SPOOL_PATH: /spool
       # Async archive-push returns after spooling, so a slow R2 never stalls commits; the queue cap drops WAL past
       # 4 GB instead of filling the disk — that breaks the WAL chain, which is why the 15-minute check alerts
@@ -107,7 +113,8 @@ services:
       - /opt/pospay-prod/postgres:/var/lib/postgresql
       - /opt/pospay-prod/spool:/spool
     healthcheck:
-      test: ['CMD-SHELL', 'pg_isready -U "$${POSTGRES_USER}" -d "$${POSTGRES_DB}"']
+      # -h forces TCP: over the Unix socket pg_isready can answer for the temporary initdb server of a first boot.
+      test: ['CMD-SHELL', 'pg_isready -h 127.0.0.1 -U "$${POSTGRES_USER}" -d "$${POSTGRES_DB}"']
       interval: 5s
       timeout: 3s
       retries: 20
@@ -150,7 +157,9 @@ services:
     restart: 'no'
     environment:
       NODE_ENV: production
-      MIGRATION_DATABASE_URL: ${MIGRATION_DATABASE_URL:?}
+      # Built here from the internal host, never taken from the environment: a pasted pre-production URL could
+      # otherwise point the migration owner at the wrong database.
+      MIGRATION_DATABASE_URL: postgres://pospay_owner:${POSTGRES_OWNER_PASSWORD:?}@postgres:5432/${DB_NAME:?}
       POSTGRES_APP_PASSWORD: ${POSTGRES_APP_PASSWORD:?}
       POSTGRES_AUTH_PASSWORD: ${POSTGRES_AUTH_PASSWORD:?}
       POSTGRES_DISPATCHER_PASSWORD: ${POSTGRES_DISPATCHER_PASSWORD:?}
@@ -171,7 +180,7 @@ services:
     restart: 'no'
     environment:
       NODE_ENV: production
-      MIGRATION_DATABASE_URL: ${MIGRATION_DATABASE_URL:?}
+      MIGRATION_DATABASE_URL: postgres://pospay_owner:${POSTGRES_OWNER_PASSWORD:?}@postgres:5432/${DB_NAME:?}
     depends_on:
       migrate:
         condition: service_completed_successfully
@@ -191,7 +200,6 @@ services:
       BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET:?}
       BETTER_AUTH_URL: https://${API_HOST:?}
       AUTH_TRUSTED_ORIGINS: ${AUTH_TRUSTED_ORIGINS:-https://${ADMIN_HOST:?},https://${POS_HOST:?}}
-      PLATFORM_NOTIFICATIONS_DATABASE_URL: ${PLATFORM_NOTIFICATIONS_DATABASE_URL:-}
       WHATSAPP_APP_SECRET: ${WHATSAPP_APP_SECRET:-}
       WHATSAPP_WEBHOOK_VERIFY_TOKEN: ${WHATSAPP_WEBHOOK_VERIFY_TOKEN:-}
       WHATSAPP_WABA_ID: ${WHATSAPP_WABA_ID:-}
@@ -206,6 +214,9 @@ services:
       # address (plan gap B4).
       TRUSTED_PROXY_CIDRS: ${TRUSTED_PROXY_CIDRS:?}
       COOKIE_DOMAIN: ${COOKIE_DOMAIN:-.pospay.systems}
+      # The public origin customers' rating links open on (ADR-0057); empty = links stay off. The API validates it
+      # is https and neither the API origin nor a trusted origin.
+      RATING_PAGE_ORIGIN: ${RATING_PAGE_ORIGIN:-}
       # Private files on Cloudflare R2 (packages/storage); any of endpoint, bucket and the two keys missing = uploads answer STORAGE_NOT_CONFIGURED.
       STORAGE_ENDPOINT: ${STORAGE_ENDPOINT:-}
       STORAGE_REGION: ${STORAGE_REGION:-auto}
@@ -237,7 +248,6 @@ services:
       RATING_TOKEN_DERIVATION_KEY_VERSION: ${RATING_TOKEN_DERIVATION_KEY_VERSION:-}
       RATING_TOKEN_DERIVATION_RETIRED_KEYS: ${RATING_TOKEN_DERIVATION_RETIRED_KEYS:-}
       # ADR-0019: OTP activation independent; tenant outbound remains separately closed.
-      PLATFORM_NOTIFICATIONS_DATABASE_URL: ${PLATFORM_NOTIFICATIONS_DATABASE_URL:-}
       # Staff push (ADR-0052): production refuses fake mode, so an empty value is the default here; only `live` (staff OTP) or empty keep push enabled.
       NOTIFICATIONS_MODE: ${NOTIFICATIONS_MODE:-}
       VAPID_PUBLIC_KEY: ${VAPID_PUBLIC_KEY:-}
@@ -283,6 +293,11 @@ services:
     depends_on:
       migrate:
         condition: service_completed_successfully
+      seed:
+        condition: service_completed_successfully
+      # A cashier must never open the app against an unseeded database or a dead API.
+      api:
+        condition: service_healthy
     networks: [pospay-prod-internal, dokploy-network]
     mem_limit: 128m
     cpus: 0.25
