@@ -14,6 +14,19 @@ export function ratingsKey(companyId: string, userId: string, businessId: string
   return ['ratings', companyId, userId, businessId] as const;
 }
 
+/** الجيل الأول بلا لاحقة، فمفاتيح الكاش القائمة تفضل زي ما هي؛ كل جيل بعده مفتاح مستقل بلا حالة قديمة. */
+export function epochSuffix(epoch: number): readonly number[] {
+  return epoch > 0 ? [epoch] : [];
+}
+
+let lastEpoch = 0;
+
+/** جيل بديل فريد على مستوى التطبيق كله: صفحتان مفتوحتان على نفس الكاش ما يوصلوش لنفس المفتاح، فقراءة ما بعد الرفض ما تنضمش لطلب بدأ قبله. */
+export function nextRatingsEpoch(): number {
+  lastEpoch += 1;
+  return lastEpoch;
+}
+
 export async function readRatingsPage(
   companyId: string,
   businessId: string,
