@@ -8,6 +8,7 @@ import {
   type AccountMenuEntry,
   type ThemePreference,
 } from '@pospay/ui';
+import { usePathname } from 'next/navigation';
 import { useSyncExternalStore } from 'react';
 
 import { useSignOut } from '@/session/api/use-sign-out';
@@ -42,12 +43,21 @@ export function useAccountEntries(): AccountMenuEntry[] {
     readThemePreference,
     () => 'system',
   );
+  const pathname = usePathname();
   const signOut = useSignOut();
   const mark = (text: string, current: boolean) =>
     current ? `${text} — ${t(locale, 'adminNav.currentStyleBadge')}` : text;
   return [
-    { id: 'authenticator', label: t(locale, 'admin.enrolLink'), href: TWO_FACTOR_HREF },
-    { id: 'appearance', label: t(locale, 'adminNav.appearanceTitle'), href: APPEARANCE_HREF },
+    {
+      id: 'authenticator',
+      label: mark(t(locale, 'admin.enrolLink'), pathname === TWO_FACTOR_HREF),
+      href: TWO_FACTOR_HREF,
+    },
+    {
+      id: 'appearance',
+      label: mark(t(locale, 'adminNav.appearanceTitle'), pathname === APPEARANCE_HREF),
+      href: APPEARANCE_HREF,
+    },
     ...NAVIGATION_STYLES.map((option) => ({
       id: `style-${option}`,
       label: mark(

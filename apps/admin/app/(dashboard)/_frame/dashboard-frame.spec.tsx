@@ -10,9 +10,15 @@ import {
   resetDashboardState,
   visibleStyles,
 } from './dashboard-test-support';
+import { bellProbeState } from './bell-probe';
 import { sessionState } from './dashboard-mocks';
 import { CurrentRoute } from './frames/current-route';
-import { frameState, resetFrameState, stubViewport } from './frames/frame-test-support';
+import {
+  frameState,
+  resetFrameState,
+  selectBusiness,
+  stubViewport,
+} from './frames/frame-test-support';
 
 vi.mock('next/navigation', async () => (await import('./frames/frame-test-support')).navigationMock);
 vi.mock(
@@ -37,7 +43,7 @@ vi.mock(
 );
 vi.mock(
   '@/notifications/ui/notification-bell',
-  async () => (await import('./frames/frame-test-support')).bellMock,
+  async () => (await import('./dashboard-mocks')).bellProbeMock,
 );
 vi.mock(
   '@/shared/locale/locale-switch',
@@ -191,5 +197,39 @@ describe('what stays as it was on main', () => {
   it('shows no alert when the session reads fine', () => {
     renderDashboard(page());
     expect(screen.queryByRole('alert')).toBeNull();
+  });
+
+  it.each(['A', 'B', 'C'] as const)(
+    'gives the notification bell the company, user and business in style %s',
+    (style) => {
+      renderDashboard(page(), style);
+      expect(screen.getByRole('button', { name: 'Notifications company-1/user-1/business-1' })).toBeTruthy();
+    },
+  );
+
+  it('starts a new notification bell when the company changes, and keeps it when it does not', () => {
+    const { rerenderDashboard } = renderDashboard(page());
+    const before = bellProbeState.mounts;
+    rerenderDashboard(page('Same company'));
+    expect(bellProbeState.mounts).toBe(before);
+    selectBusiness('restaurant');
+    const current = frameState.workspace;
+    if (current?.status !== 'ready') throw new Error('Expected a ready workspace');
+    frameState.workspace = { ...current, company: { ...current.company, id: 'company-2' } };
+    rerenderDashboard(page('Other company'));
+    expect(bellProbeState.mounts).toBe(before + 1);
+    expect(screen.getByRole('button', { name: /^Notifications company-2\// })).toBeTruthy();
+  });
+});
+
+describe('reaching a page behind More on a phone in style A', () => {
+  it('takes two taps from another section, inside the three allowed', () => {
+    stubViewport(390);
+    frameState.pathname = '/staff';
+    renderDashboard(page(), 'A');
+    fireEvent.click(screen.getByRole('button', { name: label('adminNav.more') }));
+    const sheet = within(screen.getByRole('dialog'));
+    fireEvent.click(sheet.getByRole('link', { name: new RegExp(label('adminNavPages.appearance')) }));
+    expect(frameState.pathname).toBe('/appearance');
   });
 });

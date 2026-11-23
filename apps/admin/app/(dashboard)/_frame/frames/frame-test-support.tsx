@@ -64,17 +64,20 @@ function useExternal<T>(read: () => T): T {
 /** ما يرميه `notFound()` المحاكى؛ يلتقطه `NotFoundProbe` فيرسم «Not found». */
 export const NOT_FOUND_MESSAGE = 'NEXT_NOT_FOUND';
 
+// موجّه Next الحقيقي ثابت الهوية بين الرسمات، فالمحاكي كذلك حتى لا يعيد تأثيرٌ يعتمد عليه تشغيل نفسه.
+const stableRouter = {
+  push: (...args: Parameters<typeof frameState.push>) => frameState.push(...args),
+  replace: (...args: Parameters<typeof frameState.replace>) => frameState.replace(...args),
+  refresh: () => undefined,
+};
+
 export const navigationMock = {
   usePathname: () => useExternal(() => frameState.pathname),
   useSearchParams: () => {
     const search = useExternal(() => frameState.search);
     return useMemo(() => new URLSearchParams(search), [search]);
   },
-  useRouter: () => ({
-    push: frameState.push,
-    replace: frameState.replace,
-    refresh: () => undefined,
-  }),
+  useRouter: () => stableRouter,
   useParams: () => frameState.params,
   notFound: (): never => {
     throw new Error(NOT_FOUND_MESSAGE);
