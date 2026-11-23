@@ -1,3 +1,5 @@
+import { COMMISSION_COVERAGE_FUNCTIONS } from './commission-coverage-function-inventory.ts';
+
 export const FUNCTION_INVENTORY = [
   {
     proname: 'package_import_preview_partition_guard',
@@ -376,41 +378,5 @@ export const FUNCTION_INVENTORY = [
     prosecdef: false,
     proconfig: ['search_path=pg_catalog, public'],
   },
-  // إثبات تغطية العمولات (ADR-0054 إضافة 2026-11-22): أربع دوال definer يملكها pospay_coverage_issuer، كلها بمسار مثبّت وRLS مفعّل.
-  {
-    proname: 'current_commission_coverage_generation',
-    prosecdef: true,
-    proconfig: ['search_path=pg_catalog, pg_temp', 'row_security=on'],
-  },
-  {
-    proname: 'issue_commission_coverage_proof',
-    prosecdef: true,
-    proconfig: ['search_path=pg_catalog, pg_temp', 'row_security=on'],
-  },
-  {
-    proname: 'read_commission_coverage_gate',
-    prosecdef: true,
-    proconfig: ['search_path=pg_catalog, pg_temp', 'row_security=on'],
-  },
-  {
-    proname: 'invalidate_commission_coverage',
-    prosecdef: true,
-    proconfig: ['search_path=pg_catalog, pg_temp', 'row_security=on'],
-  },
-  { proname: 'commission_coverage_required_version', prosecdef: false, proconfig: ['search_path=pg_catalog'] },
-  {
-    proname: 'refuse_commission_coverage_change',
-    prosecdef: false,
-    proconfig: ['search_path=pg_catalog, pg_temp'],
-  },
-  {
-    proname: 'refuse_counted_outbox_delete',
-    prosecdef: false,
-    proconfig: ['search_path=pg_catalog, pg_temp'],
-  },
-  {
-    proname: 'refuse_outbox_truncate',
-    prosecdef: false,
-    proconfig: ['search_path=pg_catalog, pg_temp'],
-  },
+  ...COMMISSION_COVERAGE_FUNCTIONS,
 ].sort((a, b) => a.proname.localeCompare(b.proname));
