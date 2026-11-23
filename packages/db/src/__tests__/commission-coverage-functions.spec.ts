@@ -123,6 +123,15 @@ describe('the gate read', () => {
     expect(count?.['n']).toBe(0);
   });
 
+  it('runs the whole issue function body and stamps the connecting role as the issuer', async () => {
+    await ensureState(A.company);
+    await issue();
+
+    const [row] = await owner`SELECT issued_by, run_id, release FROM commission_coverage_proofs`;
+
+    expect(row).toEqual({ issued_by: 'pospay_dispatcher', run_id: 'run-1', release: 'release-1' });
+  });
+
   it('returns the issued proof with the binary rules it was stamped with', async () => {
     await ensureState(A.company);
     expect(await issue()).toBe(1);

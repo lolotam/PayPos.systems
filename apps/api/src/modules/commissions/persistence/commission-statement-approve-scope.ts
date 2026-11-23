@@ -32,12 +32,41 @@ export interface CommissionStatementApproveReaders {
     companyId: string,
     userId: string,
     businessId: string,
+    locksHeld: boolean,
   ) => Promise<'FORBIDDEN' | 'FEATURE_DISABLED' | null>;
   readonly explicitFeature: ExplicitFeatureReader;
   readonly employment: EmployeeEmploymentPort;
   readonly pending: PendingCommissionEventsPort;
   readonly providers: CommissionStatementProviders;
   readonly clock: Clock;
+}
+
+/**
+ * فحص الصلاحية المتكرر في معاملة الاعتماد: أول نداء يأخذ قفلي الشركة والعضويات ويمسكهما حتى آخر المعاملة، فالنداءات التالية
+ * (إعادة الفحص بعد قفل الشهور) لا تعيد أخذهما وتعيد قراءة ما يتغير فقط.
+ *
+ * @param tx معاملة الاعتماد
+ * @param actor الفاعل والنشاط
+ * @param readers القراء المربوطة
+ * @returns دالة الفحص
+ */
+function accessRecheck(
+  tx: Tx,
+  actor: CommissionStatementApproveActor,
+  readers: CommissionStatementApproveReaders,
+): CommissionStatementApproveScope['recheckAccess'] {
+  let locksHeld = false;
+  return async () => {
+    const failure = await readers.approveAccess(
+      tx,
+      actor.companyId,
+      actor.userId,
+      actor.businessId,
+      locksHeld,
+    );
+    locksHeld = true;
+    return failure;
+  };
 }
 
 /**
@@ -63,8 +92,7 @@ export function createCommissionStatementApproveScope(
       const calendar = await readers.businessCalendar(tx, actor.companyId, actor.businessId);
       return calendar === null ? null : sessionBusinessDate(readers.clock.now(), calendar.timeZone);
     },
-    recheckAccess: () =>
-      readers.approveAccess(tx, actor.companyId, actor.userId, actor.businessId),
+    recheckAccess: accessRecheck(tx, actor, readers),
     lockPeriods: (periods) =>
       lockStatementPeriods(tx, { businessId: actor.businessId, periods, ids }),
     readCoverageGate: () =>
