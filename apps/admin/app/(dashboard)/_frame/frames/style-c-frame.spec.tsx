@@ -1,10 +1,9 @@
 import { t } from '@pospay/i18n';
 import { fireEvent, screen, waitFor, within } from '@testing-library/react';
-import { usePathname } from 'next/navigation';
-import { useEffect, useRef } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { NAVIGATION_PAGES } from '../navigation-model';
+import { Destination } from './focus-destination';
 import {
   frameState,
   goTo,
@@ -54,21 +53,6 @@ const floatingPanel = () =>
   screen.queryByRole('dialog', { name: label('adminNav.localNavigation') });
 const toggle = () => screen.getByRole('button', { name: label('adminNav.togglePanel') });
 const finderTrigger = () => screen.getByRole('button', { name: label('adminNav.pageFinderLabel') });
-
-function DestinationHeading({ path }: { path: string }) {
-  const heading = useRef<HTMLHeadingElement>(null);
-  useEffect(() => heading.current?.focus(), []);
-  return (
-    <h1 ref={heading} tabIndex={-1}>
-      Destination {path}
-    </h1>
-  );
-}
-
-function Destination() {
-  const path = usePathname();
-  return <DestinationHeading key={path} path={path} />;
-}
 
 const page = () => (
   <StyleCFrame>

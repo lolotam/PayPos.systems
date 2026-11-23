@@ -1,10 +1,10 @@
 import { t } from '@pospay/i18n';
 import { fireEvent, screen, waitFor, within } from '@testing-library/react';
-import { usePathname } from 'next/navigation';
 import { createPortal } from 'react-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { resolveTopLevels } from '../menu/resolve-top-levels';
+import { CurrentRoute } from './current-route';
 import {
   frameState,
   goTo,
@@ -51,19 +51,6 @@ const link = (scope: HTMLElement, name: string | RegExp) =>
 const tabsNav = () => screen.getByRole('navigation', { name: label('adminNav.tabsLabel') });
 const moreButton = () => screen.getByRole('button', { name: label('adminNav.more') });
 const pillsNav = () => screen.getByRole('navigation', { name: label('adminNav.pillsLabel') });
-
-function CurrentRoute() {
-  return <p>Route: {usePathname()}</p>;
-}
-
-function PageContent() {
-  return (
-    <>
-      <CurrentRoute />
-      <a href="/staff/attendance-board">Link written by the page</a>
-    </>
-  );
-}
 
 beforeEach(() => {
   resetFrameState();
@@ -235,7 +222,9 @@ describe('links', () => {
   const renderWithContent = () =>
     renderFrame(
       <StyleAFrame>
-        <PageContent />
+        <CurrentRoute>
+          <a href="/staff/attendance-board">Link written by the page</a>
+        </CurrentRoute>
       </StyleAFrame>,
     );
 
