@@ -31,7 +31,7 @@ function fakeTransactions() {
     auditRows.push(entry);
   });
   const transaction: { commitError: Error | null } = { commitError: null };
-  const credential = { id: 'synthetic-record' };
+  const credential = { id: 'synthetic-record', temporary: false };
   const run = vi.fn(
     async (
       _companyId: string,
@@ -40,7 +40,11 @@ function fakeTransactions() {
     ) => {
       const pending: AuditEntry[] = [];
       const value = await work({
-        find: async () => ({ id: credential.id, hash: 'synthetic-hash' }),
+        find: async () => ({
+          id: credential.id,
+          hash: 'synthetic-hash',
+          temporary: credential.temporary,
+        }),
         audit: {
           record: async (entry: AuditEntry) => {
             pending.push(entry);
@@ -175,6 +179,34 @@ it('a comparison error releases the reservation and is rethrown', async () => {
     'synthetic-reservation',
   );
   expect(f.failed).not.toHaveBeenCalled();
+});
+
+it('a temporary PIN is refused like a wrong PIN and counts the same failure', async () => {
+  const f = fixture();
+  f.credential.temporary = true;
+  expect(await f.open.execute({ pin, session })).toEqual({ kind: 'refused' });
+  // المقارنة بتجري بالظبط زي ما هي، عشان التوقيت ما يتغيرش بسبب الرفض.
+  expect(f.provePin).toHaveBeenCalledExactlyOnceWith(
+    expect.objectContaining({ pin, hash: 'synthetic-hash' }),
+  );
+  expect(f.failed).toHaveBeenCalledExactlyOnceWith(
+    expect.objectContaining({ employeeId: 'staff-user:synthetic-user' }),
+    'synthetic-reservation',
+  );
+  expect(f.openWindow).not.toHaveBeenCalled();
+  expect(f.record).not.toHaveBeenCalled();
+});
+
+it('a PIN marked temporary between the comparison and the opening opens nothing', async () => {
+  const f = fixture();
+  const compare = f.provePin.getMockImplementation();
+  f.provePin.mockImplementation(async (args) => {
+    f.credential.temporary = true;
+    return compare === undefined ? null : compare(args);
+  });
+  expect(await f.open.execute({ pin, session })).toEqual({ kind: 'refused' });
+  expect(f.auditRows).toEqual([]);
+  expect(f.openWindow).not.toHaveBeenCalled();
 });
 
 it('a locked counter after a correct PIN refuses without opening', async () => {
