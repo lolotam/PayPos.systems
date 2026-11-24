@@ -12,6 +12,10 @@ import {
 } from './commission-plan-builder-catalog.js';
 import { commissionOverridesAr, commissionOverridesEn } from './commission-override-catalog.js';
 import { commissionStatementAr, commissionStatementEn } from './commission-statement-catalog.js';
+import {
+  commissionStatementScreenAr,
+  commissionStatementScreenEn,
+} from './commission-statement-screen-catalog.js';
 import { en } from './en.js';
 import { nativeShellAr, nativeShellEn } from './native-shell-catalog.js';
 import { packageSaleAr, packageSaleEn } from './package-sale-catalog.js';
@@ -51,6 +55,7 @@ type RegisteredCatalog = Catalog & {
   readonly commissionPlanBuilder: Record<keyof typeof commissionPlanBuilderEn, string>;
   readonly commissionOverrides: Record<keyof typeof commissionOverridesEn, string>;
   readonly commissionStatement: Record<keyof typeof commissionStatementEn, string>;
+  readonly commissionStatementScreen: Record<keyof typeof commissionStatementScreenEn, string>;
   readonly serviceSessions: Record<keyof typeof serviceSessionsEn, string>;
   readonly discountApproval: Record<keyof typeof discountApprovalEn, string>;
   readonly deviceDiscountApproval: Record<keyof typeof deviceDiscountApprovalEn, string>;
@@ -90,6 +95,7 @@ const CATALOGS: Record<Locale, RegisteredCatalog> = {
     commissionPlanBuilder: commissionPlanBuilderAr,
     commissionOverrides: commissionOverridesAr,
     commissionStatement: commissionStatementAr,
+    commissionStatementScreen: commissionStatementScreenAr,
     serviceSessions: serviceSessionsAr,
     discountApproval: discountApprovalAr,
     deviceDiscountApproval: deviceDiscountApprovalAr,
@@ -119,6 +125,7 @@ const CATALOGS: Record<Locale, RegisteredCatalog> = {
     commissionPlanBuilder: commissionPlanBuilderEn,
     commissionOverrides: commissionOverridesEn,
     commissionStatement: commissionStatementEn,
+    commissionStatementScreen: commissionStatementScreenEn,
     serviceSessions: serviceSessionsEn,
     discountApproval: discountApprovalEn,
     deviceDiscountApproval: deviceDiscountApprovalEn,
