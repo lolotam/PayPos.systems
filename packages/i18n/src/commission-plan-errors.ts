@@ -19,7 +19,7 @@ export const commissionPlanErrorsAr = {
     'بيانات الشركة القديمة لسه ماتراجعتش، فالاعتماد مش متاح دلوقتي.',
   COMMISSION_STATEMENT_NOT_APPROVED: 'الكشف لازم يتعمد الأول قبل ما يتصرف.',
   COMMISSION_STATEMENT_ALREADY_PAID: 'الكشف ده اتصرّف خلاص.',
-  COMMISSION_PAID_ON_INVALID: 'تاريخ الصرف لازم يكون بعد تاريخ الاعتماد ومش بعد النهارده.',
+  COMMISSION_PAID_ON_INVALID: 'تاريخ الصرف لازم يكون من يوم الاعتماد لحد النهارده.',
   COMMISSION_PLAN_EMPLOYEE_CURSOR_UNAVAILABLE:
     'تعذّر تحميل قائمة الموظفين بسبب بيانات محفوظة تحتاج إصلاحًا. تواصل مع الدعم.',
   EMPLOYEE_NOT_FOUND: 'الموظفة غير موجودة في النشاط ده.',

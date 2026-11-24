@@ -5,8 +5,8 @@ import {
 } from '@pospay/db';
 
 import { ApiError } from '../../../shared/errors.ts';
-import { CommissionStatementPayError } from '../domain/errors.ts';
 import { CommissionPlanVersionError } from '../use-cases/create-commission-plan-version/create-commission-plan-version.usecase.ts';
+import { CommissionStatementPayError } from '../use-cases/mark-statement-paid/mark-statement-paid.usecase.ts';
 
 /**
  * يرفض الكتابة بالخطأ المعروف: خطأ الـ domain يبقى كوده، والاستخدام المتكرر للمفتاح خطأ 422،

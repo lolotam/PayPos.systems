@@ -1,3 +1,7 @@
+-- المهلة تجعل الهجرة تفشل سريعًا وتُعاد بدل أن تنتظر معاملة حيّة على جدول الكشوف (ALTER TABLE وCREATE TRIGGER وCREATE POLICY
+-- يأخذون أقفالًا قوية)، زي 0250.
+SET LOCAL lock_timeout = '5s';
+--> statement-breakpoint
 CREATE TABLE "commission_statement_payments" (
 	"company_id" uuid NOT NULL,
 	"id" uuid NOT NULL,
@@ -45,7 +49,7 @@ CREATE POLICY commission_statement_payments_insert ON commission_statement_payme
   WITH CHECK (company_id = app_company_id());
 --> statement-breakpoint
 -- جدول مالي إدخال بس: مفيش تعديل ولا حذف لأي دور، والمنح دي حد التطبيق كله.
-REVOKE ALL ON commission_statement_payments FROM PUBLIC, pospay_app, pospay_auth, pospay_dispatcher;
+REVOKE ALL ON commission_statement_payments FROM PUBLIC, pospay_app, pospay_auth, pospay_dispatcher, pospay_notifications;
 --> statement-breakpoint
 GRANT SELECT, INSERT ON commission_statement_payments TO pospay_app;
 --> statement-breakpoint
@@ -87,7 +91,9 @@ BEGIN
   IF OLD.status = 'REVIEWED' AND NEW.status NOT IN ('REVIEWED', 'DRAFT', 'APPROVED') THEN
     RAISE EXCEPTION 'a reviewed commission statement moves only to draft or approved' USING ERRCODE = '23514', CONSTRAINT = 'commission_statements_transition';
   END IF;
+  -- دليل الاعتماد هو معرّف المعاملة التي اعتمدته هو، مش أي معاملة تانية.
   IF OLD.status = 'REVIEWED' AND NEW.status = 'APPROVED' THEN
+    -- الدليل المجمّد للمراجعة (مين راجع وإيه شاف) ما يتعادش كتابته في تحديث الاعتماد.
     IF NEW.reviewed_fingerprint IS DISTINCT FROM OLD.reviewed_fingerprint
        OR NEW.reviewed_statement_fingerprint IS DISTINCT FROM OLD.reviewed_statement_fingerprint
        OR NEW.reviewed_by IS DISTINCT FROM OLD.reviewed_by

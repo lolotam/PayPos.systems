@@ -173,3 +173,60 @@ it('company B reads none of company A payment rows and cannot insert for A', asy
     '23503',
   );
 });
+
+async function paidStatement(): Promise<string> {
+  const { id } = await approvedStatement();
+  await db.withTenant(A.company, async (tx) => {
+    await tx.execute(markPaid(id, 'WITH_SALARY'));
+    await tx.execute(payment(id, A.employee, '7.000', '7.000'));
+  });
+  return id;
+}
+
+it('a payment row is never updated or deleted, by the app role', async () => {
+  const id = await paidStatement();
+  await expectPgError(
+    db.withTenant(A.company, (tx) =>
+      tx.execute(sql`UPDATE commission_statement_payments SET paid_amount = '8.000' WHERE statement_id = ${id}`),
+    ),
+    '42501',
+  );
+  await expectPgError(
+    db.withTenant(A.company, (tx) =>
+      tx.execute(sql`DELETE FROM commission_statement_payments WHERE statement_id = ${id}`),
+    ),
+    '42501',
+  );
+  expect(await paymentCount(id)).toBe(1);
+});
+
+it('a paid statement never changes again, not even its note, and cannot be paid twice', async () => {
+  const id = await paidStatement();
+  await expectPgError(
+    db.withTenant(A.company, (tx) =>
+      tx.execute(sql`UPDATE commission_statements SET paid_note = 'later' WHERE id = ${id}`),
+    ),
+    '23514',
+    'commission_statements_paid_immutable',
+  );
+  await expectPgError(
+    db.withTenant(A.company, (tx) => tx.execute(markPaid(id, 'CASH'))),
+    '23514',
+    'commission_statements_paid_immutable',
+  );
+  expect(await statusOf(id)).toEqual({ status: 'PAID', proven: true });
+});
+
+it('only a paid statement carries payment columns, and only an approved one becomes paid', async () => {
+  const reviewed = await walkCommissionStatement(db, { tenant: A, period: '2024-01', ids, to: 'REVIEWED' });
+  await expectPgError(
+    owner`UPDATE commission_statements SET paid_by = ${USER} WHERE id = ${reviewed}`,
+    '23514',
+    'commission_statements_payment_stage',
+  );
+  await expectPgError(
+    db.withTenant(A.company, (tx) => tx.execute(markPaid(reviewed, 'CASH'))),
+    '23514',
+    'commission_statements_transition',
+  );
+});

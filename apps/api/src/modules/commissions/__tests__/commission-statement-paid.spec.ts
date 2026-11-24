@@ -53,7 +53,8 @@ it('CM-40 marks an approved month paid in cash with the rounded payable per empl
     paid_total: '41.005',
     payments: [{ employee_id: f.employee, exact_payable: '41.003', paid_amount: '41.005' }],
   });
-  expect(body.paid_at).toContain('2026-11-07');
+  // وقت التسجيل من ساعة قاعدة البيانات زي approved_at (FR-037)، مش من ساعة الاختبار المحقونة.
+  expect(Math.abs(Date.parse(body.paid_at) - Date.now())).toBeLessThan(10 * 60_000);
   const stored = await statementRow(statementId);
   expect(stored).toMatchObject({
     status: 'PAID',
@@ -62,7 +63,7 @@ it('CM-40 marks an approved month paid in cash with the rounded payable per empl
     paid_method: 'CASH',
     paid_note: 'مع المرتب نهاية الشهر',
   });
-  expect(stored?.['paid_at']).not.toBeNull();
+  expect(new Date(stored?.['paid_at'] as Date).toISOString()).toBe(body.paid_at);
   expect(await paymentRows(statementId)).toEqual([
     { employee_id: f.employee, exact_payable: '41.003', paid_amount: '41.005' },
   ]);
@@ -73,7 +74,7 @@ it('CM-40 marks an approved month paid in cash with the rounded payable per empl
   expect(audits[0]?.['actor_user_id']).toBe(f.userId);
   const after = audits[0]?.['after'] as Record<string, unknown>;
   expect(after).toMatchObject({ period: '2026-10', paid_on: '2026-11-03', paid_total: '41.005' });
-  expect(String(after['paid_at'])).toContain('2026-11-07');
+  expect(after['paid_at']).toBe(body.paid_at);
 });
 
 it('CM-40 a non-cash payment pays the exact payable with no rounding', async () => {
@@ -143,8 +144,8 @@ it('CM-41 a replayed request returns the original response and a different body 
 });
 
 it('CM-41 the payout date must not precede the approval date or follow today (FR-037)', async () => {
-  const early = await f.approvedStatementWithCommission('2027-03');
-  const before = await f.pay('2027-03', markPaidInput({ paid_on: '2026-11-01' }), 'cm-41-early');
+  const early = await f.approvedStatementWithCommission('2027-09');
+  const before = await f.pay('2027-09', markPaidInput({ paid_on: '2026-11-01' }), 'cm-41-early');
   expect([before.status, before.body['code']]).toEqual([422, 'COMMISSION_PAID_ON_INVALID']);
   expect((await statementRow(early))?.['status']).toBe('APPROVED');
   expect(await paymentRows(early)).toHaveLength(0);

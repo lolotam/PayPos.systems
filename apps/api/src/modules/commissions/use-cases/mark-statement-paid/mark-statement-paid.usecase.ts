@@ -21,6 +21,8 @@ import type {
   MarkStatementPaidScope,
 } from '../../ports/commission-statement-pay-transactions.port.ts';
 
+export { CommissionStatementPayError };
+
 /** بيسجّل صرف كشف الشهر المعتمد في معاملة واحدة: أعمدة الدفع وصف دفع لكل موظفة مجمّدة والتدقيق. */
 export class MarkCommissionStatementPaidUseCase {
   constructor(

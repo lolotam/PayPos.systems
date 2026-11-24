@@ -1229,6 +1229,9 @@ and a refusal test (CLAUDE.md §6).
 - `COMMISSION_RETURN_REASON_INVALID` 422 — «اكتب سبب رجوع الكشف للمراجعة (لحد 500 حرف).» / "Enter the reason for
   returning the statement to review (up to 500 characters)."
 - `COMMISSION_STATEMENT_NOT_REVIEWED` 409, `COMMISSION_STATEMENT_NOT_APPROVED` 409, `COMMISSION_STATEMENT_ALREADY_PAID` 409.
+- `COMMISSION_PAID_ON_INVALID` 422 (54-1, FR-037) — «تاريخ الصرف لازم يكون من يوم الاعتماد لحد النهارده.» / "The payment date
+  must not be before the approval date and not after today." The window is judged on the business calendar; `paid_at` is the database
+  clock at recording, like `approved_at`.
 - `COMMISSION_UPDATES_PENDING` 409 — en: "updates are still being calculated, try again shortly" (ADR-0012 §5); ar:
   «لسه بنحسب آخر التحديثات، جرّب تاني بعد شوية.»
   It still applies when every earlier check passes and the ADR-0012 count refuses.

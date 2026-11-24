@@ -224,7 +224,7 @@ it('a PAID source month is repaired like an APPROVED one: the correction lands i
   const [september] = await r.h.owner`SELECT id FROM commission_statements
     WHERE company_id=${r.company} AND period='2026-09'`;
   await r.db.withTenant(r.company, (tx) =>
-    payApprovedStatement(tx, r.tenant, september?.['id'] as string, ids),
+    payApprovedStatement(tx, r.tenant, september?.['id'] as string, ids, r.userId),
   );
 
   const response = await r.repair(body, 'paid-source');
