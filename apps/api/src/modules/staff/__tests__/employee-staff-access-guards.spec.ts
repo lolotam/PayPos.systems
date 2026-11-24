@@ -23,6 +23,18 @@ class TestStaffAccessSubRouteController {
   }
 }
 
+// مسار شقيق بنفس الجذر: لازم يفضل بره البوابة، عشان توسيع النمط ما يقفلش مسار تاني.
+@Controller('businesses/:businessId/employees/:employeeId')
+class TestStaffAccessSiblingController {
+  @Get('staff-access-sibling')
+  @Authenticated()
+  async sibling(): Promise<{ reached: boolean }> {
+    return { reached: true };
+  }
+}
+
+const TEST_ROUTE_CONTROLLERS = [TestStaffAccessSubRouteController, TestStaffAccessSiblingController];
+
 const ids = systemUuidV7();
 const ADMIN_ORIGIN = 'https://admin.example.test';
 let f: Fixture;
@@ -31,11 +43,11 @@ let db: ReturnType<typeof createDatabase>;
 beforeAll(async () => {
   f = await staffAccessFixture({
     staffAccessRoutes: true,
-    controllers: [TestStaffAccessSubRouteController],
+    controllers: TEST_ROUTE_CONTROLLERS,
   });
   gated = await staffAccessFixture({
     corsOrigins: [ADMIN_ORIGIN],
-    controllers: [TestStaffAccessSubRouteController],
+    controllers: TEST_ROUTE_CONTROLLERS,
   });
   db = createDatabase({ url: f.h.urls.app, ids });
 });
@@ -89,6 +101,16 @@ it('AC-ACT-6 the gate covers every route under staff-access, not only the three 
     { cookie: f.ownerCookie, company: f.company },
   );
   expect(opened).toMatchObject({ status: 200, body: { reached: true } });
+});
+
+it('AC-ACT-6 the widened gate leaves a sibling route outside the staff-access tree open', async () => {
+  const employee = await addEmployee(gated, 'Sibling route', gated.salmiya, 32);
+  const sibling = await gated.h.send(
+    'GET',
+    `/v1/businesses/${gated.business}/employees/${employee}/staff-access-sibling`,
+    { cookie: gated.ownerCookie, company: gated.company },
+  );
+  expect(sibling).toMatchObject({ status: 200, body: { reached: true } });
 });
 
 it('AC-F1-7b the link availability rule answers false for a staff user and true for a normal member', async () => {
