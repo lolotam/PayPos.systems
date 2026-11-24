@@ -1,7 +1,6 @@
 'use client';
 import type { PermissionMembership } from '@pospay/contracts';
 import { t } from '@pospay/i18n';
-import { DataTableFrame } from '@pospay/ui';
 import { flexRender, getCoreRowModel, useReactTable } from '@tanstack/react-table';
 import { useMemo } from 'react';
 import { useLocale } from '@/shared/locale/locale-context';
@@ -37,31 +36,29 @@ export function PermissionMembershipTable({ items, selectedId, onSelect, scopeNa
     manualPagination: true,
   });
   return (
-    <DataTableFrame title={t(locale, 'permissions.person')}>
-      <table>
-        <thead>
-          {table.getHeaderGroups().map((group) => (
-            <tr key={group.id}>
-              {group.headers.map((header) => (
-                <th key={header.id} scope="col">
-                  {flexRender(header.column.columnDef.header, header.getContext())}
-                </th>
-              ))}
-            </tr>
-          ))}
-        </thead>
-        <tbody>
-          {table.getRowModel().rows.map(({ original: item }) => (
-            <PermissionMembershipRow
-              key={item.id}
-              item={item}
-              selected={selectedId === item.id}
-              scopeName={scopeNames[`${item.scope_type}:${item.scope_id}`]}
-              onSelect={onSelect}
-            />
-          ))}
-        </tbody>
-      </table>
-    </DataTableFrame>
+    <table>
+      <thead>
+        {table.getHeaderGroups().map((group) => (
+          <tr key={group.id}>
+            {group.headers.map((header) => (
+              <th key={header.id} scope="col">
+                {flexRender(header.column.columnDef.header, header.getContext())}
+              </th>
+            ))}
+          </tr>
+        ))}
+      </thead>
+      <tbody>
+        {table.getRowModel().rows.map(({ original: item }) => (
+          <PermissionMembershipRow
+            key={item.id}
+            item={item}
+            selected={selectedId === item.id}
+            scopeName={scopeNames[`${item.scope_type}:${item.scope_id}`]}
+            onSelect={onSelect}
+          />
+        ))}
+      </tbody>
+    </table>
   );
 }

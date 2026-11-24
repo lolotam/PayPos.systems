@@ -66,7 +66,7 @@ function listenForChannel(onChange: () => void): () => void {
 }
 
 // تغيير الهوية يمس كل تبويب؛ الرسالة لا تحمل أي بيانات مستخدم أو جلسة.
-export function loadPage(path: string): void {
+export function announceIdentityChange(): void {
   announceToStorage();
   const channel = openIdentityChannel();
   try {
@@ -76,5 +76,9 @@ export function loadPage(path: string): void {
   } finally {
     channel?.close();
   }
+}
+
+export function loadPage(path: string): void {
+  announceIdentityChange();
   globalThis.location.assign(path);
 }

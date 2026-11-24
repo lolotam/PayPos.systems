@@ -34,9 +34,26 @@ function useSettingsPanel(scope: ScheduleWorkspace) {
   return { locale, query, save, saveBranch, clearBranch, branches, branch, branchForm, form };
 }
 type PanelState = ReturnType<typeof useSettingsPanel>;
-export function ScheduleSettingsPanel({ scope }: { scope: ScheduleWorkspace }) {
+type ScheduleSettingsPanelProps = { scope: ScheduleWorkspace; standalone?: boolean };
+
+function renderStandaloneState(query: PanelState['query'], locale: PanelState['locale']) {
+  if (query.isError) {
+    const code =
+      typeof query.error === 'object' && query.error !== null && 'code' in query.error
+        ? query.error.code
+        : undefined;
+    if (code === 'FORBIDDEN') return <p role="alert">{t(locale, 'errors.FORBIDDEN')}</p>;
+    if (code === 'NOT_FOUND') return <p role="alert">{t(locale, 'errors.NOT_FOUND')}</p>;
+  }
+  if (!query.data && !query.isError) return <p role="status">{t(locale, 'admin.loading')}</p>;
+  return null;
+}
+
+export function ScheduleSettingsPanel({ scope, standalone = false }: ScheduleSettingsPanelProps) {
   const state = useSettingsPanel(scope);
   const { query, locale } = state;
+  const standaloneState = standalone ? renderStandaloneState(query, locale) : null;
+  if (standaloneState) return standaloneState;
   if (query.isError) {
     if (
       typeof query.error === 'object' &&
@@ -68,7 +85,6 @@ function renderBusinessForm({ locale, query, save, form }: PanelState) {
         }
       })}
     >
-      <h2 className="text-lg font-semibold">{t(locale, 'shell.schedule_settings_title')}</h2>
       {query.data?.is_default ? (
         <p className="text-sm text-muted-foreground">
           {t(locale, 'shell.schedule_settings_default')}

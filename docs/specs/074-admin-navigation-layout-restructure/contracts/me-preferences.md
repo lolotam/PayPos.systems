@@ -49,7 +49,7 @@ Zod schema in `packages/contracts/src/identity/me-preferences.ts`; the generated
 |---|---|
 | Values | `A`, `B`, `C`. Anything else is read as the default, C |
 | Written by | The admin app, on every style choice, and on both sign-in paths (password and TOTP) before entering the dashboard when the account has a value |
-| Cleared by | A successful sign-out; sign-in when the account has no value; sign-in when the account read fails or does not answer within a short limit (the user then starts on C and sign-in is never held up) |
+| Cleared by | A successful sign-out; sign-in when the account has no value; sign-in when the account read fails or does not answer within 2 seconds (the user then starts on C and sign-in is never held up). The 2-second limit bounds the whole read — the fetch and the body decode together — and the cookie is committed exactly once: an answer that arrives after the limit changes nothing |
 | Read by | The admin server layout, per request, before rendering the frame. The account value is fetched uncached |
 | Attributes | Same as `pospay_locale`: `Path=/`, one-year `Max-Age`, `SameSite=Lax`, `Secure` on HTTPS |
 

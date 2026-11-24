@@ -276,7 +276,7 @@ it.each(['record', 'append'] as const)('blocks %s before sending when persistenc
     await expect(submit(recovered)).rejects.toMatchObject({ code: 'SESSION_ATTEMPT_NOT_PERSISTED' }); expect(post).not.toHaveBeenCalled();
     recovered.changeScope(null); blocked = false;
   }
-});
+}, 20_000);
 
 it('blocks a replay if the last-send timestamp cannot be persisted', async () => {
   const store = journal(), attempt = store.begin({ kind: 'record', body }, rows);

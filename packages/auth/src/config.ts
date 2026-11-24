@@ -1,6 +1,7 @@
 import { assembleAuthService } from './auth-service.ts';
 import { toLogEntry } from './auth-session-primitives.ts';
 import { staffCredentialAdapter } from './staff-credential-adapter.ts';
+import { type MyPreferences } from './my-preferences.ts';
 
 import { drizzleAdapter } from '@better-auth/drizzle-adapter';
 import { createAuthDatabase } from '@pospay/db';
@@ -92,6 +93,7 @@ export interface VerifiedSession {
  * Better Auth نفسه بيفضل جوه الـ package دي — مفيش package تاني بيشوف أنواعه.
  */
 export interface AuthService {
+  readonly preferences: MyPreferences;
   readonly staff: StaffSessions;
   readonly personal: PersonalSessions;
   readonly passkeys: PasskeyFacade;

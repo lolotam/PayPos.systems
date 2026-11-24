@@ -6,6 +6,7 @@ import type { MemberInvitationAccounts } from './member-invitations.ts';
 import type { StaffUserAccess } from './staff-access-users.ts';
 import { STAFF_SYNTHETIC_EMAIL_DOMAIN } from './staff-access-users.ts';
 import { configuredPrivateView } from './private-view.ts';
+import { createMyPreferences } from './my-preferences.ts';
 import { isPasskeyRoute } from './passkey-policy.ts';
 import type { StaffSessions } from './staff-sessions.ts';
 import {
@@ -29,6 +30,7 @@ export function assembleAuthService(
   const personal = personalSessions(options, auth, database);
   const passkeys = configuredPasskeys(options, auth, database);
   return {
+    preferences: createMyPreferences(database),
     staff,
     personal,
     passkeys,

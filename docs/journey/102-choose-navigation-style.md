@@ -1,8 +1,8 @@
 # 102 · Choose the navigation style — اختيار نمط التنقّل
 
-**Status / الحالة:** shipped by the PR of step `074-7b` (spec 074, `docs/specs/074-admin-navigation-layout-restructure/074-7-style-switch/release-spec.md`). Runs on `apps/admin` after the staging batch that includes that PR. The choice is kept **on the device, for the signed-in session only**: sign-out and every sign-in clear it, so each sign-in starts on style C. Saving it on the account is step 12 and is **not** part of this journey. The decisions behind it are in [101](101-admin-navigation-styles.md).
+**Status / الحالة:** shipped by the PR of step `074-7b` (spec 074, `docs/specs/074-admin-navigation-layout-restructure/074-7-style-switch/release-spec.md`). Runs on `apps/admin` after the staging batch that includes that PR. Since step `074-12` a choice is also **saved on the user's account**: choosing a style sends one save; signing in on any browser starts on the saved style from the first screen, and a user who never chose starts on C. If the save fails the frame still changes and a message says the choice was not saved to the account. The decisions behind it are in [101](101-admin-navigation-styles.md).
 
-**الحالة بالعربي:** تُسلَّم مع طلب الدمج الخاص بالخطوة `074-7b`. تعمل على لوحة الإدارة بعد دفعة الستاجنج التي تضمّه. الاختيار يُحفظ **على الجهاز وللجلسة الحالية فقط**: الخروج وكل دخول يمسحانه، فيبدأ كل دخول على النمط C. حفظه على الحساب هو الخطوة 12 وليس جزءًا من هذه الرحلة.
+**الحالة بالعربي:** تُسلَّم مع طلب الدمج الخاص بالخطوة `074-7b`. تعمل على لوحة الإدارة بعد دفعة الستاجنج التي تضمّه. منذ الخطوة `074-12` يُحفظ الاختيار أيضًا **على حساب المستخدم**: اختيار نمط يرسل حفظًا واحدًا، ودخول من أي متصفح يبدأ من النمط المحفوظ من أول شاشة، ومن لم يختر يبدأ على C. إذا فشل الحفظ يتبدّل الإطار مع رسالة بأن الاختيار ما اتحفظش على الحساب.
 
 **Before you start / قبل ما تبدأ:**
 - [00 Local setup](00-local-setup.md) or staging, signed in ([01](01-admin-sign-in-and-totp.md)).
@@ -24,6 +24,8 @@
 11. بمستخدم بلا أي صلاحية خاصة وبمستخدم لم تُحمَّل مساحة عمله بعد: افتح `/appearance` وبدّل النمط ← يعمل في الحالتين.
 12. على 390 بكسل في النمط A: اضغط **المزيد** ثم رابط الصفحة ← تصل إلى أي صفحة خلف «المزيد» في 3 ضغطات على الأكثر.
 13. اختر A ثم **سجّل الخروج** ← يُمسح الاختيار من الجهاز؛ سجّل دخول مستخدم آخر ← يبدأ على C. إن فشل الخروج بقي الاختيار.
+14. سجّل دخولًا بالمستخدم نفسه من متصفح آخر ← أول شاشة تفتح على النمط المحفوظ على الحساب. من لم يختر نمطًا يبدأ على C.
+15. بدّل النمط والإنترنت مقطوع (أو الحفظ مرفوض) ← يتبدّل الإطار فورًا مع رسالة بأن الاختيار ما اتحفظش على الحساب؛ نجاح حفظ لاحق يزيل الرسالة.
 
 ## English
 
@@ -40,9 +42,11 @@
 11. As a user with no special permission, and as a user whose workspace has not loaded: open `/appearance` and switch the style → it works in both cases.
 12. At 390px in style A: press **More** then a page link → any page behind More is reached in three presses at most.
 13. Choose A, then **Sign out** → the choice is cleared from the device; sign in as another user → starts on C. If sign-out fails the choice stays.
+14. Sign in as the same user from another browser → the first screen opens on the style saved on the account. A user who never chose starts on C.
+15. Switch the style with the network cut (or the save refused) → the frame changes at once with a message that the choice was not saved to the account; a later successful save removes the message.
 
 **You must see / لازم تشوف:** the frame changes at once and the address does not; a reload draws the chosen style first; every page is inside one of the three frames.
 
-**Must NOT happen / ممنوع يحصل:** a page reload when the style changes; the style of the previous user showing for the next user; Appearance or Authenticator blocked for a user whose workspace is missing; a built page or its menu entry shown for a business type or role it is hidden from.
+**Must NOT happen / ممنوع يحصل:** a page reload when the style changes; the style of the previous user showing for the next user; sign-in held up by the account read (it is bounded to 2 seconds and never throws); Appearance or Authenticator blocked for a user whose workspace is missing; a built page or its menu entry shown for a business type or role it is hidden from.
 
 **For an agent / للـ agent:** the first paint is style C (`pospay_nav_style` cookie absent or invalid). Find the account menu by its name «Account menu» / «قائمة الحساب»; style entries are menu items starting «Navigation style:» / «نمط التنقّل:». Appearance cards are buttons named «Use this style A — Sidebar and tabs» (the style name is in the accessible name). Identify the frame by role: A has a button «Collapse navigation»; B has a button starting «Today» in the top bar; C has a button «Go to a page». Assert the address with `page.url()` before and after, and that no `load` event fired.

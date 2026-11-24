@@ -3,12 +3,14 @@
 import { createContext, useCallback, useContext, useMemo, useState, type ReactNode } from 'react';
 
 import type { NavigationStyle } from '@/workspace/nav-types';
+import { useNavStyleSaver } from '@/shared/nav-style/use-nav-style-saver';
 
 import { writeNavStyleCookie } from './nav-style-cookie';
 
 interface NavStyleController {
   style: NavigationStyle;
   setStyle: (style: NavigationStyle) => void;
+  saveFailed: boolean;
 }
 
 const NavStyleContext = createContext<NavStyleController | null>(null);
@@ -21,11 +23,16 @@ export function NavStyleProvider({
   children: ReactNode;
 }) {
   const [style, setCurrent] = useState(initialStyle);
-  const setStyle = useCallback((next: NavigationStyle) => {
-    setCurrent(next);
-    writeNavStyleCookie(next);
-  }, []);
-  const value = useMemo(() => ({ style, setStyle }), [style, setStyle]);
+  const { failed, save } = useNavStyleSaver();
+  const setStyle = useCallback(
+    (next: NavigationStyle) => {
+      setCurrent(next);
+      writeNavStyleCookie(next);
+      save(next);
+    },
+    [save],
+  );
+  const value = useMemo(() => ({ style, setStyle, saveFailed: failed }), [style, setStyle, failed]);
   return <NavStyleContext.Provider value={value}>{children}</NavStyleContext.Provider>;
 }
 

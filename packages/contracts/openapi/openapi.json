@@ -23039,6 +23039,68 @@
         ]
       }
     },
+    "/v1/me/preferences": {
+      "get": {
+        "operationId": "getMyPreferences",
+        "responses": {
+          "200": {
+            "description": "The caller's personal navigation style",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MyPreferencesResponse"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "The API error envelope",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "operationId": "setMyPreferences",
+        "responses": {
+          "200": {
+            "description": "The saved personal navigation style",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MyPreferencesResponse"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "The API error envelope",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SetMyPreferencesInput"
+              }
+            }
+          }
+        }
+      }
+    },
     "/v1/me/workspaces": {
       "get": {
         "operationId": "listMyWorkspaces",
@@ -23667,6 +23729,47 @@
   },
   "components": {
     "schemas": {
+      "NavStyle": {
+        "type": "string",
+        "enum": [
+          "A",
+          "B",
+          "C"
+        ]
+      },
+      "MyPreferencesResponse": {
+        "type": "object",
+        "properties": {
+          "navStyle": {
+            "nullable": true,
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/NavStyle"
+              }
+            ]
+          }
+        },
+        "required": [
+          "navStyle"
+        ]
+      },
+      "SetMyPreferencesInput": {
+        "type": "object",
+        "properties": {
+          "navStyle": {
+            "nullable": true,
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/NavStyle"
+              }
+            ]
+          }
+        },
+        "required": [
+          "navStyle"
+        ],
+        "additionalProperties": false
+      },
       "SetEmployeeIbanInput": {
         "type": "object",
         "properties": {
