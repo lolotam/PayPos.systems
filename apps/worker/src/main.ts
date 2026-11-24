@@ -18,6 +18,7 @@ import {
   startPushCapability,
 } from './modules/notifications/index.ts';
 import { createDispatchLoop } from './outbox/dispatch-loop.ts';
+import { createParkedCommissionSweep } from './outbox/parked-commission-sweep.ts';
 import { retryDelayMs } from './outbox/retry-policy.ts';
 import { readConfig } from './shared/config.ts';
 import { WORKER_LOG_EVENTS } from './shared/log-events.ts';
@@ -206,27 +207,18 @@ const parkAlert = createParkedCommissionAlert({
   clock: { now: () => new Date() },
   owners: companyOwners,
 });
+// المسح الدوري هو المصدر الوحيد لتنبيه المالك عن حدث عمولة وقف (ADR-0012 §3): الـdispatcher
+// بيقرا الصفحات بس، والتنبيه بيتكتب في معاملة الشركة مع علامة التكرار.
+const parkedSweep = createParkedCommissionSweep({
+  readPage: (afterSeq, limit) => dispatcher.commissionParkedEventPage(afterSeq, limit),
+  raiseAlert: parkAlert,
+  logger,
+});
 const loop = createDispatchLoop({
   dispatcher,
   deliver,
   logger,
-  // The park is already committed when the hook runs: the alert only reads the event's id and type.
-  onParked: (events) =>
-    Promise.all(
-      events.map(async (event) => {
-        const outcome = await parkAlert({
-          companyId: event.companyId,
-          eventId: event.id,
-          eventType: event.eventType,
-        });
-        if (outcome === 'NO_OWNERS') {
-          logger.error(
-            { event: { id: event.id, type: event.eventType, companyId: event.companyId } },
-            'commission park alert has no recipient',
-          );
-        }
-      }),
-    ).then(() => undefined),
+  sweepParkedCommissionAlerts: parkedSweep,
 });
 
 const release = async (): Promise<void> => {
