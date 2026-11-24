@@ -9,6 +9,7 @@ import { CommissionPlanEmployeesController } from './http/commission-plan-employ
 import { CommissionServiceOverridesController } from './http/commission-service-overrides.controller.ts';
 import { CommissionOverrideServicesController } from './http/commission-override-services.controller.ts';
 import { CommissionBlockedCorrectionsController } from './http/commission-blocked-corrections.controller.ts';
+import { CommissionStatementApproveController } from './http/commission-statement-approve.controller.ts';
 import {
   CommissionStatementsController,
   GET_COMMISSION_STATEMENT,
@@ -21,7 +22,9 @@ import { createCommissionEstimateReader } from './persistence/commission-estimat
 import type { CommissionEstimateProviders } from './persistence/commission-estimate-providers.ts';
 import { CanonicalSha256FingerprintHasher } from './persistence/canonical-sha256-fingerprint-hasher.ts';
 import { createCommissionStatementReader } from './persistence/commission-statement-reader.ts';
+import { createCommissionStatementApproveTransactions } from './persistence/drizzle-commission-statement-approve-transactions.ts';
 import { createCommissionStatementGenerateTransactions } from './persistence/drizzle-commission-statement-generate-transactions.ts';
+import type { CommissionStatementApproveReaders } from './persistence/commission-statement-approve-scope.ts';
 import type { CommissionStatementGenerateReaders } from './persistence/commission-statement-generate-scope.ts';
 import { createCommissionStatementReviewTransactions } from './persistence/drizzle-commission-statement-review-transactions.ts';
 import type { CommissionStatementReviewReaders } from './persistence/commission-statement-review-scope.ts';
@@ -53,6 +56,7 @@ import { RepairCommissionPeriodUseCase } from './use-cases/repair-commission-per
 import { CreateCommissionPlanVersionUseCase } from './use-cases/create-commission-plan-version/create-commission-plan-version.usecase.ts';
 import { CreateCommissionServiceOverrideUseCase } from './use-cases/create-commission-service-override/create-commission-service-override.usecase.ts';
 import { GetCommissionEstimateUseCase } from './use-cases/get-commission-estimate/get-commission-estimate.usecase.ts';
+import { ApproveCommissionStatementUseCase } from './use-cases/approve-statement/approve-statement.usecase.ts';
 import { GenerateCommissionStatementUseCase } from './use-cases/generate-statement/generate-statement.usecase.ts';
 import { GetCommissionStatementUseCase } from './use-cases/get-statement/get-statement.usecase.ts';
 import { ReviewCommissionStatementUseCase } from './use-cases/review-statement/review-statement.usecase.ts';
@@ -67,6 +71,7 @@ export const commissionsControllers = [
   CommissionBlockedCorrectionsController,
   CommissionEstimateController,
   CommissionStatementsController,
+  CommissionStatementApproveController,
 ];
 
 /**
@@ -120,6 +125,11 @@ export interface CommissionStatementBindings {
   readonly approvers: CommissionStatementReviewReaders['approvers'];
   /** قواعد التنبيه: بتشغيل النوع وقناته بس (DR-008). */
   readonly alertRules: CommissionStatementReviewReaders['alertRules'];
+  /** اعتماد الكشف (53-2): فحص `approve:commissions:business` من identity، ومفتاح الاعتماد الصريح، وتواريخ عمل الموظفات من staff. */
+  readonly approveAccess: CommissionStatementApproveReaders['approveAccess'];
+  readonly explicitFeature: CommissionStatementApproveReaders['explicitFeature'];
+  readonly employment: CommissionStatementApproveReaders['employment'];
+  readonly pending: CommissionStatementApproveReaders['pending'];
 }
 
 /** مزودو الكشف: القراءة (GET) والإنشاء (generate) على نفس مزودي المصادر ونفس منفذ التجزئة. */
@@ -157,7 +167,36 @@ function commissionStatementProviders(
             ),
     },
     ...commissionStatementReviewProviders(database, ids, statement, clock, hasher),
+    approveProvider(database, ids, statement, clock, hasher),
   ];
+}
+
+/** مزود الاعتماد: نفس حد المعاملة ونفس مزودي المصادر (53-2). */
+function approveProvider(
+  database: TenantWrappers | undefined,
+  ids: IdGenerator,
+  statement: CommissionStatementBindings,
+  clock: Clock,
+  hasher: CanonicalSha256FingerprintHasher,
+): Provider {
+  return {
+    provide: ApproveCommissionStatementUseCase,
+    useValue:
+      database === undefined
+        ? null
+        : new ApproveCommissionStatementUseCase(
+            createCommissionStatementApproveTransactions(database, ids, {
+              businessCalendar: statement.businessCalendar,
+              approveAccess: statement.approveAccess,
+              explicitFeature: statement.explicitFeature,
+              employment: statement.employment,
+              pending: statement.pending,
+              providers: statement.providers,
+              clock,
+            }),
+            hasher,
+          ),
+  };
 }
 
 /** مزودو المراجعة والإرجاع: نفس حد المعاملة ونفس القراء (52-1). */

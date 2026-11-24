@@ -4,6 +4,7 @@ import { createPackageSaleRequestTransactions } from '../persistence/package-sal
 import { PackageSaleStatusQuery } from '../queries/package-sale-status.query.ts';
 import { AcceptPackageSaleUseCase } from '../use-cases/accept-package-sale/accept-package-sale.usecase.ts';
 import { AT, ids, must, sessionFixture, type SessionFixture } from './session.fixture.ts';
+import { asReplicaOwner } from '../../../../../../packages/db/test/owner-cleanup.ts';
 
 export interface PackageSaleRequestFixture {
   f: SessionFixture;
@@ -96,7 +97,7 @@ export async function readSaleOutbox(f: SessionFixture, requestId: string) {
 export async function cleanPackageSales(f: SessionFixture): Promise<void> {
   await f.h.owner`DELETE FROM package_sale_requests WHERE company_id = ${f.company}`;
   await f.h.owner`DELETE FROM idempotency_keys WHERE company_id = ${f.company}`;
-  await f.h.owner`DELETE FROM outbox WHERE aggregate_type = 'package_sale_request'`;
+  await asReplicaOwner(f.h.owner, (tx) => tx`DELETE FROM outbox WHERE aggregate_type = 'package_sale_request'`);
 }
 
 export function buildPackageSalesController(f: SessionFixture) {

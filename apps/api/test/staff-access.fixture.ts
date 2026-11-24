@@ -42,7 +42,7 @@ export interface StaffAccessFixture {
 
 /**
  * شركة واحدة بنشاط وفرعين (السالمية وحولي) وموظفتين، وشركة ثانية للعزل.
- * المالك افتراضياً يملك `manage:staff-access:branch` من بذرة 0251، ومدير الفرع كذلك بدوره النظامي.
+ * المالك افتراضياً يملك `manage:staff-access:branch` من بذرة 0252، ومدير الفرع كذلك بدوره النظامي.
  */
 export async function staffAccessFixture(
   options: Parameters<typeof startHarness>[0] = {},
@@ -75,7 +75,7 @@ export async function staffAccessFixture(
     await h.owner`INSERT INTO branches (company_id,id,business_id,name_en)
       VALUES (${company},${branch},${business},'Synthetic branch')`;
   }
-  // مدير فرع السالمية بدوره النظامي ونطاق فرعها — حائز افتراضي للصلاحية من 0251.
+  // مدير فرع السالمية بدوره النظامي ونطاق فرعها — حائز افتراضي للصلاحية من 0252.
   const managerMembership = ids.newId();
   await h.owner`INSERT INTO memberships(company_id,id,user_id,role_id,role_owner_key,scope_type,scope_id)
     VALUES (${company},${managerMembership},${managerUserId},${systemRoleId('branch_manager')},'global','BRANCH',${salmiya})`;

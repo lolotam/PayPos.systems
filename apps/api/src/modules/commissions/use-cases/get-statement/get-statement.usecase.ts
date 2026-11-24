@@ -1,8 +1,14 @@
-import type { CommissionStatementBranchView, CommissionStatementView } from '@pospay/contracts';
+import type {
+  CommissionClosedStatementBranchView,
+  CommissionClosedStatementView,
+  CommissionStatementBranchView,
+  CommissionStatementView,
+} from '@pospay/contracts';
 
 import { CommissionPlanVersionError } from '../../domain/errors.ts';
 import type { CommissionStatementReader } from '../../ports/commission-statement.port.ts';
 import type { FingerprintHasher } from '../../ports/fingerprint-hasher.port.ts';
+import { closedStatementView } from '../compute-statement-view/closed-statement-view.ts';
 import { computeStatement } from '../compute-statement-view/compute-statement-view.ts';
 import {
   branchViewContract,
@@ -18,7 +24,7 @@ export interface GetCommissionStatementRequest {
 }
 
 /**
- * يعرض كشف شهر مفتوح من غير ما يكتب أي حاجة ولا يقفل ولا ينشئ صف (FR-025، D-25): بيقرا المصادر في
+ * يعرض كشف الشهر من غير ما يكتب أي حاجة ولا يقفل ولا ينشئ صف (FR-025، D-25): بيقرا المصادر في
  * معاملة READ ONLY من خلال البورت وحده، ويحسب الكشف وبصمتيه، ويختار شكل الرد بنفس الشرط اللي بيحدد قارئ
  * النشاط كله (CM-28c).
  */
@@ -34,16 +40,27 @@ export class GetCommissionStatementUseCase {
    */
   async execute(
     request: GetCommissionStatementRequest,
-  ): Promise<CommissionStatementView | CommissionStatementBranchView> {
+  ): Promise<
+    | CommissionStatementView
+    | CommissionStatementBranchView
+    | CommissionClosedStatementView
+    | CommissionClosedStatementBranchView
+  > {
     const result = await this.reader.read(request);
     if (result.kind === 'forbidden') throw new CommissionPlanVersionError('FORBIDDEN');
     if (result.kind === 'feature_disabled') throw new CommissionPlanVersionError('FEATURE_DISABLED');
-    const { source, businessWide, branchIds } = result.read;
+    const { source, businessWide, branchIds, closed } = result.read;
     const status = source.statement?.status;
-    // TODO(spec): قراءة الكشف المغلق من صفوفه المجمّدة بتتكتب مع 53-2 اللي بتكتب الصفوف دي؛ لحد وقتها الشهر
-    // المغلق بيترفض بنفس رفض الكاتبين بدل ما نعرض حساب حي لشهر اتجمّد.
+    // شهر اتجمّد بيتعرض من صفوفه المجمّدة وحدها، من غير أي حساب حي (FR-025، FR-033).
     if (status === 'APPROVED' || status === 'PAID') {
-      throw new CommissionPlanVersionError('COMMISSION_PERIOD_CLOSED');
+      if (closed === null) throw new Error('A closed statement was read without its frozen rows');
+      return closedStatementView({
+        businessId: request.businessId,
+        period: request.period,
+        status,
+        ...closed,
+        scope: { businessWide, branchIds },
+      });
     }
     const context = {
       businessId: request.businessId,

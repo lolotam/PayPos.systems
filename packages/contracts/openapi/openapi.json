@@ -5088,7 +5088,7 @@
     "/v1/businesses/{businessId}/commission-statements/{period}": {
       "get": {
         "operationId": "getCommissionStatement",
-        "description": "The statement view of an open (DRAFT or REVIEWED) business month, computed on read in a read-only transaction: no row, fingerprint or lock is created (FR-025, D-25). generated is false until a review holder has generated it. Requires read:commissions:business and the commissions feature; a device session is refused. A business-wide reader (a current company- or business-scoped grant and no DENY) gets the CommissionStatementView with both current fingerprints, the reviewed ones and the changed-since-review flag with its cause; every other reader gets the CommissionStatementBranchView with her visible rows only and no whole-statement field. An APPROVED or PAID month is refused with COMMISSION_PERIOD_CLOSED until the frozen read ships with the approval part.",
+        "description": "The statement view of a business month. An open (DRAFT or REVIEWED) month is computed on read in a read-only transaction: no row, fingerprint or lock is created (FR-025, D-25). An APPROVED or PAID month is read from its frozen rows alone, never recomputed (FR-025, FR-033): the business-wide reader gets the CommissionClosedStatementView with the approval time and the two frozen fingerprints, every other reader the CommissionClosedStatementBranchView with her visible rows only. generated is false until a review holder has generated it. Requires read:commissions:business and the commissions feature; a device session is refused. A business-wide reader (a current company- or business-scoped grant and no DENY) gets the CommissionStatementView with both current fingerprints, the reviewed ones and the changed-since-review flag with its cause; every other reader gets the CommissionStatementBranchView with her visible rows only and no whole-statement field.",
         "parameters": [
           {
             "in": "header",
@@ -5130,6 +5130,12 @@
                     },
                     {
                       "$ref": "#/components/schemas/CommissionStatementBranchView"
+                    },
+                    {
+                      "$ref": "#/components/schemas/CommissionClosedStatementView"
+                    },
+                    {
+                      "$ref": "#/components/schemas/CommissionClosedStatementBranchView"
                     }
                   ]
                 }
@@ -5479,6 +5485,113 @@
           },
           "422": {
             "description": "COMMISSION_RETURN_REASON_INVALID or IDEMPOTENCY_KEY_REUSED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Bilingual refusal",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/businesses/{businessId}/commission-statements/{period}/approve": {
+      "post": {
+        "operationId": "approveCommissionStatement",
+        "description": "Approves a REVIEWED business month in one transaction (FR-032, ADR-0054 section 7): the access re-check and the authorized idempotent replay come first, then one ascending statement lock, then the month and status checks, then the coverage gate under the state-row lock (the explicit approval switch answers 403 FEATURE_DISABLED when off, an invalid or non-admitting proof 422 COMMISSION_COVERAGE_NOT_PROVEN), then the fingerprints (409 COMMISSION_FINGERPRINT_STALE), blocking issues (422 COMMISSION_STATEMENT_BLOCKED) and the ADR-0012 pending-event count (409 COMMISSION_UPDATES_PENDING), and finally the freeze of the statement rows, their attachment snapshot and the carries of negative balances (D-22). Requires approve:commissions:business, a business-wide read of commissions and the commissions feature. Nothing opens approval for a company by itself.",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "x-company-id",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "in": "path",
+            "name": "businessId",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "in": "path",
+            "name": "period",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^(?!0000-)\\d{4}-(0[1-9]|1[0-2])$"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 255
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CommissionStatementApproveRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The frozen statement of the approved month",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CommissionClosedStatementView"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "FORBIDDEN, or FEATURE_DISABLED while the approval switch is off",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "COMMISSION_PERIOD_CLOSED, COMMISSION_STATEMENT_NOT_REVIEWED, COMMISSION_FINGERPRINT_STALE, COMMISSION_UPDATES_PENDING or IDEMPOTENCY_KEY_IN_PROGRESS",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "COMMISSION_PERIOD_NOT_ENDED, COMMISSION_STATEMENT_BLOCKED, COMMISSION_COVERAGE_NOT_PROVEN or IDEMPOTENCY_KEY_REUSED",
             "content": {
               "application/json": {
                 "schema": {
@@ -25014,6 +25127,10 @@
           "total"
         ]
       },
+      "CommissionStatementTotalMoney": {
+        "type": "string",
+        "pattern": "^-?(0|[1-9]\\d{0,15})\\.\\d{3}$"
+      },
       "CommissionStatementStatus": {
         "type": "string",
         "enum": [
@@ -25179,13 +25296,13 @@
             "type": "boolean"
           },
           "commission_subtotal": {
-            "$ref": "#/components/schemas/CommissionEstimateMoney"
+            "$ref": "#/components/schemas/CommissionStatementTotalMoney"
           },
           "tip_side": {
-            "$ref": "#/components/schemas/CommissionEstimateMoney"
+            "$ref": "#/components/schemas/CommissionStatementTotalMoney"
           },
           "payable": {
-            "$ref": "#/components/schemas/CommissionEstimateMoney"
+            "$ref": "#/components/schemas/CommissionStatementTotalMoney"
           },
           "rows": {
             "type": "array",
@@ -25392,6 +25509,117 @@
         },
         "required": [
           "status"
+        ]
+      },
+      "CommissionStatementApproveRequest": {
+        "type": "object",
+        "properties": {
+          "expected_fingerprint": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          },
+          "expected_statement_fingerprint": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          }
+        },
+        "required": [
+          "expected_fingerprint",
+          "expected_statement_fingerprint"
+        ],
+        "additionalProperties": false
+      },
+      "CommissionClosedStatementStatus": {
+        "type": "string",
+        "enum": [
+          "APPROVED",
+          "PAID"
+        ]
+      },
+      "CommissionClosedStatementView": {
+        "type": "object",
+        "properties": {
+          "reader_scope": {
+            "type": "string",
+            "enum": [
+              "BUSINESS"
+            ]
+          },
+          "business_id": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "period": {
+            "$ref": "#/components/schemas/CommissionEstimatePeriod"
+          },
+          "status": {
+            "$ref": "#/components/schemas/CommissionClosedStatementStatus"
+          },
+          "approved_at": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+          },
+          "input_fingerprint": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          },
+          "statement_fingerprint": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          },
+          "employees": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CommissionStatementEmployee"
+            }
+          }
+        },
+        "required": [
+          "reader_scope",
+          "business_id",
+          "period",
+          "status",
+          "approved_at",
+          "input_fingerprint",
+          "statement_fingerprint",
+          "employees"
+        ]
+      },
+      "CommissionClosedStatementBranchView": {
+        "type": "object",
+        "properties": {
+          "reader_scope": {
+            "type": "string",
+            "enum": [
+              "BRANCHES"
+            ]
+          },
+          "business_id": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "period": {
+            "$ref": "#/components/schemas/CommissionEstimatePeriod"
+          },
+          "status": {
+            "$ref": "#/components/schemas/CommissionClosedStatementStatus"
+          },
+          "employees": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CommissionStatementEmployee"
+            }
+          }
+        },
+        "required": [
+          "reader_scope",
+          "business_id",
+          "period",
+          "status",
+          "employees"
         ]
       },
       "EmployeeDocumentStatus": {

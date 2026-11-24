@@ -607,7 +607,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** @description The statement view of an open (DRAFT or REVIEWED) business month, computed on read in a read-only transaction: no row, fingerprint or lock is created (FR-025, D-25). generated is false until a review holder has generated it. Requires read:commissions:business and the commissions feature; a device session is refused. A business-wide reader (a current company- or business-scoped grant and no DENY) gets the CommissionStatementView with both current fingerprints, the reviewed ones and the changed-since-review flag with its cause; every other reader gets the CommissionStatementBranchView with her visible rows only and no whole-statement field. An APPROVED or PAID month is refused with COMMISSION_PERIOD_CLOSED until the frozen read ships with the approval part. */
+        /** @description The statement view of a business month. An open (DRAFT or REVIEWED) month is computed on read in a read-only transaction: no row, fingerprint or lock is created (FR-025, D-25). An APPROVED or PAID month is read from its frozen rows alone, never recomputed (FR-025, FR-033): the business-wide reader gets the CommissionClosedStatementView with the approval time and the two frozen fingerprints, every other reader the CommissionClosedStatementBranchView with her visible rows only. generated is false until a review holder has generated it. Requires read:commissions:business and the commissions feature; a device session is refused. A business-wide reader (a current company- or business-scoped grant and no DENY) gets the CommissionStatementView with both current fingerprints, the reviewed ones and the changed-since-review flag with its cause; every other reader gets the CommissionStatementBranchView with her visible rows only and no whole-statement field. */
         get: operations["getCommissionStatement"];
         put?: never;
         post?: never;
@@ -662,6 +662,23 @@ export interface paths {
         put?: never;
         /** @description Returns a REVIEWED statement to DRAFT (FR-031): a holder of review:commissions:business or approve:commissions:business who is a business-wide reader clears the reviewed values under the statement lock, stores the reason in one insert-only commission_statement_returns row and writes one audit entry without the reason, all in one transaction. A branch-scoped reader is refused with the uniform 403 (CM-33d, CM-38b). An APPROVED or PAID month is refused with 409 COMMISSION_PERIOD_CLOSED under the same lock, an empty reason is refused with 422 COMMISSION_RETURN_REASON_INVALID and any other status that is not REVIEWED with 409 COMMISSION_STATEMENT_NOT_REVIEWED. */
         post: operations["returnCommissionStatement"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/businesses/{businessId}/commission-statements/{period}/approve": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @description Approves a REVIEWED business month in one transaction (FR-032, ADR-0054 section 7): the access re-check and the authorized idempotent replay come first, then one ascending statement lock, then the month and status checks, then the coverage gate under the state-row lock (the explicit approval switch answers 403 FEATURE_DISABLED when off, an invalid or non-admitting proof 422 COMMISSION_COVERAGE_NOT_PROVEN), then the fingerprints (409 COMMISSION_FINGERPRINT_STALE), blocking issues (422 COMMISSION_STATEMENT_BLOCKED) and the ADR-0012 pending-event count (409 COMMISSION_UPDATES_PENDING), and finally the freeze of the statement rows, their attachment snapshot and the carries of negative balances (D-22). Requires approve:commissions:business, a business-wide read of commissions and the commissions feature. Nothing opens approval for a company by itself. */
+        post: operations["approveCommissionStatement"];
         delete?: never;
         options?: never;
         head?: never;
@@ -4082,6 +4099,7 @@ export interface components {
             partial: boolean;
             total: string | null;
         };
+        CommissionStatementTotalMoney: string;
         /** @enum {string} */
         CommissionStatementStatus: "DRAFT" | "REVIEWED";
         CommissionStatementRow: {
@@ -4116,9 +4134,9 @@ export interface components {
             name_ar: string | null;
             name_en: string;
             partial: boolean;
-            commission_subtotal: components["schemas"]["CommissionEstimateMoney"];
-            tip_side: components["schemas"]["CommissionEstimateMoney"];
-            payable: components["schemas"]["CommissionEstimateMoney"];
+            commission_subtotal: components["schemas"]["CommissionStatementTotalMoney"];
+            tip_side: components["schemas"]["CommissionStatementTotalMoney"];
+            payable: components["schemas"]["CommissionStatementTotalMoney"];
             rows: components["schemas"]["CommissionStatementRow"][];
             issues: components["schemas"]["CommissionStatementIssue"][];
         };
@@ -4165,6 +4183,34 @@ export interface components {
         CommissionStatementReturnResult: {
             /** @enum {string} */
             status: "DRAFT";
+        };
+        CommissionStatementApproveRequest: {
+            expected_fingerprint: string;
+            expected_statement_fingerprint: string;
+        };
+        /** @enum {string} */
+        CommissionClosedStatementStatus: "APPROVED" | "PAID";
+        CommissionClosedStatementView: {
+            /** @enum {string} */
+            reader_scope: "BUSINESS";
+            /** Format: uuid */
+            business_id: string;
+            period: components["schemas"]["CommissionEstimatePeriod"];
+            status: components["schemas"]["CommissionClosedStatementStatus"];
+            /** Format: date-time */
+            approved_at: string;
+            input_fingerprint: string;
+            statement_fingerprint: string;
+            employees: components["schemas"]["CommissionStatementEmployee"][];
+        };
+        CommissionClosedStatementBranchView: {
+            /** @enum {string} */
+            reader_scope: "BRANCHES";
+            /** Format: uuid */
+            business_id: string;
+            period: components["schemas"]["CommissionEstimatePeriod"];
+            status: components["schemas"]["CommissionClosedStatementStatus"];
+            employees: components["schemas"]["CommissionStatementEmployee"][];
         };
         /** @enum {string} */
         EmployeeDocumentStatus: "NO_EXPIRY" | "VALID" | "EXPIRING" | "EXPIRED";
@@ -12161,7 +12207,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["CommissionStatementView"] | components["schemas"]["CommissionStatementBranchView"];
+                    "application/json": components["schemas"]["CommissionStatementView"] | components["schemas"]["CommissionStatementBranchView"] | components["schemas"]["CommissionClosedStatementView"] | components["schemas"]["CommissionClosedStatementBranchView"];
                 };
             };
             /** @description Invalid business id or period */
@@ -12386,6 +12432,72 @@ export interface operations {
                 };
             };
             /** @description COMMISSION_RETURN_REASON_INVALID or IDEMPOTENCY_KEY_REUSED */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Bilingual refusal */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    approveCommissionStatement: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-company-id": string;
+                "Idempotency-Key": string;
+            };
+            path: {
+                businessId: string;
+                period: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CommissionStatementApproveRequest"];
+            };
+        };
+        responses: {
+            /** @description The frozen statement of the approved month */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommissionClosedStatementView"];
+                };
+            };
+            /** @description FORBIDDEN, or FEATURE_DISABLED while the approval switch is off */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description COMMISSION_PERIOD_CLOSED, COMMISSION_STATEMENT_NOT_REVIEWED, COMMISSION_FINGERPRINT_STALE, COMMISSION_UPDATES_PENDING or IDEMPOTENCY_KEY_IN_PROGRESS */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description COMMISSION_PERIOD_NOT_ENDED, COMMISSION_STATEMENT_BLOCKED, COMMISSION_COVERAGE_NOT_PROVEN or IDEMPOTENCY_KEY_REUSED */
             422: {
                 headers: {
                     [name: string]: unknown;

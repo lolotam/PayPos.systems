@@ -1741,15 +1741,22 @@
     {
       "idx": 250,
       "version": "7",
-      "when": 1795489139979,
-      "tag": "0250_2026-11-24_staff-access-schema",
+      "when": 1795484195567,
+      "tag": "0250_2026-11-24_commission-coverage-objects",
       "breakpoints": true
     },
     {
       "idx": 251,
       "version": "7",
-      "when": 1795489168201,
-      "tag": "0251_2026-11-24_staff-access-rls-and-seed",
+      "when": 1795494400227,
+      "tag": "0251_2026-11-24_staff-access-schema",
+      "breakpoints": true
+    },
+    {
+      "idx": 252,
+      "version": "7",
+      "when": 1795494419331,
+      "tag": "0252_2026-11-24_staff-access-rls-and-seed",
       "breakpoints": true
     }
   ]
