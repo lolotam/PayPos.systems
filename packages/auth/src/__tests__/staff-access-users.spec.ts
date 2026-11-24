@@ -4,7 +4,7 @@ import { StaffAuthBusyError, StaffPhoneTakenError } from '@pospay/db';
 import { systemUuidV7 } from '@pospay/ids';
 import { afterAll, beforeAll, expect, it } from 'vitest';
 import { STAFF_SYNTHETIC_EMAIL_DOMAIN } from '../staff-access-users.ts';
-import { staffAuthFixture, type StaffAuthFixture } from './staff-auth.fixture.ts';
+import { staffAuthFixture, staffPhoneLockKey, type StaffAuthFixture } from './staff-auth.fixture.ts';
 
 let f: StaffAuthFixture;
 let owner: postgres.Sql;
@@ -277,4 +277,46 @@ it('a lock held past the whole budget is a typed retry error, never an untyped f
     await lock.release();
   }
   expect(await owner`SELECT id FROM "user" WHERE staff_access_operation_id = ${operationId}`).toHaveLength(0);
+});
+
+/** يمسك قفل الهاتف الاستشاري نفسه من اتصال مستقل، ويتيح فكه متى شاء الاختبار. */
+async function holdPhoneLock(phone: string) {
+  const key = staffPhoneLockKey(createHash('sha256').update(`staff-provision:${phone}`).digest());
+  const held = postgres(f.test.ownerUrl, { max: 1, onnotice: () => undefined });
+  await held`SELECT pg_advisory_lock(${key.toString()}::bigint)`;
+  return {
+    release: async () => {
+      await held`SELECT pg_advisory_unlock(${key.toString()}::bigint)`;
+      await held.end();
+    },
+  };
+}
+
+/** الـ backend العالق على قفل الهاتف في قاعدة الهوية — pidه هو الذي يُقطع اتصاله. */
+async function waitForPhoneLockWaiter(): Promise<number> {
+  for (let tries = 0; tries < 200; tries += 1) {
+    const [row] = await owner`
+      SELECT pid FROM pg_stat_activity
+      WHERE datname=${f.test.name} AND usename='pospay_auth'
+        AND wait_event_type='Lock' AND wait_event='advisory'`;
+    if (row?.pid !== undefined) return row.pid as number;
+    await new Promise((resolve) => setTimeout(resolve, 5));
+  }
+  throw new Error('PHONE_LOCK_WAITER_MISSING');
+}
+
+it('AC-ACT-3 a connection lost while the phone lock is taken is the typed retry error', async () => {
+  const phone = phoneOf(90);
+  const lock = await holdPhoneLock(phone);
+  try {
+    const pending = provision(phone);
+    // الطلب يتعطل على القفل حتى قطع الاتصال؛ بدون هذا الحارس يبقى الرفض بلا مراقب.
+    void pending.catch(() => undefined);
+    const pid = await waitForPhoneLockWaiter();
+    await owner`SELECT pg_terminate_backend(${pid})`;
+    await expect(pending).rejects.toBeInstanceOf(StaffAuthBusyError);
+  } finally {
+    await lock.release();
+  }
+  expect(await owner`SELECT id FROM "user" WHERE phone_number = ${phone}`).toHaveLength(0);
 });
