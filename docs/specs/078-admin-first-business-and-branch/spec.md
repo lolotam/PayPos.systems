@@ -81,9 +81,9 @@ header switcher). No change to `resolve-selection.ts` or the provider state mach
   client instance with the same narrow local typing escape hatch as `create-company-client.ts`
   (same origin, credentials, middleware). Success bodies are parsed with the contract schemas
   (`business`, `branch`, `setBusinessCountryResult`). `isForbidden`/`issueField` are reused from
-  `create-company-client.ts`. The `x-company-id` header is attached by the client middleware from
-  the selection cookie, which `WorkspaceProvider` keeps equal to the resolution that made the
-  screen render — so the selected company is the one the form is shown for.
+  `create-company-client.ts`. Each of the three writes sends the `x-company-id` header
+  explicitly, with the id of the company the screen was rendered for; the client middleware keeps
+  a header that is already set and only fills a missing one from the selection cookie.
 - Each `<form>` gets `method="post"` (they render only after mount, so never in server HTML).
 - Front end only: `apps/admin` and `packages/i18n`. No change to `apps/api`, `packages/contracts`,
   `packages/db`, `packages/auth`, permissions, migrations, dependencies, `apps/admin/src/session/**`,
