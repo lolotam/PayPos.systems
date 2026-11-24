@@ -1,5 +1,5 @@
 import postgres from 'postgres';
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 
 import { createTestDatabase, type TestDatabase } from '../../../db/test/test-database.ts';
 import { seedReferenceData } from '../../../db/src/seed.ts';
@@ -168,7 +168,16 @@ describe('invitation link authority and re-issue', () => {
     });
     await lockTaken;
     const consuming = consume(old);
-    await new Promise((resolve) => setTimeout(resolve, 1500));
+    // الحاجز: الاستهلاك واقف على قفل صف الحساب اللي معاملة الإصدار ماسكاه، مش انتظار زمني.
+    await vi.waitFor(
+      async () => {
+        const [row] = await owner`
+          SELECT count(*)::int AS waiting FROM pg_stat_activity
+          WHERE datname = ${testDb.name} AND wait_event_type = 'Lock'`;
+        expect(Number(row?.['waiting'])).toBeGreaterThanOrEqual(1);
+      },
+      { timeout: 8_000, interval: 25 },
+    );
     release();
     await reissuing;
     expect((await consuming).status).toBe(200);
@@ -198,9 +207,6 @@ describe('email state and invited member creation', () => {
     // بعد ما صاحب الحساب يحط كلمة مروره بقى حساب موجود عادي حتى لنفس الشركة (N1).
     await owner`UPDATE account SET password = 'x' WHERE provider_id = 'credential'
       AND user_id = (SELECT id FROM "user" WHERE email = 'state@example.test')`;
-    expect(await members().inspectEmail('state@example.test', COMPANY)).toEqual({ kind: 'TAKEN' });
-    // بعد ما صاحب الحساب يحط كلمة مروره بقى حساب موجود عادي حتى لنفس الشركة (N1).
-    await owner;
     expect(await members().inspectEmail('state@example.test', COMPANY)).toEqual({ kind: 'TAKEN' });
   });
 

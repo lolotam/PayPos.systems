@@ -9,6 +9,7 @@ import { configuredPrivateView, type PrivateViewFacade } from './private-view.ts
 import { sessionCookieNames, type SessionCookieNames } from './session-cookie.ts';
 import { passkeyPolicy, registrationPlugin, isPasskeyRoute } from './passkey-policy.ts';
 import { createPasskeyFacade, type ActivePasskeyBindings, type PasskeyFacade } from './passkeys.ts';
+import { passwordResetPlugin } from './password-reset.ts';
 import { createMemberInvitationAccounts, type MemberInvitationAccounts } from './member-invitations.ts';
 import { sessionFromRecord } from './staff-session-fence.ts';
 import { createStaffSessions, type StaffSessions } from './staff-sessions.ts';
@@ -20,6 +21,16 @@ export interface AuthOptions {
   readonly staffPhoneLockKey: (hash: Uint8Array) => bigint;
   readonly clock?: { now(): Date };
   readonly entropy?: { bytes(n: number): Uint8Array } | undefined;
+  /**
+   * مُجزّئ كلمات المرور — بيتحقن في الاختبارات بس عشان نوقف الـ hash عند حاجز حقيقي؛ غيابه
+   * معناه مُجزّئ Better Auth الأصلي، وكل composition root بيسيبه فاضي.
+   */
+  readonly passwordHasher?:
+    | {
+        hash(password: string): Promise<string>;
+        verify(input: { hash: string; password: string }): Promise<boolean>;
+      }
+    | undefined;
   /** القارئ من staff عبر composition root؛ غيابه يقفل خيارات التسجيل فقط. */
   readonly passkeyBindings?: ActivePasskeyBindings | undefined;
   /** AUTH_DATABASE_URL — pospay_auth; the pool is opened here and never leaves this package. */
@@ -246,7 +257,11 @@ const STAFF_SESSION_FIELDS = {
   activeCompanyId: { type: 'string', required: false, input: false },
 } as const;
 type StaffAuthConfiguration = BetterAuthOptions & {
-  plugins: [ReturnType<typeof twoFactor>, ReturnType<typeof registrationPlugin>];
+  plugins: [
+    ReturnType<typeof twoFactor>,
+    ReturnType<typeof registrationPlugin>,
+    ReturnType<typeof passwordResetPlugin>,
+  ];
   session: { additionalFields: typeof STAFF_SESSION_FIELDS };
 };
 
@@ -266,16 +281,13 @@ export function buildBetterAuth(
     emailAndPassword: {
       enabled: true,
       disableSignUp: true,
-      // A password just set ends every other outstanding reset link of the user, so a link issued
-      // while the reset ran (G1 re-issue) cannot outlive the password it was meant to set.
-      onPasswordReset: async ({ user }) => {
-        await database.memberInvitations.revokeResetLinks(user.id);
-      },
+      ...(options.passwordHasher === undefined ? {} : { password: options.passwordHasher }),
     },
     session: { additionalFields: STAFF_SESSION_FIELDS },
     plugins: [
       twoFactor({ issuer: 'PosPay' }),
       registrationPlugin(passkeyPolicy(options.baseURL, options.trustedOrigins)),
+      passwordResetPlugin({ database, ids: options.ids, clock: options.clock }),
     ],
     advanced: {
       cookiePrefix: cookieNames.prefix,

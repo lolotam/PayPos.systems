@@ -53,8 +53,6 @@ export interface MemberInvitationQueries {
    * @returns true لما الرابط اتكتب، وfalse لما الإصدار مرفوض
    */
   issueInvitationLink(input: InvitationLinkRow): Promise<boolean>;
-  /** بيمسح كل روابط reset-password الحية لمستخدم — بيتنادى بعد ما كلمة المرور تتحط. */
-  revokeResetLinks(userId: string): Promise<void>;
 }
 
 type Database = PostgresJsDatabase<IdentitySchema>;
@@ -135,8 +133,8 @@ const createInvitedMember = async (
 const issueInvitationLink = async (db: Database, input: InvitationLinkRow): Promise<boolean> =>
   db.transaction(async (tx) => {
     // القفل على صف المستخدم وصف حساب الدخول معاً: تعيين كلمة المرور في Better Auth بيحدّث صف
-    // الحساب، فبيستنى هنا، وبعده بيمسح الروابط الحية (revokeResetLinks) — فمفيش رابط حي على
-    // حساب له كلمة مرور. القفلين منفصلين لأن FOR UPDATE ما يتطبقش على الجهة الاختيارية في outer join.
+    // الحساب، فبيستنى هنا. استهلاك الرابط (password-reset-database) بياخد نفس القفلين بنفس الترتيب
+    // وبيمسح الروابط في معاملته — فمفيش رابط حي على حساب له كلمة مرور. القفلين منفصلين لأن FOR UPDATE ما يتطبقش على الجهة الاختيارية في outer join.
     const [owner] = await tx
       .select({ invitedByCompanyId: user.invitedByCompanyId })
       .from(user)
@@ -168,12 +166,6 @@ const issueInvitationLink = async (db: Database, input: InvitationLinkRow): Prom
     return true;
   });
 
-const revokeResetLinks = async (db: Database, userId: string): Promise<void> => {
-  await db
-    .delete(verification)
-    .where(and(eq(verification.value, userId), like(verification.identifier, 'reset-password:%')));
-};
-
 /**
  * حدود جداول الهوية لدعوة الأعضاء (G1): الإيميل بيتخزن صريح في جدول اليوزر زي أي حساب، وصف
  * الدعوة في الشركة بيحمل بصمته بس — فمفيش إيميل ولا توكن بيخرج من الجدول ده للـ tenant.
@@ -189,6 +181,5 @@ export function memberInvitationQueries(db: Database): MemberInvitationQueries {
     readHasPassword: (userId) => readHasPassword(db, userId),
     createInvitedMember: (input) => createInvitedMember(db, input),
     issueInvitationLink: (input) => issueInvitationLink(db, input),
-    revokeResetLinks: (userId) => revokeResetLinks(db, userId),
   };
 }
