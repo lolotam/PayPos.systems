@@ -1,6 +1,7 @@
 'use client';
+
 import { t } from '@pospay/i18n';
-import { EmptyState, UserRound } from '@pospay/ui';
+import { DataTableFrame, EmptyState, UserRound } from '@pospay/ui';
 import { useLocale } from '@/shared/locale/locale-context';
 import type { usePermissionMemberships } from '../api/use-permissions';
 import { PermissionListFeedback } from './permission-list-feedback';
@@ -23,6 +24,7 @@ export function PermissionMembershipList({
   onCursor: (next: string | undefined) => void;
 }) {
   const locale = useLocale();
+  const loaded = !list.isPending && !list.isFetching && !list.isError && !list.failureCount;
   return (
     <>
       <PermissionListFeedback
@@ -30,8 +32,18 @@ export function PermissionMembershipList({
         failed={list.isError || list.failureCount > 0}
         error={list.error ?? list.failureReason}
       />
-      {!list.isPending && !list.isFetching && !list.isError && !list.failureCount && list.data ? (
-        <>
+      {loaded && list.data ? (
+        <DataTableFrame
+          title={t(locale, 'permissions.person')}
+          stacked
+          footer={
+            <PermissionPageNavigation
+              cursor={cursor}
+              next={list.data.next_cursor}
+              onChange={onCursor}
+            />
+          }
+        >
           {list.data.items.length === 0 ? (
             <EmptyState icon={<UserRound />} title={t(locale, 'permissions.empty')} />
           ) : (
@@ -42,12 +54,7 @@ export function PermissionMembershipList({
               onSelect={onSelect}
             />
           )}
-          <PermissionPageNavigation
-            cursor={cursor}
-            next={list.data.next_cursor}
-            onChange={onCursor}
-          />
-        </>
+        </DataTableFrame>
       ) : null}
     </>
   );

@@ -1,7 +1,7 @@
 'use client';
 
 import { t } from '@pospay/i18n';
-import { PageHeader } from '@pospay/ui';
+import { PageHeader, PageShell } from '@pospay/ui';
 import { useState } from 'react';
 
 import { useLocale } from '@/shared/locale/locale-context';
@@ -23,7 +23,7 @@ export function PermissionsPage(props: Props) {
   const [scope, setScope] = useState(business ? 'business' : 'company');
   const businessId = scope === 'business' ? business?.id : undefined;
   return (
-    <section className="flex min-w-0 flex-col gap-12 text-start">
+    <PageShell layout="list">
       <PageHeader
         title={t(locale, 'permissions.title')}
         description={t(locale, 'shell.permissionsLead')}
@@ -48,6 +48,6 @@ export function PermissionsPage(props: Props) {
         scopeNames={scopeNames}
         branchTimeZones={branchTimeZones}
       />
-    </section>
+    </PageShell>
   );
 }

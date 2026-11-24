@@ -121,7 +121,7 @@ const MANAGE = [
     ['Employees', 'Attendance cards', '1', S, L, '', R_OPS_MGR],
     ['Employees', 'Phones', '1', S, L, '', R_OPS_MGR],
     ['Schedules', 'Weekly schedules', '1', L, S, '', R_OPS_MGR],
-    ['Schedules', 'Schedule settings', '1', 'Live (a block of Weekly schedules until it gets its own page)', S, '', R_OWNER],
+    ['Schedules', 'Schedule settings', '1', L, S, '', R_OWNER],
     ['Attendance', 'Board', '1', L, S, '', R_FIN_OPS],
     ['Attendance', 'Requests', '1', L, S, '', R_OPS_MGR],
     ['Attendance', 'Exceptions', '1', L, S, '', R_FIN_OPS],
