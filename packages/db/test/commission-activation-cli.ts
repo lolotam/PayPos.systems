@@ -29,6 +29,7 @@ export function activationCli(
           DISPATCHER_DATABASE_URL: urls.dispatcher,
         },
         timeout: 30_000,
+        windowsHide: true,
       },
       (error, stdout, stderr) => resolve({ code: error === null ? 0 : 1, stdout, stderr }),
     );

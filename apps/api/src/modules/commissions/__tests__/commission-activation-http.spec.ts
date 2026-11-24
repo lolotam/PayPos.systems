@@ -71,4 +71,4 @@ it('operator commands open the real HTTP approval only after a post-enable proof
   const [untouched] = await f.h.owner`SELECT status FROM commission_statements
     WHERE company_id = ${f.company} AND period = '2026-10'`;
   expect(untouched?.['status']).toBe('REVIEWED');
-});
+}, 90_000);

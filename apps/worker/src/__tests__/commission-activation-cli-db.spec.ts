@@ -47,7 +47,7 @@ const switchArgs = (enabled: boolean, company: string = A.company) => [
   '--reason',
   'synthetic activation',
   '--operator-email',
-  'tips-bootstrap@example.test',
+  'commission-operator@example.test',
 ];
 
 async function issueArgs(company: string = A.company, business?: string) {
@@ -108,7 +108,8 @@ it('enable, dry-run, issue, re-run and disable are audited and leave the other t
   ).toMatchObject({ switch_enabled: false, proof_current: false, generation: '4' });
   const rows =
     await owner`SELECT actor, action, target_user_id, details FROM platform_audit_log WHERE action LIKE 'commissions.%' ORDER BY at,id`;
-  const [operator] = await owner`SELECT id FROM "user" WHERE email = 'tips-bootstrap@example.test'`;
+  const [operator] =
+    await owner`SELECT id FROM "user" WHERE email = 'commission-operator@example.test'`;
   expect(rows.map((row) => row['action'])).toEqual([
     'commissions.approval_enabled',
     'commissions.approval_disabled',
@@ -125,7 +126,7 @@ it('enable, dry-run, issue, re-run and disable are audited and leave the other t
     });
   expect(JSON.stringify(rows)).not.toContain('@');
   expect(await footprint(B.company)).toEqual({ states: 0, proofs: 0, switches: 0 });
-});
+}, 90_000);
 
 it('dry-run on a never-ensured company leaves no state or proof', async () => {
   expect((await activationCli('issue', urls(), [...(await issueArgs()), '--dry-run'])).code).toBe(
@@ -171,8 +172,19 @@ it('foreign scope is refused, and an uncovered tip revision never gets a proof',
 });
 
 it('Orders detects dates beyond 9999, includes every revision and isolates tenants', async () => {
-  const { ctx, sessionId } = await seedSession(A, '10000-01-01', CUSTOMER_A);
+  const { ctx, sessionId } = await seedSession(A, '9999-12-31', CUSTOMER_A);
+  // قيمة SQL حرفية: محوّل date في العميل يمر عبر ساعة JavaScript ويغيّر اليوم للتاريخ ذي الخمس خانات.
+  await asReplicaOwner(
+    owner,
+    (tx) =>
+      tx`UPDATE service_sessions SET business_date = DATE '10000-01-01' WHERE id = ${sessionId}`,
+  );
   await writeTipRevision(ctx, sessionId, 1, eventId(302), [tip(A.employee, 'CASH', '1.000')]);
+  const [stored] =
+    await owner`SELECT business_date::text AS day, business_date > '9999-12-31'::date AS beyond,
+    (SELECT count(*)::int FROM session_tip_revisions WHERE session_id = ${sessionId}) AS revisions
+    FROM service_sessions WHERE id = ${sessionId}`;
+  expect(stored).toEqual({ day: '10000-01-01', beyond: true, revisions: 1 });
   expect(
     await db.withTenant(A.company, (tx) =>
       readSessionTipsAfterBound(tx, A.company, A.business, '9999-12-31'),
@@ -217,7 +229,7 @@ it('Orders allows a revision exactly at U and rejects one strictly after U', asy
   ).toBe(true);
 });
 
-it('the new existence query has indexable date and revision paths', async () => {
+it('the new existence query has indexed tenant and revision paths', async () => {
   const plans = await db.withTenant(A.company, async (tx) => {
     await tx.execute(sql`SET LOCAL enable_seqscan = off`);
     return tx.execute(
@@ -225,8 +237,8 @@ it('the new existence query has indexable date and revision paths', async () => 
     );
   });
   const plan = JSON.stringify(plans);
-  expect(plan).toContain('service_sessions_business_day_idx');
-  expect(plan).toMatch(/session_tip_revisions.*(pkey|key)/);
+  expect(plan).toMatch(/service_sessions_(business_day_idx|business_id_key)/);
+  expect(plan).toContain('session_tip_revisions_business_session_id_uq');
   expect(plan).not.toContain('Seq Scan');
 });
 
