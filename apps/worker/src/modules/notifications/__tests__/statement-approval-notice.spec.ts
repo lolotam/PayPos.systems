@@ -61,19 +61,17 @@ it('stores the awaiting-approval notice for every approver from the event itself
   const request = await approvalEvent([recipient(USER), recipient(OTHER_INBOX_USER)]);
   expect(await h.deliver(request)).toEqual({ delivered: true });
 
-  const rows = await owner`SELECT user_id, template_key, locale, business_id, safe_parameters
+  const rows = await owner`SELECT recipient_user_id, template_key, locale, business_id, safe_parameters
     FROM in_app_notifications WHERE source_event_id = ${request.id}`;
   expect(rows).toHaveLength(2);
-  expect(rows.map((row) => row['user_id']).sort()).toEqual([OTHER_INBOX_USER, USER].sort());
+  expect(rows.map((row) => row['recipient_user_id']).sort()).toEqual([OTHER_INBOX_USER, USER].sort());
   for (const row of rows) {
     expect(row['template_key']).toBe('statement_awaiting_approval');
     expect(row['locale']).toBe('ar');
     expect(row['business_id']).toBe(TENANT.A.business);
-    expect(row['safe_parameters']).toContain({
-      name: 'period',
-      type: 'text',
-      value: '2026-11',
-    });
+    const parameters = row['safe_parameters'] as { name: string; type: string; value: string }[];
+    expect(parameters).toHaveLength(1);
+    expect(parameters[0]).toEqual({ name: 'period', type: 'text', value: '2026-11' });
   }
   // الجرس داخل التطبيق بس: مفيش تفويض واتساب ولا بريد ولا محاولة إرسال ولا نداء مزوّد.
   expect(

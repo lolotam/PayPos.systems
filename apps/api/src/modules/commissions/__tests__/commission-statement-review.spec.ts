@@ -261,8 +261,12 @@ describe('CM-33b returning a reviewed statement to draft', () => {
     expect((await generateStatement(g, g.cookie, 'generate-august', '2026-08')).status).toBe(200);
     const body = await expected(g, '2026-08');
     expect((await review(g, g.cookie, 'review-august', body, '2026-08')).status).toBe(200);
+    // ترقيد صف APPROVED بكامل حقائق CHECK المرحلة: البصمتان متجمدتان والمعتمد موجود،
+    // فالصف شكله صف معتمد حقيقي والقفل بس هو اللي بيرفض الإرجاع.
     await g.h
-      .owner`UPDATE commission_statements SET status='APPROVED'
+      .owner`UPDATE commission_statements SET status='APPROVED',
+        input_fingerprint=reviewed_fingerprint, statement_fingerprint=reviewed_statement_fingerprint,
+        approved_by=reviewed_by, approved_at=now(), approval_xact_id=pg_current_xact_id()
       WHERE company_id=${g.company} AND business_id=${g.business} AND period='2026-08'`;
     const response = await returnStatement(g, g.cookie, 'return-approved', 'سبب', '2026-08');
 
