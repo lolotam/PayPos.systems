@@ -3391,6 +3391,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/webhooks/resend": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @description HMAC over the raw body; allowlisted events are stored before enqueue, other verified event types are acknowledged without storage. */
+        post: operations["receiveResendWebhook"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/me/notifications": {
         parameters: {
             query?: never;
@@ -8545,6 +8562,25 @@ export interface components {
             "hub.mode": "subscribe";
             "hub.verify_token": string;
             "hub.challenge": string;
+        };
+        ResendFeedbackAcknowledgement: {
+            /** @enum {boolean} */
+            received: true;
+        };
+        ResendFeedbackEnvelope: components["schemas"]["ResendStoredFeedbackEnvelope"] | components["schemas"]["ResendIgnoredFeedbackEnvelope"];
+        ResendStoredFeedbackEnvelope: {
+            /** @enum {string} */
+            type: "email.delivered" | "email.bounced" | "email.complained" | "email.failed" | "email.suppressed" | "email.delivery_delayed";
+            created_at: string;
+            data: {
+                email_id: string;
+                bounce?: {
+                    type: string;
+                };
+            };
+        };
+        ResendIgnoredFeedbackEnvelope: {
+            type: string;
         };
         InAppNotification: {
             /** Format: uuid */
@@ -22297,6 +22333,43 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["WhatsappWebhookAcknowledgement"];
+                };
+            };
+            /** @description The API error envelope */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    receiveResendWebhook: {
+        parameters: {
+            query?: never;
+            header: {
+                "svix-id": string;
+                "svix-timestamp": string;
+                "svix-signature": string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ResendFeedbackEnvelope"];
+            };
+        };
+        responses: {
+            /** @description Verified event acknowledged; allowlisted events stored, other event types ignored */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResendFeedbackAcknowledgement"];
                 };
             };
             /** @description The API error envelope */

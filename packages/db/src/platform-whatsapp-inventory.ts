@@ -1,78 +1,20 @@
 import { sql } from 'drizzle-orm';
+import {
+  assertNotificationsGrants,
+  assertNotificationsRole,
+  same,
+} from './platform-notifications-inventory.ts';
 import type { Tx } from './with-tenant.ts';
 
-const TABLE_GRANTS = [
-  'platform_whatsapp_audit:INSERT',
-  'platform_whatsapp_inbox:INSERT',
-  'platform_whatsapp_inbox:SELECT',
-  'platform_whatsapp_suppressions:SELECT',
-];
-const COLUMN_GRANTS = [
-  'platform_whatsapp_inbox.enqueue_confirmed_at:UPDATE',
-  'platform_whatsapp_inbox.processed_at:UPDATE',
-  'platform_whatsapp_inbox.raw_event:UPDATE',
-  'platform_whatsapp_inbox.suppression_applied_at:UPDATE',
-  'platform_whatsapp_suppressions.first_opted_out_at:INSERT',
-  'platform_whatsapp_suppressions.hash_key_id:INSERT',
-  'platform_whatsapp_suppressions.last_opted_out_at:INSERT',
-  'platform_whatsapp_suppressions.last_opted_out_at:UPDATE',
-  'platform_whatsapp_suppressions.recipient_hash:INSERT',
-  'platform_whatsapp_suppressions.source:INSERT',
-  'platform_whatsapp_suppressions.source:UPDATE',
-];
 const fail = () => {
-  throw new Error('PLATFORM_WHATSAPP_PRIVILEGES_INVALID');
+  throw new Error('PLATFORM_NOTIFICATIONS_PRIVILEGES_INVALID');
 };
-const same = (values: string[], expected: string[]) =>
-  JSON.stringify(values.sort()) === JSON.stringify([...expected].sort());
-
-export async function assertWhatsappRole(tx: Pick<Tx, 'execute'>): Promise<void> {
-  const [role] = await tx.execute<{ valid: boolean }>(sql`
-    SELECT current_user = 'pospay_notifications' AND NOT rolsuper AND NOT rolbypassrls
-      AND NOT rolinherit AND NOT rolcreatedb AND NOT rolcreaterole AND NOT rolreplication AND rolcanlogin
-      AND NOT EXISTS (SELECT 1 FROM pg_auth_members WHERE member = r.oid OR roleid = r.oid)
-      AND has_schema_privilege(r.oid, 'public', 'USAGE')
-      AND has_database_privilege(r.oid, current_database(), 'CONNECT')
-      AND NOT has_schema_privilege(r.oid, 'public', 'CREATE')
-      AND NOT has_database_privilege(r.oid, current_database(), 'CREATE') AS valid
-    FROM pg_roles r WHERE rolname = current_user`);
-  if (role?.valid !== true) fail();
-}
 
 export async function assertWhatsappInventory(tx: Pick<Tx, 'execute'>): Promise<void> {
-  await assertWhatsappRole(tx);
-  await assertTableGrants(tx);
+  await assertNotificationsRole(tx);
+  await assertNotificationsGrants(tx);
   await assertGlobalBoundary(tx);
   await assertConstraintAndFunction(tx);
-}
-
-async function assertTableGrants(tx: Pick<Tx, 'execute'>): Promise<void> {
-  // جسر تراجعي (قبل migration 0248): صلاحيات الإيميل بتاعتها pospay_notifications بتظهر بعد الـ migration،
-  // والصورة القديمة لازم تتسامح معها وإلا الـ STOP intake والـ OTP بيقعوا وقت التراجع أو رولِنت قديم.
-  const emailGrant = (grant: string) => grant.startsWith('platform_email_');
-  const tables = (
-    await tx.execute<{ grant: string }>(sql`
-    SELECT c.relname || ':' || p AS grant FROM pg_class c,
-      unnest(ARRAY['SELECT','INSERT','UPDATE','DELETE','TRUNCATE','REFERENCES','TRIGGER']) p
-    WHERE c.relnamespace = 'public'::regnamespace AND c.relkind IN ('r','p','v','m','f')
-      AND has_table_privilege(current_user, c.oid, p)`)
-  ).map((r) => r.grant).filter((grant) => !emailGrant(grant));
-  if (!same(tables, TABLE_GRANTS)) fail();
-  const columns = (
-    await tx.execute<{ grant: string }>(sql`
-    SELECT c.relname || '.' || a.attname || ':' || p AS grant
-    FROM pg_class c JOIN pg_attribute a ON a.attrelid = c.oid,
-      unnest(ARRAY['SELECT','INSERT','UPDATE','REFERENCES']) p
-    WHERE c.relnamespace = 'public'::regnamespace AND a.attnum > 0 AND NOT a.attisdropped
-      AND has_column_privilege(current_user, c.oid, a.attnum, p)
-      AND NOT has_table_privilege(current_user, c.oid, p)`)
-  ).map((r) => r.grant).filter((grant) => !emailGrant(grant));
-  if (!same(columns, COLUMN_GRANTS)) fail();
-  const forbidden = await tx.execute(sql`
-    SELECT c.oid FROM pg_class c WHERE c.relnamespace = 'public'::regnamespace
-      AND (c.relowner = current_user::regrole OR (c.relkind = 'S'
-        AND has_sequence_privilege(current_user, c.oid, 'USAGE,SELECT,UPDATE')))`);
-  if (forbidden.length !== 0) fail();
 }
 
 async function assertGlobalBoundary(tx: Pick<Tx, 'execute'>): Promise<void> {

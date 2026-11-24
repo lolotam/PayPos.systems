@@ -13,14 +13,22 @@ export default [
       'src/**/__tests__/whatsapp-harness.ts',
       'src/modules/notifications/http/__tests__/whatsapp-batch.spec.ts',
       'src/modules/notifications/http/__tests__/whatsapp-parser.spec.ts',
+      'src/modules/notifications/http/__tests__/resend-webhook-harness.ts',
+      'src/modules/notifications/http/__tests__/resend-webhook.spec.ts',
     ],
-    ...allowDatabaseFacade('createPlatformWhatsappDatabase'),
+    ...allowDatabaseFacade(['createPlatformWhatsappDatabase', 'createPlatformEmailDatabase']),
     rules: {
-      ...allowDatabaseFacade('createPlatformWhatsappDatabase').rules,
+      ...allowDatabaseFacade([
+        'createPlatformWhatsappDatabase',
+        'createPlatformEmailDatabase',
+      ]).rules,
       'boundaries/dependencies': 'off',
     },
   },
-  { files: ['src/main.ts'], ...allowDatabaseFacade('createPlatformWhatsappDatabase') },
+  {
+    files: ['src/main.ts'],
+    ...allowDatabaseFacade(['createPlatformWhatsappDatabase', 'createPlatformEmailDatabase']),
+  },
   { files: ['scripts/staging-staff-user.ts'], ...allowDatabaseFacade([], { operator: true }) },
   { files: ['src/modules/notifications/domain/whatsapp-command.ts'], ...allowUserFacingText() },
 ];

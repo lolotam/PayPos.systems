@@ -275,6 +275,7 @@ test('the check job binds full history and the triggering event only', () => {
     job.indexOf('pnpm/action-setup@v6'),
   );
   assert.match(checkout, /fetch-depth:\s*0/);
+  assert.match(checkout, /ref:\s*\$\{\{ github\.sha \}\}/);
   const step = job.slice(job.indexOf('- name: migration chain'), job.indexOf('- name: api:check'));
   const folded = step.replace(/\s+/g, ' ');
   assert.equal(
