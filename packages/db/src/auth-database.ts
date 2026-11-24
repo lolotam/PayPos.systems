@@ -6,6 +6,11 @@ import { account, session, twoFactor, user, verification } from '../schema/ident
 
 import { assertionConsumer } from './passkey-assertion.ts';
 import { passkey } from '../schema/identity-passkey.ts';
+import {
+  memberInvitationQueries,
+  type MemberInvitationQueries,
+} from './member-invitation-database.ts';
+import { passwordResetQueries, type PasswordResetQueries } from './password-reset-database.ts';
 
 const identitySchema = { user, session, account, verification, twoFactor, passkey };
 
@@ -45,6 +50,10 @@ export interface AuthDatabase {
   userIdForResetToken(token: string): Promise<string | null>;
   /** بيضيف سطر في platform_audit_log — الجدول insert-only لـ pospay_auth. */
   recordPlatformAction(entry: PlatformAuditEntry): Promise<void>;
+  /** القراءات والكتابات اللي دعوة الأعضاء محتاجاها على جداول الهوية (G1) — SQL جوه packages/db بس. */
+  readonly memberInvitations: MemberInvitationQueries;
+  /** استهلاك رابط تعيين كلمة المرور وكتابتها ذرياً تحت قفل صف اليوزر — بديل مسار Better Auth الأصلي (G1). */
+  readonly passwordResets: PasswordResetQueries;
   /** استهلاك تحدي حضور مع قفل الاعتماد وتحديث عداده. */
   readonly consumeAssertion: ReturnType<typeof assertionConsumer>;
   close(): Promise<void>;
@@ -104,6 +113,8 @@ export function createAuthDatabase(options: {
         VALUES (${entry.id}, ${entry.actor}, ${entry.action}, ${entry.targetUserId},
                 ${JSON.stringify(entry.details)}::jsonb)`;
     },
+    memberInvitations: memberInvitationQueries(db),
+    passwordResets: passwordResetQueries(db),
     consumeAssertion: assertionConsumer(client),
     close: () => client.end({ timeout: 5 }),
   };

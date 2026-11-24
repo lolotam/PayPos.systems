@@ -162,6 +162,7 @@ function inventory(): Route[] {
     routeOf('count', '/v1/me/notifications/unread-count'),
     routeOf('download', '/v1/files/download'),
     routeOf('denied', '/v1/employee-numbering'),
+    routeOf('denied', '/v1/memberships/invitations', undefined, { limit: '1' }),
   ];
   return [
     ...fixed,

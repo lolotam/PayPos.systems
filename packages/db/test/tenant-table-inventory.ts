@@ -101,6 +101,7 @@ export const TENANT_TABLES = [
   'business_settings',
   'alert_rules',
   'memberships',
+  'member_invitations',
   'permission_overrides',
   'roles',
   'role_permissions',

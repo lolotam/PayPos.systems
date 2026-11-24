@@ -35,6 +35,11 @@ export interface AppDependencies {
    * وكل مسارات القدرة ترد 503 ما دامت مطفأة. تشغيلها قرار deploy بعد دمج PRs الخمسة كلها.
    */
   readonly staffAccessRoutes?: boolean;
+  /**
+   * دعوة الأعضاء: أصل لوحة الإدارة اللي صفحة تعيين كلمة المرور بتتبني عليه، وساعة بيتقاس بيها عمر
+   * الرابط (AC-G1-2). من غير الأصل مسارات الدعوة بترد NOT_READY.
+   */
+  readonly memberInvitations?: { readonly adminOrigin: string; readonly clock?: { now(): Date } };
   readonly readiness: readonly ReadinessCheck[];
   /** Releases what main.ts opened (pools, clients). Runs on app.close() and on SIGTERM/SIGINT. */
   readonly onShutdown?: () => Promise<void>;

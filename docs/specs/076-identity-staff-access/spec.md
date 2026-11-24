@@ -72,8 +72,7 @@ F3 change phone, stop access, follow the branch · G2 end a membership. Plan: `p
 - **FR-G1-4b** Each invitation is recorded (no token, no link, no plain email). The owner who created a pending
   invitation can issue a new link while the invited person has never set a password; the earlier link stops
   working. No other company can issue a link for that account.
-- **FR-G1-5** Refusals: `MEMBER_ALREADY_IN_COMPANY` (409) for an active membership of the same user in the company;
-  `MEMBER_ROLE_NOT_INVITABLE` (422) for a role outside the list, the owner role, or a scope that does not match
+- **FR-G1-5** Refusals: `MEMBER_ROLE_NOT_INVITABLE` (422) for a role outside the list, the owner role, or a scope that does not match
   the role or does not belong to the company; `MEMBER_EMAIL_NOT_INVITABLE` (422) for an email that already has any
   user account, the owner's own and a staff user's included (N1). Authority is the canonical owner, decided inside the write transaction.
 - **FR-G1-6** Audit rows for the user creation and the membership; outbox event `MemberInvited`.
@@ -168,7 +167,7 @@ F3 change phone, stop access, follow the branch · G2 end a membership. Plan: `p
   the earlier link no longer works.
 - **AC-G1-4** A general manager, a branch manager and an owner carrying a DENY override get 403. An owner inviting
   his own email is refused. Two owners inviting the same email at once produce one membership.
-- **AC-G1-5** A role outside the list, or a branch manager without a branch scope → 422; the owner role → 422.
+- **AC-G1-5** A role outside the list, or a branch manager without a branch scope → 422; the owner role → 422. A role whose scope type matches but whose business or branch belongs to another company → 422. A role code outside the schema enum (the owner role and any non-invitable role such as `cashier`) is rejected by the strict schema as 400 `VALIDATION_FAILED`, before any write (accepted ruling).
 - **AC-G1-6** The API logs of the request contain neither the link nor its token.
 
 ### F2
