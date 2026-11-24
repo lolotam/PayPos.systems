@@ -471,6 +471,43 @@ no `published_at`, no `attempts`, no mark and no projection change.
      has scanned the lines, the salaries, the sales and the retained-event range, because the check compares the last event it read with the
      bound. It prints no report and exits 1; it is not a cheap pre-check.
 
+## 53-2 B1: enable approval for a company
+
+Only the authorized operator runs these commands, for one company in the verified environment and a quiet window
+covering the whole report and any repair/data-step run. `platform:commission-approval` uses `MIGRATION_DATABASE_URL`
+as `pospay_owner`, like `platform:grant`. Issuance uses `DATABASE_URL` as `pospay_app` for source reads under
+`withTenant` and `DISPATCHER_DATABASE_URL` as `pospay_dispatcher` for the limited 0250 functions; no Redis is needed.
+Supply every company business and a tip range covering all historical input days through PostgreSQL's UTC day plus one.
+The output contains only status, ids, counts, bounds, generation and rules version; never paste credentials.
+Build the current release first (`pnpm exec turbo run build --filter=@pospay/worker...`); issuance runs its compiled CLI.
+
+**Order: enable → dry-run report → issue → approve; enable bumps the generation and invalidates any earlier proof
+(ADR-0054, bootstrap addendum §9), so switch-on without a current proof still refuses approval.**
+
+```sh
+pnpm platform:commission-approval --company <uuid> --show
+pnpm platform:commission-approval --company <uuid> --enable --reason <reason> --operator-email <operator-email> [--expires <ISO-instant>]
+pnpm platform:commission-coverage --company <uuid> --businesses <uuid>[,<uuid>...] --from YYYY-MM-DD --to YYYY-MM-DD --run-id <run-label> --release <release-label> --dry-run
+pnpm platform:commission-coverage --company <uuid> --businesses <uuid>[,<uuid>...] --from YYYY-MM-DD --to YYYY-MM-DD --run-id <run-label> --release <release-label>
+pnpm platform:commission-approval --company <uuid> --show
+```
+
+Dry-run writes nothing. A refusal exits non-zero without issuing; fix the cause and repeat the full report.
+`COVERAGE_TIP_BOUND_MOVED` means repeat with the new PostgreSQL bound. A successful re-run issues a new proof on the
+next generation after verifying again. `SWITCH_ON_NO_CURRENT_PROOF` means the switch alone has not opened approval.
+The operator email must resolve to an existing platform user; audit stores `user:<id>` and that UUID, never the email.
+
+**Mandatory activation gate:** measure one real approval on staging against a large, fully consumed history and record
+the elapsed time. Enable approval for a company only if this measured request is **under 200 ms**. Otherwise escalate to
+the owner and keep that company's switch disabled. The staging measurement is a separate operator receipt, not proved
+by shipping this CLI or its integration tests.
+
+To close approval (also invalidates the current proof), use:
+
+```sh
+pnpm platform:commission-approval --company <uuid> --disable --reason <reason> --operator-email <operator-email>
+```
+
 ## 50-3d: replay all six counted types after a rollback (spec 059, CS-Q43)
 
 Replays the retained events of all six counted types of one company to the `commissions.project-inputs` consumer alone, through the

@@ -599,6 +599,19 @@ it with the round-trip test CM-34e.
   grants), §6 _Fingerprint_ (the place of the branch attribution) and D-18 (the claim that a bytes kind is built while
   Chromium is down, which holds only after 56-0 decouples the queue from the renderer — see the ADR-0049 addendum).
 
+### Addendum 2026-11-24 (53-2 B1): issuance CLI port bindings
+
+`apps/worker/src/issue-commission-coverage.ts` binds a commissions-owned `CoverageTipExistenceReader` to
+Orders' `readSessionTipsAfterBound`, a read-only existence query with `business_date > U` and no upper bound.
+It uses the existing app privileges inside `withTenant`, rejects an unknown business and returns only a boolean.
+The same root binds `CoverageIssuanceDependencies.businessIds` to tenancy's `coverageBusinessIds` to reject a partial
+company scope even in dry-run. These are port bindings, not module import arrows; no grant or migration is added.
+The generation and UTC bound are sampled together in one dispatcher SELECT using the existing 0250 generation function.
+The issuing facade keeps that transaction open through verification so refusals and dry-runs roll back the ensure row too.
+Each successful re-run performs a new report and issues a new proof on the next generation; it never revives an old proof.
+The switch audit follows #1223 item 12: `--operator-email` only, resolved `user.id` in `set_by`,
+`actor = user:<id>`, `details = {company_id, reason, operator_user_id}`, `target_user_id = NULL`, no email in the log.
+
 ## Open questions for the owner
 
 - **CS-Q32** (batch 53, PP-37.1): decided on 2026-10-23 by Waleed and Abu Salem, fully automatic (rebuild and clear by the

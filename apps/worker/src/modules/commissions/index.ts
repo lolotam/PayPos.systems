@@ -52,6 +52,8 @@ export type {
   CurrentTipSessionsReader,
 } from './ports/commission-tip-bootstrap.port.ts';
 export { createCommissionCoverageReport } from './commissions.module.ts';
+export { issueCommissionCoverage } from './use-cases/issue-commission-coverage/issue-commission-coverage.ts';
+export { coverageReportIdentity } from './persistence/coverage-report-identity.ts';
 export {
   CommissionCoverageEventInvalidError,
   CommissionCoverageScopeInvalidError,
