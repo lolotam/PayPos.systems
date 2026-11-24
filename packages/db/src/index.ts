@@ -16,6 +16,8 @@ export {
 } from './auth-database.ts';
 export {
   createStaffAccessDatabase,
+  isTransientAuthFailure,
+  StaffAuthBusyError,
   StaffPhoneTakenError,
   type StaffAccessDatabase,
   type StaffUserProvisionInput,

@@ -1,6 +1,6 @@
 import postgres from 'postgres';
 import { afterAll, beforeAll, expect, it } from 'vitest';
-import { createAuthDatabase } from '@pospay/db';
+import { createAuthDatabase, StaffAuthBusyError } from '@pospay/db';
 import { systemUuidV7 } from '@pospay/ids';
 import { buildBetterAuth } from '../config.ts';
 import { sessionCookieNames } from '../session-cookie.ts';
@@ -113,7 +113,7 @@ async function saturateBoundedPool() {
     await sleep(5);
   }
   const ninthRefused = () =>
-    expect(f.auth.staffUsers.bindingOf(ids.newId())).rejects.toThrow(/BOUNDED_DATABASE_UNAVAILABLE/);
+    expect(f.auth.staffUsers.bindingOf(ids.newId())).rejects.toBeInstanceOf(StaffAuthBusyError);
   return {
     ninthRefused,
     release: async () => {

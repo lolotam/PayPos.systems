@@ -5,7 +5,7 @@ import {
   type GrantStaffAccessInput,
   id,
 } from '@pospay/contracts';
-import type { TenantWrappers } from '@pospay/db';
+import { StaffAuthBusyError, type TenantWrappers } from '@pospay/db';
 import type { FastifyRequest } from 'fastify';
 
 import { Authenticated } from '../../../shared/access.decorators.ts';
@@ -25,6 +25,13 @@ import { CancelPendingStaffAccessUseCase } from '../use-cases/cancel-pending-sta
 
 /** بوابة التفعيل (FR-F1-9): تُقرأ مرة واحدة عند التشغيل من STAFF_ACCESS_ROUTES، وكل المسارات ترد 503 بدونها. */
 export const STAFF_ACCESS_ROUTES_ENABLED = Symbol('STAFF_ACCESS_ROUTES_ENABLED');
+
+/** رفض الدومين وفشل auth العابر إلى ApiError؛ غير ذلك يبقى كما هو ليتحول إلى 500 حقيقي. */
+function staffAccessApiError(error: unknown): unknown {
+  if (error instanceof StaffAccessError) return new ApiError(error.code);
+  if (error instanceof StaffAuthBusyError) return new ApiError('TRANSACTION_RETRY_REQUIRED');
+  return error;
+}
 
 @Controller('businesses/:businessId/employees/:employeeId')
 export class EmployeeAccessController {
@@ -71,8 +78,7 @@ export class EmployeeAccessController {
         can_manage: false,
       });
     } catch (error) {
-      if (error instanceof StaffAccessError) throw new ApiError(error.code);
-      throw error;
+      throw staffAccessApiError(error);
     }
   }
 
@@ -109,8 +115,7 @@ export class EmployeeAccessController {
         employeeId,
       });
     } catch (error) {
-      if (error instanceof StaffAccessError) throw new ApiError(error.code);
-      throw error;
+      throw staffAccessApiError(error);
     }
     return this.readStateOrNotFound(actor.companyId, actor.userId, businessId, employeeId, readGrantedEmployeeStaffAccess);
   }

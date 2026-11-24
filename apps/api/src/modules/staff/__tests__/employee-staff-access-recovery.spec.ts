@@ -10,6 +10,7 @@ import {
   staffAccessFixture,
   type Fixture,
 } from '../../../../test/staff-access.fixture.ts';
+import { StaffAuthBusyError } from '@pospay/db';
 let f: Fixture;
 beforeAll(async () => {
   f = await staffAccessFixture({ staffAccessRoutes: true });
@@ -219,3 +220,18 @@ it.each(['before_auth', 'after_auth'] as const)(
       .toMatchObject([{ state: 'ACTIVE', user_id: before?.user_id }]);
   },
 );
+
+it('a transient auth failure answers TRANSACTION_RETRY_REQUIRED and the same request then completes', async () => {
+  const employeeId = await addEmployee(f, 'Busy auth', f.salmiya, 116);
+  const phone = nextPhone(f);
+  vi.spyOn(f.h.auth.staffUsers, 'provision').mockRejectedValueOnce(new StaffAuthBusyError());
+  try {
+    expect(await grant(f, employeeId, phone)).toMatchObject({
+      status: 409,
+      body: { code: 'TRANSACTION_RETRY_REQUIRED' },
+    });
+  } finally {
+    vi.restoreAllMocks();
+  }
+  expect((await grant(f, employeeId, phone)).status).toBe(200);
+});

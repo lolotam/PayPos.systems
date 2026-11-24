@@ -1,4 +1,10 @@
-import { createStaffAccessDatabase, StaffPhoneTakenError, type AuthDatabase } from '@pospay/db';
+import {
+  createStaffAccessDatabase,
+  isTransientAuthFailure,
+  StaffAuthBusyError,
+  StaffPhoneTakenError,
+  type AuthDatabase,
+} from '@pospay/db';
 import type { BetterAuthOptions } from 'better-auth';
 import type { IdGenerator } from '@pospay/db';
 
@@ -90,26 +96,29 @@ export function createStaffUserAccess(options: {
     url: options.databaseUrl,
     phoneLockKey: options.phoneLockKey,
   });
-  // غلاف الـ runtime الطارئ يلف كل الأخطاء بكود ثابت؛ الرفض المتوقع يعود هنا فئةً حقيقية.
+  // غلاف الـ runtime الطارئ يلف كل الأخطاء بكود ثابت؛ الرفض المتوقع يعود هنا فئةً حقيقية،
+  // والفشل العابر (مهلة قفل أو انقطاع اتصال) يصير خطأ «أعد المحاولة» بدل 500.
   const unwrapKnown = (error: unknown): unknown => {
     const message = error instanceof Error ? error.message : '';
     if (message === 'OTP_DATABASE_UNAVAILABLE_STAFF_PHONE_TAKEN') return new StaffPhoneTakenError();
+    if (isTransientAuthFailure(error)) return new StaffAuthBusyError();
     return error;
   };
+  const translated = <T>(call: Promise<T>): Promise<T> =>
+    call.catch((error) => {
+      throw unwrapKnown(error);
+    });
   return {
-    provision: async (input) => {
-      return database
-        .provision({
+    provision: (input) =>
+      translated(
+        database.provision({
           ...input,
           email: staffSyntheticEmail(input.operationId),
           actorUserId: input.actorUserId,
-        })
-        .catch((error) => {
-          throw unwrapKnown(error);
-        });
-    },
-    cancel: async (input) => database.cancel(input),
-    read: (operationId) => database.read(operationId),
+        }),
+      ),
+    cancel: (input) => translated(database.cancel(input)),
+    read: (operationId) => translated(database.read(operationId)),
     isStaffUser: async (userId) => {
       if (!UUID.test(userId)) return false;
       return (await options.marker.staffMarker(userId)).staff;
@@ -119,7 +128,7 @@ export function createStaffUserAccess(options: {
       const found = await options.marker.staffMarker(userId);
       return found.staff ? found.companyId : null;
     },
-    bindingOf: (operationId) => database.bindingOf(operationId),
+    bindingOf: (operationId) => translated(database.bindingOf(operationId)),
     userIdForResetToken: async (token) =>
       token.length < 8 || token.length > 256 || !/^[A-Za-z0-9_-]+$/.test(token)
         ? null

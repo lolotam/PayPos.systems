@@ -46,7 +46,7 @@ F3 change phone, stop access, follow the branch · G2 end a membership. Plan: `p
   atomically on the auth side and is found again by that operation id. A request that failed after any step can be
   repeated for the same employee and ends in the same final state without a duplicate user, membership or link. A
   repeat of a request that already succeeded changes nothing: no new PIN and no second event. A staff user is
-  never deleted because it has no session; a pending record older than 24 hours can be cancelled by the granter.
+  never deleted because it has no session; a pending attempt that started more than 24 hours ago can be cancelled by the granter.
 - **FR-F1-7** A staff user is a separate kind of account: it has no credential account, can never get a password,
   a set-password link, an email session, two-factor enrolment or a platform grant, can never be invited, and can
   never hold a membership in another company (D2, D8).

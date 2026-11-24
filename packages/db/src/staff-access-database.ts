@@ -20,6 +20,40 @@ export class StaffPhoneTakenError extends Error {
   }
 }
 
+/** رفض متوقع: خطأ عابر في مجمع auth المحدود (مهلة قفل أو عبور المهلة الكلية أو انقطاع اتصال) — الطلب يُعاد. */
+export class StaffAuthBusyError extends Error {
+  override readonly name = 'StaffAuthBusyError';
+  /** كود ثابت لا يحمل أي بيانات عن الحساب ولا عن السبب الداخلي. */
+  readonly code = 'STAFF_AUTH_BUSY';
+  constructor() {
+    super('STAFF_AUTH_BUSY');
+  }
+}
+
+const TRANSIENT_AUTH_CODES = new Set([
+  '55P03',
+  '57014',
+  '40P01',
+  '40001',
+  'CONNECTION_CLOSED',
+  'CONNECTION_ENDED',
+  'BOUNDED_DATABASE_UNAVAILABLE',
+  'BOUNDED_COMMIT_UNKNOWN',
+  'BOUNDED_CONNECT_TIMEOUT',
+]);
+
+/**
+ * هل غلاف الـ runtime (`OTP_DATABASE_UNAVAILABLE_<code>`) يخفي فشلاً عابراً يصح إعادته؟ مهلة القفل
+ * والعبارة وانقطاع الاتصال ومهلة المجمع المحدود تُعدّ عابرة؛ أي كود آخر خطأ حقيقي يبقى 500.
+ */
+export function isTransientAuthFailure(error: unknown): boolean {
+  if (!(error instanceof Error)) return false;
+  const code = (error as { code?: unknown }).code;
+  if (typeof code !== 'string') return false;
+  const wrapped = error.message.startsWith('OTP_DATABASE_UNAVAILABLE_') || error.message.startsWith('OTP_PHONE_LOCK_');
+  return wrapped && (TRANSIENT_AUTH_CODES.has(code) || /^PHONE_LOCK_(55P03|57014|40P01)$/.test(code));
+}
+
 /**
  * هل الخطأ انتهاك قيد تفرد هاتف المستخدم بالذات؟ يفحص الخطأ وسلسلة cause (Drizzle يغلف خطأ
  * PostgreSQL) على SQLSTATE 23505 واسم القيد `user_phone_number_key` فقط — أي قيد آخر يبقى كما هو.
@@ -79,6 +113,17 @@ export interface StaffUserProvisioned {
   readonly userId: string;
 }
 
+/**
+ * ميزانية معاملة F1 على pospay_auth: أوسع من نافذة قبول OTP (ثانية وقيد 500 ms) لأن منح الدخول طلب
+ * مدير لا نافذة قبول، وتحت حمل الخادم تقتل الثانية الواحدة معاملة سليمة بـ CONNECTION_CLOSED (500).
+ */
+const STAFF_ACCESS_BUDGET_MS = 5000;
+const STAFF_ACCESS_STATEMENT_MS = 3000;
+const staffAccessRun = <T>(runtime: OtpRuntime, work: (tx: Tx) => Promise<T>) =>
+  runtime.run(work, new Date(Date.now() + STAFF_ACCESS_BUDGET_MS), {
+    statementMs: STAFF_ACCESS_STATEMENT_MS,
+  });
+
 /** نطاق الواجهة: الهاتف كدالة قفل مشتركة مع تدفق OTP على نفس الاتصال. */
 export interface StaffAccessDatabaseOptions {
   readonly url: string;
@@ -111,7 +156,7 @@ async function provisionStaffUser(
   input: StaffUserProvisionInput,
 ): Promise<StaffUserProvisioned> {
   assertProvisionInput(input);
-  return runtime.run(async (tx) => {
+  return staffAccessRun(runtime, async (tx) => {
     // التسلسل على معرّف العملية قبل أي قراءة: استئنافان لنفس العملية لا يتداخلان ولا يقرأان قبل القفل (P1-4).
     await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtextextended(${input.operationId}, 0))`);
     const [existing] = await tx.execute<{ id: string; phone: string | null; company: string }>(sql`
@@ -189,7 +234,7 @@ async function cancelStaffUser(
   runtime: OtpRuntime,
   input: { operationId: string; companyId: string; actorUserId: string; ids: IdGenerator },
 ): Promise<void> {
-  return runtime.run(async (tx) => {
+  return staffAccessRun(runtime, async (tx) => {
     await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtextextended(${input.operationId}, 0))`);
     const [existing] = await tx.execute<{ id: string }>(sql`
       SELECT id FROM "user"
@@ -208,7 +253,7 @@ async function readStaffUser(
   operationId: string,
 ): Promise<{ userId: string; phoneLast3: string | null } | null> {
   if (!/^[0-9a-f-]{36}$/i.test(operationId)) throw new Error('STAFF_USER_INPUT_INVALID');
-  return runtime.run(async (tx) => {
+  return staffAccessRun(runtime, async (tx) => {
     const [row] = await tx.execute<{ id: string; phone: string | null }>(sql`
       SELECT id, phone_number AS phone FROM "user"
       WHERE staff_access_operation_id = ${operationId} LIMIT 1`);
@@ -226,7 +271,7 @@ async function readStaffUserBinding(
   operationId: string,
 ): Promise<{ userId: string; companyId: string | null } | null> {
   if (!/^[0-9a-f-]{36}$/i.test(operationId)) return null;
-  return runtime.run(async (tx) => {
+  return staffAccessRun(runtime, async (tx) => {
     const [row] = await tx.execute<{ id: string; company: string | null }>(sql`
       SELECT id, staff_access_company_id AS company FROM "user"
       WHERE staff_access_operation_id = ${operationId} LIMIT 1`);

@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto';
 import postgres from 'postgres';
-import { StaffPhoneTakenError } from '@pospay/db';
+import { StaffAuthBusyError, StaffPhoneTakenError } from '@pospay/db';
 import { systemUuidV7 } from '@pospay/ids';
 import { afterAll, beforeAll, expect, it } from 'vitest';
 import { STAFF_SYNTHETIC_EMAIL_DOMAIN } from '../staff-access-users.ts';
@@ -244,4 +244,37 @@ it('P1-5 a binding reset that loses the phone to another writer is the typed ref
   expect(await owner`SELECT phone_number FROM "user" WHERE id = ${userId}`).toEqual([
     { phone_number: phoneOf(71) },
   ]);
+});
+
+/** يمسك القفل الاستشاري لعملية من اتصال مستقل، ويتيح فكه متى شاء الاختبار. */
+async function holdOperationLock(operationId: string) {
+  const held = postgres(f.test.ownerUrl, { max: 1, onnotice: () => undefined });
+  await held`SELECT pg_advisory_lock(hashtextextended(${operationId}, 0))`;
+  return {
+    release: async () => {
+      await held`SELECT pg_advisory_unlock(hashtextextended(${operationId}, 0))`;
+      await held.end();
+    },
+  };
+}
+
+it('a request waiting longer than the OTP admission window for the operation lock still completes', async () => {
+  const operationId = ids.newId();
+  const lock = await holdOperationLock(operationId);
+  const pending = provision(phoneOf(80), operationId);
+  await new Promise((resolve) => setTimeout(resolve, 900));
+  await lock.release();
+  const { userId } = await pending;
+  expect(await owner`SELECT id FROM "user" WHERE id = ${userId}`).toHaveLength(1);
+});
+
+it('a lock held past the whole budget is a typed retry error, never an untyped failure', async () => {
+  const operationId = ids.newId();
+  const lock = await holdOperationLock(operationId);
+  try {
+    await expect(provision(phoneOf(81), operationId)).rejects.toBeInstanceOf(StaffAuthBusyError);
+  } finally {
+    await lock.release();
+  }
+  expect(await owner`SELECT id FROM "user" WHERE staff_access_operation_id = ${operationId}`).toHaveLength(0);
 });
