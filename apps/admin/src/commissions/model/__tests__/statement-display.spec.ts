@@ -18,7 +18,7 @@ import {
   statementActions,
   statusOf,
 } from '../statement-display';
-import { defaultStatementPeriod } from '../statement-period';
+import { approvalDay, dayBefore, defaultStatementPeriod } from '../statement-period';
 
 const PLAN_ISSUE = { kind: 'PRICING' as const, code: 'NO_PLAN' as const, source_period: null };
 
@@ -127,6 +127,13 @@ it('shows the Arabic employee name in Arabic and falls back to the English one',
   expect(employeeName(statementEmployee(), 'ar')).toBe('سارة');
   expect(employeeName(statementEmployee({ name_ar: null }), 'ar')).toBe('Sara');
   expect(employeeName(statementEmployee(), 'en')).toBe('Sara');
+});
+
+it('reads the approval day from the approval instant and steps one day back across a month edge', () => {
+  expect(approvalDay('2026-11-02T22:30:00.000Z')).toBe('2026-11-02');
+  expect(approvalDay('2026-11-03T01:30:00+03:00')).toBe('2026-11-02');
+  expect(dayBefore('2026-11-01')).toBe('2026-10-31');
+  expect(dayBefore('2027-01-01')).toBe('2026-12-31');
 });
 
 it('opens on the month before the current one, across the new year too', () => {

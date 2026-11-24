@@ -18,6 +18,7 @@ const CODE_KEYS: Record<string, MessageKey> = {
   COMMISSION_PAID_ON_INVALID: 'commissionStatementScreen.errPaidOnInvalid',
   COMMISSION_PAYABLE_TOO_LARGE: 'commissionStatementScreen.errPayableTooLarge',
   VALIDATION_FAILED: 'commissionStatementScreen.errInvalidRequest',
+  IDEMPOTENCY_KEY_REUSED: 'commissionStatementScreen.errKeyReused',
   FORBIDDEN: 'commissionStatementScreen.errForbidden',
   IDEMPOTENCY_KEY_IN_PROGRESS: 'commissionStatementScreen.errBusy',
 };
@@ -27,6 +28,7 @@ const RELOAD_CODES: ReadonlySet<string> = new Set([
   'COMMISSION_FINGERPRINT_STALE',
   'COMMISSION_STATEMENT_NOT_APPROVED',
   'COMMISSION_STATEMENT_ALREADY_PAID',
+  'IDEMPOTENCY_KEY_REUSED',
 ]);
 
 /** مشكلة موقوفة جاية في تفاصيل الرفض: الموظفة وسبب المنع. */

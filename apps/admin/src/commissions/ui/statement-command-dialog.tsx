@@ -42,11 +42,12 @@ export function StatementCommandDialog(props: {
   pending: boolean;
   error: unknown;
   employees: readonly CommissionStatementEmployee[];
+  approvedAt: string | undefined;
   onConfirm(input?: DialogInput): void;
   onClose(): void;
   onReload(): void;
 }) {
-  const { pick, pending, error, employees, onConfirm, onClose, onReload } = props;
+  const { pick, pending, error, employees, approvedAt, onConfirm, onClose, onReload } = props;
   const locale = useLocale();
   const failure = failureOf(error, locale);
   const notice =
@@ -60,7 +61,7 @@ export function StatementCommandDialog(props: {
         </StatementReturnForm>
       ) : null}
       {pick === 'pay' ? (
-        <StatementPayForm employees={employees} pending={pending} onSubmit={onConfirm} onCancel={onClose}>
+        <StatementPayForm employees={employees} approvedAt={approvedAt} pending={pending} onSubmit={onConfirm} onCancel={onClose}>
           {notice}
         </StatementPayForm>
       ) : null}

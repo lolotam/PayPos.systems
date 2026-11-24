@@ -125,6 +125,17 @@ it('keeps the key through a gateway 503 inside the same dialog and drops it afte
   expect(keyOf(2)).not.toBe(keyOf(1));
 });
 
+it('drops the key when a 503 carries an API envelope, because the server refused before writing', async () => {
+  current.answer = ok(REVIEWED());
+  api.POST.mockResolvedValueOnce(refusal(503, 'NOT_READY')).mockResolvedValue(ok({ status: 'DRAFT' }));
+  await openDialog(S('returnToDraft'));
+  await confirmReturn();
+  await screen.findByRole('alert');
+  fireEvent.click(screen.getByRole('button', { name: S('confirm') }));
+  await waitFor(() => expect(api.POST).toHaveBeenCalledTimes(2));
+  expect(keyOf(1)).not.toBe(keyOf(0));
+});
+
 it('keeps the key while the first attempt is still being processed', async () => {
   api.POST.mockResolvedValueOnce(refusal(409, 'IDEMPOTENCY_KEY_IN_PROGRESS')).mockResolvedValue(ok(businessView()));
   await openDialog(S('refresh'));

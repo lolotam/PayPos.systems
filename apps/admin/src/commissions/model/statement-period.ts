@@ -1,4 +1,26 @@
 /**
+ * يوم اعتماد الكشف: تاريخ UTC للحظة الاعتماد (الأدمن ما عندوش تقويم النشاط، فده تقريب).
+ *
+ * @param approvedAt لحظة الاعتماد بصيغة ISO
+ * @returns التاريخ بصيغة YYYY-MM-DD
+ */
+export function approvalDay(approvedAt: string): string {
+  return new Date(approvedAt).toISOString().slice(0, 10);
+}
+
+/**
+ * اليوم اللي قبل تاريخ معيّن.
+ *
+ * @param date تاريخ بصيغة YYYY-MM-DD
+ * @returns اليوم السابق بنفس الصيغة
+ */
+export function dayBefore(date: string): string {
+  const previous = new Date(`${date}T00:00:00Z`);
+  previous.setUTCDate(previous.getUTCDate() - 1);
+  return previous.toISOString().slice(0, 10);
+}
+
+/**
  * يوم النهارده على ساعة المتصفح بصيغة YYYY-MM-DD، لخانة تاريخ الصرف.
  *
  * @param now اللحظة الحالية

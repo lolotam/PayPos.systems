@@ -4,7 +4,7 @@ import { t } from '@pospay/i18n';
 import { useLocale } from '@/shared/locale/locale-context';
 import type { StatementScope } from '../api/commission-statement-client';
 import { statementActions, switchedOff } from '../model/statement-display';
-import { isClosedReading, isGenerated, isOpenBusinessReading, type StatementReading } from '../model/statement-reading';
+import { isClosedBusinessReading, isClosedReading, isGenerated, isOpenBusinessReading, type StatementReading } from '../model/statement-reading';
 import { StatementActions } from './statement-actions';
 import { StatementChangedNotice } from './statement-changed-notice';
 import { StatementCommandDialog } from './statement-command-dialog';
@@ -49,6 +49,7 @@ export function StatementPanel(props: {
           pending={dialog.command.isPending}
           error={dialog.command.error}
           employees={reading.employees}
+          approvedAt={isClosedBusinessReading(reading) ? reading.approved_at : undefined}
           onConfirm={dialog.confirm}
           onClose={dialog.close}
           onReload={dialog.reload}

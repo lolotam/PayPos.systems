@@ -1,8 +1,10 @@
 import { cleanup, fireEvent, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { t } from '@pospay/i18n';
-import { ok, refusal, type ApiAnswer } from '../../api/__tests__/plan-http';
+import { COMPANY, USER, ok, refusal, type ApiAnswer } from '../../api/__tests__/plan-http';
+import { statementKey, statementScope } from '../../api/commission-statement-client';
 import {
+  BUSINESS_ID,
   EMPLOYEE_RANA,
   EMPLOYEE_SARA,
   PAYER_ID,
@@ -20,6 +22,9 @@ const api = vi.hoisted(() => ({ GET: vi.fn(), POST: vi.fn() }));
 vi.mock('@/shared/api/client', () => ({ apiClient: () => api }));
 vi.mock('@/shared/locale/locale-context', () => ({ useLocale: () => 'en' }));
 
+// ساعة العرض بتتحدد بنطاق المتصفح، فنثبّته عشان قيمة «اتسجّل في» تتأكد بالحرف.
+process.env.TZ = 'Asia/Kuwait';
+
 const S = (key: string) => t('en', `commissionStatementScreen.${key}` as never);
 const APPROVED = () => closedView({ employees: paidView().employees });
 const current = { answer: ok(APPROVED()) };
@@ -35,8 +40,10 @@ beforeEach(() => {
 
 afterEach(() => cleanup());
 
+let rendered: ReturnType<typeof renderStatementPage>;
+
 async function openPay() {
-  renderStatementPage();
+  rendered = renderStatementPage();
   fireEvent.click(await screen.findByRole('button', { name: S('pay') }));
   return screen.findByRole('dialog');
 }
@@ -135,6 +142,7 @@ it.each([
   ['COMMISSION_STATEMENT_ALREADY_PAID', 409, 'errAlreadyPaid', true],
   ['COMMISSION_PAID_ON_INVALID', 422, 'errPaidOnInvalid', false],
   ['COMMISSION_PAYABLE_TOO_LARGE', 422, 'errPayableTooLarge', false],
+  ['IDEMPOTENCY_KEY_REUSED', 422, 'errKeyReused', true],
   ['FORBIDDEN', 403, 'errForbidden', false],
   ['FEATURE_DISABLED', 403, 'errFeatureDisabled', false],
   ['VALIDATION_FAILED', 400, 'errInvalidRequest', false],
@@ -158,11 +166,50 @@ it('shows a business reader the paid date, method, total, note, recording time, 
   expect(screen.getByText(S('payMethodBankTransfer'))).toBeTruthy();
   expect(screen.getByText(S('paymentTotal')).parentElement?.textContent).toContain('15.500');
   expect(screen.getByText('Sent from the main account')).toBeTruthy();
-  expect(screen.getByText(S('paymentRecordedAt'))).toBeTruthy();
+  const recordedAt = screen.getByText(S('paymentRecordedAt')).parentElement?.textContent ?? '';
+  expect(recordedAt).toContain('Nov');
+  expect(recordedAt).toContain('2026');
+  expect(recordedAt).toContain('11:30');
   expect(screen.getByText(`${PAYER_ID.slice(0, 8)}…`)).toBeTruthy();
   const row = screen.getByText('15.502').closest('tr');
   expect(row?.textContent).toContain('Sara');
   expect(row?.textContent).toContain('15.500');
+});
+
+it('tells the user which day the statement was approved and what range the date may take', async () => {
+  await openPay();
+  expect(screen.getByText(S('payPaidOnApprovedOn')).parentElement?.textContent).toContain('2026-11-02');
+  expect(screen.getByText(S('payPaidOnHint'))).toBeTruthy();
+});
+
+it.each([
+  ['a day before the approval day', '2026-10-30', true],
+  ['an empty date', '', true],
+  ['the approval day itself', '2026-11-02', false],
+  ['a date after today, which only the server judges', '2027-01-01', false],
+])('date field, %s: error shown is %s', async (_label, value, blocked) => {
+  await openPay();
+  chooseMethod('CASH');
+  fireEvent.change(screen.getByLabelText(S('payPaidOnLabel')), { target: { value } });
+  const confirmButton = screen.getByRole('button', { name: S('confirm') }) as HTMLButtonElement;
+  await waitFor(() => expect(confirmButton.disabled).toBe(blocked));
+  expect(screen.queryByText(S('payPaidOnInvalid')) !== null).toBe(blocked);
+});
+
+it('does not overwrite a newer, narrower cached read with the payment answer', async () => {
+  api.POST.mockImplementation(async () => {
+    const key = statementKey(statementScope(COMPANY, BUSINESS_ID, USER), '2026-10');
+    rendered.client.setQueryData(key, closedBranchView({ employees: paidView().employees }));
+    current.answer = READ_FAILS;
+    return ok(markPaidResponse());
+  });
+  await openPay();
+  chooseMethod('CASH');
+  await submit();
+  expect(await screen.findByText(S('donePaid'))).toBeTruthy();
+  expect(screen.getByText(S('branchReaderNote'))).toBeTruthy();
+  expect(screen.queryByText(S('paymentTitle'))).toBeNull();
+  expect(screen.queryByText(S('statusPaid'))).toBeNull();
 });
 
 it('renders a payment note as plain text, never as markup', async () => {

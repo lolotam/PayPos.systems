@@ -6,6 +6,7 @@ import { Input, Label, NativeSelect } from '@pospay/ui';
 import type { UseFormReturn } from 'react-hook-form';
 import { useLocale } from '@/shared/locale/locale-context';
 import { paidMethodKey } from '../model/statement-display';
+import { approvalDay } from '../model/statement-period';
 
 const NS = 'commissionStatementScreen';
 
@@ -14,14 +15,17 @@ const emptyAsMissing = (value: unknown) => (typeof value === 'string' && value.t
 
 /**
  * خانات بيانات الصرف: طريقة الصرف إلزامية من غير اختيار مسبق ومعاها ملاحظة تقريب الكاش، وتاريخ الصرف
- * وتلميح نافذته (من يوم الاعتماد لحد النهارده، إرشاد بس والسيرفر هو اللي يفصل)، والملاحظة الاختيارية.
+ * وتلميح نافذته (من يوم الاعتماد لحد النهارده بتقويم النشاط، إرشاد بس والسيرفر هو اللي يفصل) مع يوم الاعتماد لو معروف،
+ * ورسالة تحت الخانة لو التاريخ فاضي أو غلط أو قبل الاعتماد، والملاحظة الاختيارية.
  */
 export function StatementPayFields({
   form,
   pending,
+  approvedAt,
 }: {
   form: UseFormReturn<MarkCommissionStatementPaidInput>;
   pending: boolean;
+  approvedAt: string | undefined;
 }) {
   const locale = useLocale();
   const errors = form.formState.errors;
@@ -43,6 +47,12 @@ export function StatementPayFields({
         <Label htmlFor="statement-pay-date">{t(locale, `${NS}.payPaidOnLabel`)}</Label>
         <Input id="statement-pay-date" type="date" disabled={pending} aria-invalid={errors.paid_on !== undefined} {...form.register('paid_on')} />
         <p className="text-sm text-muted-foreground">{t(locale, `${NS}.payPaidOnHint`)}</p>
+        {approvedAt === undefined ? null : (
+          <p className="text-sm text-muted-foreground">
+            {t(locale, `${NS}.payPaidOnApprovedOn`)} <bdi>{approvalDay(approvedAt)}</bdi>
+          </p>
+        )}
+        {errors.paid_on !== undefined ? <p role="alert">{t(locale, `${NS}.payPaidOnInvalid`)}</p> : null}
       </div>
       <div className="flex flex-col gap-1">
         <Label htmlFor="statement-pay-note">{t(locale, `${NS}.payNoteLabel`)}</Label>

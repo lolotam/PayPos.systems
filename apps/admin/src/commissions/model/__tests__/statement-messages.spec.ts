@@ -16,6 +16,7 @@ it.each([
   ['COMMISSION_PERIOD_NOT_ENDED', 'errNotEnded'],
   ['COMMISSION_RETURN_REASON_INVALID', 'errReturnReason'],
   ['VALIDATION_FAILED', 'errInvalidRequest'],
+  ['IDEMPOTENCY_KEY_REUSED', 'errKeyReused'],
   ['COMMISSION_STATEMENT_NOT_APPROVED', 'errNotApproved'],
   ['COMMISSION_STATEMENT_ALREADY_PAID', 'errAlreadyPaid'],
   ['COMMISSION_PAID_ON_INVALID', 'errPaidOnInvalid'],
@@ -45,6 +46,7 @@ it('marks a changed state, and only that, as needing a reload', () => {
   expect(statementFailure({ code: 'COMMISSION_FINGERPRINT_STALE' }, 'en').stale).toBe(true);
   expect(statementFailure({ code: 'COMMISSION_STATEMENT_ALREADY_PAID' }, 'en').stale).toBe(true);
   expect(statementFailure({ code: 'COMMISSION_STATEMENT_NOT_APPROVED' }, 'en').stale).toBe(true);
+  expect(statementFailure({ code: 'IDEMPOTENCY_KEY_REUSED' }, 'en').stale).toBe(true);
   expect(statementFailure({ code: 'COMMISSION_PAID_ON_INVALID' }, 'en').stale).toBe(false);
   expect(statementFailure({ code: 'COMMISSION_UPDATES_PENDING' }, 'en').stale).toBe(false);
 });
