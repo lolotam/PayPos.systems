@@ -75,6 +75,7 @@ import {
 } from './identity/private-view.js';
 import { errorEnvelope } from './errors/envelope.js';
 import { cashierPinVerified, verifyCashierPinInput } from './identity/cashier-pin.js';
+import { navStyle, myPreferencesResponse, setMyPreferencesInput } from './identity/me-preferences.js';
 import { myMembership, myMembershipsResponse } from './identity/my-memberships.js';
 import {
   myWorkspacesResponse,
@@ -278,4 +279,3 @@ export const openApiSchemas = [
   calendar,
   taxRule,
 ];
-import { navStyle, myPreferencesResponse, setMyPreferencesInput } from './identity/me-preferences.js';

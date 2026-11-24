@@ -1,3 +1,5 @@
+import type { NavigationStyle } from '@/workspace/nav-types';
+
 export const NAV_STYLE_COOKIE = 'pospay_nav_style';
 
 /** سمات الكوكي المشتركة بين الكتابة والمسح: المسار والمدة ونفس الموقع، و`Secure` على https فقط. */
@@ -12,8 +14,6 @@ export function navStyleCookieAttributes(maxAge: number): string {
 export function clearNavStyleCookie(): void {
   document.cookie = `${NAV_STYLE_COOKIE}=; ${navStyleCookieAttributes(0)}`;
 }
-import type { NavigationStyle } from '@/workspace/nav-types';
-
 
 const YEAR_SECONDS = 60 * 60 * 24 * 365;
 
