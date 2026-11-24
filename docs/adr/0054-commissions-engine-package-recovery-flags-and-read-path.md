@@ -599,7 +599,18 @@ it with the round-trip test CM-34e.
   grants), §6 _Fingerprint_ (the place of the branch attribution) and D-18 (the claim that a bytes kind is built while
   Chromium is down, which holds only after 56-0 decouples the queue from the renderer — see the ADR-0049 addendum).
 
-### Addendum 2026-11-24 (53-2 B1): issuance CLI port bindings
+### Addendum 2026-11-24 (53-2 B2a): the data-step coverage declaration and the owner-connection rule
+
+A migration data step that writes commission source rows covered by a proof declares `coverage: 'INVALIDATES'`
+in the registry (`packages/db/src/data-steps`); the registry builds the step's narrow app object (`withTenant`
+and `close` only) from that declaration and hands it to the step, whose every transaction then starts with
+`invalidate_commission_coverage(<uuid v7>, 'DATA_STEP')`; a missing or unknown declaration refuses to run before
+any statement, and the source-scan test refuses a period lock, an undeclared covered-table write, or a step file
+that imports or calls any connection factory of the package. **A step never writes tenant rows through the
+migration owner connection — ADR-0038 gives it that connection only to check its role and read `companies.id` —
+and a covered write through the owner would bypass invalidation; this last limit is refused in review and stated
+in the step-author comment, not enforced by an object** (a source scan cannot reliably tell an owner-connection
+write from a `withTenant` write). ### Addendum 2026-11-24 (53-2 B1): issuance CLI port bindings
 
 `apps/worker/src/issue-commission-coverage.ts` binds a commissions-owned `CoverageTipExistenceReader` to
 Orders' `createSessionTipsAfterBoundReader`, a read-only existence query with `business_date > U` and no upper bound.

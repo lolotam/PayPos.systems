@@ -2,6 +2,7 @@ import postgres from 'postgres';
 import { afterAll, beforeAll, beforeEach, expect, it, vi } from 'vitest';
 
 import { createTestDatabase, type TestDatabase } from '../../test/test-database.ts';
+import { none } from './data-step-none.ts';
 import { applyMigrations } from '../concurrent-migrations.ts';
 
 const files = vi.hoisted(() => ({
@@ -79,10 +80,8 @@ it('runs de-duplicated data steps in marker order before the concurrent prefix a
     '-- pospay:data-step second\n-- pospay:data-step first\nINSERT INTO data_step_order_test VALUES (1)',
   ];
   await applyMigrations(owner, 'unused', {
-    first,
-    second: async () => {
-      calls.push('second');
-    },
+    first: none(first),
+    second: none(async () => void calls.push('second')),
   });
   expect(first).toHaveBeenCalledTimes(1);
   expect(calls).toEqual(['first', 'second']);
@@ -98,7 +97,7 @@ it('rejects an unknown marker before any step, statement or journal row', async 
     '-- pospay:data-step missing\nSELECT 1',
   ];
   const known = vi.fn(async () => undefined);
-  await expect(applyMigrations(owner, 'unused', { known })).rejects.toThrow(
+  await expect(applyMigrations(owner, 'unused', { known: none(known) })).rejects.toThrow(
     'Unknown migration data step missing; migration aborted',
   );
   expect(known).not.toHaveBeenCalled();
@@ -122,7 +121,7 @@ it.each([
     ];
     files.later = [`${marker}\nSELECT 1`];
     const known = vi.fn(async () => undefined);
-    await expect(applyMigrations(owner, 'unused', { known })).rejects.toThrow(message);
+    await expect(applyMigrations(owner, 'unused', { known: none(known) })).rejects.toThrow(message);
     expect(known).not.toHaveBeenCalled();
     expect(await owner`SELECT to_regclass('data_step_pending_test') AS relation`).toEqual([
       { relation: null },
@@ -144,9 +143,9 @@ it('leaves statements and the journal untouched when a data step throws', async 
   ];
   await expect(
     applyMigrations(owner, 'unused', {
-      fails: async () => {
+      fails: none(async () => {
         throw new Error('Synthetic data step failure');
-      },
+      }),
     }),
   ).rejects.toThrow('Synthetic data step failure');
   expect(await owner`SELECT * FROM data_step_failure_test`).toHaveLength(0);
@@ -186,7 +185,7 @@ it.each([
     `${marker}\nSELECT 1`,
   ];
   const known = vi.fn(async () => undefined);
-  await expect(applyMigrations(owner, 'unused', { known })).rejects.toThrow(
+  await expect(applyMigrations(owner, 'unused', { known: none(known) })).rejects.toThrow(
     'Malformed migration data step marker; migration aborted',
   );
   expect(known).not.toHaveBeenCalled();
@@ -208,12 +207,12 @@ it('aborts before statements and journaling when a data step replaces the locked
   try {
     await expect(
       applyMigrations(owner, 'unused', {
-        reconnect: async (client) => {
+        reconnect: none(async (client) => {
           const [original] = await client<{ pid: number }[]>`SELECT pg_backend_pid() AS pid`;
           if (original === undefined) throw new Error('Missing migration session');
           await killer`SELECT pg_terminate_backend(${original.pid}, 5000)`;
           await client`SELECT 1`;
-        },
+        }),
       }),
     ).rejects.toThrow('Migration session lost its advisory lock; aborting');
     expect(await owner`SELECT * FROM data_step_session_test`).toHaveLength(0);
@@ -240,12 +239,12 @@ it('aborts a terminated migration session before later statements or the journal
   try {
     await expect(
       applyMigrations(owner, 'unused', {
-        cut: async (client) => {
+        cut: none(async (client) => {
           const [original] = await client<{ pid: number }[]>`SELECT pg_backend_pid() AS pid`;
           if (original === undefined) throw new Error('Missing migration session');
           await killer`SELECT pg_terminate_backend(${original.pid}, 5000)`;
           await client`INSERT INTO session_terminated_test VALUES (7)`;
-        },
+        }),
       }),
     ).rejects.toThrow('Migration session lost its advisory lock; aborting');
     expect(await owner`SELECT id FROM session_terminated_test`).toHaveLength(0);
@@ -256,7 +255,7 @@ it('aborts a terminated migration session before later statements or the journal
       await owner`SELECT 1 FROM drizzle.__drizzle_migrations WHERE hash = 'test-migration'`,
     ).toHaveLength(0);
     const finished = async () => {
-      await applyMigrations(owner, 'unused', { cut: async () => undefined });
+      await applyMigrations(owner, 'unused', { cut: none(async () => undefined) });
     };
     await finished();
     await finished();
@@ -321,9 +320,9 @@ it('aborts when the migration session dies between concurrent prefix statements,
 it('never runs or resolves data steps for an already journaled migration', async () => {
   files.sql = ['-- pospay:data-step once\nSELECT 1'];
   const once = vi.fn(async () => undefined);
-  await applyMigrations(owner, 'unused', { once });
+  await applyMigrations(owner, 'unused', { once: none(once) });
   once.mockClear();
-  await applyMigrations(owner, 'unused', { once });
+  await applyMigrations(owner, 'unused', { once: none(once) });
   await applyMigrations(owner, 'unused');
   expect(once).not.toHaveBeenCalled();
   expect(
@@ -336,11 +335,11 @@ it('runs a data step that uses a postgres.js helper and a nested fragment', asyn
   await owner`INSERT INTO helper_fragment_test VALUES (1)`;
   files.sql = ['-- pospay:data-step read\nSELECT 1'];
   await applyMigrations(owner, 'unused', {
-    read: async (client) => {
+    read: none(async (client) => {
       expect(
         await client`SELECT ${client(['id'])} FROM helper_fragment_test WHERE ${client`true`}`,
       ).toEqual([{ id: 1 }]);
-    },
+    }),
   });
   expect(
     await owner`SELECT 1 FROM drizzle.__drizzle_migrations WHERE hash = 'test-migration'`,
@@ -390,9 +389,10 @@ it('refuses a pool larger than one connection before any statement, lock or jour
 it('forwards unsafe_options when a data step calls unsafe with a query options object', async () => {
   files.sql = ['-- pospay:data-step read\nSELECT 1'];
   await applyMigrations(owner, 'unused', {
-    read: async (client) =>
+    read: none(async (client) =>
       // @ts-expect-error postgres.js reads a non-array second argument as query options
       expect(await client.unsafe('SELECT 1 AS one', { prepare: false })).toEqual([{ one: 1 }]),
+    ),
   });
 });
 
@@ -403,11 +403,11 @@ it('aborts a deferred_query built before the session dies when that query is awa
   try {
     await expect(
       applyMigrations(owner, 'unused', {
-        hold: async (client) => {
+        hold: none(async (client) => {
           const pending = client`INSERT INTO deferred_query_test VALUES (9)`;
           const [{ pid }] = await client<[{ pid: number }]>`SELECT pg_backend_pid() AS pid`;
           await killer`SELECT pg_terminate_backend(${pid}, 5000)`.then(() => pending);
-        },
+        }),
       }),
     ).rejects.toThrow('Migration session lost its advisory lock; aborting');
     expect(await owner`SELECT id FROM deferred_query_test`).toHaveLength(0);

@@ -157,9 +157,10 @@ acquiring the shared platform-phone advisory lock. Errors fail closed; tenant RL
 | `pospay_owner`                                | owns every table, runs migrations                                                   | everything                                                                                                                                                                                                  | `pnpm db:migrate` only — never a running container                      |
 | `pospay_app`                                  | `NOSUPERUSER`, `NOBYPASSRLS`, `NOINHERIT`, owns nothing                             | tenant + bridge tables under RLS; `SELECT` on `plans` and `permissions`; `SELECT, INSERT, UPDATE, DELETE` on `roles` and `role_permissions` (the split policies in §2.3 decide which rows)                  | `api`, `worker`                                                         |
 | `pospay_auth`                                 | `NOSUPERUSER`, `NOBYPASSRLS`, owns nothing                                          | **only** the §2.1 tables, table-level grants                                                                                                                                                                | `packages/auth`                                                         |
-| `pospay_dispatcher` (added 2026-09-23, T7b)   | `NOSUPERUSER`, `NOBYPASSRLS`, `NOINHERIT`, owns nothing, member of nothing          | **only** `outbox`: `SELECT`, and `UPDATE` of `published_at`, `attempts`, `last_error`, `next_attempt_at`, `parked_at`; plus `EXECUTE` on the one `SECURITY DEFINER` sweep of expired idempotency keys (T7b) | the outbox dispatcher in `apps/worker`, through its own pool            |
+| `pospay_dispatcher` (added 2026-09-23, T7b)   | `NOSUPERUSER`, `NOBYPASSRLS`, `NOINHERIT`, owns nothing, member of nothing          | **only** `outbox`: `SELECT`, and `UPDATE` of `published_at`, `attempts`, `last_error`, `next_attempt_at`, `parked_at`; plus `EXECUTE` on the one `SECURITY DEFINER` sweep of expired idempotency keys (T7b) and on the two coverage-proof issuance functions `current_commission_coverage_generation` / `issue_commission_coverage_proof` (ADR-0054 addendum 2026-11-22, migration 0250) | the outbox dispatcher in `apps/worker` and the coverage issuance CLI, through its own pool            |
 | `pospay_notifications` (ADR-0013 Part A)      | `LOGIN`, `NOSUPERUSER`, `NOBYPASSRLS`, `NOINHERIT`, owns nothing, member of nothing | only the three section 2.5 global WhatsApp tables with the exact table/column grants there; never `opted_back_in_at`, DELETE or TRUNCATE                                                                    | API intake and inbound worker, through `createPlatformWhatsappDatabase` |
 | `pospay_suppression_reader` (ADR-0013 Part A) | `NOLOGIN`, `NOSUPERUSER`, `NOBYPASSRLS`, `NOINHERIT`, member of nothing             | only SELECT on suppression; owns only the boolean SECURITY DEFINER function; `pospay_app` alone may EXECUTE it                                                                                              | function execution on the existing tenant Tx, never a pool login        |
+| `pospay_coverage_issuer` (ADR-0054 addendum 2026-11-22; migration 0250) | `NOLOGIN`, `NOSUPERUSER`, `NOBYPASSRLS`, `NOINHERIT`, `NOCREATEDB`, `NOCREATEROLE`, `NOREPLICATION`, member of nothing, with no members | owns exactly the eight coverage functions and no table: the five rule functions (`commission_coverage_required_version`, `current_commission_coverage_generation`, `issue_commission_coverage_proof`, `read_commission_coverage_gate`, `invalidate_commission_coverage`) and the three trigger functions (`refuse_commission_coverage_change`, `refuse_counted_outbox_delete`, `refuse_outbox_truncate`); holds the two tables' only grants (`SELECT`, `INSERT` on `commission_coverage_state`/`commission_coverage_proofs`, column `UPDATE (generation, bumped_at, reason)` on the state) with `USAGE` on `public` and no `CREATE`; `pospay_app` has no table privilege and EXECUTEs only the gate read and the invalidator (plus the version function); `pospay_dispatcher` EXECUTEs only the two issuance functions | function execution on the caller's existing transaction (dispatcher CLI / `withTenant`), never a pool login |
 
 No **runtime** role has `BYPASSRLS`. The platform bypass role stays deferred (review finding #14).
 
@@ -172,6 +173,26 @@ has `BYPASSRLS`. It runs migrations only and never serves a request; `packages/d
 > unless the role is superuser or `BYPASSRLS`. Every tenant read and write of the step runs as `pospay_app` inside
 > `withTenant(companyId, …)`. No runtime role gains `BYPASSRLS` and no grant is added. See
 > [ADR-0038](0038-migration-data-steps.md).
+
+> **Amendment (2026-11-24, ADR-0054 addendum 2026-11-22 — accepted by the owner, CS-Q55/CS-Q55-ب, migration 0250).**
+> A fourth definer-function exception joins the idempotency sweep and the suppression boolean: the bootstrap
+> coverage proof of spec 059. The two tenant tables `commission_coverage_state` and `commission_coverage_proofs`
+> keep normal tenant RLS (`FORCE`, tenant key `(company_id, id)`) and carry **no policy for `pospay_app` or
+> `PUBLIC`** — `pospay_app` holds no privilege on either table, not even SELECT. Every RUNTIME write goes through
+> `SECURITY DEFINER` functions owned by the `NOLOGIN` role `pospay_coverage_issuer`, which owns exactly the
+> eight coverage functions (the five rule functions and the three refusing trigger functions) and no table,
+> and holds the tables' only grants: `SELECT`, `INSERT` on both and column `UPDATE (generation,
+> bumped_at, reason)` on the state. EXECUTE is split as 0250 grants it: `pospay_app` EXECUTEs exactly three —
+> `read_commission_coverage_gate`, `invalidate_commission_coverage` and `commission_coverage_required_version` —
+> on its existing `withTenant` transaction; `pospay_dispatcher` — extending its
+> outbox-only role above — holds `EXECUTE` only on `current_commission_coverage_generation` and
+> `issue_commission_coverage_proof`, which the coverage issuance CLI calls; no runtime role is granted EXECUTE on
+> the trigger functions (their owner can always execute them). The audited operator switch command
+> (`platform:commission-approval`) writes the override, the generation bump and the audit row as the migration
+> owner, like `platform:grant`. A data step declared
+> `coverage: 'INVALIDATES'` bumps through the invalidator at the start of every of its transactions. No runtime
+> role gains `BYPASSRLS` and no new login role. See
+> [ADR-0054](0054-commissions-engine-package-recovery-flags-and-read-path.md) §2–§5.
 
 **`pospay_dispatcher` — the one cross-tenant reader (2026-09-23).** `pospay_app` needs a tenant to read anything, so
 it cannot drain every company's outbox. The dispatcher role can, on `outbox` **only**:
