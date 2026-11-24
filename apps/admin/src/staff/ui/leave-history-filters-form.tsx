@@ -5,6 +5,8 @@ import { Button, Input, Label, NativeSelect } from '@pospay/ui';
 import { useState } from 'react';
 import { useForm, type UseFormRegisterReturn } from 'react-hook-form';
 import { useLocale } from '@/shared/locale/locale-context';
+import { FilterField } from '@/shared/ui/filter-field';
+import { FilterRow } from '@/shared/ui/filter-row';
 import {
   offeredHistoryStatuses,
   offeredHistoryTypes,
@@ -21,7 +23,7 @@ function filterSelect(
   registration: UseFormRegisterReturn,
 ) {
   return (
-    <div>
+    <FilterField>
       <Label htmlFor={id}>{label}</Label>
       <NativeSelect id={id} {...registration}>
         {options.map((option) => (
@@ -30,7 +32,7 @@ function filterSelect(
           </option>
         ))}
       </NativeSelect>
-    </div>
+    </FilterField>
   );
 }
 
@@ -83,40 +85,42 @@ export function LeaveHistoryFiltersForm({
   const form = useForm<LeaveHistoryFilters>({ defaultValues: initial });
   return (
     <form
-      className="flex flex-wrap items-end gap-3 text-start"
+      className="grid gap-3 text-start"
       onSubmit={form.handleSubmit((values) => {
         const query = toHistoryQuery(values);
         setInvalid(query === null);
         if (query) onApply(query);
       })}
     >
-      <div>
-        <Label htmlFor="leave-history-from">{t(locale, 'leave.from')}</Label>
-        <Input id="leave-history-from" type="date" {...form.register('from')} />
-      </div>
-      <div>
-        <Label htmlFor="leave-history-to">{t(locale, 'leave.to')}</Label>
-        <Input id="leave-history-to" type="date" {...form.register('to')} />
-      </div>
-      {filterSelect(
-        'leave-history-type',
-        t(locale, 'leave.type'),
-        typeOptions(locale, absenceOffered),
-        form.register('type'),
-      )}
-      {filterSelect(
-        'leave-history-status',
-        t(locale, 'leave.status'),
-        statusOptions(locale, absenceOffered),
-        form.register('status'),
-      )}
-      {filterSelect(
-        'leave-history-branch',
-        t(locale, 'leave.branch'),
-        branchOptions(locale, branches),
-        form.register('branchId'),
-      )}
-      <Button type="submit">{t(locale, 'leave.applyFilters')}</Button>
+      <FilterRow>
+        <FilterField>
+          <Label htmlFor="leave-history-from">{t(locale, 'leave.from')}</Label>
+          <Input id="leave-history-from" type="date" {...form.register('from')} />
+        </FilterField>
+        <FilterField>
+          <Label htmlFor="leave-history-to">{t(locale, 'leave.to')}</Label>
+          <Input id="leave-history-to" type="date" {...form.register('to')} />
+        </FilterField>
+        {filterSelect(
+          'leave-history-type',
+          t(locale, 'leave.type'),
+          typeOptions(locale, absenceOffered),
+          form.register('type'),
+        )}
+        {filterSelect(
+          'leave-history-status',
+          t(locale, 'leave.status'),
+          statusOptions(locale, absenceOffered),
+          form.register('status'),
+        )}
+        {filterSelect(
+          'leave-history-branch',
+          t(locale, 'leave.branch'),
+          branchOptions(locale, branches),
+          form.register('branchId'),
+        )}
+        <Button type="submit">{t(locale, 'leave.applyFilters')}</Button>
+      </FilterRow>
       {invalid ? <p role="alert">{t(locale, 'leaveHistory.rangeInvalid')}</p> : null}
     </form>
   );

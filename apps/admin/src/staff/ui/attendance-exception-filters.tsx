@@ -1,5 +1,6 @@
 'use client';
 import type { WorkspaceBranch } from '@pospay/contracts';
+import { FilterRow } from '@/shared/ui/filter-row';
 import { AttendanceActionBranch } from './attendance-action-branch';
 import { AttendanceExceptionTabs } from './attendance-exception-tabs';
 
@@ -17,9 +18,9 @@ export function AttendanceExceptionFilters({
   onStatus: (status: 'OPEN' | 'RESOLVED') => void;
 }) {
   return (
-    <div className="flex flex-wrap items-end gap-3">
+    <FilterRow>
       <AttendanceActionBranch branches={branches} branchId={branchId} onBranch={onBranch} />
       <AttendanceExceptionTabs status={status} onStatus={onStatus} />
-    </div>
+    </FilterRow>
   );
 }

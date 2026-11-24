@@ -125,6 +125,8 @@ export const ALLOWED_TABLE_GRANTS: Record<string, string[]> = {
     'memberships:INSERT',
     'memberships:SELECT',
     'memberships:UPDATE',
+    'notification_attempt_feedback:INSERT',
+    'notification_attempt_feedback:SELECT',
     'notification_attempts:INSERT',
     'notification_attempts:SELECT',
     'notification_attempts:UPDATE',

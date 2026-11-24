@@ -68,6 +68,8 @@ jobs:
         with:
           # #859: مقارنة المرشح بأساس الـmerged محتاجة تاريخ كامل في job الـcheck نفسه.
           fetch-depth: 0
+          # Keep the merge commit paired with this event's base even if the PR merge ref advances.
+          ref: ${{ github.sha }}
 
       - uses: pnpm/action-setup@v6
 

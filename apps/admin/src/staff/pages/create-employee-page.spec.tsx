@@ -72,9 +72,13 @@ it.each(['ar', 'en'] as const)(
     expect(screen.getByRole('alert').textContent).toBe(
       locale === 'ar' ? t('ar', 'errors.FORBIDDEN') : 'Synthetic refusal',
     );
+    expect(screen.queryByRole('status')).toBeNull();
     state.error = false;
     view.rerender(<CreateEmployeePage companyId={id} business={business} userId={id} />);
     expect(screen.getByRole('status').textContent).toContain(t(locale, 'staff.created'));
+    expect(screen.getByRole('status').textContent).toContain(
+      locale === 'ar' ? t('ar', 'staff.created') : 'Employee saved',
+    );
     expect(screen.getByRole('status').textContent).toContain(
       locale === 'ar' ? t('ar', 'roles.staff') : 'Synthetic employee',
     );
