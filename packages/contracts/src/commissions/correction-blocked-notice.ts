@@ -4,7 +4,7 @@ import { id } from '../scalars/id.js';
 import {
   commissionCorrectionBlockedRecipient,
   commissionCorrectionPeriod,
-} from '../in-app-notifications.js';
+} from '../statement-notifications.js';
 
 /** حجم مجموعة مستلمين الجرس الأقصى؛ حدث الجرس بيقبل مية مستلم كحد أقصى، والمقسّم بيستعمل نفس الحد (FR-049). */
 export const commissionCorrectionBlockedNoticeGroupSize = 100;
