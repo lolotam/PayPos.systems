@@ -83,12 +83,8 @@ describe('a pending commission event (CM-35)', () => {
 
 describe('the carry and freeze statements', () => {
   let database: ReturnType<typeof createDatabase>;
-  beforeAll(() => {
-    database = createDatabase({ url: f.h.urls.app, ids });
-  });
-  afterAll(async () => {
-    await database.close();
-  });
+  beforeAll(() => void (database = createDatabase({ url: f.h.urls.app, ids })));
+  afterAll(() => database.close());
 
   it('writes one carry per kind and employee with the negative amount and both statements', async () => {
     await database.withTenant(f.company, async (tx) => {
