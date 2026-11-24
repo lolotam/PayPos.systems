@@ -178,16 +178,18 @@ has `BYPASSRLS`. It runs migrations only and never serves a request; `packages/d
 > A fourth definer-function exception joins the idempotency sweep and the suppression boolean: the bootstrap
 > coverage proof of spec 059. The two tenant tables `commission_coverage_state` and `commission_coverage_proofs`
 > keep normal tenant RLS (`FORCE`, tenant key `(company_id, id)`) and carry **no policy for `pospay_app` or
-> `PUBLIC`** — `pospay_app` holds no privilege on either table, not even SELECT. Every write goes through
+> `PUBLIC`** — `pospay_app` holds no privilege on either table, not even SELECT. Every RUNTIME write goes through
 > `SECURITY DEFINER` functions owned by the `NOLOGIN` role `pospay_coverage_issuer`, which owns exactly the
 > eight coverage functions (the five rule functions and the three refusing trigger functions) and no table,
 > and holds the tables' only grants: `SELECT`, `INSERT` on both and column `UPDATE (generation,
-> bumped_at, reason)` on the state. EXECUTE is split as 0250 grants it: `pospay_app` holds only
-> `read_commission_coverage_gate` and `invalidate_commission_coverage` (plus `commission_coverage_required_version`)
+> bumped_at, reason)` on the state. EXECUTE is split as 0250 grants it: `pospay_app` EXECUTEs exactly three —
+> `read_commission_coverage_gate`, `invalidate_commission_coverage` and `commission_coverage_required_version` —
 > on its existing `withTenant` transaction; `pospay_dispatcher` — extending its
 > outbox-only role above — holds `EXECUTE` only on `current_commission_coverage_generation` and
-> `issue_commission_coverage_proof`, which the coverage issuance CLI calls; the trigger functions carry no
-> EXECUTE grant. A data step declared
+> `issue_commission_coverage_proof`, which the coverage issuance CLI calls; no runtime role is granted EXECUTE on
+> the trigger functions (their owner can always execute them). The audited operator switch command
+> (`platform:commission-approval`) writes the override, the generation bump and the audit row as the migration
+> owner, like `platform:grant`. A data step declared
 > `coverage: 'INVALIDATES'` bumps through the invalidator at the start of every of its transactions. No runtime
 > role gains `BYPASSRLS` and no new login role. See
 > [ADR-0054](0054-commissions-engine-package-recovery-flags-and-read-path.md) §2–§5.

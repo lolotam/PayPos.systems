@@ -34,9 +34,13 @@ it('resolves the operator identity after the state-row lock and before the bump 
 
 it('compares the grant expiry with clock_timestamp() taken after the lock, never with now()', () => {
   // clock_timestamp() هو الزمن الفعلي بعد انتظار القفل؛ now() يتجمد على بداية المعاملة فتعدى
-  // منحة تنتهي أثناء الانتظار — الفحص هنا يفشل لو رجع الكود إلى now().
-  const grantQuery = source.slice(source.indexOf('FROM platform_grants'));
-  expect(grantQuery.length, 'the grant expiry check must exist').toBeGreaterThan(1);
+  // منحة تنتهي أثناء الانتظار. الفحص محصور في جملة platform_grants نفسها: لو سقطت شرط الانتهاء
+  // كلها يفشل، ولا يقفز إلى clock_timestamp() في جملة لاحقة في الملف.
+  const from = source.indexOf('FROM platform_grants');
+  const limitAt = source.indexOf('LIMIT 1', from);
+  expect(from).toBeGreaterThan(-1);
+  expect(limitAt).toBeGreaterThan(from);
+  const grantQuery = source.slice(from, limitAt + 'LIMIT 1'.length);
   expect(grantQuery).toContain('clock_timestamp()');
   expect(grantQuery, 'the post-lock expiry check must not use now()').not.toContain('now()');
 });

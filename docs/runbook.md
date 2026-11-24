@@ -547,7 +547,10 @@ invalidate a proof — so every other case below leaves a stale proof current un
   types, consumer id, database name and system identifier all match the current release. Only this proof opens
   approval, together with the switch and a zero pending count.
 - `status`:
-  - `SWITCH_OFF` — approval refuses `403 FEATURE_DISABLED`; enable it before issuing anything.
+  - `SWITCH_OFF` — approval refuses `403 FEATURE_DISABLED`. Enable **only** after any repair or
+    migration that could touch covered rows has fully succeeded **and** the release-specific
+    projection verification has passed; while a repair is paused or failed, the switch stays off
+    (enabling mid-repair would re-open approval over rows the repair has not finished rewriting).
   - `SWITCH_ON_NO_CURRENT_PROOF` — the switch alone opens nothing; approval refuses `422
     COMMISSION_COVERAGE_NOT_PROVEN`. Run the coverage report and issue a proof (B1 order: enable → dry-run → issue).
   - `SWITCH_ON_CURRENT_PROOF` — the gate will check the pending count and the fingerprints at approval; if a source
@@ -563,7 +566,7 @@ invalidate a proof — so every other case below leaves a stale proof current un
 
 | Code | Where | Meaning | Remedy |
 | --- | --- | --- | --- |
-| `403 FEATURE_DISABLED` | approval endpoint | The explicit switch is off, expired, or absent (a plan flag never opens it) | Enable with the audited command, then follow the single resume order |
+| `403 FEATURE_DISABLED` | approval endpoint | The explicit switch is off, expired, or absent (a plan flag never opens it) | Enable with the audited command **only after** the repair/migration has fully succeeded and the release-specific projection verification passed, then follow the single resume order; while a repair is paused or failed, the switch stays off |
 | `422 COMMISSION_COVERAGE_NOT_PROVEN` | approval endpoint | No current proof (never issued, invalidated, or behind the generation) | Issue a new proof from a full `COVERED` run |
 | `409 COMMISSION_UPDATES_PENDING` | approval endpoint | A counted event has no consumer mark (ADR-0012 count) | Replay the six-type events (50-3d), then re-issue |
 | `COMMISSION_COVERAGE_CONFIGURATION` | coverage CLI | Malformed or partial command line (a bad business id, a bad date, `from` after `to`, more than 200 business ids, or only some of the three tip flags) — refused while parsing, before anything is read | Fix the arguments; nothing was read |
@@ -630,22 +633,40 @@ Limit the owner accepted: an old processor can commit an old-rule projection and
 the release-specific check catches that, and an older worker still running can mark an event after a new proof —
 stop every replica before the proof.
 
-**Fork or restore that keeps the database identity (§12 item 4(a)).** Before any API starts on the copy: switch every
-override of the new environment **off** through the audited command (it bumps the generations) and verify
-operationally that the report connection and the issuing connection are routed to the same actual database. **That
-routing check is required before the first issuance and again before every issuance or re-issuance in the forked
-environment; if the routing cannot be confirmed for the run, there is no issuance.** The CLI's same-database check
-is best effort against a wrong URL and cannot detect the copy. A fork stays closed until this procedure runs: a
-proof copied with the data is current, and approval is open wherever the override was copied on.
+**Fork or restore that keeps the database identity (§12 item 4(a)).** Before any API starts on the copy:
+
+1. **Invalidate every inherited generation, not only the companies that have an override.** The audited disable
+   command bumps only the companies it touches. The bump that covers **every row of `commission_coverage_state`**
+   — including companies with a proof and no override — is one owner session statement, exactly like a release
+   migration's bump (ADR-0054 §5): `UPDATE commission_coverage_state SET generation = generation + 1,
+   bumped_at = clock_timestamp(), reason = 'FORK_RECOVERY'` run in one transaction before any API starts; it takes
+   the state-row locks, so it queues behind any in-flight approval. The per-company definer
+   `invalidate_commission_coverage(state_id, reason)` (the documented `pospay_app` path) is the alternative when a
+   bump must happen from inside a tenant transaction — it bumps exactly its one company, so it would have to be
+   called once per row; the one-statement owner update above is the command that guarantees every row.
+2. Switch every override of the new environment **off** through the audited command.
+3. Verify operationally that the report connection and the issuing connection are routed to the same actual
+   database. **That routing check is required before the first issuance and again before every issuance or
+   re-issuance in the forked environment; if the routing cannot be confirmed for the run, there is no issuance.**
+   The CLI's same-database check is best effort against a wrong URL and cannot detect the copy.
+
+A fork stays closed until this procedure runs: a proof copied with the data is current, and approval is open
+wherever the override was copied on.
 
 **Partial restore of outbox rows, marks, source rows or a covered projection table (§12 items 4(b)/4(c)) and
-selective purge of counted outbox rows (§12 item 3(a)).** One owner transaction: **bump the affected generations
-first** (`UPDATE commission_coverage_state SET generation = generation + 1`, taking the state-row locks, so it
-queues behind any in-flight approval), then make the change, and — for a purge — drop the refusing guards and
-recreate them **before `COMMIT`**, so an approval never sees a window without guards. Test fixtures that clean
-`outbox` or `companies` as the owner session run under `session_replication_role = replica` through the shared
-helper, never by dropping the guards casually. Limit the owner accepted: a restore or purge that skips the bump
-leaves the old proof current over data it no longer matches.
+selective purge of counted outbox rows (§12 item 3(a)).** One owner transaction, in this exact order:
+
+1. **Bump** the affected generations first (`UPDATE commission_coverage_state SET generation = generation + 1`,
+   taking the state-row locks, so it queues behind any in-flight approval).
+2. **Drop** the refusing guards (the `outbox_counted_no_delete`, `outbox_no_truncate` and coverage-table triggers).
+3. **Delete** the counted outbox rows (or restore the affected rows).
+4. **Recreate** the guards exactly as the release migration defines them.
+5. **`COMMIT`** — an approval never sees a window without guards, because the guards are gone only between
+   steps 2 and 4 inside the same transaction.
+
+Test fixtures that clean `outbox` or `companies` as the owner session run under `session_replication_role =
+replica` through the shared helper, never by dropping the guards casually. Limit the owner accepted: a restore or
+purge that skips the bump leaves the old proof current over data it no longer matches.
 
 **Coverage-changing release migration (§12 item 3(c)).** `migrate` runs **before** new containers, and there is **no
 issuance and no first-time state row for any company** while the migration runs. The migration replaces, together,

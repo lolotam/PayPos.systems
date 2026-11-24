@@ -2,6 +2,7 @@ import { sql } from 'drizzle-orm';
 import type postgres from 'postgres';
 
 import type { Database } from '../client.ts';
+import type { OutboxDispatcherDatabase } from '../dispatcher.ts';
 import type { IdGenerator } from '../with-tenant.ts';
 
 /**
@@ -21,10 +22,12 @@ export interface DataStepApp {
   close(): Promise<void>;
 }
 
-/** سياق البناء الذي تحتاجه أجسام الخطوات: باسورد dispatcher لخطوة واحدة ورابط المالك لبناء رابطها. */
+/** سياق البناء الذي تحتاجه أجسام الخطوات: رابط المالك، وباسورد/مصنع قارئ dispatcher لخطوة واحدة. */
 export interface DataStepContext {
   readonly ownerUrl: string;
   readonly dispatcherPassword?: string;
+  /** يفتح قارئ dispatcher لخطوة rating-claims-discovery فقط؛ يُبنى في السجل لا في ملف الخطوة. */
+  readonly openDispatcherReader?: () => OutboxDispatcherDatabase;
 }
 
 /**
@@ -70,15 +73,16 @@ export function reviewStep(name: string, entry: unknown): void {
  * يغلّف واجهة pospay_app لخطوة معلنة INVALIDATES بحيث كل withTenant يبدأ بإبطال التغطية
  * (invalidate_commission_coverage على معاملة الخطوة نفسها) قبل أول كتابة: كتابة مصدر صامتة
  * بين دفعتين كانت هتسيب إثباتاً قديماً حالياً (ADR-0054 §5)، والإبطال هنا يرفع الجيل في كل معاملة
- * من معاملات الخطوة، بمعرّف حالة جديد لكل معاملة.
+ * من معاملات الخطوة، بمعرّف حالة جديد لكل معاملة. الكائن المُعادة ضيق: withTenant وclose فقط،
+ * وclose بلا تفاعل ثاني بعد أول إغلاق، فإغلاق السجل بعد جسم الخطوة لا يُكرر قطع الاتصال.
  *
  * @param app واجهة التطبيق المقيدة بعزل الشركات
  * @param ids مولّد UUID v7 لصف الحالة لو ضاع الـ ensure أول مرة
- * @returns نفس الواجهة و withTenant يبدأ بالإبطال ثم شغل الخطوة
+ * @returns كائن بـwithTenant يبدأ بالإبطال ثم شغل الخطوة، وclose مرة واحدة
  */
-export function invalidateCoverageInTenant(app: Database, ids: IdGenerator): Database {
+export function invalidateCoverageInTenant(app: Database, ids: IdGenerator): DataStepApp {
+  let closed = false;
   return {
-    ...app,
     withTenant: (companyId, work, transactionOptions = {}) =>
       app.withTenant(
         companyId,
@@ -90,18 +94,48 @@ export function invalidateCoverageInTenant(app: Database, ids: IdGenerator): Dat
         },
         transactionOptions,
       ),
+    close: () => {
+      if (closed) return Promise.resolve();
+      closed = true;
+      return app.close();
+    },
   };
 }
 
 /**
- * نقطة الالتفاف الوحيدة: الإعلان INVALIDATES يغلّف، وNONE يمرّر كما هو. السجل يستدعيها بقيمة
- * الإعلان المراجَعة نفسها، فجسم الخطوة لا يمكن أن يختار أو يبني واجهته بنفسه.
+ * يمرّر واجهة pospay_app لخطوة معلنة NONE عبر كائن ضيق بـwithTenant وclose فقط: مفيش withUser
+ * ولا withNewTenant ولا withMember ولا client خام على الكائن اللي بتستلمه الخطوة، فمفيش مسار
+ * معاملات تاني بتتخطاه، وclose بلا تفاعل ثاني بعد أول إغلاق.
+ *
+ * @param app واجهة التطبيق المقيدة بعزل الشركات
+ * @returns كائن ضيق بـwithTenant وclose مرة واحدة
+ */
+export function narrowStepApp(app: Database): DataStepApp {
+  let closed = false;
+  return {
+    withTenant: (companyId, work, transactionOptions = {}) =>
+      app.withTenant(companyId, work, transactionOptions),
+    close: () => {
+      if (closed) return Promise.resolve();
+      closed = true;
+      return app.close();
+    },
+  };
+}
+
+/**
+ * نقطة الالتفاف الوحيدة: الإعلان INVALIDATES يغلّف، وNONE يمرّر عبر الكائن الضيق. السجل يستدعيها
+ * بقيمة الإعلان المراجَعة نفسها، فجسم الخطوة لا يمكن أن يختار أو يبني واجهته بنفسه.
  *
  * @param app      واجهة التطبيق المقيدة بعزل الشركات
  * @param ids      مولّد UUID v7 للإبطال
  * @param coverage إعلان الخطوة المراجَع
- * @returns الواجهة التي تستلمها جسم الخطوة
+ * @returns كائن ضيق بـwithTenant وclose الذي تستلمه جسم الخطوة
  */
-export function buildStepApp(app: Database, ids: IdGenerator, coverage: DataStepCoverage): Database {
-  return coverage === 'INVALIDATES' ? invalidateCoverageInTenant(app, ids) : app;
+export function buildStepApp(
+  app: Database,
+  ids: IdGenerator,
+  coverage: DataStepCoverage,
+): DataStepApp {
+  return coverage === 'INVALIDATES' ? invalidateCoverageInTenant(app, ids) : narrowStepApp(app);
 }

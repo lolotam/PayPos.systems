@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 
 import type { Database } from '../client.ts';
 import type { IdGenerator, Tx } from '../with-tenant.ts';
-import { buildStepApp, invalidateCoverageInTenant, type DataStepApp } from '../data-steps/coverage.ts';
+import { buildStepApp, invalidateCoverageInTenant } from '../data-steps/coverage.ts';
 
 // وحدة الإبطال لخطوة معلنة INVALIDATES: كل withTenant يبدأ بجملة invalidate_commission_coverage
 // على معاملة الخطوة نفسها ثم شغل الخطوة، وكل معاملة بمعرّف حالة جديد. الاختبار بدون قاعدة بيانات
@@ -81,24 +81,36 @@ describe('invalidateCoverageInTenant', () => {
 });
 
 describe('buildStepApp (the one wiring point the registry calls with the declared coverage)', () => {
-  it('wraps exactly when the declared coverage is INVALIDATES and passes NONE through', () => {
-    const recorder: string[] = [];
-    const app = fakeApp(recorder);
-    const wrapped = buildStepApp(app, { newId: () => 'id' }, 'INVALIDATES');
-    const plain = buildStepApp(app, { newId: () => 'id' }, 'NONE');
-    expect(wrapped.withTenant).not.toBe(app.withTenant);
-    expect(plain).toBe(app);
+  it('hands a fresh narrow object in both cases: exactly withTenant and close, nothing else', () => {
+    const app = fakeApp([]);
+    for (const coverage of ['INVALIDATES', 'NONE'] as const) {
+      const handed = buildStepApp(app, { newId: () => 'id' }, coverage);
+      expect(Object.keys(handed).sort()).toEqual(['close', 'withTenant']);
+      expect(handed).not.toBe(app);
+    }
   });
 
-  it('satisfies the narrow step contract (withTenant and close only) in both cases', () => {
+  it('delegates withTenant for NONE and wraps it for INVALIDATES', async () => {
+    const plainRecorder: string[] = [];
+    const plainApp = fakeApp(plainRecorder);
+    const plain = buildStepApp(plainApp, { newId: () => 'id' }, 'NONE');
+    await plain.withTenant('c1', async () => 'done');
+    expect(plainRecorder).toEqual([]);
+    expect(vi.mocked(plainApp.withTenant)).toHaveBeenCalledTimes(1);
+    expect(vi.mocked(plainApp.withTenant).mock.calls[0]?.[0]).toBe('c1');
+
+    const wrappedRecorder: string[] = [];
+    const wrappedApp = fakeApp(wrappedRecorder);
+    const wrapped = buildStepApp(wrappedApp, { newId: () => 'id' }, 'INVALIDATES');
+    await wrapped.withTenant('c2', async () => 'done');
+    expect(wrappedRecorder).toEqual(['invalidate']);
+  });
+
+  it('closes the handed object idempotently: two closes cut the pool once', async () => {
     const app = fakeApp([]);
-    for (const handed of [
-      buildStepApp(app, { newId: () => 'id' }, 'INVALIDATES'),
-      buildStepApp(app, { newId: () => 'id' }, 'NONE'),
-    ]) {
-      const asStep: DataStepApp = handed;
-      expect(typeof asStep.withTenant).toBe('function');
-      expect(typeof asStep.close).toBe('function');
-    }
+    const handed = buildStepApp(app, { newId: () => 'id' }, 'INVALIDATES');
+    await handed.close();
+    await handed.close();
+    expect(app.close).toHaveBeenCalledTimes(1);
   });
 });

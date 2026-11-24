@@ -1,9 +1,9 @@
 import { systemUuidV7 } from '@pospay/ids';
 import type postgres from 'postgres';
 
-import type { DataStep, DataStepCoverage, DataStepEntry, DataStepContext, DataSteps } from './coverage.ts';
+import type { DataStep, DataStepApp, DataStepCoverage, DataStepEntry, DataStepContext, DataSteps } from './coverage.ts';
 import { buildStepApp, reviewStep } from './coverage.ts';
-import { createDatabase, type Database } from '../client.ts';
+import { createDatabase } from '../client.ts';
 import { createOutboxDispatcherDatabase } from '../dispatcher.ts';
 import {
   assignEmployeeNumbers,
@@ -19,6 +19,14 @@ import {
   discoverRatingClaims,
   RatingDiscoveryRoleRefusedError,
 } from './rating-claims-discovery.ts';
+
+// قاعدة لمؤلفي خطوات البيانات (ADR-0038 + ADR-0054 §5): اتصال المالك لغرضه الوحيد فقط — فحص
+// الدور وقراءة companies.id؛ كل قراءة tenant وكل كتابة تعيش داخل withTenant على الكائن الضيق
+// الذي يبنيه السجل من إعلان الخطوة. الخطوة لا تكتب صفوف tenant عبر اتصال المالك إطلاقًا —
+// كتابة مغطّاة عبر المالك تتجاوز الإبطال وهي مرفوضة في المراجعة، ومسح المصدر يمنع أي ملف خطوة
+// استيراد أو استدعاء أي مصنع اتصال من حزمة db (createDatabase وpostgres وcreateOutboxDispatcherDatabase
+// وcreateCoverageIssuer وcreatePlatformWhatsappDatabase وcreatePlatformEmailDatabase
+// وcreateAuthDatabase وcreateStaffOtpDatabase).
 
 /**
  * يبني رابط pospay_app من رابط المالك؛ الباسورد بيتعمل له encode كامل لأن setter الـ URL
@@ -81,15 +89,9 @@ const REVIEWED_DATA_STEPS: Readonly<Record<string, DataStepEntry>> = {
   'rating-claims-discovery': {
     coverage: 'NONE',
     run: async (owner, app, context) => {
-      const dispatcherPassword = context.dispatcherPassword;
-      if (dispatcherPassword === undefined)
+      const reader = context.openDispatcherReader?.();
+      if (reader === undefined)
         throw new Error('RATING_CLAIMS_DISCOVERY_DISPATCHER_CONFIGURATION');
-      const readerUrl = new URL(appDatabaseUrl(context.ownerUrl, dispatcherPassword));
-      readerUrl.username = 'pospay_dispatcher';
-      const reader = createOutboxDispatcherDatabase({
-        url: readerUrl.toString(),
-        maxConnections: 1,
-      });
       let failure: Error | undefined;
       try {
         const counts = await discoverRatingClaims(owner, app, reader);
@@ -149,8 +151,9 @@ const REVIEWED_DATA_STEPS: Readonly<Record<string, DataStepEntry>> = {
 
 /**
  * يبني خريطة الخطوات للمشغّل من قيد مراجَع: يرفض القيد غير المراجَع قبل أي جملة (reviewStep)،
- * ثم يقفل جسم كل خطوة على واجهة مبنيّة من قيمة إعلانه هي — لا تُمرَّر قيمة الإعلان للجسم، ولا
- * يبني الجسم واجهته بنفسه.
+ * ثم يقفل جسم كل خطوة على كائن ضيق مبنيّ من قيمة إعلانه هي — لا تُمرَّر قيمة الإعلان للجسم، ولا
+ * يبني الجسم واجهته بنفسه. يقفل الـpool اللي بيستلمه الجسم في finally بعد التشغيل حتى لو رمى
+ * الجسم (close بلا تفاعل ثاني)، فمفيش pool بيفضل مفتوح من عملية migrate.
  *
  * @param source      القيود المراجَعة (الخطوات الحقيقية أو قيود اختبار)
  * @param ownerUrl    رابط المالك
@@ -164,21 +167,46 @@ export function materializeDataSteps(
   ownerUrl: string,
   appPassword: string,
   context: Omit<DataStepContext, 'ownerUrl'> = {},
-  createApp: (coverage: DataStepCoverage) => Database = (coverage) =>
+  createApp: (coverage: DataStepCoverage) => DataStepApp = (coverage) =>
     stepAppDatabase(ownerUrl, appPassword, coverage),
 ): DataSteps {
   const materialized: Record<string, DataStep> = {};
   for (const [name, entry] of Object.entries(source)) {
     reviewStep(name, entry);
     const buildApp = createApp;
-    const runContext: DataStepContext = { ownerUrl, ...context };
+    const { dispatcherPassword } = context;
+    const runContext: DataStepContext =
+      dispatcherPassword === undefined
+        ? { ownerUrl }
+        : {
+            ownerUrl,
+            dispatcherPassword,
+            openDispatcherReader: () =>
+              createOutboxDispatcherDatabase({
+                url: dispatcherReaderUrl(ownerUrl, dispatcherPassword),
+                maxConnections: 1,
+              }),
+          };
     materialized[name] = {
       coverage: entry.coverage,
-      run: async (owner: postgres.Sql): Promise<void> =>
-        entry.run(owner, buildApp(entry.coverage), runContext),
+      run: async (owner: postgres.Sql): Promise<void> => {
+        const app = buildApp(entry.coverage);
+        try {
+          return await entry.run(owner, app, runContext);
+        } finally {
+          await app.close();
+        }
+      },
     };
   }
   return materialized;
+}
+
+/** يبني رابط قارئ dispatcher لخطوة rating-claims-discovery من رابط المالك وباسوردها. */
+function dispatcherReaderUrl(ownerUrl: string, dispatcherPassword: string): string {
+  const readerUrl = new URL(appDatabaseUrl(ownerUrl, dispatcherPassword));
+  readerUrl.username = 'pospay_dispatcher';
+  return readerUrl.toString();
 }
 
 /** يربط علامات الترحيل بخطوات بيانات معزولة، ويغلق اتصال التطبيق حتى عند فشل الخطوة. */

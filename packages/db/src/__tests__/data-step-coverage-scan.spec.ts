@@ -7,7 +7,7 @@ import { migrationDataSteps } from '../data-steps/index.ts';
 
 // مسح المصدر لقاعدة خطوات البيانات (ADR-0054 §5): خطوة ما تأخذ قفل فترة داخل callback، وخطوة
 // تكتب جدول مصدر مغطّى بإثبات التغطية لازم تعلن INVALIDATES في السجل، والسجل هو من يبني واجهة
-// الخطوة من إعلانها — جسم الخطوة لا يبني واجهته بنفسه. الاختبار بدون قاعدة بيانات.
+// الخطوة من إعلانها — جسم الخطوة لا يبني واجهته بنفسه، ولا يلمس مصنع اتصال. الاختبار بلا DB.
 
 /** جداول المصدر المغطّاة بإثبات التغطية (تدقيق مسارات الكتابة في PR #1259): سطور الخدمة والمؤدّون،
  * البقشيش، مبيعات الباقات SOLD، والرواتب. أسماء SQL وأسماء الـdrizzle معاً، فالمسح يصطاد الاثنين. */
@@ -26,6 +26,14 @@ const COVERED_TABLES = [
 
 /** ملفات السجل والآلية: لا تلمس جداول مغطاة بنفسها أبداً؛ الخطوات تعيش في ملفاتها (شكل ADR-0038). */
 const NON_STEP_BASENAMES = new Set(['index.ts', 'coverage.ts']);
+
+/** الربط الصريح بين مفتاح السجل وملفه: تعديل أي طرف يفشل الاختبار فورًا (بلا مطابقة أسماء ضمنية). */
+const REGISTRY_FILE: Record<string, string> = {
+  'rating-claims-discovery': 'rating-claims-discovery.ts',
+  'employee-numbers': 'employee-numbers.ts',
+  'statement-alert-roles': 'statement-alert-roles.ts',
+  'employee-name-keys': 'employee-name-keys.ts',
+};
 
 const stepsDir = new URL('../data-steps/', import.meta.url);
 
@@ -56,34 +64,27 @@ describe('data-step coverage source scan', () => {
     }
   });
 
-  it('registers every step file in the reviewed allowlist and maps each key to its file', () => {
-    // السجل الحقيقي: materialize يرفض ويبني بلا اتصال (الـapp يُبنى عند التشغيل فقط).
-    const steps = migrationDataSteps('postgres://placeholder:x@db:1/pospay', 'placeholder');
+  it('lets no file but the registry import or call a connection factory of the package', () => {
+    // قائمة المصانع المصدَّرة من packages/db/src (index.ts): أي استيراد أو استدعاء لها في ملف
+    // خطوة يعني اتصالاً يتحايل على الكائن الضيق وإبطال التغطية.
+    const factories = [
+      'createDatabase',
+      'postgres(',
+      'createOutboxDispatcherDatabase',
+      'createCoverageIssuer',
+      'createPlatformWhatsappDatabase',
+      'createPlatformEmailDatabase',
+      'createAuthDatabase',
+      'createStaffOtpDatabase',
+    ];
     for (const path of allStepSources()) {
-      if (NON_STEP_BASENAMES.has(path.split('/').at(-1) ?? '')) continue;
-      const stem = (path.split('/').at(-1) ?? '').replace(/\.ts$/, '');
-      const registered = Object.hasOwn(steps, stem) ||
-        Object.keys(steps).some((key) => key.endsWith(`-${stem}`) || key.endsWith(`/${stem}`));
-      expect(registered, `step file ${path} is not registered in data-steps/index.ts`).toBe(true);
-    }
-  });
-
-  it('fails a step that touches a covered table without declaring coverage invalidation', () => {
-    const steps = migrationDataSteps('postgres://placeholder:x@db:1/pospay', 'placeholder');
-    for (const path of allStepSources()) {
-      if (NON_STEP_BASENAMES.has(path.split('/').at(-1) ?? '')) continue;
+      if ((path.split('/').at(-1) ?? '') === 'index.ts') continue;
       const source = withoutComments(readFileSync(new URL(path, stepsDir), 'utf8'));
-      const touched = COVERED_TABLES.filter((table) => source.includes(table));
-      if (touched.length === 0) continue;
-      const stem = (path.split('/').at(-1) ?? '').replace(/\.ts$/, '');
-      const key = Object.keys(steps).find(
-        (candidate) => candidate === stem || candidate.endsWith(`-${stem}`),
-      );
-      const declared = key === undefined ? undefined : steps[key]?.coverage;
-      expect(
-        declared,
-        `${path} touches covered source rows (${touched.join(', ')}) but declares ${String(declared)}`,
-      ).toBe('INVALIDATES');
+      for (const factory of factories) {
+        expect(source, `${path} references the connection factory ${factory}`).not.toContain(
+          factory,
+        );
+      }
     }
   });
 
@@ -94,6 +95,43 @@ describe('data-step coverage source scan', () => {
       const touched = COVERED_TABLES.filter((table) => source.includes(table));
       expect(touched, `${path} must not write covered tables itself`).toEqual([]);
     }
+  });
+
+  it('fails a step file that touches a covered table unless its exact entry declares INVALIDATES', () => {
+    const steps = migrationDataSteps('postgres://placeholder:x@db:1/pospay', 'placeholder');
+    for (const file of Object.values(REGISTRY_FILE)) {
+      const source = withoutComments(readFileSync(new URL(file, stepsDir), 'utf8'));
+      const touched = COVERED_TABLES.filter((table) => source.includes(table));
+      if (touched.length === 0) continue;
+      const key = Object.keys(REGISTRY_FILE).find((candidate) => REGISTRY_FILE[candidate] === file);
+      const declared = key === undefined ? undefined : steps[key]?.coverage;
+      expect(
+        declared,
+        `${file} touches covered source rows (${touched.join(', ')}) but declares ${String(declared)}`,
+      ).toBe('INVALIDATES');
+    }
+  });
+});
+
+describe('the registry wiring, checked on its source and its live map', () => {
+  it('maps every registry key to its file explicitly, and every step file to its key', () => {
+    const steps = migrationDataSteps('postgres://placeholder:x@db:1/pospay', 'placeholder');
+    for (const [key, file] of Object.entries(REGISTRY_FILE)) {
+      expect(Object.hasOwn(steps, key), `mapping names unregistered step ${key}`).toBe(true);
+      expect(
+        readdirSync(stepsDir, { recursive: true }).map(String).includes(file),
+        `mapping names a missing file ${file}`,
+      ).toBe(true);
+    }
+    const stepFiles = allStepSources().filter(
+      (path) => !NON_STEP_BASENAMES.has(path.split('/').at(-1) ?? ''),
+    );
+    for (const path of stepFiles) {
+      const mapped = Object.entries(REGISTRY_FILE).filter(([, file]) => file === path);
+      expect(mapped, `step file ${path} has no explicit registry mapping`).toHaveLength(1);
+      expect(Object.hasOwn(steps, mapped[0]?.[0] ?? '')).toBe(true);
+    }
+    expect(Object.keys(REGISTRY_FILE).sort()).toEqual(Object.keys(steps).sort());
   });
 
   it('lets only the registry build the app: no createDatabase outside stepAppDatabase and no coverage literal in a body', () => {
@@ -110,6 +148,10 @@ describe('data-step coverage source scan', () => {
     expect(indexSource, 'every reviewed entry declares its coverage explicitly').not.toMatch(
       /coverage:\s*(?:undefined|null)/,
     );
+  });
+
+  it('closes the handed app in the registry finally, so a throwing body leaks no pool', () => {
+    expect(indexSource).toMatch(/finally\s*\{\s*await app\.close\(\)/);
   });
 });
 

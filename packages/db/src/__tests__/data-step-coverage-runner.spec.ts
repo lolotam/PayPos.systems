@@ -5,7 +5,7 @@ import { readPgTestEnv } from '../../test/pg-env.ts';
 import { createTestDatabase, type TestDatabase } from '../../test/test-database.ts';
 import { seedTwoTenants, TENANT } from '../../test/tenancy-fixtures.ts';
 import { materializeDataSteps } from '../data-steps/index.ts';
-import type { DataStepEntry } from '../data-steps/coverage.ts';
+import type { DataStepApp, DataStepEntry } from '../data-steps/coverage.ts';
 import { applyMigrations } from '../concurrent-migrations.ts';
 import { sql } from 'drizzle-orm';
 
@@ -25,30 +25,32 @@ const COMPANY = TENANT.A.company;
 let testDb: TestDatabase;
 let owner: postgres.Sql;
 
-/** جسم الخطوة: معاملتان كل واحدة كتابة واحدة عديمة الأثر على شركة الخطوة نفسها. */
-async function twoTransactions(app: {
-  withTenant: (
-    companyId: string,
-    work: (tx: { execute: (query: ReturnType<typeof sql>) => Promise<unknown> }) => Promise<unknown>,
-  ) => Promise<unknown>;
-}): Promise<void> {
-  for (let i = 0; i < 2; i++) {
-    await app.withTenant(COMPANY, (tx) =>
-      tx.execute(
-        sql`UPDATE public.companies SET name_en = name_en WHERE id = ${COMPANY}::uuid`,
-      ),
-    );
+/** جسم الخطوة: معاملتان كل واحدة كتابة مرئية على شركة الخطوة نفسها، والـpool يقفل في finally. */
+async function twoTransactions(
+  app: DataStepApp,
+  marker: string,
+): Promise<void> {
+  try {
+    for (let i = 0; i < 2; i++) {
+      await app.withTenant(COMPANY, (tx) =>
+        tx.execute(
+          sql`UPDATE public.companies SET name_en = ${marker} WHERE id = ${COMPANY}::uuid`,
+        ),
+      );
+    }
+  } finally {
+    await app.close();
   }
 }
 
 const invalidatingStep: DataStepEntry = {
   coverage: 'INVALIDATES',
-  run: async (_owner, app) => twoTransactions(app),
+  run: async (_owner, app) => twoTransactions(app, 'invalidates-step-ran'),
 };
 
 const noneStep: DataStepEntry = {
   coverage: 'NONE',
-  run: async (_owner, app) => twoTransactions(app),
+  run: async (_owner, app) => twoTransactions(app, 'none-step-ran'),
 };
 
 const generationOf = async (): Promise<{
@@ -61,6 +63,12 @@ const generationOf = async (): Promise<{
   return row === undefined
     ? { generation: null, reason: 'NO_ROW', rows: 0 }
     : { generation: Number(row['generation']), reason: String(row['reason']), rows: 1 };
+};
+
+const nameEnOf = async (): Promise<string | null> => {
+  const [row] =
+    await owner`SELECT name_en FROM companies WHERE id = ${COMPANY}::uuid`;
+  return row === undefined ? null : String(row['name_en']);
 };
 
 const runStep = async (entry: DataStepEntry, name: string) => {
@@ -103,12 +111,16 @@ it('an INVALIDATES entry bumps the generation exactly once per transaction throu
   expect(after.generation).toBe((before.generation ?? 0) + 2);
   expect(after.reason).toBe('DATA_STEP');
   expect(after.rows).toBe(1);
+  // جسم الخطوة نفّذ فعلاً: آخر كتابة له مرئية على جدول الشركات.
+  expect(await nameEnOf()).toBe('invalidates-step-ran');
 });
 
-it('a NONE entry leaves the generation and the reason exactly as they were', async () => {
+it('a NONE entry leaves the generation and the reason exactly as they were, and its body runs', async () => {
   await runStep(invalidatingStep, 'coverage-invalidate');
   const before = await generationOf();
   expect(before.reason).toBe('DATA_STEP');
   await runStep(noneStep, 'coverage-none');
   expect(await generationOf()).toEqual(before);
+  // جسم خطوة NONE نفّذ فعلاً (أثره مرئي) رغم أن الجيل لم يتحرك: الالتفاف مرّ بلا إبطال.
+  expect(await nameEnOf()).toBe('none-step-ran');
 });
