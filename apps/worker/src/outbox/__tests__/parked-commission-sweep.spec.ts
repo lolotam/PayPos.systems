@@ -31,12 +31,14 @@ const notifier = () => {
     notices,
     calls,
     raiseAlert: async (event: { readonly eventId: string }) => {
-      const outcome = marked.has(event.eventId) ? 'ALREADY_ALERTED' : 'ALERTED';
-      calls.push({ id: event.eventId, outcome });
-      if (outcome === 'ALREADY_ALERTED') return outcome as const;
+      if (marked.has(event.eventId)) {
+        calls.push({ id: event.eventId, outcome: 'ALREADY_ALERTED' });
+        return 'ALREADY_ALERTED' as const;
+      }
       marked.add(event.eventId);
+      calls.push({ id: event.eventId, outcome: 'ALERTED' });
       notices.push(event.eventId);
-      return outcome as const;
+      return 'ALERTED' as const;
     },
   };
 };
