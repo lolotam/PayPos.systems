@@ -4,76 +4,162 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { clearNavStyleCookie } from './nav-style-cookie';
 import { SignInStyleProbe } from './sign-in-style-probe.fixture';
 
-const mocks = vi.hoisted(() => ({ get: vi.fn(), loadPage: vi.fn(), announceIdentityChange: vi.fn(),
-  signInWithPassword: vi.fn(), verifyTotpCode: vi.fn() }));
-vi.mock('@/shared/api/client', () => ({ apiClient: () => ({ GET: mocks.get }) }));
-vi.mock('@/shared/browser/load-page', () => ({ loadPage: mocks.loadPage, announceIdentityChange: mocks.announceIdentityChange }));
+const mocks = vi.hoisted(() => ({
+  loadPage: vi.fn(),
+  announceIdentityChange: vi.fn(),
+  signInWithPassword: vi.fn(),
+  verifyTotpCode: vi.fn(),
+}));
 vi.mock('@/session/api/session-calls', () => mocks);
+vi.mock('@/shared/browser/load-page', () => ({
+  loadPage: mocks.loadPage,
+  announceIdentityChange: mocks.announceIdentityChange,
+}));
 vi.mock('next/navigation', () => ({ useRouter: () => ({ push: vi.fn() }) }));
 
 const cookieStyle = () => document.cookie.split('; ').find((v) => v.startsWith('pospay_nav_style='))?.split('=')[1];
 let atNavigation: string | undefined;
+let atAnnouncement: string | undefined;
+const jsonResponse = (body: unknown, status = 200) =>
+  new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } });
+
+// openapi-fetch يلتقط fetch عند أول إنشاء للعميل، فالـ stub الواحد يفوّض لمعالج الاختبار الحالي.
+const fetchRequests: Request[] = [];
+let respond: (request: Request) => Promise<Response> = () =>
+  Promise.reject(new Error('SYNTHETIC_NO_FETCH_HANDLER'));
+const stubbedFetch = (input: string | Request): Promise<Response> => {
+  const request = input instanceof Request ? input : new Request(input);
+  fetchRequests.push(request);
+  return respond(request);
+};
+
+function answerWith(handler: (request: Request) => Promise<Response>): void {
+  respond = handler;
+}
+
 beforeEach(() => {
   vi.resetAllMocks();
+  process.env.NEXT_PUBLIC_API_URL = 'http://api.test';
   document.cookie = 'pospay_nav_style=B; Path=/';
   atNavigation = 'not navigated';
-  mocks.loadPage.mockImplementation(() => { atNavigation = cookieStyle(); });
+  atAnnouncement = 'not announced';
+  fetchRequests.length = 0;
+  mocks.loadPage.mockImplementation(() => {
+    atNavigation = cookieStyle();
+  });
+  mocks.announceIdentityChange.mockImplementation(() => {
+    atAnnouncement = cookieStyle();
+  });
   mocks.signInWithPassword.mockResolvedValue('done');
   mocks.verifyTotpCode.mockResolvedValue(undefined);
+  vi.stubGlobal('fetch', stubbedFetch);
 });
-afterEach(() => { vi.useRealTimers(); clearNavStyleCookie(); });
+afterEach(() => {
+  vi.unstubAllGlobals();
+  vi.useRealTimers();
+  clearNavStyleCookie();
+  delete process.env.NEXT_PUBLIC_API_URL;
+});
 
 describe.each(['password', 'totp'] as const)('%s account style before navigation', (kind) => {
-  it.each(['A', null, 'D', undefined])('applies %s or clears malformed/unset before one navigation', async (navStyle) => {
-    mocks.get.mockResolvedValue({ data: navStyle === undefined ? {} : { navStyle }, response: { ok: true } });
+  it.each([
+    ['style A', { navStyle: 'A' }, 'A'],
+    ['no choice', { navStyle: null }, undefined],
+    ['an out-of-range value', { navStyle: 'D' }, undefined],
+    ['a malformed body', {}, undefined],
+  ])('applies %s before one navigation', async (_name, body, expected) => {
+    answerWith(() => Promise.resolve(jsonResponse(body)));
     render(<SignInStyleProbe kind={kind} />);
     fireEvent.click(screen.getByRole('button'));
     await waitFor(() => expect(mocks.loadPage).toHaveBeenCalledTimes(1));
-    expect(atNavigation).toBe(navStyle === 'A' ? 'A' : undefined);
+    expect(atNavigation).toBe(expected);
     expect(mocks.loadPage).toHaveBeenCalledWith('/');
-    expect(mocks.get.mock.calls[0]?.[1]).toMatchObject({ cache: 'no-store' });
-    expect(mocks.announceIdentityChange.mock.invocationCallOrder[0]).toBeLessThan(mocks.get.mock.invocationCallOrder[0] ?? 0);
+    expect(fetchRequests[0]?.url).toBe('http://api.test/v1/me/preferences');
+    expect(fetchRequests[0]?.cache).toBe('no-store');
+    expect(mocks.announceIdentityChange.mock.invocationCallOrder[0]).toBeLessThan(
+      mocks.loadPage.mock.invocationCallOrder[0],
+    );
   });
   it.each(['refusal', 'network'])('clears the previous style after %s', async (failure) => {
-    if (failure === 'network') mocks.get.mockRejectedValue(new Error('SYNTHETIC_NETWORK'));
-    else mocks.get.mockResolvedValue({ error: {}, response: { ok: false } });
+    if (failure === 'network') answerWith(() => Promise.reject(new Error('SYNTHETIC_NETWORK')));
+    else answerWith(() => Promise.resolve(jsonResponse({}, 401)));
     render(<SignInStyleProbe kind={kind} />);
     fireEvent.click(screen.getByRole('button'));
     await waitFor(() => expect(mocks.loadPage).toHaveBeenCalledTimes(1));
     expect(atNavigation).toBeUndefined();
   });
-  it.each(['transport', 'body'])('keeps submit disabled through the whole %s deadline and ignores a late success', async () => {
-    vi.useFakeTimers();
-    let complete: ((value: unknown) => void) | undefined;
-    mocks.get.mockImplementation(() => new Promise((resolve) => { complete = resolve; }));
+  it('clears the previous cookie before announcing other tabs', async () => {
+    answerWith(() => Promise.resolve(jsonResponse({ navStyle: 'A' })));
     render(<SignInStyleProbe kind={kind} />);
     fireEvent.click(screen.getByRole('button'));
-    await act(async () => { await vi.advanceTimersByTimeAsync(1999); });
+    await waitFor(() => expect(mocks.loadPage).toHaveBeenCalledTimes(1));
+    expect(atAnnouncement).toBeUndefined();
+  });
+  it.each(['transport', 'body'])('keeps submit disabled through the whole %s deadline and ignores a late answer', async (mode) => {
+    vi.useFakeTimers();
+    let release: (() => void) | undefined;
+    if (mode === 'transport') {
+      answerWith(
+        () =>
+          new Promise<Response>((resolve) => {
+            release = () => resolve(jsonResponse({ navStyle: 'A' }));
+          }),
+      );
+    } else {
+      const encoder = new TextEncoder();
+      answerWith(() =>
+        Promise.resolve(
+          new Response(
+            new ReadableStream<Uint8Array>({
+              start(controller) {
+                setTimeout(() => {
+                  controller.enqueue(encoder.encode(JSON.stringify({ navStyle: 'A' })));
+                  controller.close();
+                }, 5_000);
+              },
+            }),
+            { status: 200, headers: { 'content-type': 'application/json' } },
+          ),
+        ),
+      );
+    }
+    render(<SignInStyleProbe kind={kind} />);
+    fireEvent.click(screen.getByRole('button'));
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1999);
+    });
     expect(screen.getByRole('button').hasAttribute('disabled')).toBe(true);
     expect(mocks.loadPage).not.toHaveBeenCalled();
-    await act(async () => { await vi.advanceTimersByTimeAsync(1); });
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1);
+    });
     expect(atNavigation).toBeUndefined();
     expect(mocks.loadPage).toHaveBeenCalledTimes(1);
     expect(screen.getByRole('button').hasAttribute('disabled')).toBe(true);
-    await act(async () => { complete?.({ data: { navStyle: 'A' }, response: { ok: true } }); });
+    await act(async () => {
+      release?.();
+      await vi.advanceTimersByTimeAsync(6_000);
+    });
     expect(cookieStyle()).toBeUndefined();
     expect(mocks.loadPage).toHaveBeenCalledTimes(1);
   });
 });
 it.each(['totp', 'admin.unexpected'])('does not read on the password outcome %s', async (outcome) => {
+  answerWith(() => Promise.resolve(jsonResponse({ navStyle: 'A' })));
   mocks.signInWithPassword.mockResolvedValue(outcome);
   render(<SignInStyleProbe kind="password" />);
   fireEvent.click(screen.getByRole('button'));
   await waitFor(() => expect(screen.getByRole('button').hasAttribute('disabled')).toBe(false));
   expect(cookieStyle()).toBe('B');
-  expect(mocks.get).not.toHaveBeenCalled();
+  expect(fetchRequests).toHaveLength(0);
   expect(mocks.announceIdentityChange).not.toHaveBeenCalled();
 });
 it('does not read after a refused second factor', async () => {
+  answerWith(() => Promise.resolve(jsonResponse({ navStyle: 'A' })));
   mocks.verifyTotpCode.mockResolvedValue('admin.codeInvalid');
   render(<SignInStyleProbe kind="totp" />);
   fireEvent.click(screen.getByRole('button'));
   expect(await screen.findByRole('alert')).toHaveProperty('textContent', 'admin.codeInvalid');
   expect(cookieStyle()).toBe('B');
-  expect(mocks.get).not.toHaveBeenCalled();
+  expect(fetchRequests).toHaveLength(0);
 });
