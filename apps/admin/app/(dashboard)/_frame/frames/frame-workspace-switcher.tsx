@@ -20,7 +20,7 @@ const nameOf = (item: Named | undefined, locale: Locale) =>
   item === undefined ? '' : displayName(item, locale);
 
 /**
- * مبدّل الشركة والنشاط والفرع في زر واحد، بنفس اختيارات WorkspaceSelector الحالي وبنفس الكوكي.
+ * مبدّل الشركة والنشاط والفرع في زر واحد، بنفس خيارات التحديد الثلاثة نفسها وبنفس الكوكي.
  * قبل اختيار النشاط لا اسم تجاري يظهر على الزر، فيحمل نص الدعوة إلى الاختيار ليكون له اسم مرئي وللقارئ الشاشي.
  */
 export function FrameWorkspaceSwitcher() {

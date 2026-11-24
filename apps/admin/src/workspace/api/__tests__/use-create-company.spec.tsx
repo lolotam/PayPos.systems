@@ -61,7 +61,7 @@ beforeEach(() => {
   api.GET.mockReset();
   api.POST.mockReset();
   window.localStorage.clear();
-  // حرس القراءة قبل أي إرسال بيلتقي قراءة فاضية افتراضيًا؛ الاختبارات بتتجاوزه بصمت ما تلمسش.
+  // القراءة الافتراضية لمساحات العمل في هذا الملف فاضية، فحارس القراءة قبل الإرسال يسمح بالطلب إلا في الاختبارات التي تغيّرها.
   // الـ response موجود زي ما عميل OpenAPI الحقيقي بيرجّعه دايمًا (fetchWorkspaces بيقرا ok).
   api.GET.mockResolvedValue({ data: { companies: [] }, response: { status: 200, ok: true } });
 });

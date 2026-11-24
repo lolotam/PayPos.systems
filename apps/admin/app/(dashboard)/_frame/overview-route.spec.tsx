@@ -85,6 +85,11 @@ describe('/overview/<group>', () => {
     frameState.visible = ['dashboard'];
     renderDashboard(route('team'), 'C');
     expect(frameState.replace).toHaveBeenCalledWith('/');
+    // وما زال التحويل جاريًا يرى المستخدم حالة التحميل ولا يرى شيء من محتوى نظرة المجموعة.
+    expect(screen.getByRole('status').textContent).toBe(label('admin.loading'));
+    expect(
+      screen.queryByRole('heading', { level: 1, name: label('adminNav.workspaceCTeam') }),
+    ).toBeNull();
   });
 
   it('waits while the workspace loads: loading status, no redirect, no not found', () => {
