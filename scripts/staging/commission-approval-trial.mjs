@@ -16,6 +16,7 @@ import { pathToFileURL } from 'node:url';
 import { parseArgs } from 'node:util';
 
 const STAGING_ORIGIN = 'https://api.staging.pospay.systems'; // docs/adr/0001 §6 + deploy/docker-compose.staging-shared.yml
+const STAGING_APP_ORIGIN = 'https://app.staging.pospay.systems'; // the admin app origin the staging API trusts
 const STAGING_HOST = 'api.staging.pospay.systems';
 const TRIAL_PREFIX = 'TRIAL-';
 const TRIAL_EMPLOYEE_PREFIX = 'Trial Employee ';
@@ -137,6 +138,7 @@ function makeClient(origin, company, backoffMs) {
       res = await fetch(`${origin}${path}`, {
         method, redirect: 'error',
         headers: {
+          origin: STAGING_APP_ORIGIN,
           ...(cookie === '' ? {} : { cookie }), 'x-company-id': company, ...(idem === undefined ? {} : { 'idempotency-key': idem }),
           ...(body === undefined ? {} : { 'content-type': 'application/json' }),
         },
