@@ -1,12 +1,12 @@
 import { readMigrationFiles } from 'drizzle-orm/migrator';
 import type postgres from 'postgres';
 
+import type { DataStep, DataSteps } from './data-steps/coverage.ts';
+import { reviewCoverage } from './data-steps/coverage.ts';
 import { runConcurrentIndex } from './recover-concurrent-index.ts';
 
 const CONCURRENT =
   /^\s*(?:--[^\r\n]*[\r\n]\s*)*(?:CREATE|DROP)\s+(?:UNIQUE\s+)?INDEX\s+CONCURRENTLY\b/i;
-
-type DataSteps = Readonly<Record<string, (owner: postgres.Sql) => Promise<void>>>;
 
 // Only the exact column-0 form is a marker. Any other line that mentions it (indented, inside a block comment,
 // different case or spacing) would be skipped by a looser parser and silently lose its step, so it aborts instead.
@@ -58,10 +58,12 @@ function migrationSteps(statements: readonly string[], dataSteps: DataSteps) {
     ),
   ];
   return names.map((name) => {
-    const step = dataSteps[name];
+    const step: DataStep | undefined = dataSteps[name];
     if (!Object.hasOwn(dataSteps, name) || step === undefined)
       throw new Error(`Unknown migration data step ${name}; migration aborted`);
-    return step;
+    // فحص إعلان التغطية هنا أيضاً: قبل أول جملة في التشغيل كله، زي رفض العلامة المجهولة تماماً.
+    reviewCoverage(name, step.coverage);
+    return step.run;
   });
 }
 

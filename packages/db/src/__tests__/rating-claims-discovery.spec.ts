@@ -169,7 +169,9 @@ it('the registered migration step uses existing restricted credentials and logs 
   const log = vi.spyOn(console, 'log').mockImplementation(() => undefined);
   try {
     const steps = migrationDataSteps(testDb.ownerUrl, env.appPassword, env.dispatcherPassword);
-    await steps['rating-claims-discovery'](owner);
+    const discovery = steps['rating-claims-discovery'];
+    if (discovery === undefined) throw new Error('Missing rating-claims-discovery step');
+    await discovery.run(owner);
     expect(log.mock.calls).toEqual([
       [
         `rating_claims_discovery ${JSON.stringify({

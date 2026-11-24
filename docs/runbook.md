@@ -450,7 +450,7 @@ no `published_at`, no `attempts`, no mark and no projection change.
    company-wide guarantee stays with the retained-event check, up to the printed `throughId`. The report is **not a point-in-time snapshot**: lines,
    salaries, sales, the retained events and the tips are read in separate transactions, and each page in its own. With a fixed `--through`
    a concurrent write can make it print `COVERED` although no single moment had every section covered; a row written while it runs is
-   delivered by the live consumer. **Accepted design, not implemented yet (ADR-0054 addendum 2026-11-22, accepted by CS-Q55 and CS-Q55-ب on 2026-11-23):** the 53-2 approval gate will not rely on this report at approval time but will read a stored bootstrap coverage proof, issued only from a full `COVERED` run in the quiet window and invalidated when the coverage conditions change **through the paths the database or the runner enforces (a release migration, a writer that goes through the runner or the invalidator, a refused outbox delete)**. It is **not** invalidated by a physical fork, a partial restore, a selective purge, a projection rollback or a writer that bypasses the runner; each of those is an operator procedure listed in ADR-0054 addendum 2026-11-22, section 12, items 3 and 4 (CS-Q54, CS-Q55). **Today the command only prints the report and issues no proof**; a `COVERED` print is not a proof, and live issuance instructions belong to the 53-2 code PR.
+   delivered by the live consumer. **Accepted design, implemented in 53-2 B1/B2 (ADR-0054 addendum 2026-11-22, accepted by CS-Q55 and CS-Q55-ب on 2026-11-23):** the 53-2 approval gate will not rely on this report at approval time but will read a stored bootstrap coverage proof, issued only from a full `COVERED` run in the quiet window and invalidated when the coverage conditions change **through the paths the database or the runner enforces (a release migration, a writer that goes through the runner or the invalidator, a refused outbox delete)**. It is **not** invalidated by a physical fork, a partial restore, a selective purge, a projection rollback or a writer that bypasses the runner; each of those is an operator procedure listed in ADR-0054 addendum 2026-11-22, section 12, items 3 and 4 (CS-Q54, CS-Q55). **Issuance is live since 53-2 B1 and B2:** the commands in the sections «53-2 B1: enable approval for a company» and «53-2 B2a: coverage and approval operator procedures» below issue, invalidate and switch; a bare `COVERED` print without `--issue-proof` is still not a proof.
    **A tenant with any retained `PackageSaleChanged` event is now checked like the other counted types (50-4 registered the handler)**:
    since 50-4 the sale type is registered by the consumer, so a retained sale event without its mark is listed under `unmarked` like any other
    counted type, and the report's `sales` section compares every sold package's revision with the projection (`missing`/`stale`). `notHandled` is
@@ -490,8 +490,10 @@ Build the current release first (`pnpm exec turbo run build --filter=@pospay/wor
    verifies that both connections report the same database name and cluster system identifier and refuses a standby
    (`pg_is_in_recovery()`), but the operator confirms the URLs themselves point to the intended primary before the run.
 3. **Quiet window:** no data step, repair, replay or release migration is running or planned for the whole operation,
-   pauses and failed runs included. Issuing during any data step is forbidden; after the run finishes, follow the single
-   resume order (enable → new report → new proof).
+   pauses and failed runs included. Issuing during any data step is forbidden; after the run finishes, the affected
+   projections are **verified by the release-specific check first** — a projection can carry a current revision with
+   an old-rule effect, so "the operation is no longer running" is not evidence — and only then does the single
+   resume order (enable → new report → new proof) apply (see «53-2 B2a: coverage and approval operator procedures»).
 
 **Order: enable → dry-run report → issue → approve; enable bumps the generation and invalidates any earlier proof
 (ADR-0054, bootstrap addendum §9), so switch-on without a current proof still refuses approval.**
@@ -526,6 +528,119 @@ To close approval (also invalidates the current proof), use:
 ```sh
 pnpm platform:commission-approval --company <uuid> --disable --reason <reason> --operator-email <operator-email>
 ```
+
+## 53-2 B2a: coverage and approval operator procedures
+
+Everything in this section is an **operator obligation, not database enforcement**, exactly as ADR-0054 addendum §12
+accepts it (CS-Q55, «اقبل الإجراءات الموثقة للحالات دي» and «اقبل الإجراءات في الحالات الثلاث»). The database
+enforces only three paths automatically: a release migration's version bump, a write path that calls
+`invalidate_commission_coverage`, and the refusing triggers on `outbox` and the two coverage tables. Every other
+case below leaves a stale proof current unless the written procedure is followed.
+
+**Reading `--show` (one read-only snapshot, writes nothing):**
+
+- `switch_enabled` — the explicit override `commission_statement_approval` is open (an override row exists,
+  `enabled`, `expires_at` null or in the future). This is the switch, nothing else.
+- `generation` — the company's coverage generation; every bump (enable, disable, invalidation, issuance) raises it.
+- `proof_current` — a stored proof exists whose `generation` equals the state generation and whose version, counted
+  types, consumer id, database name and system identifier all match the current release. Only this proof opens
+  approval, together with the switch and a zero pending count.
+- `status`:
+  - `SWITCH_OFF` — approval refuses `403 FEATURE_DISABLED`; enable it before issuing anything.
+  - `SWITCH_ON_NO_CURRENT_PROOF` — the switch alone opens nothing; approval refuses `422
+    COMMISSION_COVERAGE_NOT_PROVEN`. Run the coverage report and issue a proof (B1 order: enable → dry-run → issue).
+  - `SWITCH_ON_CURRENT_PROOF` — the gate will check the pending count and the fingerprints at approval; if a source
+    write happened outside its event, invalidate and re-issue (procedures below).
+
+**Refusal codes and their remedies:**
+
+| Code | Where | Meaning | Remedy |
+| --- | --- | --- | --- |
+| `403 FEATURE_DISABLED` | approval endpoint | The explicit switch is off, expired, or absent (a plan flag never opens it) | Enable with the audited command, then follow the single resume order |
+| `422 COMMISSION_COVERAGE_NOT_PROVEN` | approval endpoint | No current proof (never issued, invalidated, or behind the generation) | Issue a new proof from a full `COVERED` run |
+| `409 COMMISSION_UPDATES_PENDING` | approval endpoint | A counted event has no consumer mark (ADR-0012 count) | Replay the six-type events (50-3d), then re-issue |
+| `COMMISSION_COVERAGE_CONFIGURATION` | coverage CLI | Malformed or partial command line | Fix the arguments; nothing was read |
+| `COMMISSION_COVERAGE_SCOPE_INVALID` | coverage report | Company unknown, a business is not the company's, or a bad `--through` | Correct the scope; nothing was scanned |
+| `COVERAGE_TIP_BOUND_MOVED` | issuance | The PostgreSQL UTC day bound moved (a run crossed midnight) | Repeat the full report and issuance with the new bound |
+| `COVERAGE_UNMARKED_EVENTS` | issuance | A counted event at or below the verified bound has no mark | Replay (50-3d), then re-run and re-issue |
+| `COVERAGE_REPORT_BOUND_AHEAD` | issuance | The report's bound is ahead of the database's own maximum | The report ran against a different or lagging copy; check routing, then repeat |
+| `COVERAGE_DATABASE_MISMATCH` | issuance | The report and issuance connections reach different databases or clusters | Stop; confirm the two URLs hit the same primary, then repeat |
+| `COVERAGE_GENERATION_MOVED` | issuance | The generation moved between sampling and issuance (another bump won the lock) | Repeat the full report and issuance on the new generation |
+| `COVERAGE_VERSION_REFUSED` | issuance | The proof version does not equal `commission_coverage_required_version()` | A release migration is missing or unapplied; run `migrate` before issuing |
+| `COVERAGE_SCOPE_INCOMPLETE` | issuance | The business list is not exactly the company's, or `tip_to` is before the day bound | Name every business and a tip range through the bound, then repeat |
+| `COVERAGE_REASON_INVALID` | invalidation | The reason must match `^[A-Z][A-Z_]{1,49}$` | Use an uppercase reason code such as `SOURCE_WRITE` |
+| `COVERAGE_OPERATOR_NOT_FOUND` / `COVERAGE_OPERATOR_AMBIGUOUS` / `COVERAGE_OPERATOR_NOT_PLATFORM` | switch command | The operator email resolves to no user, to two users differing only by case, or to a user without an active platform grant | Use the operator's exact platform email; grant the platform permission first |
+| `COVERAGE_EXPIRY_IN_PAST` | switch command | `--expires` is already past PostgreSQL's clock | Supply a future instant; nothing was written |
+| `COMMISSION_EVENT_TYPE_NOT_HANDLED` | coverage report | A retained event type has no registered consumer | Fix the worker release/handler registration first; a replay does not fix this |
+
+**What invalidates a proof automatically (enforced), and what does not (procedures below):** enforced — a release
+migration that replaces the version function and bumps the generations; any covered write path or data step declared
+`INVALIDATES` that calls `invalidate_commission_coverage` through its runner; a refused `DELETE`/`TRUNCATE` on the
+counted `outbox` rows or the coverage tables. **Not enforced** — a physical fork or a same-identity restore, a
+partial restore, a selective purge run by an owner session that skips the bump, a projection removal or rewind, a
+worker rollback across a projection-semantics change, and a writer that bypasses the runner and its declaration.
+Each has the procedure below.
+
+**Repair and data-step windows (ADR-0054 §12 item 3(d)):** before any repair, import or multi-batch data step that
+can write covered source rows: switch approval **off** with the audited command and stop issuance for the whole
+operation — pauses, retries and failed runs included; the switch stays off until the operation has finished
+successfully. **Before activation resumes, verify the affected projections** — for a coverage-changing release or a
+repair that touches how a counted event is projected, run the release-specific projection check (a projection can
+carry a current revision with an old-rule effect; stopping the operation alone is not evidence). Then the **single
+resume order**, everywhere: the audited enable (it bumps the generation first) → approval answers `422
+COMMISSION_COVERAGE_NOT_PROVEN` until it is done → a full new report → a new proof issued on that post-enable
+generation → approval passes. The older wording «new report, new proof, then enable» was self-contradictory: the
+enable itself invalidates every proof, so the proof must be issued **after** it.
+
+**Worker rollback across a projection-semantics change (ADR-0054 §12 item 3(c), #1223 item 14).** The rollback is
+itself a coverage-changing operation — an old processor that returns after a new proof can mark events under the old
+rules. The one order:
+
+1. **Before** the older worker starts: switch approval **off** with the audited command (it bumps the generation),
+   so approval refuses `403 FEATURE_DISABLED` and the previously issued proof is no longer current (ADR-0054 §10
+   test 13 asserts both before the rollback).
+2. Roll the worker back.
+3. The switch **stays off** until the matching processor is restored and the affected projections are rebuilt or
+   verified by the release-specific check (a mark plus a matching revision alone is not evidence of the new
+   semantics; an ordinary replay is not assumed to re-create marks that already exist).
+4. Then the single resume order: audited enable → `422` → full new report → new proof on that generation → approval
+   succeeds.
+
+Limit the owner accepted: an old processor can commit an old-rule projection and its mark **before** it stops; only
+the release-specific check catches that, and an older worker still running can mark an event after a new proof —
+stop every replica before the proof.
+
+**Fork or restore that keeps the database identity (§12 item 4(a)).** Before any API starts on the copy: switch every
+override of the new environment **off** through the audited command (it bumps the generations) and verify
+operationally that the report connection and the issuing connection are routed to the same actual database. **That
+routing check is required before the first issuance and again before every issuance or re-issuance in the forked
+environment; if the routing cannot be confirmed for the run, there is no issuance.** The CLI's same-database check
+is best effort against a wrong URL and cannot detect the copy. A fork stays closed until this procedure runs: a
+proof copied with the data is current, and approval is open wherever the override was copied on.
+
+**Partial restore of outbox rows, marks, source rows or a covered projection table (§12 items 4(b)/4(c)) and
+selective purge of counted outbox rows (§12 item 3(a)).** One owner transaction: **bump the affected generations
+first** (`UPDATE commission_coverage_state SET generation = generation + 1`, taking the state-row locks, so it
+queues behind any in-flight approval), then make the change, and — for a purge — drop the refusing guards and
+recreate them **before `COMMIT`**, so an approval never sees a window without guards. Test fixtures that clean
+`outbox` or `companies` as the owner session run under `session_replication_role = replica` through the shared
+helper, never by dropping the guards casually. Limit the owner accepted: a restore or purge that skips the bump
+leaves the old proof current over data it no longer matches.
+
+**Coverage-changing release migration (§12 item 3(c)).** `migrate` runs **before** new containers, and there is **no
+issuance and no first-time state row for any company** while the migration runs. The migration replaces, together,
+the proof version, the issuer's constants, the outbox guards' type list and the ADR-0012 pending-count function, and
+bumps the generations. When a release changes how an existing counted event is projected, stop the older-release
+processors **and** rebuild or verify the affected projections with the release-specific check before any
+re-issuance; then the single resume order above.
+
+**Runbook obligation recap (ADR-0054 §12):** (a) selective purge — bump-first owner transaction with guards
+recreated before commit; (b) new source-row writers — runner declaration `coverage: 'INVALIDATES'`, runner bumps in
+every transaction, the source-scan test refuses a period lock or an undeclared covered write; (c) coverage-changing
+release and worker rollback — migrate before containers, no issuance during the migration, projections verified
+before re-issuance, switch off and bump before the rollback; (d) repairs and data steps — switch off, no issuance,
+then the single resume order; 4(a) fork routing check before the API starts and before every issuance; 4(b)/4(c)
+partial restore and projection rewind — bump-first owner transaction.
 
 ## 50-3d: replay all six counted types after a rollback (spec 059, CS-Q43)
 

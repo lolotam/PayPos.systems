@@ -782,7 +782,17 @@ Named tests; each is an integration test against real Postgres (T2 stack, ADR-00
   holders of `approve:commissions:business` who are business-wide readers (FR-036), and a review reminder only to the
   holders of `review:commissions:business` who are business-wide readers (FR-029), evaluated with the same predicate
   (one function, shared with the guards) at the time the event is appended, so nobody is prompted to do what the endpoint
-  would refuse her. **Every
+  would refuse her. **The approval prompt and its reminders additionally require the explicit approval switch**
+  (issue #1223 item 3; clarified by the PosPay package manager as a technical clarification, 2026-11-24): the
+  `StatementAwaitingApproval` recipients — this review-time event and the FR-053 day-3/day-5 reminders — are resolved
+  only while the explicit company override `commission_statement_approval` is open (an override row exists, `enabled`,
+  and `expires_at` null or in the future, read with no plan fallback, exactly as ADR-0054 §9 defines it), inside the
+  same transaction that appends the event. While the switch is off, no approval prompt or reminder is emitted at all,
+  because approval would answer 403 `FEATURE_DISABLED`. **The stored coverage proof and the pending-events count are
+  approval-time checks and are NOT part of this recipient predicate:** a prompt may still arrive while approval would
+  answer 422 `COMMISSION_COVERAGE_NOT_PROVEN` or 409 `COMMISSION_UPDATES_PENDING`; the endpoint call, not the
+  notification, is what checks them. Review reminders (`StatementAwaitingReview`, FR-055) do not read the approval
+  switch. **Every
   notification event of this slice** (this one, the reminders of FR-053/FR-055 and the blocked-correction notice of FR-049)
   uses the same grouping: de-duplicated recipients, sorted by user id, consecutive groups of at most 100 (the
   `notificationRequest` cap, ADR-0037 §5), one event per group, all appended in the writer's transaction.

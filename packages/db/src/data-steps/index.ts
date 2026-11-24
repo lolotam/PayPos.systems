@@ -3,6 +3,8 @@ import type postgres from 'postgres';
 
 import { createDatabase } from '../client.ts';
 import { createOutboxDispatcherDatabase } from '../dispatcher.ts';
+import type { DataStep, DataStepCoverage, DataSteps } from './coverage.ts';
+import { invalidateCoverageInTenant } from './coverage.ts';
 import {
   assignEmployeeNumbers,
   EmployeeNumbersExhaustedError,
@@ -52,89 +54,108 @@ export function sanitizedStepError(step: string, error: unknown): Error {
   return new Error(`Migration data step ${step} failed (sqlstate=${sqlstate})`);
 }
 
+/**
+ * يبني واجهة التطبيق لخطوة بيانات على pospay_app، ويغلّفها بالإبطال لو الخطوة معلنة INVALIDATES:
+ * نقطت الالتفاف الوحيدة اللي بتمرّ من إعلان التغطية للـ Database اللي بتستلمه الخطوة، فأي خطوة
+ * مستقبلية تعلن INVALIDATES بتبدأ كل معاملة منها بإبطال التغطية من غير ما تغيّر شكلها (ADR-0054 §5).
+ *
+ * @param ownerUrl  رابط المالك لبناء رابط pospay_app منه
+ * @param appPassword باسورد pospay_app لحاوية migrate
+ * @param coverage إعلان الخطوة في السجل
+ * @returns واجهة التطبيق، مغلّفة بالإبطال لو الإعلان INVALIDATES
+ */
+function stepAppDatabase(ownerUrl: string, appPassword: string, coverage: DataStepCoverage) {
+  const app = createDatabase({
+    url: appDatabaseUrl(ownerUrl, appPassword),
+    ids: systemUuidV7(),
+    maxConnections: 1,
+  });
+  return coverage === 'INVALIDATES' ? invalidateCoverageInTenant(app, systemUuidV7()) : app;
+}
+
 /** يربط علامات الترحيل بخطوات بيانات معزولة، ويغلق اتصال التطبيق حتى عند فشل الخطوة. */
 export function migrationDataSteps(
   ownerUrl: string,
   appPassword: string,
   dispatcherPassword?: string,
-) {
+): DataSteps {
   return {
     'rating-claims-discovery': ratingDiscoveryStep(ownerUrl, appPassword, dispatcherPassword),
-    'employee-numbers': async (owner: postgres.Sql): Promise<void> => {
-      const app = createDatabase({
-        url: appDatabaseUrl(ownerUrl, appPassword),
-        ids: systemUuidV7(),
-        maxConnections: 1,
-      });
-      try {
-        const { companies, read, assigned, exhausted } = await assignEmployeeNumbers(owner, app);
-        console.log(
-          `companies=${companies} read=${read} assigned=${assigned} exhausted=${exhausted}`,
-        );
-      } catch (error) {
-        throw sanitizedStepError('employee-numbers', error);
-      } finally {
-        await app.close();
-      }
+    'employee-numbers': {
+      coverage: 'NONE',
+      run: async (owner: postgres.Sql): Promise<void> => {
+        const app = stepAppDatabase(ownerUrl, appPassword, 'NONE');
+        try {
+          const { companies, read, assigned, exhausted } = await assignEmployeeNumbers(owner, app);
+          console.log(
+            `companies=${companies} read=${read} assigned=${assigned} exhausted=${exhausted}`,
+          );
+        } catch (error) {
+          throw sanitizedStepError('employee-numbers', error);
+        } finally {
+          await app.close();
+        }
+      },
     },
-    'statement-alert-roles': async (owner: postgres.Sql): Promise<void> => {
-      const ids = systemUuidV7();
-      const app = createDatabase({
-        url: appDatabaseUrl(ownerUrl, appPassword),
-        ids,
-        maxConnections: 1,
-      });
-      try {
-        const { companies, read, cleaned } = await cleanStatementAlertRoles(owner, app, ids);
-        console.log(`companies=${companies} read=${read} cleaned=${cleaned}`);
-      } catch (error) {
-        throw sanitizedStepError('statement-alert-roles', error);
-      } finally {
-        await app.close();
-      }
+    'statement-alert-roles': {
+      coverage: 'NONE',
+      run: async (owner: postgres.Sql): Promise<void> => {
+        const ids = systemUuidV7();
+        const app = stepAppDatabase(ownerUrl, appPassword, 'NONE');
+        try {
+          const { companies, read, cleaned } = await cleanStatementAlertRoles(owner, app, ids);
+          console.log(`companies=${companies} read=${read} cleaned=${cleaned}`);
+        } catch (error) {
+          throw sanitizedStepError('statement-alert-roles', error);
+        } finally {
+          await app.close();
+        }
+      },
     },
-    'employee-name-keys': async (owner: postgres.Sql): Promise<void> => {
-      const app = createDatabase({
-        url: appDatabaseUrl(ownerUrl, appPassword),
-        ids: systemUuidV7(),
-        maxConnections: 1,
-      });
-      try {
-        const { companies, read, updated } = await rekeyEmployeeNameKeys(owner, app);
-        console.log(`companies=${companies} read=${read} updated=${updated}`);
-      } catch (error) {
-        throw sanitizedStepError('employee-name-keys', error);
-      } finally {
-        await app.close();
-      }
+    'employee-name-keys': {
+      coverage: 'NONE',
+      run: async (owner: postgres.Sql): Promise<void> => {
+        const app = stepAppDatabase(ownerUrl, appPassword, 'NONE');
+        try {
+          const { companies, read, updated } = await rekeyEmployeeNameKeys(owner, app);
+          console.log(`companies=${companies} read=${read} updated=${updated}`);
+        } catch (error) {
+          throw sanitizedStepError('employee-name-keys', error);
+        } finally {
+          await app.close();
+        }
+      },
     },
   };
 }
 
-function ratingDiscoveryStep(ownerUrl: string, appPassword: string, dispatcherPassword?: string) {
-  return async (owner: postgres.Sql): Promise<void> => {
-    if (!dispatcherPassword) throw new Error('RATING_CLAIMS_DISCOVERY_DISPATCHER_CONFIGURATION');
-    const readerUrl = new URL(appDatabaseUrl(ownerUrl, dispatcherPassword));
-    readerUrl.username = 'pospay_dispatcher';
-    const reader = createOutboxDispatcherDatabase({
-      url: readerUrl.toString(),
-      maxConnections: 1,
-    });
-    const app = createDatabase({
-      url: appDatabaseUrl(ownerUrl, appPassword),
-      ids: systemUuidV7(),
-      maxConnections: 1,
-    });
-    let failure: Error | undefined;
-    try {
-      const counts = await discoverRatingClaims(owner, app, reader);
-      console.log(`rating_claims_discovery ${JSON.stringify(counts)}`);
-    } catch (error) {
-      failure = sanitizedStepError('rating-claims-discovery', error);
-    }
-    const closed = await Promise.allSettled([app.close(), reader.close()]);
-    if (failure) throw failure;
-    if (closed.some((result) => result.status === 'rejected'))
-      throw new Error('RATING_CLAIMS_DISCOVERY_CLOSE_FAILED');
+function ratingDiscoveryStep(
+  ownerUrl: string,
+  appPassword: string,
+  dispatcherPassword?: string,
+): DataStep {
+  return {
+    coverage: 'NONE',
+    run: async (owner: postgres.Sql): Promise<void> => {
+      if (!dispatcherPassword) throw new Error('RATING_CLAIMS_DISCOVERY_DISPATCHER_CONFIGURATION');
+      const readerUrl = new URL(appDatabaseUrl(ownerUrl, dispatcherPassword));
+      readerUrl.username = 'pospay_dispatcher';
+      const reader = createOutboxDispatcherDatabase({
+        url: readerUrl.toString(),
+        maxConnections: 1,
+      });
+      const app = stepAppDatabase(ownerUrl, appPassword, 'NONE');
+      let failure: Error | undefined;
+      try {
+        const counts = await discoverRatingClaims(owner, app, reader);
+        console.log(`rating_claims_discovery ${JSON.stringify(counts)}`);
+      } catch (error) {
+        failure = sanitizedStepError('rating-claims-discovery', error);
+      }
+      const closed = await Promise.allSettled([app.close(), reader.close()]);
+      if (failure) throw failure;
+      if (closed.some((result) => result.status === 'rejected'))
+        throw new Error('RATING_CLAIMS_DISCOVERY_CLOSE_FAILED');
+    },
   };
 }

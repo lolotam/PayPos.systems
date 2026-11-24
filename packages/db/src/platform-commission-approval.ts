@@ -29,7 +29,8 @@ async function assertCompany(tx: postgres.TransactionSql, companyId: string): Pr
 /**
  * بيفضّل هوية المشغّل من البريد بمطابلة حالة الأحرف الأدنى فقط، فيرفض تطابقاً غامضاً بين مستخدمين
  * يختلفان بالحالة، ولا يقبل إلا مستخدماً يملك منحة منصة سارية بنفس شرط جلسات المنصة
- * (platform_grants بلا سحب وبلا انتهاء)؛ كل الرفض قبل أي كتابة.
+ * (platform_grants بلا سحب وبلا انتهاء). يُستدعى بعد قفل صف الحالة: منحة تُسحب أثناء انتظار
+ * القفل تُرى هنا، ورفضه يرجّع المعاملة كلها فلا يبقى صف ensure ولا bump ولا سطر تدقيق.
  */
 async function assertPlatformOperator(tx: postgres.TransactionSql, email: string): Promise<string> {
   const operators =
@@ -70,10 +71,12 @@ export async function setCommissionApprovalSwitch(
   try {
     await client.begin(async (tx) => {
       await assertCompany(tx, request.companyId);
-      const operatorId = await assertPlatformOperator(tx, request.operatorEmail);
       await tx`INSERT INTO commission_coverage_state (company_id, id) VALUES (${request.companyId}, ${ids.newId()})
         ON CONFLICT (company_id) DO NOTHING`;
       await tx`SELECT id FROM commission_coverage_state WHERE company_id = ${request.companyId} FOR UPDATE`;
+      // حل هوية المشغّل وفحص منحته بعد قفل صف الحالة: منحة تُسحب بينما الأمر ينتظر القفل
+      // خلف معاملة أخرى لابد أن تُرى هنا، قبل أي bump أو upsert أو سطر تدقيق.
+      const operatorId = await assertPlatformOperator(tx, request.operatorEmail);
       if (request.expiresAt !== undefined) await assertFutureExpiry(tx, request.expiresAt);
       await tx`UPDATE commission_coverage_state SET generation = generation + 1,
         bumped_at = clock_timestamp(), reason = 'SWITCH' WHERE company_id = ${request.companyId}`;
