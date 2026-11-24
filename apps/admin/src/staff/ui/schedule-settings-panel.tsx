@@ -3,7 +3,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { setScheduleSettingsInput, type SetScheduleSettingsInput } from '@pospay/contracts';
 import { t } from '@pospay/i18n';
 import { Button, Input, Label } from '@pospay/ui';
-import { useEffect, useRef } from 'react';
+import { useLayoutEffect, useRef } from 'react';
 import { useForm } from 'react-hook-form';
 import { envelopeMessage } from '@/shared/api/api-error';
 import { useLocale } from '@/shared/locale/locale-context';
@@ -33,7 +33,8 @@ function useSettingsPanel(scope: ScheduleWorkspace) {
   const branchIdRef = useRef(scope.branchId);
   // `values` لا تعيد ضبط النموذج إذا تساوت القيمة المحفوظة للفرعين، فرقم مكتوب لفرع قد يُحفظ على آخر؛
   // لذلك نعيد الضبط صراحةً عند تغيّر الفرع، ونترك الحالة في هذا الخطاف حتى لا تضيع المسودة إذا فشلت قراءة دورية.
-  useEffect(() => {
+  // نستخدم `useLayoutEffect` ليتم الضبط قبل أن يسلّم المتصفح أي نقرة على الفرع الجديد.
+  useLayoutEffect(() => {
     if (branchIdRef.current === scope.branchId) return;
     branchIdRef.current = scope.branchId;
     resetBranchForm({ max_shifts_per_day: branchLimit });
