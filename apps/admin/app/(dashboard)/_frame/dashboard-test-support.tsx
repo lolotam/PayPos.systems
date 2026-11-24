@@ -31,6 +31,29 @@ export function enterWorkspace(businessType: 'salon' | 'restaurant', role?: stri
   selectBusiness(businessType, role);
 }
 
+/**
+ * يختار شركة ونشاط بمعرّفات مختلفة عن كل اختيار سابق مع نفس النوع والدور، فتبدل القوائم ومفتاح
+ * إعادة تركيب الصفحتين المعتمدتين على المعرّفات كما يفعل تبديل حقيقي بين شركتين مختلفتين.
+ */
+export function enterWorkspaceAt(
+  businessType: 'salon' | 'restaurant',
+  role: string | undefined,
+  companyId: string,
+  businessId: string,
+): void {
+  enterWorkspace(businessType, role);
+  const workspace = frameState.workspace;
+  if (workspace?.status !== 'ready') return;
+  const business =
+    workspace.business === undefined ? undefined : { ...workspace.business, id: businessId };
+  const company = {
+    ...workspace.company,
+    id: companyId,
+    businesses: business === undefined ? workspace.company.businesses : [business],
+  };
+  frameState.workspace = { ...workspace, company, business, companies: [company] };
+}
+
 /** يرسم صفحة داخل `DashboardFrame` بنمط ابتدائي محدد، كما يفعل غلاف لوحة الإدارة. */
 export function renderDashboard(page: ReactNode, style: NavigationStyle = 'C') {
   const wrap = (content: ReactNode) => (
