@@ -1,5 +1,11 @@
 import { Body, Controller, Get, Header, Inject, Put, Req } from '@nestjs/common';
-import { id, setMyPreferencesInput, type MyPreferencesResponse, type MyMembershipsResponse, type MyWorkspacesResponse } from '@pospay/contracts';
+import {
+  id,
+  setMyPreferencesInput,
+  type MyPreferencesResponse,
+  type MyMembershipsResponse,
+  type MyWorkspacesResponse,
+} from '@pospay/contracts';
 import type { TenantWrappers } from '@pospay/db';
 import type { FastifyRequest } from 'fastify';
 
@@ -40,7 +46,10 @@ export class MeController {
 
   @Put('me/preferences')
   @Authenticated()
-  async setPreferencesForCaller(@Req() request: FastifyRequest, @Body() body: unknown): Promise<MyPreferencesResponse> {
+  async setPreferencesForCaller(
+    @Req() request: FastifyRequest,
+    @Body() body: unknown,
+  ): Promise<MyPreferencesResponse> {
     const userId = preferenceUserId(request);
     if (this.setPreferences === null) throw new ApiError('NOT_READY');
     const parsed = setMyPreferencesInput.safeParse(body);

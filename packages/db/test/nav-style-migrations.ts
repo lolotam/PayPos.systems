@@ -30,7 +30,9 @@ export function readNavStyleMigrationFiles(): MigrationFile[] {
   const add = contents.filter(({ sql }) => sql.includes(ADD));
   const validate = contents.filter(({ sql }) => sql.includes(VALIDATE) && !sql.includes(ADD));
   if (add.length !== 1 || validate.length !== 1)
-    throw new Error(`Expected one user_nav_style add and one validate migration, got ${add.length}/${validate.length}`);
+    throw new Error(
+      `Expected one user_nav_style add and one validate migration, got ${add.length}/${validate.length}`,
+    );
   return [add[0]!, validate[0]!].map(({ tag, sql }, index) => ({
     sql: sql.split('--> statement-breakpoint'),
     hash: tag,

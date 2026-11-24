@@ -10,7 +10,8 @@ let fixture: TestDatabase;
 let database: ReturnType<typeof createAuthDatabase>;
 let owner: postgres.Sql;
 let preferences: ReturnType<typeof createMyPreferences>;
-const x = randomUUID(), y = randomUUID();
+const x = randomUUID(),
+  y = randomUUID();
 
 beforeAll(async () => {
   fixture = await createTestDatabase();
@@ -51,6 +52,8 @@ it('looks up one primary key on analysed representative data using the auth role
     );
     expect(JSON.stringify(plan)).toContain('user_pkey');
     expect(JSON.stringify(plan)).toContain('Index Cond');
-  } finally { await connection.end(); }
+  } finally {
+    await connection.end();
+  }
   expect(await preferences.read(y)).toBeNull();
 });

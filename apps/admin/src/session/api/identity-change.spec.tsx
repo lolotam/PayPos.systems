@@ -26,7 +26,8 @@ vi.mock('@/shared/browser/load-page', async (importOriginal) => ({
 // دخولك بيقري تفضيل الحساب قبل الانتقال؛ الـ mock يحسم القراءة بـ null بدل نداء شبكة حقيقي.
 vi.mock('@/shared/api/client', () => ({
   apiClient: () => ({
-    GET: () => Promise.resolve({ data: { navStyle: null }, error: undefined, response: { ok: true } }),
+    GET: () =>
+      Promise.resolve({ data: { navStyle: null }, error: undefined, response: { ok: true } }),
   }),
 }));
 vi.mock('next/navigation', () => ({ useRouter: () => ({ push, refresh: vi.fn() }) }));

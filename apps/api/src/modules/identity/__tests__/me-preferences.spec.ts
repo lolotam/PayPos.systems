@@ -8,7 +8,9 @@ import { MeController } from '../http/me.controller.ts';
 import { myPreferences } from '../queries/my-preferences.query.ts';
 import { preferencesFixture } from './me-preferences.fixture.ts';
 
-const pending = vi.hoisted(() => ({ files: [] as { sql: string[]; folderMillis: number; hash: string }[] }));
+const pending = vi.hoisted(() => ({
+  files: [] as { sql: string[]; folderMillis: number; hash: string }[],
+}));
 vi.mock('drizzle-orm/migrator', () => ({ readMigrationFiles: () => pending.files }));
 
 let h: Awaited<ReturnType<typeof preferencesFixture>>;
@@ -20,11 +22,17 @@ beforeAll(async () => {
   x = await h.makeUser('x@nav.invalid');
   y = await h.makeUser('y@nav.invalid');
 });
-afterAll(async () => { await h?.close(); });
-const get = (cookie = x.cookie, company?: string) => h.app.inject({ method: 'GET', url: path,
-  headers: { cookie, ...(company === undefined ? {} : { 'x-company-id': company }) } });
-const put = (navStyle: string | null) => h.app.inject({ method: 'PUT', url: path,
-  headers: { cookie: x.cookie }, payload: { navStyle } });
+afterAll(async () => {
+  await h?.close();
+});
+const get = (cookie = x.cookie, company?: string) =>
+  h.app.inject({
+    method: 'GET',
+    url: path,
+    headers: { cookie, ...(company === undefined ? {} : { 'x-company-id': company }) },
+  });
+const put = (navStyle: string | null) =>
+  h.app.inject({ method: 'PUT', url: path, headers: { cookie: x.cookie }, payload: { navStyle } });
 
 it('PREF-01: an account without permissions or a workspace reads NULL without caching', async () => {
   const response = await get();
@@ -40,16 +48,37 @@ it('PREF-02: saves B then resets NULL', async () => {
 });
 it('PREF-03: invalid input and selectors fail validation without changing B', async () => {
   await put('B');
-  for (const payload of [{ navStyle: 'D' }, {}, { navStyle: 1 }, { navStyle: 'A', extra: true },
-    { navStyle: 'A', userId: y.userId }, { navStyle: 'A', companyId: h.ids.newId() }]) {
-    const response = await h.app.inject({ method: 'PUT', url: path, headers: { cookie: x.cookie }, payload });
+  for (const payload of [
+    { navStyle: 'D' },
+    {},
+    { navStyle: 1 },
+    { navStyle: 'A', extra: true },
+    { navStyle: 'A', userId: y.userId },
+    { navStyle: 'A', companyId: h.ids.newId() },
+  ]) {
+    const response = await h.app.inject({
+      method: 'PUT',
+      url: path,
+      headers: { cookie: x.cookie },
+      payload,
+    });
     expect([response.statusCode, response.json().code]).toEqual([400, 'VALIDATION_FAILED']);
     expect((await get()).json()).toEqual({ navStyle: 'B' });
   }
 });
 it('PREF-04: a value on Y first, then X writing with a forged company header, both keep their own', async () => {
-  await h.app.inject({ method: 'PUT', url: path, headers: { cookie: y.cookie }, payload: { navStyle: 'C' } });
-  await h.app.inject({ method: 'PUT', url: path, headers: { cookie: x.cookie, 'x-company-id': 'forged' }, payload: { navStyle: 'A' } });
+  await h.app.inject({
+    method: 'PUT',
+    url: path,
+    headers: { cookie: y.cookie },
+    payload: { navStyle: 'C' },
+  });
+  await h.app.inject({
+    method: 'PUT',
+    url: path,
+    headers: { cookie: x.cookie, 'x-company-id': 'forged' },
+    payload: { navStyle: 'A' },
+  });
   for (const company of ['stale', h.ids.newId()]) {
     expect((await get(x.cookie, company)).json()).toEqual({ navStyle: 'A' });
     expect((await get(y.cookie, company)).json()).toEqual({ navStyle: 'C' });
@@ -57,25 +86,40 @@ it('PREF-04: a value on Y first, then X writing with a forged company header, bo
 });
 it('PREF-05: no session is 401 on both routes', async () => {
   for (const method of ['GET', 'PUT'] as const) {
-    const response = await h.app.inject({ method, url: path, ...(method === 'PUT' ? { payload: { navStyle: 'A' } } : {}) });
+    const response = await h.app.inject({
+      method,
+      url: path,
+      ...(method === 'PUT' ? { payload: { navStyle: 'A' } } : {}),
+    });
     expect([response.statusCode, response.json().code]).toEqual([401, 'UNAUTHENTICATED']);
   }
 });
 it('PREF-06: a real isolated staff-purpose cookie alone is 401 on both routes', async () => {
   const { companyId, businessId, branchId, deviceId } = await h.device(x.userId);
-  const issued = await h.auth.staff.issue(x.userId, { companyId, businessId, branchId, deviceId },
-    async () => true);
+  const issued = await h.auth.staff.issue(
+    x.userId,
+    { companyId, businessId, branchId, deviceId },
+    async () => true,
+  );
   for (const method of ['GET', 'PUT'] as const) {
-    const response = await h.app.inject({ method, url: path, headers: { cookie: issued.cookie.split(';')[0] ?? '' },
-      ...(method === 'PUT' ? { payload: { navStyle: 'B' } } : {}) });
+    const response = await h.app.inject({
+      method,
+      url: path,
+      headers: { cookie: issued.cookie.split(';')[0] ?? '' },
+      ...(method === 'PUT' ? { payload: { navStyle: 'B' } } : {}),
+    });
     expect([response.statusCode, response.json().code]).toEqual([401, 'UNAUTHENTICATED']);
   }
 });
 it('PREF-07: a real device credential alone is 403 on both routes', async () => {
   const device = await h.device(x.userId);
   for (const method of ['GET', 'PUT'] as const) {
-    const response = await h.app.inject({ method, url: path, headers: { authorization: device.authorization },
-      ...(method === 'PUT' ? { payload: { navStyle: 'B' } } : {}) });
+    const response = await h.app.inject({
+      method,
+      url: path,
+      headers: { authorization: device.authorization },
+      ...(method === 'PUT' ? { payload: { navStyle: 'B' } } : {}),
+    });
     expect([response.statusCode, response.json().code]).toEqual([403, 'FORBIDDEN']);
   }
 });
@@ -96,9 +140,18 @@ it('PREF-09: serial writes both answer 200 and finish with the second value', as
 });
 it('allows JSON PUT preflight only to a trusted origin with credentials', async () => {
   for (const origin of ['http://admin.test', 'http://other.test']) {
-    const response = await h.app.inject({ method: 'OPTIONS', url: path, headers: { origin,
-      'access-control-request-method': 'PUT', 'access-control-request-headers': 'content-type' } });
-    expect(response.headers['access-control-allow-origin']).toBe(origin === 'http://admin.test' ? origin : undefined);
+    const response = await h.app.inject({
+      method: 'OPTIONS',
+      url: path,
+      headers: {
+        origin,
+        'access-control-request-method': 'PUT',
+        'access-control-request-headers': 'content-type',
+      },
+    });
+    expect(response.headers['access-control-allow-origin']).toBe(
+      origin === 'http://admin.test' ? origin : undefined,
+    );
     if (origin === 'http://admin.test') {
       expect(response.statusCode).toBe(204);
       expect(response.headers['access-control-allow-credentials']).toBe('true');
@@ -109,10 +162,27 @@ it('allows JSON PUT preflight only to a trusted origin with credentials', async 
 it('GET, POST and simple non-JSON PUT cannot change the preference', async () => {
   await put('B');
   await get();
-  expect((await h.app.inject({ method: 'POST', url: path, headers: { cookie: x.cookie }, payload: { navStyle: 'A' } })).statusCode).toBe(404);
-  for (const contentType of ['text/plain', 'application/x-www-form-urlencoded', 'multipart/form-data']) {
-    const response = await h.app.inject({ method: 'PUT', url: path,
-      headers: { cookie: x.cookie, 'content-type': contentType }, payload: '{"navStyle":"A"}' });
+  expect(
+    (
+      await h.app.inject({
+        method: 'POST',
+        url: path,
+        headers: { cookie: x.cookie },
+        payload: { navStyle: 'A' },
+      })
+    ).statusCode,
+  ).toBe(404);
+  for (const contentType of [
+    'text/plain',
+    'application/x-www-form-urlencoded',
+    'multipart/form-data',
+  ]) {
+    const response = await h.app.inject({
+      method: 'PUT',
+      url: path,
+      headers: { cookie: x.cookie, 'content-type': contentType },
+      payload: '{"navStyle":"A"}',
+    });
     expect(response.statusCode).toBeGreaterThanOrEqual(400);
     expect((await get()).json()).toEqual({ navStyle: 'B' });
   }
@@ -123,5 +193,7 @@ it('the read query returns the contract shape through the auth port', async () =
 it('removing the PERSONAL write declaration refuses startup coverage', () => {
   const declarations = { ...AUTHENTICATED_WRITES };
   delete declarations['MeController.setPreferencesForCaller'];
-  expect(() => assertAuthenticatedWritesDeclared([MeController], declarations)).toThrow(/MeController.setPreferencesForCaller/);
+  expect(() => assertAuthenticatedWritesDeclared([MeController], declarations)).toThrow(
+    /MeController.setPreferencesForCaller/,
+  );
 });

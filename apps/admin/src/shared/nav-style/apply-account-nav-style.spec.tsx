@@ -17,7 +17,11 @@ vi.mock('@/shared/browser/load-page', () => ({
 }));
 vi.mock('next/navigation', () => ({ useRouter: () => ({ push: vi.fn() }) }));
 
-const cookieStyle = () => document.cookie.split('; ').find((v) => v.startsWith('pospay_nav_style='))?.split('=')[1];
+const cookieStyle = () =>
+  document.cookie
+    .split('; ')
+    .find((v) => v.startsWith('pospay_nav_style='))
+    ?.split('=')[1];
 let atNavigation: string | undefined;
 let atAnnouncement: string | undefined;
 const jsonResponse = (body: unknown, status = 200) =>
@@ -95,65 +99,71 @@ describe.each(['password', 'totp'] as const)('%s account style before navigation
     await waitFor(() => expect(mocks.loadPage).toHaveBeenCalledTimes(1));
     expect(atAnnouncement).toBeUndefined();
   });
-  it.each(['transport', 'body'])('keeps submit disabled through the whole %s deadline and ignores a late answer', async (mode) => {
-    vi.useFakeTimers();
-    let release: (() => void) | undefined;
-    if (mode === 'transport') {
-      answerWith(
-        () =>
-          new Promise<Response>((resolve) => {
-            release = () => resolve(jsonResponse({ navStyle: 'A' }));
-          }),
-      );
-    } else {
-      const encoder = new TextEncoder();
-      answerWith(() =>
-        Promise.resolve(
-          new Response(
-            new ReadableStream<Uint8Array>({
-              start(controller) {
-                setTimeout(() => {
-                  controller.enqueue(encoder.encode(JSON.stringify({ navStyle: 'A' })));
-                  controller.close();
-                }, 5_000);
-              },
+  it.each(['transport', 'body'])(
+    'keeps submit disabled through the whole %s deadline and ignores a late answer',
+    async (mode) => {
+      vi.useFakeTimers();
+      let release: (() => void) | undefined;
+      if (mode === 'transport') {
+        answerWith(
+          () =>
+            new Promise<Response>((resolve) => {
+              release = () => resolve(jsonResponse({ navStyle: 'A' }));
             }),
-            { status: 200, headers: { 'content-type': 'application/json' } },
+        );
+      } else {
+        const encoder = new TextEncoder();
+        answerWith(() =>
+          Promise.resolve(
+            new Response(
+              new ReadableStream<Uint8Array>({
+                start(controller) {
+                  setTimeout(() => {
+                    controller.enqueue(encoder.encode(JSON.stringify({ navStyle: 'A' })));
+                    controller.close();
+                  }, 5_000);
+                },
+              }),
+              { status: 200, headers: { 'content-type': 'application/json' } },
+            ),
           ),
-        ),
-      );
-    }
-    render(<SignInStyleProbe kind={kind} />);
+        );
+      }
+      render(<SignInStyleProbe kind={kind} />);
+      fireEvent.click(screen.getByRole('button'));
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(1999);
+      });
+      expect(screen.getByRole('button').hasAttribute('disabled')).toBe(true);
+      expect(mocks.loadPage).not.toHaveBeenCalled();
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(1);
+      });
+      expect(atNavigation).toBeUndefined();
+      expect(mocks.loadPage).toHaveBeenCalledTimes(1);
+      expect(screen.getByRole('button').hasAttribute('disabled')).toBe(true);
+      await act(async () => {
+        release?.();
+        await vi.advanceTimersByTimeAsync(6_000);
+      });
+      expect(cookieStyle()).toBeUndefined();
+      expect(mocks.loadPage).toHaveBeenCalledTimes(1);
+    },
+  );
+});
+it.each(['totp', 'admin.unexpected'])(
+  'does not read on the password outcome %s',
+  async (outcome) => {
+    answerWith(() => Promise.resolve(jsonResponse({ navStyle: 'A' })));
+    mocks.signInWithPassword.mockResolvedValue(outcome);
+    render(<SignInStyleProbe kind="password" />);
     fireEvent.click(screen.getByRole('button'));
-    await act(async () => {
-      await vi.advanceTimersByTimeAsync(1999);
-    });
-    expect(screen.getByRole('button').hasAttribute('disabled')).toBe(true);
-    expect(mocks.loadPage).not.toHaveBeenCalled();
-    await act(async () => {
-      await vi.advanceTimersByTimeAsync(1);
-    });
-    expect(atNavigation).toBeUndefined();
-    expect(mocks.loadPage).toHaveBeenCalledTimes(1);
-    expect(screen.getByRole('button').hasAttribute('disabled')).toBe(true);
-    await act(async () => {
-      release?.();
-      await vi.advanceTimersByTimeAsync(6_000);
-    });
-    expect(cookieStyle()).toBeUndefined();
-    expect(mocks.loadPage).toHaveBeenCalledTimes(1);
-  });
-});
-it.each(['totp', 'admin.unexpected'])('does not read on the password outcome %s', async (outcome) => {
-  answerWith(() => Promise.resolve(jsonResponse({ navStyle: 'A' })));
-  mocks.signInWithPassword.mockResolvedValue(outcome);
-  render(<SignInStyleProbe kind="password" />);
-  fireEvent.click(screen.getByRole('button'));
-  await waitFor(() => expect(screen.getByRole('button').hasAttribute('disabled')).toBe(false));
-  expect(cookieStyle()).toBe('B');
-  expect(fetchRequests).toHaveLength(0);
-  expect(mocks.announceIdentityChange).not.toHaveBeenCalled();
-});
+    await waitFor(() => expect(screen.getByRole('button').hasAttribute('disabled')).toBe(false));
+    expect(cookieStyle()).toBe('B');
+    expect(fetchRequests).toHaveLength(0);
+    expect(mocks.announceIdentityChange).not.toHaveBeenCalled();
+  },
+);
 it('does not read after a refused second factor', async () => {
   answerWith(() => Promise.resolve(jsonResponse({ navStyle: 'A' })));
   mocks.verifyTotpCode.mockResolvedValue('admin.codeInvalid');

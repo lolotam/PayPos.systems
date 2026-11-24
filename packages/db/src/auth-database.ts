@@ -110,6 +110,12 @@ export function readNavStyleStatement(client: postgres.Sql, userId: string) {
 }
 
 /** بيان كتابة التفضيل نفسه للكاتب وللاختبار؛ يعيد القيمة المثبتة أو لا شيء لمستخدم منتهٍ. */
-export function writeNavStyleStatement(client: postgres.Sql, userId: string, navStyle: string | null) {
-  return client<{ nav_style: string | null }[]>`UPDATE "user" SET nav_style=${navStyle} WHERE id=${userId} RETURNING nav_style`;
+export function writeNavStyleStatement(
+  client: postgres.Sql,
+  userId: string,
+  navStyle: string | null,
+) {
+  return client<
+    { nav_style: string | null }[]
+  >`UPDATE "user" SET nav_style=${navStyle} WHERE id=${userId} RETURNING nav_style`;
 }
