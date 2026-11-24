@@ -252,6 +252,8 @@ interface HarnessOptions {
   commissionsClock?: { now(): Date };
   /** بوابة مسارات شريحة 076 (plan §1.1): الاختبارات بتفتحها عشان توصل للمسارات الجديدة. */
   staffAccessRoutes?: boolean;
+  /** أصول CORS الموثوقة — الاختبار اللي بيفحص preflight بيمررها. */
+  corsOrigins?: readonly string[];
   /** يلفّ غلاف قاعدة التطبيق، عشان اختبار يسجّل اتصالات معاملات الطلبات الحقيقية. */
   wrapDatabase?: (database: TenantWrappers) => TenantWrappers;
   staffOtpFactory?: (
@@ -384,6 +386,7 @@ function optionalWiring(options: HarnessOptions) {
       : { commissionsClock: options.commissionsClock }),
     ...(options.files === undefined ? {} : { files: options.files }),
     // أصل اللوحة اللي رابط الدعوة بيتبنى عليه وساعتها؛ بوابة المسارات بتتفتح من الاختبارات اللي محتاجاها بس.
+    ...(options.corsOrigins === undefined ? {} : { corsOrigins: options.corsOrigins }),
     memberInvitations: {
       adminOrigin: ORIGIN,
       ...(options.clock === undefined ? {} : { clock: options.clock }),

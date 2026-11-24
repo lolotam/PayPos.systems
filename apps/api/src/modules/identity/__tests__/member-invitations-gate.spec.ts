@@ -19,15 +19,18 @@ const BAD_BODIES = [
 const COOKIE_OWNER = { email: 'g1-gate-owner@example.test', cookie: '' };
 let closed: Harness;
 let open: Harness;
+let cors: Harness;
+const ADMIN = 'http://admin.test';
 
 beforeAll(async () => {
   closed = await startHarness({});
   open = await startHarness({ staffAccessRoutes: true });
+  cors = await startHarness({ corsOrigins: [ADMIN] });
   COOKIE_OWNER.cookie = await closed.signedInOperator(COOKIE_OWNER.email);
 });
 
 afterAll(async () => {
-  await Promise.all([closed?.close(), open?.close()]);
+  await Promise.all([closed?.close(), open?.close(), cors?.close()]);
 });
 
 const call = (
@@ -85,5 +88,42 @@ describe('the same malformed requests with the gate on are ordinary refusals', (
       body: { email: 42, role: 'owner' },
     });
     expect(broken.status).toBe(400);
+  });
+});
+
+describe('the closed gate does not cut CORS', () => {
+  it('lets the preflight through and answers 503 NOT_READY with the CORS headers the browser needs', async () => {
+    const preflight = await cors.app.inject({
+      method: 'OPTIONS',
+      url: '/v1/memberships/invitations',
+      headers: {
+        origin: ADMIN,
+        'access-control-request-method': 'POST',
+        'access-control-request-headers': 'content-type,x-company-id',
+      },
+    });
+    expect(preflight.statusCode).toBe(204);
+    expect(preflight.headers['access-control-allow-origin']).toBe(ADMIN);
+    expect(String(preflight.headers['access-control-allow-headers'])).toContain('x-company-id');
+    for (const [method, url] of [
+      ['POST', '/v1/memberships/invitations'],
+      ['GET', '/v1/memberships/invitations'],
+    ] as const) {
+      const response = await cors.app.inject({ method, url, headers: { origin: ADMIN } });
+      expect(response.statusCode).toBe(503);
+      expect(errorEnvelope.parse(response.json()).code).toBe('NOT_READY');
+      expect(response.headers['access-control-allow-origin']).toBe(ADMIN);
+      expect(response.headers['access-control-allow-credentials']).toBe('true');
+    }
+  });
+
+  it('keeps a foreign origin out: no CORS headers on its 503', async () => {
+    const response = await cors.app.inject({
+      method: 'GET',
+      url: '/v1/memberships/invitations',
+      headers: { origin: 'http://evil.test' },
+    });
+    expect(response.statusCode).toBe(503);
+    expect(response.headers['access-control-allow-origin']).toBeUndefined();
   });
 });
