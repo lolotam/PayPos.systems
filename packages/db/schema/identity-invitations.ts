@@ -38,6 +38,9 @@ export const memberInvitations = pgTable(
       .notNull()
       .references(() => user.id),
     state: text('state').notNull(),
+    // حجز الإصدار: أول طلب بيحجز، فالطلب المتزامن التاني بيتحوّل لمسار إعادة الإصدار.
+    linkClaimedAt: timestamp('link_claimed_at', { withTimezone: true }),
+    // وقت كتابة التوكن فعلاً — بيتختم بعد الكتابة بس.
     linkIssuedAt: timestamp('link_issued_at', { withTimezone: true }),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },

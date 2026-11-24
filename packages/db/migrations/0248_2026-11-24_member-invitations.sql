@@ -9,6 +9,7 @@ CREATE TABLE "member_invitations" (
 	"scope_id" uuid NOT NULL,
 	"invited_by" uuid NOT NULL,
 	"state" text NOT NULL,
+	"link_claimed_at" timestamp with time zone,
 	"link_issued_at" timestamp with time zone,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
 	CONSTRAINT "member_invitations_pkey" PRIMARY KEY("company_id","id"),

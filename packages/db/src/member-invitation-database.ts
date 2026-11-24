@@ -1,28 +1,20 @@
-import { and, eq, like, type SQL } from 'drizzle-orm';
+import { and, eq, like } from 'drizzle-orm';
 import type { PostgresJsDatabase } from 'drizzle-orm/postgres-js';
 
 import type { IdentitySchema } from './auth-database.ts';
 import { account, user, verification } from '../schema/identity-auth.ts';
 
-/** حساب مستخدم الهوية كما تحتاجه دعوة الأعضاء (G1): الـ id وهل له كلمة مرور. */
-export interface IdentityMemberAccount {
+/** مستخدم الهوية بالإيميل مع علامة الدعوة اللي عليه: الشركة والعملية اللي أنشأته، لو اتنشأ بدعوة. */
+export interface IdentityEmailOwner {
   readonly id: string;
-  readonly hasPassword: boolean;
-}
-
-/** علامة الدعوة على مستخدم الهوية: الشركة اللي دعته، وهل كلمة المرور اتحطت. */
-export interface IdentityInvitationMarker {
   readonly invitedByCompanyId: string | null;
-  readonly hasPassword: boolean;
+  readonly invitationOperationId: string | null;
 }
-
-/** نتيجة كتابة المدعوّ: الصف اتبنى، أو تعارض فريد (نفس الإيميل أو نفس العملية) والصف قديم. */
-export type InvitedMemberInsertion = 'created' | 'conflict';
 
 /** مدخلات إنشاء حساب المدعوّ — كل القيم بتيجي من السيرفر، مفيش منها إيميل موظفة ولا توكن. */
 export interface InvitedMemberRow {
   readonly id: string;
-  /** معرّف صف حساب الدخول (credential) اللي بيتقافل مع اليوزر في نفس المعاملة. */
+  /** معرّف صف حساب الدخول (credential) اللي بيتكتب مع اليوزر في نفس المعاملة. */
   readonly accountId: string;
   readonly email: string;
   readonly name: string;
@@ -31,121 +23,85 @@ export interface InvitedMemberRow {
   readonly now: Date;
 }
 
-/** مدخلات صف verification بتاع رابط تعيين كلمة المرور — نفس الشكل اللي Better Auth بيستهلكه. */
-export interface VerificationRow {
-  readonly id: string;
-  readonly identifier: string;
-  readonly value: string;
-  readonly expiresAt: Date;
-  readonly now: Date;
-  /** بادئة المعرّف اللي صفوفها القديمة بتتحذف قبل الكتابة (إعادة إصدار بتبطل الروابط الباطلة)؛ غيابها يعني مفيش إبطال. */
-  readonly invalidatePrefix?: string;
-}
-
-/**
- * مدخلات إصدار رابط الدعوة في معاملة واحدة: قفل صف اليوزر، فحص العلامة («عمري ما اتدعيت
- * من شركة تانية» و«مفيش كلمة مرور»)، وإبطال الروابط القديمة والكتابة — ذري ضد السباق مع
- * استهلاك الرابط.
- */
+/** مدخلات إصدار رابط الدعوة: صف verification بنفس الشكل اللي Better Auth بيستهلكه. */
 export interface InvitationLinkRow {
   readonly id: string;
   readonly identifier: string;
-  readonly value: string;
   readonly companyId: string;
   readonly userId: string;
   readonly expiresAt: Date;
   readonly now: Date;
 }
 
-/** القراءات والكتابات على جداول الهوية اللي دعوة الأعضاء محتاجاها — بتشتغل كلها على pospay_auth. */
+/** القراءات والكتابات على جداول الهوية اللي دعوة الأعضاء محتاجاها — كلها على pospay_auth. */
 export interface MemberInvitationQueries {
-  /** بيقرأ حساب بالإيميل المنسّض وحساب دخوله؛ null لما مفيش يوزر بالإيميل ده. */
-  findMemberByEmail(email: string): Promise<IdentityMemberAccount | null>;
-  /** بيقرأ اليوزر اللي اتعمل من عملية دعوة في شركة معيّنة؛ null لما العملة دي ما خليتش أثر. */
-  findMemberByInvitation(
-    operationId: string,
-    companyId: string,
-  ): Promise<IdentityMemberAccount | null>;
-  /** بيقرأ علامة الدعوة لليوزر؛ null لما مفيش يوزر بالمعرّف ده. */
-  readInvitationMarker(userId: string): Promise<IdentityInvitationMarker | null>;
+  /** بيقرأ مستخدم بالإيميل المنسّض؛ null لما مفيش مستخدم بالإيميل ده. */
+  findMemberByEmail(email: string): Promise<IdentityEmailOwner | null>;
+  /** بيقرأ المستخدم اللي اتنشأ من عملية دعوة في شركة معيّنة؛ null لما العملية ما خلتش أثر. */
+  findMemberByInvitation(operationId: string, companyId: string): Promise<{ id: string } | null>;
+  /** هل لحساب دخول المستخدم كلمة مرور؛ null لما مفيش مستخدم بالمعرّف ده. */
+  readHasPassword(userId: string): Promise<boolean | null>;
   /**
-   * بينشئ المدعوّ ويوزر وحساب دخول من غير كلمة مرور في معاملة واحدة؛ تعارض فريد (نفس
-   * الإيميل أو نفس العملية) بيرجّع conflict من غير ما يرقم، فالمتصل بيعيد القراءة ويحكم.
+   * بينشئ المدعوّ وحساب دخول من غير كلمة مرور في معاملة واحدة. إيميل موجود بيرجّع
+   * conflict من غير استثناء، فالمتصل بيعيد القراءة ويحكم.
    */
-  createInvitedMember(input: InvitedMemberRow): Promise<InvitedMemberInsertion>;
-  /** بيكتب صف verification، ويحذف قبله الصفوف اللي معرّفها بيبدأ بالبادئة لو اتبعتت. */
-  writeVerificationRow(input: VerificationRow): Promise<void>;
+  createInvitedMember(input: InvitedMemberRow): Promise<'created' | 'conflict'>;
   /**
-   * بيصدر رابط الدعوة في معاملة واحدة تحت قفل صف اليوزر: بيرفض لو اليوزر مش مدعوّ من
-   * الشركة دي أو كلمة مروره اتحطت، وبيبطل الروابط القديمة قبل الكتابة.
+   * بيصدر رابط الدعوة في معاملة واحدة تحت قفل صف المستخدم وصف حساب الدخول: بيرفض لو
+   * المستخدم مش مدعوّ من الشركة دي أو كلمة مروره اتحطت، وبيبطل الروابط القديمة قبل الكتابة.
    *
    * @returns true لما الرابط اتكتب، وfalse لما الإصدار مرفوض
    */
   issueInvitationLink(input: InvitationLinkRow): Promise<boolean>;
+  /** بيمسح كل روابط reset-password الحية لمستخدم — بيتنادى بعد ما كلمة المرور تتحط. */
+  revokeResetLinks(userId: string): Promise<void>;
 }
 
-const memberSummaryFields = {
-  id: user.id,
-  hasPassword: account.password,
-};
+type Database = PostgresJsDatabase<IdentitySchema>;
 
-/** الحساب الموجود مع حساب دخوله من غير كلمة مرور — صف واحد لأن (provider, account_id) فريد. */
-function readWithCredential(db: PostgresJsDatabase<IdentitySchema>, where: SQL | undefined) {
-  return db
-    .select(memberSummaryFields)
+const findMemberByEmail = async (db: Database, email: string): Promise<IdentityEmailOwner | null> => {
+  const [row] = await db
+    .select({
+      id: user.id,
+      invitedByCompanyId: user.invitedByCompanyId,
+      invitationOperationId: user.invitationOperationId,
+    })
     .from(user)
-    .leftJoin(account, and(eq(account.userId, user.id), eq(account.providerId, 'credential')))
-    .where(where)
+    .where(eq(user.email, email))
     .limit(1);
-}
-
-type MemberRows = { id: string; hasPassword: string | null }[];
-
-const accountOf = (rows: MemberRows): IdentityMemberAccount | null => {
-  const row = rows[0];
-  return row === undefined ? null : { id: row.id, hasPassword: row.hasPassword !== null };
+  return row ?? null;
 };
 
-const findByEmail = async (
-  db: PostgresJsDatabase<IdentitySchema>,
-  email: string,
-): Promise<IdentityMemberAccount | null> =>
-  accountOf(await readWithCredential(db, eq(user.email, email)));
-
-const findByInvitation = async (
-  db: PostgresJsDatabase<IdentitySchema>,
+const findMemberByInvitation = async (
+  db: Database,
   operationId: string,
   companyId: string,
-): Promise<IdentityMemberAccount | null> =>
-  accountOf(
-    await readWithCredential(
-      db,
-      and(eq(user.invitationOperationId, operationId), eq(user.invitedByCompanyId, companyId)),
-    ),
-  );
+): Promise<{ id: string } | null> => {
+  const [row] = await db
+    .select({ id: user.id })
+    .from(user)
+    .where(and(eq(user.invitationOperationId, operationId), eq(user.invitedByCompanyId, companyId)))
+    .limit(1);
+  return row ?? null;
+};
 
-const readInvitationMarker = async (
-  db: PostgresJsDatabase<IdentitySchema>,
-  userId: string,
-): Promise<IdentityInvitationMarker | null> => {
+const readHasPassword = async (db: Database, userId: string): Promise<boolean | null> => {
   const rows = await db
-    .select({ invitedByCompanyId: user.invitedByCompanyId, hasPassword: account.password })
+    .select({ password: account.password })
     .from(user)
     .leftJoin(account, and(eq(account.userId, user.id), eq(account.providerId, 'credential')))
     .where(eq(user.id, userId))
     .limit(1);
   const row = rows[0];
-  return row === undefined
-    ? null
-    : { invitedByCompanyId: row.invitedByCompanyId, hasPassword: row.hasPassword !== null };
+  return row === undefined ? null : row.password !== null;
 };
 
 const createInvitedMember = async (
-  db: PostgresJsDatabase<IdentitySchema>,
+  db: Database,
   input: InvitedMemberRow,
-): Promise<InvitedMemberInsertion> => {
-  const inserted = await db.transaction(async (tx) => {
-    // تعارض فريد (الإيميل أو معرّف العملية) بيرجّع بدون استثناء، فمعاملة ما بتتبطلش.
+): Promise<'created' | 'conflict'> =>
+  db.transaction(async (tx) => {
+    // الهدف الوحيد للتعارض هو الإيميل: العملية نفسها بتتكرر بنفس الإيميل، فتعارضها بيظهر هنا.
     const rows = await tx
       .insert(user)
       .values({
@@ -158,9 +114,9 @@ const createInvitedMember = async (
         createdAt: input.now,
         updatedAt: input.now,
       })
-      .onConflictDoNothing()
+      .onConflictDoNothing({ target: user.email })
       .returning({ id: user.id });
-    if (rows.length === 0) return 'conflict' as const;
+    if (rows.length === 0) return 'conflict';
     // حساب دخول من غير كلمة مرور: اليوزر ما يدخلش غير لما يحط كلمة مروره من الرابط.
     await tx.insert(account).values({
       id: input.accountId,
@@ -170,59 +126,29 @@ const createInvitedMember = async (
       createdAt: input.now,
       updatedAt: input.now,
     });
-    return 'created' as const;
+    return 'created';
   });
-  return inserted;
-};
 
-const writeVerificationRow = async (
-  db: PostgresJsDatabase<IdentitySchema>,
-  input: VerificationRow,
-): Promise<void> => {
-  await db.transaction(async (tx) => {
-    if (input.invalidatePrefix !== undefined) {
-      await tx.delete(verification).where(
-        and(
-          eq(verification.value, input.value),
-          like(verification.identifier, `${input.invalidatePrefix}%`),
-        ),
-      );
-    }
-    await tx.insert(verification).values({
-      id: input.id,
-      identifier: input.identifier,
-      value: input.value,
-      expiresAt: input.expiresAt,
-      createdAt: input.now,
-      updatedAt: input.now,
-    });
-  });
-};
-
-/** صف اليوزر تحت القفل: الشركة الداعية وهل حساب الدخول شايل كلمة مرور. */
-type LockedMarker = { invitedByCompanyId: string | null; password: string | null };
-
-const issueInvitationLink = async (
-  db: PostgresJsDatabase<IdentitySchema>,
-  input: InvitationLinkRow,
-): Promise<boolean> => {
-  return db.transaction(async (tx) => {
-    const [marker] = await tx
-      .select({ invitedByCompanyId: user.invitedByCompanyId, password: account.password })
+const issueInvitationLink = async (db: Database, input: InvitationLinkRow): Promise<boolean> =>
+  db.transaction(async (tx) => {
+    // القفل على صف المستخدم وصف حساب الدخول معاً: تعيين كلمة المرور في Better Auth بيحدّث صف
+    // الحساب، فبيستنى هنا، وبعده بيمسح الروابط الحية (revokeResetLinks) — فمفيش رابط حي على
+    // حساب له كلمة مرور. القفلين منفصلين لأن FOR UPDATE ما يتطبقش على الجهة الاختيارية في outer join.
+    const [owner] = await tx
+      .select({ invitedByCompanyId: user.invitedByCompanyId })
       .from(user)
-      .leftJoin(account, and(eq(account.userId, user.id), eq(account.providerId, 'credential')))
       .where(eq(user.id, input.userId))
-      .for('update')
-      .limit(1);
-    const locked = marker as LockedMarker | undefined;
-    if (locked === undefined || locked.invitedByCompanyId !== input.companyId) return false;
-    if (locked.password !== null) return false;
-    await tx.delete(verification).where(
-      and(
-        eq(verification.value, input.userId),
-        like(verification.identifier, 'reset-password:%'),
-      ),
-    );
+      .for('update');
+    if (owner === undefined || owner.invitedByCompanyId !== input.companyId) return false;
+    const [login] = await tx
+      .select({ password: account.password })
+      .from(account)
+      .where(and(eq(account.userId, input.userId), eq(account.providerId, 'credential')))
+      .for('update');
+    if (login === undefined || login.password !== null) return false;
+    await tx
+      .delete(verification)
+      .where(and(eq(verification.value, input.userId), like(verification.identifier, 'reset-password:%')));
     await tx.insert(verification).values({
       id: input.id,
       identifier: input.identifier,
@@ -233,6 +159,11 @@ const issueInvitationLink = async (
     });
     return true;
   });
+
+const revokeResetLinks = async (db: Database, userId: string): Promise<void> => {
+  await db
+    .delete(verification)
+    .where(and(eq(verification.value, userId), like(verification.identifier, 'reset-password:%')));
 };
 
 /**
@@ -242,16 +173,14 @@ const issueInvitationLink = async (
  * @param db اتصال الهوية على pospay_auth
  * @returns القراءات والكتابات
  */
-export function memberInvitationQueries(
-  db: PostgresJsDatabase<IdentitySchema>,
-): MemberInvitationQueries {
+export function memberInvitationQueries(db: Database): MemberInvitationQueries {
   return {
-    findMemberByEmail: (email) => findByEmail(db, email),
+    findMemberByEmail: (email) => findMemberByEmail(db, email),
     findMemberByInvitation: (operationId, companyId) =>
-      findByInvitation(db, operationId, companyId),
-    readInvitationMarker: (userId) => readInvitationMarker(db, userId),
+      findMemberByInvitation(db, operationId, companyId),
+    readHasPassword: (userId) => readHasPassword(db, userId),
     createInvitedMember: (input) => createInvitedMember(db, input),
-    writeVerificationRow: (input) => writeVerificationRow(db, input),
     issueInvitationLink: (input) => issueInvitationLink(db, input),
+    revokeResetLinks: (userId) => revokeResetLinks(db, userId),
   };
 }

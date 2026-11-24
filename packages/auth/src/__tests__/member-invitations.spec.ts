@@ -10,20 +10,21 @@ import {
   InvitationLinkRefusedError,
   isStaffSyntheticEmail,
   MEMBER_INVITATION_LINK_TTL_MS,
-  PASSWORD_SET_LINK_TTL_MS,
   STAFF_SYNTHETIC_EMAIL_DOMAIN,
   type AuthOptions,
   type AuthService,
 } from '../index.ts';
 
 // دعوة العضو (G1) على قاعدة الهوية: عمر الرابط بالساعة المحقونة (D9)، وإبطال الروابط القديمة،
-// ورفض أي شركة تصدر رابطاً لحساب ما دعتها هي. سكريبت الـ operator يبقى ساعة زي ما هو.
+// وسلطة الشركة، وسباق الإنشاء، وقفل الإصدار ضد استهلاك الرابط. رابط الـ operator يبقى ساعة.
 const BASE = 'http://api.test';
 const ORIGIN = 'http://admin.test';
+const COMPANY = '01920000-0000-7000-8000-00000000c001';
+const OTHER_COMPANY = '01920000-0000-7000-8000-00000000c002';
+const PASSWORD = 'member-chosen-pass';
 let testDb: TestDatabase;
 let auth: AuthService;
 let owner: postgres.Sql;
-const USER_PASSWORD = 'member-chosen-pass';
 
 const optionsFor = (databaseUrl: string): AuthOptions => ({
   databaseUrl,
@@ -42,7 +43,7 @@ beforeAll(async () => {
   testDb = await createTestDatabase();
   await seedReferenceData(testDb.ownerUrl);
   auth = await createAuth(optionsFor(testDb.authUrl));
-  owner = postgres(testDb.ownerUrl, { max: 1, onnotice: () => undefined });
+  owner = postgres(testDb.ownerUrl, { max: 4, onnotice: () => undefined });
 });
 
 afterAll(async () => {
@@ -52,192 +53,181 @@ afterAll(async () => {
 });
 
 const members = () => auth.members;
+const tokenOf = (link: string) => new URL(link).pathname.split('/').pop() ?? '';
 
-/** ساعات انتهاء صفوف verification لليوزر — الفرق من الآن هو العمر الفعلي للرابط. */
-const expirationsOf = async (userId: string): Promise<number[]> => {
-  const rows = await owner`
-    SELECT expires_at FROM verification WHERE value = ${userId} ORDER BY created_at`;
-  return rows.map((row) => (row['expires_at'] as Date).getTime());
-};
+async function invitedUser(email: string, companyId = COMPANY): Promise<string> {
+  const created = await members().createInvitedMember({
+    operationId: systemUuidV7().newId(),
+    companyId,
+    email,
+    name: 'Member',
+  });
+  expect(created.createdByInvitation).toBe(true);
+  return created.userId;
+}
 
-describe('password-set link lifetime (D9)', () => {
-  it('the default stays one hour for the operator path, with no clock passed', async () => {
-    const { userId, link } = await createPlatformUser(auth, {
+const issue = (userId: string, companyId = COMPANY, now = new Date()) =>
+  members().issueInvitationLink({
+    userId,
+    companyId,
+    redirectTo: `${ORIGIN}/set-password`,
+    lifetimeMs: MEMBER_INVITATION_LINK_TTL_MS,
+    now,
+  });
+
+const consume = (token: string) =>
+  auth.handler(
+    new Request(`${BASE}/v1/auth/reset-password`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', origin: ORIGIN },
+      body: JSON.stringify({ token, newPassword: PASSWORD }),
+    }),
+  );
+
+const liveLinks = async (userId: string) =>
+  owner`SELECT expires_at FROM verification WHERE value = ${userId} AND identifier LIKE 'reset-password:%'`;
+
+describe('link lifetime (D9, IM-Q3)', () => {
+  it('an operator link keeps its one-hour lifetime with the real clock', async () => {
+    const { userId } = await createPlatformUser(auth, {
       email: 'operator-hour@example.test',
       name: 'Operator',
       operator: 'waleed',
       redirectTo: `${ORIGIN}/set-password`,
     });
-    expect(link).toContain(`${BASE}/v1/auth/reset-password/`);
-    const rows = await expirationsOf(userId);
-    expect(rows).toHaveLength(1);
-    const expiresAt = rows[0] ?? Number.NaN;
-    expect(expiresAt - Date.now()).toBeGreaterThan(PASSWORD_SET_LINK_TTL_MS - 5_000);
-    expect(expiresAt - Date.now()).toBeLessThanOrEqual(PASSWORD_SET_LINK_TTL_MS);
+    const [row] = await liveLinks(userId);
+    const left = (row?.['expires_at'] as Date).getTime() - Date.now();
+    expect(left).toBeGreaterThan(60 * 60 * 1000 - 5_000);
+    expect(left).toBeLessThanOrEqual(60 * 60 * 1000);
   });
-  it('the invitation passes 48 hours and an injected instant, and the row carries them exactly', async () => {
-    const created = await members().createInvitedMember({
-      operationId: systemUuidV7().newId(),
-      companyId: '01920000-0000-7000-8000-00000000c001',
-      email: 'lifetime@example.test',
-      name: 'Member',
-    });
+
+  it('an invitation link expires exactly 48 hours after the injected instant', async () => {
+    const userId = await invitedUser('lifetime@example.test');
     const now = new Date('2026-11-24T10:00:00.000Z');
-    await members().issueInvitationLink({
-      userId: created.userId,
-      companyId: '01920000-0000-7000-8000-00000000c001',
-      redirectTo: `${ORIGIN}/set-password`,
-      lifetimeMs: MEMBER_INVITATION_LINK_TTL_MS,
-      now,
-    });
-    const [expiresAt] = await expirationsOf(created.userId);
-    expect(expiresAt).toBe(now.getTime() + MEMBER_INVITATION_LINK_TTL_MS);
+    await issue(userId, COMPANY, now);
+    const [row] = await liveLinks(userId);
+    expect((row?.['expires_at'] as Date).getTime()).toBe(now.getTime() + MEMBER_INVITATION_LINK_TTL_MS);
   });
 
-  it('a re-issue deletes the earlier reset-password rows first, so the old link is dead', async () => {
-    const companyId = '01920000-0000-7000-8000-00000000c001';
-    const created = await members().createInvitedMember({
-      operationId: systemUuidV7().newId(),
-      companyId,
-      email: 'reissue@example.test',
-      name: 'Member',
-    });
-    const first = await members().issueInvitationLink({
-      userId: created.userId,
-      companyId,
-      redirectTo: `${ORIGIN}/set-password`,
-    });
-    const second = await members().issueInvitationLink({
-      userId: created.userId,
-      companyId,
-      redirectTo: `${ORIGIN}/set-password`,
-    });
-    expect(new URL(second).pathname).not.toBe(new URL(first).pathname);
-    const tokens = [first, second].map((link) => new URL(link).pathname.split('/').pop() ?? '');
-    const [firstRow] = await owner`
-      SELECT 1 FROM verification WHERE identifier = ${`reset-password:${tokens[0]}`}`;
-    expect(firstRow).toBeUndefined();
+  it('the token is stored exactly as Better Auth stores every reset token: plain in the identifier', async () => {
+    const userId = await invitedUser('storage@example.test');
+    const token = tokenOf(await issue(userId));
+    const [row] = await owner`
+      SELECT identifier, value FROM verification WHERE value = ${userId}`;
+    expect(row).toEqual({ identifier: `reset-password:${token}`, value: userId });
   });
 });
 
-describe('invitation link authority', () => {
-  const companyId = '01920000-0000-7000-8000-00000000c001';
-  const otherCompanyId = '01920000-0000-7000-8000-00000000c002';
-
-  it('a company can issue a link only for a user it invited and who never set a password', async () => {
-    const created = await members().createInvitedMember({
-      operationId: systemUuidV7().newId(),
-      companyId,
-      email: 'invited@example.test',
-      name: 'Invited',
-    });
-    expect(created.createdByInvitation).toBe(true);
-    const marker = await members().readMarker(created.userId);
-    expect(marker).toEqual({ invitedByCompanyId: companyId, hasPassword: false });
-    const link = await members().issueInvitationLink({
-      userId: created.userId,
-      companyId,
-      redirectTo: `${ORIGIN}/set-password`,
-    });
-    expect(link).toContain(`${BASE}/v1/auth/reset-password/`);
-    await expect(
-      members().issueInvitationLink({
-        userId: created.userId,
-        companyId: otherCompanyId,
-        redirectTo: `${ORIGIN}/set-password`,
-      }),
-    ).rejects.toBeInstanceOf(InvitationLinkRefusedError);
+describe('invitation link authority and re-issue', () => {
+  it('a re-issue leaves exactly one live token and kills the earlier one', async () => {
+    const userId = await invitedUser('reissue@example.test');
+    const first = tokenOf(await issue(userId));
+    const second = tokenOf(await issue(userId));
+    expect(second).not.toBe(first);
+    const rows = await owner`SELECT identifier FROM verification WHERE value = ${userId}`;
+    expect(rows.map((row) => row['identifier'])).toEqual([`reset-password:${second}`]);
+    expect((await consume(first)).status).toBe(400);
   });
 
-  it('an unknown user is refused without leaking whether the email exists', async () => {
-    await expect(
-      members().issueInvitationLink({
-        userId: systemUuidV7().newId(),
-        companyId,
-        redirectTo: `${ORIGIN}/set-password`,
-      }),
-    ).rejects.toBeInstanceOf(InvitationLinkRefusedError);
+  it('concurrent re-issues leave exactly one live token', async () => {
+    const userId = await invitedUser('concurrent@example.test');
+    await Promise.all([issue(userId), issue(userId), issue(userId)]);
+    expect(await liveLinks(userId)).toHaveLength(1);
   });
-});
 
-describe('invitation link refusals after consumption', () => {
-  it('a user that already set a password never gets another link', async () => {
-    const companyId = '01920000-0000-7000-8000-00000000c001';
-    const created = await members().createInvitedMember({
-      operationId: systemUuidV7().newId(),
-      companyId,
-      email: 'password-set@example.test',
-      name: 'Member',
+  it('another company and an unknown user are refused with the same error', async () => {
+    const userId = await invitedUser('foreign@example.test');
+    await expect(issue(userId, OTHER_COMPANY)).rejects.toBeInstanceOf(InvitationLinkRefusedError);
+    await expect(issue(systemUuidV7().newId())).rejects.toBeInstanceOf(InvitationLinkRefusedError);
+    expect(await liveLinks(userId)).toHaveLength(0);
+  });
+
+  it('a user who set a password never gets another link', async () => {
+    const userId = await invitedUser('password-set@example.test');
+    expect((await consume(tokenOf(await issue(userId)))).status).toBe(200);
+    await expect(issue(userId)).rejects.toBeInstanceOf(InvitationLinkRefusedError);
+  });
+
+  it('a password set while a re-issue holds the lock leaves no live link (P1-c)', async () => {
+    const userId = await invitedUser('race@example.test');
+    const old = tokenOf(await issue(userId));
+    let release: () => void = () => undefined;
+    const held = new Promise<void>((resolve) => (release = resolve));
+    let locked: () => void = () => undefined;
+    const lockTaken = new Promise<void>((resolve) => (locked = resolve));
+    // يحاكي معاملة الإصدار: قفل صف الحساب، فحص «من غير كلمة مرور»، كتابة رابط جديد، وتأخير الإتمام؛
+    // والاستهلاك بيمسح الرابط القديم ويستنى قفل صف الحساب قبل ما يحط كلمة المرور.
+    const reissuing = owner.begin(async (tx) => {
+      await tx`SELECT 1 FROM account WHERE user_id = ${userId} AND provider_id = 'credential' FOR UPDATE`;
+      await tx`INSERT INTO verification (id, identifier, value, expires_at, created_at, updated_at)
+        VALUES (${systemUuidV7().newId()}, 'reset-password:fresh-token', ${userId}, now() + interval '1 day', now(), now())`;
+      locked();
+      await held;
     });
-    const link = await members().issueInvitationLink({
-      userId: created.userId,
-      companyId,
-      redirectTo: `${ORIGIN}/set-password`,
-    });
-    // اليوزر حط كلمة مروره من الرابط — نفس استهلاك POST /reset-password.
-    const token = new URL(link).pathname.split('/').pop() ?? '';
-    const reset = await auth.handler(
-      new Request(`${BASE}/v1/auth/reset-password`, {
-        method: 'POST',
-        headers: { 'content-type': 'application/json', origin: ORIGIN },
-        body: JSON.stringify({ token, newPassword: USER_PASSWORD }),
-      }),
-    );
-    expect(reset.status).toBe(200);
-    await expect(
-      members().issueInvitationLink({
-        userId: created.userId,
-        companyId,
-        redirectTo: `${ORIGIN}/set-password`,
-      }),
-    ).rejects.toBeInstanceOf(InvitationLinkRefusedError);
+    await lockTaken;
+    const consuming = consume(old);
+    await new Promise((resolve) => setTimeout(resolve, 1500));
+    release();
+    await reissuing;
+    expect((await consuming).status).toBe(200);
+    expect(await liveLinks(userId)).toHaveLength(0);
   });
 });
 
-describe('invited member creation', () => {
-  it('is idempotent by operation id, and an existing account comes back uncreated', async () => {
+describe('email state and invited member creation', () => {
+  it('inspectEmail tells free, taken and ours apart, case-insensitively', async () => {
     const operationId = systemUuidV7().newId();
-    const first = await members().createInvitedMember({
+    await members().createInvitedMember({
       operationId,
-      companyId: '01920000-0000-7000-8000-00000000c003',
-      email: 'idempotent@example.test',
-      name: 'Member',
+      companyId: COMPANY,
+      email: 'state@example.test',
+      name: 'State',
     });
-    const repeat = await members().createInvitedMember({
+    await auth.provisionUser({ email: 'plain@example.test', name: 'Plain', password: PASSWORD });
+    expect(await members().inspectEmail('nobody@example.test', COMPANY)).toEqual({ kind: 'FREE' });
+    expect(await members().inspectEmail('PLAIN@example.test', COMPANY)).toEqual({ kind: 'TAKEN' });
+    expect(await members().inspectEmail('State@example.test', OTHER_COMPANY)).toEqual({ kind: 'TAKEN' });
+    expect(await members().inspectEmail('State@example.test', COMPANY)).toEqual({
+      kind: 'OURS',
       operationId,
-      companyId: '01920000-0000-7000-8000-00000000c003',
-      email: 'idempotent@example.test',
-      name: 'Member',
     });
-    expect(repeat).toEqual({ userId: first.userId, createdByInvitation: true });
-    const [account] = await owner`
-      SELECT a.password FROM account a WHERE a.user_id = ${first.userId} AND a.provider_id = 'credential'`;
-    // حساب دخول من غير كلمة مرور: الإيميل بيتحدد من الرابط بعدين.
-    expect(account?.['password']).toBeNull();
-    const existing = await members().createInvitedMember({
-      operationId: systemUuidV7().newId(),
-      companyId: '01920000-0000-7000-8000-00000000c004',
-      email: 'Idempotent@example.test',
-      name: 'Member',
-    });
-    expect(existing).toEqual({ userId: first.userId, createdByInvitation: false });
   });
 
-  it('finds a user by email case-insensitively and reports whether a password exists', async () => {
-    await auth.provisionUser({
-      email: 'finder@example.test',
-      name: 'Finder',
-      password: USER_PASSWORD,
+  it('is idempotent by operation id and creates a credential account without a password', async () => {
+    const operationId = systemUuidV7().newId();
+    const input = { operationId, companyId: COMPANY, email: 'idempotent@example.test', name: 'M' };
+    const first = await members().createInvitedMember(input);
+    expect(await members().createInvitedMember(input)).toEqual({
+      userId: first.userId,
+      createdByInvitation: true,
     });
-    const found = await members().findByEmail('FINDER@EXAMPLE.test');
-    expect(found?.hasPassword).toBe(true);
-    expect(await members().findByEmail('nobody@example.test')).toBeNull();
+    const [credential] = await owner`
+      SELECT password FROM account WHERE user_id = ${first.userId} AND provider_id = 'credential'`;
+    expect(credential?.['password']).toBeNull();
+    expect(await members().hasPassword(first.userId)).toBe(false);
+  });
+
+  it('two companies racing on one email end with exactly one created account', async () => {
+    const results = await Promise.all(
+      [COMPANY, OTHER_COMPANY, COMPANY, OTHER_COMPANY].map((companyId) =>
+        members().createInvitedMember({
+          operationId: systemUuidV7().newId(),
+          companyId,
+          email: 'raced@example.test',
+          name: 'Raced',
+        }),
+      ),
+    );
+    expect(results.filter((result) => result.createdByInvitation)).toHaveLength(1);
+    const rows = await owner`SELECT id FROM "user" WHERE email = 'raced@example.test'`;
+    expect(rows).toHaveLength(1);
+    expect(new Set(results.map((result) => result.userId))).toEqual(new Set([rows[0]?.['id']]));
   });
 
   it('the invitation marker is all-or-nothing on the user row', async () => {
     await expect(
       owner`INSERT INTO "user" (id, name, email, invited_by_company_id)
-        VALUES (${systemUuidV7().newId()}, 'Half', 'half@example.test', ${'01920000-0000-7000-8000-00000000c001'})`,
+        VALUES (${systemUuidV7().newId()}, 'Half', 'half@example.test', ${COMPANY})`,
     ).rejects.toThrow();
   });
 });
@@ -252,10 +242,5 @@ describe('the reserved staff email domain (F1 boundary)', () => {
     [`@${STAFF_SYNTHETIC_EMAIL_DOMAIN}`, false],
   ])('isStaffSyntheticEmail(%j) is %j', (email, expected) => {
     expect(isStaffSyntheticEmail(email)).toBe(expected);
-  });
-
-  it('a staff-domain email is refused by the API-side check through the exported constant', () => {
-    // القيمة نفسها عند F1؛ الرفض بيمر بالثابت المصدَّر من packages/auth.
-    expect(STAFF_SYNTHETIC_EMAIL_DOMAIN).toBe('staff.pospay.invalid');
   });
 });
