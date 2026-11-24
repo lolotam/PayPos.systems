@@ -305,7 +305,7 @@ it('lands on the header button of the primary sort column when a secondary sort 
   fireEvent.click(worked);
   fireEvent.click(number, { shiftKey: true });
   await width.narrow();
-  expect(sortControl().value).toBe('worked_minutes:asc');
+  expect(sortControl().value).toBe('');
   sortControl().focus();
   await width.widen();
   expect(document.activeElement).toBe(

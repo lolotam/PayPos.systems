@@ -8,6 +8,7 @@ import { attendanceReportSortOptions } from './attendance-report-columns';
 /**
  * مربع الفرز الظاهر تحت 600px فقط: ترويسة الجدول تختفي بصريًا هناك وفيها أزرار الفرز الوحيدة،
  * فيقدّم هذا المربع الأعمدة والاتجاهين نفسها على حالة الفرز نفسها.
+ * وعند تفعيل أكثر من فرز من ترويسة الجدول يُعرض الخيار الفارغ، لأن أي اختيار جديد يُحلّ محلّ كل الفرزات.
  */
 export function AttendanceReportSortControl({
   sorting,
@@ -20,7 +21,7 @@ export function AttendanceReportSortControl({
   disabled: boolean;
 }) {
   const locale = useLocale();
-  const current = sorting[0];
+  const current = sorting.length === 1 ? sorting[0] : undefined;
   const value = current ? `${current.id}:${current.desc ? 'desc' : 'asc'}` : '';
   return (
     <div className="hidden gap-1 max-[599.99px]:grid">
