@@ -191,7 +191,7 @@ describe('GET /v1/me/workspaces without a usable membership', () => {
   });
 
   it('returns an empty list for a signed-in user with no membership', async () => {
-    expect(await list(emptyCookie)).toEqual({ companies: [] });
+    expect(await list(emptyCookie)).toEqual({ companies: [], capabilities: { staff_access: false } });
   });
 
   it('ignores an ended membership and one that has not started', async () => {
@@ -209,14 +209,15 @@ describe('GET /v1/me/workspaces without a usable membership', () => {
       role: roleId('cashier'),
       starts: '2999-01-01T00:00:00Z',
     });
-    expect(await list(emptyCookie)).toEqual({ companies: [] });
+    expect((await list(emptyCookie)).companies).toEqual([]);
   });
 });
 
 describe('GET /v1/me/workspaces for an owner', () => {
   it('shows the owner every business and branch, with the effective time zone', async () => {
     const body = await list(ownerCookie);
-    expect(body).toEqual(ownerTree());
+    expect(body.companies).toEqual(ownerTree().companies);
+    expect(body.capabilities).toEqual({ staff_access: false });
   });
 
   it('never returns another company the user is not a member of', async () => {

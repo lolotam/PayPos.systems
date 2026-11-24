@@ -12,11 +12,15 @@ const deleteFn = vi.hoisted(() => vi.fn());
 const state = vi.hoisted(() => ({
   status: 200 as number,
   body: null as unknown,
+  staffAccess: true,
 }));
 vi.mock('@/shared/api/client', () => ({
   apiClient: () => ({ GET: get, POST: post, DELETE: deleteFn }),
 }));
 vi.mock('@/shared/locale/locale-context', () => ({ useLocale: () => 'en' as const }));
+vi.mock('@/workspace/model/workspace-provider', () => ({
+  useWorkspace: () => ({ staffAccess: state.staffAccess }),
+}));
 
 const IDS = {
   company: '01920000-0000-7000-8000-00000000000a',
@@ -60,6 +64,7 @@ beforeEach(() => {
   post.mockReset();
   deleteFn.mockReset();
   state.status = 200;
+  state.staffAccess = true;
 });
 
 describe('the employee access section visible states', () => {
@@ -122,6 +127,23 @@ describe('the employee access section visible states', () => {
     mountSection();
     await waitFor(() => expect(screen.getByText('Reception / cashier')).toBeTruthy());
     expect(screen.getByText('Cancel pending grant')).toBeTruthy();
+  });
+});
+
+describe('the employee access section while the staff-access capability is off', () => {
+  it('AC-ACT-17 sends no request and shows nothing', async () => {
+    state.staffAccess = false;
+    const { container } = render(
+      wrap(
+        <EmployeeAccessSection
+          companyId={IDS.company}
+          businessId={IDS.business}
+          employeeId={IDS.employee}
+        />,
+      ),
+    );
+    await waitFor(() => expect(container.querySelector('section')).toBeNull());
+    expect(get).not.toHaveBeenCalled();
   });
 });
 

@@ -1,5 +1,4 @@
 import type {
-  MyWorkspacesResponse,
   WorkspaceCompany,
   WorkspaceCompanyNames,
 } from '@pospay/contracts';
@@ -133,7 +132,7 @@ export async function myWorkspaces(
   db: TenantWrappers,
   names: WorkspaceNames,
   userId: string,
-): Promise<MyWorkspacesResponse> {
+): Promise<{ companies: WorkspaceCompany[] }> {
   const companies: WorkspaceCompany[] = [];
   for (const group of byCompany(await readMemberships(db, userId))) {
     const company = await oneCompany(db, names, userId, group);

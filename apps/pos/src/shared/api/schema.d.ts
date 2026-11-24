@@ -9889,6 +9889,7 @@ export interface components {
         };
         MyWorkspacesResponse: {
             companies: components["schemas"]["WorkspaceCompany"][];
+            capabilities: components["schemas"]["WorkspaceCapabilities"];
         };
         WorkspaceBranch: {
             /** Format: uuid */
@@ -9907,6 +9908,9 @@ export interface components {
             /** @enum {string|null} */
             country: "KW" | "SA" | "AE" | "BH" | "QA" | "OM" | null;
             branches: components["schemas"]["WorkspaceBranch"][];
+        };
+        WorkspaceCapabilities: {
+            staff_access: boolean;
         };
         WorkspaceCompany: {
             /** Format: uuid */

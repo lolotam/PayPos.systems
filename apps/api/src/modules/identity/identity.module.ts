@@ -35,7 +35,7 @@ import {
 } from './http/cashier-pins.controller.ts';
 import { CompaniesController } from './http/companies.controller.ts';
 import { PendingDevicesController } from './http/pending-devices.controller.ts';
-import { MeController, WORKSPACE_NAMES } from './http/me.controller.ts';
+import { MeController, STAFF_ACCESS_CAPABILITY, WORKSPACE_NAMES } from './http/me.controller.ts';
 import {
   DEVICE_USE_CASES,
   DevicesController,
@@ -122,6 +122,7 @@ export function staffOtpDependencies(options: {
  * @param database the tenant wrappers, when the app has a database
  * @param ids      the UUID v7 generator
  * @param redis    the API's Redis client, for pairing codes and PIN attempts (devices and PINs need it)
+ * @param staffAccessRoutes whether the spec 076 staff-access slice is open; the workspace read tells the admin
  * @returns the providers to add to the root module, after the session guard
  */
 export function identityProviders(
@@ -137,6 +138,7 @@ export function identityProviders(
   staffCompanyOf: (userId: string) => Promise<string | null> = unavailableStaffCompany,
   /** أصل لوحة الإدارة اللي رابط تعيين كلمة المرور بيتبني عليه، وساعة عمر الرابط. */
   invitations?: { readonly adminOrigin: string; readonly clock?: { now(): Date } },
+  staffAccessRoutes = false,
 ): Provider[] {
   const capabilities = identityCapabilities(database, ids, redis, staffCompanyOf);
   return [
@@ -165,6 +167,7 @@ export function identityProviders(
     { provide: DISCOUNT_APPROVER_VERIFIER, useExisting: VERIFY_DISCOUNT_APPROVER_PIN },
     ...privateViewProviders(database, ids, redis),
     { provide: WORKSPACE_NAMES, useValue: capabilities.names },
+    { provide: STAFF_ACCESS_CAPABILITY, useValue: staffAccessRoutes },
     { provide: OnboardCompany, useValue: capabilities.onboard },
     { provide: DEVICE_USE_CASES, useValue: capabilities.devices?.useCases ?? null },
     { provide: DEVICE_AUTHENTICATOR, useValue: capabilities.devices?.authenticator ?? null },

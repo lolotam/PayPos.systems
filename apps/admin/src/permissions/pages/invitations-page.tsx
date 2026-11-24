@@ -17,6 +17,8 @@ type Props = {
   companyId: string;
   userId: string;
   choices: InvitationScopeChoices;
+  /** هل قدرة شريحة 076 مفتوحة على السيرفر؟ مقفولة: مفيش طلب ولا 503 (AC-ACT-17). */
+  staffAccess: boolean;
 };
 
 /**
@@ -24,13 +26,13 @@ type Props = {
  * لحالة محلية — مفيش useMutation، فالإيميل والرابط مش في أي كاش ولا مفتاح React.
  * البوابة مقفولة (503 NOT_READY) بتظهر رسالة بدل النموذج.
  */
-export function InvitationsPage({ companyId, userId, choices }: Props) {
+export function InvitationsPage({ companyId, userId, choices, staffAccess }: Props) {
   const locale = useLocale();
-  const { list, invite, reissue } = useMemberInvitations(companyId, userId);
+  const { list, invite, reissue } = useMemberInvitations(companyId, userId, staffAccess);
   const [shownLink, setShownLink] = useState<string | null>(null);
   const [reissued, setReissued] = useState(false);
-  const access = useInvitationsAccess(companyId, userId, true);
-  const gateOpen = readAccessProof(access) === 'granted';
+  const access = useInvitationsAccess(companyId, userId, staffAccess);
+  const gateOpen = staffAccess && readAccessProof(access) === 'granted';
 
   const showLink = (link: string, wasReissued: boolean) => {
     setReissued(wasReissued);

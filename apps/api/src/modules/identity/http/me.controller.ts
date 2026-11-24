@@ -10,18 +10,23 @@ import { myMemberships } from '../queries/my-memberships.query.ts';
 import { myWorkspaces, type WorkspaceNames } from '../queries/my-workspaces.query.ts';
 
 export const WORKSPACE_NAMES = Symbol('WORKSPACE_NAMES');
+/** علامة قدرة شريحة 076: مقروءة مرة واحدة عند الإقلاع، وبترد في قراءة مساحات العمل. */
+export const STAFF_ACCESS_CAPABILITY = Symbol('STAFF_ACCESS_CAPABILITY');
 
 @Controller()
 export class MeController {
   readonly #db: TenantWrappers | null;
   readonly #names: WorkspaceNames | null;
+  readonly #staffAccess: boolean;
 
   constructor(
     @Inject(DATABASE) db: TenantWrappers | null,
     @Inject(WORKSPACE_NAMES) names: WorkspaceNames | null,
+    @Inject(STAFF_ACCESS_CAPABILITY) staffAccess: boolean,
   ) {
     this.#db = db;
     this.#names = names;
+    this.#staffAccess = staffAccess;
   }
 
   // Session only: the rows are the caller's own memberships, checked inside withUser and withTenant.
@@ -31,7 +36,8 @@ export class MeController {
     if (this.#db === null || this.#names === null) throw new ApiError('NOT_READY');
     const userId = request.principal?.userId;
     if (userId === null || userId === undefined) throw new ApiError('FORBIDDEN');
-    return myWorkspaces(this.#db, this.#names, userId);
+    const workspaces = await myWorkspaces(this.#db, this.#names, userId);
+    return { ...workspaces, capabilities: { staff_access: this.#staffAccess } };
   }
 
   // AccessGuard لا يقرأ x-company-id إلا مع @Require؛ التحقق هنا عشان الجلسة بس تكفي.

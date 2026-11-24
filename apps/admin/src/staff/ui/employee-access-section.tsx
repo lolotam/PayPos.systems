@@ -6,6 +6,7 @@ import { envelopeMessage } from '@/shared/api/api-error';
 import { useLocale } from '@/shared/locale/locale-context';
 import { useCancelPendingStaffAccess } from '../api/use-cancel-pending-staff-access';
 import { useEmployeeStaffAccess } from '../api/use-employee-staff-access';
+import { useWorkspace } from '@/workspace/model/workspace-provider';
 import { EmployeeAccessGrantForm } from './employee-access-grant-form';
 import { EmployeeAccessReadout } from './employee-access-readout';
 
@@ -29,9 +30,12 @@ export function EmployeeAccessSection({
   const locale = useLocale();
   const [open, setOpen] = useState(false);
   const close = useCallback(() => setOpen(false), []);
-  const query = useEmployeeStaffAccess(companyId, businessId, employeeId);
+  // القدرة مقفولة على السيرفر: القسم بيختفي وبيترد على مفيش طلب أصلاً (AC-ACT-17).
+  const staffAccess = useWorkspace().staffAccess === true;
+  const query = useEmployeeStaffAccess(companyId, businessId, employeeId, staffAccess);
   const cancel = useCancelPendingStaffAccess(companyId, businessId, employeeId);
   const state = query.data;
+  if (!staffAccess) return null;
   // البوابة 503 تعني القدرة مطفأة على السيرفر — القسم يختفي بلا رسالة (plan §1.1).
   if (query.isError) {
     if ((query.error as { code?: string } | null)?.code === 'NOT_READY') return null;

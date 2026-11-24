@@ -48,7 +48,15 @@ export const workspaceCompany = workspaceCompanyNames
   })
   .meta({ id: 'WorkspaceCompany' });
 
-export const myWorkspacesResponse = responseObject({ companies: z.array(workspaceCompany) }).meta({
+/** قدرات الشريحة المتاحة على السيرفر: اللوحة بتقرأها بدل ما تخمّن وتطلب مسار مقفول. */
+export const workspaceCapabilities = responseObject({
+  staff_access: z.boolean(),
+}).meta({ id: 'WorkspaceCapabilities' });
+
+export const myWorkspacesResponse = responseObject({
+  companies: z.array(workspaceCompany),
+  capabilities: workspaceCapabilities,
+}).meta({
   id: 'MyWorkspacesResponse',
 });
 
@@ -56,6 +64,7 @@ export type WorkspaceBranch = z.infer<typeof workspaceBranch>;
 export type WorkspaceBusiness = z.infer<typeof workspaceBusiness>;
 export type WorkspaceCompanyNames = z.infer<typeof workspaceCompanyNames>;
 export type WorkspaceCompany = z.infer<typeof workspaceCompany>;
+export type WorkspaceCapabilities = z.infer<typeof workspaceCapabilities>;
 export type MyWorkspacesResponse = z.infer<typeof myWorkspacesResponse>;
 
 /** قارئ الأدمن بيتحمّل رد API أقدم أثناء النشر، والحقول تفضل إلزامية في عقد الرد الجديد. */
@@ -63,9 +72,13 @@ const workspaceBusinessRead = workspaceBusiness.partial({ business_type: true, c
 const workspaceCompanyRead = workspaceCompany.extend({
   businesses: z.array(workspaceBusinessRead),
 });
+// القدرات نفسها اختيارية في عقد القراءة: API أقدم ما بيعرفش الحقل ده، فيُقرأ كـ «القدرة مقفولة».
+const workspaceCapabilitiesRead = workspaceCapabilities.partial({ staff_access: true });
 export const myWorkspacesReadResponse = myWorkspacesResponse.extend({
   companies: z.array(workspaceCompanyRead),
+  capabilities: workspaceCapabilitiesRead.optional(),
 });
 export type WorkspaceBusinessRead = z.infer<typeof workspaceBusinessRead>;
 export type WorkspaceCompanyRead = z.infer<typeof workspaceCompanyRead>;
+export type WorkspaceCapabilitiesRead = z.infer<typeof workspaceCapabilitiesRead>;
 export type MyWorkspacesReadResponse = z.infer<typeof myWorkspacesReadResponse>;

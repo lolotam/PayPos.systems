@@ -27,13 +27,14 @@ const item = (id: string, overrides: Record<string, unknown> = {}) => ({
 });
 let client: QueryClient;
 
-const renderPage = () =>
+const renderPage = (staffAccess = true) =>
   render(
     <QueryClientProvider client={client}>
       <InvitationsPage
         companyId={COMPANY}
         userId="user-1"
         choices={{ businesses: [], branches: [] }}
+        staffAccess={staffAccess}
       />
     </QueryClientProvider>,
   );
@@ -123,6 +124,14 @@ it('renders the closed-gate notice and no form when the API answers NOT_READY', 
   );
   expect(screen.getByRole('status').textContent).toBe(t('en', 'invitations.notReady'));
   expect(screen.queryByLabelText(t('en', 'invitations.emailLabel'))).toBeNull();
+});
+
+it('AC-ACT-17 sends no request and shows the not-ready notice while the staff-access capability is off', async () => {
+  api.get.mockResolvedValue({ data: { items: [], next_cursor: null } });
+  renderPage(false);
+  expect(screen.getByRole('status').textContent).toBe(t('en', 'invitations.notReady'));
+  expect(screen.queryByLabelText(t('en', 'invitations.emailLabel'))).toBeNull();
+  await waitFor(() => expect(api.get).not.toHaveBeenCalled());
 });
 
 it('pages the list without duplicates, labels the role, and offers the new link only where the API allows', async () => {

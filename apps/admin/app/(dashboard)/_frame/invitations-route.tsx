@@ -29,6 +29,7 @@ export function InvitationsRoute() {
       companyId={workspace.company.id}
       userId={userId}
       choices={choices}
+      staffAccess={workspace.staffAccess === true}
     />
   );
 }

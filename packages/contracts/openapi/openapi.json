@@ -49885,10 +49885,14 @@
             "items": {
               "$ref": "#/components/schemas/WorkspaceCompany"
             }
+          },
+          "capabilities": {
+            "$ref": "#/components/schemas/WorkspaceCapabilities"
           }
         },
         "required": [
-          "companies"
+          "companies",
+          "capabilities"
         ]
       },
       "WorkspaceBranch": {
@@ -49974,6 +49978,17 @@
           "business_type",
           "country",
           "branches"
+        ]
+      },
+      "WorkspaceCapabilities": {
+        "type": "object",
+        "properties": {
+          "staff_access": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "staff_access"
         ]
       },
       "WorkspaceCompany": {

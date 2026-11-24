@@ -97,6 +97,7 @@ beforeEach(() => {
     },
     branch: undefined,
     companies: [],
+    staffAccess: true,
     choose: vi.fn(),
   };
 });
@@ -140,6 +141,15 @@ it('asks the API about invitations only for an owner, so no other role sends a r
   } as unknown as typeof state.workspace;
   invitationProbes.length = 0;
   expect(conditions()['invitations-owner']).toBe(false);
+  expect(invitationProbes.at(-1)?.[2]).toBe(false);
+});
+
+it('AC-ACT-17 sends no invitations read while the staff-access capability is off', () => {
+  const ready = state.workspace as unknown as { staffAccess: boolean };
+  state.workspace = { ...ready, staffAccess: false } as unknown as typeof state.workspace;
+  invitationProbes.length = 0;
+  expect(conditions()['invitations-owner']).toBe(false);
+  // الوسائط التالت هو «القراءة مفعّلة»: مع القدرة مقفولة مفيش طلب للدعوات أصلاً.
   expect(invitationProbes.at(-1)?.[2]).toBe(false);
 });
 
