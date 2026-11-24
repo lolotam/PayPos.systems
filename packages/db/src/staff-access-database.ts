@@ -101,6 +101,12 @@ export interface StaffUserProvisionInput {
   readonly recordState: 'PENDING' | 'CANCELLING';
   /** إعادة تثبيت ربط الهاتف على المستخدم الموجود عند استئناف سجل `STOPPED` (plan §4.2 خطوة 2). */
   readonly resetBinding: boolean;
+  /**
+   * معرّف المحاولة التي نفّذت الخطوة — بيتكتب في صف اعتماد الربط عشان تكرار المحاولة نفسها
+   * مايعملش اعتماداً ثانياً ولا صف تدقيق ثاني (AC-ACT-2). اختياري: من غيره المولّد العادي هو
+   * اللي بيكتب والسلوك زي ما هو.
+   */
+  readonly attemptId?: string;
 }
 
 /** رفض متوقع: إنشاء مستخدم لسجل دخول ليس في حالة `PENDING`. */

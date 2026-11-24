@@ -21,7 +21,11 @@ const phoneOf = (n: number) => `+965500000${String(n).padStart(2, '0')}`;
 const provision = (
   phone: string,
   operationId = ids.newId(),
-  options: { recordState?: 'PENDING' | 'CANCELLING'; resetBinding?: boolean } = {},
+  options: {
+    recordState?: 'PENDING' | 'CANCELLING';
+    resetBinding?: boolean;
+    attemptId?: string;
+  } = {},
 ) =>
   f.auth.staffUsers.provision({
     operationId,
@@ -32,6 +36,7 @@ const provision = (
     ids,
     recordState: options.recordState ?? 'PENDING',
     resetBinding: options.resetBinding ?? false,
+    ...(options.attemptId === undefined ? {} : { attemptId: options.attemptId }),
   });
 
 it('AC-F1-1 provision creates the user with markers, synthetic email, no credential account and an approved binding', async () => {
@@ -151,6 +156,30 @@ it('P1-4 resetBinding re-approves the requested phone on the existing user and r
   const [unchanged] = await owner`SELECT phone_number FROM "user" WHERE id = ${userId}`;
   expect(unchanged?.phone_number).toBe(newPhone);
   await owner`DELETE FROM "user" WHERE id = ${otherUser}`;
+});
+
+it('AC-ACT-2 a repeated binding reset of the same attempt approves the phone once', async () => {
+  const operationId = ids.newId();
+  const attemptId = ids.newId();
+  const { userId } = await provision(phoneOf(19), operationId);
+  const phone = phoneOf(20);
+  await provision(phone, operationId, { resetBinding: true, attemptId });
+  const bindingRows = () =>
+    owner`SELECT details FROM platform_audit_log
+      WHERE action = 'phone.binding_approved' AND details->>'user_id' = ${userId}`;
+  // صف إنشاء الحساب وصف اعتماد الهاتف الجديد — واحد لكل منهما.
+  expect(await bindingRows()).toHaveLength(2);
+  // تكرار نفس المحاولة: مفيش اعتماد تاني ولا صف تاني.
+  await provision(phone, operationId, { resetBinding: true, attemptId });
+  expect(await bindingRows()).toHaveLength(2);
+  const attempts = await owner`SELECT details FROM platform_audit_log
+    WHERE action = 'phone.binding_approved' AND details->>'attempt_id' = ${attemptId}`;
+  expect(attempts).toHaveLength(1);
+  expect(attempts[0]?.details).toMatchObject({ user_id: userId, attempt_id: attemptId });
+  const [user] =
+    await owner`SELECT phone_number, phone_binding_approved_at FROM "user" WHERE id = ${userId}`;
+  expect(user?.phone_number).toBe(phone);
+  expect(user?.phone_binding_approved_at).not.toBeNull();
 });
 
 it('two concurrent provisions of one phone produce one user and one typed refusal', async () => {

@@ -199,6 +199,7 @@ export class GrantEmployeeAccessUseCase {
         ids: this.ids,
         recordState: 'PENDING',
         resetBinding: record.state === 'PENDING' && record.userId !== null,
+        attemptId: record.attemptId,
       });
     } catch (error) {
       if (!(error instanceof StaffAccessError) || error.code !== 'STAFF_ACCESS_PHONE_TAKEN')

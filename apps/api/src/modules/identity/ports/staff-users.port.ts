@@ -24,6 +24,11 @@ export interface StaffUserProvisionInput {
   readonly actorUserId: string;
   /** مولّد UUID v7 لصفوف المنصة. */
   readonly ids: IdGenerator;
+  /**
+   * معرّف المحاولة التي نفّذت الخطوة — بيتكرر في صف اعتماد الربط عشان تكرار المحاولة نفسها
+   * مايعملش اعتماداً ثانياً ولا صف تدقيق ثاني (AC-ACT-2).
+   */
+  readonly attemptId?: string;
 }
 
 /** ناتج الخطوة الثانية: معرف المستخدم الموجود أو المُنشأ حديثاً. */

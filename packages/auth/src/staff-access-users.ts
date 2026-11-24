@@ -44,6 +44,11 @@ export interface StaffUserProvisionRequest {
   readonly recordState: 'PENDING' | 'CANCELLING';
   /** إعادة تثبيت ربط الهاتف عند استئناف سجل `STOPPED`. */
   readonly resetBinding: boolean;
+  /**
+   * معرّف المحاولة التي نفّذت الخطوة — بيتكرر في صف اعتماد الربط عشان تكرار المحاولة نفسها
+   * مايعملش اعتماداً ثانياً ولا صف تدقيق ثاني (AC-ACT-2).
+   */
+  readonly attemptId?: string;
 }
 
 /** الواجهة التي يراها identity: الإنشاء والإيجاد والإلغاء والقراءة بلا أي مسار credential. */
