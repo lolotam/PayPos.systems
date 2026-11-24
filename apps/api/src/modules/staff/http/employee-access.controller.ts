@@ -141,17 +141,22 @@ export class EmployeeAccessController {
   ): Promise<unknown> {
     const database = this.database as TenantWrappers;
     const reads = this.reads as EmployeeAccessStateReads;
-    const state = await database.withTenant(
-      companyId,
-      (tx) =>
-        query(
-          tx,
-          { companyId, businessId, employeeId, actorUserId: userId },
-          reads,
-        ),
-      { userId },
-    );
-    if (state === null) throw new ApiError('EMPLOYEE_NOT_FOUND');
-    return state;
+    try {
+      const state = await database.withTenant(
+        companyId,
+        (tx) =>
+          query(
+            tx,
+            { companyId, businessId, employeeId, actorUserId: userId },
+            reads,
+          ),
+        { userId },
+      );
+      if (state === null) throw new ApiError('EMPLOYEE_NOT_FOUND');
+      return state;
+    } catch (error) {
+      // فشل عابر في قراءة auth (انقطاع اتصال أو مجمع محدود) يُعاد كـ 409 مثل مسار الكتابة.
+      throw staffAccessApiError(error);
+    }
   }
 }

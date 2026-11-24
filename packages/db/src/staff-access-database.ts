@@ -45,13 +45,17 @@ const TRANSIENT_AUTH_CODES = new Set([
 /**
  * هل غلاف الـ runtime (`OTP_DATABASE_UNAVAILABLE_<code>`) يخفي فشلاً عابراً يصح إعادته؟ مهلة القفل
  * والعبارة وانقطاع الاتصال ومهلة المجمع المحدود تُعدّ عابرة؛ أي كود آخر خطأ حقيقي يبقى 500.
+ *
+ * خطوة قفل الهاتف تضيف بادئة `PHONE_LOCK_` للكود، فالتصنيف يجري على الكود الأصلي قبل البادئة —
+ * وإلا ضاع انقطاع الاتصال ومهلة المجمع المحدود ودفع الطلب إلى 500 بدل إعادة المحاولة.
  */
 export function isTransientAuthFailure(error: unknown): boolean {
   if (!(error instanceof Error)) return false;
   const code = (error as { code?: unknown }).code;
   if (typeof code !== 'string') return false;
   const wrapped = error.message.startsWith('OTP_DATABASE_UNAVAILABLE_') || error.message.startsWith('OTP_PHONE_LOCK_');
-  return wrapped && (TRANSIENT_AUTH_CODES.has(code) || /^PHONE_LOCK_(55P03|57014|40P01)$/.test(code));
+  const raw = code.startsWith('PHONE_LOCK_') ? code.slice('PHONE_LOCK_'.length) : code;
+  return wrapped && TRANSIENT_AUTH_CODES.has(raw);
 }
 
 /**

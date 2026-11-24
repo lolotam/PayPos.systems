@@ -72,30 +72,47 @@ async function databaseNow(tx: Tx): Promise<Date> {
   return new Date(row.now);
 }
 
+/** أكواد المجمع المحدود — فشل عابر يُعاد، لا خطأ حقيقي. */
+const BOUNDED_CODES = [
+  'BOUNDED_DATABASE_UNAVAILABLE',
+  'BOUNDED_COMMIT_UNKNOWN',
+  'BOUNDED_CONNECT_TIMEOUT',
+];
+/** كود خام من PostgreSQL أو postgres.js: رمز كبير محدود الطول. */
+const RAW_CODE = /^[A-Z0-9_]{1,32}$/;
+/** كود سكّنه هذا الـ runtime: بادئة العملية تطيله فيتسع للرمز الأطول. */
+const MINTED_CODE = /^[A-Z0-9_]{1,48}$/;
+/** رسائل هذا الـ runtime — بها يُعرف الكود الذي سكّناه نحن فلا يُشتق من جديد. */
+const MINTED_MESSAGES = ['OTP_DATABASE_UNAVAILABLE_', 'OTP_PHONE_LOCK_UNAVAILABLE'];
+
 function operationFailure(operation: string, error: unknown): Error {
   const failure = databaseFailure(error);
   return Object.assign(new Error(`OTP_${operation}_UNAVAILABLE`), {
-    code: `${operation}_${failure.message.slice('OTP_DATABASE_UNAVAILABLE_'.length)}`,
+    code: `${operation}_${failure.code}`,
   });
 }
 
-function databaseFailure(error: unknown): Error {
+function databaseFailure(error: unknown): Error & { readonly code: string } {
   const diagnostic =
     error !== null && typeof error === 'object' && 'cause' in error ? error.cause : error;
   const bounded =
-    diagnostic instanceof Error &&
-    ['BOUNDED_DATABASE_UNAVAILABLE', 'BOUNDED_COMMIT_UNKNOWN', 'BOUNDED_CONNECT_TIMEOUT'].includes(
-      diagnostic.message,
-    )
+    diagnostic instanceof Error && BOUNDED_CODES.includes(diagnostic.message)
       ? diagnostic.message
       : null;
-  const code =
+  // كود سكّناه نحن: يُحفظ كما هو. إعادة اشتقاقه تقطع بادئة العملية وتُفقد تصنيفه.
+  const minted =
+    diagnostic instanceof Error &&
+    MINTED_MESSAGES.some((prefix) => diagnostic.message.startsWith(prefix));
+  const raw =
     diagnostic !== null &&
     typeof diagnostic === 'object' &&
     'code' in diagnostic &&
-    typeof diagnostic.code === 'string' &&
-    /^[A-Z0-9_]{1,32}$/.test(diagnostic.code)
+    typeof diagnostic.code === 'string'
       ? diagnostic.code
+      : null;
+  const code =
+    raw !== null && (minted ? MINTED_CODE.test(raw) : RAW_CODE.test(raw))
+      ? raw
       : (bounded ?? 'OPERATION_FAILED');
   return Object.assign(new Error(`OTP_DATABASE_UNAVAILABLE_${code}`), { code });
 }
