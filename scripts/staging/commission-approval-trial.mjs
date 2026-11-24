@@ -2,7 +2,7 @@
 // commission-approval-trial — spec 059 / slice 53-2 measurement (owner answer 2026-11-24: «سكربت تجربة عبر الـ API»).
 // Prepares ONE dedicated staging TEST company with a large commission history through the PUBLIC HTTP API only,
 // then generates and reviews the statement, so the operator can measure ONE real «approve commission statement»
-// request by hand (docs/runbook.md activation gate; enabled only if that approval is < 200 ms). It never enables
+// request by hand (docs/runbook.md launch bound, PP-264: up to 3000 lines in the month, up to 1.5 s). It never enables
 // the approval switch, never issues a coverage proof and never approves. Pure HTTP client: no database access,
 // no imports beyond node:* (global fetch). No secrets in code — credentials come from TRIAL_EMAIL /
 // TRIAL_PASSWORD at run time and are never printed; output carries only counts, ids and timings. Every write is
@@ -487,7 +487,7 @@ function printSummary(opts, ctx, times, counts, sent, estimate, review) {
   console.log(`employees ${counts.employees} services ${counts.services} customers ${counts.customers} sessions ${counts.sessions} lines ${counts.accepted}/${opts.lines}`);
   console.log(`setup ${times.setupMs}ms record ${times.recordMs}ms wait ${times.waitMs}ms generate+review ${times.writeMs}ms total ${times.totalMs}ms; HTTP requests ${sent}`);
   console.log(`estimate total ${estimate.total} review status ${review.status}`);
-  console.log(`next manual steps (docs/runbook.md, commission-approval activation): enable the switch (pnpm platform:commission-approval --company <uuid> --enable ...), issue the coverage proof (pnpm platform:commission-coverage --company <uuid> --businesses <uuid> --from <first-day> --to <last-day> ...), approve the REVIEWED statement from the admin ONCE and read http.ms of the request that answered status 200 for the route /v1/businesses/:businessId/commission-statements/:period/approve in the api logs ("request completed"); the real company is enabled only if that measured approval is under 200 ms.`);
+  console.log(`next manual steps (docs/runbook.md, commission-approval activation): enable the switch (pnpm platform:commission-approval --company <uuid> --enable ...), issue the coverage proof (pnpm platform:commission-coverage --company <uuid> --businesses <uuid> --from <first-day> --to <last-day> ...), approve the REVIEWED statement from the admin ONCE and read http.ms of the request that answered status 200 for the route /v1/businesses/:businessId/commission-statements/:period/approve in the api logs ("request completed"); the measured approval is judged against the launch bound in docs/runbook.md (up to 3000 statement lines in the month, up to 1.5 seconds; PP-264), and a company is enabled only when the owner asks for it.`);
 }
 
 async function run(opts) {
