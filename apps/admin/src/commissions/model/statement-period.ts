@@ -1,4 +1,15 @@
 /**
+ * يوم النهارده على ساعة المتصفح بصيغة YYYY-MM-DD، لخانة تاريخ الصرف.
+ *
+ * @param now اللحظة الحالية
+ * @returns التاريخ
+ */
+export function todayInputDate(now: Date): string {
+  const part = (value: number, width: number) => String(value).padStart(width, '0');
+  return `${part(now.getFullYear(), 4)}-${part(now.getMonth() + 1, 2)}-${part(now.getDate(), 2)}`;
+}
+
+/**
  * الشهر اللي الشاشة تفتح عليه: الشهر اللي قبل شهر النهاردة على ساعة المتصفح، لأنه آخر شهر خلص وده اللي
  * بيتعمل كشفه. السيرفر هو اللي بيفصل في خلوص الشهر بتوقيت النشاط، فاللي بيفتح شهر لسه ما خلصش بياخد رفضه.
  *

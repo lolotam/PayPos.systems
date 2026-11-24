@@ -1,6 +1,15 @@
-import type { CommissionStatementEmployee, CommissionStatementRow } from '@pospay/contracts';
+import type {
+  CommissionStatementEmployee,
+  CommissionStatementRow,
+  MarkCommissionStatementPaidInput,
+} from '@pospay/contracts';
 import type { Locale, MessageKey } from '@pospay/i18n';
-import { isGenerated, isOpenBusinessReading, type StatementReading } from './statement-reading';
+import {
+  isClosedBusinessReading,
+  isGenerated,
+  isOpenBusinessReading,
+  type StatementReading,
+} from './statement-reading';
 import { sumAmounts } from './statement-sum';
 
 /** حالة الكشف للعرض: «لسه ما اتعملش» لما مفيش كشف متولّد للشهر، والمعتمد والمصروف للشهر المغلق. */
@@ -15,6 +24,7 @@ export interface StatementActions {
   review: ActionState;
   returnToDraft: ActionState;
   approve: ActionState;
+  pay: ActionState;
 }
 
 const STATUS_KEYS: Record<StatementStatus, MessageKey> = {
@@ -41,6 +51,15 @@ export function hasBlockingIssues(reading: StatementReading): boolean {
   return reading.employees.some((employee) => employee.issues.length > 0);
 }
 
+/** ولا زرار: قارئ الفروع والشهر المفتوح لغير قارئ النشاط ما فيهومش كتابة. */
+const NO_ACTIONS: StatementActions = {
+  generate: 'hidden',
+  review: 'hidden',
+  returnToDraft: 'hidden',
+  approve: 'hidden',
+  pay: 'hidden',
+};
+
 /** زرار يظهر بس في حالته: شغّال، أو مقفول لما السبب موجود قدام المستخدم (مشكلة أو تغيّر بعد المراجعة). */
 function whenIn(status: StatementStatus, shownIn: StatementStatus, blocked: boolean): ActionState {
   if (status !== shownIn) return 'hidden';
@@ -53,9 +72,8 @@ function whenIn(status: StatementStatus, shownIn: StatementStatus, blocked: bool
  * الصلاحية نفسها بيفحصها السيرفر؛ هنا بنخفي بس اللي مش بيتنفّذ أصلاً في الحالة دي.
  */
 export function statementActions(reading: StatementReading): StatementActions {
-  if (!isOpenBusinessReading(reading)) {
-    return { generate: 'hidden', review: 'hidden', returnToDraft: 'hidden', approve: 'hidden' };
-  }
+  if (isClosedBusinessReading(reading)) return { ...NO_ACTIONS, pay: whenIn(reading.status, 'APPROVED', false) };
+  if (!isOpenBusinessReading(reading)) return NO_ACTIONS;
   const status = statusOf(reading);
   const blocked = hasBlockingIssues(reading);
   return {
@@ -63,6 +81,7 @@ export function statementActions(reading: StatementReading): StatementActions {
     review: whenIn(status, 'DRAFT', blocked),
     returnToDraft: whenIn(status, 'REVIEWED', false),
     approve: whenIn(status, 'REVIEWED', blocked || reading.changed_since_review),
+    pay: 'hidden',
   };
 }
 
@@ -74,7 +93,18 @@ export function switchedOff(actions: StatementActions): StatementActions {
     review: off(actions.review),
     returnToDraft: off(actions.returnToDraft),
     approve: off(actions.approve),
+    pay: off(actions.pay),
   };
+}
+
+/** نص طريقة الصرف: مع المرتب أو تحويل بنكي أو كاش. */
+export function paidMethodKey(method: MarkCommissionStatementPaidInput['paid_method']): MessageKey {
+  const keys: Record<MarkCommissionStatementPaidInput['paid_method'], MessageKey> = {
+    WITH_SALARY: 'commissionStatementScreen.payMethodWithSalary',
+    BANK_TRANSFER: 'commissionStatementScreen.payMethodBankTransfer',
+    CASH: 'commissionStatementScreen.payMethodCash',
+  };
+  return keys[method];
 }
 
 /** نص نوع الصف من كتالوج الكشف نفسه (نفس تسميات ملف الإكسل). */

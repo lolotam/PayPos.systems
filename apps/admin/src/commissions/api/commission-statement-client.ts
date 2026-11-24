@@ -1,5 +1,6 @@
 import {
   commissionClosedStatementView,
+  markCommissionStatementPaidResponse,
   commissionStatementReturnResult,
   commissionStatementReviewResult,
   commissionStatementView,
@@ -10,6 +11,8 @@ import {
   type CommissionStatementReviewInput,
   type CommissionStatementReviewResult,
   type CommissionStatementView,
+  type MarkCommissionStatementPaidInput,
+  type MarkCommissionStatementPaidResponse,
 } from '@pospay/contracts';
 import { apiClient } from '@/shared/api/client';
 import { parseStatementReading, type StatementReading } from '../model/statement-reading';
@@ -21,6 +24,7 @@ const generatePath = `${statementPath}/generate`;
 const reviewPath = `${statementPath}/review`;
 const returnPath = `${statementPath}/return`;
 const approvePath = `${statementPath}/approve`;
+const markPaidPath = `${statementPath}/mark-paid`;
 
 /** هوية الشاشة: الشركة والنشاط والمستخدم، عشان كاش كل هوية لوحده. */
 export type StatementScope = readonly ['commission-statement', string, string, string];
@@ -96,6 +100,23 @@ export async function approveStatement(
   });
   if (!result.response.ok) throw refusal(result.error ?? {}, result.response.status);
   return commissionClosedStatementView.parse(result.data);
+}
+
+/** بيسجّل صرف الكشف المعتمد بطريقته وتاريخه وملاحظته، وبيرجّع نتيجة الصرف بعد تحليلها. */
+export async function markStatementPaid(
+  scope: StatementScope,
+  period: string,
+  idempotencyKey: string,
+  input: MarkCommissionStatementPaidInput,
+): Promise<MarkCommissionStatementPaidResponse> {
+  // الملاحظة الغايبة ما بتتبعتش خالص: الغلاف المولّد ما بيقبلش `undefined` صريح.
+  const { paid_method, paid_on, paid_note } = input;
+  const result = await apiClient().POST(markPaidPath, {
+    params: callParams(scope, period, idempotencyKey),
+    body: { paid_method, paid_on, ...(paid_note === undefined ? {} : { paid_note }) },
+  });
+  if (!result.response.ok) throw refusal(result.error ?? {}, result.response.status);
+  return markCommissionStatementPaidResponse.parse(result.data);
 }
 
 /** بيرجّع الكشف المراجَع للمسودة بالسبب اللي اتكتب. */

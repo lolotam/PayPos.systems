@@ -153,3 +153,50 @@ export function closedBranchView(
     ...overrides,
   };
 }
+
+export const markPaidPath = `${statementPath}/mark-paid`;
+export const PAYER_ID = '01920000-0000-7c44-8a44-0000000000a4';
+
+/** بيانات صرف قارئ النشاط كله: صفّين، المستحق الدقيق والمتصرف فعلاً، والملاحظة ومن سجّل ومتى. */
+export function paymentOf(overrides: Record<string, unknown> = {}) {
+  return {
+    paid_on: '2026-11-05',
+    paid_method: 'BANK_TRANSFER' as const,
+    paid_note: 'Sent from the main account',
+    paid_at: '2026-11-05T08:30:00.000Z',
+    paid_by: PAYER_ID,
+    paid_total: '19.500',
+    payments: [
+      { employee_id: EMPLOYEE_SARA, exact_payable: '15.500', paid_amount: '15.500' },
+      { employee_id: EMPLOYEE_RANA, exact_payable: '4.000', paid_amount: '4.000' },
+    ],
+    ...overrides,
+  };
+}
+
+/** شهر مصروف لقارئ النشاط كله، بسارة ورنا وبيانات الصرف. */
+export function paidView(payment: Record<string, unknown> = {}): CommissionClosedStatementView {
+  return closedView({
+    status: 'PAID',
+    employees: [statementEmployee(), statementEmployee({ employee_id: EMPLOYEE_RANA, name_en: 'Rana', name_ar: null, payable: '4.000' })],
+    payment: paymentOf(payment),
+  } as Partial<CommissionClosedStatementView>);
+}
+
+/** رد تسجيل الصرف من السيرفر: نتيجة الصرف مش الكشف كله. */
+export function markPaidResponse(overrides: Record<string, unknown> = {}) {
+  const { paid_on, paid_method, paid_note, paid_at, paid_by, paid_total, payments } = paymentOf();
+  return {
+    business_id: BUSINESS_ID,
+    period: PERIOD,
+    status: 'PAID',
+    paid_on,
+    paid_method,
+    paid_note,
+    paid_at,
+    paid_by,
+    paid_total,
+    payments,
+    ...overrides,
+  };
+}

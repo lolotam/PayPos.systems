@@ -179,7 +179,7 @@ it.each([
   expect(screen.getByText(S(badge))).toBeTruthy();
   expect(screen.getByText('Noura Al-Test')).toBeTruthy();
   expect(screen.getByText(S('correctionsTotal')).parentElement?.textContent).toContain('-6.000');
-  for (const action of ['generate', 'refresh', 'review', 'returnToDraft', 'approve']) {
+  for (const action of ['generate', 'refresh', 'review', 'returnToDraft', 'approve', ...(status === 'PAID' ? ['pay'] : [])]) {
     expect(screen.queryByRole('button', { name: S(action) })).toBeNull();
   }
   expect(screen.queryByText(S('emptyTitle'))).toBeNull();

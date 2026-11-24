@@ -4,11 +4,12 @@ import { t } from '@pospay/i18n';
 import { useLocale } from '@/shared/locale/locale-context';
 import type { StatementScope } from '../api/commission-statement-client';
 import { statementActions, switchedOff } from '../model/statement-display';
-import { isGenerated, isOpenBusinessReading, type StatementReading } from '../model/statement-reading';
+import { isClosedReading, isGenerated, isOpenBusinessReading, type StatementReading } from '../model/statement-reading';
 import { StatementActions } from './statement-actions';
 import { StatementChangedNotice } from './statement-changed-notice';
 import { StatementCommandDialog } from './statement-command-dialog';
 import { StatementEmployeeCard } from './statement-employee-card';
+import { StatementPaymentBlock } from './statement-payment-block';
 import { useStatementDialog } from './use-statement-dialog';
 
 const NS = 'commissionStatementScreen';
@@ -37,6 +38,7 @@ export function StatementPanel(props: {
         onPick={(pick) => dialog.show(pick, reading)}
       />
       {dialog.done === null ? null : <p role="status">{t(locale, dialog.done)}</p>}
+      {isClosedReading(reading) && reading.status === 'PAID' ? <StatementPaymentBlock reading={reading} /> : null}
       {reading.employees.length === 0 ? <p>{t(locale, `${NS}.noEmployees`)}</p> : null}
       {reading.employees.map((employee) => (
         <StatementEmployeeCard key={employee.employee_id} employee={employee} />
@@ -47,7 +49,7 @@ export function StatementPanel(props: {
           pending={dialog.command.isPending}
           error={dialog.command.error}
           employees={reading.employees}
-          onConfirm={(body) => dialog.confirm(body?.reason)}
+          onConfirm={dialog.confirm}
           onClose={dialog.close}
           onReload={dialog.reload}
         />

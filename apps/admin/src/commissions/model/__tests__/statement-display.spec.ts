@@ -28,6 +28,7 @@ it('offers generate and review on a clean draft, and review stays closed while a
     review: 'enabled',
     returnToDraft: 'hidden',
     approve: 'hidden',
+    pay: 'hidden',
   });
   const blocked = businessView({ employees: [statementEmployee({ issues: [PLAN_ISSUE] })] });
   expect(statementActions(blocked).review).toBe('disabled');
@@ -39,21 +40,27 @@ it('offers only generate before the first generation, and refresh, return and ap
     review: 'hidden',
     returnToDraft: 'hidden',
     approve: 'hidden',
+    pay: 'hidden',
   });
   expect(statementActions(businessView({ status: 'REVIEWED' }))).toEqual({
     generate: 'enabled',
     review: 'hidden',
     returnToDraft: 'enabled',
     approve: 'enabled',
+    pay: 'hidden',
   });
 });
 
-const NO_ACTIONS = { generate: 'hidden', review: 'hidden', returnToDraft: 'hidden', approve: 'hidden' };
+const NO_ACTIONS = { generate: 'hidden', review: 'hidden', returnToDraft: 'hidden', approve: 'hidden', pay: 'hidden' };
 
-it('hides every write action from a branch reader and from a closed month', () => {
+it('hides every write action from a branch reader and from a paid month', () => {
   expect(statementActions(branchView())).toEqual(NO_ACTIONS);
-  expect(statementActions(closedView())).toEqual(NO_ACTIONS);
-  expect(statementActions(closedBranchView({ status: 'PAID' }))).toEqual(NO_ACTIONS);
+  expect(statementActions(closedBranchView())).toEqual(NO_ACTIONS);
+  expect(statementActions(closedView({ status: 'PAID' }))).toEqual(NO_ACTIONS);
+});
+
+it('offers only the payment on an approved month for a whole-business reader', () => {
+  expect(statementActions(closedView())).toEqual({ ...NO_ACTIONS, pay: 'enabled' });
 });
 
 it('closes approve on a reviewed statement that changed since the review or has an issue, keeping return open', () => {

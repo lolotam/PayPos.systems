@@ -26,7 +26,12 @@ it('tells a re-review with other reviewed fingerprints from the review the user 
   expect(statementVersion(reReviewed)).not.toBe(statementVersion(REVIEWED));
 });
 
-it('versions a closed month and a branch reading by their status alone', () => {
+it('versions a closed business month by its frozen fingerprints too', () => {
+  expect(statementVersion(closedView({ input_fingerprint: 'e'.repeat(64) }))).not.toBe(statementVersion(closedView()));
+  expect(statementVersion(closedView({ statement_fingerprint: 'e'.repeat(64) }))).not.toBe(statementVersion(closedView()));
+});
+
+it('tells an approved month from a paid one, and a draft branch reading from a reviewed one', () => {
   expect(statementVersion(closedView())).not.toBe(statementVersion(closedView({ status: 'PAID' })));
   expect(statementVersion(branchView())).not.toBe(statementVersion(branchView({ status: 'REVIEWED' })));
 });
