@@ -24670,7 +24670,7 @@
       },
       "CommissionStatementTotalMoney": {
         "type": "string",
-        "pattern": "^-?(0|[1-9]d{0,15}).d{3}$"
+        "pattern": "^-?(0|[1-9]\\d{0,15})\\.\\d{3}$"
       },
       "CommissionStatementStatus": {
         "type": "string",

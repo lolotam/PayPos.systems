@@ -9,7 +9,7 @@ import { commissionEstimateMoney, commissionEstimatePeriod } from './estimate.js
  * يتخطى مجموعها حد الصف الواحد. يتسع لأقصى `bigint` بالمليم (16 خانة صحيحة) لأن الباني يجمع بـ`bigint`، فلا يفشل ردٌّ
  * صحيح بعد الالتزام بسبب عدد الخانات (مراجعة PR #1259، البند 2).
  */
-const statementTotalMoneyPattern = /^-?(0|[1-9]d{0,15}).d{3}$/;
+const statementTotalMoneyPattern = /^-?(0|[1-9]\d{0,15})\.\d{3}$/;
 
 /** مجموع بالدينار بنمط أوسع من مبلغ الصف الواحد. */
 export const commissionStatementTotalMoney = z

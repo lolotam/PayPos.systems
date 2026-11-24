@@ -227,7 +227,7 @@ describe('parity with the approval binary', () => {
     async (name) => {
       const [fn] = await owner`SELECT prosrc FROM pg_proc WHERE proname = ${name}`;
       const source = String(fn?.['prosrc']);
-      const consumers = [...source.matchAll(/'(commissions.[a-z-]+)'/g)].map((match) => match[1] as string);
+      const consumers = [...source.matchAll(/'(commissions\.[a-z-]+)'/g)].map((match) => match[1] as string);
 
       expect([...new Set(consumers)]).toEqual([COMMISSION_INPUTS_CONSUMER_ID]);
     },

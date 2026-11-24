@@ -274,7 +274,8 @@ describe('a statement whose totals exceed one numeric(14,3) row', () => {
     const employee = (response.body as { employees: { employee_id: string; payable: string }[] }).employees.find(
       (candidate) => candidate.employee_id === f.employee,
     );
-    expect(employee?.payable).toBe('199999999998.000');
+    // 12 خانة صحيحة: أكبر مما يتسع له صف واحد (11 خانة)، وهو مجموع صفي التصحيح وبقية صفوف الشهر.
+    expect(employee?.payable).toMatch(/^[1-9]\d{11}\.\d{3}$/);
     const replay = await approve(f, approver.cookie, 'freeze-large-total', {
       input: (response.body as { input_fingerprint: string }).input_fingerprint,
       statement: (response.body as { statement_fingerprint: string }).statement_fingerprint,

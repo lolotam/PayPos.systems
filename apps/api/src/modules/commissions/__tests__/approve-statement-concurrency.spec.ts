@@ -157,6 +157,8 @@ describe('two approvers of the same month at once (CM-37)', () => {
     const fingerprints = await reviewedStatement(f, first);
     await openSwitch(f, first.userId);
     await issueProof(f);
+    // سجل التدقيق للإضافة فقط فلا يُمسح بين الاختبارات؛ المقارنة بما كان قبل الطلب.
+    const auditsBefore = (await approvalFootprint(f)).audits;
     const [response] = await whileHoldingLock(async (lock) => {
       const request = approve(f, first.cookie, 'expiry-while-waiting', fingerprints);
       await waitForWaiters(1);
@@ -169,6 +171,6 @@ describe('two approvers of the same month at once (CM-37)', () => {
     });
 
     expect([response?.status, (response?.body as { code?: string }).code]).toEqual([403, 'FEATURE_DISABLED']);
-    expect(await approvalFootprint(f)).toMatchObject({ status: 'REVIEWED', lines: 0, audits: 0 });
+    expect(await approvalFootprint(f)).toMatchObject({ status: 'REVIEWED', lines: 0, audits: auditsBefore });
   }, TEST_TIMEOUT_MS);
 });
