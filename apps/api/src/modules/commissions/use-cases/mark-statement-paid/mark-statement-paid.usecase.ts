@@ -35,8 +35,8 @@ export class MarkCommissionStatementPaidUseCase {
   }
 }
 
-/** الخطوات الداخلية لمسار HTTP؛ قاعدة الفلوس كلها في domain/statement-payment.ts. */
-export async function markStatementPaid(
+/** خطوات الصرف داخل المعاملة؛ قاعدة الفلوس كلها في domain/statement-payment.ts. */
+async function markStatementPaid(
   scope: MarkStatementPaidScope,
   command: MarkStatementPaidCommand,
   clock: Clock,
