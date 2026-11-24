@@ -5,16 +5,17 @@ import { useRef } from 'react';
 import { statementKey, type StatementScope } from './commission-statement-client';
 import { executeStatementCommand, staleRefusal, type StatementRequest } from './statement-commands';
 import { statementQueryOptions } from './use-commission-statement';
+import type { StatementReading } from '../model/statement-reading';
 import { statementVersion } from '../model/statement-version';
 
 /**
- * رد السيرفر بيثبت إن الكتابة ما حصلتش: غلاف خطأ حقيقي بكوده، مش «لسه بيتعالج» ولا بوابة بتقول 502 أو 503 أو
- * 504. أي رد تاني (انقطاع، مهلة، بوابة) ممكن يكون اتسجّل على السيرفر، فمفتاحه بيفضل للمحاولة اللي بعدها.
+ * رد السيرفر بيثبت إن الكتابة ما حصلتش: غلاف خطأ حقيقي بكوده، حتى لو حالته 503 (زي NOT_READY: السيرفر رفض قبل
+ * ما الكتابة تشتغل)، إلا «لسه بيتعالج». رد من غير غلاف (انقطاع، مهلة، 502 أو 503 أو 504 من بوابة) ممكن يكون
+ * اتسجّل على السيرفر، فمفتاحه بيفضل للمحاولة اللي بعدها.
  */
 function provesNotWritten(error: unknown): boolean {
-  const body = error as { status?: unknown; code?: unknown } | null;
-  if (typeof body?.code !== 'string' || body.code === 'IDEMPOTENCY_KEY_IN_PROGRESS') return false;
-  return body.status !== 502 && body.status !== 503 && body.status !== 504;
+  const code = (error as { code?: unknown } | null)?.code;
+  return typeof code === 'string' && code !== 'IDEMPOTENCY_KEY_IN_PROGRESS';
 }
 
 /**
@@ -45,7 +46,12 @@ export function useStatementCommand(scope: StatementScope, period: string) {
         throw error;
       }
       attempts.current.delete(identity);
-      if (next !== undefined) client.setQueryData(statementKey(scope, period), next);
+      // رد الكتابة بيحل محل الكشف المحفوظ بس لو هو لسه النسخة اللي الحوار اتفتح عليها: لو قراءة أحدث (نطاقها ممكن
+      // يكون ضاق) وصلت في الأثناء، بنسيبها ونكتفي بإعادة القراءة.
+      const cachedNow = client.getQueryData<StatementReading>(statementKey(scope, period));
+      if (next !== undefined && cachedNow !== undefined && statementVersion(cachedNow) === seenVersion) {
+        client.setQueryData(statementKey(scope, period), next);
+      }
       await client.invalidateQueries({ queryKey: statementKey(scope, period) });
       return next;
     },

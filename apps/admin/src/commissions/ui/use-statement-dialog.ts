@@ -8,6 +8,7 @@ import { useStatementCommand } from '../api/use-statement-command';
 import { isOpenBusinessReading, type StatementReading } from '../model/statement-reading';
 import { statementVersion } from '../model/statement-version';
 import type { StatementPick } from './statement-actions';
+import type { DialogInput } from './statement-command-dialog';
 
 const NS = 'commissionStatementScreen';
 
@@ -16,6 +17,7 @@ const DONE: Record<StatementPick, MessageKey> = {
   review: `${NS}.doneReviewed`,
   return: `${NS}.doneReturned`,
   approve: `${NS}.doneApproved`,
+  pay: `${NS}.donePaid`,
 };
 
 /**
@@ -44,9 +46,10 @@ function openingOf(pick: StatementPick, reading: StatementReading): OpenDialog {
 }
 
 /** الأمر اللي بيتبعت لما المستخدم يأكد، من الحوار المفتوح وسبب الإرجاع لو في. */
-function commandOf(open: OpenDialog, reason: string | undefined): StatementCommand | null {
+function commandOf(open: OpenDialog, input: DialogInput | undefined): StatementCommand | null {
   if (open.pick === 'generate') return { kind: 'generate' };
-  if (open.pick === 'return') return reason === undefined ? null : { kind: 'return', body: { reason } };
+  if (open.pick === 'return') return input !== undefined && 'reason' in input ? { kind: 'return', body: input } : null;
+  if (open.pick === 'pay') return input !== undefined && 'paid_method' in input ? { kind: 'pay', body: input } : null;
   if (open.fingerprints === null) return null;
   return { kind: open.pick, body: open.fingerprints };
 }
@@ -75,8 +78,8 @@ export function useStatementDialog(scope: StatementScope, period: string, onRelo
       setDone(null);
       setOpen(openingOf(pick, reading));
     },
-    confirm(reason?: string) {
-      const next = open === null ? null : commandOf(open, reason);
+    confirm(input?: DialogInput) {
+      const next = open === null ? null : commandOf(open, input);
       if (open === null || next === null) return;
       const request = { command: next, openingId: open.openingId, seenVersion: open.seenVersion };
       command.mutate(request, {

@@ -1,6 +1,10 @@
 'use client';
 
-import type { CommissionStatementEmployee, CommissionStatementReturnInput } from '@pospay/contracts';
+import type {
+  CommissionStatementEmployee,
+  CommissionStatementReturnInput,
+  MarkCommissionStatementPaidInput,
+} from '@pospay/contracts';
 import { t, type Locale, type MessageKey } from '@pospay/i18n';
 import { Button } from '@pospay/ui';
 import { useLocale } from '@/shared/locale/locale-context';
@@ -8,6 +12,7 @@ import { ModalDialog } from '@/shared/ui/modal-dialog';
 import { statementFailure } from '../model/statement-messages';
 import type { StatementPick } from './statement-actions';
 import { StatementFailureNotice } from './statement-failure-notice';
+import { StatementPayForm } from './statement-pay-form';
 import { StatementReturnForm } from './statement-return-form';
 
 const NS = 'commissionStatementScreen';
@@ -17,7 +22,11 @@ const TEXT: Record<StatementPick, { title: MessageKey; body: MessageKey }> = {
   review: { title: `${NS}.reviewTitle`, body: `${NS}.reviewBody` },
   return: { title: `${NS}.returnTitle`, body: `${NS}.returnBody` },
   approve: { title: `${NS}.approveTitle`, body: `${NS}.approveBody` },
+  pay: { title: `${NS}.payTitle`, body: `${NS}.payBody` },
 };
+
+/** اللي فورم الحوار بيسلّمه عند التأكيد: سبب الإرجاع أو بيانات الصرف. */
+export type DialogInput = CommissionStatementReturnInput | MarkCommissionStatementPaidInput;
 
 /** النص المقروء لرد السيرفر الأخير في الحوار، أو null قبل أي محاولة. */
 function failureOf(error: unknown, locale: Locale) {
@@ -25,7 +34,7 @@ function failureOf(error: unknown, locale: Locale) {
 }
 
 /**
- * حوار تأكيد أمر على الكشف: العنوان والشرح، وفورم السبب في الإرجاع، ورد السيرفر المقروء لو الأمر اترفض.
+ * حوار تأكيد أمر على الكشف: العنوان والشرح، وفورم السبب في الإرجاع وفورم بيانات الصرف، ورد السيرفر المقروء لو الأمر اترفض.
  * الحوار مفتوح لحد ما الأمر ينجح، والصفحة هي اللي بتقفله؛ وهو مقفول للإلغاء طول ما الأمر شغّال.
  */
 export function StatementCommandDialog(props: {
@@ -33,11 +42,12 @@ export function StatementCommandDialog(props: {
   pending: boolean;
   error: unknown;
   employees: readonly CommissionStatementEmployee[];
-  onConfirm(returnBody?: CommissionStatementReturnInput): void;
+  approvedAt: string | undefined;
+  onConfirm(input?: DialogInput): void;
   onClose(): void;
   onReload(): void;
 }) {
-  const { pick, pending, error, employees, onConfirm, onClose, onReload } = props;
+  const { pick, pending, error, employees, approvedAt, onConfirm, onClose, onReload } = props;
   const locale = useLocale();
   const failure = failureOf(error, locale);
   const notice =
@@ -49,7 +59,13 @@ export function StatementCommandDialog(props: {
         <StatementReturnForm pending={pending} onSubmit={onConfirm} onCancel={onClose}>
           {notice}
         </StatementReturnForm>
-      ) : (
+      ) : null}
+      {pick === 'pay' ? (
+        <StatementPayForm employees={employees} approvedAt={approvedAt} pending={pending} onSubmit={onConfirm} onCancel={onClose}>
+          {notice}
+        </StatementPayForm>
+      ) : null}
+      {pick !== 'return' && pick !== 'pay' ? (
         <>
           {notice}
           <div className="flex flex-wrap gap-2">
@@ -61,7 +77,7 @@ export function StatementCommandDialog(props: {
             </Button>
           </div>
         </>
-      )}
+      ) : null}
     </ModalDialog>
   );
 }
