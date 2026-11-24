@@ -28,13 +28,11 @@ export function renderNotification(
       discountApprovalValues(item.safe_parameters),
     );
   }
-  if (item.template_key === 'commission_correction_blocked') {
-    return fill(
-      t(viewerLocale ?? item.locale, 'inApp.commission_correction_blocked'),
-      Object.fromEntries(
-        item.safe_parameters.map((parameter) => [parameter.name, parameter.value]),
-      ),
-    );
+  if (
+    item.template_key === 'commission_correction_blocked' ||
+    item.template_key === 'statement_awaiting_approval'
+  ) {
+    return renderPeriodNotice(item, viewerLocale);
   }
   if (item.template_key === 'late_service_session') {
     const values = Object.fromEntries(
@@ -67,6 +65,14 @@ export function renderNotification(
   }
   return fill(
     t(item.locale, 'inApp.generic_notice'),
+    Object.fromEntries(item.safe_parameters.map((parameter) => [parameter.name, parameter.value])),
+  );
+}
+
+/** جرس ياخد معامل واحد بس: الشهر (توقف تصحيح العمولة، اعتماد كشف العمولة). */
+function renderPeriodNotice(item: ScalarNotification, viewerLocale?: Locale): string {
+  return fill(
+    t(viewerLocale ?? item.locale, `inApp.${item.template_key}`),
     Object.fromEntries(item.safe_parameters.map((parameter) => [parameter.name, parameter.value])),
   );
 }

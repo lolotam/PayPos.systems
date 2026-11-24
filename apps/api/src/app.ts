@@ -35,6 +35,9 @@ import {
   readCommissionPlanListAccess,
   readCommissionFeatureEnabled,
   readCommissionReviewAccess,
+  readCommissionActorMembership,
+  readCommissionApprovers,
+  readCommissionReturnAccess,
   readCommissionScope,
 } from './modules/identity/index.ts';
 import { settingsControllers, settingsProviders } from './modules/settings/index.ts';
@@ -81,6 +84,7 @@ import {
   commissionsProviders,
   type CommissionEstimateProviders,
 } from './modules/commissions/index.ts';
+import { commissionAlertRules } from './modules/commissions/persistence/commission-alert-rule.adapter.ts';
 import {
   documentFileFacts,
   filesControllers,
@@ -243,6 +247,12 @@ function commissionBindings(deps: AppDependencies) {
       },
       reviewAccess: readCommissionReviewAccess,
       businessCalendar,
+      // المراجعة والإرجاع (52-1): فحص الإرجاع (مراجع أو معتمد)، وعضوية الفاعل، ومستلمو إشعار
+      // الاعتماد، وقواعد التنبيه اللي بتحدد التشغيل والقناة بس (DR-008).
+      returnAccess: readCommissionReturnAccess,
+      actorMembership: readCommissionActorMembership,
+      approvers: readCommissionApprovers,
+      alertRules: commissionAlertRules,
     },
     deps.commissionsClock,
   );

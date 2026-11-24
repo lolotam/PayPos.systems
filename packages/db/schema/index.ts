@@ -57,3 +57,4 @@ export * from './commissions-sales.ts';
 export * from './commissions-corrections.ts';
 export * from './commissions-blocked-corrections.ts';
 export * from './commissions-carries.ts';
+export * from './commissions-statement-returns.ts';

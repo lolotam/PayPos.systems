@@ -1,5 +1,5 @@
 {
-  "id": "cc33b5ad-ce3e-47ed-b721-96ace9d1ba2b",
+  "id": "548242a5-d4f2-4104-bc3e-6278a25c4fd7",
   "prevId": "b1f31977-7668-47b7-bd05-240beaa3d720",
   "version": "7",
   "dialect": "postgresql",
@@ -7069,126 +7069,6 @@
       },
       "isRLSEnabled": false
     },
-    "public.notification_attempt_feedback": {
-      "name": "notification_attempt_feedback",
-      "schema": "",
-      "columns": {
-        "company_id": {
-          "name": "company_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "id": {
-          "name": "id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "attempt_id": {
-          "name": "attempt_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "event_type": {
-          "name": "event_type",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "bounce_class": {
-          "name": "bounce_class",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "provider_event_digest": {
-          "name": "provider_event_digest",
-          "type": "bytea",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "provider_timestamp": {
-          "name": "provider_timestamp",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "recorded_at": {
-          "name": "recorded_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true
-        }
-      },
-      "indexes": {},
-      "foreignKeys": {
-        "notification_attempt_feedback_company_id_companies_id_fk": {
-          "name": "notification_attempt_feedback_company_id_companies_id_fk",
-          "tableFrom": "notification_attempt_feedback",
-          "tableTo": "companies",
-          "columnsFrom": [
-            "company_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
-        },
-        "notification_attempt_feedback_attempt_fk": {
-          "name": "notification_attempt_feedback_attempt_fk",
-          "tableFrom": "notification_attempt_feedback",
-          "tableTo": "notification_attempts",
-          "columnsFrom": [
-            "company_id",
-            "attempt_id"
-          ],
-          "columnsTo": [
-            "company_id",
-            "id"
-          ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {
-        "notification_attempt_feedback_pkey": {
-          "name": "notification_attempt_feedback_pkey",
-          "columns": [
-            "company_id",
-            "id"
-          ]
-        }
-      },
-      "uniqueConstraints": {
-        "notification_attempt_feedback_event": {
-          "name": "notification_attempt_feedback_event",
-          "nullsNotDistinct": false,
-          "columns": [
-            "company_id",
-            "provider_event_digest"
-          ]
-        }
-      },
-      "policies": {},
-      "checkConstraints": {
-        "notification_attempt_feedback_event_type": {
-          "name": "notification_attempt_feedback_event_type",
-          "value": "\"notification_attempt_feedback\".\"event_type\" IN ('email.delivered','email.bounced','email.complained','email.failed','email.suppressed','email.delivery_delayed')"
-        },
-        "notification_attempt_feedback_bounce_class": {
-          "name": "notification_attempt_feedback_bounce_class",
-          "value": "\"notification_attempt_feedback\".\"bounce_class\" IS NULL OR \"notification_attempt_feedback\".\"bounce_class\" IN ('PERMANENT','TRANSIENT')"
-        },
-        "notification_attempt_feedback_digest": {
-          "name": "notification_attempt_feedback_digest",
-          "value": "octet_length(\"notification_attempt_feedback\".\"provider_event_digest\") = 32"
-        }
-      },
-      "isRLSEnabled": false
-    },
     "public.notification_attempts": {
       "name": "notification_attempts",
       "schema": "",
@@ -8579,297 +8459,6 @@
         "platform_whatsapp_suppressions_null_only": {
           "name": "platform_whatsapp_suppressions_null_only",
           "value": "\"platform_whatsapp_suppressions\".\"opted_back_in_at\" IS NULL"
-        }
-      },
-      "isRLSEnabled": false
-    },
-    "public.platform_email_audit": {
-      "name": "platform_email_audit",
-      "schema": "",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "uuid",
-          "primaryKey": true,
-          "notNull": true
-        },
-        "recipient_hash": {
-          "name": "recipient_hash",
-          "type": "bytea",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "hash_key_id": {
-          "name": "hash_key_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "source": {
-          "name": "source",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "inbox_id": {
-          "name": "inbox_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "operator_id": {
-          "name": "operator_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "action": {
-          "name": "action",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "reason": {
-          "name": "reason",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "occurred_at": {
-          "name": "occurred_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true
-        }
-      },
-      "indexes": {},
-      "foreignKeys": {
-        "platform_email_audit_inbox_id_platform_email_feedback_inbox_id_fk": {
-          "name": "platform_email_audit_inbox_id_platform_email_feedback_inbox_id_fk",
-          "tableFrom": "platform_email_audit",
-          "tableTo": "platform_email_feedback_inbox",
-          "columnsFrom": [
-            "inbox_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {
-        "platform_email_audit_hash": {
-          "name": "platform_email_audit_hash",
-          "value": "octet_length(\"platform_email_audit\".\"recipient_hash\") = 32"
-        },
-        "platform_email_audit_actor": {
-          "name": "platform_email_audit_actor",
-          "value": "(\"platform_email_audit\".\"source\" IN ('BOUNCE','COMPLAINT','PROVIDER') AND \"platform_email_audit\".\"inbox_id\" IS NOT NULL AND \"platform_email_audit\".\"operator_id\" IS NULL AND \"platform_email_audit\".\"reason\" IN ('PERMANENT_BOUNCE','COMPLAINT','PROVIDER_SUPPRESSION')) OR (\"platform_email_audit\".\"source\" = 'MANUAL' AND \"platform_email_audit\".\"inbox_id\" IS NULL AND \"platform_email_audit\".\"operator_id\" IS NOT NULL AND \"platform_email_audit\".\"reason\" IN ('OPERATOR_REQUEST','ABUSE_PREVENTION'))"
-        },
-        "platform_email_audit_action": {
-          "name": "platform_email_audit_action",
-          "value": "\"platform_email_audit\".\"action\" = 'SUPPRESS'"
-        }
-      },
-      "isRLSEnabled": false
-    },
-    "public.platform_email_feedback_inbox": {
-      "name": "platform_email_feedback_inbox",
-      "schema": "",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "uuid",
-          "primaryKey": true,
-          "notNull": true
-        },
-        "provider_event_digest": {
-          "name": "provider_event_digest",
-          "type": "bytea",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "provider_email_id": {
-          "name": "provider_email_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "event_type": {
-          "name": "event_type",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "bounce_class": {
-          "name": "bounce_class",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "provider_timestamp": {
-          "name": "provider_timestamp",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "received_at": {
-          "name": "received_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "raw_event": {
-          "name": "raw_event",
-          "type": "jsonb",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "enqueue_confirmed_at": {
-          "name": "enqueue_confirmed_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "attempts": {
-          "name": "attempts",
-          "type": "smallint",
-          "primaryKey": false,
-          "notNull": true,
-          "default": 0
-        },
-        "next_attempt_at": {
-          "name": "next_attempt_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "resolved_at": {
-          "name": "resolved_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "quarantined_at": {
-          "name": "quarantined_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "quarantine_reason": {
-          "name": "quarantine_reason",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        }
-      },
-      "indexes": {},
-      "foreignKeys": {},
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {
-        "platform_email_feedback_inbox_digest": {
-          "name": "platform_email_feedback_inbox_digest",
-          "nullsNotDistinct": false,
-          "columns": [
-            "provider_event_digest"
-          ]
-        }
-      },
-      "policies": {},
-      "checkConstraints": {
-        "platform_email_feedback_inbox_digest_bytes": {
-          "name": "platform_email_feedback_inbox_digest_bytes",
-          "value": "octet_length(\"platform_email_feedback_inbox\".\"provider_event_digest\") = 32"
-        },
-        "platform_email_feedback_inbox_event_type": {
-          "name": "platform_email_feedback_inbox_event_type",
-          "value": "\"platform_email_feedback_inbox\".\"event_type\" IN ('email.delivered','email.bounced','email.complained','email.failed','email.suppressed','email.delivery_delayed')"
-        },
-        "platform_email_feedback_inbox_bounce_class": {
-          "name": "platform_email_feedback_inbox_bounce_class",
-          "value": "\"platform_email_feedback_inbox\".\"bounce_class\" IS NULL OR \"platform_email_feedback_inbox\".\"bounce_class\" IN ('PERMANENT','TRANSIENT')"
-        },
-        "platform_email_feedback_inbox_state": {
-          "name": "platform_email_feedback_inbox_state",
-          "value": "NOT (\"platform_email_feedback_inbox\".\"resolved_at\" IS NOT NULL AND \"platform_email_feedback_inbox\".\"quarantined_at\" IS NOT NULL)"
-        },
-        "platform_email_feedback_inbox_quarantine_reason": {
-          "name": "platform_email_feedback_inbox_quarantine_reason",
-          "value": "\"platform_email_feedback_inbox\".\"quarantine_reason\" IS NULL OR \"platform_email_feedback_inbox\".\"quarantine_reason\" IN ('TAGS_INVALID','RETRIEVAL_EXHAUSTED','ATTEMPT_NOT_FOUND','HASH_MISMATCH','STATE_INELIGIBLE','EXECUTION_MISSING','PROVIDER_ID_CONFLICT','CROSS_TENANT')"
-        },
-        "platform_email_feedback_inbox_attempts": {
-          "name": "platform_email_feedback_inbox_attempts",
-          "value": "\"platform_email_feedback_inbox\".\"attempts\" >= 0"
-        }
-      },
-      "isRLSEnabled": false
-    },
-    "public.platform_email_suppressions": {
-      "name": "platform_email_suppressions",
-      "schema": "",
-      "columns": {
-        "recipient_hash": {
-          "name": "recipient_hash",
-          "type": "bytea",
-          "primaryKey": true,
-          "notNull": true
-        },
-        "hash_key_id": {
-          "name": "hash_key_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "source": {
-          "name": "source",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "first_suppressed_at": {
-          "name": "first_suppressed_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "last_suppressed_at": {
-          "name": "last_suppressed_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "lifted_at": {
-          "name": "lifted_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": false
-        }
-      },
-      "indexes": {},
-      "foreignKeys": {},
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {
-        "platform_email_suppressions_hash": {
-          "name": "platform_email_suppressions_hash",
-          "value": "octet_length(\"platform_email_suppressions\".\"recipient_hash\") = 32"
-        },
-        "platform_email_suppressions_source": {
-          "name": "platform_email_suppressions_source",
-          "value": "\"platform_email_suppressions\".\"source\" IN ('BOUNCE','COMPLAINT','PROVIDER','MANUAL')"
-        },
-        "platform_email_suppressions_time": {
-          "name": "platform_email_suppressions_time",
-          "value": "\"platform_email_suppressions\".\"last_suppressed_at\" >= \"platform_email_suppressions\".\"first_suppressed_at\""
-        },
-        "platform_email_suppressions_null_only": {
-          "name": "platform_email_suppressions_null_only",
-          "value": "\"platform_email_suppressions\".\"lifted_at\" IS NULL"
         }
       },
       "isRLSEnabled": false
@@ -31591,6 +31180,212 @@
         "commission_carries_target_after_source": {
           "name": "commission_carries_target_after_source",
           "value": "\"commission_carries\".\"target_period\" > \"commission_carries\".\"source_period\""
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.commission_statement_returns": {
+      "name": "commission_statement_returns",
+      "schema": "",
+      "columns": {
+        "company_id": {
+          "name": "company_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "business_id": {
+          "name": "business_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "statement_id": {
+          "name": "statement_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "returned_by": {
+          "name": "returned_by",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "returned_membership_id": {
+          "name": "returned_membership_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "reason": {
+          "name": "reason",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "commission_statement_returns_statement_idx": {
+          "name": "commission_statement_returns_statement_idx",
+          "columns": [
+            {
+              "expression": "company_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "business_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "statement_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "commission_statement_returns_membership_idx": {
+          "name": "commission_statement_returns_membership_idx",
+          "columns": [
+            {
+              "expression": "company_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "returned_by",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "returned_membership_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "commission_statement_returns_returned_by_idx": {
+          "name": "commission_statement_returns_returned_by_idx",
+          "columns": [
+            {
+              "expression": "returned_by",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "commission_statement_returns_company_id_companies_id_fk": {
+          "name": "commission_statement_returns_company_id_companies_id_fk",
+          "tableFrom": "commission_statement_returns",
+          "tableTo": "companies",
+          "columnsFrom": [
+            "company_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "commission_statement_returns_returned_by_user_id_fk": {
+          "name": "commission_statement_returns_returned_by_user_id_fk",
+          "tableFrom": "commission_statement_returns",
+          "tableTo": "user",
+          "columnsFrom": [
+            "returned_by"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "commission_statement_returns_statement_fk": {
+          "name": "commission_statement_returns_statement_fk",
+          "tableFrom": "commission_statement_returns",
+          "tableTo": "commission_statements",
+          "columnsFrom": [
+            "company_id",
+            "business_id",
+            "statement_id"
+          ],
+          "columnsTo": [
+            "company_id",
+            "business_id",
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "commission_statement_returns_membership_fk": {
+          "name": "commission_statement_returns_membership_fk",
+          "tableFrom": "commission_statement_returns",
+          "tableTo": "memberships",
+          "columnsFrom": [
+            "company_id",
+            "returned_by",
+            "returned_membership_id"
+          ],
+          "columnsTo": [
+            "company_id",
+            "user_id",
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {
+        "commission_statement_returns_pkey": {
+          "name": "commission_statement_returns_pkey",
+          "columns": [
+            "company_id",
+            "id"
+          ]
+        }
+      },
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "commission_statement_returns_reason": {
+          "name": "commission_statement_returns_reason",
+          "value": "char_length(\"commission_statement_returns\".\"reason\") BETWEEN 1 AND 500"
         }
       },
       "isRLSEnabled": false

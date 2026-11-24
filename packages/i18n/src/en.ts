@@ -151,6 +151,9 @@ export const en = {
     never: 'No expiry',
     role: 'Role',
     choosePermission: 'Choose a permission',
+    // FR-029b: صلاحية المراجعة والاعتماد بلا قراءة النشاط كله مالهاش أثر، فالشاشة بتحذّر من كودين.
+    commissionBusinessWideOnly:
+      'This permission only takes effect together with business-wide read of commissions.',
     active: 'Active',
     expired: 'Expired',
   },

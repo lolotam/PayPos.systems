@@ -34,6 +34,9 @@ export const COMMISSION_STATEMENT_TABLE_GRANTS = [
   'commission_statement_exports:SELECT',
   'commission_statement_lines:INSERT',
   'commission_statement_lines:SELECT',
+  // إرجاع الكشف صف للإضافة فقط (FR-031): السبب بيتكتب مرة واحدة وبيمسح مع المسودة، فمفيش UPDATE ولا DELETE.
+  'commission_statement_returns:INSERT',
+  'commission_statement_returns:SELECT',
   'commission_statements:INSERT',
   'commission_statements:SELECT',
 ];

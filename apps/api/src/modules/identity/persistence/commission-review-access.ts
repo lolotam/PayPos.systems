@@ -40,7 +40,7 @@ export async function readCommissionReviewAccess(
   const at = new Date(time.at);
   const access = await readAccessTransaction(tx, companyId, userId, at);
   if (!evaluateAccess(access.grants, PERMISSION, { companyId, businessId })) return 'FORBIDDEN';
-  const scope = await readCommissionScope(tx, companyId, userId, businessId);
+  const scope = await readCommissionScope(tx, companyId, userId, businessId, at);
   if (scope.kind !== 'scope' || !scope.scope.businessWide) return 'FORBIDDEN';
   return (await readFeatureEnabled(tx, companyId, 'commissions', at)) ? null : 'FEATURE_DISABLED';
 }

@@ -634,6 +634,40 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/businesses/{businessId}/commission-statements/{period}/review": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @description Reviews a business month statement and certifies it (FR-029): under one statement lock it checks the month has ended and the status is DRAFT, recomputes the input fingerprint and the statement fingerprint the builder gives now, refuses a mismatch with the reviewer’s expected fingerprints (409 COMMISSION_FINGERPRINT_STALE), refuses a blocking issue with 422 COMMISSION_STATEMENT_BLOCKED, then stores REVIEWED with both reviewed fingerprints, the reviewer membership and the time, writes one audit entry and appends one StatementAwaitingApproval notice for the approvers in the same transaction. Requires review:commissions:business and a business-wide read of commissions; a branch-scoped reader is refused with the uniform 403 before any fingerprint is computed or returned. A month that is already REVIEWED is refused with 409 COMMISSION_PERIOD_NOT_DRAFT and an APPROVED or PAID one with 409 COMMISSION_PERIOD_CLOSED. */
+        post: operations["reviewCommissionStatement"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/businesses/{businessId}/commission-statements/{period}/return": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @description Returns a REVIEWED statement to DRAFT (FR-031): a holder of review:commissions:business or approve:commissions:business who is a business-wide reader clears the reviewed values under the statement lock, stores the reason in one insert-only commission_statement_returns row and writes one audit entry without the reason, all in one transaction. A branch-scoped reader is refused with the uniform 403 (CM-33d, CM-38b). An APPROVED or PAID month is refused with 409 COMMISSION_PERIOD_CLOSED under the same lock, an empty reason is refused with 422 COMMISSION_RETURN_REASON_INVALID and any other status that is not REVIEWED with 409 COMMISSION_STATEMENT_NOT_REVIEWED. */
+        post: operations["returnCommissionStatement"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/document-types": {
         parameters: {
             query?: never;
@@ -4096,6 +4130,23 @@ export interface components {
             status: components["schemas"]["CommissionStatementStatus"];
             generated: boolean;
             employees: components["schemas"]["CommissionStatementEmployee"][];
+        };
+        CommissionStatementReviewInput: {
+            expected_fingerprint: string;
+            expected_statement_fingerprint: string;
+        };
+        CommissionStatementReturnInput: {
+            reason: string;
+        };
+        CommissionStatementReviewResult: {
+            /** @enum {string} */
+            status: "REVIEWED";
+            reviewed_fingerprint: string;
+            reviewed_statement_fingerprint: string;
+        };
+        CommissionStatementReturnResult: {
+            /** @enum {string} */
+            status: "DRAFT";
         };
         /** @enum {string} */
         EmployeeDocumentStatus: "NO_EXPIRY" | "VALID" | "EXPIRING" | "EXPIRED";
@@ -8886,6 +8937,34 @@ export interface components {
             /** Format: date-time */
             read_at: string | null;
             /** @enum {string} */
+            template_key: "statement_awaiting_approval";
+            safe_parameters: {
+                /** @enum {string} */
+                name: "period";
+                /** @enum {string} */
+                type: "text";
+                value: string;
+            }[];
+        } | {
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            company_id: string;
+            /** Format: uuid */
+            business_id: string | null;
+            /** Format: uuid */
+            branch_id: string | null;
+            /** Format: uuid */
+            source_event_id: string;
+            /** @enum {number} */
+            template_revision: 1;
+            /** @enum {string} */
+            locale: "ar" | "en";
+            /** Format: date-time */
+            created_at: string;
+            /** Format: date-time */
+            read_at: string | null;
+            /** @enum {string} */
             template_key: "break_returned_other_branch";
             safe_parameters: ({
                 /** @enum {string} */
@@ -12171,6 +12250,138 @@ export interface operations {
                 };
             };
             /** @description COMMISSION_PERIOD_NOT_ENDED or IDEMPOTENCY_KEY_REUSED */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Bilingual refusal */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    reviewCommissionStatement: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-company-id": string;
+                "Idempotency-Key": string;
+            };
+            path: {
+                businessId: string;
+                period: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CommissionStatementReviewInput"];
+            };
+        };
+        responses: {
+            /** @description The reviewed statement */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommissionStatementReviewResult"];
+                };
+            };
+            /** @description Uniform 403 refusal */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description COMMISSION_FINGERPRINT_STALE, COMMISSION_PERIOD_NOT_DRAFT, COMMISSION_PERIOD_CLOSED or IDEMPOTENCY_KEY_IN_PROGRESS */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description COMMISSION_STATEMENT_BLOCKED, COMMISSION_PERIOD_NOT_ENDED or IDEMPOTENCY_KEY_REUSED */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Bilingual refusal */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    returnCommissionStatement: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-company-id": string;
+                "Idempotency-Key": string;
+            };
+            path: {
+                businessId: string;
+                period: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CommissionStatementReturnInput"];
+            };
+        };
+        responses: {
+            /** @description The returned statement */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommissionStatementReturnResult"];
+                };
+            };
+            /** @description Uniform 403 refusal */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description COMMISSION_STATEMENT_NOT_REVIEWED, COMMISSION_PERIOD_CLOSED or IDEMPOTENCY_KEY_IN_PROGRESS */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description COMMISSION_RETURN_REASON_INVALID or IDEMPOTENCY_KEY_REUSED */
             422: {
                 headers: {
                     [name: string]: unknown;
