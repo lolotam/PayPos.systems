@@ -15,13 +15,15 @@ type BranchPost = (
 
 /** بينشئ الفرع بمفتاح Idempotency على مسار النشاط المختار ويحلل الرد بسكيما العقد. */
 export async function createBranch(
+  companyId: string,
   idempotencyKey: string,
   businessId: string,
   body: CreateBranchWire,
 ): Promise<Branch> {
   const post = apiClient().POST as unknown as BranchPost;
+  // x-company-id صريح من الشركة اللي الشاشة اتفتحت لها، مش الكوكي المشترك وقت الإرسال.
   const result = await post(`/v1/businesses/${businessId}/branches`, {
-    params: { header: { 'Idempotency-Key': idempotencyKey } },
+    params: { header: { 'Idempotency-Key': idempotencyKey, 'x-company-id': companyId } },
     body,
   });
   if (!result.response.ok) throw { ...(result.error as object), status: result.response.status };

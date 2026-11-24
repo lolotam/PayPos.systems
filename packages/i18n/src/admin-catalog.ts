@@ -98,6 +98,8 @@ export const adminEn = {
   firstBusinessForbidden: 'This account is not allowed to create a business. Ask your company owner.',
   businessCountryNotSaved:
     'The business was created, but its country was not saved. You can set it later from the settings.',
+  businessCountryRetry: 'Try again',
+  businessCountryDismiss: 'Dismiss',
   firstBranchTitle: 'Create your first branch',
   firstBranchLead: 'Add the first branch of this business.',
   branchNameEnLabel: 'Branch name (English)',
@@ -203,6 +205,8 @@ export const adminAr = {
   firstBusinessSubmit: 'إنشاء النشاط',
   firstBusinessForbidden: 'هذا الحساب غير مسموح له بإنشاء نشاط. اطلب من مالك الشركة.',
   businessCountryNotSaved: 'تم إنشاء النشاط، لكن لم تُحفظ دولته. يمكنك تحديدها لاحقًا من الإعدادات.',
+  businessCountryRetry: 'حاول مرة أخرى',
+  businessCountryDismiss: 'تجاهل',
   firstBranchTitle: 'أنشئ أول فرع للنشاط',
   firstBranchLead: 'أضف أول فرع لهذا النشاط.',
   branchNameEnLabel: 'اسم الفرع (بالإنجليزية)',

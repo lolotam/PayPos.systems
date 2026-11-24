@@ -8,6 +8,7 @@ import { useLocale } from '@/shared/locale/locale-context';
 
 import { isForbidden, issueField } from '../api/create-company-client';
 import { useCreateBusiness } from '../api/use-first-setup';
+import { CountryNotSavedAlert } from './country-not-saved-alert';
 import { CreateFirstBusinessForm } from './create-first-business-form';
 
 /** شاشة أول نشاط: بتظهر للشركة المختارة اللي ملهاش أنشطة، والرفض بيتعرض بعد المحاولة نفسها. */
@@ -22,9 +23,7 @@ export function CreateFirstBusinessScreen({ companyId }: { companyId: string }) 
     : error === null || error === undefined
       ? null
       : envelopeMessage(error, locale);
-  // الإنشاء نجح والدولة هي اللي فشلت: النشاط مفيش له لازمة تتلغي، والرسالة بتقول إنها تنحفظ
-  // لاحقًا من الإعدادات — والانسياب بيكمل للخطوة اللي بعدها لما القراءة المحدّثة توصل.
-  const countryFailed = create.data !== undefined && create.data !== null && !create.data.countrySaved;
+  const countryOutcome = create.data !== undefined && create.data !== null ? create.data : null;
   return (
     <PageShell layout="form">
       <PageHeader
@@ -34,14 +33,8 @@ export function CreateFirstBusinessScreen({ companyId }: { companyId: string }) 
       {alertTitle ? (
         <EmptyState role="alert" tone="danger" icon={<CircleAlert />} title={alertTitle} className="p-4" />
       ) : null}
-      {countryFailed ? (
-        <EmptyState
-          role="alert"
-          tone="danger"
-          icon={<CircleAlert />}
-          title={t(locale, 'admin.businessCountryNotSaved')}
-          className="p-4"
-        />
+      {countryOutcome !== null && !countryOutcome.countrySaved ? (
+        <CountryNotSavedAlert companyId={companyId} businessId={countryOutcome.created.id} />
       ) : null}
       <CreateFirstBusinessForm
         pending={create.isPending}

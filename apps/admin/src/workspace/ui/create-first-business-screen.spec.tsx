@@ -8,16 +8,21 @@ import {
   BUSINESS_BODY,
   BUSINESS_ID,
   COMPANY_ID,
+  CREATED_BRANCH,
   CREATED_BUSINESS,
   ENVELOPE,
   chooseCountry,
+  companyWithBusinessAndBranch,
   companyWithBusinessNoBranch,
+  companyWithOtherCompany,
   companyWithoutBusiness,
+  fillBranchAndSubmit,
   fillBusinessAndSubmit,
   jsonResponse,
   mockFetch,
   queue,
   renderScreen,
+  selectOtherCompanyInCookie,
   waitForBusinessForm,
 } from './create-first-screens-support';
 function BusinessProbe() {
@@ -270,6 +275,89 @@ function testEmptyEnglishName(): void {
   });
 }
 
+function testFormHiddenForRoleThatCannotCreate(): void {
+  it('a viewer with no business sees the page content and no business form', async () => {
+    queue({ gets: [() => companyWithoutBusiness('viewer')] });
+    renderScreen('en', <BusinessProbe />);
+    await waitFor(() => {
+      expect(screen.getByTestId('dashboard-business')).not.toBeNull();
+    });
+    expect(screen.queryByLabelText(t('en', 'admin.businessNameEnLabel'))).toBeNull();
+    expect(screen.queryByRole('heading', { name: t('en', 'admin.firstBusinessTitle') })).toBeNull();
+  });
+}
+
+function testBranchFormHiddenForRoleThatCannotCreate(): void {
+  it('a viewer with a business that has no branch sees the page content and no branch form', async () => {
+    queue({ gets: [() => companyWithBusinessNoBranch('viewer')] });
+    renderScreen('en', <BusinessProbe />);
+    await waitFor(() => {
+      expect(screen.getByTestId('dashboard-business')).not.toBeNull();
+    });
+    expect(screen.queryByLabelText(t('en', 'admin.branchNameEnLabel'))).toBeNull();
+    expect(screen.queryByRole('heading', { name: t('en', 'admin.firstBranchTitle') })).toBeNull();
+  });
+}
+
+function testLinkedWorkspacePageKeepsItsContent(): void {
+  it('the linked-workspace page keeps its own content when the company has no business', async () => {
+    queue({ gets: [companyWithoutBusiness] });
+    renderScreen('en', <BusinessProbe />, undefined, true);
+    await waitFor(() => {
+      expect(screen.getByTestId('dashboard-business')).not.toBeNull();
+    });
+    expect(screen.queryByLabelText(t('en', 'admin.businessNameEnLabel'))).toBeNull();
+  });
+}
+
+function testGuardStopsWhenCompanyIsGone(): void {
+  it('a submit when the fresh read no longer has the form company sends no POST and shows the page of the other company', async () => {
+    const { posts } = queue({
+      gets: [companyWithoutBusiness, companyWithOtherCompany],
+    });
+    renderScreen('en', <BusinessProbe />);
+    await waitForBusinessForm();
+    await fillBusinessAndSubmit();
+    await waitFor(() => {
+      expect(screen.getByTestId('dashboard-business')).not.toBeNull();
+    });
+    expect(posts).toHaveLength(0);
+  });
+}
+
+function testWritesNameTheFormCompany(): void {
+  it('with the cookie pointing at another company, the business POST, the country PUT and the branch POST all carry the form company', async () => {
+    const { posts, puts } = queue({
+      gets: [
+        companyWithoutBusiness,
+        companyWithoutBusiness,
+        companyWithBusinessNoBranch,
+        companyWithBusinessAndBranch,
+      ],
+      posts: [
+        () => jsonResponse(CREATED_BUSINESS, 201),
+        () => jsonResponse(CREATED_BRANCH, 201),
+      ],
+    });
+    renderScreen('en', <BusinessProbe />);
+    await waitForBusinessForm();
+    selectOtherCompanyInCookie();
+    await fillBusinessAndSubmit();
+    await waitFor(() => {
+      expect(screen.getByLabelText(t('en', 'admin.branchNameEnLabel'))).not.toBeNull();
+    });
+    selectOtherCompanyInCookie();
+    await fillBranchAndSubmit();
+    await waitFor(() => {
+      expect(screen.getByTestId('dashboard-content')).not.toBeNull();
+    });
+    expect(posts).toHaveLength(2);
+    expect(posts[0]?.headers.get('x-company-id')).toBe(COMPANY_ID);
+    expect(puts[0]?.headers.get('x-company-id')).toBe(COMPANY_ID);
+    expect(posts[1]?.headers.get('x-company-id')).toBe(COMPANY_ID);
+  });
+}
+
 describe('CreateFirstBusinessScreen', () => {
   beforeEach(() => {
     mockFetch.mockReset();
@@ -282,11 +370,16 @@ describe('CreateFirstBusinessScreen', () => {
   });
 
   testFormVisible();
+  testFormHiddenForRoleThatCannotCreate();
+  testBranchFormHiddenForRoleThatCannotCreate();
+  testLinkedWorkspacePageKeepsItsContent();
   testValidSubmit();
   testCountryPutFailure();
   testBusinessForbidden();
   testGuardBlocksWhenBusinessExists();
+  testGuardStopsWhenCompanyIsGone();
   testGuardFailureKeepsForm();
+  testWritesNameTheFormCompany();
   testNetworkRetryReusesKey();
   testConflictKeepsKey();
   testForbiddenThenNewKey();

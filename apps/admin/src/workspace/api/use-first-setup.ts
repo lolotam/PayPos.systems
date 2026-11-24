@@ -5,6 +5,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useRef } from 'react';
 
 import { isUndecided } from '../model/create-company-attempt';
+import { clearUnsavedCountry, writeUnsavedCountry } from '../model/country-outcome';
 import { createBranch, type CreateBranchWire } from './create-branch-client';
 import { createBusiness, setBusinessCountry, type CreateBusinessWire } from './create-business-client';
 import { fetchWorkspaces } from './use-workspaces';
@@ -61,25 +62,30 @@ export function useCreateBusiness(companyId: string) {
       country: Country;
     }): Promise<CreateBusinessOutcome | null> => {
       const company = await freshCompany(client, companyId);
-      if (company !== undefined && company.businesses.length > 0) return null;
+      // الشركة اختفت من القراءة المحدّثة (اتشالت العضوية أو الشركة) أو بقى ليها نشاط: مفيش POST
+      // — العرض بينتقل حسب القراءة الجديدة نفسها، وفشل القراءة نفسه بيرجع خطأ عادي.
+      if (company === undefined || company.businesses.length > 0) return null;
       const signature = JSON.stringify(body);
       const key = holdKey(held.current, signature);
       held.current = { key, signature, decided: false };
       let created: Business;
       try {
-        created = await createBusiness(key, body);
+        created = await createBusiness(companyId, key, body);
       } catch (error) {
         held.current = { key, signature, decided: !isUndecided(error) };
         throw error;
       }
       let countrySaved = true;
       try {
-        await setBusinessCountry(created.id, country);
+        await setBusinessCountry(companyId, created.id, country);
       } catch {
         // فشل تحديد الدولة بعد إنشاء ناجح مش بيرجع لورا ولا بيعيد الـ POST: النشاط موجود
-        // والدولة تنحفظ لاحقًا من الإعدادات، والانسياب بيكمل للخطوة اللي بعدها.
+        // والدولة تنحفظ لاحقًا من الإعدادات، والانسياب بيكمل للخطوة اللي بعدها. النتيجة
+        // بتتعيش بره الشاشة عشان تنبيه شاشة أول فرع يلحقها.
         countrySaved = false;
+        writeUnsavedCountry(created.id, country);
       }
+      if (countrySaved) clearUnsavedCountry(created.id);
       held.current = { key, signature, decided: true };
       // من غير await عشان تنبيه «الدولة ما اتحفظتش» يلحق يظهر قبل ما القراءة المحدّثة تبدّل الشاشة.
       void client.invalidateQueries({ queryKey: ['me', 'workspaces'] });
@@ -107,7 +113,7 @@ export function useCreateBranch(companyId: string, businessId: string) {
       const key = holdKey(held.current, signature);
       held.current = { key, signature, decided: false };
       try {
-        const created = await createBranch(key, businessId, body);
+        const created = await createBranch(companyId, key, businessId, body);
         held.current = { key, signature, decided: true };
         void client.invalidateQueries({ queryKey: ['me', 'workspaces'] });
         return created;

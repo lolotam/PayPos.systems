@@ -29,22 +29,31 @@ export type CreateBusinessWire = Pick<
  */
 type BusinessPost = (
   path: string,
-  init: { params: { header: Record<string, string> }; body: CreateBusinessWire },
+  init: {
+    params: { header: Record<string, string> };
+    body: CreateBusinessWire;
+  },
 ) => Promise<{ data?: unknown; error?: unknown; response: Response }>;
 
 type CountryPut = (
   path: string,
-  init: { body: { country: Country } },
+  init: {
+    params: { header: Record<string, string> };
+    body: { country: Country };
+  },
 ) => Promise<{ data?: unknown; error?: unknown; response: Response }>;
 
 /** بينشئ النشاط بمفتاح Idempotency ويحلل الرد بسكيما العقد؛ الرفض بيتبعت بحالته زي بقية عملاء admin. */
 export async function createBusiness(
+  companyId: string,
   idempotencyKey: string,
   body: CreateBusinessWire,
 ): Promise<Business> {
   const post = apiClient().POST as unknown as BusinessPost;
+  // x-company-id صريح من الشركة اللي الشاشة اتفتحت لها: الـ middleware بيقرا الكوكي المشترك
+  // بس لما الهيدر ناقص، وتبويب تاني ممكن يكون بدّل الكوكي بين فتح النموذج والإرسال.
   const result = await post(businessesPath, {
-    params: { header: { 'Idempotency-Key': idempotencyKey } },
+    params: { header: { 'Idempotency-Key': idempotencyKey, 'x-company-id': companyId } },
     body,
   });
   if (!result.response.ok) throw { ...(result.error as object), status: result.response.status };
@@ -56,11 +65,16 @@ export async function createBusiness(
  * ليها مسار PUT مصرّح ليه بصراحة منفصل عن صلاحية الإنشاء، ومن غير مفتاح Idempotency.
  */
 export async function setBusinessCountry(
+  companyId: string,
   businessId: string,
   country: Country,
 ): Promise<SetBusinessCountryResult> {
   const put = apiClient().PUT as unknown as CountryPut;
-  const result = await put(`/v1/businesses/${businessId}/country`, { body: { country } });
+  // نفس سبب الـ POST: الشركة صريحة من الشاشة مش من الكوكي المشترك وقت الإرسال.
+  const result = await put(`/v1/businesses/${businessId}/country`, {
+    params: { header: { 'x-company-id': companyId } },
+    body: { country },
+  });
   if (!result.response.ok) throw { ...(result.error as object), status: result.response.status };
   return setBusinessCountryResult.parse(result.data);
 }

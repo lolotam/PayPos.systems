@@ -106,6 +106,31 @@ header switcher). No change to `resolve-selection.ts` or the provider state mach
 Address, location, opening hours; choosing among several businesses (the existing header
 switcher); settings screens to change the country later; any stored-attempt recovery.
 
+## Correction round notes (2026-11-24, PR #1262 review)
+
+- The setup screens are a **display rule**: `WorkspaceBody` shows them only when
+  `company.role_code` is in the mirror of the system role defaults for `create:businesses:company`
+  (`owner`, `general_manager`) or `create:branches:business` (`owner`, `general_manager`,
+  `business_manager`) — `setup-role-defaults.ts`, mirroring `packages/db/src/role-defaults.ts`
+  lines 113–114. Any other role sees exactly what `main` shows (the page with «not chosen»), and a
+  linked-workspace page (`allowsLinkedWorkspace`) always renders its own content.
+- Every write carries `x-company-id` explicitly from the company the screen was rendered for: the
+  client middleware otherwise takes the tenant from the shared selection cookie at send time, and
+  another tab can change it between opening the form and sending.
+- The country outcome lives in a module store keyed by business id (`country-outcome.ts`): the
+  «country was not saved» alert follows the user onto the branch screen with «Try again» (resends
+  the PUT for the same business and company) and «Dismiss»; it clears on success, dismissal, or
+  leaving the setup flow.
+- If the fresh workspaces read no longer contains the form's company, the business guard does not
+  POST — the view moves on from that same read (a failed read shows the screen error as before).
+- Known limits (recorded, not fixed here):
+  - Two tabs that both read an empty list before either create commits can create two records;
+    the durable guard belongs on the server.
+  - If the business POST commits but its response is lost, the next submit finds the business and
+    moves on without sending the country call; the country then has to be set later.
+  - After a successful create, a failed workspaces refresh leaves the form on screen until the
+    refresh succeeds.
+
 ## Tests (Vitest + Testing Library, visible outcomes)
 
 Business screen spec: form in English and Arabic (heading, type select on salon, two name fields,

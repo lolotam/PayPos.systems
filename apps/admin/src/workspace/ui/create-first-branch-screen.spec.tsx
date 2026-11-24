@@ -1,4 +1,4 @@
-import { screen, waitFor } from '@testing-library/react';
+import { fireEvent, screen, waitFor } from '@testing-library/react';
 import { onlineManager } from '@tanstack/react-query';
 import { t } from '@pospay/i18n';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -141,6 +141,66 @@ function testEmptyEnglishName(): void {
   });
 }
 
+function testCountryAlertFollowsToBranchScreen(): void {
+  it('a country PUT failure shows the alert on the branch screen when the refresh lands immediately, and dismissing clears it', async () => {
+    const { posts, puts } = queue({
+      gets: [
+        companyWithBusinessNoBranch,
+        companyWithBusinessNoBranch,
+        companyWithBusinessAndBranch,
+      ],
+      posts: [() => jsonResponse(CREATED_BRANCH, 201)],
+      puts: [() => jsonResponse(ENVELOPE('FORBIDDEN', 'Country refused fixture'), 403)],
+    });
+    renderScreen('en', <BranchProbe />);
+    await waitForBranchForm();
+    await fillBranchAndSubmit();
+    await waitFor(() => {
+      expect(screen.getByTestId('dashboard-content')).not.toBeNull();
+    });
+    expect(await screen.findByRole('alert')).not.toBeNull();
+    expect(screen.getByText(t('en', 'admin.businessCountryNotSaved'))).not.toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: t('en', 'admin.businessCountryDismiss') }));
+    await waitFor(() => {
+      expect(screen.queryByRole('alert')).toBeNull();
+    });
+    expect(posts).toHaveLength(1);
+    expect(puts).toHaveLength(1);
+  });
+}
+
+function testCountryRetryFromBranchScreen(): void {
+  it('trying again from the branch screen resends the PUT for the same company and business and clears the alert', async () => {
+    const { puts } = queue({
+      gets: [
+        companyWithBusinessNoBranch,
+        companyWithBusinessNoBranch,
+        companyWithBusinessAndBranch,
+      ],
+      posts: [() => jsonResponse(CREATED_BRANCH, 201)],
+      puts: [
+        () => jsonResponse(ENVELOPE('UNEXPECTED', 'Country failed fixture'), 500),
+        () => jsonResponse({ business_id: BUSINESS_ID, country: 'KW' }, 200),
+      ],
+    });
+    renderScreen('en', <BranchProbe />);
+    await waitForBranchForm();
+    await fillBranchAndSubmit();
+    await waitFor(() => {
+      expect(screen.getByTestId('dashboard-content')).not.toBeNull();
+    });
+    expect(await screen.findByRole('alert')).not.toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: t('en', 'admin.businessCountryRetry') }));
+    await waitFor(() => {
+      expect(screen.queryByRole('alert')).toBeNull();
+    });
+    expect(puts).toHaveLength(2);
+    expect(puts[1]?.headers.get('x-company-id')).toBe(COMPANY_ID);
+    expect(puts[1]?.url).toMatch(new RegExp(`/v1/businesses/${BUSINESS_ID}/country$`));
+    expect(await puts[1]?.json()).toEqual({ country: 'KW' });
+  });
+}
+
 describe('CreateFirstBranchScreen', () => {
   beforeEach(() => {
     mockFetch.mockReset();
@@ -158,4 +218,6 @@ describe('CreateFirstBranchScreen', () => {
   testGuardBlocksWhenBranchExists();
   testGuardFailureKeepsForm();
   testEmptyEnglishName();
+  testCountryAlertFollowsToBranchScreen();
+  testCountryRetryFromBranchScreen();
 });

@@ -21,6 +21,8 @@ const hoisted = vi.hoisted(() => ({
 export const COMPANY_ID = hoisted.companyId;
 export const BUSINESS_ID = hoisted.businessId;
 export const BRANCH_ID = hoisted.branchId;
+/** شركة تانية للكوكي والقراءة اللي مفيش فيها الشركة بتاعة النموذج. */
+export const OTHER_COMPANY_ID = '01920000-0000-7000-8000-0000000000b2';
 
 /** المتوقع في جسم POST النشاط: بدون country وبدون currency وبدون timezone. */
 export const BUSINESS_BODY = {
@@ -80,16 +82,17 @@ export function jsonResponse(data: unknown, status: number): Response {
   });
 }
 
-/** شركة منشأة لسه ملهاش أنشطة — بتفتح شاشة أول نشاط. */
-export const companyWithoutBusiness = () =>
-  jsonResponse(
+/** شركة منشأة لسه ملهاش أنشطة — بتفتح شاشة أول نشاط لأدوار الإنشاء الافتراضية بس. */
+export const companyWithoutBusiness = (role: unknown = 'owner'): Response => {
+  const roleCode = typeof role === 'string' ? role : 'owner';
+  return jsonResponse(
     {
       companies: [
         {
           id: COMPANY_ID,
           name_ar: null,
           name_en: 'Provider Company',
-          role_code: 'owner',
+          role_code: roleCode,
           scope: 'COMPANY',
           businesses: [],
         },
@@ -97,6 +100,7 @@ export const companyWithoutBusiness = () =>
     },
     200,
   );
+};
 
 export const WORKSPACE_BUSINESS = {
   id: BUSINESS_ID,
@@ -107,18 +111,52 @@ export const WORKSPACE_BUSINESS = {
   branches: [] as unknown[],
 };
 
-/** النشاط موجود ولسه ملوش فروع — بتفتح شاشة أول فرع. */
-export const companyWithBusinessNoBranch = () =>
-  jsonResponse(
+/** النشاط موجود ولسه ملوش فروع — بتفتح شاشة أول فرع لأدوار الإنشاء الافتراضية بس. */
+export const companyWithBusinessNoBranch = (role: unknown = 'owner'): Response => {
+  const roleCode = typeof role === 'string' ? role : 'owner';
+  return jsonResponse(
     {
       companies: [
         {
           id: COMPANY_ID,
           name_ar: null,
           name_en: 'Provider Company',
-          role_code: 'owner',
+          role_code: roleCode,
           scope: 'COMPANY',
           businesses: [WORKSPACE_BUSINESS],
+        },
+      ],
+    },
+    200,
+  );
+};
+
+/** شركة تانية عندها نشاط وفرع — قراءة مفيش فيها الشركة بتاعة النموذج. */
+export const companyWithOtherCompany = () =>
+  jsonResponse(
+    {
+      companies: [
+        {
+          id: OTHER_COMPANY_ID,
+          name_ar: null,
+          name_en: 'Other Company',
+          role_code: 'owner',
+          scope: 'COMPANY',
+          businesses: [
+            {
+              ...WORKSPACE_BUSINESS,
+              id: '01920000-0000-7000-8000-0000000000d2',
+              branches: [
+                {
+                  id: '01920000-0000-7000-8000-0000000000e2',
+                  name_ar: null,
+                  name_en: 'Other Branch',
+                  effective_timezone: 'Asia/Kuwait',
+                  is_active: true,
+                },
+              ],
+            },
+          ],
         },
       ],
     },
@@ -156,7 +194,7 @@ export const companyWithBusinessAndBranch = () =>
     200,
   );
 
-type Answer = (request: Request) => Response | Promise<Response>;
+type Answer = (request: unknown) => Response | Promise<Response>;
 
 /**
  * بيوجّه الطلبات لمسارات منفصلة بالترتيب: آخر جواب بيتكرر لو اتطلب أكتر، والـ PUT بيرجع نجاح
@@ -192,10 +230,15 @@ export function queue(lanes: { gets?: Answer[]; posts?: Answer[]; puts?: Answer[
   return { posts, puts };
 }
 
-export function renderScreen(locale: Locale, probe: ReactNode, client?: QueryClient) {
+export function renderScreen(
+  locale: Locale,
+  probe: ReactNode,
+  client?: QueryClient,
+  allowsLinkedWorkspace = false,
+) {
   const gates = (
     <WorkspaceProvider>
-      <WorkspaceBody>{probe}</WorkspaceBody>
+      <WorkspaceBody allowsLinkedWorkspace={allowsLinkedWorkspace}>{probe}</WorkspaceBody>
     </WorkspaceProvider>
   );
   return render(
@@ -248,4 +291,9 @@ export async function fillBranchAndSubmit(en = 'Main Branch', ar = 'Branch Main'
     target: { value: ar },
   });
   fireEvent.click(screen.getByRole('button', { name: t('en', 'admin.firstBranchSubmit') }));
+}
+
+/** بتكتب كوكي الاختيار زي تبويب تاني بيبدّل الشركة بين فتح النموذج والإرسال. */
+export function selectOtherCompanyInCookie(): void {
+  document.cookie = `pospay_company_id=${OTHER_COMPANY_ID}; Path=/`;
 }
