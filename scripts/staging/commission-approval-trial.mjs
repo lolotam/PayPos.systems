@@ -25,7 +25,6 @@ const CUSTOMER_POOL = 20;
 const SERVICE_COUNT = 10;
 const CUSTOMER_CALLING_CODE = '1';
 const CUSTOMER_FIRST_NATIONAL = 5550100; // NANP fictional block 555-0100..0199; see docs/runbook.md
-const MAX_LINES_PER_SESSION = 20;
 
 const usage = `usage: node scripts/staging/commission-approval-trial.mjs --api-url https://api.staging.pospay.systems \\
   --company <uuid> --business <uuid> --confirm-staging [--branch <uuid>] [--period YYYY-MM] [--employees 10] [--lines 2000] \\
