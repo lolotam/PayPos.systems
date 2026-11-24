@@ -8,10 +8,13 @@ export type MemberInvitationRefusal =
   | 'MEMBER_INVITATION_EXISTS'
   | 'MEMBER_ROLE_NOT_INVITABLE';
 
-/** رفض إصدار رابط الدعوة (إعادة الإصدار): مين يتأكد من السلطة وحالة الدعوة جوه المعاملة. */
-export type ReissueRefusal = 'FORBIDDEN' | 'MEMBER_INVITATION_NOT_REISSUEABLE';
+/** رفض إعادة إصدار الرابط: السلطة أو حالة الدعوة جوه المعاملة. */
+export type ReissueRefusal =
+  | 'FORBIDDEN'
+  | 'MEMBER_INVITATION_NOT_REISSUEABLE'
+  | 'MEMBER_ROLE_NOT_INVITABLE';
 
-/** رفض إصدار رابط الدعوة — رسالته عامة وما بتكشفش سبب الرفض ولا وجود أي حساب. */
+/** رفض إصدار رابط الدعوة من جهة الهوية — رسالته عامة وما بتكشفش سبب الرفض ولا وجود أي حساب. */
 export class MemberLinkRefusedError extends Error {
   override readonly name = 'MemberLinkRefusedError';
 }
@@ -32,14 +35,16 @@ export interface MemberInvitationRow {
   readonly scopeId: string;
   readonly invitedBy: string;
   readonly state: 'PENDING' | 'ACTIVE' | 'CANCELLED';
-  readonly linkIssuedAt: Date | null;
-  readonly createdAt: Date;
+}
+
+/** المتصل والشركة اللي بتتفحص سلطتها جوه كل معاملة كتابة. */
+export interface InvitationActor {
+  readonly companyId: string;
+  readonly actorUserId: string;
 }
 
 /** مدخلات الخطوة الأولى: السلطة والنطاق وصف الدعوة. */
-export interface OpenInvitationInput {
-  readonly companyId: string;
-  readonly actorUserId: string;
+export interface OpenInvitationInput extends InvitationActor {
   readonly invitationId: string;
   readonly emailHash: string;
   readonly roleCode: InvitableRole;
@@ -47,20 +52,18 @@ export interface OpenInvitationInput {
   readonly now: Date;
 }
 
-/** نتيجة الخطوة الأولى: صف الدعوة الجديد، أو صف PENDING قديم اتجدد لطلب مكرر بعد انقطاع (D6). */
+/** نتيجة الخطوة الأولى: صف الدعوة الجديد أو صف PENDING قديم اتعاد استخدامه بعد انقطاع (D6). */
 export type OpenInvitationOutcome =
   | { readonly invitationId: string }
   | { readonly refusal: MemberInvitationRefusal };
 
-/** مدخلات الخطوة الثالثة: العضوية والتدقيق والحدث، مبنية من الصف المقفول مش من الطلب. */
-export interface CompleteInvitationInput {
-  readonly companyId: string;
-  readonly actorUserId: string;
+/** مدخلات الإتمام: العضوية والتدقيق والحدث بتتبني من الصف المقفول مش من الطلب. */
+export interface CompleteInvitationInput extends InvitationActor {
   readonly invitationId: string;
   readonly membershipId: string;
-  /** اليوزر اللي الخطوة التانية عملته لهذه العملية — بيشفي صف انقطع بعد الفتح قبل العضوية. */
+  /** اليوزر اللي الخطوة التانية أنشأته لهذه العملية؛ بيتطابق مع الصف المقفول أو الإتمام بيرفض. */
   readonly userId: string;
-  /** بيبني حدث MemberInvited من الصف المقفول — نفس المعاملة، ومفيش فيه إيميل ولا رابط ولا token. */
+  /** بيبني حدث MemberInvited من الصف المقفول — مفيش فيه إيميل ولا رابط ولا token. */
   readonly buildEvent: (row: MemberInvitationRow, membershipId: string, userId: string) => DomainEvent;
   /** بيبني صفوف التدقيق من الصف المقفول بترتيب الكتابة. */
   readonly buildAudit: (
@@ -71,76 +74,79 @@ export interface CompleteInvitationInput {
   readonly now: Date;
 }
 
-/** نتيجة الخطوة الثالثة: done false لما يكون فيه رفض جوه المعاملة (سلطة أو نطاق). */
+/** نتيجة الإتمام: done false لما فيه رفض جوه المعاملة (سلطة أو نطاق أو صف مش متطابق). */
 export type CompleteInvitationOutcome =
   | {
       readonly done: true;
       readonly membershipId: string;
-      readonly userId: string;
-      /** true لما العضوية كانت اتكتبت في محاولة سابقة — التكرار بيرد بالحالة بدون كتابة. */
+      /** true لما العضوية اتكتبت في محاولة سابقة — بيرد بالحالة من غير كتابة ولا حدث. */
       readonly alreadyComplete: boolean;
     }
   | { readonly done: false; readonly refusal: MemberInvitationRefusal };
 
-/** حدود جدول الدعوات — كل خطوة بتفتح معاملتها بنفسها (D6). */
+/** حدود جدول الدعوات — كل خطوة بتفتح معاملتها بنفسها (D6) وبتعيد فحص سلطة المالك جواها. */
 export interface MemberInvitationTransactions {
   /**
-   * الخطوة الأولى: يفحص سلطة المالك داخل المعاملة، ويفحص إن النطاق تابع للشركة، ويكتب صف
-   * الدعوة بحالة PENDING؛ صف PENDING موجود بيتعاد استخدامه بس من نفس الداعي بنفس الدور
-   * والنطاق، وأي اختلاف بيرفض (P1-b).
+   * فحص السلطة والنطاق قبل أي قراءة عن الإيميل، عشان رد «له حساب» ما يتسربش لغير المالك.
+   *
+   * @param input الفاعل والنطاق
+   * @returns null لما مسموح، أو الرفض
+   */
+  authorize(
+    input: InvitationActor & { scope: InvitationScope },
+  ): Promise<MemberInvitationRefusal | null>;
+  /**
+   * الخطوة الأولى: السلطة والنطاق وكتابة صف PENDING مع تدقيق الفتح؛ صف PENDING موجود بيتعاد
+   * استخدامه بس من نفس الداعي بنفس الدور والنطاق، وأي اختلاف بيرفض (P1-b).
    *
    * @param input بيانات الدعوة
    * @returns معرّف الدعوة الجديد أو المعاد استخدامه، أو الرفض
    */
   open(input: OpenInvitationInput): Promise<OpenInvitationOutcome>;
   /**
-   * الخطوة الثالثة: يعيد فحص سلطة المالك والنطاق جوه المعاملة، ويسجل العضوية والتدقيق
-   * والحدث من الصف المقفول (P1-a).
+   * بيسجّل رفض «الإيميل له حساب» (N1) بتدقيق من غير الإيميل — الرفض هو الإشارة الوحيدة
+   * اللي بتكشف وجود الحساب، فلازم يتراجع.
+   *
+   * @param input الفاعل والشركة
+   */
+  recordRefusal(input: InvitationActor): Promise<void>;
+  /**
+   * بيلغي دعوة فتحناها ولسه ما اتكتبش لها يوزر ولا عضوية (خسرنا سباق إنشاء الحساب)، وبيسجّل التدقيق.
+   *
+   * @param input الفاعل ومعرف الدعوة
+   */
+  cancelOpened(input: InvitationActor & { invitationId: string }): Promise<void>;
+  /**
+   * الإتمام: بيعيد فحص السلطة والنطاق جوه المعاملة، ويكتب العضوية والتدقيق والحدث من الصف المقفول (P1-a).
    *
    * @param input بيانات الإتمام
-   * @returns العضوية واليوزر اللي اتكتبوا، أو الرفض
+   * @returns العضوية اللي اتكتبت، أو الرفض
    */
   complete(input: CompleteInvitationInput): Promise<CompleteInvitationOutcome>;
   /**
-   * بيحجز إصدار رابط الدعوة مرة واحدة: تحديث ذري بيشترط إن الرابط لسه ما اتطلعش.
+   * بيحجز إصدار الرابط الأول مرة واحدة (تحديث ذري على link_claimed_at) — الحجز مش ختم
+   * الإصدار الفعلي (P2-a).
    *
-   * @param input بيانات الحجز
-   * @param input.companyId    الشركة
-   * @param input.invitationId معرف الدعوة
-   * @param input.at           وقت الحجز من الساعة المحقونة
-   * @returns true لما الحجز يتم، وfalse لو رابط اتحجز قبل كده (فيه سباق أو انقطاع)
+   * @param input الشركة والدعوة ووقت الحجز
+   * @returns true لما الحجز يتم، وfalse لو طلب تاني حجزه قبل كده
    */
   claimLink(input: { companyId: string; invitationId: string; at: Date }): Promise<boolean>;
   /**
-   * يعيد فحص سلطة المالك جوه معاملة قافلة صف الدعوة، ويتأكد إن العضوية متكتبة واليوزر
-   * موجود والحالة PENDING والدعوة من نفس المتصل، ويختم وقت الإصدار (P1-a، P1-c).
+   * إعادة الإصدار: بيعيد فحص السلطة والنطاق جوه معاملة قافلة الصف، ويتأكد إن الدعوة PENDING
+   * ومن نفس المتصل وعضويتها مكتوبة، ويسجّل تدقيق الطلب (P1-a، P2-a).
    *
-   * @param input بيانات حجز الإعادة
-   * @param input.companyId    الشركة
-   * @param input.invitationId معرف الدعوة
-   * @param input.actorUserId  المالك الفاعل
-   * @param input.at           وقت الإصدار من الساعة المحقونة
-   * @returns معرّف اليوزر اللي الرابط هيصدر له، أو الرفض
+   * @param input الفاعل ومعرف الدعوة
+   * @returns يوزر الدعوة اللي الرابط هيصدر له، أو الرفض
    */
   claimReissue(
-    input: { companyId: string; invitationId: string; actorUserId: string; at: Date },
+    input: InvitationActor & { invitationId: string },
   ): Promise<{ readonly userId: string } | { readonly refusal: ReissueRefusal }>;
   /**
-   * يختم وقت إصدار الرابط الناجح ويسجّل تدقيق «link.issued» بمعرّف الدعوة، من غير أي سر
-   * (P2-a: الحجز بيثبت المحاولة، والختم بيثبت الإصدار الفعلي).
+   * بيختم وقت الإصدار الفعلي بعد كتابة التوكن، ويسجّل تدقيق «link.issued» بمعرّف الدعوة من غير أي سر.
    *
-   * @param input بيانات الختم
-   * @param input.companyId    الشركة
-   * @param input.invitationId معرف الدعوة
-   * @param input.actorUserId  المالك الفاعل
-   * @param input.at           وقت الإصدار من الساعة المحقونة
+   * @param input الفاعل ومعرف الدعوة ووقت الإصدار
    */
-  stampLink(input: {
-    companyId: string;
-    invitationId: string;
-    actorUserId: string;
-    at: Date;
-  }): Promise<void>;
+  stampLink(input: InvitationActor & { invitationId: string; at: Date }): Promise<void>;
 }
 
 /** حدود جداول الهوية لعملية الدعوة — الخدمة الوحيدة اللي تقدر تلمس جداول Better Auth. */
@@ -160,23 +166,22 @@ export interface MemberAccounts {
    */
   isStaffEmail(email: string): boolean;
   /**
-   * يقرأ حساب بالإيميل؛ null لو مفيش. تحت قرار N1 أي حساب موجود بيرفض الدعوة، فالقارئ ده
-   * هو حكم الرفض مش باب إضافة عضوية.
+   * حال الإيميل لشركة داعية (قرار N1): أي حساب موجود بيرفض الدعوة، إلا حساب اتنشأ من دعوة
+   * سابقة لنفس الشركة — ده بيسمح بالاستئناف بعد انقطاع.
    *
-   * @param email الإيميل المنسّض
-   * @returns الـ id وهل له كلمة مرور، أو null
+   * @param email الإيميل زي ما الطلب جابه
+   * @param companyId الشركة الداعية
+   * @returns FREE، أو TAKEN، أو OURS مع معرّف العملية اللي أنشأته
    */
-  findByEmail(email: string): Promise<{ userId: string; hasPassword: boolean } | null>;
+  inspectEmail(
+    email: string,
+    companyId: string,
+  ): Promise<{ kind: 'FREE' } | { kind: 'TAKEN' } | { kind: 'OURS'; operationId: string }>;
   /**
-   * ينشئ حساب المدعوّ بحساب دخول (من غير كلمة مرور) وعلامته؛ حساب مسبق بنفس الإيميل بيرجّع
-   * createdByInvitation: false والطلب بيترد 422 فوق (P1-d).
+   * ينشئ حساب المدعوّ بحساب دخول من غير كلمة مرور وعلامته، بمعرّف العملية (ايدمبوتنس).
    *
-   * @param input بيانات الحساب
-   * @param input.operationId معرّف عملية الدعوة
-   * @param input.companyId   الشركة الداعية
-   * @param input.email       الإيميل المنسّض
-   * @param input.name        اسم العضو
-   * @returns الـ id وهل الحساب اتعمل من الدعوة دي
+   * @param input معرّف العملية والشركة والإيميل والاسم
+   * @returns الـ id وهل الحساب اتعمل من الدعوة دي (false لما سبقنا حساب بنفس الإيميل)
    */
   createInvitedMember(input: {
     operationId: string;
@@ -185,15 +190,10 @@ export interface MemberAccounts {
     name: string;
   }): Promise<{ userId: string; createdByInvitation: boolean }>;
   /**
-   * يصدر رابط تعيين كلمة مرور في معاملة واحدة تحت قفل صف اليوزر: يرفض لو اليوزر مش مدعوّ
-   * من الشركة دي أو كلمة مروره اتحطت، ويبطل الروابط القديمة (P1-c).
+   * يصدر رابط تعيين كلمة مرور بقفل صف اليوزر: يرفض لو اليوزر مش مدعوّ من الشركة دي أو
+   * كلمة مروره اتحطت، ويبطل الروابط القديمة (P1-c).
    *
-   * @param input بيانات الرابط
-   * @param input.userId      يوزر الهوية
-   * @param input.companyId   الشركة الطالبة
-   * @param input.redirectTo  صفحة set-password
-   * @param input.lifetimeMs  عمر الرابط (IM-Q3: 48 ساعة)
-   * @param input.now         وقت الإصدار من الساعة المحقونة
+   * @param input اليوزر والشركة وصفحة set-password وعمر الرابط ووقت الإصدار
    * @returns الرابط مرة واحدة — فيه token، فبيتسلم للطلب ولا يتكتبش في log
    */
   issueLink(input: {

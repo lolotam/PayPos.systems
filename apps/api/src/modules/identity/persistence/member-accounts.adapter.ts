@@ -17,7 +17,7 @@ export function createMemberAccounts(auth: AuthService): MemberAccounts {
   return {
     hashEmail: (email) => auth.members.hashEmail(email),
     isStaffEmail: (email) => isStaffSyntheticEmail(email),
-    findByEmail: (email) => auth.members.findByEmail(email),
+    inspectEmail: (email, companyId) => auth.members.inspectEmail(email, companyId),
     createInvitedMember: (input) => auth.members.createInvitedMember(input),
     issueLink: async (input) => {
       try {

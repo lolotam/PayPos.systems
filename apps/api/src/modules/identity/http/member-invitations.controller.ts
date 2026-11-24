@@ -13,7 +13,6 @@ import { Require } from '../../../shared/access.decorators.ts';
 import { actorOf } from '../../../shared/actor.ts';
 import { DATABASE } from '../../../shared/database.token.ts';
 import { ApiError } from '../../../shared/errors.ts';
-import { STAFF_ACCESS_ROUTES } from '../../../shared/staff-access-routes.ts';
 import { ZodValidationPipe } from '../../../shared/zod-validation.pipe.ts';
 import { listMemberInvitations } from '../queries/member-invitations.query.ts';
 import { InviteMember } from '../use-cases/invite-member/invite-member.ts';
@@ -31,7 +30,6 @@ export class MemberInvitationsController {
     @Inject(DATABASE) private readonly database: TenantWrappers | null,
     @Inject(InviteMember) private readonly invite: InviteMember | null,
     @Inject(ReissueMemberInvitation) private readonly reissue: ReissueMemberInvitation | null,
-    @Inject(STAFF_ACCESS_ROUTES) private readonly enabled: boolean,
     @Inject(MEMBER_PASSWORD_STATE) private readonly passwordState: MemberPasswordState | null,
   ) {}
 
@@ -41,7 +39,6 @@ export class MemberInvitationsController {
     @Body(new ZodValidationPipe(inviteMemberInput)) input: InviteMemberInput,
     @Req() request: FastifyRequest,
   ) {
-    this.#assertEnabled();
     if (this.invite === null) throw new ApiError('NOT_READY');
     return this.invite.execute({ actor: actorOf(request), input });
   }
@@ -53,7 +50,6 @@ export class MemberInvitationsController {
     @Param('invitationId', new ZodValidationPipe(id)) invitationId: string,
     @Req() request: FastifyRequest,
   ) {
-    this.#assertEnabled();
     if (this.reissue === null) throw new ApiError('NOT_READY');
     return this.reissue.execute({ actor: actorOf(request), invitationId });
   }
@@ -64,13 +60,7 @@ export class MemberInvitationsController {
     @Query(new ZodValidationPipe(pageQuery)) page: PageQuery,
     @Req() request: FastifyRequest,
   ) {
-    this.#assertEnabled();
     if (this.database === null || this.passwordState === null) throw new ApiError('NOT_READY');
     return listMemberInvitations(this.database, actorOf(request), page, this.passwordState);
-  }
-
-  /** البوابة مقفولة افتراضياً، فالمسارات بتجيب 503 لحد ما الشريحة تتدمج وتتفتح (plan §1.1). */
-  #assertEnabled(): void {
-    if (!this.enabled) throw new ApiError('NOT_READY');
   }
 }

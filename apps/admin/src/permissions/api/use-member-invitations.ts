@@ -1,6 +1,6 @@
 'use client';
 
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useInfiniteQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { memberInvitationPage, type InviteMemberInput } from '@pospay/contracts';
 import { apiClient } from '@/shared/api/client';
 
@@ -36,29 +36,30 @@ async function postReissue(companyId: string, invitationId: string) {
   return response.data;
 }
 
+/**
+ * قائمة الدعوات بصفحات، وطلبا الدعوة وإعادة الإصدار. الرابط بيرجع من الـ mutation للنداء
+ * مباشرة (`mutate(..., { onSuccess })`) والصفحة بتحطه في حالة محلية وبعدها بتعمل reset —
+ * مع gcTime: 0 مفيش رابط يفضل في أي كاش، ومفيش مفتاح query فيه رابط ولا توكن.
+ */
 export function useMemberInvitations(companyId: string, userId: string) {
   const client = useQueryClient();
-  const key = ['member-invitations', companyId, userId] as const;
-  const query = useQuery({
-    queryKey: [...key, 'list', 'first'],
-    queryFn: ({ signal }) => fetchInvitations(companyId, undefined, signal),
-    refetchInterval: 30_000,
+  const listKey = ['member-invitations', companyId, userId, 'list'] as const;
+  const list = useInfiniteQuery({
+    queryKey: listKey,
+    initialPageParam: undefined as string | undefined,
+    queryFn: ({ pageParam, signal }) => fetchInvitations(companyId, pageParam, signal),
+    getNextPageParam: (last) => last.next_cursor ?? undefined,
   });
+  const refresh = () => client.invalidateQueries({ queryKey: listKey });
   const invite = useMutation({
-    // gcTime: 0 + reset بعد القراءة: الرابط بيتسلّم للنداء مرة واحدة ولا بيرجع من أي كاش.
     gcTime: 0,
     mutationFn: (body: InviteMemberInput) => postInvitation(companyId, body),
-    onSuccess: () => client.invalidateQueries({ queryKey: [...key, 'list'] }),
+    onSuccess: refresh,
   });
   const reissue = useMutation({
     gcTime: 0,
     mutationFn: (invitationId: string) => postReissue(companyId, invitationId),
-    onSuccess: () => client.invalidateQueries({ queryKey: [...key, 'list'] }),
+    onSuccess: refresh,
   });
-  return { query, invite, reissue };
-}
-
-/** بيجيب صفحة تالية بالـ cursor — بتستدعى من زر «تحميل المزيد» في الجدول. */
-export async function fetchInvitationsPage(companyId: string, cursor: string) {
-  return fetchInvitations(companyId, cursor, new AbortController().signal);
+  return { list, invite, reissue };
 }

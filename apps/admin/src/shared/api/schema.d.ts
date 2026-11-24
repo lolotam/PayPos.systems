@@ -9781,7 +9781,7 @@ export interface components {
         MemberInvitationResult: {
             /** Format: uuid */
             invitation_id: string;
-            set_password_link: string | null;
+            set_password_link: string;
         };
     };
     responses: never;

@@ -134,18 +134,14 @@ export function identityProviders(
     origin: string | null;
     nativeOrigins?: readonly string[];
   },
-  slice?: {
-    /** بوابة مسارات شريحة 076 (plan §1.1): مقفولة افتراضياً. */
-    staffAccessRoutes?: boolean;
-    /** أصل لوحة الإدارة — صفحة تعيين كلمة المرور بتتبني عليه. */
-    adminOrigin?: string;
-  },
+  /** أصل لوحة الإدارة — صفحة تعيين كلمة المرور بتتبني عليه. */
+  adminOrigin?: string,
   clock: { now(): Date } = systemClock,
 ): Provider[] {
   const capabilities = identityCapabilities(database, ids, redis);
   return [
     ...permissionProviders(database, ids, redis),
-    ...memberInvitationProviders(database, ids, redis, slice, clock),
+    ...memberInvitationProviders(database, ids, redis, adminOrigin, clock),
     {
       provide: STAFF_AUTHENTICATION,
       useValue: database === undefined ? null : createStaffEligibility(database),

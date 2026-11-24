@@ -30,10 +30,10 @@ export const inviteMemberInput = z
   })
   .meta({ id: 'InviteMemberInput' });
 
-/** نتيجة الدعوة: الرابط بيتعرض مرة واحدة بس، و null لما كان للحساب حساب موجود. */
+/** نتيجة الدعوة: الرابط بيتعرض مرة واحدة بس ومش بيرجع من أي مسار تاني (N1). */
 export const memberInvitationResult = responseObject({
   invitation_id: id,
-  set_password_link: z.string().nullable(),
+  set_password_link: z.string(),
 }).meta({ id: 'MemberInvitationResult' });
 
 /** صف دعوة في القائمة — مفيش فيه رابط ولا توكن ولا إيميل صريح. */

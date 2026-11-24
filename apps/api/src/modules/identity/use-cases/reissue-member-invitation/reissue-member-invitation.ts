@@ -19,9 +19,10 @@ export interface ReissueMemberInvitationResult {
 }
 
 /**
- * بيصدّر رابط جديد لدعوة معلّقة (G1): السلطة وحالة الدعوة والعضوية بيتفحصوا جوه معاملة
- * قافلة الصف (P1-a، P1-c)، وفحص «عمري ما حطيت كلمة مروري» بيحصل تحت قفل صف اليوزر في
- * نفس معاملة الكتابة (P1-c)، فإصداران متزامنان بيسيبوا توكن حي واحد بس.
+ * بيصدّر رابط جديد لدعوة معلّقة (G1): السلطة والنطاق وحالة الدعوة والعضوية بيتفحصوا جوه
+ * معاملة قافلة الصف (P1-a)، وفحص «عمري ما حطيت كلمة مروري» بيحصل تحت قفل صف اليوزر وحسابه
+ * في نفس معاملة الكتابة (P1-c)، فإصداران متزامنان بيسيبوا توكن حي واحد بس. وقت الإصدار
+ * بيتختم بعد كتابة التوكن بس (P2-a).
  */
 export class ReissueMemberInvitation {
   readonly #transactions: MemberInvitationTransactions;
@@ -58,12 +59,8 @@ export class ReissueMemberInvitation {
     const { actor, invitationId } = command;
     if (!(await this.#limiter.allow(actor.userId))) throw new ApiError('TOO_MANY_REQUESTS');
     const now = this.#clock.now();
-    const claimed = await this.#transactions.claimReissue({
-      companyId: actor.companyId,
-      invitationId,
-      actorUserId: actor.userId,
-      at: now,
-    });
+    const who = { companyId: actor.companyId, actorUserId: actor.userId };
+    const claimed = await this.#transactions.claimReissue({ ...who, invitationId });
     if ('refusal' in claimed) throw new ApiError(claimed.refusal);
     let link: string;
     try {
@@ -80,12 +77,7 @@ export class ReissueMemberInvitation {
       }
       throw error;
     }
-    await this.#transactions.stampLink({
-      companyId: actor.companyId,
-      invitationId,
-      actorUserId: actor.userId,
-      at: now,
-    });
+    await this.#transactions.stampLink({ ...who, invitationId, at: now });
     return { invitation_id: invitationId, set_password_link: link };
   }
 }

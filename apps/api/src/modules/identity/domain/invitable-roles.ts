@@ -8,6 +8,7 @@ export const INVITABLE_ROLES = [
   'accountant',
 ] as const;
 
+/** كود دور من أدوار الدعوة — مشتق من القائمة فوق عشان النوع والقيم مصدرها واحد. */
 export type InvitableRole = (typeof INVITABLE_ROLES)[number];
 
 /** أنواع النطاق اللي بتتدى بيها العضوية. */

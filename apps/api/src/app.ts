@@ -102,7 +102,7 @@ import {
   type PersonalAuthentication,
 } from './shared/personal-authentication.ts';
 import { AUTH_SERVICE, SessionGuard } from './shared/session.guard.ts';
-import { StaffAccessRoutesGuard } from './shared/staff-access-routes.ts';
+import { MEMBER_INVITATION_ROUTE, staffAccessGateHook } from './shared/staff-access-routes.ts';
 
 export interface AppDependencies {
   readonly ordersClock?: { now(): Date };
@@ -269,16 +269,17 @@ class AppModule {
         ShutdownHook,
         { provide: AUTH_SERVICE, useValue: deps.auth?.service ?? null },
         { provide: PERSONAL_AUTHENTICATION, useValue: deps.personal ?? null },
-        // Global guards run in this order (ADR-0003 §4): the 076 activation gate refuses its routes before
-        // anything else (even unauthenticated or malformed requests, P2-b); then a verified session unless
-        // @Public(); then the company membership and the permission at the target unless @Authenticated();
-        // then the feature flag.
-        { provide: APP_GUARD, useClass: StaffAccessRoutesGuard },
+        // Global guards run in this order (ADR-0003 §4): a verified session unless @Public(); then the company
+        // membership and the permission at the target unless @Authenticated(); then the feature flag.
         { provide: APP_GUARD, useClass: SessionGuard },
-        ...identityProviders(deps.database, deps.ids ?? systemUuidV7(), deps.redis, deps.staff, {
-          staffAccessRoutes: deps.staffAccessRoutes === true,
-          ...(deps.adminOrigin === undefined ? {} : { adminOrigin: deps.adminOrigin }),
-        }, deps.clock ?? undefined),
+        ...identityProviders(
+          deps.database,
+          deps.ids ?? systemUuidV7(),
+          deps.redis,
+          deps.staff,
+          deps.adminOrigin,
+          deps.clock,
+        ),
         {
           provide: RATE_LIMITER,
           useValue: limiter,
@@ -438,6 +439,13 @@ export async function createApp(
       route.bodyLimit = 1024;
     // المسارات العامة للتقييم: الحد والترويسات بتتحط قبل أي handler، عشان كل رد يطلع من المسار ده
     // يحملها — حتى الردود اللي بتترفض قبل ما يوصل المسار.
+    // بوابة شريحة 076 مقفولة: مسارات الدعوة بترد 503 قبل أي parsing أو حارس (plan §1.1).
+    if (deps.staffAccessRoutes !== true && MEMBER_INVITATION_ROUTE.test(route.url)) {
+      const gate = staffAccessGateHook();
+      if (route.onRequest === undefined) route.onRequest = gate;
+      else if (typeof route.onRequest === 'function') route.onRequest = [route.onRequest, gate];
+      else route.onRequest = [...route.onRequest, gate];
+    }
     if (RATING_ROUTE.test(route.url)) {
       const hook = ratingAdmissionHook({
         limiter,

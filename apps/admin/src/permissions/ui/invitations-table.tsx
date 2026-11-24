@@ -6,9 +6,9 @@ import { useLocale } from '@/shared/locale/locale-context';
 
 type Props = {
   items: readonly MemberInvitation[];
-  /** cursor الصفحة التالية؛ null يعني خلصت القائمة. */
-  cursor: string | null;
-  onLoadMore: (cursor: string) => void;
+  /** فيه صفحة تالية؟ */
+  hasMore: boolean;
+  onLoadMore: () => void;
   loadingMore: boolean;
   reissuePending: boolean;
   onReissue: (invitation: MemberInvitation) => void;
@@ -36,7 +36,7 @@ const SCOPE_KEY = {
 /** قائمة الدعوات: أدوار ونطاقات بالترجمة وحالة كل صف، وزر الإصدار بس لمن يستحقه من الـ API. */
 export function InvitationsTable({
   items,
-  cursor,
+  hasMore,
   onLoadMore,
   loadingMore,
   reissuePending,
@@ -86,11 +86,11 @@ export function InvitationsTable({
           ))}
         </tbody>
       </table>
-      {cursor !== null ? (
+      {hasMore ? (
         <button
           type="button"
           disabled={loadingMore}
-          onClick={() => onLoadMore(cursor)}
+          onClick={onLoadMore}
           className="self-start rounded-md border border-border px-3 py-1 text-sm"
         >
           {t(locale, 'invitations.loadMore')}

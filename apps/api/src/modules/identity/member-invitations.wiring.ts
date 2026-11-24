@@ -17,7 +17,6 @@ import {
   INVITATION_RATE_LIMITER,
   type InvitationRateLimiter,
 } from './ports/member-invitations.port.ts';
-import { STAFF_ACCESS_ROUTES } from '../../shared/staff-access-routes.ts';
 import { InviteMember } from './use-cases/invite-member/invite-member.ts';
 import { ReissueMemberInvitation } from './use-cases/reissue-member-invitation/reissue-member-invitation.ts';
 
@@ -28,21 +27,19 @@ import { ReissueMemberInvitation } from './use-cases/reissue-member-invitation/r
  * @param database الـ tenant wrappers لو التطبيق فيه داتابيز
  * @param ids      مولّد الـ UUID v7
  * @param redis    عميل Redis للحدّ، لو التطبيق فيه Redis
- * @param slice    بوابة التفعيل وأصل لوحة الإدارة
+ * @param adminOrigin أصل لوحة الإدارة اللي رابط تعيين كلمة المرور بيتبني عليه
  * @returns الـ providers اللي بتتضاف على الموديول بعد حارس الجلسة
  */
 export function memberInvitationProviders(
   database: TenantWrappers | undefined,
   ids: IdGenerator,
   redis: Redis | undefined,
-  slice: { staffAccessRoutes?: boolean; adminOrigin?: string } | undefined,
+  adminOrigin: string | undefined,
   clock: { now(): Date },
 ): Provider[] {
-  const redirectTo =
-    slice?.adminOrigin === undefined ? undefined : `${slice.adminOrigin}/set-password`;
+  const redirectTo = adminOrigin === undefined ? undefined : `${adminOrigin}/set-password`;
   const limiter = redis === undefined ? null : createInvitationRateLimiter(redis);
   return [
-    { provide: STAFF_ACCESS_ROUTES, useValue: slice?.staffAccessRoutes === true },
     { provide: INVITATION_RATE_LIMITER, useValue: limiter },
     passwordStateProvider(),
     inviteMemberProvider(database, ids, redis, redirectTo, clock),
@@ -57,7 +54,7 @@ function passwordStateProvider(): Provider {
     useFactory: (auth: AuthService | null): MemberPasswordState | null =>
       auth === null
         ? null
-        : async (userId) => (await auth.members.readMarker(userId))?.hasPassword ?? false,
+        : async (userId) => auth.members.hasPassword(userId),
     inject: [AUTH_SERVICE],
   };
 }

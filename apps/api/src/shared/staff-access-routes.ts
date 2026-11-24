@@ -1,21 +1,15 @@
-import { Injectable, Inject } from '@nestjs/common';
-import type { CanActivate, ExecutionContext } from '@nestjs/common';
-import type { FastifyRequest } from 'fastify';
+import type { FastifyReply, FastifyRequest } from 'fastify';
 
 import { ApiError } from './errors.ts';
 
-/** مسارات دعوة العضو (G1) اللي بتجيب 503 وإحنا مقفولين — قبل أي حدّ أو pipe تاني. */
-const MEMBER_INVITATION_ROUTES = /^\/v1\/memberships\/invitations(?:\/[^/]+\/link)?$/;
-
 /**
- * بوابة تفعيل مسارات شريحة 076 (plan §1.1): بتشتغل كأول APP_GUARD عشان الرد 503 NOT_READY
- * يوصل قبل حارس الجلسة وحارس الصلاحيات وpipes التحقق — الطلب غير المت authenticity أو
- * المشوه بيرد بنفس الـ 503، فمفيش حاجة من الشريحة بتتكشف أو بتتصرف وهي مقفولة.
+ * مسارات دعوة العضو (G1) كما بتتسجل في Fastify (بادئة v1 اختيارية، ومعامل المسار بنقطتين) —
+ * بوابة التفعيل بتتركب عليها قبل أي parsing للمحتوى أو حارس.
  */
-export const STAFF_ACCESS_ROUTES = Symbol('STAFF_ACCESS_ROUTES');
+export const MEMBER_INVITATION_ROUTE = /^\/(?:v1\/)?memberships\/invitations(?:\/:[^/]+\/link)?$/;
 
 /**
- * بيقول إن مسارات الشريحة مفعّلة ولا لأ.
+ * بيقول إن مسارات شريحة 076 مفعّلة ولا لأ (plan §1.1): القيمة بتتقرأ مرة واحدة عند الإقلاع.
  *
  * @param env بيئة العملية
  * @returns true بس لما STAFF_ACCESS_ROUTES=on
@@ -24,19 +18,15 @@ export function staffAccessRoutesEnabled(env: NodeJS.ProcessEnv): boolean {
   return env['STAFF_ACCESS_ROUTES'] === 'on';
 }
 
-/** الحارس اللي بيرد 503 على مسارات الدعوة والبوابة مقفولة. */
-@Injectable()
-export class StaffAccessRoutesGuard implements CanActivate {
-  constructor(
-    @Inject(STAFF_ACCESS_ROUTES) private readonly enabled: boolean,
-  ) {}
-
-  canActivate(context: ExecutionContext): boolean {
-    if (this.enabled) return true;
-    const request = context.switchToHttp().getRequest<FastifyRequest>();
-    if (MEMBER_INVITATION_ROUTES.test(request.url.split('?')[0] ?? '')) {
-      throw new ApiError('NOT_READY');
-    }
-    return true;
-  }
+/**
+ * خطّاف onRequest على مسارات الشريحة وهي مقفولة: بيرد 503 NOT_READY قبل parsing الجسم وقبل
+ * حارس الجلسة وقبل أي pipe، فالطلب غير المسجّل أو المشوّه — حتى JSON باطل — بيرد نفس الرد.
+ *
+ * @returns خطّاف Fastify بيرد 503 دايماً
+ */
+export function staffAccessGateHook(): (request: FastifyRequest, reply: FastifyReply) => Promise<void> {
+  return async (_request, reply) => {
+    const error = new ApiError('NOT_READY');
+    void reply.code(error.status).send(error.toEnvelope());
+  };
 }
