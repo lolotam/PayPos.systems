@@ -43,9 +43,10 @@ export interface EmailFeedbackInboxRepository {
 /** الطابور يحمل UUID فقط، ومفيش عنوان ولا بيانات مزود. */
 export interface EmailFeedbackQueue {
   /**
-   * ينتظر التسليم المحدود قبل الرد، أو يترك الصف للـ sweep لو التسليم فشل.
+   * ينتظر التسليم المحدود قبل الرد ضمن الموعد نفسه؛ ما عداه بيرفض فيسيب الصف للـ sweep.
    *
    * @param id UUID فقط
+   * @param deadline الموعد المشترك للاستقبال كله
    */
-  enqueue(id: string): Promise<void>;
+  enqueue(id: string, deadline: Date): Promise<void>;
 }

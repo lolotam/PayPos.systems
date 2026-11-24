@@ -91,8 +91,7 @@ export async function resendHarness(): Promise<ResendHarness> {
   const app: NestFastifyApplication = await createApp(
     { readiness: [], redis, resend: intake.intake, trustedProxy: ['127.0.0.1'] },
     { logger },
-  );
-  return {
+  );  return {
     app,
     database,
     test,
@@ -124,8 +123,9 @@ function testIntake(database: PlatformEmailDatabase) {
   const receive = new ReceiveEmailFeedback(
     createEmailFeedbackInboxRepository(database, systemUuidV7()),
     {
-      enqueue: async (id) => {
+      enqueue: async (id, deadline) => {
         if (enqueueFailure) throw new EmailFeedbackQueueUnavailableError();
+        if (deadline.getTime() <= at.getTime()) throw new EmailFeedbackQueueUnavailableError();
         jobs.push({ inbox_id: id });
       },
     },
@@ -138,7 +138,7 @@ function testIntake(database: PlatformEmailDatabase) {
     },
     receive,
     intake: {
-      config: { webhookSecret: secret },
+      config: { webhookSecret: secret, eventDigestKey: Buffer.alloc(32, 9) },
       receive,
       clock: { now: () => at },
     },

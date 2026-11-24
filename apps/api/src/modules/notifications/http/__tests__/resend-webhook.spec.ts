@@ -5,6 +5,7 @@ import type { NestFastifyApplication } from '@nestjs/platform-fastify';
 import { createApp } from '../../../../app.ts';
 import {
   address,
+  emailId,
   event,
   eventId,
   remote,
@@ -76,8 +77,33 @@ describe('stores the scrubbed envelope and deduplicates', () => {
     const persisted = JSON.stringify(stored);
     for (const forbidden of [address, 'Your document expires soon', 'company_id', 'mailbox unavailable'])
       expect(persisted).not.toContain(forbidden);
+    // الغلاف المخزّن منمّط: وقت ISO والتصنيف المحدود بس، مش كلمات المزود الخام. postgres.js بيرجّع jsonb
+    // مفكوك بالفعل، فبقراه ككائن مباشرة.
+    const envelope = row?.['raw_event'] as { created_at: string; bounce_type?: string };
+    expect(envelope.created_at).toBe('2026-11-23T10:00:00.000Z');
+    expect(envelope.bounce_type).toBe('PERMANENT');
     expect(h.chunks.join('')).not.toContain(address);
     expect(h.chunks.join('')).not.toContain(secret);
+  });
+
+  it('stores an unrecognised bounce word as unknown evidence, without the raw word', async () => {
+    const before = await rows();
+    const payload = JSON.stringify({
+      type: 'email.bounced',
+      created_at: '2026-11-23T09:00:00Z',
+      data: {
+        email_id: emailId,
+        bounce: { type: 'Undetermined', message: 'anything the provider says' },
+      },
+    });
+    expect((await h.post(payload, {}, true, 'msg_test_unknown_bounce')).statusCode).toBe(200);
+    const stored = await rows();
+    expect(stored).toHaveLength(before.length + 1);
+    const row = stored[stored.length - 1];
+    expect(row?.['bounce_class']).toBeNull();
+    const envelope = row?.['raw_event'] as { bounce_type?: string };
+    expect(envelope.bounce_type).toBeUndefined();
+    expect(JSON.stringify(stored)).not.toContain('anything the provider says');
   });
 
   it('acknowledges a replay of the same event and stores nothing new', async () => {
@@ -86,6 +112,16 @@ describe('stores the scrubbed envelope and deduplicates', () => {
     const before = await rows();
     const jobs = h.jobs.length;
     expect((await h.post(payload)).statusCode).toBe(200);
+    expect(await rows()).toEqual(before);
+    expect(h.jobs).toHaveLength(jobs);
+  });
+});
+
+describe('acknowledges replays and leaves late work to the recovery path', () => {
+  it('acknowledges a replay of the same event and stores nothing new again', async () => {
+    const before = await rows();
+    const jobs = h.jobs.length;
+    expect((await h.post(JSON.stringify(event()))).statusCode).toBe(200);
     expect(await rows()).toEqual(before);
     expect(h.jobs).toHaveLength(jobs);
   });
@@ -143,9 +179,20 @@ describe('refuses an unauthentic request', () => {
 });
 
 describe('refuses a malformed request and a degraded capability', () => {
-  it('refuses a body outside the allowlist and a wrong media type', async () => {
+  it('refuses a provider id outside the documented UUID shape and a body outside the allowlist', async () => {
     const payload = JSON.stringify({ type: 'email.bounced', created_at: 'x' });
     expect((await h.post(payload)).statusCode).toBe(400);
+    expect(
+      (
+        await h.post(
+          JSON.stringify({
+            type: 'email.bounced',
+            created_at: '2026-11-23T10:00:00.000Z',
+            data: { email_id: 'owner@example.invalid' },
+          }),
+        )
+      ).statusCode,
+    ).toBe(400);
     expect((await h.post(JSON.stringify(event()), { 'content-type': 'text/plain' })).statusCode).toBe(
       415,
     );
@@ -155,11 +202,13 @@ describe('refuses a malformed request and a degraded capability', () => {
     expect((await h.post('x'.repeat(65_537))).statusCode).toBe(413);
   });
 
-  it('limits the requests per IP', async () => {
+  it('limits the requests per IP with the contracted RATE_LIMITED code', async () => {
     const digest = createHash('sha256').update(remote).digest('hex');
     await h.redis.set(`rate:resend:ip:POST:${digest}`, 120, 'EX', 60);
     const response = await h.post(JSON.stringify(event()));
-    expect([response.statusCode, response.headers['retry-after']]).toEqual([429, '60']);
+    expect(response.statusCode).toBe(429);
+    expect(response.headers['retry-after']).toBe('60');
+    expect((JSON.parse(response.body) as { code: string }).code).toBe('RATE_LIMITED');
   });
 
   it('answers NOT_READY when the capability is not configured', async () => {

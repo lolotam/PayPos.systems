@@ -2,15 +2,25 @@ import { createHmac, timingSafeEqual } from 'node:crypto';
 
 // The window the signed timestamp may sit in, in seconds (spec 075 FR-002).
 export const RESEND_TIMESTAMP_WINDOW_SECONDS = 300;
+// ميزانية الاستقبال كلها (§6): الحفظ والتسليم والتأكيد على موعد واحد من دخول الطلب، وما فات من
+// الموعد بيرجع لمسار الاسترداد بعد التزم الحفظ (spec 075 FR-005).
+export const RESEND_INTAKE_BUDGET_MS = 200;
 const EVENT_ID = /^[A-Za-z0-9_-]{1,128}$/;
 const TIMESTAMP = /^\d{1,12}$/;
+const SIGNATURE_ENTRY = /^v1,[A-Za-z0-9+/]+={0,2}$/;
 const SECRET_PREFIX = 'whsec_';
 const MINIMUM_KEY_BYTES = 16;
+const MINIMUM_DIGEST_KEY_CHARS = 32;
 const DOMAIN = 'pospay:notifications:resend-event:v1\0';
 
 export interface ResendWebhookConfiguration {
   /** The signing secret of the Resend webhook; the only Resend credential the API holds. */
   readonly webhookSecret: string;
+  /**
+   * مفتاح بصمة الحدث، مستقل عن سر التوقيع: تدوير الـ secret ما بيغيّرش البصمة، فإعادة تسليم نفس
+   * الحدث بعد التدوير بتفضل مرفوضة بدل ما تعمل صف تاني (spec 075 FR-004).
+   */
+  readonly eventDigestKey: Buffer;
 }
 
 export interface ResendWebhookHeaders {
@@ -30,7 +40,10 @@ export function readResendWebhookConfiguration(env: NodeJS.ProcessEnv): ResendWe
   const secret = env['RESEND_WEBHOOK_SECRET'];
   if (secret === undefined || secret.length === 0) throw new Error('RESEND_WEBHOOK_CONFIG_INVALID');
   resendSigningKey(secret);
-  return { webhookSecret: secret };
+  const digestKey = env['RESEND_EVENT_DIGEST_KEY'];
+  if (digestKey === undefined || digestKey.length < MINIMUM_DIGEST_KEY_CHARS)
+    throw new Error('RESEND_EVENT_DIGEST_KEY_INVALID');
+  return { webhookSecret: secret, eventDigestKey: Buffer.from(digestKey, 'utf8') };
 }
 
 /**
@@ -85,8 +98,13 @@ export function verifyResendSignature(
     const separator = entry.indexOf(',');
     if (separator < 0) return false;
     if (entry.slice(0, separator) !== 'v1') return false;
-    const provided = Buffer.from(entry.slice(separator + 1), 'base64');
+    const encoded = entry.slice(separator + 1);
+    // شكل صارم لكل زوج، ومافيش وقوف عند أول زوج مأهول: قيمة ملزوقة بفاصلة بتقرأ كـ base64 متسامح
+    // وتقدر تعدّي المقارنة، فالنمط و إعادة الترميز بيرفضا أي حاجة مش base64 متسلسل سليم (FR-002).
+    if (!SIGNATURE_ENTRY.test(entry)) return false;
+    const provided = Buffer.from(encoded, 'base64');
     if (provided.length !== expected.length) return false;
+    if (provided.toString('base64') !== encoded) return false;
     return timingSafeEqual(expected, provided);
   });
 }

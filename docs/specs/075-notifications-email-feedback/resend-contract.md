@@ -83,13 +83,15 @@ The signed body carries `type`, `created_at` and a `data` object with `email_id`
 `type`, `created_at`, `data.email_id` and `data.bounce.type` only; everything else (addresses,
 subject, headers, tags, diagnostics) is dropped before storage and never logged.
 
-## 6. The digest key — a deliberate reading of FR-006
+## 6. The digest key — an owned key, independent of the signing secret
 
-`spec.md` FR-006 says the API "holds no sending credential and no email hash key. It needs only the
-webhook secret and the restricted `pospay_notifications` connection", while `plan.md` suggests
-reusing the notifications message-id HMAC helper with a new domain label (which would put a second
-hash key in the API's hands). The spec's normative text wins: the permanent event digest is
-`HMAC-SHA256(webhook key bytes, 'pospay:notifications:resend-event:v1\0' || svix-id)`, so the API
-holds exactly one Resend credential — the webhook secret — and no hash key at all. The domain label
-keeps the digest separate from the signature, and the raw provider event id never leaves the
-verified-intake memory: only the digest reaches the database.
+The permanent event digest is `HMAC-SHA256(digest key bytes, 'pospay:notifications:resend-event:v1\0'
+|| svix-id)`. The digest key is its own managed secret (`RESEND_EVENT_DIGEST_KEY`, 32+ characters,
+API only) and **not** the webhook signing secret: if the provider re-signs and resends an old
+`svix-id` after a signing-secret rotation, a secret-keyed digest would change and create a second
+inbox row and job for the same event. With the owned key the dedupe identity survives every
+rotation. This is a recorded divergence from the narrow reading of FR-006 ("only the webhook
+secret"): the API holds one extra managed key that is neither a sending credential nor a recipient
+hash key — it can never resolve an address and never send. Domain separation keeps the digest
+distinct from the signature, and the raw provider event id never leaves the verified-intake
+memory: only the digest reaches the database.

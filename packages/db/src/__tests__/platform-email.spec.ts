@@ -125,14 +125,29 @@ it('isolates the tenant evidence table', async () => {
   expect(
     await run(A.company, sql`SELECT id FROM notification_attempt_feedback`),
   ).toHaveLength(0);
-  await expect(
-    run(
-      A.company,
-      sql`INSERT INTO notification_attempt_feedback
-          (company_id,id,attempt_id,event_type,bounce_class,provider_event_digest,provider_timestamp,recorded_at)
-        VALUES (${B.company},${FEEDBACK},${ATTEMPT},'email.bounced','PERMANENT',${Buffer.alloc(32, 26)},now(),now())`,
-    ),
-  ).rejects.toThrow();
+  // مفتاح جديد كله: لو الـ INSERT policy وقعت، الانتهاك الوحيد المتبقي يكون 42501 من السياسة نفسها،
+  // مش 23505 من تعارض المفتاح — فالتأكيد على SQLSTATE بيميّز السبب الصح. Drizzle بيلف خطأ postgres
+  // في cause، فبمشّي على السلسلة لحد كود الحالة.
+  const violation = await run(
+    A.company,
+    sql`INSERT INTO notification_attempt_feedback
+        (company_id,id,attempt_id,event_type,bounce_class,provider_event_digest,provider_timestamp,recorded_at)
+      VALUES (${B.company},'01920000-0000-7000-8000-00000000eb04',${ATTEMPT},'email.bounced','PERMANENT',${Buffer.alloc(32, 26)},now(),now())`,
+  ).then(
+    () => undefined as string | undefined,
+    (error: unknown) => {
+      const seen = new Set<object>();
+      let current: unknown = error;
+      while (typeof current === 'object' && current !== null && !seen.has(current)) {
+        seen.add(current);
+        const candidate = current as { code?: unknown; cause?: unknown };
+        if (typeof candidate.code === 'string') return candidate.code;
+        current = candidate.cause;
+      }
+      return undefined;
+    },
+  );
+  expect(violation).toBe('42501');
   // الجدول insert-only لـ pospay_app: مفيش GRANT لـ UPDATE/DELETE أصلاً، فالكتابة بتترفض حتى على صف
   // الشركة نفسها، ومفيش سياسة RLS للتحديث أصلاً (spec 075، ADR-0014 §C). القراءة عبر الشركات محجوبة بالسياسات.
   await expect(

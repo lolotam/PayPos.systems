@@ -182,7 +182,9 @@ export function createResendIntake(
   const receive = new ReceiveEmailFeedback(
     inbox,
     {
-      enqueue: async (id) => {
+      enqueue: async (id, deadline) => {
+        const remaining = deadline.getTime() - Date.now();
+        if (remaining <= 0) throw new EmailFeedbackQueueUnavailableError();
         const job = emailFeedbackJob(id);
         let timer: NodeJS.Timeout | undefined;
         try {
@@ -191,7 +193,7 @@ export function createResendIntake(
               throw new EmailFeedbackQueueUnavailableError();
             }),
             new Promise<never>((_, reject) => {
-              timer = setTimeout(() => reject(new EmailFeedbackQueueUnavailableError()), 200);
+              timer = setTimeout(() => reject(new EmailFeedbackQueueUnavailableError()), remaining);
             }),
           ]);
         } finally {

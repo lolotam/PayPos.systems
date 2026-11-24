@@ -5,7 +5,6 @@ import type { FastifyAdapter } from '@nestjs/platform-fastify';
 import type { Redis } from 'ioredis';
 import {
   createResendEventDigest,
-  resendSigningKey,
   verifyResendSignature,
 } from '@pospay/notifications';
 import type { ResendIntake } from './resend-webhook.controller.ts';
@@ -31,6 +30,24 @@ const redisUnavailable = (request: FastifyRequest): void => {
   request.log.warn({ type: 'RedisError' }, 'resend redis unavailable');
 };
 const target = (req: FastifyRequest) => req.routeOptions.url === ROUTE;
+
+/** application/json بس، ومن غير أي ترميز محتوى (spec 075 FR-001). */
+const isNotJsonOnly = (request: FastifyRequest): boolean =>
+  request.headers['content-encoding'] !== undefined ||
+  !/^application\/json(?:\s*;\s*charset=utf-8)?$/i.test(request.headers['content-type'] ?? '');
+
+/** بيجمع الجسم الخام بحده 64KiB قبل أي تحليل — التوقيع على البايتات الأصلية. */
+const cappedBody = async (payload: AsyncIterable<string | Buffer>): Promise<Buffer> => {
+  const parts: Buffer[] = [];
+  let size = 0;
+  for await (const chunk of payload) {
+    const bytes = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
+    size += bytes.length;
+    if (size > BODY_LIMIT) throw new ApiError('PAYLOAD_TOO_LARGE');
+    parts.push(bytes);
+  }
+  return Buffer.concat(parts, size);
+};
 
 /** The header value, but only when the header was sent exactly once. */
 const singleHeader = (request: FastifyRequest, name: string): string | undefined => {
@@ -58,18 +75,15 @@ export function mountResendSecurity(
   app.addHook('onRequest', async (request, reply) => {
     if (!target(request)) return;
     if (intake === undefined || redis === undefined) return refuse(reply, 'NOT_READY');
-    const ip = createHash('sha256').update(request.ip).digest('hex');
     if (
-      !(await limited(redis, `resend:ip:POST:${ip}`, RATE_LIMIT, reply, () =>
-        redisUnavailable(request),
-      ))
+      !(await limited(redis, `resend:ip:POST:${createHash('sha256').update(request.ip).digest('hex')}`, RATE_LIMIT, {
+        reply,
+        onUnavailable: () => redisUnavailable(request),
+        overQuota: 'RATE_LIMITED',
+      }))
     )
       return;
-    if (
-      request.headers['content-encoding'] !== undefined ||
-      !/^application\/json(?:\s*;\s*charset=utf-8)?$/i.test(request.headers['content-type'] ?? '')
-    )
-      return refuse(reply, 'UNSUPPORTED_MEDIA_TYPE');
+    if (isNotJsonOnly(request)) return refuse(reply, 'UNSUPPORTED_MEDIA_TYPE');
   });
   app.addHook('onResponse', async (request) => {
     verified.delete(request);
@@ -79,15 +93,7 @@ export function mountResendSecurity(
     route.bodyLimit = BODY_LIMIT;
     route.preParsing = async (request, _reply, payload) => {
       if (intake === undefined || redis === undefined) throw new ApiError('NOT_READY');
-      const parts: Buffer[] = [];
-      let size = 0;
-      for await (const chunk of payload) {
-        const bytes = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
-        size += bytes.length;
-        if (size > BODY_LIMIT) throw new ApiError('PAYLOAD_TOO_LARGE');
-        parts.push(bytes);
-      }
-      const body = Buffer.concat(parts, size);
+      const body = await cappedBody(payload);
       const id = singleHeader(request, 'svix-id');
       const headers = {
         id,
@@ -99,7 +105,10 @@ export function mountResendSecurity(
       )
         throw new ApiError('UNAUTHENTICATED');
       if (id !== undefined)
-        verified.set(request, createResendEventDigest(resendSigningKey(intake.config.webhookSecret))(id));
+        verified.set(
+          request,
+          createResendEventDigest(intake.config.eventDigestKey)(id),
+        );
       return Readable.from([body]);
     };
   });

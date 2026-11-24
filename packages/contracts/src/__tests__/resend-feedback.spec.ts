@@ -68,4 +68,16 @@ describe('resend feedback contract', () => {
     expect(resendFeedbackType.safeParse({ type: 'email.clicked' }).success).toBe(true);
     expect(resendFeedbackType.safeParse({}).success).toBe(false);
   });
+  it('refuses a provider id that is not in Resend’s documented UUID shape', () => {
+    const envelope = (emailId: string) => ({
+      type: 'email.bounced',
+      created_at: '2026-11-23T10:00:00.000Z',
+      data: { email_id: emailId, bounce: { type: 'Permanent' } },
+    });
+    expect(resendFeedbackEnvelope.safeParse(envelope('4ef9a417-02e9-4d39-ad75-9611e0fcc33c')).success).toBe(true);
+    expect(resendFeedbackEnvelope.safeParse(envelope('4EF9A417-02E9-4D39-AD75-9611E0FCC33C')).success).toBe(true);
+    expect(resendFeedbackEnvelope.safeParse(envelope('owner@example.invalid')).success).toBe(false);
+    expect(resendFeedbackEnvelope.safeParse(envelope('smtp; 550 mailbox unavailable')).success).toBe(false);
+    expect(resendFeedbackEnvelope.safeParse(envelope('')).success).toBe(false);
+  });
 });

@@ -32,19 +32,24 @@ export const resendFeedbackEventType = z.enum([...RESEND_FEEDBACK_EVENT_TYPES]);
 export const resendFeedbackBounceClass = z.enum([...RESEND_FEEDBACK_BOUNCE_CLASSES]);
 export const resendFeedbackQuarantineReason = z.enum([...RESEND_FEEDBACK_QUARANTINE_REASONS]);
 
+/** معرّف الإيميل عند المزود بصيغته الموثقة (UUID) — أي قيمة تانية تبقى 400 قبل أي تخزين. */
+const PROVIDER_EMAIL_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 /** The event type of a feedback body, read before the allowlist decides whether we keep it. */
 export const resendFeedbackType = z.object({ type: z.string().min(1).max(64) });
 
 /**
  * The signed envelope we accept. Only the allowlisted fields survive the parse: addresses, subject,
- * headers, tags and every bounce diagnostic are dropped before anything is stored or logged.
+ * headers, tags and every bounce diagnostic are dropped before anything is stored or logged. The
+ * provider id must be in Resend's documented UUID shape, so a signed event carrying an address or
+ * diagnostic text in its id field is refused instead of stored.
  */
 export const resendFeedbackEnvelope = z
   .object({
     type: z.string().min(1).max(64),
     created_at: z.string().min(1).max(64),
     data: z.object({
-      email_id: z.string().min(1).max(256),
+      email_id: z.string().max(36).regex(PROVIDER_EMAIL_ID),
       bounce: z.object({ type: z.string().min(1).max(64) }).optional(),
     }),
   })
@@ -55,8 +60,9 @@ export const resendFeedbackScrubbed = z
   .object({
     type: resendFeedbackEventType,
     created_at: z.string().min(1).max(64),
-    email_id: z.string().min(1).max(256),
-    bounce_type: z.string().min(1).max(64).optional(),
+    email_id: z.string().max(36).regex(PROVIDER_EMAIL_ID),
+    // التصنيف المحدود بس هو اللي بيتخزن: الكلمة الخام من المزود ما بتفضلش في الحمولة أبدًا.
+    bounce_type: resendFeedbackBounceClass.optional(),
   })
   .meta({ id: 'ResendFeedbackScrubbed' });
 

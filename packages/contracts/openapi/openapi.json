@@ -43446,8 +43446,8 @@
             "properties": {
               "email_id": {
                 "type": "string",
-                "minLength": 1,
-                "maxLength": 256
+                "maxLength": 36,
+                "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
               },
               "bounce": {
                 "type": "object",

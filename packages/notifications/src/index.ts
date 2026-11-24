@@ -59,6 +59,7 @@ export {
   resendBounceClass,
   resendSigningKey,
   verifyResendSignature,
+  RESEND_INTAKE_BUDGET_MS,
   RESEND_TIMESTAMP_WINDOW_SECONDS,
   type ResendWebhookConfiguration,
   type ResendWebhookHeaders,

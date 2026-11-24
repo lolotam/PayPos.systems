@@ -4,7 +4,11 @@ import {
   resendFeedbackEnvelope,
   resendFeedbackType,
 } from '@pospay/contracts';
-import { resendBounceClass, type ResendWebhookConfiguration } from '@pospay/notifications';
+import {
+  RESEND_INTAKE_BUDGET_MS,
+  resendBounceClass,
+  type ResendWebhookConfiguration,
+} from '@pospay/notifications';
 import type { FastifyRequest } from 'fastify';
 import { Public } from '../../../shared/public.decorator.ts';
 import { ApiError } from '../../../shared/errors.ts';
@@ -39,21 +43,26 @@ export class ResendWebhookController {
       if (!parsed.success) throw new ApiError('BAD_REQUEST');
       const providerTimestamp = new Date(parsed.data.created_at);
       if (Number.isNaN(providerTimestamp.getTime())) throw new ApiError('BAD_REQUEST');
-      await this.intake.receive.execute({
-        digest,
-        type: parsed.data.type,
-        emailId: parsed.data.data.email_id,
-        bounceClass: resendBounceClass(parsed.data.data.bounce?.type),
-        providerTimestamp,
-        envelope: {
+      const bounceClass = resendBounceClass(parsed.data.data.bounce?.type);
+      // موعد واحد للطلب كله: الحفظ والتسليم والتأكيد؛ اللي يفات الموعد بعد التزم الحفظ بيكمل من الـ sweep.
+      const deadline = new Date(this.intake.clock.now().getTime() + RESEND_INTAKE_BUDGET_MS);
+      await this.intake.receive.execute(
+        {
+          digest,
           type: parsed.data.type,
-          created_at: parsed.data.created_at,
-          email_id: parsed.data.data.email_id,
-          ...(parsed.data.data.bounce === undefined
-            ? {}
-            : { bounce_type: parsed.data.data.bounce.type }),
+          emailId: parsed.data.data.email_id,
+          bounceClass,
+          providerTimestamp,
+          envelope: {
+            type: parsed.data.type,
+            created_at: providerTimestamp.toISOString(),
+            email_id: parsed.data.data.email_id,
+            // التصنيف المحدود بس بيتخزن: الكلمة الخام من المزود بتشخّص وما بتنزلش القاعدة (FR-003).
+            ...(bounceClass === null ? {} : { bounce_type: bounceClass }),
+          },
         },
-      });
+        deadline,
+      );
       return { received: true };
     } finally {
       request.body = undefined;

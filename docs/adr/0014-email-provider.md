@@ -243,13 +243,16 @@ PR that creates the table.
 
 ### D. The intake boundary
 
-The API holds **one** Resend credential: the webhook signing secret. It holds no sending key and no
-recipient-hash key, so it cannot resolve a recipient and cannot send; the recipient hash and the sending key
-stay with the worker. The intake verifies the signature over the raw body with native `node:crypto` before the
-body is parsed, keeps a strict allowlist (`type`, `created_at`, `data.email_id`, `data.bounce.type`), stores
-the scrubbed envelope only, and enqueues one id-only job. The provider tags in the webhook body are never
-trusted; ADR-0014 §3 step 2 keeps the authenticated retrieval as the only source of the tenant correlation
-tags.
+The API holds the webhook signing secret and **one managed dedupe key** (`RESEND_EVENT_DIGEST_KEY`,
+32+ characters, API only). It holds no sending key and no recipient-hash key, so it cannot resolve a
+recipient and cannot send; the recipient hash and the sending key stay with the worker. The dedupe
+digest is keyed by the managed key, not by the signing secret, so a provider secret rotation cannot
+re-materialise an old event as new. The intake verifies the signature over the raw body with native
+`node:crypto` before the body is parsed, keeps a strict allowlist (`type`, `created_at`,
+`data.email_id`, `data.bounce.type`), stores the scrubbed envelope only — the provider id in its
+documented UUID shape, the classification bounded to `PERMANENT`/`TRANSIENT`, the time normalised to
+ISO — and enqueues one id-only job. The provider tags in the webhook body are never trusted; ADR-0014
+§3 step 2 keeps the authenticated retrieval as the only source of the tenant correlation tags.
 
 The confirmed provider contract (header names, signing string, event names, bounce field, and the fact that
 `GET /emails/{id}` returns the tags and the recipient) is recorded in

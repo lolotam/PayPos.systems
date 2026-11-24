@@ -42,13 +42,11 @@ export function mountWhatsappSecurity(
     if (intake === undefined || redis === undefined) return refuse(reply, 'NOT_READY');
     const ip = createHash('sha256').update(request.ip).digest('hex');
     if (
-      !(await limited(
-        redis,
-        `whatsapp:ip:${request.method}:${ip}`,
-        request.method === 'GET' ? 10 : 120,
+      !(await limited(redis, `whatsapp:ip:${request.method}:${ip}`, request.method === 'GET' ? 10 : 120, {
         reply,
-        () => redisUnavailable(request),
-      ))
+        onUnavailable: () => redisUnavailable(request),
+        overQuota: 'TOO_MANY_REQUESTS',
+      }))
     )
       return;
     if (request.method === 'POST') {
