@@ -169,7 +169,8 @@ export function identityProviders(
     ...preferenceProviders(),
     { provide: OnboardCompany, useValue: capabilities.onboard },
     { provide: DEVICE_USE_CASES, useValue: capabilities.devices?.useCases ?? null },
-    { provide: DEVICE_AUTHENTICATOR, useValue: capabilities.devices?.authenticator ?? null },    {
+    { provide: DEVICE_AUTHENTICATOR, useValue: capabilities.devices?.authenticator ?? null },
+    {
       provide: CASHIER_PIN_USE_CASES,
       useValue: database === undefined ? null : cashierPinUseCases(database, ids, redis),
     },

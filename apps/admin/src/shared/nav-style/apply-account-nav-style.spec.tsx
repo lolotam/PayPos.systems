@@ -131,7 +131,7 @@ describe.each(['password', 'totp'] as const)('%s account style before navigation
     await signInAndAwait(kind);
     expect(atAnnouncement).toBeUndefined();
   });
-  it.each(['transport', 'body'])(
+  it.each(['transport', 'body'] as const)(
     'keeps submit disabled through the whole %s deadline and ignores a late answer',
     async (mode) => {
       vi.useFakeTimers();
