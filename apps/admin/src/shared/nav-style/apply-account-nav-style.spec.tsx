@@ -41,6 +41,37 @@ function answerWith(handler: (request: Request) => Promise<Response>): void {
   respond = handler;
 }
 
+/** بطء حقيقي يمر عبر العميل المولّد: إما النقل المعلّق أو رؤوس تصل وجسم يتأخر داخل حد الدقيقتين. */
+function installSlowAnswer(mode: 'transport' | 'body'): () => void {
+  if (mode === 'transport') {
+    let release: (() => void) | undefined;
+    answerWith(
+      () =>
+        new Promise<Response>((resolve) => {
+          release = () => resolve(jsonResponse({ navStyle: 'A' }));
+        }),
+    );
+    return () => release?.();
+  }
+  const encoder = new TextEncoder();
+  answerWith(() =>
+    Promise.resolve(
+      new Response(
+        new ReadableStream<Uint8Array>({
+          start(controller) {
+            setTimeout(() => {
+              controller.enqueue(encoder.encode(JSON.stringify({ navStyle: 'A' })));
+              controller.close();
+            }, 5_000);
+          },
+        }),
+        { status: 200, headers: { 'content-type': 'application/json' } },
+      ),
+    ),
+  );
+  return () => undefined;
+}
+
 beforeEach(() => {
   vi.resetAllMocks();
   process.env.NEXT_PUBLIC_API_URL = 'http://api.test';
@@ -65,6 +96,13 @@ afterEach(() => {
   delete process.env.NEXT_PUBLIC_API_URL;
 });
 
+/** دخول من المسار الحقيقي حتى بدء الانتقال: رسم ثم ضغط ثم انتظار الـ loadPage الوحيد. */
+async function signInAndAwait(kind: 'password' | 'totp'): Promise<void> {
+  render(<SignInStyleProbe kind={kind} />);
+  fireEvent.click(screen.getByRole('button'));
+  await waitFor(() => expect(mocks.loadPage).toHaveBeenCalledTimes(1));
+}
+
 describe.each(['password', 'totp'] as const)('%s account style before navigation', (kind) => {
   it.each([
     ['style A', { navStyle: 'A' }, 'A'],
@@ -73,62 +111,31 @@ describe.each(['password', 'totp'] as const)('%s account style before navigation
     ['a malformed body', {}, undefined],
   ])('applies %s before one navigation', async (_name, body, expected) => {
     answerWith(() => Promise.resolve(jsonResponse(body)));
-    render(<SignInStyleProbe kind={kind} />);
-    fireEvent.click(screen.getByRole('button'));
-    await waitFor(() => expect(mocks.loadPage).toHaveBeenCalledTimes(1));
+    await signInAndAwait(kind);
     expect(atNavigation).toBe(expected);
     expect(mocks.loadPage).toHaveBeenCalledWith('/');
     expect(fetchRequests[0]?.url).toBe('http://api.test/v1/me/preferences');
     expect(fetchRequests[0]?.cache).toBe('no-store');
     expect(mocks.announceIdentityChange.mock.invocationCallOrder[0]).toBeLessThan(
-      mocks.loadPage.mock.invocationCallOrder[0],
+      mocks.loadPage.mock.invocationCallOrder[0] ?? Number.MAX_SAFE_INTEGER,
     );
   });
   it.each(['refusal', 'network'])('clears the previous style after %s', async (failure) => {
     if (failure === 'network') answerWith(() => Promise.reject(new Error('SYNTHETIC_NETWORK')));
     else answerWith(() => Promise.resolve(jsonResponse({}, 401)));
-    render(<SignInStyleProbe kind={kind} />);
-    fireEvent.click(screen.getByRole('button'));
-    await waitFor(() => expect(mocks.loadPage).toHaveBeenCalledTimes(1));
+    await signInAndAwait(kind);
     expect(atNavigation).toBeUndefined();
   });
   it('clears the previous cookie before announcing other tabs', async () => {
     answerWith(() => Promise.resolve(jsonResponse({ navStyle: 'A' })));
-    render(<SignInStyleProbe kind={kind} />);
-    fireEvent.click(screen.getByRole('button'));
-    await waitFor(() => expect(mocks.loadPage).toHaveBeenCalledTimes(1));
+    await signInAndAwait(kind);
     expect(atAnnouncement).toBeUndefined();
   });
   it.each(['transport', 'body'])(
     'keeps submit disabled through the whole %s deadline and ignores a late answer',
     async (mode) => {
       vi.useFakeTimers();
-      let release: (() => void) | undefined;
-      if (mode === 'transport') {
-        answerWith(
-          () =>
-            new Promise<Response>((resolve) => {
-              release = () => resolve(jsonResponse({ navStyle: 'A' }));
-            }),
-        );
-      } else {
-        const encoder = new TextEncoder();
-        answerWith(() =>
-          Promise.resolve(
-            new Response(
-              new ReadableStream<Uint8Array>({
-                start(controller) {
-                  setTimeout(() => {
-                    controller.enqueue(encoder.encode(JSON.stringify({ navStyle: 'A' })));
-                    controller.close();
-                  }, 5_000);
-                },
-              }),
-              { status: 200, headers: { 'content-type': 'application/json' } },
-            ),
-          ),
-        );
-      }
+      const release = installSlowAnswer(mode);
       render(<SignInStyleProbe kind={kind} />);
       fireEvent.click(screen.getByRole('button'));
       await act(async () => {
@@ -143,7 +150,7 @@ describe.each(['password', 'totp'] as const)('%s account style before navigation
       expect(mocks.loadPage).toHaveBeenCalledTimes(1);
       expect(screen.getByRole('button').hasAttribute('disabled')).toBe(true);
       await act(async () => {
-        release?.();
+        release();
         await vi.advanceTimersByTimeAsync(6_000);
       });
       expect(cookieStyle()).toBeUndefined();

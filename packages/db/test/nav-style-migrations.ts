@@ -1,5 +1,5 @@
 import { readFileSync } from 'node:fs';
-import { fileURLToPath } from 'node:url';
+import { URL } from 'node:url';
 
 const MIGRATIONS_URL = new URL('../migrations/', import.meta.url);
 const JOURNAL = new URL('meta/_journal.json', MIGRATIONS_URL);
@@ -27,13 +27,15 @@ export function readNavStyleMigrationFiles(): MigrationFile[] {
     tag: entry.tag,
     sql: readFileSync(new URL(`${entry.tag}.sql`, MIGRATIONS_URL), 'utf8'),
   }));
-  const add = contents.filter(({ sql }) => sql.includes(ADD));
-  const validate = contents.filter(({ sql }) => sql.includes(VALIDATE) && !sql.includes(ADD));
-  if (add.length !== 1 || validate.length !== 1)
+  const addMatches = contents.filter(({ sql }) => sql.includes(ADD));
+  const validateMatches = contents.filter(({ sql }) => sql.includes(VALIDATE) && !sql.includes(ADD));
+  const [add] = addMatches;
+  const [validate] = validateMatches;
+  if (add === undefined || validate === undefined)
     throw new Error(
-      `Expected one user_nav_style add and one validate migration, got ${add.length}/${validate.length}`,
+      `Expected one user_nav_style add and one validate migration, got ${addMatches.length}/${validateMatches.length}`,
     );
-  return [add[0]!, validate[0]!].map(({ tag, sql }, index) => ({
+  return [add, validate].map(({ tag, sql }, index) => ({
     sql: sql.split('--> statement-breakpoint'),
     hash: tag,
     folderMillis: 9_999_999_999_990 + index,

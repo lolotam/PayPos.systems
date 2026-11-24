@@ -7,7 +7,7 @@ import { createTestDatabase } from '../../test/test-database.ts';
 import { applyMigrations } from '../concurrent-migrations.ts';
 
 const pending = vi.hoisted(() => ({
-  files: [] as { sql: string[]; folderMillis: number; hash: string }[],
+  files: [] as { sql: readonly string[]; folderMillis: number; hash: string }[],
 }));
 vi.mock('drizzle-orm/migrator', () => ({ readMigrationFiles: () => pending.files }));
 

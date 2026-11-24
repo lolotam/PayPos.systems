@@ -45,11 +45,17 @@ it('looks up one primary key on analysed representative data using the auth role
   const connection = postgres(fixture.authUrl, { max: 1, onnotice: () => undefined });
   try {
     // الـ EXPLAIN يجمع بيان القارئ نفسه من قطع القالب وقيمه لا من نص منسوخ، فتغيير القارئ يغيّر الاختبار.
-    const statement = readNavStyleStatement(connection, x);
+    const statement = readNavStyleStatement(connection, x) as unknown as {
+      strings: readonly string[];
+      args: readonly unknown[];
+    };
     const sql = statement.strings
       .map((part, index) => `${part}${index < statement.args.length ? `$${index + 1}` : ''}`)
       .join('');
-    const plan = await connection.unsafe(`EXPLAIN (ANALYZE, FORMAT JSON) ${sql}`, statement.args as unknown[]);
+    const plan = await connection.unsafe(
+      `EXPLAIN (ANALYZE, FORMAT JSON) ${sql}`,
+      statement.args as postgres.ParameterOrJSON<string>[],
+    );
     expect(JSON.stringify(plan)).toContain('user_pkey');
     expect(JSON.stringify(plan)).toContain('Index Cond');
   } finally {

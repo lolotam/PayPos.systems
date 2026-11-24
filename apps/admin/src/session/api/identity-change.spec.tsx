@@ -39,6 +39,30 @@ vi.mock('./session-calls', () => ({
 
 const SIGN_IN = { email: 'a@example.test', password: 'x' };
 
+/** مجسّ الكاش الحقيقي داخل QueryProvider: يزرع بيانات المستخدم السابق ثم يسجّل الدخول من نفس الشجرة. */
+function CacheProbe() {
+  const client = useQueryClient();
+  const { submit } = useSignIn();
+  const [cached, setCached] = useState<string | undefined>();
+  return (
+    <>
+      <button
+        type="button"
+        onClick={() => {
+          client.setQueryData(['probe', 'inbox'], 'Previous user session data');
+          setCached(String(client.getQueryData(['probe', 'inbox'])));
+        }}
+      >
+        Seed
+      </button>
+      <button type="button" onClick={() => void submit(SIGN_IN)}>
+        Go
+      </button>
+      <p>Cached: {cached ?? 'empty'}</p>
+    </>
+  );
+}
+
 // The previous user's cached queries must not reach the next one: every identity change is a full page load.
 describe('identity changes reload the page', () => {
   beforeEach(() => vi.clearAllMocks());
@@ -86,28 +110,6 @@ describe('identity changes reload the page', () => {
     const reload = vi.fn();
     const assign = vi.fn();
     vi.stubGlobal('location', { assign, reload });
-    function CacheProbe() {
-      const client = useQueryClient();
-      const { submit } = useSignIn();
-      const [cached, setCached] = useState<string | undefined>();
-      return (
-        <>
-          <button
-            type="button"
-            onClick={() => {
-              client.setQueryData(['probe', 'inbox'], 'Previous user session data');
-              setCached(String(client.getQueryData(['probe', 'inbox'])));
-            }}
-          >
-            Seed
-          </button>
-          <button type="button" onClick={() => void submit(SIGN_IN)}>
-            Go
-          </button>
-          <p>Cached: {cached ?? 'empty'}</p>
-        </>
-      );
-    }
     render(
       <QueryProvider>
         <CacheProbe />
