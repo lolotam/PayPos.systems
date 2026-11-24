@@ -29,8 +29,30 @@ const ok = (
   branchIds: readonly string[] = [SALMIYA],
 ): Awaited<ReturnType<CommissionStatementReader['read']>> => ({
   kind: 'ok',
-  read: { businessWide, branchIds, source: statementSource(statement) },
+  read: { businessWide, branchIds, source: statementSource(statement), closed: null },
 });
+
+/** شهر مغلق بصفوفه المجمّدة: نفس صفوف الباني، ووقت اعتماد وبصمتين مخزّنتين. */
+const closedRead = (
+  businessWide: boolean,
+  status: 'APPROVED' | 'PAID',
+): Awaited<ReturnType<CommissionStatementReader['read']>> => {
+  const computed = computeStatement(PERIOD, statementSource(), hasher);
+  return {
+    kind: 'ok',
+    read: {
+      businessWide,
+      branchIds: [SALMIYA],
+      source: statementSource(statementRecord({ status, currentFingerprint: 'a'.repeat(64) })),
+      closed: {
+        approvedAt: '2026-11-15T10:00:00.123456Z',
+        inputFingerprint: computed.inputFingerprint,
+        statementFingerprint: computed.statementFingerprint,
+        rows: computed.build.rows,
+      },
+    },
+  };
+};
 
 const view = (reader: CommissionStatementReader) =>
   new GetCommissionStatementUseCase(reader, hasher).execute(request);
@@ -89,9 +111,9 @@ describe('the two response shapes (FR-025, CM-28c)', () => {
 
 describe('generated and changed since review (R6, D-6)', () => {
   it('is not generated while current_fingerprint is null, and generated once it is stored', async () => {
-    expect((await view(readerOf(ok(true)))).generated).toBe(false);
+    expect(((await view(readerOf(ok(true)))) as { generated: boolean }).generated).toBe(false);
     const stored = statementRecord({ currentFingerprint: 'a'.repeat(64) });
-    expect((await view(readerOf(ok(true, stored)))).generated).toBe(true);
+    expect(((await view(readerOf(ok(true, stored)))) as { generated: boolean }).generated).toBe(true);
   });
 
   it('reports no change when both reviewed fingerprints equal the ones computed now', async () => {
@@ -137,14 +159,32 @@ describe('generated and changed since review (R6, D-6)', () => {
   });
 });
 
-describe('refusals', () => {
-  it.each(['APPROVED', 'PAID'] as const)('refuses a %s month with the closed-period code', async (status) => {
-    const closed = statementRecord({ status, currentFingerprint: 'a'.repeat(64) });
-    await expect(view(readerOf(ok(true, closed)))).rejects.toMatchObject({
-      code: 'COMMISSION_PERIOD_CLOSED',
+describe('a closed month is read from its frozen rows (FR-025, FR-033)', () => {
+  it.each(['APPROVED', 'PAID'] as const)('gives a business-wide reader the frozen %s view with the stored fingerprints', async (status) => {
+    const response = await view(readerOf(closedRead(true, status)));
+
+    expect(response).toMatchObject({
+      reader_scope: 'BUSINESS',
+      status,
+      approved_at: '2026-11-15T10:00:00.123456Z',
     });
+    expect(response).not.toHaveProperty('current_fingerprint');
   });
 
+  it('gives a branch reader the closed branch shape with no whole-statement field', async () => {
+    const response = await view(readerOf(closedRead(false, 'APPROVED')));
+
+    expect(Object.keys(response).sort()).toEqual(['business_id', 'employees', 'period', 'reader_scope', 'status']);
+  });
+
+  it('refuses to guess when a closed month reaches the use case without its frozen rows', async () => {
+    const stray = ok(true, statementRecord({ status: 'APPROVED', currentFingerprint: 'a'.repeat(64) }));
+
+    await expect(view(readerOf(stray))).rejects.toThrow('without its frozen rows');
+  });
+});
+
+describe('refusals', () => {
   it('maps the reader refusals to the uniform codes', async () => {
     await expect(view(readerOf({ kind: 'forbidden' }))).rejects.toBeInstanceOf(
       CommissionPlanVersionError,

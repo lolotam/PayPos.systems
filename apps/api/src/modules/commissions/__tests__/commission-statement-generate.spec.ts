@@ -195,10 +195,11 @@ describe('generating on a statement that already has a status (D-5, FR-025, FR-0
     expect(await auditAndOutboxCounts(f)).toEqual(before);
   });
 
-  it('refuses to read a closed month until the frozen read ships with the approval part', async () => {
+  it('reads a closed month from its frozen rows, with no live fingerprint (FR-025, 53-2)', async () => {
     const response = await readStatement(f, f.cookie, '2026-09');
-    expect(response.status).toBe(409);
-    expect((response.body as { code: string }).code).toBe('COMMISSION_PERIOD_CLOSED');
+    expect(response.status).toBe(200);
+    expect(response.body).toMatchObject({ reader_scope: 'BUSINESS', status: 'APPROVED' });
+    expect(response.body).not.toHaveProperty('current_fingerprint');
   });
 });
 

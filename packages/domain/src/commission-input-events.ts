@@ -16,3 +16,10 @@ export const COMMISSION_INPUT_EVENT_TYPES = [
   'SalaryChanged',
   'PackageSaleChanged',
 ] as const;
+
+/**
+ * رقم نسخة قواعد إثبات تغطية البيانات القديمة (ADR-0054، إضافة 2026-11-22 البند 5). يطابق ما ترجعه
+ * `commission_coverage_required_version()` في قاعدة البيانات؛ أي إصدار يغيّر الأنواع المعدودة أو معرّف المستهلك أو
+ * قواعد الإثبات يرفع الرقم هنا وفي دالة الهجرة معًا، واختبار التكافؤ يفشل لو اختلفا.
+ */
+export const COMMISSION_COVERAGE_PROOF_VERSION = 1;

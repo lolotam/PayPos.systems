@@ -22,6 +22,8 @@ export const TENANT_TABLES = [
   'commission_blocked_corrections',
   'commission_carries',
   'commission_statement_returns',
+  'commission_coverage_proofs',
+  'commission_coverage_state',
   'late_service_session_notices',
   'low_rating_notices',
   'service_sessions',

@@ -10,6 +10,8 @@ import {
   Req,
 } from '@nestjs/common';
 import {
+  commissionClosedStatementBranchView,
+  commissionClosedStatementView,
   commissionEstimatePeriod,
   commissionStatementBranchView,
   commissionStatementReviewInput,
@@ -18,6 +20,8 @@ import {
   commissionStatementReturnResult,
   commissionStatementView,
   id,
+  type CommissionClosedStatementBranchView,
+  type CommissionClosedStatementView,
   type CommissionStatementBranchView,
   type CommissionStatementReviewInput,
   type CommissionStatementReviewResult,
@@ -70,15 +74,24 @@ export class CommissionStatementsController {
     @Param('businessId', new ZodValidationPipe(id.toLowerCase())) businessId: string,
     @Param('period', new ZodValidationPipe(commissionEstimatePeriod)) period: string,
     @Req() request: FastifyRequest,
-  ): Promise<CommissionStatementView | CommissionStatementBranchView> {
+  ): Promise<
+    | CommissionStatementView
+    | CommissionStatementBranchView
+    | CommissionClosedStatementView
+    | CommissionClosedStatementBranchView
+  > {
     if (this.getStatement === null) throw new ApiError('NOT_READY');
     const actor = commissionEstimateActor(request);
     try {
       const view = await this.getStatement.execute({ ...actor, businessId, period });
       // الشركة بتتسجل في سياق السجل بعد إثبات العضوية جوّه المعاملة، فمش بنسجل هيدر غير مثبوت.
       bindVerifiedCompany(actor.companyId);
-      return view.reader_scope === 'BUSINESS'
-        ? commissionStatementView.parse(view)
+      const closed = view.status === 'APPROVED' || view.status === 'PAID';
+      if (view.reader_scope === 'BUSINESS') {
+        return closed ? commissionClosedStatementView.parse(view) : commissionStatementView.parse(view);
+      }
+      return closed
+        ? commissionClosedStatementBranchView.parse(view)
         : commissionStatementBranchView.parse(view);
     } catch (error) {
       return mapCommissionWriteError(error);

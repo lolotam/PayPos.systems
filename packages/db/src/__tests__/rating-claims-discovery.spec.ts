@@ -1,5 +1,6 @@
 import { ReplayCursorError } from '../replay-cursor.ts';
 import postgres from 'postgres';
+import { asReplicaOwner } from '../../test/owner-cleanup.ts';
 import { systemUuidV7 } from '@pospay/ids';
 import { afterAll, beforeAll, beforeEach, expect, it, vi } from 'vitest';
 import {
@@ -90,7 +91,7 @@ beforeAll(async () => {
 });
 
 beforeEach(async () => {
-  await owner`DELETE FROM outbox`;
+  await asReplicaOwner(owner, (tx) => tx`DELETE FROM outbox`);
 });
 
 afterAll(async () => {

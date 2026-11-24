@@ -142,7 +142,7 @@ describe('a statement employee row', () => {
 });
 
 describe('the statement routes in the OpenAPI document', () => {
-  it('documents the read as a oneOf of the two shapes and the generate as the business shape', () => {
+  it('documents the read as a oneOf of the open and closed shapes and the generate as the business shape', () => {
     const document = buildOpenApiDocument() as {
       paths: Record<string, Record<string, { responses: Record<string, { content?: unknown }> }>>;
     };
@@ -153,6 +153,8 @@ describe('the statement routes in the OpenAPI document', () => {
           oneOf: [
             { $ref: '#/components/schemas/CommissionStatementView' },
             { $ref: '#/components/schemas/CommissionStatementBranchView' },
+            { $ref: '#/components/schemas/CommissionClosedStatementView' },
+            { $ref: '#/components/schemas/CommissionClosedStatementBranchView' },
           ],
         },
       },

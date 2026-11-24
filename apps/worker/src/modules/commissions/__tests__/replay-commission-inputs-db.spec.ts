@@ -29,6 +29,7 @@ import {
   type CommissionFailureCodes,
 } from '../jobs/replay-commission-inputs.ts';
 import { commissionSalaryEvent } from './commission-tip-salary-events.ts';
+import { asReplicaOwner } from '../../../../../../packages/db/test/owner-cleanup.ts';
 
 let testDb: TestDatabase;
 let owner: postgres.Sql;
@@ -59,7 +60,7 @@ beforeEach(async () => {
   await owner`DELETE FROM commission_line_heads`;
   await owner`DELETE FROM commission_salaries`;
   await owner`DELETE FROM consumed_events WHERE consumer_id='commissions.project-inputs'`;
-  await owner`DELETE FROM outbox`;
+  await asReplicaOwner(owner, (tx) => tx`DELETE FROM outbox`);
 });
 
 function createReplayHarness() {
