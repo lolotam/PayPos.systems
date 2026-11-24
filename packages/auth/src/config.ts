@@ -118,13 +118,7 @@ export async function createAuth(options: AuthOptions): Promise<AuthService> {
     throw new Error('BETTER_AUTH_SECRET must be at least 32 characters');
   // قبل أي pool: بادئة cookie غلط معناها اسم cookie مش متوقع، والتطبيق لازم يقف بدل ما يخدم.
   const cookieNames = sessionCookieNames(options);
-  const database = createAuthDatabase({ url: options.databaseUrl });
-  try {
-    await database.ping();
-  } catch (error) {
-    await database.close();
-    throw error;
-  }
+  const database = await openAuthDatabase(options.databaseUrl);
   const auth = buildBetterAuth(options, database, cookieNames);
   const staff = staffSessions(options, auth, database, cookieNames);
   const personal = personalSessions(options, auth, database);
@@ -177,6 +171,18 @@ export async function createAuth(options: AuthOptions): Promise<AuthService> {
 }
 
 type AuthContext = Awaited<ReturnType<typeof buildBetterAuth>['$context']>;
+
+/** الاتصال بيتفتح ومتأكد من الـ role قبل أي خدمة؛ أي فشل بينغ بيقفل الاتصال قبل ما يرفع الخطأ. */
+async function openAuthDatabase(url: string) {
+  const database = createAuthDatabase({ url });
+  try {
+    await database.ping();
+  } catch (error) {
+    await database.close();
+    throw error;
+  }
+  return database;
+}
 
 async function provision(
   context: AuthContext,
