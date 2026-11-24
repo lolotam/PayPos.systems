@@ -1,5 +1,7 @@
 # 53 · Giving and managing the employee number — إدّي الموظفة رقمها وظبّطه
 
+> **Since 074-10b / منذ 074-10b:** **Edit** on a row opens the employee's own page `/staff/<id>` (no card under the table); the number is beside the name in its header, with **Edit number** among the header buttons. / **تعديل** على الصف بيفتح صفحة الموظف `/staff/<id>` (من غير لوحة تحت الجدول)؛ الرقم جنب الاسم في ترويستها و**تعديل الرقم** بين أزرار الترويسة.
+
 **Status / الحالة:** row 8c, all merged.
 - The screens shipped in #388 (type a number when adding, **Edit number** on the profile, the one-time start dialog) and #380
   (the company screen «الأرقام الوظيفية»).

@@ -12,20 +12,16 @@ import { EmployeePageNavigation } from './employee-page-navigation';
 export function EmployeeListPanel({
   list,
   branches,
-  selectedId,
   cursor,
   search,
   onSearch,
-  onSelect,
   onPage,
 }: {
   list: UseQueryResult<EmployeePage>;
   branches: readonly WorkspaceBranch[];
-  selectedId: string;
   cursor: string | undefined;
   search: string;
   onSearch: (value: string) => void;
-  onSelect: (id: string) => void;
   onPage: (cursor: string | undefined) => void;
 }) {
   const locale = useLocale();
@@ -56,12 +52,7 @@ export function EmployeeListPanel({
         <EmptyState icon={<UserRound />} title={t(locale, 'staff.empty')} />
       ) : null}
       {data && data.items.length > 0 ? (
-        <EmployeeTable
-          items={data.items}
-          branches={branches}
-          selectedId={selectedId}
-          onSelect={onSelect}
-        />
+        <EmployeeTable items={data.items} branches={branches} />
       ) : null}
     </DataTableFrame>
   );
