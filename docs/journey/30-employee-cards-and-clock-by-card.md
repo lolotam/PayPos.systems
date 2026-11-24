@@ -1,5 +1,7 @@
 # 30 · Employee cards and clock-by-card — كروت الموظفين والحضور بالكارت
 
+> **Since 074-10b / منذ 074-10b:** **Edit** opens the employee's own page `/staff/<id>`; the attendance card section is on its **Hours and card** tab. / **تعديل** بيفتح صفحة الموظف `/staff/<id>`؛ قسم بطاقة الحضور في تبويب **الدوام والبطاقة**.
+
 **Status / الحالة:** shipped in two PRs (CB-Q4): #120 (PR 23a — issue / revoke an employee card in the admin, squash
 `d275973`) and #121 (PR 23b — clock-by-card on the paired reception device, squash `b01e879`). The API is on staging at
 `b01e879` (2026-10-07), but the admin (issue #54) and the POS are not deployed, so the screens run **locally only**. The

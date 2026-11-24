@@ -1,5 +1,7 @@
 # 18 · Set salary — تعيين الراتب
 
+> **Since 074-10b / منذ 074-10b:** **Edit** opens the employee's own page `/staff/<id>`; the salary section is on its **Pay** tab. / **تعديل** بيفتح صفحة الموظف `/staff/<id>`؛ قسم الراتب في تبويب **الراتب**.
+
 **Status / الحالة:** shipped in #88 (PR 10, merged). Local only (admin not deployed, issue #54).
 Your decisions of 2026-10-03/04 apply: monthly BASIC salary, any effective date, same-date replacement,
 zero allowed, mandatory reason, owner access by default and explicit personal read + manage for other editors.

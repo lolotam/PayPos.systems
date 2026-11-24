@@ -5,7 +5,6 @@ import { EmployeesPage } from './employees-page';
 
 const state = vi.hoisted(() => ({
   useEmployees: vi.fn(),
-  edit: vi.fn(),
   cursor: undefined as string | undefined,
 }));
 vi.mock('@/shared/locale/locale-context', () => ({ useLocale: () => 'en' }));
@@ -23,12 +22,6 @@ vi.mock('../api/use-passkeys', () => ({
   }),
 }));
 vi.mock('../ui/employee-app-link-button', () => ({ EmployeeAppLinkButton: () => null }));
-vi.mock('../ui/employee-edit-panel', () => ({
-  EmployeeEditPanel: (props: object) => {
-    state.edit(props);
-    return null;
-  },
-}));
 const id = '01920000-0000-7000-8000-0000000000a2';
 const next = '01920000-0000-7000-8000-0000000000a3';
 const business = {
@@ -49,7 +42,7 @@ const business = {
     },
   ],
 };
-it('uses the server page, opens an editor for its row and clears selection on next/first page', () => {
+it('uses the server page, links its row to the employee page and pages on next/first', () => {
   state.useEmployees.mockImplementation((_company, _business, _user, cursor) => {
     state.cursor = cursor;
     return {
@@ -78,14 +71,12 @@ it('uses the server page, opens an editor for its row and clears selection on ne
   expect(screen.getByRole('table')).toBeTruthy();
   expect(screen.getByRole('columnheader', { name: t('en', 'staff.employeeNumber') })).toBeTruthy();
   expect(screen.getByText('3')).toBeTruthy();
-  fireEvent.click(screen.getByRole('button', { name: t('en', 'staff.edit') }));
-  expect(state.edit).toHaveBeenLastCalledWith(
-    expect.objectContaining({ employeeId: id, companyId: id }),
-  );
-  state.edit.mockClear();
+  const edit = screen.getByRole('link', { name: t('en', 'staff.edit') });
+  expect(edit.getAttribute('href')).toBe(`/staff/${id}`);
+  expect(screen.queryByRole('button', { name: t('en', 'staff.edit') })).toBeNull();
+  expect(screen.queryByRole('heading', { name: t('en', 'staff.editTitle') })).toBeNull();
   fireEvent.click(screen.getByRole('button', { name: t('en', 'staff.next') }));
   expect(state.cursor).toBe(next);
-  expect(state.edit).not.toHaveBeenCalled();
   expect(
     (screen.getByRole('button', { name: t('en', 'staff.next') }) as HTMLButtonElement).disabled,
   ).toBe(true);
@@ -156,47 +147,6 @@ it('sends trimmed digits and letters as q and clears q when the box is emptied',
       vi.advanceTimersByTime(300);
     });
     expect(seen.at(-1)).toEqual({ cursor: undefined, q: undefined });
-  } finally {
-    vi.useRealTimers();
-  }
-});
-it('closes the open employee editor when a search settles', () => {
-  vi.useFakeTimers();
-  try {
-    state.useEmployees.mockReturnValue({
-      isPending: false,
-      isError: false,
-      data: {
-        items: [
-          {
-            id,
-            name_en: 'Synthetic employee',
-            name_ar: null,
-            role_code: 'staff',
-            hire_date: '2026-01-01',
-            primary_branch_id: id,
-            employee_number: 2,
-          },
-        ],
-        next_cursor: null,
-      },
-    });
-    render(<EmployeesPage companyId={id} business={business} userId={id} />);
-    fireEvent.click(screen.getByRole('button', { name: t('en', 'staff.edit') }));
-    expect(state.edit).toHaveBeenLastCalledWith(expect.objectContaining({ employeeId: id }));
-    state.edit.mockClear();
-    fireEvent.change(screen.getByRole('searchbox', { name: t('en', 'staff.search') }), {
-      target: { value: 'Other' },
-    });
-    act(() => {
-      vi.advanceTimersByTime(299);
-    });
-    expect(state.edit).toHaveBeenCalled();
-    state.edit.mockClear();
-    act(() => {
-      vi.advanceTimersByTime(1);
-    });
-    expect(state.edit).not.toHaveBeenCalled();
   } finally {
     vi.useRealTimers();
   }
