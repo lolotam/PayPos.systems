@@ -3,6 +3,7 @@ import type { PostgresJsDatabase } from 'drizzle-orm/postgres-js';
 
 import type { IdentitySchema } from './auth-database.ts';
 import { account, user, verification } from '../schema/identity-auth.ts';
+import { RESET_LINK_PREFIX } from './password-reset-database.ts';
 
 /** مستخدم الهوية بالإيميل مع علامة الدعوة اللي عليه: الشركة والعملية اللي أنشأته، لو اتنشأ بدعوة. */
 export interface IdentityEmailOwner {
@@ -160,7 +161,7 @@ const issueInvitationLink = async (db: Database, input: InvitationLinkRow): Prom
       .where(
         and(
           eq(verification.value, input.userId),
-          like(verification.identifier, 'reset-password:%'),
+          like(verification.identifier, `${RESET_LINK_PREFIX}%`),
         ),
       );
     await tx.insert(verification).values({
@@ -183,7 +184,9 @@ const discardInvitedMember = async (
     const [owner] = await tx
       .select({ id: user.id })
       .from(user)
-      .where(and(eq(user.invitationOperationId, operationId), eq(user.invitedByCompanyId, companyId)))
+      .where(
+        and(eq(user.invitationOperationId, operationId), eq(user.invitedByCompanyId, companyId)),
+      )
       .for('update');
     if (owner === undefined) return 'discarded';
     const [login] = await tx
@@ -194,7 +197,12 @@ const discardInvitedMember = async (
     if (login !== undefined && login.password !== null) return 'kept';
     await tx
       .delete(verification)
-      .where(and(eq(verification.value, owner.id), like(verification.identifier, 'reset-password:%')));
+      .where(
+        and(
+          eq(verification.value, owner.id),
+          like(verification.identifier, `${RESET_LINK_PREFIX}%`),
+        ),
+      );
     await tx.delete(user).where(eq(user.id, owner.id));
     return 'discarded';
   });
