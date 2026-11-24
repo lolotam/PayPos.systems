@@ -1,10 +1,10 @@
 import type { CommissionStatementEmployee, CommissionStatementRow } from '@pospay/contracts';
 import { parseMoney, sumMoney } from '@pospay/domain';
 import { formatKwd, type Locale, type MessageKey } from '@pospay/i18n';
-import { isBusinessReading, type StatementReading } from './statement-reading';
+import { isGenerated, isOpenBusinessReading, type StatementReading } from './statement-reading';
 
-/** حالة الكشف للعرض: «لسه ما اتعملش» لما مفيش كشف متولّد للشهر. */
-export type StatementStatus = 'NONE' | 'DRAFT' | 'REVIEWED';
+/** حالة الكشف للعرض: «لسه ما اتعملش» لما مفيش كشف متولّد للشهر، والمعتمد والمصروف للشهر المغلق. */
+export type StatementStatus = 'NONE' | 'DRAFT' | 'REVIEWED' | 'APPROVED' | 'PAID';
 
 /** حالة زرار: مخفي، شغّال، أو ظاهر ومقفول بسبب. */
 export type ActionState = 'hidden' | 'enabled' | 'disabled';
@@ -14,12 +14,15 @@ export interface StatementActions {
   generate: ActionState;
   review: ActionState;
   returnToDraft: ActionState;
+  approve: ActionState;
 }
 
 const STATUS_KEYS: Record<StatementStatus, MessageKey> = {
   NONE: 'commissionStatementScreen.statusNone',
   DRAFT: 'commissionStatementScreen.statusDraft',
   REVIEWED: 'commissionStatementScreen.statusReviewed',
+  APPROVED: 'commissionStatementScreen.statusApproved',
+  PAID: 'commissionStatementScreen.statusPaid',
 };
 
 /** مفتاح نص الحالة. */
@@ -29,7 +32,7 @@ export function statusKey(status: StatementStatus): MessageKey {
 
 /** حالة الكشف المعروضة: كشف مفتوح لسه ما اتولّدش هو «لسه ما اتعملش». */
 export function statusOf(reading: StatementReading): StatementStatus {
-  if (!reading.generated) return 'NONE';
+  if (!isGenerated(reading)) return 'NONE';
   return reading.status;
 }
 
@@ -38,19 +41,28 @@ export function hasBlockingIssues(reading: StatementReading): boolean {
   return reading.employees.some((employee) => employee.issues.length > 0);
 }
 
+/** زرار يظهر بس في حالته: شغّال، أو مقفول لما السبب موجود قدام المستخدم (مشكلة أو تغيّر بعد المراجعة). */
+function whenIn(status: StatementStatus, shownIn: StatementStatus, blocked: boolean): ActionState {
+  if (status !== shownIn) return 'hidden';
+  return blocked ? 'disabled' : 'enabled';
+}
+
 /**
- * الأزرار حسب الحالة: قارئ الفروع ما بيكتبش، والمراجعة مقفولة وفي المشاكل، والإرجاع للكشف المراجَع بس.
+ * الأزرار حسب الحالة: قارئ الفروع والشهر المغلق ما فيهومش كتابة، والمراجعة مقفولة وفي المشاكل، والاعتماد
+ * مقفول وفي مشاكل أو تغيّر بعد المراجعة (هيرفضه السيرفر ببصمة قديمة)، والإرجاع للكشف المراجَع بس.
  * الصلاحية نفسها بيفحصها السيرفر؛ هنا بنخفي بس اللي مش بيتنفّذ أصلاً في الحالة دي.
  */
 export function statementActions(reading: StatementReading): StatementActions {
-  if (!isBusinessReading(reading)) {
-    return { generate: 'hidden', review: 'hidden', returnToDraft: 'hidden' };
+  if (!isOpenBusinessReading(reading)) {
+    return { generate: 'hidden', review: 'hidden', returnToDraft: 'hidden', approve: 'hidden' };
   }
   const status = statusOf(reading);
+  const blocked = hasBlockingIssues(reading);
   return {
     generate: 'enabled',
-    review: status === 'DRAFT' ? (hasBlockingIssues(reading) ? 'disabled' : 'enabled') : 'hidden',
-    returnToDraft: status === 'REVIEWED' ? 'enabled' : 'hidden',
+    review: whenIn(status, 'DRAFT', blocked),
+    returnToDraft: whenIn(status, 'REVIEWED', false),
+    approve: whenIn(status, 'REVIEWED', blocked || reading.changed_since_review),
   };
 }
 
@@ -75,9 +87,14 @@ export function employeeName(employee: CommissionStatementEmployee, locale: Loca
   return locale === 'ar' ? (employee.name_ar ?? employee.name_en) : employee.name_en;
 }
 
-/** مبلغ الكشف للعرض: 3 خانات عشرية وفاصل آلاف، من غير أي حساب في المتصفح. */
+/**
+ * مبلغ الكشف للعرض: 3 خانات عشرية وفاصل آلاف، من غير أي حساب في المتصفح. المجاميع جاية بنمط أوسع من
+ * سقف Money (حتى 16 رقم)، فالتجميع على النص نفسه بدل تحويله لـ Money اللي بيرفض اللي فوق السقف.
+ */
 export function formatAmount(amount: string): string {
-  return formatKwd(parseMoney(amount));
+  const sign = amount.startsWith('-') ? '-' : '';
+  const [whole = '', fraction = ''] = amount.slice(sign.length).split('.');
+  return `${sign}${whole.replace(/\B(?=(\d{3})+(?!\d))/g, ',')}.${fraction}`;
 }
 
 /** تجميع صفوف الموظفة في أقسام العرض. */

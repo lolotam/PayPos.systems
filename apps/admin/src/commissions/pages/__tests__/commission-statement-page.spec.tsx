@@ -7,6 +7,8 @@ import {
   EMPLOYEE_RANA,
   branchView,
   businessView,
+  closedBranchView,
+  closedView,
   correctionRow,
   dyeRow,
   statementEmployee,
@@ -166,11 +168,55 @@ it('shows a load failure with a retry that brings the statement back', async () 
   expect(await screen.findByLabelText('Sara')).toBeTruthy();
 });
 
-it('shows an approved month as closed instead of a raw error while its frozen rows are not served', async () => {
-  current.answer = refusal(409, 'COMMISSION_PERIOD_CLOSED');
+it.each([
+  ['APPROVED', 'statusApproved'],
+  ['PAID', 'statusPaid'],
+] as const)('shows a %s month from its frozen rows with its badge and no action buttons', async (status, badge) => {
+  const rows = [dyeRow(), correctionRow('correction:1', '-6.000', '20.000', '14.000')];
+  current.answer = ok(closedView({ status, employees: [statementEmployee({ rows })] }));
   renderStatementPage();
-  expect(await screen.findByText(S('closedTitle'))).toBeTruthy();
-  expect(screen.queryByText('COMMISSION_PERIOD_CLOSED')).toBeNull();
+  expect(await screen.findByLabelText('Sara')).toBeTruthy();
+  expect(screen.getByText(S(badge))).toBeTruthy();
+  expect(screen.getByText('Noura Al-Test')).toBeTruthy();
+  expect(screen.getByText(S('correctionsTotal')).parentElement?.textContent).toContain('-6.000');
+  for (const action of ['generate', 'refresh', 'review', 'returnToDraft', 'approve']) {
+    expect(screen.queryByRole('button', { name: S(action) })).toBeNull();
+  }
+  expect(screen.queryByText(S('emptyTitle'))).toBeNull();
+});
+
+it('shows a branch reader a closed month as her rows only, read-only', async () => {
+  current.answer = ok(closedBranchView({ status: 'PAID' }));
+  renderStatementPage();
+  expect(await screen.findByText(S('statusPaid'))).toBeTruthy();
+  expect(screen.getByText(S('branchReaderNote'))).toBeTruthy();
+  expect(screen.getByText(S('partialBadge'))).toBeTruthy();
+  expect(screen.queryByRole('button', { name: S('approve') })).toBeNull();
+});
+
+it('offers approve on a clean reviewed statement, and closes it when the statement changed since the review', async () => {
+  current.answer = ok(businessView({ status: 'REVIEWED' }));
+  renderStatementPage();
+  const approve = await screen.findByRole('button', { name: S('approve') });
+  expect((approve as HTMLButtonElement).disabled).toBe(false);
+  cleanup();
+  current.answer = ok(businessView({ status: 'REVIEWED', changed_since_review: true, change_cause: 'INPUTS' }));
+  renderStatementPage();
+  expect(await screen.findByText(S('changedInputs'))).toBeTruthy();
+  expect((screen.getByRole('button', { name: S('approve') }) as HTMLButtonElement).disabled).toBe(true);
+});
+
+it('keeps approve out of a draft and closed on a reviewed statement with an employee issue', async () => {
+  current.answer = ok(businessView());
+  renderStatementPage();
+  await screen.findByLabelText('Sara');
+  expect(screen.queryByRole('button', { name: S('approve') })).toBeNull();
+  cleanup();
+  const issues = [{ kind: 'PRICING' as const, code: 'NO_SALARY' as const, source_period: null }];
+  current.answer = ok(businessView({ status: 'REVIEWED', employees: [statementEmployee({ issues })] }));
+  renderStatementPage();
+  expect(await screen.findByText(S('issueNoSalary'))).toBeTruthy();
+  expect((screen.getByRole('button', { name: S('approve') }) as HTMLButtonElement).disabled).toBe(true);
 });
 
 it('shows the statement of the new month when the month picker changes', async () => {

@@ -1,4 +1,6 @@
 import type {
+  CommissionClosedStatementBranchView,
+  CommissionClosedStatementView,
   CommissionStatementBranchView,
   CommissionStatementEmployee,
   CommissionStatementRow,
@@ -112,6 +114,39 @@ export function branchView(overrides: Partial<CommissionStatementBranchView> = {
     period: PERIOD,
     status: 'DRAFT',
     generated: true,
+    employees: [statementEmployee({ partial: true })],
+    ...overrides,
+  };
+}
+
+export const approvePath = `${statementPath}/approve`;
+
+/** عرض قارئ النشاط كله لشهر مغلق: الصفوف المجمّدة وبصمتا الاعتماد من غير حقول الكشف المفتوح. */
+export function closedView(
+  overrides: Partial<CommissionClosedStatementView> = {},
+): CommissionClosedStatementView {
+  return {
+    reader_scope: 'BUSINESS',
+    business_id: BUSINESS_ID,
+    period: PERIOD,
+    status: 'APPROVED',
+    approved_at: '2026-11-02T09:00:00.000Z',
+    input_fingerprint: FP_INPUT,
+    statement_fingerprint: FP_STATEMENT,
+    employees: [statementEmployee()],
+    ...overrides,
+  };
+}
+
+/** عرض قارئ الفروع لشهر مغلق. */
+export function closedBranchView(
+  overrides: Partial<CommissionClosedStatementBranchView> = {},
+): CommissionClosedStatementBranchView {
+  return {
+    reader_scope: 'BRANCHES',
+    business_id: BUSINESS_ID,
+    period: PERIOD,
+    status: 'APPROVED',
     employees: [statementEmployee({ partial: true })],
     ...overrides,
   };

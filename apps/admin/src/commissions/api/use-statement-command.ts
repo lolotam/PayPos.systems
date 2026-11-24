@@ -1,9 +1,14 @@
 'use client';
 
-import type { CommissionStatementReturnInput, CommissionStatementReviewInput } from '@pospay/contracts';
+import type {
+  CommissionStatementApproveRequest,
+  CommissionStatementReturnInput,
+  CommissionStatementReviewInput,
+} from '@pospay/contracts';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useState, type RefObject } from 'react';
 import {
+  approveStatement,
   generateStatement,
   returnStatement,
   reviewStatement,
@@ -15,7 +20,8 @@ import {
 export type StatementCommand =
   | { kind: 'generate' }
   | { kind: 'review'; body: CommissionStatementReviewInput }
-  | { kind: 'return'; body: CommissionStatementReturnInput };
+  | { kind: 'return'; body: CommissionStatementReturnInput }
+  | { kind: 'approve'; body: CommissionStatementApproveRequest };
 
 /** ذاكرة مفاتيح المحاولات اللي نتيجتها مجهولة، بتعيش مع الصفحة. */
 export type StatementAttemptMemory = RefObject<Map<string, string>>;
@@ -38,6 +44,7 @@ async function run(
 ): Promise<unknown> {
   if (command.kind === 'generate') return generateStatement(scope, period, key);
   if (command.kind === 'review') return reviewStatement(scope, period, key, command.body);
+  if (command.kind === 'approve') return approveStatement(scope, period, key, command.body);
   return returnStatement(scope, period, key, command.body);
 }
 

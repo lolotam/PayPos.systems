@@ -36,6 +36,12 @@ it('reads the blocking issues and the incomplete line count out of the details',
   expect(failure.lineCount).toBe(2);
 });
 
+it('words a disabled feature as approval-not-enabled only on the approve step', () => {
+  const error = { code: 'FEATURE_DISABLED', message_en: 'x', message_ar: 'x' };
+  expect(statementFailure(error, 'en', 'approve').text).toBe(S('errApprovalNotEnabled'));
+  expect(statementFailure(error, 'en').text).toBe(S('errFeatureDisabled'));
+});
+
 it('marks only a stale fingerprint as needing a reload', () => {
   expect(statementFailure({ code: 'COMMISSION_FINGERPRINT_STALE' }, 'en').stale).toBe(true);
   expect(statementFailure({ code: 'COMMISSION_UPDATES_PENDING' }, 'en').stale).toBe(false);

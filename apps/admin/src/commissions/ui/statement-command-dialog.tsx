@@ -16,11 +16,13 @@ const TEXT: Record<StatementPick, { title: MessageKey; body: MessageKey }> = {
   generate: { title: `${NS}.generateTitle`, body: `${NS}.generateBody` },
   review: { title: `${NS}.reviewTitle`, body: `${NS}.reviewBody` },
   return: { title: `${NS}.returnTitle`, body: `${NS}.returnBody` },
+  approve: { title: `${NS}.approveTitle`, body: `${NS}.approveBody` },
 };
 
 /** النص المقروء لرد السيرفر الأخير في الحوار، أو null قبل أي محاولة. */
-function failureOf(error: unknown, locale: Locale) {
-  return error === null || error === undefined ? null : statementFailure(error, locale);
+function failureOf(error: unknown, locale: Locale, pick: StatementPick) {
+  if (error === null || error === undefined) return null;
+  return statementFailure(error, locale, pick === 'approve' ? 'approve' : undefined);
 }
 
 /**
@@ -38,7 +40,7 @@ export function StatementCommandDialog(props: {
 }) {
   const { pick, pending, error, employees, onConfirm, onClose, onReload } = props;
   const locale = useLocale();
-  const failure = failureOf(error, locale);
+  const failure = failureOf(error, locale, pick);
   const notice =
     failure === null ? null : <StatementFailureNotice failure={failure} employees={employees} onReload={onReload} />;
   return (

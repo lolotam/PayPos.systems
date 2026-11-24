@@ -1,7 +1,10 @@
 import {
+  commissionClosedStatementView,
   commissionStatementReturnResult,
   commissionStatementReviewResult,
   commissionStatementView,
+  type CommissionClosedStatementView,
+  type CommissionStatementApproveRequest,
   type CommissionStatementReturnInput,
   type CommissionStatementReturnResult,
   type CommissionStatementReviewInput,
@@ -17,6 +20,7 @@ const statementPath = '/v1/businesses/{businessId}/commission-statements/{period
 const generatePath = `${statementPath}/generate`;
 const reviewPath = `${statementPath}/review`;
 const returnPath = `${statementPath}/return`;
+const approvePath = `${statementPath}/approve`;
 
 /** هوية الشاشة: الشركة والنشاط والمستخدم، عشان كاش كل هوية لوحده. */
 export type StatementScope = readonly ['commission-statement', string, string, string];
@@ -77,6 +81,21 @@ export async function reviewStatement(
   });
   if (!result.response.ok) throw refusal(result.error ?? {}, result.response.status);
   return commissionStatementReviewResult.parse(result.data);
+}
+
+/** بيعتمد الكشف المراجَع بالبصمتين اللي شافهما المراجع، وبيرجّع الكشف المجمّد بعد تحليله. */
+export async function approveStatement(
+  scope: StatementScope,
+  period: string,
+  idempotencyKey: string,
+  body: CommissionStatementApproveRequest,
+): Promise<CommissionClosedStatementView> {
+  const result = await apiClient().POST(approvePath, {
+    params: callParams(scope, period, idempotencyKey),
+    body,
+  });
+  if (!result.response.ok) throw refusal(result.error ?? {}, result.response.status);
+  return commissionClosedStatementView.parse(result.data);
 }
 
 /** بيرجّع الكشف المراجَع للمسودة بالسبب اللي اتكتب. */

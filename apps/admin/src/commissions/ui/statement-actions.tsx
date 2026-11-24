@@ -7,7 +7,7 @@ import type { StatementActions as Actions, ActionState } from '../model/statemen
 import { StatementExtraActions } from './statement-extra-actions';
 
 /** أمر الزرار اللي المستخدم ضغطه، عشان الصفحة تفتح حوار التأكيد بتاعه. */
-export type StatementPick = 'generate' | 'review' | 'return';
+export type StatementPick = 'generate' | 'review' | 'return' | 'approve';
 
 function Action({
   state,
@@ -45,6 +45,7 @@ export function StatementActions({
       <Action state={actions.generate} variant={generated ? 'outline' : 'primary'} label={t(locale, generateLabel)} onClick={() => onPick('generate')} />
       <Action state={actions.review} variant="primary" label={t(locale, 'commissionStatementScreen.review')} onClick={() => onPick('review')} />
       <Action state={actions.returnToDraft} variant="outline" label={t(locale, 'commissionStatementScreen.returnToDraft')} onClick={() => onPick('return')} />
+      <Action state={actions.approve} variant="primary" label={t(locale, 'commissionStatementScreen.approve')} onClick={() => onPick('approve')} />
       <StatementExtraActions />
     </div>
   );

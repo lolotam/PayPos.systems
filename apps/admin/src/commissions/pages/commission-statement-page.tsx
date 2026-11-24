@@ -8,6 +8,7 @@ import { statementScope } from '../api/commission-statement-client';
 import { isStatementDenied, useCommissionStatement } from '../api/use-commission-statement';
 import { useStatementAttemptMemory } from '../api/use-statement-command';
 import { statusOf } from '../model/statement-display';
+import { isGenerated } from '../model/statement-reading';
 import { defaultStatementPeriod } from '../model/statement-period';
 import { StatementDenied } from '../ui/statement-denied';
 import { StatementLoadFailed } from '../ui/statement-load-failed';
@@ -44,7 +45,7 @@ export function CommissionStatementPage({ companyId, userId, businessId }: Commi
       ) : null}
       {reading === undefined ? null : (
         <>
-          {reading.generated ? null : <StatementNotGenerated />}
+          {isGenerated(reading) ? null : <StatementNotGenerated />}
           <StatementPanel
             key={period}
             scope={scope}

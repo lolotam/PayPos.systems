@@ -2,6 +2,8 @@ import { expect, it } from 'vitest';
 import {
   branchView,
   businessView,
+  closedBranchView,
+  closedView,
   correctionRow,
   dyeRow,
   statementEmployee,
@@ -21,26 +23,50 @@ import { defaultStatementPeriod } from '../statement-period';
 const PLAN_ISSUE = { kind: 'PRICING' as const, code: 'NO_PLAN' as const, source_period: null };
 
 it('offers generate and review on a clean draft, and review stays closed while an employee has an issue', () => {
-  expect(statementActions(businessView())).toEqual({ generate: 'enabled', review: 'enabled', returnToDraft: 'hidden' });
+  expect(statementActions(businessView())).toEqual({
+    generate: 'enabled',
+    review: 'enabled',
+    returnToDraft: 'hidden',
+    approve: 'hidden',
+  });
   const blocked = businessView({ employees: [statementEmployee({ issues: [PLAN_ISSUE] })] });
   expect(statementActions(blocked).review).toBe('disabled');
 });
 
-it('offers only generate before the first generation, and only refresh and return on a reviewed statement', () => {
+it('offers only generate before the first generation, and refresh, return and approve on a reviewed one', () => {
   expect(statementActions(businessView({ generated: false }))).toEqual({
     generate: 'enabled',
     review: 'hidden',
     returnToDraft: 'hidden',
+    approve: 'hidden',
   });
   expect(statementActions(businessView({ status: 'REVIEWED' }))).toEqual({
     generate: 'enabled',
     review: 'hidden',
     returnToDraft: 'enabled',
+    approve: 'enabled',
   });
 });
 
-it('hides every write action from a branch reader', () => {
-  expect(statementActions(branchView())).toEqual({ generate: 'hidden', review: 'hidden', returnToDraft: 'hidden' });
+const NO_ACTIONS = { generate: 'hidden', review: 'hidden', returnToDraft: 'hidden', approve: 'hidden' };
+
+it('hides every write action from a branch reader and from a closed month', () => {
+  expect(statementActions(branchView())).toEqual(NO_ACTIONS);
+  expect(statementActions(closedView())).toEqual(NO_ACTIONS);
+  expect(statementActions(closedBranchView({ status: 'PAID' }))).toEqual(NO_ACTIONS);
+});
+
+it('closes approve on a reviewed statement that changed since the review or has an issue, keeping return open', () => {
+  const changed = businessView({ status: 'REVIEWED', changed_since_review: true, change_cause: 'STATEMENT' });
+  expect(statementActions(changed)).toMatchObject({ approve: 'disabled', returnToDraft: 'enabled' });
+  const blocked = businessView({ status: 'REVIEWED', employees: [statementEmployee({ issues: [PLAN_ISSUE] })] });
+  expect(statementActions(blocked)).toMatchObject({ approve: 'disabled', returnToDraft: 'enabled' });
+});
+
+it('names a closed month by its frozen status, whatever else the reading carries', () => {
+  expect(statusOf(closedView())).toBe('APPROVED');
+  expect(statusOf(closedView({ status: 'PAID' }))).toBe('PAID');
+  expect(statusOf(closedBranchView())).toBe('APPROVED');
 });
 
 it('names the status from the generation flag first and the stored status second', () => {
@@ -83,6 +109,11 @@ it('dates a correction by its original day, falling back to the day it was poste
 it('formats amounts with three decimals and thousands separators, keeping the sign', () => {
   expect(formatAmount('-25.000')).toBe('-25.000');
   expect(formatAmount('1234567.500')).toBe('1,234,567.500');
+  expect(formatAmount('0.005')).toBe('0.005');
+});
+
+it('formats a statement total wider than the money kernel accepts instead of failing', () => {
+  expect(formatAmount('-1234567890123456.250')).toBe('-1,234,567,890,123,456.250');
 });
 
 it('shows the Arabic employee name in Arabic and falls back to the English one', () => {

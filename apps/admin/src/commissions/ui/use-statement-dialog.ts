@@ -4,7 +4,7 @@ import type { MessageKey } from '@pospay/i18n';
 import { useState } from 'react';
 import type { StatementScope } from '../api/commission-statement-client';
 import { useStatementCommand, type StatementAttemptMemory, type StatementCommand } from '../api/use-statement-command';
-import { isBusinessReading, type StatementReading } from '../model/statement-reading';
+import { isOpenBusinessReading, type StatementReading } from '../model/statement-reading';
 import type { StatementPick } from './statement-actions';
 
 const NS = 'commissionStatementScreen';
@@ -13,6 +13,7 @@ const DONE: Record<StatementPick, MessageKey> = {
   generate: `${NS}.doneGenerated`,
   review: `${NS}.doneReviewed`,
   return: `${NS}.doneReturned`,
+  approve: `${NS}.doneApproved`,
 };
 
 /** الحوار المفتوح والبصمتين اللي المراجع شافهم لحظة فتحه، بتتبعت زي ما هي مهما اتحدّث العرض بعدها. */
@@ -22,7 +23,7 @@ interface OpenDialog {
 }
 
 function fingerprintsOf(reading: StatementReading): OpenDialog['fingerprints'] {
-  return isBusinessReading(reading)
+  return isOpenBusinessReading(reading)
     ? {
         expected_fingerprint: reading.current_fingerprint,
         expected_statement_fingerprint: reading.current_statement_fingerprint,
@@ -33,9 +34,9 @@ function fingerprintsOf(reading: StatementReading): OpenDialog['fingerprints'] {
 /** الأمر اللي بيتبعت لما المستخدم يأكد، من الحوار المفتوح وسبب الإرجاع لو في. */
 function commandOf(open: OpenDialog, reason: string | undefined): StatementCommand | null {
   if (open.pick === 'generate') return { kind: 'generate' };
-  if (open.pick === 'review')
-    return open.fingerprints === null ? null : { kind: 'review', body: open.fingerprints };
-  return reason === undefined ? null : { kind: 'return', body: { reason } };
+  if (open.pick === 'return') return reason === undefined ? null : { kind: 'return', body: { reason } };
+  if (open.fingerprints === null) return null;
+  return { kind: open.pick, body: open.fingerprints };
 }
 
 /**

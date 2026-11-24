@@ -6,7 +6,9 @@ import {
   EMPLOYEE_SARA,
   FP_INPUT,
   FP_STATEMENT,
+  approvePath,
   businessView,
+  closedView,
 } from '../../api/__tests__/statement-http';
 import { renderStatementPage, serveReading } from './statement-page-harness';
 
@@ -187,4 +189,84 @@ it('keeps both the confirm and cancel buttons closed while a step is running', a
   expect((screen.getByRole('button', { name: S('cancel') }) as HTMLButtonElement).disabled).toBe(true);
   release(ok(businessView()));
   await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+});
+
+const REVIEWED = () =>
+  businessView({ status: 'REVIEWED', reviewed_fingerprint: FP_INPUT, reviewed_statement_fingerprint: FP_STATEMENT });
+
+it('approves with the two fingerprints the reviewer saw and shows the frozen month as approved', async () => {
+  current.answer = ok(REVIEWED());
+  api.POST.mockImplementation(async () => {
+    current.answer = ok(closedView());
+    return ok(closedView());
+  });
+  await openDialog(S('approve'));
+  expect(screen.getByText(S('approveTitle'))).toBeTruthy();
+  expect(api.POST).not.toHaveBeenCalled();
+  confirm();
+  expect(await screen.findByText(S('doneApproved'))).toBeTruthy();
+  expect(screen.getByText(S('statusApproved'))).toBeTruthy();
+  expect(screen.queryByRole('button', { name: S('approve') })).toBeNull();
+  expect(screen.queryByRole('dialog')).toBeNull();
+  const call = postCall();
+  expect(call.path).toBe(approvePath);
+  expect(call.body).toEqual(FINGERPRINTS);
+  expect(call.params.header['Idempotency-Key']).toEqual(expect.any(String));
+});
+
+it.each([
+  ['COMMISSION_COVERAGE_NOT_PROVEN', 422, 'errCoverageNotProven'],
+  ['COMMISSION_UPDATES_PENDING', 409, 'errUpdatesPending'],
+  ['COMMISSION_STATEMENT_NOT_REVIEWED', 409, 'errNotReviewed'],
+  ['COMMISSION_PERIOD_CLOSED', 409, 'errPeriodClosed'],
+  ['COMMISSION_PERIOD_NOT_ENDED', 422, 'errNotEnded'],
+] as const)('answers an approval refused with %s in plain words, keeping the dialog and the statement', async (code, status, key) => {
+  current.answer = ok(REVIEWED());
+  api.POST.mockResolvedValue(refusal(status, code));
+  await openDialog(S('approve'));
+  confirm();
+  expect(await screen.findByText(S(key))).toBeTruthy();
+  expect(screen.queryByText(code)).toBeNull();
+  expect(screen.getByRole('dialog')).toBeTruthy();
+  expect(screen.getByLabelText('Sara')).toBeTruthy();
+});
+
+it('says plainly that approval is not enabled when the switch is off, not that commissions are off', async () => {
+  current.answer = ok(REVIEWED());
+  api.POST.mockResolvedValue(refusal(403, 'FEATURE_DISABLED'));
+  await openDialog(S('approve'));
+  confirm();
+  expect(await screen.findByText(S('errApprovalNotEnabled'))).toBeTruthy();
+  expect(screen.queryByText(S('errFeatureDisabled'))).toBeNull();
+});
+
+it('lists the employees and the incomplete service lines behind a blocked approval', async () => {
+  current.answer = ok(REVIEWED());
+  api.POST.mockResolvedValue({
+    error: {
+      code: 'COMMISSION_STATEMENT_BLOCKED',
+      message_ar: 'x',
+      message_en: 'x',
+      details: { issues: [{ employee_id: EMPLOYEE_SARA, code: 'NO_PLAN' }], line_ids: ['l-1', 'l-2', 'l-3'] },
+    },
+    response: { status: 422, ok: false },
+  } satisfies ApiAnswer);
+  await openDialog(S('approve'));
+  confirm();
+  const notice = (await screen.findByText(S('errBlocked'))).parentElement;
+  expect(notice?.textContent).toContain(`Sara: ${S('issueNoPlan')}`);
+  expect(notice?.textContent).toContain(`${S('issueBlockedLines')} 3`);
+});
+
+it('asks for a reload when approval meets a changed statement, and reading again shows the new state', async () => {
+  current.answer = ok(REVIEWED());
+  api.POST.mockResolvedValue(refusal(409, 'COMMISSION_FINGERPRINT_STALE'));
+  await openDialog(S('approve'));
+  confirm();
+  expect(await screen.findByText(S('errStale'))).toBeTruthy();
+  current.answer = ok(businessView({ status: 'REVIEWED', changed_since_review: true, change_cause: 'STATEMENT' }));
+  fireEvent.click(screen.getByRole('button', { name: S('reload') }));
+  await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+  expect(await screen.findByText(S('changedStatement'))).toBeTruthy();
+  expect((screen.getByRole('button', { name: S('approve') }) as HTMLButtonElement).disabled).toBe(true);
 });

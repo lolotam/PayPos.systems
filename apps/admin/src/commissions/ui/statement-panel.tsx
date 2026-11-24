@@ -5,7 +5,7 @@ import { useLocale } from '@/shared/locale/locale-context';
 import type { StatementScope } from '../api/commission-statement-client';
 import type { StatementAttemptMemory } from '../api/use-statement-command';
 import { statementActions } from '../model/statement-display';
-import { isBusinessReading, type StatementReading } from '../model/statement-reading';
+import { isGenerated, isOpenBusinessReading, type StatementReading } from '../model/statement-reading';
 import { StatementActions } from './statement-actions';
 import { StatementChangedNotice } from './statement-changed-notice';
 import { StatementCommandDialog } from './statement-command-dialog';
@@ -30,14 +30,11 @@ export function StatementPanel(props: {
   const dialog = useStatementDialog(scope, period, memory, onReload);
   return (
     <div className="flex flex-col gap-4">
-      {isBusinessReading(reading) ? (
-        <StatementChangedNotice reading={reading} />
-      ) : (
-        <p>{t(locale, `${NS}.branchReaderNote`)}</p>
-      )}
+      {isOpenBusinessReading(reading) ? <StatementChangedNotice reading={reading} /> : null}
+      {reading.reader_scope === 'BRANCHES' ? <p>{t(locale, `${NS}.branchReaderNote`)}</p> : null}
       <StatementActions
         actions={statementActions(reading)}
-        generated={reading.generated}
+        generated={isGenerated(reading)}
         onPick={(pick) => dialog.show(pick, reading)}
       />
       {dialog.done === null ? null : <p role="status">{t(locale, dialog.done)}</p>}
