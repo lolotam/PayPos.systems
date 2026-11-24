@@ -4,7 +4,7 @@ import { t } from '@pospay/i18n';
 import { Input, Label } from '@pospay/ui';
 import { useState } from 'react';
 import { useLocale } from '@/shared/locale/locale-context';
-import { FilterField } from '@/shared/ui/filter-row';
+import { FilterField } from '@/shared/ui/filter-field';
 import { parseRatingsMonth } from '../model/ratings-period';
 
 /**

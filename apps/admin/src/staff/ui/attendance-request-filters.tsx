@@ -3,7 +3,8 @@ import type { AttendanceChangeListQuery, WorkspaceBranch } from '@pospay/contrac
 import { t } from '@pospay/i18n';
 import { Label, NativeSelect } from '@pospay/ui';
 import { useLocale } from '@/shared/locale/locale-context';
-import { FilterField, FilterRow } from '@/shared/ui/filter-row';
+import { FilterField } from '@/shared/ui/filter-field';
+import { FilterRow } from '@/shared/ui/filter-row';
 import { AttendanceActionBranch } from './attendance-action-branch';
 type Props = {
   branches: WorkspaceBranch[];

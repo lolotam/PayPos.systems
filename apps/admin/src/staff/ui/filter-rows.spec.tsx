@@ -1,30 +1,18 @@
 import { t } from '@pospay/i18n';
 import { cleanup, render, screen } from '@testing-library/react';
 import { afterEach, expect, it, vi } from 'vitest';
-import { LeaveHistoryFiltersForm } from '@/staff/ui/leave-history-filters-form';
-import { LeaveInboxFilters } from '@/staff/ui/leave-inbox-filters';
-import { AttendanceBoardFilters } from '@/staff/ui/attendance-board-filters';
-import { AttendanceReportFilters } from '@/staff/ui/attendance-report-filters';
-import { AttendanceRequestFilters } from '@/staff/ui/attendance-request-filters';
-import { RatingsFiltersBar } from '@/ratings/ui/ratings-filters';
-import { defaultLeaveFilters } from '@/staff/model/leave-history-filters';
-import { boardBranches } from '@/staff/api/attendance-board.fixture';
+import { expectOneWrappingRow } from '@/shared/ui/filter-row.helpers';
+import { boardBranches } from '../api/attendance-board.fixture';
+import { defaultLeaveFilters } from '../model/leave-history-filters';
+import { AttendanceBoardFilters } from './attendance-board-filters';
+import { AttendanceReportFilters } from './attendance-report-filters';
+import { AttendanceRequestFilters } from './attendance-request-filters';
+import { LeaveHistoryFiltersForm } from './leave-history-filters-form';
+import { LeaveInboxFilters } from './leave-inbox-filters';
 
 vi.mock('@/shared/locale/locale-context', () => ({ useLocale: () => 'en' }));
 
 afterEach(cleanup);
-
-/** كل عناصر التحكم لازم تكون كل واحد في FilterField، وكل الحقول أبناء مباشرين لنفس FilterRow. */
-function expectOneWrappingRow(controls: HTMLElement[]) {
-  const fields = controls.map((control) => control.closest<HTMLElement>('[data-filter-field]'));
-  expect(fields.every((field) => field !== null)).toBe(true);
-  const rows = new Set(fields.map((field) => field?.parentElement));
-  expect(rows.size).toBe(1);
-  const [row] = [...rows];
-  expect(row?.hasAttribute('data-filter-row')).toBe(true);
-  expect(row?.classList.contains('flex-wrap')).toBe(true);
-  expect(new Set(fields).size).toBe(controls.length);
-}
 
 it('keeps the leave history date, type, status and branch filters in one wrapping row', () => {
   render(
@@ -69,22 +57,6 @@ it('keeps the monthly attendance report month and branch filters in one wrapping
   expectOneWrappingRow([
     screen.getByLabelText(t('en', 'attendanceReport.month')),
     screen.getByLabelText(t('en', 'attendanceReport.branch')),
-  ]);
-});
-
-it('keeps the ratings month, branch and employee filters in one wrapping row', () => {
-  render(
-    <RatingsFiltersBar
-      filters={{ month: '2026-11', branchId: '', employeeId: '' }}
-      branches={[]}
-      employees={[]}
-      onChange={vi.fn()}
-    />,
-  );
-  expectOneWrappingRow([
-    screen.getByLabelText(t('en', 'ratings.month')),
-    screen.getByLabelText(t('en', 'ratings.branch')),
-    screen.getByLabelText(t('en', 'ratings.employee')),
   ]);
 });
 

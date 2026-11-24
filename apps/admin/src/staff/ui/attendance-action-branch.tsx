@@ -3,7 +3,7 @@ import type { WorkspaceBranch } from '@pospay/contracts';
 import { t } from '@pospay/i18n';
 import { Label, NativeSelect } from '@pospay/ui';
 import { useLocale } from '@/shared/locale/locale-context';
-import { FilterField } from '@/shared/ui/filter-row';
+import { FilterField } from '@/shared/ui/filter-field';
 export function AttendanceActionBranch({
   branches,
   branchId,

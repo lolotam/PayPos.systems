@@ -4,7 +4,8 @@ import { attendanceBoardQuery } from '@pospay/contracts';
 import { t } from '@pospay/i18n';
 import { Button, Input, Label, NativeSelect } from '@pospay/ui';
 import { useLocale } from '@/shared/locale/locale-context';
-import { FilterField, FilterRow } from '@/shared/ui/filter-row';
+import { FilterField } from '@/shared/ui/filter-field';
+import { FilterRow } from '@/shared/ui/filter-row';
 export function AttendanceBoardFilters({
   branches,
   branchId,

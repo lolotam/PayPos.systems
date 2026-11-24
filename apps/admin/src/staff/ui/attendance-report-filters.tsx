@@ -3,7 +3,8 @@ import { attendanceMonthlyReportQuery, type WorkspaceBranch } from '@pospay/cont
 import { t } from '@pospay/i18n';
 import { Input, Label, NativeSelect } from '@pospay/ui';
 import { useLocale } from '@/shared/locale/locale-context';
-import { FilterField, FilterRow } from '@/shared/ui/filter-row';
+import { FilterField } from '@/shared/ui/filter-field';
+import { FilterRow } from '@/shared/ui/filter-row';
 
 export function AttendanceReportFilters({
   branches,

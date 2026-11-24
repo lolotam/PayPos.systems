@@ -5,7 +5,8 @@ import { Button, Input, Label, NativeSelect } from '@pospay/ui';
 import { useState } from 'react';
 import { useForm, type UseFormRegisterReturn } from 'react-hook-form';
 import { useLocale } from '@/shared/locale/locale-context';
-import { FilterField, FilterRow } from '@/shared/ui/filter-row';
+import { FilterField } from '@/shared/ui/filter-field';
+import { FilterRow } from '@/shared/ui/filter-row';
 import {
   offeredHistoryStatuses,
   offeredHistoryTypes,
