@@ -242,7 +242,8 @@ existing membership, automatic email delivery of the invitation, and a «create 
 below is closed and verified by one independent review. The final review of F1 (head `2c335b2f2`) ended with two
 P1 on the grant path, which exists only behind this gate; the project manager moved them to F2 as activation
 conditions (2026-11-24). AC-ACT-8 to AC-ACT-16 come from the review panel on the F1 pull request (#1272) and
-were added the same day. All of them are the first mandatory items of F2.
+AC-ACT-17 to AC-ACT-24 from the reviews of the G1 pull request (#1274); both groups were added the same day.
+All of them are the first mandatory items of F2.
 
 - **AC-ACT-1 Admission limit.** A grant request is admitted before the company transaction opens only when no
   other grant of that company is in flight, and under a total cap smaller than the bounded auth pool; a refused
@@ -291,3 +292,34 @@ were added the same day. All of them are the first mandatory items of F2.
 - **AC-ACT-16 Phone ownership before a global reservation.** A grant reserves a phone number on the global user
   table before anyone has proven they hold that phone (named risk D2); F2's proof step closes it or the owner
   notice makes it visible, as the plan decides.
+- **AC-ACT-17 No 5xx while the gate is off.** With the gate off, the admin reads the state of an employee's
+  staff access on every employee page and, for an owner, the invitations list on every page load; both answer
+  503 `NOT_READY`. The admin must learn that the slice is unavailable without any 5xx (a 200 with an
+  «unavailable» state, or the gate state read from an existing route). Until then these two reads are
+  excluded by name from any 5xx monitoring. This must be closed, or the exclusion made explicit, before the
+  first customer runs on production.
+- **AC-ACT-18 One refusal for a staff account's reset link.** A reset token of a staff account sent in the
+  request body answers `STAFF_USER_CREDENTIAL_REFUSED`, while the same token in the query and a dead link
+  answer `INVALID_TOKEN`. Both sources answer `INVALID_TOKEN`; the test asserts it for both.
+- **AC-ACT-19 The first link claim re-checks the owner.** After the membership commits, the first link is
+  claimed in a separate tenant transaction that carries no actor and re-checks nothing; it re-checks the
+  owner's authority like the re-issue claim, and a recovery issue cannot leave the first claim open.
+- **AC-ACT-20 An invitation that stopped before its account was created can be reclaimed.** A row left by a
+  request that stopped after `open` and before the account creation is cancelled by a later invitation of a
+  current owner (the same rule as an abandoned invitation that has an account), also when the operation id
+  of an existing account does not match.
+- **AC-ACT-21 The invitation link goes to the admin origin by name.** The set-password page address is built
+  from an explicit admin origin setting that is checked against the trusted origins at start, not from the
+  first trusted origin.
+- **AC-ACT-22 Invitations page.** The page proves access with its own read instead of reusing the menu's
+  cached result; a non-owner who opens the page directly sends no request; the menu shows the entry to an
+  owner whose widest membership is not the owner one; invite and re-issue are blocked while either is
+  pending; a re-issue row names its recipient well enough to tell two similar invitations apart; a
+  whitespace-only name shows a validation message.
+- **AC-ACT-23 Reset path leftovers.** The operator link is issued under the same user-row lock as an
+  invitation link; concurrent requests for one live link do not all hash before the first one consumes it;
+  the cleanup of a user's other reset links has an index it can use (`verification.value`).
+- **AC-ACT-24 Invitation list and tests.** The list refuses a cursor Postgres cannot cast with a 400 and does
+  not fan out one auth query per row; the query test runs `EXPLAIN ANALYZE`; the staff-account reset test
+  also covers an account with no credential row; the lock-holding tests release their lock when a wait
+  assertion fails.
