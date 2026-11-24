@@ -129,6 +129,23 @@ describe('resuming after the link was claimed, and the takeover guard', () => {
     expect(row).toEqual({ claimed: true, issued: true });
   });
 
+  it('a resume with another role is refused 409 and the pending row keeps its role (P1-b)', async () => {
+    const { company, invitationId } = await crashAfter('account', 'resume-role@example.test');
+    const response = await h.send('POST', '/v1/memberships/invitations', {
+      cookie: owner.cookie,
+      company,
+      body: { ...body(company, 'resume-role@example.test'), role: 'general_manager' },
+    });
+    expect([response.status, errorEnvelope.parse(response.body).code]).toEqual([
+      409,
+      'MEMBER_INVITATION_EXISTS',
+    ]);
+    expect(
+      await h.owner`SELECT role_code, membership_id FROM member_invitations
+        WHERE company_id = ${company} AND id = ${invitationId}`,
+    ).toEqual([{ role_code: 'accountant', membership_id: null }]);
+  });
+
   it('a different owner cannot take over a pending invitation of the same email', async () => {
     const { company } = await crashAfter('account', 'resume-takeover@example.test');
     const second = { email: 'g1rs-second@example.test', cookie: '', userId: '' };
