@@ -253,7 +253,6 @@ export const ar: Catalog = {
     PERMISSION_ROLE_NOT_ELIGIBLE:
       'صلاحية قراءة التقييمات تُمنح لأدوار الإدارة فقط (المالك، المدير العام، مدير النشاط، مدير الفرع)',
     PERMISSION_OVERRIDE_ENDED: 'هذا الاستثناء انتهى بالفعل',
-    MEMBER_ALREADY_IN_COMPANY: 'الشخص ده عنده عضوية في الشركة بالفعل',
     MEMBER_INVITATION_EXISTS: 'الإيميل ده عنده دعوة في الشركة بالفعل',
     MEMBER_ROLE_NOT_INVITABLE:
       'الدور ده ما بيتدعىش، أو نطاقه ما بيответش للدور أو بيتبع شركة تانية',

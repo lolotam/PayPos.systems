@@ -130,9 +130,9 @@ describe('AC-G1-3b — re-issue refusals and concurrency', () => {
 
   it('an invitation whose membership was never written is refused (P1-c)', async () => {
     const fixture = await inviteFresh('nomembership');
-    // انقطاع بعد الخطوة التانية: العضوية مش مكتوبة لسه على صف الدعوة.
+    // حساب موجود وصف الدعوة شايل user_id، لكن العضوية مش مكتوبة: الفحص على membership_id لوحده هو اللي بيرفض.
     await h.owner`
-      UPDATE member_invitations SET membership_id = NULL, user_id = NULL
+      UPDATE member_invitations SET membership_id = NULL
       WHERE company_id = ${fixture.company} AND id = ${fixture.invitationId}`;
     const response = await reissue(fixture.owner.cookie, fixture.company, fixture.invitationId);
     expect(codeOf(response)).toEqual([409, 'MEMBER_INVITATION_NOT_REISSUEABLE']);

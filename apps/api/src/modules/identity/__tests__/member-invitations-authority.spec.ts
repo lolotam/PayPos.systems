@@ -290,11 +290,11 @@ describe('AC-G1-4 / P1-b — a raced invitation with different roles keeps one m
       JOIN member_invitations i ON i.company_id = m.company_id AND i.membership_id = m.id
       WHERE m.company_id = ${companyA} AND m.user_id <> ${ownerA.userId} AND m.user_id <> ${ownerA2.userId}`;
     expect(row?.['role_code']).toBe(winnerRole);
-    expect(
-      await h.owner`
-        SELECT count(*)::int AS n FROM outbox WHERE company_id = ${companyA}
-          AND event_type = 'MemberInvited'`,
-    ).toEqual([{ n: 1 }]);
+    expect(row?.['role_id']).toBe(role(winnerRole));
+    const events = await h.owner`
+      SELECT payload FROM outbox WHERE company_id = ${companyA} AND event_type = 'MemberInvited'`;
+    expect(events).toHaveLength(1);
+    expect(events[0]?.['payload']).toMatchObject({ role_code: winnerRole });
   });
 });
 

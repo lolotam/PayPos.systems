@@ -110,7 +110,18 @@ it('keeps the re-issued link out of both caches in flight and at hand-over', asy
 it('renders the closed-gate notice and no form when the API answers NOT_READY', async () => {
   api.get.mockResolvedValue({ error: { status: 503, code: 'NOT_READY' } });
   renderPage();
-  expect((await screen.findByRole('status')).textContent).toBe(t('en', 'invitations.notReady'));
+  // الرسالة بتظهر كمان وهو لسه بيحمّل، فمفيش حكم على النموذج قبل ما الـ 503 يترد ويخلص الاستعلام.
+  await waitFor(() => expect(api.get).toHaveBeenCalled());
+  await api.get.mock.results[0]?.value;
+  await waitFor(() =>
+    expect(
+      client
+        .getQueryCache()
+        .getAll()
+        .every((query) => query.state.fetchStatus === 'idle'),
+    ).toBe(true),
+  );
+  expect(screen.getByRole('status').textContent).toBe(t('en', 'invitations.notReady'));
   expect(screen.queryByLabelText(t('en', 'invitations.emailLabel'))).toBeNull();
 });
 
