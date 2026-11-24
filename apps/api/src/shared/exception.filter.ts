@@ -1,5 +1,6 @@
 import { Catch, HttpException, type ArgumentsHost, type ExceptionFilter } from '@nestjs/common';
 import {
+  AuthUserNotFoundError,
   IdempotencyKeyBusyError,
   IdempotencyKeyReusedError,
   PlatformStorageUnavailableError,
@@ -32,6 +33,7 @@ export class EnvelopeExceptionFilter implements ExceptionFilter {
 }
 
 function toApiError(exception: unknown): ApiError {
+  if (exception instanceof AuthUserNotFoundError) return new ApiError('UNAUTHENTICATED');
   if (exception instanceof ApiError) return exception;
   if (isRetryableTransactionConflict(exception)) return new ApiError('TRANSACTION_RETRY_REQUIRED');
   // Raised by runIdempotent inside the use case's transaction, which has already rolled back.

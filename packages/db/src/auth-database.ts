@@ -1,6 +1,7 @@
 import { sql } from 'drizzle-orm';
 import { drizzle, type PostgresJsDatabase } from 'drizzle-orm/postgres-js';
 import postgres from 'postgres';
+import { AuthUserNotFoundError } from './auth-user-not-found.ts';
 
 import { account, session, twoFactor, user, verification } from '../schema/identity-auth.ts';
 
@@ -35,6 +36,10 @@ export interface PlatformAuditEntry {
  * ده الاستثناء الوحيد اللي بيطلّع client من packages/db، والـ role نفسه ملوش أي grant غير على الجداول دي.
  */
 export interface AuthDatabase {
+  /** يقرأ عرض الحساب بمفتاحه الأساسي فقط؛ لا يحتاج شركة أو اتصالاً إضافياً. */
+  readNavStyle(userId: string): Promise<string | null>;
+  /** يقيّد الكتابة بمعرّف الجلسة ويعيد القيمة المثبتة، أو خطأ مستخدم منتهٍ. */
+  writeNavStyle(userId: string, navStyle: string | null): Promise<string | null>;
   readonly db: PostgresJsDatabase<IdentitySchema>;
   readonly schema: IdentitySchema;
   /** بيتأكد إن الداتابيز بترد وإن الاتصال بـ pospay_auth بالظبط — عند التشغيل ولـ /ready. */
@@ -79,6 +84,15 @@ export function createAuthDatabase(options: {
   const db = drizzle(client, { schema: identitySchema });
   return {
     db,
+    readNavStyle: async (userId) => {
+      const [row] = await readNavStyleStatement(client, userId);
+      return row?.nav_style ?? null;
+    },
+    writeNavStyle: async (userId, navStyle) => {
+      const [row] = await writeNavStyleStatement(client, userId, navStyle);
+      if (row === undefined) throw new AuthUserNotFoundError();
+      return row.nav_style;
+    },
     schema: identitySchema,
     ping: async () => {
       const [row] = await db.execute<{ role: string; privileged: boolean }>(sql`
@@ -118,4 +132,20 @@ export function createAuthDatabase(options: {
     consumeAssertion: assertionConsumer(client),
     close: () => client.end({ timeout: 5 }),
   };
+}
+
+/** بيان قراءة التفضيل نفسه للقارئ وللاختبار؛ المفتاح الأساسي فقط ولا يحتمل أي محدد آخر. */
+export function readNavStyleStatement(client: postgres.Sql, userId: string) {
+  return client<{ nav_style: string | null }[]>`SELECT nav_style FROM "user" WHERE id=${userId}`;
+}
+
+/** بيان كتابة التفضيل نفسه للكاتب وللاختبار؛ يعيد القيمة المثبتة أو لا شيء لمستخدم منتهٍ. */
+export function writeNavStyleStatement(
+  client: postgres.Sql,
+  userId: string,
+  navStyle: string | null,
+) {
+  return client<
+    { nav_style: string | null }[]
+  >`UPDATE "user" SET nav_style=${navStyle} WHERE id=${userId} RETURNING nav_style`;
 }

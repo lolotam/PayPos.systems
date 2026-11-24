@@ -12,7 +12,10 @@ const session = vi.hoisted(() => ({ signOutSession: vi.fn() }));
 const page = vi.hoisted(() => ({ loadPage: vi.fn() }));
 
 vi.mock('@/session/api/session-calls', () => session);
-vi.mock('@/shared/browser/load-page', () => page);
+vi.mock('@/shared/browser/load-page', async (importOriginal) => ({
+  ...(await importOriginal<object>()),
+  loadPage: (path: string) => page.loadPage(path),
+}));
 vi.mock('next/navigation', async () => (await import('./frames/frame-test-support')).navigationMock);
 vi.mock(
   '@/shared/locale/locale-context',
