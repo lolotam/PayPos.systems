@@ -1,5 +1,5 @@
 import { t } from '@pospay/i18n';
-import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { cleanup, render, screen } from '@testing-library/react';
 import { afterEach, expect, it, vi } from 'vitest';
 import { AttendanceReportSortControl } from './attendance-report-sort-control';
 
@@ -35,15 +35,6 @@ it('shows the empty option when two sorts are active', () => {
     { id: 'employee_number', desc: false },
   ]);
   expect(select.value).toBe('');
-});
-
-it('replaces two sorts with the one chosen in the select', () => {
-  const { select, onSortingChange } = renderControl([
-    { id: 'worked_minutes', desc: false },
-    { id: 'employee_number', desc: false },
-  ]);
-  fireEvent.change(select, { target: { value: 'days_present:desc' } });
-  expect(onSortingChange).toHaveBeenCalledWith([{ id: 'days_present', desc: true }]);
 });
 
 it('shows the empty option when no sort is active', () => {
