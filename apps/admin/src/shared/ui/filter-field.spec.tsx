@@ -27,6 +27,29 @@ it('lets the input and the select inside shrink to the field width', () => {
   }
 });
 
+it('gives the input and the select the same fixed height', () => {
+  render(
+    <FilterField data-testid="field">
+      <input aria-label="date" type="date" />
+      <select aria-label="kind" />
+    </FilterField>,
+  );
+  const classes = [...screen.getByTestId('field').classList];
+  expect(classes).toContain('[&_input]:h-12');
+  expect(classes).toContain('[&_select]:h-12');
+});
+
+it('stops Safari from sizing the date widget on its own', () => {
+  render(
+    <FilterField data-testid="field">
+      <input aria-label="date" type="date" />
+    </FilterField>,
+  );
+  const classes = [...screen.getByTestId('field').classList];
+  expect(classes).toContain('[&_input]:block');
+  expect(classes).toContain('[&_input]:appearance-none');
+});
+
 it('keeps a caller class next to the built-in ones', () => {
   render(<FilterField data-testid="field" className="text-start" />);
   const field = screen.getByTestId('field');
