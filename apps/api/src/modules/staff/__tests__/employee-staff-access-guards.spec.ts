@@ -10,10 +10,9 @@ import {
   staffAccessFixture,
   type Fixture,
 } from './employee-staff-access.fixture.ts';
-import { createStaffPinTransactions } from '../../identity/persistence/staff-pin-transactions.ts';
 import { canLinkEmployeeUser } from '../persistence/employee-context.adapter.ts';
 import type { EmployeeUpdateScope, EmployeeUpdateTransactions } from '../ports/employee-update-transactions.port.ts';
-import { EmployeeCreationError } from '../domain/create-employee.ts';
+import { type EditableEmployee } from '../domain/update-employee.ts';
 import { UpdateEmployeeUseCase } from '../use-cases/update-employee/update-employee.usecase.ts';
 
 const ids = systemUuidV7();
@@ -70,13 +69,7 @@ it('AC-F1-7c a temporary PIN row is invisible to the staff PIN readers, exactly 
     tx.execute(sql`SELECT pin_hash FROM cashier_pins WHERE company_id=${f.company} AND user_id=${userId}`),
   );
   expect(direct).toHaveLength(1);
-  const staffPins = createStaffPinTransactions(f.db, ids);
-  const throughReader = await staffPins.run(f.company, null, (scope) => scope.find(userId));
-  // القارئ لا يرى الرقم المؤقت إطلاقاً: نفس جواب «لا صف» الذي يعني PIN غلط في كل مسار حتى F2.
-  expect(throughReader).toBeNull();
-  await f.h.owner`UPDATE cashier_pins SET temporary = false WHERE user_id = ${userId}`;
-  const afterFlip = await staffPins.run(f.company, null, (scope) => scope.find(userId));
-  expect(afterFlip).not.toBeNull();
+  // القارئ (identity/staff-pin-transactions.find) يُختبر من داخل identity: staff-pin-temporary.spec.ts.
 });
 
 it('AC-F1-7b the link availability rule answers false for a staff user and true for a normal member', async () => {
@@ -106,9 +99,10 @@ it('AC-F1-7b update-employee refuses any user_id change for an employee with an 
     contract_end: null,
     user_id: null,
     revision: 3,
-    branch_ids: ['branch-1'] as const,
-    created_at: new Date('2026-01-01T00:00:00Z'),
-  };
+    branch_ids: ['branch-1'],
+    created_at: '2026-01-01T00:00:00Z',
+    employee_number: 1,
+  } satisfies EditableEmployee;
   const scope: EmployeeUpdateScope = {
     load: vi.fn(async () => ({ record, history: [] })),
     authorize: vi.fn(async () => true),
@@ -131,6 +125,7 @@ it('AC-F1-7b update-employee refuses any user_id change for an employee with an 
         primary_branch_id: 'branch-1',
         name_en: 'Renamed',
         role_code: 'staff',
+        hire_date: '2026-01-01',
         branch_ids: ['branch-1'],
         branch_effective_date: '2026-01-02',
         expected_revision: 3,
@@ -140,7 +135,6 @@ it('AC-F1-7b update-employee refuses any user_id change for an employee with an 
   ).rejects.toMatchObject({ code: 'EMPLOYEE_USER_LINK_UNAVAILABLE' });
   expect(scope.save).not.toHaveBeenCalled();
   expect(vi.mocked(scope.canLinkUser)).not.toHaveBeenCalled();
-  void EmployeeCreationError;
 });
 
 it('AC-F1-7b update-employee still allows unrelated edits for an employee with an access record', async () => {
@@ -155,9 +149,10 @@ it('AC-F1-7b update-employee still allows unrelated edits for an employee with a
     contract_end: null,
     user_id: 'kept-user',
     revision: 3,
-    branch_ids: ['branch-1'] as const,
-    created_at: new Date('2026-01-01T00:00:00Z'),
-  };
+    branch_ids: ['branch-1'],
+    created_at: '2026-01-01T00:00:00Z',
+    employee_number: 2,
+  } satisfies EditableEmployee;
   const scope: EmployeeUpdateScope = {
     load: vi.fn(async () => ({ record, history: [] })),
     authorize: vi.fn(async () => true),
@@ -179,6 +174,7 @@ it('AC-F1-7b update-employee still allows unrelated edits for an employee with a
       primary_branch_id: 'branch-1',
       name_en: 'Renamed only',
       role_code: 'staff',
+      hire_date: '2026-01-01',
       branch_ids: ['branch-1'],
       branch_effective_date: '2026-01-02',
       expected_revision: 3,

@@ -154,6 +154,10 @@ function commitScope(tx: Tx, actor: StaffAccessActor, input: CommitInput): Grant
     },
     recheck: () => recheckUnderLock(tx, actor, input),
     authority: authorityChecker(tx, actor),
+    bindUser: async (bind) => {
+      await tx.execute(sql`UPDATE employee_staff_access SET user_id=${bind.userId},updated_at=${input.at.toISOString()}::timestamptz
+        WHERE company_id=${actor.companyId} AND id=${bind.recordId}`);
+    },
     grantMembership: (membership) =>
       grantMembershipAndAudit(tx, actor, input.ids, writers.audit, membership),
     linkEmployee: (userId) => linkEmployeeAndAudit(tx, actor, input, writers.audit, userId),

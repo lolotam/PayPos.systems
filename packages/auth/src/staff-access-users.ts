@@ -1,4 +1,4 @@
-import { createStaffAccessDatabase, staffSyntheticEmail } from '@pospay/db';
+import { createStaffAccessDatabase, staffSyntheticEmail, StaffPhoneTakenError } from '@pospay/db';
 import type { IdGenerator } from '@pospay/db';
 
 /**
@@ -10,7 +10,8 @@ import type { IdGenerator } from '@pospay/db';
 export const STAFF_USER_RESERVED_DOMAIN = 'staff.pospay.invalid';
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-const PHONE = /^[+][1-9][0-9]{6,14}$/;
+// نفس عقد `canonicalStaffPhone` (8–15 رقمًا بعد الـ +) — المدخل الأشد قبل أي كتابة.
+const PHONE = /^[+][1-9][0-9]{7,14}$/;
 
 /** مدخل الإنشاء أو الإيجاد كما يأتي من identity. */
 export interface StaffUserProvisionRequest {
@@ -34,6 +35,8 @@ export interface StaffUserAccess {
   read(operationId: string): Promise<{ userId: string; phoneLast3: string | null } | null>;
   /** هل المستخدم حساب موظفة؟ يُفحص قبل إصدار أي مسار تعامل (D8). */
   isStaffUser(userId: string): Promise<boolean>;
+  /** يغلق اتصال pospay_auth المملوك للواجهة. */
+  close(): Promise<void>;
 }
 
 /**
@@ -51,6 +54,13 @@ export function createStaffUserAccess(options: {
     url: options.databaseUrl,
     phoneLockKey: options.phoneLockKey,
   });
+  // غلاف الـ runtime الطارئ يلف كل الأخطاء بكود ثابت؛ الرفض المتوقع يعود هنا فئةً حقيقية.
+  const unwrapPhoneTaken = (error: unknown): unknown => {
+    const message = error instanceof Error ? error.message : '';
+    return message === 'OTP_DATABASE_UNAVAILABLE_STAFF_PHONE_TAKEN'
+      ? new StaffPhoneTakenError()
+      : error;
+  };
   return {
     provision: async (input) => {
       if (
@@ -62,7 +72,9 @@ export function createStaffUserAccess(options: {
         !PHONE.test(input.phone)
       )
         throw new Error('STAFF_USER_INPUT_INVALID');
-      return database.provision(input);
+      return database.provision(input).catch((error) => {
+        throw unwrapPhoneTaken(error);
+      });
     },
     cancel: async (input) => {
       if (!UUID.test(input.operationId) || !UUID.test(input.companyId))

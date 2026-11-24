@@ -13,6 +13,8 @@ import type { IdGenerator } from './with-tenant.ts';
 /** رقم مملوك لمستخدم آخر في أي شركة — الرفض المتوقع الوحيد للمسار (SA-Q4، FR-F1-5). */
 export class StaffPhoneTakenError extends Error {
   override readonly name = 'StaffPhoneTakenError';
+  /** كود ثابت يعبر غلاف الـ runtime كما هو ويترجم للكود 409 في الـ API. */
+  readonly code = 'STAFF_PHONE_TAKEN';
   constructor() {
     super('STAFF_PHONE_TAKEN');
   }
@@ -40,7 +42,8 @@ export interface StaffAccessDatabaseOptions {
 }
 
 // نفس شكل رفض OTP: رسالة ثابتة بلا أي بيانات عن الحساب المالك للرقم.
-const PHONE_PATTERN = /^[+][1-9][0-9]{6,14}$/;
+// العقد أ strict بـ 8–15 رقمًا بعد الـ + (plan §4.1)؛ قاعدة البيانات تسمح بـ 7 والمدخل هنا الأشد.
+const PHONE_PATTERN = /^[+][1-9][0-9]{7,14}$/;
 
 /** إيميل اصطناعي غير قابل للتسليم على نطاق محجوز — لا يُشتق من الهاتف أبداً (قرار D8). */
 export function staffSyntheticEmail(operationId: string): string {
@@ -84,10 +87,14 @@ async function provisionStaffUser(
         ${input.companyId}, ${input.operationId})
       RETURNING id`);
     if (inserted === undefined) throw new Error('STAFF_USER_PROVISION_FAILED');
+    // سجل المنصة insert-only ولا يشير بالـ FK: هوية الحساب تعيش في details ليصلح حذفه لاحقاً
+    // إلغاءً بعد انتهاء مدة الانتظار (FR-F1-6).
     await tx.execute(sql`INSERT INTO platform_audit_log (id, actor, action, target_user_id, details)
-      VALUES (${input.ids.newId()}, ${input.actorUserId}, 'staff_user.created', ${userId}, '{}'::jsonb)`);
+      VALUES (${input.ids.newId()}, ${input.actorUserId}, 'staff.created', NULL,
+        ${JSON.stringify({ user_id: userId })}::jsonb)`);
     await tx.execute(sql`INSERT INTO platform_audit_log (id, actor, action, target_user_id, details)
-      VALUES (${input.ids.newId()}, ${input.actorUserId}, 'phone.binding_approved', ${userId}, '{}'::jsonb)`);
+      VALUES (${input.ids.newId()}, ${input.actorUserId}, 'phone.binding_approved', NULL,
+        ${JSON.stringify({ user_id: userId })}::jsonb)`);
     return { userId };
   });
 }
@@ -97,15 +104,15 @@ async function cancelStaffUser(
   input: { operationId: string; companyId: string; actorUserId: string; ids: IdGenerator },
 ): Promise<void> {
   return runtime.run(async (tx) => {
-    const removed = await tx.execute<{ id: string }>(sql`
-      DELETE FROM "user"
+    const [existing] = await tx.execute<{ id: string }>(sql`
+      SELECT id FROM "user"
       WHERE staff_access_operation_id = ${input.operationId}
-        AND staff_access_company_id = ${input.companyId}
-      RETURNING id`);
-    if (removed.length === 0) return;
+        AND staff_access_company_id = ${input.companyId} LIMIT 1`);
+    if (existing === undefined) return;
     await tx.execute(sql`INSERT INTO platform_audit_log (id, actor, action, target_user_id, details)
-      VALUES (${input.ids.newId()}, ${input.actorUserId}, 'staff_user.cancelled',
-        ${removed[0]?.id ?? null}, '{}'::jsonb)`);
+      VALUES (${input.ids.newId()}, ${input.actorUserId}, 'staff.cancelled', NULL,
+        ${JSON.stringify({ user_id: existing.id })}::jsonb)`);
+    await tx.execute(sql`DELETE FROM "user" WHERE id = ${existing.id}`);
   });
 }
 

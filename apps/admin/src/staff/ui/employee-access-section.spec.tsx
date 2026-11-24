@@ -18,6 +18,13 @@ vi.mock('@/shared/api/client', () => ({
 }));
 vi.mock('@/shared/locale/locale-context', () => ({ useLocale: () => 'en' as const }));
 
+const IDS = {
+  company: '01920000-0000-7000-8000-00000000000a',
+  business: '01920000-0000-7000-8000-00000000000b',
+  user: '01920000-0000-7000-8000-00000000000c',
+  employee: '01920000-0000-7000-8000-00000000000d',
+};
+
 function wrap(children: ReactNode) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return <QueryClientProvider client={client}>{children}</QueryClientProvider>;
@@ -33,6 +40,21 @@ function accessResponse() {
     };
   }
   return { response: { status: 200, ok: true }, data: state.body as unknown, error: undefined };
+}
+
+/** يجهز حالة الاستعلام الجاهزة ويصيّر القسم — كل اختبار يبدأ منه. */
+function mountSection() {
+  get.mockResolvedValue(accessResponse());
+  render(
+    wrap(
+      <EmployeeAccessSection
+        companyId={IDS.company}
+        businessId={IDS.business}
+        userId={IDS.user}
+        employeeId={IDS.employee}
+      />,
+    ),
+  );
 }
 
 beforeEach(() => {
@@ -51,17 +73,7 @@ describe('the employee access section visible states', () => {
       phone_last3: '678',
       can_manage: false,
     };
-    get.mockResolvedValue(accessResponse());
-    render(
-      wrap(
-        <EmployeeAccessSection
-          companyId="01920000-0000-7000-8000-00000000000a"
-          businessId="01920000-0000-7000-8000-00000000000b"
-          userId="01920000-0000-7000-8000-00000000000c"
-          employeeId="01920000-0000-7000-8000-00000000000d"
-        />,
-      ),
-    );
+    mountSection();
     await waitFor(() => expect(screen.getByText('Access is active.')).toBeTruthy());
     expect(screen.getByText('Employee')).toBeTruthy();
     expect(screen.getByText('678')).toBeTruthy();
@@ -71,39 +83,18 @@ describe('the employee access section visible states', () => {
 
   it('AC-F1-1 offers «Give access» only when the state says NONE and can_manage is true', async () => {
     state.body = { state: 'NONE', role: null, branch_id: null, phone_last3: null, can_manage: true };
-    get.mockResolvedValue(accessResponse());
-    render(
-      wrap(
-        <EmployeeAccessSection
-          companyId="01920000-0000-7000-8000-00000000000a"
-          businessId="01920000-0000-7000-8000-00000000000b"
-          userId="01920000-0000-7000-8000-00000000000c"
-          employeeId="01920000-0000-7000-8000-00000000000d"
-        />,
-      ),
-    );
+    mountSection();
     await waitFor(() => expect(screen.getByText('No access yet.')).toBeTruthy());
-    const button = screen.getByText('Give access');
-    fireEvent.click(button);
+    fireEvent.click(screen.getByText('Give access'));
     await waitFor(() => expect(screen.getByText('I confirmed this number is hers')).toBeTruthy());
-    // AC-F1-5: the confirmation tick is required before the request can be sent.
+    // AC-F1-5: التأكيد الإجباري يمنع الإرسال قبل التعلّم.
     expect(screen.getByRole('alert').textContent).toBe('Tick the confirmation before saving.');
   });
 
   it('FR-F1-9 the section disappears entirely when the capability answers 503 NOT_READY', async () => {
     state.status = 503;
-    state.body = { code: 'NOT_READY', message_en: 'not ready', message_ar: 'غير جاهز' };
-    get.mockResolvedValue(accessResponse());
-    const { container } = render(
-      wrap(
-        <EmployeeAccessSection
-          companyId="01920000-0000-7000-8000-00000000000a"
-          businessId="01920000-0000-7000-8000-00000000000b"
-          userId="01920000-0000-7000-8000-00000000000c"
-          employeeId="01920000-0000-7000-8000-00000000000d"
-        />,
-      ),
-    );
+    state.body = { code: 'NOT_READY', message_en: 'not ready', message_ar: 'not ready' };
+    const { container } = render(wrap(<EmployeeAccessSection companyId={IDS.company} businessId={IDS.business} userId={IDS.user} employeeId={IDS.employee} />));
     await waitFor(() => expect(container.querySelector('section')).toBeNull());
   });
 
@@ -115,20 +106,8 @@ describe('the employee access section visible states', () => {
       phone_last3: null,
       can_manage: true,
     };
-    get.mockResolvedValue(accessResponse());
-    render(
-      wrap(
-        <EmployeeAccessSection
-          companyId="01920000-0000-7000-8000-00000000000a"
-          businessId="01920000-0000-7000-8000-00000000000b"
-          userId="01920000-0000-7000-8000-00000000000c"
-          employeeId="01920000-0000-7000-8000-00000000000d"
-        />,
-      ),
-    );
-    await waitFor(() =>
-      expect(screen.getByText('Reception / cashier')).toBeTruthy(),
-    );
+    mountSection();
+    await waitFor(() => expect(screen.getByText('Reception / cashier')).toBeTruthy());
     expect(screen.getByText('Cancel pending grant')).toBeTruthy();
   });
 });

@@ -42,6 +42,7 @@ const fakeAuth: AuthService = {
     cancel: async () => undefined,
     read: async () => null,
     isStaffUser: async () => false,
+    close: async () => undefined,
   },
   staff: refusingStaffSessions,
   handler: async (request) => {

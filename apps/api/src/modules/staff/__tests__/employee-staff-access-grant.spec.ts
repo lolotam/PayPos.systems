@@ -5,10 +5,8 @@ import {
   addEmployee,
   cancelPending,
   grant,
-  grantPath,
   nextPhone,
   readState,
-  recentErrorLogs,
   staffAccessFixture,
   staffUsersOf,
   type Fixture,
@@ -43,7 +41,8 @@ it('AC-F1-1 the owner grant creates user, binding, membership, link, temporary P
   });
   const users = await staffUsersOf(f);
   expect(users).toHaveLength(1);
-  const user = users[0]!;
+  const user = users[0];
+  if (user === undefined) throw new Error('the granted staff user is missing');
   expect(user.email).toMatch(/^staff-[0-9a-f-]{36}@staff\.pospay\.invalid$/);
   expect(user.email).not.toContain(phone);
   expect(user.phone_number).toBe(phone);
@@ -116,7 +115,7 @@ it('AC-F1-4 the strict schema refuses foreign roles, scopes and branch ids with 
   for (const extra of cases) {
     const response = await grant(f, candidate, nextPhone(f), f.ownerCookie, extra);
     expect([400, 422]).toContain(response.status);
-    expect(String(response.body?.code ?? '')).not.toBe('STAFF_ACCESS_ALREADY_GRANTED');
+    expect(String((response.body as { code?: string })?.code ?? '')).not.toBe('STAFF_ACCESS_ALREADY_GRANTED');
   }
   const roles = await f.h.owner`SELECT DISTINCT r.code FROM memberships m
     JOIN roles r ON r.id = m.role_id AND r.owner_key = m.role_owner_key
@@ -135,8 +134,7 @@ it('AC-F1-5 a phone owned in another company is refused with no detail and no ch
   const response = await grant(f, candidate, otherPhone);
   expect(response.status).toBe(409);
   expect(response.body).toMatchObject({ code: 'STAFF_ACCESS_PHONE_TAKEN' });
-  expect(JSON.stringify(response.body)).not.toContain(otherUser);
-  const unchanged = await f.h.owner`SELECT id, phone_number FROM "user" WHERE id = ${otherUser}`;
+  expect(JSON.stringify(response.body)).not.toContain(otherUser);  const unchanged = await f.h.owner`SELECT id, phone_number FROM "user" WHERE id = ${otherUser}`;
   expect(unchanged[0]?.phone_number).toBe(otherPhone);
   // الخطوة الثانية ترفض بعد إنشاء سجل الانتظار في الخطوة الأولى — السجل يبقى PENDING قابلاً للاستئناف
   // برقم حر، والموظفة تبقى بلا رابط ولا عضوية (FR-F1-6).
@@ -217,7 +215,6 @@ it('AC-F1-6 a repeat after success refuses with no writes: same record and no se
 
 it('AC-F1-6b two concurrent grants for one employee produce one access; one phone produces one access and one refusal', async () => {
   const dana = await addEmployee(f, 'Dana', f.salmiya, 12);
-  const lina = await addEmployee(f, 'Lina', f.hawalli, 13);
   const phone = nextPhone(f);
   const [first, second] = await Promise.all([grant(f, dana, phone), grant(f, dana, phone)]);
   const statuses = [first.status, second.status];
@@ -227,7 +224,9 @@ it('AC-F1-6b two concurrent grants for one employee produce one access; one phon
   expect(statuses).toContain(200);
   const refused = first.status === 409 ? first : second;
   if (refused.status === 409) {
-    expect(['STAFF_ACCESS_ALREADY_GRANTED', 'STAFF_ACCESS_PHONE_TAKEN']).toContain(refused.body?.code);
+    expect(['STAFF_ACCESS_ALREADY_GRANTED', 'STAFF_ACCESS_PHONE_TAKEN']).toContain(
+      (refused.body as { code?: string })?.code,
+    );
   }
   expect(await f.h.owner`SELECT id FROM employee_staff_access WHERE employee_id = ${dana}`).toHaveLength(1);
   expect(
@@ -245,8 +244,12 @@ it('AC-F1-6b two concurrent grants for one employee produce one access; one phon
   const phoneRefused = samePhoneOne.status === 409 ? samePhoneOne : samePhoneTwo;
   expect(phoneRefused.status).toBe(409);
   expect(phoneRefused.body).toMatchObject({ code: 'STAFF_ACCESS_PHONE_TAKEN' });
-  const zainActive = await f.h.owner`SELECT count(*) AS n FROM employee_staff_access WHERE employee_id = ${zain} AND state = 'ACTIVE'`;
-  expect(Number(zainActive[0]?.n)).toBe(0);
+  const loser = samePhoneOne.status === 409 ? maya : zain;
+  const winner = samePhoneOne.status === 409 ? zain : maya;
+  const winnerActive = await f.h.owner`SELECT count(*) AS n FROM employee_staff_access WHERE employee_id = ${winner} AND state = 'ACTIVE'`;
+  expect(Number(winnerActive[0]?.n)).toBe(1);
+  const loserActive = await f.h.owner`SELECT count(*) AS n FROM employee_staff_access WHERE employee_id = ${loser} AND state = 'ACTIVE'`;
+  expect(Number(loserActive[0]?.n)).toBe(0);
 });
 
 it('AC-F1-8 RLS: another tenant reads zero rows and cannot write ours', async () => {
