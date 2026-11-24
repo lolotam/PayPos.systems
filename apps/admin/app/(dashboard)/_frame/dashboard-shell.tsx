@@ -7,6 +7,7 @@ import type { NavigationStyle } from '@/workspace/nav-types';
 
 import { DashboardFrame } from './dashboard-frame';
 import { NavStyleProvider } from './nav-style/nav-style-context';
+import { NavStyleSaveNotice } from './nav-style/nav-style-save-notice';
 
 export function DashboardShell({
   children,
@@ -19,6 +20,7 @@ export function DashboardShell({
     <NavStyleProvider initialStyle={initialStyle}>
       <WorkspaceProvider>
         <DashboardFrame>{children}</DashboardFrame>
+        <NavStyleSaveNotice />
       </WorkspaceProvider>
     </NavStyleProvider>
   );

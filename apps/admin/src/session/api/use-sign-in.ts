@@ -6,7 +6,7 @@ import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 
 import { loadPage } from '@/shared/browser/load-page';
-import { clearNavStyleCookie } from '@/shared/nav-style/nav-style-cookie';
+import { applyAccountNavStyle } from '@/shared/nav-style/apply-account-nav-style';
 
 import { signInWithPassword } from './session-calls';
 
@@ -19,16 +19,17 @@ export function useSignIn() {
     setPending(true);
     setError(undefined);
     const outcome = await signInWithPassword(values.email, values.password);
-    setPending(false);
     if (outcome === 'totp') {
+      setPending(false);
       router.push('/login/two-factor');
       return;
     }
     if (outcome === 'done') {
-      clearNavStyleCookie();
+      await applyAccountNavStyle();
       loadPage('/');
       return;
     }
+    setPending(false);
     setError(outcome);
   }
 

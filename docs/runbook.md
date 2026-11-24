@@ -548,9 +548,9 @@ those stay the manual steps of the «Order: enable → dry-run report → issue 
 
 1. A dedicated TEST company on staging whose only user is an owner of the TEST company (not of production), that
    user has no 2FA (the sign-in is email + password only), and no commission history in the target month. The
-   company AND the business must be dedicated test records whose English names start with the fixed prefix
-   `TRIAL-` — the script refuses anything else (independent marker beyond membership, so an ordinary staging
-   company the user can reach can never be hit by mistake).
+   company's and the business's English names must start with `TRIAL-`. The API has no rename route: a company and
+   business created for the trial must be given that name at creation. An existing company can only be renamed by
+   the project owner's explicit decision, outside this script.
 2. The test business must have been created in or before the target month (`COMMISSION_PERIOD_BEFORE_BUSINESS`
    precheck; the script reads the business `created_at` through `GET /v1/businesses` and prints the earliest
    measurable month). With the default period = previous month, a business created this month cannot be measured yet.
@@ -580,7 +580,7 @@ replays and different options can never replay a key that was minted for another
 services) list again after a failed or lost answer and create only when the record is still missing, so a create whose
 answer was lost is recovered and never duplicated. Any rejected service line stops the run with the session index and
 the rejection codes. The summary prints ids, counts, per-phase timings, the HTTP request count and the next manual
-steps. Run it from any machine that can reach the staging API over HTTPS; no container or database access is needed.
+steps. Run it from any machine that can reach the staging API over HTTPS; no container or database access is needed. The script sends the `Origin` of the staging admin app (`https://app.staging.pospay.systems`) on every request because the API's sign-in checks it; the operator does not pass it.
 
 **Resume:** if the period already carries commission sources, the preflight refuses unless `--resume` is given; with
 `--resume` it continues only when every source belongs to an employee THIS run created — the trial employees are named
@@ -606,9 +606,9 @@ docker logs <api-container> 2>&1 \
 
 Exactly one line is expected; if there are several, take the one whose time matches your approve click, and ignore any
 line whose status is not 200. Then record the `http.ms` of that line. The approve is one-shot; a second sample needs
-another prepared period or business — run the script again with another `--period` (one month back at most) or a
-second test company, then repeat the measurement. The target company is enabled only if the measured approval is
-**under 200 ms**; otherwise its switch stays off and the owner decides.
+another prepared BUSINESS (or company), not another period: the API accepts only the previous calendar month, so run
+the script against a second prepared test business or company, then repeat the measurement. The target company is
+enabled only if the measured approval is **under 200 ms**; otherwise its switch stays off and the owner decides.
 
 **Leave or clean up:** there is no delete API; the trial data stays in the dedicated TEST company on staging, which
 is intentional — it remains available for re-measurement. Do not reuse a period that already carries trial sources

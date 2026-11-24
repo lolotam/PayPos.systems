@@ -21,6 +21,10 @@ function declared(
 
 export const AUTHENTICATED_WRITES: Readonly<Record<string, AuthenticatedWriteDeclaration>> =
   Object.freeze({
+    'MeController.setPreferencesForCaller': declared(
+      'PERSONAL',
+      'apps/api/src/modules/identity/http/me.controller.ts#setPreferencesForCaller',
+    ),
     'AttendanceChangeRequestsController.decision': declared(
       'RECORD_SCOPED',
       'apps/api/src/modules/identity/persistence/attendance-change-access.ts#readAttendanceChangeAccess',
