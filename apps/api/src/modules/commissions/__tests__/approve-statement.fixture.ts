@@ -23,15 +23,13 @@ export interface Approver {
 }
 
 /**
- * 52-1-SWITCH: مَنح اختبار فقط لصلاحية الاعتماد حتى يصل كتالوج 52-1؛ يضيف الرمز لجدول الصلاحيات ويمنحه بدور مخصص مع
- * قراءة النشاط كله. حين يصل 52-1 تُحذف إضافة الرمز ويبقى الباقي كما هو.
+ * مستخدم بصلاحية الاعتماد الحقيقية `approve:commissions:business` مع قراءة النشاط كله، بدور مخصص وعضوية على نطاق النشاط.
  *
  * @param f نشاط الاختبار
  * @param label اسم قصير يميّز المستخدم
  * @returns الجلسة والمستخدم والعضوية
  */
 export async function approverMember(f: StatementFixture, label: string): Promise<Approver> {
-  await f.h.owner`INSERT INTO permissions (code) VALUES (${APPROVE}) ON CONFLICT DO NOTHING`;
   const member = await memberWithGrants(f, label, [
     { permission: APPROVE, scope: 'BUSINESS' },
     { permission: READ, scope: 'BUSINESS' },
