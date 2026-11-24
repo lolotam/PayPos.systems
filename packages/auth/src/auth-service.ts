@@ -2,9 +2,11 @@ import { randomBytes } from 'node:crypto';
 import type { createAuthDatabase } from '@pospay/db';
 import type { AuthOptions, AuthService, buildBetterAuth } from './config.ts';
 import type { SessionCookieNames } from './session-cookie.ts';
+import type { MemberInvitationAccounts } from './member-invitations.ts';
 import type { StaffUserAccess } from './staff-access-users.ts';
 import { STAFF_SYNTHETIC_EMAIL_DOMAIN } from './staff-access-users.ts';
 import { configuredPrivateView } from './private-view.ts';
+import { createMyPreferences } from './my-preferences.ts';
 import { isPasskeyRoute } from './passkey-policy.ts';
 import type { StaffSessions } from './staff-sessions.ts';
 import {
@@ -20,6 +22,7 @@ export function assembleAuthService(
   options: AuthOptions,
   database: ReturnType<typeof createAuthDatabase>,
   staffUsers: StaffUserAccess,
+  members: MemberInvitationAccounts,
   auth: ReturnType<typeof buildBetterAuth>,
   cookieNames: SessionCookieNames,
 ): AuthService {
@@ -27,10 +30,12 @@ export function assembleAuthService(
   const personal = personalSessions(options, auth, database);
   const passkeys = configuredPasskeys(options, auth, database);
   return {
+    preferences: createMyPreferences(database),
     staff,
     personal,
     passkeys,
     staffUsers,
+    members,
     privateView: configuredPrivateView(options, database),
     handler: (request) => authHandler(request, auth, staff, staffUsers, options.onLog),
     getSession: async (headers) => {

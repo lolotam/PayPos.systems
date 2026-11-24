@@ -2,7 +2,7 @@ import { employeeNameMatchKey } from '@pospay/domain';
 import { sql } from 'drizzle-orm';
 import type postgres from 'postgres';
 
-import type { Database } from '../client.ts';
+import type { DataStepApp } from './coverage.ts';
 
 /**
  * رفض ثابت النص لدور ترحيل بلا تجاوز للعزل: لا يحمل رابطاً ولا باسورد ولا بيانات، فيمر من التعقيم كما هو.
@@ -29,7 +29,7 @@ export class MigrationRoleRefusedError extends Error {
  */
 export async function rekeyEmployeeNameKeys(
   owner: postgres.Sql,
-  app: Database,
+  app: DataStepApp,
   batchSize = 500,
 ): Promise<{ companies: number; read: number; updated: number }> {
   const [role] = await owner<{ bypass: boolean }[]>`

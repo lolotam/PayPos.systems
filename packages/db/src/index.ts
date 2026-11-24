@@ -10,6 +10,7 @@ export {
 } from './access-catalog.ts';
 export {
   createAuthDatabase,
+  readNavStyleStatement,
   type AuthDatabase,
   type IdentitySchema,
   type PlatformAuditEntry,
@@ -155,3 +156,4 @@ export type {
   OtpExecutionResult,
 } from './staff-otp-types.ts';
 export { assertReplayBounds, ReplayCursorError } from './replay-cursor.ts';
+export { AuthUserNotFoundError } from './auth-user-not-found.ts';

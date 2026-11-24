@@ -2191,6 +2191,41 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/memberships/invitations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description The company invitations; no link, no token and no plain email. */
+        get: operations["listMemberInvitations"];
+        put?: never;
+        /** @description Requires manage:memberships:company and the canonical company owner decided inside the write transaction. The set-password link is returned once and is never stored. */
+        post: operations["inviteMember"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/memberships/invitations/{invitationId}/link": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @description Only for a pending invitation created by the same owner, while the member never set a password; the earlier link stops working. */
+        post: operations["reissueMemberInvitationLink"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/branches/{branchId}/devices": {
         parameters: {
             query?: never;
@@ -3584,6 +3619,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/me/preferences": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["getMyPreferences"];
+        put: operations["setMyPreferences"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/me/workspaces": {
         parameters: {
             query?: never;
@@ -3703,6 +3754,14 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        /** @enum {string} */
+        NavStyle: "A" | "B" | "C";
+        MyPreferencesResponse: {
+            navStyle: components["schemas"]["NavStyle"] | null;
+        };
+        SetMyPreferencesInput: {
+            navStyle: components["schemas"]["NavStyle"] | null;
+        };
         SetEmployeeIbanInput: {
             iban: string | null;
             bank_id: string | null;
@@ -9998,6 +10057,46 @@ export interface components {
             revision: number;
             /** Format: date-time */
             refunded_at: string;
+        };
+        InviteMemberInput: {
+            /** Format: email */
+            email: string;
+            name: string;
+            /** @enum {string} */
+            role: "general_manager" | "business_manager" | "branch_manager" | "accountant";
+            scope: {
+                /** @enum {string} */
+                type: "COMPANY" | "BUSINESS" | "BRANCH";
+                /** Format: uuid */
+                id: string;
+            };
+            /** @enum {boolean} */
+            email_confirmed: true;
+        };
+        MemberInvitation: {
+            /** Format: uuid */
+            id: string;
+            role_code: string;
+            /** @enum {string} */
+            scope_type: "COMPANY" | "BUSINESS" | "BRANCH";
+            /** Format: uuid */
+            scope_id: string;
+            /** @enum {string} */
+            state: "PENDING" | "ACTIVE" | "CANCELLED";
+            /** Format: date-time */
+            link_issued_at: string | null;
+            /** Format: date-time */
+            created_at: string;
+            can_reissue: boolean;
+        };
+        MemberInvitationPage: {
+            items: components["schemas"]["MemberInvitation"][];
+            next_cursor: string | null;
+        };
+        MemberInvitationResult: {
+            /** Format: uuid */
+            invitation_id: string;
+            set_password_link: string;
         };
     };
     responses: never;
@@ -17798,6 +17897,108 @@ export interface operations {
             };
         };
     };
+    listMemberInvitations: {
+        parameters: {
+            query?: {
+                cursor?: string;
+                limit?: number;
+            };
+            header: {
+                "x-company-id": string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The invitation page */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MemberInvitationPage"];
+                };
+            };
+            /** @description The API error envelope */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    inviteMember: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-company-id": string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["InviteMemberInput"];
+            };
+        };
+        responses: {
+            /** @description The invitation and its one-time link */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MemberInvitationResult"];
+                };
+            };
+            /** @description The API error envelope */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    reissueMemberInvitationLink: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-company-id": string;
+            };
+            path: {
+                invitationId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The new one-time link */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MemberInvitationResult"];
+                };
+            };
+            /** @description The API error envelope */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
     listPendingDevices: {
         parameters: {
             query: {
@@ -22893,6 +23094,68 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+            /** @description The API error envelope */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    getMyPreferences: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The caller's personal navigation style */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MyPreferencesResponse"];
+                };
+            };
+            /** @description The API error envelope */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    setMyPreferences: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SetMyPreferencesInput"];
+            };
+        };
+        responses: {
+            /** @description The saved personal navigation style */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MyPreferencesResponse"];
+                };
             };
             /** @description The API error envelope */
             default: {

@@ -2,7 +2,7 @@ import { systemUuidV7 } from '@pospay/ids';
 import { sql } from 'drizzle-orm';
 import type postgres from 'postgres';
 
-import type { Database } from '../client.ts';
+import type { DataStepApp } from './coverage.ts';
 import { appendOutboxEvent } from '../outbox.ts';
 import type { Tx } from '../with-tenant.ts';
 import type { OutboxDispatcherDatabase } from '../dispatcher.ts';
@@ -37,7 +37,7 @@ export interface RatingDiscoveryCounts {
  */
 export async function discoverRatingClaims(
   owner: postgres.Sql,
-  app: Pick<Database, 'withTenant'>,
+  app: DataStepApp,
   reader: Pick<OutboxDispatcherDatabase, 'ratingClaimsDiscoveryExists'>,
 ): Promise<RatingDiscoveryCounts> {
   const [role] = await owner<{ bypass: boolean }[]>`

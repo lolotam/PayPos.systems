@@ -1,7 +1,7 @@
 import { sql } from 'drizzle-orm';
 import type postgres from 'postgres';
 
-import type { Database } from '../client.ts';
+import type { DataStepApp } from './coverage.ts';
 import type { IdGenerator, Tx } from '../with-tenant.ts';
 
 /**
@@ -61,7 +61,7 @@ const REFUSED_ROLE = 'branch_manager';
  */
 export async function cleanStatementAlertRoles(
   owner: postgres.Sql,
-  app: Database,
+  app: DataStepApp,
   ids: IdGenerator,
 ): Promise<StatementAlertRolesCounts> {
   const [role] = await owner<{ bypass: boolean }[]>`

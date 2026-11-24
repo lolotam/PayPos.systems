@@ -5,25 +5,16 @@ import { COMMISSION_ERROR_STATUS } from './commission-error-codes.ts';
 import { PACKAGE_SALE_STATUS } from './package-sale-error-statuses.ts';
 import { PACKAGE_READ_STATUS } from './package-read-error-statuses.ts';
 import { PACKAGE_CHANGE_STATUS } from './package-refund-error-statuses.ts';
+import { PACKAGE_TYPE_STATUS } from './package-type-error-statuses.ts';
 import {
   LEAVE_HISTORY_REPORT_RAISED_BY_THE_API_ONLY,
   LEAVE_HISTORY_REPORT_STATUS,
 } from './leave-history-report-error-statuses.ts';
+import {
+  MEMBER_INVITATION_RAISED_BY_THE_API_ONLY,
+  MEMBER_INVITATION_STATUS,
+} from './member-invitation-error-statuses.ts';
 import { STAFF_ACCESS_STATUS } from './staff-access-error-statuses.ts';
-
-const PACKAGE_TYPE_STATUS = {
-  PACKAGE_TYPE_NOT_FOUND: 404,
-  PACKAGE_TYPE_INVALID_COMPONENTS: 400,
-  PACKAGE_TYPE_DUPLICATE_SERVICE: 400,
-  PACKAGE_TYPE_INVALID_SESSIONS: 400,
-  PACKAGE_TYPE_PRICE_INVALID: 400,
-  PACKAGE_TYPE_VALIDITY_INVALID: 400,
-  PACKAGE_TYPE_SERVICE_NOT_FOUND: 400,
-  PACKAGE_TYPE_NAME_TAKEN: 409,
-  PACKAGE_TYPE_NAME_INVALID: 400,
-  PACKAGE_TYPE_REVISION_CONFLICT: 409,
-  PACKAGE_TYPE_SELLING_UNCHANGED: 409,
-} as const;
 
 // Every error the API returns and its HTTP status; the messages, in both languages, live in packages/i18n (CLAUDE.md
 // §6, §7). A new code is added to both, never inlined — the type refuses a code with no message.
@@ -163,6 +154,7 @@ const STATUS = {
   PERMISSION_ROLE_NOT_ELIGIBLE: 422,
   PERMISSION_OWNER_ONLY: 403,
   PERMISSION_OVERRIDE_ENDED: 409,
+  ...MEMBER_INVITATION_STATUS,
   TRANSACTION_RETRY_REQUIRED: 409,
   VALIDATION_FAILED: 400,
   INVALID_CUSTOMER_PHONE: 400,
@@ -341,6 +333,7 @@ const RAISED_BY_THE_API_ONLY: ReadonlySet<ErrorCode> = new Set<ErrorCode>([
   'PERMISSION_ROLE_NOT_ELIGIBLE',
   'PERMISSION_OWNER_ONLY',
   'PERMISSION_OVERRIDE_ENDED',
+  ...MEMBER_INVITATION_RAISED_BY_THE_API_ONLY,
   'TRANSACTION_RETRY_REQUIRED',
   'VALIDATION_FAILED',
   'INVALID_CUSTOMER_PHONE',

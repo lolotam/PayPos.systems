@@ -18,6 +18,11 @@ const state = vi.hoisted(() => ({
   ratings: {} as Read & { isFetchedAfterMount?: boolean },
   leave: { allowed: false } as { allowed: boolean },
   columns: {} as Read,
+  invitations: {
+    isSuccess: true,
+    isFetchedAfterMount: true,
+    isError: false,
+  } as Read & { isFetchedAfterMount?: boolean },
 }));
 
 vi.mock('@/shared/browser/use-mounted', () => ({ useMounted: () => true }));
@@ -48,8 +53,16 @@ vi.mock('@/staff/api/use-leave-report-access', () => ({ useLeaveReportAccess: ()
 vi.mock('@/settings/staff-app-columns/api/use-staff-columns', () => ({
   useStaffColumns: () => state.columns,
 }));
+vi.mock('@/permissions/api/use-invitations-access', () => ({
+  useInvitationsAccess: (...args: unknown[]) => {
+    invitationProbes.push(args);
+    return state.invitations;
+  },
+}));
 
 const id = '01920000-0000-7000-8000-0000000000a2';
+// وسائط كل نداء لقراءة الدعوات: الوسيط التالت هو «القراءة مفعّلة».
+const invitationProbes: unknown[][] = [];
 
 beforeEach(() => {
   state.userId = 'user';
@@ -63,6 +76,7 @@ beforeEach(() => {
   state.ratings = { isSuccess: false, isError: false, isFetchedAfterMount: false };
   state.leave = { allowed: false };
   state.columns = { isPending: true, isError: false };
+  state.invitations = { isSuccess: true, isFetchedAfterMount: true, isError: false };
   state.workspace = {
     status: 'ready',
     company: {
@@ -97,10 +111,36 @@ it('keeps every guarded condition closed while the reads are loading', () => {
     'commission-plans-access': false,
     'employee-app-link-access': false,
     'imported-refunds-access': false,
+    // الدور جاي من الـ workspace الجاهز، والقراءة الرخيصة متأكدة في الـ fixture — فالشرط مفتوح.
+    'invitations-owner': true,
     'leave-report-access': false,
     'ratings-access': false,
     'staff-app-columns-access': false,
   });
+});
+
+it('hides the invitations entry when the API answers NOT_READY while the gate is off', () => {
+  // 503 من بوابة شريحة 076: readAccessProof بيرجّع failed فالمدخل يختفي بدل صفحة معطوبة.
+  state.invitations = {
+    isSuccess: false,
+    isFetchedAfterMount: false,
+    isError: true,
+  } as Read & { isFetchedAfterMount?: boolean };
+  expect(conditions()['invitations-owner']).toBe(false);
+});
+
+it('asks the API about invitations only for an owner, so no other role sends a request the closed gate answers 503', () => {
+  invitationProbes.length = 0;
+  expect(conditions()['invitations-owner']).toBe(true);
+  expect(invitationProbes.at(-1)?.[2]).toBe(true);
+  const ready = state.workspace as unknown as { company: { role_code: string } };
+  state.workspace = {
+    ...ready,
+    company: { ...ready.company, role_code: 'general_manager' },
+  } as unknown as typeof state.workspace;
+  invitationProbes.length = 0;
+  expect(conditions()['invitations-owner']).toBe(false);
+  expect(invitationProbes.at(-1)?.[2]).toBe(false);
 });
 
 it('opens the alert-rules condition when either read succeeds', () => {

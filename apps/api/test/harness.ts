@@ -391,6 +391,12 @@ function optionalWiring(options: HarnessOptions) {
       ? {}
       : { commissionsClock: options.commissionsClock }),
     ...(options.files === undefined ? {} : { files: options.files }),
+    // أصل اللوحة اللي رابط الدعوة بيتبنى عليه وساعتها؛ بوابة المسارات بتتفتح من الاختبارات اللي محتاجاها بس.
+    memberInvitations: {
+      adminOrigin: ORIGIN,
+      ...(options.clock === undefined ? {} : { clock: options.clock }),
+    },
+    ...(options.staffAccessRoutes === true ? { staffAccessRoutes: true } : {}),
   };
 }
 

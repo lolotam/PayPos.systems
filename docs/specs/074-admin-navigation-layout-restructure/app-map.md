@@ -177,7 +177,7 @@ owner chose each grouping on 2026-11-21 from three options per section (`owner-q
 | Business | Working hours and order rules | 2 | Soon | every business type | Owner, General manager, Business manager |
 | Business | Payment methods and gateways | 2 | Soon | every business type | Owner, General manager, Accountant |
 | Access | Permissions | 1 | Live | every business type | By page permission |
-| Access | Invitations | — | Soon | every business type | Owner, General manager |
+| Access | Invitations | - | Live | every business type | Owner |
 | Access | Sign-in security (authenticator) | 1 | Live | every business type | Every signed-in admin user (NAV-Q1) |
 | Access | Approval limits | 2 | Soon | every business type | Owner, General manager, Business manager |
 | Access | Activity log (who did what, and when) | — | Soon | every business type | Owner, General manager |

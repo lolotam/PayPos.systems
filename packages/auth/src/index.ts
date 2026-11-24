@@ -20,6 +20,14 @@ export {
   type CreatePlatformUserInput,
 } from './create-platform-user.ts';
 export {
+  InvitationLinkRefusedError,
+  MEMBER_INVITATION_LINK_TTL_MS,
+  isStaffSyntheticEmail,
+  type EmailState,
+  type InvitedMemberOutcome,
+  type MemberInvitationAccounts,
+} from './member-invitations.ts';
+export {
   formatDeviceToken,
   hashDeviceSecret,
   newDeviceSecret,
@@ -87,3 +95,4 @@ export type {
   PrivateViewScope,
 } from './private-view.ts';
 export { deriveEmployeeCardKey } from './employee-card-key.ts';
+export { createMyPreferences, type MyPreferences } from './my-preferences.ts';

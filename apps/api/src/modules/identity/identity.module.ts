@@ -35,7 +35,8 @@ import {
 } from './http/cashier-pins.controller.ts';
 import { CompaniesController } from './http/companies.controller.ts';
 import { PendingDevicesController } from './http/pending-devices.controller.ts';
-import { MeController, WORKSPACE_NAMES } from './http/me.controller.ts';
+import { MeController, MY_PREFERENCES, WORKSPACE_NAMES } from './http/me.controller.ts';
+import { SetMyPreferences } from './use-cases/set-my-preferences/set-my-preferences.ts';
 import {
   DEVICE_USE_CASES,
   DevicesController,
@@ -52,7 +53,6 @@ import { createRedisDevicePinCap } from './persistence/redis-device-pin-cap.ts';
 import { createOnboardingTransactions } from './persistence/onboarding-transactions.ts';
 import { tenancyCompanyRegistry } from './persistence/tenancy-company-registry.adapter.ts';
 import { createWorkspaceNames } from './persistence/workspace-names.adapter.ts';
-import type { WorkspaceNames } from './queries/my-workspaces.query.ts';
 import { AuthorizeRequest } from './use-cases/authorize-request/authorize-request.ts';
 import { CheckFeature } from './use-cases/check-feature/check-feature.ts';
 import { OnboardCompany } from './use-cases/onboard-company/onboard-company.ts';
@@ -73,6 +73,8 @@ import {
 import { createStaffPinTransactions } from './persistence/staff-pin-transactions.ts';
 import { SignInStaffPin } from './use-cases/sign-in-staff-pin/sign-in-staff-pin.ts';
 import { ResetStaffPin } from './use-cases/reset-staff-pin/reset-staff-pin.ts';
+import { MemberInvitationsController } from './http/member-invitations.controller.ts';
+import { memberInvitationProviders } from './member-invitations.wiring.ts';
 import { PrivateViewController, PRIVATE_VIEW_WINDOWS } from './http/private-view.controller.ts';
 import { OpenPrivateView } from './use-cases/open-private-view/open-private-view.ts';
 import { AUTH_SERVICE } from '../../shared/session.guard.ts';
@@ -94,6 +96,7 @@ export const identityControllers = [
   PersonalOtpController,
   StaffPinController,
   PrivateViewController,
+  MemberInvitationsController,
 ];
 
 /** الربط العام يمر من composition root؛ تفاصيل القراءة والنقل تظل داخل الهوية. */
@@ -133,20 +136,18 @@ export function identityProviders(
     nativeOrigins?: readonly string[];
   },
   staffCompanyOf: (userId: string) => Promise<string | null> = unavailableStaffCompany,
+  /** أصل لوحة الإدارة اللي رابط تعيين كلمة المرور بيتبني عليه، وساعة عمر الرابط. */
+  invitations?: { readonly adminOrigin: string; readonly clock?: { now(): Date } },
 ): Provider[] {
-  const reader = database === undefined ? null : createAccessReader(database);
-  const names: WorkspaceNames | null = database === undefined ? null : createWorkspaceNames();
-  const onboard =
-    database === undefined
-      ? null
-      : new OnboardCompany(
-          createOnboardingTransactions(database, ids, staffCompanyOf),
-          tenancyCompanyRegistry,
-          ids,
-        );
-  const devices = database === undefined ? null : deviceUseCases(database, ids, redis);
+  const capabilities = identityCapabilities(database, ids, redis, staffCompanyOf);
   return [
     ...permissionProviders(database, ids, redis),
+    ...memberInvitationProviders(
+      database,
+      ids,
+      redis,
+      invitations?.adminOrigin, invitations?.clock ?? systemClock,
+    ),
     {
       provide: STAFF_AUTHENTICATION,
       useValue: database === undefined ? null : createStaffEligibility(database),
@@ -159,27 +160,70 @@ export function identityProviders(
     },
     {
       provide: STAFF_PIN_USE_CASES,
-      useValue:
-        database === undefined
-          ? null
-          : staffPinUseCases(database, ids, redis, staff?.sessions ?? null),
+      useValue: database === undefined ? null : staffPinUseCases(database, ids, redis, staff?.sessions ?? null),
     },
     ...discountApproverProviders(database, ids, redis, staff?.sessions ?? null),
     { provide: DISCOUNT_APPROVER_VERIFIER, useExisting: VERIFY_DISCOUNT_APPROVER_PIN },
     ...privateViewProviders(database, ids, redis),
-    { provide: WORKSPACE_NAMES, useValue: names },
-    { provide: OnboardCompany, useValue: onboard },
-    { provide: DEVICE_USE_CASES, useValue: devices?.useCases ?? null },
-    { provide: DEVICE_AUTHENTICATOR, useValue: devices?.authenticator ?? null },
+    ...meProviders(capabilities.names),
+    { provide: OnboardCompany, useValue: capabilities.onboard },
+    { provide: DEVICE_USE_CASES, useValue: capabilities.devices?.useCases ?? null },
+    { provide: DEVICE_AUTHENTICATOR, useValue: capabilities.devices?.authenticator ?? null },
     {
       provide: CASHIER_PIN_USE_CASES,
       useValue: database === undefined ? null : cashierPinUseCases(database, ids, redis),
     },
-    { provide: AuthorizeRequest, useValue: reader === null ? null : new AuthorizeRequest(reader) },
+    {
+      provide: AuthorizeRequest,
+      useValue: capabilities.reader === null ? null : new AuthorizeRequest(capabilities.reader),
+    },
     { provide: REQUEST_AUTHORIZER, useExisting: AuthorizeRequest },
-    { provide: CheckFeature, useValue: reader === null ? null : new CheckFeature(reader) },
+    {
+      provide: CheckFeature,
+      useValue: capabilities.reader === null ? null : new CheckFeature(capabilities.reader),
+    },
     { provide: APP_GUARD, useClass: AccessGuard },
     { provide: APP_GUARD, useClass: FeatureGuard },
+  ];
+}
+
+// القراءات والحالات الاختيارية اللي محتاجة داتابيز؛ ناقصها بيرجّع null فيتوفر المسار بـ 503.
+function identityCapabilities(
+  database: TenantWrappers | undefined,
+  ids: IdGenerator,
+  redis: Redis | undefined,
+  staffCompanyOf: (userId: string) => Promise<string | null>,
+) {
+  return {
+    reader: database === undefined ? null : createAccessReader(database),
+    names: database === undefined ? null : createWorkspaceNames(),
+    onboard:
+      database === undefined
+        ? null
+        : new OnboardCompany(
+            createOnboardingTransactions(database, ids, staffCompanyOf),
+            tenancyCompanyRegistry,
+            ids,
+          ),
+    devices: database === undefined ? null : deviceUseCases(database, ids, redis),
+  };
+}
+
+// ما يحتاجه MeController: أسماء مساحات العمل، وتفضيل الحساب اللي كله من واجهة الاعتماد نفسها بلا قاعدة بيانات ولا صلاحيات شركة.
+function meProviders(names: ReturnType<typeof createWorkspaceNames> | null): Provider[] {
+  return [
+    { provide: WORKSPACE_NAMES, useValue: names },
+    {
+      provide: MY_PREFERENCES,
+      useFactory: (auth: AuthService | null) => auth?.preferences ?? null,
+      inject: [AUTH_SERVICE],
+    },
+    {
+      provide: SetMyPreferences,
+      useFactory: (auth: AuthService | null) =>
+        auth === null ? null : new SetMyPreferences(auth.preferences),
+      inject: [AUTH_SERVICE],
+    },
   ];
 }
 

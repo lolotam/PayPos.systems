@@ -15,7 +15,7 @@ This answer is recorded as PP-240 in `docs/owner-decisions.ar.md`.
 
 After 7b every Admin page is drawn inside one of three frames. The default is C (rail and panel). The user picks A, B or C on the Appearance page or in the account menu, and the frame changes at once without a reload and without changing the address. A reload draws the chosen style first, with no other style shown before it. The menu names the whole Management area: built pages open, not-built entries carry the «Soon» mark and open an Under development page. Home gains a working Approvals inbox. The Authenticator page is drawn inside the frame. The theme switch leaves the sidebar footer and lives on Appearance and in the account menu (ADR-0059 addendum, NAV-Q5).
 
-Until step 12 the choice is kept on the device for the signed-in session only: sign-out clears it and every sign-in clears it, so a user starts on C after each sign-in (NAV-Q12 accepted that saving on the account follows).
+Until step 12 the choice is kept on the device for the signed-in session only: sign-out clears it and every sign-in clears it, so a user starts on C after each sign-in (NAV-Q12 accepted that saving on the account follows). Step 12 has since shipped (`feat/074-12-account-nav-style`): a choice saves to the account, and each sign-in starts on the saved style, clearing the cookie when the account has none or cannot be read within 2 seconds.
 
 ## In scope
 

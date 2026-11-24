@@ -88,6 +88,7 @@ import { READINESS_CHECKS, singleFlight } from './shared/readiness.ts';
 import type { RateLimiter } from './shared/ports/rate-limiter.port.ts';
 import { PERSONAL_AUTHENTICATION } from './shared/personal-authentication.ts';
 import { AUTH_SERVICE, SessionGuard } from './shared/session.guard.ts';
+import { mountMemberInvitationGate } from './shared/staff-access-routes.ts';
 
 /** نطاق القارئ الفعّال من identity بشكل مزوّد التقدير والكشف: الرفض الموحّد والميزة المقفولة سببان منفصلان. */
 async function commissionReaderScope(
@@ -188,6 +189,7 @@ class AppModule {
           deps.redis,
           deps.staff,
           deps.auth?.service.staffUsers.staffCompanyOf,
+          deps.memberInvitations,
         ),
         {
           provide: RATE_LIMITER,
@@ -246,8 +248,9 @@ export async function createApp(
   const limiter = deps.redis === undefined ? null : createRedisRateLimiter(deps.redis);
   const adapter = buildAdapter(logger, deps.ids ?? systemUuidV7(), deps.trustedProxy ?? []);
   mountWhatsappSecurity(adapter, deps.whatsapp, deps.redis);
-  mountResendSecurity(adapter, deps.resend, deps.redis);
   mountStaffAccessGate(adapter.getInstance(), deps.staffAccessRoutes === true);
+  mountResendSecurity(adapter, deps.resend, deps.redis);
+  mountMemberInvitationGate(adapter.getInstance(), deps.staffAccessRoutes === true);
   adapter.getInstance().addHook('onRoute', (route) => {
     if (/^\/v1\/devices\/me\/staff-(otp\/(request|verify)|pin\/sign-in)$/.test(route.url))
       route.bodyLimit = 1024;

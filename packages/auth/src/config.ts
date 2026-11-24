@@ -1,6 +1,7 @@
 import { assembleAuthService } from './auth-service.ts';
 import { toLogEntry } from './auth-session-primitives.ts';
 import { staffCredentialAdapter } from './staff-credential-adapter.ts';
+import { type MyPreferences } from './my-preferences.ts';
 
 import { drizzleAdapter } from '@better-auth/drizzle-adapter';
 import { createAuthDatabase } from '@pospay/db';
@@ -17,6 +18,11 @@ import {
   staffUserD8Hooks,
   type StaffUserAccess,
 } from './staff-access-users.ts';
+import { passwordResetPlugin } from './password-reset.ts';
+import {
+  createMemberInvitationAccounts,
+  type MemberInvitationAccounts,
+} from './member-invitations.ts';
 
 /**
  * ما يحتاجه Better Auth: الـ pool على pospay_auth، السر، العنوان، الـ origins المسموحة، ومولّد الـ ids.
@@ -25,6 +31,16 @@ export interface AuthOptions {
   readonly staffPhoneLockKey: (hash: Uint8Array) => bigint;
   readonly clock?: { now(): Date };
   readonly entropy?: { bytes(n: number): Uint8Array } | undefined;
+  /**
+   * مُجزّئ كلمات المرور — بيتحقن في الاختبارات بس عشان نوقف الـ hash عند حاجز حقيقي؛ غيابه
+   * معناه مُجزّئ Better Auth الأصلي، وكل composition root بيسيبه فاضي.
+   */
+  readonly passwordHasher?:
+    | {
+        hash(password: string): Promise<string>;
+        verify(input: { hash: string; password: string }): Promise<boolean>;
+      }
+    | undefined;
   /** القارئ من staff عبر composition root؛ غيابه يقفل خيارات التسجيل فقط. */
   readonly passkeyBindings?: ActivePasskeyBindings | undefined;
   /** AUTH_DATABASE_URL — pospay_auth; the pool is opened here and never leaves this package. */
@@ -77,10 +93,13 @@ export interface VerifiedSession {
  * Better Auth نفسه بيفضل جوه الـ package دي — مفيش package تاني بيشوف أنواعه.
  */
 export interface AuthService {
+  readonly preferences: MyPreferences;
   readonly staff: StaffSessions;
   readonly personal: PersonalSessions;
   readonly passkeys: PasskeyFacade;
   readonly privateView: PrivateViewFacade;
+  /** جداول الهوية لعملية دعوة عضو (G1): بصمة الإيميل وحاله وإنشاء الحساب وإصدار الرابط. */
+  readonly members: MemberInvitationAccounts;
   /** حساب الموظفة: الإنشاء والإيجاد والإلغاء بمعرّف العملية — ومفيهوش أي مسار credential (spec 076 F1). */
   readonly staffUsers: StaffUserAccess;
   /** بيرد على /v1/auth/* (sign-in، sign-out، الـ TOTP…). */
@@ -136,8 +155,22 @@ export async function createAuth(options: AuthOptions): Promise<AuthService> {
     throw error;
   }
   const auth = buildBetterAuth(options, database, staffUsers, cookieNames);
-  const service = assembleAuthService(options, database, staffUsers, auth, cookieNames);
-  return service;
+  const members = await configuredMembers(options, database, auth);
+  return assembleAuthService(options, database, staffUsers, members, auth, cookieNames);
+}
+
+/** حدود الدعوة على قاعدة الهوية — تركيبها هنا عشان createAuth يفضل خطوات تركيب بس. */
+async function configuredMembers(
+  options: AuthOptions,
+  database: ReturnType<typeof createAuthDatabase>,
+  auth: ReturnType<typeof buildBetterAuth>,
+): Promise<MemberInvitationAccounts> {
+  return createMemberInvitationAccounts({
+    database,
+    ids: options.ids,
+    secret: options.secret,
+    baseUrl: (await auth.$context).baseURL,
+  });
 }
 
 const STAFF_SESSION_FIELDS = {
@@ -150,7 +183,11 @@ const STAFF_SESSION_FIELDS = {
   activeCompanyId: { type: 'string', required: false, input: false },
 } as const;
 type StaffAuthConfiguration = BetterAuthOptions & {
-  plugins: [ReturnType<typeof twoFactor>, ReturnType<typeof registrationPlugin>];
+  plugins: [
+    ReturnType<typeof twoFactor>,
+    ReturnType<typeof registrationPlugin>,
+    ReturnType<typeof passwordResetPlugin>,
+  ];
   session: { additionalFields: typeof STAFF_SESSION_FIELDS };
 };
 
@@ -171,11 +208,22 @@ export function buildBetterAuth(
       staffUsers,
     ),
     // Sign-up is closed (ADR-0003 §6): users are provisioned server-side by the operator script.
-    emailAndPassword: { enabled: true, disableSignUp: true },
+    emailAndPassword: {
+      enabled: true,
+      disableSignUp: true,
+      ...(options.passwordHasher === undefined ? {} : { password: options.passwordHasher }),
+    },
     session: { additionalFields: STAFF_SESSION_FIELDS },
     plugins: [
       twoFactor({ issuer: 'PosPay' }),
       registrationPlugin(passkeyPolicy(options.baseURL, options.trustedOrigins)),
+      passwordResetPlugin({
+        database,
+        ids: options.ids,
+        clock: options.clock,
+        // نفس مستقبل الـ logs المنقّى: خطأ Drizzle بيتحول لتصنيف ثابت قبل ما يوصل لأي log (A8).
+        onLog: (entry) => options.onLog({ ...entry, errorNames: [] }),
+      }),
     ],
     databaseHooks: staffUserD8Hooks(staffUsers),
     advanced: {
