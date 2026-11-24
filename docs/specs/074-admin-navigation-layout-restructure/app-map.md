@@ -126,7 +126,7 @@ owner chose each grouping on 2026-11-21 from three options per section (`owner-q
 | Employees | Attendance cards | 1 | Soon | every business type | Owner, General manager, Business manager, Branch manager |
 | Employees | Phones | 1 | Soon | every business type | Owner, General manager, Business manager, Branch manager |
 | Schedules | Weekly schedules | 1 | Live | every business type | Owner, General manager, Business manager, Branch manager |
-| Schedules | Schedule settings | 1 | Live (a block of Weekly schedules until it gets its own page) | every business type | Owner |
+| Schedules | Schedule settings | 1 | Live | every business type | Owner |
 | Attendance | Board | 1 | Live | every business type | Owner, General manager, Accountant, Business manager, Branch manager |
 | Attendance | Requests | 1 | Live | every business type | Owner, General manager, Business manager, Branch manager |
 | Attendance | Exceptions | 1 | Live | every business type | Owner, General manager, Accountant, Business manager, Branch manager |
