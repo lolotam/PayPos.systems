@@ -21,7 +21,8 @@ The next-clock-in behavior belongs to attendance PR 22, not this editing slice.
 1. من القائمة الجانبية دوس **الموظفون** ← `/staff`. الجدول فيه **الاسم** و**الدور** و**الفرع الأساسي** و**تعديل**.
    لو الصفحة فاضية: **لا يوجد موظفون في هذه الصفحة.**؛ لو محتاج موظف للتجربة دوس **إضافة موظف**.
    للقوائم الطويلة استخدم **الصفحة التالية** و**الصفحة الأولى**؛ اللي يظهر لازم يكون داخل صلاحياتك بس.
-2. دوس **تعديل** على الموظف ← لوحة **تعديل الموظف**. راجع **الاسم بالإنجليزية**، **الاسم بالعربية (اختياري)**،
+2. دوس **تعديل** على الموظف ← صفحة الموظف الخاصة به `/staff/<id>` بعنوان **تعديل الموظف**، فيها رابط **العودة إلى الموظفين**
+   وخمس تبويبات: **البيانات** (النموذج وقسم دخول الموظف) و**الراتب** و**الدوام والبطاقة** و**الوثائق** و**الإجازات**؛ ولو كتبت `?tab=` غير معروفة تفتح **البيانات**. راجع **الاسم بالإنجليزية**، **الاسم بالعربية (اختياري)**،
    **الدور**، **الفرع الأساسي**، **تاريخ التعيين**، **نهاية العقد (اختياري)** و**معرف مستخدم موجود (اختياري)**.
    تحتهم **فروع العمل** بخانات اختيار الفروع و**تاريخ تغيير الفروع (ميلادي)**.
 3. غيّر الاسم، واكتب تاريخ ميلادي صالح في **تاريخ تغيير الفروع (ميلادي)** حتى لو الفروع نفسها مش هتتغير ←
@@ -39,11 +40,11 @@ The next-clock-in behavior belongs to attendance PR 22, not this editing slice.
    (`EMPLOYEE_PRIMARY_BRANCH_REQUIRED`، 400). إنهاء ارتباط في يوم بدايته أو قبله ←
    **يجب أن ينتهي ارتباط الفرع بعد تاريخ بدايته.** (`EMPLOYEE_BRANCH_DATE_BEFORE_START`، 400).
    بيانات ناقصة أو تاريخ غير صالح على النموذج ← **راجع بيانات الموظف والتواريخ ومعرف المستخدم.**؛ مفيش حفظ جزئي.
-7. افتح نفس الموظف في لوحة التعديل في تابين قبل أي حفظ. غيّر الاسم واملأ تاريخ تغيير الفروع واحفظ في التاب الأول؛ في التاب التاني غيّر الاسم
+7. افتح نفس الموظف في صفحة التعديل في تابين قبل أي حفظ. غيّر الاسم واملأ تاريخ تغيير الفروع واحفظ في التاب الأول؛ في التاب التاني غيّر الاسم
    لقيمة مختلفة، واملأ تاريخ تغيير الفروع، واحفظ من غير إعادة تحميل ←
    **عدّل مدير آخر هذا الموظف. أعد تحميل أحدث سجل قبل الحفظ.** (`EMPLOYEE_REVISION_CONFLICT`، 409).
    تعديل التاب الأول يفضل محفوظ. دوس **إعادة تحميل الموظف** في التاب التاني، راجع أحدث بيانات، واكتب التعديل والتاريخ من جديد
-   ← **حفظ التعديلات**. **العودة إلى الموظفين** بتقفل لوحة التعديل.
+   ← **حفظ التعديلات**. **العودة إلى الموظفين** بترجعك لقائمة الموظفين. تغيير التبويب قبل الحفظ بيمسح التعديلات اللي ما اتحفظتش.
 8. **فحوصات من الـ API بس:** ابعت فرع مجهول أو فرع من نشاط تاني أو شركة تانية في الفرع الأساسي أو مجموعة الفروع ←
    نفس 404 **لم يتم العثور على الفرع الرئيسي.** (`EMPLOYEE_BRANCH_NOT_FOUND`)، بنفس الـ envelope ومن غير تفاصيل تكشف الفرع.
    موظف مجهول أو خارج نطاق قراءة المصدر ← **المسار غير موجود** (`NOT_FOUND`، 404).
@@ -67,7 +68,9 @@ The next-clock-in behavior belongs to attendance PR 22, not this editing slice.
 1. Sidebar **Employees** → `/staff`. The table has **Name**, **Role**, **Primary branch** and **Edit**.
    Empty page: "No employees on this page."; use **Create employee** if a fixture is needed.
    For longer lists, use **Next page** and **First page**; only employees within your access may appear.
-2. Press **Edit** → the **Edit employee** panel. Review **English name**, **Arabic name (optional)**, **Role**,
+2. Press **Edit** → the employee's own page `/staff/<id>` titled **Edit employee**, with a **Back to employees** link and
+   five tabs: **Details** (the form and the staff-access section), **Pay**, **Hours and card**, **Documents** and **Leave**;
+   an unknown `?tab=` opens **Details**. Review **English name**, **Arabic name (optional)**, **Role**,
    **Primary branch**, **Hire date**, **Contract end (optional)** and **Existing user ID (optional)**.
    Below them are **Working branches** checkboxes and **Branch change date (Gregorian)**.
 3. Change the name and enter a valid Gregorian **Branch change date (Gregorian)** even when leaving branches unchanged
@@ -88,11 +91,11 @@ The next-clock-in behavior belongs to attendance PR 22, not this editing slice.
    Ending an attachment on/before its start → "A branch attachment must end after it starts."
    (`EMPLOYEE_BRANCH_DATE_BEFORE_START`, 400). Missing input or an invalid date shows
    "Check the employee details, dates and user ID." on the form; there is no partial save.
-7. Open the same employee's edit panel in two tabs before saving either. Change the name, enter the branch change date and save in the first.
+7. Open the same employee's edit page in two browser tabs before saving either. Change the name, enter the branch change date and save in the first.
    In the second, enter a different name and the branch change date, then save without reloading →
    "Another manager changed this employee. Reload the latest record before saving." (`EMPLOYEE_REVISION_CONFLICT`, 409).
    The first tab's change remains saved. Press **Reload employee** in the second, review the latest record, enter the
-   intended edit/date again → **Save changes**. **Back to employees** closes the panel.
+   intended edit/date again → **Save changes**. **Back to employees** returns to the list. Switching page tab before saving discards unsaved edits.
 8. **API-only checks:** an unknown, other-business or other-company primary/additional branch → exactly the same
    404 "The primary branch was not found." (`EMPLOYEE_BRANCH_NOT_FOUND`), with an identical envelope and no revealing details.
    An unknown employee or one outside readable source scope → "Not found" (`NOT_FOUND`, 404).

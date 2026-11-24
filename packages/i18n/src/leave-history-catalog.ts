@@ -1,6 +1,9 @@
 // كتالوج تبويب الإجازات في ملف الموظف وسجل الإجازات والغياب.
 export const leaveHistoryEn = {
   tabData: 'Details',
+  tabPay: 'Pay',
+  tabHours: 'Hours and card',
+  tabDocuments: 'Documents',
   tabLeave: 'Leave',
   tabsLabel: 'Employee file sections',
   openTitle: 'Upcoming and pending requests',
@@ -28,6 +31,9 @@ export const leaveHistoryEn = {
 };
 export const leaveHistoryAr: Record<keyof typeof leaveHistoryEn, string> = {
   tabData: 'البيانات',
+  tabPay: 'الراتب',
+  tabHours: 'الدوام والبطاقة',
+  tabDocuments: 'الوثائق',
   tabLeave: 'الإجازات',
   tabsLabel: 'أقسام ملف الموظف',
   openTitle: 'طلبات جاية ومستنية',

@@ -9,13 +9,9 @@ import { EmployeeTableRow } from './employee-table-row';
 export function EmployeeTable({
   items,
   branches,
-  selectedId,
-  onSelect,
 }: {
   items: readonly EmployeeListItem[];
   branches: readonly WorkspaceBranch[];
-  selectedId: string;
-  onSelect: (id: string) => void;
 }) {
   'use no memo';
   const locale = useLocale();
@@ -58,8 +54,6 @@ export function EmployeeTable({
             key={original.id}
             item={original}
             branch={branches.find((branch) => branch.id === original.primary_branch_id)}
-            selected={selectedId === original.id}
-            onSelect={onSelect}
           />
         ))}
       </tbody>

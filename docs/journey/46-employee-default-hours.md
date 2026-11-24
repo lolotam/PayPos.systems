@@ -1,5 +1,7 @@
 # 46 · Default working hours per employee — الدوام الافتراضي للموظفة
 
+> **Since 074-10b / منذ 074-10b:** **Edit** opens the employee's own page `/staff/<id>`; the default working hours section is on its **Hours and card** tab. / **تعديل** بيفتح صفحة الموظف `/staff/<id>`؛ قسم الدوام الافتراضي في تبويب **الدوام والبطاقة**.
+
 **Status / الحالة:** shipped in #154 (PR 16d, merged). The API is live on staging (api + worker at commit `6c220e4`,
 2026-10-11); the admin and POS apps are **not** deployed yet (issue #54), so the screens run locally only. Your decisions
 DH-Q1 to DH-Q7 of 2026-10-10 apply, and rules a and b were confirmed on 2026-10-11
