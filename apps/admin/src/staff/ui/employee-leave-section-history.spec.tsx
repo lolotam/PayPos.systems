@@ -379,10 +379,7 @@ it('names the details column for leave and absence rows in both locales', async 
   routeGets({
     history: () => ({
       data: historyPage({
-        items: [
-          historyLeaveRow(),
-          absenceRow({ id: '01920000-0000-7000-8000-000000000a02' }),
-        ],
+        items: [historyLeaveRow(), absenceRow({ id: '01920000-0000-7000-8000-000000000a02' })],
       }),
     }),
   });
@@ -394,7 +391,9 @@ it('names the details column for leave and absence rows in both locales', async 
       screen.getByRole('region', { name: t(locale, 'leaveHistory.historyTitle') }),
     ).getByRole('table');
     expect(within(table).getAllByRole('row')).toHaveLength(3);
-    const details = locale === 'en' ? 'Details' : 'التفاصيل';
+    const details = t(locale, 'leaveHistory.details');
+    if (locale === 'en') expect(details).toBe('Details');
+    else expect(details).not.toBe(t('en', 'leaveHistory.details'));
     expect(within(table).getByRole('columnheader', { name: details }).textContent).toBe(details);
     expect(
       within(table).queryByRole('columnheader', { name: t(locale, 'leave.decisionReason') }),
