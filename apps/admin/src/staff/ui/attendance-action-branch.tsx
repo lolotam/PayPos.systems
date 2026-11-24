@@ -3,6 +3,7 @@ import type { WorkspaceBranch } from '@pospay/contracts';
 import { t } from '@pospay/i18n';
 import { Label, NativeSelect } from '@pospay/ui';
 import { useLocale } from '@/shared/locale/locale-context';
+import { FilterField } from '@/shared/ui/filter-row';
 export function AttendanceActionBranch({
   branches,
   branchId,
@@ -16,7 +17,7 @@ export function AttendanceActionBranch({
 }) {
   const locale = useLocale();
   return (
-    <div className="grid gap-1">
+    <FilterField>
       <Label htmlFor="attendance-action-branch">{t(locale, 'attendanceBoard.branch')}</Label>
       <NativeSelect
         id="attendance-action-branch"
@@ -32,6 +33,6 @@ export function AttendanceActionBranch({
           </option>
         ))}
       </NativeSelect>
-    </div>
+    </FilterField>
   );
 }

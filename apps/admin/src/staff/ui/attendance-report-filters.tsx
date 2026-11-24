@@ -3,6 +3,7 @@ import { attendanceMonthlyReportQuery, type WorkspaceBranch } from '@pospay/cont
 import { t } from '@pospay/i18n';
 import { Input, Label, NativeSelect } from '@pospay/ui';
 import { useLocale } from '@/shared/locale/locale-context';
+import { FilterField, FilterRow } from '@/shared/ui/filter-row';
 
 export function AttendanceReportFilters({
   branches,
@@ -21,8 +22,8 @@ export function AttendanceReportFilters({
 }) {
   const locale = useLocale();
   return (
-    <div className="flex flex-wrap items-end gap-3">
-      <div className="grid gap-1">
+    <FilterRow>
+      <FilterField>
         <Label htmlFor="report-month">{t(locale, 'attendanceReport.month')}</Label>
         <Input
           id="report-month"
@@ -33,8 +34,8 @@ export function AttendanceReportFilters({
             if (attendanceMonthlyReportQuery.safeParse({ month: next }).success) onMonth(next);
           }}
         />
-      </div>
-      <div className="grid gap-1">
+      </FilterField>
+      <FilterField>
         <Label htmlFor="report-branch">{t(locale, 'attendanceReport.branch')}</Label>
         <NativeSelect
           id="report-branch"
@@ -50,7 +51,7 @@ export function AttendanceReportFilters({
             </option>
           ))}
         </NativeSelect>
-      </div>
-    </div>
+      </FilterField>
+    </FilterRow>
   );
 }
