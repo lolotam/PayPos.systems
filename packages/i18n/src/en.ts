@@ -322,7 +322,7 @@ export const en = {
     contractEnd: 'Contract end (optional)',
     userId: 'Existing user ID (optional)',
     create: 'Create employee',
-    created: 'Employee created:',
+    created: 'Employee saved:',
     invalid: 'Check the employee details, dates and user ID.',
     sectionIdentity: 'Employee details',
     sectionEmployment: 'Employment',
