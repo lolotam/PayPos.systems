@@ -89,13 +89,13 @@ it('an unknown phone reserves its pinCounterKey target and is refused', async ()
   expect(f.hasher.verify).toHaveBeenCalledWith(input.pin, null);
 });
 
-it('a bound user without a PIN reserves the same user counter and uses the dummy hash', async () => {
+it('a bound user without a PIN reserves the per-phone counter and uses the dummy hash', async () => {
   const f = fixture();
   f.find.mockResolvedValue(null);
   await expect(f.useCase.execute(input)).resolves.toEqual({ kind: 'refused' });
   expect(f.attempts.reserve).toHaveBeenCalledWith({
     companyId: input.device.companyId,
-    employeeId: 'staff-user:user-1',
+    employeeId: `counter:${input.phone}`,
   });
   expect(f.hasher.verify).toHaveBeenCalledWith(input.pin, null);
 });

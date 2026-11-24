@@ -70,7 +70,9 @@ export class VerifyDiscountApproverPin {
     const target = {
       companyId: input.device.companyId,
       employeeId:
-        userId === null ? this.sessions.pinCounterKey(input.phone) : `staff-user:${userId}`,
+        row === null
+          ? this.sessions.pinCounterKey(input.phone)
+          : `staff-user:${userId}`,
     };
     const reserved = await this.attempts.reserve(target);
     if (reserved.kind !== 'ok') {
