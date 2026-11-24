@@ -77,6 +77,16 @@ export function captureServerFaults(): void {
   };
 }
 
+/**
+ * يسجل خطأً ابتلعه المتحكم قبل أن يصل مرشح الاستثناءات (مثل تحويل فشل تسجيل الدخول بالرقم السري
+ * إلى NOT_READY) بنفس الشكل الآمن، ليظهر سببه الحقيقي في فشل متقطع.
+ */
+export function recordSwallowedFault(error: unknown, status: number): void {
+  const fault = describe(error, status);
+  faults.push(fault);
+  console.error('SERVER_FAULT_SWALLOWED', JSON.stringify(fault));
+}
+
 /** كل أخطاء 5xx الملتقطة منذ بداية العملية — للاختبارات التي تؤكد غيابها. */
 export function serverFaults(): readonly ServerFault[] {
   return faults;

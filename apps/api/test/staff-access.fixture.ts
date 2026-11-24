@@ -8,7 +8,11 @@ import {
 import { CancelPendingStaffAccessUseCase } from '../src/modules/staff/use-cases/cancel-pending-staff-access/cancel-pending-staff-access.ts';
 import { GrantEmployeeAccessUseCase } from '../src/modules/staff/use-cases/grant-employee-access/grant-employee-access.ts';
 import { startHarness, type Harness } from './harness.ts';
-import { captureServerFaults } from './server-faults.ts';
+import { captureServerFaults, recordSwallowedFault } from './server-faults.ts';
+import {
+  STAFF_PIN_USE_CASES,
+  type StaffPinUseCases,
+} from '../src/modules/identity/http/staff-pin.controller.ts';
 
 const ids = systemUuidV7();
 const logLines: string[] = [];
@@ -56,6 +60,7 @@ export async function staffAccessFixture(
   captureServerFaults();
   const h = await startHarness({ ...options, logs: sink });
   if (options.staffAccessRoutes) observeGrantFailures(h);
+  if (options.staffOrigin !== undefined) observeSwallowedPinFailures(h);
   const onboardOrThrow = async (cookie: string, name: string) => {
     const res = await h.send('POST', '/v1/companies', {
       cookie,
@@ -185,6 +190,20 @@ export const auditRows = async (f: Fixture, employeeId: string) =>
 export const staffUsersOf = async (f: Fixture) =>
   f.h.owner`SELECT id, email, staff_access_operation_id, staff_access_company_id, phone_number,
     phone_binding_approved_at FROM "user" WHERE staff_access_company_id = ${f.company}`;
+
+/** تسجيل الدخول بالرقم السري يبتلع سبب فشله ويرد 503؛ نلتقط السبب هنا للتشخيص فقط. */
+function observeSwallowedPinFailures(h: Harness): void {
+  const pins = h.app.get<StaffPinUseCases>(STAFF_PIN_USE_CASES);
+  const execute = pins.signIn.execute.bind(pins.signIn);
+  pins.signIn.execute = async (input) => {
+    try {
+      return await execute(input);
+    } catch (error) {
+      recordSwallowedFault(error, 503);
+      throw error;
+    }
+  };
+}
 
 function observeGrantFailures(h: Harness): void {
   const useCase = h.app.get(GrantEmployeeAccessUseCase);
