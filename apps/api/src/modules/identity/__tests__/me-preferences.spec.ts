@@ -57,8 +57,9 @@ it('PREF-05: no session is 401 on both routes', async () => {
   }
 });
 it('PREF-06: a real isolated staff-purpose cookie alone is 401 on both routes', async () => {
-  const device = await h.device(x.userId);
-  const issued = await h.auth.staff.issue(x.userId, device, async () => true);
+  const { companyId, businessId, branchId, deviceId } = await h.device(x.userId);
+  const issued = await h.auth.staff.issue(x.userId, { companyId, businessId, branchId, deviceId },
+    async () => true);
   for (const method of ['GET', 'PUT'] as const) {
     const response = await h.app.inject({ method, url: path, headers: { cookie: issued.cookie.split(';')[0] ?? '' },
       ...(method === 'PUT' ? { payload: { navStyle: 'B' } } : {}) });
