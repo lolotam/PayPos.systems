@@ -2,7 +2,7 @@ import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { beforeEach, expect, it, vi } from 'vitest';
 
 import { LocaleProvider } from '@/shared/locale/locale-context';
-import { announceIdentityChange } from '@/shared/browser/load-page';
+import { stopNavStyleSaving } from '@/shared/nav-style/nav-style-stop';
 
 import { NavStyleProvider } from './nav-style-context';
 import { NavStyleSaveProbe } from './nav-style-save-probe.fixture';
@@ -55,7 +55,7 @@ it.each(['same tab', 'broadcast'])('drops X waiting saves when Y signs in throug
   fireEvent.click(screen.getByText('Choose A'));
   fireEvent.click(screen.getByText('Choose B'));
   act(() => {
-    if (channel === 'same tab') announceIdentityChange();
+    if (channel === 'same tab') stopNavStyleSaving();
     else globalThis.dispatchEvent(new StorageEvent('storage', { key: 'pospay:identity-change', newValue: 'another-tab:1' }));
   });
   await act(async () => { complete?.(success); });
@@ -63,4 +63,19 @@ it.each(['same tab', 'broadcast'])('drops X waiting saves when Y signs in throug
   expect(screen.getByText('Frame C')).toBeTruthy();
   expect(api.put).toHaveBeenCalledTimes(1);
   expect(api.put.mock.calls[0]?.[1].signal.aborted).toBe(true);
+});
+it('does not send the waiting choice and shows no alert when the announcement lands during the flight', async () => {
+  let complete: ((value: unknown) => void) | undefined;
+  api.put.mockImplementationOnce(() => new Promise((resolve) => { complete = resolve; }));
+  renderProbe();
+  fireEvent.click(screen.getByText('Choose A'));
+  fireEvent.click(screen.getByText('Choose B'));
+  act(() => {
+    globalThis.dispatchEvent(new StorageEvent('storage', { key: 'pospay:identity-change', newValue: 'another-tab:1' }));
+  });
+  await act(async () => { complete?.(success); });
+  expect(api.put).toHaveBeenCalledTimes(1);
+  expect(api.put.mock.calls[0]?.[1].body.navStyle).toBe('A');
+  expect(screen.queryByRole('alert')).toBeNull();
+  expect(screen.queryByText(/not saved to your account/)).toBeNull();
 });

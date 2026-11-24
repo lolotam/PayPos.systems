@@ -1,6 +1,5 @@
 const identityChannel = 'pospay:identity-change';
 const sourceId = globalThis.crypto.randomUUID();
-const localListeners = new Set<() => void>();
 
 function openIdentityChannel(): BroadcastChannel | undefined {
   if (typeof globalThis.BroadcastChannel !== 'function') return undefined;
@@ -41,9 +40,7 @@ export function listenForIdentityChanges(onChange: () => void): () => void {
   };
   const stopStorage = listenForStorageChanges(once);
   const stopChannel = listenForChannel(once);
-  localListeners.add(once);
   return () => {
-    localListeners.delete(once);
     stopStorage();
     stopChannel();
   };
@@ -70,7 +67,6 @@ function listenForChannel(onChange: () => void): () => void {
 
 // تغيير الهوية يمس كل تبويب؛ الرسالة لا تحمل أي بيانات مستخدم أو جلسة.
 export function announceIdentityChange(): void {
-  for (const listener of [...localListeners]) listener();
   announceToStorage();
   const channel = openIdentityChannel();
   try {
