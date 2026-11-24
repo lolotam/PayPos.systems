@@ -280,6 +280,44 @@ describe('a database failure in the reset path never leaks secrets', () => {
   });
 });
 
+describe('the reset endpoint keeps Better Auth request validation', () => {
+  it('a body token of the wrong type is a 400 validation error and the password is unchanged', async () => {
+    const { userId } = await createOrdinaryUser('typed-token@example.test');
+    const before = await storedHash(userId);
+    const link = tokenOf(await auth.issuePasswordSetLink(userId, `${ORIGIN}/set-password`));
+    // توكن رقمي في الـ body ومعاه توكن صالح في الـ query: 400 VALIDATION_ERROR زي Better Auth الأصلي.
+    const wrongType = await auth.handler(
+      new Request(`${BASE}/v1/auth/reset-password?token=${encodeURIComponent(link)}`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', origin: ORIGIN },
+        body: JSON.stringify({ token: 12345, newPassword: 'wrong-type-pass' }),
+      }),
+    );
+    expect(wrongType.status).toBe(400);
+    expect(await wrongType.json()).toMatchObject({ code: 'VALIDATION_ERROR' });
+    expect(await storedHash(userId)).toBe(before);
+    expect(await liveTokens(userId)).toContain(link);
+    // التوكن الصالح في الـ body لسه بيشتغل بعد الرفض.
+    expect((await consume(link, 'typed-token-pass')).status).toBe(200);
+  });
+
+  it('a valid token in the query alone still works', async () => {
+    const { userId, email } = await createOrdinaryUser('query-token@example.test');
+    const link = tokenOf(await auth.issuePasswordSetLink(userId, `${ORIGIN}/set-password`));
+    const done = await auth.handler(
+      new Request(`${BASE}/v1/auth/reset-password?token=${encodeURIComponent(link)}`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', origin: ORIGIN },
+        body: JSON.stringify({ newPassword: 'query-only-pass' }),
+      }),
+    );
+    expect(done.status).toBe(200);
+    expect(
+      (await post('/sign-in/email', { email, password: 'query-only-pass' })).status,
+    ).toBe(200);
+  });
+});
+
 describe('the reset keeps Better Auth behaviour for the link holder', () => {
   it('sets the password so the user signs in with it, once only', async () => {
     const { userId, email } = await createOrdinaryUser('signin@example.test');

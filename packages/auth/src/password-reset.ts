@@ -1,13 +1,25 @@
 import type { AuthDatabase } from '@pospay/db';
 import { APIError, createAuthEndpoint } from 'better-auth/api';
+import { z } from 'zod';
 
 /** الأخطاء بنفس الكود والرسالة اللي Better Auth بيرجّعها، فالـ admin بيفرّق رابط ميت بـ INVALID_TOKEN زي الأول. */
 const INVALID_TOKEN = { code: 'INVALID_TOKEN', message: 'Invalid token' } as const;
 const PASSWORD_TOO_SHORT = { code: 'PASSWORD_TOO_SHORT', message: 'Password too short' } as const;
 const PASSWORD_TOO_LONG = { code: 'PASSWORD_TOO_LONG', message: 'Password too long' } as const;
-const VALIDATION_ERROR = { code: 'VALIDATION_ERROR', message: 'Invalid body' } as const;
 /** فشل قاعدة بيانات في مسار الـ reset: إجابة ثابتة بدون أي تفصيلة من الخطأ الأصلي. */
 const RESET_FAILED = { code: 'INTERNAL_SERVER_ERROR', message: 'Internal Server Error' } as const;
+
+/**
+ * نفس schema مسار Better Auth الأصلي 1.7.5: توكن في الـ body أو الـ query، وكلمة مرور —
+ * التوكن بنوع غلط أو body ناقص بيرجّع 400 VALIDATION_ERROR من الـ router قبل الهاندلر.
+ */
+const resetPasswordSchema = {
+  query: z.object({ token: z.string().optional() }).optional(),
+  body: z.object({
+    newPassword: z.string(),
+    token: z.string().optional(),
+  }),
+} as const;
 
 /** رابط تعيين كلمة المرور بيتخزن في verification بنفس الشكل اللي Better Auth بيقراه: `reset-password:<token>`. */
 const identifierOf = (token: string): string => `reset-password:${token}`;
@@ -65,21 +77,15 @@ export function passwordResetPlugin(options: {
   return {
     id: 'pospay-password-reset',
     endpoints: {
-      resetPassword: createAuthEndpoint('/reset-password', { method: 'POST' }, async (ctx) => {
-        const body = (ctx.body ?? {}) as { token?: unknown; newPassword?: unknown };
-        const queryToken = (ctx.query as { token?: unknown } | undefined)?.token;
-        const token = [body.token, queryToken].find(
-          (value): value is string => typeof value === 'string' && value !== '',
-        );
-        if (token === undefined) throw APIError.from('BAD_REQUEST', INVALID_TOKEN);
-        if (typeof body.newPassword !== 'string') {
-          throw APIError.from('BAD_REQUEST', VALIDATION_ERROR);
-        }
+      resetPassword: createAuthEndpoint('/reset-password', { method: 'POST', ...resetPasswordSchema }, async (ctx) => {
+        // نفس أولوية Better Auth الأصلي: توكن الـ body الأول، والـ query بديل.
+        const token = ctx.body.token || ctx.query?.token;
+        if (token === undefined || token === '') throw APIError.from('BAD_REQUEST', INVALID_TOKEN);
         const { minPasswordLength, maxPasswordLength } = ctx.context.password.config;
-        if (body.newPassword.length < minPasswordLength) {
+        if (ctx.body.newPassword.length < minPasswordLength) {
           throw APIError.from('BAD_REQUEST', PASSWORD_TOO_SHORT);
         }
-        if (body.newPassword.length > maxPasswordLength) {
+        if (ctx.body.newPassword.length > maxPasswordLength) {
           throw APIError.from('BAD_REQUEST', PASSWORD_TOO_LONG);
         }
         const identifier = identifierOf(token);
@@ -88,7 +94,7 @@ export function passwordResetPlugin(options: {
           if (!(await resets.linkIsLive(identifier, options.clock?.now() ?? new Date()))) {
             throw APIError.from('BAD_REQUEST', INVALID_TOKEN);
           }
-          const passwordHash = await ctx.context.password.hash(body.newPassword);
+          const passwordHash = await ctx.context.password.hash(ctx.body.newPassword);
           const outcome = await resets.consumeLinkAndSetPassword({
             identifier,
             passwordHash,
