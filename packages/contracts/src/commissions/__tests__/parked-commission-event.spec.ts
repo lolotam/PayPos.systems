@@ -45,6 +45,12 @@ it('refuses an unknown field, a non-arabic locale and an event type that is not 
   expect(commissionEventParkedNoticeRequested.safeParse(badType).success).toBe(false);
 });
 
+it('refuses a wrong template_key', () => {
+  const wrongKey = payload([userId(1)]);
+  (wrongKey.notification_recipients[0] as Record<string, unknown>).template_key = 'generic_notice';
+  expect(commissionEventParkedNoticeRequested.safeParse(wrongKey).success).toBe(false);
+});
+
 it('refuses parameters that are not the event type and its id, in that order', () => {
   const swapped = payload([userId(1)]);
   const recipient = swapped.notification_recipients[0] as {
