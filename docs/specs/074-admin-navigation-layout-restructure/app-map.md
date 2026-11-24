@@ -136,7 +136,7 @@ owner chose each grouping on 2026-11-21 from three options per section (`owner-q
 | Pay | Commission plans | 1 | Live | every business type | By page permission |
 | Pay | Commission overrides | 1 | Live | every business type | By page permission |
 | Pay | Salaries | 1 | Soon | every business type | Owner |
-| Pay | Commission statements | 1 | Soon | every business type | Owner, General manager, Accountant, Business manager |
+| Pay | Commission statements | 1 | Live | every business type | Owner, General manager, Accountant, Business manager |
 | Pay | Payroll runs and payslips | 5 | Soon | every business type | Owner, General manager, Accountant |
 | Pay | Loans and advances | 5 | Soon | every business type | Owner, General manager, Accountant |
 
@@ -276,7 +276,7 @@ own there.
 
 ## Counts
 
-- Management area: 128 mapped pages. In this project: 33 Live, 0 New, 95 Soon.
+- Management area: 128 mapped pages. In this project: 34 Live, 0 New, 94 Soon.
 - Other areas: 24 menu pages. In this project: 0 Live, 0 Soon, 24 not mapped here (the cashier app has its own spec).
 - Child pages such as customer package details have no menu entry of their own. Only the pages listed in the map are counted.
 

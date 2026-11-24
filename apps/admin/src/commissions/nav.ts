@@ -54,9 +54,12 @@ export const COMMISSIONS_NAV_PAGES: readonly NavigationPageEntry[] = [
   },
   {
     id: 'commission-statements',
+    route: '/commissions/statements',
+    formerSoonId: 'commission-statements',
     labelKey: 'adminNavPages.commissionStatements',
     icon: 'Star',
-    state: 'soon',
+    visible: 'always',
+    state: 'live',
     section: 'team',
     submenu: 'pay',
     businessTypes: [],
