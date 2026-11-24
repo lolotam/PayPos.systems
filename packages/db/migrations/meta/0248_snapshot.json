@@ -1,5 +1,5 @@
 {
-  "id": "dff421b9-3df9-4e5b-9065-09cc6be225dc",
+  "id": "31ff677b-4908-4255-9a7e-120522b5b6c9",
   "prevId": "b1f31977-7668-47b7-bd05-240beaa3d720",
   "version": "7",
   "dialect": "postgresql",
@@ -365,6 +365,12 @@
           "primaryKey": false,
           "notNull": true
         },
+        "phone_hash": {
+          "name": "phone_hash",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
         "state": {
           "name": "state",
           "type": "text",
@@ -428,6 +434,54 @@
           "columns": [
             {
               "expression": "granted_by",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "employee_staff_access_branch_idx": {
+          "name": "employee_staff_access_branch_idx",
+          "columns": [
+            {
+              "expression": "company_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "business_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "branch_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "employee_staff_access_membership_idx": {
+          "name": "employee_staff_access_membership_idx",
+          "columns": [
+            {
+              "expression": "company_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "membership_id",
               "isExpression": false,
               "asc": true,
               "nulls": "last"
@@ -579,7 +633,7 @@
         },
         "employee_staff_access_state": {
           "name": "employee_staff_access_state",
-          "value": "\"employee_staff_access\".\"state\" IN ('PENDING', 'ACTIVE', 'STOPPED', 'PHONE_CHANGING')"
+          "value": "\"employee_staff_access\".\"state\" IN ('PENDING', 'ACTIVE', 'STOPPED', 'PHONE_CHANGING', 'CANCELLING')"
         },
         "employee_staff_access_active_rows": {
           "name": "employee_staff_access_active_rows",

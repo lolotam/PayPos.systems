@@ -39,7 +39,10 @@ export const employeeStaffAccess = pgTable(
     // دور الطلب المقفول ('staff' | 'reception') — دور النظام الفعلي بيتحسم في identity.
     roleCode: text('role_code').notNull(),
     branchId: uuid('branch_id').notNull(),
-    // PENDING قبل الإتمام، ACTIVE بعد المعاملة الثالثة، STOPPED بعد «إيقاف الدخول» (F3).
+    // hash الهاتف المطلوب عند إنشاء السجل — الاستئناف بيرفض أي هاتف مختلف بلا كشف الهاتف.
+    phoneHash: text('phone_hash').notNull(),
+    // PENDING قبل الإتمام، ACTIVE بعد المعاملة الثالثة، STOPPED بعد «إيقاف الدخول» (F3)،
+    // CANCELLING بين بدء الإلغاء وحذف الحساب — أي منح أو استئناف يرفض السجل في الحالة دي.
     state: text('state').notNull(),
     // المانح اللي فتح السجل — تدقيق الجدول إضافي، والسجل الكامل في audit_log.
     grantedBy: uuid('granted_by')
@@ -75,13 +78,16 @@ export const employeeStaffAccess = pgTable(
     index('employee_staff_access_company_idx').on(t.companyId),
     index('employee_staff_access_user_idx').on(t.userId),
     index('employee_staff_access_granted_by_idx').on(t.grantedBy),
+    // فهارس FK المركّبة: مسار قراءة الحالة والانتهاز عبر الفرع، والإلغاء/الإيقاف عبر العضوية.
+    index('employee_staff_access_branch_idx').on(t.companyId, t.businessId, t.branchId),
+    index('employee_staff_access_membership_idx').on(t.companyId, t.membershipId),
     check(
       'employee_staff_access_role_code',
       sql`${t.roleCode} IN ('staff', 'reception')`,
     ),
     check(
       'employee_staff_access_state',
-      sql`${t.state} IN ('PENDING', 'ACTIVE', 'STOPPED', 'PHONE_CHANGING')`,
+      sql`${t.state} IN ('PENDING', 'ACTIVE', 'STOPPED', 'PHONE_CHANGING', 'CANCELLING')`,
     ),
     check(
       'employee_staff_access_active_rows',

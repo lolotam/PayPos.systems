@@ -8,6 +8,7 @@ CREATE TABLE "employee_staff_access" (
 	"membership_id" uuid,
 	"role_code" text NOT NULL,
 	"branch_id" uuid NOT NULL,
+	"phone_hash" text NOT NULL,
 	"state" text NOT NULL,
 	"granted_by" uuid NOT NULL,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
@@ -16,7 +17,7 @@ CREATE TABLE "employee_staff_access" (
 	CONSTRAINT "employee_staff_access_employee" UNIQUE("company_id","employee_id"),
 	CONSTRAINT "employee_staff_access_operation" UNIQUE("company_id","operation_id"),
 	CONSTRAINT "employee_staff_access_role_code" CHECK ("employee_staff_access"."role_code" IN ('staff', 'reception')),
-	CONSTRAINT "employee_staff_access_state" CHECK ("employee_staff_access"."state" IN ('PENDING', 'ACTIVE', 'STOPPED', 'PHONE_CHANGING')),
+	CONSTRAINT "employee_staff_access_state" CHECK ("employee_staff_access"."state" IN ('PENDING', 'ACTIVE', 'STOPPED', 'PHONE_CHANGING', 'CANCELLING')),
 	CONSTRAINT "employee_staff_access_active_rows" CHECK ("employee_staff_access"."state" <> 'ACTIVE' OR ("employee_staff_access"."user_id" IS NOT NULL AND "employee_staff_access"."membership_id" IS NOT NULL))
 );
 --> statement-breakpoint
@@ -34,5 +35,7 @@ ALTER TABLE "employee_staff_access" ADD CONSTRAINT "employee_staff_access_member
 CREATE INDEX "employee_staff_access_company_idx" ON "employee_staff_access" USING btree ("company_id");--> statement-breakpoint
 CREATE INDEX "employee_staff_access_user_idx" ON "employee_staff_access" USING btree ("user_id");--> statement-breakpoint
 CREATE INDEX "employee_staff_access_granted_by_idx" ON "employee_staff_access" USING btree ("granted_by");--> statement-breakpoint
+CREATE INDEX "employee_staff_access_branch_idx" ON "employee_staff_access" USING btree ("company_id","business_id","branch_id");--> statement-breakpoint
+CREATE INDEX "employee_staff_access_membership_idx" ON "employee_staff_access" USING btree ("company_id","membership_id");--> statement-breakpoint
 CREATE UNIQUE INDEX "user_staff_access_operation_id_key" ON "user" USING btree ("staff_access_operation_id");--> statement-breakpoint
 ALTER TABLE "user" ADD CONSTRAINT "user_staff_access_together" CHECK (("user"."staff_access_company_id" IS NULL) = ("user"."staff_access_operation_id" IS NULL));
