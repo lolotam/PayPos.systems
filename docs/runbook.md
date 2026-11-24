@@ -1036,7 +1036,12 @@ ship closed: with `STAFF_ACCESS_ROUTES` unset they answer 503 `NOT_READY` before
 hides the section.
 
 **Do not set `STAFF_ACCESS_ROUTES=on` in any environment — staging included — before every item of
-`docs/specs/076-identity-staff-access/spec.md` §9 (AC-ACT-1 … AC-ACT-16) is closed and one independent review
+`docs/specs/076-identity-staff-access/spec.md` §9 (AC-ACT-1 … AC-ACT-24) is closed and one independent review
 has confirmed it.** Turning it on is a deploy change and needs Waleed's decision; it is taken after G2, not
 with F1. Rollback is one step: unset the variable and restart the API; no data step is needed. Closing the
 gate does not revoke grants already made: their records, memberships and PINs stay as they are.
+
+While the gate is off, two admin reads answer 503 `NOT_READY` by design: the staff-access state on an
+employee page (`GET /v1/businesses/:businessId/employees/:employeeId/staff-access`) and, for an owner,
+the invitations probe (`GET /v1/memberships/invitations?limit=1`). Exclude these two routes by name from
+any 5xx alert until AC-ACT-17 is closed; every other 5xx on the API is a real fault.
