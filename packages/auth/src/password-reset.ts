@@ -32,7 +32,7 @@ function validatedResetInput(
   if (query?.token !== undefined && typeof query.token !== 'string') {
     throw APIError.from('BAD_REQUEST', VALIDATION_ERROR);
   }
-  const token = (body.token as string | undefined) || (query.token as string | undefined);
+  const token = (body.token as string | undefined) || (query?.token as string | undefined);
   if (token === undefined || token === '') throw APIError.from('BAD_REQUEST', INVALID_TOKEN);
   return { token, newPassword: body.newPassword };
 }
