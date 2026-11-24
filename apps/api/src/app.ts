@@ -145,7 +145,7 @@ export interface AppDependencies {
   /** أصل صفحة التقييم العامة بالمطابقة التامة؛ مستقل عن ثقة تسجيل الدخول، والقيمة الفارغة تعطّل CORS للتقييم العام. */
   readonly ratingPageOrigin?: string;
   readonly whatsapp?: WhatsappIntake;
-  /** The signed email feedback intake; without it the webhook answers NOT_READY and stores nothing. */
+  /** بدون هذا الاستقبال الموقّع رد الويبيوك NOT_READY ومايتخزنش شيء. */
   readonly resend?: ResendIntake;
   /** The push public key and subject, when push is configured; without them the push routes answer NOT_READY. */
   readonly push?: PushApiConfiguration | null;
@@ -462,9 +462,8 @@ export async function createApp(
     contexts.set(request, enterRequestContext(request.id));
     void reply.header('x-request-id', request.id);
   });
-  adapter.getInstance().addHook('onResponse', async (request, reply) => {
-    logCompleted(request, reply);
-  });
+  // logCompleted بيمرر نفس الوسيطين، والمرجع المباشر بيوفّر سطرين عند سقف الـ 400.
+  adapter.getInstance().addHook('onResponse', logCompleted);
   const app = await NestFactory.create<NestFastifyApplication>(
     AppModule.forRoot(deps, controllers, logger, limiter),
     adapter,
