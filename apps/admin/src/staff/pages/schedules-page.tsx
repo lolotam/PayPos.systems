@@ -1,15 +1,14 @@
 'use client';
 import type { ScheduleGrid, WorkspaceBranch } from '@pospay/contracts';
 import { t } from '@pospay/i18n';
-import { PageHeader, Button } from '@pospay/ui';
+import { PageHeader, PageShell, Button } from '@pospay/ui';
 import Link from 'next/link';
 import { useState } from 'react';
 import { useLocale } from '@/shared/locale/locale-context';
 import { useScheduleWeek, type ScheduleWorkspace } from '../api/use-schedules';
-import { initialScheduleWeek, ScheduleLimitContext } from '../model/schedule-form';
-import { ScheduleWeekControls } from '../ui/schedule-week-controls';
-import { ScheduleListPanel } from '../ui/schedule-list-panel';
-import { ScheduleEditDialog } from '../ui/schedule-edit-dialog';
+import { initialScheduleWeek } from '../model/schedule-form';
+import { ScheduleWeekCard } from '../ui/schedule-week-card';
+import { ScheduleEditHost } from '../ui/schedule-edit-host';
 interface SchedulesPageProps {
   scope: ScheduleWorkspace;
   branch: WorkspaceBranch;
@@ -22,8 +21,9 @@ export function SchedulesPage({ scope, branch }: SchedulesPageProps) {
   const [cursor, setCursor] = useState<string>();
   const [edit, setEdit] = useState<{ row: ScheduleGrid['items'][number]; day: number }>();
   const list = useScheduleWeek(scope, week, cursor);
+  const clearEdit = () => setEdit(undefined);
   return (
-    <section className="flex min-w-0 flex-col gap-12 text-start">
+    <PageShell layout="list">
       <PageHeader
         title={t(locale, 'shell.schedule_title')}
         description={t(locale, 'shell.schedule_lead')}
@@ -33,41 +33,33 @@ export function SchedulesPage({ scope, branch }: SchedulesPageProps) {
           </Button>
         }
       />
-      <ScheduleWeekControls
+      <ScheduleWeekCard
+        list={list}
         week={week}
         timezone={branch.effective_timezone}
-        fetching={list.isFetching}
+        cursor={cursor}
         onWeek={(next) => {
           setWeek(next);
           setCursor(undefined);
-          setEdit(undefined);
+          clearEdit();
         }}
         onReload={() => {
-          setEdit(undefined);
+          clearEdit();
           void list.refetch();
         }}
-      />
-      <ScheduleListPanel
-        list={list}
-        cursor={cursor}
         onPage={(next) => {
           setCursor(next);
-          setEdit(undefined);
+          clearEdit();
         }}
         onEdit={(row, day) => setEdit({ row, day })}
       />
-      {edit && list.data ? (
-        <ScheduleLimitContext value={list.data.max_shifts_per_day}>
-          <ScheduleEditDialog
-            key={`${edit.row.employee_id}:${week}:${edit.day}`}
-            scope={scope}
-            row={edit.row}
-            day={edit.day}
-            grid={list.data}
-            onClose={() => setEdit(undefined)}
-          />
-        </ScheduleLimitContext>
-      ) : null}
-    </section>
+      <ScheduleEditHost
+        scope={scope}
+        week={week}
+        edit={edit}
+        grid={list.data}
+        onClose={clearEdit}
+      />
+    </PageShell>
   );
 }
