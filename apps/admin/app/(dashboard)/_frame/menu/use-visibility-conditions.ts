@@ -16,7 +16,7 @@ function conditionsOf(reads: VisibilityReads): VisibilityConditions {
   return {
     always: true,
     'alert-rules-or-rating-access': open && (alerts.isSuccess || rating.isSuccess),
-    // كما في business-identity-nav-item: قراءة فاشلة بعد نجاح سابق تُخفي المدخل حتى لو بقيت data القديمة true.
+    // قراءة فاشلة بعد نجاح سابق تُخفي المدخل حتى لو بقيت data القديمة true، فنجاح سابق ليس صلاحية باقية.
     'business-identity-access':
       open && !identity.isPending && !identity.isError && identity.data === true,
     'commission-plans-access': open && planEmployees.data !== undefined && !planAccess.denied,
@@ -29,8 +29,8 @@ function conditionsOf(reads: VisibilityReads): VisibilityConditions {
 }
 
 /**
- * يحوّل كل شرط ظهور قديم إلى true أو false باستخدام نفس القراءات التي تستخدمها ملفات
- * *-nav-item.tsx اليوم، بنفس مفاتيح الاستعلام فلا تُرسَل طلبات إضافية.
+ * يحوّل كل شرط ظهور إلى true أو false باستخدام قراءات الشاشات نفسها،
+ * بنفس مفاتيح الاستعلام فلا تُرسَل طلبات إضافية.
  * أثناء التحميل أو قبل اختيار نشاط تبقى الشروط مغلقة، فلا تظهر مجموعة فارغة ثم تختفي.
  */
 export function useVisibilityConditions(): VisibilityConditions {

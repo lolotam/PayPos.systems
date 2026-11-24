@@ -2,7 +2,7 @@ import { t } from '@pospay/i18n';
 import { fireEvent, screen, within } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { enterWorkspace, renderDashboard, resetDashboardState } from './dashboard-test-support';
+import { enterWorkspace, enterWorkspaceAt, renderDashboard, resetDashboardState } from './dashboard-test-support';
 import { frameState, resetFrameState, stubViewport } from './frames/frame-test-support';
 import { NotFoundProbe } from './frames/not-found-probe';
 import { SoonRoute } from './soon-route';
@@ -118,5 +118,25 @@ describe('a restaurant-only entry after the workspace changes to a salon', () =>
     fireEvent.click(screen.getByRole('button', { name: label('adminNav.pageFinderLabel') }));
     fireEvent.change(screen.getByRole('searchbox'), { target: { value: 'kitchen' } });
     expect(within(screen.getByRole('dialog')).queryByRole('link', { name: /Kitchen/ })).toBeNull();
+  });
+
+  it('shows the Under development page again after a salon without the entry and back at the same address', () => {
+    enterWorkspaceAt('restaurant', 'owner', 'company-a', 'business-a');
+    const { rerenderDashboard } = renderDashboard(route('kitchen-screens'));
+    expect(
+      within(screen.getByRole('main')).getByRole('heading', {
+        name: label('adminNavPages.kitchenScreens'),
+      }),
+    ).toBeTruthy();
+    enterWorkspaceAt('salon', 'owner', 'company-b', 'business-b');
+    rerenderDashboard(route('kitchen-screens'));
+    expect(screen.getByText('Not found')).toBeTruthy();
+    enterWorkspaceAt('restaurant', 'owner', 'company-a', 'business-a');
+    rerenderDashboard(route('kitchen-screens'));
+    expect(
+      within(screen.getByRole('main')).getByRole('heading', {
+        name: label('adminNavPages.kitchenScreens'),
+      }),
+    ).toBeTruthy();
   });
 });

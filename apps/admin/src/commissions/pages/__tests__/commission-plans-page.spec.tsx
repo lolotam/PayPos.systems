@@ -24,7 +24,7 @@ import {
   type ApiAnswer,
 } from '../../api/__tests__/plan-http';
 import { CommissionPlansRoute } from '../../../../app/(dashboard)/_frame/commission-plans-route';
-import { CommissionPlansNavItem } from '../../../../app/(dashboard)/_frame/commission-plans-nav-item';
+import { VisibleIdsProbe } from '../../../../app/(dashboard)/_frame/menu/visible-ids-probe';
 
 const api = vi.hoisted(() => ({ GET: vi.fn(), POST: vi.fn() }));
 const state = vi.hoisted(() => ({
@@ -102,7 +102,7 @@ function renderScreen() {
   }
   return render(
     <>
-      <CommissionPlansNavItem />
+      <VisibleIdsProbe />
       <CommissionPlansRoute />
     </>,
     { wrapper },
@@ -114,7 +114,7 @@ function switchIdentity(userId: string, view: ReturnType<typeof renderScreen>) {
   state.workspace = workspaceFor(userId);
   view.rerender(
     <>
-      <CommissionPlansNavItem />
+      <VisibleIdsProbe />
       <CommissionPlansRoute />
     </>,
   );
