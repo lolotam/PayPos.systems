@@ -289,29 +289,52 @@ The tests keep the pending meaning, the cutoff, the role, the policies and tenan
 consumed history only what is true of every acceptable plan: count 0, no sequential scan of `outbox`, and rows examined at
 most the six-type history. The plan, rows and timing are printed as evidence.
 
-## Amendment — 2026-11-24: the parked-event alert is implemented (53-2 B2b)
+## Amendment — 2026-11-24: the parked-event alert is a periodic sweep (53-2 B2b)
 
 Section 3's "raise an owner-visible operational alert" and section 4 group 5's "produce the owner alert" are implemented at
 the boundary this ADR names: the worker, through the existing outbox/notification boundary.
 
-- **Where it is raised.** The dispatcher facade (`packages/db/src/dispatcher.ts`) reports the events it parked **after
-  the park is committed**: the failed-delivery path only when the parking `UPDATE` really parked the row, and the
-  exhausted-lease path once the claim transaction committed. The hook runs outside the dispatcher's transaction, so the
-  alert is a separate `pospay_app` transaction under `withTenant(company_id)` and the dispatcher role gains nothing.
-  `pospay_app` never reads the outbox: the dispatcher hands over the event's id, type and company id only, and no
-  payload is read or copied.
+- **What triggers it.** A periodic sweep in the worker, and nothing else. The dispatcher hook that the first draft used
+  is removed: a hook fires once per park and is not re-armed, so a worker that stops between the committed park and the
+  alert transaction leaves the owner never told. The sweep runs inside the dispatch loop tick, under its own option
+  `parkedAlertIntervalMs` (default 60 seconds), and `stop()` waits for a sweep in flight like it waits for a batch in
+  flight.
+- **What it reads.** One read-only page per step through `createOutboxDispatcherDatabase`:
+  `commissionParkedEventPage(afterSeq, limit)` returns the parked, unpublished rows of the six counted types with their
+  company id, id, type and `seq` only — no payload, no write. It asserts the dispatcher role like the replay pages do,
+  so `pospay_dispatcher` keeps `SELECT` on `outbox` and nothing else, and it gains no privilege on `consumed_events`.
+  The cursor is a decimal string or a `bigint`, never a JavaScript number, because `seq` is a `bigint` column.
+- **What it writes.** For each row the use case `RaiseParkedCommissionAlert` runs under `withTenant(company_id)` as
+  `pospay_app`: the `consumed_events` row with the consumer id `commissions.park-alert` and the notice request
+  `CommissionEventParkedNoticeRequested` are written in one transaction, so they commit or roll back together.
+- **The guarantee, stated exactly.** After the park of a counted event that still blocks the approval is committed,
+  exactly one durable notice request exists for that event id, whatever happens to the worker process in between, as
+  long as the worker runs again. The mark in the database is the only source of truth; the in-memory settled set is an
+  LRU of at most 10 000 ids that only saves transactions, and losing it costs one extra `ALREADY_ALERTED` and no
+  second notice.
+- **Only approval-blocking events alert.** Inside the tenant transaction the use case reads whether the
+  `commissions.project-inputs` mark exists for the event. Absent (the event blocks the approval): the park-alert mark
+  and the notice request are written, outcome `ALERTED`. Present (the commission consumer already applied it, so the
+  park came from another consumer or from the operator replay): the park-alert mark is written and no notice, outcome
+  `NOT_BLOCKING`. Both settle the event.
 - **Who is told.** The company's canonical owner memberships, active at the alert instant, read by the worker's identity
   reader `companyOwners`. The alert is not an alert-rule kind: it is never switched off and has no channel choice,
   because a blocked approval must always be visible to the owner.
-- **How often.** Once per parked event id: the `consumed_events` row with the consumer id `commissions.park-alert` is
-  written in the same transaction as the bell. It is **not** the projection consumer's mark, so a parked event keeps
-  counting as pending and parking never discharges it.
 - **The bell.** One in-app bell per group of at most 100 owners, carrying the event's type and id only — no payload, no
   amount, no employee name.
-- **What it does not do.** It never un-parks, never re-delivers and never deletes the parked row. There is still no
-  operator path that re-queues a parked outbox event, so the alert is one-shot and never clears.
+- **What it does not do.** It never un-parks, never re-delivers and never deletes the parked row. An operator procedure
+  that clears `parked_at` must not publish a counted row without its commission effect: the projection mark
+  `commissions.project-inputs` is what discharges the event, and clearing the park alone leaves the month still
+  pending.
+- **The index.** One partial concurrent index `outbox_commission_parked_idx` on `outbox (seq)` whose predicate is exactly
+  `parked_at IS NOT NULL AND published_at IS NULL AND event_type IN (<the six counted types>)`. The existing
+  `outbox_unpublished_idx` is not a bounded access path for this query: parked rows of every type are never published and
+  never cleared, so they stay in it for ever beside the live backlog. The migration is expand-only: no table, column,
+  grant, policy, function or data change.
 
 Nothing in section 1 (the counted types, the consumer id and the pending predicate), section 2 (the role, the grants and
 the policies) or the installed count function changes: the alert's mark uses a different consumer id, so the count and the
 proof rules cannot diverge. The alert is raised for the six counted types only; another parked type does not block an
-approval, so it does not wake the owner.
+approval, so it does not wake the owner. Turning the notice request into the owner's `in_app_notifications` row is the
+existing notification consumer's job; if that request is itself parked, the dispatcher logs `outbox event parked` and
+there is no bell. That case is outside this ADR.
