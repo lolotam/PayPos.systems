@@ -4064,6 +4064,7 @@ export interface components {
             partial: boolean;
             total: string | null;
         };
+        CommissionStatementTotalMoney: string;
         /** @enum {string} */
         CommissionStatementStatus: "DRAFT" | "REVIEWED";
         CommissionStatementRow: {
@@ -4098,9 +4099,9 @@ export interface components {
             name_ar: string | null;
             name_en: string;
             partial: boolean;
-            commission_subtotal: components["schemas"]["CommissionEstimateMoney"];
-            tip_side: components["schemas"]["CommissionEstimateMoney"];
-            payable: components["schemas"]["CommissionEstimateMoney"];
+            commission_subtotal: components["schemas"]["CommissionStatementTotalMoney"];
+            tip_side: components["schemas"]["CommissionStatementTotalMoney"];
+            payable: components["schemas"]["CommissionStatementTotalMoney"];
             rows: components["schemas"]["CommissionStatementRow"][];
             issues: components["schemas"]["CommissionStatementIssue"][];
         };

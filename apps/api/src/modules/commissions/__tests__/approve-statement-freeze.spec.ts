@@ -114,9 +114,9 @@ function approveReaders(): CommissionStatementApproveReaders {
 
 describe('a failure while freezing rolls everything back (CM-34)', () => {
   it.each([
-    ['the frozen lines are inserted, after the status moved to APPROVED', 'INSERT INTO commission_statement_lines'],
-    ['the audit entry is written, after every freeze and carry write', 'INSERT INTO audit_log'],
-  ])('leaves the month REVIEWED with no lines, carries or audit when it fails as %s', async (_label, marker) => {
+    ['the frozen lines are inserted, after the status moved to APPROVED', 'INSERT INTO commission_statement_lines', 'lines'],
+    ['the audit entry is written, after every freeze and carry write', 'INSERT INTO audit_log', 'audit'],
+  ])('leaves the month REVIEWED with no lines, carries or audit when it fails as %s', async (_label, marker, name) => {
     const fingerprints = await freshReviewedMonth();
     const auditsBefore = (await approvalFootprint(f)).audits;
     const database = createDatabase({ url: f.h.urls.app, ids });
@@ -134,7 +134,7 @@ describe('a failure while freezing rolls everything back (CM-34)', () => {
           period: PERIOD,
           expectedFingerprint: fingerprints.input,
           expectedStatementFingerprint: fingerprints.statement,
-          key: `fault-${marker.length}`,
+          key: `fault-${name}`,
           fingerprint: 'f'.repeat(64),
         }),
       ).rejects.toThrow('injected freeze failure');
@@ -158,8 +158,10 @@ describe('a failure while freezing rolls everything back (CM-34)', () => {
       approved_by: null,
       approved_at: null,
     });
-    const retry = await approve(f, approver.cookie, 'fault-retry', fingerprints);
+    // مفتاح جديد لكل محاولة كي لا يكون الرد ردًّا مخزّنًا من حالة سابقة، ثم نثبت أن المعالج نفّذ فعلًا (اعتماد وتدقيق جديد).
+    const retry = await approve(f, approver.cookie, `fault-retry-${name}`, fingerprints);
     expect(retry.status).toBe(200);
+    expect(await approvalFootprint(f)).toMatchObject({ status: 'APPROVED', audits: auditsBefore + 1 });
   });
 });
 
@@ -235,5 +237,49 @@ describe('a correction received by the month (CM-34d)', () => {
     expect(frozen.map((row) => ({ ...row }))).toEqual([
       { kind: 'CORRECTION', previous_amount: '10.000', new_amount: '15.000', amount: '5.000', source_period: '2026-10' },
     ]);
+  });
+});
+
+describe('a statement whose totals exceed one numeric(14,3) row', () => {
+  it('approves and answers 200 with the large total, instead of committing and then failing the response', async () => {
+    await resetStatementToDraft(f);
+    await resetCoverage(f);
+    const database = createDatabase({ url: f.h.urls.app, ids });
+    try {
+      const november = await lockTargetStatement({
+        db: database,
+        companyId: f.company,
+        businessId: f.business,
+        period: PERIOD,
+        ids,
+      });
+      for (let copy = 0; copy < 2; copy += 1) {
+        await database.withTenant(f.company, (tx) =>
+          insertCommissionCorrection(tx, f.tenant, ids, november, {
+            targetPeriod: PERIOD,
+            attachedBranchIds: [f.branch],
+            amount: '99999999999.000',
+            previousAmount: '0.000',
+            newAmount: '99999999999.000',
+          }),
+        );
+      }
+    } finally {
+      await database.close();
+    }
+
+    const { response } = await approveReviewedMonth(f, approver, 'freeze-large-total');
+
+    expect([response.status, (response.body as { code?: string }).code]).toEqual([200, undefined]);
+    const employee = (response.body as { employees: { employee_id: string; payable: string }[] }).employees.find(
+      (candidate) => candidate.employee_id === f.employee,
+    );
+    expect(employee?.payable).toBe('199999999998.000');
+    const replay = await approve(f, approver.cookie, 'freeze-large-total', {
+      input: (response.body as { input_fingerprint: string }).input_fingerprint,
+      statement: (response.body as { statement_fingerprint: string }).statement_fingerprint,
+    });
+    expect(replay.status).toBe(200);
+    expect(replay.body).toEqual(response.body);
   });
 });

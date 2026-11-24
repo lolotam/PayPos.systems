@@ -1,3 +1,4 @@
+import { commissionClosedStatementView } from '@pospay/contracts';
 import {
   IdempotencyKeyReusedError,
   runIdempotent,
@@ -19,6 +20,8 @@ const OPERATION = 'approve-commission-statement';
  * يبني حد معاملة الاعتماد بنفس ترتيب كاتبي الخطة والإنشاء: فحص الصلاحية قبل المطالبة، ثم المطالبة idempotent،
  * وإعادة الفحص قبل أي رد مخزّن أو بعد تعارض المفتاح، وبعد انتهاء انتظار المفتاح بخطأ الانشغال بيتقرا في معاملة
  * منفصلة. إعادة الإرسال بنفس المفتاح والطلب بعد اعتماد ناجح مفقود الرد ترجع الرد الأصلي لا 409 (ADR-0054 §10 اختبار 12).
+ * الرد يُبنى ويُتحقق من عقده داخل المعاملة قبل الالتزام: رد غير قابل للتمثيل يلغي الاعتماد كله بدل أن يُلتزم به ثم يفشل
+ * في كل إعادة إرسال.
  *
  * @param database واجهات الداتابيز اللي بتفتح معاملة المستأجر
  * @param ids مولّد المعرّفات لصفوف التجميد والمرحّلات والتدقيق
@@ -49,7 +52,10 @@ export function createCommissionStatementApproveTransactions(
               key: command.key,
               fingerprint: command.fingerprint,
             },
-            async () => ({ status: 200, body: await work(scope) }),
+            async () => ({
+              status: 200,
+              body: commissionClosedStatementView.parse(await work(scope)),
+            }),
           ).catch(async (error: unknown) => {
             if (error instanceof IdempotencyKeyReusedError) await assertAccess();
             throw error;

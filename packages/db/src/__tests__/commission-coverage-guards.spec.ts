@@ -1,4 +1,8 @@
-import { COMMISSION_COVERAGE_PROOF_VERSION, COMMISSION_INPUT_EVENT_TYPES } from '@pospay/domain';
+import {
+  COMMISSION_COVERAGE_PROOF_VERSION,
+  COMMISSION_INPUT_EVENT_TYPES,
+  COMMISSION_INPUTS_CONSUMER_ID,
+} from '@pospay/domain';
 import postgres from 'postgres';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 
@@ -217,4 +221,15 @@ describe('parity with the approval binary', () => {
 
     expect([...new Set(typed)].sort()).toEqual([...COMMISSION_INPUT_EVENT_TYPES].sort());
   });
+
+  it.each(['issue_commission_coverage_proof', 'statement_pending_commission_events'])(
+    '%s names exactly the consumer id of the worker',
+    async (name) => {
+      const [fn] = await owner`SELECT prosrc FROM pg_proc WHERE proname = ${name}`;
+      const source = String(fn?.['prosrc']);
+      const consumers = [...source.matchAll(/'(commissions.[a-z-]+)'/g)].map((match) => match[1] as string);
+
+      expect([...new Set(consumers)]).toEqual([COMMISSION_INPUTS_CONSUMER_ID]);
+    },
+  );
 });

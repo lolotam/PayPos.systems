@@ -146,6 +146,13 @@ describe('the uniform refusals come first', () => {
     expect(await approvalFootprint(f)).toMatchObject({ status: 'REVIEWED', lines: 0, audits: 0 });
   });
 
+  it('refuses a very old month that was never generated with 409 COMMISSION_STATEMENT_NOT_REVIEWED', async () => {
+    const response = await approve(f, approver.cookie, 'ancient-1', fingerprints, '0001-01');
+
+    expect(response.status).toBe(409);
+    expect((response.body as { code: string }).code).toBe('COMMISSION_STATEMENT_NOT_REVIEWED');
+  });
+
   it('answers 422 COMMISSION_PERIOD_NOT_ENDED for a month that has not ended', async () => {
     const response = await approve(f, approver.cookie, 'forbidden-3', fingerprints, '2026-12');
 

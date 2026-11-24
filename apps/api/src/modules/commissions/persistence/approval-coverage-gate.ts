@@ -25,12 +25,18 @@ interface GateRow extends Record<string, unknown> {
 }
 
 /** قراءة مفتاح الاعتماد الصريح، يربطها الجذر من identity. */
-export type ExplicitFeatureReader = (tx: Tx, companyId: string, flag: string) => Promise<boolean>;
+export type ExplicitFeatureReader = (
+  tx: Tx,
+  companyId: string,
+  flag: string,
+  decisionAt: Date,
+) => Promise<boolean>;
 
 /**
  * بوابة التغطية تحت قفل صف الحالة (ADR-0054 §7 الخطوة 5): دالة الـdefiner تضمن صف الحالة وتأخذه FOR SHARE إلى نهاية
  * المعاملة ثم ترجّع الإثبات الحالي أو لا شيء، وبعدها بعبارة مستقلة يُقرأ مفتاح الاعتماد فيرى ما التزم به أمر المشغّل،
- * وأخيرًا هوية قاعدة البيانات الحالية للمقارنة. الدالة لا ترفض شيئًا؛ القرار كله في حالة الاستخدام.
+ * وأخيرًا هوية قاعدة البيانات الحالية للمقارنة. لحظة قرار المفتاح (انتهاء الـoverride) تُؤخذ بعد القفل وبنفس مصدر الساعة
+ * `clock_timestamp()` الذي يقيس به فحص الصلاحية، فلا يفتح الاعتماد مفتاحٌ انتهى أثناء الانتظار. الدالة لا ترفض شيئًا؛ القرار كله في حالة الاستخدام.
  *
  * @param tx معاملة الاعتماد بسياق الشركة
  * @param companyId الشركة المؤكدة
@@ -49,7 +55,9 @@ export async function readApprovalCoverageGate(
       out_tip_day_bound::text AS out_tip_day_bound, out_counted_types, out_consumer_id, out_database_name,
       out_system_id::text AS out_system_id FROM public.read_commission_coverage_gate(${stateId}::uuid)`,
   );
-  const switchEnabled = await readSwitch(tx, companyId, APPROVAL_SWITCH_FLAG);
+  const [decision] = await tx.execute<{ at: Date }>(sql`SELECT clock_timestamp() AS at`);
+  if (decision === undefined) throw new Error('The database clock is unavailable');
+  const switchEnabled = await readSwitch(tx, companyId, APPROVAL_SWITCH_FLAG, new Date(decision.at));
   const [identity] = await tx.execute<{ database_name: string; system_id: string }>(
     sql`SELECT pg_catalog.current_database()::text AS database_name, public.pospay_system_id()::text AS system_id`,
   );

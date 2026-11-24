@@ -24668,6 +24668,10 @@
           "total"
         ]
       },
+      "CommissionStatementTotalMoney": {
+        "type": "string",
+        "pattern": "^-?(0|[1-9]d{0,15}).d{3}$"
+      },
       "CommissionStatementStatus": {
         "type": "string",
         "enum": [
@@ -24833,13 +24837,13 @@
             "type": "boolean"
           },
           "commission_subtotal": {
-            "$ref": "#/components/schemas/CommissionEstimateMoney"
+            "$ref": "#/components/schemas/CommissionStatementTotalMoney"
           },
           "tip_side": {
-            "$ref": "#/components/schemas/CommissionEstimateMoney"
+            "$ref": "#/components/schemas/CommissionStatementTotalMoney"
           },
           "payable": {
-            "$ref": "#/components/schemas/CommissionEstimateMoney"
+            "$ref": "#/components/schemas/CommissionStatementTotalMoney"
           },
           "rows": {
             "type": "array",

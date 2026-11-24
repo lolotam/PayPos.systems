@@ -15,6 +15,7 @@ import {
   readApprovedAt,
   readFrozenStatement,
 } from './approval-freeze.ts';
+import { readApprovalStatementStatus } from './approval-statement-status.ts';
 import { readCommissionStatementSource } from './commission-statement-source.ts';
 
 /** هوية الفاعل في الاعتماد: الشركة والمستخدم والنشاط. */
@@ -92,6 +93,7 @@ export function createCommissionStatementApproveScope(
       const calendar = await readers.businessCalendar(tx, actor.companyId, actor.businessId);
       return calendar === null ? null : sessionBusinessDate(readers.clock.now(), calendar.timeZone);
     },
+    readStatementStatus: (period) => readApprovalStatementStatus(tx, actor.businessId, period),
     recheckAccess: accessRecheck(tx, actor, readers),
     lockPeriods: (periods) =>
       lockStatementPeriods(tx, { businessId: actor.businessId, periods, ids }),

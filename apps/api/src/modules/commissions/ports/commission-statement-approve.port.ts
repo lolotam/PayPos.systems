@@ -1,22 +1,9 @@
 import type { StatementAttachmentRow, StatementRow } from '@pospay/commissions-engine';
 
+import type { PlannedCarry, ShareCheckLine } from '../domain/approval-plan.ts';
 import type { ExpectedCoverageRules, StoredCoverageProof } from '../domain/coverage-proof.ts';
 import type { EmploymentDates } from '../domain/employment-overlap.ts';
 import type { CommissionStatementSource } from './commission-statement.port.ts';
-
-/** رصيد سالب يترحّل عند الاعتماد: نوعه ومبلغه كما سيُخزَّن (سالب، بمقياس الفلس) (D-22). */
-export interface PlannedCarry {
-  readonly employeeId: string;
-  readonly kind: 'COMMISSION' | 'TIP_CARD';
-  readonly amount: bigint;
-}
-
-/** سطر بند للتحقق من اكتمال حصص مؤدياته (D-14): معرّف البند وحالته وحصة هذه المؤدية بنقاط الأساس. */
-export interface ShareCheckLine {
-  readonly lineId: string;
-  readonly status: 'ACTIVE' | 'CANCELLED';
-  readonly shareBps: bigint;
-}
 
 /** ما يُدقَّق عند الاعتماد: البصمتان وعدد الصفوف والمرحّلات، بلا أي مبلغ ولا اسم. */
 export interface ApprovalAuditDetail {
@@ -89,6 +76,14 @@ export interface CommissionStatementApproveScope {
    * @returns تاريخ اليوم المحلي أو null
    */
   localToday(): Promise<string | null>;
+  /**
+   * حالة صف الكشف المخزّن بقراءة بلا قفل، قبل أي قفل شهور (يعاد فحصها بعد القفل): تمنع أن يولّد طلب لشهر قديم جدًا
+   * صف قفل لكل شهر حتى اليوم قبل أن يُرفض لأن الكشف غير REVIEWED.
+   *
+   * @param period الشهر بصيغة YYYY-MM
+   * @returns حالة الكشف أو null لو لم يُنشأ كشف لهذا الشهر
+   */
+  readStatementStatus(period: string): Promise<'DRAFT' | 'REVIEWED' | 'APPROVED' | 'PAID' | null>;
   /**
    * يعيد فحص صلاحية الاعتماد وقراءة النشاط كله وميزة العمولات.
    *

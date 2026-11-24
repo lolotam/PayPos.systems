@@ -123,6 +123,14 @@ describe('the gate read', () => {
     expect(count?.['n']).toBe(0);
   });
 
+  it('lets the issuer role run pospay_system_id and its inner pg_control_system, as the dispatcher connection sees it', async () => {
+    const [row] = await dispatcher`SELECT out_system_id::text AS system_id
+      FROM public.current_commission_coverage_generation(${A.company}::uuid, ${STATE_ID}::uuid)`;
+
+    expect(row?.['system_id']).toBe((await identity()).systemId);
+    expect(row?.['system_id']).not.toBe('0');
+  });
+
   it('runs the whole issue function body and stamps the connecting role as the issuer', async () => {
     await ensureState(A.company);
     await issue();

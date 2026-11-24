@@ -2,7 +2,8 @@ import type { IdGenerator, Tx } from '@pospay/db';
 import { moneyToString } from '@pospay/domain';
 import { sql } from 'drizzle-orm';
 
-import type { CarryWrite, ShareCheckLine } from '../ports/commission-statement-approve.port.ts';
+import type { ShareCheckLine } from '../domain/approval-plan.ts';
+import type { CarryWrite } from '../ports/commission-statement-approve.port.ts';
 
 /**
  * يكتب مرحّلات الأرصدة السالبة لكشف المصدر، صفًا لكل نوع وموظفة (D-22). القيد الفريد على (كشف المصدر، الموظفة، النوع)

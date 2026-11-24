@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
+import { commissionStatementEmployee } from '../statement.js';
 import {
   commissionClosedStatementBranchView,
   commissionClosedStatementView,
@@ -67,5 +68,44 @@ describe('the closed statement views', () => {
 
     expect(commissionClosedStatementBranchView.safeParse(view).success).toBe(true);
     expect(commissionClosedStatementBranchView.parse({ ...view, input_fingerprint: HASH })).toEqual(view);
+  });
+
+});
+
+describe('employee totals in a closed statement', () => {
+  const employeeWith = (commission: string, tip: string, payable: string) => ({
+    employee_id: BUSINESS,
+    employee_number: 1,
+    name_ar: null,
+    name_en: 'Total',
+    partial: false,
+    commission_subtotal: commission,
+    tip_side: tip,
+    payable,
+    rows: [],
+    issues: [],
+  });
+
+  it('accepts a total above what one numeric(14,3) row can hold, since a month sums many rows', () => {
+    const employee = employeeWith('199999999998.000', '-199999999998.000', '199999999998.000');
+    const closed = {
+      reader_scope: 'BUSINESS' as const,
+      business_id: BUSINESS,
+      period: '2026-10',
+      status: 'APPROVED' as const,
+      approved_at: '2026-11-15T10:00:00.123456Z',
+      input_fingerprint: HASH,
+      statement_fingerprint: HASH,
+      employees: [employee],
+    };
+
+    expect(commissionStatementEmployee.safeParse(employee).success).toBe(true);
+    expect(commissionClosedStatementView.safeParse(closed).success).toBe(true);
+  });
+
+  it('still refuses a total with more than sixteen integer digits, which no bigint of mills can hold', () => {
+    const employee = employeeWith('10000000000000000.000', '0.000', '0.000');
+
+    expect(commissionStatementEmployee.safeParse(employee).success).toBe(false);
   });
 });

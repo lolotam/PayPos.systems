@@ -7,7 +7,10 @@ import {
   approverMember,
   issueProof,
   openSwitch,
+  resetCoverage,
+  resetStatementToDraft,
   reviewedStatement,
+  SWITCH_FLAG,
   type Approver,
 } from './approve-statement.fixture.ts';
 import { ids, PERIOD, statementFixture, type StatementFixture } from './commission-statement.fixture.ts';
@@ -72,6 +75,16 @@ async function holdStatementLock(): Promise<{ release: () => void; done: Promise
   return { release, done };
 }
 
+/** يمسك قفل الصف طوال العمل ويفرج عنه في كل الأحوال، حتى لو فشل الاختبار قبل أن يفرج عنه بنفسه. */
+async function whileHoldingLock<T>(work: (lock: { release: () => void; done: Promise<unknown> }) => Promise<T>): Promise<T> {
+  const lock = await holdStatementLock();
+  try {
+    return await work(lock);
+  } finally {
+    lock.release();
+  }
+}
+
 /** ينتظر حتى يقف على قفل الصف عدد من الاتصالات، أو يفشل عند انتهاء الميزانية. */
 async function waitForWaiters(count: number): Promise<void> {
   const deadline = performance.now() + WAITERS_BUDGET_MS;
@@ -84,7 +97,19 @@ async function waitForWaiters(count: number): Promise<void> {
   throw new Error(`fewer than ${count} requests reached the statement lock within ${WAITERS_BUDGET_MS} ms`);
 }
 
-/** يجمع نتيجتي الطلبين بميزانية محدودة. */
+/** ينتظر حتى يمضي انتهاء مفتاح الاعتماد بالساعة نفسها التي تقيس بها قاعدة البيانات. */
+async function waitUntilExpired(): Promise<void> {
+  const deadline = performance.now() + WAITERS_BUDGET_MS;
+  while (performance.now() < deadline) {
+    const [row] = await barrier`SELECT bool_and(expires_at <= clock_timestamp()) AS expired
+      FROM company_feature_overrides WHERE company_id = ${f.company} AND flag = ${SWITCH_FLAG}`;
+    if (row?.['expired'] === true) return;
+    await new Promise((resolve) => setTimeout(resolve, POLL_MS));
+  }
+  throw new Error('the switch did not expire within the budget');
+}
+
+/** يجمع نتائج الطلبات بميزانية محدودة. */
 function collect<T>(promises: Promise<T>[]): Promise<T[]> {
   let timer: ReturnType<typeof setTimeout> | undefined;
   const expired = new Promise<never>((_, reject) => {
@@ -99,14 +124,14 @@ describe('two approvers of the same month at once (CM-37)', () => {
     const fingerprints = await reviewedStatement(f, first);
     await openSwitch(f, first.userId);
     await issueProof(f);
-    const lock = await holdStatementLock();
-
-    const requestA = approve(f, first.cookie, 'cm37-a', fingerprints);
-    const requestB = approve(f, second.cookie, 'cm37-b', fingerprints);
-    await waitForWaiters(2);
-    lock.release();
-    await lock.done;
-    const responses = await collect([requestA, requestB]);
+    const responses = await whileHoldingLock(async (lock) => {
+      const requestA = approve(f, first.cookie, 'cm37-a', fingerprints);
+      const requestB = approve(f, second.cookie, 'cm37-b', fingerprints);
+      await waitForWaiters(2);
+      lock.release();
+      await lock.done;
+      return collect([requestA, requestB]);
+    });
 
     const outcomes = responses.map((response) => [
       response.status,
@@ -124,5 +149,26 @@ describe('two approvers of the same month at once (CM-37)', () => {
       WHERE s.company_id = ${f.company} AND s.period = ${PERIOD}`;
     expect(lines?.['total']).toBeGreaterThan(0);
     expect(lines?.['total']).toBe(lines?.['distinct_rows']);
+  }, TEST_TIMEOUT_MS);
+
+  it('refuses with 403 FEATURE_DISABLED when the switch expires while the request waits on the month lock, and freezes nothing', async () => {
+    await resetStatementToDraft(f);
+    await resetCoverage(f);
+    const fingerprints = await reviewedStatement(f, first);
+    await openSwitch(f, first.userId);
+    await issueProof(f);
+    const [response] = await whileHoldingLock(async (lock) => {
+      const request = approve(f, first.cookie, 'expiry-while-waiting', fingerprints);
+      await waitForWaiters(1);
+      await f.h.owner`UPDATE company_feature_overrides SET expires_at = clock_timestamp() + interval '1 second'
+        WHERE company_id = ${f.company} AND flag = ${SWITCH_FLAG}`;
+      await waitUntilExpired();
+      lock.release();
+      await lock.done;
+      return collect([request]);
+    });
+
+    expect([response?.status, (response?.body as { code?: string }).code]).toEqual([403, 'FEATURE_DISABLED']);
+    expect(await approvalFootprint(f)).toMatchObject({ status: 'REVIEWED', lines: 0, audits: 0 });
   }, TEST_TIMEOUT_MS);
 });

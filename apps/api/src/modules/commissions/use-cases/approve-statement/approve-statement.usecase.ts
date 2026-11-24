@@ -15,7 +15,8 @@ import {
   approvalBlockingIssues,
   incompleteLineShares,
   planApprovalCarries,
-} from './approval-plan.ts';
+  type PlannedCarry,
+} from '../../domain/approval-plan.ts';
 import { coverageProofAdmits, isCoverageProofValid } from '../../domain/coverage-proof.ts';
 import { CommissionPlanVersionError } from '../../domain/errors.ts';
 import { periodsFromThrough } from '../../domain/period-range.ts';
@@ -24,11 +25,11 @@ import { isStatementPeriodEnded } from '../../domain/statement-period.ts';
 import type {
   CarryWrite,
   CommissionStatementApproveCommand,
-  PlannedCarry,
   CommissionStatementApproveScope,
   CommissionStatementApproveTransactions,
 } from '../../ports/commission-statement-approve.port.ts';
 import type { FingerprintHasher } from '../../ports/fingerprint-hasher.port.ts';
+import { employeeCarryBalances } from './carry-balances.ts';
 import { closedStatementView } from '../compute-statement-view/closed-statement-view.ts';
 import { computeStatement } from '../compute-statement-view/compute-statement-view.ts';
 
@@ -66,6 +67,18 @@ function refuse(
 }
 
 /**
+ * يرفض كل حالة غير REVIEWED: معتمد أو مصروف 409 CLOSED، وغيرهما (مسودة أو كشف لم يُنشأ) 409 NOT_REVIEWED. يُستدعى مرتين:
+ * قبل أي قفل بقراءة بلا قفل، فطلب لشهر قديم جدًا لا ينتج صف قفل لكل شهر حتى اليوم، ثم بعد القفل على الحالة التي تراها
+ * المعاملة بعد الانتظار.
+ *
+ * @param status حالة الكشف، أو null لو لا كشف
+ */
+function assertReviewable(status: string | null): void {
+  if (status === 'APPROVED' || status === 'PAID') refuse('COMMISSION_PERIOD_CLOSED');
+  if (status !== 'REVIEWED') refuse('COMMISSION_STATEMENT_NOT_REVIEWED');
+}
+
+/**
  * ترتيب الاعتماد بالظبط كما في ADR-0054 §7: لحظة البداية أولًا، ثم اليوم المحلي وانتهاء الشهر، ثم قفل واحد
  * تصاعدي، ثم إعادة الصلاحية والحالة، ثم بوابة التغطية (مفتاح الاعتماد 403 ثم الإثبات 422)، ثم البصمتان
  * والمشاكل المانعة وD-14، ثم العدّاد (409 أخيرًا)، ثم التحديث الواحد والتجميد وبصمة الكشف المعادة وكتابة
@@ -87,15 +100,13 @@ export async function approveStatement(
   if (today === null) refuse('FORBIDDEN');
   if (!isStatementPeriodEnded(period, today)) refuse('COMMISSION_PERIOD_NOT_ENDED');
   const currentPeriod = today.slice(0, 7);
+  assertReviewable(await scope.readStatementStatus(period));
   const locked = await scope.lockPeriods(periodsFromThrough(period, currentPeriod));
   const failure = await scope.recheckAccess();
   if (failure !== null) refuse(failure);
   const statement = locked.find((candidate) => candidate.period === period);
   if (statement === undefined) throw new Error('The locked periods do not include the statement');
-  if (statement.status === 'APPROVED' || statement.status === 'PAID') {
-    refuse('COMMISSION_PERIOD_CLOSED');
-  }
-  if (statement.status !== 'REVIEWED') refuse('COMMISSION_STATEMENT_NOT_REVIEWED');
+  assertReviewable(statement.status);
 
   await passCoverageGate(scope, businessId, period);
 
@@ -110,7 +121,11 @@ export async function approveStatement(
 
   const rows = computed.build.rows;
   const employeeIds = [...new Set(rows.map((row) => row.employeeId))].sort();
-  const carries = planApprovalCarries(period, rows, await scope.readEmployment(employeeIds));
+  const carries = planApprovalCarries(
+    period,
+    employeeCarryBalances(rows),
+    await scope.readEmployment(employeeIds),
+  );
   const target = selectCommissionCorrectionTarget(locked, period, currentPeriod);
   if (carries.length > 0 && target === null)
     throw new Error('No open month can receive the carries');

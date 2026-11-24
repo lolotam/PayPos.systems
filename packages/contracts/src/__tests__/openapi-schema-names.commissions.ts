@@ -54,6 +54,7 @@ export const commissionSchemaNames = [
   'CommissionStatementReviewResult',
   'CommissionStatementRow',
   'CommissionStatementStatus',
+  'CommissionStatementTotalMoney',
   'CommissionStatementView',
   'CreateCommissionPeriodRepairInput',
   'CreateCommissionPlanVersionInput',
