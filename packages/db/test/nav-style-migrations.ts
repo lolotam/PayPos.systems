@@ -1,8 +1,8 @@
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 
-const MIGRATIONS_DIR = fileURLToPath(new URL('../migrations/', import.meta.url));
-const JOURNAL = new URL('meta/_journal.json', MIGRATIONS_DIR);
+const MIGRATIONS_URL = new URL('../migrations/', import.meta.url);
+const JOURNAL = new URL('meta/_journal.json', MIGRATIONS_URL);
 const ADD = 'ADD CONSTRAINT "user_nav_style"';
 const VALIDATE = 'VALIDATE CONSTRAINT "user_nav_style"';
 
@@ -25,7 +25,7 @@ export function readNavStyleMigrationFiles(): MigrationFile[] {
   };
   const contents = journal.entries.map((entry) => ({
     tag: entry.tag,
-    sql: readFileSync(new URL(`${entry.tag}.sql`, MIGRATIONS_DIR), 'utf8'),
+    sql: readFileSync(new URL(`${entry.tag}.sql`, MIGRATIONS_URL), 'utf8'),
   }));
   const add = contents.filter(({ sql }) => sql.includes(ADD));
   const validate = contents.filter(({ sql }) => sql.includes(VALIDATE) && !sql.includes(ADD));
