@@ -1,7 +1,7 @@
 'use client';
 
 import { t } from '@pospay/i18n';
-import { Button, PageHeader } from '@pospay/ui';
+import { Button, Card, PageHeader, PageShell } from '@pospay/ui';
 import { useLocale } from '@/shared/locale/locale-context';
 import { useStaffColumns } from '../api/use-staff-columns';
 import { isStaffColumnsRefusal, staffColumnsFailureMessage } from '../model/staff-columns-failure';
@@ -17,7 +17,7 @@ export function StaffAppColumnsPage(props: {
   const settings = query.data;
   const refused = query.isError && isStaffColumnsRefusal(query.error);
   return (
-    <section className="flex min-w-0 flex-col gap-8 text-start">
+    <PageShell layout="form">
       <PageHeader
         title={t(locale, 'staffAppColumns.title')}
         description={t(locale, 'staffAppColumns.lead')}
@@ -34,14 +34,16 @@ export function StaffAppColumnsPage(props: {
         </div>
       ) : null}
       {settings && !refused ? (
-        <StaffColumnsForm
-          key={props.businessId}
-          companyId={props.companyId}
-          userId={props.userId}
-          businessId={props.businessId}
-          server={settings}
-        />
+        <Card className="p-4 md:p-6">
+          <StaffColumnsForm
+            key={props.businessId}
+            companyId={props.companyId}
+            userId={props.userId}
+            businessId={props.businessId}
+            server={settings}
+          />
+        </Card>
       ) : null}
-    </section>
+    </PageShell>
   );
 }
