@@ -146,6 +146,9 @@ import {
 
 // التجميع مستقل عن المسارات، وترتيب السكيما يحفظ تسجيل المراجع المشتركة ووثيقة OpenAPI الحالية.
 export const openApiSchemas = [
+  navStyle,
+  myPreferencesResponse,
+  setMyPreferencesInput,
   ...employeeIbanSchemas,
   ...commissionSchemas,
   ...employeeDocumentSchemas,
@@ -275,3 +278,4 @@ export const openApiSchemas = [
   calendar,
   taxRule,
 ];
+import { navStyle, myPreferencesResponse, setMyPreferencesInput } from './identity/me-preferences.js';
