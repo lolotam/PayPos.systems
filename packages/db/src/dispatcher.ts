@@ -1,4 +1,3 @@
-import type { Logger } from '@pospay/observability';
 import { sql, type SQL } from 'drizzle-orm';
 import { drizzle, type PostgresJsDatabase } from 'drizzle-orm/postgres-js';
 import postgres from 'postgres';
@@ -24,6 +23,17 @@ export interface ClaimedEvent {
 export type DeliveryOutcome =
   | { readonly delivered: true }
   | { readonly delivered: false; readonly error: string; readonly retryInMs: number | null };
+
+/**
+ * صف من أحداث العمولة الموقوفة غير المنشورة: هويته ونوعه وشركته ورقم ترتيبه في الأوتبوكس، بلا حمولة.
+ * المسح الدوري بيقرأ السطور دي بس عشان يرفع تنبيه المالك (ADR-0012 §3).
+ */
+export interface ParkedCommissionOutboxRow {
+  readonly companyId: string;
+  readonly id: string;
+  readonly eventType: string;
+  readonly seq: string;
+}
 
 /**
  * الـ facade المحدود بتاع الـ dispatcher (ADR-0003 §3): ياخد batch ويوصّله ويسجّل النتيجة، ينضّف مفاتيح
@@ -54,6 +64,11 @@ export interface OutboxDispatcherDatabase {
   ratingClaimsReplayPage(companyId: string, afterId: string | null, throughId: string | null, limit: number): Promise<{
     throughId: string | null; events: readonly ClaimedEvent[];
   }>;
+  /** يقرأ صفحة من أحداث العمولة الستة الموقوفة غير المنشورة بترتيب seq، بلا حمولة وبلا تعديل، لمسح تنبيه المالك الدوري (ADR-0012 §3). */
+  commissionParkedEventPage(
+    afterSeq: string | bigint,
+    limit: number,
+  ): Promise<readonly ParkedCommissionOutboxRow[]>;
   ping(): Promise<void>;
   close(): Promise<void>;
 }
@@ -68,14 +83,6 @@ export interface DispatchOptions {
   readonly maxAttempts?: number;
   /** بيتنادى بالـ events اللي وقفت كده، عشان الـ worker يسجّل error log. */
   readonly onExhausted?: (events: readonly ClaimedEvent[]) => void;
-  /**
-   * بيتنادى بالـ events اللي وقفها الـ dispatcher بعد ما الـpark يتثبت في القاعدة،
-   * عشان مالك الشركة يتنبّه لحدث عمولة معلّق. الخطاف ما بيلمسش صف الـevent ولا
-   * بيعيد تسليمه، وفشله ما بيوقفش الحلقة: بيتسجّل ويتجلّى.
-   */
-  readonly onParked?: (events: readonly ClaimedEvent[]) => void | Promise<void>;
-  /** يسجّل فشل خطاف الإيقاف؛ من غير ما يتسلّم logger، الفشل ما بيتسجّلش. */
-  readonly logger?: Pick<Logger, 'error'>;
 }
 
 interface Row extends Record<string, unknown> {
@@ -86,6 +93,13 @@ interface Row extends Record<string, unknown> {
   event_type: string;
   payload: unknown;
   attempts: number;
+}
+
+interface ParkedRow extends Record<string, unknown> {
+  company_id: string;
+  id: string;
+  event_type: string;
+  seq: string;
 }
 
 const MAX_BATCH = 100;
@@ -145,13 +159,11 @@ const recordQuery = (event: ClaimedEvent, outcome: DeliveryOutcome) => {
                     AND published_at IS NULL AND parked_at IS NULL`;
   return outcome.delivered
     ? sql`UPDATE outbox SET published_at = clock_timestamp(), last_error = NULL WHERE ${fence}`
-    : // RETURNING id عشان يبان إن الصف وقف فعلاً: الحاجز ممكن يخلي التحديث ما يمسّش صف، والجرس يتكسر على حدث لسه شغّال.
-      sql`UPDATE outbox
+    : sql`UPDATE outbox
           SET last_error = ${outcome.error.slice(0, 500)},
               next_attempt_at = clock_timestamp() + ${`${outcome.retryInMs ?? 0} milliseconds`}::interval,
               parked_at = ${outcome.retryInMs === null ? sql`clock_timestamp()` : sql`NULL`}
-          WHERE ${fence}
-          RETURNING id`;
+          WHERE ${fence}`;
 };
 
 const toEvent = (row: Row): ClaimedEvent => ({
@@ -164,34 +176,6 @@ const toEvent = (row: Row): ClaimedEvent => ({
   attempt: row.attempts,
 });
 
-/**
- * خطاف ما بعد الإيقاف: بينادى بعد ما الـpark يتثبت، وفشله ما بيوقفش الـdispatch
- * ولا بيفتح صف الـevent ولا بيعيد تسليمه — بيتسجّل ويتجلّى. الرد غير المتزامن
- * ما بيستنّاش، عشان الحلقة ما تقفش على تنبيه.
- */
-const notifyParked = (options: DispatchOptions, events: readonly ClaimedEvent[]): void => {
-  if (events.length === 0) return;
-  try {
-    const pending = options.onParked?.(events);
-    if (pending instanceof Promise) {
-      pending.catch((error: unknown) => logParkedFailure(options, error, events));
-    }
-  } catch (error) {
-    logParkedFailure(options, error, events);
-  }
-};
-
-const logParkedFailure = (
-  options: DispatchOptions,
-  error: unknown,
-  events: readonly ClaimedEvent[],
-): void => {
-  options.logger?.error(
-    { err: error, events: events.map((event) => event.id) },
-    'outbox park alert failed',
-  );
-};
-
 const validate = (limit: number, leaseMs: number, maxAttempts: number): void => {
   if (!Number.isInteger(limit) || limit < 1 || limit > MAX_BATCH) {
     throw new TypeError(`limit must be 1–${MAX_BATCH}`);
@@ -202,53 +186,26 @@ const validate = (limit: number, leaseMs: number, maxAttempts: number): void => 
   }
 };
 
+// مؤشر صفحة الأحداث الموقوفة: رقم تسلسلي عشري غير سالب. الـ seq عمود bigint في القاعدة، والرقم
+// جاي من JavaScript كـ string عشان ما يبقاش فيه تقريب في double، والـ bigint جاي من كود القاعدة.
+const PARKED_CURSOR = /^(?:0|[1-9]\d*)$/;
+
 /**
- * Batch واحد: بيحجز الأحداث، بيوصّلها، وبيسجّل نتيجتها. والـ events اللي وقفها
- * بيتبعت للخطاف بعد ما الـpark يتثبت، عشان المالك يتنبّه (ADR-0012 §3).
+ * يحوّل مؤشر الصفحة إلى نص عشري قانوني، ويرفض أي رقم JavaScript (تقريب) أو نص مش عشري.
+ *
+ * @param afterSeq المؤشر كما جاء من المستدعي
+ * @returns المؤشر كنص عشري
  */
-const dispatchBatch =
-  (
-    db: PostgresJsDatabase,
-    assertRole: (runner: { execute: PostgresJsDatabase['execute'] }) => Promise<void>,
-  ) =>
-  async (
-    limit: number,
-    deliver: (event: ClaimedEvent) => Promise<DeliveryOutcome>,
-    dispatchOptions: DispatchOptions = {},
-  ): Promise<number> => {
-    const leaseMs = dispatchOptions.leaseMs ?? DEFAULT_LEASE_MS;
-    const maxAttempts = dispatchOptions.maxAttempts ?? DEFAULT_MAX_ATTEMPTS;
-    validate(limit, leaseMs, maxAttempts);
-    const [exhausted, rows] = await db.transaction(async (tx) => {
-      await assertRole(tx);
-      const parked = await tx.execute<Row>(exhaustQuery(maxAttempts));
-      return [parked, await tx.execute<Row>(claimQuery(limit, leaseMs))] as const;
-    });
-    const stopped: ClaimedEvent[] = [];
-    if (exhausted.length > 0) {
-      const exhaustedEvents = exhausted.map(toEvent);
-      dispatchOptions.onExhausted?.(exhaustedEvents);
-      stopped.push(...exhaustedEvents);
-    }
-    const events = rows.map(toEvent);
-    // One event per aggregate per batch, so deliveries run side by side. `deliver` reports a consumer's
-    // failure as an outcome; a throw means the dispatcher itself failed (a crash): that event stays leased
-    // and is redelivered when the lease ends, while the other outcomes are still recorded.
-    const settled = await Promise.allSettled(events.map((event) => deliver(event)));
-    for (const [index, event] of events.entries()) {
-      const result = settled[index];
-      if (result?.status !== 'fulfilled') continue;
-      const recorded = await db.execute<{ id: string }>(recordQuery(event, result.value));
-      // The statement above committed the park, so the row is really parked only when it came back.
-      if (!result.value.delivered && result.value.retryInMs === null && recorded.length === 1) {
-        stopped.push(event);
-      }
-    }
-    notifyParked(dispatchOptions, stopped);
-    const crashed = settled.find((result) => result.status === 'rejected');
-    if (crashed !== undefined) throw crashed.reason;
-    return events.length;
-  };
+const parkedCursor = (afterSeq: string | bigint): string => {
+  if (typeof afterSeq === 'bigint') {
+    if (afterSeq < 0n) throw new TypeError('PARKED_CURSOR_INVALID');
+    return afterSeq.toString(10);
+  }
+  if (typeof afterSeq !== 'string' || !PARKED_CURSOR.test(afterSeq)) {
+    throw new TypeError('PARKED_CURSOR_INVALID');
+  }
+  return afterSeq;
+};
 
 /**
  * بيفتح pool على pospay_dispatcher ويرجّع الـ facade بس — الـ client بيفضل جوه الـ closure (CLAUDE.md §5).
@@ -279,13 +236,56 @@ export function createOutboxDispatcherDatabase(options: {
   };
 
   return {
-    dispatchBatch: dispatchBatch(db, assertRole),
+    dispatchBatch: async (limit, deliver, dispatchOptions = {}) => {
+      const leaseMs = dispatchOptions.leaseMs ?? DEFAULT_LEASE_MS;
+      const maxAttempts = dispatchOptions.maxAttempts ?? DEFAULT_MAX_ATTEMPTS;
+      validate(limit, leaseMs, maxAttempts);
+      const [exhausted, rows] = await db.transaction(async (tx) => {
+        await assertRole(tx);
+        const parked = await tx.execute<Row>(exhaustQuery(maxAttempts));
+        return [parked, await tx.execute<Row>(claimQuery(limit, leaseMs))] as const;
+      });
+      if (exhausted.length > 0) dispatchOptions.onExhausted?.(exhausted.map(toEvent));
+      const events = rows.map(toEvent);
+      // One event per aggregate per batch, so deliveries run side by side. `deliver` reports a consumer's
+      // failure as an outcome; a throw means the dispatcher itself failed (a crash): that event stays leased
+      // and is redelivered when the lease ends, while the other outcomes are still recorded.
+      const settled = await Promise.allSettled(events.map((event) => deliver(event)));
+      for (const [index, event] of events.entries()) {
+        const result = settled[index];
+        if (result?.status === 'fulfilled') await db.execute(recordQuery(event, result.value));
+      }
+      const crashed = settled.find((result) => result.status === 'rejected');
+      if (crashed !== undefined) throw crashed.reason;
+      return events.length;
+    },
     serviceSessionReplayPage: (companyId, afterId, throughId, limit) => db.transaction(async (tx) => {
       await assertRole(tx);
       return readReplayPage(tx, companyId, afterId, throughId, limit, SERVICE_SESSION_REPLAY_TYPES);
     }),
     ...ratingReplayReaders(db, assertRole),
     ...commissionReplayReaders(db, assertRole),
+    commissionParkedEventPage: (afterSeq, limit) =>
+      db.transaction(async (tx) => {
+        await assertRole(tx);
+        const cursor = parkedCursor(afterSeq);
+        validate(limit, DEFAULT_LEASE_MS, DEFAULT_MAX_ATTEMPTS);
+        const rows = await tx.execute<ParkedRow>(sql`
+          SELECT company_id, id, event_type, seq::text AS seq
+          FROM outbox
+          WHERE parked_at IS NOT NULL
+            AND published_at IS NULL
+            AND ${COMMISSION_RETAINED_REPLAY_TYPES}
+            AND seq > ${cursor}::bigint
+          ORDER BY seq ASC
+          LIMIT ${limit}`);
+        return rows.map((row) => ({
+          companyId: row.company_id,
+          id: row.id,
+          eventType: row.event_type,
+          seq: row.seq,
+        }));
+      }),
     sweepExpiredIdempotencyKeys: async (batchSize) => {
       const [row] = await db.transaction(async (tx) => {
         await assertRole(tx);

@@ -84,6 +84,7 @@ export {
   type DeliveryOutcome,
   type DispatchOptions,
   type OutboxDispatcherDatabase,
+  type ParkedCommissionOutboxRow,
 } from './dispatcher.ts';
 export {
   IdempotencyKeyBusyError,
