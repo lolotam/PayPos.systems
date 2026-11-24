@@ -1,5 +1,5 @@
 import { t } from '@pospay/i18n';
-import { screen, within } from '@testing-library/react';
+import { fireEvent, screen, within } from '@testing-library/react';
 import { beforeEach, expect, it, vi } from 'vitest';
 import {
   alertRulesFixture,
@@ -33,6 +33,9 @@ it('lays the rules on the form shell with one header and the scope selector abov
   const rule = kindRow('SHIFT_NOT_CLOCKED_IN');
   expect(shell?.contains(scope)).toBe(true);
   expect(
+    heading.compareDocumentPosition(scope) & Node.DOCUMENT_POSITION_FOLLOWING,
+  ).toBeTruthy();
+  expect(
     scope.compareDocumentPosition(rule) & Node.DOCUMENT_POSITION_FOLLOWING,
   ).toBeTruthy();
   expect(within(rule).getByRole('switch')).toBe(kindSwitch('SHIFT_NOT_CLOCKED_IN'));
@@ -44,4 +47,18 @@ it('keeps the rules inside the same shell when the alert rules read is refused',
   const alert = await screen.findByRole('alert');
   expect(alert.closest('[data-page-shell="form"]')).not.toBeNull();
   expect(screen.getByRole('heading', { name: t('en', 'alertRules.title') })).toBeTruthy();
+});
+
+it('keeps the focused scope selector in place when a branch read is refused', async () => {
+  api.GET.mockImplementation(
+    mockAlertRulesGet((_path, call) => (call === 0 ? { data: alertRulesFixture() } : refusal(403))),
+  );
+  renderPage({ branches: [branchA] });
+  const scope = (await screen.findByLabelText(
+    t('en', 'alertRules.scopeLabel'),
+  )) as HTMLSelectElement;
+  scope.focus();
+  fireEvent.change(scope, { target: { value: branchA.id } });
+  expect((await screen.findByRole('alert')).textContent).toContain(t('en', 'errors.FORBIDDEN'));
+  expect(document.activeElement).toBe(scope);
 });
