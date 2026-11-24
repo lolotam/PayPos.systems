@@ -25,12 +25,16 @@ const harness = (
   const notices: ParkedAlertNotice[] = [];
   const transactions: string[] = [];
   const projections: string[] = [];
+  const ownerReads: string[] = [];
   const useCase = new RaiseParkedCommissionAlert<FakeTx>({
     withTenant: async (companyId, fn) => {
       transactions.push(companyId);
       return fn({ companyId });
     },
-    owners: async () => owners,
+    owners: async (_tx, companyId) => {
+      ownerReads.push(companyId);
+      return owners;
+    },
     isInputProjected: async (_tx, eventId) => {
       projections.push(eventId);
       return projected;
@@ -45,7 +49,7 @@ const harness = (
     now: () => new Date('2026-11-24T09:00:00Z'),
     groupSize: 100,
   });
-  return { useCase, marks, notices, transactions, projections };
+  return { useCase, marks, notices, transactions, projections, ownerReads };
 };
 
 it('raises one bell for the owners of a counted event that stopped', async () => {
@@ -113,6 +117,7 @@ it('raises no bell and no second mark for a projected event that was already mar
 });
 
 it('does not read the owners of a projected event', async () => {
-  const { useCase } = harness({ projected: true, owners: [] });
+  const { useCase, ownerReads } = harness({ projected: true, owners: [] });
   expect(await useCase.execute(EVENT)).toBe('NOT_BLOCKING');
+  expect(ownerReads).toEqual([]);
 });

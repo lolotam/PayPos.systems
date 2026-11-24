@@ -40,15 +40,15 @@ export const OWNER_A = '01920000-0000-7000-8000-0000000000e1';
 export const OWNER_B = '01920000-0000-7000-8000-0000000000e2';
 export const MEMBERSHIP_A = '01920000-0000-7000-8000-0000000000d1';
 export const MEMBERSHIP_B = '01920000-0000-7000-8000-0000000000d2';
-export { eventId, PARKED_ALERT_CONSUMER_ID };
+export { eventId };
 
 export const ids = systemUuidV7();
-export const clock = { now: () => new Date() };
+const clock = { now: () => new Date() };
 
 let testDb: TestDatabase;
 export let owner: postgres.Sql;
-export let app: postgres.Sql;
-export let appUrl: string;
+let app: postgres.Sql;
+let appUrl: string;
 export let dispatcherUrl: string;
 export let db: Database;
 export let dispatcher: OutboxDispatcherDatabase;

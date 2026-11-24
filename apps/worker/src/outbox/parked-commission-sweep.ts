@@ -75,6 +75,20 @@ interface SweepMemory {
   readonly failures: BoundedLru<number>;
 }
 
+/** حدود شغل المسح: حجم الصفحة، وسقف المعاملات، وتبريد سجل الفشل. */
+interface SweepLimits {
+  readonly pageSize: number;
+  readonly maxTransactionsPerSweep: number;
+  readonly failureLogCooldownMs: number;
+}
+
+/** كل ما يحتاجه المسح في الجولة الواحدة: الخيارات والحدود والذاكرة. */
+interface SweepContext {
+  readonly options: ParkedCommissionSweepOptions;
+  readonly limits: SweepLimits;
+  readonly memory: SweepMemory;
+}
+
 /** نتيجة صفحة واحدة: كام معاملة اتفتحت، وهل وقف المسح بسبب السقف. */
 interface PageOutcome {
   readonly transactions: number;
@@ -82,81 +96,66 @@ interface PageOutcome {
 }
 
 /** يسجّل الفشل بتبريد: أول فشل بيتسجّل، وبعده نفس الحدث بيتسجّل كل عشر دقايق بالكتير. */
-function logFailure(
-  memory: SweepMemory,
-  logger: Logger,
-  row: ParkedCommissionOutboxRow,
-  error: unknown,
-  now: number,
-  cooldownMs: number,
-): void {
-  const last = memory.failures.peek(row.id);
-  if (last !== undefined && now - last < cooldownMs) return;
-  memory.failures.set(row.id, now);
-  logger.error(
+function logFailure(context: SweepContext, row: ParkedCommissionOutboxRow, error: unknown): void {
+  const now = (context.options.now ?? Date.now)();
+  const last = context.memory.failures.peek(row.id);
+  if (last !== undefined && now - last < context.limits.failureLogCooldownMs) return;
+  context.memory.failures.set(row.id, now);
+  context.options.logger.error(
     { err: error, event: { id: row.id, type: row.eventType, companyId: row.companyId } },
     'outbox park alert failed',
   );
 }
 
 /** يسجّل مرة واحدة إن مفيش مالك في الشركة، عشان ما يتزحمش السجل بكل جولة. */
-function logNoOwners(memory: SweepMemory, logger: Logger, row: ParkedCommissionOutboxRow): void {
-  if (memory.noOwners.peek(row.id) !== undefined) return;
-  memory.noOwners.set(row.id, true);
-  logger.error(
+function logNoOwners(context: SweepContext, row: ParkedCommissionOutboxRow): void {
+  if (context.memory.noOwners.peek(row.id) !== undefined) return;
+  context.memory.noOwners.set(row.id, true);
+  context.options.logger.error(
     { event: { id: row.id, type: row.eventType, companyId: row.companyId } },
     'commission park alert has no recipient',
   );
 }
 
 /** يرفع التنبيه على حدث واحد؛ الفشل ما بيوقفش الصفحة ولا المسح (ADR-0012 §4). */
-async function raiseForRow(
-  memory: SweepMemory,
-  options: ParkedCommissionSweepOptions,
-  row: ParkedCommissionOutboxRow,
-  now: number,
-  cooldownMs: number,
-): Promise<void> {
+async function raiseForRow(context: SweepContext, row: ParkedCommissionOutboxRow): Promise<void> {
   let outcome: ParkedAlertOutcome;
   try {
     // The outbox event-type scan reads `eventType:` property assignments and only understands
     // literals; the stopped event's type is dynamic by design, so the object is built by shorthand.
     const { companyId, eventType } = row;
-    outcome = await options.raiseAlert({ companyId, eventId: row.id, eventType });
+    outcome = await context.options.raiseAlert({ companyId, eventId: row.id, eventType });
   } catch (error) {
-    logFailure(memory, options.logger, row, error, now, cooldownMs);
+    logFailure(context, row, error);
     return;
   }
   if (outcome === 'NO_OWNERS') {
-    logNoOwners(memory, options.logger, row);
+    logNoOwners(context, row);
     return;
   }
-  memory.settled.set(row.id, true);
-  memory.noOwners.remove(row.id);
-  memory.failures.remove(row.id);
+  context.memory.settled.set(row.id, true);
+  context.memory.noOwners.remove(row.id);
+  context.memory.failures.remove(row.id);
 }
 
 /** يعالج صفحة واحدة: المستقرّ بيتخطى من غير معاملة، والسقف بيوقف المسح (ADR-0012 §4). */
 async function sweepPage(
-  memory: SweepMemory,
-  options: ParkedCommissionSweepOptions,
+  context: SweepContext,
   page: readonly ParkedCommissionOutboxRow[],
   transactions: number,
-  maxTransactionsPerSweep: number,
-  cooldownMs: number,
 ): Promise<PageOutcome> {
   let used = transactions;
   for (const row of page) {
-    if (memory.settled.peek(row.id) !== undefined) continue;
-    if (used >= maxTransactionsPerSweep) {
-      options.logger.info(
-        { maxTransactionsPerSweep },
+    if (context.memory.settled.peek(row.id) !== undefined) continue;
+    if (used >= context.limits.maxTransactionsPerSweep) {
+      context.options.logger.info(
+        { maxTransactionsPerSweep: context.limits.maxTransactionsPerSweep },
         'parked commission alert sweep reached transaction cap',
       );
       return { transactions: used, capped: true };
     }
     used += 1;
-    await raiseForRow(memory, options, row, (options.now ?? Date.now)(), cooldownMs);
+    await raiseForRow(context, row);
   }
   return { transactions: used, capped: false };
 }
@@ -166,40 +165,28 @@ async function sweepPage(
  * بيعطّل اعتماد الشهر. كل مسح يبدأ من أول صف (ADR-0012 §4): المؤشر بيتقدم بعد الصفحة
  * كلها بس، والصفحة الناقصة معناها إن مفيش أحداث موقوفة بعدها.
  *
- * @param memory ذاكرة المسح بين الجولات
- * @param options القارئ والرافع والحدود
- * @returns دالة المسح الواحد
+ * @param context الخيارات والحدود والذاكرة
  */
-async function sweepAll(memory: SweepMemory, options: ParkedCommissionSweepOptions): Promise<void> {
-  const pageSize = options.pageSize ?? DEFAULT_PAGE_SIZE;
-  const maxTransactionsPerSweep = options.maxTransactionsPerSweep ?? DEFAULT_MAX_TRANSACTIONS;
-  const cooldownMs = options.failureLogCooldownMs ?? DEFAULT_FAILURE_LOG_COOLDOWN_MS;
+async function sweepEveryPage(context: SweepContext): Promise<void> {
   let cursor = '0';
   let transactions = 0;
   for (;;) {
-    if (options.isStopped?.() === true) return;
-    const page = await options.readPage(cursor, pageSize);
-    const outcome = await sweepPage(
-      memory,
-      options,
-      page,
-      transactions,
-      maxTransactionsPerSweep,
-      cooldownMs,
-    );
+    if (context.options.isStopped?.() === true) return;
+    const page = await context.options.readPage(cursor, context.limits.pageSize);
+    const outcome = await sweepPage(context, page, transactions);
     transactions = outcome.transactions;
     if (outcome.capped) return;
     const last = page.at(-1);
     if (last === undefined) return;
     cursor = last.seq;
-    if (page.length < pageSize) return;
+    if (page.length < context.limits.pageSize) return;
   }
 }
 
 /**
  * مسح دوري لأحداث العمولة الموقوفة: هو المصدر الوحيد لتنبيه المالك (ADR-0012 §3).
  * الضمان: طلب تنبيه واحد دائم لكل حدث موقوف بيعطّل الاعتماد؛ العلامة في القاعدة هي
- * بين الجولات مجرد اختصار بيوفّر معاملات.
+ * مصدر الحقيقة، والذاكرة بين الجولات مجرد اختصار بيوفّر معاملات.
  *
  * @param options قارئ الصفحات ورافع التنبيه والحدود
  * @returns دالة المسح الواحد
@@ -207,10 +194,18 @@ async function sweepAll(memory: SweepMemory, options: ParkedCommissionSweepOptio
 export function createParkedCommissionSweep(
   options: ParkedCommissionSweepOptions,
 ): () => Promise<void> {
-  const memory: SweepMemory = {
-    settled: new BoundedLru<true>(options.settledCapacity ?? DEFAULT_SETTLED_CAPACITY),
-    noOwners: new BoundedLru<true>(options.noOwnersCapacity ?? DEFAULT_NO_OWNERS_CAPACITY),
-    failures: new BoundedLru<number>(DEFAULT_FAILURE_CAPACITY),
+  const context: SweepContext = {
+    options,
+    limits: {
+      pageSize: options.pageSize ?? DEFAULT_PAGE_SIZE,
+      maxTransactionsPerSweep: options.maxTransactionsPerSweep ?? DEFAULT_MAX_TRANSACTIONS,
+      failureLogCooldownMs: options.failureLogCooldownMs ?? DEFAULT_FAILURE_LOG_COOLDOWN_MS,
+    },
+    memory: {
+      settled: new BoundedLru<true>(options.settledCapacity ?? DEFAULT_SETTLED_CAPACITY),
+      noOwners: new BoundedLru<true>(options.noOwnersCapacity ?? DEFAULT_NO_OWNERS_CAPACITY),
+      failures: new BoundedLru<number>(DEFAULT_FAILURE_CAPACITY),
+    },
   };
-  return () => sweepAll(memory, options);
+  return () => sweepEveryPage(context);
 }
