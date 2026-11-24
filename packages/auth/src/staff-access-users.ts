@@ -1,9 +1,11 @@
 import { createStaffAccessDatabase, StaffPhoneTakenError } from '@pospay/db';
+import type { BetterAuthOptions } from 'better-auth';
 import type { IdGenerator } from '@pospay/db';
 
 /**
  * حساب الموظفة على pospay_auth (spec 076 F1، plan §4.3): الغلاف الوحيد فوق واجهة @pospay/db —
- * يفحص المدخلات قبل أي كتابة ويرفض برسائل ثابتة، ولا مسار credential هنا ولا في أي مكان آخر (D8).
+ * يبني البريد الاصطناعي من النطاق المحجوز، ويفكّ أغلفة الرفض المتوقعة، ولا مسار credential
+ * هنا ولا في أي مكان آخر (D8). التحقق النهائي للمدخلات في طبقة قاعدة البيانات نفسها.
  */
 
 /**
@@ -13,7 +15,7 @@ import type { IdGenerator } from '@pospay/db';
 export const STAFF_SYNTHETIC_EMAIL_DOMAIN = 'staff.pospay.invalid';
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-// نفس عقد `canonicalStaffPhone` (8–15 رقمًا بعد الـ +) — المدخل الأشد قبل أي كتابة.
+// نفس عقد `canonicalStaffPhone` (8–15 رقمًا بعد الـ +) — رفض مبكر برسالة أوضح قبل فتح الاتصال.
 const PHONE = /^[+][1-9][0-9]{7,14}$/;
 
 /** بريد حساب الموظفة الاصطناعي لمعرّف عملية — المصدر الوحيد للصيغة في النظام كله. */
@@ -23,12 +25,22 @@ export function staffSyntheticEmail(operationId: string): string {
 
 /** مدخل الإنشاء أو الإيجاد كما يأتي من identity. */
 export interface StaffUserProvisionRequest {
+  /** معرّف العملية من سجل الدخول. */
   readonly operationId: string;
+  /** الشركة. */
   readonly companyId: string;
+  /** الهاتف الكانوني. */
   readonly phone: string;
+  /** اسم الموظفة. */
   readonly name: string;
+  /** المانح المؤكِّد للهاتف. */
   readonly actorUserId: string;
+  /** مولّد UUID v7. */
   readonly ids: IdGenerator;
+  /** حالة سجل الدخول المقروءة تحت القفل — الإنشاء لسجل `PENDING` فقط (P1-2). */
+  readonly recordState: 'PENDING' | 'CANCELLING';
+  /** إعادة تثبيت ربط الهاتف عند استئناف سجل `STOPPED`. */
+  readonly resetBinding: boolean;
 }
 
 /** الواجهة التي يراها identity: الإنشاء والإيجاد والإلغاء والقراءة بلا أي مسار credential. */
@@ -43,6 +55,26 @@ export interface StaffUserAccess {
   read(operationId: string): Promise<{ userId: string; phoneLast3: string | null } | null>;
   /** هل المستخدم حساب موظفة؟ يُفحص قبل إصدار أي مسار تعامل (D8). */
   isStaffUser(userId: string): Promise<boolean>;
+  /** هل الحساب (credential) يخص مستخدم موظفة؟ يُفحص على الهدف عند تحديث كلمة السر (P1-6). */
+  isStaffAccount(accountId: string): Promise<boolean>;
+  /**
+   * شركة حساب الموظفة أو null — exclusivity الشركة تُفحص قبل كل كتابة عضوية (P1-5).
+   *
+   * @param userId المستخدم
+   */
+  staffCompanyOf(userId: string): Promise<string | null>;
+  /**
+   * ربط المستخدم بمعرّف العملية: يُرد معرف المستخدم وشركته أو null — إثبات المنح الوحيد المقبول.
+   *
+   * @param operationId معرّف العملية
+   */
+  bindingOf(operationId: string): Promise<{ userId: string; companyId: string | null } | null>;
+  /**
+   * مستخدم رابط token استهلاك كلمة السر أو null — بوابة الاستهلاك قبل Better Auth (P1-6).
+   *
+   * @param token token الاستهلاك
+   */
+  userIdForResetToken(token: string): Promise<string | null>;
   /** يغلق اتصال pospay_auth المملوك للواجهة. */
   close(): Promise<void>;
 }
@@ -50,52 +82,97 @@ export interface StaffUserAccess {
 /**
  * يبني واجهة حساب الموظفة فوق قاعدة pospay_auth؛ الاتصال واحد ويُغلق معه.
  *
- * @param options الاتصال بـ AUTH_DATABASE_URL ومفتاح قفل الهاتف ومولّد المعرّفات
- * @returns الواجهة الأربعية مع الإغلاق
+ * @param options الاتصال بـ AUTH_DATABASE_URL ومفتاح قفل الهاتف
+ * @returns الواجهة مع الإغلاق
  */
 export function createStaffUserAccess(options: {
   databaseUrl: string;
   phoneLockKey: (hash: Uint8Array) => bigint;
-  ids: IdGenerator;
 }): StaffUserAccess & { close(): Promise<void> } {
   const database = createStaffAccessDatabase({
     url: options.databaseUrl,
     phoneLockKey: options.phoneLockKey,
   });
   // غلاف الـ runtime الطارئ يلف كل الأخطاء بكود ثابت؛ الرفض المتوقع يعود هنا فئةً حقيقية.
-  const unwrapPhoneTaken = (error: unknown): unknown => {
+  const unwrapKnown = (error: unknown): unknown => {
     const message = error instanceof Error ? error.message : '';
-    return message === 'OTP_DATABASE_UNAVAILABLE_STAFF_PHONE_TAKEN'
-      ? new StaffPhoneTakenError()
-      : error;
+    if (message === 'OTP_DATABASE_UNAVAILABLE_STAFF_PHONE_TAKEN') return new StaffPhoneTakenError();
+    return error;
   };
   return {
     provision: async (input) => {
-      const email = staffSyntheticEmail(input.operationId);
-      if (
-        !UUID.test(input.operationId) ||
-        !UUID.test(input.companyId) ||
-        !UUID.test(input.actorUserId) ||
-        input.name.trim().length < 1 ||
-        input.name.length > 255 ||
-        !PHONE.test(input.phone)
-      )
+      if (!UUID.test(input.operationId) || !UUID.test(input.companyId) || !PHONE.test(input.phone))
         throw new Error('STAFF_USER_INPUT_INVALID');
-      return database.provision({ ...input, email }).catch((error) => {
-        throw unwrapPhoneTaken(error);
-      });
+      return database
+        .provision({
+          ...input,
+          email: staffSyntheticEmail(input.operationId),
+          actorUserId: input.actorUserId,
+        })
+        .catch((error) => {
+          throw unwrapKnown(error);
+        });
     },
-    cancel: async (input) => {
-      if (!UUID.test(input.operationId) || !UUID.test(input.companyId))
-        throw new Error('STAFF_USER_INPUT_INVALID');
-      return database.cancel(input);
-    },
+    cancel: async (input) => database.cancel(input),
     read: (operationId) => database.read(operationId),
     isStaffUser: async (userId) => {
       if (!UUID.test(userId)) return false;
       const found = await database.byUserId(userId);
       return found?.staff === true;
     },
+    isStaffAccount: async (accountId) => {
+      const found = await database.byAccountId(accountId);
+      return found?.staff === true;
+    },
+    staffCompanyOf: async (userId) => {
+      if (!UUID.test(userId)) return null;
+      const found = await database.byUserId(userId);
+      return found === null || !found.staff ? null : (found.companyId ?? null);
+    },
+    bindingOf: (operationId) => database.bindingOf(operationId),
+    userIdForResetToken: (token) => database.userIdForResetToken(token),
     close: () => database.close(),
+  };
+}
+
+/**
+ * D8 (spec 076): حساب الموظفة مقفول على كل مسار تعامل — لا account يتعمل ولا يتغير، ولا جلسة
+ * عادية (بلا purpose) تتعمل له. جلسات STAFF_POS/STAFF_PERSONAL بتيجي من internalAdapter مباشرة.
+ * Better Auth 1.7.5 يرسل { password } فقط عند تغيير كلمة السر — الهدف يُفحص بـ id الحساب نفسه
+ * (P1-6)، فتغيير كلمة سر حساب موظفة مرفوض مهما كان شكل الحمولة.
+ */
+export function staffUserD8Hooks(
+  staffUsers: StaffUserAccess,
+): NonNullable<BetterAuthOptions['databaseHooks']> {
+  return {
+    account: {
+      create: {
+        before: async (data) => {
+          if (await staffUsers.isStaffUser(String(data.userId)))
+            throw new Error('STAFF_USER_CREDENTIAL_REFUSED');
+          return { data };
+        },
+      },
+      update: {
+        before: async (data) => {
+          if (
+            (data.userId !== undefined && (await staffUsers.isStaffUser(String(data.userId)))) ||
+            (data.id !== undefined && (await staffUsers.isStaffAccount(String(data.id))))
+          )
+            throw new Error('STAFF_USER_CREDENTIAL_REFUSED');
+          return { data };
+        },
+      },
+    },
+    session: {
+      create: {
+        before: async (data) => {
+          const purpose = (data as { purpose?: string | null }).purpose ?? null;
+          if (purpose === null && (await staffUsers.isStaffUser(String(data.userId))))
+            throw new Error('STAFF_USER_SESSION_REFUSED');
+          return { data };
+        },
+      },
+    },
   };
 }

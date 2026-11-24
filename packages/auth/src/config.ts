@@ -11,7 +11,7 @@ import { passkeyPolicy, registrationPlugin, isPasskeyRoute } from './passkey-pol
 import { createPasskeyFacade, type ActivePasskeyBindings, type PasskeyFacade } from './passkeys.ts';
 import { sessionFromRecord } from './staff-session-fence.ts';
 import { createStaffSessions, type StaffSessions } from './staff-sessions.ts';
-import { createStaffUserAccess, STAFF_SYNTHETIC_EMAIL_DOMAIN, type StaffUserAccess } from './staff-access-users.ts';
+import { createStaffUserAccess, STAFF_SYNTHETIC_EMAIL_DOMAIN, staffUserD8Hooks, type StaffUserAccess } from './staff-access-users.ts';
 
 /**
  * ما يحتاجه Better Auth: الـ pool على pospay_auth، السر، العنوان، الـ origins المسموحة، ومولّد الـ ids.
@@ -123,7 +123,6 @@ export async function createAuth(options: AuthOptions): Promise<AuthService> {
   const staffUsers = createStaffUserAccess({
     databaseUrl: options.databaseUrl,
     phoneLockKey: options.staffPhoneLockKey,
-    ids: options.ids,
   });
   try {
     await database.ping();
@@ -154,14 +153,7 @@ function assembleAuthService(
     passkeys,
     staffUsers,
     privateView: configuredPrivateView(options, database),
-    handler: async (request) => {
-      if (
-        isPasskeyRoute(request.url) ||
-        !(await normalPurpose(staff, request.headers, options.onLog))
-      )
-        return new Response(null, { status: 403 });
-      return auth.handler(request);
-    },
+    handler: (request) => authHandler(request, auth, staff, staffUsers, options.onLog),
     getSession: async (headers) => {
       if (!(await normalPurpose(staff, headers, options.onLog))) return null;
       const { headers: out, response } = await auth.api.getSession({
@@ -169,6 +161,8 @@ function assembleAuthService(
         returnHeaders: true,
       });
       if (response === null) return null;
+      // D8 عند الاستهلاك (P1-6): جلسة عادية لمستخدم موظفة تُعامَل كلا جلسة — حتى لو وصلت بوسيلة أخرى.
+      if (await staffUsers.isStaffUser(response.user.id)) return null;
       return {
         platformPermissions: await database.activePlatformPermissions(response.user.id),
         userId: response.user.id,
@@ -196,6 +190,47 @@ function assembleAuthService(
       await Promise.all([database.close(), staffUsers.close(), staff.close(), personal.close()]);
     },
   };
+}
+
+/** بوابات D8 على استهلاك reset-password: رفض حساب الموظفة قبل تسليم الطلب لـ Better Auth (P1-6). */
+async function authHandler(
+  request: Request,
+  auth: ReturnType<typeof buildBetterAuth>,
+  staff: StaffSessions,
+  staffUsers: StaffUserAccess,
+  onLog: AuthOptions['onLog'],
+): Promise<Response> {
+  if (
+    isPasskeyRoute(request.url) ||
+    !(await normalPurpose(staff, request.headers, onLog))
+  )
+    return new Response(null, { status: 403 });
+  if (request.method === 'POST' && new URL(request.url).pathname === '/v1/auth/reset-password') {
+    // الجسم يُقرأ مرة واحدة ويُعاد بناؤه للطلب المُمرَّر — البوابة تسبق Better Auth ولا تلغم المسار.
+    const raw = await request.arrayBuffer();
+    try {
+      const payload = JSON.parse(new TextDecoder().decode(raw)) as { token?: unknown };
+      if (typeof payload.token === 'string') {
+        const linked = await staffUsers.userIdForResetToken(payload.token);
+        const staffUserId =
+          linked !== null && (await staffUsers.isStaffUser(linked)) ? linked : null;
+        if (staffUserId !== null)
+          return Response.json(
+            { code: 'STAFF_USER_CREDENTIAL_REFUSED', message: 'reset refused' },
+            { status: 400 },
+          );
+      }
+    } catch {
+      // جسم غير JSON يُترك لـ Better Auth يرفضه كالمعتاد.
+    }
+    const replay = new Request(request.url, {
+      method: request.method,
+      headers: request.headers,
+      body: raw,
+    });
+    return auth.handler(replay);
+  }
+  return auth.handler(request);
 }
 
 type AuthContext = Awaited<ReturnType<typeof buildBetterAuth>['$context']>;
@@ -281,7 +316,7 @@ export function buildBetterAuth(
       twoFactor({ issuer: 'PosPay' }),
       registrationPlugin(passkeyPolicy(options.baseURL, options.trustedOrigins)),
     ],
-    databaseHooks: staffUserHooks(staffUsers),
+    databaseHooks: staffUserD8Hooks(staffUsers),
     advanced: {
       cookiePrefix: cookieNames.prefix,
       useSecureCookies: options.secureCookies,
@@ -300,43 +335,6 @@ export function buildBetterAuth(
       log: (level, message, ...args) => options.onLog(toLogEntry(level, message, args)),
     },
   });
-}
-
-/**
- * D8 (spec 076): حساب الموظفة مقفول على كل مسار تعامل — لا account يتعمل ولا يتغير، ولا جلسة
- * عادية (بلا purpose) تتعمل له. جلسات STAFF_POS/STAFF_PERSONAL بتيجي من internalAdapter مباشرة.
- */
-function staffUserHooks(
-  staffUsers: StaffUserAccess,
-): NonNullable<BetterAuthOptions['databaseHooks']> {
-  return {
-    account: {
-      create: {
-        before: async (data) => {
-          if (await staffUsers.isStaffUser(String(data.userId)))
-            throw new Error('STAFF_USER_CREDENTIAL_REFUSED');
-          return { data };
-        },
-      },
-      update: {
-        before: async (data) => {
-          if (data.userId !== undefined && (await staffUsers.isStaffUser(String(data.userId))))
-            throw new Error('STAFF_USER_CREDENTIAL_REFUSED');
-          return { data };
-        },
-      },
-    },
-    session: {
-      create: {
-        before: async (data) => {
-          const purpose = (data as { purpose?: string | null }).purpose ?? null;
-          if (purpose === null && (await staffUsers.isStaffUser(String(data.userId))))
-            throw new Error('STAFF_USER_SESSION_REFUSED');
-          return { data };
-        },
-      },
-    },
-  };
 }
 
 // Better Auth's messages are a fixed phrase, then ": " and a value (a URL, an origin, an id). Only the phrase

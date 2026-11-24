@@ -17,7 +17,11 @@ beforeAll(async () => {
 });
 
 const phoneOf = (n: number) => `+965500000${String(n).padStart(2, '0')}`;
-const provision = (phone: string, operationId = ids.newId()) =>
+const provision = (
+  phone: string,
+  operationId = ids.newId(),
+  options: { recordState?: 'PENDING' | 'CANCELLING'; resetBinding?: boolean } = {},
+) =>
   f.auth.staffUsers.provision({
     operationId,
     companyId: f.device.companyId,
@@ -25,6 +29,8 @@ const provision = (phone: string, operationId = ids.newId()) =>
     name: 'Synthetic staff',
     actorUserId: f.userId,
     ids,
+    recordState: options.recordState ?? 'PENDING',
+    resetBinding: options.resetBinding ?? false,
   });
 
 it('AC-F1-1 provision creates the user with markers, synthetic email, no credential account and an approved binding', async () => {
@@ -122,6 +128,89 @@ it('AC-F1-7 a staff user cannot start an email session and mints no normal sessi
   expect(session).toBeUndefined();
 });
 
+it('P1-6 reset-password consumption refuses a credential account of a staff user (target check)', async () => {
+  const { userId } = await provision(phoneOf(19));
+  // حساب credential مزروع يدوياً: الاستهلاك (وليس الإصدار) هو المسار المطلوب إقفاله (P1-6).
+  const accountId = ids.newId();
+  await owner`INSERT INTO account (id, account_id, provider_id, user_id, password)
+    VALUES (${accountId}, ${userId}, 'credential', ${userId}, 'pbkdf2$seeded')`;
+  const token = 'p1-six-staff-reset-token';
+  await owner`INSERT INTO verification (id, identifier, value, expires_at)
+    VALUES (${ids.newId()}, ${`reset-password:${token}`}, ${userId}, now() + interval '1 hour')`;
+  const response = await f.auth.handler(
+    new Request('https://api.synthetic.invalid/v1/auth/reset-password', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ token, newPassword: 'brand-new-pass-123' }),
+    }),
+  );
+  expect(response.status).toBeGreaterThanOrEqual(400);
+  const [account] = await owner`SELECT password FROM account WHERE id = ${accountId}`;
+  expect(account?.password).toBe('pbkdf2$seeded');
+  await owner`DELETE FROM account WHERE id = ${accountId}`;
+});
+
+it('P1-6 a normal session of a staff user is dead at consumption (getSession returns null)', async () => {
+  const { userId } = await provision(phoneOf(20));
+  const token = 'p1-six-consumption-session-token';
+  await owner`INSERT INTO session (id, expires_at, token, ip_address, user_agent, user_id)
+    VALUES (${ids.newId()}, now() + interval '1 hour', ${token}, NULL, NULL, ${userId})`;
+  const headers = new Headers({ cookie: 'pospay.session_token=' + token });
+  expect(await f.auth.getSession(headers)).toBeNull();
+  await owner`DELETE FROM session WHERE user_id = ${userId}`;
+});
+
+it('P1-6 ordinary users still sign in, consume sessions and reset passwords', async () => {
+  const email = `p1-six-ordinary-${ids.newId()}@example.test`;
+  const { link } = await (await import('../create-platform-user.ts')).createPlatformUser(f.auth, {
+    email,
+    name: 'Ordinary',
+    operator: 'synthetic-operator',
+    redirectTo: 'https://admin.synthetic.invalid/set-password',
+  });
+  const token = new URL(link).pathname.split('/').pop() ?? '';
+  const reset = await f.auth.handler(
+    new Request('https://api.synthetic.invalid/v1/auth/reset-password', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ token, newPassword: 'operator-chosen-pass' }),
+    }),
+  );
+  expect(reset.status).toBeLessThan(400);
+  const signIn = await f.auth.handler(
+    new Request('https://api.synthetic.invalid/v1/auth/sign-in/email', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ email, password: 'operator-chosen-pass' }),
+    }),
+  );
+  expect(signIn.status).toBeLessThan(400);
+  const setCookie = (signIn.headers.get('set-cookie') ?? '').split(';')[0];
+  const [user] = await owner`SELECT id FROM "user" WHERE email = ${email}`;
+  const consumed = await f.auth.getSession(new Headers({ cookie: setCookie }));
+  expect(consumed?.userId).toBe(user?.id);
+  // تفعيل TOTP عبر جلسة عادية يظل مسموحاً — مسار المستخدمين العاديين لا يتغير (P1-6 regression).
+  const enable = await f.auth.handler(
+    new Request('https://api.synthetic.invalid/v1/auth/two-factor/enable', {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        cookie: setCookie,
+        origin: 'https://admin.synthetic.invalid',
+      },
+      body: JSON.stringify({ password: 'operator-chosen-pass' }),
+    }),
+  );
+  expect(enable.status).toBeLessThan(400);
+  await owner`DELETE FROM two_factor WHERE user_id = ${user?.id}`;
+  await owner`DELETE FROM session WHERE user_id = ${user?.id}`;
+  await owner`DELETE FROM account WHERE user_id = ${user?.id}`;
+  // تدقيق المنصة insert-only يشير بالمستخدم (target_user_id أو details): التنظيف يمسح المراجع أولاً.
+  await owner`DELETE FROM platform_audit_log
+    WHERE target_user_id = ${user?.id} OR details->>'user_id' = ${user?.id}`;
+  await owner`DELETE FROM "user" WHERE id = ${user?.id}`;
+});
+
 it('AC-F1-7 no credential account can be created or updated for a staff user afterwards', async () => {
   const { userId } = await provision(phoneOf(9));
   const withAccount = async () =>
@@ -170,6 +259,51 @@ it('D8 isStaffUser answers by the marker for both kinds of users', async () => {
   const { userId } = await provision(phoneOf(12));
   expect(await f.auth.staffUsers.isStaffUser(userId)).toBe(true);
   expect(await f.auth.staffUsers.isStaffUser(f.userId)).toBe(false);
+});
+
+it('P1-5 staffCompanyOf returns the marker company for a staff user and null otherwise', async () => {
+  const { userId } = await provision(phoneOf(14));
+  expect(await f.auth.staffUsers.staffCompanyOf(userId)).toBe(f.device.companyId);
+  expect(await f.auth.staffUsers.staffCompanyOf(f.userId)).toBeNull();
+});
+
+it('P1-5 bindingOf resolves the user bound to an operation id, or null', async () => {
+  const operationId = ids.newId();
+  const { userId } = await provision(phoneOf(15), operationId);
+  expect(await f.auth.staffUsers.bindingOf(operationId)).toEqual({
+    userId,
+    companyId: f.device.companyId,
+  });
+  expect(await f.auth.staffUsers.bindingOf(ids.newId())).toBeNull();
+});
+
+it('P1-2 provision refuses to create a user for a record that is not PENDING', async () => {
+  const before = await owner`SELECT count(*) AS n FROM "user" WHERE name = 'Synthetic staff'`;
+  await expect(
+    provision(phoneOf(16), ids.newId(), { recordState: 'CANCELLING' }),
+  ).rejects.toThrow('STAFF_RECORD_NOT_PENDING');
+  expect(
+    await owner`SELECT count(*) AS n FROM "user" WHERE name = 'Synthetic staff'`,
+  ).toEqual(before);
+});
+
+it('P1-4 resetBinding re-approves the requested phone on the existing user and refuses a taken phone', async () => {
+  const operationId = ids.newId();
+  const { userId } = await provision(phoneOf(17), operationId);
+  const newPhone = phoneOf(18);
+  await provision(newPhone, operationId, { resetBinding: true });
+  const [user] = await owner`SELECT phone_number, phone_binding_approved_at FROM "user" WHERE id = ${userId}`;
+  expect(user?.phone_number).toBe(newPhone);
+  expect(user?.phone_binding_approved_at).not.toBeNull();
+  // هاتف مملوك لمستخدم آخر يُرفض حتى في وضع resetBinding وبلا أي تفاصيل عن المالك.
+  const otherUser = ids.newId();
+  await owner`INSERT INTO "user"(id,name,email,phone_number) VALUES (${otherUser},'Other',${`o-${otherUser}@example.test`},'+96550000099')`;
+  await expect(
+    provision('+96550000099', operationId, { resetBinding: true }),
+  ).rejects.toThrow(StaffPhoneTakenError);
+  const [unchanged] = await owner`SELECT phone_number FROM "user" WHERE id = ${userId}`;
+  expect(unchanged?.phone_number).toBe(newPhone);
+  await owner`DELETE FROM "user" WHERE id = ${otherUser}`;
 });
 
 it('two concurrent provisions of one phone produce one user and one typed refusal', async () => {
