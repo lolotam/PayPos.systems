@@ -9,14 +9,14 @@ import type { FastifyRequest } from 'fastify';
 import { Public } from '../../../shared/public.decorator.ts';
 import { ApiError } from '../../../shared/errors.ts';
 import { verifiedResendDigest } from './resend-webhook-security.ts';
-import type { Clock } from '../ports/clock.port.ts';
 import type { ReceiveEmailFeedback } from '../use-cases/receive-email-feedback/receive-email-feedback.ts';
 
 export const RESEND_WEBHOOK = Symbol('RESEND_WEBHOOK');
 export interface ResendIntake {
   readonly config: ResendWebhookConfiguration;
   readonly receive: ReceiveEmailFeedback;
-  readonly clock: Clock;
+  /** ساعة الاستقبال للتوقيع: حقن صريح بدل Date.now على طول (§4.3). */
+  readonly clock: { readonly now: () => Date };
 }
 
 @Controller('webhooks/resend')

@@ -146,6 +146,10 @@ try {
   // own webhook secret: without it the route answers NOT_READY and stores nothing.
   if (intakeUrl !== undefined) {
     try {
+      // بلا proxy موثوق في الإنتاج كل الطلبات بتوصل من عنوان الـ proxy نفسه، فحد المزوّد لكل IP
+      // بيبقى دلو واحدة، والـ 503 هو السلوك المتعمد (spec 075 FR-001).
+      if (process.env['NODE_ENV'] === 'production' && config.TRUSTED_PROXY_CIDRS.length === 0)
+        throw new Error('EMAIL_FEEDBACK_CAPABILITY_UNAVAILABLE');
       emailDatabase = createPlatformEmailDatabase({ url: intakeUrl });
       const intake = createResendIntake(emailDatabase, config.REDIS_URL, process.env, logger);
       resend = intake;
@@ -169,6 +173,17 @@ try {
       resend = undefined;
       emailDatabase = undefined;
     }
+  } else {
+    logger.info(
+      {
+        capability: {
+          name: 'EMAIL_FEEDBACK_INTAKE',
+          state: 'DISABLED',
+          reason: 'NOT_CONFIGURED',
+        },
+      },
+      'email feedback intake capability',
+    );
   }
   auth = await createAuth({
     passkeyBindings: createActivePasskeyBindings(database, {

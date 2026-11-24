@@ -13,6 +13,7 @@ export default [
       'src/**/__tests__/whatsapp-harness.ts',
       'src/modules/notifications/http/__tests__/whatsapp-batch.spec.ts',
       'src/modules/notifications/http/__tests__/whatsapp-parser.spec.ts',
+      'src/modules/notifications/http/__tests__/resend-webhook-harness.ts',
       'src/modules/notifications/http/__tests__/resend-webhook.spec.ts',
     ],
     ...allowDatabaseFacade(['createPlatformWhatsappDatabase', 'createPlatformEmailDatabase']),

@@ -1,153 +1,65 @@
-﻿import { createHash, createHmac } from 'node:crypto';
+﻿import { createHash } from 'node:crypto';
+import http from 'node:http';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
-import postgres from 'postgres';
-import { Redis } from 'ioredis';
 import type { NestFastifyApplication } from '@nestjs/platform-fastify';
-import { createPlatformEmailDatabase, type PlatformEmailDatabase } from '@pospay/db';
-import { systemUuidV7 } from '@pospay/ids';
-import { createLogger } from '@pospay/observability';
-import { EmailFeedbackQueueUnavailableError, resendSigningKey } from '@pospay/notifications';
-import { API_LOG_EVENTS } from '../../../../shared/log-events.ts';
-import { createTestDatabase } from '../../../../../../../packages/db/test/test-database.ts';
-import { readPgTestEnv } from '../../../../../../../packages/db/test/pg-env.ts';
 import { createApp } from '../../../../app.ts';
-import { createEmailFeedbackInboxRepository } from '../../persistence/drizzle-email-feedback.repository.ts';
-import { ReceiveEmailFeedback } from '../../use-cases/receive-email-feedback/receive-email-feedback.ts';
+import {
+  address,
+  event,
+  eventId,
+  remote,
+  resendHarness,
+  secret,
+  sign,
+  timestamp,
+  type ResendHarness,
+} from './resend-webhook-harness.ts';
 
-const secret = `whsec_${Buffer.from('resend-webhook-secret').toString('base64')}`;
-const remote = '127.0.0.42';
-const eventId = 'msg_test_resend_event';
-const emailId = '4ef9a417-02e9-4d39-ad75-9611e0fcc33c';
-const address = 'owner@example.invalid';
-const at = new Date('2026-11-23T10:00:00Z');
-const timestamp = String(Math.floor(at.getTime() / 1000));
-
-const event = (type = 'email.bounced') => ({
-  type,
-  created_at: '2026-11-23T10:00:00.000Z',
-  data: {
-    email_id: emailId,
-    to: [address],
-    from: 'no-reply@send.pospay.systems',
-    subject: 'Your document expires soon',
-    tags: [{ name: 'company_id', value: '01920000-0000-7000-8000-000000000001' }],
-    bounce: {
-      type: 'Permanent',
-      subType: 'General',
-      diagnosticCode: ['smtp; 550 5.5.0 Requested action not taken: mailbox unavailable'],
-      message: 'mailbox unavailable',
-    },
-  },
-});
-const sign = (payload: string, id = eventId, stamp = timestamp) =>
-  `v1,${createHmac('sha256', resendSigningKey(secret))
-    .update(`${id}.${stamp}.`)
-    .update(payload)
-    .digest('base64')}`;
-
-let h: Awaited<ReturnType<typeof harness>>;
+let h: ResendHarness;
 beforeAll(async () => {
-  h = await harness();
+  h = await resendHarness();
 });
 beforeEach(async () => {
   await h.resetLimits();
   h.failEnqueue(false);
+  h.clearJobs();
 });
 afterAll(async () => {
   await h?.close();
 });
 
-async function harness() {
-  const test = await createTestDatabase();
-  const owner = postgres(test.ownerUrl, { max: 1, onnotice: () => undefined });
-  const database: PlatformEmailDatabase = createPlatformEmailDatabase({
-    url: test.notificationsUrl,
-  });
-  await database.ping();
-  readPgTestEnv();
-  const redis = new Redis(
-    process.env['REDIS_URL'] ??
-      `redis://:${encodeURIComponent(process.env['REDIS_PASSWORD'] ?? '')}@127.0.0.1:6379`,
-    { maxRetriesPerRequest: 1 },
-  );
-  redis.on('error', () => undefined);
-  await redis.ping();
-  const chunks: string[] = [];
-  const logger = createLogger('info', {
-    events: API_LOG_EVENTS,
-    destination: {
-      write: (chunk) => {
-        chunks.push(chunk);
-      },
-    },
-  });
-  const jobs: { inbox_id: string }[] = [];
-  let enqueueFailure = false;
-  const receive = new ReceiveEmailFeedback(
-    createEmailFeedbackInboxRepository(database, systemUuidV7()),
-    {
-      enqueue: async (id) => {
-        if (enqueueFailure) throw new EmailFeedbackQueueUnavailableError();
-        jobs.push({ inbox_id: id });
-      },
-    },
-    { now: () => at },
-  );
-  const intake = {
-    config: { webhookSecret: secret },
-    receive,
-    clock: { now: () => at },
-  };
-  const app: NestFastifyApplication = await createApp(
-    { readiness: [], redis, resend: intake, trustedProxy: ['127.0.0.1'] },
-    { logger },
-  );
-  return {
-    app,
-    database,
-    test,
-    owner,
-    redis,
-    chunks,
-    jobs,
-    failEnqueue: (value: boolean) => {
-      enqueueFailure = value;
-    },
-    post: (payload: string, headers: Record<string, string | string[]> = {}, signed = true) =>
-      app.inject({
+const rows = () => h.owner`SELECT * FROM platform_email_feedback_inbox`;
+
+/** One real-socket POST whose svix-signature header is sent twice; answers the response status. */
+const twiceSignedStatus = (server: http.Server, payload: string): Promise<number> => {
+  const address = server.address();
+  const port = typeof address === 'object' && address !== null ? address.port : 0;
+  return new Promise<number>((resolve, reject) => {
+    const request = http.request(
+      {
+        host: '127.0.0.1',
+        port,
         method: 'POST',
-        url: '/v1/webhooks/resend',
-        remoteAddress: remote,
-        payload,
+        path: '/v1/webhooks/resend',
         headers: {
           'content-type': 'application/json',
-          ...(signed
-            ? {
-                'svix-id': eventId,
-                'svix-timestamp': timestamp,
-                'svix-signature': sign(payload),
-              }
-            : {}),
-          ...headers,
+          'content-length': String(Buffer.byteLength(payload)),
+          'svix-id': eventId,
+          'svix-timestamp': timestamp,
+          'svix-signature': [sign(payload), sign(payload)],
         },
-      }),
-    resetLimits: async () => {
-      const digest = createHash('sha256').update(remote).digest('hex');
-      await redis.del(`rate:resend:ip:POST:${digest}`);
-    },
-    close: async () => {
-      await app.close();
-      await database.close();
-      await owner.end();
-      await redis.quit();
-      await test.drop();
-    },
-  };
-}
+      },
+      (response) => {
+        response.resume();
+        resolve(response.statusCode ?? 0);
+      },
+    );
+    request.end(payload);
+    request.on('error', reject);
+  });
+};
 
-describe('signed Resend webhook', () => {
-  const rows = () => h.owner`SELECT * FROM platform_email_feedback_inbox`;
-
+describe('stores the scrubbed envelope and deduplicates', () => {
   it('stores one scrubbed row and enqueues one id-only job', async () => {
     const before = await rows();
     const response = await h.post(JSON.stringify(event()));
@@ -168,7 +80,7 @@ describe('signed Resend webhook', () => {
     expect(h.chunks.join('')).not.toContain(secret);
   });
 
-  it('refuses a replay of the same event and stores nothing new', async () => {
+  it('acknowledges a replay of the same event and stores nothing new', async () => {
     const payload = JSON.stringify(event());
     expect((await h.post(payload)).statusCode).toBe(200);
     const before = await rows();
@@ -187,6 +99,20 @@ describe('signed Resend webhook', () => {
     expect(h.jobs).toHaveLength(jobs);
   });
 
+  it('keeps the row unconfirmed when the enqueue fails, and still answers 200', async () => {
+    h.failEnqueue(true);
+    // حدث جديد بكامل معرّفه: لو تكرر svix-id لكان إعادة تسليم مؤكدة بـ 200 بلا صف جديد.
+    expect(
+      (await h.post(JSON.stringify(event()), {}, true, 'msg_test_resend_event_2')).statusCode,
+    ).toBe(200);
+    const unconfirmed = await h.owner`SELECT id FROM platform_email_feedback_inbox
+      WHERE enqueue_confirmed_at IS NULL`;
+    expect(unconfirmed).toHaveLength(1);
+    expect(h.jobs).toHaveLength(0);
+  });
+});
+
+describe('refuses an unauthentic request', () => {
   it('refuses a bad signature, a stale timestamp and a repeated header', async () => {
     const before = await rows();
     const payload = JSON.stringify(event());
@@ -199,13 +125,24 @@ describe('signed Resend webhook', () => {
         })
       ).statusCode,
     ).toBe(401);
-    expect(
-      (await h.post(payload, { 'svix-signature': [sign(payload), sign(payload)] })).statusCode,
-    ).toBe(401);
     expect((await h.post(payload, { 'svix-id': [eventId, eventId] })).statusCode).toBe(401);
     expect(await rows()).toEqual(before);
   });
 
+  // التكرار الحقيقي للهيدر ما بيوصلهش عبر inject (بيسلسل المصفوفة)، فبيتأكد عبر سوكت حقيقي.
+  it('refuses a signature header sent twice over the wire', async () => {
+    const payload = JSON.stringify(event());
+    await h.app.listen({ port: 0, host: '127.0.0.1' });
+    const server = h.app.getHttpServer();
+    try {
+      expect(await twiceSignedStatus(server, payload)).toBe(401);
+    } finally {
+      await new Promise<void>((resolve) => server.close(() => resolve()));
+    }
+  });
+});
+
+describe('refuses a malformed request and a degraded capability', () => {
   it('refuses a body outside the allowlist and a wrong media type', async () => {
     const payload = JSON.stringify({ type: 'email.bounced', created_at: 'x' });
     expect((await h.post(payload)).statusCode).toBe(400);
@@ -218,16 +155,6 @@ describe('signed Resend webhook', () => {
     expect((await h.post('x'.repeat(65_537))).statusCode).toBe(413);
   });
 
-  it('keeps the row unconfirmed when the enqueue fails, and still answers 200', async () => {
-    const before = await h.owner`SELECT enqueue_confirmed_at FROM platform_email_feedback_inbox`;
-    h.failEnqueue(true);
-    expect((await h.post(JSON.stringify(event()))).statusCode).toBe(200);
-    const after = await h.owner`SELECT enqueue_confirmed_at FROM platform_email_feedback_inbox`;
-    expect(after).toHaveLength(before.length + 1);
-    expect(after[0]?.['enqueue_confirmed_at']).toBeNull();
-    expect(h.jobs).toHaveLength(0);
-  });
-
   it('limits the requests per IP', async () => {
     const digest = createHash('sha256').update(remote).digest('hex');
     await h.redis.set(`rate:resend:ip:POST:${digest}`, 120, 'EX', 60);
@@ -236,7 +163,11 @@ describe('signed Resend webhook', () => {
   });
 
   it('answers NOT_READY when the capability is not configured', async () => {
-    const app = await createApp({ readiness: [], redis: h.redis, trustedProxy: ['127.0.0.1'] });
+    const app: NestFastifyApplication = await createApp({
+      readiness: [],
+      redis: h.redis,
+      trustedProxy: ['127.0.0.1'],
+    });
     try {
       const response = await app.inject({
         method: 'POST',

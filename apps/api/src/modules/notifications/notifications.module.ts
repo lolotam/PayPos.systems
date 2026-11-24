@@ -123,7 +123,7 @@ export function createWhatsappIntake(
   logger: Logger,
 ) {
   const config = readWhatsappWebhookConfiguration(env);
-  const { queue, close } = intakeQueue(redisUrl, logger, WHATSAPP_INBOUND_QUEUE, 'whatsapp inbox');
+  const { queue, close } = intakeQueue(redisUrl, logger, WHATSAPP_INBOUND_QUEUE);
   queue.on('error', () => logger.warn({}, 'whatsapp inbox queue error'));
   const inbox = createWhatsappInboxRepository(database, systemUuidV7());
   const receive = new ReceiveWhatsappStop(
@@ -175,7 +175,7 @@ export function createResendIntake(
   logger: Logger,
 ) {
   const config = readResendWebhookConfiguration(env);
-  const { queue, close } = intakeQueue(redisUrl, logger, EMAIL_FEEDBACK_QUEUE, 'email feedback');
+  const { queue, close } = intakeQueue(redisUrl, logger, EMAIL_FEEDBACK_QUEUE);
   queue.on('error', () => logger.warn({}, 'email feedback queue error'));
   const inbox = createEmailFeedbackInboxRepository(database, systemUuidV7());
   const clock = { now: () => new Date() };
@@ -219,13 +219,13 @@ export function createResendIntake(
   };
 }
 
-function intakeQueue(redisUrl: string, logger: Logger, name: string, label: string) {
+function intakeQueue(redisUrl: string, logger: Logger, name: string) {
   const connection = new Redis({
     ...notificationRedisOptions(redisUrl),
     enableOfflineQueue: false,
     maxRetriesPerRequest: 1,
   });
-  connection.on('error', () => logger.warn({}, `${label} queue error`));
+  connection.on('error', () => logger.warn({ queue: name }, 'intake queue error'));
   const queue = new Queue(name, { connection });
   return {
     queue,

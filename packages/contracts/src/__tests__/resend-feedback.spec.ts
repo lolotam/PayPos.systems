@@ -3,7 +3,7 @@ import {
   isStoredResendFeedbackType,
   resendFeedbackEnvelope,
   resendFeedbackType,
-} from '../resend-feedback.ts';
+} from '../resend-feedback.js';
 
 const body = {
   type: 'email.bounced',

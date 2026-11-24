@@ -133,10 +133,21 @@ it('isolates the tenant evidence table', async () => {
         VALUES (${B.company},${FEEDBACK},${ATTEMPT},'email.bounced','PERMANENT',${Buffer.alloc(32, 26)},now(),now())`,
     ),
   ).rejects.toThrow();
+  // الجدول insert-only لـ pospay_app: مفيش GRANT لـ UPDATE/DELETE أصلاً، فالكتابة بتترفض حتى على صف
+  // الشركة نفسها، ومفيش سياسة RLS للتحديث أصلاً (spec 075، ADR-0014 §C). القراءة عبر الشركات محجوبة بالسياسات.
   await expect(
     run(A.company, sql`UPDATE notification_attempt_feedback SET event_type = 'email.failed'`),
   ).rejects.toThrow();
+  await expect(
+    run(B.company, sql`UPDATE notification_attempt_feedback SET event_type = 'email.failed'
+        WHERE id = ${FEEDBACK}`),
+  ).rejects.toThrow();
   await expect(run(A.company, sql`DELETE FROM notification_attempt_feedback`)).rejects.toThrow();
+  const [row] = await run(
+    B.company,
+    sql`SELECT event_type FROM notification_attempt_feedback WHERE id = ${FEEDBACK}`,
+  );
+  expect(row?.['event_type']).toBe('email.bounced');
 });
 
 it('refuses an attempt that belongs to another tenant', async () => {

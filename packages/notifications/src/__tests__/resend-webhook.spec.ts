@@ -35,9 +35,8 @@ describe('resend webhook signature', () => {
   it('rejects a wrong secret, a changed body and a wrong id', () => {
     const timestamp = String(seconds);
     const signature = sign(id, timestamp, body);
-    expect(
-      verifyResendSignature(body, { id, timestamp, signature }, `${secret}x`, now),
-    ).toBe(false);
+    const other = `whsec_${Buffer.from('a-different-secret').toString('base64')}`;
+    expect(verifyResendSignature(body, { id, timestamp, signature }, other, now)).toBe(false);
     expect(
       verifyResendSignature(
         Buffer.from('{"type":"email.bounced"}'),

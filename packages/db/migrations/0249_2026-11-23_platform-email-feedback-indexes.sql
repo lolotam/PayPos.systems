@@ -1,0 +1,5 @@
+CREATE INDEX CONCURRENTLY "notification_attempt_feedback_attempt_idx" ON "notification_attempt_feedback" USING btree ("company_id","attempt_id","provider_timestamp" DESC NULLS LAST);--> statement-breakpoint
+CREATE INDEX CONCURRENTLY "platform_email_audit_inbox_idx" ON "platform_email_audit" USING btree ("inbox_id");--> statement-breakpoint
+CREATE INDEX CONCURRENTLY "platform_email_feedback_inbox_enqueue_idx" ON "platform_email_feedback_inbox" USING btree ("received_at","id") WHERE "platform_email_feedback_inbox"."enqueue_confirmed_at" IS NULL;--> statement-breakpoint
+CREATE INDEX CONCURRENTLY "platform_email_feedback_inbox_pending_idx" ON "platform_email_feedback_inbox" USING btree ("next_attempt_at","id") WHERE "platform_email_feedback_inbox"."resolved_at" IS NULL AND "platform_email_feedback_inbox"."quarantined_at" IS NULL;--> statement-breakpoint
+CREATE INDEX CONCURRENTLY "platform_email_feedback_inbox_retention_idx" ON "platform_email_feedback_inbox" USING btree ("received_at","id") WHERE "platform_email_feedback_inbox"."raw_event" IS NOT NULL;
