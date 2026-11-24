@@ -527,6 +527,57 @@ To close approval (also invalidates the current proof), use:
 pnpm platform:commission-approval --company <uuid> --disable --reason <reason> --operator-email <operator-email>
 ```
 
+## 53-2 B1: staging trial for the approval measurement (spec 059, owner answer 2026-11-24)
+
+Prepares the ONE dedicated staging TEST company with a large, fully consumed commission history through the PUBLIC
+HTTP API only, so the operator can then measure one real «approve commission statement» request by hand. The script
+is `scripts/staging/commission-approval-trial.mjs` (pure Node ≥ 24, no build step, no database access, no secrets in
+code — credentials come only from `TRIAL_EMAIL` / `TRIAL_PASSWORD` at run time and are never printed). It refuses
+anything but the staging API host named in `docs/adr/0001` §6 and `deploy/docker-compose.staging-shared.yml`, refuses
+without `--confirm-staging`, backdates service sessions into the previous calendar month of the branch timezone (the
+only period the API accepts for backdating and the only period whose statement has ended), waits until the worker has
+consumed every event, then generates and reviews the statement. It NEVER enables the approval switch, NEVER issues a
+coverage proof and NEVER approves — those stay the manual steps of the «Order: enable → dry-run report → issue →
+approve» section above.
+
+**Prerequisites (operator, before the run):**
+
+1. A dedicated TEST company on staging whose only user is an owner of the TEST company (not of production), that
+   user has no 2FA (the sign-in is email + password only), and no commission history in the target month.
+2. Features `commissions`, `orders`, `catalog` and `customers` reachable for that company (plan or override).
+3. One active branch on the test business (or pass `--branch`), and that owner linked to exactly one recorder
+   membership on the branch (the script verifies this from the recording-context read).
+4. Customer phones created by the trial come from the synthetic range `965 00000001`–`965 00000020` and names are
+   `Trial Customer NN` / `Trial Employee NNN` — test data only, never real subscribers.
+
+```sh
+TRIAL_EMAIL=<test-owner-email> TRIAL_PASSWORD=<test-owner-password> \
+node scripts/staging/commission-approval-trial.mjs \
+  --api-url <staging-api-url> --company <test-company-uuid> --business <test-business-uuid> --confirm-staging \
+  [--branch <uuid>] [--period YYYY-MM] [--employees 10] [--lines 2000] [--lines-per-session 2] \
+  [--delay-ms 200] [--wait-timeout 600] [--poll-ms 2000] [--dry-run]
+```
+
+`--dry-run` stops after the preflight (membership, single branch, features, statement DRAFT, clean period). Every
+write carries a deterministic `Idempotency-Key` (run id + index), so re-running the same command after a crash
+completes what is missing and creates nothing twice. The summary prints ids, counts, per-phase timings, the HTTP
+request count and the next manual steps. Run it from any machine that can reach the staging API (the operator
+machine is fine); no container or database access is needed.
+
+**After the script: measure the approval.** The statement of the period is now REVIEWED. Run the full manual
+sequence of the activation section above for the TEST company (enable → dry-run report → issue → approve). Approve
+the REVIEWED statement once from the admin, then read the single duration from the api logs: every request logs
+`request completed` with `http.method`, `http.route`, `http.status` and `http.ms` (`apps/api/src/shared/request-completion.ts`),
+so on staging grep the api service logs for route
+`/v1/businesses/:businessId/commission-statements/:period/approve` and record that one `http.ms`. The approve is
+one-shot; a second sample needs another prepared period or business — run the script again with another `--period`
+(one month back at most) or a second test company, then repeat the measurement. The target company is enabled only
+if the measured approval is **under 200 ms**; otherwise its switch stays off and the owner decides.
+
+**Leave or clean up:** there is no delete API; the trial data stays in the dedicated TEST company on staging, which
+is intentional — it remains available for re-measurement. Do not reuse a period that already carries trial sources
+(the preflight refuses it) and never point the script at a company that is not a test company.
+
 ## 50-3d: replay all six counted types after a rollback (spec 059, CS-Q43)
 
 Replays the retained events of all six counted types of one company to the `commissions.project-inputs` consumer alone, through the
