@@ -2,7 +2,7 @@ import { firstFreeEmployeeNumber } from '@pospay/domain';
 import { sql } from 'drizzle-orm';
 import type postgres from 'postgres';
 
-import type { Database } from '../client.ts';
+import type { DataStepApp } from './coverage.ts';
 import type { Tx } from '../with-tenant.ts';
 
 /**
@@ -52,7 +52,7 @@ export interface EmployeeNumbersCounts {
  */
 export async function assignEmployeeNumbers(
   owner: postgres.Sql,
-  app: Database,
+  app: DataStepApp,
   batchSize = 500,
 ): Promise<EmployeeNumbersCounts> {
   const [role] = await owner<{ bypass: boolean }[]>`

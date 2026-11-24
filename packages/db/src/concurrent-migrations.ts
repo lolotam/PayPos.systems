@@ -2,7 +2,7 @@ import { readMigrationFiles } from 'drizzle-orm/migrator';
 import type postgres from 'postgres';
 
 import type { DataStep, DataSteps } from './data-steps/coverage.ts';
-import { reviewCoverage } from './data-steps/coverage.ts';
+import { reviewStep } from './data-steps/coverage.ts';
 import { runConcurrentIndex } from './recover-concurrent-index.ts';
 
 const CONCURRENT =
@@ -61,8 +61,10 @@ function migrationSteps(statements: readonly string[], dataSteps: DataSteps) {
     const step: DataStep | undefined = dataSteps[name];
     if (!Object.hasOwn(dataSteps, name) || step === undefined)
       throw new Error(`Unknown migration data step ${name}; migration aborted`);
-    // فحص إعلان التغطية هنا أيضاً: قبل أول جملة في التشغيل كله، زي رفض العلامة المجهولة تماماً.
-    reviewCoverage(name, step.coverage);
+    // فحص الإعلان هنا أيضاً: applyPending يحلّ خطوات كل الترحيلات المعلّقة قبل أول applyOne،
+    // فرفض قيد غير مراجَع (ليس كائناً، بلا run دالة، أو إعلانه غايب/مجهول) يقع قبل أول جملة
+    // وأول خطوة في التشغيل كله — نفس مكان رفض العلامة المجهولة تماماً.
+    reviewStep(name, step);
     return step.run;
   });
 }

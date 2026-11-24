@@ -510,8 +510,9 @@ Dry-run writes nothing. A refusal exits non-zero without issuing; fix the cause 
 `COVERAGE_TIP_BOUND_MOVED` means repeat with the new PostgreSQL bound. A successful re-run issues a new proof on the
 next generation after verifying again. `SWITCH_ON_NO_CURRENT_PROOF` means the switch alone has not opened approval.
 The operator email must resolve to an existing user holding an **active platform grant** (`platform_grants`, the same
-condition the platform sessions use); a company approver without one is refused (`COVERAGE_OPERATOR_NOT_PLATFORM`), as
-is an email that matches two users differing only by letter case (`COVERAGE_OPERATOR_AMBIGUOUS`). Refusals write
+condition the platform sessions use); a company approver without one is refused (`COVERAGE_OPERATOR_NOT_PLATFORM`).
+The lookup is the same one `platform:grant` uses (`userIdOf`: `email = lower(input)`), so the two tools resolve the
+same user or both refuse; an email differing from another user's only by letter case never matches both. Refusals write
 nothing: no state, no switch, no audit row. Audit stores `user:<id>` and that UUID, never the email.
 `--expires` takes a full ISO-8601 instant with an explicit `Z` or numeric offset only (a date-only value, a timestamp
 without an offset or a rolled date such as 31 February is usage-refused), and an expiry already past PostgreSQL's clock
@@ -533,9 +534,9 @@ pnpm platform:commission-approval --company <uuid> --disable --reason <reason> -
 
 Everything in this section is an **operator obligation, not database enforcement**, exactly as ADR-0054 addendum §12
 accepts it (CS-Q55, «اقبل الإجراءات الموثقة للحالات دي» and «اقبل الإجراءات في الحالات الثلاث»). The database
-enforces only three paths automatically: a release migration's version bump, a write path that calls
-`invalidate_commission_coverage`, and the refusing triggers on `outbox` and the two coverage tables. Every other
-case below leaves a stale proof current unless the written procedure is followed.
+enforces only two things automatically: a release migration's version bump, and a write path or declared data step
+that calls `invalidate_commission_coverage`. The refusing triggers **refuse** a delete or truncate — they never
+invalidate a proof — so every other case below leaves a stale proof current unless the written procedure is followed.
 
 **Reading `--show` (one read-only snapshot, writes nothing):**
 
@@ -551,6 +552,12 @@ case below leaves a stale proof current unless the written procedure is followed
     COMMISSION_COVERAGE_NOT_PROVEN`. Run the coverage report and issue a proof (B1 order: enable → dry-run → issue).
   - `SWITCH_ON_CURRENT_PROOF` — the gate will check the pending count and the fingerprints at approval; if a source
     write happened outside its event, invalidate and re-issue (procedures below).
+- **A current proof and an open switch still do not mean a given business or month can be approved.** Approval is
+  decided per statement at the endpoint: the statement's business must be in the proof's `business_ids`, and the
+  month must be admitted by the proof's tip bounds (ADR-0054 addendum «Month, in days»: a month with first day `F`,
+  last day `L` and the proof's bound `U` is admitted only if `F > U`, or `tip_from <= F` and
+  `tip_to >= min(L, U)`); the pending count and the fingerprints are checked last. `--show` never evaluates those —
+  it reports the switch, the generation and the current proof only.
 
 **Refusal codes and their remedies:**
 
@@ -559,8 +566,20 @@ case below leaves a stale proof current unless the written procedure is followed
 | `403 FEATURE_DISABLED` | approval endpoint | The explicit switch is off, expired, or absent (a plan flag never opens it) | Enable with the audited command, then follow the single resume order |
 | `422 COMMISSION_COVERAGE_NOT_PROVEN` | approval endpoint | No current proof (never issued, invalidated, or behind the generation) | Issue a new proof from a full `COVERED` run |
 | `409 COMMISSION_UPDATES_PENDING` | approval endpoint | A counted event has no consumer mark (ADR-0012 count) | Replay the six-type events (50-3d), then re-issue |
-| `COMMISSION_COVERAGE_CONFIGURATION` | coverage CLI | Malformed or partial command line | Fix the arguments; nothing was read |
-| `COMMISSION_COVERAGE_SCOPE_INVALID` | coverage report | Company unknown, a business is not the company's, or a bad `--through` | Correct the scope; nothing was scanned |
+| `COMMISSION_COVERAGE_CONFIGURATION` | coverage CLI | Malformed or partial command line (a bad business id, a bad date, `from` after `to`, more than 200 business ids, or only some of the three tip flags) — refused while parsing, before anything is read | Fix the arguments; nothing was read |
+| `COMMISSION_COVERAGE_SCOPE_INVALID` | coverage report | **Early (before any scan):** the company does not exist or a business in `--businesses` is not the company's. **Late (after the scan):** a `--through` bound that is not the last retained counted event at or below it — the check compares the last event read with the bound, so it cannot be a cheap pre-check | Correct the scope; an early refusal scanned nothing, a late one leaves nothing written |
+| `COVERAGE_OPERATOR_INPUT_INVALID` | issue CLI / switch command | Malformed operator input (labels over 100 characters, a bad `--expires` instant, a missing company id, more than one action) | Fix the usage line printed with the refusal; nothing was read or written |
+| `COVERAGE_CONFIGURATION_INVALID` | issue CLI | `DATABASE_URL` or `DISPATCHER_DATABASE_URL` is missing in the environment | Run from the worker's built artifact with both variables set |
+| `COVERAGE_DISPATCHER_REQUIRED` | issuance | The issuing connection is not the `pospay_dispatcher` role | Point `DISPATCHER_DATABASE_URL` at the dispatcher credential; never substitute the owner or app role |
+| `COVERAGE_REPLICA_REFUSED` | issuance | The issuing connection reports `pg_is_in_recovery()` (a standby) | Run issuance against the primary only |
+| `COVERAGE_COMPANY_NOT_FOUND` | switch command / 0250 functions | The company id is unknown or deleted | Check the id; the switch command leaves no state row behind |
+| `COVERAGE_REPORT_NOT_COVERED` | issuance | A report that is not `COVERED`, or one with truncation, an unchecked tip scope, unmarked or unhandled events, was fed to the verifier | Fix the report's cause first; a partial report never issues |
+| `COVERAGE_TIPS_AFTER_BOUND` | issuance | The tip existence check found a tip record beyond the verified bound | Stop issuing; investigate the source row, then a fresh full report and issuance |
+| `COMMISSION_COVERAGE_EVENT_INVALID` | coverage report | A retained event outside the reported company's scope was seen | Investigate the event's `company_id`; the report refuses rather than attribute it |
+| `COVERAGE_PAGE_LIMIT_INVALID` | coverage readers | A coverage reader was called with a page limit outside its 1…500 contract | An internal contract error; report it, do not retry the same command |
+| `COVERAGE_TENANT_MISMATCH` | tips existence reader | The reader ran without the company's `withTenant` context | An internal contract error; report it — never work around it outside `withTenant` |
+| `COVERAGE_ROWS_ARE_APPEND_ONLY` | coverage tables | An `UPDATE`/`DELETE`/`TRUNCATE` of a proof row, or a `DELETE`/`TRUNCATE` of a state row, is refused — it does not invalidate anything, even for the owner session | Use `invalidate_commission_coverage` to raise the generation; fixtures clean under `session_replication_role = replica` |
+| `COUNTED_OUTBOX_DELETE_REFUSED` | `outbox` | A `DELETE` of a counted outbox row or any `TRUNCATE` of `outbox` is refused — it does not invalidate a proof | Follow the selective-purge owner procedure (bump first, drop and recreate the guards in one transaction) |
 | `COVERAGE_TIP_BOUND_MOVED` | issuance | The PostgreSQL UTC day bound moved (a run crossed midnight) | Repeat the full report and issuance with the new bound |
 | `COVERAGE_UNMARKED_EVENTS` | issuance | A counted event at or below the verified bound has no mark | Replay (50-3d), then re-run and re-issue |
 | `COVERAGE_REPORT_BOUND_AHEAD` | issuance | The report's bound is ahead of the database's own maximum | The report ran against a different or lagging copy; check routing, then repeat |
@@ -569,17 +588,18 @@ case below leaves a stale proof current unless the written procedure is followed
 | `COVERAGE_VERSION_REFUSED` | issuance | The proof version does not equal `commission_coverage_required_version()` | A release migration is missing or unapplied; run `migrate` before issuing |
 | `COVERAGE_SCOPE_INCOMPLETE` | issuance | The business list is not exactly the company's, or `tip_to` is before the day bound | Name every business and a tip range through the bound, then repeat |
 | `COVERAGE_REASON_INVALID` | invalidation | The reason must match `^[A-Z][A-Z_]{1,49}$` | Use an uppercase reason code such as `SOURCE_WRITE` |
-| `COVERAGE_OPERATOR_NOT_FOUND` / `COVERAGE_OPERATOR_AMBIGUOUS` / `COVERAGE_OPERATOR_NOT_PLATFORM` | switch command | The operator email resolves to no user, to two users differing only by case, or to a user without an active platform grant | Use the operator's exact platform email; grant the platform permission first |
+| `COVERAGE_OPERATOR_NOT_FOUND` / `COVERAGE_OPERATOR_NOT_PLATFORM` | switch command | The operator email resolves to no user (the shared `userIdOf` lookup of `platform:grant`), or to a user without an active platform grant | Use the operator's exact platform email; grant the platform permission first |
 | `COVERAGE_EXPIRY_IN_PAST` | switch command | `--expires` is already past PostgreSQL's clock | Supply a future instant; nothing was written |
 | `COMMISSION_EVENT_TYPE_NOT_HANDLED` | coverage report | A retained event type has no registered consumer | Fix the worker release/handler registration first; a replay does not fix this |
 
 **What invalidates a proof automatically (enforced), and what does not (procedures below):** enforced — a release
 migration that replaces the version function and bumps the generations; any covered write path or data step declared
-`INVALIDATES` that calls `invalidate_commission_coverage` through its runner; a refused `DELETE`/`TRUNCATE` on the
-counted `outbox` rows or the coverage tables. **Not enforced** — a physical fork or a same-identity restore, a
-partial restore, a selective purge run by an owner session that skips the bump, a projection removal or rewind, a
-worker rollback across a projection-semantics change, and a writer that bypasses the runner and its declaration.
-Each has the procedure below.
+`INVALIDATES` that calls `invalidate_commission_coverage` through its runner. The refusing triggers are **guards,
+not invalidators**: they refuse a `DELETE`/`TRUNCATE` on the counted `outbox` rows or the coverage tables, and a
+refused statement changes no generation — the proof stays as it was. **Not enforced** — a physical fork or a
+same-identity restore, a partial restore, a selective purge run by an owner session that skips the bump, a
+projection removal or rewind, a worker rollback across a projection-semantics change, and a writer that bypasses
+the runner and its declaration. Each has the procedure below.
 
 **Repair and data-step windows (ADR-0054 §12 item 3(d)):** before any repair, import or multi-batch data step that
 can write covered source rows: switch approval **off** with the audited command and stop issuance for the whole

@@ -1,10 +1,10 @@
 import { systemUuidV7 } from '@pospay/ids';
 import type postgres from 'postgres';
 
-import { createDatabase } from '../client.ts';
+import type { DataStep, DataStepCoverage, DataStepEntry, DataStepContext, DataSteps } from './coverage.ts';
+import { buildStepApp, reviewStep } from './coverage.ts';
+import { createDatabase, type Database } from '../client.ts';
 import { createOutboxDispatcherDatabase } from '../dispatcher.ts';
-import type { DataStep, DataStepCoverage, DataSteps } from './coverage.ts';
-import { invalidateCoverageInTenant } from './coverage.ts';
 import {
   assignEmployeeNumbers,
   EmployeeNumbersExhaustedError,
@@ -55,13 +55,13 @@ export function sanitizedStepError(step: string, error: unknown): Error {
 }
 
 /**
- * يبني واجهة التطبيق لخطوة بيانات على pospay_app، ويغلّفها بالإبطال لو الخطوة معلنة INVALIDATES:
- * نقطت الالتفاف الوحيدة اللي بتمرّ من إعلان التغطية للـ Database اللي بتستلمه الخطوة، فأي خطوة
- * مستقبلية تعلن INVALIDATES بتبدأ كل معاملة منها بإبطال التغطية من غير ما تغيّر شكلها (ADR-0054 §5).
+ * يبني واجهة التطبيق للخطوة من إعلانها المراجَع وحده: هذه هي نقطة الالتفاف الوحيدة بين الإعلان
+ * والـDatabase التي تستلمها الخطوة، فالإعلان INVALIDATES يعني بالضرورة واجهة مغلّفة بالإبطال
+ * (ADR-0054 §5). أجسام الخطوات لا تلمس createDatabase إطلاقًا.
  *
- * @param ownerUrl  رابط المالك لبناء رابط pospay_app منه
+ * @param ownerUrl    رابط المالك لبناء رابط pospay_app منه
  * @param appPassword باسورد pospay_app لحاوية migrate
- * @param coverage إعلان الخطوة في السجل
+ * @param coverage    إعلان الخطوة المراجَع في السجل
  * @returns واجهة التطبيق، مغلّفة بالإبطال لو الإعلان INVALIDATES
  */
 function stepAppDatabase(ownerUrl: string, appPassword: string, coverage: DataStepCoverage) {
@@ -70,81 +70,26 @@ function stepAppDatabase(ownerUrl: string, appPassword: string, coverage: DataSt
     ids: systemUuidV7(),
     maxConnections: 1,
   });
-  return coverage === 'INVALIDATES' ? invalidateCoverageInTenant(app, systemUuidV7()) : app;
+  return buildStepApp(app, systemUuidV7(), coverage);
 }
 
-/** يربط علامات الترحيل بخطوات بيانات معزولة، ويغلق اتصال التطبيق حتى عند فشل الخطوة. */
-export function migrationDataSteps(
-  ownerUrl: string,
-  appPassword: string,
-  dispatcherPassword?: string,
-): DataSteps {
-  return {
-    'rating-claims-discovery': ratingDiscoveryStep(ownerUrl, appPassword, dispatcherPassword),
-    'employee-numbers': {
-      coverage: 'NONE',
-      run: async (owner: postgres.Sql): Promise<void> => {
-        const app = stepAppDatabase(ownerUrl, appPassword, 'NONE');
-        try {
-          const { companies, read, assigned, exhausted } = await assignEmployeeNumbers(owner, app);
-          console.log(
-            `companies=${companies} read=${read} assigned=${assigned} exhausted=${exhausted}`,
-          );
-        } catch (error) {
-          throw sanitizedStepError('employee-numbers', error);
-        } finally {
-          await app.close();
-        }
-      },
-    },
-    'statement-alert-roles': {
-      coverage: 'NONE',
-      run: async (owner: postgres.Sql): Promise<void> => {
-        const ids = systemUuidV7();
-        const app = stepAppDatabase(ownerUrl, appPassword, 'NONE');
-        try {
-          const { companies, read, cleaned } = await cleanStatementAlertRoles(owner, app, ids);
-          console.log(`companies=${companies} read=${read} cleaned=${cleaned}`);
-        } catch (error) {
-          throw sanitizedStepError('statement-alert-roles', error);
-        } finally {
-          await app.close();
-        }
-      },
-    },
-    'employee-name-keys': {
-      coverage: 'NONE',
-      run: async (owner: postgres.Sql): Promise<void> => {
-        const app = stepAppDatabase(ownerUrl, appPassword, 'NONE');
-        try {
-          const { companies, read, updated } = await rekeyEmployeeNameKeys(owner, app);
-          console.log(`companies=${companies} read=${read} updated=${updated}`);
-        } catch (error) {
-          throw sanitizedStepError('employee-name-keys', error);
-        } finally {
-          await app.close();
-        }
-      },
-    },
-  };
-}
-
-function ratingDiscoveryStep(
-  ownerUrl: string,
-  appPassword: string,
-  dispatcherPassword?: string,
-): DataStep {
-  return {
+/**
+ * الخطوات المراجَعة: كل قيد مكتوب بإعلانه صراحةً، وجسمه يستلم واجهة التطبيق الجاهزة ولا يبني واحدة
+ * بنفسه — قيمة الإعلان هي مصدر الحقيقة الوحيد للاغلاف (ADR-0054 §5).
+ */
+const REVIEWED_DATA_STEPS: Readonly<Record<string, DataStepEntry>> = {
+  'rating-claims-discovery': {
     coverage: 'NONE',
-    run: async (owner: postgres.Sql): Promise<void> => {
-      if (!dispatcherPassword) throw new Error('RATING_CLAIMS_DISCOVERY_DISPATCHER_CONFIGURATION');
-      const readerUrl = new URL(appDatabaseUrl(ownerUrl, dispatcherPassword));
+    run: async (owner, app, context) => {
+      const dispatcherPassword = context.dispatcherPassword;
+      if (dispatcherPassword === undefined)
+        throw new Error('RATING_CLAIMS_DISCOVERY_DISPATCHER_CONFIGURATION');
+      const readerUrl = new URL(appDatabaseUrl(context.ownerUrl, dispatcherPassword));
       readerUrl.username = 'pospay_dispatcher';
       const reader = createOutboxDispatcherDatabase({
         url: readerUrl.toString(),
         maxConnections: 1,
       });
-      const app = stepAppDatabase(ownerUrl, appPassword, 'NONE');
       let failure: Error | undefined;
       try {
         const counts = await discoverRatingClaims(owner, app, reader);
@@ -157,5 +102,95 @@ function ratingDiscoveryStep(
       if (closed.some((result) => result.status === 'rejected'))
         throw new Error('RATING_CLAIMS_DISCOVERY_CLOSE_FAILED');
     },
-  };
+  },
+  'employee-numbers': {
+    coverage: 'NONE',
+    run: async (owner, app) => {
+      try {
+        const { companies, read, assigned, exhausted } = await assignEmployeeNumbers(owner, app);
+        console.log(
+          `companies=${companies} read=${read} assigned=${assigned} exhausted=${exhausted}`,
+        );
+      } catch (error) {
+        throw sanitizedStepError('employee-numbers', error);
+      } finally {
+        await app.close();
+      }
+    },
+  },
+  'statement-alert-roles': {
+    coverage: 'NONE',
+    run: async (owner, app) => {
+      const ids = systemUuidV7();
+      try {
+        const { companies, read, cleaned } = await cleanStatementAlertRoles(owner, app, ids);
+        console.log(`companies=${companies} read=${read} cleaned=${cleaned}`);
+      } catch (error) {
+        throw sanitizedStepError('statement-alert-roles', error);
+      } finally {
+        await app.close();
+      }
+    },
+  },
+  'employee-name-keys': {
+    coverage: 'NONE',
+    run: async (owner, app) => {
+      try {
+        const { companies, read, updated } = await rekeyEmployeeNameKeys(owner, app);
+        console.log(`companies=${companies} read=${read} updated=${updated}`);
+      } catch (error) {
+        throw sanitizedStepError('employee-name-keys', error);
+      } finally {
+        await app.close();
+      }
+    },
+  },
+};
+
+/**
+ * يبني خريطة الخطوات للمشغّل من قيد مراجَع: يرفض القيد غير المراجَع قبل أي جملة (reviewStep)،
+ * ثم يقفل جسم كل خطوة على واجهة مبنيّة من قيمة إعلانه هي — لا تُمرَّر قيمة الإعلان للجسم، ولا
+ * يبني الجسم واجهته بنفسه.
+ *
+ * @param source      القيود المراجَعة (الخطوات الحقيقية أو قيود اختبار)
+ * @param ownerUrl    رابط المالك
+ * @param appPassword باسورد pospay_app
+ * @param context     سياق البناء (رابط المالك وباسورد dispatcher لخطوة واحدة)
+ * @param createApp   مصنع واجهة التطبيق؛ الافتراضي يبني على pospay_app ويغلف حسب الإعلان
+ * @returns خريطة الخطوات التي يستهلكها applyMigrations
+ */
+export function materializeDataSteps(
+  source: Readonly<Record<string, DataStepEntry>>,
+  ownerUrl: string,
+  appPassword: string,
+  context: Omit<DataStepContext, 'ownerUrl'> = {},
+  createApp: (coverage: DataStepCoverage) => Database = (coverage) =>
+    stepAppDatabase(ownerUrl, appPassword, coverage),
+): DataSteps {
+  const materialized: Record<string, DataStep> = {};
+  for (const [name, entry] of Object.entries(source)) {
+    reviewStep(name, entry);
+    const buildApp = createApp;
+    const runContext: DataStepContext = { ownerUrl, ...context };
+    materialized[name] = {
+      coverage: entry.coverage,
+      run: async (owner: postgres.Sql): Promise<void> =>
+        entry.run(owner, buildApp(entry.coverage), runContext),
+    };
+  }
+  return materialized;
+}
+
+/** يربط علامات الترحيل بخطوات بيانات معزولة، ويغلق اتصال التطبيق حتى عند فشل الخطوة. */
+export function migrationDataSteps(
+  ownerUrl: string,
+  appPassword: string,
+  dispatcherPassword?: string,
+): DataSteps {
+  return materializeDataSteps(
+    REVIEWED_DATA_STEPS,
+    ownerUrl,
+    appPassword,
+    dispatcherPassword === undefined ? {} : { dispatcherPassword },
+  );
 }

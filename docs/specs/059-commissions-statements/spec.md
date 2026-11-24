@@ -783,7 +783,8 @@ Named tests; each is an integration test against real Postgres (T2 stack, ADR-00
   holders of `review:commissions:business` who are business-wide readers (FR-029), evaluated with the same predicate
   (one function, shared with the guards) at the time the event is appended, so nobody is prompted to do what the endpoint
   would refuse her. **The approval prompt and its reminders additionally require the explicit approval switch**
-  (issue #1223 item 3; clarified by the PosPay package manager as a technical clarification, 2026-11-24): the
+  (issue #1223 item 3; decided technically by the PosPay project manager, 2026-11-24 — see the slice's
+  owner-questions entry 53-2-B2a-FR030-1): the
   `StatementAwaitingApproval` recipients — this review-time event and the FR-053 day-3/day-5 reminders — are resolved
   only while the explicit company override `commission_statement_approval` is open (an override row exists, `enabled`,
   and `expires_at` null or in the future, read with no plan fallback, exactly as ADR-0054 §9 defines it), inside the

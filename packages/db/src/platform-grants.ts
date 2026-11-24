@@ -22,7 +22,8 @@ export type PlatformGrantOutcome =
   | { readonly status: 'already-granted' | 'not-granted'; readonly userId: string };
 
 // Refused with a message that names the email the operator typed — it is their own input, never a customer's.
-async function userIdOf(tx: postgres.TransactionSql, email: string): Promise<string> {
+// Shared with the coverage switch command so both tools resolve the same user or both refuse (ADR-0054 §9).
+export async function userIdOf(tx: postgres.TransactionSql, email: string): Promise<string> {
   const [row] = await tx<
     { id: string }[]
   >`SELECT id FROM "user" WHERE email = ${email.toLowerCase()}`;
