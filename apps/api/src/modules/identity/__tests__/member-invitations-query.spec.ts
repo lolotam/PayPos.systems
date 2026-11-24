@@ -1,5 +1,6 @@
 import { sql } from 'drizzle-orm';
 import type { Tx } from '@pospay/db';
+import { systemUuidV7 } from '@pospay/ids';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 import { startHarness, type Harness } from '../../../../test/harness.ts';
@@ -8,6 +9,7 @@ import { listMemberInvitations } from '../queries/member-invitations.query.ts';
 
 // قائمة الدعوات (076 G1): اختبار شكل النتيجة على المسار الحقيقي، وتأكيد EXPLAIN ANALYZE إن
 // القراءة بتلمس فهرس المفتاح الأساسي (company_id, id) وما بتعملش مسح جدول.
+const ids = systemUuidV7();
 let h: Harness;
 const owner = { email: 'g1-query-owner@example.test', cookie: '', userId: '' };
 let company: string;
@@ -85,10 +87,17 @@ describe('the invitations list query', () => {
   });
 
   it('EXPLAIN ANALYZE reads the (company_id, id) index with no sequential scan', async () => {
+    // بيانات ممثلة: من غيرهم المخطط بيختار مسح متسلسل على جدول شبه فاضي والمؤشر ما يظهرش.
+    const rows = Array.from({ length: 60 }, () => ids.newId());
     await database().withTenant(
       company,
       async (tx: Tx) => {
-        await tx.execute(sql`SET LOCAL enable_seqscan = off`);
+        for (const id of rows) {
+          await tx.execute(sql`
+            INSERT INTO member_invitations
+              (company_id, id, email_hash, role_code, scope_type, scope_id, invited_by, state)
+            VALUES (${company}, ${id}, ${id}, 'accountant', 'COMPANY', ${company}, ${owner.userId}, 'PENDING')`);
+        }
         const plan = JSON.stringify(
           await tx.execute(sql`
             EXPLAIN (ANALYZE, FORMAT JSON)
@@ -97,8 +106,8 @@ describe('the invitations list query', () => {
             WHERE company_id = ${company}
             ORDER BY id LIMIT 21`),
         );
-        // خطة البحث بتعتمد على المساحة؛ المهم إن المسح المفهرس بيستخدم فهرس الـ pkey.
-        expect(plan).toMatch(/member_invitations_pkey|"Index Name"|Index Scan/);
+        expect(plan).toContain('member_invitations_pkey');
+        expect(plan).toContain('Index Cond');
         expect(plan).not.toContain('Seq Scan');
       },
       { readOnly: true },

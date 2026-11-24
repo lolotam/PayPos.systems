@@ -9772,6 +9772,7 @@ export interface components {
             link_issued_at: string | null;
             /** Format: date-time */
             created_at: string;
+            can_reissue: boolean;
         };
         MemberInvitationPage: {
             items: components["schemas"]["MemberInvitation"][];

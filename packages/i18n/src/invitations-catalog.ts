@@ -7,6 +7,8 @@ export const invitationsEn = {
   roleLabel: 'Role',
   scopeLabel: 'Scope',
   scopeCompany: 'The whole company',
+  scopeBusiness: 'Business',
+  scopeBranch: 'Branch',
   roleGeneralManager: 'General manager',
   roleBusinessManager: 'Business manager',
   roleBranchManager: 'Branch manager',
@@ -20,7 +22,7 @@ export const invitationsEn = {
   copy: 'Copy the link',
   copied: 'Copied',
   dismiss: 'Hide the link',
-  existingNoLink: 'This email already has an account; the membership was added without a link.',
+  existingNoLink: 'This invitation already completed and its link was shown once; issue a new one with «Issue a new link».',
   listTitle: 'Invitations',
   statePending: 'Pending',
   stateActive: 'Active',
@@ -29,6 +31,8 @@ export const invitationsEn = {
   reissued: 'A new link was issued; the older one is dead.',
   empty: 'No invitations yet.',
   invitedAt: 'Invited at',
+  loadMore: 'Load more',
+  notReady: 'The invitation routes are closed on the API right now (activation gate). Try after it is turned on.',
 };
 
 export const invitationsAr = {
@@ -39,6 +43,8 @@ export const invitationsAr = {
   roleLabel: 'الدور',
   scopeLabel: 'النطاق',
   scopeCompany: 'الشركة كلها',
+  scopeBusiness: 'نشاط',
+  scopeBranch: 'فرع',
   roleGeneralManager: 'مدير عام',
   roleBusinessManager: 'مدير نشاط',
   roleBranchManager: 'مدير فرع',
@@ -51,7 +57,7 @@ export const invitationsAr = {
   copy: 'نسخ الرابط',
   copied: 'تم النسخ',
   dismiss: 'اخفي الرابط',
-  existingNoLink: 'البريد ده له حساب بالفعل؛ العضوية اتضافت من غير رابط.',
+  existingNoLink: 'الدعوة دي اكتملت قبل كده والرابط اتعرض مرة؛ طلّع رابط جديد بزر «إصدار رابط جديد».',
   listTitle: 'الدعوات',
   statePending: 'معلّقة',
   stateActive: 'نشِطة',
@@ -60,4 +66,6 @@ export const invitationsAr = {
   reissued: 'اتصدر رابط جديد؛ الرابط القديم بقى باطل.',
   empty: 'مفيش دعوات بعد.',
   invitedAt: 'تاريخ الدعوة',
+  loadMore: 'تحميل المزيد',
+  notReady: 'مسارات الدعوة مقفولة على الـ API الآن (بوابة التفعيل). جرّب بعد التفعيل.',
 };

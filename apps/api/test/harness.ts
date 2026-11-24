@@ -385,6 +385,8 @@ function optionalWiring(options: HarnessOptions) {
     ...(options.commissionsClock === undefined
       ? {}
       : { commissionsClock: options.commissionsClock }),
+    // ساعة هوية الدعوات (AC-G1-2): الاختبار بيثبّت الوقت عشان عمر الرابط ينزل بالظبط.
+    ...(options.clock === undefined ? {} : { clock: options.clock }),
     ...(options.files === undefined ? {} : { files: options.files }),
   };
 }

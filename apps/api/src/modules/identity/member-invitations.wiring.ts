@@ -1,9 +1,9 @@
 import type { Provider } from '@nestjs/common';
-import type { IdGenerator, TenantWrappers } from '@pospay/db';
 import type { AuthService } from '@pospay/auth';
+import { MEMBER_INVITATION_LINK_TTL_MS } from '@pospay/auth';
+import type { IdGenerator, TenantWrappers } from '@pospay/db';
 import type { Redis } from 'ioredis';
 
-import { systemClock } from '../../shared/adapters/system-clock.ts';
 import { AUTH_SERVICE } from '../../shared/session.guard.ts';
 import { createGrantInvalidator } from './persistence/grant-invalidator.ts';
 import { createMemberAccounts } from './persistence/member-accounts.adapter.ts';
@@ -36,6 +36,7 @@ export function memberInvitationProviders(
   ids: IdGenerator,
   redis: Redis | undefined,
   slice: { staffAccessRoutes?: boolean; adminOrigin?: string } | undefined,
+  clock: { now(): Date },
 ): Provider[] {
   const redirectTo =
     slice?.adminOrigin === undefined ? undefined : `${slice.adminOrigin}/set-password`;
@@ -44,8 +45,8 @@ export function memberInvitationProviders(
     { provide: STAFF_ACCESS_ROUTES, useValue: slice?.staffAccessRoutes === true },
     { provide: INVITATION_RATE_LIMITER, useValue: limiter },
     passwordStateProvider(),
-    inviteMemberProvider(database, ids, redis, redirectTo),
-    reissueMemberInvitationProvider(database, ids, redirectTo),
+    inviteMemberProvider(database, ids, redis, redirectTo, clock),
+    reissueMemberInvitationProvider(database, ids, redirectTo, clock),
   ];
 }
 
@@ -67,6 +68,7 @@ function inviteMemberProvider(
   ids: IdGenerator,
   redis: Redis | undefined,
   redirectTo: string | undefined,
+  clock: { now(): Date },
 ): Provider {
   return {
     provide: InviteMember,
@@ -84,9 +86,10 @@ function inviteMemberProvider(
         accounts: createMemberAccounts(auth),
         limiter: rateLimiter,
         invalidator: createGrantInvalidator(redis),
-        clock: systemClock,
+        clock,
         ids,
         redirectTo,
+        linkLifetimeMs: MEMBER_INVITATION_LINK_TTL_MS,
       });
     },
     inject: [AUTH_SERVICE, INVITATION_RATE_LIMITER],
@@ -98,6 +101,7 @@ function reissueMemberInvitationProvider(
   database: TenantWrappers | undefined,
   ids: IdGenerator,
   redirectTo: string | undefined,
+  clock: { now(): Date },
 ): Provider {
   return {
     provide: ReissueMemberInvitation,
@@ -114,8 +118,9 @@ function reissueMemberInvitationProvider(
         transactions: createMemberInvitationTransactions(database, ids),
         accounts: createMemberAccounts(auth),
         limiter: rateLimiter,
-        clock: systemClock,
+        clock,
         redirectTo,
+        linkLifetimeMs: MEMBER_INVITATION_LINK_TTL_MS,
       });
     },
     inject: [AUTH_SERVICE, INVITATION_RATE_LIMITER],

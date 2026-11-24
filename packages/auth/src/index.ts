@@ -28,7 +28,6 @@ export {
   type InvitedMemberOutcome,
   type MemberAccountSummary,
   type MemberInvitationAccounts,
-  type MemberInvitationMarker,
   type SetPasswordLinkOptions,
 } from './member-invitations.ts';
 export {

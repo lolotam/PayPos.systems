@@ -1,11 +1,10 @@
-import { InvitationLinkRefusedError, MEMBER_INVITATION_LINK_TTL_MS } from '@pospay/auth';
-
 import { ApiError } from '../../../../shared/errors.ts';
 import type { Clock } from '../../../../shared/ports/clock.port.ts';
-import type {
-  InvitationRateLimiter,
-  MemberAccounts,
-  MemberInvitationTransactions,
+import {
+  MemberLinkRefusedError,
+  type InvitationRateLimiter,
+  type MemberAccounts,
+  type MemberInvitationTransactions,
 } from '../../ports/member-invitations.port.ts';
 
 export interface ReissueMemberInvitationCommand {
@@ -20,8 +19,9 @@ export interface ReissueMemberInvitationResult {
 }
 
 /**
- * بيصدّر رابط جديد لدعوة معلّقة (G1): بس للمالك اللي عمل الدعوة، وبس طول ما العضو ما حطّش
- * كلمة مروره. الرابط القديم بيحبط، واليوزر لازم يكون اتعمل من الدعوة دي.
+ * بيصدّر رابط جديد لدعوة معلّقة (G1): السلطة وحالة الدعوة والعضوية بيتفحصوا جوه معاملة
+ * قافلة الصف (P1-a، P1-c)، وفحص «عمري ما حطيت كلمة مروري» بيحصل تحت قفل صف اليوزر في
+ * نفس معاملة الكتابة (P1-c)، فإصداران متزامنان بيسيبوا توكن حي واحد بس.
  */
 export class ReissueMemberInvitation {
   readonly #transactions: MemberInvitationTransactions;
@@ -29,6 +29,7 @@ export class ReissueMemberInvitation {
   readonly #limiter: InvitationRateLimiter;
   readonly #clock: Clock;
   readonly #redirectTo: string;
+  readonly #linkLifetimeMs: number;
 
   constructor(options: {
     transactions: MemberInvitationTransactions;
@@ -36,12 +37,15 @@ export class ReissueMemberInvitation {
     limiter: InvitationRateLimiter;
     clock: Clock;
     redirectTo: string;
+    /** عمر رابط الدعوة بالمللي ثانية (IM-Q3: 48 ساعة) — من التركيب. */
+    linkLifetimeMs: number;
   }) {
     this.#transactions = options.transactions;
     this.#accounts = options.accounts;
     this.#limiter = options.limiter;
     this.#clock = options.clock;
     this.#redirectTo = options.redirectTo;
+    this.#linkLifetimeMs = options.linkLifetimeMs;
   }
 
   /**
@@ -53,41 +57,35 @@ export class ReissueMemberInvitation {
   ): Promise<ReissueMemberInvitationResult> {
     const { actor, invitationId } = command;
     if (!(await this.#limiter.allow(actor.userId))) throw new ApiError('TOO_MANY_REQUESTS');
-    const invitation = await this.#transactions.read({
+    const now = this.#clock.now();
+    const claimed = await this.#transactions.claimReissue({
       companyId: actor.companyId,
       invitationId,
+      actorUserId: actor.userId,
+      at: now,
     });
-    if (invitation === null) throw new ApiError('NOT_FOUND');
-    if (invitation.invitedBy !== actor.userId) throw new ApiError('FORBIDDEN');
-    if (invitation.state !== 'PENDING') throw new ApiError('MEMBER_INVITATION_NOT_REISSUEABLE');
-    const userId = await this.#findInvitedUser(invitationId, actor.companyId);
-    if (userId === null) throw new ApiError('MEMBER_INVITATION_NOT_REISSUEABLE');
-    const now = this.#clock.now();
+    if ('refusal' in claimed) throw new ApiError(claimed.refusal);
+    let link: string;
     try {
-      const link = await this.#accounts.issueInvitationLink({
-        userId,
+      link = await this.#accounts.issueLink({
+        userId: claimed.userId,
         companyId: actor.companyId,
         redirectTo: this.#redirectTo,
-        lifetimeMs: MEMBER_INVITATION_LINK_TTL_MS,
+        lifetimeMs: this.#linkLifetimeMs,
         now,
       });
-      await this.#transactions.stampLink({
-        companyId: actor.companyId,
-        invitationId,
-        at: now,
-      });
-      return { invitation_id: invitationId, set_password_link: link };
     } catch (error) {
-      if (error instanceof InvitationLinkRefusedError) {
+      if (error instanceof MemberLinkRefusedError) {
         throw new ApiError('MEMBER_INVITATION_NOT_REISSUEABLE');
       }
       throw error;
     }
-  }
-
-  /** اليوزر اللي اتعمل من الدعوة دي — بالعلامة على جدول الهوية، مش من صف الدعوة. */
-  async #findInvitedUser(invitationId: string, companyId: string): Promise<string | null> {
-    const found = await this.#accounts.findByInvitation(invitationId, companyId);
-    return found?.userId ?? null;
+    await this.#transactions.stampLink({
+      companyId: actor.companyId,
+      invitationId,
+      actorUserId: actor.userId,
+      at: now,
+    });
+    return { invitation_id: invitationId, set_password_link: link };
   }
 }

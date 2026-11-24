@@ -45,6 +45,8 @@ export const memberInvitation = responseObject({
   state: z.enum(['PENDING', 'ACTIVE', 'CANCELLED']),
   link_issued_at: timestamp.nullable(),
   created_at: timestamp,
+  /** هل المتصل الحالي يقدر يصدر رابط جديد للدعوة دي (PENDING ومن نفس الداعي والعضوية مكتوبة). */
+  can_reissue: z.boolean(),
 }).meta({ id: 'MemberInvitation' });
 
 /** صفحة دعوات الشركة. */

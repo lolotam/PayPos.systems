@@ -16,8 +16,8 @@ export interface IdentityInvitationMarker {
   readonly hasPassword: boolean;
 }
 
-/** نتيجة كتابة المدعوّ: اتعمل، أو الإيميل كان لليوزر فاتح قبل كده. */
-export type InvitedMemberInsertion = 'created' | 'email-taken';
+/** نتيجة كتابة المدعوّ: الصف اتبنى، أو تعارض فريد (نفس الإيميل أو نفس العملية) والصف قديم. */
+export type InvitedMemberInsertion = 'created' | 'conflict';
 
 /** مدخلات إنشاء حساب المدعوّ — كل القيم بتيجي من السيرفر، مفيش منها إيميل موظفة ولا توكن. */
 export interface InvitedMemberRow {
@@ -42,6 +42,21 @@ export interface VerificationRow {
   readonly invalidatePrefix?: string;
 }
 
+/**
+ * مدخلات إصدار رابط الدعوة في معاملة واحدة: قفل صف اليوزر، فحص العلامة («عمري ما اتدعيت
+ * من شركة تانية» و«مفيش كلمة مرور»)، وإبطال الروابط القديمة والكتابة — ذري ضد السباق مع
+ * استهلاك الرابط.
+ */
+export interface InvitationLinkRow {
+  readonly id: string;
+  readonly identifier: string;
+  readonly value: string;
+  readonly companyId: string;
+  readonly userId: string;
+  readonly expiresAt: Date;
+  readonly now: Date;
+}
+
 /** القراءات والكتابات على جداول الهوية اللي دعوة الأعضاء محتاجاها — بتشتغل كلها على pospay_auth. */
 export interface MemberInvitationQueries {
   /** بيقرأ حساب بالإيميل المنسّض وحساب دخوله؛ null لما مفيش يوزر بالإيميل ده. */
@@ -54,12 +69,19 @@ export interface MemberInvitationQueries {
   /** بيقرأ علامة الدعوة لليوزر؛ null لما مفيش يوزر بالمعرّف ده. */
   readInvitationMarker(userId: string): Promise<IdentityInvitationMarker | null>;
   /**
-   * بينشئ المدعوّ ويوزر وحساب دخول من غير كلمة مرور في معاملة واحدة؛ إيميل مأخود بيرجّع
-   * email-taken من غير ما يرقم، فالمتسابق على الإيميل بيرجّع الحساب الموجود.
+   * بينشئ المدعوّ ويوزر وحساب دخول من غير كلمة مرور في معاملة واحدة؛ تعارض فريد (نفس
+   * الإيميل أو نفس العملية) بيرجّع conflict من غير ما يرقم، فالمتصل بيعيد القراءة ويحكم.
    */
   createInvitedMember(input: InvitedMemberRow): Promise<InvitedMemberInsertion>;
   /** بيكتب صف verification، ويحذف قبله الصفوف اللي معرّفها بيبدأ بالبادئة لو اتبعتت. */
   writeVerificationRow(input: VerificationRow): Promise<void>;
+  /**
+   * بيصدر رابط الدعوة في معاملة واحدة تحت قفل صف اليوزر: بيرفض لو اليوزر مش مدعوّ من
+   * الشركة دي أو كلمة مروره اتحطت، وبيبطل الروابط القديمة قبل الكتابة.
+   *
+   * @returns true لما الرابط اتكتب، وfalse لما الإصدار مرفوض
+   */
+  issueInvitationLink(input: InvitationLinkRow): Promise<boolean>;
 }
 
 const memberSummaryFields = {
@@ -76,14 +98,6 @@ function readWithCredential(db: PostgresJsDatabase<IdentitySchema>, where: SQL |
     .where(where)
     .limit(1);
 }
-
-const isUniqueViolation = (error: unknown, constraint: string): boolean =>
-  typeof error === 'object' &&
-  error !== null &&
-  'code' in error &&
-  (error as { code?: unknown }).code === '23505' &&
-  'constraint' in error &&
-  (error as { constraint?: unknown }).constraint === constraint;
 
 type MemberRows = { id: string; hasPassword: string | null }[];
 
@@ -130,9 +144,11 @@ const createInvitedMember = async (
   db: PostgresJsDatabase<IdentitySchema>,
   input: InvitedMemberRow,
 ): Promise<InvitedMemberInsertion> => {
-  try {
-    await db.transaction(async (tx) => {
-      await tx.insert(user).values({
+  const inserted = await db.transaction(async (tx) => {
+    // تعارض فريد (الإيميل أو معرّف العملية) بيرجّع بدون استثناء، فمعاملة ما بتتبطلش.
+    const rows = await tx
+      .insert(user)
+      .values({
         id: input.id,
         name: input.name,
         email: input.email,
@@ -141,22 +157,22 @@ const createInvitedMember = async (
         invitationOperationId: input.invitationOperationId,
         createdAt: input.now,
         updatedAt: input.now,
-      });
-      // حساب دخول من غير كلمة مرور: اليوزر ما يدخلش غير لما يحط كلمة مروره من الرابط.
-      await tx.insert(account).values({
-        id: input.accountId,
-        accountId: input.id,
-        providerId: 'credential',
-        userId: input.id,
-        createdAt: input.now,
-        updatedAt: input.now,
-      });
+      })
+      .onConflictDoNothing()
+      .returning({ id: user.id });
+    if (rows.length === 0) return 'conflict' as const;
+    // حساب دخول من غير كلمة مرور: اليوزر ما يدخلش غير لما يحط كلمة مروره من الرابط.
+    await tx.insert(account).values({
+      id: input.accountId,
+      accountId: input.id,
+      providerId: 'credential',
+      userId: input.id,
+      createdAt: input.now,
+      updatedAt: input.now,
     });
-  } catch (error) {
-    if (!isUniqueViolation(error, 'user_email_key')) throw error;
-    return 'email-taken';
-  }
-  return 'created';
+    return 'created' as const;
+  });
+  return inserted;
 };
 
 const writeVerificationRow = async (
@@ -183,6 +199,42 @@ const writeVerificationRow = async (
   });
 };
 
+/** صف اليوزر تحت القفل: الشركة الداعية وهل حساب الدخول شايل كلمة مرور. */
+type LockedMarker = { invitedByCompanyId: string | null; password: string | null };
+
+const issueInvitationLink = async (
+  db: PostgresJsDatabase<IdentitySchema>,
+  input: InvitationLinkRow,
+): Promise<boolean> => {
+  return db.transaction(async (tx) => {
+    const [marker] = await tx
+      .select({ invitedByCompanyId: user.invitedByCompanyId, password: account.password })
+      .from(user)
+      .leftJoin(account, and(eq(account.userId, user.id), eq(account.providerId, 'credential')))
+      .where(eq(user.id, input.userId))
+      .for('update')
+      .limit(1);
+    const locked = marker as LockedMarker | undefined;
+    if (locked === undefined || locked.invitedByCompanyId !== input.companyId) return false;
+    if (locked.password !== null) return false;
+    await tx.delete(verification).where(
+      and(
+        eq(verification.value, input.userId),
+        like(verification.identifier, 'reset-password:%'),
+      ),
+    );
+    await tx.insert(verification).values({
+      id: input.id,
+      identifier: input.identifier,
+      value: input.userId,
+      expiresAt: input.expiresAt,
+      createdAt: input.now,
+      updatedAt: input.now,
+    });
+    return true;
+  });
+};
+
 /**
  * حدود جداول الهوية لدعوة الأعضاء (G1): الإيميل بيتخزن صريح في جدول اليوزر زي أي حساب، وصف
  * الدعوة في الشركة بيحمل بصمته بس — فمفيش إيميل ولا توكن بيخرج من الجدول ده للـ tenant.
@@ -200,5 +252,6 @@ export function memberInvitationQueries(
     readInvitationMarker: (userId) => readInvitationMarker(db, userId),
     createInvitedMember: (input) => createInvitedMember(db, input),
     writeVerificationRow: (input) => writeVerificationRow(db, input),
+    issueInvitationLink: (input) => issueInvitationLink(db, input),
   };
 }

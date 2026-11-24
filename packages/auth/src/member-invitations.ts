@@ -1,6 +1,8 @@
 import { createHmac, randomBytes } from 'node:crypto';
 
-import type { AuthDatabase, MemberInvitationQueries } from '@pospay/db';
+import type { AuthDatabase } from '@pospay/db';
+
+type MemberQueries = AuthDatabase['memberInvitations'];
 
 /**
  * الدومين المحجوز لإيميلات حسابات الموظفين (F1). أي إيميل تحته مش قابل للدعوة، لأن حساب
@@ -20,17 +22,11 @@ export interface MemberAccountSummary {
   readonly hasPassword: boolean;
 }
 
-/** نتيجة إنشاء حساب المدعوّ: هل الحساب ده اتعمل من الدعوة دي ولا كان موجود قبلها. */
+/** نتيجة إنشاء حساب المدعوّ: هل الحساب اتعمل بهذه الدعوة ولا سبق له حساب بنفس الإيميل. */
 export interface InvitedMemberOutcome {
   readonly userId: string;
-  /** true لما الحساب اتعمل بهذه الدعوة (companyId + operationId)؛ false لما كان حساب موجود. */
+  /** true لما الحساب اتعمل بهذه الدعوة؛ false لما سبق له حساب (تحت قرار N1 بيترفض الطلب). */
   readonly createdByInvitation: boolean;
-}
-
-/** علامة الدعوة على اليوزر: الشركة اللي تقدر تصدر رابط، وهل كلمة المرور اتحطت. */
-export interface MemberInvitationMarker {
-  readonly invitedByCompanyId: string | null;
-  readonly hasPassword: boolean;
 }
 
 /** خيارات رابط تعيين كلمة المرور: العمر والساعة، وهل نُبطل الروابط القديمة للليوزر. */
@@ -57,15 +53,18 @@ export interface MemberInvitationAccounts {
     operationId: string,
     companyId: string,
   ): Promise<MemberAccountSummary | null>;
-  /** ينشئ حساب المدعوّ بحساب دخول (من غير كلمة مرور) وعلامته، أو بيرجّع الحساب الموجود. */
+  /** يقرأ علامة الدعوة على اليوزر: الشركة اللي دعته، وهل كلمة المرور اتحطت. */
+  readMarker(userId: string): Promise<MemberAccountSummary & { invitedByCompanyId: string | null } | null>;
+  /**
+   * ينشئ حساب المدعوّ بحساب دخول من غير كلمة مرور وعلامته. لو سبق له حساب بنفس الإيميل أو
+   * نفس العملية بيرجّع الحساب الموجود و createdByInvitation: false، والحكم عليه عند المتصل.
+   */
   createInvitedMember(input: {
     operationId: string;
     companyId: string;
     email: string;
     name: string;
   }): Promise<InvitedMemberOutcome>;
-  /** يقرأ علامة الدعوة على اليوزر. */
-  readMarker(userId: string): Promise<MemberInvitationMarker | null>;
   /** يصدر رابط تعيين كلمة مرور — بس لليوزر اللي دعته الشركة دي واللي مالوش كلمة مرور. */
   issueInvitationLink(input: {
     userId: string;
@@ -114,9 +113,7 @@ export async function issueSetPasswordLink(
     value: userId,
     expiresAt: new Date(now.getTime() + lifetime),
     now,
-    ...(options.invalidatePrevious === true
-      ? { invalidatePrefix: 'reset-password:' }
-      : {}),
+    ...(options.invalidatePrevious === true ? { invalidatePrefix: 'reset-password:' } : {}),
   });
   return `${baseUrl}/reset-password/${token}?callbackURL=${encodeURIComponent(redirectTo)}`;
 }
@@ -132,10 +129,11 @@ function emailHasher(secret: string): (email: string) => string {
 
 const toSummary = (
   found: { id: string; hasPassword: boolean } | null,
-): MemberAccountSummary | null => (found === null ? null : { userId: found.id, hasPassword: found.hasPassword });
+): MemberAccountSummary | null =>
+  found === null ? null : { userId: found.id, hasPassword: found.hasPassword };
 
 /** القارئ بالإيميل والقارئ بمعرّف العملية: نفس ملخص الحساب من جداول الهوية. */
-function accountReaders(queries: MemberInvitationQueries) {
+function accountReaders(queries: MemberQueries) {
   const findByEmail = async (email: string): Promise<MemberAccountSummary | null> =>
     toSummary(await queries.findMemberByEmail(normalized(email)));
   const findByInvitation = async (
@@ -148,18 +146,22 @@ function accountReaders(queries: MemberInvitationQueries) {
 
 /** قارئ علامة الدعوة: الشركة اللي تقدر تصدر رابط، وهل كلمة المرور اتحطت. */
 async function readMarker(
-  queries: MemberInvitationQueries,
+  queries: MemberQueries,
   userId: string,
-): Promise<MemberInvitationMarker | null> {
+): Promise<(MemberAccountSummary & { invitedByCompanyId: string | null }) | null> {
   const marker = await queries.readInvitationMarker(userId);
   return marker === null
     ? null
-    : { invitedByCompanyId: marker.invitedByCompanyId, hasPassword: marker.hasPassword };
+    : {
+        userId,
+        hasPassword: marker.hasPassword,
+        invitedByCompanyId: marker.invitedByCompanyId,
+      };
 }
 
 /** ينشئ حساب المدعوّ بحساب دخول من غير كلمة مرور، أو بيرجّع الحساب الموجود (ايدمبوتنس بالعملية). */
 async function createInvitedMember(
-  queries: MemberInvitationQueries,
+  queries: MemberQueries,
   ids: { newId(): string },
   readers: { findByEmail(email: string): Promise<MemberAccountSummary | null> },
   input: { operationId: string; companyId: string; email: string; name: string },
@@ -179,10 +181,13 @@ async function createInvitedMember(
     invitationOperationId: input.operationId,
     now: new Date(),
   });
-  if (insertion === 'email-taken') {
-    // سباق على نفس الإيميل: الفايز اتبنى قبله، فالحساب الموجود هو نفسه نتيجة الطلب ده.
+  if (insertion === 'conflict') {
+    // سباق على نفس الإيميل أو نفس العملية: القديم كتب صف اليوزر، فنقرأه ونحكم عند المتصل —
+    // تحت قرار N1 الحساب الموجود بيرفض الطلب بدل ما يتضاف له عضوية.
+    const racedByOperation = await queries.findMemberByInvitation(input.operationId, input.companyId);
+    if (racedByOperation !== null) return { userId: racedByOperation.id, createdByInvitation: true };
     const raced = await readers.findByEmail(email);
-    if (raced === null) throw new Error('invited member vanished after an email-key race');
+    if (raced === null) throw new Error('invited member vanished after an insert conflict');
     return { userId: raced.userId, createdByInvitation: false };
   }
   return { userId, createdByInvitation: true };
@@ -201,15 +206,22 @@ async function issueInvitationLink(
     now?: Date;
   },
 ): Promise<string> {
-  const marker = await readMarker(database.memberInvitations, input.userId);
-  if (marker === null) throw new InvitationLinkRefusedError();
-  if (marker.invitedByCompanyId !== input.companyId) throw new InvitationLinkRefusedError();
-  if (marker.hasPassword) throw new InvitationLinkRefusedError();
-  return issueSetPasswordLink(database, ids, baseUrl, input.userId, input.redirectTo, {
-    ...(input.lifetimeMs === undefined ? {} : { lifetimeMs: input.lifetimeMs }),
-    ...(input.now === undefined ? {} : { now: input.now }),
-    invalidatePrevious: true,
+  const lifetime = input.lifetimeMs ?? PASSWORD_SET_LINK_TTL_MS;
+  const now = input.now ?? new Date();
+  const token = randomBytes(24).toString('base64url');
+  // الإصدار ذري تحت قفل صف اليوزر: فحص «عمري ما حطيت كلمة مروري» بيتم في نفس المعاملة
+  // اللي بيكتب الرابط، فالاستهلاك المتزامن يا بيكمل قبله (فبنرفض) يا بيتأخر بعده.
+  const issued = await database.memberInvitations.issueInvitationLink({
+    id: ids.newId(),
+    identifier: `reset-password:${token}`,
+    value: input.userId,
+    companyId: input.companyId,
+    userId: input.userId,
+    expiresAt: new Date(now.getTime() + lifetime),
+    now,
   });
+  if (!issued) throw new InvitationLinkRefusedError();
+  return `${baseUrl}/reset-password/${token}?callbackURL=${encodeURIComponent(input.redirectTo)}`;
 }
 
 /**
@@ -230,8 +242,8 @@ export function createMemberInvitationAccounts(options: {
     hashEmail: emailHasher(options.secret),
     findByEmail: readers.findByEmail,
     findByInvitation: readers.findByInvitation,
-    createInvitedMember: (input) => createInvitedMember(queries, options.ids, readers, input),
     readMarker: (userId) => readMarker(queries, userId),
+    createInvitedMember: (input) => createInvitedMember(queries, options.ids, readers, input),
     issueInvitationLink: (input) =>
       issueInvitationLink(options.database, options.ids, options.baseUrl, input),
   };

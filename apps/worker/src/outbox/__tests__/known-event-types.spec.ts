@@ -170,6 +170,8 @@ it.each([
   'LeaveRejected',
   'LeaveRevoked',
   'EmployeePasskeyBound',
+  // spec 076 G1: دعوة عضو بلا مستهلك — تُقرأ من شاشة الدعوات مباشرة فتُقر بدون إعادة محاولة.
+  'MemberInvited',
 ])('acknowledges %s without a consumer or tenant effect', async (eventType) => {
   database.withTenant = vi.fn();
   const deliver = createDeliverer(database, [], createLogger('silent'), {

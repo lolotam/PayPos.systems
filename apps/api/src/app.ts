@@ -102,9 +102,12 @@ import {
   type PersonalAuthentication,
 } from './shared/personal-authentication.ts';
 import { AUTH_SERVICE, SessionGuard } from './shared/session.guard.ts';
+import { StaffAccessRoutesGuard } from './shared/staff-access-routes.ts';
 
 export interface AppDependencies {
   readonly ordersClock?: { now(): Date };
+  /** ساعة هوية الدعوات — عمر رابط الدعوة بيتقاس بيها على المسار الكامل (AC-G1-2). */
+  readonly clock?: { now(): Date };
   /** ساعة موديول العملاء — قرار رفض التقييم بيقاس بيها، عشان الاختبار يثبّت الوقت. */
   readonly customersClock?: { now(): Date };
   /** أقصى عمر لمعاملة رفض التقييم؛ القفل ما يعلّقش الطلب على زائر. */
@@ -266,13 +269,16 @@ class AppModule {
         ShutdownHook,
         { provide: AUTH_SERVICE, useValue: deps.auth?.service ?? null },
         { provide: PERSONAL_AUTHENTICATION, useValue: deps.personal ?? null },
-        // Global guards run in this order (ADR-0003 §4): a verified session unless @Public(); then the company
-        // membership and the permission at the target unless @Authenticated(); then the feature flag.
+        // Global guards run in this order (ADR-0003 §4): the 076 activation gate refuses its routes before
+        // anything else (even unauthenticated or malformed requests, P2-b); then a verified session unless
+        // @Public(); then the company membership and the permission at the target unless @Authenticated();
+        // then the feature flag.
+        { provide: APP_GUARD, useClass: StaffAccessRoutesGuard },
         { provide: APP_GUARD, useClass: SessionGuard },
         ...identityProviders(deps.database, deps.ids ?? systemUuidV7(), deps.redis, deps.staff, {
           staffAccessRoutes: deps.staffAccessRoutes === true,
           ...(deps.adminOrigin === undefined ? {} : { adminOrigin: deps.adminOrigin }),
-        }),
+        }, deps.clock ?? undefined),
         {
           provide: RATE_LIMITER,
           useValue: limiter,

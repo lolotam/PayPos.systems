@@ -140,11 +140,12 @@ export function identityProviders(
     /** أصل لوحة الإدارة — صفحة تعيين كلمة المرور بتتبني عليه. */
     adminOrigin?: string;
   },
+  clock: { now(): Date } = systemClock,
 ): Provider[] {
   const capabilities = identityCapabilities(database, ids, redis);
   return [
     ...permissionProviders(database, ids, redis),
-    ...memberInvitationProviders(database, ids, redis, slice),
+    ...memberInvitationProviders(database, ids, redis, slice, clock),
     {
       provide: STAFF_AUTHENTICATION,
       useValue: database === undefined ? null : createStaffEligibility(database),
@@ -157,10 +158,7 @@ export function identityProviders(
     },
     {
       provide: STAFF_PIN_USE_CASES,
-      useValue:
-        database === undefined
-          ? null
-          : staffPinUseCases(database, ids, redis, staff?.sessions ?? null),
+      useValue: database === undefined ? null : staffPinUseCases(database, ids, redis, staff?.sessions ?? null),
     },
     ...discountApproverProviders(database, ids, redis, staff?.sessions ?? null),
     { provide: DISCOUNT_APPROVER_VERIFIER, useExisting: VERIFY_DISCOUNT_APPROVER_PIN },

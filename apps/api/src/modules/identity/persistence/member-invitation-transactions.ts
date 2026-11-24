@@ -16,11 +16,12 @@ import type {
   MemberInvitationTransactions,
   OpenInvitationInput,
   OpenInvitationOutcome,
+  ReissueRefusal,
 } from '../ports/member-invitations.port.ts';
 
 const INVITATION_PERMISSION = 'manage:memberships:company';
 
-/** الأعمدة بتوصل نصوص من execute الخام؛ السنة بتتحول Date في toRow. */
+/** الأعمدة بتوصل نصوص من execute الخام؛ التواريخ بتتحول Date في toRow والقراءات التانية. */
 interface InvitationRecord extends Record<string, unknown> {
   id: string;
   user_id: string | null;
@@ -48,7 +49,6 @@ const toRow = (row: InvitationRecord): MemberInvitationRow => ({
   scopeId: row.scope_id,
   invitedBy: row.invited_by,
   state: row.state,
-  // execute الخام بيرجّع التواريخ نصوص ISO، فالتحويل هنا يرجّع نوع المنفذ (Date).
   linkIssuedAt: row.link_issued_at === null ? null : new Date(row.link_issued_at),
   createdAt: new Date(row.created_at),
 });
@@ -89,45 +89,16 @@ async function scopeBelongs(
   return rows.length === 1;
 }
 
-async function hasActiveMembership(
-  tx: Tx,
-  companyId: string,
-  userId: string,
-): Promise<boolean> {
-  const rows = await tx.execute(sql`
-    SELECT 1 FROM memberships
-    WHERE company_id = ${companyId} AND user_id = ${userId}
-      AND starts_at <= now() AND (ends_at IS NULL OR ends_at > now())`);
-  return rows.length > 0;
+/** صف PENDING بيتعاد استخدامه بس من نفس الداعي بنفس الدور والنطاق؛ أي اختلاف بيرفض (P1-b). */
+function resumeRefusal(row: InvitationRecord, input: OpenInvitationInput): boolean {
+  return (
+    row.state !== 'PENDING' ||
+    row.invited_by !== input.actorUserId ||
+    row.role_code !== input.roleCode ||
+    row.scope_type !== input.scope.type ||
+    row.scope_id !== input.scope.id
+  );
 }
-
-/** مفتاح فريد (شركة، بصمة إيميل) بيتقابل في السباق على نفس الإيميل — drizzle بيلف الغلط فالكود في الـ cause. */
-const isEmailKeyRace = (error: unknown): boolean => {
-  const source = error as { code?: string; cause?: { code?: string } };
-  return (source.code ?? source.cause?.code) === '23505';
-};
-
-const insertReturningId = async (
-  tx: Tx,
-  input: OpenInvitationInput,
-): Promise<{ id: string }[]> => {
-  // السباق على نفس الإيميل بيبطل المعاملة بعد الغلط، فالـ SAVEPOINT بيشفّها عشان الرد يطلع
-  // 409 نضيف؛ إعادة المحاولة المتسلسلة بعد كده بتلاقي الصف PENDING وتعيد استخدامه.
-  await tx.execute(sql`SAVEPOINT member_invitation_open`);
-  try {
-    return await tx.execute<{ id: string }>(sql`
-      INSERT INTO member_invitations
-        (company_id, id, email_hash, role_code, scope_type, scope_id, invited_by, state, created_at)
-      VALUES (${input.companyId}, ${input.invitationId}, ${input.emailHash}, ${input.roleCode},
-              ${input.scope.type}, ${input.scope.id}, ${input.actorUserId}, 'PENDING',
-              ${input.now.toISOString()}::timestamptz)
-      RETURNING id`);
-  } catch (error) {
-    if (!isEmailKeyRace(error)) throw error;
-    await tx.execute(sql`ROLLBACK TO SAVEPOINT member_invitation_open`);
-    return [];
-  }
-};
 
 /** الخطوة الأولى جوه معاملة واحدة: سلطة المالك، ونطاق تابع للشركة، وكتابة أو إعادة استخدام PENDING. */
 async function openInvitation(
@@ -140,83 +111,125 @@ async function openInvitation(
   if (!(await scopeBelongs(tx, input.companyId, input.scope))) {
     return { refusal: 'MEMBER_ROLE_NOT_INVITABLE' };
   }
-  if (
-    input.existingUserId !== null &&
-    (await hasActiveMembership(tx, input.companyId, input.existingUserId))
-  ) {
-    return { refusal: 'MEMBER_ALREADY_IN_COMPANY' };
-  }
   const [existing] = await tx.execute<InvitationRecord>(sql`
     ${SELECT_INVITATION}
     WHERE company_id = ${input.companyId} AND email_hash = ${input.emailHash}
     FOR UPDATE`);
-  if (existing !== undefined && existing.state !== 'PENDING') {
-    return { refusal: 'MEMBER_INVITATION_EXISTS' };
-  }
   if (existing !== undefined) {
-    await tx.execute(sql`
-      UPDATE member_invitations
-      SET role_code = ${input.roleCode}, scope_type = ${input.scope.type}, scope_id = ${input.scope.id}
-      WHERE company_id = ${input.companyId} AND id = ${existing.id}`);
+    if (resumeRefusal(existing, input)) return { refusal: 'MEMBER_INVITATION_EXISTS' };
     return { invitationId: existing.id };
   }
-  const insert = await insertReturningId(tx, input);
+  const insert = await tx.execute<{ id: string }>(sql`
+    INSERT INTO member_invitations
+      (company_id, id, email_hash, role_code, scope_type, scope_id, invited_by, state, created_at)
+    VALUES (${input.companyId}, ${input.invitationId}, ${input.emailHash}, ${input.roleCode},
+            ${input.scope.type}, ${input.scope.id}, ${input.actorUserId}, 'PENDING',
+            ${input.now.toISOString()}::timestamptz)
+    ON CONFLICT (company_id, email_hash) DO NOTHING
+    RETURNING id`);
   if (insert.length === 1) return { invitationId: input.invitationId };
+  // سباق على نفس الإيميل: الصف الفايز اتكتب بالتوازي، فالقفل هنا بيسمعه ويحكم عليه بنفس
+  // قواعد الإعادة — نفس الداعي والدور والنطاق أو 409.
+  const [raced] = await tx.execute<InvitationRecord>(sql`
+    ${SELECT_INVITATION}
+    WHERE company_id = ${input.companyId} AND email_hash = ${input.emailHash}
+    FOR UPDATE`);
+  if (raced !== undefined && !resumeRefusal(raced, input)) return { invitationId: raced.id };
   return { refusal: 'MEMBER_INVITATION_EXISTS' };
 }
 
-/** سباق على نفس الإيميل: صف PENDING موجود بيتجدد بدور ونطاق الطلب وبيتعاد استخدامه بمعرّفه (D6). */
-
-/** الإتمام لصف انتهى من قبل: بيرد بالحالة الحالية بدون كتابة ولا حدث تاني (زي خطوة 3 في F1). */
-const alreadyCompleteOutcome = (invitation: InvitationRecord): CompleteInvitationOutcome => ({
-  done: true,
-  alreadyComplete: true,
-  linkIssuedAt:
-    invitation.link_issued_at === null ? null : new Date(invitation.link_issued_at),
-});
-
-/** الخطوة الثالثة جوه معاملة واحدة: العضوية، وتحديث الدعوة، وصفوف التدقيق، وحدث MemberInvited. */
+/** الخطوة الثالثة جوه معاملة واحدة: عضوية مكتوبة من الصف المقفول، وصفوف التدقيق، وحدث MemberInvited. */
 async function completeInvitation(
   tx: Tx,
   ids: IdGenerator,
   input: CompleteInvitationInput,
+  invitation: InvitationRecord,
 ): Promise<CompleteInvitationOutcome> {
-  if (await hasActiveMembership(tx, input.companyId, input.userId)) {
-    await tx.execute(sql`
-      UPDATE member_invitations SET state = 'CANCELLED'
-      WHERE company_id = ${input.companyId} AND id = ${input.invitationId}`);
-    return { done: false };
+  // كود الدور جاي من الصف المقفول نفسه؛ لو مش من أدوار النظام ده كسر ثابت في الجدول (500).
+  const roleId = SYSTEM_ROLES.find((role) => role.code === invitation.role_code)?.id;
+  if (roleId === undefined) {
+    throw new Error(`member invitation role ${invitation.role_code} is not a system role`);
   }
-  await insertMembership(tx, input);
-  const state = input.createdByInvitation ? 'PENDING' : 'ACTIVE';
-  await tx.execute(sql`
-    UPDATE member_invitations
-    SET user_id = ${input.userId}, membership_id = ${input.membershipId}, state = ${state}
-    WHERE company_id = ${input.companyId} AND id = ${input.invitationId}`);
-  const writers = transactionWriters(tx, ids);
-  for (const entry of input.audit) await writers.audit.record(entry);
-  await writers.outbox.append(input.event);
-  return { done: true, alreadyComplete: false, linkIssuedAt: null };
-}
-
-/** كود الدور جاي من جدول الدومين المقفول؛ لو مش من أدوار النظام ده كسر ثابت في الجدول (500). */
-function systemRoleId(roleCode: string): string {
-  const roleId = SYSTEM_ROLES.find((role) => role.code === roleCode)?.id;
-  if (roleId === undefined) throw new Error(`member invitation role ${roleCode} is not a system role`);
-  return roleId;
-}
-
-async function insertMembership(tx: Tx, input: CompleteInvitationInput): Promise<void> {
+  const row = toRow(invitation);
   await tx.execute(sql`
     INSERT INTO memberships
       (company_id, id, user_id, role_id, role_owner_key, scope_type, scope_id, starts_at)
-    VALUES (${input.companyId}, ${input.membershipId}, ${input.userId}, ${systemRoleId(input.roleCode)}::uuid,
-            'global', ${input.scope.type}, ${input.scope.id}, ${input.now.toISOString()}::timestamptz)`);
+    VALUES (${input.companyId}, ${input.membershipId}, ${input.userId}, ${roleId}::uuid,
+            'global', ${row.scopeType}, ${row.scopeId}, ${input.now.toISOString()}::timestamptz)`);
+  await tx.execute(sql`
+    UPDATE member_invitations
+    SET user_id = ${input.userId}, membership_id = ${input.membershipId}
+    WHERE company_id = ${input.companyId} AND id = ${input.invitationId}`);
+  const writers = transactionWriters(tx, ids);
+  for (const entry of input.buildAudit(row, input.membershipId, input.userId)) {
+    await writers.audit.record(entry);
+  }
+  await writers.outbox.append(input.buildEvent(row, input.membershipId, input.userId));
+  return {
+    done: true,
+    membershipId: input.membershipId,
+    userId: input.userId,
+    alreadyComplete: false,
+  };
+}
+
+/** إعادة إصدار الرابط جوه معاملة قافلة الصف: سلطة المالك، الدعوة من نفس المتصل، والعضوية مكتوبة. */
+async function claimReissue(
+  tx: Tx,
+  input: { companyId: string; invitationId: string; actorUserId: string; at: Date },
+): Promise<{ readonly userId: string } | { readonly refusal: ReissueRefusal }> {
+  if (!(await authorityAllows(tx, input.companyId, input.actorUserId))) {
+    return { refusal: 'FORBIDDEN' };
+  }
+  const [invitation] = await tx.execute<InvitationRecord>(sql`
+    ${SELECT_INVITATION}
+    WHERE company_id = ${input.companyId} AND id = ${input.invitationId}
+    FOR UPDATE`);
+  if (
+    invitation === undefined ||
+    invitation.state !== 'PENDING' ||
+    invitation.invited_by !== input.actorUserId ||
+    invitation.membership_id === null ||
+    invitation.user_id === null
+  ) {
+    return { refusal: 'MEMBER_INVITATION_NOT_REISSUEABLE' };
+  }
+  await tx.execute(sql`
+    UPDATE member_invitations SET link_issued_at = ${input.at.toISOString()}::timestamptz
+    WHERE company_id = ${input.companyId} AND id = ${input.invitationId}`);
+  return { userId: invitation.user_id };
+}
+
+/** جسم معاملة الإتمام: قفل الصف، فحص السلطة والنطاق، والكتابة من الصف المقفول. */
+async function completeInTransaction(
+  tx: Tx,
+  ids: IdGenerator,
+  input: CompleteInvitationInput,
+): Promise<CompleteInvitationOutcome> {
+  const [invitation] = await tx.execute<InvitationRecord>(sql`
+    ${SELECT_INVITATION}
+    WHERE company_id = ${input.companyId} AND id = ${input.invitationId}
+    FOR UPDATE`);
+  if (invitation === undefined) return { done: false, refusal: 'MEMBER_INVITATION_EXISTS' };
+  if (invitation.membership_id !== null) {
+    // طلب متكرر بعد نجاح سابق: بيرجّع العضوية واليوزر المسجلين بدون كتابة ولا حدث تاني.
+    return {
+      done: true,
+      membershipId: invitation.membership_id,
+      userId: input.userId,
+      alreadyComplete: true,
+    };
+  }
+  const scope: InvitationScope = { type: invitation.scope_type, id: invitation.scope_id };
+  if (!(await scopeBelongs(tx, input.companyId, scope))) {
+    return { done: false, refusal: 'MEMBER_ROLE_NOT_INVITABLE' };
+  }
+  return completeInvitation(tx, ids, input, invitation);
 }
 
 /**
  * بيبني حدود جدول الدعوات: كل خطوة بتفتح معاملتها بنفسها على pospay_app، والسلطة بتتقرأ
- * جوه المعاملة نفسها عشان مفيش نافذة بين الفحص والكتابة.
+ * جوه كل معاملة كتابة (فتح، إتمام، حجز إعادة إصدار) عشان مفيش نافذة بين الفحص والكتابة.
  *
  * @param db  الـ tenant wrappers
  * @param ids مولّد الـ UUID v7
@@ -237,28 +250,13 @@ export function createMemberInvitationTransactions(
       db.withTenant(
         input.companyId,
         async (tx): Promise<CompleteInvitationOutcome> => {
-          const [invitation] = await tx.execute<InvitationRecord>(sql`
-            ${SELECT_INVITATION}
-            WHERE company_id = ${input.companyId} AND id = ${input.invitationId}
-            FOR UPDATE`);
-          if (invitation === undefined) return { done: false };
-          if (invitation.membership_id !== null) return alreadyCompleteOutcome(invitation);
-          return completeInvitation(tx, ids, input);
+          if (!(await authorityAllows(tx, input.companyId, input.actorUserId))) {
+            return { done: false, refusal: 'FORBIDDEN' };
+          }
+          return completeInTransaction(tx, ids, input);
         },
         { userId: input.actorUserId },
       ),
-    read: async ({ companyId, invitationId }) => {
-      const rows = await db.withTenant(
-        companyId,
-        (tx) =>
-          tx.execute<InvitationRecord>(sql`
-            ${SELECT_INVITATION}
-            WHERE company_id = ${companyId} AND id = ${invitationId}`),
-        { readOnly: true },
-      );
-      const row = rows[0];
-      return row === undefined ? null : toRow(row);
-    },
     claimLink: async ({ companyId, invitationId, at }) => {
       const claimed = await db.withTenant(companyId, async (tx) =>
         tx.execute<{ id: string }>(sql`
@@ -268,12 +266,29 @@ export function createMemberInvitationTransactions(
       );
       return claimed.length === 1;
     },
-    stampLink: async ({ companyId, invitationId, at }) => {
-      await db.withTenant(companyId, async (tx) => {
-        await tx.execute(sql`
-          UPDATE member_invitations SET link_issued_at = ${at.toISOString()}::timestamptz
-          WHERE company_id = ${companyId} AND id = ${invitationId}`);
-      });
+    claimReissue: (input) =>
+      db.withTenant(
+        input.companyId,
+        (tx) => claimReissue(tx, input),
+        { userId: input.actorUserId },
+      ),
+    stampLink: async ({ companyId, invitationId, actorUserId, at }) => {
+      await db.withTenant(
+        companyId,
+        async (tx) => {
+          await tx.execute(sql`
+            UPDATE member_invitations SET link_issued_at = ${at.toISOString()}::timestamptz
+            WHERE company_id = ${companyId} AND id = ${invitationId}`);
+          const writers = transactionWriters(tx, ids);
+          await writers.audit.record({
+            entity: 'member_invitation',
+            entityId: invitationId,
+            action: 'link.issued',
+            after: { invitation_id: invitationId },
+          });
+        },
+        { userId: actorUserId },
+      );
     },
   };
 }
