@@ -99,7 +99,8 @@ export function passwordResetPlugin(options: {
             identifier,
             passwordHash,
             accountId: options.ids.newId(),
-            now: options.clock?.now() ?? new Date(),
+            // الساعة بتتقري جوه المعاملة بعد قفل اليوزر — مش هنا.
+            now: () => options.clock?.now() ?? new Date(),
           });
           if (outcome === 'invalid-link') throw APIError.from('BAD_REQUEST', INVALID_TOKEN);
         } catch (error) {

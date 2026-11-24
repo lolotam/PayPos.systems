@@ -7,7 +7,7 @@ import { account, user, verification } from '../schema/identity-auth.ts';
 /** بادئة identifier لصف verification الخاص برابط تعيين كلمة المرور — نفس شكل Better Auth. */
 export const RESET_LINK_PREFIX = 'reset-password:';
 
-/** مدخلات استهلاك رابط تعيين كلمة المرور: كل القيم محسوبة قبل ما المعاملة تبدأ. */
+/** مدخلات استهلاك رابط تعيين كلمة المرور: القيم محسوبة قبل المعاملة، وساعة الاستهلاك بتتقري جواها. */
 export interface ResetLinkConsumption {
   /** `reset-password:<token>` زي ما Better Auth بيخزنه. */
   readonly identifier: string;
@@ -15,7 +15,11 @@ export interface ResetLinkConsumption {
   readonly passwordHash: string;
   /** معرّف صف حساب الدخول لو اليوزر ملوش صف (بيتكتب بس في الحالة دي). */
   readonly accountId: string;
-  readonly now: Date;
+  /**
+   * قراءة ساعة الاستهلاك — بتتنادى جوه المعاملة بعد قفل صف اليوزر بالظبط، مش قبلها: رابط بينتهي
+   * وإحنا مستنيين القفل بيرفض هنا حتى لو كان شكله حي لحظة بداية الطلب.
+   */
+  readonly now: () => Date;
 }
 
 /** استهلاك روابط تعيين كلمة المرور — كل SQL هنا، والباقي ما بيلمسش verification ولا account. */
@@ -56,6 +60,7 @@ async function writePassword(
   tx: Transaction,
   userId: string,
   input: ResetLinkConsumption,
+  now: Date,
 ): Promise<void> {
   const [login] = await tx
     .select({ id: account.id })
@@ -69,14 +74,14 @@ async function writePassword(
       providerId: 'credential',
       userId,
       password: input.passwordHash,
-      createdAt: input.now,
-      updatedAt: input.now,
+      createdAt: now,
+      updatedAt: now,
     });
     return;
   }
   await tx
     .update(account)
-    .set({ password: input.passwordHash, updatedAt: input.now })
+    .set({ password: input.passwordHash, updatedAt: now })
     .where(eq(account.id, login.id));
 }
 
@@ -99,16 +104,18 @@ const consumeLinkAndSetPassword = async (
       .where(eq(user.id, link.userId))
       .for('update');
     if (owner === undefined) return 'invalid-link';
-    // الاستهلاك بعد القفل: لو طلب تاني استهلك نفس الرابط أو إصدار جديد مسحه، الحذف هنا بيرجّع صفر.
+    // ساعة الاستهلاك بتتقري بعد القفل: رابط بينتهي وإحنا مستنيين قفل اليوزر بيرفض هنا، والاستهلاك
+    // بعد القفل: لو طلب تاني استهلك نفس الرابط أو إصدار جديد مسحه، الحذف هنا بيرجّع صفر.
+    const now = input.now();
     const consumed = await tx
       .delete(verification)
       .where(eq(verification.identifier, input.identifier))
       .returning({ expiresAt: verification.expiresAt, userId: verification.value });
     const live = consumed.find(
-      (row) => row.userId === owner.id && row.expiresAt.getTime() > input.now.getTime(),
+      (row) => row.userId === owner.id && row.expiresAt.getTime() > now.getTime(),
     );
     if (live === undefined) return 'invalid-link';
-    await writePassword(tx, owner.id, input);
+    await writePassword(tx, owner.id, input, now);
     // كل رابط تاني لنفس اليوزر بيموت مع كلمة المرور في نفس المعاملة: لو المسح فشل، كلمة المرور
     // نفسها بتتراجع، فمفيش حالة فيها كلمة مرور متحطة ورابط حي.
     await tx

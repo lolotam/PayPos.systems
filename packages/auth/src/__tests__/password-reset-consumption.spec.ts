@@ -318,6 +318,44 @@ describe('the reset endpoint keeps Better Auth request validation', () => {
   });
 });
 
+describe('the link expiry is decided inside the transaction, after the user lock', () => {
+  it('a link that expires while the reset waits on the user lock is refused and nothing is saved', async () => {
+    const { userId } = await createOrdinaryUser('expiry-lock@example.test');
+    const before = await storedHash(userId);
+    const link = tokenOf(await auth.issuePasswordSetLink(userId, `${ORIGIN}/set-password`));
+    // الرابط عايش لحظة الطلب، وبينتهي بالساعة الحقيقية وإحنا مستنيين قفل اليوزر — القرار بيتاخد بعده.
+    await owner`UPDATE verification SET expires_at = now() + interval '1 second'
+      WHERE identifier = ${`reset-password:${link}`}`;
+    const holding = deferred();
+    const taken = deferred();
+    const holder = owner.begin(async (tx) => {
+      await tx`SELECT 1 FROM "user" WHERE id = ${userId} FOR UPDATE`;
+      taken.resolve();
+      await holding.promise;
+    });
+    await taken.promise;
+    const resetting = consume(link);
+    await waitForWaiters(1);
+    // حاجز على ساعة قاعدة البيانات نفسها: الطلب بيفضل مستني لحد ما الرابط يفيعل فعلاً في الداتابيز.
+    await vi.waitFor(
+      async () => {
+        const [row] = await owner`SELECT (expires_at < clock_timestamp()) AS expired
+          FROM verification WHERE identifier = ${`reset-password:${link}`}`;
+        expect(row?.['expired']).toBe(true);
+      },
+      { timeout: 8_000, interval: 25 },
+    );
+    holding.resolve();
+    await holder;
+    const response = await resetting;
+    expect(response.status).toBe(400);
+    expect(await response.json()).toMatchObject({ code: 'INVALID_TOKEN' });
+    expect(await storedHash(userId)).toBe(before);
+    // الرابط المنتهي بيتستهلك مع الرفض (نفس سلوك invalid-link القائم): مفيش رابط حي ولا كلمة مرور اتكتبت.
+    expect(await liveTokens(userId)).toEqual([]);
+  });
+});
+
 describe('the reset keeps Better Auth behaviour for the link holder', () => {
   it('sets the password so the user signs in with it, once only', async () => {
     const { userId, email } = await createOrdinaryUser('signin@example.test');
