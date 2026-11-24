@@ -1,11 +1,11 @@
 'use client';
 import type { ScheduleGrid, WorkspaceBranch } from '@pospay/contracts';
 import { t } from '@pospay/i18n';
-import { PageHeader } from '@pospay/ui';
+import { PageHeader, Button } from '@pospay/ui';
+import Link from 'next/link';
 import { useState } from 'react';
 import { useLocale } from '@/shared/locale/locale-context';
 import { useScheduleWeek, type ScheduleWorkspace } from '../api/use-schedules';
-import { ScheduleSettingsPanel } from '../ui/schedule-settings-panel';
 import { initialScheduleWeek, ScheduleLimitContext } from '../model/schedule-form';
 import { ScheduleWeekControls } from '../ui/schedule-week-controls';
 import { ScheduleListPanel } from '../ui/schedule-list-panel';
@@ -27,10 +27,11 @@ export function SchedulesPage({ scope, branch }: SchedulesPageProps) {
       <PageHeader
         title={t(locale, 'shell.schedule_title')}
         description={t(locale, 'shell.schedule_lead')}
-      />
-      <ScheduleSettingsPanel
-        key={`${scope.companyId}:${scope.businessId}:${scope.userId}`}
-        scope={scope}
+        actions={
+          <Button asChild variant="outline">
+            <Link href="/schedules/settings">{t(locale, 'shell.schedule_settings_title')}</Link>
+          </Button>
+        }
       />
       <ScheduleWeekControls
         week={week}

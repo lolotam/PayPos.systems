@@ -68,7 +68,6 @@ function renderBusinessForm({ locale, query, save, form }: PanelState) {
         }
       })}
     >
-      <h2 className="text-lg font-semibold">{t(locale, 'shell.schedule_settings_title')}</h2>
       {query.data?.is_default ? (
         <p className="text-sm text-muted-foreground">
           {t(locale, 'shell.schedule_settings_default')}

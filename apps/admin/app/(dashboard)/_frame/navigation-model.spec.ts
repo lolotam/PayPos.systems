@@ -148,11 +148,22 @@ describe('navigation model route coverage (074-1 + 074-2)', () => {
   });
 
   it('resolves an embedded page through its published Soon alias', () => {
-    const embedded = requiredPageById('schedule-settings');
-    if (embedded.state !== 'live' || embedded.embeddedInParent !== true)
-      throw new Error('Expected an embedded live page');
-    const promoted = { ...embedded, formerSoonId: 'new-schedules' };
-    expect(findNavigationEntryByPathname(soonPageHref('new-schedules'), [promoted])).toBe(promoted);
+    // إعدادات الجداول بقت صفحة مستقلة، فالمدخل المضمّن بيتبني من قيمة حرفية هنا.
+    const embedded: EmbeddedLivePageEntry = {
+      id: 'embedded-example',
+      parent: 'weekly-schedules',
+      embeddedInParent: true,
+      labelKey: 'shell.schedule_settings_title',
+      icon: 'Clock3',
+      visible: 'always',
+      state: 'live',
+      section: 'team',
+      submenu: 'schedules',
+      businessTypes: [],
+      appMapEntry: true,
+      formerSoonId: 'new-schedules',
+    };
+    expect(findNavigationEntryByPathname(soonPageHref('new-schedules'), [embedded])).toBe(embedded);
   });
 
   it('uses the parent list as the destination of a promoted dynamic child', () => {
@@ -375,7 +386,9 @@ describe('navigation Soon-entry filtering boundaries', () => {
     expect(isEntryShownForWorkspace(appearance, null, null)).toBe(true);
     expect(pageEntryHref(appearance)).toBe('/appearance');
 
-    expect(pageEntryHref(scheduleSettings)).toBe('/schedules');
+    expect(pageEntryHref(scheduleSettings)).toBe('/schedules/settings');
+    expect(resolveMenuEntryForPathname('/schedules/settings')?.id).toBe('schedule-settings');
+    expect(resolveMenuEntryForPathname('/schedules')?.id).toBe('weekly-schedules');
     expect(parseNavigationStyle('A')).toBe('A');
     expect(parseNavigationStyle('invalid')).toBe(DEFAULT_NAVIGATION_STYLE);
     expect(DEFAULT_NAVIGATION_STYLE).toBe('C');

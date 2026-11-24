@@ -120,10 +120,8 @@ export const STAFF_NAV_PAGES: readonly NavigationPageEntry[] = [
     appMapEntry: true,
   },
   {
-    // إعدادات الجداول كتلة أعلى /schedules حتى الخطوة 11؛ تمثيلها كمضمّنة يمنع تكرار المسار مع حفظ صفها في الخريطة.
     id: 'schedule-settings',
-    parent: 'weekly-schedules',
-    embeddedInParent: true,
+    route: '/schedules/settings',
     labelKey: 'shell.schedule_settings_title',
     icon: 'Clock3',
     visible: 'always',
