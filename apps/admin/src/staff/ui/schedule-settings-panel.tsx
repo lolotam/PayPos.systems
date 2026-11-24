@@ -3,6 +3,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { setScheduleSettingsInput, type SetScheduleSettingsInput } from '@pospay/contracts';
 import { t } from '@pospay/i18n';
 import { Button, Input, Label } from '@pospay/ui';
+import { useLayoutEffect, useRef } from 'react';
 import { useForm } from 'react-hook-form';
 import { envelopeMessage } from '@/shared/api/api-error';
 import { useLocale } from '@/shared/locale/locale-context';
@@ -27,6 +28,17 @@ function useSettingsPanel(scope: ScheduleWorkspace) {
     resolver: zodResolver(setScheduleSettingsInput),
     values: { max_shifts_per_day: branch?.max_shifts_per_day ?? 3 },
   });
+  const { reset: resetBranchForm } = branchForm;
+  const branchLimit = branch?.max_shifts_per_day ?? 3;
+  const branchIdRef = useRef(scope.branchId);
+  // `values` لا تعيد ضبط النموذج إذا تساوت القيمة المحفوظة للفرعين، فرقم مكتوب لفرع قد يُحفظ على آخر؛
+  // لذلك نعيد الضبط صراحةً عند تغيّر الفرع، ونترك الحالة في هذا الخطاف حتى لا تضيع المسودة إذا فشلت قراءة دورية.
+  // نستخدم `useLayoutEffect` ليتم الضبط قبل أن يسلّم المتصفح أي نقرة على الفرع الجديد.
+  useLayoutEffect(() => {
+    if (branchIdRef.current === scope.branchId) return;
+    branchIdRef.current = scope.branchId;
+    resetBranchForm({ max_shifts_per_day: branchLimit });
+  }, [scope.branchId, branchLimit, resetBranchForm]);
   const form = useForm<SetScheduleSettingsInput>({
     resolver: zodResolver(setScheduleSettingsInput),
     values: { max_shifts_per_day: query.data?.max_shifts_per_day ?? 3 },
