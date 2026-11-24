@@ -10,6 +10,7 @@ import { issueCommissionCoverage } from './issue-commission-coverage.ts';
 const identity: CoverageReportIdentity = {
   databaseName: 'synthetic',
   systemId: '123',
+  inRecovery: false,
   version: 1,
   tipBound: '2026-11-25',
 };
@@ -50,9 +51,10 @@ function report(): CommissionCoverageReport {
 function dependencies() {
   // بديل حدود I/O فقط: النتيجة تظهر الإصدار الفعلي أو غيابه، لا نعدّ استدعاءات دوال داخلية.
   const proofs: unknown[] = [];
+  let dispatcherRecovery = false;
   const issuer: CoverageIssuanceDependencies['issuer'] = {
     verifyAndIssue: async (_company, _state, verify) => {
-      const checked = await verify({ ...identity, generation: '7' });
+      const checked = await verify({ ...identity, generation: '7', inRecovery: dispatcherRecovery });
       if (checked.proof !== null) proofs.push(checked.proof);
       return { result: checked.result, generation: checked.proof === null ? null : '8' };
     },
@@ -67,7 +69,7 @@ function dependencies() {
     tips: { existsAfter: async () => false },
     report: async () => report(),
   };
-  return { deps, proofs };
+  return { deps, proofs, setDispatcherRecovery: (value: boolean) => (dispatcherRecovery = value) };
 }
 
 it('checks every business and issues the exact reported bounds; dry-run never issues', async () => {
@@ -98,6 +100,8 @@ it('checks every business and issues the exact reported bounds; dry-run never is
 
 it.each([
   'database',
+  'replica-report',
+  'replica-dispatcher',
   'version',
   'scope',
   'report',
@@ -105,8 +109,10 @@ it.each([
   'unknown-business',
   'reader-error',
 ] as const)('refuses %s without issuing', async (failure) => {
-  const { deps, proofs } = dependencies();
+  const { deps, proofs, setDispatcherRecovery } = dependencies();
   if (failure === 'database') deps.identity = async () => ({ ...identity, systemId: 'other' });
+  if (failure === 'replica-report') deps.identity = async () => ({ ...identity, inRecovery: true });
+  if (failure === 'replica-dispatcher') setDispatcherRecovery(true);
   if (failure === 'version') deps.identity = async () => ({ ...identity, version: 2 });
   if (failure === 'scope') deps.businessIds = async () => ['a', 'b', 'c'];
   if (failure === 'report') deps.report = async () => ({ ...report(), status: 'NOT_COVERED' });

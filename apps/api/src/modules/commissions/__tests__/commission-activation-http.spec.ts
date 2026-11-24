@@ -12,9 +12,18 @@ import { statementFixture, type StatementFixture } from './commission-statement.
 // CI فقط محلياً: harness يفتح Redis حقيقياً، والمدير منع أي اتصال Redis على جهاز المسارات المتوازية.
 let f: StatementFixture;
 let approver: Approver;
+// مشغّل الأمر منصة له منحة سارية؛ موافِق الشركة لا يصلح مشغّلاً لأمر المفتاح (53-2 B1).
+const platformOperator = {
+  id: '01980000-0000-7000-8000-00000000e101',
+  email: 'platform-operator@example.test',
+};
 beforeAll(async () => {
   f = await statementFixture();
   approver = await approverMember(f, 'activation');
+  await f.h.owner`INSERT INTO "user"(id,name,email)
+    VALUES(${platformOperator.id},'Platform operator',${platformOperator.email})`;
+  await f.h.owner`INSERT INTO platform_grants(id,user_id,permission,granted_by)
+    VALUES('01980000-0000-7000-8000-00000000e102',${platformOperator.id},'create:companies:platform','fixture')`;
 });
 afterAll(async () => {
   await f?.h.close();
@@ -22,9 +31,6 @@ afterAll(async () => {
 
 it('operator commands open the real HTTP approval only after a post-enable proof, then disable closes it', async () => {
   const fingerprints = await reviewedStatement(f, approver);
-  const [operator] = await f.h.owner`SELECT email FROM "user" WHERE id = ${approver.userId}`;
-  const [clock] = await f.h
-    .owner`SELECT ((clock_timestamp() AT TIME ZONE 'UTC')::date + 1)::text AS bound`;
   const toggle = (enabled: boolean) =>
     activationCli('switch', f.h.urls, [
       '--company',
@@ -33,8 +39,10 @@ it('operator commands open the real HTTP approval only after a post-enable proof
       '--reason',
       'synthetic HTTP activation',
       '--operator-email',
-      String(operator?.['email']),
+      platformOperator.email,
     ]);
+  const [clock] = await f.h
+    .owner`SELECT ((clock_timestamp() AT TIME ZONE 'UTC')::date + 1)::text AS bound`;
   const args = [
     '--company',
     f.company,

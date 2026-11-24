@@ -1,6 +1,10 @@
 import { COMMISSION_COVERAGE_PROOF_VERSION } from '@pospay/domain';
 
-import { assertIssuableCoverage, CoverageProofRefused } from '../../domain/coverage-issuance.ts';
+import {
+  assertIssuableCoverage,
+  assertSamePrimary,
+  CoverageProofRefused,
+} from '../../domain/coverage-issuance.ts';
 import type { CoverageIssuanceDependencies } from '../../ports/coverage-issuance.port.ts';
 import type {
   CommissionCoverageReport,
@@ -26,8 +30,7 @@ export async function issueCommissionCoverage(
 ) {
   return deps.issuer.verifyAndIssue(input.scope.companyId, input.stateId, async (snapshot) => {
     const identity = await deps.identity(input.scope.companyId);
-    if (identity.databaseName !== snapshot.databaseName || identity.systemId !== snapshot.systemId)
-      throw new CoverageProofRefused('COVERAGE_DATABASE_MISMATCH');
+    assertSamePrimary(identity, snapshot);
     if (identity.version !== COMMISSION_COVERAGE_PROOF_VERSION)
       throw new CoverageProofRefused('COVERAGE_VERSION_REFUSED');
     const businesses = await deps.withTenant(input.scope.companyId, (tx) =>

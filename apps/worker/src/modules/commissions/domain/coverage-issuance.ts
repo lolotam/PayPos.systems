@@ -24,6 +24,28 @@ export interface IssuableCoverageReport {
   readonly notHandled: { total: number };
 }
 
+/** هوية اتصال واحدة كما تقرأها قاعدة البيانات نفسها: الاسم ومعرّف الكلاستر واعة الوقوف على احتياطي. */
+export interface ConnectionIdentity {
+  readonly databaseName: string;
+  readonly systemId: string;
+  readonly inRecovery: boolean;
+}
+
+/**
+ * يرفض توجيهاً غير آمن قبل تشغيل التقرير: الذراع الاحتياطي مرفوض حتى لو تطابقت الهوية لأن النسخة
+ * المتزامنة تحمل الاسم ومعرّف الكلاستر نفسهما، واختلاف الاسم أو المعرّف يكشف وصلة خاطئة.
+ * قرار نقي بقيم محقونة بلا SQL ولا ساعة جهاز، ويُختبر وحدوياً.
+ *
+ * @param report     هوية اتصال التقرير (pospay_app)
+ * @param dispatcher هوية اتصال الإصدار (pospay_dispatcher) من لقطة الدالة المحدودة
+ */
+export function assertSamePrimary(report: ConnectionIdentity, dispatcher: ConnectionIdentity): void {
+  if (report.inRecovery || dispatcher.inRecovery)
+    throw new CoverageProofRefused('COVERAGE_REPLICA_REFUSED');
+  if (report.databaseName !== dispatcher.databaseName || report.systemId !== dispatcher.systemId)
+    throw new CoverageProofRefused('COVERAGE_DATABASE_MISMATCH');
+}
+
 /** يمنع إصدار دليل من تقرير جزئي أو متناقض حتى لو حمل عنوان COVERED خطأً.
  *
  * @param report نتيجة الفحص بكل أقسام المصدر

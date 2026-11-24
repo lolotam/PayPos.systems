@@ -26,7 +26,37 @@ async function assertCompany(tx: postgres.TransactionSql, companyId: string): Pr
   if (rows.length !== 1) throw new CoverageIssuanceError('COVERAGE_COMPANY_NOT_FOUND');
 }
 
-/** يفتح أو يقفل الاعتماد في معاملة operator واحدة مثل platform:grant، مع bump قبل تغيير المفتاح. */
+/**
+ * بيفضّل هوية المشغّل من البريد بمطابلة حالة الأحرف الأدنى فقط، فيرفض تطابقاً غامضاً بين مستخدمين
+ * يختلفان بالحالة، ولا يقبل إلا مستخدماً يملك منحة منصة سارية بنفس شرط جلسات المنصة
+ * (platform_grants بلا سحب وبلا انتهاء)؛ كل الرفض قبل أي كتابة.
+ */
+async function assertPlatformOperator(tx: postgres.TransactionSql, email: string): Promise<string> {
+  const operators =
+    await tx`SELECT id FROM "user" WHERE lower(email) = ${email.toLowerCase()} ORDER BY id`;
+  if (operators.length > 1) throw new CoverageIssuanceError('COVERAGE_OPERATOR_AMBIGUOUS');
+  const [operator] = operators;
+  if (operator === undefined) throw new CoverageIssuanceError('COVERAGE_OPERATOR_NOT_FOUND');
+  const operatorId = String(operator['id']);
+  const [grant] = await tx`SELECT id FROM platform_grants WHERE user_id = ${operatorId}
+    AND revoked_at IS NULL AND (expires_at IS NULL OR expires_at > now()) LIMIT 1`;
+  if (grant === undefined) throw new CoverageIssuanceError('COVERAGE_OPERATOR_NOT_PLATFORM');
+  return operatorId;
+}
+
+/**
+ * يرفض تاريخ انتهاء فائتاً بساعة قاعدة البيانات نفسها لا بساعة جهاز المشغّل؛ يُستدعى بعد قفل صف
+ * الحالة وقبل أي bump أو upsert أو سطر تدقيق، فيبقى الرفض بلا أي أثر مكتوب.
+ */
+async function assertFutureExpiry(tx: postgres.TransactionSql, expiresAt: Date): Promise<void> {
+  const [clock] = await tx`SELECT clock_timestamp() > ${expiresAt} AS past`;
+  if (clock?.['past'] === true) throw new CoverageIssuanceError('COVERAGE_EXPIRY_IN_PAST');
+}
+
+/**
+ * يفتح أو يقفل الاعتماد في معاملة operator واحدة مثل platform:grant، مع bump قبل تغيير المفتاح؛
+ * المشغّل لازم يملك منحة منصة سارية، وتاريخ الانتهاء لازم يبقى مستقبلياً بساعة قاعدة البيانات.
+ */
 export async function setCommissionApprovalSwitch(
   ownerUrl: string,
   request: CommissionApprovalSwitchRequest,
@@ -40,13 +70,11 @@ export async function setCommissionApprovalSwitch(
   try {
     await client.begin(async (tx) => {
       await assertCompany(tx, request.companyId);
-      const [operator] =
-        await tx`SELECT id FROM "user" WHERE email = ${request.operatorEmail.toLowerCase()}`;
-      if (operator === undefined) throw new CoverageIssuanceError('COVERAGE_OPERATOR_NOT_FOUND');
-      const operatorId = String(operator['id']);
+      const operatorId = await assertPlatformOperator(tx, request.operatorEmail);
       await tx`INSERT INTO commission_coverage_state (company_id, id) VALUES (${request.companyId}, ${ids.newId()})
         ON CONFLICT (company_id) DO NOTHING`;
       await tx`SELECT id FROM commission_coverage_state WHERE company_id = ${request.companyId} FOR UPDATE`;
+      if (request.expiresAt !== undefined) await assertFutureExpiry(tx, request.expiresAt);
       await tx`UPDATE commission_coverage_state SET generation = generation + 1,
         bumped_at = clock_timestamp(), reason = 'SWITCH' WHERE company_id = ${request.companyId}`;
       await tx`INSERT INTO company_feature_overrides (company_id, flag, enabled, reason, set_by, set_at, expires_at)

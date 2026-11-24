@@ -1,6 +1,35 @@
 import { expect, it } from 'vitest';
 
-import { assertIssuableCoverage } from './coverage-issuance.ts';
+import { assertIssuableCoverage, assertSamePrimary } from './coverage-issuance.ts';
+
+const primary = (over: Partial<Parameters<typeof assertSamePrimary>[0]> = {}) => ({
+  databaseName: 'pospay_test',
+  systemId: '42',
+  inRecovery: false,
+  ...over,
+});
+
+it('accepts two connections reporting the same primary identity', () => {
+  expect(() => assertSamePrimary(primary(), primary())).not.toThrow();
+});
+
+it('refuses a standby connection on either side even with identical identity', () => {
+  expect(() => assertSamePrimary(primary({ inRecovery: true }), primary())).toThrow(
+    'COVERAGE_REPLICA_REFUSED',
+  );
+  expect(() => assertSamePrimary(primary(), primary({ inRecovery: true }))).toThrow(
+    'COVERAGE_REPLICA_REFUSED',
+  );
+});
+
+it('refuses a different database name or cluster system identifier', () => {
+  expect(() => assertSamePrimary(primary(), primary({ databaseName: 'other' }))).toThrow(
+    'COVERAGE_DATABASE_MISMATCH',
+  );
+  expect(() => assertSamePrimary(primary(), primary({ systemId: '7' }))).toThrow(
+    'COVERAGE_DATABASE_MISMATCH',
+  );
+});
 
 const covered = () => {
   const section = () => ({ missing: { total: 0 }, stale: { total: 0 } });

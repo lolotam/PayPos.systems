@@ -76,6 +76,9 @@ try {
   const retained = createOutboxDispatcherDatabase({ url: dispatcherUrl, maxConnections: 1 });
   const issuer = createCoverageIssuer(dispatcherUrl);
   try {
+    // فحص دور الاتصال قبل أي قراءة: DATABASE_URL لازم يكون pospay_app وDISPATCHER_DATABASE_URL
+    // لازم يكون pospay_dispatcher؛ وصلة غلط تفشل هنا فوراً قبل تقرير أو كتابة.
+    await Promise.all([app.ping(), retained.ping()]);
     const report = createCommissionCoverageReport({
       database: app,
       retained,

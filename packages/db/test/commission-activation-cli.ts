@@ -9,6 +9,8 @@ export function activationCli(
   urls: CommandUrls,
   args: readonly string[],
 ) {
+  // المدخلان من ملفات مبنية: أمر المفتاح سكريبت packages/db يعمل بـ node strip-only، وأمر الإصدار
+  // يحتاج transform كامل (parameter properties) فيُشغَّل من dist المبني عبر turbo (api#test ← worker#build).
   const script = fileURLToPath(
     new URL(
       command === 'switch'

@@ -16,6 +16,8 @@ export interface CoverageIssuanceSnapshot {
   readonly databaseName: string;
   readonly systemId: string;
   readonly tipBound: string;
+  /** صحيح لو اتصال الإصدار واقف على احتياطي؛ الإصدار يُرفض قبل التقرير. */
+  readonly inRecovery: boolean;
 }
 
 /** دليل التقرير الذي تقبله الدالة المحدودة؛ لا يصل للمتصل أي عميل SQL. */
@@ -74,6 +76,10 @@ export function createCoverageIssuer(url: string): CoverageIssuer {
       try {
         return await client.begin(async (tx) => {
           await assertDispatcher(tx);
+          // فحص الوقوف على احتياطي قبل استدعاء الدالة المضمنة لأنها تضمن صف حالة؛ الرفض هنا يترك المعاملة بلا أي كتابة.
+          const [standby] = await tx`SELECT pg_is_in_recovery() AS standby`;
+          const inRecovery = standby?.['standby'] === true;
+          if (inRecovery) throw new CoverageIssuanceError('COVERAGE_REPLICA_REFUSED');
           const [row] =
             await tx`SELECT out_generation::text, out_database_name, out_system_id::text,
             ((clock_timestamp() AT TIME ZONE 'UTC')::date + 1)::text AS tip_bound
@@ -84,6 +90,7 @@ export function createCoverageIssuer(url: string): CoverageIssuer {
             databaseName: String(row['out_database_name']),
             systemId: String(row['out_system_id']),
             tipBound: String(row['tip_bound']),
+            inRecovery,
           };
           const checked = await verify(snapshot);
           if (checked.proof === null) throw new DryRunResult(checked.result);

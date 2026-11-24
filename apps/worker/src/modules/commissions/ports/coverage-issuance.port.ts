@@ -19,10 +19,11 @@ export interface CoverageTipExistenceReader {
   ): Promise<boolean>;
 }
 
-/** هوية قاعدة التقرير ونسخة القواعد وحد ساعة PostgreSQL، كلها من الاتصال الذي يقرأ المصادر. */
+/** هوية قاعدة التقرير ونسخة القواعد واعة الوقوف على احتياطي وحد ساعة PostgreSQL، كلها من اتصال القراءة. */
 export interface CoverageReportIdentity {
   readonly databaseName: string;
   readonly systemId: string;
+  readonly inRecovery: boolean;
   readonly version: number;
   readonly tipBound: string;
 }

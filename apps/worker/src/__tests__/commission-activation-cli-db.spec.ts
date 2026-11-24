@@ -164,6 +164,75 @@ it('unknown operator refuses before changing state, switch or audit', async () =
   ).toHaveLength(0);
 });
 
+it('an operator without an active platform grant is refused before any write', async () => {
+  // second-reviewer@example.test موجود بلا منحة منصة؛ الرفض بنفس شرح جلسات المنصة وقبل أي كتابة.
+  const args = switchArgs(true);
+  args[args.length - 1] = 'second-reviewer@example.test';
+  const result = await activationCli('switch', urls(), args);
+  expect(result.code).toBe(1);
+  expect(result.stderr).toContain('COVERAGE_OPERATOR_NOT_PLATFORM');
+  expect(await footprint()).toEqual({ states: 0, proofs: 0, switches: 0 });
+  expect(
+    await owner`SELECT id FROM platform_audit_log WHERE action LIKE 'commissions.%'`,
+  ).toHaveLength(0);
+});
+
+it('operator email matching ignores letter case until two users differ only by case', async () => {
+  const mixed = switchArgs(true);
+  mixed[mixed.length - 1] = 'Commission-Operator@Example.test';
+  expect((await activationCli('switch', urls(), mixed)).code).toBe(0);
+  await owner`INSERT INTO "user"(id,name,email)
+    VALUES('01920000-0000-7000-8000-000000000cf1','Case twin','Commission-Operator@Example.test')`;
+  try {
+    const ambiguous = switchArgs(true);
+    ambiguous[ambiguous.length - 1] = 'commission-operator@EXAMPLE.test';
+    const result = await activationCli('switch', urls(), ambiguous);
+    expect(result.code).toBe(1);
+    expect(result.stderr).toContain('COVERAGE_OPERATOR_AMBIGUOUS');
+    // الرفض بلا أي كتابة جديدة: يبقى أثر التمكين السابق وحده (صف حالة ومفتاح، بلا إثبات ولا تدقيق إضافي).
+    expect(await footprint()).toEqual({ states: 1, proofs: 0, switches: 1 });
+    expect(
+      (
+        await owner`SELECT id FROM platform_audit_log WHERE action LIKE 'commissions.%'
+          AND details->>'reason' = 'synthetic activation' ORDER BY at`
+      ).map((row) => String(row['id'])),
+    ).toHaveLength(1);
+  } finally {
+    await owner`DELETE FROM "user" WHERE id = '01920000-0000-7000-8000-000000000cf1'`;
+  }
+});
+
+it.each([
+  ['2030-01-01', 'date-only'],
+  ['2030-01-01T00:00:00', 'no offset'],
+  ['2030-02-31T00:00:00Z', 'rolled day'],
+  ['2030-01-01T25:00:00Z', 'rolled hour'],
+  ['2030-01-01T00:00:00+15:00', 'offset beyond ±14:00'],
+])('expiry %s (%s) is usage-refused before the database is touched', async (expires) => {
+  const result = await activationCli('switch', urls(), [...switchArgs(true), '--expires', expires]);
+  expect(result.code).toBe(1);
+  expect(result.stderr).toContain('COVERAGE_OPERATOR_INPUT_INVALID');
+  expect(await footprint()).toEqual({ states: 0, proofs: 0, switches: 0 });
+  expect(
+    await owner`SELECT id FROM platform_audit_log WHERE action LIKE 'commissions.%'`,
+  ).toHaveLength(0);
+});
+
+it('a past expiry is refused against the database clock after the lock, before the bump', async () => {
+  const result = await activationCli('switch', urls(), [
+    ...switchArgs(true),
+    '--expires',
+    '2000-01-01T00:00:00Z',
+  ]);
+  expect(result.code).toBe(1);
+  expect(result.stderr).toContain('COVERAGE_EXPIRY_IN_PAST');
+  // الرفض داخل المعاملة بعد القفل: حتى صف ensure يُتراجع، فلا حالة ولا مفتاح ولا سطر تدقيق.
+  expect(await footprint()).toEqual({ states: 0, proofs: 0, switches: 0 });
+  expect(
+    await owner`SELECT id FROM platform_audit_log WHERE action LIKE 'commissions.%'`,
+  ).toHaveLength(0);
+});
+
 it('foreign scope is refused, and an uncovered tip revision never gets a proof', async () => {
   expect((await activationCli('issue', urls(), await issueArgs(A.company, B.business))).code).toBe(
     1,
@@ -235,18 +304,30 @@ it('Orders allows a revision exactly at U and rejects one strictly after U', asy
   ).toBe(true);
 });
 
-it('the new existence query has indexed tenant and revision paths', async () => {
-  const plans = await db.withTenant(A.company, async (tx) => {
-    await tx.execute(sql`SET LOCAL enable_seqscan = off`);
-    return tx.execute(
-      sql`EXPLAIN (FORMAT JSON) ${sessionTipsAfterBoundStatement(A.company, A.business, '2026-01-01')}`,
-    );
-  });
+it('the existence query plan uses the tenant, business and date index on a seeded history', async () => {
+  // تاريخ واقعي الحجم بدون تعطيل seqscan: 20 ألف جلسة منسوخة من جلسة الحاضنة بأيام قبل الحد،
+  // وإحصاء الجدول يُحدَّث هنا كي يختار المخطط من إحصاءات صحيحة لا من جدول فارغ.
+  const { sessionId } = await seedSession(A, '2025-06-01', CUSTOMER_A);
+  await owner`INSERT INTO service_sessions(company_id,id,business_id,branch_id,customer_id,customer_name,
+      customer_phone_masked,recorded_by,recorded_by_membership_id,occurred_at,recorded_at,business_date,
+      business_timezone,late)
+    SELECT company_id, gen_random_uuid(), business_id, branch_id, customer_id, customer_name,
+      customer_phone_masked, recorded_by, recorded_by_membership_id, occurred_at, recorded_at,
+      DATE '2025-01-01' + (g % 330), business_timezone, false
+    FROM service_sessions, generate_series(1, 20000) g WHERE id = ${sessionId}`;
+  await owner`ANALYZE service_sessions`;
+  const plans = await db.withTenant(A.company, (tx) =>
+    tx.execute(
+      sql`EXPLAIN (ANALYZE, FORMAT JSON) ${sessionTipsAfterBoundStatement(A.company, A.business, '2026-01-01')}`,
+    ),
+  );
   const plan = JSON.stringify(plans);
-  expect(plan).toMatch(/service_sessions_(business_day_idx|business_id_key)/);
+  // المسح على فهرس الشركة والنشاط والتاريخ، وشرط الفهرس يحمل مسند business_date نفسه، لا مسح كامل.
+  expect(plan).toContain('service_sessions_business_day_idx');
+  expect(plan).toContain('business_date');
   expect(plan).toContain('session_tip_revisions_business_session_id_uq');
   expect(plan).not.toContain('Seq Scan');
-});
+}, 60_000);
 
 it('app credentials cannot drive the dispatcher issuance facade', async () => {
   const issuer = createCoverageIssuer(testDb.appUrl);
@@ -277,15 +358,20 @@ it('a different installed rules version refuses the real command without an ensu
 
 it('an expired override is shown closed and enable invalidates an already-issued proof', async () => {
   expect((await activationCli('issue', urls(), await issueArgs())).code).toBe(0);
+  // الأمر يأخذ انتهاءً مستقبلياً بساعة قاعدة البيانات فقط؛ التقادم يُحاكى بتحديث المفتاح مباشرة.
+  const [future] = await owner`SELECT to_char((clock_timestamp() + interval '1 hour') AT TIME ZONE 'UTC',
+    'YYYY-MM-DD"T"HH24:MI:SS"Z"') AS iso`;
   expect(
     (
       await activationCli('switch', urls(), [
         ...switchArgs(true),
         '--expires',
-        '2000-01-01T00:00:00Z',
+        String(future?.['iso']),
       ])
     ).code,
   ).toBe(0);
+  await owner`UPDATE company_feature_overrides SET expires_at = clock_timestamp() - interval '1 minute'
+    WHERE flag = 'commission_statement_approval'`;
   const show = JSON.parse(
     (await activationCli('switch', urls(), ['--company', A.company, '--show'])).stdout,
   );
