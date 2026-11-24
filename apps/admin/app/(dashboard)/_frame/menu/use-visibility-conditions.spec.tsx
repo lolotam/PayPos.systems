@@ -54,10 +54,15 @@ vi.mock('@/settings/staff-app-columns/api/use-staff-columns', () => ({
   useStaffColumns: () => state.columns,
 }));
 vi.mock('@/permissions/api/use-invitations-access', () => ({
-  useInvitationsAccess: () => state.invitations,
+  useInvitationsAccess: (...args: unknown[]) => {
+    invitationProbes.push(args);
+    return state.invitations;
+  },
 }));
 
 const id = '01920000-0000-7000-8000-0000000000a2';
+// وسائط كل نداء لقراءة الدعوات: الوسيط التالت هو «القراءة مفعّلة».
+const invitationProbes: unknown[][] = [];
 
 beforeEach(() => {
   state.userId = 'user';
@@ -122,6 +127,20 @@ it('hides the invitations entry when the API answers NOT_READY while the gate is
     isError: true,
   } as Read & { isFetchedAfterMount?: boolean };
   expect(conditions()['invitations-owner']).toBe(false);
+});
+
+it('asks the API about invitations only for an owner, so no other role sends a request the closed gate answers 503', () => {
+  invitationProbes.length = 0;
+  expect(conditions()['invitations-owner']).toBe(true);
+  expect(invitationProbes.at(-1)?.[2]).toBe(true);
+  const ready = state.workspace as unknown as { company: { role_code: string } };
+  state.workspace = {
+    ...ready,
+    company: { ...ready.company, role_code: 'general_manager' },
+  } as unknown as typeof state.workspace;
+  invitationProbes.length = 0;
+  expect(conditions()['invitations-owner']).toBe(false);
+  expect(invitationProbes.at(-1)?.[2]).toBe(false);
 });
 
 it('opens the alert-rules condition when either read succeeds', () => {

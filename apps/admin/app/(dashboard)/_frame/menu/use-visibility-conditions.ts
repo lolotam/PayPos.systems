@@ -43,11 +43,10 @@ export function useVisibilityConditions(): VisibilityConditions {
   // نفس قاعدة القراءات الأخرى: مفيش قراءة قبل اختيار نشاط.
   const workspace = useWorkspace();
   const ready = workspace.status === 'ready' && workspace.business !== undefined ? workspace : null;
-  const access = useInvitationsAccess(ready?.company.id, userId, ready !== null);
-  const invitationsOwner =
-    ready !== null &&
-    ready.company.role_code === 'owner' &&
-    readAccessProof(access) === 'granted';
+  // القراءة للمالك وحده: غيره ما يشوفش المدخل أصلاً، فما نبعتش طلب بيرجع 503 والبوابة مقفولة.
+  const owner = ready !== null && ready.company.role_code === 'owner';
+  const access = useInvitationsAccess(ready?.company.id, userId, owner);
+  const invitationsOwner = owner && readAccessProof(access) === 'granted';
   const keys = Object.values(next);
   return useMemo(
     () => ({ ...next, 'invitations-owner': invitationsOwner }),
