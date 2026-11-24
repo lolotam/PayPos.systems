@@ -62,7 +62,8 @@ beforeEach(() => {
   api.POST.mockReset();
   window.localStorage.clear();
   // القراءة الافتراضية لمساحات العمل في هذا الملف فاضية، فحارس القراءة قبل الإرسال يسمح بالطلب إلا في الاختبارات التي تغيّرها.
-  api.GET.mockResolvedValue({ data: { companies: [] } });
+  // الـ response موجود زي ما عميل OpenAPI الحقيقي بيرجّعه دايمًا (fetchWorkspaces بيقرا ok).
+  api.GET.mockResolvedValue({ data: { companies: [] }, response: { status: 200, ok: true } });
 });
 
 it('sends the body and the header through the generated client path', async () => {
@@ -245,6 +246,7 @@ it('a create when the workspaces read already shows a company sends no POST and 
         },
       ],
     },
+    response: { status: 200, ok: true },
   });
   const hook = mount();
   await act(async () => {
@@ -272,6 +274,7 @@ it('a retry when the workspaces read shows a company sends no POST and removes t
         },
       ],
     },
+    response: { status: 200, ok: true },
   });
   await act(async () => {
     const result = await hook.result.current.mutateAsync({ kind: 'retry' });

@@ -2,6 +2,7 @@ import type { TenantWrappers, Tx } from '@pospay/db';
 
 import type { CommissionStatementReader } from '../ports/commission-statement.port.ts';
 import type { CommissionStatementProviders } from '../ports/commission-statement-providers.port.ts';
+import { readClosedStatement } from './commission-closed-statement.ts';
 import { readCommissionStatementSource } from './commission-statement-source.ts';
 
 /** طلب القراءة: الشركة والمستخدم والنشاط والشهر. */
@@ -49,8 +50,12 @@ async function readStatementInputs(
   if (scope.kind === 'feature_disabled') return { kind: 'feature_disabled' };
   if (!(await providers.featureEnabled(tx, request.companyId))) return { kind: 'feature_disabled' };
   const source = await readCommissionStatementSource(tx, request, providers);
+  const closed =
+    source.statement?.status === 'APPROVED' || source.statement?.status === 'PAID'
+      ? await readClosedStatement(tx, request)
+      : null;
   return {
     kind: 'ok',
-    read: { businessWide: scope.businessWide, branchIds: scope.branchIds, source },
+    read: { businessWide: scope.businessWide, branchIds: scope.branchIds, source, closed },
   };
 }

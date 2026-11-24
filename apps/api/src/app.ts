@@ -79,6 +79,7 @@ import {
   commissionsProviders,
   type CommissionEstimateProviders,
 } from './modules/commissions/index.ts';
+import { commissionApprovalBindings } from './commission-approval-bindings.ts';
 import { commissionAlertRules } from './modules/commissions/persistence/commission-alert-rule.adapter.ts';
 import {
   documentFileFacts,
@@ -248,6 +249,8 @@ function commissionBindings(deps: AppDependencies) {
       actorMembership: readCommissionActorMembership,
       approvers: readCommissionApprovers,
       alertRules: commissionAlertRules,
+      // اعتماد الكشف (53-2): صلاحيته ومفتاحه وتواريخ العمل والعدّاد.
+      ...commissionApprovalBindings,
     },
     deps.commissionsClock,
   );

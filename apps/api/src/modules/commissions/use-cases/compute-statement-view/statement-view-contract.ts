@@ -10,7 +10,6 @@ import type {
   CommissionStatementRow,
   CommissionStatementView,
 } from '@pospay/contracts';
-import { moneyToString } from '@pospay/domain';
 
 import { statementChangeCause } from '../../domain/statement-change-cause.ts';
 import type { CommissionStatementSource } from '../../ports/commission-statement.port.ts';
@@ -36,17 +35,30 @@ function rowContract(row: StatementSourceRow): CommissionStatementRow {
   };
 }
 
+/**
+ * نص مجموع موظفة بثلاث منازل. مجموع صفوف كثيرة قد يتخطى حد `numeric(14,3)` الذي يفرضه `moneyToString` على المبلغ الواحد،
+ * فالتنسيق هنا بلا ذلك الحد؛ حدّ المجموع في العقد (16 خانة صحيحة) والتحقق منه داخل المعاملة قبل الالتزام.
+ *
+ * @param mills المجموع بالفلس، موجبًا أو سالبًا
+ * @returns المجموع بالدينار كنص بثلاث منازل
+ */
+function totalToString(mills: bigint): string {
+  const sign = mills < 0n ? '-' : '';
+  const abs = mills < 0n ? -mills : mills;
+  return `${sign}${abs / 1000n}.${(abs % 1000n).toString().padStart(3, '0')}`;
+}
+
 /** موظفة الكشف بشكل العقد، مجاميعها من صفوفها المرئية. */
-function employeeContract(employee: StatementViewEmployee): CommissionStatementEmployee {
+export function employeeContract(employee: StatementViewEmployee): CommissionStatementEmployee {
   return {
     employee_id: employee.employeeId,
     employee_number: employee.employeeNumber,
     name_ar: employee.nameAr,
     name_en: employee.nameEn,
     partial: employee.partial,
-    commission_subtotal: moneyToString(employee.payable.commissionSubtotal),
-    tip_side: moneyToString(employee.payable.tipSide),
-    payable: moneyToString(employee.payable.payable),
+    commission_subtotal: totalToString(employee.payable.commissionSubtotal),
+    tip_side: totalToString(employee.payable.tipSide),
+    payable: totalToString(employee.payable.payable),
     rows: employee.rows.map(rowContract),
     issues: employee.issues.map((issue) => ({
       kind: issue.kind,

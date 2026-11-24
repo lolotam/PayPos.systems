@@ -37,6 +37,7 @@ import { readSalaryCoveragePage } from '../modules/staff/index.ts';
 import { businessTimeZone, companyOpen } from '../modules/tenancy/index.ts';
 import { createDeliverer } from '../outbox/deliver.ts';
 import { createTestCommissionInputsConsumer } from './commission-inputs-consumer.ts';
+import { asReplicaOwner } from '../../../../packages/db/test/owner-cleanup.ts';
 
 let testDb: TestDatabase;
 let owner: postgres.Sql;
@@ -100,6 +101,7 @@ afterEach(async () => {
     await tx`DELETE FROM package_entitlements`;
     await tx`DELETE FROM employee_salaries`;
     await tx`DELETE FROM consumed_events`;
+    await tx`SET LOCAL session_replication_role = replica`;
     await tx`DELETE FROM outbox`;
   });
 });
@@ -368,7 +370,7 @@ async function insertProjectedSaleRow(saleId: string, revision: number): Promise
 it('keeps a source line missing when its retained event does not exist', async () => {
   const orphan = await seedLine(A, { id: ORPHAN, ordinal: 1, revision: 1, kind: 'session' });
   await seedLine(A, { id: FIRST, ordinal: 2, revision: 1, kind: 'session' });
-  await owner`DELETE FROM outbox WHERE id = ${orphan.id}`;
+  await asReplicaOwner(owner, (tx) => tx`DELETE FROM outbox WHERE id = ${orphan.id}`);
 
   await replayCompanyA();
 

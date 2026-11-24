@@ -47,7 +47,8 @@ DO $$ DECLARE m record; BEGIN
   FOR m IN SELECT granted.rolname AS granted, member.rolname AS member, grantor.rolname AS grantor
     FROM pg_auth_members a JOIN pg_roles granted ON granted.oid = a.roleid
     JOIN pg_roles member ON member.oid = a.member JOIN pg_roles grantor ON grantor.oid = a.grantor
-    WHERE member.rolname = 'pospay_approval_reader' OR granted.rolname = 'pospay_approval_reader' LOOP
+    WHERE member.rolname IN ('pospay_approval_reader', 'pospay_coverage_issuer')
+       OR granted.rolname IN ('pospay_approval_reader', 'pospay_coverage_issuer') LOOP
     EXECUTE format('REVOKE %I FROM %I GRANTED BY %I CASCADE', m.granted, m.member, m.grantor);
   END LOOP;
 END $$`;
@@ -86,8 +87,12 @@ export async function bootstrapRoles(sql: Sql, passwords: RolePasswords): Promis
         CREATE ROLE pospay_approval_reader NOLOGIN NOSUPERUSER NOBYPASSRLS NOINHERIT NOCREATEDB NOCREATEROLE NOREPLICATION;
       END IF;
       ALTER ROLE pospay_approval_reader WITH NOLOGIN NOSUPERUSER NOBYPASSRLS NOINHERIT NOCREATEDB NOCREATEROLE NOREPLICATION;
+      IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'pospay_coverage_issuer') THEN
+        CREATE ROLE pospay_coverage_issuer NOLOGIN NOSUPERUSER NOBYPASSRLS NOINHERIT NOCREATEDB NOCREATEROLE NOREPLICATION;
+      END IF;
+      ALTER ROLE pospay_coverage_issuer WITH NOLOGIN NOSUPERUSER NOBYPASSRLS NOINHERIT NOCREATEDB NOCREATEROLE NOREPLICATION;
     END $$`);
-    // دور دالة العدّ لا يعضو في أي دور ولا أحد يعضو فيه؛ يُشال أي ربط قديم في الاتجاهين تحت نفس القفل، مع GRANTED BY و CASCADE كما أعلاه.
+    // دورا دالة العدّ ودوال إثبات التغطية لا يعضوان في أي دور ولا أحد يعضو فيهما؛ يُشال أي ربط قديم في الاتجاهين تحت نفس القفل، مع GRANTED BY و CASCADE كما أعلاه.
     await tx.unsafe(APPROVAL_READER_MEMBERSHIPS_SQL);
     if (passwords.notifications !== undefined) {
       if (passwords.notifications.length < 16)

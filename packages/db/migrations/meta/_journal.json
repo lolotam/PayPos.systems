@@ -1741,15 +1741,22 @@
     {
       "idx": 250,
       "version": "7",
-      "when": 1795484145186,
-      "tag": "0250_2026-11-24_platform-email-feedback",
+      "when": 1795484195567,
+      "tag": "0250_2026-11-24_commission-coverage-objects",
       "breakpoints": true
     },
     {
       "idx": 251,
       "version": "7",
-      "when": 1795484198619,
-      "tag": "0251_2026-11-24_platform-email-feedback-indexes",
+      "when": 1795492873070,
+      "tag": "0251_2026-11-24_platform-email-feedback",
+      "breakpoints": true
+    },
+    {
+      "idx": 252,
+      "version": "7",
+      "when": 1795492903221,
+      "tag": "0252_2026-11-24_platform-email-feedback-indexes",
       "breakpoints": true
     }
   ]

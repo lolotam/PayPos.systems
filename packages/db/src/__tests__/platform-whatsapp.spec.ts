@@ -1,4 +1,4 @@
-﻿import postgres from 'postgres';
+import postgres from 'postgres';
 import { afterAll, beforeAll, expect, it } from 'vitest';
 import { createTestDatabase, type TestDatabase } from '../../test/test-database.ts';
 import { createPlatformWhatsappDatabase, type PlatformWhatsappDatabase } from '../index.ts';
@@ -143,9 +143,9 @@ it('inventory rejects excess column and table grants', async () => {
 
 // الجسر التراجعي (PR قبل 075 C1a): بعد migration 0248 بتحمل صلاحيات الإيميل على pospay_notifications،
 // والصورة القديمة لازم تفضل شغالة — الـ ping بيتسامح مع أي صلاحية platform_email_* ومايقعش.
-// صلاحيات الإيميل بتاعة migration 0250 موجودة فعلًا على الجداول من الميجريشن نفسه، وفحص الاتحاد
+// صلاحيات الإيميل بتاعة migration 0251 موجودة فعلًا على الجداول من الميجريشن نفسه، وفحص الاتحاد
 // بيعدّها بالظبط: ده إثبات إن الصورة الجديدة مايحتاجش فلتر الجسر — الفحص الموحّد بيحصي الصنفين.
-it('the email grants of migration 0250 satisfy the union inventory', async () => {
+it('the email grants of migration 0251 satisfy the union inventory', async () => {
   const grants = await owner`
     SELECT c.relname || ':' || p AS grant FROM pg_class c,
       unnest(ARRAY['SELECT','INSERT','UPDATE','DELETE','TRUNCATE','REFERENCES','TRIGGER']) p

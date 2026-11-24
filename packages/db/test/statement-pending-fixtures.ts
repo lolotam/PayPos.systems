@@ -1,5 +1,6 @@
 import { COMMISSION_INPUTS_CONSUMER_ID } from '@pospay/domain';
 import type postgres from 'postgres';
+import { asReplicaOwner } from './owner-cleanup.ts';
 
 export type Tx = postgres.TransactionSql;
 
@@ -65,7 +66,7 @@ export function pendingCountHarness(getOwner: () => postgres.Sql, getApp: () => 
 
   async function clean(): Promise<void> {
     await getOwner()`DELETE FROM consumed_events`;
-    await getOwner()`DELETE FROM outbox`;
+    await asReplicaOwner(getOwner(), (tx) => tx`DELETE FROM outbox`);
   }
 
   return { asApp, pending, seedEvent, markEvent, clean };

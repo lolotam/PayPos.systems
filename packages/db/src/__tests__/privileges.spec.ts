@@ -76,8 +76,26 @@ const APPROVAL_READER_COLUMN_GRANTS = [
   'outbox.event_type:pospay_approval_reader:SELECT',
   'outbox.id:pospay_approval_reader:SELECT',
 ];
+// إثبات تغطية العمولات (ADR-0054 إضافة 2026-11-22): دور الدوال يقرأ أعمدة محدّدة لا غير (لا payload ولا created_at)،
+// ويحدّث ثلاثة أعمدة من صف الحالة فقط.
+const COVERAGE_ISSUER_COLUMN_GRANTS = [
+  'businesses.company_id:pospay_coverage_issuer:SELECT',
+  'businesses.id:pospay_coverage_issuer:SELECT',
+  'commission_coverage_state.bumped_at:pospay_coverage_issuer:UPDATE',
+  'commission_coverage_state.generation:pospay_coverage_issuer:UPDATE',
+  'commission_coverage_state.reason:pospay_coverage_issuer:UPDATE',
+  'companies.deleted_at:pospay_coverage_issuer:SELECT',
+  'companies.id:pospay_coverage_issuer:SELECT',
+  'consumed_events.company_id:pospay_coverage_issuer:SELECT',
+  'consumed_events.consumer_id:pospay_coverage_issuer:SELECT',
+  'consumed_events.event_id:pospay_coverage_issuer:SELECT',
+  'outbox.company_id:pospay_coverage_issuer:SELECT',
+  'outbox.event_type:pospay_coverage_issuer:SELECT',
+  'outbox.id:pospay_coverage_issuer:SELECT',
+];
 const REVIEWED_COLUMN_GRANTS = [
   ...APPROVAL_READER_COLUMN_GRANTS,
+  ...COVERAGE_ISSUER_COLUMN_GRANTS,
   ...COMMISSION_TIP_SALARY_COLUMN_GRANTS,
   ...COMMISSION_SALES_COLUMN_GRANTS,
   ...COMMISSION_CORRECTION_COLUMN_GRANTS,
@@ -118,7 +136,13 @@ const REVIEWED_COLUMN_GRANTS = [
   ...CUSTOMER_COLUMN_GRANTS,
 ];
 
-const APP_ROLES = ['pospay_app', 'pospay_auth', 'pospay_dispatcher', 'pospay_approval_reader'];
+const APP_ROLES = [
+  'pospay_app',
+  'pospay_auth',
+  'pospay_dispatcher',
+  'pospay_approval_reader',
+  'pospay_coverage_issuer',
+];
 const IDENTITY_TABLES = [
   'passkey',
   'auth_otp_challenges',
@@ -275,12 +299,12 @@ describe('no application role can switch to another role', () => {
 
 describe('effective access', () => {
   testAttendanceDecisionPrivileges(() => owner);
-  it('neither pospay_app, pospay_dispatcher nor pospay_approval_reader can reach a global-identity table', async () => {
+  it('neither pospay_app, pospay_dispatcher, pospay_approval_reader nor pospay_coverage_issuer can reach a global-identity table', async () => {
     const rows = await withClusterRoleLock(
       'shared',
       () => owner<{ role: string; table: string }[]>`
       SELECT r AS role, t AS table
-      FROM unnest(${['pospay_app', 'pospay_dispatcher', 'pospay_approval_reader']}::text[]) AS r, unnest(${IDENTITY_TABLES}::text[]) AS t
+      FROM unnest(${['pospay_app', 'pospay_dispatcher', 'pospay_approval_reader', 'pospay_coverage_issuer']}::text[]) AS r, unnest(${IDENTITY_TABLES}::text[]) AS t
       WHERE has_table_privilege(r, quote_ident(t), 'SELECT, INSERT, UPDATE, DELETE, TRUNCATE, REFERENCES, TRIGGER')`,
     );
     expect(rows).toEqual([]);
