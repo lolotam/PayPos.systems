@@ -305,12 +305,29 @@ it('lands on the header button of the primary sort column when a secondary sort 
   fireEvent.click(worked);
   fireEvent.click(number, { shiftKey: true });
   await width.narrow();
-  expect(sortControl().value).toBe('worked_minutes:asc');
+  expect(sortControl().value).toBe('');
   sortControl().focus();
   await width.widen();
   expect(document.activeElement).toBe(
     within(table).getByRole('button', { name: t('en', 'attendanceReport.workedHours') }),
   );
+});
+
+it('replaces a desktop multi-sort with the one sort chosen in the phone select', async () => {
+  const width = stubStackedWidth(false);
+  renderPage();
+  const table = await screen.findByRole('table');
+  fireEvent.click(within(table).getByRole('button', { name: t('en', 'attendanceReport.workedHours') }));
+  fireEvent.click(
+    within(table).getByRole('button', { name: t('en', 'attendanceReport.employeeNumber') }),
+    { shiftKey: true },
+  );
+  await width.narrow();
+  expect(sortControl().value).toBe('');
+  fireEvent.change(sortControl(), { target: { value: 'days_present:desc' } });
+  expect(sortControl().value).toBe('days_present:desc');
+  fireEvent.change(sortControl(), { target: { value: '' } });
+  expect(sortControl().value).toBe('');
 });
 
 it('moves the focus from the sort select to the first header button when the width widens and nothing is sorted', async () => {
