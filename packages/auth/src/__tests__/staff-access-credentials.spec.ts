@@ -59,7 +59,9 @@ it('P1-6 reset-password consumption refuses a credential account of a staff user
       body: JSON.stringify({ token, newPassword: 'brand-new-pass-123' }),
     }),
   );
-  expect(response.status).toBeGreaterThanOrEqual(400);
+  // AC-ACT-18: نفس رد الرابط الميت بالضبط، لا رمز خاص بحسابات الموظفات.
+  expect(response.status).toBe(400);
+  expect(await response.json()).toMatchObject({ code: 'INVALID_TOKEN', message: 'Invalid token' });
   const [account] = await owner`SELECT password FROM account WHERE id = ${accountId}`;
   expect(account?.password).toBe('pbkdf2$seeded');
   await owner`DELETE FROM account WHERE id = ${accountId}`;

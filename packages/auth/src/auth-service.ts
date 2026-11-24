@@ -110,10 +110,8 @@ async function authHandler(
       const linked = await staffUsers.userIdForResetToken(token);
       const staffUserId = linked !== null && (await staffUsers.isStaffUser(linked)) ? linked : null;
       if (staffUserId !== null)
-        return Response.json(
-          { code: 'STAFF_USER_CREDENTIAL_REFUSED', message: 'reset refused' },
-          { status: 400 },
-        );
+        // AC-ACT-18: نفس رد الرابط الميت بالضبط، فلا يفرّق المهاجم بين حساب موظفة ورابط منتهٍ.
+        return Response.json({ code: 'INVALID_TOKEN', message: 'Invalid token' }, { status: 400 });
     }
     const replay = new Request(request.url, {
       method: request.method,
