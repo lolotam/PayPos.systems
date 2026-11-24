@@ -150,6 +150,10 @@ function answerDelete(_path: string, options: { params: { path: { branchId: stri
   });
 }
 
+function branchButton(key: 'shell.schedule_settings_branch_save' | 'shell.schedule_settings_inherit') {
+  return screen.getByRole('button', { name: t('en', key) }) as HTMLButtonElement;
+}
+
 beforeEach(() => {
   savedLimit = 3;
   savedBranchLimits = { [id]: 3, [otherBranchId]: 3 };
@@ -279,13 +283,23 @@ it('saves the branch number of the selected branch and shows the saved number af
     ),
   );
   await waitFor(() => expect(screen.getByText(effectiveText(2))).toBeTruthy());
-  expect(
-    (
-      screen.getByRole('button', {
-        name: t('en', 'shell.schedule_settings_branch_save'),
-      }) as HTMLButtonElement
-    ).disabled,
-  ).toBe(false);
+  await waitFor(() => expect(branchButton('shell.schedule_settings_branch_save').disabled).toBe(false));
+  expect((screen.getByLabelText(branchLimitLabel) as HTMLInputElement).value).toBe('2');
+});
+
+it('shows the saved number of the picked branch when the two branches have different numbers', async () => {
+  savedBranchLimits = { [id]: 3, [otherBranchId]: 2 };
+  const view = renderPage();
+  const branchInput = (await screen.findByLabelText(branchLimitLabel)) as HTMLInputElement;
+  expect(branchInput.value).toBe('3');
+  fireEvent.change(branchInput, { target: { value: '4' } });
+
+  view.rerenderPage({ ...scope, branchId: otherBranchId });
+
+  await waitFor(() =>
+    expect((screen.getByLabelText(branchLimitLabel) as HTMLInputElement).value).toBe('2'),
+  );
+  expect(screen.getByText(effectiveText(2))).toBeTruthy();
 });
 
 it('goes back to the business number for the branch and stops offering the inherit button', async () => {
@@ -294,6 +308,7 @@ it('goes back to the business number for the branch and stops offering the inher
   fireEvent.change(branchInput, { target: { value: '2' } });
   fireEvent.click(screen.getByRole('button', { name: t('en', 'shell.schedule_settings_branch_save') }));
   await waitFor(() => expect(screen.getByText(effectiveText(2))).toBeTruthy());
+  await waitFor(() => expect(branchButton('shell.schedule_settings_inherit').disabled).toBe(false));
 
   fireEvent.click(screen.getByRole('button', { name: t('en', 'shell.schedule_settings_inherit') }));
   await waitFor(() =>
@@ -303,10 +318,8 @@ it('goes back to the business number for the branch and stops offering the inher
     ),
   );
   await waitFor(() => expect(screen.getByText(effectiveText(3))).toBeTruthy());
-  expect(
-    (screen.getByRole('button', { name: t('en', 'shell.schedule_settings_inherit') }) as HTMLButtonElement)
-      .disabled,
-  ).toBe(true);
+  await waitFor(() => expect(branchButton('shell.schedule_settings_branch_save').disabled).toBe(false));
+  expect(branchButton('shell.schedule_settings_inherit').disabled).toBe(true);
 });
 
 it('keeps both drafts when a periodic read fails and the next read succeeds', async () => {
