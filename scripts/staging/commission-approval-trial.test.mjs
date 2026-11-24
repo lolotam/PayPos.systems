@@ -14,6 +14,7 @@ import { createHash } from 'node:crypto';
 import * as trial from './commission-approval-trial.mjs';
 
 const HOST = 'api.staging.pospay.systems';
+const APP_ORIGIN = 'https://app.staging.pospay.systems';
 const COMPANY = '11111111-1111-4111-8111-111111111111';
 const BUSINESS = '22222222-2222-4222-8222-222222222222';
 const BRANCH = '33333333-3333-4333-8333-333333333333';
@@ -148,6 +149,11 @@ async function startFakeApi(state = fakeState()) {
     req.on('data', (chunk) => { raw += chunk; });
     req.on('end', () => {
       const request = { method: req.method, path: req.url, headers: req.headers, body: raw === '' ? undefined : JSON.parse(raw) };
+      if (request.headers.origin !== APP_ORIGIN) {
+        res.writeHead(403, { 'content-type': 'application/json' });
+        res.end(JSON.stringify({ code: 'FORBIDDEN' }));
+        return;
+      }
       const { status, json, setCookie, location } = inner(request);
       if (setCookie !== undefined) res.setHeader('set-cookie', setCookie);
       if (location !== undefined) res.setHeader('location', location);
@@ -379,6 +385,20 @@ test('a full run creates the history, generates and reviews, and never calls a c
       assert.ok(!text.includes(EMAIL), 'the email leaked into the output');
       assert.ok(!text.includes(PASSWORD), 'the password leaked into the output');
       assert.ok(!text.includes('stub-cookie-value'), 'the session cookie leaked into the output');
+    } finally { await api.stop(); }
+  });
+});
+
+test('every request carries the staging app origin', async () => {
+  await withEnv(async () => {
+    const api = await startFakeApi();
+    try {
+      const { out, exitCode } = await runTrial(stagedArgs);
+      assert.equal(exitCode, 0, out.join('\n'));
+      assert.ok(api.state.requests.length > 0, 'the run made requests');
+      for (const request of api.state.requests) {
+        assert.equal(request.headers.origin, APP_ORIGIN, `${request.method} ${request.path} must carry the staging app origin`);
+      }
     } finally { await api.stop(); }
   });
 });
