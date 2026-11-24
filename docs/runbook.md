@@ -580,7 +580,7 @@ replays and different options can never replay a key that was minted for another
 services) list again after a failed or lost answer and create only when the record is still missing, so a create whose
 answer was lost is recovered and never duplicated. Any rejected service line stops the run with the session index and
 the rejection codes. The summary prints ids, counts, per-phase timings, the HTTP request count and the next manual
-steps. Run it from any machine that can reach the staging API over HTTPS; no container or database access is needed.
+steps. Run it from any machine that can reach the staging API over HTTPS; no container or database access is needed. The script sends the `Origin` of the staging admin app (`https://app.staging.pospay.systems`) on every request because the API's sign-in checks it; the operator does not pass it.
 
 **Resume:** if the period already carries commission sources, the preflight refuses unless `--resume` is given; with
 `--resume` it continues only when every source belongs to an employee THIS run created — the trial employees are named
