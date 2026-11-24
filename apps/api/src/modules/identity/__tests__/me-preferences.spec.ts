@@ -1,10 +1,15 @@
-import { afterAll, beforeAll, expect, it } from 'vitest';
+import { afterAll, beforeAll, expect, it, vi } from 'vitest';
 
+import { applyMigrations } from '../../../../../../packages/db/src/concurrent-migrations.ts';
+import { readNavStyleMigrationFiles } from '../../../../../../packages/db/test/nav-style-migrations.ts';
 import { AUTHENTICATED_WRITES } from '../http/authenticated-writes.ts';
 import { assertAuthenticatedWritesDeclared } from '../http/route-coverage.ts';
 import { MeController } from '../http/me.controller.ts';
 import { myPreferences } from '../queries/my-preferences.query.ts';
 import { preferencesFixture } from './me-preferences.fixture.ts';
+
+const pending = vi.hoisted(() => ({ files: [] as { sql: string[]; folderMillis: number; hash: string }[] }));
+vi.mock('drizzle-orm/migrator', () => ({ readMigrationFiles: () => pending.files }));
 
 let h: Awaited<ReturnType<typeof preferencesFixture>>;
 let x: { userId: string; cookie: string }, y: { userId: string; cookie: string };
@@ -42,9 +47,9 @@ it('PREF-03: invalid input and selectors fail validation without changing B', as
     expect((await get()).json()).toEqual({ navStyle: 'B' });
   }
 });
-it('PREF-04: two accounts retain their own values and ignore stale and forged company headers', async () => {
-  await put('A');
-  await h.app.inject({ method: 'PUT', url: path, headers: { cookie: y.cookie, 'x-company-id': 'stale' }, payload: { navStyle: 'C' } });
+it('PREF-04: a value on Y first, then X writing with a forged company header, both keep their own', async () => {
+  await h.app.inject({ method: 'PUT', url: path, headers: { cookie: y.cookie }, payload: { navStyle: 'C' } });
+  await h.app.inject({ method: 'PUT', url: path, headers: { cookie: x.cookie, 'x-company-id': 'forged' }, payload: { navStyle: 'A' } });
   for (const company of ['stale', h.ids.newId()]) {
     expect((await get(x.cookie, company)).json()).toEqual({ navStyle: 'A' });
     expect((await get(y.cookie, company)).json()).toEqual({ navStyle: 'C' });
@@ -74,15 +79,19 @@ it('PREF-07: a real device credential alone is 403 on both routes', async () => 
     expect([response.statusCode, response.json().code]).toEqual([403, 'FORBIDDEN']);
   }
 });
-it('PREF-08: an existing account and a new operator account sign in and read NULL', async () => {
+it('PREF-08: an account that predates the migration and a new operator account sign in and read NULL', async () => {
   await put(null);
+  // ننزل العمود والقيد ونعيد تشغيل تهجيرتيهما فوق مستخدم قائم، فيوجد قبل التهجير ويقدر يدخل.
+  pending.files = readNavStyleMigrationFiles();
+  await h.owner`ALTER TABLE "user" DROP CONSTRAINT user_nav_style, DROP COLUMN nav_style`;
+  await applyMigrations(h.owner, 'unused');
   expect((await get(await h.login('x@nav.invalid'))).json()).toEqual({ navStyle: null });
   const created = await h.makeUser('new@nav.invalid');
   expect((await get(created.cookie)).json()).toEqual({ navStyle: null });
 });
-it('PREF-09: serial writes finish with the second value', async () => {
-  await put('A');
-  await put('B');
+it('PREF-09: serial writes both answer 200 and finish with the second value', async () => {
+  expect((await put('A')).statusCode).toBe(200);
+  expect((await put('B')).statusCode).toBe(200);
   expect((await get()).json()).toEqual({ navStyle: 'B' });
 });
 it('allows JSON PUT preflight only to a trusted origin with credentials', async () => {

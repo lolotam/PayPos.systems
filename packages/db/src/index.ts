@@ -10,6 +10,8 @@ export {
 } from './access-catalog.ts';
 export {
   createAuthDatabase,
+  readNavStyleStatement,
+  writeNavStyleStatement,
   type AuthDatabase,
   type IdentitySchema,
   type PlatformAuditEntry,

@@ -1,8 +1,8 @@
-import { readFileSync } from 'node:fs';
 import { randomUUID } from 'node:crypto';
 import postgres from 'postgres';
 import { expect, it, vi } from 'vitest';
 
+import { readNavStyleMigrationFiles } from '../../test/nav-style-migrations.ts';
 import { createTestDatabase } from '../../test/test-database.ts';
 import { applyMigrations } from '../concurrent-migrations.ts';
 
@@ -17,12 +17,7 @@ it('expands existing users with NULL, validates separately and rejects D without
   try {
     await owner`ALTER TABLE "user" DROP CONSTRAINT user_nav_style, DROP COLUMN nav_style`;
     await owner`INSERT INTO "user"(id,name,email) VALUES(${userId},'Existing','existing@migration.invalid')`;
-    const files = ['0254_2026-11-24_user-nav-style-temp', '0255_2026-11-24_user-nav-style-validate-temp'];
-    const migrations = files.map((name, i) => ({
-      sql: readFileSync(new URL(`../../migrations/${name}.sql`, import.meta.url), 'utf8').split('--> statement-breakpoint'),
-      folderMillis: 9_999_999_999_990 + i,
-      hash: name,
-    }));
+    const migrations = readNavStyleMigrationFiles();
     pending.files = migrations.slice(0, 1);
     await applyMigrations(owner, 'unused');
     expect(await owner`SELECT nav_style FROM "user" WHERE id=${userId}`).toEqual([{ nav_style: null }]);

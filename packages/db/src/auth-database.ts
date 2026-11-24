@@ -69,11 +69,11 @@ export function createAuthDatabase(options: {
   return {
     db,
     readNavStyle: async (userId) => {
-      const [row] = await client<{ nav_style: string | null }[]>`SELECT nav_style FROM "user" WHERE id=${userId}`;
+      const [row] = await readNavStyleStatement(client, userId);
       return row?.nav_style ?? null;
     },
     writeNavStyle: async (userId, navStyle) => {
-      const [row] = await client<{ nav_style: string | null }[]>`UPDATE "user" SET nav_style=${navStyle} WHERE id=${userId} RETURNING nav_style`;
+      const [row] = await writeNavStyleStatement(client, userId, navStyle);
       if (row === undefined) throw new AuthUserNotFoundError();
       return row.nav_style;
     },
@@ -102,4 +102,14 @@ export function createAuthDatabase(options: {
     consumeAssertion: assertionConsumer(client),
     close: () => client.end({ timeout: 5 }),
   };
+}
+
+/** بيان قراءة التفضيل نفسه للقارئ وللاختبار؛ المفتاح الأساسي فقط ولا يحتمل أي محدد آخر. */
+export function readNavStyleStatement(client: postgres.Sql, userId: string) {
+  return client<{ nav_style: string | null }[]>`SELECT nav_style FROM "user" WHERE id=${userId}`;
+}
+
+/** بيان كتابة التفضيل نفسه للكاتب وللاختبار؛ يعيد القيمة المثبتة أو لا شيء لمستخدم منتهٍ. */
+export function writeNavStyleStatement(client: postgres.Sql, userId: string, navStyle: string | null) {
+  return client<{ nav_style: string | null }[]>`UPDATE "user" SET nav_style=${navStyle} WHERE id=${userId} RETURNING nav_style`;
 }

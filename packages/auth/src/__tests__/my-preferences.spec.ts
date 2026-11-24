@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { createAuthDatabase, AuthUserNotFoundError } from '@pospay/db';
+import { createAuthDatabase, AuthUserNotFoundError, readNavStyleStatement } from '@pospay/db';
 import postgres from 'postgres';
 import { afterAll, beforeAll, expect, it } from 'vitest';
 
@@ -43,7 +43,12 @@ it('looks up one primary key on analysed representative data using the auth role
   await owner`ANALYZE "user"`;
   const connection = postgres(fixture.authUrl, { max: 1, onnotice: () => undefined });
   try {
-    const plan = await connection`EXPLAIN (ANALYZE, FORMAT JSON) SELECT nav_style FROM "user" WHERE id=${x}::uuid`;
+    // الـ EXPLAIN على بيان القارئ نفسه لا على نسخة نصية، فإعادة الكتابة تكسر الاختبار.
+    const statement = readNavStyleStatement(connection, x);
+    const plan = await connection.unsafe(
+      `EXPLAIN (ANALYZE, FORMAT JSON) ${statement.sql}`,
+      statement.values as unknown[],
+    );
     expect(JSON.stringify(plan)).toContain('user_pkey');
     expect(JSON.stringify(plan)).toContain('Index Cond');
   } finally { await connection.end(); }
