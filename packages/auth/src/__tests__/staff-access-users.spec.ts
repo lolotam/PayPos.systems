@@ -3,7 +3,7 @@ import type postgres from 'postgres';
 import { StaffPhoneTakenError } from '@pospay/db';
 import { systemUuidV7 } from '@pospay/ids';
 import { afterAll, beforeAll, expect, it } from 'vitest';
-import { STAFF_USER_RESERVED_DOMAIN } from '../staff-access-users.ts';
+import { STAFF_SYNTHETIC_EMAIL_DOMAIN } from '../staff-access-users.ts';
 import { staffAuthFixture, type StaffAuthFixture } from './staff-auth.fixture.ts';
 
 let f: StaffAuthFixture;
@@ -34,7 +34,7 @@ it('AC-F1-1 provision creates the user with markers, synthetic email, no credent
   expect(user).toMatchObject({
     staff_access_company_id: f.device.companyId,
     staff_access_operation_id: operationId,
-    email: `staff-${operationId}@${STAFF_USER_RESERVED_DOMAIN}`,
+    email: `staff-${operationId}@${STAFF_SYNTHETIC_EMAIL_DOMAIN}`,
     email_verified: true,
     phone_binding_approved_at: expect.any(Date),
   });
@@ -108,7 +108,7 @@ it('AC-F1-7 issuePasswordSetLink refuses a staff user and stays usable for a nor
 
 it('AC-F1-7 a staff user cannot start an email session and mints no normal session cookie', async () => {
   const { userId } = await provision(phoneOf(8));
-  const email = `staff-probe@${STAFF_USER_RESERVED_DOMAIN}`;
+  const email = `staff-probe@${STAFF_SYNTHETIC_EMAIL_DOMAIN}`;
   await owner`UPDATE "user" SET email = ${email} WHERE id = ${userId}`;
   const response = await f.auth.handler(
     new Request('https://api.synthetic.invalid/v1/auth/sign-in/email', {
@@ -144,14 +144,14 @@ it('AC-F1-7 createPlatformUser refuses the reserved domain and platform grants r
   const { createPlatformUser } = await import('../create-platform-user.ts');
   await expect(
     createPlatformUser(f.auth, {
-      email: `someone@${STAFF_USER_RESERVED_DOMAIN}`,
+      email: `someone@${STAFF_SYNTHETIC_EMAIL_DOMAIN}`,
       name: 'X',
       operator: 'synthetic-operator',
       redirectTo: 'https://admin.synthetic.invalid/set-password',
     }),
   ).rejects.toThrow(OperatorInputError);
   const { userId } = await provision(phoneOf(11));
-  const email = `staff-grant@${STAFF_USER_RESERVED_DOMAIN}`;
+  const email = `staff-grant@${STAFF_SYNTHETIC_EMAIL_DOMAIN}`;
   await owner`UPDATE "user" SET email = ${email} WHERE id = ${userId}`;
   const { grantPlatformPermission } = await import('@pospay/db');
   await expect(

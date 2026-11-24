@@ -6,12 +6,20 @@ import type { IdGenerator } from '@pospay/db';
  * يفحص المدخلات قبل أي كتابة ويرفض برسائل ثابتة، ولا مسار credential هنا ولا في أي مكان آخر (D8).
  */
 
-/** النطاق المشترك لكل مسارات التعامل: بريد الموظفة الاصطناعي على نطاق محجوز. */
-export const STAFF_USER_RESERVED_DOMAIN = 'staff.pospay.invalid';
+/**
+ * النطاق المحجوز لبريد حساب الموظفة الاصطناعي — القيمة الثابتة المشتركة مع PR G1 (spec 076).
+ * البريد الكامل: `staff-<operation_id>@staff.pospay.invalid` — غير قابل للتسليم ولا يُشتق من الهاتف.
+ */
+export const STAFF_SYNTHETIC_EMAIL_DOMAIN = 'staff.pospay.invalid';
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 // نفس عقد `canonicalStaffPhone` (8–15 رقمًا بعد الـ +) — المدخل الأشد قبل أي كتابة.
 const PHONE = /^[+][1-9][0-9]{7,14}$/;
+
+/** بريد حساب الموظفة الاصطناعي لمعرّف عملية — المصدر الوحيد للصيغة في النظام كله. */
+export function staffSyntheticEmail(operationId: string): string {
+  return `staff-${operationId}@${STAFF_SYNTHETIC_EMAIL_DOMAIN}`;
+}
 
 /** مدخل الإنشاء أو الإيجاد كما يأتي من identity. */
 export interface StaffUserProvisionRequest {
@@ -63,6 +71,7 @@ export function createStaffUserAccess(options: {
   };
   return {
     provision: async (input) => {
+      const email = staffSyntheticEmail(input.operationId);
       if (
         !UUID.test(input.operationId) ||
         !UUID.test(input.companyId) ||
@@ -72,7 +81,7 @@ export function createStaffUserAccess(options: {
         !PHONE.test(input.phone)
       )
         throw new Error('STAFF_USER_INPUT_INVALID');
-      return database.provision(input).catch((error) => {
+      return database.provision({ ...input, email }).catch((error) => {
         throw unwrapPhoneTaken(error);
       });
     },

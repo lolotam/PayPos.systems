@@ -55,7 +55,8 @@ export { OTP_LIFETIME_MS, OTP_RETRY_MS, STAFF_LOGIN_CONCURRENCY } from './staff-
 export { approvePhoneBinding } from './approve-phone-binding.ts';
 export {
   createStaffUserAccess,
-  STAFF_USER_RESERVED_DOMAIN,
+  STAFF_SYNTHETIC_EMAIL_DOMAIN,
+  staffSyntheticEmail,
   type StaffUserAccess,
 } from './staff-access-users.ts';
 

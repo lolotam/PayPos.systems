@@ -26,6 +26,8 @@ export interface StaffUserProvisionInput {
   readonly companyId: string;
   readonly phone: string;
   readonly name: string;
+  /** البريد الاصطناعي الجاهز — يُبنى في packages/auth من النطاق المحجوز الثابت (قرار D8). */
+  readonly email: string;
   readonly actorUserId: string;
   readonly ids: IdGenerator;
 }
@@ -44,11 +46,8 @@ export interface StaffAccessDatabaseOptions {
 // نفس شكل رفض OTP: رسالة ثابتة بلا أي بيانات عن الحساب المالك للرقم.
 // العقد أ strict بـ 8–15 رقمًا بعد الـ + (plan §4.1)؛ قاعدة البيانات تسمح بـ 7 والمدخل هنا الأشد.
 const PHONE_PATTERN = /^[+][1-9][0-9]{7,14}$/;
-
-/** إيميل اصطناعي غير قابل للتسليم على نطاق محجوز — لا يُشتق من الهاتف أبداً (قرار D8). */
-export function staffSyntheticEmail(operationId: string): string {
-  return `staff-${operationId}@staff.pospay.invalid`;
-}
+// البريد يُبنى في packages/auth من النطاق المحجوز؛ هنا فحص شكل خفيف قبل الكتابة فقط.
+const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 function assertProvisionInput(input: StaffUserProvisionInput): void {
   if (
@@ -57,6 +56,9 @@ function assertProvisionInput(input: StaffUserProvisionInput): void {
     !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(input.actorUserId) ||
     input.name.trim().length < 1 ||
     input.name.length > 255 ||
+    input.email.length < 3 ||
+    input.email.length > 320 ||
+    !EMAIL_PATTERN.test(input.email) ||
     !PHONE_PATTERN.test(input.phone)
   )
     throw new Error('STAFF_USER_INPUT_INVALID');
@@ -82,7 +84,7 @@ async function provisionStaffUser(
     const [inserted] = await tx.execute<{ id: string }>(sql`
       INSERT INTO "user" (id, name, email, email_verified, phone_number, phone_number_verified,
         phone_binding_approved_at, staff_access_company_id, staff_access_operation_id)
-      VALUES (${userId}, ${input.name}, ${staffSyntheticEmail(input.operationId)}, true,
+      VALUES (${userId}, ${input.name}, ${input.email}, true,
         ${input.phone}, false, ${at.toISOString()}::timestamptz,
         ${input.companyId}, ${input.operationId})
       RETURNING id`);

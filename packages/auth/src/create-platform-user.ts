@@ -1,6 +1,6 @@
 import { randomBytes } from 'node:crypto';
 
-import { STAFF_USER_RESERVED_DOMAIN } from './staff-access-users.ts';
+import { STAFF_SYNTHETIC_EMAIL_DOMAIN } from './staff-access-users.ts';
 import type { AuthService } from './config.ts';
 
 /**
@@ -34,7 +34,7 @@ function validate(input: CreatePlatformUserInput): void {
     throw new OperatorInputError('--email is not an email address');
   }
   // النطاق المحجوز لحسابات الموظفات (spec 076 D8): السكريبت لا ينشئ مستخدماً ببريد اصطناعي.
-  if (input.email.toLowerCase().endsWith(`@${STAFF_USER_RESERVED_DOMAIN}`)) {
+  if (input.email.toLowerCase().endsWith(`@${STAFF_SYNTHETIC_EMAIL_DOMAIN}`)) {
     throw new OperatorInputError('--email domain is reserved for staff users');
   }
   if (!URL.canParse(input.redirectTo)) throw new OperatorInputError('--redirect-to is not a URL');

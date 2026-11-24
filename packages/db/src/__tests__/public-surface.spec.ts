@@ -70,7 +70,6 @@ const PUBLIC_EXPORTS = [
   'serviceCategoryCascadeStatement',
   'staffPrivateViewIdentifier',
   'staffPrivateViewSequenceIdentifier',
-  'staffSyntheticEmail',
   'systemRoleGrantAllowedSql',
   'systemRoleOverrideAllowedSql',
   'systemRolePolicy',

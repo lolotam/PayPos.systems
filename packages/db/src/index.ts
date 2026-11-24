@@ -16,7 +16,6 @@ export {
 } from './auth-database.ts';
 export {
   createStaffAccessDatabase,
-  staffSyntheticEmail,
   StaffPhoneTakenError,
   type StaffAccessDatabase,
   type StaffUserProvisionInput,

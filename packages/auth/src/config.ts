@@ -10,7 +10,7 @@ import { passkeyPolicy, registrationPlugin, isPasskeyRoute } from './passkey-pol
 import { createPasskeyFacade, type ActivePasskeyBindings, type PasskeyFacade } from './passkeys.ts';
 import { sessionFromRecord } from './staff-session-fence.ts';
 import { createStaffSessions, type StaffSessions } from './staff-sessions.ts';
-import { createStaffUserAccess, STAFF_USER_RESERVED_DOMAIN, type StaffUserAccess } from './staff-access-users.ts';
+import { createStaffUserAccess, STAFF_SYNTHETIC_EMAIL_DOMAIN, type StaffUserAccess } from './staff-access-users.ts';
 
 /**
  * ما يحتاجه Better Auth: الـ pool على pospay_auth، السر، العنوان، الـ origins المسموحة، ومولّد الـ ids.
@@ -199,7 +199,7 @@ async function provision(
   input: { email: string; name: string; password: string },
 ): Promise<string> {
   // النطاق المحجوز لحسابات الموظفات فقط (D8): ما حدش يقدر يعمل مستخدم عادي ببريد اصطناعي.
-  if (input.email.toLowerCase().endsWith(`@${STAFF_USER_RESERVED_DOMAIN}`))
+  if (input.email.toLowerCase().endsWith(`@${STAFF_SYNTHETIC_EMAIL_DOMAIN}`))
     throw new RangeError('email domain is reserved for staff users');
   const { minPasswordLength, maxPasswordLength } = context.password.config;
   if (input.password.length < minPasswordLength || input.password.length > maxPasswordLength) {
