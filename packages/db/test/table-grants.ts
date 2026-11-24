@@ -94,6 +94,11 @@ export const ALLOWED_TABLE_GRANTS: Record<string, string[]> = {
     'employee_passkeys:SELECT',
     'employee_salaries:INSERT',
     'employee_salaries:SELECT',
+    // سجل إعطاء الدخول: RLS كامل عليه والحذف مقيد بـ state='PENDING' في الكود.
+    'employee_staff_access:DELETE',
+    'employee_staff_access:INSERT',
+    'employee_staff_access:SELECT',
+    'employee_staff_access:UPDATE',
     'employees:INSERT',
     'employees:SELECT',
     'file_access_audit:INSERT',
