@@ -1,3 +1,5 @@
+import { inspect } from 'node:util';
+
 import { hashPassword, verifyPassword } from 'better-auth/crypto';
 import postgres from 'postgres';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
@@ -24,6 +26,10 @@ let auth: AuthService;
 let owner: postgres.Sql;
 // كل سطر log وصل مُستقبل Better Auth في الاختبارات — الرسائل منقّاة، والاختبار بيفحص إن مفيش سرّ فيها.
 const authLogs: string[] = [];
+// ساعة الطلب المحقونة: الاختبار بيقدّمها بعد ما الطلب يقف على قفل اليوزر، بدل انتظار وقت حقيقي.
+let clockOffsetMs = 0;
+// آخر hash رجّعه الـ hasher — اختبار التسريب بيتأكد إنه ما ظهرش في أي log حتى لو المعاملة رجعت.
+let lastHash = '';
 
 interface Deferred {
   readonly promise: Promise<void>;
@@ -55,7 +61,8 @@ beforeAll(async () => {
     trustedOrigins: [ORIGIN],
     ids: systemUuidV7(),
     secureCookies: false,
-    onLog: (entry) => authLogs.push(entry.message),
+    onLog: (entry) => authLogs.push(inspect(entry, { depth: 6 })),
+    clock: { now: () => new Date(Date.now() + clockOffsetMs) },
     passwordHasher: {
       hash: async (password) => {
         if (gate.armed) {
@@ -63,7 +70,8 @@ beforeAll(async () => {
           gate.entered.resolve();
           await gate.release.promise;
         }
-        return hashPassword(password);
+        lastHash = await hashPassword(password);
+        return lastHash;
       },
       verify: ({ hash, password }) => verifyPassword({ hash, password }),
     },
@@ -96,7 +104,8 @@ async function invitedUser(email: string): Promise<string> {
     email,
     name: 'Member',
   });
-  if (!created.createdByInvitation) throw new Error('the invitation should have created the account');
+  if (!created.createdByInvitation)
+    throw new Error('the invitation should have created the account');
   return created.userId;
 }
 
@@ -250,9 +259,11 @@ describe('a database failure in the reset path never leaks secrets', () => {
       FOR EACH ROW EXECUTE FUNCTION block_poison_cleanup()`);
     const captured: string[] = [];
     const spies = (['error', 'warn', 'log'] as const).map((level) =>
-      vi.spyOn(console, level).mockImplementation((...parts: unknown[]) =>
-        captured.push(parts.map((part) => String(part)).join(' ')),
-      ),
+      vi
+        .spyOn(console, level)
+        .mockImplementation((...parts: unknown[]) =>
+          captured.push(parts.map((part) => inspect(part, { depth: 6 })).join(' ')),
+        ),
     );
     authLogs.length = 0;
     let failed: Response;
@@ -262,12 +273,16 @@ describe('a database failure in the reset path never leaks secrets', () => {
       for (const spy of spies) spy.mockRestore();
       await owner.unsafe('DROP TRIGGER block_poison_cleanup ON verification');
     }
-    const logged = [...captured.join('\n'), ...authLogs].join('\n');
+    const logged = [...captured, ...authLogs].join('\n');
     // إجابة ثابتة من غير تفاصيل، ولا توكن ولا كلمة مرور ولا hash مخزّن في أي مخرَج log.
     expect(failed.status).toBe(500);
     expect(await failed.json()).toMatchObject({ code: 'INTERNAL_SERVER_ERROR' });
     expect(logged).not.toContain(link);
     expect(logged).not.toContain(PASSWORD);
+    expect(lastHash).not.toBe('');
+    expect(logged).not.toContain(lastHash);
+    // السطر المصنّف الثابت وصل مستقبل الـ log فعلاً — الاختبار مش بيعدّي لأن مفيش حاجة اتسجلت.
+    expect(logged).toContain('PASSWORD_RESET_FAILED');
     for (const row of await owner`SELECT password FROM account WHERE password IS NOT NULL`) {
       expect(logged).not.toContain(String(row['password']));
     }
@@ -312,9 +327,7 @@ describe('the reset endpoint keeps Better Auth request validation', () => {
       }),
     );
     expect(done.status).toBe(200);
-    expect(
-      (await post('/sign-in/email', { email, password: 'query-only-pass' })).status,
-    ).toBe(200);
+    expect((await post('/sign-in/email', { email, password: 'query-only-pass' })).status).toBe(200);
   });
 });
 
@@ -323,9 +336,6 @@ describe('the link expiry is decided inside the transaction, after the user lock
     const { userId } = await createOrdinaryUser('expiry-lock@example.test');
     const before = await storedHash(userId);
     const link = tokenOf(await auth.issuePasswordSetLink(userId, `${ORIGIN}/set-password`));
-    // الرابط عايش لحظة الطلب، وبينتهي بالساعة الحقيقية وإحنا مستنيين قفل اليوزر — القرار بيتاخد بعده.
-    await owner`UPDATE verification SET expires_at = now() + interval '1 second'
-      WHERE identifier = ${`reset-password:${link}`}`;
     const holding = deferred();
     const taken = deferred();
     const holder = owner.begin(async (tx) => {
@@ -333,21 +343,22 @@ describe('the link expiry is decided inside the transaction, after the user lock
       taken.resolve();
       await holding.promise;
     });
-    await taken.promise;
-    const resetting = consume(link);
-    await waitForWaiters(1);
-    // حاجز على ساعة قاعدة البيانات نفسها: الطلب بيفضل مستني لحد ما الرابط يفيعل فعلاً في الداتابيز.
-    await vi.waitFor(
-      async () => {
-        const [row] = await owner`SELECT (expires_at < clock_timestamp()) AS expired
-          FROM verification WHERE identifier = ${`reset-password:${link}`}`;
-        expect(row?.['expired']).toBe(true);
-      },
-      { timeout: 8_000, interval: 25 },
-    );
-    holding.resolve();
-    await holder;
-    const response = await resetting;
+    let response: Response;
+    try {
+      await taken.promise;
+      // الرابط عايش لحظة الطلب (ساعة كاملة)، والطلب بيعدّي فحص الحياة والـ hash ويقف على قفل اليوزر.
+      const resetting = consume(link);
+      await waitForWaiters(1);
+      // الساعة المحقونة بتتقدّم بعد ما الطلب وقف على القفل: القرار بيتاخد جوه المعاملة بعد القفل.
+      clockOffsetMs = 2 * 60 * 60 * 1000;
+      holding.resolve();
+      await holder;
+      response = await resetting;
+    } finally {
+      clockOffsetMs = 0;
+      holding.resolve();
+      await holder.catch(() => undefined);
+    }
     expect(response.status).toBe(400);
     expect(await response.json()).toMatchObject({ code: 'INVALID_TOKEN' });
     expect(await storedHash(userId)).toBe(before);

@@ -105,24 +105,27 @@ export function passwordResetPlugin(options: {
           throw APIError.from('BAD_REQUEST', PASSWORD_TOO_LONG);
         }
         const identifier = identifierOf(token);
+        // الرفض المقصود (INVALID_TOKEN) بيتحدد بره الـ try: أي استثناء من قاعدة البيانات أو الـ hasher —
+        // حتى لو APIError — بيتحول للـ 500 الثابت، فمفيش تفصيلة من تبعية بتوصل للرد أو للـ log.
+        let outcome: 'dead-link' | 'invalid-link' | 'done';
         try {
           // رابط ميت بيترفض قبل الـ hash: مفيش حد من بره يقدر يجبر السيرفر يحسب hash من غير رابط صالح.
           if (!(await resets.linkIsLive(identifier, options.clock?.now() ?? new Date()))) {
-            throw APIError.from('BAD_REQUEST', INVALID_TOKEN);
+            outcome = 'dead-link';
+          } else {
+            const passwordHash = await ctx.context.password.hash(newPassword);
+            outcome = await resets.consumeLinkAndSetPassword({
+              identifier,
+              passwordHash,
+              accountId: options.ids.newId(),
+              // الساعة بتتقري جوه المعاملة بعد قفل اليوزر — مش هنا.
+              now: () => options.clock?.now() ?? new Date(),
+            });
           }
-          const passwordHash = await ctx.context.password.hash(newPassword);
-          const outcome = await resets.consumeLinkAndSetPassword({
-            identifier,
-            passwordHash,
-            accountId: options.ids.newId(),
-            // الساعة بتتقري جوه المعاملة بعد قفل اليوزر — مش هنا.
-            now: () => options.clock?.now() ?? new Date(),
-          });
-          if (outcome === 'invalid-link') throw APIError.from('BAD_REQUEST', INVALID_TOKEN);
         } catch (error) {
-          if (error instanceof APIError) throw error;
           throw resetFailed(options.onLog, error);
         }
+        if (outcome !== 'done') throw APIError.from('BAD_REQUEST', INVALID_TOKEN);
         return ctx.json({ status: true });
       }),
     },
