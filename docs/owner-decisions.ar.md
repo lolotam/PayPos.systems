@@ -3427,3 +3427,25 @@ so much beteer to creat this advisore for the project level so you and the manag
 - استثناء من §10: الهجرة 0254 تبني فهرسًا فريدًا عاديًا (لا `CONCURRENTLY`) على جدول `user`؛ العمود جديد وكله فارغ والجدول صغير.
 - تغييرات سلوك في مسارات قائمة مذكورة في وصف الـPR: استعلام إضافي واحد لكل طلب جلسة؛ فحص أهلية ربط الموظف بالمستخدم عند تغيير الربط فقط؛ قفل صف الشركة عند تعديل الموظف.
 - أمسك CI انحدارًا في عدّاد محاولات PIN موافقة الخصم (قاعدة DP-10)؛ أُعيد إلى نص `main` قبل الدمج.
+
+## PP-264 — حد موثق لزمن اعتماد الكشف عند الإطلاق (2026-11-24)
+
+**السؤال.** قياس staging: اعتماد كشف من 2001 بند أخذ 898ms على الخادم (الحد المكتوب 200ms). التحليل: القراءة وبناء الكشف وحدهما نحو 300ms قبل أي تجميد، والزمن يزيد بعدد البنود.
+
+**إجابة وليد ببطاقة، حرفيًا.** «نقبل حد أعلى موثّق للإطلاق (المقترح)». قرار تقني له وحده.
+
+**التطبيق.** اعتماد حتى 3000 بند في الشهر يبقى طلبًا متزامنًا حتى ثانية ونصف (استثناء مسجَّل من §6 في `CLAUDE.md` V3.31، ملحق 14 في ADR-0054، وإيصال القياس في `docs/runbook.md`). نقل التجميد إلى مهمة خلفية بحالة `APPROVING` مهمة بعد الإطلاق، ومعها قياس ثانٍ في ديسمبر على نشاط تجربة جديد. تجاوز الحد يفتح الاعتماد لشركة حين يطلب وليد تفعيلها فقط.
+
+**ما سبق القياس، بإجاباته حرفيًا.** شركة القياس: «شركة أكتوبر القديمة على staging (المقترح)». كلمة سر مالكها: «عيّن كلمة السر اللي بعتّها للحساب ده (المقترح)» ثم «اقرا الكلمة اللي بعتّها واستخدمها». تسميتها: «تعديل مباشر للاسمين مرة واحدة (المقترح)» — استثناء لمرة واحدة من قاعدة «لا كتابة مباشرة على staging»، بعد لقطة، غيّر الاسم الإنجليزي للشركة والنشاط فقط ليبدآ بـ`TRIAL-`.
+
+## PP-265 — المنفّذون والمراجعة بعد نفاد الحصص (2026-11-24)
+
+**تعليمات وليد حرفيًا، بالترتيب.**
+
+- ~14:55: «degate to all implmentaion session to "opemcode minimax-M3.1-flash Minimax token plan (minimax.io)"».
+- بعد رفض خطة MiniMax (2067) وشحنها: «retry all i recharg already».
+- بعد رفضها ثانية (2056): «USE BIG BEAKELS FORM ZEN OPEN CODE»، ثم: «FREE MODEL SBUT TAKE CARE AS IDONT TRUST ITS CODE QUALITY»، ثم: «SO THEY HAVE TWO CHOISES OPENCODE ZEN PLANE FREE MODELS(bIG PEAKELS AND HY4 FLAH FREE" BUT TRY TO TAKE CARE OF THIER CODE QUALITY AND REVIEW AFTER THEM AND GIVE THEM THE TASK ACURATLY IN DETAILS NOT TO DO ANY THING ELSE SO HELP THEM TO GIVE ACURAT OUTPUT CODE TASKS».
+- ~16:45: «STOP CODEX REVIEW STEP AS THE QUOTA ALSO ALMOST FINISHED 9% SO IF WORKING FINSH AND DONT START ANY CODEX NEW REVIEW SESSIONS».
+- بطاقة بديل المراجعة للحساس: «نوقف التنفيذ الحساس لبكرة».
+
+**التطبيق.** لا جلسات Codex جديدة من أي نوع. النموذجان المجانيان على OpenCode Zen (`opencode/big-pickle` و`opencode/hy4-flash-free`) يعملان على غير الحساس فقط (واجهة، اختبارات، سكربتات، وثائق) بموجز لمهمة واحدة دقيقة، وقراءة المدير سطرًا بسطر، وci-gate ولوحة البوتات. كود الفلوس والصلاحيات والدخول والـoutbox والهجرات يتوقف تنفيذه ودمجه حتى عودة حصة Claude (2026-11-25 15:00 الكويت)، ويُسأل وليد حينها عن المراجِع. يعدّل PP-261.
