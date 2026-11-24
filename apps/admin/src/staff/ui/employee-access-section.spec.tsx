@@ -32,11 +32,10 @@ function wrap(children: ReactNode) {
 
 function accessResponse() {
   if (state.status >= 400) {
-    const body = state.body as { message_en: string; message_ar: string };
     return {
       response: { status: state.status, ok: false },
       data: undefined,
-      error: { code: 'NOT_READY', message_en: body.message_en, message_ar: body.message_ar },
+      error: state.body,
     };
   }
   return { response: { status: 200, ok: true }, data: state.body as unknown, error: undefined };
@@ -82,7 +81,13 @@ describe('the employee access section visible states', () => {
   });
 
   it('AC-F1-1 offers «Give access» only when the state says NONE and can_manage is true', async () => {
-    state.body = { state: 'NONE', role: null, branch_id: null, phone_last3: null, can_manage: true };
+    state.body = {
+      state: 'NONE',
+      role: null,
+      branch_id: null,
+      phone_last3: null,
+      can_manage: true,
+    };
     mountSection();
     await waitFor(() => expect(screen.getByText('No access yet.')).toBeTruthy());
     fireEvent.click(screen.getByText('Give access'));
@@ -94,7 +99,17 @@ describe('the employee access section visible states', () => {
   it('FR-F1-9 the section disappears entirely when the capability answers 503 NOT_READY', async () => {
     state.status = 503;
     state.body = { code: 'NOT_READY', message_en: 'not ready', message_ar: 'not ready' };
-    const { container } = render(wrap(<EmployeeAccessSection companyId={IDS.company} businessId={IDS.business} userId={IDS.user} employeeId={IDS.employee} />));
+    get.mockResolvedValue(accessResponse());
+    const { container } = render(
+      wrap(
+        <EmployeeAccessSection
+          companyId={IDS.company}
+          businessId={IDS.business}
+          userId={IDS.user}
+          employeeId={IDS.employee}
+        />,
+      ),
+    );
     await waitFor(() => expect(container.querySelector('section')).toBeNull());
   });
 
@@ -110,4 +125,11 @@ describe('the employee access section visible states', () => {
     await waitFor(() => expect(screen.getByText('Reception / cashier')).toBeTruthy());
     expect(screen.getByText('Cancel pending grant')).toBeTruthy();
   });
+});
+
+it('P1-9 other read failures show the error to the user', async () => {
+  state.status = 403;
+  state.body = { code: 'FORBIDDEN', message_en: 'Access refused', message_ar: 'refused' };
+  mountSection();
+  await waitFor(() => expect(screen.getByRole('alert').textContent).toBe('Access refused'));
 });

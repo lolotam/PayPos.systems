@@ -35,7 +35,10 @@ export function EmployeeAccessSection({
   const cancel = useCancelPendingStaffAccess(companyId, businessId, employeeId);
   const state = query.data;
   // البوابة 503 تعني القدرة مطفأة على السيرفر — القسم يختفي بلا رسالة (plan §1.1).
-  if (query.isError) return null;
+  if (query.isError) {
+    if ((query.error as { code?: string } | null)?.code === 'NOT_READY') return null;
+    return <p role="alert">{envelopeMessage(query.error, locale)}</p>;
+  }
   const shown = state ?? null;
   return (
     <section className="flex flex-col gap-2" aria-label={t(locale, 'staff.accessTitle')}>
@@ -77,7 +80,12 @@ function PendingCancel({
 }) {
   return (
     <div className="flex flex-col gap-1">
-      <Button type="button" variant="outline" disabled={cancel.isPending} onClick={() => cancel.mutate()}>
+      <Button
+        type="button"
+        variant="outline"
+        disabled={cancel.isPending}
+        onClick={() => cancel.mutate()}
+      >
         {t(locale, 'staff.cancelPending')}
       </Button>
       {cancel.isError ? <p role="alert">{envelopeMessage(cancel.error, locale)}</p> : null}
