@@ -114,7 +114,7 @@ jobs:
 
       - name: cycles · module-map
         run: |
-          node --test "scripts/module-map/*.test.mjs" "scripts/roadmap/*.test.mjs" "scripts/test-db/*.test.mjs"
+          node --test "scripts/module-map/*.test.mjs" "scripts/roadmap/*.test.mjs" "scripts/test-db/*.test.mjs" "scripts/staging/*.test.mjs"
           pnpm module-map:check
 
       # #859: the base is the pull request's base SHA or the push's previous main tip, so a
