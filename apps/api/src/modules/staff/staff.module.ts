@@ -8,10 +8,7 @@ import {
   LeaveHistoryReportReader,
   type LeaveHistorySyncLimits,
 } from './queries/leave-history-report.query.ts';
-import {
-  LEAVE_HISTORY_REPORT_RESULT_READER,
-  LeaveHistoryReportResultReader,
-} from './queries/leave-history-report-result.query.ts';
+import { LEAVE_HISTORY_REPORT_RESULT_READER, LeaveHistoryReportResultReader } from './queries/leave-history-report-result.query.ts';
 import { EmployeeLeaveHistoryController } from './http/employee-leave-history.controller.ts';
 import { LeaveHistoryReportController } from './http/leave-history-report.controller.ts';
 import { LeaveHistoryReportJobsController } from './http/leave-history-report-jobs.controller.ts';
@@ -19,10 +16,7 @@ import { RequestLeaveHistoryReportUseCase } from './use-cases/request-leave-hist
 import { createLeaveHistoryReportRequestTransactions } from './persistence/leave-history-report-request.transactions.ts';
 import { personalBranchReads } from './persistence/personal-branches.adapter.ts';
 import { PERSONAL_BRANCH_READS } from './queries/personal-branches.query.ts';
-import {
-  PersonalBranchesController,
-  PERSONAL_BRANCH_CLOCK,
-} from './http/personal-branches.controller.ts';
+import { PersonalBranchesController, PERSONAL_BRANCH_CLOCK } from './http/personal-branches.controller.ts';
 import { ownAttendancePeriodAllowed } from './domain/own-attendance-period.ts';
 import { OWN_ATTENDANCE_READS } from './queries/own-attendance.query.ts';
 import { ownAttendanceContext } from './persistence/own-attendance-context.adapter.ts';
@@ -141,6 +135,7 @@ import { EMPLOYEE_APP_LINK_NAMES } from './queries/employee-app-link.query.ts';
 import { employeeAppLinkNames } from './persistence/employee-app-link-names.adapter.ts';
 import { AttendanceCapabilitiesController } from './http/attendance-capabilities.controller.ts';
 import { AttendanceCorrectionHistoryController } from './http/attendance-correction-history.controller.ts';
+import { staffAccessProviders, EmployeeAccessController, type AuthFacadeForStaffAccess } from './staff-access.providers.ts';
 export const staffControllers = [
   OwnAttendanceController,
   PersonalBranchesController,
@@ -186,6 +181,7 @@ export const staffControllers = [
   AttendanceExceptionsReadController,
   AttendanceCorrectionHistoryController,
   AttendanceEmployeesController,
+  EmployeeAccessController,
 ];
 
 function attendanceCorrectionProviders(
@@ -313,12 +309,15 @@ export function staffProviders(
   importStorage: { read(key: string, maxBytes: number): Promise<Uint8Array> } | null = null,
   employeeCardKey: Buffer | null = null,
   logger?: Logger,
+  staffAccessAuth: AuthFacadeForStaffAccess | null = null,
+  staffAccessRoutes = false,
 ): Provider[] {
   const ids = systemUuidV7();
   return [
     ...ownAttendanceProviders(),
     { provide: PERSONAL_BRANCH_CLOCK, useValue: systemClock },
     { provide: PERSONAL_BRANCH_READS, useValue: personalBranchReads },
+    ...staffAccessProviders(database, redis, ids, staffAccessAuth, staffAccessRoutes),
     ...attendanceProviders(database, redis, passkeys, ids, logger),
     { provide: ATTENDANCE_BOARD_CONTEXT, useValue: attendanceBoardContext },
     { provide: EMPLOYEE_APP_LINK_NAMES, useValue: employeeAppLinkNames },

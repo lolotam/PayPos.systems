@@ -7,6 +7,11 @@ import { account, session, twoFactor, user, verification } from '../schema/ident
 
 import { assertionConsumer } from './passkey-assertion.ts';
 import { passkey } from '../schema/identity-passkey.ts';
+import {
+  memberInvitationQueries,
+  type MemberInvitationQueries,
+} from './member-invitation-database.ts';
+import { passwordResetQueries, type PasswordResetQueries } from './password-reset-database.ts';
 
 const identitySchema = { user, session, account, verification, twoFactor, passkey };
 
@@ -41,8 +46,19 @@ export interface AuthDatabase {
   ping(): Promise<void>;
   /** صلاحيات المنصة السارية لليوزر (مش مسحوبة ومش منتهية) — بتدخل الـ principal في path A (ADR-0003 §3). */
   activePlatformPermissions(userId: string): Promise<readonly string[]>;
+  /**
+   * علامة حساب الموظفة وشركته من المجمع العادي لـ pospay_auth (D8): كل طلب جلسة يمر بها، فلا تعتمد
+   * على المجمع المحدود لـ OTP الذي يرفض فوراً حين يمتلئ. المعرّف لازم يكون UUID صحيحاً.
+   */
+  staffMarker(userId: string): Promise<{ staff: boolean; companyId: string | null }>;
+  /** مستخدم رابط استهلاك كلمة السر الساري أو null — من المجمع العادي لنفس السبب. */
+  userIdForResetToken(token: string): Promise<string | null>;
   /** بيضيف سطر في platform_audit_log — الجدول insert-only لـ pospay_auth. */
   recordPlatformAction(entry: PlatformAuditEntry): Promise<void>;
+  /** القراءات والكتابات اللي دعوة الأعضاء محتاجاها على جداول الهوية (G1) — SQL جوه packages/db بس. */
+  readonly memberInvitations: MemberInvitationQueries;
+  /** استهلاك رابط تعيين كلمة المرور وكتابتها ذرياً تحت قفل صف اليوزر — بديل مسار Better Auth الأصلي (G1). */
+  readonly passwordResets: PasswordResetQueries;
   /** استهلاك تحدي حضور مع قفل الاعتماد وتحديث عداده. */
   readonly consumeAssertion: ReturnType<typeof assertionConsumer>;
   close(): Promise<void>;
@@ -92,6 +108,18 @@ export function createAuthDatabase(options: {
         WHERE user_id = ${userId} AND revoked_at IS NULL AND (expires_at IS NULL OR expires_at > now())`;
       return rows.map((row) => row.permission);
     },
+    staffMarker: async (userId) => {
+      const [row] = await client<{ operation: string | null; company: string | null }[]>`
+        SELECT staff_access_operation_id AS operation, staff_access_company_id AS company
+        FROM "user" WHERE id = ${userId} LIMIT 1`;
+      return { staff: row?.operation != null, companyId: row?.company ?? null };
+    },
+    userIdForResetToken: async (token) => {
+      const [row] = await client<{ value: string }[]>`
+        SELECT value FROM verification
+        WHERE identifier = ${`reset-password:${token}`} AND expires_at > now() LIMIT 1`;
+      return row?.value ?? null;
+    },
     // Drizzle replaces postgres.js' json serializer on this client, so the value goes as JSON text.
     recordPlatformAction: async (entry) => {
       await client`
@@ -99,6 +127,8 @@ export function createAuthDatabase(options: {
         VALUES (${entry.id}, ${entry.actor}, ${entry.action}, ${entry.targetUserId},
                 ${JSON.stringify(entry.details)}::jsonb)`;
     },
+    memberInvitations: memberInvitationQueries(db),
+    passwordResets: passwordResetQueries(db),
     consumeAssertion: assertionConsumer(client),
     close: () => client.end({ timeout: 5 }),
   };

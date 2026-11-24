@@ -67,6 +67,7 @@ export {
   type MembershipPermissions,
 } from './identity/permissions.js';
 export { buildOpenApiDocument } from './openapi.js';
+export * from './identity/member-invitation.js';
 export {
   business,
   createBusinessInput,

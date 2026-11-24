@@ -1,30 +1,27 @@
+import { API_CONTROLLERS } from './app-controllers.ts';
+export { API_CONTROLLERS } from './app-controllers.ts';
+import type { AppDependencies, AppOptions } from './app-dependencies.ts';
+export type { AppDependencies, AppOptions } from './app-dependencies.ts';
+import { buildAdapter, mountRequestLogging } from './app-http.ts';
+export { buildAdapter, API_MAX_HEADER_BYTES } from './app-http.ts';
+import { SHUTDOWN, ShutdownHook } from './shared/application-shutdown.ts';
 import 'reflect-metadata';
-import { contexts, logCompleted } from './shared/request-completion.ts';
 
 import {
-  Inject,
-  Injectable,
   Module,
   type DynamicModule,
-  type OnApplicationShutdown,
   type Type,
 } from '@nestjs/common';
 import { APP_GUARD, NestFactory } from '@nestjs/core';
-import { FastifyAdapter, type NestFastifyApplication } from '@nestjs/platform-fastify';
-import type { AuthService, StaffOtpApi, StaffSessions } from '@pospay/auth';
-import type { IdGenerator, TenantWrappers } from '@pospay/db';
-import type { PushApiConfiguration } from '@pospay/notifications';
-import type { Redis } from 'ioredis';
+import type { NestFastifyApplication } from '@nestjs/platform-fastify';
 import { systemUuidV7 } from '@pospay/ids';
-import { createLogger, enterRequestContext, type Logger } from '@pospay/observability';
-import { LogController, type FastifyReply, type FastifyRequest } from 'fastify';
+import { createLogger, type Logger } from '@pospay/observability';
 
 import {
   AUTHENTICATED_WRITES,
   COMPANY_HEADER,
   assertAuthenticatedWritesDeclared,
   assertEveryRouteGuarded,
-  identityControllers,
   identityProviders,
   readCommissionPlanAccess,
   readCommissionPlanListAccess,
@@ -35,19 +32,16 @@ import {
   readCommissionReturnAccess,
   readCommissionScope,
 } from './modules/identity/index.ts';
-import { settingsControllers, settingsProviders } from './modules/settings/index.ts';
-import { notificationsControllers, notificationsProviders } from './modules/notifications/index.ts';
+import { settingsProviders } from './modules/settings/index.ts';
+import { notificationsProviders } from './modules/notifications/index.ts';
 import { mountResendSecurity, mountWhatsappSecurity } from './modules/notifications/index.ts';
-import type { ResendIntake, WhatsappIntake } from './modules/notifications/index.ts';
 import {
   businessCalendar,
   businessTimeZone,
   readCommissionBranchNames,
-  tenancyControllers,
   tenancyProviders,
 } from './modules/tenancy/index.ts';
 import {
-  customersControllers,
   customersProviders,
   readCommissionCustomerNames,
   RATING_ROUTE,
@@ -56,13 +50,12 @@ import {
 } from './modules/customers/index.ts';
 import {
   bindServiceImportFiles,
-  catalogControllers,
   catalogProviders,
   readCommissionOverrideServices,
   readCommissionServiceNames,
   readSessionServices,
 } from './modules/catalog/index.ts';
-import { ordersControllers, ordersProviders } from './modules/orders/index.ts';
+import { ordersProviders } from './modules/orders/index.ts';
 import { enableApiCors } from './shared/cors.ts';
 import {
   employeeExistsInBusiness,
@@ -71,11 +64,10 @@ import {
   readCommissionEstimateEmployees,
   readCommissionStatementEmployees,
   readCommissionPlanEmployeeNames,
-  staffControllers,
+  mountStaffAccessGate,
   staffProviders,
 } from './modules/staff/index.ts';
 import {
-  commissionsControllers,
   commissionsProviders,
   type CommissionEstimateProviders,
 } from './modules/commissions/index.ts';
@@ -83,105 +75,20 @@ import { commissionApprovalBindings } from './commission-approval-bindings.ts';
 import { commissionAlertRules } from './modules/commissions/persistence/commission-alert-rule.adapter.ts';
 import {
   documentFileFacts,
-  filesControllers,
   filesProviders,
-  type FilesRuntime,
 } from './modules/files/index.ts';
 import { mountAuthRoutes } from './shared/auth-routes.ts';
 import { DATABASE } from './shared/database.token.ts';
 import { RATE_LIMITER } from './shared/device-authenticator.ts';
 import { createRedisRateLimiter } from './shared/adapters/redis-rate-limiter.ts';
-import { ApiError, codeForStatus } from './shared/errors.ts';
 import { EnvelopeExceptionFilter } from './shared/exception.filter.ts';
-import { HealthController } from './shared/health.controller.ts';
 import { API_LOG_EVENTS } from './shared/log-events.ts';
 import { PinoNestLogger } from './shared/nest-logger.ts';
-import { READINESS_CHECKS, singleFlight, type ReadinessCheck } from './shared/readiness.ts';
+import { READINESS_CHECKS, singleFlight } from './shared/readiness.ts';
 import type { RateLimiter } from './shared/ports/rate-limiter.port.ts';
-import {
-  PERSONAL_AUTHENTICATION,
-  type PersonalAuthentication,
-} from './shared/personal-authentication.ts';
+import { PERSONAL_AUTHENTICATION } from './shared/personal-authentication.ts';
 import { AUTH_SERVICE, SessionGuard } from './shared/session.guard.ts';
-
-export interface AppDependencies {
-  readonly ordersClock?: { now(): Date };
-  /** ساعة موديول العملاء — قرار رفض التقييم بيقاس بيها، عشان الاختبار يثبّت الوقت. */
-  readonly customersClock?: { now(): Date };
-  /** أقصى عمر لمعاملة رفض التقييم؛ القفل ما يعلّقش الطلب على زائر. */
-  readonly customersTransactionTimeoutMs?: number;
-  /**
-   * هل قدرة روابط التقييم العامة متاحة؟ false من غير proxy موثوق — المسارات العامة بترد NOT_READY
-   * قبل أي حدّ أو قاعدة بيانات (ADR-0011 §4).
-   */
-  readonly ratingLinksAvailable?: boolean;
-  readonly commissionsClock?: { now(): Date };
-  readonly employeeCardKey?: Buffer;
-  readonly personal?: PersonalAuthentication | null;
-  readonly files?: FilesRuntime | null;
-  readonly staff?: {
-    api: StaffOtpApi | null;
-    sessions: StaffSessions | null;
-    origin: string | null;
-    nativeOrigins?: readonly string[];
-  };
-  readonly readiness: readonly ReadinessCheck[];
-  /** Releases what main.ts opened (pools, clients). Runs on app.close() and on SIGTERM/SIGINT. */
-  readonly onShutdown?: () => Promise<void>;
-  /** Better Auth, and the public URL its routes resolve against. Without it no route but @Public() answers. */
-  readonly auth?: { readonly service: AuthService; readonly baseURL: string };
-  /** The tenant wrappers the access guard reads memberships through. Without them no @Require route answers. */
-  readonly database?: TenantWrappers;
-  /** UUID v7 for rows the use cases create; the system clock and Web Crypto unless a test injects its own. */
-  readonly ids?: IdGenerator;
-  /** Redis — pairing codes and rate limits. Without it those routes answer NOT_READY. */
-  readonly redis?: Redis;
-  /** أصول المتصفح المسموح لها باستدعاء مسارات API المصادق عليها مع بيانات الاعتماد (admin وPOS). */
-  readonly corsOrigins?: readonly string[];
-  /** أصل صفحة التقييم العامة بالمطابقة التامة؛ مستقل عن ثقة تسجيل الدخول، والقيمة الفارغة تعطّل CORS للتقييم العام. */
-  readonly ratingPageOrigin?: string;
-  readonly whatsapp?: WhatsappIntake;
-  /** بدون هذا الاستقبال الموقّع رد الويبيوك NOT_READY ومايتخزنش شيء. */
-  readonly resend?: ResendIntake;
-  /** The push public key and subject, when push is configured; without them the push routes answer NOT_READY. */
-  readonly push?: PushApiConfiguration | null;
-  readonly trustedProxy?: readonly string[];
-}
-
-export interface AppOptions {
-  /** The shared sanitising logger — main.ts builds it from the validated LOG_LEVEL; tests pass a sink. */
-  readonly logger?: Logger;
-  /** Test-only: extra controllers mounted beside the real ones. */
-  readonly controllers?: readonly Type<unknown>[];
-}
-
-const SHUTDOWN = Symbol('SHUTDOWN');
-const REQUEST_ID = /^[A-Za-z0-9._-]{8,128}$/;
-const SHUTDOWN_TIMEOUT_MS = 10_000;
-// Node's default 16 KiB covers the request line and every header together. The plan-employee cursor can
-// occupy 12288 URL characters and browser cookies share that budget, so set it explicitly
-// (SA decision recorded as 21:24); past the limit Fastify answers a raw 431 before Nest runs.
-export const API_MAX_HEADER_BYTES = 32_768;
-
-// A lifecycle provider, so cleanup runs through Nest's own shutdown path — the one SIGTERM triggers —
-// and not through an override of app.close() that a signal would skip.
-@Injectable()
-class ShutdownHook implements OnApplicationShutdown {
-  readonly #release: () => Promise<void>;
-
-  constructor(@Inject(SHUTDOWN) release: () => Promise<void>) {
-    this.#release = release;
-  }
-
-  async onApplicationShutdown(): Promise<void> {
-    let timer: NodeJS.Timeout | undefined;
-    const limit = new Promise<void>((resolve) => {
-      timer = setTimeout(resolve, SHUTDOWN_TIMEOUT_MS);
-    });
-    await Promise.race([this.#release().catch(() => undefined), limit]);
-    clearTimeout(timer);
-  }
-}
+import { mountMemberInvitationGate } from './shared/staff-access-routes.ts';
 
 /** نطاق القارئ الفعّال من identity بشكل مزوّد التقدير والكشف: الرفض الموحّد والميزة المقفولة سببان منفصلان. */
 async function commissionReaderScope(
@@ -276,7 +183,14 @@ class AppModule {
         // Global guards run in this order (ADR-0003 §4): a verified session unless @Public(); then the company
         // membership and the permission at the target unless @Authenticated(); then the feature flag.
         { provide: APP_GUARD, useClass: SessionGuard },
-        ...identityProviders(deps.database, deps.ids ?? systemUuidV7(), deps.redis, deps.staff),
+        ...identityProviders(
+          deps.database,
+          deps.ids ?? systemUuidV7(),
+          deps.redis,
+          deps.staff,
+          deps.auth?.service.staffUsers.staffCompanyOf,
+          deps.memberInvitations,
+        ),
         {
           provide: RATE_LIMITER,
           useValue: limiter,
@@ -305,88 +219,14 @@ class AppModule {
           deps.files?.storage ?? null,
           deps.employeeCardKey ?? null,
           logger,
+          deps.auth?.service.staffUsers ?? null,
+          deps.staffAccessRoutes === true,
         ),
         ...filesProviders(deps.database, deps.ids ?? systemUuidV7(), deps.files),
       ],
     };
   }
 }
-
-// Fastify with the shared sanitising logger, request ids, and the envelope for errors Fastify raises itself.
-export function buildAdapter(
-  logger: Logger,
-  ids: IdGenerator,
-  trustedProxy: readonly string[],
-): FastifyAdapter {
-  return new FastifyAdapter({
-    http: { maxHeaderSize: API_MAX_HEADER_BYTES },
-    loggerInstance: logger,
-    // A caller's X-Request-Id is kept when it is a plain token (so a trace spans the admin app and the API);
-    // anything else — too long, or with characters that could forge a log line — is replaced with a UUID v7.
-    genReqId: (request: {
-      headers: Record<string, string | string[] | undefined>;
-      url?: string | undefined;
-    }) => {
-      const path = (request.url ?? '').split('?')[0] ?? '';
-      // The rating routes carry a credential in a header. A client that sends it as the request id must not
-      // see it echoed back in the response header or in the log lines, so those routes always get a fresh id.
-      if (RATING_ROUTE.test(path)) return ids.newId();
-      // Provider request headers can carry phone-bearing message ids too; generate our own diagnostic id.
-      try {
-        const decodedPath = decodeURIComponent(path);
-        if (RATING_ROUTE.test(decodedPath)) return ids.newId();
-        if (/^\/v1\/(webhooks\/|devices\/me\/staff-|staff\/)/.test(decodedPath)) return ids.newId();
-      } catch {
-        return ids.newId();
-      }
-      const given = request.headers['x-request-id'];
-      return typeof given === 'string' && REQUEST_ID.test(given) ? given : ids.newId();
-    },
-    bodyLimit: 1_048_576,
-    requestTimeout: 30_000,
-    trustProxy: [...trustedProxy],
-    // Fastify's own request log serialises the raw URL; we log one safe line per request instead (below).
-    // Its per-request error lines go too — the envelope filter logs unhandled errors through the sanitiser.
-    logController: new LogController({ disableRequestLogging: true }),
-    // A malformed URL (e.g. `/%ZZ`) is rejected by Fastify's router before Nest runs; answer with the
-    // envelope instead of Fastify's default body, which echoes the malformed input.
-    frameworkErrors: (error: unknown, request: FastifyRequest, reply: FastifyReply) => {
-      const status = (error as { statusCode?: unknown }).statusCode;
-      // A catalogued Fastify status keeps its code (413, 414, 415…); another 4xx is BAD_REQUEST; a
-      // server-side failure stays a 500. A missing status (a malformed URL) is a bad request.
-      const apiError = new ApiError(
-        typeof status === 'number' ? codeForStatus(status) : 'BAD_REQUEST',
-      );
-      // The router rejected this request before any hook ran: give it its id and its log lines here.
-      const context = enterRequestContext(request.id);
-      contexts.set(request, context);
-      void reply.header('x-request-id', request.id);
-      // المسارات العامة للتقييم بترد من غير hook، فالترويسات بتتحط هنا كمان عشان كل رد يطلع منها.
-      void reply.header('cache-control', 'no-store');
-      void reply.header('referrer-policy', 'no-referrer');
-      // Fastify's own error logging is off, so a framework-side failure is logged here (type/code only).
-      if (apiError.code === 'INTERNAL_ERROR') request.log.error({ err: error }, 'unhandled error');
-      void reply.code(apiError.status).send(apiError.toEnvelope());
-      logCompleted(request, reply);
-    },
-  });
-}
-
-// The spec reaches the controllers through app.ts, the composition root, so identity code never imports
-// other modules.
-export const API_CONTROLLERS: readonly Type<unknown>[] = [
-  HealthController,
-  ...identityControllers,
-  ...tenancyControllers,
-  ...customersControllers,
-  ...catalogControllers,
-  ...ordersControllers,
-  ...commissionsControllers,
-  ...settingsControllers,
-  ...notificationsControllers,
-  ...staffControllers,
-  ...filesControllers,
-];
 
 /**
  * Builds the API: NestJS on Fastify, the shared sanitising logger, the error envelope for every error —
@@ -408,7 +248,9 @@ export async function createApp(
   const limiter = deps.redis === undefined ? null : createRedisRateLimiter(deps.redis);
   const adapter = buildAdapter(logger, deps.ids ?? systemUuidV7(), deps.trustedProxy ?? []);
   mountWhatsappSecurity(adapter, deps.whatsapp, deps.redis);
+  mountStaffAccessGate(adapter.getInstance(), deps.staffAccessRoutes === true);
   mountResendSecurity(adapter, deps.resend, deps.redis);
+  mountMemberInvitationGate(adapter.getInstance(), deps.staffAccessRoutes === true);
   adapter.getInstance().addHook('onRoute', (route) => {
     if (/^\/v1\/devices\/me\/staff-(otp\/(request|verify)|pin\/sign-in)$/.test(route.url))
       route.bodyLimit = 1024;
@@ -430,17 +272,7 @@ export async function createApp(
       logger,
     });
   }
-  // Every log line of the request carries its id; the guards add the verified user and company (T11). The context
-  // is kept on the request: with HTTP pipelining, Node flushes a finished response from ANOTHER request's
-  // completion, so onResponse must log inside this request's own context, never whatever is current.
-  adapter.getInstance().addHook('onRequest', async (request, reply) => {
-    contexts.set(request, enterRequestContext(request.id));
-    void reply.header('x-request-id', request.id);
-  });
-  // Fastify advances the hook chain when this Promise settles.
-  adapter.getInstance().addHook('onResponse', async (request, reply) => {
-    logCompleted(request, reply);
-  });
+  mountRequestLogging(adapter);
   const app = await NestFactory.create<NestFastifyApplication>(
     AppModule.forRoot(deps, controllers, logger, limiter),
     adapter,

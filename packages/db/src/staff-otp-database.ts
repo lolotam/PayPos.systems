@@ -7,6 +7,7 @@ import { session, user } from '../schema/identity-auth.ts';
 import { otpChallenges } from './staff-otp-challenges.ts';
 import { otpAttempts } from './staff-otp-attempts.ts';
 import { createOtpRuntime } from './staff-otp-runtime.ts';
+import { translatingPhoneRace } from './staff-access-database.ts';
 import type { OtpDeviceContext } from './staff-otp-types.ts';
 import { assertOtpInventory } from './staff-otp-inventory.ts';
 import { deleteStaffPrivateViewRows } from './staff-private-view.ts';
@@ -143,10 +144,12 @@ const otpApprovePhone = async (
       tx,
       removed.map((row) => row.id),
     );
-    await tx
-      .update(user)
-      .set({ phoneNumber: input.phone, phoneNumberVerified: false })
-      .where(eq(user.id, input.userId));
+    await translatingPhoneRace(() =>
+      tx
+        .update(user)
+        .set({ phoneNumber: input.phone, phoneNumberVerified: false })
+        .where(eq(user.id, input.userId)),
+    );
     await tx
       .update(user)
       .set({ phoneBindingApprovedAt: input.at })

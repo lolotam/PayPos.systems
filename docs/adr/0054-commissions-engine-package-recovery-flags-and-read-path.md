@@ -599,6 +599,32 @@ it with the round-trip test CM-34e.
   grants), §6 _Fingerprint_ (the place of the branch attribution) and D-18 (the claim that a bytes kind is built while
   Chromium is down, which holds only after 56-0 decouples the queue from the renderer — see the ADR-0049 addendum).
 
+### Addendum 2026-11-24 (53-2 B2a): the data-step coverage declaration and the owner-connection rule
+
+A migration data step that writes commission source rows covered by a proof declares `coverage: 'INVALIDATES'`
+in the registry (`packages/db/src/data-steps`); the registry builds the step's narrow app object (`withTenant`
+and `close` only) from that declaration and hands it to the step, whose every transaction then starts with
+`invalidate_commission_coverage(<uuid v7>, 'DATA_STEP')`; a missing or unknown declaration refuses to run before
+any statement, and the source-scan test refuses a period lock, an undeclared covered-table write, or a step file
+that imports or calls any connection factory of the package. **A step never writes tenant rows through the
+migration owner connection — ADR-0038 gives it that connection only to check its role and read `companies.id` —
+and a covered write through the owner would bypass invalidation; this last limit is refused in review and stated
+in the step-author comment, not enforced by an object** (a source scan cannot reliably tell an owner-connection
+write from a `withTenant` write). ### Addendum 2026-11-24 (53-2 B1): issuance CLI port bindings
+
+`apps/worker/src/issue-commission-coverage.ts` binds a commissions-owned `CoverageTipExistenceReader` to
+Orders' `createSessionTipsAfterBoundReader`, a read-only existence query with `business_date > U` and no upper bound.
+It uses the existing app privileges inside `withTenant`, rejects an unknown business and returns only a boolean.
+Orders' `SessionTipBusinessReader` is bound there to tenancy's `businessTimeZone` on the same transaction,
+so the Orders query reads only its own tables, rather than joining `businesses` across the context boundary.
+The same root binds `CoverageIssuanceDependencies.businessIds` to tenancy's `coverageBusinessIds` to reject a partial
+company scope even in dry-run. These are port bindings, not module import arrows; no grant or migration is added.
+The generation and UTC bound are sampled together in one dispatcher SELECT using the existing 0250 generation function.
+The issuing facade keeps that transaction open through verification so refusals and dry-runs roll back the ensure row too.
+Each successful re-run performs a new report and issues a new proof on the next generation; it never revives an old proof.
+The switch audit follows #1223 item 12: `--operator-email` only, resolved `user.id` in `set_by`,
+`actor = user:<id>`, `details = {company_id, reason, operator_user_id}`, `target_user_id = NULL`, no email in the log.
+
 ## Open questions for the owner
 
 - **CS-Q32** (batch 53, PP-37.1): decided on 2026-10-23 by Waleed and Abu Salem, fully automatic (rebuild and clear by the
@@ -848,11 +874,11 @@ checks a second, independent condition, **default closed**:
   nothing. The read happens **after the state-row lock** (section 7, step 5).
 - **Who writes it and how it is audited.** `pospay_app` holds `SELECT` only on `company_feature_overrides`
   (`packages/db/test/table-grants.ts:59`), so the API cannot flip it. The operator path is one owner-role command
-  (`pnpm platform:commission-approval --company <id> --enable|--disable --reason … --operator <name> --operator-email <email>`, like `pnpm platform:grant`) that, **in one
+  (`pnpm platform:commission-approval --company <id> --enable|--disable --reason … --operator-email <email>`, like `pnpm platform:grant`) that, **in one
   transaction**, ensures the company's state row, takes it `FOR UPDATE`, bumps its `generation` (reason `SWITCH`), upserts the override (`reason`; `set_by` is the operator's `user.id`, which the command resolves from the operator email with the same lookup `platform:grant` uses for its target, `userIdOf` in `packages/db/src/platform-grants.ts`, and the command refuses when there is no such user. Today `platform:grant` and `platform_audit_log` identify the operator only by a free-text name (`granted_by` and `actor` are text, not UUID), so **no operator UUID exists in that path**; the only valid UUID source in the schema is a platform user's own `user.id`, and the 53-2 code PR must add the `--operator-email` argument and this lookup to the new command. This is needed because `company_feature_overrides.set_by` is a required UUID, `packages/db/schema/tenancy.ts:146`) **and inserts a row into `platform_audit_log`** with
-  `action = 'commissions.approval_enabled'` or `'commissions.approval_disabled'` and `details = {company_id, reason}`. That table is
+  `action = 'commissions.approval_enabled'` or `'commissions.approval_disabled'` and `details = {company_id, reason, operator_user_id}`. That table is
   the project's permanent audit for operator actions (insert-only, global, no tenant column; the action format
-  `^[a-z]+\.[a-z_]+$` fits (letters, a dot, then letters or underscores: the two names above fit, an underscore before the dot would not); the actor column is the operator name the command takes, as `platform:grant` does (`packages/db/src/platform-grants.ts:67`), and `target_user_id` stays null; ADR-0003 §3 and its T9a-3 note keep platform actions out of the tenant `AuditLog`, which would force
+  `^[a-z]+\.[a-z_]+$` fits (letters, a dot, then letters or underscores: the two names above fit, an underscore before the dot would not); per #1223 item 12, the actor column is `user:<user.id>` of the resolved operator, the email is never logged, there is no separate free-text operator name, and `target_user_id` stays null; ADR-0003 §3 and its T9a-3 note keep platform actions out of the tenant `AuditLog`, which would force
   the script to invent a company). The override row holds only the current value; the audit row is the history (CLAUDE.md §8).
 - **Both must hold, with the proof and the count.** A valid proof plus a zero count **do not** open approval by themselves.
   Opening a company = (1) the approved enable command, which bumps the generation (a proof issued before the enable is not current); approval then stays refused with 422 `COMMISSION_COVERAGE_NOT_PROVEN`; (2) a full new report; (3) a proof issued **on that generation** from a `COVERED` run; only then can approval pass. The same order resumes approval after a repair (section 12, item 3(d)); staging by the manager, any

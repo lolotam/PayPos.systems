@@ -82,6 +82,9 @@ export async function seedCommissionStatementTenants(ownerUrl: string): Promise<
   try {
     await owner`INSERT INTO "user"(id,name,email)
       VALUES(${USER},'Commission operator','commission-operator@example.test')`;
+    // مشغّل الأمر يحتاج منحة منصة سارية بنفس شرط جلسات المنصة؛ بلاها يرفض أمر المفتاح (53-2 B1).
+    await owner`INSERT INTO platform_grants(id,user_id,permission,granted_by)
+      VALUES('01920000-0000-7000-8000-000000000cf0',${USER},'create:companies:platform','fixture')`;
     await owner`INSERT INTO "user"(id,name,email)
       VALUES(${SECOND_REVIEWER.user},'Second reviewer','second-reviewer@example.test')`;
     const ownerRole = SYSTEM_ROLES.find((role) => role.code === 'owner');

@@ -313,6 +313,7 @@ describe('navigation visibility and count boundaries', () => {
         ['commission-overrides', 'commission-plans-access'],
         ['commission-plans', 'commission-plans-access'],
         ['imported-refunds', 'imported-refunds-access'],
+        ['invitations', 'invitations-owner'],
         ['leave-history-report', 'leave-report-access'],
         ['ratings-and-reviews', 'ratings-access'],
         ['staff-app-columns', 'staff-app-columns-access'],

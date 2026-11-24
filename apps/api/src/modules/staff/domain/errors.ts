@@ -35,6 +35,24 @@ export class SetEmployeeNumberStartError extends Error {
   }
 }
 
+/** رفض «إعطاء الدخول» أو إلغائه: كود موحد لمحول HTTP بلا أي تفاصيل عن أي حساب آخر (FR-F1-5). */
+export class StaffAccessError extends Error {
+  /**
+   * يحمل كود الرفض إلى محول HTTP.
+   *
+   * @param code كود الرفض المعروف في packages/i18n
+   */
+  constructor(
+    readonly code:
+      | 'EMPLOYEE_NOT_FOUND'
+      | 'STAFF_ACCESS_NOT_ALLOWED'
+      | 'STAFF_ACCESS_ALREADY_GRANTED'
+      | 'STAFF_ACCESS_PHONE_TAKEN',
+  ) {
+    super(code);
+  }
+}
+
 /** رفض طلب أو استلام كشف الحضور يحمل كوداً موحداً لمحول HTTP في الجولات المختلفة. */
 export class AttendanceStatementError extends Error {
   /**

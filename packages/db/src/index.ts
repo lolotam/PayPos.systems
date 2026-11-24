@@ -16,6 +16,14 @@ export {
   type IdentitySchema,
   type PlatformAuditEntry,
 } from './auth-database.ts';
+export {
+  createStaffAccessDatabase,
+  isTransientAuthFailure,
+  StaffAuthBusyError,
+  StaffPhoneTakenError,
+  type StaffAccessDatabase,
+  type StaffUserProvisionInput,
+} from './staff-access-database.ts';
 export { appendAuditLog, appendAuditLogs, type AuditEntry } from './audit-log.ts';
 export {
   attendanceMonthlyInputsStatement,
@@ -44,6 +52,8 @@ export {
 export { businessIdentityReadStatement, readBusinessIdentity } from './business-identity-read.ts';
 export { canonicalJson } from './canonical-json.ts';
 export { createDatabase, type Database, type DatabaseOptions } from './client.ts';
+export { createCoverageIssuer, CoverageIssuanceError, coverageIssuanceFailure } from './commission-coverage-issuer.ts';
+export type { CoverageIssuer, CoverageIssuanceSnapshot, CoverageIssuanceProof } from './commission-coverage-issuer.ts';
 export { markEventConsumed } from './consumed-events.ts';
 export {
   currentSessionTipsStatement,

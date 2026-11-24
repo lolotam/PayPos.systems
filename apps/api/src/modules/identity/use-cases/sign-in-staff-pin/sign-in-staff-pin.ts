@@ -52,7 +52,7 @@ export class SignInStaffPin {
       await this.attempts.release(target, reservation.reservation);
       throw error;
     }
-    if (!matches || row === null || userId === null) {
+    if (!matches || row === null || row.temporary === true || userId === null) {
       await this.attempts.failed(target, reservation.reservation);
       return null;
     }

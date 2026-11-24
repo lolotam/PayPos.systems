@@ -29,12 +29,15 @@ export const KNOWN_EVENT_TYPES = [
   'FileUploadRequested',
   // spec 052: يُسجَّل قبل المنتج (27h-4) حتى لا يُوقف حدث شعار بلا مستهلك.
   'BusinessLogoChanged',
+  'StaffAccessGranted',
   'CompanyCreated',
   'BusinessCreated',
   'BranchCreated',
   'BusinessSettingsUpdated',
   // spec 059 FR-047: حفظ إصلاح شهر مقفول؛ لا مستهلك له، فيُنشر من غير علامة ولا يعيد أي تصحيح (ليس من الستة المعدودة في ADR-0012).
   'CommissionPeriodRepairSaved',
+  // spec 076 G1: دعوة عضو بلا مستهلك بعد؛ الحالة في شاشة الدعوات تُقرأ مباشرة، فلا يُعاد الحدث ولا يتوقف.
+  'MemberInvited',
 ] as const;
 
 // أنواع الوحدات تظل مرتبطة بتفعيلها؛ خصوصاً نقل الإشعارات الذي لا يجوز إقراره عند تعطيل القناة.

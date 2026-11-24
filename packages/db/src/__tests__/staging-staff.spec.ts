@@ -42,6 +42,7 @@ async function syntheticUser(): Promise<string> {
 function membershipInput(userId: string) {
   return {
     appUrl: testDb.appUrl,
+    authUrl: testDb.authUrl,
     ids,
     companyId: A.company,
     businessId: A.business,
@@ -186,4 +187,23 @@ describe('staging employee user link refusals', () => {
       await owner`SELECT user_id,revision FROM employees WHERE company_id=${B.company} AND id=${employeeId}`,
     ).toEqual([{ user_id: null, revision: 1 }]);
   });
+});
+
+it('P1-5 the staging membership writer refuses a staff user of another company before insert', async () => {
+  const userId = await syntheticUser();
+  await owner`UPDATE "user" SET staff_access_company_id=${B.company},staff_access_operation_id=${ids.newId()} WHERE id=${userId}`;
+  await expect(ensureStaffBranchMembership(membershipInput(userId))).rejects.toMatchObject({
+    code: 'STAFF_COMPANY_REFUSED',
+  });
+  expect(
+    await owner`SELECT id FROM memberships WHERE company_id=${A.company} AND user_id=${userId}`,
+  ).toHaveLength(0);
+  expect(
+    await ensureStaffBranchMembership({
+      ...membershipInput(userId),
+      companyId: B.company,
+      businessId: B.business,
+      branchId: B.branch,
+    }),
+  ).toBe('created');
 });

@@ -1769,15 +1769,29 @@
     {
       "idx": 254,
       "version": "7",
-      "when": 1795500000254,
-      "tag": "0254_2026-11-24_user-nav-style-temp",
+      "when": 1795514002594,
+      "tag": "0254_2026-11-24_staff-access-schema",
       "breakpoints": true
     },
     {
       "idx": 255,
       "version": "7",
-      "when": 1795500000255,
-      "tag": "0255_2026-11-24_user-nav-style-validate-temp",
+      "when": 1795514014456,
+      "tag": "0255_2026-11-24_staff-access-rls-and-seed",
+      "breakpoints": true
+    },
+    {
+      "idx": 256,
+      "version": "7",
+      "when": 1795520827235,
+      "tag": "0256_2026-11-24_member-invitations",
+      "breakpoints": true
+    },
+    {
+      "idx": 257,
+      "version": "7",
+      "when": 1795520833185,
+      "tag": "0257_2026-11-24_member-invitations-rls",
       "breakpoints": true
     }
   ]
