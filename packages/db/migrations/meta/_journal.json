@@ -1758,6 +1758,13 @@
       "when": 1795492903221,
       "tag": "0252_2026-11-24_platform-email-feedback-indexes",
       "breakpoints": true
+    },
+    {
+      "idx": 253,
+      "version": "7",
+      "when": 1795497625478,
+      "tag": "0253_2026-11-24_commission-statement-payments",
+      "breakpoints": true
     }
   ]
 }
