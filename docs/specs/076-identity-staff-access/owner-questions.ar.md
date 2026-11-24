@@ -229,3 +229,13 @@ https://plan.pospay.systems كدفعة 103 «دخول الموظفة ودعوة 
 > Ruling on the STOPPED→PENDING re-grant cancel: good catch. Never delete a previously committed account and never detach historical references. But do not leave the record stuck in PENDING either (a granter who typed a wrong phone must have a way back). So: when the record carries a committed `user_id` (it came from STOPPED), «cancel» does NOT go through CANCELLING/DELETE — it returns the record to `STOPPED` in one tenant transaction (same authority and same 24-hour rule as the normal cancel, audit row written), deleting nothing on auth and leaving the membership ended and the PIN cleared as they were. If the auth step of the re-grant had already changed the phone binding before the crash, leave the binding as it is and say so in the port's doc comment (the next grant sets it again; no session or PIN exists in STOPPED). A fresh record (no `user_id`) keeps the CANCELLING → delete user → delete record path. Add the reproduction test for the stuck case and a test that the STOPPED record can be granted again afterwards. Then commit, push, final report.
 
 - التنفيذ المطلوب: استعادة STOPPED مع audit دون auth للحساب السابق، مع اختبار الفشل قبل auth وبعد تثبيت الهاتف، وإثبات إمكانية المنح مرة أخرى.
+
+
+## ز — تخفيف المالك لحد حجم الملف
+
+- الحالة: ANSWERED من وليد عبر المدير المالك، 2026-11-24.
+- التوجيه الأحدث حرفياً:
+
+> Owner relaxation on file size (Waleed, 2026-11-24): do not spend any more effort splitting files only to get under 300 lines. A file between 300 and 400 lines is acceptable (ESLint only warns there). The hard stop stays 400, because `max-lines` errors at 400 and fails CI. Do not undo splits already made; just stop doing new ones for that reason. Everything else in your instructions stands: finish the STOPPED-record cancel fix and its tests, commit, push `feat/076-f1-staff-access-2`, final report.
+
+- التنفيذ: لا تقسيم جديد للحجم وحده ولا تراجع عن التقسيم السابق؛ بوابة ESLint الصلبة باقية.
