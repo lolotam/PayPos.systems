@@ -81,7 +81,7 @@ sends the production session cookie to every `*.pospay.systems` host — includi
 `*.staging.pospay.systems`. PR-B makes staging refuse it *as a session*, but the browser still sends it, and the
 cookie's reach is why a host-only API-host cookie is not a drop-in: the admin's server-side session gate reads the
 cookie jar on the admin host (`apps/admin/src/session/api/server-session.ts`, used by `SessionGate`/
-`enrol-gate`) and would classify every signed-in user as anonymous, redirecting them to `/login`. Until that is
+`apps/admin/app/(dashboard)/_frame/two-factor-gate.tsx`) and would classify every signed-in user as anonymous, redirecting them to `/login`. Until that is
 redesigned, the value stays, and the operator rule holds: **never open staging in a browser profile that holds a
 production session** (plan §1, risk row "Production cookie sent to staging hosts").
 
