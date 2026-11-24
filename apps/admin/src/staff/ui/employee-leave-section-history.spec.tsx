@@ -3,7 +3,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { leaveDecisionRecord, leaveId } from '../api/leave-decision.fixture';
-import { historyLeaveRow, historyPage, openPage } from '../api/leave-history.fixture';
+import { absenceRow, historyLeaveRow, historyPage, openPage } from '../api/leave-history.fixture';
 import { EmployeeLeaveSection } from './employee-leave-section';
 
 const state = vi.hoisted(() => ({ locale: 'en' as 'ar' | 'en' }));
@@ -373,4 +373,32 @@ it('page 2 of the open list fails, Previous page is visible and reloads page 1',
   await screen.findByText('Synthetic open page one');
   expect(within(openRegion()).queryByRole('alert')).toBeNull();
   expect(queries('/leave-requests').at(-1)).not.toHaveProperty('cursor');
+});
+
+it('names the details column for leave and absence rows in both locales', async () => {
+  routeGets({
+    history: () => ({
+      data: historyPage({
+        items: [
+          historyLeaveRow(),
+          absenceRow({ id: '01920000-0000-7000-8000-000000000a02' }),
+        ],
+      }),
+    }),
+  });
+  for (const locale of ['en', 'ar'] as const) {
+    state.locale = locale;
+    renderSection();
+    await screen.findByText('Synthetic past annual');
+    const table = within(
+      screen.getByRole('region', { name: t(locale, 'leaveHistory.historyTitle') }),
+    ).getByRole('table');
+    expect(within(table).getAllByRole('row')).toHaveLength(3);
+    const details = locale === 'en' ? 'Details' : 'التفاصيل';
+    expect(within(table).getByRole('columnheader', { name: details }).textContent).toBe(details);
+    expect(
+      within(table).queryByRole('columnheader', { name: t(locale, 'leave.decisionReason') }),
+    ).toBeNull();
+    cleanup();
+  }
 });
