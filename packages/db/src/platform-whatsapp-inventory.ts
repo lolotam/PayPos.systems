@@ -47,32 +47,27 @@ export async function assertWhatsappInventory(tx: Pick<Tx, 'execute'>): Promise<
 }
 
 async function assertTableGrants(tx: Pick<Tx, 'execute'>): Promise<void> {
-  const tables = await tx.execute<{ grant: string }>(sql`
+  // جسر تراجعي (قبل migration 0248): صلاحيات الإيميل بتاعتها pospay_notifications بتظهر بعد الـ migration،
+  // والصورة القديمة لازم تتسامح معها وإلا الـ STOP intake والـ OTP بيقعوا وقت التراجع أو رولِنت قديم.
+  const emailGrant = (grant: string) => grant.startsWith('platform_email_');
+  const tables = (
+    await tx.execute<{ grant: string }>(sql`
     SELECT c.relname || ':' || p AS grant FROM pg_class c,
       unnest(ARRAY['SELECT','INSERT','UPDATE','DELETE','TRUNCATE','REFERENCES','TRIGGER']) p
     WHERE c.relnamespace = 'public'::regnamespace AND c.relkind IN ('r','p','v','m','f')
-      AND has_table_privilege(current_user, c.oid, p)`);
-  if (
-    !same(
-      tables.map((r) => r.grant),
-      TABLE_GRANTS,
-    )
-  )
-    fail();
-  const columns = await tx.execute<{ grant: string }>(sql`
+      AND has_table_privilege(current_user, c.oid, p)`)
+  ).map((r) => r.grant).filter((grant) => !emailGrant(grant));
+  if (!same(tables, TABLE_GRANTS)) fail();
+  const columns = (
+    await tx.execute<{ grant: string }>(sql`
     SELECT c.relname || '.' || a.attname || ':' || p AS grant
     FROM pg_class c JOIN pg_attribute a ON a.attrelid = c.oid,
       unnest(ARRAY['SELECT','INSERT','UPDATE','REFERENCES']) p
     WHERE c.relnamespace = 'public'::regnamespace AND a.attnum > 0 AND NOT a.attisdropped
       AND has_column_privilege(current_user, c.oid, a.attnum, p)
-      AND NOT has_table_privilege(current_user, c.oid, p)`);
-  if (
-    !same(
-      columns.map((r) => r.grant),
-      COLUMN_GRANTS,
-    )
-  )
-    fail();
+      AND NOT has_table_privilege(current_user, c.oid, p)`)
+  ).map((r) => r.grant).filter((grant) => !emailGrant(grant));
+  if (!same(columns, COLUMN_GRANTS)) fail();
   const forbidden = await tx.execute(sql`
     SELECT c.oid FROM pg_class c WHERE c.relnamespace = 'public'::regnamespace
       AND (c.relowner = current_user::regrole OR (c.relkind = 'S'
