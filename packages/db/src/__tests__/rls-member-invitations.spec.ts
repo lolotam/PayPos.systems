@@ -1,6 +1,6 @@
 import { sql, type SQL } from 'drizzle-orm';
 import postgres from 'postgres';
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, expect, it } from 'vitest';
 
 import { seedTwoTenants, TENANT } from '../../test/tenancy-fixtures.ts';
 import { expectPgError } from '../../test/commission-statement-fixtures.ts';

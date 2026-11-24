@@ -69,11 +69,12 @@ describe('password-set link lifetime (D9)', () => {
       redirectTo: `${ORIGIN}/set-password`,
     });
     expect(link).toContain(`${BASE}/v1/auth/reset-password/`);
-    const [expiresAt] = await expirationsOf(userId);
+    const rows = await expirationsOf(userId);
+    expect(rows).toHaveLength(1);
+    const expiresAt = rows[0] ?? Number.NaN;
     expect(expiresAt - Date.now()).toBeGreaterThan(PASSWORD_SET_LINK_TTL_MS - 5_000);
     expect(expiresAt - Date.now()).toBeLessThanOrEqual(PASSWORD_SET_LINK_TTL_MS);
   });
-
   it('the invitation passes 48 hours and an injected instant, and the row carries them exactly', async () => {
     const created = await members().createInvitedMember({
       operationId: systemUuidV7().newId(),
@@ -148,6 +149,18 @@ describe('invitation link authority', () => {
     ).rejects.toBeInstanceOf(InvitationLinkRefusedError);
   });
 
+  it('an unknown user is refused without leaking whether the email exists', async () => {
+    await expect(
+      members().issueInvitationLink({
+        userId: systemUuidV7().newId(),
+        companyId,
+        redirectTo: `${ORIGIN}/set-password`,
+      }),
+    ).rejects.toBeInstanceOf(InvitationLinkRefusedError);
+  });
+});
+
+describe('invitation link refusals after consumption', () => {
   it('a user that already set a password never gets another link', async () => {
     const companyId = '01920000-0000-7000-8000-00000000c001';
     const created = await members().createInvitedMember({
@@ -174,16 +187,6 @@ describe('invitation link authority', () => {
     await expect(
       members().issueInvitationLink({
         userId: created.userId,
-        companyId,
-        redirectTo: `${ORIGIN}/set-password`,
-      }),
-    ).rejects.toBeInstanceOf(InvitationLinkRefusedError);
-  });
-
-  it('an unknown user is refused without leaking whether the email exists', async () => {
-    await expect(
-      members().issueInvitationLink({
-        userId: systemUuidV7().newId(),
         companyId,
         redirectTo: `${ORIGIN}/set-password`,
       }),

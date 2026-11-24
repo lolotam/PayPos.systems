@@ -6,7 +6,7 @@ import {
   invitationScopeFailure,
   invitableScopeType,
   isInvitableRole,
-} from './invitable-roles.ts';
+} from '../invitable-roles.ts';
 
 // قائمة الدعوة بيانات (IM-Q2، BR-5): الاختبارات دي بثبّت العقد الحالي — الأدوار الأربعة
 // ونطاق كل دور، وإن دور المالك مش في القائمة أبداً بالبناء.
@@ -32,7 +32,9 @@ describe('invitable roles', () => {
       expect(INVITABLE_SCOPE_TYPE[role]).toBeDefined();
     }
   });
+});
 
+describe('the closed role list and its scope table', () => {
   it.each([
     ['general_manager', true],
     ['business_manager', true],

@@ -22,10 +22,10 @@ beforeAll(async () => {
     staffAccessRoutes: true,
     logs: new Writable({ write: captureChunk }),
   });
-  ownerA.cookie = await h.signedInOperator(ownerA.email);
-  ownerA.userId = await userIdByEmail(ownerA.email);
-  ownerB.cookie = await h.signedInOperator(ownerB.email);
-  ownerB.userId = await userIdByEmail(ownerB.email);
+  for (const who of [ownerA, ownerB]) {
+    who.cookie = await h.signedInOperator(who.email);
+    who.userId = await userIdByEmail(who.email);
+  }
 });
 
 function captureChunk(chunk: unknown, _encoding: string, callback: () => void): void {
