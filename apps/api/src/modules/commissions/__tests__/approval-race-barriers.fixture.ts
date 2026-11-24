@@ -61,6 +61,8 @@ export async function raceConnections(urls: {
 }
 
 export interface HeldLock {
+  /** معرّف العملية اللي ماسكة القفل. */
+  readonly pid: number;
   /** يفرج عن القفل فينتظر ما كان واقف عليه. */
   release(): void;
   /** يتحل لما المعاملة الماسكة تلتزم. */
@@ -78,25 +80,32 @@ export interface HeldLock {
 export async function holdFreezeGate(owner: postgres.Sql): Promise<HeldLock> {
   let release: () => void = () => undefined;
   let acquired: () => void = () => undefined;
+  let opened: (pid: number) => void = () => undefined;
   const released = new Promise<void>((resolve) => {
     release = resolve;
   });
   const took = new Promise<void>((resolve) => {
     acquired = resolve;
   });
+  const pidReady = new Promise<number>((resolve) => {
+    opened = resolve;
+  });
   const done = owner.begin(async (tx) => {
+    const [row] = await tx`SELECT pg_backend_pid()::int AS pid`;
+    opened(row?.['pid'] as number);
     await tx`LOCK TABLE public.commission_statement_lines IN ACCESS EXCLUSIVE MODE`;
     acquired();
     await released;
   });
   done.catch(() => undefined);
+  const pid = await pidReady;
   await took;
   // القفل بيتفرّج عنه في كل الأحوال (حتى لو فشل تأكيد في نصّ الاختبار)، فما بيقفلش باقي الاختبارات.
   onTestFinished(async () => {
     release();
     await done.catch(() => undefined);
   });
-  return { release, done };
+  return { pid, release, done };
 }
 
 interface Held {
@@ -170,16 +179,22 @@ export async function blockersOf(observer: postgres.Sql, pid: number): Promise<n
 }
 
 /**
- * معرّفات العمليات اللي ماسكة قفل صف الحالة FOR SHARE (قفل بوابة الاعتماد).
+ * معرّفات عمليات الاعتماد اللي عدّت بوابة التغطية ووقفت عند قفل التجميد. قفل الصف FOR SHARE مش بيظهر في
+ * pg_locks لحد ما فيه خصام، فالإثبات هنا هو انتظار إدراج الصفوف المجمّدة ورا حامل قفل التجميد.
  *
  * @param observer القارئ
- * @returns معرّفات الحاملين
+ * @param freezePid معرّف العملية الماسكة لقفل التجميد
+ * @returns معرّفات الاعتمادات اللي عدّت البوابة
  */
-export async function stateShareHolders(observer: postgres.Sql): Promise<number[]> {
+export async function approvalPidsAtFreeze(
+  observer: postgres.Sql,
+  freezePid: number,
+): Promise<number[]> {
   const rows = await observer<{ pid: number }[]>`
-    SELECT pid FROM pg_locks
-    WHERE locktype = 'tuple' AND mode = 'ShareLock' AND granted
-      AND relation = 'public.commission_coverage_state'::regclass`;
+    SELECT pid FROM pg_stat_activity
+    WHERE datname = current_database() AND wait_event_type = 'Lock'
+      AND ${freezePid} = ANY(pg_blocking_pids(pid))
+      AND query LIKE '%INSERT INTO%' AND query LIKE '%commission_statement_lines%'`;
   return rows.map((row) => row.pid);
 }
 
@@ -208,23 +223,25 @@ export async function waitForBlockers(
 }
 
 /**
- * ينتظر حتى يمسك الاعتماد قفل صف الحالة FOR SHARE (يعني إنه عدّى بوابة التغطية)، أو يفشل عند انتهاء الميزانية.
+ * ينتظر حتى يظهر اعتماد عدّى بوابة التغطية وواقف عند التجميد، أو يفشل عند انتهاء الميزانية.
  *
  * @param observer القارئ
+ * @param freezePid معرّف العملية الماسكة لقفل التجميد
  * @param what اسم ما ينتظره الاختبار
- * @returns معرّفات الحاملين وقت الانتظار
+ * @returns معرّفات الاعتمادات اللي عدّت البوابة
  */
-export async function waitForStateShareLock(
+export async function waitForApprovalAtFreeze(
   observer: postgres.Sql,
+  freezePid: number,
   what: string,
 ): Promise<number[]> {
   const deadline = Date.now() + BUDGET_MS;
   for (;;) {
-    const holders = await stateShareHolders(observer);
-    if (holders.length > 0) return holders;
+    const approvals = await approvalPidsAtFreeze(observer, freezePid);
+    if (approvals.length > 0) return approvals;
     if (Date.now() >= deadline) {
       throw new Error(
-        `${what}: no transaction held the coverage state row FOR SHARE within ${BUDGET_MS} ms`,
+        `${what}: no approval past the coverage gate waited at the freeze within ${BUDGET_MS} ms`,
       );
     }
     await new Promise((resolve) => setTimeout(resolve, POLL_MS));
