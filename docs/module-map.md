@@ -406,7 +406,7 @@ composition_roots:
   staff-otp-db: [packages/auth/src/staff-otp/api.ts, packages/auth/src/staff-otp/execution.ts, packages/auth/src/config.ts, packages/auth/src/auth-session-primitives.ts, packages/auth/src/personal-sessions.ts, packages/auth/src/approve-phone-binding.ts, packages/auth/src/staff-access-users.ts, packages/auth/src/operator/staging-staff-identity.ts]
   rating-token: [apps/worker/src/rating-token-capability.ts]
   platform-whatsapp-db: [apps/api/src/main.ts, apps/worker/src/start-optional-capabilities.ts]
-  notifications: [apps/api/src/app.ts, apps/api/src/main.ts, apps/api/scripts/bind-phone.ts, apps/api/scripts/staging-staff-user.ts, apps/worker/src/worker.ts, apps/worker/src/start-optional-capabilities.ts]
+  notifications: [apps/api/src/app.ts, apps/api/src/app-dependencies.ts, apps/api/src/main.ts, apps/api/scripts/bind-phone.ts, apps/api/scripts/staging-staff-user.ts, apps/worker/src/worker.ts, apps/worker/src/start-optional-capabilities.ts]
   documents: [apps/worker/src/main.ts]
 
 # Every VALUE a module imports from another module's index.ts is one of these (type-only imports need only the

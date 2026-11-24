@@ -92,3 +92,11 @@ it('P1-6 Better Auth real account update with only password checks the target ro
     await database.close();
   }
 });
+
+it('P1-6 two-factor enabling is independently refused for a marked user with a valid password and signed cookie', async () => {
+  const user = await ordinary();
+  await markStaff(user.userId);
+  const response = await f.auth.handler(request('two-factor/enable', { password }, user.cookie));
+  expect(response.status).toBe(403);
+  expect(await f.owner`SELECT id FROM two_factor WHERE user_id=${user.userId}`).toHaveLength(0);
+});

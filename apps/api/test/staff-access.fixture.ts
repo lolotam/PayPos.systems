@@ -168,11 +168,15 @@ function observeGrantFailures(h: Harness): void {
   const useCase = h.app.get(GrantEmployeeAccessUseCase);
   const execute = useCase.execute.bind(useCase);
   useCase.execute = async (command) => {
-    try { return await execute(command); }
-    catch (error) {
-      const code = error instanceof Error && /^[A-Z_]+$/.test(error.message) ? error.message : '[withheld]';
+    try {
+      return await execute(command);
+    } catch (error) {
+      const code =
+        error instanceof Error && /^[A-Z_]+$/.test(error.message) ? error.message : '[withheld]';
       console.log('STAFF_ACCESS_DIAGNOSTIC', code);
       throw error;
     }
   };
 }
+
+export { hashStaffPin } from '../src/modules/identity/index.ts';

@@ -26,4 +26,3 @@ export const API_CONTROLLERS: readonly Type<unknown>[] = [
   ...staffControllers,
   ...filesControllers,
 ];
-

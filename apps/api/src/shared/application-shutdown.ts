@@ -22,4 +22,3 @@ export class ShutdownHook implements OnApplicationShutdown {
     clearTimeout(timer);
   }
 }
-

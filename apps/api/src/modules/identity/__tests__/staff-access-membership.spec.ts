@@ -51,6 +51,13 @@ it('P1-5 grant membership verifies company and operation on auth, even with a fo
     .owner`SELECT user_id,operation_id FROM employee_staff_access WHERE employee_id=${employee}`;
   const otherCookie = await f.h.signedInOperator('binding-foreign@example.test');
   const otherCompany = await f.h.onboard(otherCookie, 'Binding foreign');
+  const otherBusiness = ids.newId();
+  const otherBranch = ids.newId();
+  await f.h.owner`INSERT INTO businesses(company_id,id,name_en,vertical_type)
+    VALUES (${otherCompany},${otherBusiness},'Binding target','salon')`;
+  await f.h.owner`INSERT INTO branches(company_id,id,business_id,name_en)
+    VALUES (${otherCompany},${otherBranch},${otherBusiness},'Binding target branch')`;
+
   for (const companyId of [otherCompany, f.company]) {
     await expect(
       f.db.withTenant(companyId, (tx) =>
@@ -58,7 +65,7 @@ it('P1-5 grant membership verifies company and operation on auth, even with a fo
           companyId,
           userId: record?.user_id,
           operationId: companyId === f.company ? ids.newId() : record?.operation_id,
-          branchId: f.salmiya,
+          branchId: companyId === otherCompany ? otherBranch : f.salmiya,
           role: 'staff',
           ids,
         }),
@@ -94,6 +101,7 @@ it('P2-1 state query uses its employee index on representative rows and returns 
     ]);
     const explained = await tx.execute(sql`EXPLAIN (ANALYZE, FORMAT JSON) ${query}`);
     expect(JSON.stringify(explained)).toMatch(/Index Scan|Bitmap/);
+    expect(JSON.stringify(explained)).toContain('employee_staff_access_employee');
     const plan = explained[0]?.['QUERY PLAN'] as { 'Execution Time': number }[];
     expect(plan[0]?.['Execution Time']).toBeLessThan(200);
   });

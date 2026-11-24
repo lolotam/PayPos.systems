@@ -176,3 +176,29 @@ it('provision input validation refuses malformed input before any write', async 
   }
   expect(await owner`SELECT count(*) AS n FROM "user"`).toEqual(before);
 });
+
+it.each(['CANCELLING', 'phone', 'company'] as const)(
+  'P1-2/P1-4 existing operation refuses %s mismatch without changing its binding',
+  async (mismatch) => {
+    const operationId = ids.newId();
+    const phone = phoneOf(30 + ['CANCELLING', 'phone', 'company'].indexOf(mismatch));
+    const { userId } = await provision(phone, operationId);
+    const before =
+      await owner`SELECT id,phone_number,staff_access_company_id FROM "user" WHERE id=${userId}`;
+    await expect(
+      f.auth.staffUsers.provision({
+        operationId,
+        companyId: mismatch === 'company' ? ids.newId() : f.device.companyId,
+        phone: mismatch === 'phone' ? phoneOf(60) : phone,
+        name: 'Existing operation',
+        actorUserId: f.userId,
+        ids,
+        recordState: mismatch === 'CANCELLING' ? 'CANCELLING' : 'PENDING',
+        resetBinding: false,
+      }),
+    ).rejects.toThrow('STAFF_RECORD_NOT_PENDING');
+    expect(
+      await owner`SELECT id,phone_number,staff_access_company_id FROM "user" WHERE id=${userId}`,
+    ).toEqual(before);
+  },
+);

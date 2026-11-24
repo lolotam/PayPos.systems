@@ -62,4 +62,3 @@ export interface AppOptions {
   /** Test-only: extra controllers mounted beside the real ones. */
   readonly controllers?: readonly Type<unknown>[];
 }
-

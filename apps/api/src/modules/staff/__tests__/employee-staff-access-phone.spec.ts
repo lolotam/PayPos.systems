@@ -2,6 +2,7 @@ import { afterAll, beforeAll, expect, it } from 'vitest';
 import { systemUuidV7 } from '@pospay/ids';
 import {
   addEmployee,
+  hashStaffPin,
   grant,
   nextPhone,
   capturedLogs,
@@ -21,24 +22,8 @@ afterAll(async () => {
 it.each(['inside', 'outside'])(
   'P1-11 phone owned %s the company leaves that user PIN and sessions unchanged and logs no secrets',
   async (where) => {
-    const userId = ids.newId();
     const phone = nextPhone(f);
-    const company =
-      where === 'inside'
-        ? f.company
-        : await f.h.onboard(
-            await f.h.signedInOperator('foreign-phone@example.test'),
-            'Foreign phone employer',
-          );
-    await f.h.owner`INSERT INTO "user"(id,name,email,phone_number,phone_binding_approved_at)
-    VALUES (${userId},'Unrelated holder',${`${userId}@example.test`},${phone},now())`;
-    await f.h
-      .owner`INSERT INTO memberships(company_id,id,user_id,role_id,role_owner_key,scope_type,scope_id)
-    VALUES (${company},${ids.newId()},${userId},${systemRoleId('owner')},'global','COMPANY',${company})`;
-    await f.h.owner`INSERT INTO cashier_pins(company_id,id,user_id,pin_hash,set_at,temporary)
-    VALUES (${company},${ids.newId()},${userId},'untouched-existing-hash',now(),false)`;
-    await f.h
-      .owner`INSERT INTO session(id,user_id,token,expires_at) VALUES (${ids.newId()},${userId},${ids.newId()},now()+interval '1 hour')`;
+    const userId = await phoneHolder(where, phone);
     const pins = await f.h.owner`SELECT * FROM cashier_pins WHERE user_id=${userId}`;
     const sessions = await f.h.owner`SELECT * FROM session WHERE user_id=${userId}`;
     const employee = await addEmployee(
@@ -57,3 +42,23 @@ it.each(['inside', 'outside'])(
     expect(capturedLogs()).not.toContain(pin);
   },
 );
+
+async function phoneHolder(where: string, phone: string): Promise<string> {
+  const cookie = await f.h.signedInOperator(`phone-holder-${where}@example.test`);
+  const holder = await f.h.auth.getSession(new Headers({ cookie }));
+  if (holder === null) throw new Error('HOLDER_SESSION_MISSING');
+  const userId = holder.userId;
+  const company =
+    where === 'inside' ? f.company : await f.h.onboard(cookie, 'Foreign phone employer');
+  await f.h.owner`UPDATE "user" SET phone_number=${phone} WHERE id=${userId}`;
+  await f.h.owner`UPDATE "user" SET phone_binding_approved_at=now() WHERE id=${userId}`;
+  if (where === 'inside')
+    await f.h
+      .owner`INSERT INTO memberships(company_id,id,user_id,role_id,role_owner_key,scope_type,scope_id)
+    VALUES (${company},${ids.newId()},${userId},${systemRoleId('accountant')},'global','COMPANY',${company})`;
+  const hash = await hashStaffPin('9026');
+  await f.h.owner`INSERT INTO cashier_pins(company_id,id,user_id,pin_hash,set_at,temporary)
+    VALUES (${company},${ids.newId()},${userId},${hash},now(),false)`;
+  expect(await f.h.owner`SELECT id FROM session WHERE user_id=${userId}`).not.toHaveLength(0);
+  return userId;
+}

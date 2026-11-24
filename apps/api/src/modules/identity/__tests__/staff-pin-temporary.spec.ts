@@ -26,7 +26,7 @@ afterAll(async () => {
 });
 
 it.each(['staff', 'reception'] as const)(
-  'AC-F1-1/2 %s creates rows and usable eligibility; temporary PIN sign-in is refused like a wrong PIN until F2',
+  'AC-F1-1/2 %s creates rows and usable eligibility; temporary PIN sign-in is refused like a wrong PIN until F2 (P1-8)',
   async (role) => {
     const employee = await addEmployee(
       f,

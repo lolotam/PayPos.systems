@@ -55,8 +55,8 @@ export const STAFF_ACCESS_AGGREGATE = 'employee';
  * @returns الحدث جاهز لصف الـ outbox: النوع والحمولة
  */
 export function staffAccessGrantedEvent(payload: StaffAccessGranted): {
-  eventType: string;
-  aggregateType: string;
+  eventType: typeof STAFF_ACCESS_GRANTED;
+  aggregateType: typeof STAFF_ACCESS_AGGREGATE;
   payload: StaffAccessGranted;
 } {
   return { eventType: STAFF_ACCESS_GRANTED, aggregateType: STAFF_ACCESS_AGGREGATE, payload };
