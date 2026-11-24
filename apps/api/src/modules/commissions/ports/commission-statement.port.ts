@@ -1,6 +1,7 @@
 import type {
   CommissionEstimateAttachment,
   OpenBlockedCorrection,
+  StatementRow,
   StatementEmployeeLabel,
   StatementLineHead,
   StatementMonthRows,
@@ -34,12 +35,22 @@ export interface CommissionStatementSource {
   readonly correctionLineDetails: ReadonlyMap<string, StatementLineHead>;
 }
 
+/** ما يخزّنه الاعتماد وتحتاجه قراءة شهر مغلق: وقت الاعتماد والبصمتان المجمّدتان والصفوف المجمّدة (FR-025). */
+export interface ClosedStatementRead {
+  readonly approvedAt: string;
+  readonly inputFingerprint: string;
+  readonly statementFingerprint: string;
+  readonly rows: readonly StatementRow[];
+}
+
 /** نطاق القارئ كما حله قارئ identity، مع الكشف المقروء في نفس اللقطة. */
 export interface CommissionStatementRead {
   /** القارئ على مستوى النشاط كله ولا على فروع محددة. */
   readonly businessWide: boolean;
   readonly branchIds: readonly string[];
   readonly source: CommissionStatementSource;
+  /** الصفوف المجمّدة لشهر APPROVED أو PAID، وإلا null: العرض الحي لا يُحسب لشهر اتجمّد. */
+  readonly closed: ClosedStatementRead | null;
 }
 
 /**

@@ -4,6 +4,19 @@ import { responseObject } from '../response-object.js';
 import { id } from '../scalars/id.js';
 import { commissionEstimateMoney, commissionEstimatePeriod } from './estimate.js';
 
+/**
+ * مجموع مبالغ الموظفة (العمولة والبقشيش والمستحق): مجموع صفوف كل صف منها حتى `numeric(14,3)` (11 خانة صحيحة)، فقد
+ * يتخطى مجموعها حد الصف الواحد. يتسع لأقصى `bigint` بالمليم (16 خانة صحيحة) لأن الباني يجمع بـ`bigint`، فلا يفشل ردٌّ
+ * صحيح بعد الالتزام بسبب عدد الخانات (مراجعة PR #1259، البند 2).
+ */
+const statementTotalMoneyPattern = /^-?(0|[1-9]\d{0,15})\.\d{3}$/;
+
+/** مجموع بالدينار بنمط أوسع من مبلغ الصف الواحد. */
+export const commissionStatementTotalMoney = z
+  .string()
+  .regex(statementTotalMoneyPattern)
+  .meta({ id: 'CommissionStatementTotalMoney' });
+
 /** تاريخ YYYY-MM-DD. */
 const statementDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
 
@@ -64,9 +77,9 @@ export const commissionStatementEmployee = responseObject({
   name_ar: z.string().nullable(),
   name_en: z.string(),
   partial: z.boolean(),
-  commission_subtotal: commissionEstimateMoney,
-  tip_side: commissionEstimateMoney,
-  payable: commissionEstimateMoney,
+  commission_subtotal: commissionStatementTotalMoney,
+  tip_side: commissionStatementTotalMoney,
+  payable: commissionStatementTotalMoney,
   rows: z.array(commissionStatementRow),
   issues: z.array(commissionStatementIssue),
 }).meta({ id: 'CommissionStatementEmployee' });
@@ -104,6 +117,7 @@ export const commissionStatementBranchView = responseObject({
 }).meta({ id: 'CommissionStatementBranchView' });
 
 export const commissionStatementSchemas = [
+  commissionStatementTotalMoney,
   commissionStatementStatus,
   commissionStatementRow,
   commissionStatementIssue,

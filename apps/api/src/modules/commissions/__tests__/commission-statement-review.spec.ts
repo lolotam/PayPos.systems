@@ -402,7 +402,9 @@ describe('CM-33b an actor authorised through a business-scope override', () => {
     expect(membership?.['scope_id']).toBe(g.branch);
     const [memberMembershipId] = member.membershipIds;
     if (memberMembershipId === undefined) throw new Error('the member membership is missing');
-    await grantBusinessOverride(memberMembershipId, member.userId, '2027-01-01');
+    // الانتهاء يُقارَن بساعة قاعدة البيانات لا بساعة الاختبار، فتاريخ ثابت يكسر الاختبار يوم يحلّ؛ سنة من الآن دائمًا.
+    const oneYearFromNow = new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString();
+    await grantBusinessOverride(memberMembershipId, member.userId, oneYearFromNow);
 
     expect((await generateStatement(g, g.cookie, 'generate-april', '2026-04')).status).toBe(200);
     const body = await expected(g, '2026-04');

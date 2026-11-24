@@ -14,6 +14,9 @@ export const commissionPlanErrorsAr = {
   COMMISSION_RETURN_REASON_INVALID:
     'اكتب سبب رجوع الكشف للمراجعة (لحد 500 حرف).',
   COMMISSION_STATEMENT_NOT_REVIEWED: 'الكشف ده مش متراجع، فلازم يرجع للمراجعة الأول.',
+  COMMISSION_UPDATES_PENDING: 'لسه بنحسب آخر التحديثات، جرّب تاني بعد شوية.',
+  COMMISSION_COVERAGE_NOT_PROVEN:
+    'بيانات الشركة القديمة لسه ماتراجعتش، فالاعتماد مش متاح دلوقتي.',
   COMMISSION_PLAN_EMPLOYEE_CURSOR_UNAVAILABLE:
     'تعذّر تحميل قائمة الموظفين بسبب بيانات محفوظة تحتاج إصلاحًا. تواصل مع الدعم.',
   EMPLOYEE_NOT_FOUND: 'الموظفة غير موجودة في النشاط ده.',
@@ -38,6 +41,9 @@ export const commissionPlanErrorsEn = {
     'Enter the reason for returning the statement to review (up to 500 characters).',
   COMMISSION_STATEMENT_NOT_REVIEWED:
     'This statement is not reviewed yet; return it to review first.',
+  COMMISSION_UPDATES_PENDING: 'Updates are still being calculated; try again shortly.',
+  COMMISSION_COVERAGE_NOT_PROVEN:
+    "This company's earlier commission data has not been verified yet, so approval is not available.",
   COMMISSION_PLAN_EMPLOYEE_CURSOR_UNAVAILABLE:
     'The employee list cannot be loaded because stored data needs repair. Contact support.',
   EMPLOYEE_NOT_FOUND: 'The employee was not found in this business.',

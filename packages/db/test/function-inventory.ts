@@ -1,3 +1,5 @@
+import { COMMISSION_COVERAGE_FUNCTIONS } from './commission-coverage-function-inventory.ts';
+
 export const FUNCTION_INVENTORY = [
   {
     proname: 'package_import_preview_partition_guard',
@@ -376,4 +378,5 @@ export const FUNCTION_INVENTORY = [
     prosecdef: false,
     proconfig: ['search_path=pg_catalog, public'],
   },
+  ...COMMISSION_COVERAGE_FUNCTIONS,
 ].sort((a, b) => a.proname.localeCompare(b.proname));
