@@ -26,7 +26,7 @@ it('tells a re-review with other reviewed fingerprints from the review the user 
   expect(statementVersion(reReviewed)).not.toBe(statementVersion(REVIEWED));
 });
 
-it('versions a closed month and a branch reading by their status alone', () => {
+it('distinguishes status changes in a closed month and a branch reading', () => {
   expect(statementVersion(closedView())).not.toBe(statementVersion(closedView({ status: 'PAID' })));
   expect(statementVersion(branchView())).not.toBe(statementVersion(branchView({ status: 'REVIEWED' })));
 });

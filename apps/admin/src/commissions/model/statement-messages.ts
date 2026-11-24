@@ -3,6 +3,14 @@ import { envelopeMessage } from '@/shared/api/api-error';
 
 /** كود رفض السيرفر لكل رسالة مقروءة؛ الأكواد دي ما بتتعرضش للمستخدم أبدًا. */
 const CODE_KEYS: Record<string, MessageKey> = {
+  COMMISSION_STATEMENT_ALREADY_PAID: 'commissionStatementScreen.errAlreadyPaid',
+  COMMISSION_STATEMENT_NOT_APPROVED: 'commissionStatementScreen.errNotApproved',
+  COMMISSION_PAID_ON_INVALID: 'commissionStatementScreen.errPaidOnInvalid',
+  COMMISSION_PAYABLE_TOO_LARGE: 'commissionStatementScreen.errPayableTooLarge',
+  VALIDATION_FAILED: 'commissionStatementScreen.errPaymentValidation',
+  IDEMPOTENCY_KEY_REUSED: 'commissionStatementScreen.errKeyReused',
+  IDEMPOTENCY_KEY_REQUIRED: 'commissionStatementScreen.errKeyRequired',
+  NOT_READY: 'commissionStatementScreen.errNotReady',
   COMMISSION_STATEMENT_BLOCKED: 'commissionStatementScreen.errBlocked',
   COMMISSION_UPDATES_PENDING: 'commissionStatementScreen.errUpdatesPending',
   COMMISSION_COVERAGE_NOT_PROVEN: 'commissionStatementScreen.errCoverageNotProven',

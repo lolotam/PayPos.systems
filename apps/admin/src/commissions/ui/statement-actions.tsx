@@ -4,7 +4,6 @@ import { t } from '@pospay/i18n';
 import { Button } from '@pospay/ui';
 import { useLocale } from '@/shared/locale/locale-context';
 import type { StatementActions as Actions, ActionState } from '../model/statement-display';
-import { StatementExtraActions } from './statement-extra-actions';
 
 /** أمر الزرار اللي المستخدم ضغطه، عشان الصفحة تفتح حوار التأكيد بتاعه. */
 export type StatementPick = 'generate' | 'review' | 'return' | 'approve';
@@ -46,7 +45,6 @@ export function StatementActions({
       <Action state={actions.review} variant="primary" label={t(locale, 'commissionStatementScreen.review')} onClick={() => onPick('review')} />
       <Action state={actions.returnToDraft} variant="outline" label={t(locale, 'commissionStatementScreen.returnToDraft')} onClick={() => onPick('return')} />
       <Action state={actions.approve} variant="primary" label={t(locale, 'commissionStatementScreen.approve')} onClick={() => onPick('approve')} />
-      <StatementExtraActions />
     </div>
   );
 }

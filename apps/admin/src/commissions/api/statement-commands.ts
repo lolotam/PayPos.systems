@@ -2,7 +2,9 @@ import type {
   CommissionStatementApproveRequest,
   CommissionStatementReturnInput,
   CommissionStatementReviewInput,
+  MarkCommissionStatementPaidInput,
 } from '@pospay/contracts';
+import { payStatement } from './statement-pay-client';
 import {
   approveStatement,
   generateStatement,
@@ -17,7 +19,8 @@ export type StatementCommand =
   | { kind: 'generate' }
   | { kind: 'review'; body: CommissionStatementReviewInput }
   | { kind: 'return'; body: CommissionStatementReturnInput }
-  | { kind: 'approve'; body: CommissionStatementApproveRequest };
+  | { kind: 'approve'; body: CommissionStatementApproveRequest }
+  | { kind: 'pay'; body: MarkCommissionStatementPaidInput };
 
 /**
  * طلب التنفيذ: الأمر، وهوية فتحة الحوار اللي طلعته (مفتاح المحاولة بيعيش معاها بس)، والنسخة اللي المستخدم
@@ -84,6 +87,11 @@ export async function executeStatementCommand(
   cached: StatementReading | undefined,
 ): Promise<StatementReading | undefined> {
   const { scope, period } = target;
+  if (command.kind === 'pay') {
+    const payment = await payStatement(target, key, command.body);
+    if (cached?.reader_scope !== 'BUSINESS' || !('input_fingerprint' in cached)) return undefined;
+    return { ...cached, status: payment.status, payment };
+  }
   if (command.kind === 'generate') return generateStatement(scope, period, key);
   if (command.kind === 'approve') return approveStatement(scope, period, key, command.body);
   if (command.kind === 'review') {

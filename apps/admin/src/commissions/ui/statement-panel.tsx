@@ -9,6 +9,8 @@ import { StatementActions } from './statement-actions';
 import { StatementChangedNotice } from './statement-changed-notice';
 import { StatementCommandDialog } from './statement-command-dialog';
 import { StatementEmployeeCard } from './statement-employee-card';
+import { StatementExtraActions } from './statement-extra-actions';
+import { StatementPaymentBlock } from './statement-payment-block';
 import { useStatementDialog } from './use-statement-dialog';
 
 const NS = 'commissionStatementScreen';
@@ -36,6 +38,8 @@ export function StatementPanel(props: {
         generated={isGenerated(reading)}
         onPick={(pick) => dialog.show(pick, reading)}
       />
+      <StatementExtraActions scope={scope} period={period} reading={reading} stale={stale} onReload={onReload} />
+      <StatementPaymentBlock reading={reading} />
       {dialog.done === null ? null : <p role="status">{t(locale, dialog.done)}</p>}
       {reading.employees.length === 0 ? <p>{t(locale, `${NS}.noEmployees`)}</p> : null}
       {reading.employees.map((employee) => (

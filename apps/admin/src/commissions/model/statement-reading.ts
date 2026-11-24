@@ -42,7 +42,12 @@ export function isClosedReading(reading: StatementReading): reading is ClosedSta
 
 /** هل الرد لقارئ النشاط كله على شهر مفتوح، يعني فيه بصمات ومسموح له بأزرار الكتابة. */
 export function isOpenBusinessReading(reading: StatementReading): reading is CommissionStatementView {
-  return reading.reader_scope === 'BUSINESS' && !isClosedReading(reading);
+  return isBusinessReading(reading) && !isClosedReading(reading);
+}
+
+/** نفس نطاق القراءة المطلوب للاعتماد والصرف؛ حالة الشهر بتحدد الأمر المتاح بعد كده. */
+export function isBusinessReading(reading: StatementReading): reading is CommissionStatementView | CommissionClosedStatementView {
+  return reading.reader_scope === 'BUSINESS';
 }
 
 /** هل الكشف اتولّد: الشهر المغلق دايمًا متولّد، والمفتوح بحسب علم السيرفر. */

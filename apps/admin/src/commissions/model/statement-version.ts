@@ -5,6 +5,7 @@ import { statusOf } from './statement-display';
  * بصمة النسخة اللي المستخدم شافها من الكشف: الحالة، وهل اتولّد، والبصمتين الحاليتين، وبصمتَي المراجعة.
  * بتتاخد لحظة فتح حوار الأمر، وبتتقارن بقراءة جديدة قبل الإرسال: أي اختلاف معناه إن الكشف اتغيّر تحت
  * إيد المستخدم. مراجعة تانية على مدخلات ما اتغيّرتش بتدّي نفس البصمات، فالعميل ما يقدرش يكشفها.
+ * الشهر المغلق بيستخدم بصمتَي الاعتماد المجمّدتين، عشان حوار الصرف يرفض اختلاف أي واحدة منهم.
  *
  * @param reading قراءة الكشف
  * @returns نص بيتساوى بس لو النسخة نفسها
@@ -17,6 +18,8 @@ export function statementVersion(reading: StatementReading): string {
         reading.reviewed_fingerprint,
         reading.reviewed_statement_fingerprint,
       ]
-    : [];
+    : reading.reader_scope === 'BUSINESS' && 'input_fingerprint' in reading
+      ? [reading.input_fingerprint, reading.statement_fingerprint]
+      : [];
   return JSON.stringify([statusOf(reading), isGenerated(reading), ...prints]);
 }
