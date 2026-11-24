@@ -129,12 +129,20 @@ it('uses the limit saved on the settings page in the weekly grid', async () => {
   await waitFor(() => expect(api.PUT).toHaveBeenCalledOnce());
   settings.unmount();
 
+  const weekReads = () =>
+    api.GET.mock.calls.filter(
+      ([path]) => path === '/v1/businesses/{businessId}/branches/{branchId}/schedules',
+    ).length;
+  const readsBeforeReturn = weekReads();
   const weekly = render(
     <QueryClientProvider client={client}>
       <SchedulesPage scope={scope} branch={branch} />
     </QueryClientProvider>,
   );
   await screen.findByText('Synthetic employee');
+  // الشبكة المخزّنة تظهر فورًا؛ ننتظر إعادة القراءة التي سبّبها الحفظ قبل أن نختبر الحد.
+  await waitFor(() => expect(weekReads()).toBe(readsBeforeReturn + 1));
+  await waitFor(() => expect(client.isFetching()).toBe(0));
   fireEvent.click(
     screen.getByRole('button', { name: `${t('en', 'shell.schedule_edit')} Synthetic employee ${day}` }),
   );
