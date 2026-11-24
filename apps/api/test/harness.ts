@@ -48,6 +48,7 @@ export {
   readCommissionReviewAccess,
   readCommissionScope,
   readExplicitCompanyFeature,
+  readCommissionStatementPayAccess,
 } from '../src/modules/identity/index.ts';
 export { pendingCommissionEvents } from '../src/modules/commissions/index.ts';
 export {
@@ -77,7 +78,7 @@ export interface Harness {
   readonly auth: AuthService;
   readonly redis: Redis;
   readonly ownerUrl: string;
-  readonly urls: { readonly app: string; readonly auth: string; readonly owner: string };
+  readonly urls: { readonly app: string; readonly auth: string; readonly owner: string; readonly dispatcher: string };
   /**
    * What reached the database boundary, in order: every wrapper entered (with its tenant or user) and every SQL
    * statement executed inside it — the isolation proof asserts on the statements, not only on the wrapper calls.
@@ -253,11 +254,11 @@ interface HarnessOptions {
   trustedProxy?: readonly string[];
   /** من غير Redis مفيش حدّ على المسارات العامة، فبترد NOT_READY. */
   omitRedis?: boolean;
-  commissionsClock?: { now(): Date };
-  /** بوابة مسارات شريحة 076 (plan §1.1): الاختبارات بتفتحها عشان توصل للمسارات الجديدة. */
+  /** بوابة دخول الموظفات (FR-F1-9): المسارات ترد NOT_READY ما دامت مطفأة. */
   staffAccessRoutes?: boolean;
-  /** أصول CORS الموثوقة — الاختبار اللي بيفحص preflight بيمررها. */
+  /** الأصول المسموحة بـ CORS؛ بدونها لا يُسمح لأي أصل. */
   corsOrigins?: readonly string[];
+  commissionsClock?: { now(): Date };
   /** يلفّ غلاف قاعدة التطبيق، عشان اختبار يسجّل اتصالات معاملات الطلبات الحقيقية. */
   wrapDatabase?: (database: TenantWrappers) => TenantWrappers;
   staffOtpFactory?: (
@@ -329,6 +330,7 @@ async function prepareHarness(
         employeeCardKey: deriveEmployeeCardKey('test-secret-that-is-long-enough-for-hmac'),
         database: wrappers,
         ...optionalWiring(options),
+        ...(options.corsOrigins === undefined ? {} : { corsOrigins: options.corsOrigins }),
         ...staffWiring(options, staffOtp, auth),
         ...personalWiring(options, auth, database),
         ids,
@@ -357,7 +359,7 @@ function describeHarness(
     auth,
     redis,
     ownerUrl: testDb.ownerUrl,
-    urls: { app: testDb.appUrl, auth: testDb.authUrl, owner: testDb.ownerUrl },
+    urls: { app: testDb.appUrl, auth: testDb.authUrl, owner: testDb.ownerUrl, dispatcher: testDb.dispatcherUrl },
     calls,
     send,
     signedInOperator: operatorMaker(app, auth, testDb.ownerUrl, ids),
@@ -390,7 +392,6 @@ function optionalWiring(options: HarnessOptions) {
       : { commissionsClock: options.commissionsClock }),
     ...(options.files === undefined ? {} : { files: options.files }),
     // أصل اللوحة اللي رابط الدعوة بيتبنى عليه وساعتها؛ بوابة المسارات بتتفتح من الاختبارات اللي محتاجاها بس.
-    ...(options.corsOrigins === undefined ? {} : { corsOrigins: options.corsOrigins }),
     memberInvitations: {
       adminOrigin: ORIGIN,
       ...(options.clock === undefined ? {} : { clock: options.clock }),
@@ -400,16 +401,20 @@ function optionalWiring(options: HarnessOptions) {
 }
 
 function staffWiring(options: HarnessOptions, api: StaffOtpApi | undefined, auth: AuthService) {
-  return options.staffOrigin === undefined
-    ? {}
-    : {
-        staff: {
-          api: api ?? null,
-          sessions: auth.staff ?? null,
-          origin: options.staffOrigin,
-          nativeOrigins: options.staffNativeOrigins ?? [],
-        },
-      };
+  // بوابة دخول الموظفات: الاختبارات التي تحتاج المسارات تشغّلها صراحةً (FR-F1-9).
+  const gate = options.staffAccessRoutes === true ? { staffAccessRoutes: true } : {};
+  const origins =
+    options.staffOrigin === undefined
+      ? {}
+      : {
+          staff: {
+            api: api ?? null,
+            sessions: auth.staff ?? null,
+            origin: options.staffOrigin,
+            nativeOrigins: options.staffNativeOrigins ?? [],
+          },
+        };
+  return { ...gate, ...origins };
 }
 
 // الجلسة الشخصية لها مصدر وجلسة وأهلية؛ من غير ما تتركب المسار الشخصي مرفوض.

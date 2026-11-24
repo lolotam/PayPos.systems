@@ -5,6 +5,7 @@ import type { AuditTrail } from '../../../shared/ports/audit-trail.port.ts';
 export interface StaffPinRecord {
   readonly id: string;
   readonly hash: string;
+  readonly temporary?: boolean;
 }
 /** معاملة الشركة وحدها تقرأ أو تبدل الاعتماد وتكتب أثر المدير الحقيقي. */
 export interface StaffPinScope {
@@ -16,7 +17,7 @@ export interface StaffPinScope {
    */
   member(userId: string): Promise<boolean>;
   /**
-   * لا تعيد PIN ولا أي بيانات مستخدم عالمي.
+   * لا تعيد PIN ولا أي بيانات مستخدم عالمي. حالة المؤقت ترجع مع الـ hash عشان المقارنة وعداد الغلطات يفضلوا لنفس المستخدم قبل الرفض (FR-F2-2).
    *
    * @param userId صاحب الاعتماد
    */

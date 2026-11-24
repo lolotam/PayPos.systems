@@ -55,6 +55,7 @@ const expectations: Record<string, readonly string[]> = {
     'manage:schedules:business',
     'read:commissions:business',
     'review:commissions:business',
+    'pay:commissions:business',
   ],
   business_manager: [
     'approve:discounts:branch',
@@ -108,6 +109,7 @@ const expectations: Record<string, readonly string[]> = {
     'read:attendance:branch',
     'manage:commission-plans:business',
     'read:commissions:business',
+    'pay:commissions:business',
   ],
   branch_manager: [
     'approve:discounts:branch',
@@ -135,6 +137,7 @@ const expectations: Record<string, readonly string[]> = {
     'read:service-categories:branch',
     'manage:service-categories:branch',
     'read:commissions:business',
+    'manage:staff-access:branch',
   ],
   shift_supervisor: ['read:branches:branch', 'clock:attendance:branch'],
   cashier: [
@@ -174,6 +177,18 @@ it('CS-Q27 manage:commission-plans:business defaults to owner and accountant, th
   const code = 'manage:commission-plans:business';
   expect(ROLE_DEFAULTS[code]).toEqual(['owner', 'accountant']);
   expect(OWNER_GRANTED_PERMISSIONS).toContain(code);
+  for (const role of SYSTEM_ROLES) {
+    expect(systemRolePolicy(role.id, 'global')?.permissions.includes(code)).toBe(
+      role.code !== 'device',
+    );
+  }
+});
+
+it('CS-Q4 pay:commissions:business defaults to the owner, the general manager and the accountant, is delegable to humans and never the device', () => {
+  const code = 'pay:commissions:business';
+  const defaults = ['owner', 'general_manager', 'accountant'];
+  expect(ROLE_DEFAULTS[code]).toEqual(defaults);
+  expect(OWNER_GRANTED_PERMISSIONS as readonly string[]).not.toContain(code);
   for (const role of SYSTEM_ROLES) {
     expect(systemRolePolicy(role.id, 'global')?.permissions.includes(code)).toBe(
       role.code !== 'device',

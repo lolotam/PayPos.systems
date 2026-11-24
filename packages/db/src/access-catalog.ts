@@ -66,6 +66,8 @@ export const PERMISSIONS = [
   'create:customers:company',
   'create:customers:business',
   'create:customers:branch',
+  // إعطاء/إيقاف دخول الموظفة على فرعها الأساسي: المالك ومدير الفرع افتراضياً (قرار D3)، والجهاز ممنوع منها.
+  'manage:staff-access:branch',
   'manage:memberships:company',
   'manage:memberships:business',
   'manage:discounts:company',
@@ -92,6 +94,8 @@ export const PERMISSIONS = [
   'review:commissions:business',
   // اعتماد كشف العمولة الشهري: المالك وحده يمنحها (CS-Q5، CS-Q37 = PP-101.1).
   'approve:commissions:business',
+  // صرف كشف الشهر: القرار CS-Q4 (المالك والمدير العام والمحاسب افتراضياً، وقابلة للمنح لأي دور بشري).
+  'pay:commissions:business',
   'view:notifications:business',
   // صلاحية منصة: بتتدي بـ pnpm platform:grant بس، وعمرها ما بتبقى في role شركة (ADR-0003 §3).
   'create:companies:platform',

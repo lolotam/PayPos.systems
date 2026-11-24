@@ -127,6 +127,7 @@ other tenant tables; indexes on the RLS column and every foreign key):
 | `membership_id` | the membership this record manages; every later change addresses the membership by this id |
 | `role_code`, `branch_id` | what was granted |
 | `state` | `PENDING`, `ACTIVE`, `STOPPED`, `PHONE_CHANGING` |
+| `attempt_id`, `attempt_started_at` | the current grant attempt: a new id and start time when the record is created and on every re-grant of a `STOPPED` record (the `operation_id` stays). Provisioning and the commit refuse a request whose attempt is no longer current; the 24-hour cancel rule is measured from `attempt_started_at` |
 | `granted_by`, `created_at`, `updated_at` | audit helpers; the audit log stays the record |
 
 `staff/use-cases/grant-employee-access/` orchestrates; it contains no SQL and no arithmetic.
@@ -141,13 +142,20 @@ other tenant tables; indexes on the RLS column and every foreign key):
 Rules that follow:
 
 - No user is ever discarded because it has no session. An orphan from a crash after step 2 is always reachable
-  through its `operation_id`; a `PENDING` record older than 24 hours can be cancelled by the granter, which deletes
-  the staff user by `operation_id` in one auth transaction and the record in one tenant transaction.
+  through its `operation_id`; a `PENDING` attempt that started more than 24 hours ago can be cancelled by the granter, which deletes
+  the staff user by `operation_id` in one auth transaction and the record in one tenant transaction. A regrant record
+  retaining a committed `user_id` instead returns to STOPPED with an audit row in one tenant transaction; no
+  auth deletion or historical detachment occurs. Any phone binding changed before the crash is left as is
+  and the next grant sets it again (correction-round ruling in `owner-questions.ar.md`).
 - The synthetic email is `staff-<operation_id>@<reserved domain>`, never derived from the phone (F3 changes the
-  phone). The reserved domain is the exported constant `STAFF_SYNTHETIC_EMAIL_DOMAIN = "staff.pospay.invalid"` in `packages/auth`; G1 refuses invitations to it.
+  phone). The reserved domain is a constant in `packages/auth` and a `.invalid` name.
 - The adoption rule of revision 1 is gone: a phone that belongs to any user is refused, whatever the company.
 - Two concurrent grants for one employee serialize on the unique `(company_id, employee_id)`; two for one phone on
-  the unique phone constraint, and the loser answers `STAFF_ACCESS_PHONE_TAKEN`.
+  the unique phone constraint, and the loser answers `STAFF_ACCESS_PHONE_TAKEN` (a violation of `user_phone_number_key`
+  raised after the read is translated to the same answer). A confirmed refusal releases the attempt in the same tenant
+  transaction once the auth side proves no account was written for it: a new record is deleted, a re-grant returns to
+  `STOPPED`; an uncertain outcome keeps the record. Before the auth step the granter's authority and the employee link
+  are checked again under the company lock.
 - `create-employee` and `update-employee` refuse to set or change `user_id` to a staff user, and refuse any change
   of `user_id` for an employee that has an access record (FR-F1-8). `employeeUserLinkAvailable` gets the same rule.
 

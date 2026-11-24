@@ -181,8 +181,12 @@ The consumer owns the interface. The adapter lives in the consumer's `persistenc
 | worker `commissions` | `PackageSaleCoverageReader` | worker `orders` | every sold package entitlement of the company (`SOLD` only, imports excluded) with its latest revision, paged by entitlement id, read by `listCurrentPackageSales` on the report's tenant transaction and bound at the same composition root; used only to prove coverage, never to build a projection, and it returns no event ids (owner answer CS-Q51, 2026-11-21: the retained-event replay projects and discharges, the reader verifies fail-closed; ADR-0054 §4 addendum, 50-4); no import arrow |
 | worker `commissions` | `SalaryCoverageReader` | worker `staff` | the salary history as (employee, effective date, revision), soft-deleted employees included, paged by employee and date, read by `readSalaryCoveragePage` on the report's tenant transaction and bound at the same composition root; coverage proof only; no import arrow (spec 059 CS-Q42, ADR-0054 §4 addendum 2026-11-12, 50-3c) |
 | worker `commissions` | `CoverageCompanyReader` | worker `tenancy` | the company exists and is not deleted, read by `companyOpen` on the report's tenant transaction and bound at the worker composition root apps/worker/src/report-commission-coverage.ts; scope check only; no import arrow (spec 059, 50-3c review round 3) |
+| worker `commissions` | `CoverageTipExistenceReader` | worker `orders` | an original tip revision exists after the PostgreSQL bound, with no upper date cap; `createSessionTipsAfterBoundReader` checks the business and tenant under `withTenant`, bound only at `apps/worker/src/issue-commission-coverage.ts`; no import arrow or new grant (ADR-0054 §6, #1223 item 13, 53-2 B1) |
+| worker `orders` | `SessionTipBusinessReader` | worker `tenancy` | business existence from `businessTimeZone` on the same tenant transaction; bound at the issuance CLI root so Orders queries read no tenancy table directly; no import arrow (53-2 B1) |
+| worker `commissions` | `CoverageIssuanceDependencies.businessIds` | worker `tenancy` | all company business ids from `coverageBusinessIds` under `withTenant`; bound at the issuance CLI root to reject partial dry-run scopes as well as partial issuance; no import arrow (53-2 B1) |
 | worker `commissions` | `CoverageBusinessReader` | worker `tenancy` | a business named in the coverage report's tip scope belongs to the company, answered by `businessTimeZone` (null for another company's or an unknown business) on the report's tenant transaction under `withTenant` as `pospay_app` and bound at the worker composition root apps/worker/src/report-commission-coverage.ts; scope check only, so a foreign business is refused with `COMMISSION_COVERAGE_SCOPE_INVALID` instead of reading nothing and printing `COVERED`; no import arrow, no new role, no new grant (issue #1032, spec 059 delivery R9) |
 | `commissions` | `CommissionPlanAccessPort` | `identity` | the locked recheck of `manage:commission-plans:business` and the `commissions` feature inside plan-version and service-override transactions, including before idempotent replay (FR-010); bound at the composition root, no import arrow (ADR-0054 §4, 49-1) |
+| `commissions` | `CommissionStatementPayAccessPort` | `identity` | the locked recheck of `pay:commissions:business` (CS-Q4), business-wide read (54-1-PAY-1) and the `commissions` feature inside the mark-statement-paid transaction, including before idempotent replay (CM-42); bound at the composition root, no import arrow (54-1) |
 | `commissions` | `EmployeeRowLockPort` | `staff` | the `FOR NO KEY UPDATE` lock on the employee row before version allocation or service-override writes (FR-008, FR-012); bound at the composition root, no import arrow (ADR-0054 §4, 49-1) |
 | `commissions` | `CommissionServiceReaderPort` | `catalog` | service existence in the target business on the writer's transaction through root-bound readSessionServices; the live catalog rule never replaces a historical line snapshot (FR-011, ADR-0054 §4, 49-1; no import arrow) |
 | `commissions` | `CommissionServiceOverrideListReads` (read-side interface beside the query) | `identity`, `staff`, `tenancy`, `catalog` | unlocked permission/feature recheck through readCommissionPlanListAccess, active employee existence through employeeExistsInBusiness, the business timezone through businessTimeZone, and since 49-2a the override screen's service page through readCommissionOverrideServices (CS-Q49 name, catalog rule and price; CS-Q50 closed included) on the same read transaction; callback adapter bound at app.ts, without a write port, cross-context join or import arrow (FR-013, FR-013a, ADR-0054 §4, 49-1 and 49-2a) |
@@ -230,6 +234,16 @@ The consumer owns the interface. The adapter lives in the consumer's `persistenc
 | Consumer   | Port it defines   | Writes to                                                       | Why not an event                                                                                                                             |
 | ---------- | ----------------- | --------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
 | `identity` | `CompanyRegistry` | `tenancy` (`registerCompany`, exported from `tenancy/index.ts`) | `onboard-company` creates the company and its first owner membership in one transaction; a company without an owner must never be observable |
+
+**The spec 076 bounded exception (ADR-0063, provisional number).** The staff use case `grant-employee-access`
+opens the tenant transaction and identity functions write inside it and on the auth side: a membership and a
+temporary PIN inside the caller's `tx` (`grantStaffMembership`, `saveTemporaryStaffPin`), and the staff user in
+its own auth transaction (`provisionStaffUser`, `cancelStaffUser`). Only `identity` imports `packages/auth`, so
+`staff` reaches all of them through identity's `index.ts` with the caller's transaction, the existing pattern of
+`employeeUserLinkAvailable` and `lockEmployeeManagementAccess`. An event cannot serve: the grant must refuse on
+the employee lock and end in one observable final state per operation id (FR-F1-6). Each arrow below is checked
+by `pnpm module-map:check` against the real files, and the alternative — identity writing `employees` — would put
+an HR table in identity.
 
 No other port may write. A second synchronous write needs its own ADR and a row here.
 
@@ -400,12 +414,12 @@ packages_restricted:
 
 # Application composition roots may wire restricted packages (ADR-0018); never a business-module permission.
 composition_roots:
-  auth: [apps/api/src/app.ts, apps/api/src/main.ts, apps/worker/src/worker.ts, apps/worker/src/start-optional-capabilities.ts, apps/worker/src/rating-token-capability.ts]
-  staff-otp-db: [packages/auth/src/staff-otp/api.ts, packages/auth/src/staff-otp/execution.ts, packages/auth/src/config.ts, packages/auth/src/personal-sessions.ts, packages/auth/src/approve-phone-binding.ts, packages/auth/src/operator/staging-staff-identity.ts]
+  auth: [apps/api/src/app.ts, apps/api/src/app-dependencies.ts, apps/api/src/main.ts, apps/worker/src/worker.ts, apps/worker/src/start-optional-capabilities.ts, apps/worker/src/rating-token-capability.ts]
+  staff-otp-db: [packages/auth/src/staff-otp/api.ts, packages/auth/src/staff-otp/execution.ts, packages/auth/src/config.ts, packages/auth/src/auth-session-primitives.ts, packages/auth/src/personal-sessions.ts, packages/auth/src/approve-phone-binding.ts, packages/auth/src/staff-access-users.ts, packages/auth/src/operator/staging-staff-identity.ts]
   rating-token: [apps/worker/src/rating-token-capability.ts]
   platform-whatsapp-db: [apps/api/src/main.ts, apps/worker/src/start-optional-capabilities.ts]
   platform-email-db: [apps/api/src/main.ts, apps/worker/src/start-optional-capabilities.ts]
-  notifications: [apps/api/src/app.ts, apps/api/src/main.ts, apps/api/scripts/bind-phone.ts, apps/api/scripts/staging-staff-user.ts, apps/worker/src/worker.ts, apps/worker/src/start-optional-capabilities.ts]
+  notifications: [apps/api/src/app.ts, apps/api/src/app-dependencies.ts, apps/api/src/main.ts, apps/api/scripts/bind-phone.ts, apps/api/scripts/staging-staff-user.ts, apps/worker/src/worker.ts, apps/worker/src/start-optional-capabilities.ts]
   documents: [apps/worker/src/main.ts]
 
 # Every VALUE a module imports from another module's index.ts is one of these (type-only imports need only the
@@ -420,6 +434,10 @@ composition_roots:
 # (ADR-0010 addendum 2026-10-31).
 sync_writes:
   - identity -> tenancy.registerCompany @ apps/api/src/modules/identity/persistence/tenancy-company-registry.adapter.ts
+  - staff -> identity.grantStaffMembership @ apps/api/src/modules/staff/persistence/staff-access.adapter.ts
+  - staff -> identity.saveTemporaryStaffPin @ apps/api/src/modules/staff/persistence/staff-access.adapter.ts
+  - staff -> identity.provisionStaffUser @ apps/api/src/modules/staff/persistence/staff-access-auth.adapter.ts
+  - staff -> identity.cancelStaffUser @ apps/api/src/modules/staff/persistence/staff-access-auth.adapter.ts
 reads:
   - orders -> staff.readOwnEmployee @ apps/api/src/modules/orders/persistence/own-work-context.adapter.ts
   - orders -> identity.readOwnServiceSessionsAccess @ apps/api/src/modules/orders/persistence/own-work-context.adapter.ts
@@ -608,6 +626,15 @@ reads:
   - orders -> tenancy.packageSalePlace @ apps/api/src/modules/orders/persistence/package-sale-context.adapter.ts
   - orders -> staff.readSessionPerformerOptions @ apps/api/src/modules/orders/persistence/package-sale-context.adapter.ts
   - catalog -> tenancy.packageSalePlace @ apps/api/src/modules/catalog/persistence/package-sale-place.adapter.ts
+  - staff -> identity.staffAccessGrantedEvent @ apps/api/src/modules/staff/persistence/staff-access.adapter.ts
+  - staff -> identity.readStaffAccessAuthority @ apps/api/src/modules/staff/persistence/staff-access.adapter.ts
+  - staff -> identity.createGrantInvalidator @ apps/api/src/modules/staff/persistence/staff-access.adapter.ts
+  - staff -> identity.readStaffAccessAuthority @ apps/api/src/modules/staff/persistence/staff-access-auth.adapter.ts
+  - staff -> identity.hashStaffPin @ apps/api/src/modules/staff/persistence/staff-access-auth.adapter.ts
+  - staff -> identity.readEmployeeDetailAccess @ apps/api/src/modules/staff/persistence/employee-access-reads.adapter.ts
+  - staff -> identity.readStaffAccessState @ apps/api/src/modules/staff/persistence/employee-access-reads.adapter.ts
+  - staff -> identity.readStaffAccessAuthority @ apps/api/src/modules/staff/persistence/employee-access-reads.adapter.ts
+  - staff -> identity.readStaffUser @ apps/api/src/modules/staff/persistence/employee-access-reads.adapter.ts
 ```
 
 The check (`pnpm module-map:check`, plan v4 T12b): `docs/module-map.yaml` is generated from this block and must be

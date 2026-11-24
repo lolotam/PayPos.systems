@@ -201,7 +201,46 @@ https://plan.pospay.systems كدفعة 103 «دخول الموظفة ودعوة 
 - **التقسيم والأحجام:** مقبولة (حوالي 4,250 سطر)، بالترتيب F1 ثم G1 ثم F2 ثم F3 ثم G2.
 
 
-## د) اختيارات مؤقتة بتفويض وليد ليلة 2026-11-23
+## د) توضيح مدير جولة F1 — 2026-11-24
+
+مصدره رسالة مدير المهمة إلى المنفذ، وليس إجابة جديدة من وليد أو أبو سالم. لا يغيّر أدوار المنتج أو يوسّع الصلاحيات.
+
+> Confirmed on both points. (1) P1-11 wording was mine and too broad: assert for the `staff` role eligibility = true and attendance device access = false; for `reception` (cashier) both true. Do not widen the staff role's permissions. (2) Yes — close the cancel/provision race the way you describe (the tenant record state must gate the auth provisioning so a stale request cannot recreate a user after its deletion); keep the lock order company → employee → access record and do not hold a tenant transaction open across the auth call if that would break the connection-budget rule — a state check that the auth step re-validates by operation id is acceptable. Continue.
+
+
+## هـ — نطاق حد حجم الملفات في جولة F1
+
+- الحالة: ANSWERED من المدير المالك، 2026-11-24.
+- السؤال: هل حد 300 يشمل سجلات التصدير والتهيئة والاختبارات الموروثة التي تتجاوزه على main؟
+- التوصية: تطبيق الحد على ملفات F1 الجديدة وتوثيق الموروث، مع عدم زيادة أي ملف موروث فوق الحد الصلب بسبب F1.
+- إجابة المدير حرفياً:
+
+> Ruling on P2-2 scope: your interpretation is confirmed. Enforce ≤300 on the files F1 authors; do NOT refactor inherited registries, bootstrap files, fixtures or specs that were already over 300 on main — list them as documented exceptions in the final report. One condition: no inherited file may cross the project's hard limit of 400 lines BECAUSE of F1. Where F1's additions push a file from under 400 to over it (you name `staff.module.ts` 397 → 405 and `packages/contracts/src/index.ts` 405 — check what main has for that one), move F1's own additions out into an F1 file (e.g. the provider list into `staff-access.providers.ts`, the contract exports into a small barrel re-exported with one line) so the inherited file ends at or below its main line count or under 400, whichever is higher on main. Nothing else. Commit the pending ACTIVE-overlap regression fix, finish the gates, push, and send the final report.
+
+- التنفيذ: العد الفعلي للأسطر شاملاً الفراغات على main هو 403 لكلا الملفين، وليس 397 الذي كان يستبعد الأسطر الفارغة. صار `staff.module.ts` عند 402؛ و`contracts/src/index.ts` عند 403 عبر تصدير `StaffAccessStateRow` من سجل staff الموجود أصلاً. ملفات F1 الجديدة لا تتجاوز 300.
+
+
+## و — إلغاء إعادة منح سجل STOPPED بعد فشل الاستئناف
+
+- الحالة: ANSWERED من المدير المالك، 2026-11-24.
+- الدليل: السجل المحتفظ بـ user_id سبق التزامه؛ حذفه على auth يصطدم بمراجع الموظفة والعضوية، بعد أن تكون الحالة انتقلت إلى CANCELLING.
+- إجابة المدير حرفياً:
+
+> Ruling on the STOPPED→PENDING re-grant cancel: good catch. Never delete a previously committed account and never detach historical references. But do not leave the record stuck in PENDING either (a granter who typed a wrong phone must have a way back). So: when the record carries a committed `user_id` (it came from STOPPED), «cancel» does NOT go through CANCELLING/DELETE — it returns the record to `STOPPED` in one tenant transaction (same authority and same 24-hour rule as the normal cancel, audit row written), deleting nothing on auth and leaving the membership ended and the PIN cleared as they were. If the auth step of the re-grant had already changed the phone binding before the crash, leave the binding as it is and say so in the port's doc comment (the next grant sets it again; no session or PIN exists in STOPPED). A fresh record (no `user_id`) keeps the CANCELLING → delete user → delete record path. Add the reproduction test for the stuck case and a test that the STOPPED record can be granted again afterwards. Then commit, push, final report.
+
+- التنفيذ المطلوب: استعادة STOPPED مع audit دون auth للحساب السابق، مع اختبار الفشل قبل auth وبعد تثبيت الهاتف، وإثبات إمكانية المنح مرة أخرى.
+
+
+## ز — تخفيف المالك لحد حجم الملف
+
+- الحالة: ANSWERED من وليد عبر المدير المالك، 2026-11-24.
+- التوجيه الأحدث حرفياً:
+
+> Owner relaxation on file size (Waleed, 2026-11-24): do not spend any more effort splitting files only to get under 300 lines. A file between 300 and 400 lines is acceptable (ESLint only warns there). The hard stop stays 400, because `max-lines` errors at 400 and fails CI. Do not undo splits already made; just stop doing new ones for that reason. Everything else in your instructions stands: finish the STOPPED-record cancel fix and its tests, commit, push `feat/076-f1-staff-access-2`, final report.
+
+- التنفيذ: لا تقسيم جديد للحجم وحده ولا تراجع عن التقسيم السابق؛ بوابة ESLint الصلبة باقية.
+
+## و) اختيارات مؤقتة بتفويض وليد ليلة 2026-11-23
 
 وليد نام وكتب: «اذا احتجت قرار اختار ال Reccomended علشان ما نوقفش الشغل لحين ابعتلك رسالة اني صحيت». كل بند هنا اختيار
 مؤقت لحد ما يصحى ويأكده أو يغيّره.

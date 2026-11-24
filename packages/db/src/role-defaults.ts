@@ -108,6 +108,9 @@ export const ROLE_DEFAULTS = {
   'manage:employee-number:company': ['owner'],
   'read:memberships:company': ['owner'],
   'manage:memberships:company': ['owner'],
+  // قرار D3 (دفعة 103): إعطاء دخول الموظفة للمالك ومدير الفرع افتراضياً، وهو نهائي على الفرع الأساسي
+  // بيتحسم في السيرفر جوه المعاملة، والتفويض الشخصي مغلق عليه في system-role-policy.
+  'manage:staff-access:branch': ['owner', 'branch_manager'],
   'read:memberships:business': ['owner'],
   'manage:memberships:business': ['owner'],
   'read:businesses:company': ['owner', 'general_manager', 'accountant', 'viewer'],
@@ -147,6 +150,8 @@ export const ROLE_DEFAULTS = {
   'review:commissions:business': managers,
   // CS-Q5 (2026-10-21): اعتماد كشف العمولة للمالك وحده افتراضياً، والمالك وحده يمنحها أو يسحبها.
   'approve:commissions:business': ['owner'],
+  // قرار CS-Q4: الصرف للمالك والمدير العام والمحاسب افتراضياً، وقابلة للمنح لأي دور بشري، والجهاز ممنوع.
+  'pay:commissions:business': ['owner', 'general_manager', 'accountant'],
   'view:notifications:business': managers,
   'manage:employees:business': managers,
   'read:services:business': managers,

@@ -14,7 +14,12 @@ import type {
   Transaction,
 } from '../ports/onboarding.port.ts';
 
-function scopeFor(tx: Tx, companyId: string, ids: IdGenerator): OnboardingScope {
+function scopeFor(
+  tx: Tx,
+  companyId: string,
+  ids: IdGenerator,
+  staffCompanyOf: (userId: string) => Promise<string | null>,
+): OnboardingScope {
   return {
     tx: tx as unknown as Transaction,
     companyId,
@@ -22,6 +27,9 @@ function scopeFor(tx: Tx, companyId: string, ids: IdGenerator): OnboardingScope 
     planExists: async (planId) =>
       (await tx.execute(sql`SELECT 1 FROM plans WHERE id = ${planId}`)).length === 1,
     addOwnerMembership: async (membershipId, userId) => {
+      const staffCompany = await staffCompanyOf(userId);
+      if (staffCompany !== null && staffCompany !== companyId)
+        throw new Error('STAFF_USER_MEMBERSHIP_REFUSED');
       await tx.execute(sql`
         INSERT INTO memberships (company_id, id, user_id, role_id, role_owner_key, scope_type, scope_id)
         VALUES (${companyId}, ${membershipId}, ${userId}, ${OWNER_ROLE_ID}, 'global', 'COMPANY', ${companyId})`);
@@ -37,12 +45,13 @@ function scopeFor(tx: Tx, companyId: string, ids: IdGenerator): OnboardingScope 
 export function createOnboardingTransactions(
   db: TenantWrappers,
   ids: IdGenerator,
+  staffCompanyOf: (userId: string) => Promise<string | null>,
 ): OnboardingTransactions {
   return {
     run: (userId, idempotency, work) =>
       db.withNewTenant(userId, (tx, companyId) =>
         runIdempotent(tx, { scope: 'USER', operation: 'onboard-company', ...idempotency }, () =>
-          work(scopeFor(tx, companyId, ids)),
+          work(scopeFor(tx, companyId, ids, staffCompanyOf)),
         ),
       ),
   };

@@ -8,6 +8,7 @@ import { lockStatementPeriods } from '@pospay/db';
 import { afterEach, beforeEach, expect, it } from 'vitest';
 
 import { insertCommissionLineProjection } from '../../../../../../packages/db/test/commission-line-fixtures.ts';
+import { payApprovedStatement } from '../../../../../../packages/db/test/commission-statement-fixtures.ts';
 import { insertTipSalary } from '../../../../../../packages/db/test/commission-tip-salary-fixtures.ts';
 import { createCommissionPeriodRepairScope } from '../persistence/commission-period-repair-scope.ts';
 import { repairCommissionPeriod } from '../use-cases/repair-commission-period/repair-commission-period.usecase.ts';
@@ -220,8 +221,11 @@ it('a repair that prices a real line to the amount already frozen (zero differen
 
 it('a PAID source month is repaired like an APPROVED one: the correction lands in the DRAFT month', async () => {
   const seeded = await seedFlat([{ id: LB, date: '2026-09-10', net: '200.000' }]);
-  await r.h.owner`UPDATE commission_statements SET status='PAID'
+  const [september] = await r.h.owner`SELECT id FROM commission_statements
     WHERE company_id=${r.company} AND period='2026-09'`;
+  await r.db.withTenant(r.company, (tx) =>
+    payApprovedStatement(tx, r.tenant, september?.['id'] as string, ids, r.userId),
+  );
 
   const response = await r.repair(body, 'paid-source');
 

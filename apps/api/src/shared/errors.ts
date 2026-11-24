@@ -14,6 +14,7 @@ import {
   MEMBER_INVITATION_RAISED_BY_THE_API_ONLY,
   MEMBER_INVITATION_STATUS,
 } from './member-invitation-error-statuses.ts';
+import { STAFF_ACCESS_STATUS } from './staff-access-error-statuses.ts';
 
 // Every error the API returns and its HTTP status; the messages, in both languages, live in packages/i18n (CLAUDE.md
 // §6, §7). A new code is added to both, never inlined — the type refuses a code with no message.
@@ -192,6 +193,7 @@ const STATUS = {
   ...PACKAGE_SALE_STATUS,
   ...PACKAGE_READ_STATUS,
   ...PACKAGE_CHANGE_STATUS,
+  ...STAFF_ACCESS_STATUS,
 } as const satisfies Record<ErrorMessageCode, number>;
 
 export type ErrorCode = keyof typeof STATUS;
@@ -305,10 +307,8 @@ const RAISED_BY_THE_API_ONLY: ReadonlySet<ErrorCode> = new Set<ErrorCode>([
   'EMPLOYEE_USER_ALREADY_LINKED',
   'EMPLOYEE_NUMBER_EXHAUSTED',
   'EMPLOYEE_NUMBER_TAKEN',
-  'EMPLOYEE_NUMBER_START_ALREADY_SET',
-  'EMPLOYEE_CARD_CODE_UNAVAILABLE',
-  'ALERT_RULE_INVALID',
-  'ALERT_RULE_REVISION_CONFLICT',
+  'EMPLOYEE_NUMBER_START_ALREADY_SET', 'EMPLOYEE_CARD_CODE_UNAVAILABLE',
+  'ALERT_RULE_INVALID', 'ALERT_RULE_REVISION_CONFLICT',
   ...(Object.keys(PACKAGE_TYPE_STATUS) as ErrorCode[]),
   'DISCOUNT_APPROVAL_NOT_NEEDED',
   'DISCOUNT_PROPOSAL_NOT_PENDING',
@@ -327,9 +327,7 @@ const RAISED_BY_THE_API_ONLY: ReadonlySet<ErrorCode> = new Set<ErrorCode>([
   'RENDERER_UNAVAILABLE',
   'DOCUMENT_NOT_READY',
   'DOCUMENT_EXPIRED',
-  'PERMISSION_NOT_HELD',
-  'PERMISSION_SELF_EDIT',
-  'PERMISSION_OWNER_PROTECTED',
+  'PERMISSION_NOT_HELD', 'PERMISSION_SELF_EDIT', 'PERMISSION_OWNER_PROTECTED',
   'PERMISSION_SCOPE_OUTSIDE_REACH',
   'PERMISSION_ROLE_FORBIDDEN',
   'PERMISSION_ROLE_NOT_ELIGIBLE',
@@ -357,6 +355,7 @@ const RAISED_BY_THE_API_ONLY: ReadonlySet<ErrorCode> = new Set<ErrorCode>([
   'IDEMPOTENCY_KEY_REQUIRED',
   'IDEMPOTENCY_KEY_IN_PROGRESS',
   'IDEMPOTENCY_KEY_REUSED',
+  ...(Object.keys(STAFF_ACCESS_STATUS) as ErrorCode[]),
   ...(Object.keys(CATALOG_SERVICE_STATUS) as ErrorCode[]),
   ...(Object.keys(PACKAGE_SALE_STATUS) as ErrorCode[]),
   ...(Object.keys(PACKAGE_READ_STATUS) as ErrorCode[]),

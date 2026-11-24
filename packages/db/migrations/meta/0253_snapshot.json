@@ -1,5 +1,5 @@
 {
-  "id": "150ac70c-60fa-4315-a5b6-233ba54fb9b5",
+  "id": "2f1d109f-d7e9-4d2c-8bbe-4d062f2f0082",
   "prevId": "d5c2ed57-dad6-44d8-afd0-d28c22b7e33b",
   "version": "7",
   "dialect": "postgresql",
@@ -4485,18 +4485,6 @@
           "primaryKey": false,
           "notNull": false
         },
-        "invited_by_company_id": {
-          "name": "invited_by_company_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "invitation_operation_id": {
-          "name": "invitation_operation_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": false
-        },
         "created_at": {
           "name": "created_at",
           "type": "timestamp with time zone",
@@ -4542,21 +4530,6 @@
           "concurrently": false,
           "method": "btree",
           "with": {}
-        },
-        "user_invitation_operation_id_key": {
-          "name": "user_invitation_operation_id_key",
-          "columns": [
-            {
-              "expression": "invitation_operation_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": true,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
         }
       },
       "foreignKeys": {},
@@ -4575,10 +4548,6 @@
         "user_name_length": {
           "name": "user_name_length",
           "value": "char_length(\"user\".\"name\") BETWEEN 1 AND 255"
-        },
-        "user_invitation_marker": {
-          "name": "user_invitation_marker",
-          "value": "num_nonnulls(\"user\".\"invited_by_company_id\", \"user\".\"invitation_operation_id\") <> 1"
         }
       },
       "isRLSEnabled": false
@@ -5589,275 +5558,6 @@
         "roles_name_ar_length": {
           "name": "roles_name_ar_length",
           "value": "\"roles\".\"name_ar\" IS NULL OR char_length(\"roles\".\"name_ar\") BETWEEN 1 AND 255"
-        }
-      },
-      "isRLSEnabled": false
-    },
-    "public.member_invitations": {
-      "name": "member_invitations",
-      "schema": "",
-      "columns": {
-        "company_id": {
-          "name": "company_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "id": {
-          "name": "id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "email_hash": {
-          "name": "email_hash",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "user_id": {
-          "name": "user_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "membership_id": {
-          "name": "membership_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "role_code": {
-          "name": "role_code",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "scope_type": {
-          "name": "scope_type",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "scope_id": {
-          "name": "scope_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "invited_by": {
-          "name": "invited_by",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "state": {
-          "name": "state",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "link_claimed_at": {
-          "name": "link_claimed_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "link_issued_at": {
-          "name": "link_issued_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        }
-      },
-      "indexes": {
-        "member_invitations_company_id_email_hash_live_key": {
-          "name": "member_invitations_company_id_email_hash_live_key",
-          "columns": [
-            {
-              "expression": "company_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "email_hash",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": true,
-          "where": "\"member_invitations\".\"state\" <> 'CANCELLED'",
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "member_invitations_company_id_state_idx": {
-          "name": "member_invitations_company_id_state_idx",
-          "columns": [
-            {
-              "expression": "company_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "state",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "member_invitations_company_id_user_id_idx": {
-          "name": "member_invitations_company_id_user_id_idx",
-          "columns": [
-            {
-              "expression": "company_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "user_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "member_invitations_invited_by_idx": {
-          "name": "member_invitations_invited_by_idx",
-          "columns": [
-            {
-              "expression": "invited_by",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "member_invitations_membership_idx": {
-          "name": "member_invitations_membership_idx",
-          "columns": [
-            {
-              "expression": "company_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "membership_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        }
-      },
-      "foreignKeys": {
-        "member_invitations_company_id_companies_id_fk": {
-          "name": "member_invitations_company_id_companies_id_fk",
-          "tableFrom": "member_invitations",
-          "tableTo": "companies",
-          "columnsFrom": [
-            "company_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
-        },
-        "member_invitations_user_id_user_id_fk": {
-          "name": "member_invitations_user_id_user_id_fk",
-          "tableFrom": "member_invitations",
-          "tableTo": "user",
-          "columnsFrom": [
-            "user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
-        },
-        "member_invitations_invited_by_user_id_fk": {
-          "name": "member_invitations_invited_by_user_id_fk",
-          "tableFrom": "member_invitations",
-          "tableTo": "user",
-          "columnsFrom": [
-            "invited_by"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
-        },
-        "member_invitations_membership_fk": {
-          "name": "member_invitations_membership_fk",
-          "tableFrom": "member_invitations",
-          "tableTo": "memberships",
-          "columnsFrom": [
-            "company_id",
-            "membership_id"
-          ],
-          "columnsTo": [
-            "company_id",
-            "id"
-          ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {
-        "member_invitations_pkey": {
-          "name": "member_invitations_pkey",
-          "columns": [
-            "company_id",
-            "id"
-          ]
-        }
-      },
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {
-        "member_invitations_state": {
-          "name": "member_invitations_state",
-          "value": "\"member_invitations\".\"state\" IN ('PENDING', 'ACTIVE', 'CANCELLED')"
-        },
-        "member_invitations_scope_type": {
-          "name": "member_invitations_scope_type",
-          "value": "\"member_invitations\".\"scope_type\" IN ('COMPANY', 'BUSINESS', 'BRANCH')"
-        },
-        "member_invitations_email_hash_length": {
-          "name": "member_invitations_email_hash_length",
-          "value": "char_length(\"member_invitations\".\"email_hash\") BETWEEN 40 AND 64"
         }
       },
       "isRLSEnabled": false
@@ -27229,6 +26929,42 @@
           "primaryKey": false,
           "notNull": false
         },
+        "paid_by": {
+          "name": "paid_by",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "paid_at": {
+          "name": "paid_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "paid_on": {
+          "name": "paid_on",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "paid_method": {
+          "name": "paid_method",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "paid_note": {
+          "name": "paid_note",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "payment_xact_id": {
+          "name": "payment_xact_id",
+          "type": "xid8",
+          "primaryKey": false,
+          "notNull": false
+        },
         "revision": {
           "name": "revision",
           "type": "integer",
@@ -27265,6 +27001,21 @@
           "columns": [
             {
               "expression": "approved_by",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "commission_statements_paid_by_idx": {
+          "name": "commission_statements_paid_by_idx",
+          "columns": [
+            {
+              "expression": "paid_by",
               "isExpression": false,
               "asc": true,
               "nulls": "last"
@@ -27336,6 +27087,19 @@
           "tableTo": "user",
           "columnsFrom": [
             "approved_by"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "commission_statements_paid_by_user_id_fk": {
+          "name": "commission_statements_paid_by_user_id_fk",
+          "tableFrom": "commission_statements",
+          "tableTo": "user",
+          "columnsFrom": [
+            "paid_by"
           ],
           "columnsTo": [
             "id"
@@ -27433,6 +27197,18 @@
           "name": "commission_statements_revision",
           "value": "\"commission_statements\".\"revision\" >= 0"
         },
+        "commission_statements_paid_method": {
+          "name": "commission_statements_paid_method",
+          "value": "\"commission_statements\".\"paid_method\" IS NULL OR \"commission_statements\".\"paid_method\" IN ('WITH_SALARY','BANK_TRANSFER','CASH')"
+        },
+        "commission_statements_paid_note_length": {
+          "name": "commission_statements_paid_note_length",
+          "value": "\"commission_statements\".\"paid_note\" IS NULL OR char_length(\"commission_statements\".\"paid_note\") <= 500"
+        },
+        "commission_statements_payment_stage": {
+          "name": "commission_statements_payment_stage",
+          "value": "(\"commission_statements\".\"status\" = 'PAID' AND \"commission_statements\".\"paid_by\" IS NOT NULL AND \"commission_statements\".\"paid_at\" IS NOT NULL\n          AND \"commission_statements\".\"paid_on\" IS NOT NULL AND \"commission_statements\".\"paid_method\" IS NOT NULL AND \"commission_statements\".\"payment_xact_id\" IS NOT NULL)\n        OR (\"commission_statements\".\"status\" <> 'PAID' AND \"commission_statements\".\"paid_by\" IS NULL AND \"commission_statements\".\"paid_at\" IS NULL\n          AND \"commission_statements\".\"paid_on\" IS NULL AND \"commission_statements\".\"paid_method\" IS NULL AND \"commission_statements\".\"paid_note\" IS NULL\n          AND \"commission_statements\".\"payment_xact_id\" IS NULL)"
+        },
         "commission_statements_stage": {
           "name": "commission_statements_stage",
           "value": "(\"commission_statements\".\"status\" = 'DRAFT' AND \"commission_statements\".\"reviewed_fingerprint\" IS NULL\n          AND \"commission_statements\".\"reviewed_statement_fingerprint\" IS NULL AND \"commission_statements\".\"reviewed_by\" IS NULL\n          AND \"commission_statements\".\"reviewed_membership_id\" IS NULL AND \"commission_statements\".\"reviewed_at\" IS NULL\n          AND \"commission_statements\".\"input_fingerprint\" IS NULL AND \"commission_statements\".\"statement_fingerprint\" IS NULL\n          AND \"commission_statements\".\"approved_by\" IS NULL AND \"commission_statements\".\"approved_at\" IS NULL AND \"commission_statements\".\"approval_xact_id\" IS NULL)\n        OR (\"commission_statements\".\"status\" = 'REVIEWED' AND \"commission_statements\".\"reviewed_fingerprint\" IS NOT NULL\n          AND \"commission_statements\".\"reviewed_statement_fingerprint\" IS NOT NULL AND \"commission_statements\".\"reviewed_by\" IS NOT NULL\n          AND \"commission_statements\".\"reviewed_membership_id\" IS NOT NULL AND \"commission_statements\".\"reviewed_at\" IS NOT NULL\n          AND \"commission_statements\".\"input_fingerprint\" IS NULL AND \"commission_statements\".\"statement_fingerprint\" IS NULL\n          AND \"commission_statements\".\"approved_by\" IS NULL AND \"commission_statements\".\"approved_at\" IS NULL AND \"commission_statements\".\"approval_xact_id\" IS NULL)\n        OR (\"commission_statements\".\"status\" IN ('APPROVED','PAID') AND \"commission_statements\".\"reviewed_fingerprint\" IS NOT NULL\n          AND \"commission_statements\".\"reviewed_statement_fingerprint\" IS NOT NULL AND \"commission_statements\".\"reviewed_by\" IS NOT NULL\n          AND \"commission_statements\".\"reviewed_membership_id\" IS NOT NULL AND \"commission_statements\".\"reviewed_at\" IS NOT NULL\n          AND \"commission_statements\".\"input_fingerprint\" IS NOT NULL AND \"commission_statements\".\"statement_fingerprint\" IS NOT NULL\n          AND \"commission_statements\".\"approved_by\" IS NOT NULL AND \"commission_statements\".\"approved_at\" IS NOT NULL AND \"commission_statements\".\"approval_xact_id\" IS NOT NULL\n          AND \"commission_statements\".\"statement_fingerprint\" = \"commission_statements\".\"reviewed_statement_fingerprint\")"
@@ -27440,6 +27216,194 @@
         "commission_statements_input_matches_review": {
           "name": "commission_statements_input_matches_review",
           "value": "\"commission_statements\".\"status\" NOT IN ('APPROVED','PAID') OR \"commission_statements\".\"input_fingerprint\" = \"commission_statements\".\"reviewed_fingerprint\""
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.commission_statement_payments": {
+      "name": "commission_statement_payments",
+      "schema": "",
+      "columns": {
+        "company_id": {
+          "name": "company_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "business_id": {
+          "name": "business_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "statement_id": {
+          "name": "statement_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "employee_id": {
+          "name": "employee_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "exact_payable": {
+          "name": "exact_payable",
+          "type": "numeric(14, 3)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "paid_amount": {
+          "name": "paid_amount",
+          "type": "numeric(14, 3)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "commission_statement_payments_statement_idx": {
+          "name": "commission_statement_payments_statement_idx",
+          "columns": [
+            {
+              "expression": "company_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "business_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "statement_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "commission_statement_payments_employee_idx": {
+          "name": "commission_statement_payments_employee_idx",
+          "columns": [
+            {
+              "expression": "company_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "business_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "employee_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "commission_statement_payments_company_id_companies_id_fk": {
+          "name": "commission_statement_payments_company_id_companies_id_fk",
+          "tableFrom": "commission_statement_payments",
+          "tableTo": "companies",
+          "columnsFrom": [
+            "company_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "commission_statement_payments_statement_fk": {
+          "name": "commission_statement_payments_statement_fk",
+          "tableFrom": "commission_statement_payments",
+          "tableTo": "commission_statements",
+          "columnsFrom": [
+            "company_id",
+            "business_id",
+            "statement_id"
+          ],
+          "columnsTo": [
+            "company_id",
+            "business_id",
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "commission_statement_payments_employee_fk": {
+          "name": "commission_statement_payments_employee_fk",
+          "tableFrom": "commission_statement_payments",
+          "tableTo": "employees",
+          "columnsFrom": [
+            "company_id",
+            "business_id",
+            "employee_id"
+          ],
+          "columnsTo": [
+            "company_id",
+            "business_id",
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {
+        "commission_statement_payments_pkey": {
+          "name": "commission_statement_payments_pkey",
+          "columns": [
+            "company_id",
+            "id"
+          ]
+        }
+      },
+      "uniqueConstraints": {
+        "commission_statement_payments_employee_key": {
+          "name": "commission_statement_payments_employee_key",
+          "nullsNotDistinct": false,
+          "columns": [
+            "company_id",
+            "statement_id",
+            "employee_id"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {
+        "commission_statement_payments_amounts": {
+          "name": "commission_statement_payments_amounts",
+          "value": "\"commission_statement_payments\".\"exact_payable\" >= 0 AND \"commission_statement_payments\".\"paid_amount\" >= 0\n        AND \"commission_statement_payments\".\"exact_payable\" <> 'NaN'::numeric AND \"commission_statement_payments\".\"paid_amount\" <> 'NaN'::numeric"
         }
       },
       "isRLSEnabled": false

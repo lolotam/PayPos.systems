@@ -2,11 +2,7 @@ import { createHmac, randomBytes } from 'node:crypto';
 
 import type { AuthDatabase } from '@pospay/db';
 
-/**
- * الدومين المحجوز لإيميلات حسابات الموظفين (F1). أي إيميل تحته مش قابل للدعوة، لأن حساب
- * الموظفة مالوش كلمة مرور ولا دخول لإدارة.
- */
-export const STAFF_SYNTHETIC_EMAIL_DOMAIN = 'staff.pospay.invalid';
+import { STAFF_SYNTHETIC_EMAIL_DOMAIN } from './staff-access-users.ts';
 
 /** عمر رابط الدعوة (48 ساعة) — IM-Q3؛ رابط الـ operator بيفضل ساعة. */
 export const MEMBER_INVITATION_LINK_TTL_MS = 48 * 60 * 60 * 1000;

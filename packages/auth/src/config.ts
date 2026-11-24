@@ -1,18 +1,27 @@
-import { randomBytes } from 'node:crypto';
+import { assembleAuthService } from './auth-service.ts';
+import { toLogEntry } from './auth-session-primitives.ts';
+import { staffCredentialAdapter } from './staff-credential-adapter.ts';
 
 import { drizzleAdapter } from '@better-auth/drizzle-adapter';
-import { createAuthDatabase, createStaffOtpDatabase } from '@pospay/db';
+import { createAuthDatabase } from '@pospay/db';
 import { betterAuth, type BetterAuthOptions } from 'better-auth';
 import { twoFactor } from 'better-auth/plugins';
-import { createPersonalSessions, type PersonalSessions } from './personal-sessions.ts';
-import { configuredPrivateView, type PrivateViewFacade } from './private-view.ts';
+import { type PersonalSessions } from './personal-sessions.ts';
+import { type PrivateViewFacade } from './private-view.ts';
 import { sessionCookieNames, type SessionCookieNames } from './session-cookie.ts';
-import { passkeyPolicy, registrationPlugin, isPasskeyRoute } from './passkey-policy.ts';
-import { createPasskeyFacade, type ActivePasskeyBindings, type PasskeyFacade } from './passkeys.ts';
+import { passkeyPolicy, registrationPlugin } from './passkey-policy.ts';
+import { type ActivePasskeyBindings, type PasskeyFacade } from './passkeys.ts';
+import { type StaffSessions } from './staff-sessions.ts';
+import {
+  createStaffUserAccess,
+  staffUserD8Hooks,
+  type StaffUserAccess,
+} from './staff-access-users.ts';
 import { passwordResetPlugin } from './password-reset.ts';
-import { createMemberInvitationAccounts, type MemberInvitationAccounts } from './member-invitations.ts';
-import { sessionFromRecord } from './staff-session-fence.ts';
-import { createStaffSessions, type StaffSessions } from './staff-sessions.ts';
+import {
+  createMemberInvitationAccounts,
+  type MemberInvitationAccounts,
+} from './member-invitations.ts';
 
 /**
  * ما يحتاجه Better Auth: الـ pool على pospay_auth، السر، العنوان، الـ origins المسموحة، ومولّد الـ ids.
@@ -63,8 +72,6 @@ export interface AuthLogEntry {
 }
 
 export const AUTH_BASE_PATH = '/v1/auth';
-// An operator link lives one hour (D9); an invitation link lives 48 hours (IM-Q3, members.issueInvitationLink).
-const SET_PASSWORD_LINK_TTL_MS = 60 * 60 * 1000;
 
 /**
  * الـ session اللي اتأكدنا منها — الـ ids بس، ومفيش token.
@@ -91,6 +98,8 @@ export interface AuthService {
   readonly privateView: PrivateViewFacade;
   /** جداول الهوية لعملية دعوة عضو (G1): بصمة الإيميل وحاله وإنشاء الحساب وإصدار الرابط. */
   readonly members: MemberInvitationAccounts;
+  /** حساب الموظفة: الإنشاء والإيجاد والإلغاء بمعرّف العملية — ومفيهوش أي مسار credential (spec 076 F1). */
+  readonly staffUsers: StaffUserAccess;
   /** بيرد على /v1/auth/* (sign-in، sign-out، الـ TOTP…). */
   handler(request: Request): Promise<Response>;
   /** بيرجّع الـ session لو الـ cookie صالح (ومعاها cookies التجديد)، وإلا null. */
@@ -131,63 +140,22 @@ export async function createAuth(options: AuthOptions): Promise<AuthService> {
   // قبل أي pool: بادئة cookie غلط معناها اسم cookie مش متوقع، والتطبيق لازم يقف بدل ما يخدم.
   const cookieNames = sessionCookieNames(options);
   const database = createAuthDatabase({ url: options.databaseUrl });
+  const staffUsers = createStaffUserAccess({
+    databaseUrl: options.databaseUrl,
+    phoneLockKey: options.staffPhoneLockKey,
+    marker: database,
+  });
   try {
     await database.ping();
   } catch (error) {
     await database.close();
+    await staffUsers.close();
     throw error;
   }
-  const auth = buildBetterAuth(options, database, cookieNames);
-  const staff = staffSessions(options, auth, database, cookieNames);
-  const personal = personalSessions(options, auth, database);
-  return {
-    staff,
-    personal,
-    passkeys: configuredPasskeys(options, auth, database),
-    privateView: configuredPrivateView(options, database),
-    members: await configuredMembers(options, database, auth),
-    handler: async (request) => {
-      if (
-        isPasskeyRoute(request.url) ||
-        !(await normalPurpose(staff, request.headers, options.onLog))
-      )
-        return new Response(null, { status: 403 });
-      return auth.handler(request);
-    },
-    getSession: async (headers) => {
-      if (!(await normalPurpose(staff, headers, options.onLog))) return null;
-      const { headers: out, response } = await auth.api.getSession({
-        headers,
-        returnHeaders: true,
-      });
-      if (response === null) return null;
-      return {
-        platformPermissions: await database.activePlatformPermissions(response.user.id),
-        userId: response.user.id,
-        sessionId: response.session.id,
-        activeCompanyId:
-          typeof response.session.activeCompanyId === 'string'
-            ? response.session.activeCompanyId
-            : null,
-        setCookies: out.getSetCookie(),
-      };
-    },
-    provisionUser: async (input) => provision(await auth.$context, input),
-    issuePasswordSetLink: async (userId, redirectTo) =>
-      issueSetPasswordLink(await auth.$context, userId, redirectTo),
-    discardUser: async (userId) => {
-      await (await auth.$context).internalAdapter.deleteUser(userId);
-    },
-    recordPlatformAction: (entry) =>
-      database.recordPlatformAction({ id: options.ids.newId(), ...entry }),
-    ping: () => database.ping(),
-    close: async () => {
-      await Promise.all([database.close(), staff.close(), personal.close()]);
-    },
-  };
+  const auth = buildBetterAuth(options, database, staffUsers, cookieNames);
+  const members = await configuredMembers(options, database, auth);
+  return assembleAuthService(options, database, staffUsers, members, auth, cookieNames);
 }
-
-type AuthContext = Awaited<ReturnType<typeof buildBetterAuth>['$context']>;
 
 /** حدود الدعوة على قاعدة الهوية — تركيبها هنا عشان createAuth يفضل خطوات تركيب بس. */
 async function configuredMembers(
@@ -201,50 +169,6 @@ async function configuredMembers(
     secret: options.secret,
     baseUrl: (await auth.$context).baseURL,
   });
-}
-
-async function provision(
-  context: AuthContext,
-  input: { email: string; name: string; password: string },
-): Promise<string> {
-  const { minPasswordLength, maxPasswordLength } = context.password.config;
-  if (input.password.length < minPasswordLength || input.password.length > maxPasswordLength) {
-    throw new RangeError(`password must be ${minPasswordLength}–${maxPasswordLength} characters`);
-  }
-  const hash = await context.password.hash(input.password);
-  // 'admin': provisioned by an operator, not by the user signing up.
-  const user = await context.internalAdapter.createUser(
-    { email: input.email.toLowerCase(), name: input.name, emailVerified: true },
-    { method: 'admin' },
-  );
-  try {
-    await context.internalAdapter.linkAccount({
-      userId: user.id,
-      providerId: 'credential',
-      accountId: user.id,
-      password: hash,
-    });
-  } catch (error) {
-    // The user row is already committed; without its credential it could never sign in and would block a retry.
-    await context.internalAdapter.deleteUser(user.id);
-    throw error;
-  }
-  return user.id;
-}
-
-async function issueSetPasswordLink(
-  context: AuthContext,
-  userId: string,
-  redirectTo: string,
-): Promise<string> {
-  const token = randomBytes(24).toString('base64url');
-  // The same verification row Better Auth's own reset flow writes, consumed once by POST /reset-password.
-  await context.internalAdapter.createVerificationValue({
-    value: userId,
-    identifier: `reset-password:${token}`,
-    expiresAt: new Date(Date.now() + SET_PASSWORD_LINK_TTL_MS),
-  });
-  return `${context.baseURL}/reset-password/${token}?callbackURL=${encodeURIComponent(redirectTo)}`;
 }
 
 const STAFF_SESSION_FIELDS = {
@@ -268,6 +192,7 @@ type StaffAuthConfiguration = BetterAuthOptions & {
 export function buildBetterAuth(
   options: AuthOptions,
   database: ReturnType<typeof createAuthDatabase>,
+  staffUsers: StaffUserAccess,
   cookieNames: SessionCookieNames,
 ): ReturnType<typeof betterAuth<StaffAuthConfiguration>> {
   return betterAuth<StaffAuthConfiguration>({
@@ -276,7 +201,10 @@ export function buildBetterAuth(
     basePath: AUTH_BASE_PATH,
     secret: options.secret,
     trustedOrigins: [...options.trustedOrigins],
-    database: drizzleAdapter(database.db, { provider: 'pg', schema: database.schema }),
+    database: staffCredentialAdapter(
+      drizzleAdapter(database.db, { provider: 'pg', schema: database.schema }),
+      staffUsers,
+    ),
     // Sign-up is closed (ADR-0003 §6): users are provisioned server-side by the operator script.
     emailAndPassword: {
       enabled: true,
@@ -295,6 +223,7 @@ export function buildBetterAuth(
         onLog: (entry) => options.onLog({ ...entry, errorNames: [] }),
       }),
     ],
+    databaseHooks: staffUserD8Hooks(staffUsers),
     advanced: {
       cookiePrefix: cookieNames.prefix,
       useSecureCookies: options.secureCookies,
@@ -312,137 +241,5 @@ export function buildBetterAuth(
       level: 'warn',
       log: (level, message, ...args) => options.onLog(toLogEntry(level, message, args)),
     },
-  });
-}
-
-// Better Auth's messages are a fixed phrase, then ": " and a value (a URL, an origin, an id). Only the phrase
-// survives, and only when it is plain words: no digit, no URL character, no word long enough to be a token.
-const PHRASE = /^[A-Za-z][A-Za-z '()_-]{0,99}$/;
-const LONG_WORD = /[A-Za-z_]{16,}/g;
-
-function toLogEntry(
-  level: AuthLogEntry['level'],
-  message: unknown,
-  args: readonly unknown[],
-): AuthLogEntry {
-  const phrase = typeof message === 'string' ? (message.split(':')[0] ?? '').trim() : '';
-  const safe =
-    PHRASE.test(phrase) && (phrase.match(LONG_WORD) ?? []).every((word) => /^[A-Z_]+$/.test(word));
-  const text = safe ? phrase : '[withheld]';
-  const errorNames = [message, ...args]
-    .filter((value): value is Error => value instanceof Error)
-    .map((error) => error.name);
-  return { level, message: text, errorNames };
-}
-
-function staffSessions(
-  options: AuthOptions,
-  auth: ReturnType<typeof buildBetterAuth>,
-  authDatabase: ReturnType<typeof createAuthDatabase>,
-  cookieNames: SessionCookieNames,
-): StaffSessions {
-  return createStaffSessions({
-    database: createStaffOtpDatabase({
-      url: options.databaseUrl,
-      phoneLockKey: options.staffPhoneLockKey,
-    }),
-    authDatabase,
-    secret: options.secret,
-    normalCookie: cookieNames.normal,
-    now: () => options.clock?.now() ?? new Date(),
-    primitive: {
-      create: async (userId, device, now, deadline) =>
-        (await auth.$context).internalAdapter.createSession(
-          userId,
-          false,
-          {
-            purpose: 'STAFF_POS',
-            staffDeviceContext: device,
-            staffAuthenticatedAt: now,
-            staffAbsoluteDeadline: deadline,
-            expiresAt: deadline,
-            ipAddress: null,
-            userAgent: null,
-          },
-          true,
-        ),
-      find: async (token) =>
-        (await (await auth.$context).internalAdapter.findSession(token))?.session ?? null,
-      findById: async (id) =>
-        sessionFromRecord(
-          await (
-            await auth.$context
-          ).adapter.findOne({ model: 'session', where: [{ field: 'id', value: id }] }),
-        ),
-      remove: async (token) => {
-        await (await auth.$context).internalAdapter.deleteSession(token);
-      },
-    },
-  });
-}
-
-async function normalPurpose(
-  staff: StaffSessions,
-  headers: Headers,
-  log: AuthOptions['onLog'],
-): Promise<boolean> {
-  try {
-    return await staff.normalPurpose(headers);
-  } catch (error) {
-    log(toLogEntry('error', 'INTERNAL_SERVER_ERROR', [error]));
-    throw error;
-  }
-}
-
-function personalSessions(
-  options: AuthOptions,
-  auth: ReturnType<typeof buildBetterAuth>,
-  authDatabase: ReturnType<typeof createAuthDatabase>,
-): PersonalSessions {
-  return createPersonalSessions({
-    database: createStaffOtpDatabase({
-      url: options.databaseUrl,
-      phoneLockKey: options.staffPhoneLockKey,
-    }),
-    authDatabase,
-    secret: options.secret,
-    now: () => options.clock?.now() ?? new Date(),
-    primitive: {
-      create: async (userId, workspace, now, deadline) =>
-        (await auth.$context).internalAdapter.createSession(
-          userId,
-          false,
-          {
-            purpose: 'STAFF_PERSONAL',
-            staffPersonalContext: workspace,
-            staffAuthenticatedAt: now,
-            staffAbsoluteDeadline: deadline,
-            expiresAt: deadline,
-            ipAddress: null,
-            userAgent: null,
-          },
-          true,
-        ),
-      find: async (token) =>
-        (await (await auth.$context).internalAdapter.findSession(token))?.session ?? null,
-      remove: async (token) => {
-        await (await auth.$context).internalAdapter.deleteSession(token);
-      },
-    },
-  });
-}
-
-function configuredPasskeys(
-  options: AuthOptions,
-  auth: ReturnType<typeof buildBetterAuth>,
-  database: ReturnType<typeof createAuthDatabase>,
-) {
-  return createPasskeyFacade({
-    auth,
-    database,
-    ids: options.ids,
-    policy: passkeyPolicy(options.baseURL, options.trustedOrigins),
-    now: () => options.clock?.now() ?? new Date(),
-    bindings: options.passkeyBindings,
   });
 }

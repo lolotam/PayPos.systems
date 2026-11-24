@@ -46,7 +46,7 @@ F3 change phone, stop access, follow the branch · G2 end a membership. Plan: `p
   atomically on the auth side and is found again by that operation id. A request that failed after any step can be
   repeated for the same employee and ends in the same final state without a duplicate user, membership or link. A
   repeat of a request that already succeeded changes nothing: no new PIN and no second event. A staff user is
-  never deleted because it has no session; a pending record older than 24 hours can be cancelled by the granter.
+  never deleted because it has no session; a pending attempt that started more than 24 hours ago can be cancelled by the granter.
 - **FR-F1-7** A staff user is a separate kind of account: it has no credential account, can never get a password,
   a set-password link, an email session, two-factor enrolment or a platform grant, can never be invited, and can
   never hold a membership in another company (D2, D8).
@@ -235,3 +235,59 @@ existing membership, automatic email delivery of the invitation, and a «create 
 - A refused invitation tells the owner that the email already has an account (N1). The route is owner-only,
   rate-limited and audited; a person who works with two companies cannot be invited to the second one with the
   same email until email ownership can be proven.
+
+## 9. Activation conditions (open after F1)
+
+`STAFF_ACCESS_ROUTES` stays off in every environment (local defaults, staging, production) until every item
+below is closed and verified by one independent review. The final review of F1 (head `2c335b2f2`) ended with two
+P1 on the grant path, which exists only behind this gate; the project manager moved them to F2 as activation
+conditions (2026-11-24). AC-ACT-8 to AC-ACT-16 come from the review panel on the F1 pull request (#1272) and
+were added the same day. All of them are the first mandatory items of F2.
+
+- **AC-ACT-1 Admission limit.** A grant request is admitted before the company transaction opens only when no
+  other grant of that company is in flight, and under a total cap smaller than the bounded auth pool; a refused
+  request gets the retryable 409 `TRANSACTION_RETRY_REQUIRED` at once. Without it a burst of grant requests can
+  hold the company lock and tenant connections while it waits on the auth step.
+- **AC-ACT-2 Re-grant retry is idempotent on the auth side.** A repeated re-grant of a stopped record (after a
+  lost response or a 409) must not approve the phone binding or write its audit row a second time: the auth
+  step records the attempt id it executed in the same transaction and skips a repeat of that attempt.
+- **AC-ACT-3 Transient failures never answer 500.** A connection lost while the phone lock is taken, and the
+  read route of a linked record when the bounded pool is full, answer the same retryable 409 as the write routes.
+- **AC-ACT-4 The 24-hour test pins the attempt time.** The cancel-window test moves both `created_at` and
+  `attempt_started_at` and asserts, with the injected clock, that a re-grant writes a new `attempt_started_at`.
+- **AC-ACT-5 The test fault capture cannot print a secret.** It records only an allow-list of fixed diagnostic
+  values (error class, code, SQLSTATE); no message text and no raw stack frame.
+- **AC-ACT-6 The gate covers every route of the slice.** The gate's route match is widened when F2 adds a route
+  under `/staff-access/…`, with a test that an unlisted sub-route is also closed while the gate is off.
+- **AC-ACT-7 Staff PIN sign-in under load.** `staff-pin-temporary` failed two of ten consecutive runs on a
+  loaded machine (one with a 503 `NOT_READY` from the existing staff PIN sign-in route, whose controller hides
+  the cause), then passed ten of ten with the cause recorded. The review did not find an F1 regression. Before
+  activation: ten clean consecutive runs with the gate on, and any 503 on that route explained from its
+  recorded cause.
+- **AC-ACT-8 Private view refuses a temporary PIN.** Staff PIN sign-in and discount approval refuse a
+  temporary PIN; `OpenPrivateView` still proves the stored hash and accepts it. It must refuse a temporary PIN
+  with the same comparison and the same failed-attempt accounting, with a regression test through an OTP session.
+- **AC-ACT-9 The existing company-wide PIN reset follows the temporary-PIN policy.** The existing reset route
+  must either mark the PIN it sets for a staff-access user as temporary or refuse that target, so that no
+  manager-known PIN becomes a permanent one outside the F2 flow.
+- **AC-ACT-10 Admin grant and cancel screens.** The plain PIN and the phone are not kept in the mutation cache;
+  the phone confirmation is cleared when the number is edited; the cancel control is offered only when the
+  24-hour rule and the granter rule allow it; a failure without an envelope code is shown; an in-flight read
+  cannot overwrite the result of a grant or a cancel.
+- **AC-ACT-11 No answer before authorization, none lost after commit.** Cancel answers the same refusal whether
+  or not a pending record exists when the caller lacks authority; a failure of the read or of the cache
+  invalidation after a committed grant or cancel does not turn the committed result into an error.
+- **AC-ACT-12 A pending grant survives a change of the employee's primary branch,** or the edit is refused while
+  a grant is pending; the record cannot be left where neither grant nor cancel can proceed.
+- **AC-ACT-13 The phone fingerprint in the tenant record is keyed.** The digest used to compare the phone of a
+  retried grant uses a server-side key, so that it cannot be reversed from the small space of phone numbers.
+- **AC-ACT-14 Contract and rollback notes.** The OpenAPI response of a repeated grant matches what the route
+  answers (409 `STAFF_ACCESS_ALREADY_GRANTED`); the runbook names the oldest API version that may run once the
+  gate has been on (an older API does not know temporary PINs), and asks for old instances to be drained before
+  the gate is turned on.
+- **AC-ACT-15 Narrow the company lock of the employee edit.** The `FOR NO KEY UPDATE` lock on the company row
+  that every employee edit takes since F1 is taken only by edits that change the user link, keeping the lock
+  order with the grant path.
+- **AC-ACT-16 Phone ownership before a global reservation.** A grant reserves a phone number on the global user
+  table before anyone has proven they hold that phone (named risk D2); F2's proof step closes it or the owner
+  notice makes it visible, as the plan decides.

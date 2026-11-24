@@ -30,8 +30,8 @@ export { readPackageSaleAccess } from './persistence/package-sale-access.ts';
 export { lockPackageRefundAccess } from './persistence/package-refund-access.ts';
 export { readPackageRefundAccess } from './persistence/package-refund-access.ts';
 export {
-  employeeUserLinkAvailable,
   readEmployeeDetailAccess,
+  employeeUserLinkAvailable,
 } from './persistence/employee-scope-access.ts';
 export {
   assertAuthenticatedWritesDeclared,
@@ -116,6 +116,7 @@ export {
   readCommissionApprovers,
   readCommissionReturnAccess,
 } from './persistence/commission-approval-access.ts';
+export { readCommissionStatementPayAccess } from './persistence/commission-statement-pay-access.ts';
 export {
   readCommissionFeatureEnabled,
   readCommissionScope,
@@ -139,3 +140,27 @@ export {
   lockActiveDeviceBusiness,
   lockApproverPinRevision,
 } from './persistence/discount-approval-device.ts';
+export { createGrantInvalidator } from './persistence/grant-invalidator.ts';
+export type { GrantInvalidator } from './ports/permission-overrides.port.ts';
+export { STAFF_ACCESS_ROLES, staffAccessSystemRole } from './domain/staff-access-roles.ts';
+export type { StaffAccessRole } from './domain/staff-access-roles.ts';
+export { StaffUserRefused } from './domain/staff-access-errors.ts';
+export type { StaffUserFacade } from './ports/staff-users.port.ts';
+export {
+  STAFF_ACCESS_GRANTED,
+  staffAccessGrantedEvent,
+  type StaffAccessGranted,
+} from './events/published.ts';
+export {
+  cancelStaffUser,
+  grantStaffMembership,
+  hashStaffPin,
+  provisionStaffUser,
+  readStaffUser,
+  saveTemporaryStaffPin,
+} from './persistence/staff-user-auth.ts';
+export {
+  readStaffAccessAuthority,
+  readStaffAccessState,
+  type StaffAccessStateRow,
+} from './persistence/staff-access.ts';

@@ -26,7 +26,7 @@ export function staffAccessRoutesEnabled(env: NodeJS.ProcessEnv): boolean {
  * @param app     نسخة Fastify قبل تسجيل المسارات
  * @param enabled هل الشريحة مفعّلة (STAFF_ACCESS_ROUTES=on)
  */
-export function mountStaffAccessGate(app: FastifyInstance, enabled: boolean): void {
+export function mountMemberInvitationGate(app: FastifyInstance, enabled: boolean): void {
   if (enabled) return;
   const gate = async (_request: FastifyRequest, reply: FastifyReply): Promise<void> => {
     const error = new ApiError('NOT_READY');

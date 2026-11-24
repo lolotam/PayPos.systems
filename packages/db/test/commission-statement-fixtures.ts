@@ -82,6 +82,9 @@ export async function seedCommissionStatementTenants(ownerUrl: string): Promise<
   try {
     await owner`INSERT INTO "user"(id,name,email)
       VALUES(${USER},'Commission operator','commission-operator@example.test')`;
+    // مشغّل الأمر يحتاج منحة منصة سارية بنفس شرط جلسات المنصة؛ بلاها يرفض أمر المفتاح (53-2 B1).
+    await owner`INSERT INTO platform_grants(id,user_id,permission,granted_by)
+      VALUES('01920000-0000-7000-8000-000000000cf0',${USER},'create:companies:platform','fixture')`;
     await owner`INSERT INTO "user"(id,name,email)
       VALUES(${SECOND_REVIEWER.user},'Second reviewer','second-reviewer@example.test')`;
     const ownerRole = SYSTEM_ROLES.find((role) => role.code === 'owner');
@@ -134,6 +137,37 @@ export interface WalkStatementOptions {
 }
 
 /**
+ * بينقل كشف APPROVED لـ PAID بالمسار اللي قاعدة البيانات بتقبله (54-1): أعمدة الصرف كاملة مع الحالة، وصف دفع لكل
+ * موظفة مجمّدة في نفس المعاملة. المبالغ صفر لأن البذرة مش بتقيس القاعدة، والتريغر بس هو اللي بيفحصها.
+ *
+ * @param tx          معاملة المستأجر اللي اتعمل فيها الاعتماد
+ * @param tenant      الشركة والنشاط
+ * @param statementId كشف الشهر المعتمد
+ * @param ids         مولّد الـ ids لصفوف الدفع
+ * @param payer       المستخدم اللي بيتسجل كدافع
+ */
+export async function payApprovedStatement(
+  tx: Tx,
+  tenant: CommissionTenant,
+  statementId: string,
+  ids: IdGenerator,
+  payer: string = USER,
+): Promise<void> {
+  await tx.execute(sql`UPDATE commission_statements SET status='PAID', paid_by=${payer},
+    paid_at='2026-11-03T08:00:00Z', paid_on='2026-11-03', paid_method='WITH_SALARY'
+    WHERE company_id=${tenant.company} AND id=${statementId}`);
+  const frozen = await tx.execute<{ employee_id: string }>(sql`
+    SELECT DISTINCT employee_id FROM commission_statement_lines
+    WHERE company_id=${tenant.company} AND statement_id=${statementId} AND kind='EMPLOYEE'`);
+  for (const line of frozen) {
+    await tx.execute(sql`INSERT INTO commission_statement_payments(
+      company_id,id,business_id,statement_id,employee_id,exact_payable,paid_amount)
+      VALUES (${tenant.company},${ids.newId()},${tenant.business},${statementId},
+        ${line.employee_id},'0.000','0.000')`);
+  }
+}
+
+/**
  * بيمشي بكشف الشهر من DRAFT للحالة المطلوبة بالترتيب اللي تريغرات قاعدة البيانات بتقبله:
  * القفل الأول، ثم REVIEWED ببصمات المراجعة، ثم APPROVED؛ وده هو ترتيب بذر FR-044 كمان.
  *
@@ -167,10 +201,7 @@ export async function walkCommissionStatement(
       statement_fingerprint=${FINGERPRINTS.statement}
       WHERE company_id=${tenant.company} AND id=${statementId}`);
     await options.afterApproved?.(tx, statementId);
-    if (options.to === 'PAID') {
-      await tx.execute(sql`UPDATE commission_statements SET status='PAID'
-        WHERE company_id=${tenant.company} AND id=${statementId}`);
-    }
+    if (options.to === 'PAID') await payApprovedStatement(tx, tenant, statementId, ids, reviewer);
   });
   return statementId;
 }

@@ -40,6 +40,11 @@ export function isClosedReading(reading: StatementReading): reading is ClosedSta
   return reading.status === 'APPROVED' || reading.status === 'PAID';
 }
 
+/** هل الرد لقارئ النشاط كله على شهر مغلق، يعني فيه الصفوف المجمّدة وبصمتا الاعتماد وبيانات الصرف. */
+export function isClosedBusinessReading(reading: StatementReading): reading is CommissionClosedStatementView {
+  return reading.reader_scope === 'BUSINESS' && isClosedReading(reading);
+}
+
 /** هل الرد لقارئ النشاط كله على شهر مفتوح، يعني فيه بصمات ومسموح له بأزرار الكتابة. */
 export function isOpenBusinessReading(reading: StatementReading): reading is CommissionStatementView {
   return reading.reader_scope === 'BUSINESS' && !isClosedReading(reading);

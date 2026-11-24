@@ -161,6 +161,7 @@ it('keeps notification transport recognition conditional on the active module', 
 });
 
 it.each([
+  'StaffAccessGranted',
   'SalaryChanged',
   'SessionTipsChanged',
   'PackageSaleChanged',

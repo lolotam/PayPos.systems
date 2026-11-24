@@ -1762,15 +1762,36 @@
     {
       "idx": 253,
       "version": "7",
-      "when": 1795505507656,
-      "tag": "0253_2026-11-24_member-invitations",
+      "when": 1795497625478,
+      "tag": "0253_2026-11-24_commission-statement-payments",
       "breakpoints": true
     },
     {
       "idx": 254,
       "version": "7",
-      "when": 1795505519662,
-      "tag": "0254_2026-11-24_member-invitations-rls",
+      "when": 1795514002594,
+      "tag": "0254_2026-11-24_staff-access-schema",
+      "breakpoints": true
+    },
+    {
+      "idx": 255,
+      "version": "7",
+      "when": 1795514014456,
+      "tag": "0255_2026-11-24_staff-access-rls-and-seed",
+      "breakpoints": true
+    },
+    {
+      "idx": 256,
+      "version": "7",
+      "when": 1795517839479,
+      "tag": "0256_2026-11-24_member-invitations",
+      "breakpoints": true
+    },
+    {
+      "idx": 257,
+      "version": "7",
+      "when": 1795517845079,
+      "tag": "0257_2026-11-24_member-invitations-rls",
       "breakpoints": true
     }
   ]

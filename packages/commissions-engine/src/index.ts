@@ -1,5 +1,6 @@
 // المحرك النقي للعمولات — يشترك فيه الـ API والـ worker بلا نسخ لقواعد الفلوس (ADR-0054).
 export { advanceAmountAccumulator } from './amount-accumulator.ts';
+export { roundCashPayable } from './cash-payable.ts';
 export { buildCanonicalInput } from './canonical-input.ts';
 export type {
   CanonicalInputRows,

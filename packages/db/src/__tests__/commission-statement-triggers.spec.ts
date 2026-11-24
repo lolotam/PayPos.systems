@@ -56,7 +56,10 @@ const setClause = (to: string) => {
       return sql`status='APPROVED', approved_by=${USER}, approved_at=now(),
         input_fingerprint=${FINGERPRINTS.input}, statement_fingerprint=${FINGERPRINTS.statement}`;
     case 'PAID':
-      return sql`status='PAID'`;
+      // الانتقال APPROVED → PAID بيكتب أعمدة الصرف الخمسة مع الحالة (54-1)، ودليل الدفع
+      // بيكتبه التريغر وحده؛ واكتمال صفوف الدفع بيتفحص عند الـ commit على الشهور اللي ليها صفوف مجمّدة.
+      return sql`status='PAID', paid_by=${USER}, paid_at=now(), paid_on='2026-11-03',
+        paid_method='WITH_SALARY'`;
     default:
       return sql`status='DRAFT', reviewed_fingerprint=NULL, reviewed_statement_fingerprint=NULL,
         reviewed_by=NULL, reviewed_membership_id=NULL, reviewed_at=NULL`;

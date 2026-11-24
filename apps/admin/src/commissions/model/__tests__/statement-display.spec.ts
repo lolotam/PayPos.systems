@@ -18,7 +18,7 @@ import {
   statementActions,
   statusOf,
 } from '../statement-display';
-import { defaultStatementPeriod } from '../statement-period';
+import { approvalDay, dayBefore, defaultStatementPeriod } from '../statement-period';
 
 const PLAN_ISSUE = { kind: 'PRICING' as const, code: 'NO_PLAN' as const, source_period: null };
 
@@ -28,6 +28,7 @@ it('offers generate and review on a clean draft, and review stays closed while a
     review: 'enabled',
     returnToDraft: 'hidden',
     approve: 'hidden',
+    pay: 'hidden',
   });
   const blocked = businessView({ employees: [statementEmployee({ issues: [PLAN_ISSUE] })] });
   expect(statementActions(blocked).review).toBe('disabled');
@@ -39,21 +40,27 @@ it('offers only generate before the first generation, and refresh, return and ap
     review: 'hidden',
     returnToDraft: 'hidden',
     approve: 'hidden',
+    pay: 'hidden',
   });
   expect(statementActions(businessView({ status: 'REVIEWED' }))).toEqual({
     generate: 'enabled',
     review: 'hidden',
     returnToDraft: 'enabled',
     approve: 'enabled',
+    pay: 'hidden',
   });
 });
 
-const NO_ACTIONS = { generate: 'hidden', review: 'hidden', returnToDraft: 'hidden', approve: 'hidden' };
+const NO_ACTIONS = { generate: 'hidden', review: 'hidden', returnToDraft: 'hidden', approve: 'hidden', pay: 'hidden' };
 
-it('hides every write action from a branch reader and from a closed month', () => {
+it('hides every write action from a branch reader and from a paid month', () => {
   expect(statementActions(branchView())).toEqual(NO_ACTIONS);
-  expect(statementActions(closedView())).toEqual(NO_ACTIONS);
-  expect(statementActions(closedBranchView({ status: 'PAID' }))).toEqual(NO_ACTIONS);
+  expect(statementActions(closedBranchView())).toEqual(NO_ACTIONS);
+  expect(statementActions(closedView({ status: 'PAID' }))).toEqual(NO_ACTIONS);
+});
+
+it('offers only the payment on an approved month for a whole-business reader', () => {
+  expect(statementActions(closedView())).toEqual({ ...NO_ACTIONS, pay: 'enabled' });
 });
 
 it('closes approve on a reviewed statement that changed since the review or has an issue, keeping return open', () => {
@@ -120,6 +127,13 @@ it('shows the Arabic employee name in Arabic and falls back to the English one',
   expect(employeeName(statementEmployee(), 'ar')).toBe('سارة');
   expect(employeeName(statementEmployee({ name_ar: null }), 'ar')).toBe('Sara');
   expect(employeeName(statementEmployee(), 'en')).toBe('Sara');
+});
+
+it('reads the approval day from the approval instant and steps one day back across a month edge', () => {
+  expect(approvalDay('2026-11-02T22:30:00.000Z')).toBe('2026-11-02');
+  expect(approvalDay('2026-11-03T01:30:00+03:00')).toBe('2026-11-02');
+  expect(dayBefore('2026-11-01')).toBe('2026-10-31');
+  expect(dayBefore('2027-01-01')).toBe('2026-12-31');
 });
 
 it('opens on the month before the current one, across the new year too', () => {

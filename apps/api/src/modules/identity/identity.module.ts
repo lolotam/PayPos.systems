@@ -134,18 +134,18 @@ export function identityProviders(
     origin: string | null;
     nativeOrigins?: readonly string[];
   },
+  staffCompanyOf: (userId: string) => Promise<string | null> = unavailableStaffCompany,
   /** أصل لوحة الإدارة اللي رابط تعيين كلمة المرور بيتبني عليه، وساعة عمر الرابط. */
   invitations?: { readonly adminOrigin: string; readonly clock?: { now(): Date } },
 ): Provider[] {
-  const capabilities = identityCapabilities(database, ids, redis);
+  const capabilities = identityCapabilities(database, ids, redis, staffCompanyOf);
   return [
     ...permissionProviders(database, ids, redis),
     ...memberInvitationProviders(
       database,
       ids,
       redis,
-      invitations?.adminOrigin,
-      invitations?.clock ?? systemClock,
+      invitations?.adminOrigin, invitations?.clock ?? systemClock,
     ),
     {
       provide: STAFF_AUTHENTICATION,
@@ -187,7 +187,12 @@ export function identityProviders(
 }
 
 // القراءات والحالات الاختيارية اللي محتاجة داتابيز؛ ناقصها بيرجّع null فيتوفر المسار بـ 503.
-function identityCapabilities(database: TenantWrappers | undefined, ids: IdGenerator, redis?: Redis) {
+function identityCapabilities(
+  database: TenantWrappers | undefined,
+  ids: IdGenerator,
+  redis: Redis | undefined,
+  staffCompanyOf: (userId: string) => Promise<string | null>,
+) {
   return {
     reader: database === undefined ? null : createAccessReader(database),
     names: database === undefined ? null : createWorkspaceNames(),
@@ -195,7 +200,7 @@ function identityCapabilities(database: TenantWrappers | undefined, ids: IdGener
       database === undefined
         ? null
         : new OnboardCompany(
-            createOnboardingTransactions(database, ids),
+            createOnboardingTransactions(database, ids, staffCompanyOf),
             tenancyCompanyRegistry,
             ids,
           ),
@@ -347,4 +352,8 @@ function discountApproverProviders(
       ),
     },
   ];
+}
+
+async function unavailableStaffCompany(): Promise<string | null> {
+  throw new Error('AUTH_UNAVAILABLE');
 }
