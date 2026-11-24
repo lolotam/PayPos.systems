@@ -3,6 +3,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { setScheduleSettingsInput, type SetScheduleSettingsInput } from '@pospay/contracts';
 import { t } from '@pospay/i18n';
 import { Button, Input, Label } from '@pospay/ui';
+import { useLayoutEffect, useRef } from 'react';
 import { useForm } from 'react-hook-form';
 import { envelopeMessage } from '@/shared/api/api-error';
 import { useLocale } from '@/shared/locale/locale-context';
@@ -27,6 +28,17 @@ function useSettingsPanel(scope: ScheduleWorkspace) {
     resolver: zodResolver(setScheduleSettingsInput),
     values: { max_shifts_per_day: branch?.max_shifts_per_day ?? 3 },
   });
+  const { reset: resetBranchForm } = branchForm;
+  const branchLimit = branch?.max_shifts_per_day ?? 3;
+  const branchIdRef = useRef(scope.branchId);
+  // `values` لا تعيد ضبط النموذج إذا تساوت القيمة المحفوظة للفرعين، فرقم مكتوب لفرع قد يُحفظ على آخر؛
+  // لذلك نعيد الضبط صراحةً عند تغيّر الفرع، ونترك الحالة في هذا الخطاف حتى لا تضيع المسودة إذا فشلت قراءة دورية.
+  // نستخدم `useLayoutEffect` ليتم الضبط قبل أن يسلّم المتصفح أي نقرة على الفرع الجديد.
+  useLayoutEffect(() => {
+    if (branchIdRef.current === scope.branchId) return;
+    branchIdRef.current = scope.branchId;
+    resetBranchForm({ max_shifts_per_day: branchLimit });
+  }, [scope.branchId, branchLimit, resetBranchForm]);
   const form = useForm<SetScheduleSettingsInput>({
     resolver: zodResolver(setScheduleSettingsInput),
     values: { max_shifts_per_day: query.data?.max_shifts_per_day ?? 3 },
@@ -34,9 +46,26 @@ function useSettingsPanel(scope: ScheduleWorkspace) {
   return { locale, query, save, saveBranch, clearBranch, branches, branch, branchForm, form };
 }
 type PanelState = ReturnType<typeof useSettingsPanel>;
-export function ScheduleSettingsPanel({ scope }: { scope: ScheduleWorkspace }) {
+type ScheduleSettingsPanelProps = { scope: ScheduleWorkspace; standalone?: boolean };
+
+function renderStandaloneState(query: PanelState['query'], locale: PanelState['locale']) {
+  if (query.isError) {
+    const code =
+      typeof query.error === 'object' && query.error !== null && 'code' in query.error
+        ? query.error.code
+        : undefined;
+    if (code === 'FORBIDDEN') return <p role="alert">{t(locale, 'errors.FORBIDDEN')}</p>;
+    if (code === 'NOT_FOUND') return <p role="alert">{t(locale, 'errors.NOT_FOUND')}</p>;
+  }
+  if (!query.data && !query.isError) return <p role="status">{t(locale, 'admin.loading')}</p>;
+  return null;
+}
+
+export function ScheduleSettingsPanel({ scope, standalone = false }: ScheduleSettingsPanelProps) {
   const state = useSettingsPanel(scope);
   const { query, locale } = state;
+  const standaloneState = standalone ? renderStandaloneState(query, locale) : null;
+  if (standaloneState) return standaloneState;
   if (query.isError) {
     if (
       typeof query.error === 'object' &&
@@ -68,7 +97,6 @@ function renderBusinessForm({ locale, query, save, form }: PanelState) {
         }
       })}
     >
-      <h2 className="text-lg font-semibold">{t(locale, 'shell.schedule_settings_title')}</h2>
       {query.data?.is_default ? (
         <p className="text-sm text-muted-foreground">
           {t(locale, 'shell.schedule_settings_default')}

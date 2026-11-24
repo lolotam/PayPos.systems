@@ -1,5 +1,11 @@
-import { Controller, Get, Inject, Req } from '@nestjs/common';
-import { id, type MyMembershipsResponse, type MyWorkspacesResponse } from '@pospay/contracts';
+import { Body, Controller, Get, Header, Inject, Put, Req } from '@nestjs/common';
+import {
+  id,
+  setMyPreferencesInput,
+  type MyMembershipsResponse,
+  type MyPreferencesResponse,
+  type MyWorkspacesResponse,
+} from '@pospay/contracts';
 import type { TenantWrappers } from '@pospay/db';
 import type { FastifyRequest } from 'fastify';
 
@@ -7,9 +13,12 @@ import { Authenticated } from '../../../shared/access.decorators.ts';
 import { DATABASE } from '../../../shared/database.token.ts';
 import { ApiError } from '../../../shared/errors.ts';
 import { myMemberships } from '../queries/my-memberships.query.ts';
+import { myPreferences, type MyPreferencesReader } from '../queries/my-preferences.query.ts';
 import { myWorkspaces, type WorkspaceNames } from '../queries/my-workspaces.query.ts';
+import { SetMyPreferences } from '../use-cases/set-my-preferences/set-my-preferences.ts';
 
 export const WORKSPACE_NAMES = Symbol('WORKSPACE_NAMES');
+export const MY_PREFERENCES = Symbol('MY_PREFERENCES');
 /** علامة قدرة شريحة 076: مقروءة مرة واحدة عند الإقلاع، وبترد في قراءة مساحات العمل. */
 export const STAFF_ACCESS_CAPABILITY = Symbol('STAFF_ACCESS_CAPABILITY');
 
@@ -22,11 +31,35 @@ export class MeController {
   constructor(
     @Inject(DATABASE) db: TenantWrappers | null,
     @Inject(WORKSPACE_NAMES) names: WorkspaceNames | null,
+    @Inject(MY_PREFERENCES) private readonly preferences: MyPreferencesReader | null,
+    @Inject(SetMyPreferences) private readonly setPreferences: SetMyPreferences | null,
     @Inject(STAFF_ACCESS_CAPABILITY) staffAccess: boolean,
   ) {
     this.#db = db;
     this.#names = names;
     this.#staffAccess = staffAccess;
+  }
+
+  @Get('me/preferences')
+  @Authenticated()
+  @Header('Cache-Control', 'private, no-store')
+  async preferencesForCaller(@Req() request: FastifyRequest): Promise<MyPreferencesResponse> {
+    const userId = preferenceUserId(request);
+    if (this.preferences === null) throw new ApiError('NOT_READY');
+    return myPreferences(this.preferences, userId);
+  }
+
+  @Put('me/preferences')
+  @Authenticated()
+  async setPreferencesForCaller(
+    @Req() request: FastifyRequest,
+    @Body() body: unknown,
+  ): Promise<MyPreferencesResponse> {
+    const userId = preferenceUserId(request);
+    if (this.setPreferences === null) throw new ApiError('NOT_READY');
+    const parsed = setMyPreferencesInput.safeParse(body);
+    if (!parsed.success) throw new ApiError('VALIDATION_FAILED');
+    return this.setPreferences.execute(userId, parsed.data);
   }
 
   // Session only: the rows are the caller's own memberships, checked inside withUser and withTenant.
@@ -49,6 +82,12 @@ export class MeController {
     if (userId === null || userId === undefined) throw new ApiError('FORBIDDEN');
     return myMemberships(this.#db, this.#names, userId, companyHeader(request));
   }
+}
+
+function preferenceUserId(request: FastifyRequest): string {
+  const userId = request.principal?.userId;
+  if (userId === null || userId === undefined) throw new ApiError('FORBIDDEN');
+  return userId;
 }
 
 function companyHeader(request: FastifyRequest): string {

@@ -12,11 +12,17 @@ const calls = vi.hoisted(() => ({
   signOutSession: vi.fn(),
   verifyTotpCode: vi.fn(),
 }));
-const page = vi.hoisted(() => ({ loadPage: vi.fn() }));
+const page = vi.hoisted(() => ({ loadPage: vi.fn(), announceIdentityChange: vi.fn() }));
 
 vi.mock('next/navigation', () => ({ useRouter: () => ({ push: vi.fn(), refresh: vi.fn() }) }));
 vi.mock('./session-calls', () => calls);
 vi.mock('@/shared/browser/load-page', () => page);
+// دخولك بيقري تفضيل الحساب قبل الانتقال؛ الـ mock يحسم القراءة بـ null بدل نداء شبكة حقيقي.
+vi.mock('@/shared/api/client', () => ({
+  apiClient: () => ({
+    GET: () => Promise.resolve({ data: { navStyle: null }, error: undefined, response: { ok: true } }),
+  }),
+}));
 
 function storedStyle(): string | undefined {
   return document.cookie

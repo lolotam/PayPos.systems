@@ -14,6 +14,13 @@ function operation(operationId: string, description: string, response: string) {
 
 // حوار إلغاء السطر بيقرأ عضويات المتصل من غير read:memberships:company، فمسارها منفصل عن صلاحيات الشركة.
 export const mePaths = {
+  '/v1/me/preferences': {
+    get: operation('getMyPreferences', 'The caller\'s personal navigation style', 'MyPreferencesResponse'),
+    put: {
+      ...operation('setMyPreferences', 'The saved personal navigation style', 'MyPreferencesResponse'),
+      requestBody: { required: true, content: json('SetMyPreferencesInput') },
+    },
+  },
   '/v1/me/workspaces': {
     get: operation(
       'listMyWorkspaces',

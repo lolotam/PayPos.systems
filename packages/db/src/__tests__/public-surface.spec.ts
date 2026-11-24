@@ -6,6 +6,7 @@ import * as operator from '../operator/staging-staff.ts';
 
 const PUBLIC_EXPORTS = [
   'ALERT_KINDS_LIST',
+  'AuthUserNotFoundError',
   'CoverageIssuanceError',
   'EmployeeNumberExhaustedError',
   'FEATURE_FLAGS',
@@ -71,6 +72,7 @@ const PUBLIC_EXPORTS = [
   'markEventConsumed',
   'openStaffPrivateView',
   'readBusinessIdentity',
+  'readNavStyleStatement',
   'reopenReviewedStatementPeriods',
   'revokePlatformPermission',
   'runIdempotent',

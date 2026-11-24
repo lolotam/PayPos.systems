@@ -1,9 +1,10 @@
 import { t } from '@pospay/i18n';
 import { readThemePreference, setThemePreference } from '@pospay/ui';
-import { act, fireEvent, screen, within } from '@testing-library/react';
+import { act, fireEvent, screen, waitFor, within } from '@testing-library/react';
 import { beforeEach, expect, it, vi } from 'vitest';
 
 import { useNavStyle } from '../nav-style/nav-style-context';
+import { NavStyleSaveNotice } from '../nav-style/nav-style-save-notice';
 import { FrameActions } from './frame-actions';
 import { frameState, goTo, renderFrame, resetFrameState } from './frame-test-support';
 import { FrameWorkspaceSwitcher } from './frame-workspace-switcher';
@@ -13,8 +14,10 @@ const signOut = vi.hoisted(() => ({
   failed: false,
   submit: vi.fn(() => Promise.resolve()),
 }));
+const preferencesApi = vi.hoisted(() => ({ put: vi.fn() }));
 
 vi.mock('next/navigation', async () => (await import('./frame-test-support')).navigationMock);
+vi.mock('@/shared/api/client', () => ({ apiClient: () => ({ PUT: preferencesApi.put }) }));
 vi.mock(
   '@/shared/locale/locale-context',
   async () => (await import('./frame-test-support')).localeMock,
@@ -55,6 +58,8 @@ beforeEach(() => {
   signOut.pending = false;
   signOut.failed = false;
   signOut.submit.mockClear();
+  preferencesApi.put.mockReset();
+  preferencesApi.put.mockResolvedValue({ response: { ok: true } });
   setThemePreference('system');
 });
 
@@ -100,6 +105,46 @@ it('marks the current style in words and switches it without a reload', () => {
       name: new RegExp(`${label('adminNav.styleALabel')} — `),
     }),
   ).toBeTruthy();
+});
+
+it('shows the fixed save-failure alert after switching from the account menu entry', async () => {
+  preferencesApi.put.mockResolvedValueOnce({ error: {}, response: { ok: false } });
+  renderFrame(
+    <>
+      <FrameActions />
+      <Probe />
+      <NavStyleSaveNotice />
+    </>,
+  );
+  fireEvent.click(
+    within(openMenu())
+      .getAllByRole('menuitem', { name: new RegExp(label('adminNav.accountMenuStyle')) })[0] as HTMLElement,
+  );
+  const alert = await screen.findByRole('alert');
+  expect(alert.textContent).toContain(t('en', 'adminNav.saveFailed'));
+  expect(screen.getAllByRole('alert')).toHaveLength(1);
+  expect(screen.getByText('Style in use: A')).toBeTruthy();
+});
+
+it('a user with no ready workspace switches through the provider tree and sends one PUT', async () => {
+  frameState.workspace = { status: 'choose', companies: [], choose: vi.fn() } as never;
+  renderFrame(
+    <>
+      <FrameActions />
+      <Probe />
+      <NavStyleSaveNotice />
+    </>,
+  );
+  fireEvent.click(
+    within(openMenu())
+      .getAllByRole('menuitem', { name: new RegExp(label('adminNav.accountMenuStyle')) })[0] as HTMLElement,
+  );
+  expect(screen.getByText('Style in use: A')).toBeTruthy();
+  await waitFor(() => expect(preferencesApi.put).toHaveBeenCalledTimes(1));
+  expect(preferencesApi.put.mock.calls[0]?.slice(0, 2)).toEqual([
+    '/v1/me/preferences',
+    { body: { navStyle: 'A' }, signal: expect.any(AbortSignal) },
+  ]);
 });
 
 it('applies the theme choice and marks the current one', () => {

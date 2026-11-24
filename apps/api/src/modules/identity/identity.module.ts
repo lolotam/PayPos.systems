@@ -35,7 +35,13 @@ import {
 } from './http/cashier-pins.controller.ts';
 import { CompaniesController } from './http/companies.controller.ts';
 import { PendingDevicesController } from './http/pending-devices.controller.ts';
-import { MeController, STAFF_ACCESS_CAPABILITY, WORKSPACE_NAMES } from './http/me.controller.ts';
+import {
+  MeController,
+  MY_PREFERENCES,
+  STAFF_ACCESS_CAPABILITY,
+  WORKSPACE_NAMES,
+} from './http/me.controller.ts';
+import { SetMyPreferences } from './use-cases/set-my-preferences/set-my-preferences.ts';
 import {
   DEVICE_USE_CASES,
   DevicesController,
@@ -169,8 +175,7 @@ export function identityProviders(
     ...discountApproverProviders(database, ids, redis, sessions),
     { provide: DISCOUNT_APPROVER_VERIFIER, useExisting: VERIFY_DISCOUNT_APPROVER_PIN },
     ...privateViewProviders(database, ids, redis),
-    { provide: WORKSPACE_NAMES, useValue: capabilities.names },
-    { provide: STAFF_ACCESS_CAPABILITY, useValue: staffAccessRoutes },
+    ...meProviders(capabilities.names, staffAccessRoutes),
     { provide: OnboardCompany, useValue: capabilities.onboard },
     { provide: DEVICE_USE_CASES, useValue: capabilities.devices?.useCases ?? null },
     { provide: DEVICE_AUTHENTICATOR, useValue: capabilities.devices?.authenticator ?? null },
@@ -206,6 +211,28 @@ function identityCapabilities(
           ),
     devices: database === undefined ? null : deviceUseCases(database, ids, redis),
   };
+}
+
+// ما يحتاجه MeController: أسماء مساحات العمل، وقدرة 076، وتفضيل الحساب اللي كله من واجهة الاعتماد نفسها بلا قاعدة بيانات ولا صلاحيات شركة.
+function meProviders(
+  names: ReturnType<typeof createWorkspaceNames> | null,
+  staffAccessRoutes: boolean,
+): Provider[] {
+  return [
+    { provide: WORKSPACE_NAMES, useValue: names },
+    { provide: STAFF_ACCESS_CAPABILITY, useValue: staffAccessRoutes },
+    {
+      provide: MY_PREFERENCES,
+      useFactory: (auth: AuthService | null) => auth?.preferences ?? null,
+      inject: [AUTH_SERVICE],
+    },
+    {
+      provide: SetMyPreferences,
+      useFactory: (auth: AuthService | null) =>
+        auth === null ? null : new SetMyPreferences(auth.preferences),
+      inject: [AUTH_SERVICE],
+    },
+  ];
 }
 
 // يبقى ربط الصلاحيات هنا مع فصل المجموعة حتى لا تتضخم دالة تركيب الهوية.

@@ -34,6 +34,7 @@ class ProtectedProbe {
 
 let seen: { method: string; url: string; body: string; cookie: string | null } | undefined;
 const fakeAuth: AuthService = {
+  preferences: {} as AuthService['preferences'],
   members: {} as AuthService['members'],
   personal: {} as AuthService['personal'],
   passkeys: {} as AuthService['passkeys'],

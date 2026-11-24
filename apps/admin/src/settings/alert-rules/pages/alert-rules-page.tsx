@@ -2,7 +2,7 @@
 
 import type { WorkspaceBranch } from '@pospay/contracts';
 import { t } from '@pospay/i18n';
-import { PageHeader } from '@pospay/ui';
+import { PageHeader, PageShell } from '@pospay/ui';
 import { useState } from 'react';
 import { useLocale } from '@/shared/locale/locale-context';
 import { useAlertRules } from '../api/use-alert-rules';
@@ -32,7 +32,7 @@ export function AlertRulesPage(props: {
   // مفتاح التقييم مع بعض، وإلا هي مش بتاعته أصلاً (RT-Q13: صلاحية مفتاح التقييم منفصلة).
   const alertRulesError = query.isError && (!businessRefused || ratingRefused);
   return (
-    <section className="flex min-w-0 flex-col gap-8 text-start">
+    <PageShell layout="form">
       <PageHeader
         title={t(locale, 'alertRules.title')}
         description={t(locale, 'alertRules.lead')}
@@ -72,6 +72,6 @@ export function AlertRulesPage(props: {
           />
         </>
       ) : null}
-    </section>
+    </PageShell>
   );
 }

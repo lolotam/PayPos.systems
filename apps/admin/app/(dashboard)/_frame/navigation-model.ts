@@ -221,9 +221,32 @@ function topLevelIdsForSubmenu(submenu: NavigationSubmenuId): readonly string[] 
   );
 }
 
+/**
+ * نقل صريح لصفحة واحدة في النمط B (design.md §4): «إعدادات الورديات» تحت «الإعداد › النشاط»
+ * وفي A وC تحت «الفريق › الجداول». المجموعات مبنية من قسم الصفحة، فنقلها يحتاج مكانًا صريحًا.
+ */
+const STYLE_B_PAGE_PLACEMENT: Readonly<Record<string, NavigationSubmenuId>> = {
+  'schedule-settings': 'business',
+};
+
+/** صفحات القائمة الفرعية: من قسم الصفحة، مع احترام النقل الصريح للنمط الواحد. */
+function pageIdsForSubmenu(
+  submenuId: NavigationSubmenuId,
+  placement?: Readonly<Record<string, NavigationSubmenuId>>,
+): readonly string[] {
+  const own = topLevelIdsForSubmenu(submenuId).filter(
+    (id) => (placement?.[id] ?? submenuId) === submenuId,
+  );
+  const moved = Object.entries(placement ?? {})
+    .filter(([, target]) => target === submenuId)
+    .map(([id]) => id);
+  return [...own, ...moved];
+}
+
 function buildSubmenuGroups(
   sections: readonly NavigationSectionId[],
   labelOverride?: Readonly<Partial<Record<NavigationSubmenuId, MessageKey>>>,
+  placement?: Readonly<Record<string, NavigationSubmenuId>>,
 ): readonly (StyleBColumn & StyleCSection)[] {
   const items: (StyleBColumn & StyleCSection)[] = [];
   for (const sectionId of sections) {
@@ -235,11 +258,16 @@ function buildSubmenuGroups(
         id: submenu.id,
         section: section.id,
         labelKey: labelOverride?.[submenuId] ?? submenu.labelKey,
-        pageIds: topLevelIdsForSubmenu(submenuId),
+        pageIds: pageIdsForSubmenu(submenuId, placement),
       });
     }
   }
   return items;
+}
+
+/** أعمدة النمط B: نفس بناء المجموعات مع النقل الصريح الخاص بالنمط. */
+function buildStyleBColumns(sections: readonly NavigationSectionId[]) {
+  return buildSubmenuGroups(sections, undefined, STYLE_B_PAGE_PLACEMENT);
 }
 
 const STYLE_A_GROUPS: readonly StyleAGroup[] = [
@@ -253,12 +281,12 @@ const STYLE_A_GROUPS: readonly StyleAGroup[] = [
 ];
 
 const STYLE_B_MODULES: readonly StyleBModule[] = [
-  { id: 'today', labelKey: 'adminNav.moduleBToday', descriptionKey: 'adminNav.moduleBTodayDesc', icon: 'House', sections: ['home'], columns: buildSubmenuGroups(['home']) },
-  { id: 'sell', labelKey: 'adminNav.moduleBSell', descriptionKey: 'adminNav.moduleBSellDesc', icon: 'Store', sections: ['sales'], columns: buildSubmenuGroups(['sales']) },
-  { id: 'stock', labelKey: 'adminNav.moduleBStock', descriptionKey: 'adminNav.moduleBStockDesc', icon: 'Store', sections: ['catalog'], columns: buildSubmenuGroups(['catalog']) },
-  { id: 'grow', labelKey: 'adminNav.moduleBGrow', descriptionKey: 'adminNav.moduleBGrowDesc', icon: 'Star', sections: ['customers'], columns: buildSubmenuGroups(['customers']) },
-  { id: 'people', labelKey: 'adminNav.moduleBPeople', descriptionKey: 'adminNav.moduleBPeopleDesc', icon: 'UserRound', sections: ['team'], columns: buildSubmenuGroups(['team']) },
-  { id: 'business', labelKey: 'adminNav.moduleBBusiness', descriptionKey: 'adminNav.moduleBBusinessDesc', icon: 'Building2', sections: ['reports', 'setup'], columns: buildSubmenuGroups(['reports', 'setup']) },
+  { id: 'today', labelKey: 'adminNav.moduleBToday', descriptionKey: 'adminNav.moduleBTodayDesc', icon: 'House', sections: ['home'], columns: buildStyleBColumns(['home']) },
+  { id: 'sell', labelKey: 'adminNav.moduleBSell', descriptionKey: 'adminNav.moduleBSellDesc', icon: 'Store', sections: ['sales'], columns: buildStyleBColumns(['sales']) },
+  { id: 'stock', labelKey: 'adminNav.moduleBStock', descriptionKey: 'adminNav.moduleBStockDesc', icon: 'Store', sections: ['catalog'], columns: buildStyleBColumns(['catalog']) },
+  { id: 'grow', labelKey: 'adminNav.moduleBGrow', descriptionKey: 'adminNav.moduleBGrowDesc', icon: 'Star', sections: ['customers'], columns: buildStyleBColumns(['customers']) },
+  { id: 'people', labelKey: 'adminNav.moduleBPeople', descriptionKey: 'adminNav.moduleBPeopleDesc', icon: 'UserRound', sections: ['team'], columns: buildStyleBColumns(['team']) },
+  { id: 'business', labelKey: 'adminNav.moduleBBusiness', descriptionKey: 'adminNav.moduleBBusinessDesc', icon: 'Building2', sections: ['reports', 'setup'], columns: buildStyleBColumns(['reports', 'setup']) },
 ];
 
 const STYLE_C_WORKSPACES: readonly StyleCWorkspace[] = [
