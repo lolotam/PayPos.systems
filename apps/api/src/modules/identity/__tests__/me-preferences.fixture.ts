@@ -5,8 +5,8 @@ import { systemUuidV7 } from '@pospay/ids';
 import { createLogger } from '@pospay/observability';
 import postgres from 'postgres';
 
-import { createTestDatabase } from '../../../../../packages/db/test/test-database.ts';
-import { seedReferenceData } from '../../../../../packages/db/src/seed.ts';
+import { createTestDatabase } from '../../../../../../packages/db/test/test-database.ts';
+import { seedReferenceData } from '../../../../../../packages/db/src/seed.ts';
 import { createApp } from '../../../app.ts';
 
 const ORIGIN = 'http://admin.test';
@@ -50,7 +50,7 @@ export async function preferencesFixture() {
 
 async function makeDevice(owner: postgres.Sql, newId: () => string, userId: string) {
   const companyId = newId(), businessId = newId(), branchId = newId(), deviceId = newId();
-  const credential = randomBytes(32).toString('hex');
+  const credential = randomBytes(32).toString('base64url');
   await owner`INSERT INTO companies(id,name_en,owner_user_id,plan_id) VALUES(${companyId},'Synthetic',${userId},${PROVISIONAL_PLAN_ID})`;
   await owner`INSERT INTO businesses(company_id,id,vertical_type,name_en) VALUES(${companyId},${businessId},'retail','Synthetic')`;
   await owner`INSERT INTO branches(company_id,id,business_id,name_en) VALUES(${companyId},${branchId},${businessId},'Synthetic')`;

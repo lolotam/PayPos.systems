@@ -1,6 +1,5 @@
 import { randomUUID } from 'node:crypto';
 import { createAuthDatabase, AuthUserNotFoundError } from '@pospay/db';
-import { sql } from 'drizzle-orm';
 import postgres from 'postgres';
 import { afterAll, beforeAll, expect, it } from 'vitest';
 
@@ -42,9 +41,11 @@ it('looks up one primary key on analysed representative data using the auth role
   await owner`INSERT INTO "user"(id,name,email)
     SELECT gen_random_uuid(),'Synthetic', 'plan-' || n || '@preferences.invalid' FROM generate_series(1,10000) n`;
   await owner`ANALYZE "user"`;
-  const plan = await database.db.execute(sql`EXPLAIN (ANALYZE, FORMAT JSON)
-    SELECT nav_style FROM "user" WHERE id=${x}::uuid`);
-  expect(JSON.stringify(plan)).toContain('user_pkey');
-  expect(JSON.stringify(plan)).toContain('Index Cond');
+  const connection = postgres(fixture.authUrl, { max: 1, onnotice: () => undefined });
+  try {
+    const plan = await connection`EXPLAIN (ANALYZE, FORMAT JSON) SELECT nav_style FROM "user" WHERE id=${x}::uuid`;
+    expect(JSON.stringify(plan)).toContain('user_pkey');
+    expect(JSON.stringify(plan)).toContain('Index Cond');
+  } finally { await connection.end(); }
   expect(await preferences.read(y)).toBeNull();
 });
