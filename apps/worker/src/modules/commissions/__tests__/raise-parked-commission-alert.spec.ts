@@ -15,18 +15,26 @@ const EVENT = {
   eventType: 'SessionTipsChanged',
 };
 
-const harness = (options: { owners?: readonly string[]; marked?: boolean } = {}) => {
+const harness = (
+  options: { owners?: readonly string[]; marked?: boolean; projected?: boolean } = {},
+) => {
   const owners = options.owners ?? [owner(1)];
   const marked = options.marked ?? true;
+  const projected = options.projected ?? false;
   const marks: { consumerId: string; eventId: string }[] = [];
   const notices: ParkedAlertNotice[] = [];
   const transactions: string[] = [];
+  const projections: string[] = [];
   const useCase = new RaiseParkedCommissionAlert<FakeTx>({
     withTenant: async (companyId, fn) => {
       transactions.push(companyId);
       return fn({ companyId });
     },
     owners: async () => owners,
+    isInputProjected: async (_tx, eventId) => {
+      projections.push(eventId);
+      return projected;
+    },
     markConsumed: async (_tx, consumerId, eventId) => {
       marks.push({ consumerId, eventId });
       return marked;
@@ -37,7 +45,7 @@ const harness = (options: { owners?: readonly string[]; marked?: boolean } = {})
     now: () => new Date('2026-11-24T09:00:00Z'),
     groupSize: 100,
   });
-  return { useCase, marks, notices, transactions };
+  return { useCase, marks, notices, transactions, projections };
 };
 
 it('raises one bell for the owners of a counted event that stopped', async () => {
@@ -87,4 +95,24 @@ it('raises one bell per group when the company has more owners than one group', 
   expect(notices[0]?.recipients).toHaveLength(100);
   expect(notices[1]?.recipients).toEqual([owner(100)]);
   expect(notices.map((notice) => notice.groupIndex)).toEqual([0, 1]);
+});
+
+it('marks a projected event and raises no bell, because it no longer blocks the approval', async () => {
+  const { useCase, marks, notices, projections } = harness({ projected: true });
+  expect(await useCase.execute(EVENT)).toBe('NOT_BLOCKING');
+  expect(projections).toEqual([EVENT.eventId]);
+  expect(marks).toEqual([{ consumerId: PARKED_ALERT_CONSUMER_ID, eventId: EVENT.eventId }]);
+  expect(notices).toEqual([]);
+});
+
+it('raises no bell and no second mark for a projected event that was already marked', async () => {
+  const { useCase, marks, notices } = harness({ projected: true, marked: false });
+  expect(await useCase.execute(EVENT)).toBe('ALREADY_ALERTED');
+  expect(marks).toEqual([{ consumerId: PARKED_ALERT_CONSUMER_ID, eventId: EVENT.eventId }]);
+  expect(notices).toEqual([]);
+});
+
+it('does not read the owners of a projected event', async () => {
+  const { useCase } = harness({ projected: true, owners: [] });
+  expect(await useCase.execute(EVENT)).toBe('NOT_BLOCKING');
 });
