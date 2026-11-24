@@ -20,6 +20,7 @@ export const commissionPlanErrorsAr = {
   COMMISSION_STATEMENT_NOT_APPROVED: 'الكشف لازم يتعمد الأول قبل ما يتصرف.',
   COMMISSION_STATEMENT_ALREADY_PAID: 'الكشف ده اتصرّف خلاص.',
   COMMISSION_PAID_ON_INVALID: 'تاريخ الصرف لازم يكون من يوم الاعتماد لحد النهارده.',
+  COMMISSION_PAYABLE_TOO_LARGE: 'صافي موظفة في الكشف أكبر من الحد اللي بيتسجّل في الصرف، فالصرف مش متاح للكشف ده.',
   COMMISSION_PLAN_EMPLOYEE_CURSOR_UNAVAILABLE:
     'تعذّر تحميل قائمة الموظفين بسبب بيانات محفوظة تحتاج إصلاحًا. تواصل مع الدعم.',
   EMPLOYEE_NOT_FOUND: 'الموظفة غير موجودة في النشاط ده.',
@@ -51,6 +52,8 @@ export const commissionPlanErrorsEn = {
   COMMISSION_STATEMENT_ALREADY_PAID: 'This statement is already paid.',
   COMMISSION_PAID_ON_INVALID:
     'The payment date must not be before the approval date and not after today.',
+  COMMISSION_PAYABLE_TOO_LARGE:
+    "An employee's payable in this statement exceeds the amount a payment record can hold, so it cannot be paid here.",
   COMMISSION_PLAN_EMPLOYEE_CURSOR_UNAVAILABLE:
     'The employee list cannot be loaded because stored data needs repair. Contact support.',
   EMPLOYEE_NOT_FOUND: 'The employee was not found in this business.',

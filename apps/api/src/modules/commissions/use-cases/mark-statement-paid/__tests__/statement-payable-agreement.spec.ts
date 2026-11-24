@@ -2,6 +2,7 @@ import {
   computeStatementPayable,
   roundCashPayable,
 } from '@pospay/commissions-engine';
+import { MONEY_MAX } from '@pospay/domain';
 import { describe, expect, it } from 'vitest';
 
 import {
@@ -121,5 +122,33 @@ describe('the payment figures with the real engine rounding', () => {
       { employeeId: 'e2', exactPayable: '2.000', paidAmount: '2.000' },
     ]);
     expect(payments.paidTotal).toBe('43.005');
+  });
+});
+
+describe('amounts beyond the single-row bound', () => {
+  const sixtyBillion = 60_000_000_000_000n;
+
+  it('sums a statement total above numeric(14,3) while each row stays bounded', () => {
+    const payables = new Map([
+      ['e1', sixtyBillion],
+      ['e2', sixtyBillion],
+    ]);
+    const payments = statementPayments('WITH_SALARY', payables, roundCashPayable);
+    expect(payments.paidTotal).toBe('120000000000.000');
+    expect(payments.rows.map((row) => row.paidAmount)).toEqual(['60000000000.000', '60000000000.000']);
+  });
+
+  it.each([
+    ['one employee payable above the column bound', 'WITH_SALARY', MONEY_MAX + 1n],
+    ['a cash rounding that lands above the column bound', 'CASH', MONEY_MAX],
+  ] as const)('refuses %s with the specific payment error', (_name, method, exact) => {
+    expect(() => statementPayments(method, new Map([['e1', exact]]), roundCashPayable)).toThrow(
+      expect.objectContaining({ code: 'COMMISSION_PAYABLE_TOO_LARGE' }),
+    );
+  });
+
+  it('pays the largest storable cash amount whose rounding stays inside the bound', () => {
+    const payments = statementPayments('CASH', new Map([['e1', MONEY_MAX - 4n]]), roundCashPayable);
+    expect(payments.rows[0]?.paidAmount).toBe('99999999999.995');
   });
 });

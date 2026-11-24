@@ -1,4 +1,6 @@
 import {
+  commissionClosedStatementBranchView,
+  commissionClosedStatementView,
   markCommissionStatementPaidResponse,
   type MarkCommissionStatementPaidInput,
 } from '@pospay/contracts';
@@ -14,6 +16,7 @@ import {
   statementPath,
   type StatementFixture,
 } from './commission-statement.fixture.ts';
+import { lockBarrier, type LockBarrier } from './statement-lock-barrier.fixture.ts';
 
 // الصرف على شهر اتعمد بمسار الاعتماد الحقيقي (53-2) مش بصفوف مزروعة بإيد: المستحق في رد الصرف لازم يساوي
 // المستحق في العرض المعتمد، والصلاحية بتتعاد تحت القفل وعلى الرد المخزّن وعلى تعارض المفتاح (CM-41، CM-42).
@@ -25,6 +28,7 @@ let clockNow = new Date('2026-12-02T09:00:00Z');
 let f: StatementFixture;
 let approvedEmployees: { employee_id: string; payable: string }[];
 let paidOn: string;
+let barrier: LockBarrier;
 let payer: { cookie: string; userId: string };
 let winner: { key: string; body: ReturnType<typeof input> };
 
@@ -39,8 +43,10 @@ beforeAll(async () => {
   const approvedAt = row?.['approved_at'] as Date;
   clockNow = new Date(approvedAt.getTime() + 60_000);
   paidOn = new Intl.DateTimeFormat('en-CA', { timeZone: TIME_ZONE }).format(approvedAt);
+  barrier = lockBarrier(f.h.urls.owner, { company: f.company, business: f.business, period: PERIOD });
 });
 afterAll(async () => {
+  await barrier?.end();
   await f?.h.close();
 });
 
@@ -110,7 +116,14 @@ it('two payers racing on one approved month: one pays, the other gets 409, and t
     { key: 'race-1', body: input() },
     { key: 'race-2', body: input({ paid_note: 'second payer' }) },
   ];
-  const responses = await Promise.all(attempts.map((a) => pay(payer.cookie, a.key, a.body)));
+  // الحاجز بيثبت إن الطلبين وقفوا على قفل الشهر فعلاً قبل ما يتفرج عنه، فالتاني استنى الأول مش جه بعده.
+  const responses = await barrier.whileHoldingLock(async (lock) => {
+    const requests = attempts.map((a) => pay(payer.cookie, a.key, a.body));
+    await barrier.waitForWaiters(2);
+    lock.release();
+    await lock.done;
+    return barrier.collect(requests);
+  });
   const won = responses.findIndex((response) => response.status === 200);
   expect(won).toBeGreaterThanOrEqual(0);
   winner = attempts[won] as typeof winner;
@@ -145,7 +158,23 @@ it('two payers racing on one approved month: one pays, the other gets 409, and t
   );
 });
 
-it('a payer whose permission is withdrawn gets 403 on the stored replay, on a reused key and on a new key', async () => {
+it('reads the paid month back with its payment: all of it to the business reader, only her employees to a branch reader (FR-037)', async () => {
+  const business = commissionClosedStatementView.parse((await readStatement(f, f.cookie)).body);
+  expect(business.status).toBe('PAID');
+  expect(business.payment).toMatchObject({ paid_on: paidOn, paid_method: 'CASH', paid_by: payer.userId });
+  const paidRows = business.payment?.payments ?? [];
+  expect(paidRows.map((row) => row.employee_id).sort()).toEqual(approvedEmployees.map((row) => row.employee_id).sort());
+  expect(mills(business.payment?.paid_total ?? '')).toBe(paidRows.reduce((sum, row) => sum + mills(row.paid_amount), 0n));
+
+  const branch = commissionClosedStatementBranchView.parse((await readStatement(f, f.branchCookie)).body);
+  expect(Object.keys(branch.payment ?? {}).sort()).toEqual(['paid_method', 'paid_on', 'payments']);
+  expect(branch.payment?.payments.map((row) => row.employee_id).sort()).toEqual(
+    branch.employees.map((employee) => employee.employee_id).sort(),
+  );
+  expect(branch.payment?.payments.length).toBeLessThanOrEqual(paidRows.length);
+});
+
+it('a payer whose permission is withdrawn after paying is refused at the guard on a replay, a reused key and a new key', async () => {
   await f.h.owner`DELETE FROM role_permissions WHERE company_id=${f.company} AND permission_code=${PAY}
     AND role_id IN (SELECT role_id FROM memberships WHERE company_id=${f.company} AND user_id=${payer.userId})`;
 

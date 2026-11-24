@@ -4391,13 +4391,16 @@
             }
           },
           "422": {
-            "description": "COMMISSION_PAID_ON_INVALID when paid_on is after today or before the approval month, or IDEMPOTENCY_KEY_REUSED when the same Idempotency-Key is sent with another body (CM-41).",
+            "description": "COMMISSION_PAID_ON_INVALID when paid_on is after today or before the approval date, COMMISSION_PAYABLE_TOO_LARGE when one employee payable (or its cash rounding) exceeds what a payment row can store, or IDEMPOTENCY_KEY_REUSED when the same Idempotency-Key is sent with another body (CM-41).",
             "content": {
               "application/json": {
                 "schema": {
                   "oneOf": [
                     {
                       "$ref": "#/components/schemas/CommissionPaidOnInvalidError"
+                    },
+                    {
+                      "$ref": "#/components/schemas/CommissionPayableTooLargeError"
                     },
                     {
                       "$ref": "#/components/schemas/CommissionStatementIdempotencyKeyReusedError"
@@ -5207,7 +5210,7 @@
     "/v1/businesses/{businessId}/commission-statements/{period}": {
       "get": {
         "operationId": "getCommissionStatement",
-        "description": "The statement view of a business month. An open (DRAFT or REVIEWED) month is computed on read in a read-only transaction: no row, fingerprint or lock is created (FR-025, D-25). An APPROVED or PAID month is read from its frozen rows alone, never recomputed (FR-025, FR-033): the business-wide reader gets the CommissionClosedStatementView with the approval time and the two frozen fingerprints, every other reader the CommissionClosedStatementBranchView with her visible rows only. generated is false until a review holder has generated it. Requires read:commissions:business and the commissions feature; a device session is refused. A business-wide reader (a current company- or business-scoped grant and no DENY) gets the CommissionStatementView with both current fingerprints, the reviewed ones and the changed-since-review flag with its cause; every other reader gets the CommissionStatementBranchView with her visible rows only and no whole-statement field.",
+        "description": "The statement view of a business month. An open (DRAFT or REVIEWED) month is computed on read in a read-only transaction: no row, fingerprint or lock is created (FR-025, D-25). An APPROVED or PAID month is read from its frozen rows alone, never recomputed (FR-025, FR-033): the business-wide reader gets the CommissionClosedStatementView with the approval time, the two frozen fingerprints and, for a PAID month, the whole payment record; every other reader the CommissionClosedStatementBranchView with her visible rows only and, for a PAID month, the payment date, method and the payment rows of her employees (no total). generated is false until a review holder has generated it. Requires read:commissions:business and the commissions feature; a device session is refused. A business-wide reader (a current company- or business-scoped grant and no DENY) gets the CommissionStatementView with both current fingerprints, the reviewed ones and the changed-since-review flag with its cause; every other reader gets the CommissionStatementBranchView with her visible rows only and no whole-statement field.",
         "parameters": [
           {
             "in": "header",
@@ -23962,6 +23965,31 @@
         ],
         "additionalProperties": false
       },
+      "CommissionPayableTooLargeError": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "string",
+            "enum": [
+              "COMMISSION_PAYABLE_TOO_LARGE"
+            ]
+          },
+          "message_ar": {
+            "type": "string",
+            "minLength": 1
+          },
+          "message_en": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": [
+          "code",
+          "message_ar",
+          "message_en"
+        ],
+        "additionalProperties": false
+      },
       "CommissionStatementIdempotencyKeyReusedError": {
         "type": "object",
         "properties": {
@@ -25482,6 +25510,71 @@
           "PAID"
         ]
       },
+      "CommissionClosedStatementPayment": {
+        "type": "object",
+        "properties": {
+          "paid_on": {
+            "$ref": "#/components/schemas/CommissionPlanDate"
+          },
+          "paid_method": {
+            "$ref": "#/components/schemas/CommissionStatementPaidMethod"
+          },
+          "paid_note": {
+            "nullable": true,
+            "type": "string"
+          },
+          "paid_at": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+          },
+          "paid_by": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "paid_total": {
+            "$ref": "#/components/schemas/CommissionStatementTotalMoney"
+          },
+          "payments": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CommissionStatementPaymentRow"
+            }
+          }
+        },
+        "required": [
+          "paid_on",
+          "paid_method",
+          "paid_note",
+          "paid_at",
+          "paid_by",
+          "paid_total",
+          "payments"
+        ]
+      },
+      "CommissionClosedStatementBranchPayment": {
+        "type": "object",
+        "properties": {
+          "paid_on": {
+            "$ref": "#/components/schemas/CommissionPlanDate"
+          },
+          "paid_method": {
+            "$ref": "#/components/schemas/CommissionStatementPaidMethod"
+          },
+          "payments": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CommissionStatementPaymentRow"
+            }
+          }
+        },
+        "required": [
+          "paid_on",
+          "paid_method",
+          "payments"
+        ]
+      },
       "CommissionClosedStatementView": {
         "type": "object",
         "properties": {
@@ -25515,6 +25608,14 @@
             "type": "string",
             "pattern": "^[0-9a-f]{64}$"
           },
+          "payment": {
+            "nullable": true,
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/CommissionClosedStatementPayment"
+              }
+            ]
+          },
           "employees": {
             "type": "array",
             "items": {
@@ -25530,6 +25631,7 @@
           "approved_at",
           "input_fingerprint",
           "statement_fingerprint",
+          "payment",
           "employees"
         ]
       },
@@ -25553,6 +25655,14 @@
           "status": {
             "$ref": "#/components/schemas/CommissionClosedStatementStatus"
           },
+          "payment": {
+            "nullable": true,
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/CommissionClosedStatementBranchPayment"
+              }
+            ]
+          },
           "employees": {
             "type": "array",
             "items": {
@@ -25565,6 +25675,7 @@
           "business_id",
           "period",
           "status",
+          "payment",
           "employees"
         ]
       },

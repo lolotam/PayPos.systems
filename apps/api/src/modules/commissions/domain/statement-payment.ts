@@ -1,4 +1,7 @@
-import { assertMoney, moneyToString, parseMoney, sumMoney, type Money } from '@pospay/domain';
+import { assertMoney, MONEY_MAX, moneyToString, parseMoney, type Money } from '@pospay/domain';
+
+import { CommissionStatementPayError } from './errors.ts';
+
 /** أنواع البنود المجمّدة في كشف الشهر؛ نفس قائمة kind في قاعدة البيانات (spec 059 §4). */
 export type FrozenStatementLineKind =
   | 'COMMISSION'
@@ -126,8 +129,56 @@ export function paidAmountForMethod(
 }
 
 /**
+ * بيحسب المبلغ اللي هيتخزّن لموظفة واحدة في عمود numeric(14,3)، وبيرفض بخطأ صرف محدد (مش 500) لو الصافي الدقيق
+ * أو الصافي بعد تقريب الكاش بيعدّي حد العمود: صافي موظفة واحدة مجموع بنود كتير ممكن يعدّي حد البند الواحد، والتقريب لفوق
+ * ممكن يدفع آخر قيمة صالحة لفوق الحد. الرفض بيلغي الصرف كله (المعاملة بتتراجع).
+ *
+ * @param method طريقة الصرف
+ * @param exactPayable صافي الصرف الدقيق بالفلوس
+ * @param roundCash دالة تقريب الكاش من محرك العمولة (roundCashPayable)
+ * @returns المبلغ المتصرف بالفلوس، جوّه حد العمود
+ */
+function storablePaidAmount(
+  method: StatementPaidMethod,
+  exactPayable: Money,
+  roundCash: (payableMills: Money) => Money,
+): Money {
+  if (exactPayable > MONEY_MAX) throw new CommissionStatementPayError('COMMISSION_PAYABLE_TOO_LARGE');
+  try {
+    return paidAmountForMethod(method, exactPayable, roundCash);
+  } catch (error) {
+    if (error instanceof RangeError) {
+      throw new CommissionStatementPayError('COMMISSION_PAYABLE_TOO_LARGE');
+    }
+    throw error;
+  }
+}
+
+/**
+ * بيكتب مجموع بالفلوس كنص KWD بثلاث خانات من غير حد numeric(14,3): مجموع الكشف كله ممكن يعدّي حد المبلغ الواحد، وحدّه
+ * في العقد (16 خانة صحيحة) والتحقق منه جوّه المعاملة قبل الـ commit.
+ *
+ * @param mills المجموع بالفلوس، غير سالب
+ * @returns المجموع بالدينار كنص بثلاث خانات
+ */
+export function totalMillsToString(mills: bigint): string {
+  return `${mills / 1000n}.${(mills % 1000n).toString().padStart(3, '0')}`;
+}
+
+/**
+ * بيجمّع المبالغ المتصرفة المخزّنة لكشف مدفوع في مجموع واحد لقارئ النشاط كله، من غير حد الصف الواحد.
+ *
+ * @param paidAmounts المبالغ المتصرفة كنصوص KWD، كل واحد جوّه حد العمود
+ * @returns المجموع بالدينار كنص بثلاث خانات
+ */
+export function sumPaidAmounts(paidAmounts: readonly string[]): string {
+  return totalMillsToString(paidAmounts.reduce((sum, amount) => sum + parseMoney(amount), 0n));
+}
+
+/**
  * بيبني صفوف الدفع ومجموعها من صوافي الموظفات وطريقة الصرف: صف لكل موظفة بالصافي الدقيق
- * والمبلغ المتصرف، والمجموع بيتجمع من المبالغ المتصرفة ومش بيتقرب تاني (D-19).
+ * والمبلغ المتصرف (كل صف جوّه حد العمود، وإلا رفض صرف محدد)، والمجموع بيتجمع من المبالغ المتصرفة ومش بيتقرب
+ * تاني (D-19) وبيتكتب من غير حد الصف الواحد.
  *
  * @param method طريقة الصرف
  * @param payables صافي كل موظفة مجمّدة بالفلوس
@@ -139,15 +190,17 @@ export function statementPayments(
   payables: ReadonlyMap<string, Money>,
   roundCash: (payableMills: Money) => Money,
 ): StatementPayments {
-  const rows = [...payables].map(([employeeId, exactPayable]) => ({
-    employeeId,
-    exactPayable: moneyToString(exactPayable),
-    paidAmount: moneyToString(paidAmountForMethod(method, exactPayable, roundCash)),
-  }));
-  const paidTotal = moneyToString(
-    sumMoney(rows.map((row) => parseMoney(row.paidAmount))),
-  );
-  return { rows, paidTotal };
+  let paidMills = 0n;
+  const rows = [...payables].map(([employeeId, exactPayable]) => {
+    const paid = storablePaidAmount(method, exactPayable, roundCash);
+    paidMills += paid;
+    return {
+      employeeId,
+      exactPayable: moneyToString(exactPayable),
+      paidAmount: moneyToString(paid),
+    };
+  });
+  return { rows, paidTotal: totalMillsToString(paidMills) };
 }
 
 /**

@@ -44,7 +44,8 @@ export type CommissionStatementPayErrorCode =
   | 'FEATURE_DISABLED'
   | 'COMMISSION_STATEMENT_NOT_APPROVED'
   | 'COMMISSION_STATEMENT_ALREADY_PAID'
-  | 'COMMISSION_PAID_ON_INVALID';
+  | 'COMMISSION_PAID_ON_INVALID'
+  | 'COMMISSION_PAYABLE_TOO_LARGE';
 
 /** رفض صرف الكشف بكود مستقل عن HTTP حتى تبقى الترجمة في طبقة HTTP. */
 export class CommissionStatementPayError extends Error {

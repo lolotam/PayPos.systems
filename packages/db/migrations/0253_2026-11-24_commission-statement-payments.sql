@@ -81,6 +81,10 @@ BEGIN
        IS DISTINCT FROM (to_jsonb(OLD) - 'status' - 'paid_by' - 'paid_at' - 'paid_on' - 'paid_method' - 'paid_note' - 'payment_xact_id') THEN
       RAISE EXCEPTION 'paying a commission statement changes only its status and payment columns' USING ERRCODE = '23514', CONSTRAINT = 'commission_statements_payment_only';
     END IF;
+    -- وقت تسجيل الصرف ما يسبقش وقت الاعتماد: الدافع بيقرا ساعته بعد قفل الشهر، فلو سبقه يبقى الوقت اتقرا قبل القفل.
+    IF NEW.paid_at < OLD.approved_at THEN
+      RAISE EXCEPTION 'a commission statement is not paid before it is approved' USING ERRCODE = '23514', CONSTRAINT = 'commission_statements_paid_after_approval';
+    END IF;
     -- دليل الدفع هو معرّف المعاملة اللي دفعت، مش أي معاملة تانية؛ صفوف الدفع بتتقبل في المعاملة دي بس.
     NEW.payment_xact_id := pg_current_xact_id();
     RETURN NEW;

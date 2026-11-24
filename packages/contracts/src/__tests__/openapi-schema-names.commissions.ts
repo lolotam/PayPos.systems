@@ -21,6 +21,7 @@ export const commissionSchemaNames = [
   'CommissionOverrideServiceList',
   'CommissionOverrideServiceListQuery',
   'CommissionPaidOnInvalidError',
+  'CommissionPayableTooLargeError',
   'CommissionPeriodBeforeBusinessError',
   'CommissionPeriodRepair',
   'CommissionPeriodRepairBlock',

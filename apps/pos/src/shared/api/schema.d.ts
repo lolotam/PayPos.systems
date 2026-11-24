@@ -623,7 +623,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** @description The statement view of a business month. An open (DRAFT or REVIEWED) month is computed on read in a read-only transaction: no row, fingerprint or lock is created (FR-025, D-25). An APPROVED or PAID month is read from its frozen rows alone, never recomputed (FR-025, FR-033): the business-wide reader gets the CommissionClosedStatementView with the approval time and the two frozen fingerprints, every other reader the CommissionClosedStatementBranchView with her visible rows only. generated is false until a review holder has generated it. Requires read:commissions:business and the commissions feature; a device session is refused. A business-wide reader (a current company- or business-scoped grant and no DENY) gets the CommissionStatementView with both current fingerprints, the reviewed ones and the changed-since-review flag with its cause; every other reader gets the CommissionStatementBranchView with her visible rows only and no whole-statement field. */
+        /** @description The statement view of a business month. An open (DRAFT or REVIEWED) month is computed on read in a read-only transaction: no row, fingerprint or lock is created (FR-025, D-25). An APPROVED or PAID month is read from its frozen rows alone, never recomputed (FR-025, FR-033): the business-wide reader gets the CommissionClosedStatementView with the approval time, the two frozen fingerprints and, for a PAID month, the whole payment record; every other reader the CommissionClosedStatementBranchView with her visible rows only and, for a PAID month, the payment date, method and the payment rows of her employees (no total). generated is false until a review holder has generated it. Requires read:commissions:business and the commissions feature; a device session is refused. A business-wide reader (a current company- or business-scoped grant and no DENY) gets the CommissionStatementView with both current fingerprints, the reviewed ones and the changed-since-review flag with its cause; every other reader gets the CommissionStatementBranchView with her visible rows only and no whole-statement field. */
         get: operations["getCommissionStatement"];
         put?: never;
         post?: never;
@@ -3876,6 +3876,12 @@ export interface components {
             message_ar: string;
             message_en: string;
         };
+        CommissionPayableTooLargeError: {
+            /** @enum {string} */
+            code: "COMMISSION_PAYABLE_TOO_LARGE";
+            message_ar: string;
+            message_en: string;
+        };
         CommissionStatementIdempotencyKeyReusedError: {
             /** @enum {string} */
             code: "IDEMPOTENCY_KEY_REUSED";
@@ -4242,6 +4248,22 @@ export interface components {
         };
         /** @enum {string} */
         CommissionClosedStatementStatus: "APPROVED" | "PAID";
+        CommissionClosedStatementPayment: {
+            paid_on: components["schemas"]["CommissionPlanDate"];
+            paid_method: components["schemas"]["CommissionStatementPaidMethod"];
+            paid_note: string | null;
+            /** Format: date-time */
+            paid_at: string;
+            /** Format: uuid */
+            paid_by: string;
+            paid_total: components["schemas"]["CommissionStatementTotalMoney"];
+            payments: components["schemas"]["CommissionStatementPaymentRow"][];
+        };
+        CommissionClosedStatementBranchPayment: {
+            paid_on: components["schemas"]["CommissionPlanDate"];
+            paid_method: components["schemas"]["CommissionStatementPaidMethod"];
+            payments: components["schemas"]["CommissionStatementPaymentRow"][];
+        };
         CommissionClosedStatementView: {
             /** @enum {string} */
             reader_scope: "BUSINESS";
@@ -4253,6 +4275,7 @@ export interface components {
             approved_at: string;
             input_fingerprint: string;
             statement_fingerprint: string;
+            payment: components["schemas"]["CommissionClosedStatementPayment"] | null;
             employees: components["schemas"]["CommissionStatementEmployee"][];
         };
         CommissionClosedStatementBranchView: {
@@ -4262,6 +4285,7 @@ export interface components {
             business_id: string;
             period: components["schemas"]["CommissionEstimatePeriod"];
             status: components["schemas"]["CommissionClosedStatementStatus"];
+            payment: components["schemas"]["CommissionClosedStatementBranchPayment"] | null;
             employees: components["schemas"]["CommissionStatementEmployee"][];
         };
         /** @enum {string} */
@@ -11826,13 +11850,13 @@ export interface operations {
                     "application/json": components["schemas"]["CommissionStatementNotApprovedError"] | components["schemas"]["CommissionStatementAlreadyPaidError"];
                 };
             };
-            /** @description COMMISSION_PAID_ON_INVALID when paid_on is after today or before the approval month, or IDEMPOTENCY_KEY_REUSED when the same Idempotency-Key is sent with another body (CM-41). */
+            /** @description COMMISSION_PAID_ON_INVALID when paid_on is after today or before the approval date, COMMISSION_PAYABLE_TOO_LARGE when one employee payable (or its cash rounding) exceeds what a payment row can store, or IDEMPOTENCY_KEY_REUSED when the same Idempotency-Key is sent with another body (CM-41). */
             422: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["CommissionPaidOnInvalidError"] | components["schemas"]["CommissionStatementIdempotencyKeyReusedError"];
+                    "application/json": components["schemas"]["CommissionPaidOnInvalidError"] | components["schemas"]["CommissionPayableTooLargeError"] | components["schemas"]["CommissionStatementIdempotencyKeyReusedError"];
                 };
             };
             /** @description Bilingual refusal */

@@ -79,6 +79,15 @@ export const commissionPaidOnInvalidError = z
   })
   .meta({ id: 'CommissionPaidOnInvalidError' });
 
+/** صافي موظفة (أو صافيها بعد تقريب الكاش) أكبر من حد عمود سجل الصرف numeric(14,3): الصرف بيترفض كله. */
+export const commissionPayableTooLargeError = z
+  .strictObject({
+    code: z.literal('COMMISSION_PAYABLE_TOO_LARGE'),
+    message_ar: z.string().min(1),
+    message_en: z.string().min(1),
+  })
+  .meta({ id: 'CommissionPayableTooLargeError' });
+
 /** نفس مفتاح Idempotency بجسم طلب مختلف: الرفض ده 422 على المسار ده (CM-41). */
 export const commissionStatementIdempotencyKeyReusedError = z
   .strictObject({
@@ -97,6 +106,7 @@ export const commissionStatementPaymentSchemas = [
   commissionStatementNotApprovedError,
   commissionStatementAlreadyPaidError,
   commissionPaidOnInvalidError,
+  commissionPayableTooLargeError,
   commissionStatementIdempotencyKeyReusedError,
 ];
 

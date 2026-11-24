@@ -183,6 +183,20 @@ async function paidStatement(): Promise<string> {
   return id;
 }
 
+it('a statement is never recorded paid before its approval time', async () => {
+  const { id } = await approvedStatement();
+  await expectPgError(
+    db.withTenant(A.company, (tx) =>
+      tx.execute(sql`UPDATE commission_statements
+        SET status='PAID', paid_by=${USER}, paid_at='2026-11-01T00:00:00Z', paid_on='2026-11-03', paid_method='WITH_SALARY'
+        WHERE company_id=${A.company} AND id=${id}`),
+    ),
+    '23514',
+    'commission_statements_paid_after_approval',
+  );
+  expect(await statusOf(id)).toEqual({ status: 'APPROVED', proven: false });
+});
+
 it('a payment row is never updated or deleted, by the app role', async () => {
   const id = await paidStatement();
   await expectPgError(

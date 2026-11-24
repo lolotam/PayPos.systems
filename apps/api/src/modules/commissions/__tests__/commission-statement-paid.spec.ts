@@ -195,3 +195,31 @@ it('a malformed method or a missing date is refused before any write', async () 
   expect((await statementRow(statementId))?.['status']).toBe('APPROVED');
   expect(await paymentRows(statementId)).toHaveLength(0);
 });
+
+it('pays a statement whose total passes the single-row bound while each employee stays inside it', async () => {
+  const sixty = '60000000000.000';
+  const statementId = await f.approvedStatementWith('2027-10', [
+    { employee: f.employee, amounts: [sixty] },
+    { employee: f.secondEmployee, amounts: [sixty] },
+  ]);
+  const response = await f.pay('2027-10', markPaidInput({ paid_method: 'WITH_SALARY' }), 'big-total');
+  expect(response.status).toBe(200);
+  const body = markCommissionStatementPaidResponse.parse(response.body);
+  expect(body.paid_total).toBe('120000000000.000');
+  expect(body.payments.map((row) => row.paid_amount)).toEqual([sixty, sixty]);
+  expect((await statementRow(statementId))?.['status']).toBe('PAID');
+  expect(await paymentRows(statementId)).toHaveLength(2);
+});
+
+it.each([
+  ['one employee payable above the stored bound', 'WITH_SALARY', ['60000000000.000', '60000000000.000']],
+  ['a cash rounding above the stored bound', 'CASH', ['99999999999.999']],
+] as const)('refuses %s with 422 COMMISSION_PAYABLE_TOO_LARGE and writes nothing', async (_name, method, amounts) => {
+  const period = method === 'CASH' ? '2027-12' : '2027-11';
+  const statementId = await f.approvedStatementWith(period, [{ employee: f.employee, amounts }]);
+  const response = await f.pay(period, markPaidInput({ paid_method: method }), `too-large-${method}`);
+  expect([response.status, response.body['code']]).toEqual([422, 'COMMISSION_PAYABLE_TOO_LARGE']);
+  expect((await statementRow(statementId))?.['status']).toBe('APPROVED');
+  expect(await paymentRows(statementId)).toHaveLength(0);
+  expect(await paidAudits(statementId)).toHaveLength(0);
+});

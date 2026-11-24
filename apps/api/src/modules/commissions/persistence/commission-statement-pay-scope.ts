@@ -83,9 +83,11 @@ async function writeStatementPayment(
   ids: IdGenerator,
   record: StatementPaymentWrite,
 ): Promise<{ readonly paidAt: string }> {
+  // clock_timestamp مش now(): الأخير بداية المعاملة، والمعاملة ممكن تكون استنت قفل الشهر ورا اعتماد بدأ بعدها،
+  // فوقت الصرف لازم يتقرا بعد القفل عشان ما يسبقش وقت الاعتماد.
   await tx.execute(sql`
     UPDATE commission_statements SET status = 'PAID', paid_by = ${record.paidBy}::uuid,
-      paid_at = now(), paid_on = ${record.paidOn}::date, paid_method = ${record.paidMethod},
+      paid_at = clock_timestamp(), paid_on = ${record.paidOn}::date, paid_method = ${record.paidMethod},
       paid_note = ${record.paidNote}
     WHERE company_id = app_company_id() AND business_id = ${actor.businessId}::uuid
       AND id = ${record.statementId}::uuid`);

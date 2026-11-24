@@ -876,7 +876,14 @@ Named tests; each is an integration test against real Postgres (T2 stack, ADR-00
 - **FR-037** `POST …/:period/mark-paid` `{ paid_method, paid_on }` (Idempotency-Key): under the lock, status APPROVED → PAID,
   `paid_by`, `paid_at` (the recording time), `paid_on` (the payout date the payer states, a business date not after today
   and not before the approval date) and `paid_method` (CS-Q6: with salary, bank transfer or cash, plus an optional note), all persisted, plus, when `paid_method` is cash, the rounded payable amount (CS-Q12, D-19: nearest 5 fils, half up) stored beside the exact payable figure, which is never overwritten; audit `commission_statement.paid` with both
-  dates. Reads and the export show `paid_on` as the payment date.
+  dates. Reads and the export show `paid_on` as the payment date. `paid_at` is read from the database clock after the month
+  lock is taken (`clock_timestamp()`), so it is never before `approved_at`; the audit entry `commission_statement.paid` is an
+  `AuditLog` action only, with no outbox event and no consumer (54-1). The `GET` of a PAID month adds `payment` to the closed
+  view (54-1, a reading of «reads show `paid_on`»): the business-wide reader gets `paid_on`, `paid_method`, `paid_note`,
+  `paid_at`, `paid_by`, `paid_total` and one `{ employee_id, exact_payable, paid_amount }` row per frozen employee; a branch
+  reader gets only `paid_on`, `paid_method` and the rows of the employees she sees, with no total, payer, note or recording
+  time (whole-statement fields, CM-28c). The export is 56-1c. One employee's payable, or its cash rounding, above what
+  `numeric(14,3)` stores is refused with `COMMISSION_PAYABLE_TOO_LARGE` and nothing is written; the statement total is not bounded that way.
 - **FR-038** Permission `pay:commissions:business` (CS-Q4). It takes effect only together with business-wide read of
   statements, like review and approve (FR-029b, FR-036), because the response lists every employee's payable: a holder
   whose read is branch-scoped, or who has none, gets the uniform 403 (54-1-PAY-1, Waleed, 2026-11-24; Abu Salem has not answered).
@@ -1233,7 +1240,9 @@ and a refusal test (CLAUDE.md §6).
 - `COMMISSION_STATEMENT_NOT_REVIEWED` 409, `COMMISSION_STATEMENT_NOT_APPROVED` 409, `COMMISSION_STATEMENT_ALREADY_PAID` 409.
 - `COMMISSION_PAID_ON_INVALID` 422 (54-1, FR-037) — «تاريخ الصرف لازم يكون من يوم الاعتماد لحد النهارده.» / "The payment date
   must not be before the approval date and not after today." The window is judged on the business calendar; `paid_at` is the database
-  clock at recording, like `approved_at`.
+  clock at recording, taken after the month lock.
+- `COMMISSION_PAYABLE_TOO_LARGE` 422 (54-1, FR-037) — «صافي موظفة في الكشف أكبر من الحد اللي بيتسجّل في الصرف، فالصرف مش متاح للكشف ده.» /
+  "An employee's payable in this statement exceeds the amount a payment record can hold, so it cannot be paid here."
 - `COMMISSION_UPDATES_PENDING` 409 — en: "updates are still being calculated, try again shortly" (ADR-0012 §5); ar:
   «لسه بنحسب آخر التحديثات، جرّب تاني بعد شوية.»
   It still applies when every earlier check passes and the ADR-0012 count refuses.

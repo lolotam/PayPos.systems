@@ -52,9 +52,10 @@ export const commissionStatementPaymentPaths = {
         },
         '422': {
           description:
-            'COMMISSION_PAID_ON_INVALID when paid_on is after today or before the approval month, or IDEMPOTENCY_KEY_REUSED when the same Idempotency-Key is sent with another body (CM-41).',
+            'COMMISSION_PAID_ON_INVALID when paid_on is after today or before the approval date, COMMISSION_PAYABLE_TOO_LARGE when one employee payable (or its cash rounding) exceeds what a payment row can store, or IDEMPOTENCY_KEY_REUSED when the same Idempotency-Key is sent with another body (CM-41).',
           content: oneOfJson(
             'CommissionPaidOnInvalidError',
+            'CommissionPayableTooLargeError',
             'CommissionStatementIdempotencyKeyReusedError',
           ),
         },
