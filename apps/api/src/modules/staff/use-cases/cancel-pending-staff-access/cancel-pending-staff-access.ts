@@ -36,7 +36,7 @@ export class CancelPendingStaffAccessUseCase {
 
   /**
    * يثبت نية الإلغاء في CANCELLING تحت القفل قبل حذف auth، ثم يحذف السجل؛ أي تكرار يكمل نفس العملية.
-   * السلطة للمانح الأصلي أو المالك، والمنح يرفض الحالة طول الإلغاء.
+   * السلطة للمانح الأصلي أو المالك؛ إعادة منح حساب ملتزم ترجع STOPPED داخل نفس المعاملة بلا حذف auth.
    *
    * @param command الموظفة والمانح من الجلسة
    */
@@ -58,10 +58,16 @@ export class CancelPendingStaffAccessUseCase {
         throw new StaffAccessError('STAFF_ACCESS_NOT_ALLOWED');
       if (!staffAccessCancelAllowed(record, actor.userId, await scope.actorIsOwner()))
         throw new StaffAccessError('STAFF_ACCESS_NOT_ALLOWED');
+      if (record.userId !== null) {
+        if (!(await scope.restoreStopped(record.id)))
+          throw new StaffAccessError('STAFF_ACCESS_NOT_ALLOWED');
+        return null;
+      }
       if (record.state === 'PENDING' && !(await scope.markCancelling(record.id)))
         throw new StaffAccessError('STAFF_ACCESS_NOT_ALLOWED');
       return record;
     });
+    if (locked === null) return;
     await this.cancelUser({
       operationId: locked.operationId,
       companyId: command.companyId,

@@ -142,7 +142,10 @@ Rules that follow:
 
 - No user is ever discarded because it has no session. An orphan from a crash after step 2 is always reachable
   through its `operation_id`; a `PENDING` record older than 24 hours can be cancelled by the granter, which deletes
-  the staff user by `operation_id` in one auth transaction and the record in one tenant transaction.
+  the staff user by `operation_id` in one auth transaction and the record in one tenant transaction. A regrant record
+  retaining a committed `user_id` instead returns to STOPPED with an audit row in one tenant transaction; no
+  auth deletion or historical detachment occurs. Any phone binding changed before the crash is left as is
+  and the next grant sets it again (correction-round ruling in `owner-questions.ar.md`).
 - The synthetic email is `staff-<operation_id>@<reserved domain>`, never derived from the phone (F3 changes the
   phone). The reserved domain is a constant in `packages/auth` and a `.invalid` name.
 - The adoption rule of revision 1 is gone: a phone that belongs to any user is refused, whatever the company.

@@ -218,3 +218,14 @@ https://plan.pospay.systems كدفعة 103 «دخول الموظفة ودعوة 
 > Ruling on P2-2 scope: your interpretation is confirmed. Enforce ≤300 on the files F1 authors; do NOT refactor inherited registries, bootstrap files, fixtures or specs that were already over 300 on main — list them as documented exceptions in the final report. One condition: no inherited file may cross the project's hard limit of 400 lines BECAUSE of F1. Where F1's additions push a file from under 400 to over it (you name `staff.module.ts` 397 → 405 and `packages/contracts/src/index.ts` 405 — check what main has for that one), move F1's own additions out into an F1 file (e.g. the provider list into `staff-access.providers.ts`, the contract exports into a small barrel re-exported with one line) so the inherited file ends at or below its main line count or under 400, whichever is higher on main. Nothing else. Commit the pending ACTIVE-overlap regression fix, finish the gates, push, and send the final report.
 
 - التنفيذ: العد الفعلي للأسطر شاملاً الفراغات على main هو 403 لكلا الملفين، وليس 397 الذي كان يستبعد الأسطر الفارغة. صار `staff.module.ts` عند 402؛ و`contracts/src/index.ts` عند 403 عبر تصدير `StaffAccessStateRow` من سجل staff الموجود أصلاً. ملفات F1 الجديدة لا تتجاوز 300.
+
+
+## و — إلغاء إعادة منح سجل STOPPED بعد فشل الاستئناف
+
+- الحالة: ANSWERED من المدير المالك، 2026-11-24.
+- الدليل: السجل المحتفظ بـ user_id سبق التزامه؛ حذفه على auth يصطدم بمراجع الموظفة والعضوية، بعد أن تكون الحالة انتقلت إلى CANCELLING.
+- إجابة المدير حرفياً:
+
+> Ruling on the STOPPED→PENDING re-grant cancel: good catch. Never delete a previously committed account and never detach historical references. But do not leave the record stuck in PENDING either (a granter who typed a wrong phone must have a way back). So: when the record carries a committed `user_id` (it came from STOPPED), «cancel» does NOT go through CANCELLING/DELETE — it returns the record to `STOPPED` in one tenant transaction (same authority and same 24-hour rule as the normal cancel, audit row written), deleting nothing on auth and leaving the membership ended and the PIN cleared as they were. If the auth step of the re-grant had already changed the phone binding before the crash, leave the binding as it is and say so in the port's doc comment (the next grant sets it again; no session or PIN exists in STOPPED). A fresh record (no `user_id`) keeps the CANCELLING → delete user → delete record path. Add the reproduction test for the stuck case and a test that the STOPPED record can be granted again afterwards. Then commit, push, final report.
+
+- التنفيذ المطلوب: استعادة STOPPED مع audit دون auth للحساب السابق، مع اختبار الفشل قبل auth وبعد تثبيت الهاتف، وإثبات إمكانية المنح مرة أخرى.

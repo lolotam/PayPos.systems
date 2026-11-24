@@ -97,9 +97,34 @@ function cancelScope(
     },
     markCancelling: (recordId) =>
       markCancellingRow(tx, actor.companyId, recordId, input.at, audit, input.employeeId),
+    restoreStopped: (recordId) =>
+      restoreStoppedRow(tx, actor.companyId, recordId, input.at, audit, input.employeeId),
     deleteRecord: (recordId) =>
       deleteCancellingRecord(tx, actor.companyId, recordId, audit, input.employeeId),
   };
+}
+
+/** يعيد حساباً سبق التزامه إلى STOPPED بلا تعديل مراجع المستخدم أو ربط هاتف auth. */
+async function restoreStoppedRow(
+  tx: Tx,
+  companyId: string,
+  recordId: string,
+  at: Date,
+  audit: AuditTrail,
+  employeeId: string,
+): Promise<boolean> {
+  const moved = await tx.execute(sql`UPDATE employee_staff_access
+    SET state='STOPPED',updated_at=${at.toISOString()}::timestamptz
+    WHERE company_id=${companyId} AND id=${recordId} AND user_id IS NOT NULL
+      AND state IN ('PENDING','CANCELLING') RETURNING id`);
+  if (moved.length === 0) return false;
+  await audit.record({
+    entity: 'employee_staff_access',
+    entityId: recordId,
+    action: 'regrant_cancelled',
+    after: { employee_id: employeeId, state: 'STOPPED' },
+  });
+  return true;
 }
 
 /** ينقل السجل إلى CANCELLING — true انتقل، false لم يعد PENDING (سباق منح متزامن). */
@@ -113,7 +138,7 @@ async function markCancellingRow(
 ): Promise<boolean> {
   const moved = await tx.execute(sql`UPDATE employee_staff_access
     SET state='CANCELLING',updated_at=${at.toISOString()}::timestamptz
-    WHERE company_id=${companyId} AND id=${recordId} AND state='PENDING' RETURNING id`);
+    WHERE company_id=${companyId} AND id=${recordId} AND state='PENDING' AND user_id IS NULL RETURNING id`);
   if (moved.length === 0) return false;
   await audit.record({
     entity: 'employee_staff_access',

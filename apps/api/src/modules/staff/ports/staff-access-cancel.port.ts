@@ -49,6 +49,14 @@ export interface CancelPendingScope {
    */
   markCancelling(recordId: string): Promise<boolean>;
   /**
+   * يعيد إعادة المنح المتعثرة لحساب سبق التزامه إلى STOPPED مع audit في نفس معاملة الشركة.
+   * لا يحذف مستخدم auth ولا يلمس العضوية المنتهية أو PIN المحذوف. لو غيّرت خطوة auth ربط الهاتف قبل
+   * الفشل، يظل الربط كما هو؛ المنح التالي يثبته مجدداً، ولا تنشأ جلسة أو PIN في STOPPED.
+   *
+   * @param recordId معرّف السجل المقفول الذي يحتفظ بـ user_id ملتزم
+   */
+  restoreStopped(recordId: string): Promise<boolean>;
+  /**
    * يحذف سجلًا في حالة CANCELLING ويسجل الإلغاء. true حُذف أو حُذف سابقًا؛ false غيّرت حالته.
    *
    * @param recordId معرّف السجل الملغى
@@ -57,7 +65,7 @@ export interface CancelPendingScope {
 }
 
 /**
- * معاملة إلغاء سجل الانتظار: الانتقال إلى CANCELLING ثم (خارجها) حذف الحساب ثم الحذف النهائي.
+ * إلغاء جديد: CANCELLING ثم حذف الحساب والسجل؛ إعادة منح حساب ملتزم: STOPPED مع audit بلا حذف auth.
  */
 export interface CancelPendingStaffAccessSteps {
   /**

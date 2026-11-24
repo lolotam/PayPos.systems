@@ -90,7 +90,7 @@ any state-dependent answer. The pending record fixes the phone hash, role and br
 refused without details. A STOPPED regrant first fixes the new tuple under lock, then validates and approves the
 requested phone inside the auth transaction. Membership, audit and event values come from the locked record.
 
-Cancel first commits CANCELLING under those locks, then deletes the auth user by operation id, then deletes the
+For a fresh record without a committed user id, cancel first commits CANCELLING under those locks, then deletes the auth user by operation id, then deletes the
 record under the same lock order. Only the original granter or an authorized owner can cancel. An interrupted
 cancel resumes from CANCELLING. Before provisioning, the already-committed tenant record is re-locked and its
 operation/state revalidated; that short tenant transaction retains its locks until the auth operation finishes.
@@ -108,3 +108,11 @@ The audit survives cancellation without preventing the authorized user deletion 
 single application DELETE grant on `employee_staff_access` remains limited to the cancel implementation and is
 covered by the database privileges allowlist test. `StaffAccessGranted` is recognized by the worker without a
 consumer until F2.
+
+
+For a crashed STOPPED regrant whose record retains a committed `user_id`, cancellation instead restores
+STOPPED and writes its audit row in the same locked tenant transaction, with the same authority and 24-hour
+rule. It never calls auth deletion or detaches historical references. The existing membership stays ended and
+PIN stays cleared. If regrant provisioning already changed the phone binding before the crash, cancellation
+leaves that binding unchanged; the next grant sets it again. STOPPED has no session or PIN. This distinction
+prevents a failed FK deletion from poisoning the record as CANCELLING and lets the granter correct a phone.
