@@ -53,6 +53,7 @@ function WorkspaceProbe() {
   return (
     <div>
       <span data-testid="ws-status">{workspace.status}</span>
+      <span data-testid="ws-staff-access">{workspace.staffAccess === true ? 'on' : 'off'}</span>
       {workspace.status === 'ready' ? (
         <span data-testid="ws-company">{workspace.company.name_en}</span>
       ) : null}
@@ -173,5 +174,28 @@ describe('WorkspaceProvider bodyless access refusals', () => {
     await readThenRefetchWith(() => new Response(null, { status: 403 }));
     expect(await screen.findByRole('alert')).not.toBeNull();
     expect(screen.queryByTestId('ws-status')).toBeNull();
+  });
+});
+
+describe('WorkspaceProvider with an older API (076 A1)', () => {
+  beforeEach(() => {
+    mockFetch.mockReset();
+  });
+
+  it('a read without capabilities still loads the page and reports staff access off', async () => {
+    mockFetch.mockImplementation(async () => jsonResponse({ companies: [COMPANY] }, 200));
+    renderProvider(createQueryClient());
+    expect((await screen.findByTestId('ws-company')).textContent).toBe('Provider Company');
+    expect(screen.getByTestId('ws-staff-access').textContent).toBe('off');
+    expect(screen.queryByRole('alert')).toBeNull();
+  });
+
+  it('a read with staff_access true reports staff access on', async () => {
+    mockFetch.mockImplementation(async () =>
+      jsonResponse({ companies: [COMPANY], capabilities: { staff_access: true } }, 200),
+    );
+    renderProvider(createQueryClient());
+    await screen.findByTestId('ws-company');
+    expect(screen.getByTestId('ws-staff-access').textContent).toBe('on');
   });
 });

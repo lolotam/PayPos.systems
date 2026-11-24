@@ -74,6 +74,8 @@ const workspaceCompanyRead = workspaceCompany.extend({
 });
 export const myWorkspacesReadResponse = myWorkspacesResponse.extend({
   companies: z.array(workspaceCompanyRead),
+  // API أقدم أثناء النشر ما بيبعتش capabilities: غيابها معناه إن القدرة مقفولة.
+  capabilities: workspaceCapabilities.optional(),
 });
 export type WorkspaceBusinessRead = z.infer<typeof workspaceBusinessRead>;
 export type WorkspaceCompanyRead = z.infer<typeof workspaceCompanyRead>;

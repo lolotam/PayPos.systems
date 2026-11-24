@@ -87,8 +87,12 @@ describe('workspace staff-access capability contract (076 A1)', () => {
     expect(myWorkspacesReadResponse.parse(body)).toEqual(body);
   });
 
-  it('requires a boolean staff_access field on a workspace read', () => {
-    expect(myWorkspacesReadResponse.safeParse({ companies: [] }).success).toBe(false);
+  it('a workspace read from an older API without capabilities still parses', () => {
+    const parsed = myWorkspacesReadResponse.parse({ companies: [] });
+    expect(parsed.capabilities).toBeUndefined();
+  });
+
+  it('a present capabilities object on a workspace read must carry a boolean staff_access', () => {
     for (const capabilities of [{}, { staff_access: 'yes' }]) {
       expect(myWorkspacesReadResponse.safeParse({ companies: [], capabilities }).success).toBe(
         false,
@@ -99,6 +103,14 @@ describe('workspace staff-access capability contract (076 A1)', () => {
       capabilities: { staff_access: true, extra: 1 },
     });
     expect(parsed.capabilities).toEqual({ staff_access: true });
+  });
+
+  it('the response contract itself still requires capabilities', () => {
+    expect(myWorkspacesResponse.safeParse({ companies: [] }).success).toBe(false);
+    expect(
+      myWorkspacesResponse.safeParse({ companies: [], capabilities: { staff_access: false } })
+        .success,
+    ).toBe(true);
   });
 
   it('publishes the required capability field in OpenAPI', () => {

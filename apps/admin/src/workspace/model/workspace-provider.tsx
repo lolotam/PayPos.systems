@@ -106,7 +106,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
     query.data !== undefined,
     resolved,
     companies,
-    query.data?.capabilities.staff_access === true,
+    query.data?.capabilities?.staff_access === true,
     choose,
   );
   return <WorkspaceContext.Provider value={value}>{children}</WorkspaceContext.Provider>;
