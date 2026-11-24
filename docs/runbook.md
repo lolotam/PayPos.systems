@@ -530,6 +530,90 @@ To close approval (also invalidates the current proof), use:
 pnpm platform:commission-approval --company <uuid> --disable --reason <reason> --operator-email <operator-email>
 ```
 
+## 53-2 B1: staging trial for the approval measurement (spec 059, owner answer 2026-11-24)
+
+Prepares the ONE dedicated staging TEST company with a large, fully consumed commission history through the PUBLIC
+HTTP API only, so the operator can then measure one real «approve commission statement» request by hand. The script
+is `scripts/staging/commission-approval-trial.mjs` (pure Node ≥ 24, no build step, no database access, no secrets in
+code — credentials come only from `TRIAL_EMAIL` / `TRIAL_PASSWORD` at run time and are never printed). It accepts
+only the exact `https://` staging API origin named in `docs/adr/0001` §6 and `deploy/docker-compose.staging-shared.yml`
+(plain http, userinfo, explicit ports, upper-case hosts, paths and redirects are refused), refuses without
+`--confirm-staging`, backdates service sessions into the previous calendar month of the BUSINESS timezone
+(`recording-context.business_timezone` — the only period the API accepts for backdating and the only one whose
+statement has ended), waits until every recorded line is priced in the commission estimate, then generates and
+reviews the statement. It NEVER enables the approval switch, NEVER issues a coverage proof and NEVER approves —
+those stay the manual steps of the «Order: enable → dry-run report → issue → approve» section above.
+
+**Prerequisites (operator, before the run):**
+
+1. A dedicated TEST company on staging whose only user is an owner of the TEST company (not of production), that
+   user has no 2FA (the sign-in is email + password only), and no commission history in the target month. The
+   company AND the business must be dedicated test records whose English names start with the fixed prefix
+   `TRIAL-` — the script refuses anything else (independent marker beyond membership, so an ordinary staging
+   company the user can reach can never be hit by mistake).
+2. The test business must have been created in or before the target month (`COMMISSION_PERIOD_BEFORE_BUSINESS`
+   precheck; the script reads the business `created_at` through `GET /v1/businesses` and prints the earliest
+   measurable month). With the default period = previous month, a business created this month cannot be measured yet.
+3. Customer rating requests must be OFF for the business — the script reads `GET /v1/businesses/:businessId/rating-settings`
+   and refuses when `requests_enabled` is on, so a recorded session can never schedule an outbound rating message.
+   The run must also carry `--notifications-off-confirmed`: the operator confirms the rating and notification messages
+   of that test business are switched OFF, and the script refuses before any request (so no credential is even sent).
+4. One active branch on the test business (or pass `--branch`), and that owner linked to exactly one recorder
+   membership on the branch (verified from the recording-context read).
+5. Customer phones created by the trial come from the NANP fictional range `+1 202-555-0100`…`202-555-0119`
+   (`calling_code 1`, `national_number 2025550100`–`2025550119` — reserved for fiction, they can never belong to a
+   real subscriber and they pass the API phone normalisation) and names are `Trial Customer NN` / `Trial Employee NNN` —
+   test data only.
+
+```sh
+TRIAL_EMAIL=<test-owner-email> TRIAL_PASSWORD=<test-owner-password> \
+node scripts/staging/commission-approval-trial.mjs \
+  --api-url https://api.staging.pospay.systems --company <test-company-uuid> --business <test-business-uuid> \
+  --confirm-staging --notifications-off-confirmed \
+  [--branch <uuid>] [--period YYYY-MM] [--employees 10] [--lines 2000] [--lines-per-session 2] \
+  [--delay-ms 200] [--wait-timeout 600] [--poll-ms 2000] [--retry-backoff-ms 1000] [--resume] [--dry-run]
+```
+
+`--dry-run` stops after the preflight. Idempotency: every keyed route sends an `Idempotency-Key` built from the RUN ID
+(the target period plus `--employees`, `--lines` and `--lines-per-session`) and the hash of its exact body, so a re-run
+replays and different options can never replay a key that was minted for another body; un-keyed routes (employees,
+services) list again after a failed or lost answer and create only when the record is still missing, so a create whose
+answer was lost is recovered and never duplicated. Any rejected service line stops the run with the session index and
+the rejection codes. The summary prints ids, counts, per-phase timings, the HTTP request count and the next manual
+steps. Run it from any machine that can reach the staging API over HTTPS; no container or database access is needed.
+
+**Resume:** if the period already carries commission sources, the preflight refuses unless `--resume` is given; with
+`--resume` it continues only when every source belongs to an employee THIS run created — the trial employees are named
+`Trial Employee NNN (<run id>)`, so a period left by another option set is refused as «different options detected»
+rather than mixed into. Use the same options to finish an interrupted trial; a different option set needs a clean period.
+
+**After the script: measure the approval.** The statement of the period is now REVIEWED. Run the full manual
+sequence of the activation section above for the TEST company (enable → dry-run report → issue → approve). Approve
+the REVIEWED statement once from the admin, then read the single duration from the api logs: every request logs
+`request completed` with `http.method`, `http.route`, `http.status` and `http.ms` (`apps/api/src/shared/request-completion.ts`);
+the logged route is the route PATTERN, never the raw URL, so the approve row carries the literal route
+`/v1/businesses/:businessId/commission-statements/:period/approve` and the method `POST`. On staging, filter the api
+service logs for that method AND that route AND status 200 — the generate and review calls of the same run, and the
+refusals (403/409/422) on the approve route itself, are fast and must be ignored, for example:
+
+```sh
+docker logs <api-container> 2>&1 \
+  | grep 'request completed' \
+  | grep '"method":"POST"' \
+  | grep '"route":"/v1/businesses/:businessId/commission-statements/:period/approve"' \
+  | grep '"status":200'
+```
+
+Exactly one line is expected; if there are several, take the one whose time matches your approve click, and ignore any
+line whose status is not 200. Then record the `http.ms` of that line. The approve is one-shot; a second sample needs
+another prepared period or business — run the script again with another `--period` (one month back at most) or a
+second test company, then repeat the measurement. The target company is enabled only if the measured approval is
+**under 200 ms**; otherwise its switch stays off and the owner decides.
+
+**Leave or clean up:** there is no delete API; the trial data stays in the dedicated TEST company on staging, which
+is intentional — it remains available for re-measurement. Do not reuse a period that already carries trial sources
+without `--resume`, and never point the script at a company that is not a `TRIAL-` test company.
+
 ## 53-2 B2a: coverage and approval operator procedures
 
 Everything in this section is an **operator obligation, not database enforcement**, exactly as ADR-0054 addendum §12
