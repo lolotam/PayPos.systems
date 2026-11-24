@@ -131,7 +131,7 @@ const MANAGE = [
     ['Pay', 'Commission plans', '1', L, L, '', R_LIVE],
     ['Pay', 'Commission overrides', '1', L, L, '', R_LIVE],
     ['Pay', 'Salaries', '1', S, L, '', R_OWNER],
-    ['Pay', 'Commission statements', '1', S, S, '', R_FIN_BIZ],
+    ['Pay', 'Commission statements', '1', L, S, '', 'Owner, General manager, Accountant, Business manager, Branch manager'],
     ['Pay', 'Payroll runs and payslips', '5', S, S, '', R_FIN],
     ['Pay', 'Loans and advances', '5', S, S, '', R_FIN],
   ]],
