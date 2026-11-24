@@ -1,7 +1,7 @@
 'use client';
 
 import { t } from '@pospay/i18n';
-import type { MemberInvitation } from '@pospay/contracts';
+import type { InviteMemberInput, MemberInvitation } from '@pospay/contracts';
 import { useState } from 'react';
 
 import { useMemberInvitations } from '../api/use-member-invitations';
@@ -20,8 +20,8 @@ type Props = {
 };
 
 /**
- * شاشة دعوة العضو (spec 076 G1): النموذج بتأكيد إجباري، والرابط بيتسلّم من نداء الـ mutation
- * مباشرة لحالة محلية وبعدها الـ mutation بيتصفّر — مفيش رابط في أي كاش ولا مفتاح React.
+ * شاشة دعوة العضو (spec 076 G1): النموذج بتأكيد إجباري، والرابط بيتسلّم من النداء المباشر
+ * لحالة محلية — مفيش useMutation، فالإيميل والرابط مش في أي كاش ولا مفتاح React.
  * البوابة مقفولة (503 NOT_READY) بتظهر رسالة بدل النموذج.
  */
 export function InvitationsPage({ companyId, userId, choices }: Props) {
@@ -36,14 +36,15 @@ export function InvitationsPage({ companyId, userId, choices }: Props) {
     setReissued(wasReissued);
     setShownLink(link);
   };
-  const onReissue = (invitation: MemberInvitation) => {
+  const onReissue = async (invitation: MemberInvitation) => {
     setShownLink(null);
-    reissue.mutate(invitation.id, {
-      onSuccess: (result) => {
-        showLink(result.set_password_link, true);
-        reissue.reset();
-      },
-    });
+    const result = await reissue.run(invitation.id);
+    if (result !== null) showLink(result.set_password_link, true);
+  };
+  const onInvite = async (input: InviteMemberInput) => {
+    setShownLink(null);
+    const result = await invite.run(input);
+    if (result !== null) showLink(result.set_password_link, false);
   };
 
   return (
@@ -57,27 +58,20 @@ export function InvitationsPage({ companyId, userId, choices }: Props) {
           <InvitationHandoff
             link={shownLink}
             reissued={reissued}
-            error={invite.isError ? invite.error : reissue.isError ? reissue.error : null}
+            error={invite.error ?? reissue.error}
             onDismiss={() => setShownLink(null)}
           />
           <InvitationForm
             companyId={companyId}
             choices={choices}
             disabled={false}
-            pending={invite.isPending}
-            onSave={(input) =>
-              invite.mutate(input, {
-                onSuccess: (result) => {
-                  showLink(result.set_password_link, false);
-                  invite.reset();
-                },
-              })
-            }
+            pending={invite.pending}
+            onSave={(input) => void onInvite(input)}
           />
           <InvitationsListSection
             list={list}
-            reissuePending={reissue.isPending}
-            onReissue={onReissue}
+            reissuePending={reissue.pending}
+            onReissue={(invitation) => void onReissue(invitation)}
           />
         </>
       ) : (

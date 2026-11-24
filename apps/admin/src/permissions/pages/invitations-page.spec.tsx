@@ -5,8 +5,8 @@ import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 
 import { InvitationsPage } from './invitations-page';
 
-// الشاشة الكاملة بالـ hooks الحقيقية وعميل API مزيّف: الرابط بيتعرض مرة واحدة ومش بيفضل في أي
-// كاش بعد الإخفاء (P1-e)، والبوابة المقفولة بتشيل النموذج (P2-b)، والقائمة بصفحات من غير تكرار
+// الشاشة الكاملة بالـ hooks الحقيقية وعميل API مزيّف: الرابط بيتعرض مرة واحدة ومش في أي كاش
+// لا أثناء الطلب ولا عند التسليم (P1-e)، والبوابة المقفولة بتشيل النموذج (P2-b)، والقائمة بصفحات من غير تكرار
 // وبزر إعادة الإصدار لمن يستحقه بس وبأدوار مترجمة (P2-c).
 const api = vi.hoisted(() => ({ get: vi.fn(), post: vi.fn() }));
 vi.mock('@/shared/api/client', () => ({ apiClient: () => ({ GET: api.get, POST: api.post }) }));
@@ -59,9 +59,15 @@ beforeEach(() => {
 });
 afterEach(() => client.clear());
 
-it('shows the link once, never keeps it in a cache, and hides it for good on dismissal', async () => {
+const holdPost = () => {
+  let settle: (value: unknown) => void = () => undefined;
+  api.post.mockImplementation(() => new Promise((resolve) => (settle = resolve)));
+  return (value: unknown) => settle(value);
+};
+
+it('keeps the email and the link out of both caches while the request is in flight and at hand-over', async () => {
   api.get.mockResolvedValue({ data: { items: [], next_cursor: null } });
-  api.post.mockResolvedValue({ data: { invitation_id: 'inv-1', set_password_link: LINK } });
+  const answer = holdPost();
   renderPage();
   fireEvent.change(await screen.findByLabelText(t('en', 'invitations.emailLabel')), {
     target: { value: 'ahmed@example.test' },
@@ -71,11 +77,33 @@ it('shows the link once, never keeps it in a cache, and hides it for good on dis
   });
   fireEvent.click(screen.getByLabelText(t('en', 'invitations.confirmTick')));
   fireEvent.click(screen.getByRole('button', { name: t('en', 'invitations.submit') }));
+  await waitFor(() => expect(api.post).toHaveBeenCalledTimes(1));
+  // الطلب لسه ماردش: الإيميل مش في كاش الـ queries ولا الـ mutations.
+  expect(client.getMutationCache().getAll()).toHaveLength(0);
+  expect(cachesJson()).not.toContain('ahmed@example.test');
+  answer({ data: { invitation_id: 'inv-1', set_password_link: LINK } });
   expect((await screen.findByText(LINK)).tagName).toBe('CODE');
-  // gcTime: 0 + reset: لما الـ mutation يتفصل عن المراقب بيتشال من الكاش بالرابط اللي فيه.
-  await waitFor(() => expect(cachesJson()).not.toContain('secret-token'));
+  // لحظة التسليم: الرابط ظاهر في الصفحة بس، والكاشين من غير رابط ولا إيميل.
+  expect(client.getMutationCache().getAll()).toHaveLength(0);
+  expect(cachesJson()).not.toContain('secret-token');
+  expect(cachesJson()).not.toContain('ahmed@example.test');
   fireEvent.click(screen.getByRole('button', { name: t('en', 'invitations.dismiss') }));
   expect(screen.queryByText(LINK)).toBeNull();
+});
+
+it('keeps the re-issued link out of both caches in flight and at hand-over', async () => {
+  const id = '01920000-0000-7000-8000-000000000001';
+  api.get.mockResolvedValue({
+    data: { items: [item(id, { can_reissue: true })], next_cursor: null },
+  });
+  const answer = holdPost();
+  renderPage();
+  fireEvent.click(await screen.findByRole('button', { name: t('en', 'invitations.reissue') }));
+  await waitFor(() => expect(api.post).toHaveBeenCalledTimes(1));
+  expect(client.getMutationCache().getAll()).toHaveLength(0);
+  answer({ data: { invitation_id: id, set_password_link: LINK } });
+  expect((await screen.findByText(LINK)).tagName).toBe('CODE');
+  expect(client.getMutationCache().getAll()).toHaveLength(0);
   expect(cachesJson()).not.toContain('secret-token');
 });
 
