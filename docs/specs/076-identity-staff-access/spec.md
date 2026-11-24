@@ -288,7 +288,12 @@ All of them are the first mandatory items of F2.
   the gate is turned on.
 - **AC-ACT-15 Narrow the company lock of the employee edit.** The `FOR NO KEY UPDATE` lock on the company row
   that every employee edit takes since F1 is taken only by edits that change the user link, keeping the lock
-  order with the grant path.
+  order with the grant path. Clarification (Manager ruling 2026-11-25, Option C): the duplicate pre-read
+  company lock that F1 added at the start of `loadEmployee` (`drizzle-employee-update.ts:21`) is removed, so a
+  lookup of a non-existent employee (`404`) takes no company lock. The company lock inside
+  `authorizeEmployeeCreation` is the pre-existing PR #83 / PR 7 permission-freeze protocol in `identity`
+  (already ordered `companies → memberships → employees → employee_staff_access`), not an F1 regression;
+  relaxing PR #83 for full intra-company edit parallelism is a separate decision outside 076.
 - **AC-ACT-16 Phone ownership before a global reservation.** A grant reserves a phone number on the global user
   table before anyone has proven they hold that phone (named risk D2); F2's proof step closes it or the owner
   notice makes it visible, as the plan decides.

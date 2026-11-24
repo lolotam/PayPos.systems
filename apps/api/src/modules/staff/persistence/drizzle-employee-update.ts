@@ -18,7 +18,6 @@ async function loadEmployee(
   businessId: string,
   employeeId: string,
 ) {
-  await tx.execute(sql`SELECT id FROM companies WHERE id=${companyId} FOR NO KEY UPDATE`);
   const [scope] = await tx.execute<{ primary_branch_id: string }>(
     sql`SELECT primary_branch_id FROM employees WHERE company_id=${companyId} AND business_id=${businessId} AND id=${employeeId} AND deleted_at IS NULL`,
   );
