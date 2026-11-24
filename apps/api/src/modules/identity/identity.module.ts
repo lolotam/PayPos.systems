@@ -35,7 +35,8 @@ import {
 } from './http/cashier-pins.controller.ts';
 import { CompaniesController } from './http/companies.controller.ts';
 import { PendingDevicesController } from './http/pending-devices.controller.ts';
-import { MeController, WORKSPACE_NAMES } from './http/me.controller.ts';
+import { MeController, MY_PREFERENCES, WORKSPACE_NAMES } from './http/me.controller.ts';
+import { SetMyPreferences } from './use-cases/set-my-preferences/set-my-preferences.ts';
 import {
   DEVICE_USE_CASES,
   DevicesController,
@@ -167,6 +168,8 @@ export function identityProviders(
     { provide: DISCOUNT_APPROVER_VERIFIER, useExisting: VERIFY_DISCOUNT_APPROVER_PIN },
     ...privateViewProviders(database, ids, redis),
     { provide: WORKSPACE_NAMES, useValue: names },
+    { provide: MY_PREFERENCES, useFactory: (auth: AuthService | null) => auth?.preferences ?? null, inject: [AUTH_SERVICE] },
+    { provide: SetMyPreferences, useFactory: (auth: AuthService | null) => auth === null ? null : new SetMyPreferences(auth.preferences), inject: [AUTH_SERVICE] },
     { provide: OnboardCompany, useValue: onboard },
     { provide: DEVICE_USE_CASES, useValue: devices?.useCases ?? null },
     { provide: DEVICE_AUTHENTICATOR, useValue: devices?.authenticator ?? null },
