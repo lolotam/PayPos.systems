@@ -1,3 +1,4 @@
+import { staffAccessPaths } from './staff/staff-access-openapi.js';
 import { leaveHistoryPaths } from './staff/leave-history-openapi.js';
 import { businessCountryPaths } from './tenancy/business-openapi.js';
 import { leaveHistoryReportApiPaths } from './staff/leave-history-report-api-openapi.js';
@@ -207,6 +208,7 @@ const PATHS = {
   ...notificationPaths,
   ...mePaths,
   ...devicePaths,
+  ...staffAccessPaths,
 };
 
 /**

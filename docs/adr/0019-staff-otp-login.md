@@ -51,6 +51,12 @@ Waleed settled the following business rules:
   audited, approved binding. No self-signup or tenant-manager overwrite of a global phone. Require an
   active covering membership **plus `login:staff:branch`**: bundled for Staff, explicitly enabled for
   reception/cashier roles, and not automatically granted to owner/admin roles.
+
+  > **Addendum c, spec 076 (ADR-0063, provisional number).** The binding gains one tenant-side origin:
+  «إعطاء دخول» creates the staff user and approves her phone binding inside the grant sequence, with
+  the granter recorded as the confirming actor and only for a staff user of the same company
+  (`staff_access_company_id`). A phone owned by any other user is refused; the platform operator path
+  and its operator-name check are unchanged.
 - **Q2 — Session:** **8 hours absolute, no idle timeout**; the employee stays signed in for the shift.
   No renewal past the original 8-hour deadline. After expiry, use a new OTP or the employee's own PIN.
 - **Q3 — Shared devices:** **one staff operator per POS device**. A branch may run several devices,

@@ -257,4 +257,12 @@ export const AUTHENTICATED_WRITES: Readonly<Record<string, AuthenticatedWriteDec
       'DEVICE_ONLY',
       'apps/api/src/shared/session.guard.ts##staff',
     ),
+    'EmployeeAccessController.grant': declared(
+      'RECORD_SCOPED',
+      'apps/api/src/modules/staff/persistence/staff-access.adapter.ts#authorityChecker',
+    ),
+    'EmployeeAccessController.cancelPending': declared(
+      'RECORD_SCOPED',
+      'apps/api/src/modules/staff/persistence/staff-access-auth.adapter.ts#cancelScope',
+    ),
   });

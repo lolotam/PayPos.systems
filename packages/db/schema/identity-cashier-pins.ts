@@ -1,5 +1,6 @@
 import { sql } from 'drizzle-orm';
 import {
+  boolean,
   check,
   foreignKey,
   index,
@@ -32,6 +33,10 @@ export const cashierPins = pgTable(
     // المدير اللي حط الـ PIN — null لو الموظف غيّره بنفسه على الجهاز بعدين (مالوش user).
     setBy: uuid('set_by').references(() => user.id),
     setAt: timestamp('set_at', { withTimezone: true }).notNull(),
+    // رقم سري حدّده غير صاحبه (المانح) — كل قراءة ترفضه كرقم غلط لحد ما تدفق التغيير يشتغل في F2.
+    temporary: boolean('temporary').notNull().default(false),
+    // ينتهي بعد 24 ساعة لو ما اتاستخدمش (قرار D4)؛ NULL للأرقام الدائمة.
+    expiresAt: timestamp('expires_at', { withTimezone: true }),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [

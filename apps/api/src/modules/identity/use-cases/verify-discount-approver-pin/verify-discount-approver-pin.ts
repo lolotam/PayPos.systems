@@ -88,7 +88,7 @@ export class VerifyDiscountApproverPin {
       await this.cap.release(input.device, admission);
       throw error;
     }
-    if (!matches || row === null || userId === null) {
+    if (!matches || row === null || row.temporary === true || userId === null) {
       return await this.refused(input.device, target, reserved.reservation, admission);
     }
     const recorded = await this.attempts.succeeded(target, reserved.reservation);

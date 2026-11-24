@@ -4,6 +4,7 @@ import {
   attendanceReportAr,
 } from './attendance-actions-catalog.js';
 import { staffDuplicateNameAr } from './staff-duplicate-name-catalog.js';
+import { staffAccessAdminAr } from './staff-access-admin-catalog.js';
 import { attendanceChangeAr } from './attendance-change.js';
 import { inAppAr } from './in-app-catalog.js';
 import { catalogPackageTypesAr, packageTypeErrorsAr } from './catalog-package-types.js';
@@ -233,6 +234,9 @@ export const ar: Catalog = {
     EMPLOYEE_USER_LINK_UNAVAILABLE: 'تعذر ربط المستخدم الموجود.',
     EMPLOYEE_CONTRACT_END_BEFORE_HIRE: 'يجب أن تكون نهاية العقد في تاريخ التعيين أو بعده.',
     EMPLOYEE_USER_ALREADY_LINKED: 'هذا المستخدم مرتبط بالفعل بموظف نشط في هذا النشاط.',
+    STAFF_ACCESS_PHONE_TAKEN: 'رقم الهاتف ده مربوط بحساب تاني. تأكدي من الرقم أو راجعي الموظفة.',
+    STAFF_ACCESS_ALREADY_GRANTED: 'الموظفة دي عندها دخول شغال بالفعل.',
+    STAFF_ACCESS_NOT_ALLOWED: 'مش مسموح ليك تعطي أو تلغي دخول الموظفة دي من فرعها الأساسي.',
     ...employeeNumberErrorsAr,
     EMPLOYEE_CARD_CODE_UNAVAILABLE: 'لا يمكن استخدام كود الكارت هذا. اختر كودًا آخر.',
     ...employeeImportErrorsAr,
@@ -289,6 +293,7 @@ export const ar: Catalog = {
   },
   staff: {
     ...staffDuplicateNameAr,
+    ...staffAccessAdminAr,
     ...employeeNumberAdminAr,
     listTitle: 'الموظفون',
     listLead: 'أدر بيانات الموظفين وفروع العمل.',
