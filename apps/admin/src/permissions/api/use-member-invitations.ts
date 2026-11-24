@@ -74,7 +74,7 @@ function useDirectCall<Args extends unknown[], Result>(
  * في كاش الـ mutations لحد ما ينضف، فالإيميل والرابط ما بيعدوش على غير الدالة اللي نادت والحالة
  * المحلية في الصفحة. مفيش مفتاح query فيه رابط ولا توكن.
  */
-export function useMemberInvitations(companyId: string, userId: string, enabled = true) {
+export function useMemberInvitations(companyId: string, userId: string, enabled: boolean) {
   const client = useQueryClient();
   const listKey = ['member-invitations', companyId, userId, 'list'] as const;
   const list = useInfiniteQuery({

@@ -120,6 +120,7 @@ async function grant(input: {
 
 function ownerTree() {
   return {
+    capabilities: { staff_access: false },
     companies: [
       {
         id: companyA,
@@ -191,7 +192,10 @@ describe('GET /v1/me/workspaces without a usable membership', () => {
   });
 
   it('returns an empty list for a signed-in user with no membership', async () => {
-    expect(await list(emptyCookie)).toEqual({ companies: [], capabilities: { staff_access: false } });
+    expect(await list(emptyCookie)).toEqual({
+      companies: [],
+      capabilities: { staff_access: false },
+    });
   });
 
   it('ignores an ended membership and one that has not started', async () => {
@@ -209,15 +213,16 @@ describe('GET /v1/me/workspaces without a usable membership', () => {
       role: roleId('cashier'),
       starts: '2999-01-01T00:00:00Z',
     });
-    expect((await list(emptyCookie)).companies).toEqual([]);
+    expect(await list(emptyCookie)).toEqual({
+      companies: [],
+      capabilities: { staff_access: false },
+    });
   });
 });
 
 describe('GET /v1/me/workspaces for an owner', () => {
   it('shows the owner every business and branch, with the effective time zone', async () => {
-    const body = await list(ownerCookie);
-    expect(body.companies).toEqual(ownerTree().companies);
-    expect(body.capabilities).toEqual({ staff_access: false });
+    expect(await list(ownerCookie)).toEqual(ownerTree());
   });
 
   it('never returns another company the user is not a member of', async () => {

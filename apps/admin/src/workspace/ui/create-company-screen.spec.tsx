@@ -41,7 +41,7 @@ function testFormVisible(): void {
 function testValidSubmit(): void {
   it('a valid submit sends one request with the names, the plan id and the key, then enters the new company', async () => {
     const { posts } = queue(
-      [emptyWorkspaces, emptyWorkspaces, () => jsonResponse({ companies: [WORKSPACE_COMPANY] }, 200)],
+      [emptyWorkspaces, emptyWorkspaces, () => jsonResponse({ companies: [WORKSPACE_COMPANY], capabilities: { staff_access: false } }, 200)],
       [() => jsonResponse(CREATED_COMPANY, 201)],
     );
     renderScreen('en');
@@ -113,7 +113,7 @@ function testFirstRefusal(): void {
 function testGuardBlocksWhenCompanyExists(): void {
   it('a submit when the workspaces read now shows a company sends no POST and enters the dashboard', async () => {
     const { posts } = queue(
-      [emptyWorkspaces, () => jsonResponse({ companies: [WORKSPACE_COMPANY] }, 200)],
+      [emptyWorkspaces, () => jsonResponse({ companies: [WORKSPACE_COMPANY], capabilities: { staff_access: false } }, 200)],
     );
     renderScreen('en');
     await waitForForm();

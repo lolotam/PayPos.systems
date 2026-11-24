@@ -49,9 +49,9 @@ export const workspaceCompany = workspaceCompanyNames
   .meta({ id: 'WorkspaceCompany' });
 
 /** قدرات الشريحة المتاحة على السيرفر: اللوحة بتقرأها بدل ما تخمّن وتطلب مسار مقفول. */
-export const workspaceCapabilities = responseObject({
-  staff_access: z.boolean(),
-}).meta({ id: 'WorkspaceCapabilities' });
+export const workspaceCapabilities = responseObject({ staff_access: z.boolean() }).meta({
+  id: 'WorkspaceCapabilities',
+});
 
 export const myWorkspacesResponse = responseObject({
   companies: z.array(workspaceCompany),
@@ -72,13 +72,9 @@ const workspaceBusinessRead = workspaceBusiness.partial({ business_type: true, c
 const workspaceCompanyRead = workspaceCompany.extend({
   businesses: z.array(workspaceBusinessRead),
 });
-// القدرات نفسها اختيارية في عقد القراءة: API أقدم ما بيعرفش الحقل ده، فيُقرأ كـ «القدرة مقفولة».
-const workspaceCapabilitiesRead = workspaceCapabilities.partial({ staff_access: true });
 export const myWorkspacesReadResponse = myWorkspacesResponse.extend({
   companies: z.array(workspaceCompanyRead),
-  capabilities: workspaceCapabilitiesRead.optional(),
 });
 export type WorkspaceBusinessRead = z.infer<typeof workspaceBusinessRead>;
 export type WorkspaceCompanyRead = z.infer<typeof workspaceCompanyRead>;
-export type WorkspaceCapabilitiesRead = z.infer<typeof workspaceCapabilitiesRead>;
 export type MyWorkspacesReadResponse = z.infer<typeof myWorkspacesReadResponse>;

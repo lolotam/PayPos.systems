@@ -82,7 +82,7 @@ async function readThenRefetchWith(failure: () => Response): Promise<void> {
   let reads = 0;
   mockFetch.mockImplementation(async () => {
     reads += 1;
-    if (reads === 1) return jsonResponse({ companies: [COMPANY] }, 200);
+    if (reads === 1) return jsonResponse({ companies: [COMPANY], capabilities: { staff_access: false } }, 200);
     return failure();
   });
   renderProvider(client);

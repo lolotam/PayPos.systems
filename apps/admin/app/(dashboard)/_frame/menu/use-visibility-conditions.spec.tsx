@@ -145,8 +145,7 @@ it('asks the API about invitations only for an owner, so no other role sends a r
 });
 
 it('AC-ACT-17 sends no invitations read while the staff-access capability is off', () => {
-  const ready = state.workspace as unknown as { staffAccess: boolean };
-  state.workspace = { ...ready, staffAccess: false } as unknown as typeof state.workspace;
+  state.workspace = { ...(state.workspace ?? {}), staffAccess: false } as WorkspaceController;
   invitationProbes.length = 0;
   expect(conditions()['invitations-owner']).toBe(false);
   // الوسائط التالت هو «القراءة مفعّلة»: مع القدرة مقفولة مفيش طلب للدعوات أصلاً.

@@ -23,7 +23,7 @@ import {
 function testNetworkRetrySameKey(): void {
   it('a retry after a network failure locks the fields and resends the same key and body', async () => {
     const { posts } = queue(
-      [emptyWorkspaces, emptyWorkspaces, emptyWorkspaces, () => jsonResponse({ companies: [WORKSPACE_COMPANY] }, 200)],
+      [emptyWorkspaces, emptyWorkspaces, emptyWorkspaces, () => jsonResponse({ companies: [WORKSPACE_COMPANY], capabilities: { staff_access: false } }, 200)],
       [
         () => {
           throw new TypeError('network died');
@@ -54,7 +54,7 @@ function testNetworkRetrySameKey(): void {
 function testServer500Retry(): void {
   it('a 500 shows its own message in the locked retry state and the retry answer is the one that lands', async () => {
     const { posts } = queue(
-      [emptyWorkspaces, emptyWorkspaces, emptyWorkspaces, () => jsonResponse({ companies: [WORKSPACE_COMPANY] }, 200)],
+      [emptyWorkspaces, emptyWorkspaces, emptyWorkspaces, () => jsonResponse({ companies: [WORKSPACE_COMPANY], capabilities: { staff_access: false } }, 200)],
       [
         () => jsonResponse(ENVELOPE('UNEXPECTED', 'First refusal fixture'), 500),
         () => jsonResponse(CREATED_COMPANY, 201),
@@ -86,7 +86,7 @@ function testRemountKeepsAttempt(): void {
         emptyWorkspaces,
         emptyWorkspaces,
         emptyWorkspaces,
-        () => jsonResponse({ companies: [WORKSPACE_COMPANY] }, 200),
+        () => jsonResponse({ companies: [WORKSPACE_COMPANY], capabilities: { staff_access: false } }, 200),
       ],
       [
         () => {
@@ -158,7 +158,7 @@ function testSuccessSurvivesRemount(): void {
         emptyWorkspaces,
         () => jsonResponse(ENVELOPE('UNEXPECTED', 'Refresh failed fixture'), 500),
         () => jsonResponse(ENVELOPE('UNEXPECTED', 'Refresh failed fixture'), 500),
-        () => jsonResponse({ companies: [WORKSPACE_COMPANY] }, 200),
+        () => jsonResponse({ companies: [WORKSPACE_COMPANY], capabilities: { staff_access: false } }, 200),
       ],
       [() => jsonResponse(CREATED_COMPANY, 201)],
     );

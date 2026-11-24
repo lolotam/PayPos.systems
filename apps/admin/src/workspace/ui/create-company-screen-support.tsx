@@ -64,7 +64,8 @@ export function jsonResponse(data: unknown, status: number): Response {
   });
 }
 
-export const emptyWorkspaces = () => jsonResponse({ companies: [] }, 200);
+export const emptyWorkspaces = () =>
+  jsonResponse({ companies: [], capabilities: { staff_access: false } }, 200);
 
 export function renderScreen(locale: Locale, client?: QueryClient) {
   const gates = (

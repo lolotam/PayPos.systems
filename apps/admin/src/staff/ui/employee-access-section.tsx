@@ -4,9 +4,9 @@ import { Button } from '@pospay/ui';
 import { useCallback, useState } from 'react';
 import { envelopeMessage } from '@/shared/api/api-error';
 import { useLocale } from '@/shared/locale/locale-context';
+import { useWorkspace } from '@/workspace/model/workspace-provider';
 import { useCancelPendingStaffAccess } from '../api/use-cancel-pending-staff-access';
 import { useEmployeeStaffAccess } from '../api/use-employee-staff-access';
-import { useWorkspace } from '@/workspace/model/workspace-provider';
 import { EmployeeAccessGrantForm } from './employee-access-grant-form';
 import { EmployeeAccessReadout } from './employee-access-readout';
 

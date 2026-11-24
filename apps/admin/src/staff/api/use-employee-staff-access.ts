@@ -38,7 +38,7 @@ export function useEmployeeStaffAccess(
   companyId: string,
   businessId: string,
   employeeId: string,
-  enabled = true,
+  enabled: boolean,
 ): UseQueryResult<StaffAccessState | null> {
   return useQuery({
     queryKey: employeeStaffAccessKey(companyId, businessId, employeeId),

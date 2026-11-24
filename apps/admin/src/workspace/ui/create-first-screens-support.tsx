@@ -89,6 +89,7 @@ export const companyWithoutBusiness = (role: unknown = 'owner'): Response => {
   const roleCode = typeof role === 'string' ? role : 'owner';
   return jsonResponse(
     {
+      capabilities: { staff_access: false },
       companies: [
         {
           id: COMPANY_ID,
@@ -118,6 +119,7 @@ export const companyWithBusinessNoBranch = (role: unknown = 'owner'): Response =
   const roleCode = typeof role === 'string' ? role : 'owner';
   return jsonResponse(
     {
+      capabilities: { staff_access: false },
       companies: [
         {
           id: COMPANY_ID,
@@ -137,6 +139,7 @@ export const companyWithBusinessNoBranch = (role: unknown = 'owner'): Response =
 export const twoCompaniesWithoutBusiness = () =>
   jsonResponse(
     {
+      capabilities: { staff_access: false },
       companies: [COMPANY_ID, OTHER_COMPANY_ID].map((id) => ({
         id,
         name_ar: null,
@@ -153,6 +156,7 @@ export const twoCompaniesWithoutBusiness = () =>
 export const companyWithTwoBusinessesNoBranch = () =>
   jsonResponse(
     {
+      capabilities: { staff_access: false },
       companies: [
         {
           id: COMPANY_ID,
@@ -174,6 +178,7 @@ export const companyWithTwoBusinessesNoBranch = () =>
 export const companyWithOtherCompany = () =>
   jsonResponse(
     {
+      capabilities: { staff_access: false },
       companies: [
         {
           id: OTHER_COMPANY_ID,
@@ -206,6 +211,7 @@ export const companyWithOtherCompany = () =>
 export const companyWithBusinessAndBranch = () =>
   jsonResponse(
     {
+      capabilities: { staff_access: false },
       companies: [
         {
           id: COMPANY_ID,

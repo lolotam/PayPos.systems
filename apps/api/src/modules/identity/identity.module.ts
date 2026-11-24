@@ -141,13 +141,16 @@ export function identityProviders(
   staffAccessRoutes = false,
 ): Provider[] {
   const capabilities = identityCapabilities(database, ids, redis, staffCompanyOf);
+  const reader = capabilities.reader;
+  const sessions = staff?.sessions ?? null;
   return [
     ...permissionProviders(database, ids, redis),
     ...memberInvitationProviders(
       database,
       ids,
       redis,
-      invitations?.adminOrigin, invitations?.clock ?? systemClock,
+      invitations?.adminOrigin,
+      invitations?.clock ?? systemClock,
     ),
     {
       provide: STAFF_AUTHENTICATION,
@@ -161,9 +164,9 @@ export function identityProviders(
     },
     {
       provide: STAFF_PIN_USE_CASES,
-      useValue: database === undefined ? null : staffPinUseCases(database, ids, redis, staff?.sessions ?? null),
+      useValue: database === undefined ? null : staffPinUseCases(database, ids, redis, sessions),
     },
-    ...discountApproverProviders(database, ids, redis, staff?.sessions ?? null),
+    ...discountApproverProviders(database, ids, redis, sessions),
     { provide: DISCOUNT_APPROVER_VERIFIER, useExisting: VERIFY_DISCOUNT_APPROVER_PIN },
     ...privateViewProviders(database, ids, redis),
     { provide: WORKSPACE_NAMES, useValue: capabilities.names },
@@ -175,15 +178,9 @@ export function identityProviders(
       provide: CASHIER_PIN_USE_CASES,
       useValue: database === undefined ? null : cashierPinUseCases(database, ids, redis),
     },
-    {
-      provide: AuthorizeRequest,
-      useValue: capabilities.reader === null ? null : new AuthorizeRequest(capabilities.reader),
-    },
+    { provide: AuthorizeRequest, useValue: reader === null ? null : new AuthorizeRequest(reader) },
     { provide: REQUEST_AUTHORIZER, useExisting: AuthorizeRequest },
-    {
-      provide: CheckFeature,
-      useValue: capabilities.reader === null ? null : new CheckFeature(capabilities.reader),
-    },
+    { provide: CheckFeature, useValue: reader === null ? null : new CheckFeature(reader) },
     { provide: APP_GUARD, useClass: AccessGuard },
     { provide: APP_GUARD, useClass: FeatureGuard },
   ];
