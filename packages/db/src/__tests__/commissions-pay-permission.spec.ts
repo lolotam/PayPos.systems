@@ -62,7 +62,7 @@ it('gives a membership created before the migration the default through the glob
   await owner`INSERT INTO memberships(
     company_id,id,user_id,role_id,role_owner_key,scope_type,scope_id)
     VALUES (${A.company},${membershipId}::uuid,${USER}::uuid,${role?.['id']}::uuid,'global',
-      'BUSINESS',${A.branch}::uuid)`;
+      'BUSINESS',${A.business}::uuid)`;
   const rows = await db.withTenant(A.company, (tx) =>
     tx.execute<{ permission_code: string }>(sql`SELECT rp.permission_code
       FROM memberships m JOIN role_permissions rp
@@ -104,13 +104,16 @@ async function grantedRoles(): Promise<readonly string[]> {
   return rows.map((row) => row['code'] as string);
 }
 
-/** جمل ملف الـ migration كما هو، مقسومة على فواصل drizzle. */
+/**
+ * جمل منح الصلاحية من ملف الـ migration كما هي، مقسومة على فواصل drizzle. الملف بيشيل كمان جدول الصرف
+ * وحارس الكشف، فبنطبّق منه جمل `INSERT` بتاعة الصلاحية بس عشان نعيد الترقية على قاعدة اتهاجرت.
+ */
 function migrationStatements(): readonly string[] {
   const directory = resolve('migrations');
-  const file = readdirSync(directory).find((name) => name.startsWith('0247_'));
-  if (file === undefined) throw new Error('the 0247 migration file is missing');
+  const file = readdirSync(directory).find((name) => name.includes('_commission-statement-payments'));
+  if (file === undefined) throw new Error('the payments migration file is missing');
   return readFileSync(resolve(directory, file), 'utf8')
     .split('--> statement-breakpoint')
     .map((statement) => statement.replace(/^--.*$/gm, '').trim())
-    .filter((statement) => statement.length > 0);
+    .filter((statement) => /^INSERT INTO (permissions|role_permissions)\b/.test(statement));
 }

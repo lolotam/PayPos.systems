@@ -57,9 +57,12 @@ async function seedCommissionEmployeeLines(
   statementId: string,
 ): Promise<void> {
   await insertCommissionLine(tx, tenant, statementId, ids, { kind: 'EMPLOYEE' });
+  const lineId = ids.newId();
   await insertCommissionLine(tx, tenant, statementId, ids, {
     kind: 'COMMISSION',
     amount: '41.003',
+    lineId,
+    sourceRef: `line:${lineId}`,
   });
 }
 
