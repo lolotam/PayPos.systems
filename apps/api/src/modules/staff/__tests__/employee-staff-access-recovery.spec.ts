@@ -235,3 +235,44 @@ it('a transient auth failure answers TRANSACTION_RETRY_REQUIRED and the same req
   }
   expect((await grant(f, employeeId, phone)).status).toBe(200);
 });
+
+it('AC-ACT-2 a repeated re-grant of the same attempt approves the phone binding once', async () => {
+  const employeeId = await addEmployee(f, 'Idempotent regrant', f.salmiya, 117);
+  const phone = nextPhone(f);
+  expect((await grant(f, employeeId, phone)).status).toBe(200);
+  const [record] = await f.h
+    .owner`SELECT id,user_id,membership_id FROM employee_staff_access WHERE employee_id=${employeeId}`;
+  await f.h.owner`UPDATE memberships SET ends_at=now() WHERE id=${record?.membership_id}`;
+  await f.h.owner`UPDATE employee_staff_access SET state='STOPPED' WHERE employee_id=${employeeId}`;
+  const replacement = nextPhone(f);
+  // انهيار بعد خطوة auth: الربط اتأكد وصف التدقيق اتكتب، والتسجيل فضل PENDING بنفس المحاولة.
+  const real = f.h.auth.staffUsers.provision;
+  vi.spyOn(f.h.auth.staffUsers, 'provision').mockImplementationOnce(async (input) => {
+    await real(input);
+    throw new Error('INJECTED_REGRANT_CRASH');
+  });
+  try {
+    expect((await grant(f, employeeId, replacement)).status).toBe(500);
+  } finally {
+    vi.restoreAllMocks();
+  }
+  const [attempt] = await f.h
+    .owner`SELECT attempt_id FROM employee_staff_access WHERE employee_id=${employeeId}`;
+  const bindingRows = () =>
+    f.h.owner`SELECT details FROM platform_audit_log
+      WHERE action='phone.binding_approved' AND details->>'user_id'=${record?.user_id}`;
+  const attemptRows = () =>
+    f.h.owner`SELECT details FROM platform_audit_log
+      WHERE action='phone.binding_approved' AND details->>'user_id'=${record?.user_id}
+        AND details->>'attempt_id'=${attempt?.attempt_id}`;
+  // صف واحد لإنشاء الحساب وصف واحد لاعتماد الهاتف الجديد — كل واحد في محاولته.
+  expect(await bindingRows()).toHaveLength(2);
+  expect(await attemptRows()).toHaveLength(1);
+  // تكرار نفس الطلب بنفس المحاولة: مفيش اعتماد تاني ولا صف تاني.
+  expect((await grant(f, employeeId, replacement)).status).toBe(200);
+  expect(await bindingRows()).toHaveLength(2);
+  expect(await attemptRows()).toHaveLength(1);
+  expect(
+    await f.h.owner`SELECT phone_number, phone_binding_approved_at FROM "user" WHERE id=${record?.user_id}`,
+  ).toMatchObject([{ phone_number: replacement, phone_binding_approved_at: expect.any(Date) }]);
+});

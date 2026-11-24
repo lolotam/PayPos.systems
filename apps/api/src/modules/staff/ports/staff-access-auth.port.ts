@@ -24,6 +24,11 @@ export interface StaffAccessProvisionInput {
   readonly resetBinding: boolean;
   /** مولّد UUID v7. */
   readonly ids: StaffAccessIds;
+  /**
+   * معرّف المحاولة التي نفّذت الخطوة — بيتكرر في صف اعتماد الربط عشان تكرار المحاولة نفسها
+   * مايعملش اعتماداً ثانياً ولا صف تدقيق ثاني (AC-ACT-2).
+   */
+  readonly attemptId?: string;
 }
 
 /** مدخل الإلغاء. */
