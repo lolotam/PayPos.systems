@@ -5,6 +5,7 @@ import {
 } from '@pospay/db';
 
 import { ApiError } from '../../../shared/errors.ts';
+import { CommissionStatementPayError } from '../domain/errors.ts';
 import { CommissionPlanVersionError } from '../use-cases/create-commission-plan-version/create-commission-plan-version.usecase.ts';
 
 /**
@@ -17,6 +18,9 @@ import { CommissionPlanVersionError } from '../use-cases/create-commission-plan-
 export function mapCommissionWriteError(error: unknown): never {
   if (error instanceof CommissionPlanVersionError) {
     throw new ApiError(error.code, error.details);
+  }
+  if (error instanceof CommissionStatementPayError) {
+    throw new ApiError(error.code);
   }
   if (error instanceof StatementPeriodClosedError) {
     throw new ApiError('COMMISSION_PERIOD_CLOSED');

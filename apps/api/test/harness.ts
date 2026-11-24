@@ -48,6 +48,7 @@ export {
   readCommissionReviewAccess,
   readCommissionScope,
   readExplicitCompanyFeature,
+  readCommissionStatementPayAccess,
 } from '../src/modules/identity/index.ts';
 export { pendingCommissionEvents } from '../src/modules/commissions/index.ts';
 export {

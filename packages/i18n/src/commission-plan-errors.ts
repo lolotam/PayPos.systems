@@ -17,6 +17,9 @@ export const commissionPlanErrorsAr = {
   COMMISSION_UPDATES_PENDING: 'لسه بنحسب آخر التحديثات، جرّب تاني بعد شوية.',
   COMMISSION_COVERAGE_NOT_PROVEN:
     'بيانات الشركة القديمة لسه ماتراجعتش، فالاعتماد مش متاح دلوقتي.',
+  COMMISSION_STATEMENT_NOT_APPROVED: 'الكشف لازم يتعمد الأول قبل ما يتصرف.',
+  COMMISSION_STATEMENT_ALREADY_PAID: 'الكشف ده اتصرّف خلاص.',
+  COMMISSION_PAID_ON_INVALID: 'تاريخ الصرف لازم يكون بعد تاريخ الاعتماد ومش بعد النهارده.',
   COMMISSION_PLAN_EMPLOYEE_CURSOR_UNAVAILABLE:
     'تعذّر تحميل قائمة الموظفين بسبب بيانات محفوظة تحتاج إصلاحًا. تواصل مع الدعم.',
   EMPLOYEE_NOT_FOUND: 'الموظفة غير موجودة في النشاط ده.',
@@ -44,6 +47,10 @@ export const commissionPlanErrorsEn = {
   COMMISSION_UPDATES_PENDING: 'Updates are still being calculated; try again shortly.',
   COMMISSION_COVERAGE_NOT_PROVEN:
     "This company's earlier commission data has not been verified yet, so approval is not available.",
+  COMMISSION_STATEMENT_NOT_APPROVED: 'The statement must be approved before it can be paid.',
+  COMMISSION_STATEMENT_ALREADY_PAID: 'This statement is already paid.',
+  COMMISSION_PAID_ON_INVALID:
+    'The payment date must not be before the approval date and not after today.',
   COMMISSION_PLAN_EMPLOYEE_CURSOR_UNAVAILABLE:
     'The employee list cannot be loaded because stored data needs repair. Contact support.',
   EMPLOYEE_NOT_FOUND: 'The employee was not found in this business.',

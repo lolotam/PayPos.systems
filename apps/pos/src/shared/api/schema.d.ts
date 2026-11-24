@@ -497,6 +497,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/businesses/{businessId}/commission-statements/{period}/mark-paid": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["markCommissionStatementPaid"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/businesses/{businessId}/employees/{employeeId}/commission-period-repairs": {
         parameters: {
             query?: never;
@@ -3807,6 +3823,60 @@ export interface components {
             message_en: string;
         };
         CommissionPlanIdempotencyKeyReusedError: {
+            /** @enum {string} */
+            code: "IDEMPOTENCY_KEY_REUSED";
+            message_ar: string;
+            message_en: string;
+        };
+        CommissionStatementPeriod: string;
+        /** @enum {string} */
+        CommissionStatementPaidMethod: "WITH_SALARY" | "BANK_TRANSFER" | "CASH";
+        MarkCommissionStatementPaidInput: {
+            paid_method: components["schemas"]["CommissionStatementPaidMethod"];
+            paid_on: components["schemas"]["CommissionPlanDate"];
+            paid_note?: string;
+        };
+        CommissionStatementPaymentRow: {
+            /** Format: uuid */
+            employee_id: string;
+            exact_payable: components["schemas"]["CommissionEstimateMoney"];
+            paid_amount: components["schemas"]["CommissionEstimateMoney"];
+        };
+        MarkCommissionStatementPaidResponse: {
+            /** Format: uuid */
+            business_id: string;
+            period: components["schemas"]["CommissionStatementPeriod"];
+            /** @enum {string} */
+            status: "PAID";
+            /** Format: uuid */
+            paid_by: string;
+            /** Format: date-time */
+            paid_at: string;
+            paid_on: components["schemas"]["CommissionPlanDate"];
+            paid_method: components["schemas"]["CommissionStatementPaidMethod"];
+            paid_note: string | null;
+            paid_total: components["schemas"]["CommissionEstimateMoney"];
+            payments: components["schemas"]["CommissionStatementPaymentRow"][];
+        };
+        CommissionStatementNotApprovedError: {
+            /** @enum {string} */
+            code: "COMMISSION_STATEMENT_NOT_APPROVED";
+            message_ar: string;
+            message_en: string;
+        };
+        CommissionStatementAlreadyPaidError: {
+            /** @enum {string} */
+            code: "COMMISSION_STATEMENT_ALREADY_PAID";
+            message_ar: string;
+            message_en: string;
+        };
+        CommissionPaidOnInvalidError: {
+            /** @enum {string} */
+            code: "COMMISSION_PAID_ON_INVALID";
+            message_ar: string;
+            message_en: string;
+        };
+        CommissionStatementIdempotencyKeyReusedError: {
             /** @enum {string} */
             code: "IDEMPOTENCY_KEY_REUSED";
             message_ar: string;
@@ -11697,6 +11767,72 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["CommissionPlanInvalidError"] | components["schemas"]["CommissionEffectiveFromPastError"] | components["schemas"]["CommissionPeriodBeforeBusinessError"] | components["schemas"]["CommissionPlanIdempotencyKeyReusedError"];
+                };
+            };
+            /** @description Bilingual refusal */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    markCommissionStatementPaid: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-company-id": string;
+                "Idempotency-Key": string;
+            };
+            path: {
+                businessId: string;
+                period: components["schemas"]["CommissionStatementPeriod"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MarkCommissionStatementPaidInput"];
+            };
+        };
+        responses: {
+            /** @description The statement now reads PAID with its payment record */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MarkCommissionStatementPaidResponse"];
+                };
+            };
+            /** @description Uniform 403 refusal */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description COMMISSION_STATEMENT_NOT_APPROVED when the statement is DRAFT or REVIEWED, or COMMISSION_STATEMENT_ALREADY_PAID when it is PAID and a new Idempotency-Key is sent (CM-41). */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommissionStatementNotApprovedError"] | components["schemas"]["CommissionStatementAlreadyPaidError"];
+                };
+            };
+            /** @description COMMISSION_PAID_ON_INVALID when paid_on is after today or before the approval month, or IDEMPOTENCY_KEY_REUSED when the same Idempotency-Key is sent with another body (CM-41). */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommissionPaidOnInvalidError"] | components["schemas"]["CommissionStatementIdempotencyKeyReusedError"];
                 };
             };
             /** @description Bilingual refusal */
