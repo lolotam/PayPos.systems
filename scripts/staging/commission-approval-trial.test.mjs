@@ -1,10 +1,11 @@
 // Unit tests for scripts/staging/commission-approval-trial.mjs — run with `node --test`.
 // The script is imported (its main() only auto-runs when argv[1] is the script itself) and driven
-// in-process against a real but in-process HTTP server on 127.0.0.1; global fetch is patched so the
-// staging host the guard demands (api.staging.pospay.systems) is served by that fake API. process.exit
-// is replaced by a sentinel error so refusals and failures are assertable without ending the test run.
-// The fake API never stores or echoes credentials; the secret-visibility assertions read only the
-// script's own stdout/stderr captured here.
+// in-process against a real but in-process HTTP server; global fetch is patched so the exact
+// staging origin the guard demands is served by that fake API, and ANY other host is refused by
+// the patch itself (so a URL built from user input cannot reach the network). process.exit is
+// replaced by a sentinel error so refusals and failures are assertable without ending the run.
+// The fake API never echoes credentials; the secret-visibility assertions read only the script's
+// own stdout/stderr captured here.
 
 import test from 'node:test';
 import assert from 'node:assert/strict';
@@ -24,12 +25,13 @@ const FINGERPRINT_A = 'a'.repeat(64);
 const FINGERPRINT_B = 'b'.repeat(64);
 const periodOf = (date) => `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, '0')}`;
 
-let uuidCounter = 0;
-const fakeUuid = () => {
-  const n = String((uuidCounter += 1)).padStart(12, '0');
-  return `aaaaaaa${n.slice(0, 1)}-bbb1-4ccc-8ddd-${n}`;
-};
-const resetIds = () => { uuidCounter = 0; };
+const fakeState = () => ({
+  requests: [], employees: [], services: [], customers: [], pricedRefs: [], lineCounter: 0,
+  workerPaused: false, statementStatus: null, ratingEnabled: false, redirectSignIn: false,
+  failEmployeeCreates: 0, sessionRejectsLeft: 0, businessCreatedAt: '2026-01-15T10:00:00.000Z', salaryConflict: false, salaryCodeOverride: undefined,
+  companyName: 'TRIAL-Commissions', businessName: 'TRIAL-Salon', salaryKeys: new Map(), planKeys: new Map(),
+  sessionKeys: new Map(), generateKeys: new Map(), reviewKeys: new Map(),
+});
 
 /** Minimal but real fake API: every endpoint the trial touches, with state the tests can bend. */
 function fakeApiHandler(state) {
@@ -45,17 +47,20 @@ function fakeApiHandler(state) {
   };
   const findOrCreate = (list, match, make) => list.find(match) ?? (list.push(make()), list[list.length - 1]);
   return function handler(request) {
-    const { method } = request;
+    const { method, body } = request;
     const path = request.path.split('?')[0];
-    const body = request.body;
     state.requests.push({ method, path: request.path, headers: request.headers, body });
     const json = (status, data, extra = {}) => ({ status, json: data, ...extra });
     if (method === 'POST' && path === '/v1/auth/sign-in/email') {
+      if (state.redirectSignIn) return { status: 307, json: {}, location: `http://127.0.0.1:1/elsewhere` };
       if (body.email !== EMAIL || body.password !== PASSWORD) return json(401, { code: 'AUTHENTICATION_FAILED' });
       return json(200, { user: { id: 'u1' } }, { setCookie: [`${COOKIE}; Path=/; HttpOnly`] });
     }
     if (method === 'GET' && path === '/v1/me/workspaces') {
-      return json(200, { companies: [{ id: COMPANY, name_ar: null, name_en: 'Trial Co', role_code: 'owner', scope: 'COMPANY', businesses: [{ id: BUSINESS, name_ar: null, name_en: 'Trial Biz', business_type: 'SALON', country: 'KW', branches: [{ id: BRANCH, name_ar: null, name_en: 'Main', effective_timezone: 'Asia/Kuwait', is_active: true }] }] }] });
+      return json(200, { companies: [{ id: COMPANY, name_ar: null, name_en: state.companyName, role_code: 'owner', scope: 'COMPANY', businesses: [{ id: BUSINESS, name_ar: null, name_en: state.businessName, business_type: 'SALON', country: 'KW', branches: [{ id: BRANCH, name_ar: null, name_en: 'Main', effective_timezone: 'Asia/Kuwait', is_active: true }] }] }] });
+    }
+    if (method === 'GET' && path === '/v1/businesses') {
+      return json(200, { items: [{ id: BUSINESS, company_id: COMPANY, name_en: state.businessName, created_at: state.businessCreatedAt }], next_cursor: null });
     }
     let match;
     if ((match = path.match(/^\/v1\/businesses\/([^/]+)\/branches\/([^/]+)\/service-sessions\/(capabilities|recording-context)$/))) {
@@ -63,19 +68,17 @@ function fakeApiHandler(state) {
       return json(200, { generated_at: '2026-11-24T10:00:00.000Z', business_timezone: 'Asia/Kuwait', recorder_membership_ids: ['m1'], recorder_membership_id: 'm1', discount_limit: { source: 'OWNER', bps: null } });
     }
     if ((match = path.match(/^\/v1\/businesses\/([^/]+)\/commissions\/periods\/([^/]+)\/estimate$/))) {
-      const split = Math.max(state.employees.length, 1);
-      const sourcesOf = (index) => (index === 0 ? Math.ceil(state.pricedTotal / split) : Math.floor(state.pricedTotal / split));
-      const roster = state.employees.length === 0 && state.pricedTotal > 0
-        ? [{ id: 'ghost', name_en: 'Legacy', index: 0 }]
-        : state.employees.map((employee, index) => ({ ...employee, index }));
-      const employees = roster.map((employee, index) => ({
+      const employees = state.employees.map((employee, index) => ({
         employee_id: employee.id, name_ar: null, name_en: employee.name_en, employee_number: 1, status: 'OK', partial: false,
-        total: '0.000', sources: Array.from({ length: sourcesOf(index) }, () => ({ source_ref: 'x', kind: 'COMMISSION', amount: '1.000', source_branch_id: BRANCH, source_business_date: '2026-10-05', service_id: null, service_name: null })),
+        total: '0.000',
+        sources: state.pricedRefs.filter((_, refIndex) => refIndex % state.employees.length === index)
+          .map((ref) => ({ source_ref: ref, kind: 'COMMISSION', amount: '1.000', source_branch_id: BRANCH, source_business_date: '2026-10-05', service_id: null, service_name: null })),
         sales: [], corrections: [], tips: { card: '0.000', cash: '0.000' }, carries: { commission: '0.000', tip_card: '0.000' },
       }));
       return json(200, { business_id: match[1], period: match[2], employees, partial: false, total: '0.000' });
     }
     if ((match = path.match(/^\/v1\/businesses\/([^/]+)\/commission-statements\/([^/]+)$/))) return json(200, { reader_scope: 'BUSINESS', business_id: match[1], period: match[2], status: state.statementStatus ?? 'DRAFT', generated: false });
+    if (method === 'GET' && path.match(/^\/v1\/businesses\/[^/]+\/rating-settings$/)) return json(200, { requests_enabled: state.ratingEnabled });
     if (method === 'POST' && (match = path.match(/^\/v1\/businesses\/([^/]+)\/commission-statements\/([^/]+)\/generate$/))) {
       state.statementStatus = 'DRAFT';
       return keyed(state.generateKeys, request, json(200, { reader_scope: 'BUSINESS', business_id: match[1], period: match[2], status: 'DRAFT', current_fingerprint: FINGERPRINT_A, current_statement_fingerprint: FINGERPRINT_B, employees: [] }));
@@ -85,47 +88,67 @@ function fakeApiHandler(state) {
     }
     if (path === `/v1/businesses/${BUSINESS}/services` && method === 'GET') return json(200, { items: state.services, next_cursor: null });
     if (path === `/v1/businesses/${BUSINESS}/services` && method === 'POST') {
-      const service = { id: fakeUuid(), name_en: body.name_en, price: body.price };
+      const service = { id: fakeUuid(state), name_en: body.name_en, price: body.price };
       state.services.push(service);
       return json(201, service);
     }
     if (path === `/v1/businesses/${BUSINESS}/customers/find-or-create` && method === 'POST') {
-      const customer = findOrCreate(state.customers, (c) => c.phone.national_number === body.phone.national_number, () => ({ id: fakeUuid(), ...body }));
+      const customer = findOrCreate(state.customers, (c) => c.phone.national_number === body.phone.national_number, () => ({ id: fakeUuid(state), ...body }));
       return json(200, customer);
     }
     if (path === `/v1/businesses/${BUSINESS}/employees` && method === 'GET') return json(200, { items: state.employees, next_cursor: null });
     if (path === `/v1/businesses/${BUSINESS}/employees` && method === 'POST') {
-      const employee = { id: fakeUuid(), primary_branch_id: body.primary_branch_id, name_en: body.name_en, role_code: body.role_code, hire_date: body.hire_date, employee_number: state.employees.length + 1 };
-      state.employees.push(employee);
+      // The create commits on the server even when its answer is lost: the row is stored before the status.
+      const employee = findOrCreate(state.employees, (e) => e.name_en === body.name_en, () => ({
+        id: fakeUuid(state), primary_branch_id: body.primary_branch_id, name_en: body.name_en, role_code: body.role_code, hire_date: body.hire_date, employee_number: state.employees.length + 1,
+      }));
+      if (state.failEmployeeCreates > 0) { state.failEmployeeCreates -= 1; return json(500, { code: 'INTERNAL_ERROR' }); }
       return json(201, employee);
     }
     if ((match = path.match(/^\/v1\/businesses\/[^/]+\/employees\/([^/]+)\/salaries$/)) && method === 'POST') {
-      return keyed(state.salaryKeys, request, json(200, { id: fakeUuid(), employee_id: match[1], effective_from: body.effective_from, amount: body.amount, set_by: 'u1', revision: 1, reason: body.reason }));
+      if (state.salaryConflict) {
+        const leaky = { code: 'SALARY_CONFLICT', message_en: `leak ${EMAIL} ${PASSWORD} ${COOKIE} ${body.amount}` };
+        return keyed(state.salaryKeys, request, json(409, leaky));
+      }
+      if (state.salaryCodeOverride !== undefined) return { status: 409, json: { code: state.salaryCodeOverride } };
+      return keyed(state.salaryKeys, request, json(200, { id: fakeUuid(state), employee_id: match[1], effective_from: body.effective_from, amount: body.amount, set_by: 'u1', revision: 1, reason: body.reason }));
     }
     if ((match = path.match(/^\/v1\/businesses\/[^/]+\/employees\/([^/]+)\/commission-plan-versions$/)) && method === 'POST') {
-      return keyed(state.planKeys, request, json(201, { id: fakeUuid(), employee_id: match[1], version: 1, effective_from: body.effective_from, whole_period: body.whole_period, repair_period: null }));
+      return keyed(state.planKeys, request, json(201, { id: fakeUuid(state), employee_id: match[1], version: 1, effective_from: body.effective_from, whole_period: body.whole_period, repair_period: null }));
     }
     if (method === 'POST' && path.match(/^\/v1\/businesses\/[^/]+\/branches\/[^/]+\/service-sessions$/)) {
-      if (!state.workerPaused) state.pricedTotal += body.lines.length;
-      const response = json(201, { outcome: 'ACCEPTED', session: { id: fakeUuid(), lines: body.lines.map((line, i) => ({ id: `line${i}`, ...line })) }, rejected_lines: [] });
-      return keyed(state.sessionKeys, request, response);
+      if (state.sessionRejectsLeft > 0) {
+        state.sessionRejectsLeft -= 1;
+        return keyed(state.sessionKeys, request, json(201, { outcome: 'PARTIAL', session: { id: fakeUuid(state), lines: [] }, rejected_lines: [{ input_index: 0, code: 'SESSION_DISCOUNT_ABOVE_LIMIT' }] }));
+      }
+      state.lineCounter += body.lines.length;
+      if (!state.workerPaused) {
+        for (let i = body.lines.length; i > 0; i -= 1) state.pricedRefs.push(`line:L${state.lineCounter - i + 1}`);
+      }
+      const lines = body.lines.map((line, i) => ({ id: `L${state.lineCounter - body.lines.length + i + 1}`, ...line }));
+      return keyed(state.sessionKeys, request, json(201, { outcome: 'ACCEPTED', session: { id: fakeUuid(state), lines }, rejected_lines: [] }));
     }
     return json(404, { code: 'NOT_FOUND' });
   };
 }
 
+let uuidCounter = 0;
+const fakeUuid = (state) => {
+  const n = String((state === undefined ? (uuidCounter += 1) : (state.nextId = (state.nextId ?? 0) + 1))).padStart(12, '0');
+  return `aaaaaaa${n.slice(0, 1)}-bbb1-4ccc-8ddd-${n}`;
+};
+
 /** Real in-process HTTP server; tests reach it through a patched fetch that rewrites the staging host. */
-async function startFakeApi(handler) {
-  resetIds();
-  const state = { requests: [], employees: [], services: [], customers: [], pricedTotal: 0, workerPaused: false, statementStatus: null, salaryKeys: new Map(), planKeys: new Map(), sessionKeys: new Map(), generateKeys: new Map(), reviewKeys: new Map() };
-  const inner = handler(state);
+async function startFakeApi(state = fakeState()) {
+  const inner = fakeApiHandler(state);
   const server = createServer((req, res) => {
     let raw = '';
     req.on('data', (chunk) => { raw += chunk; });
     req.on('end', () => {
       const request = { method: req.method, path: req.url, headers: req.headers, body: raw === '' ? undefined : JSON.parse(raw) };
-      const { status, json, setCookie } = inner(request);
+      const { status, json, setCookie, location } = inner(request);
       if (setCookie !== undefined) res.setHeader('set-cookie', setCookie);
+      if (location !== undefined) res.setHeader('location', location);
       res.writeHead(status, { 'content-type': 'application/json' });
       res.end(JSON.stringify(json));
     });
@@ -135,7 +158,7 @@ async function startFakeApi(handler) {
   const realFetch = globalThis.fetch;
   globalThis.fetch = async (url, init) => {
     const target = new URL(url);
-    if (target.host !== HOST) return realFetch(url, init);
+    if (target.host !== HOST) throw new Error(`blocked non-staging fetch: ${url}`);
     const response = await realFetch(`http://127.0.0.1:${port}${target.pathname}${target.search}`, init);
     const cookies = response.headers.getSetCookie();
     const body = await response.text();
@@ -192,8 +215,9 @@ async function withEnv(fn) {
   try { return await fn(); } finally { process.env.TRIAL_EMAIL = previous.email; process.env.TRIAL_PASSWORD = previous.password; }
 }
 
-const baseArgs = ['--api-url', `https://${HOST}`, '--company', COMPANY, '--business', BUSINESS, '--employees', '3', '--lines', '12', '--lines-per-session', '2', '--delay-ms', '0', '--poll-ms', '10', '--wait-timeout', '5'];
+const baseArgs = ['--api-url', `https://${HOST}`, '--company', COMPANY, '--business', BUSINESS, '--employees', '3', '--lines', '12', '--lines-per-session', '2', '--delay-ms', '0', '--poll-ms', '10', '--wait-timeout', '5', '--retry-backoff-ms', '1'];
 const stagedArgs = [...baseArgs, '--confirm-staging'];
+const FORBIDDEN = ['approve', 'return', 'mark-paid', 'enable', 'coverage', 'issue', 'pay'];
 
 /** Keys + body fingerprints per write route, in order — the resume contract of a re-run. */
 function writeFootprint(state) {
@@ -209,10 +233,24 @@ function writeFootprint(state) {
   });
 }
 
+const assertNeverApproves = (state, label) => {
+  const paths = state.requests.map((r) => `${r.method} ${r.path}`);
+  for (const forbidden of FORBIDDEN) {
+    assert.ok(!paths.some((p) => p.toLowerCase().includes(forbidden)), `${label}: forbidden route ${forbidden} was called`);
+  }
+};
+
 test('guard refuses every non-staging target, a missing confirm flag and non-uuid ids, before any request', async () => {
+  const bad = (url) => ['--api-url', url, '--company', COMPANY, '--business', BUSINESS, '--confirm-staging'];
   const cases = [
-    ['--api-url', 'http://localhost:3000', '--company', COMPANY, '--business', BUSINESS, '--confirm-staging'],
-    ['--api-url', 'https://api.pospay.systems', '--company', COMPANY, '--business', BUSINESS, '--confirm-staging'],
+    bad(`http://${HOST}`), // plain http: credentials would travel in the clear
+    bad(`https://user:pw@${HOST}`), // userinfo
+    bad(`https://${HOST}:443`), // explicit port
+    bad(`https://${HOST}:8443`), // wrong port
+    bad(`https://${HOST}.`), // trailing dot host
+    bad(`https://API.STAGING.POSPAY.SYSTEMS`), // upper-case host
+    bad(`https://${HOST}/v1`), // path beyond the bare origin
+    bad(`https://${HOST}/?x=1`), // query
     ['--api-url', `https://${HOST}`, '--company', COMPANY, '--business', BUSINESS],
     ['--api-url', `https://${HOST}`, '--company', 'not-a-uuid', '--business', BUSINESS, '--confirm-staging'],
     ['--api-url', `https://${HOST}`, '--company', COMPANY, '--business', BUSINESS, '--confirm-staging', '--period', '2026-13'],
@@ -224,34 +262,80 @@ test('guard refuses every non-staging target, a missing confirm flag and non-uui
   }
 });
 
-test('a full run creates the history, generates and reviews, and never calls enable/issue/approve routes', async () => {
+test('a redirecting sign-in is never followed and never resends the body elsewhere', async () => {
   await withEnv(async () => {
-    const api = await startFakeApi(fakeApiHandler);
+    const api = await startFakeApi();
+    api.state.redirectSignIn = true;
+    try {
+      const { out, exitCode } = await runTrial(stagedArgs);
+      assert.equal(exitCode, 1, out.join('\n'));
+      assert.match(out.join('\n'), /NETWORK_ERROR/);
+      assert.ok(!api.state.requests.some((r) => r.path.includes('/elsewhere')), 'the redirect target was contacted');
+      assertNeverApproves(api.state, 'redirect');
+    } finally { await api.stop(); }
+  });
+});
+
+test('the dedicated-test-company marker: company and business names must start with TRIAL-', async () => {
+  await withEnv(async () => {
+    for (const [field, value] of [['companyName', 'Production Salon Co'], ['businessName', 'Downtown Branch']]) {
+      const api = await startFakeApi();
+      api.state[field] = value;
+      try {
+        const { out, exitCode } = await runTrial(stagedArgs);
+        assert.equal(exitCode, 2);
+        assert.match(out.join('\n'), /TRIAL-/);
+        assert.ok(!api.state.requests.some((r) => r.method === 'POST' && r.path !== '/v1/auth/sign-in/email'), 'no write before the marker check');
+      } finally { await api.stop(); }
+    }
+  });
+});
+
+test('customer phones come from the NANP fictional block and pass the API phone normalisation rules', () => {
+  // Re-implementation of apps/api/src/modules/customers/domain/phone.ts normalizePhone rules.
+  const normalize = (phone) => {
+    assert.match(phone.calling_code, /^[1-9][0-9]{0,2}$/);
+    assert.match(phone.national_number, /^[0-9 ().-]+$/);
+    const national = phone.national_number.replace(/[ ().-]/g, '').replace(/^0+/, '');
+    const normalized = `+${phone.calling_code}${national}`;
+    assert.ok(national.length > 0);
+    if (phone.calling_code === '965') assert.equal(national.length, 8);
+    assert.match(normalized, /^\+[1-9][0-9]{1,14}$/);
+    return normalized;
+  };
+  const phones = Array.from({ length: 20 }, (_, i) => ({ calling_code: '1', national_number: String(5550100 + i) }));
+  for (const phone of phones) {
+    const normalized = normalize(phone);
+    assert.match(normalized, /^\+155501(0[0-9]|1[0-9])$/, 'the NANP fictional 555-0100..0199 block');
+  }
+  assert.equal(phones[0].national_number, '5550100');
+  assert.equal(phones[19].national_number, '5550119');
+});
+
+test('a full run creates the history, generates and reviews, and never calls a closing route', async () => {
+  await withEnv(async () => {
+    const api = await startFakeApi();
     try {
       const { out, exitCode } = await runTrial(stagedArgs);
       assert.equal(exitCode, 0, out.join('\n'));
       const text = out.join('\n');
       assert.match(text, /review status REVIEWED/);
       assert.match(text, /sessions 6 lines 12\/12/);
-      const paths = api.state.requests.map((r) => `${r.method} ${r.path}`);
-      assert.ok(paths.includes('POST /v1/auth/sign-in/email'));
-      for (const forbidden of ['approve', 'enable', 'coverage', 'issue', 'pay']) {
-        assert.ok(!paths.some((p) => p.toLowerCase().includes(forbidden)), `forbidden route ${forbidden} was called`);
-      }
+      assert.ok(api.state.requests.some((r) => r.path.endsWith('/review')), 'review was called');
+      assert.equal(api.state.statementStatus, 'DRAFT', 'review keeps the statement open for the operator');
+      assertNeverApproves(api.state, 'full run');
       assert.ok(!text.includes(EMAIL), 'the email leaked into the output');
       assert.ok(!text.includes(PASSWORD), 'the password leaked into the output');
       assert.ok(!text.includes('stub-cookie-value'), 'the session cookie leaked into the output');
-      assert.equal(api.state.statementStatus, 'DRAFT', 'review keeps the statement open for the operator');
-      assert.ok(api.state.requests.some((r) => r.path.endsWith('/review')), 'review was called');
     } finally { await api.stop(); }
   });
 });
 
-test('a re-run derives the same deterministic run id, so it sends the same idempotency keys and bodies', async () => {
+test('a re-run derives the same body-hashed idempotency keys, so it replays and never re-creates', async () => {
   await withEnv(async () => {
     const footprints = [];
     for (let run = 0; run < 2; run += 1) {
-      const api = await startFakeApi(fakeApiHandler);
+      const api = await startFakeApi();
       try {
         const { exitCode } = await runTrial(stagedArgs);
         assert.equal(exitCode, 0);
@@ -262,27 +346,84 @@ test('a re-run derives the same deterministic run id, so it sends the same idemp
   });
 });
 
+test('resume: existing trial sources pass preflight only with --resume, owned by trial employees', async () => {
+  await withEnv(async () => {
+    const seeded = fakeState();
+    seeded.employees.push(
+      { id: fakeUuid(seeded), primary_branch_id: BRANCH, name_en: 'Trial Employee 001', role_code: 'staff', hire_date: '2026-10-01' },
+      { id: fakeUuid(seeded), primary_branch_id: BRANCH, name_en: 'Trial Employee 002', role_code: 'staff', hire_date: '2026-10-01' },
+      { id: fakeUuid(seeded), primary_branch_id: BRANCH, name_en: 'Trial Employee 003', role_code: 'staff', hire_date: '2026-10-01' },
+    );
+    seeded.pricedRefs.push('line:R1', 'line:R2', 'line:R3', 'line:R4');
+    const first = await startFakeApi(seeded);
+    try {
+      const { out, exitCode } = await runTrial(stagedArgs);
+      assert.equal(exitCode, 2);
+      assert.match(out.join('\n'), /--resume/);
+      assertNeverApproves(first.state, 'resume refusal');
+    } finally { await first.stop(); }
+    const second = await startFakeApi(structuredClone(seeded));
+    try {
+      const { exitCode, out } = await runTrial([...stagedArgs, '--resume']);
+      assert.equal(exitCode, 0, out.join('\n'));
+      assertNeverApproves(second.state, 'resume');
+      const employeeCreates = second.state.requests.filter((r) => r.method === 'POST' && r.path.endsWith('/employees'));
+      assert.equal(employeeCreates.length, 0, 'existing trial employees are reused, never re-created');
+    } finally { await second.stop(); }
+  });
+});
+
+test('resume refuses sources owned by a non-trial employee and an employee-count mismatch', async () => {
+  await withEnv(async () => {
+    const foreign = fakeState();
+    foreign.employees.push({ id: fakeUuid(foreign), primary_branch_id: BRANCH, name_en: 'Real Employee', role_code: 'staff', hire_date: '2026-10-01' });
+    foreign.pricedRefs.push('line:F1');
+    const api = await startFakeApi(foreign);
+    try {
+      const { out, exitCode } = await runTrial([...stagedArgs, '--resume']);
+      assert.equal(exitCode, 2);
+      assert.match(out.join('\n'), /non-trial employee/);
+      assert.ok(out.join('\n').includes(foreign.employees[0].id), 'the refusing employee id is shown');
+    } finally { await api.stop(); }
+  });
+});
+
+test('an un-keyed create whose answer was lost is recovered by re-listing, not duplicated', async () => {
+  await withEnv(async () => {
+    const api = await startFakeApi();
+    api.state.failEmployeeCreates = 5; // the create commits but every one of the five answers is a 500
+    try {
+      const { out, exitCode } = await runTrial(stagedArgs);
+      assert.equal(exitCode, 0, out.join('\n'));
+      assert.equal(api.state.employees.filter((e) => e.name_en === 'Trial Employee 001').length, 1, 'no duplicate employee');
+    } finally { await api.stop(); }
+  });
+});
+
 test('the wait step times out cleanly when the worker has not consumed everything', async () => {
   await withEnv(async () => {
-    const api = await startFakeApi(fakeApiHandler);
+    const api = await startFakeApi();
     api.state.workerPaused = true;
     try {
       const { out, exitCode } = await runTrial([...stagedArgs, '--wait-timeout', '1']);
       assert.equal(exitCode, 1);
       const text = out.join('\n');
-      assert.match(text, /timeout: the estimate for \d{4}-\d{2} shows 0 of 12 consumed source\(s\)/);
+      assert.match(text, /timeout: 0 of 12 recorded line\(s\) are priced/);
       assert.match(text, /re-run the same command/);
+      assertNeverApproves(api.state, 'timeout');
     } finally { await api.stop(); }
   });
 });
 
-test('preflight refuses an existing non-DRAFT statement and pre-existing commission sources', async () => {
+test('preflight refuses a non-DRAFT statement, rating requests on, and a business created after the target month', async () => {
   await withEnv(async () => {
-    for (const [setup, pattern] of [
+    const cases = [
       [(state) => { state.statementStatus = 'REVIEWED'; }, /statement .* is REVIEWED/],
-      [(state) => { state.pricedTotal = 4; }, /already carries 4 commission source/],
-    ]) {
-      const api = await startFakeApi(fakeApiHandler);
+      [(state) => { state.ratingEnabled = true; }, /rating requests are enabled/],
+      [(state) => { state.businessCreatedAt = new Date().toISOString(); }, /COMMISSION_PERIOD_BEFORE_BUSINESS/],
+    ];
+    for (const [setup, pattern] of cases) {
+      const api = await startFakeApi();
       try {
         setup(api.state);
         const { out, exitCode } = await runTrial(stagedArgs);
@@ -295,9 +436,24 @@ test('preflight refuses an existing non-DRAFT statement and pre-existing commiss
   });
 });
 
+test('a rejected service line stops the run with the session index and codes, before generate or review', async () => {
+  await withEnv(async () => {
+    const api = await startFakeApi();
+    api.state.sessionRejectsLeft = 1;
+    try {
+      const { out, exitCode } = await runTrial(stagedArgs);
+      assert.equal(exitCode, 1);
+      const text = out.join('\n');
+      assert.match(text, /rejected lines in session 0: SESSION_DISCOUNT_ABOVE_LIMIT/);
+      assert.ok(!api.state.requests.some((r) => r.path.endsWith('/generate') || r.path.endsWith('/review')), 'generate and review never ran');
+      assertNeverApproves(api.state, 'rejected line');
+    } finally { await api.stop(); }
+  });
+});
+
 test('period rules: the current month is not ended and anything older than last month is too old', async () => {
   await withEnv(async () => {
-    const api = await startFakeApi(fakeApiHandler);
+    const api = await startFakeApi();
     try {
       const now = new Date();
       const current = periodOf(new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 15)));
@@ -312,25 +468,39 @@ test('period rules: the current month is not ended and anything older than last 
   });
 });
 
-test('a non-retryable API failure prints method, route pattern, status and code only, then exits non-zero', async () => {
+test('a non-retryable API failure prints method, route pattern, status and a clean code only, never a body', async () => {
   await withEnv(async () => {
-    const api = await startFakeApi((state) => {
-      const inner = fakeApiHandler(state);
-      return (request) => (request.method === 'POST' && /\/salaries$/.test(request.path) ? { status: 409, json: { code: 'SALARY_CONFLICT' } } : inner(request));
-    });
+    const api = await startFakeApi();
+    api.state.salaryConflict = true; // the fake salary route answers 409 with a body that carries the secrets
     try {
       const { out, exitCode } = await runTrial(stagedArgs);
       assert.equal(exitCode, 1);
       const text = out.join('\n');
       assert.match(text, /ERROR POST \/v1\/businesses\/:businessId\/employees\/:employeeId\/salaries status=409 code=SALARY_CONFLICT/);
+      assert.ok(!text.includes(EMAIL), 'the email leaked from a failing response body');
+      assert.ok(!text.includes(PASSWORD), 'the password leaked from a failing response body');
+      assert.ok(!text.includes('stub-cookie-value'), 'a cookie-like string leaked from a failing response body');
       assert.ok(!text.toLowerCase().includes('set-cookie'), 'no header printed');
+      assertNeverApproves(api.state, 'failure');
+    } finally { await api.stop(); }
+  });
+});
+
+test('an API code that is not a catalogue code prints as UNKNOWN', async () => {
+  await withEnv(async () => {
+    const api = await startFakeApi();
+    api.state.salaryCodeOverride = 'oops-lowercase';
+    try {
+      const { out, exitCode } = await runTrial(stagedArgs);
+      assert.equal(exitCode, 1);
+      assert.match(out.join('\n'), /status=409 code=UNKNOWN/);
     } finally { await api.stop(); }
   });
 });
 
 test('the script honors --dry-run: preflight only, then it stops before any write', async () => {
   await withEnv(async () => {
-    const api = await startFakeApi(fakeApiHandler);
+    const api = await startFakeApi();
     try {
       const { out, exitCode } = await runTrial([...stagedArgs, '--dry-run']);
       assert.equal(exitCode, 0);
@@ -361,4 +531,7 @@ test('session bodies spread across the days of the period and all employees, det
   assert.equal(refused, 2, 'an explicit period older than last month is refused');
   assert.equal(trial.daysInPeriod('2026-10'), 31);
   assert.equal(trial.shiftPeriod('2026-01', -1), '2025-12');
+  assert.equal(trial.sourceRefs({ employees: [{ sources: [{ source_ref: 'line:L1' }], sales: [], corrections: [], tips: { card: '0.000', cash: '0.000' } }] }).has('line:L1'), true);
+  assert.equal(trial.ownedSources({ employees: [{ name_en: 'Other', employee_id: 'x', sources: [{ source_ref: 'r' }], sales: [], corrections: [], tips: { card: '0.000', cash: '0.000' } }] }).length, 1);
+  assert.equal(trial.localMinutesOfDay('Asia/Kuwait') >= 0 && trial.localMinutesOfDay('Asia/Kuwait') < 1440, true);
 });
