@@ -10,13 +10,32 @@ import { LocaleProvider } from '@/shared/locale/locale-context';
 import { useWorkspace, WorkspaceProvider } from './workspace-provider';
 import { WorkspaceBody } from '../ui/workspace-body';
 
+// الشركة عندها نشاط وفرع عشان الوكيل (WorkspaceBody) يرسم محتوى الصفحة العادي: شركة بلا
+// أنشطة بتفتح شاشة أول نشاط في مكان الوكيل (spec 078)، وده مش اللي الاختبارات دي بتقيسه.
 const COMPANY = {
   id: '01920000-0000-7000-8000-0000000000c1',
   name_ar: null,
   name_en: 'Provider Company',
   role_code: 'owner',
   scope: 'COMPANY',
-  businesses: [],
+  businesses: [
+    {
+      id: '01920000-0000-7000-8000-0000000000d1',
+      name_ar: null,
+      name_en: 'Provider Business',
+      business_type: 'retail',
+      country: 'KW',
+      branches: [
+        {
+          id: '01920000-0000-7000-8000-0000000000e1',
+          name_ar: null,
+          name_en: 'Provider Branch',
+          effective_timezone: 'Asia/Kuwait',
+          is_active: true,
+        },
+      ],
+    },
+  ],
 };
 
 const mockFetch = vi.fn();
@@ -112,6 +131,18 @@ describe('WorkspaceProvider refresh failures', () => {
     );
     expect(await screen.findByRole('alert')).not.toBeNull();
     expect(screen.getByText('Access removed fixture')).not.toBeNull();
+    expect(screen.queryByTestId('ws-status')).toBeNull();
+  });
+
+  it('a refetch failing with 401 and an empty body still shows the error state and drops the page content', async () => {
+    await readThenRefetchWith(() => new Response(null, { status: 401 }));
+    expect(await screen.findByRole('alert')).not.toBeNull();
+    expect(screen.queryByTestId('ws-status')).toBeNull();
+  });
+
+  it('a refetch failing with 403 and an empty body still shows the error state and drops the page content', async () => {
+    await readThenRefetchWith(() => new Response(null, { status: 403 }));
+    expect(await screen.findByRole('alert')).not.toBeNull();
     expect(screen.queryByTestId('ws-status')).toBeNull();
   });
 
