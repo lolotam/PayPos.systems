@@ -8,6 +8,8 @@ import { useLocale } from '@/shared/locale/locale-context';
 
 import { useWorkspace } from '../model/workspace-provider';
 import { CreateCompanyScreen } from './create-company-screen';
+import { CreateFirstBranchScreen } from './create-first-branch-screen';
+import { CreateFirstBusinessScreen } from './create-first-business-screen';
 
 export function WorkspaceBody({
   children,
@@ -31,6 +33,21 @@ export function WorkspaceBody({
   }
   if (workspace.status === 'choose' && !allowsLinkedWorkspace) {
     return <EmptyState icon={<Building2 />} title={t(locale, 'admin.choosePrompt')} />;
+  }
+  if (workspace.status === 'ready') {
+    // «مفيش نشاط» و«مفيش فرع» بيتفرّقوا عن «مختارش» بقوايم فاضية: قائمة فاضية معناها مفيش
+    // اتعمل أصلًا فشاشة الإنشاء الأول هي اللي تظهر، وقائمة مش فاضية بتفضل لمحوّل الهيدر.
+    if (workspace.company.businesses.length === 0) {
+      return <CreateFirstBusinessScreen companyId={workspace.company.id} />;
+    }
+    if (workspace.business !== undefined && workspace.business.branches.length === 0) {
+      return (
+        <CreateFirstBranchScreen
+          companyId={workspace.company.id}
+          businessId={workspace.business.id}
+        />
+      );
+    }
   }
   return children;
 }
