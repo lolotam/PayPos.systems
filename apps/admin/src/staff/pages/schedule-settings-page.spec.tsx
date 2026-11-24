@@ -4,14 +4,16 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { beforeEach, expect, it, vi } from 'vitest';
 import { ScheduleSettingsPage } from './schedule-settings-page';
 
-const api = vi.hoisted(() => ({ GET: vi.fn(), PUT: vi.fn() }));
+const api = vi.hoisted(() => ({ GET: vi.fn(), PUT: vi.fn(), DELETE: vi.fn() }));
 vi.mock('@/shared/api/client', () => ({ apiClient: () => api }));
 vi.mock('@/shared/locale/locale-context', () => ({ useLocale: () => 'en' }));
 
 const id = '01920000-0000-7000-8000-000000000101';
+const otherBranchId = '01920000-0000-7000-8000-000000000102';
 const scope = { companyId: id, businessId: id, branchId: id, userId: id };
 const title = t('en', 'shell.schedule_settings_title');
 const limitLabel = t('en', 'shell.schedule_settings_limit');
+const branchLimitLabel = t('en', 'shell.schedule_settings_branch_limit');
 
 let savedLimit = 3;
 
@@ -23,6 +25,11 @@ function answerRead(path: string) {
         max_shifts_per_day: savedLimit,
         is_default: savedLimit === 3,
         updated_at: null,
+        // الفرعان بنفس الحد المحفوظ، عشان تتبان حالة "القيمة الجديدة زي القديمة".
+        branches: [
+          { branch_id: id, max_shifts_per_day: 3, source: 'branch', updated_at: null },
+          { branch_id: otherBranchId, max_shifts_per_day: 3, source: 'branch', updated_at: null },
+        ],
       },
       response: { status: 200, ok: true },
     };
@@ -58,21 +65,36 @@ function renderPage() {
   const client = new QueryClient({
     defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
   });
-  const view = render(
+  const page = (nextScope: typeof scope) => (
     <QueryClientProvider client={client}>
-      <ScheduleSettingsPage scope={scope} />
-    </QueryClientProvider>,
+      <ScheduleSettingsPage scope={nextScope} />
+    </QueryClientProvider>
   );
-  return { client, ...view };
+  const view = render(page(scope));
+  return {
+    client,
+    ...view,
+    rerenderPage(nextScope: typeof scope) {
+      view.rerender(page(nextScope));
+    },
+  };
 }
 
 beforeEach(() => {
   savedLimit = 3;
   api.GET.mockReset();
   api.PUT.mockReset();
+  api.DELETE.mockReset();
   api.GET.mockImplementation((path: string) => Promise.resolve(answerRead(path)));
-  api.PUT.mockImplementation((_path: string, options: { body: { max_shifts_per_day: number } }) => {
-    savedLimit = options.body.max_shifts_per_day;
+  api.PUT.mockImplementation((path: string, options: { body: { max_shifts_per_day: number } }) => {
+    const max = options.body.max_shifts_per_day;
+    if (path.includes('/branches/')) {
+      return Promise.resolve({
+        data: { branch_id: id, max_shifts_per_day: max, source: 'branch', updated_at: null },
+        response: { status: 200 },
+      });
+    }
+    savedLimit = max;
     return Promise.resolve({
       data: {
         business_id: id,
@@ -83,6 +105,12 @@ beforeEach(() => {
       response: { status: 200 },
     });
   });
+  api.DELETE.mockImplementation(() =>
+    Promise.resolve({
+      data: { branch_id: id, max_shifts_per_day: 3, source: 'business', updated_at: null },
+      response: { status: 200 },
+    }),
+  );
 });
 
 it('puts the settings in the form shell under one header', async () => {
@@ -142,4 +170,70 @@ it('shows the refusal when the read is forbidden', async () => {
   expect(screen.queryByLabelText(limitLabel)).toBeNull();
   expect(screen.queryByRole('button', { name: t('en', 'shell.schedule_settings_save') })).toBeNull();
   expect(screen.getByRole('heading', { name: title })).toBeTruthy();
+});
+
+it('keeps the business draft and shows the saved branch number after another branch is picked', async () => {
+  const view = renderPage();
+  const businessInput = (await screen.findByLabelText(limitLabel)) as HTMLInputElement;
+  const branchInput = (await screen.findByLabelText(branchLimitLabel)) as HTMLInputElement;
+  expect(branchInput.value).toBe('3');
+  fireEvent.change(businessInput, { target: { value: '4' } });
+  fireEvent.change(branchInput, { target: { value: '2' } });
+
+  view.rerenderPage({ ...scope, branchId: otherBranchId });
+
+  expect((screen.getByLabelText(limitLabel) as HTMLInputElement).value).toBe('4');
+  expect((screen.getByLabelText(branchLimitLabel) as HTMLInputElement).value).toBe('3');
+});
+
+it('saves the branch number of the picked branch and never the number typed for another branch', async () => {
+  const view = renderPage();
+  const branchInput = (await screen.findByLabelText(branchLimitLabel)) as HTMLInputElement;
+  fireEvent.change(branchInput, { target: { value: '2' } });
+
+  view.rerenderPage({ ...scope, branchId: otherBranchId });
+
+  expect((screen.getByLabelText(branchLimitLabel) as HTMLInputElement).value).toBe('3');
+  fireEvent.click(screen.getByRole('button', { name: t('en', 'shell.schedule_settings_branch_save') }));
+  await waitFor(() =>
+    expect(api.PUT).toHaveBeenCalledWith(
+      '/v1/businesses/{businessId}/branches/{branchId}/schedule-settings',
+      expect.objectContaining({
+        params: {
+          header: { 'x-company-id': id },
+          path: { businessId: id, branchId: otherBranchId },
+        },
+        body: { max_shifts_per_day: 3 },
+      }),
+    ),
+  );
+  expect(api.PUT).not.toHaveBeenCalledWith(
+    expect.anything(),
+    expect.objectContaining({ body: { max_shifts_per_day: 2 } }),
+  );
+});
+
+it('saves the branch number of the selected branch and can go back to the business number', async () => {
+  renderPage();
+  const branchInput = (await screen.findByLabelText(branchLimitLabel)) as HTMLInputElement;
+  expect(branchInput.value).toBe('3');
+  fireEvent.change(branchInput, { target: { value: '2' } });
+  fireEvent.click(screen.getByRole('button', { name: t('en', 'shell.schedule_settings_branch_save') }));
+  await waitFor(() =>
+    expect(api.PUT).toHaveBeenCalledWith(
+      '/v1/businesses/{businessId}/branches/{branchId}/schedule-settings',
+      expect.objectContaining({
+        params: { header: { 'x-company-id': id }, path: { businessId: id, branchId: id } },
+        body: { max_shifts_per_day: 2 },
+      }),
+    ),
+  );
+  expect((screen.getByLabelText(branchLimitLabel) as HTMLInputElement).value).toBe('2');
+  fireEvent.click(screen.getByRole('button', { name: t('en', 'shell.schedule_settings_inherit') }));
+  await waitFor(() =>
+    expect(api.DELETE).toHaveBeenCalledWith(
+      '/v1/businesses/{businessId}/branches/{branchId}/schedule-settings',
+      { params: { header: { 'x-company-id': id }, path: { businessId: id, branchId: id } } },
+    ),
+  );
 });
