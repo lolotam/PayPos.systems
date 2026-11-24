@@ -346,9 +346,12 @@ describe('a staff account never gets a credential through the reset path', () =>
         body: JSON.stringify({ newPassword: 'staff-query-pass' }),
       }),
     );
+    // AC-ACT-18: رفض واحد بلا تمييز — نفس الرد للاستعلام والجسم (نفس رد الرابط الميت).
     expect(fromQuery.status).toBe(400);
+    expect(await fromQuery.json()).toMatchObject({ code: 'INVALID_TOKEN', message: 'Invalid token' });
     const fromBody = await consume(link, 'staff-body-pass');
     expect(fromBody.status).toBe(400);
+    expect(await fromBody.json()).toMatchObject({ code: 'INVALID_TOKEN', message: 'Invalid token' });
     expect(await storedHash(userId)).toBe(before);
     expect(await liveTokens(userId)).toContain(link);
   });
