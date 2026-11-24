@@ -76,6 +76,14 @@ export const outbox = pgTable(
       .on(t.companyId, t.id)
       .concurrently()
       .where(sql`${t.eventType} IN ('ServiceSessionRecorded','ServiceSessionLinesAdded','ServiceLineChanged','RatingClaimsDiscoveryRequested')`),
+    // مسح تنبيه الحدث الموقوف بيقرأ أحداث العمولة الموقوفة غير المنشورة بترتيب seq؛ الفهرس الجزئي
+    // بنفس ترتيب الأنواع في الاستعلام فالمخطط يثبته بدل ما يمسح كل الأوتبوكس المحتفظ به.
+    index('outbox_commission_parked_idx')
+      .on(t.seq)
+      .concurrently()
+      .where(
+        sql`${t.parkedAt} IS NOT NULL AND ${t.publishedAt} IS NULL AND ${t.eventType} IN ('ServiceSessionRecorded','ServiceSessionLinesAdded','ServiceLineChanged','SalaryChanged','SessionTipsChanged','PackageSaleChanged')`,
+      ),
     check('outbox_event_type_format', sql`${t.eventType} ~ '^[A-Z][A-Za-z0-9]{1,99}$'`),
     check('outbox_aggregate_type_format', sql`${t.aggregateType} ~ '^[a-z][a-z0-9_]{1,62}$'`),
     check('outbox_attempts_non_negative', sql`${t.attempts} >= 0`),
