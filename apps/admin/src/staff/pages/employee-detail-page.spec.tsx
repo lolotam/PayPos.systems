@@ -227,7 +227,7 @@ it('reload clears the save message and reads the employee again', async () => {
   expect(screen.queryByText(label('staff.saved'))).toBeNull();
 });
 
-it.each(['data', 'pay', 'hours', 'documents', 'leave'] as const)(
+it.each(['data', 'pay', 'hours', 'documents'] as const)(
   'a failed employee read on %s shows the error inside the shell with the back link',
   async (tab) => {
     api.get.mockResolvedValue(missing);
@@ -240,6 +240,14 @@ it.each(['data', 'pay', 'hours', 'documents', 'leave'] as const)(
     expect(within(tabsNav()).getAllByRole('link')).toHaveLength(5);
   },
 );
+
+it('mounts the Leave section with an undefined zone fallback when the employee record read fails', async () => {
+  api.get.mockResolvedValue(missing);
+  render(page('leave'));
+  expect(await screen.findByText('leave section undefined')).toBeTruthy();
+  expect(screen.queryByRole('alert')).toBeNull();
+  expect(screen.getByRole('link', { name: label('staff.cancel') }).getAttribute('href')).toBe('/staff');
+});
 
 it.each(['data', 'leave'] as const)('keeps Reload and the back link on %s', async (tab) => {
   render(page(tab));

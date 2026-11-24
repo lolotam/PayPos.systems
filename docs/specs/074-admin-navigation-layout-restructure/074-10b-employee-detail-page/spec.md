@@ -40,13 +40,13 @@ The Employees list keeps its table, search, paging, header actions, the number-s
 - New `apps/admin/app/(dashboard)/staff/[employeeId]/page.tsx`, a thin server file in the pattern of `staff/[employeeId]/leave/page.tsx`: awaits `params`, renders `EmployeeDetailRoute` with `employeeId` and no tab (the route component reads `?tab=` with `useSearchParams`).
 - `staff/[employeeId]/leave/page.tsx` renders the same `EmployeeDetailRoute` with `tab="leave"`. `_frame/employee-leave-route.tsx` is deleted if nothing else imports it (search first).
 - New `_frame/employee-detail-route.tsx` (client): the same guards the other staff routes use (`workspace.status === 'ready'`, a selected business with the existing `admin.chooseBusiness` line, a session user id), a `key` of company, business, user and employee, then `EmployeeDetailPage`.
-- An unknown `?tab=` value shows Details. An `employeeId` that is not a UUID, or one the API answers 404 for, shows the record's existing error state inside the page shell with the back link; it does not crash and does not call `notFound()` (the read is client-side).
+- An unknown `?tab=` value shows Details. An `employeeId` that is not a UUID, or one the API answers 404 for, shows the record's existing error state inside the page shell with the back link (the `leave` tab mounts the leave section instead, which shows its own refusal); it does not crash and does not call `notFound()` (the read is client-side).
 
 ### 2. Page
 - New `apps/admin/src/staff/pages/employee-detail-page.tsx`: `PageShell` (detail template of `design.md` §6: use the variant the shared kit offers for it; if `PageShell` has no detail variant, use the form width 840px and say so), `PageHeader` whose title is the employee heading (reuse `EmployeeProfileHeading`'s data and text; the `<h1>` comes from `PageHeader`), a secondary action «Back to employees» linking to `/staff` (existing key if one fits, else one new key `staff.backToList`, `ar` and `en`), then the tab row, then the active tab's cards.
 - New `apps/admin/src/staff/ui/employee-detail-tabs.tsx`: the tab row as links, using the kit's `NavTabs` (or `Pills`, whichever the Admin frames already use for in-page tabs; read `packages/ui` and one existing use). The current tab carries `aria-current="page"`. Labels: reuse `leaveHistory.tabData` and `leaveHistory.tabLeave` for Details and Leave; three new keys for Pay, Hours and card, Documents (`ar` and `en`); the row's accessible name reuses `leaveHistory.tabsLabel`.
 - One file per tab body where a body is more than a few lines (`employee-detail-data-tab.tsx`, `-pay-tab.tsx`, `-hours-tab.tsx`, `-documents-tab.tsx`), each rendering the existing section components with exactly the props `employee-edit-panel.tsx` and `employee-record-sections.tsx` pass today (`companyId`, `businessId`, `userId`, `employeeId`, and `timeZone` of the employee's primary branch for the IBAN and Leave sections, `'UTC'` fallback as today). The Details tab keeps: the loading and error states of the record, `EditEmployeeForm` keyed by `id:revision`, the save error and saved messages, and the reload action (`save.reset()` then `record.refetch()`); «Close» becomes the back link.
-- `useEmployeeEdit(companyId, businessId, userId, employeeId)` is called once, in the page, and its `record`/`save` are passed down; the Leave tab waits for the record as today (it needs the primary branch's time zone).
+- `useEmployeeEdit(companyId, businessId, userId, employeeId)` is called once, in the page, and its `record`/`save` are passed down; the Leave tab waits for the read to settle and uses the primary branch's time zone when the record arrives, and still mounts when the read is refused.
 - Keep the `TODO(spec) SS-Q2` comment with the code it describes.
 
 ### 3. Employees list
@@ -75,7 +75,7 @@ Rendered tests (Vitest + Testing Library), each asserting what a user or a scree
 2. Each of `?tab=pay`, `?tab=hours`, `?tab=documents` and `/staff/<id>/leave` shows its tab current and exactly its sections; an unknown `?tab=` shows Details.
 3. Only the reads of the shown tab are requested (assert the requests made on opening Details do not include the salary, IBAN, hours, card, documents or leave reads).
 4. Saving the form shows the saved message and the refreshed values; a save error shows the alert; reload refetches.
-5. A failed employee read (404, 403, network) shows the existing error state inside the shell with the back link, on every tab.
+5. A failed employee read (404, 403, network) shows the existing error state inside the shell with the back link on `data`, `pay`, `hours` and `documents`; `leave` still mounts `EmployeeLeaveSection` once the read settles (`!record.isPending`), which preserves `branch_manager` access to `/staff/<id>/leave`.
 6. Employees list: «Edit» is a link to `/staff/<id>`; no inline card; search, paging, header actions, the number-start dialog and the passkey panel behave as before (their existing tests pass unchanged, or each changed assertion is listed with its reason).
 7. In the mounted frame, «Employees» is the current menu item on `/staff/<id>`, each `?tab=` and `/staff/<id>/leave`, in styles A, B and C.
 8. The carried-assertion table for the deleted files is complete.
@@ -112,7 +112,7 @@ Stop and report if: a section needs a change inside it; `PageShell` or the tab k
 1. **Reload sits in the header on every tab**, not only in Details: the old panel showed it on both tabs, and the browser test's activation-expiry step presses it from the Documents view. It is disabled while a save or the employee read is running, as before.
 2. **«Edit number»** (`EmployeeNumberEdit`) moved from under the name to the header's actions, beside Reload and the back link; the name and number are the header description (the number keeps its screen-reader-only label).
 3. **The back link is not disabled during a save.** `staff.cancel` was a disabled button while saving; a link cannot be disabled and the save request continues either way.
-4. **Every tab waits for the employee record** (loading status, then the error state or the tab). Pay needs it for the IBAN time zone and Leave for its zone, as today; Hours and Documents wait too so that the error state is the same on every tab.
+4. **`data`, `pay`, `hours` and `documents` wait for the employee record** (loading status, then the error state or the tab) and require it: Pay needs it for the IBAN time zone, and Hours and Documents wait too so that the error state is the same on those tabs. **`leave` waits only for `!record.isPending`** and still mounts `EmployeeLeaveSection` with `timeZone` undefined if the employee read fails (403/404): `branch_manager` holds `leave:branch` and `schedules:branch` but not `manage:employees:business`, so the employee read is refused and the tab must still work.
 5. **`employee-number-edit.spec.tsx`** was not in the spec's list but rendered `EmployeeEditPanel`; it now renders `EmployeeDetailPage` (access section mocked so its read does not add an alert). Its ten tests are otherwise unchanged. `employee-profile-heading.tsx` is deleted: its text and number markup moved into the header.
 6. **`app-map`:** the Employee detail row (`Employees (+ Create, + Employee detail)`) is already `Live` in `app-map.shared.mjs` and in `app-map.md`, so there is nothing to mark. Regenerating `app-map.md` with the script changes one unrelated row (Access › Invitations, Live → Soon) that drifted on `main`; that diff is not part of this slice and was not committed. The copy in `lolotam/lovable-pospay` was not touched.
 7. **Journey:** `docs/journey/16-update-employee.md` (the employee-edit journey) is updated in Arabic and English for the new page, tabs and back link; `18`, `30`, `40`, `46`, `53` and `92` get one bilingual note saying which tab holds their section.
@@ -166,8 +166,8 @@ Added plus removed lines against `origin/main` (`git diff --cached --numstat` be
 
 | Kind | Added | Removed | Total |
 |---|---|---|---|
-| Production code | 430 | 331 | 761 |
-| Tests (specs, fixture, browser test) | 670 | 324 | 994 |
-| Docs (this spec, `pr-sequence.md`, journey) | 187 | 7 | 194 |
+| Production code | 431 | 331 | 762 |
+| Tests (specs, fixture, browser test) | 678 | 324 | 1002 |
+| Docs (this spec, `pr-sequence.md`, journey) | 195 | 7 | 202 |
 
-Code plus tests: **1,755**, under the 1,800 cap but over the 1,400 line of the stop rule. The count includes the 332 removed lines of the deleted panel, tabs, actions, sections, heading and their two specs, and the 84 removed from the ported specs; the stop line was passed while carrying those assertions and porting `employee-number-edit.spec.tsx` (step 4), and the work was finished rather than split because nothing in the stop conditions (a change inside a section, `packages/ui`, `src/session/**` or the frames) was met.
+Code plus tests: **1,764**, under the 1,800 cap but over the 1,400 line of the stop rule. The count includes the 332 removed lines of the deleted panel, tabs, actions, sections, heading and their two specs, and the 84 removed from the ported specs; the stop line was passed while carrying those assertions and porting `employee-number-edit.spec.tsx` (step 4), and the work was finished rather than split because nothing in the stop conditions (a change inside a section, `packages/ui`, `src/session/**` or the frames) was met.

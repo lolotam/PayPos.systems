@@ -8,7 +8,7 @@ import type { useEmployeeEdit } from '../api/use-employees';
 import type { EmployeeDetailTab, EmployeeSectionScope } from '../model/employee-detail-tabs';
 import { EmployeeDetailTabContent } from './employee-detail-tab-content';
 
-/** بطاقة التبويب الحالي: حالة قراءة الموظف أولًا ثم أقسام التبويب، ولا يُركَّب قسم قبل وصول السجل. */
+/** بطاقة التبويب الحالي: حالة قراءة الموظف أولًا ثم أقسام التبويب؛ تبويب «الإجازات» يُركَّب بعد انتهاء القراءة حتى لو فشلت. */
 export function EmployeeDetailBody({
   tab,
   scope,
@@ -27,7 +27,7 @@ export function EmployeeDetailBody({
       {record.isPending ? (
         <EmptyState icon={<LoaderCircle />} role="status" title={t(locale, 'admin.loading')} />
       ) : null}
-      {record.isError ? (
+      {record.isError && tab !== 'leave' ? (
         <EmptyState
           icon={<CircleAlert />}
           role="alert"
