@@ -2,10 +2,9 @@
 // The script is imported (its main() only auto-runs when argv[1] is the script itself) and driven
 // in-process against a real but in-process HTTP server; global fetch is patched so the exact
 // staging origin the guard demands is served by that fake API, and ANY other host is refused by
-// the patch itself (so a URL built from user input cannot reach the network). process.exit is
-// replaced by a sentinel error so refusals and failures are assertable without ending the run.
-// The fake API never echoes credentials; the secret-visibility assertions read only the script's
-// own stdout/stderr captured here.
+// the patch itself (so a URL built from user input cannot reach the network). The fake API never
+// echoes credentials; the secret-visibility assertions read only the script's own stdout/stderr
+// captured here.
 
 import test from 'node:test';
 import assert from 'node:assert/strict';
@@ -23,14 +22,15 @@ const PASSWORD = 'trial-password-9';
 const COOKIE = 'pospay_stg_session=stub-cookie-value';
 const FINGERPRINT_A = 'a'.repeat(64);
 const FINGERPRINT_B = 'b'.repeat(64);
+const GENERATED_AT = '2026-11-24T10:00:00.000Z';
 const periodOf = (date) => `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, '0')}`;
 
 const fakeState = () => ({
   requests: [], employees: [], services: [], customers: [], pricedRefs: [], lineCounter: 0,
   workerPaused: false, statementStatus: null, ratingEnabled: false, redirectSignIn: false,
-  failEmployeeCreates: 0, sessionRejectsLeft: 0, businessCreatedAt: '2026-01-15T10:00:00.000Z', salaryConflict: false, salaryCodeOverride: undefined,
-  companyName: 'TRIAL-Commissions', businessName: 'TRIAL-Salon', salaryKeys: new Map(), planKeys: new Map(),
-  sessionKeys: new Map(), generateKeys: new Map(), reviewKeys: new Map(),
+  failEmployeeCreates: 0, sessionRejectsLeft: 0, businessCreatedAt: '2026-01-15T10:00:00.000Z',
+  salaryConflict: false, salaryCodeOverride: undefined, companyName: 'TRIAL-Commissions', businessName: 'TRIAL-Salon',
+  salaryKeys: new Map(), planKeys: new Map(), sessionKeys: new Map(), generateKeys: new Map(), reviewKeys: new Map(),
 });
 
 /** Minimal but real fake API: every endpoint the trial touches, with state the tests can bend. */
@@ -65,7 +65,7 @@ function fakeApiHandler(state) {
     let match;
     if ((match = path.match(/^\/v1\/businesses\/([^/]+)\/branches\/([^/]+)\/service-sessions\/(capabilities|recording-context)$/))) {
       if (match[3] === 'capabilities') return json(200, {});
-      return json(200, { generated_at: '2026-11-24T10:00:00.000Z', business_timezone: 'Asia/Kuwait', recorder_membership_ids: ['m1'], recorder_membership_id: 'm1', discount_limit: { source: 'OWNER', bps: null } });
+      return json(200, { generated_at: GENERATED_AT, business_timezone: 'Asia/Kuwait', recorder_membership_ids: ['m1'], recorder_membership_id: 'm1', discount_limit: { source: 'OWNER', bps: null } });
     }
     if ((match = path.match(/^\/v1\/businesses\/([^/]+)\/commissions\/periods\/([^/]+)\/estimate$/))) {
       const employees = state.employees.map((employee, index) => ({
@@ -167,10 +167,6 @@ async function startFakeApi(state = fakeState()) {
   return { state, stop: () => { globalThis.fetch = realFetch; return new Promise((resolve) => server.close(resolve)); } };
 }
 
-class Exit extends Error {
-  constructor(code) { super(`process.exit(${code})`); this.code = code; }
-}
-
 function captureIo() {
   const original = { log: console.log, error: console.error, exit: process.exit };
   const out = [];
@@ -191,6 +187,10 @@ function captureIo() {
   };
 }
 
+class Exit extends Error {
+  constructor(code) { super(`process.exit(${code})`); this.code = code; }
+}
+
 async function runTrial(argv) {
   const io = captureIo();
   const originalArgv = process.argv;
@@ -198,6 +198,8 @@ async function runTrial(argv) {
   let exitCode = 0;
   try {
     await trial.main();
+    exitCode = process.exitCode ?? 0;
+    process.exitCode = 0;
   } catch (error) {
     if (error instanceof Exit) exitCode = error.code;
     else { io.out.push(`THROWN ${error?.name}: ${error?.message}`); exitCode = -1; }
@@ -216,7 +218,7 @@ async function withEnv(fn) {
 }
 
 const baseArgs = ['--api-url', `https://${HOST}`, '--company', COMPANY, '--business', BUSINESS, '--employees', '3', '--lines', '12', '--lines-per-session', '2', '--delay-ms', '0', '--poll-ms', '10', '--wait-timeout', '5', '--retry-backoff-ms', '1'];
-const stagedArgs = [...baseArgs, '--confirm-staging'];
+const stagedArgs = [...baseArgs, '--confirm-staging', '--notifications-off-confirmed'];
 const FORBIDDEN = ['approve', 'return', 'mark-paid', 'enable', 'coverage', 'issue', 'pay'];
 
 /** Keys + body fingerprints per write route, in order — the resume contract of a re-run. */
@@ -241,7 +243,7 @@ const assertNeverApproves = (state, label) => {
 };
 
 test('guard refuses every non-staging target, a missing confirm flag and non-uuid ids, before any request', async () => {
-  const bad = (url) => ['--api-url', url, '--company', COMPANY, '--business', BUSINESS, '--confirm-staging'];
+  const bad = (url) => ['--api-url', url, '--company', COMPANY, '--business', BUSINESS, '--confirm-staging', '--notifications-off-confirmed'];
   const cases = [
     bad(`http://${HOST}`), // plain http: credentials would travel in the clear
     bad(`https://user:pw@${HOST}`), // userinfo
@@ -251,15 +253,25 @@ test('guard refuses every non-staging target, a missing confirm flag and non-uui
     bad(`https://API.STAGING.POSPAY.SYSTEMS`), // upper-case host
     bad(`https://${HOST}/v1`), // path beyond the bare origin
     bad(`https://${HOST}/?x=1`), // query
-    ['--api-url', `https://${HOST}`, '--company', COMPANY, '--business', BUSINESS],
-    ['--api-url', `https://${HOST}`, '--company', 'not-a-uuid', '--business', BUSINESS, '--confirm-staging'],
-    ['--api-url', `https://${HOST}`, '--company', COMPANY, '--business', BUSINESS, '--confirm-staging', '--period', '2026-13'],
+    ['--api-url', `https://${HOST}`, '--company', COMPANY, '--business', BUSINESS, '--confirm-staging', '--notifications-off-confirmed'],
+    ['--api-url', `https://${HOST}`, '--company', COMPANY, '--business', BUSINESS, '--confirm-staging'],
+    ['--api-url', `https://${HOST}`, '--company', 'not-a-uuid', '--business', BUSINESS, '--confirm-staging', '--notifications-off-confirmed'],
+    ['--api-url', `https://${HOST}`, '--company', COMPANY, '--business', BUSINESS, '--confirm-staging', '--notifications-off-confirmed', '--period', '2026-13'],
   ];
   for (const argv of cases) {
     const { out, exitCode } = await runTrial(argv);
     assert.equal(exitCode, 2, argv.join(' '));
     assert.ok(out.join('\n').startsWith('refused:'), argv.join(' '));
   }
+});
+
+test('the notifications flag is required and the refusal names the operator action', async () => {
+  const { out, exitCode } = await runTrial([
+    '--api-url', `https://${HOST}`, '--company', COMPANY, '--business', BUSINESS, '--confirm-staging',
+  ]);
+  assert.equal(exitCode, 2);
+  assert.match(out.join('\n'), /--notifications-off-confirmed is required/);
+  assert.match(out.join('\n'), /rating and notification messages OFF/);
 });
 
 test('a redirecting sign-in is never followed and never resends the body elsewhere', async () => {
@@ -291,6 +303,21 @@ test('the dedicated-test-company marker: company and business names must start w
   });
 });
 
+test('the company and the business must both exist under the signed-in user, and the business under the company', async () => {
+  await withEnv(async () => {
+    const api = await startFakeApi();
+    try {
+      const wrongCompany = await runTrial([...stagedArgs.slice(0, 2), '99999999-9999-4999-8999-999999999999', ...stagedArgs.slice(4)]);
+      assert.equal(wrongCompany.exitCode, 2);
+      assert.match(wrongCompany.out.join('\n'), /no membership in company/);
+      const wrongBusiness = await runTrial([...stagedArgs.slice(0, 4), '99999999-9999-4999-8999-999999999999', ...stagedArgs.slice(6)]);
+      assert.equal(wrongBusiness.exitCode, 2);
+      assert.match(wrongBusiness.out.join('\n'), /not part of company/);
+      assert.ok(api.state.requests.every((r) => r.headers['x-company-id'] === COMPANY), 'x-company-id is always the chosen company');
+    } finally { await api.stop(); }
+  });
+});
+
 test('customer phones come from the NANP fictional block and pass the API phone normalisation rules', () => {
   // Re-implementation of apps/api/src/modules/customers/domain/phone.ts normalizePhone rules.
   const normalize = (phone) => {
@@ -303,13 +330,13 @@ test('customer phones come from the NANP fictional block and pass the API phone 
     assert.match(normalized, /^\+[1-9][0-9]{1,14}$/);
     return normalized;
   };
-  const phones = Array.from({ length: 20 }, (_, i) => ({ calling_code: '1', national_number: String(5550100 + i) }));
+  const phones = Array.from({ length: 20 }, (_, i) => ({ calling_code: '1', national_number: String(2025550100 + i) }));
   for (const phone of phones) {
     const normalized = normalize(phone);
-    assert.match(normalized, /^\+155501(0[0-9]|1[0-9])$/, 'the NANP fictional 555-0100..0199 block');
+    assert.match(normalized, /^\+1202555(01|02)\d\d$/, 'the NANP fictional 202-555-0100..0119 block');
   }
-  assert.equal(phones[0].national_number, '5550100');
-  assert.equal(phones[19].national_number, '5550119');
+  assert.equal(phones[0].national_number, '2025550100');
+  assert.equal(phones[19].national_number, '2025550119');
 });
 
 test('a full run creates the history, generates and reviews, and never calls a closing route', async () => {
@@ -346,14 +373,27 @@ test('a re-run derives the same body-hashed idempotency keys, so it replays and 
   });
 });
 
+test('the run id carries the period and the options, so different options can never replay one key', async () => {
+  const base = { employees: 3, lines: 12, linesPerSession: 2 };
+  const id = trial.runIdOf(base, '2026-10');
+  assert.equal(id, trial.runIdOf({ ...base }, '2026-10'));
+  assert.notEqual(id, trial.runIdOf({ ...base, employees: 4 }, '2026-10'));
+  assert.notEqual(id, trial.runIdOf({ ...base, lines: 20 }, '2026-10'));
+  assert.notEqual(id, trial.runIdOf({ ...base, linesPerSession: 3 }, '2026-10'));
+  assert.notEqual(id, trial.runIdOf(base, '2026-09'));
+  assert.match(id, /^[0-9a-f]{16}$/);
+});
+
 test('resume: existing trial sources pass preflight only with --resume, owned by trial employees', async () => {
   await withEnv(async () => {
     const seeded = fakeState();
-    seeded.employees.push(
-      { id: fakeUuid(seeded), primary_branch_id: BRANCH, name_en: 'Trial Employee 001', role_code: 'staff', hire_date: '2026-10-01' },
-      { id: fakeUuid(seeded), primary_branch_id: BRANCH, name_en: 'Trial Employee 002', role_code: 'staff', hire_date: '2026-10-01' },
-      { id: fakeUuid(seeded), primary_branch_id: BRANCH, name_en: 'Trial Employee 003', role_code: 'staff', hire_date: '2026-10-01' },
-    );
+    const runId = trial.runIdOf({ employees: 3, lines: 12, linesPerSession: 2 }, '2026-10');
+    for (let i = 0; i < 3; i += 1) {
+      seeded.employees.push({
+        id: fakeUuid(seeded), primary_branch_id: BRANCH, name_en: trial.trialEmployeeName(i, runId),
+        role_code: 'staff', hire_date: '2026-10-01',
+      });
+    }
     seeded.pricedRefs.push('line:R1', 'line:R2', 'line:R3', 'line:R4');
     const first = await startFakeApi(seeded);
     try {
@@ -373,7 +413,7 @@ test('resume: existing trial sources pass preflight only with --resume, owned by
   });
 });
 
-test('resume refuses sources owned by a non-trial employee and an employee-count mismatch', async () => {
+test('resume refuses sources owned by a non-trial employee and a trial created with other options', async () => {
   await withEnv(async () => {
     const foreign = fakeState();
     foreign.employees.push({ id: fakeUuid(foreign), primary_branch_id: BRANCH, name_en: 'Real Employee', role_code: 'staff', hire_date: '2026-10-01' });
@@ -385,6 +425,16 @@ test('resume refuses sources owned by a non-trial employee and an employee-count
       assert.match(out.join('\n'), /non-trial employee/);
       assert.ok(out.join('\n').includes(foreign.employees[0].id), 'the refusing employee id is shown');
     } finally { await api.stop(); }
+    const otherOptions = fakeState();
+    const otherRunId = trial.runIdOf({ employees: 3, lines: 99, linesPerSession: 2 }, '2026-10');
+    otherOptions.employees.push({ id: fakeUuid(otherOptions), primary_branch_id: BRANCH, name_en: trial.trialEmployeeName(0, otherRunId), role_code: 'staff', hire_date: '2026-10-01' });
+    otherOptions.pricedRefs.push('line:O1');
+    const other = await startFakeApi(otherOptions);
+    try {
+      const { out, exitCode } = await runTrial([...stagedArgs, '--resume']);
+      assert.equal(exitCode, 2);
+      assert.match(out.join('\n'), /different options detected/);
+    } finally { await other.stop(); }
   });
 });
 
@@ -395,7 +445,9 @@ test('an un-keyed create whose answer was lost is recovered by re-listing, not d
     try {
       const { out, exitCode } = await runTrial(stagedArgs);
       assert.equal(exitCode, 0, out.join('\n'));
-      assert.equal(api.state.employees.filter((e) => e.name_en === 'Trial Employee 001').length, 1, 'no duplicate employee');
+      const names = api.state.employees.map((e) => e.name_en);
+      assert.equal(new Set(names).size, names.length, 'no duplicate employee');
+      assert.equal(names.length, 3, 'every trial employee exists exactly once');
     } finally { await api.stop(); }
   });
 });
@@ -420,7 +472,7 @@ test('preflight refuses a non-DRAFT statement, rating requests on, and a busines
     const cases = [
       [(state) => { state.statementStatus = 'REVIEWED'; }, /statement .* is REVIEWED/],
       [(state) => { state.ratingEnabled = true; }, /rating requests are enabled/],
-      [(state) => { state.businessCreatedAt = new Date().toISOString(); }, /COMMISSION_PERIOD_BEFORE_BUSINESS/],
+      [(state) => { state.businessCreatedAt = '2026-11-02T00:00:00.000Z'; }, /COMMISSION_PERIOD_BEFORE_BUSINESS/],
     ];
     for (const [setup, pattern] of cases) {
       const api = await startFakeApi();
@@ -455,7 +507,7 @@ test('period rules: the current month is not ended and anything older than last 
   await withEnv(async () => {
     const api = await startFakeApi();
     try {
-      const now = new Date();
+      const now = new Date(GENERATED_AT);
       const current = periodOf(new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 15)));
       const twoAgo = periodOf(new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - 2, 15)));
       const { out, exitCode } = await runTrial([...stagedArgs, '--period', current]);
@@ -498,6 +550,22 @@ test('an API code that is not a catalogue code prints as UNKNOWN', async () => {
   });
 });
 
+test('an unexpected exception prints a fixed line and the error class, never the message', async () => {
+  await withEnv(async () => {
+    const api = await startFakeApi();
+    api.state.employees = null; // the estimate read then throws a TypeError deep in the run
+    try {
+      const { out, exitCode } = await runTrial(stagedArgs);
+      assert.equal(exitCode, 1);
+      const text = out.join('\n');
+      assert.match(text, /unexpected failure: TypeError/);
+      assert.ok(!text.includes(EMAIL), 'the email leaked from an unexpected error');
+      assert.ok(!text.includes(PASSWORD), 'the password leaked from an unexpected error');
+      assert.ok(!text.includes('stub-cookie-value'), 'a cookie-like string leaked from an unexpected error');
+    } finally { await api.stop(); }
+  });
+});
+
 test('the script honors --dry-run: preflight only, then it stops before any write', async () => {
   await withEnv(async () => {
     const api = await startFakeApi();
@@ -508,6 +576,36 @@ test('the script honors --dry-run: preflight only, then it stops before any writ
       const writes = api.state.requests.filter((r) => r.method === 'POST');
       assert.deepEqual(writes.map((r) => r.path), ['/v1/auth/sign-in/email'], 'sign-in is the only POST');
     } finally { await api.stop(); }
+  });
+});
+
+test('no route of a success, a failing and a resumed run ever approves, returns, marks paid or enables', async () => {
+  await withEnv(async () => {
+    const success = await startFakeApi();
+    try {
+      assert.equal((await runTrial(stagedArgs)).exitCode, 0);
+      assertNeverApproves(success.state, 'success');
+    } finally { await success.stop(); }
+    const failing = await startFakeApi();
+    try {
+      failing.state.salaryConflict = true;
+      assert.equal((await runTrial(stagedArgs)).exitCode, 1);
+      assertNeverApproves(failing.state, 'failing');
+    } finally { await failing.stop(); }
+    const seeded = fakeState();
+    const runId = trial.runIdOf({ employees: 3, lines: 12, linesPerSession: 2 }, '2026-10');
+    for (let i = 0; i < 3; i += 1) {
+      seeded.employees.push({
+        id: fakeUuid(seeded), primary_branch_id: BRANCH, name_en: trial.trialEmployeeName(i, runId),
+        role_code: 'staff', hire_date: '2026-10-01',
+      });
+    }
+    seeded.pricedRefs.push('line:R1');
+    const resumed = await startFakeApi(seeded);
+    try {
+      assert.equal((await runTrial([...stagedArgs, '--resume'])).exitCode, 0);
+      assertNeverApproves(resumed.state, 'resumed');
+    } finally { await resumed.stop(); }
   });
 });
 
@@ -523,15 +621,13 @@ test('session bodies spread across the days of the period and all employees, det
   assert.equal(later.occurred_at, '2026-10-16T12:00:00.000+03:00');
   assert.deepEqual(first.lines.map((line) => line.performers[0].employee_id), ['e1', 'e2']);
   assert.deepEqual(trial.sessionBody(0, ctx), first, 'bodies are deterministic for replay');
-  assert.equal(trial.resolvePeriod('Asia/Kuwait', undefined), trial.previousPeriod('Asia/Kuwait').previous);
-  const io = captureIo();
-  let refused = null;
-  try { trial.resolvePeriod('Asia/Kuwait', '2026-01'); } catch (error) { refused = error instanceof Exit ? error.code : null; }
-  io.restore();
-  assert.equal(refused, 2, 'an explicit period older than last month is refused');
+  const at = new Date(GENERATED_AT);
+  assert.equal(trial.resolvePeriod('Asia/Kuwait', undefined, at), trial.previousPeriod('Asia/Kuwait', at).previous);
+  assert.equal(trial.previousPeriod('Asia/Kuwait', at).previous, '2026-10');
   assert.equal(trial.daysInPeriod('2026-10'), 31);
   assert.equal(trial.shiftPeriod('2026-01', -1), '2025-12');
   assert.equal(trial.sourceRefs({ employees: [{ sources: [{ source_ref: 'line:L1' }], sales: [], corrections: [], tips: { card: '0.000', cash: '0.000' } }] }).has('line:L1'), true);
   assert.equal(trial.ownedSources({ employees: [{ name_en: 'Other', employee_id: 'x', sources: [{ source_ref: 'r' }], sales: [], corrections: [], tips: { card: '0.000', cash: '0.000' } }] }).length, 1);
-  assert.equal(trial.localMinutesOfDay('Asia/Kuwait') >= 0 && trial.localMinutesOfDay('Asia/Kuwait') < 1440, true);
+  assert.equal(trial.localMinutesOfDay('Asia/Kuwait', at) >= 0 && trial.localMinutesOfDay('Asia/Kuwait', at) < 1440, true);
+  assert.equal(trial.localMinutesOfDay('Asia/Kuwait', at), 13 * 60, 'the business timezone decides the minute of the day');
 });
