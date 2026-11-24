@@ -4,6 +4,8 @@ import type { RatingAverageItem, WorkspaceBranch } from '@pospay/contracts';
 import { t } from '@pospay/i18n';
 import { Label, NativeSelect } from '@pospay/ui';
 import { useLocale } from '@/shared/locale/locale-context';
+import { FilterField } from '@/shared/ui/filter-field';
+import { FilterRow } from '@/shared/ui/filter-row';
 import { ratingName, sortAverages } from '../model/rating-text';
 import type { RatingsFilters } from '../model/ratings-filters';
 import { RatingsMonthField } from './ratings-month-field';
@@ -21,12 +23,12 @@ export function RatingsFiltersBar({
 }) {
   const locale = useLocale();
   return (
-    <div className="flex flex-wrap items-end gap-3">
+    <FilterRow>
       <RatingsMonthField
         month={filters.month}
         onChange={(month) => onChange({ month, employeeId: '' })}
       />
-      <div className="grid gap-1">
+      <FilterField>
         <Label htmlFor="ratings-branch">{t(locale, 'ratings.branch')}</Label>
         <NativeSelect
           id="ratings-branch"
@@ -40,8 +42,8 @@ export function RatingsFiltersBar({
             </option>
           ))}
         </NativeSelect>
-      </div>
-      <div className="grid gap-1">
+      </FilterField>
+      <FilterField>
         <Label htmlFor="ratings-employee">{t(locale, 'ratings.employee')}</Label>
         <NativeSelect
           id="ratings-employee"
@@ -55,7 +57,7 @@ export function RatingsFiltersBar({
             </option>
           ))}
         </NativeSelect>
-      </div>
-    </div>
+      </FilterField>
+    </FilterRow>
   );
 }

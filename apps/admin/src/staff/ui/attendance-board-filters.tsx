@@ -4,6 +4,8 @@ import { attendanceBoardQuery } from '@pospay/contracts';
 import { t } from '@pospay/i18n';
 import { Button, Input, Label, NativeSelect } from '@pospay/ui';
 import { useLocale } from '@/shared/locale/locale-context';
+import { FilterField } from '@/shared/ui/filter-field';
+import { FilterRow } from '@/shared/ui/filter-row';
 export function AttendanceBoardFilters({
   branches,
   branchId,
@@ -21,8 +23,8 @@ export function AttendanceBoardFilters({
 }) {
   const locale = useLocale();
   return (
-    <div className="flex flex-wrap items-end gap-3">
-      <div className="grid gap-1">
+    <FilterRow>
+      <FilterField>
         <Label htmlFor="attendance-branch">{t(locale, 'attendanceBoard.branch')}</Label>
         <NativeSelect
           id="attendance-branch"
@@ -35,8 +37,8 @@ export function AttendanceBoardFilters({
             </option>
           ))}
         </NativeSelect>
-      </div>
-      <div className="grid gap-1">
+      </FilterField>
+      <FilterField>
         <Label htmlFor="attendance-date">{t(locale, 'attendanceBoard.date')}</Label>
         <Input
           id="attendance-date"
@@ -54,10 +56,10 @@ export function AttendanceBoardFilters({
               onDate(next);
           }}
         />
-      </div>
+      </FilterField>
       <Button variant="outline" onClick={() => onDate(undefined)}>
         {t(locale, 'attendanceBoard.today')}
       </Button>
-    </div>
+    </FilterRow>
   );
 }
