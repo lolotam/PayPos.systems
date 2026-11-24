@@ -30,7 +30,7 @@ export function PermissionMembershipRow({ item, selected, onSelect, scopeName }:
           }}
         />
       </td>
-      <td>
+      <td data-cell-label={t(locale, 'permissions.role')}>
         <Badge variant="neutral">
           {roleName(
             locale,
@@ -39,7 +39,7 @@ export function PermissionMembershipRow({ item, selected, onSelect, scopeName }:
           )}
         </Badge>
       </td>
-      <td>
+      <td data-cell-label={t(locale, 'permissions.scope')}>
         <p>{t(locale, scopeLabel)}</p>
         {scopeName ? <p>{scopeName}</p> : <Identifier value={item.scope_id} />}
       </td>
