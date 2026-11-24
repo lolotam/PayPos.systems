@@ -70,3 +70,6 @@ export function staffAccessProviders(
     EmployeeAccessController,
   ];
 }
+
+export { EmployeeAccessController };
+export type { AuthFacadeForStaffAccess };

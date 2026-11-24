@@ -101,7 +101,6 @@ it('FR-F1-1 the GET state covers NONE, PENDING and a foreign employee 404', asyn
     can_manage: true,
   });
   const cancelled = await cancelPending(f, fresh);
-  if (cancelled.status !== 200) console.log('CANCEL BODY:', JSON.stringify(cancelled.body));
   expect(cancelled).toMatchObject({ status: 200, body: { state: 'NONE' } });
   expect(
     await f.h.owner`SELECT id FROM employee_staff_access WHERE employee_id = ${fresh}`,

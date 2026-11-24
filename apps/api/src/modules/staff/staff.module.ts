@@ -135,10 +135,7 @@ import { EMPLOYEE_APP_LINK_NAMES } from './queries/employee-app-link.query.ts';
 import { employeeAppLinkNames } from './persistence/employee-app-link-names.adapter.ts';
 import { AttendanceCapabilitiesController } from './http/attendance-capabilities.controller.ts';
 import { AttendanceCorrectionHistoryController } from './http/attendance-correction-history.controller.ts';
-import { EmployeeAccessController } from './http/employee-access.controller.ts';
-import type { AuthFacadeForStaffAccess } from './ports/staff-access-auth.port.ts';
-import { staffAccessProviders } from './staff-access.providers.ts';
-
+import { staffAccessProviders, EmployeeAccessController, type AuthFacadeForStaffAccess } from './staff-access.providers.ts';
 export const staffControllers = [
   OwnAttendanceController,
   PersonalBranchesController,

@@ -135,6 +135,10 @@ export class GrantEmployeeAccessUseCase {
         )
           throw new StaffAccessError('STAFF_ACCESS_NOT_ALLOWED');
         await this.#reuseRecord(scope, command, employee, record);
+        if (record.state === 'ACTIVE') {
+          if (record.userId === null) throw new StaffAccessError('STAFF_ACCESS_NOT_ALLOWED');
+          return { userId: record.userId };
+        }
         return this.users.provision({
           operationId: record.operationId,
           companyId: command.companyId,

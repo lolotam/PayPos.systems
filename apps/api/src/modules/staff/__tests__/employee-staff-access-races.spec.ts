@@ -170,3 +170,31 @@ it('P1-3 real employee edit overlaps grant at a barrier without lock inversion',
   expect(edit.status).toBe(200);
   expect(await pending).toMatchObject({ kind: 'granted' });
 });
+
+it('P1-2 a request resumed after another grant commits never provisions an ACTIVE operation', async () => {
+  const employeeId = await addEmployee(f, 'Committed overlap', f.salmiya, 303);
+  const input = await command(employeeId, nextPhone(f));
+  const gate = barrier();
+  const steps = createGrantEmployeeAccessSteps(f.db, f.h.auth.staffUsers);
+  const begin = steps.begin;
+  let calls = 0;
+  steps.begin = async (...args) => {
+    const result = await begin(...args);
+    if (++calls === 1) await gate.arrive();
+    return result;
+  };
+  const users = createStaffAccessUserSteps(f.h.auth.staffUsers);
+  const provision = vi.spyOn(users, 'provision');
+  const useCase = new GrantEmployeeAccessUseCase(
+    steps, users, { invalidate: async () => undefined }, { now: () => new Date() }, ids,
+  );
+  const delayed = useCase.execute(input);
+  await gate.entered;
+  try {
+    expect((await grant(f, employeeId, input.phone)).status).toBe(200);
+  } finally {
+    gate.release();
+  }
+  expect(await delayed).toEqual({ kind: 'already' });
+  expect(provision).not.toHaveBeenCalled();
+});

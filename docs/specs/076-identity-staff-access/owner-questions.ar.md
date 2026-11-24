@@ -206,3 +206,15 @@ https://plan.pospay.systems كدفعة 103 «دخول الموظفة ودعوة 
 مصدره رسالة مدير المهمة إلى المنفذ، وليس إجابة جديدة من وليد أو أبو سالم. لا يغيّر أدوار المنتج أو يوسّع الصلاحيات.
 
 > Confirmed on both points. (1) P1-11 wording was mine and too broad: assert for the `staff` role eligibility = true and attendance device access = false; for `reception` (cashier) both true. Do not widen the staff role's permissions. (2) Yes — close the cancel/provision race the way you describe (the tenant record state must gate the auth provisioning so a stale request cannot recreate a user after its deletion); keep the lock order company → employee → access record and do not hold a tenant transaction open across the auth call if that would break the connection-budget rule — a state check that the auth step re-validates by operation id is acceptable. Continue.
+
+
+## هـ — نطاق حد حجم الملفات في جولة F1
+
+- الحالة: ANSWERED من المدير المالك، 2026-11-24.
+- السؤال: هل حد 300 يشمل سجلات التصدير والتهيئة والاختبارات الموروثة التي تتجاوزه على main؟
+- التوصية: تطبيق الحد على ملفات F1 الجديدة وتوثيق الموروث، مع عدم زيادة أي ملف موروث فوق الحد الصلب بسبب F1.
+- إجابة المدير حرفياً:
+
+> Ruling on P2-2 scope: your interpretation is confirmed. Enforce ≤300 on the files F1 authors; do NOT refactor inherited registries, bootstrap files, fixtures or specs that were already over 300 on main — list them as documented exceptions in the final report. One condition: no inherited file may cross the project's hard limit of 400 lines BECAUSE of F1. Where F1's additions push a file from under 400 to over it (you name `staff.module.ts` 397 → 405 and `packages/contracts/src/index.ts` 405 — check what main has for that one), move F1's own additions out into an F1 file (e.g. the provider list into `staff-access.providers.ts`, the contract exports into a small barrel re-exported with one line) so the inherited file ends at or below its main line count or under 400, whichever is higher on main. Nothing else. Commit the pending ACTIVE-overlap regression fix, finish the gates, push, and send the final report.
+
+- التنفيذ: العد الفعلي للأسطر شاملاً الفراغات على main هو 403 لكلا الملفين، وليس 397 الذي كان يستبعد الأسطر الفارغة. صار `staff.module.ts` عند 402؛ و`contracts/src/index.ts` عند 403 عبر تصدير `StaffAccessStateRow` من سجل staff الموجود أصلاً. ملفات F1 الجديدة لا تتجاوز 300.
