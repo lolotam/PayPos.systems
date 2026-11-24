@@ -151,6 +151,8 @@ function assertProvisionInput(input: StaffUserProvisionInput): void {
     !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(input.operationId) ||
     !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(input.companyId) ||
     !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(input.actorUserId) ||
+    (input.attemptId !== undefined &&
+      !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(input.attemptId)) ||
     input.name.trim().length < 1 ||
     input.name.length > 255 ||
     input.email.length < 3 ||
@@ -159,6 +161,74 @@ function assertProvisionInput(input: StaffUserProvisionInput): void {
     !PHONE_PATTERN.test(input.phone)
   )
     throw new Error('STAFF_USER_INPUT_INVALID');
+}
+
+/**
+ * تفاصيل صف اعتماد ربط الهاتف: هوية المستخدم ومعرّف المحاولة التي اعتمدته. `attempt_id` موجود
+ * وقت ما تكون المحاولة معروفة — وهو اللي بيفرّق بين محاولتين على نفس المستخدم (AC-ACT-2).
+ */
+function bindingDetails(userId: string, attemptId: string | undefined): Record<string, string> {
+  return attemptId === undefined ? { user_id: userId } : { user_id: userId, attempt_id: attemptId };
+}
+
+/**
+ * معرّف صف اعتماد الربط: وقت المحاولة وبتات النسخة بتوعها، والباقي دايجست (المحاولة، المستخدم،
+ * الهاتف). نفس المحاولة على نفس الهاتف بتدي نفس المعرّف — فالتصادم على المفتاح الأساسي هو
+ * الحارس الوحيد ضد تكرار المحاولة (AC-ACT-2)، لأن سجل المنصة insert-only على pospay_auth فما
+ * ينفعش القارئ يقرأ صفه عشان يتأكد إنه اتكتب. من غير معرّف محاولة المولّد العادي هو اللي بيكتب.
+ */
+function bindingAuditId(input: StaffUserProvisionInput, userId: string): string {
+  if (input.attemptId === undefined) return input.ids.newId();
+  const attempt = Buffer.from(input.attemptId.replaceAll('-', ''), 'hex');
+  const digest = createHash('sha256')
+    .update(`staff-binding:${input.attemptId}:${userId}:${input.phone}`)
+    .digest();
+  attempt[6] = 0x70 | (digest.readUInt8(0) & 0x0f);
+  attempt[7] = digest.readUInt8(1);
+  attempt[8] = 0x80 | (digest.readUInt8(2) & 0x3f);
+  digest.copy(attempt, 9, 3, 10);
+  const hex = attempt.toString('hex');
+  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
+}
+
+/**
+ * يكتب صف اعتماد ربط الهاتف في سجل المنصة. المعرّف ثابت لكل (محاولة، مستخدم، هاتف)، فالتكرار
+ * مايكتبش صفين — والتصادم على المفتاح هو اللي بيقول إن المحاولة دي اتنفذت قبل كده (AC-ACT-2).
+ *
+ * `ON CONFLICT DO NOTHING` من غير هدف محدد و`RETURNING 1` بقيمة ثابتة: سجل المنصة insert-only
+ * على pospay_auth، فأي `RETURNING` لعمود من الجدول أو أي هدف صراع بيطلب صلاحية SELECT ما
+ * عندهاش. الصف المكتوب بيرجع صف واحد، والتصادم بيرجع صفر.
+ *
+ * @returns الصفوف المكتوبة فعلاً: صف واحد للمحاولة الجديدة، ولا شيء لتكرار المحاولة
+ */
+async function writeBindingAudit(
+  tx: Tx,
+  input: StaffUserProvisionInput,
+  userId: string,
+): Promise<{ written: number }[]> {
+  return tx.execute<{ written: number }>(sql`
+    INSERT INTO platform_audit_log (id, actor, action, target_user_id, details)
+    VALUES (${bindingAuditId(input, userId)}, ${input.actorUserId}, 'phone.binding_approved', NULL,
+      ${JSON.stringify(bindingDetails(userId, input.attemptId))}::jsonb)
+    ON CONFLICT DO NOTHING
+    RETURNING 1 AS written`);
+}
+
+/**
+ * هل المحاولة نفسها اعتمدت الربط قبل كده؟ لازم الهاتف هو المطلوب، والاعتماد قايم؛ ووجود صف
+ * المحاولة (تصادم المفتاح) هو دليل وجوده. نفس المحاولة مايعملش اعتماداً ثانياً ولا صفاً ثانياً
+ * (AC-ACT-2).
+ */
+async function attemptAlreadyApproved(
+  tx: Tx,
+  input: StaffUserProvisionInput,
+  userId: string,
+): Promise<boolean> {
+  const [bound] = await tx.execute<{ phone: string | null; approved: boolean }>(sql`
+    SELECT phone_number AS phone, phone_binding_approved_at IS NOT NULL AS approved
+    FROM "user" WHERE id = ${userId}`);
+  if (bound?.phone !== input.phone || bound.approved !== true) return false;
+  return (await writeBindingAudit(tx, input, userId)).length === 0;
 }
 
 async function provisionStaffUser(
@@ -206,9 +276,9 @@ async function provisionStaffUser(
     await tx.execute(sql`INSERT INTO platform_audit_log (id, actor, action, target_user_id, details)
       VALUES (${input.ids.newId()}, ${input.actorUserId}, 'staff.created', NULL,
         ${JSON.stringify({ user_id: userId })}::jsonb)`);
-    await tx.execute(sql`INSERT INTO platform_audit_log (id, actor, action, target_user_id, details)
-      VALUES (${input.ids.newId()}, ${input.actorUserId}, 'phone.binding_approved', NULL,
-        ${JSON.stringify({ user_id: userId })}::jsonb)`);
+    const audited = await writeBindingAudit(tx, input, userId);
+    // مستحيل: المستخدم جديد ومعرّف المحاولة جديد — والتصادم معناه إن في صف لنفس (المحاولة، المستخدم).
+    if (audited.length === 0) throw new Error('STAFF_USER_PROVISION_FAILED');
     return { userId };
   });
 }
@@ -227,6 +297,9 @@ async function resetStaffBinding(
     sql`SELECT id FROM "user" WHERE phone_number = ${input.phone} AND id <> ${userId} LIMIT 1`,
   );
   if (taken !== undefined) throw new StaffPhoneTakenError();
+  // تكرار المحاولة نفسها: الربط اتأكد على نفس الهاتف من قبل — لا اعتماد جديد ولا صف تدقيق جديد
+  // (AC-ACT-2). المحاولة الجديدة على نفس الهاتف بتعدّي من غير ما تكتب صفين.
+  if (input.attemptId !== undefined && (await attemptAlreadyApproved(tx, input, userId))) return;
   await translatingPhoneRace(() =>
     tx.execute(sql`UPDATE "user"
     SET phone_number = ${input.phone}, phone_number_verified = false
@@ -235,9 +308,7 @@ async function resetStaffBinding(
   await tx.execute(sql`UPDATE "user"
     SET phone_binding_approved_at = ${at.toISOString()}::timestamptz
     WHERE id = ${userId}`);
-  await tx.execute(sql`INSERT INTO platform_audit_log (id, actor, action, target_user_id, details)
-    VALUES (${input.ids.newId()}, ${input.actorUserId}, 'phone.binding_approved', NULL,
-      ${JSON.stringify({ user_id: userId })}::jsonb)`);
+  await writeBindingAudit(tx, input, userId);
 }
 
 async function cancelStaffUser(
