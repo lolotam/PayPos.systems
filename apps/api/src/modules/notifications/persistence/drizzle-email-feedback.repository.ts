@@ -13,19 +13,20 @@ export function createEmailFeedbackInboxRepository(
   return {
     accept: (event, at, remainingMs) =>
       database.withGlobal(async (tx) => {
-        const inserted = await tx.execute<{ id: string }>(sql`
+        const [existing] = await tx.execute<{ found: number }>(sql`
+          SELECT 1 AS found FROM public.platform_email_feedback_inbox
+          WHERE provider_event_digest = ${event.digest}`);
+        if (existing !== undefined) return { inserted: false };
+
+        const [inserted] = await tx.execute<{ id: string }>(sql`
           INSERT INTO public.platform_email_feedback_inbox
             (id,provider_event_digest,provider_email_id,event_type,bounce_class,provider_timestamp,received_at,raw_event)
           VALUES (${ids.newId()},${event.digest},${event.emailId},${event.type},${event.bounceClass},
             ${event.providerTimestamp.toISOString()},${at.toISOString()},${JSON.stringify(event.envelope)}::jsonb)
           ON CONFLICT (provider_event_digest) DO NOTHING
           RETURNING id`);
-        if (inserted.length === 1) return { id: inserted[0]?.id ?? '', inserted: true };
-        const existing = await tx.execute<{ id: string }>(sql`
-          SELECT id FROM public.platform_email_feedback_inbox WHERE provider_event_digest = ${event.digest}`);
-        const row = existing[0];
-        if (row === undefined) throw new Error('EMAIL_FEEDBACK_ROW_MISSING');
-        return { id: row.id, inserted: false };
+        // A concurrent delivery can win after the lookup. The unique digest then proves it exists.
+        return inserted === undefined ? { inserted: false } : { inserted: true, id: inserted.id };
       }, remainingMs),
     confirmEnqueue: (id, at, remainingMs) =>
       database.withGlobal(async (tx) => {

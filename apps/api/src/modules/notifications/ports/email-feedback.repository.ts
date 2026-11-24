@@ -35,7 +35,7 @@ export interface EmailFeedbackInboxRepository {
     event: EmailFeedbackEvent,
     at: Date,
     remainingMs: number,
-  ): Promise<{ id: string; inserted: boolean }>;
+  ): Promise<{ inserted: false } | { inserted: true; id: string }>;
   /**
    * يثبت نجاح التسليم للطابور بعد commit، من غير ما يغيّر هوية الحدث.
    *

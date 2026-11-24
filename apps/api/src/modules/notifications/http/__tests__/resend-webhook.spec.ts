@@ -173,13 +173,16 @@ describe('stores the scrubbed envelope and deduplicates', () => {
 });
 
 describe('acknowledges replays and leaves late work to the recovery path', () => {
-  it('acknowledges a replay of the same event and stores nothing new again', async () => {
+  it('acknowledges a replay while inbox writes are blocked', async () => {
     const payload = JSON.stringify(event());
     expect((await h.post(payload, {}, true, 'msg_test_replay_alone')).statusCode).toBe(200);
-    const before = await rows();
     const jobs = h.jobs.length;
-    expect((await h.post(payload, {}, true, 'msg_test_replay_alone')).statusCode).toBe(200);
-    expect(await rows()).toEqual(before);
+    await h.owner.begin(async (tx) => {
+      await tx`LOCK TABLE platform_email_feedback_inbox IN SHARE MODE`;
+      const before = await tx`SELECT * FROM platform_email_feedback_inbox ORDER BY id`;
+      expect((await h.post(payload, {}, true, 'msg_test_replay_alone')).statusCode).toBe(200);
+      expect(await tx`SELECT * FROM platform_email_feedback_inbox ORDER BY id`).toEqual(before);
+    });
     expect(h.jobs).toHaveLength(jobs);
   });
 
@@ -195,12 +198,13 @@ describe('acknowledges replays and leaves late work to the recovery path', () =>
   it('keeps the row unconfirmed when the enqueue fails, and still answers 200', async () => {
     h.failEnqueue(true);
     // حدث جديد بكامل معرّفه: لو تكرر svix-id لكان إعادة تسليم مؤكدة بـ 200 بلا صف جديد.
-    expect(
-      (await h.post(JSON.stringify(event()), {}, true, 'msg_test_resend_event_2')).statusCode,
-    ).toBe(200);
-    const unconfirmed = await h.owner`SELECT id FROM platform_email_feedback_inbox
-      WHERE enqueue_confirmed_at IS NULL`;
+    const id = 'msg_test_resend_event_2';
+    expect((await h.post(JSON.stringify(event()), {}, true, id)).statusCode).toBe(200);
+    const digest = createResendEventDigest(Buffer.alloc(32, 9))(id);
+    const unconfirmed = await h.owner`SELECT enqueue_confirmed_at FROM platform_email_feedback_inbox
+      WHERE provider_event_digest = ${digest}`;
     expect(unconfirmed).toHaveLength(1);
+    expect(unconfirmed[0]?.['enqueue_confirmed_at']).toBeNull();
     expect(h.jobs).toHaveLength(0);
   });
 
