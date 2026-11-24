@@ -23,3 +23,21 @@ export const COMMISSION_INPUT_EVENT_TYPES = [
  * قواعد الإثبات يرفع الرقم هنا وفي دالة الهجرة معًا، واختبار التكافؤ يفشل لو اختلفا.
  */
 export const COMMISSION_COVERAGE_PROOF_VERSION = 1;
+
+/**
+ * هوية المستهلك الدائمة لتنبيه الحدث الموقوف (ADR-0012 §3). علامتها هي اللي بتمنع تكرار التنبيه
+ * على نفس الحدث الموقوف؛ تغييرها معناه تنبيه جديد على كل الأحداث الموقوفة القديمة.
+ */
+export const PARKED_ALERT_CONSUMER_ID = 'commissions.park-alert';
+
+/**
+ * نتائج رفع تنبيه الحدث الموقوف: ليه رُفع التنبيه أو ليه ما رُفعش (ADR-0012 §3).
+ * القيم دي بتتقاسمها حالة الاستخدام في موديول العمولات والمسح الدوري في العامل، فلازم تكون في
+ * النواة المشتركة: قائمة واحدة في TypeScript مش اتنين، والاختلاف بينها بيقف البناء.
+ */
+export type ParkedAlertOutcome =
+  | 'ALERTED'
+  | 'NOT_A_COMMISSION_EVENT'
+  | 'NOT_BLOCKING'
+  | 'ALREADY_ALERTED'
+  | 'NO_OWNERS';

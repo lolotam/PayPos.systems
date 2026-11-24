@@ -34,6 +34,19 @@ export type ParkedAlertOwnersReader<Transaction> = (
 ) => Promise<readonly string[]>;
 
 /**
+ * قارئ علامة إسقاط المستهلِك: هل مستهلك مدخلات العمولة طبّق الحدث ده؟ الحدث الموقوف
+ * اللي اتسجل عليه مش بيمنع الاعتماد، فالتنبيه عليه مالهوش لازمة (ADR-0012 §3.1).
+ *
+ * @param tx      معاملة الشركة التي يقرأ منها القارئ
+ * @param eventId معرّف الحدث الموقوف
+ * @returns true لو المستهلِك طبّق الحدث قبل كده
+ */
+export type ParkedAlertProjectionReader<Transaction> = (
+  tx: Transaction,
+  eventId: string,
+) => Promise<boolean>;
+
+/**
  * كاتب جرس التنبيه على معاملة التنبيه نفسها، عشان علامة التكرار والجرس
  * يتثبتوا مع بعض أو يلغوا مع بعض.
  *

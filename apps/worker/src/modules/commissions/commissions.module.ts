@@ -27,7 +27,7 @@ import {
 } from './persistence/commission-line-projection.scope.ts';
 import { createCommissionCorrectionScope } from '@pospay/commissions-posting';
 import { createCommissionBlockNotices } from './persistence/commission-block-notice.outbox.ts';
-import { markCommissionEventConsumed } from './persistence/commission-event-consumption.ts';
+import { markCommissionEventConsumed, isCommissionInputEventConsumed } from './persistence/commission-event-consumption.ts';
 import { createCoverageProjectionReader } from './persistence/commission-coverage.reads.ts';
 import type { CommissionPermissionHoldersReader } from './ports/commission-block-notice.port.ts';
 import type {
@@ -166,6 +166,7 @@ export function createParkedCommissionAlert(
   const alert = new RaiseParkedCommissionAlert<Tx>({
     withTenant: dependencies.database.withTenant,
     owners: dependencies.owners,
+    isInputProjected: isCommissionInputEventConsumed,
     markConsumed: markCommissionEventConsumed,
     appendNotice: createParkedCommissionAlertNotifier(
       dependencies.ids,
