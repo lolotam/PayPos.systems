@@ -165,8 +165,7 @@ export function identityProviders(
     ...discountApproverProviders(database, ids, redis, staff?.sessions ?? null),
     { provide: DISCOUNT_APPROVER_VERIFIER, useExisting: VERIFY_DISCOUNT_APPROVER_PIN },
     ...privateViewProviders(database, ids, redis),
-    { provide: WORKSPACE_NAMES, useValue: capabilities.names },
-    ...preferenceProviders(),
+    ...meProviders(capabilities.names),
     { provide: OnboardCompany, useValue: capabilities.onboard },
     { provide: DEVICE_USE_CASES, useValue: capabilities.devices?.useCases ?? null },
     { provide: DEVICE_AUTHENTICATOR, useValue: capabilities.devices?.authenticator ?? null },
@@ -210,9 +209,10 @@ function identityCapabilities(
   };
 }
 
-// تفضيل الحساب كله من واجهة الاعتماد نفسها؛ مفيش قاعدة بيانات ولا صلاحيات شركة في السلسلة.
-function preferenceProviders(): Provider[] {
+// ما يحتاجه MeController: أسماء مساحات العمل، وتفضيل الحساب اللي كله من واجهة الاعتماد نفسها بلا قاعدة بيانات ولا صلاحيات شركة.
+function meProviders(names: ReturnType<typeof createWorkspaceNames> | null): Provider[] {
   return [
+    { provide: WORKSPACE_NAMES, useValue: names },
     {
       provide: MY_PREFERENCES,
       useFactory: (auth: AuthService | null) => auth?.preferences ?? null,
