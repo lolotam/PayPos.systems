@@ -25609,6 +25609,7 @@
             "pattern": "^[0-9a-f]{64}$"
           },
           "payment": {
+            "default": null,
             "nullable": true,
             "allOf": [
               {
@@ -25631,7 +25632,6 @@
           "approved_at",
           "input_fingerprint",
           "statement_fingerprint",
-          "payment",
           "employees"
         ]
       },

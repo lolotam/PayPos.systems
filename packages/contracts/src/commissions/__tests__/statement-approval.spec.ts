@@ -47,6 +47,8 @@ describe('the closed statement views', () => {
 
   it('accepts a business-wide closed view with its approval time and frozen fingerprints', () => {
     expect(commissionClosedStatementView.safeParse(closed).success).toBe(true);
+    expect(commissionClosedStatementView.parse(closed).payment).toBeNull();
+    expect(commissionClosedStatementView.parse({ ...closed, payment: null }).payment).toBeNull();
   });
 
   it.each([
@@ -63,6 +65,7 @@ describe('the closed statement views', () => {
       business_id: BUSINESS,
       period: '2026-10',
       status: 'PAID' as const,
+      payment: null,
       employees: [],
     };
 

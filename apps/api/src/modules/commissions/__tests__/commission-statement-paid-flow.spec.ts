@@ -158,7 +158,7 @@ it('two payers racing on one approved month: one pays, the other gets 409, and t
   );
 });
 
-it('reads the paid month back with its payment: all of it to the business reader, only her employees to a branch reader (FR-037)', async () => {
+it('reads the paid month back with its payment: all of it to the business reader, only complete employees to a branch reader (FR-037)', async () => {
   const business = commissionClosedStatementView.parse((await readStatement(f, f.cookie)).body);
   expect(business.status).toBe('PAID');
   expect(business.payment).toMatchObject({ paid_on: paidOn, paid_method: 'CASH', paid_by: payer.userId });
@@ -169,7 +169,7 @@ it('reads the paid month back with its payment: all of it to the business reader
   const branch = commissionClosedStatementBranchView.parse((await readStatement(f, f.branchCookie)).body);
   expect(Object.keys(branch.payment ?? {}).sort()).toEqual(['paid_method', 'paid_on', 'payments']);
   expect(branch.payment?.payments.map((row) => row.employee_id).sort()).toEqual(
-    branch.employees.map((employee) => employee.employee_id).sort(),
+    branch.employees.filter((employee) => !employee.partial).map((employee) => employee.employee_id).sort(),
   );
   expect(branch.payment?.payments.length).toBeLessThanOrEqual(paidRows.length);
 });
