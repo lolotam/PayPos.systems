@@ -6,6 +6,7 @@ import { serviceLinePerformersChanged } from './service-line-performers-changed.
 import { discountApprovalRequested } from './discount-approval-requested.ts';
 import { discountSelfApproved } from './discount-self-approved.ts';
 import { commissionCorrectionBlocked } from './commission-correction-blocked.ts';
+import { statementAwaitingApproval } from './statement-awaiting-approval.ts';
 import { serviceLinePriceEdited } from './service-line-price-edited.ts';
 import { shiftNotClockedIn } from './shift-not-clocked-in.ts';
 import { attendanceChangeRequested } from './attendance-change-requested.ts';
@@ -50,6 +51,7 @@ export function validInAppTemplate(
       discountApprovalRequested,
       discountSelfApproved,
       commissionCorrectionBlocked,
+      statementAwaitingApproval,
       shiftNotClockedIn,
       breakNotReturned,
       breakReturnedOtherBranch,

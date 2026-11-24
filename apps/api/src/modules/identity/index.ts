@@ -107,6 +107,12 @@ export {
 } from './persistence/commission-plan-access.ts';
 export { readCommissionReviewAccess } from './persistence/commission-review-access.ts';
 export {
+  commissionApproverHolds,
+  readCommissionActorMembership,
+  readCommissionApprovers,
+  readCommissionReturnAccess,
+} from './persistence/commission-approval-access.ts';
+export {
   readCommissionFeatureEnabled,
   readCommissionScope,
 } from './persistence/commission-read-scope.ts';
