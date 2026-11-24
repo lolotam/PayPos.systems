@@ -97,7 +97,7 @@ function shiftRanges(shifts: Shift[]) {
 export function detailsColumn(locale: Locale): ColumnDef<Row> {
   return {
     id: 'details',
-    header: t(locale, 'leave.decisionReason'),
+    header: t(locale, 'leaveHistory.details'),
     cell: ({ row: { original: row } }) => {
       if (row.row_type === 'LEAVE') return leaveDetails(row, locale);
       return (
