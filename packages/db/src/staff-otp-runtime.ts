@@ -6,7 +6,11 @@ export interface OtpRuntime {
   warm(): Promise<void>;
   close(): Promise<void>;
   /** اتصال المعاملة لا يغادر الحزمة، ويغلق قبل إنهاء العمل الملغى. */
-  run<T>(work: (tx: Tx) => Promise<T>, deadline?: Date): Promise<T>;
+  run<T>(
+    work: (tx: Tx) => Promise<T>,
+    deadline?: Date,
+    limits?: { statementMs: number },
+  ): Promise<T>;
   /** يقفل الهوية نفسها التي يستعملها STOP، ثم يقرأ ساعة قاعدة البيانات. */
   lock(tx: Tx, hash: Uint8Array): Promise<Date>;
   /** ساعة جديدة بعد اكتمال الأقفال؛ الانتظار لا يمد صلاحية الاعتماد. */
@@ -24,13 +28,13 @@ export function createOtpRuntime(
     warm: pool.warm,
     close: pool.close,
     now: databaseNow,
-    run: async (work, deadline = new Date(Date.now() + 1000)) => {
+    run: async (work, deadline = new Date(Date.now() + 1000), limits = { statementMs: 500 }) => {
       try {
         return await pool.run(async (tx) => {
           await tx.execute(sql`SET TRANSACTION ISOLATION LEVEL READ COMMITTED`);
           const remaining = deadline.getTime() - Date.now();
           const idle = `${Math.max(1, remaining)}ms`;
-          const statement = `${Math.max(1, Math.min(500, remaining - 40))}ms`;
+          const statement = `${Math.max(1, Math.min(limits.statementMs, remaining - 40))}ms`;
           const [role] = await tx.execute<{
             valid: boolean;
           }>(sql`SELECT set_config('statement_timeout',${statement},true),

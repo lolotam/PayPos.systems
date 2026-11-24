@@ -4,6 +4,7 @@ import { EmployeeDocumentsSection } from './employee-documents-section';
 import { EmployeeSalarySection } from './employee-salary-section';
 import { EmployeeIbanSection } from './employee-iban-section';
 import { EmployeeDefaultHoursSection } from './employee-default-hours-section';
+import { EmployeeAccessSection } from './employee-access-section';
 
 export function EmployeeRecordSections({
   timeZone,
@@ -22,6 +23,7 @@ export function EmployeeRecordSections({
       <EmployeeDefaultHoursSection {...props} />
       <EmployeeCardSection {...props} />
       <EmployeeDocumentsSection {...props} />
+      <EmployeeAccessSection {...props} />
     </>
   );
 }

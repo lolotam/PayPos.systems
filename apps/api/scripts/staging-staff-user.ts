@@ -208,6 +208,7 @@ async function run(
   }
   const membership = await ensureStaffBranchMembership({
     appUrl: env['DATABASE_URL'] ?? '',
+    authUrl: env['AUTH_DATABASE_URL'] ?? '',
     ids: systemUuidV7(),
     companyId: input.companyId,
     businessId: input.businessId,

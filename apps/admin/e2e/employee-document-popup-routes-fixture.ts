@@ -34,6 +34,7 @@ const EMPLOYEE_DENIALS: [string, Record<string, string>][] = [
   ['/default-shifts', {}],
   ['/cards', {}],
   ['/leave-requests', { limit: '20' }],
+  ['/staff-access', {}],
 ];
 const BUSINESS_DENIALS = [
   '/alert-rules',
