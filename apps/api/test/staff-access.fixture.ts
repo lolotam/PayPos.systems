@@ -8,6 +8,7 @@ import {
 import { CancelPendingStaffAccessUseCase } from '../src/modules/staff/use-cases/cancel-pending-staff-access/cancel-pending-staff-access.ts';
 import { GrantEmployeeAccessUseCase } from '../src/modules/staff/use-cases/grant-employee-access/grant-employee-access.ts';
 import { startHarness, type Harness } from './harness.ts';
+import { authPinHasher } from '../src/modules/identity/persistence/auth-pin-hasher.ts';
 import { captureServerFaults, recordSwallowedFault } from './server-faults.ts';
 import {
   STAFF_PIN_USE_CASES,
@@ -225,3 +226,5 @@ function observeGrantFailures(h: Harness): void {
 }
 
 export { hashStaffPin } from '../src/modules/identity/index.ts';
+/** يقارن رقماً سرياً بالـ hash المخزن بنفس المقارن الذي تستعمله مسارات الدخول. */
+export const verifyStaffPin = authPinHasher.verify;

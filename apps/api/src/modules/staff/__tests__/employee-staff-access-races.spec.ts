@@ -10,9 +10,9 @@ import {
   nextPhone,
   systemRoleId,
   staffAccessFixture,
+  verifyStaffPin,
   type Fixture,
 } from '../../../../test/staff-access.fixture.ts';
-import { authPinHasher } from '../../identity/persistence/auth-pin-hasher.ts';
 import { createGrantEmployeeAccessSteps } from '../persistence/staff-access.adapter.ts';
 import { createStaffAccessUserSteps } from '../persistence/staff-access-auth.adapter.ts';
 import { GrantEmployeeAccessUseCase } from '../use-cases/grant-employee-access/grant-employee-access.ts';
@@ -245,8 +245,8 @@ it('P1-1 a stale attempt cannot commit a newer re-grant of the same record', asy
   const [pin] = await f.h
     .owner`SELECT pin_hash,set_by FROM cashier_pins WHERE user_id=${stopped?.user_id}`;
   expect(pin?.set_by).toBe(second.userId);
-  expect(await authPinHasher.verify('9876', pin?.pin_hash as string)).toBe(true);
-  expect(await authPinHasher.verify('1234', pin?.pin_hash as string)).toBe(false);
+  expect(await verifyStaffPin('9876', pin?.pin_hash as string)).toBe(true);
+  expect(await verifyStaffPin('1234', pin?.pin_hash as string)).toBe(false);
   const [record] = await f.h
     .owner`SELECT role_code,granted_by FROM employee_staff_access WHERE employee_id=${employeeId}`;
   expect(record).toMatchObject({ role_code: 'reception', granted_by: second.userId });
