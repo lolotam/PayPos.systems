@@ -151,6 +151,46 @@ it('shows only the branch payment fields and rows returned by the server', async
   for (const key of ['paidTotal', 'paidNote', 'paidAt', 'paidBy']) expect(within(block).queryByText(S(key))).toBeNull();
 });
 
+it('keeps a visible partial employee out of payment rows without deriving her paid amount', async () => {
+  current.answer = ok(closedBranchView({ status: 'PAID', employees: [
+    statementEmployee({ partial: true, payable: '7.003' }),
+    statementEmployee({ employee_id: EMPLOYEE_RANA, name_en: 'Rana', payable: '2.007' }),
+  ], payment: {
+    paid_on: payment.paid_on, paid_method: 'CASH',
+    payments: [{ employee_id: EMPLOYEE_RANA, exact_payable: '2.007', paid_amount: '2.005' }],
+  } }));
+  renderStatementPage();
+  const partialCard = await screen.findByLabelText('Sara');
+  expect(within(partialCard).getByText(S('partialBadge'))).toBeTruthy();
+  expect(within(partialCard).getByText('7.003')).toBeTruthy();
+  expect(within(partialCard).queryByText(S('paidAmount'))).toBeNull();
+  const block = screen.getByRole('region', { name: S('paymentTitle') });
+  expect(within(block).getByText('Rana')).toBeTruthy();
+  expect(within(block).getByText('2.007')).toBeTruthy();
+  expect(within(block).getByText('2.005')).toBeTruthy();
+  expect(within(block).getAllByRole('row')).toHaveLength(2);
+  expect(within(block).queryByText('Sara')).toBeNull();
+  expect(within(block).queryByText('7.003')).toBeNull();
+  expect(screen.queryByText('7.005')).toBeNull();
+  expect(screen.queryByText('9.010')).toBeNull();
+});
+
+it.each(['APPROVED', 'PAID'] as const)('renders no payment block for a %s reading with null payment', async (status) => {
+  current.answer = ok(closedView({ status, payment: null }));
+  renderStatementPage();
+  expect(await screen.findByLabelText('Sara')).toBeTruthy();
+  expect(screen.queryByRole('region', { name: S('paymentTitle') })).toBeNull();
+});
+
+it('renders a legacy approval response without payment as an approved statement with no payment block', async () => {
+  const legacyApproval = Object.fromEntries(Object.entries(closedView()).filter(([key]) => key !== 'payment'));
+  current.answer = ok(legacyApproval);
+  renderStatementPage();
+  expect(await screen.findByText(S('statusApproved'))).toBeTruthy();
+  expect(screen.getByRole('button', { name: S('pay') })).toBeTruthy();
+  expect(screen.queryByRole('region', { name: S('paymentTitle') })).toBeNull();
+});
+
 it('omits an empty note and refuses an overlong note visibly before sending', async () => {
   api.POST.mockResolvedValue(refusal(422, 'COMMISSION_PAID_ON_INVALID'));
   await open();
