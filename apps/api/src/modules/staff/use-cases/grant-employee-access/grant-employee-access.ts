@@ -38,20 +38,9 @@ export class GrantEmployeeAccessUseCase {
    */
   async execute(
     command: GrantEmployeeAccessCommand,
-  ): Promise<
-    { kind: 'already' } | { kind: 'granted'; membershipId: string; userId: string }
-  > {
+  ): Promise<{ kind: 'already' } | { kind: 'granted'; membershipId: string; userId: string }> {
     const begin = await this.#begin(command);
-    const { userId } = await this.users.provision({
-      operationId: begin.record.operationId,
-      companyId: command.companyId,
-      actorUserId: command.userId,
-      phone: command.phone,
-      name: begin.employee.displayName,
-      ids: this.ids,
-      recordState: begin.record.state === 'STOPPED' ? 'STOPPED' : 'PENDING',
-      resetBinding: begin.record.state === 'STOPPED',
-    });
+    const { userId } = await this.#provision(command, begin);
     const pinHash = await this.users.hash(command.pin);
     const outcome = await this.#commit(command, begin, userId, pinHash);
     if (outcome.kind === 'granted')
@@ -107,12 +96,57 @@ export class GrantEmployeeAccessUseCase {
     employee: BeginEmployee,
     record: BeginRecord,
   ): Promise<GrantBeginOutcome> {
+    if (record.state === 'STOPPED') {
+      const restarted = await scope.restartRecord(record.id, {
+        phoneHash: scope.phoneHash(command.phone),
+        roleCode: command.role,
+        branchId: employee.primaryBranchId,
+      });
+      return { record: restarted, employee };
+    }
     const phoneMatches = scope.phoneHash(command.phone) === record.phoneHash;
     const roleMatches = record.roleCode === command.role;
     const branchMatches = record.branchId === employee.primaryBranchId;
     if (!phoneMatches || !roleMatches || !branchMatches)
       throw new StaffAccessError('STAFF_ACCESS_NOT_ALLOWED');
     return { record, employee };
+  }
+
+  /** يعيد قفل السجل المثبت قبل auth حتى لا يبدأ إنشاء حساب بعد انتقال الإلغاء أو حذف السجل. */
+  async #provision(command: GrantEmployeeAccessCommand, begin: GrantBeginOutcome) {
+    const actor = { companyId: command.companyId, userId: command.userId };
+    return this.steps.begin(
+      actor,
+      {
+        businessId: command.businessId,
+        employeeId: command.employeeId,
+        ids: this.ids,
+        at: this.clock.now(),
+      },
+      async (scope) => {
+        if (!(await scope.lockCompany())) throw new StaffAccessError('EMPLOYEE_NOT_FOUND');
+        const employee = await scope.lockEmployee();
+        const record = await scope.findRecord();
+        if (
+          employee === null ||
+          record === null ||
+          record.id !== begin.record.id ||
+          !['PENDING', 'ACTIVE'].includes(record.state)
+        )
+          throw new StaffAccessError('STAFF_ACCESS_NOT_ALLOWED');
+        await this.#reuseRecord(scope, command, employee, record);
+        return this.users.provision({
+          operationId: record.operationId,
+          companyId: command.companyId,
+          actorUserId: command.userId,
+          phone: command.phone,
+          name: employee.displayName,
+          ids: this.ids,
+          recordState: 'PENDING',
+          resetBinding: record.state === 'PENDING' && record.userId !== null,
+        });
+      },
+    );
   }
 
   /** الخطوة الثالثة: إعادة الفحص تحت القفل والإثبات عبر auth ثم الكتابة من السجل المقفول (P1-4/P1-5). */
@@ -132,43 +166,52 @@ export class GrantEmployeeAccessUseCase {
         ids: this.ids,
         at: this.clock.now(),
       },
-      async (scope) => {
-        if (!(await scope.lockCompany())) throw new StaffAccessError('EMPLOYEE_NOT_FOUND');
-        const { employee, record } = await scope.recheck();
-        if (employee === null || record === null) throw new StaffAccessError('EMPLOYEE_NOT_FOUND');
-        if (record.state === 'ACTIVE') return { kind: 'already' } as const;
-        if (
-          employee.userId === actor.userId ||
-          (employee.userId !== null && employee.userId !== userId)
-        )
-          throw new StaffAccessError('STAFF_ACCESS_NOT_ALLOWED');
-        if (!(await scope.authority(employee.businessId, employee.primaryBranchId)))
-          throw new StaffAccessError('STAFF_ACCESS_NOT_ALLOWED');
-        // إثبات الربط عبر packages/auth (P1-5) — لا عضوية بلا إثبات منح بمعرّف العملية.
-        await scope.assertBinding({
-          companyId: command.companyId,
-          userId,
-          operationId: record.operationId,
-        });
-        const granted = await scope.grantMembership({
-          userId,
-          branchId: record.branchId,
-          role: record.roleCode,
-        });
-        if (employee.userId !== userId) await scope.linkEmployee(userId);
-        await scope.saveTemporaryPin(userId, pinHash);
-        await scope.markActive({ recordId: record.id, userId, membershipId: granted.membershipId });
-        await scope.appendEvent({
-          employeeId: command.employeeId,
-          userId,
-          membershipId: granted.membershipId,
-          branchId: record.branchId,
-          role: record.roleCode,
-        });
-        return { kind: 'granted', membershipId: granted.membershipId, userId } as const;
-      },
+      (scope) => this.#commitWork(scope, { command, begin, userId, pinHash }),
     );
   }
+
+  async #commitWork(
+    scope: GrantCommitScope,
+    input: { command: GrantEmployeeAccessCommand; begin: GrantBeginOutcome; userId: string; pinHash: string },
+  ) {
+    const { command, begin, userId, pinHash } = input;
+    if (!(await scope.lockCompany())) throw new StaffAccessError('EMPLOYEE_NOT_FOUND');
+    const { employee, record } = await scope.recheck();
+    if (employee === null || record === null) throw new StaffAccessError('EMPLOYEE_NOT_FOUND');
+    if (
+      employee.userId === command.userId ||
+      (employee.userId !== null && employee.userId !== userId)
+    )
+      throw new StaffAccessError('STAFF_ACCESS_NOT_ALLOWED');
+    if (!(await scope.authority(employee.businessId, employee.primaryBranchId)))
+      throw new StaffAccessError('STAFF_ACCESS_NOT_ALLOWED');
+    if (record.state === 'ACTIVE') return { kind: 'already' } as const;
+    if (
+      record.state !== 'PENDING' ||
+      record.operationId !== begin.record.operationId ||
+      record.phoneHash !== begin.record.phoneHash ||
+      record.branchId !== employee.primaryBranchId
+    )
+      throw new StaffAccessError('STAFF_ACCESS_NOT_ALLOWED');
+    const granted = await scope.grantMembership({
+      operationId: record.operationId,
+      userId,
+      branchId: record.branchId,
+      role: record.roleCode,
+    });
+    if (employee.userId !== userId) await scope.linkEmployee(userId);
+    await scope.saveTemporaryPin(userId, pinHash);
+    await scope.markActive({ recordId: record.id, userId, membershipId: granted.membershipId });
+    await scope.appendEvent({
+      employeeId: command.employeeId,
+      userId,
+      membershipId: granted.membershipId,
+      branchId: record.branchId,
+      role: record.roleCode,
+    });
+    return { kind: 'granted', membershipId: granted.membershipId, userId } as const;
+  }
+
 }
 
 /** أنواع نطاق الخطوة الأولى كما تعود من الـ port — اختصار داخلي للملف. */

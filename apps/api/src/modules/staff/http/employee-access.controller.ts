@@ -12,6 +12,7 @@ import { ZodValidationPipe } from '../../../shared/zod-validation.pipe.ts';
 import {
   EMPLOYEE_ACCESS_STATE_READS,
   readEmployeeStaffAccess,
+  readGrantedEmployeeStaffAccess,
   type EmployeeAccessStateReads,
 } from '../queries/employee-staff-access.query.ts';
 import { StaffAccessError, GrantEmployeeAccessUseCase } from '../use-cases/grant-employee-access/grant-employee-access.ts';
@@ -59,7 +60,7 @@ export class EmployeeAccessController {
       if (error instanceof StaffAccessError) throw new ApiError(error.code);
       throw error;
     }
-    return this.readStateOrNotFound(actor.companyId, actor.userId, businessId, employeeId);
+    return this.readStateOrNotFound(actor.companyId, actor.userId, businessId, employeeId, readGrantedEmployeeStaffAccess);
   }
 
   /** حالة الدخول للوحة: الدور والفرع وآخر ثلاثة أرقام وصلاحية الإعطاء. */
@@ -98,7 +99,7 @@ export class EmployeeAccessController {
       if (error instanceof StaffAccessError) throw new ApiError(error.code);
       throw error;
     }
-    return this.readStateOrNotFound(actor.companyId, actor.userId, businessId, employeeId);
+    return this.readStateOrNotFound(actor.companyId, actor.userId, businessId, employeeId, readGrantedEmployeeStaffAccess);
   }
 
   /** كل مسارات القدرة مقفولة حتى تُشغَّل من المتغير عند التشغيل (plan §1.1). */
@@ -118,13 +119,14 @@ export class EmployeeAccessController {
     userId: string,
     businessId: string,
     employeeId: string,
+    query = readEmployeeStaffAccess,
   ): Promise<unknown> {
     const database = this.database as TenantWrappers;
     const reads = this.reads as EmployeeAccessStateReads;
     const state = await database.withTenant(
       companyId,
       (tx) =>
-        readEmployeeStaffAccess(
+        query(
           tx,
           { companyId, businessId, employeeId, actorUserId: userId },
           reads,

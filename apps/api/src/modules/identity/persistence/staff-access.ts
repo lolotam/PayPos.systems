@@ -4,22 +4,8 @@ import { sql } from 'drizzle-orm';
 import { evaluateAccess } from '../domain/access.ts';
 import { readAccessTransaction } from './access-reader.ts';
 
-/** صف سجل دخول الموظفة كما تقرأه شاشة اللوحة — بلا هاتف كامل ولا بريد ولا أي hash. */
-export interface StaffAccessStateRow {
-  readonly branchId: string;
-  readonly linkedUserId: string | null;
-  readonly record:
-    | null
-    | {
-        readonly id: string;
-        readonly state: 'PENDING' | 'ACTIVE' | 'STOPPED' | 'PHONE_CHANGING' | 'CANCELLING';
-        readonly roleCode: 'staff' | 'reception';
-        readonly branchId: string;
-        readonly operationId: string;
-        readonly userId: string | null;
-        readonly membershipId: string | null;
-      };
-}
+import type { StaffAccessStateRow } from '@pospay/contracts';
+export type { StaffAccessStateRow } from '@pospay/contracts';
 
 /**
  * سلطة «إعطاء الدخول» على فرع الموظفة الأساسي (FR-F1-3): بتتقري جوه معاملة الكتابة بعد قفل صف
@@ -33,16 +19,14 @@ export async function readStaffAccessAuthority(
   tx: Tx,
   input: { companyId: string; actorUserId: string; businessId: string; branchId: string },
 ): Promise<boolean> {
-  const [company] = await tx.execute(
-    sql`SELECT id FROM companies WHERE id=${input.companyId} AND deleted_at IS NULL FOR NO KEY UPDATE`,
-  );
-  if (company === undefined) return false;
-  await tx.execute(
-    sql`SELECT id FROM memberships WHERE company_id=${input.companyId} AND user_id=${input.actorUserId} ORDER BY id FOR UPDATE`,
-  );
   const [time] = await tx.execute<{ at: Date }>(sql`SELECT clock_timestamp() AS at`);
   if (time === undefined) return false;
-  const access = await readAccessTransaction(tx, input.companyId, input.actorUserId, new Date(time.at));
+  const access = await readAccessTransaction(
+    tx,
+    input.companyId,
+    input.actorUserId,
+    new Date(time.at),
+  );
   return evaluateAccess(access.grants, 'manage:staff-access:branch', {
     companyId: input.companyId,
     businessId: input.businessId,
@@ -75,10 +59,7 @@ export async function readStaffAccessState(
     operation_id: string;
     user_id: string | null;
     membership_id: string | null;
-  }>(sql`
-    SELECT id, state, role_code, branch_id, operation_id, user_id, membership_id
-    FROM employee_staff_access
-    WHERE company_id=${input.companyId} AND employee_id=${input.employeeId}`);
+  }>(staffAccessRecordQuery(input));
   return {
     branchId: employee.primary_branch_id,
     linkedUserId: employee.user_id,
@@ -95,4 +76,10 @@ export async function readStaffAccessState(
             membershipId: record.membership_id,
           },
   };
+}
+
+/** نفس استعلام حالة الدخول للشاشة وEXPLAIN؛ الإسقاط محدود ولا يحمل الهاتف أو الـ hash. */
+export function staffAccessRecordQuery(input: { companyId: string; employeeId: string }) {
+  return sql`SELECT id, state, role_code, branch_id, operation_id, user_id, membership_id
+    FROM employee_staff_access WHERE company_id=${input.companyId} AND employee_id=${input.employeeId}`;
 }

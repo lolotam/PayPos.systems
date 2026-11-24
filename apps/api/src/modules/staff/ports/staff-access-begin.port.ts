@@ -78,6 +78,18 @@ export interface GrantBeginScope {
   authority(businessId: string, branchId: string): Promise<boolean>;
   /** يقرأ سجل الدخول للموظفة إن وُجد بلا قفل إضافي. */
   findRecord(): Promise<StaffAccessRecordRow | null>;
+  /** يثبت الهاتف والدور والفرع عند إعادة منح سجل متوقف قبل إنشاء أي أثر هوية.
+   *
+   * @param recordId السجل المتوقف
+   * @param input tuple الطلب الجديد
+   * @param input.phoneHash بصمة الهاتف
+   * @param input.roleCode الدور المختار
+   * @param input.branchId الفرع الأساسي
+   */
+  restartRecord(
+    recordId: string,
+    input: { phoneHash: string; roleCode: StaffAccessRole; branchId: string },
+  ): Promise<StaffAccessRecordRow>;
   /**
    * hash الهاتف الكانوني — المقارنة عند الاستئناف بلا كشف الهاتف (P1-4).
    *

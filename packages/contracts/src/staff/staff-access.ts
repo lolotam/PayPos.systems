@@ -20,11 +20,28 @@ export type GrantStaffAccessInput = z.infer<typeof grantStaffAccessInput>;
 
 /** حالة دخول الموظفة كما تظهر في لوحة الموظفين؛ آخر ثلاثة أرقام فقط ولا هاتف كامل أبداً. */
 export const staffAccessState = responseObject({
-    state: z.enum(['NONE', 'PENDING', 'ACTIVE', 'STOPPED']),
-    role: z.enum(['staff', 'reception']).nullable(),
-    branch_id: id.nullable(),
-    phone_last3: z.string().regex(/^\d{3}$/).nullable(),
-    can_manage: z.boolean(),
-  })
-  .meta({ id: 'StaffAccessState' });
+  state: z.enum(['NONE', 'PENDING', 'ACTIVE', 'STOPPED']),
+  role: z.enum(['staff', 'reception']).nullable(),
+  branch_id: id.nullable(),
+  phone_last3: z
+    .string()
+    .regex(/^\d{3}$/)
+    .nullable(),
+  can_manage: z.boolean(),
+}).meta({ id: 'StaffAccessState' });
 export type StaffAccessState = z.infer<typeof staffAccessState>;
+
+/** صف سجل دخول الموظفة كما تقرأه شاشة اللوحة — بلا هاتف كامل ولا بريد ولا أي hash. */
+export interface StaffAccessStateRow {
+  readonly branchId: string;
+  readonly linkedUserId: string | null;
+  readonly record: null | {
+    readonly id: string;
+    readonly state: 'PENDING' | 'ACTIVE' | 'STOPPED' | 'PHONE_CHANGING' | 'CANCELLING';
+    readonly roleCode: 'staff' | 'reception';
+    readonly branchId: string;
+    readonly operationId: string;
+    readonly userId: string | null;
+    readonly membershipId: string | null;
+  };
+}

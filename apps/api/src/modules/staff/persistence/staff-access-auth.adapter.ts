@@ -1,9 +1,8 @@
-import { StaffPhoneTakenError, type TenantWrappers } from '@pospay/db';
+import { OWNER_ROLE_ID, StaffPhoneTakenError, type TenantWrappers } from '@pospay/db';
 import { sql } from 'drizzle-orm';
 import type { Tx } from '@pospay/db';
 
 import {
-  assertStaffUserBinding,
   cancelStaffUser,
   hashStaffPin,
   provisionStaffUser,
@@ -39,6 +38,7 @@ export function createStaffAccessUserSteps(auth: AuthFacadeForStaffAccess): Staf
           phone: input.phone,
           name: input.name,
           actorUserId: input.actorUserId,
+          ids: input.ids,
           recordState: input.recordState,
           resetBinding: input.resetBinding,
         });
@@ -49,7 +49,6 @@ export function createStaffAccessUserSteps(auth: AuthFacadeForStaffAccess): Staf
       }
     },
     hash: (pin) => hashStaffPin(pin),
-    isPhoneTaken: (error) => error instanceof StaffPhoneTakenError,
   };
 }
 
@@ -60,21 +59,12 @@ export function createStaffAccessUserSteps(auth: AuthFacadeForStaffAccess): Staf
  * @returns المُنفّذ الذي يستخدمه use case الإلغاء بعد نقل السجل إلى CANCELLING
  */
 export function createStaffAccessCancelUser(auth: AuthFacadeForStaffAccess) {
-  return (input: { operationId: string; companyId: string; actorUserId: string; ids: { newId(): string } }) =>
-    cancelStaffUser(auth, input);
-}
-
-/**
- * يبني مُثبِت ربط المستخدم بمعرّف العملية عبر identity (P1-5): مستخدم آخر أو شركة أخرى يعني رفضًا
- * بـ StaffUserRefused قبل كتابة أي عضوية.
- *
- * @param auth واجهة حساب الموظفة عبر identity
- * @returns المُثبِت الذي تستدعيه الخطوة الثالثة قبل كتابة العضوية
- */
-export function createStaffUserBindingAssert(auth: AuthFacadeForStaffAccess) {
-  return async (input: { companyId: string; userId: string; operationId: string }) => {
-    await assertStaffUserBinding(auth, input);
-  };
+  return (input: {
+    operationId: string;
+    companyId: string;
+    actorUserId: string;
+    ids: { newId(): string };
+  }) => cancelStaffUser(auth, input);
 }
 
 function cancelScope(
@@ -87,7 +77,7 @@ function cancelScope(
     lock: async () => {
       // ترتيب الأقفال الموحد (P1-3): الشركة ← الموظفة ← سجل الدخول.
       if (!(await lockCompanyRow(tx, actor.companyId))) return { employee: null, record: null };
-      return lockRecordWithEmployee(tx, actor, input);
+      return lockRecordWithEmployee(tx, actor.companyId, input);
     },
     authority: (businessId, branchId) =>
       readStaffAccessAuthority(tx, {
@@ -99,7 +89,7 @@ function cancelScope(
     actorIsOwner: async () => {
       const rows = await tx.execute(sql`SELECT 1 FROM memberships
         WHERE company_id=${actor.companyId} AND user_id=${actor.userId}
-          AND role_id='01920000-0000-7000-8000-000000000101'::uuid
+          AND role_id=${OWNER_ROLE_ID}::uuid
           AND role_owner_key='global' AND scope_type='COMPANY' AND scope_id=${actor.companyId}
           AND starts_at<=clock_timestamp() AND (ends_at IS NULL OR ends_at>clock_timestamp())
         LIMIT 1`);

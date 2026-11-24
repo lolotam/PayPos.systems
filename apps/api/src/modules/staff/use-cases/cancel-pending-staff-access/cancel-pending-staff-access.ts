@@ -1,5 +1,8 @@
 import { StaffAccessError } from '../../domain/errors.ts';
-import { pendingStaffAccessCancellable } from '../../domain/staff-access.ts';
+import {
+  pendingStaffAccessCancellable,
+  staffAccessCancelAllowed,
+} from '../../domain/staff-access.ts';
 import type {
   CancelPendingStaffAccessSteps,
   StaffAccessActor,
@@ -32,9 +35,8 @@ export class CancelPendingStaffAccessUseCase {
   ) {}
 
   /**
-   * بيقفل السجل والموظفة، يفحص السلطة وقابلية الإلغاء (PENDING بعد 24 ساعة)، يحذف الحساب بمعرّف
-   * العملية، ثم يحذف السجل بشرط «لسه PENDING» — سباق إتمام المنح بين الخطوتين يلغي الحذف ويُبقي
-   * الحساب الجديد سليماً.
+   * يثبت نية الإلغاء في CANCELLING تحت القفل قبل حذف auth، ثم يحذف السجل؛ أي تكرار يكمل نفس العملية.
+   * السلطة للمانح الأصلي أو المالك، والمنح يرفض الحالة طول الإلغاء.
    *
    * @param command الموظفة والمانح من الجلسة
    */
@@ -54,6 +56,10 @@ export class CancelPendingStaffAccessUseCase {
         throw new StaffAccessError('STAFF_ACCESS_NOT_ALLOWED');
       if (!(await scope.authority(employee.businessId, employee.primaryBranchId)))
         throw new StaffAccessError('STAFF_ACCESS_NOT_ALLOWED');
+      if (!staffAccessCancelAllowed(record, actor.userId, await scope.actorIsOwner()))
+        throw new StaffAccessError('STAFF_ACCESS_NOT_ALLOWED');
+      if (record.state === 'PENDING' && !(await scope.markCancelling(record.id)))
+        throw new StaffAccessError('STAFF_ACCESS_NOT_ALLOWED');
       return record;
     });
     await this.cancelUser({
@@ -63,6 +69,7 @@ export class CancelPendingStaffAccessUseCase {
       ids: this.ids,
     });
     await this.steps.run(actor, input, async (scope) => {
+      await scope.lock();
       if (!(await scope.deleteRecord(locked.id)))
         throw new StaffAccessError('STAFF_ACCESS_ALREADY_GRANTED');
     });

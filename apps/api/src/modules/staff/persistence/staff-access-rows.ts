@@ -80,7 +80,7 @@ export async function readRecordRow(
 ): Promise<(StaffAccessRecordRow & { grantedBy: string; phoneHash: string }) | null> {
   const [row] = await tx.execute<StaffAccessRecordSqlRow>(sql`SELECT ${STAFF_ACCESS_RECORD_COLUMNS}
     FROM employee_staff_access
-    WHERE company_id=${companyId} AND employee_id=${employeeId}`);
+    WHERE company_id=${companyId} AND employee_id=${employeeId} FOR UPDATE`);
   return row === undefined ? null : toRecordRow(row);
 }
 
@@ -98,7 +98,8 @@ export async function lockRecordWithEmployee(
     WHERE company_id=${companyId} AND business_id=${input.businessId}
       AND id=${input.employeeId} AND deleted_at IS NULL FOR UPDATE`,
   );
-  const [record] = await tx.execute<StaffAccessRecordSqlRow>(sql`SELECT ${STAFF_ACCESS_RECORD_COLUMNS}
+  const [record] =
+    await tx.execute<StaffAccessRecordSqlRow>(sql`SELECT ${STAFF_ACCESS_RECORD_COLUMNS}
     FROM employee_staff_access
     WHERE company_id=${companyId} AND employee_id=${input.employeeId} FOR UPDATE`);
   return {

@@ -75,15 +75,6 @@ function systemRoleId(code: 'staff' | 'cashier'): string {
 }
 
 /**
- * يفتح عضوية الموظفة على فرعها الأساسي داخل معاملة staff نفسها (الاستثناء المحدود في ADR-0063).
- * الدور ييجي من جدول identity لا من الطلب، والعضوية لا تُكتب إلا لمن سجل دخوله بيربطه بسجل الدخول
- * في نفس الشركة — مستخدم بلا سجل دخول هنا يُرفض (قرار D2).
- *
- * @param tx    معاملة الشركة التي فتحها use case الموظفين
- * @param input الشركة والمستخدم والفرع ودور الطلب ومعرّفات جديدة للعضوية
- * @returns معرف العضوية المُنشأة
- */
-/**
  * يثبت أن المستخدم هو المقروض بمعرّف العملية وفي نفس الشركة عبر packages/auth (P1-5):
  * إثبات المنح الوحيد المقبول — لا صف وسيط ولا شركة أخرى ولا مستخدم آخر يقبل به.
  *
@@ -96,33 +87,32 @@ export async function assertStaffUserBinding(
   input: { companyId: string; userId: string; operationId: string },
 ): Promise<void> {
   const binding = await auth.bindingOf(input.operationId);
-  if (
-    binding === null ||
-    binding.userId !== input.userId ||
-    binding.companyId !== input.companyId
-  )
+  if (binding === null || binding.userId !== input.userId || binding.companyId !== input.companyId)
     throw new StaffUserRefused('STAFF_ACCESS_USER_NOT_STAFF');
 }
 
 /**
  * يفتح عضوية الموظفة على فرعها الأساسي داخل معاملة staff نفسها (الاستثناء المحدود في ADR-0063).
- * الدور ييجي من جدول identity لا من الطلب، والإثبات المسبق للربط عبر packages/auth مسؤولية
- * المستدعِ (P1-5) — الدالة تكتب العضوية فقط بعد إثباتها.
+ * الدور ييجي من جدول identity لا من الطلب، وقراءة auth تثبت الشركة ومعرّف العملية قبل كتابة العضوية.
  *
  * @param tx    معاملة الشركة التي فتحها use case الموظفين
+ * @param auth قارئ الهوية لإثبات الشركة ومعرّف العملية
  * @param input الشركة والمستخدم والفرع ودور الطلب ومعرّفات جديدة للعضوية
  * @returns معرف العضوية المُنشأة
  */
 export async function grantStaffMembership(
   tx: Tx,
+  auth: StaffUserFacade,
   input: {
     companyId: string;
     userId: string;
     branchId: string;
     role: StaffAccessRole;
+    operationId: string;
     ids: IdGenerator;
   },
 ): Promise<{ membershipId: string }> {
+  await assertStaffUserBinding(auth, input);
   const membershipId = input.ids.newId();
   await tx.execute(sql`INSERT INTO memberships
     (company_id,id,user_id,employee_id,role_id,role_owner_key,scope_type,scope_id,ends_at)

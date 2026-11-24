@@ -1,3 +1,4 @@
+import type { AuthFacadeForStaffAccess } from '../ports/staff-access-auth.port.ts';
 import type { IdGenerator, TenantWrappers, Tx } from '@pospay/db';
 import type { Redis } from 'ioredis';
 import { createHash } from 'node:crypto';
@@ -26,13 +27,11 @@ import type {
 } from '../ports/staff-access.port.ts';
 import {
   lockCompanyRow,
+  lockRecordWithEmployee,
   readRecordRow,
   STAFF_ACCESS_EMPLOYEE_COLUMNS,
-  STAFF_ACCESS_RECORD_COLUMNS,
   toEmployeeRow,
-  toRecordRow,
   type StaffAccessEmployeeSqlRow,
-  type StaffAccessRecordSqlRow,
 } from './staff-access-rows.ts';
 
 interface BeginInput {
@@ -70,6 +69,14 @@ function beginScope(tx: Tx, actor: StaffAccessActor, input: BeginInput): GrantBe
     },
     authority: authorityChecker(tx, actor),
     findRecord: () => readRecordRow(tx, actor.companyId, input.employeeId),
+    restartRecord: async (recordId, binding) => {
+      await tx.execute(sql`UPDATE employee_staff_access SET state='PENDING',phone_hash=${binding.phoneHash},
+        role_code=${binding.roleCode},branch_id=${binding.branchId},granted_by=${actor.userId},
+        updated_at=${input.at.toISOString()}::timestamptz WHERE company_id=${actor.companyId} AND id=${recordId}`);
+      const record = await readRecordRow(tx, actor.companyId, input.employeeId);
+      if (record === null) throw new Error('STAFF_RECORD_RESTART_FAILED');
+      return record;
+    },
     phoneHash: (phone) => createHash('sha256').update(`staff-access-phone:${phone}`).digest('hex'),
     insertRecord: (record) => insertPendingRecord(tx, actor, input, audit, record),
   };
@@ -112,25 +119,26 @@ function commitScope(
   tx: Tx,
   actor: StaffAccessActor,
   input: CommitInput,
-  assertBinding: GrantBindingAssert,
+  auth: AuthFacadeForStaffAccess,
 ): GrantCommitScope {
   const writers = transactionWriters(tx, input.ids);
   return {
     lockCompany: () => lockCompanyRow(tx, actor.companyId),
     recheck: () => recheckUnderLock(tx, actor, input),
     authority: authorityChecker(tx, actor),
-    assertBinding: (binding) => assertBinding(binding),
     grantMembership: (membership) =>
-      grantMembershipAndAudit(tx, actor, input.ids, writers.audit, membership),
+      grantMembershipAndAudit(tx, auth, actor, input.ids, writers.audit, membership),
     linkEmployee: (userId) => linkEmployeeAndAudit(tx, actor, input, writers.audit, userId),
     saveTemporaryPin: (userId, pinHash) =>
       saveTemporaryPinAndAudit(tx, actor, input, writers.audit, userId, pinHash),
     markActive: (mark) =>
-      tx.execute(
-        sql`UPDATE employee_staff_access
+      tx
+        .execute(
+          sql`UPDATE employee_staff_access
         SET state='ACTIVE',user_id=${mark.userId},membership_id=${mark.membershipId},updated_at=${input.at.toISOString()}::timestamptz
         WHERE company_id=${actor.companyId} AND id=${mark.recordId}`,
-      ).then(() => undefined),
+        )
+        .then(() => undefined),
     appendEvent: (payload) => appendGrantedEvent(writers.outbox, payload),
   };
 }
@@ -143,28 +151,19 @@ async function recheckUnderLock(
   employee: StaffAccessEmployeeRow | null;
   record: StaffAccessRecordRow | null;
 }> {
-  const [employee] = await tx.execute<StaffAccessEmployeeSqlRow>(
-    sql`SELECT ${STAFF_ACCESS_EMPLOYEE_COLUMNS} FROM employees
-    WHERE company_id=${actor.companyId} AND business_id=${input.businessId}
-      AND id=${input.employeeId} AND deleted_at IS NULL FOR UPDATE`,
-  );
-  const [record] = await tx.execute<StaffAccessRecordSqlRow>(sql`SELECT ${STAFF_ACCESS_RECORD_COLUMNS}
-    FROM employee_staff_access
-    WHERE company_id=${actor.companyId} AND id=${input.recordId} FOR UPDATE`);
-  return {
-    employee: employee === undefined ? null : toEmployeeRow(employee),
-    record: record === undefined ? null : toRecordRow(record),
-  };
+  return lockRecordWithEmployee(tx, actor.companyId, input);
 }
 
 async function grantMembershipAndAudit(
   tx: Tx,
+  auth: AuthFacadeForStaffAccess,
   actor: StaffAccessActor,
   ids: IdGenerator,
   audit: AuditTrail,
-  membership: { userId: string; branchId: string; role: StaffAccessRole },
+  membership: { operationId: string; userId: string; branchId: string; role: StaffAccessRole },
 ): Promise<{ membershipId: string }> {
-  const granted = await grantStaffMembership(tx, {
+  const granted = await grantStaffMembership(tx, auth, {
+    operationId: membership.operationId,
     companyId: actor.companyId,
     userId: membership.userId,
     branchId: membership.branchId,
@@ -253,9 +252,6 @@ async function appendGrantedEvent(
   });
 }
 
-/** أنواع صفوف الخطوات كما تعود للـ use case. */
-export type { StaffAccessRecordRow, StaffAccessRole };
-
 /**
  * يفتح معاملتي «إعطاء الدخول» على pospay_app: الخطوة الأولى تنشئ سجل الانتظار، والثالثة تُنجز
  * العضوية والربط والرقم المؤقت والحدث في التراجع الواحد (plan §4.2).
@@ -265,7 +261,7 @@ export type { StaffAccessRecordRow, StaffAccessRole };
  */
 export function createGrantEmployeeAccessSteps(
   database: TenantWrappers,
-  assertBinding: GrantBindingAssert,
+  auth: AuthFacadeForStaffAccess,
 ): GrantEmployeeAccessSteps {
   return {
     begin: (actor, input, work) =>
@@ -273,7 +269,7 @@ export function createGrantEmployeeAccessSteps(
         userId: actor.userId,
       }),
     commit: (actor, input, work) =>
-      database.withTenant(actor.companyId, (tx) => work(commitScope(tx, actor, input, assertBinding)), {
+      database.withTenant(actor.companyId, (tx) => work(commitScope(tx, actor, input, auth)), {
         userId: actor.userId,
       }),
   };
@@ -290,39 +286,5 @@ export function createStaffAccessGrantCache(redis?: Redis): StaffAccessGrantCach
   const invalidator = createGrantInvalidator(redis);
   return {
     invalidate: (input) => invalidator.invalidate(input.companyId, input.membershipId),
-  };
-}
-
-/** توقيع دالة إثبات ربط المستخدم — تُمرَّر من providers إلى الخطوة الثالثة (P1-5). */
-export interface GrantBindingAssert {
-  (input: { companyId: string; userId: string; operationId: string }): Promise<void>;
-}
-
-/** واجهة الخطوة الثالثة مع الإثبات — توقيع مستقل عن تنفيذ الإثبات (P1-5). */
-export type GrantCommitScopeWithAssert = GrantCommitScope;
-
-/** SQL سجل الدخول كما يُصدَّر للاختبارات — ثابت مشترك. */
-export { STAFF_ACCESS_RECORD_COLUMNS };
-
-/** يقفل صف الموظفة ويقرأ سجل الدخول معًا بترتيب الأقفال الموحد. */
-export async function lockRecordWithEmployee(
-  tx: Tx,
-  actor: StaffAccessActor,
-  input: { businessId: string; employeeId: string },
-): Promise<{
-  employee: StaffAccessEmployeeRow | null;
-  record: (StaffAccessRecordRow & { grantedBy: string; phoneHash: string }) | null;
-}> {
-  const [employee] = await tx.execute<StaffAccessEmployeeSqlRow>(
-    sql`SELECT ${STAFF_ACCESS_EMPLOYEE_COLUMNS} FROM employees
-    WHERE company_id=${actor.companyId} AND business_id=${input.businessId}
-      AND id=${input.employeeId} AND deleted_at IS NULL FOR UPDATE`,
-  );
-  const [record] = await tx.execute<StaffAccessRecordSqlRow>(sql`SELECT ${STAFF_ACCESS_RECORD_COLUMNS}
-    FROM employee_staff_access
-    WHERE company_id=${actor.companyId} AND employee_id=${input.employeeId} FOR UPDATE`);
-  return {
-    employee: employee === undefined ? null : toEmployeeRow(employee),
-    record: record === undefined ? null : toRecordRow(record),
   };
 }

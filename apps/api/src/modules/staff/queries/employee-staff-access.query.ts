@@ -3,35 +3,8 @@ import type { Tx } from '@pospay/db';
 
 export const EMPLOYEE_ACCESS_STATE_READS = Symbol('EMPLOYEE_ACCESS_STATE_READS');
 
-/**
- * صف سجل الدخول كما يراه الاستعلام — نفس إسقاط `StaffAccessStateRow` من identity (P1-1): موظفة
- * محذوفة أو غريبة عن النشاط تعني null، والموظفة الموجودة تعني فرعها الأساسي حتى بلا سجل.
- */
-export interface EmployeeAccessStateRow {
-  /** الفرع الأساسي المحفوظ للموظفة. */
-  readonly branchId: string;
-  /** المستخدم المرتبط أو null. */
-  readonly linkedUserId: string | null;
-  /** سجل الدخول إن وُجد. */
-  readonly record:
-    | null
-    | {
-        /** معرّف السجل. */
-        readonly id: string;
-        /** حالة السجل. */
-        readonly state: 'PENDING' | 'ACTIVE' | 'STOPPED' | 'PHONE_CHANGING' | 'CANCELLING';
-        /** دور الطلب المقفول. */
-        readonly roleCode: 'staff' | 'reception';
-        /** الفرع الممنوح. */
-        readonly branchId: string;
-        /** معرّف العملية. */
-        readonly operationId: string;
-        /** المستخدم بعد التأكيد أو null. */
-        readonly userId: string | null;
-        /** العضوية المُنشأة أو null. */
-        readonly membershipId: string | null;
-      };
-}
+import type { StaffAccessStateRow } from '@pospay/contracts';
+export type EmployeeAccessStateRow = StaffAccessStateRow;
 
 /**
  * قراءات شاشة دخول الموظفة (GET): الحالة من جدول السجل، وإذن قراءة الموظفة (P1-1) قبل أي كشف،
@@ -110,13 +83,31 @@ export async function readEmployeeStaffAccess(
     businessId: context.businessId,
     branchId: row.branchId,
   });
+  return projectState(row, authority, reads);
+}
+
+/** نتيجة الكتابة المرخّصة تُرد تحت إذن المنح؛ هذا لا يفتح GET لمن لا يحق له قراءة ملف الموظفة. */
+export async function readGrantedEmployeeStaffAccess(
+  tx: Tx,
+  context: { companyId: string; businessId: string; employeeId: string; actorUserId: string },
+  reads: EmployeeAccessStateReads,
+): Promise<StaffAccessState | null> {
+  const row = await reads.state(tx, context);
+  if (row === null || !(await reads.authority(tx, { ...context, branchId: row.branchId }))) return null;
+  return projectState(row, true, reads);
+}
+
+async function projectState(row: StaffAccessStateRow, authority: boolean, reads: EmployeeAccessStateReads) {
   const record = row.record;
   const staffUser =
-    record?.userId !== null && record !== null
-      ? await reads.staffUser(record.operationId)
-      : null;
+    record?.userId !== null && record !== null ? await reads.staffUser(record.operationId) : null;
   return staffAccessState.parse({
-    state: record === null ? 'NONE' : record.state === 'PHONE_CHANGING' ? 'PENDING' : record.state,
+    state:
+      record === null
+        ? 'NONE'
+        : ['PHONE_CHANGING', 'CANCELLING'].includes(record.state)
+          ? 'PENDING'
+          : record.state,
     role: record?.roleCode ?? null,
     branch_id: record?.branchId ?? null,
     phone_last3: record?.userId != null ? (staffUser?.phoneLast3 ?? null) : null,

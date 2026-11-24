@@ -135,8 +135,11 @@ export { STAFF_ACCESS_ROLES, staffAccessSystemRole } from './domain/staff-access
 export type { StaffAccessRole } from './domain/staff-access-roles.ts';
 export { StaffUserRefused } from './domain/staff-access-errors.ts';
 export type { StaffUserFacade } from './ports/staff-users.port.ts';
-export { STAFF_ACCESS_GRANTED, staffAccessGrantedEvent, type StaffAccessGranted } from './events/published.ts';
-export { assertStaffUserBinding } from './persistence/staff-user-auth.ts';
+export {
+  STAFF_ACCESS_GRANTED,
+  staffAccessGrantedEvent,
+  type StaffAccessGranted,
+} from './events/published.ts';
 export {
   cancelStaffUser,
   grantStaffMembership,

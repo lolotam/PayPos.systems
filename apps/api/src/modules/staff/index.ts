@@ -43,3 +43,5 @@ export const { readSessionPerformers, readSessionPerformerOptions } = createSess
 });
 
 export { readOwnEmployee } from './persistence/own-employee.ts';
+
+export { mountStaffAccessGate } from './http/staff-access-activation.ts';

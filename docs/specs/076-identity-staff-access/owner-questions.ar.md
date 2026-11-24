@@ -200,3 +200,9 @@ https://plan.pospay.systems كدفعة 103 «دخول الموظفة ودعوة 
 - **D11:** الدعوات للمالك بس.
 - **التقسيم والأحجام:** مقبولة (حوالي 4,250 سطر)، بالترتيب F1 ثم G1 ثم F2 ثم F3 ثم G2.
 
+
+## د) توضيح مدير جولة F1 — 2026-11-24
+
+مصدره رسالة مدير المهمة إلى المنفذ، وليس إجابة جديدة من وليد أو أبو سالم. لا يغيّر أدوار المنتج أو يوسّع الصلاحيات.
+
+> Confirmed on both points. (1) P1-11 wording was mine and too broad: assert for the `staff` role eligibility = true and attendance device access = false; for `reception` (cashier) both true. Do not widen the staff role's permissions. (2) Yes — close the cancel/provision race the way you describe (the tenant record state must gate the auth provisioning so a stale request cannot recreate a user after its deletion); keep the lock order company → employee → access record and do not hold a tenant transaction open across the auth call if that would break the connection-budget rule — a state check that the auth step re-validates by operation id is acceptable. Continue.

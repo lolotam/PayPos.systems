@@ -1,5 +1,6 @@
+import type { GrantBeginScope } from './staff-access-begin.port.ts';
 import type { StaffAccessRole } from './staff-access-begin.port.ts';
-import type { StaffAccessIds } from './staff-access-begin.port.ts';
+import type { StaffAccessIds, StaffAccessActor } from './staff-access-begin.port.ts';
 
 /**
  * نطاق الخطوة الثالثة داخل معاملة الشركة: إعادة الفحص تحت القفل ثم العضوية والربط والرقم المؤقت
@@ -12,13 +13,20 @@ export interface GrantCommitScope {
    * يعيد قراءة السجل والموظفة تحت القفل لإعادة فحص الخطوة الأولى بعد انتظار الخطوة الثانية.
    */
   recheck(): Promise<{
-    employee: { readonly id: string; readonly businessId: string; readonly primaryBranchId: string; readonly userId: string | null } | null;
+    employee: {
+      readonly id: string;
+      readonly businessId: string;
+      readonly primaryBranchId: string;
+      readonly userId: string | null;
+    } | null;
     record: {
       readonly id: string;
       readonly state: 'PENDING' | 'ACTIVE' | 'STOPPED' | 'PHONE_CHANGING' | 'CANCELLING';
       readonly roleCode: StaffAccessRole;
       readonly branchId: string;
       readonly userId: string | null;
+      readonly operationId: string;
+      readonly phoneHash: string;
     } | null;
   }>;
   /**
@@ -29,27 +37,16 @@ export interface GrantCommitScope {
    */
   authority(businessId: string, branchId: string): Promise<boolean>;
   /**
-   * يثبت أن المستخدم هو المقروض بمعرّف العملية نفسه وفي نفس الشركة عبر packages/auth (P1-5).
-   *
-   * @param input بيانات الإثبات
-   * @param input.companyId الشركة
-   * @param input.userId المستخدم المستهدف
-   * @param input.operationId معرّف العملية من السجل المقفول
-   */
-  assertBinding(input: {
-    companyId: string;
-    userId: string;
-    operationId: string;
-  }): Promise<void>;
-  /**
    * يفتح عضوية الفرع بدور النظام من جدول identity ويسجل تدقيقها.
    *
    * @param input بيانات العضوية الجديدة من السجل المقفول (P1-4)
+   * @param input.operationId معرّف العملية المقفولة
    * @param input.userId المستخدم المستهدف
    * @param input.branchId الفرع الأساسي من السجل
    * @param input.role الدور من السجل
    */
   grantMembership(input: {
+    operationId: string;
     userId: string;
     branchId: string;
     role: StaffAccessRole;
@@ -112,7 +109,7 @@ export interface GrantEmployeeAccessSteps {
    * @param work الشغل داخل المعاملة
    */
   begin<T>(
-    actor: { companyId: string; userId: string },
+    actor: StaffAccessActor,
     input: { businessId: string; employeeId: string; ids: StaffAccessIds; at: Date },
     work: (scope: GrantBeginScope) => Promise<T>,
   ): Promise<T>;
@@ -129,7 +126,7 @@ export interface GrantEmployeeAccessSteps {
    * @param work الشغل داخل المعاملة
    */
   commit<T>(
-    actor: { companyId: string; userId: string },
+    actor: StaffAccessActor,
     input: {
       businessId: string;
       employeeId: string;

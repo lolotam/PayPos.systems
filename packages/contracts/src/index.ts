@@ -401,3 +401,5 @@ export * from './staff/index.js';
 export * from './orders/own-work-month.js';
 export * from './orders/own-tips.js';
 export * from './orders/own-service-lines.js';
+
+export type { StaffAccessStateRow } from './staff/staff-access.ts';

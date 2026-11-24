@@ -1,4 +1,4 @@
-import type { IdGenerator } from '@pospay/db';
+import type { StaffAccessIds } from './staff-access-begin.port.ts';
 
 /**
  * واجهة حساب الموظفة كما يحتاجها staff عبر identity — بنفس شكل `StaffUserFacade` في identity
@@ -23,7 +23,7 @@ export interface StaffAccessProvisionInput {
   /** إعادة تثبيت ربط الهاتف عند استئناف سجل `STOPPED` (P1-4). */
   readonly resetBinding: boolean;
   /** مولّد UUID v7. */
-  readonly ids: IdGenerator;
+  readonly ids: StaffAccessIds;
 }
 
 /** مدخل الإلغاء. */
@@ -35,7 +35,7 @@ export interface StaffAccessCancelInput {
   /** المانح الملغي. */
   readonly actorUserId: string;
   /** مولّد UUID v7 لصف التدقيق. */
-  readonly ids: IdGenerator;
+  readonly ids: StaffAccessIds;
 }
 
 /** واجهة حساب الموظفة كما يراها staff. */
@@ -58,14 +58,9 @@ export interface AuthFacadeForStaffAccess {
    * @param operationId معرّف العملية
    */
   read(operationId: string): Promise<{ userId: string; phoneLast3: string | null } | null>;
-  /** هل المستخدم حساب موظفة؟ (D8). */
-  isStaffUser(userId: string): Promise<boolean>;
-  /** هل الحساب (credential) يخص مستخدم موظفة؟ (P1-6). */
-  isStaffAccount(accountId: string): Promise<boolean>;
-  /** شركة حساب الموظفة أو null (P1-5). */
-  staffCompanyOf(userId: string): Promise<string | null>;
-  /** ربط المستخدم بمعرّف العملية (P1-5). */
+  /** يثبت المستخدم والشركة للعملية قبل كتابة العضوية.
+   *
+   * @param operationId العملية المقفولة
+   */
   bindingOf(operationId: string): Promise<{ userId: string; companyId: string | null } | null>;
-  /** مستخدم رابط token استهلاك كلمة السر (P1-6). */
-  userIdForResetToken(token: string): Promise<string | null>;
 }

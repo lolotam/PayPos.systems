@@ -132,6 +132,7 @@ export function identityProviders(
     origin: string | null;
     nativeOrigins?: readonly string[];
   },
+  staffCompanyOf: (userId: string) => Promise<string | null> = unavailableStaffCompany,
 ): Provider[] {
   const reader = database === undefined ? null : createAccessReader(database);
   const names: WorkspaceNames | null = database === undefined ? null : createWorkspaceNames();
@@ -139,7 +140,7 @@ export function identityProviders(
     database === undefined
       ? null
       : new OnboardCompany(
-          createOnboardingTransactions(database, ids),
+          createOnboardingTransactions(database, ids, staffCompanyOf),
           tenancyCompanyRegistry,
           ids,
         );
@@ -326,4 +327,8 @@ function discountApproverProviders(
       ),
     },
   ];
+}
+
+async function unavailableStaffCompany(): Promise<string | null> {
+  throw new Error('AUTH_UNAVAILABLE');
 }

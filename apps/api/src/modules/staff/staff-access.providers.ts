@@ -10,7 +10,7 @@ import {
 import { EMPLOYEE_ACCESS_STATE_READS } from './queries/employee-staff-access.query.ts';
 import { createEmployeeAccessStateReads } from './persistence/employee-access-reads.adapter.ts';
 import {
-  cancelStaffUserThroughIdentity,
+  createStaffAccessCancelUser,
   createCancelPendingStaffAccessSteps,
   createStaffAccessUserSteps,
 } from './persistence/staff-access-auth.adapter.ts';
@@ -42,18 +42,16 @@ export function staffAccessProviders(
 ): Provider[] {
   const cache = createStaffAccessGrantCache(redis);
   const users = auth === null ? null : createStaffAccessUserSteps(auth);
-  const cancelUser =
-    auth === null
-      ? null
-      : (input: { operationId: string; companyId: string; actorUserId: string; ids: IdGenerator }) =>
-          cancelStaffUserThroughIdentity(auth, input);
-  const steps = database === undefined ? null : createGrantEmployeeAccessSteps(database);
+  const cancelUser = auth === null ? null : createStaffAccessCancelUser(auth);
+  const steps =
+    database === undefined || auth === null ? null : createGrantEmployeeAccessSteps(database, auth);
   const cancelSteps = database === undefined ? null : createCancelPendingStaffAccessSteps(database);
   return [
     { provide: STAFF_ACCESS_ROUTES_ENABLED, useValue: routesEnabled },
     {
       provide: EMPLOYEE_ACCESS_STATE_READS,
-      useValue: database === undefined || auth === null ? null : createEmployeeAccessStateReads(auth),
+      useValue:
+        database === undefined || auth === null ? null : createEmployeeAccessStateReads(auth),
     },
     {
       provide: GrantEmployeeAccessUseCase,

@@ -57,7 +57,8 @@ in one observable final state per operation id.
 until all five PRs merged: every new route answers 503 `NOT_READY` unless the API started with
 `STAFF_ACCESS_ROUTES=on`, read once at startup. Until F2 lands, a manager-set PIN is stored temporary
 and **every PIN reader refuses a temporary PIN exactly like a wrong PIN**
-(`sign-in-staff-pin`, `verify-discount-approver-pin` — the readers filter `temporary = false`). Once
+(`sign-in-staff-pin`, `verify-discount-approver-pin`): readers return the temporary flag with the stored hash,
+compare first, then charge a failed attempt to the same user counter and refuse. Once
 `employee_staff_access` holds a row, the API does not roll back below the PR that wrote it: an older API
 would read only the PIN hash and accept a temporary or expired PIN. The floor is checked by a read-only
 count before any rollback.
@@ -80,3 +81,30 @@ for F2, so a grant written before F2 ships produces a PIN no reader accepts unti
 new one — intended, because the routes are off until all five PRs merged. Cancelling a pending record
 deletes the staff user (the one deletion path) after 24 hours, so the synthetic account space stays
 clean.
+
+## F1 security correction round
+
+Every write takes locks in the order company → employee → access record. The state GET reuses employee-detail
+read authorization and takes no write locks, including across the auth read. Grant permission is checked before
+any state-dependent answer. The pending record fixes the phone hash, role and branch; a mismatched resume is
+refused without details. A STOPPED regrant first fixes the new tuple under lock, then validates and approves the
+requested phone inside the auth transaction. Membership, audit and event values come from the locked record.
+
+Cancel first commits CANCELLING under those locks, then deletes the auth user by operation id, then deletes the
+record under the same lock order. Only the original granter or an authorized owner can cancel. An interrupted
+cancel resumes from CANCELLING. Before provisioning, the already-committed tenant record is re-locked and its
+operation/state revalidated; that short tenant transaction retains its locks until the auth operation finishes.
+It uses one tenant connection and one auth connection, with no nested tenant wrapper or guard transaction.
+Thus cancel cannot delete the user and let a stale provision recreate it afterward. Auth also serializes provision
+and cancellation by operation id and checks both the company and phone before returning an existing user.
+
+Every membership writer checks the auth marker: onboarding and the staging operator refuse a staff user of
+another company; the grant writer additionally verifies the operation id. Password account updates check their
+actual target at the Better Auth adapter boundary, because Better Auth 1.7.5 update hooks receive only the
+changed fields. Session issuance and consumption, reset consumption and two-factor enabling all check the marker.
+
+Platform audit rows deliberately keep the staff user id in `details.user_id`, with `target_user_id = NULL`.
+The audit survives cancellation without preventing the authorized user deletion through a foreign key. The
+single application DELETE grant on `employee_staff_access` remains limited to the cancel implementation and is
+covered by the database privileges allowlist test. `StaffAccessGranted` is recognized by the worker without a
+consumer until F2.

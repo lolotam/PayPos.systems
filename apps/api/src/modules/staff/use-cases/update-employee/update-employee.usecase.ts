@@ -38,7 +38,11 @@ export class UpdateEmployeeUseCase {
         (await scope.hasAccessRecord(command.employeeId))
       )
         throw new EmployeeCreationError('EMPLOYEE_USER_LINK_UNAVAILABLE');
-      if (plan.after.user_id !== null && !(await scope.canLinkUser(plan.after.user_id)))
+      if (
+        plan.after.user_id !== current.record.user_id &&
+        plan.after.user_id !== null &&
+        !(await scope.canLinkUser(plan.after.user_id))
+      )
         throw new EmployeeCreationError('EMPLOYEE_USER_LINK_UNAVAILABLE');
       if (plan.changed)
         await scope.save(

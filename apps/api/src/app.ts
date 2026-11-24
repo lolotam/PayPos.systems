@@ -72,6 +72,7 @@ import {
   readCommissionEstimateEmployees,
   readCommissionStatementEmployees,
   readCommissionPlanEmployeeNames,
+  mountStaffAccessGate,
   staffControllers,
   staffProviders,
 } from './modules/staff/index.ts';
@@ -270,7 +271,13 @@ class AppModule {
         // Global guards run in this order (ADR-0003 §4): a verified session unless @Public(); then the company
         // membership and the permission at the target unless @Authenticated(); then the feature flag.
         { provide: APP_GUARD, useClass: SessionGuard },
-        ...identityProviders(deps.database, deps.ids ?? systemUuidV7(), deps.redis, deps.staff),
+        ...identityProviders(
+          deps.database,
+          deps.ids ?? systemUuidV7(),
+          deps.redis,
+          deps.staff,
+          deps.auth?.service.staffUsers.staffCompanyOf,
+        ),
         {
           provide: RATE_LIMITER,
           useValue: limiter,
@@ -377,8 +384,7 @@ export function buildAdapter(
         typeof status === 'number' ? codeForStatus(status) : 'BAD_REQUEST',
       );
       // The router rejected this request before any hook ran: give it its id and its log lines here.
-      const context = enterRequestContext(request.id);
-      contexts.set(request, context);
+      contexts.set(request, enterRequestContext(request.id));
       void reply.header('x-request-id', request.id);
       // المسارات العامة للتقييم بترد من غير hook، فالترويسات بتتحط هنا كمان عشان كل رد يطلع منها.
       void reply.header('cache-control', 'no-store');
@@ -427,6 +433,7 @@ export async function createApp(
   const limiter = deps.redis === undefined ? null : createRedisRateLimiter(deps.redis);
   const adapter = buildAdapter(logger, deps.ids ?? systemUuidV7(), deps.trustedProxy ?? []);
   mountWhatsappSecurity(adapter, deps.whatsapp, deps.redis);
+  mountStaffAccessGate(adapter.getInstance(), deps.staffAccessRoutes === true);
   adapter.getInstance().addHook('onRoute', (route) => {
     if (/^\/v1\/devices\/me\/staff-(otp\/(request|verify)|pin\/sign-in)$/.test(route.url))
       route.bodyLimit = 1024;
