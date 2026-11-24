@@ -9,6 +9,7 @@ import { estimateFixture } from './commission-estimate.fixture.ts';
 import {
   memberWithGrants,
   PERIOD,
+  READ,
   readStatement,
   statementPath,
   type StatementFixture,
@@ -76,6 +77,20 @@ it('refuses a branch grant of the pay permission, even one per branch, since pay
   expect(await footprint()).toEqual({ status: 'APPROVED', payments: 0, audits: 0 });
 });
 
+// 54-1-PAY-1 (اختيار 1 مؤقت): رد الصرف بيرجّع مستحق كل الموظفات، فالصلاحية من غير قراءة النشاط كله مرفوضة.
+it('refuses the pay permission without business-wide read, even with a branch read', async () => {
+  const noRead = await memberWithGrants(f, 'pay-no-read', [{ permission: PAY, scope: 'BUSINESS' }]);
+  const branchRead = await memberWithGrants(f, 'pay-branch-read', [
+    { permission: PAY, scope: 'BUSINESS' },
+    { permission: READ, scope: 'BRANCH' },
+  ]);
+  for (const [member, key] of [[noRead, 'no-read-1'], [branchRead, 'no-read-2']] as const) {
+    const response = await pay(member.cookie, key);
+    expect([response.status, response.body['code']]).toEqual([403, 'FORBIDDEN']);
+  }
+  expect(await footprint()).toEqual({ status: 'APPROVED', payments: 0, audits: 0 });
+});
+
 it('refuses a caller from another company and writes nothing', async () => {
   const otherCookie = await f.h.signedInOperator('statement-pay-other-owner@example.test');
   const otherCompany = await f.h.onboard(otherCookie, 'Another employer');
@@ -86,7 +101,10 @@ it('refuses a caller from another company and writes nothing', async () => {
 });
 
 it('two payers racing on one approved month: one pays, the other gets 409, and the payment is written once', async () => {
-  payer = await memberWithGrants(f, 'payer', [{ permission: PAY, scope: 'BUSINESS' }]);
+  payer = await memberWithGrants(f, 'payer', [
+    { permission: PAY, scope: 'BUSINESS' },
+    { permission: READ, scope: 'BUSINESS' },
+  ]);
   const frozenBefore = await readStatement(f, f.cookie);
   const attempts = [
     { key: 'race-1', body: input() },

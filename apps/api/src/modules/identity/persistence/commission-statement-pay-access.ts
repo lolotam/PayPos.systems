@@ -3,6 +3,7 @@ import { sql } from 'drizzle-orm';
 
 import { evaluateAccess } from '../domain/access.ts';
 import { readAccessTransaction } from './access-reader.ts';
+import { readCommissionScope } from './commission-read-scope.ts';
 import { readFeatureEnabled } from './feature-reader.ts';
 
 const PERMISSION = 'pay:commissions:business';
@@ -10,10 +11,11 @@ const PERMISSION = 'pay:commissions:business';
 /**
  * يقفل الشركة وعضوياتها ثم يعيد قرار صلاحية صرف كشف العمولة وميزة العمولات داخل معاملة الصرف (54-1).
  * نفس شكل مراجعة الكشف والخطة: أقفال الشركة والعضويات أولاً عشان تغيير الصلاحية يتفق مع الكاتب،
- * والرفض الموحّد قبل أي قراءة لبيانات الكشف.
+ * والرفض الموحّد قبل أي قراءة لبيانات الكشف. الصرف بيحتاج كمان قراءة النشاط كله (نفس دالة النطاق اللي بتستعملها
+ * المراجعة والاعتماد)، لأن رد الصرف بيرجّع مستحق كل موظفة.
  *
- * TODO(spec): هل الصرف يحتاج كمان قراءة النشاط كله زي المراجعة والاعتماد؟ المواصفة (FR-038) بتشترط الصلاحية بس،
- * فده المطبَّق لحد ما يتحسم السؤال PENDING `54-1-PAY-1` في owner-questions.ar.md.
+ * TODO(spec): المواصفة (FR-038) بتشترط صلاحية الصرف بس؛ شرط القراءة مطبَّق مؤقتاً (الاختيار 1) لحد ما يتحسم السؤال
+ * PENDING `54-1-PAY-1` في owner-questions.ar.md، والتخفيف بعده سطر واحد.
  *
  * @param tx معاملة صرف الكشف الحالية
  * @param companyId الشركة المؤكدة
@@ -43,5 +45,7 @@ export async function readCommissionStatementPayAccess(
   const at = new Date(time.at);
   const access = await readAccessTransaction(tx, companyId, userId, at);
   if (!evaluateAccess(access.grants, PERMISSION, { companyId, businessId })) return 'FORBIDDEN';
+  const scope = await readCommissionScope(tx, companyId, userId, businessId, at);
+  if (scope.kind !== 'scope' || !scope.scope.businessWide) return 'FORBIDDEN';
   return (await readFeatureEnabled(tx, companyId, 'commissions', at)) ? null : 'FEATURE_DISABLED';
 }
