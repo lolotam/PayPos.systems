@@ -204,16 +204,20 @@ async function cancelOpenedInvitation(
 
 /**
  * بيلغي دعوة لسه ما اتكملتش (PENDING من غير يوزر ولا عضوية) تحت قفل صفها، ويسجّل التدقيق؛ الدعوة
- * الملغية قبل كده بتتحسب ملغية (تكرار آمن بعد انقطاع). true معناها: مفيش عضوية واتقفل الإتمام،
- * فحساب العملية دي يتمسح بأمان. false: الدعوة اتكملت أو مش من حق المتصل يلغيها دلوقتي.
+ * الملغية قبل كده بتتحسب ملغية (تكرار آمن بعد انقطاع). أي فحص سلطة إضافي بيتنادى بعد القفل بترتيب
+ * محدد — عشان DENY اتسجل وإحنا مستنيين القفل ما يفوتناش (نفس ترتيب open/complete/claimReissue).
+ * true معناها: مفيش عضوية واتقفل الإتمام، فحساب العملية دي يتمسح بأمان. false: الدعوة اتكملت أو
+ * مش من حق المتصل يلغيها دلوقتي.
  */
 async function cancelUnfinished(
   tx: Tx,
   ids: IdGenerator,
   input: InvitationActor & { invitationId: string },
   mayCancel: (row: InvitationRecord) => boolean,
+  authorityRefused?: (lockedTx: Tx) => Promise<boolean>,
 ): Promise<boolean> {
   const row = await lockInvitation(tx, input.companyId, input.invitationId);
+  if (authorityRefused !== undefined && (await authorityRefused(tx))) return false;
   if (row === undefined || row.membership_id !== null || row.user_id !== null) return false;
   if (row.state === 'CANCELLED') return true;
   if (row.state !== 'PENDING' || !mayCancel(row)) return false;
@@ -296,10 +300,18 @@ export function createMemberInvitationTransactions(
         cancelUnfinished(tx, ids, input, (row) => row.invited_by === input.actorUserId),
       ),
     abandonStale: (input) =>
-      run(input, async (tx) =>
-        (await authorityAllows(tx, input.companyId, input.actorUserId))
-          ? cancelUnfinished(tx, ids, input, staleFor(input))
-          : false,
+      run(input, (tx) =>
+        cancelUnfinished(
+          tx,
+          ids,
+          input,
+          staleFor(input),
+          // سلطة المالك بعد قفل الصف بالظبط: DENY اتسجل وإحنا مستنيين القفل بيرفض الإلغاء (P1).
+          (lockedTx) =>
+            authorityAllows(lockedTx, input.companyId, input.actorUserId).then(
+              (allowed) => !allowed,
+            ),
+        ),
       ),
     complete: (input) => run(input, (tx) => completeInvitation(tx, ids, input)),
     claimLink: async ({ companyId, invitationId, at }) => {

@@ -345,6 +345,29 @@ describe('abandoning blocks completion while it runs, and the order is decided b
 });
 
 describe('E1 — authority is read after the invitation row lock, and scope before «already complete»', () => {
+  it('a DENY recorded while the stale abandon waits for the row lock is honoured: no cancel, no removal', async () => {
+    const company = await companyWithTwoOwners('G1AB Abandon Authority After Lock');
+    const email = 'abandon-authority-lock@example.test';
+    const stuck = await stuckAfterAccount(company, email);
+    await ageInvitation(company, stuck.invitationId);
+    const lock = await holdInvitationLock(company, stuck.invitationId);
+    const abandoning = transactions().abandonStale({
+      companyId: company,
+      actorUserId: ownerB.userId,
+      invitationId: stuck.invitationId,
+      roleCode: 'accountant',
+      scope: { type: 'COMPANY', id: company },
+      staleBefore: new Date(Date.now() - 60_000),
+    });
+    await waitForWaiters(1);
+    await denyInvitations(company, ownerB.userId);
+    lock.release();
+    await lock.holder;
+    expect(await abandoning).toBe(false);
+    expect(await stateOf(company, stuck.invitationId)).toBe('PENDING');
+    expect(await accountsOf(email)).toHaveLength(1);
+  });
+
   it('a DENY recorded while the completion waits for the row lock is honoured', async () => {
     const company = await companyWithTwoOwners('G1AB Authority After Lock');
     const stuck = await stuckAfterAccount(company, 'authority-after-lock@example.test');
