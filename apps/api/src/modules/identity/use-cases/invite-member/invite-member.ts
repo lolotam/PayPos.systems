@@ -16,6 +16,9 @@ import {
 } from '../../ports/member-invitations.port.ts';
 import type { GrantInvalidator } from '../../ports/permission-overrides.port.ts';
 
+/** دعوة ما اتكملتش وعدّى عليها الوقت ده بتتحسب عالقة: مفيش طلب شغال فيها، فمالك تاني يقدر يلغيها. */
+const STALE_INVITATION_AFTER_MS = 10 * 60 * 1000;
+
 export interface InviteMemberCommand {
   readonly actor: { readonly companyId: string; readonly userId: string };
   readonly input: InviteMemberInput;
@@ -119,11 +122,14 @@ export class InviteMember {
     const scope = { type: input.scope.type, id: input.scope.id };
     const denied = await this.#transactions.authorize({ ...who, scope });
     if (denied !== null) throw new ApiError(denied);
-    const email = this.#accounts.isStaffEmail(input.email)
+    const now = this.#clock.now();
+    let email = this.#accounts.isStaffEmail(input.email)
       ? { kind: 'TAKEN' as const }
       : await this.#accounts.inspectEmail(input.email, actor.companyId);
+    if (email.kind === 'OURS') {
+      email = await this.#reclaimAbandoned(who, email, input, now);
+    }
     if (email.kind === 'TAKEN') await this.#refuseEmail(who);
-    const now = this.#clock.now();
     const opened = await this.#transactions.open({
       ...who,
       invitationId: this.#ids.newId(),
@@ -147,21 +153,62 @@ export class InviteMember {
       await this.#transactions.cancelOpened({ ...who, invitationId: opened.invitationId });
       throw new ApiError('MEMBER_EMAIL_NOT_INVITABLE');
     }
+    const userId = account.userId;
     const outcome = await this.#transactions.complete({
       ...who,
       invitationId: opened.invitationId,
       membershipId: this.#ids.newId(),
-      userId: account.userId,
+      userId,
       buildEvent: invitedEvent,
       buildAudit: auditEntries,
       now,
     });
-    if (!outcome.done) throw new ApiError(outcome.refusal);
-    const link = await this.#issueLink(account.userId, who, opened.invitationId, now);
+    if (!outcome.done) {
+      // الحساب اتعمل لكن الإتمام اترفض: من غير الإلغاء ده الإيميل بيفضل محجوز بحساب من غير عضوية ولا رابط.
+      await this.#abandonOwn(who, opened.invitationId);
+      throw new ApiError(outcome.refusal);
+    }
+    const link = await this.#issueLink(userId, who, opened.invitationId, now);
     if (!outcome.alreadyComplete) {
       await this.#invalidator.invalidate(actor.companyId, outcome.membershipId);
     }
     return { invitation_id: opened.invitationId, set_password_link: link };
+  }
+
+  /** دعوة نفس الطلب اترفض إتمامها: بتتلغى، وحساب عمليتها بيتمسح لما يتأكد إن مفيش عضوية. */
+  async #abandonOwn(who: InvitationActor, invitationId: string): Promise<void> {
+    if (await this.#transactions.abandonOwn({ ...who, invitationId })) {
+      await this.#accounts.discardInvitedMember({
+        operationId: invitationId,
+        companyId: who.companyId,
+      });
+    }
+  }
+
+  /**
+   * حساب اتنشأ من دعوة قديمة لنفس الشركة ولسه من غير كلمة مرور: لو دعوته عالقة (ما اتكملتش وخلص
+   * وقتها، أو اتلغت ومسح الحساب انقطع) بتتلغى وحسابها بيتمسح، والإيميل بيرجع حر لمالك حالي؛ لو مفيش
+   * حاجة تتلغى بيفضل الحال زي ما هو (استئناف أو رفض بالقواعد القديمة).
+   */
+  async #reclaimAbandoned(
+    who: InvitationActor,
+    email: { kind: 'OURS'; operationId: string },
+    input: InviteMemberCommand['input'],
+    now: Date,
+  ): Promise<{ kind: 'FREE' } | { kind: 'TAKEN' } | { kind: 'OURS'; operationId: string }> {
+    const abandoned = await this.#transactions.abandonStale({
+      ...who,
+      invitationId: email.operationId,
+      roleCode: input.role,
+      scope: { type: input.scope.type, id: input.scope.id },
+      staleBefore: new Date(now.getTime() - STALE_INVITATION_AFTER_MS),
+    });
+    if (!abandoned) return email;
+    const discarded = await this.#accounts.discardInvitedMember({
+      operationId: email.operationId,
+      companyId: who.companyId,
+    });
+    return discarded ? { kind: 'FREE' } : { kind: 'TAKEN' };
   }
 
   /** رفض إيميل له حساب: تدقيق من غير الإيميل، ورد 422 عام (N1). */

@@ -1,6 +1,6 @@
 {
-  "id": "5bf52eab-7135-4748-a385-a3568d0ef4d5",
-  "prevId": "10630063-853d-4060-974a-80f57ea9c552",
+  "id": "35d5fd58-4208-4ce9-a6a4-68bee88568ec",
+  "prevId": "150ac70c-60fa-4315-a5b6-233ba54fb9b5",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -5678,6 +5678,28 @@
         }
       },
       "indexes": {
+        "member_invitations_company_id_email_hash_live_key": {
+          "name": "member_invitations_company_id_email_hash_live_key",
+          "columns": [
+            {
+              "expression": "company_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "email_hash",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "with": {},
+          "method": "btree",
+          "where": "\"member_invitations\".\"state\" <> 'CANCELLED'",
+          "concurrently": false
+        },
         "member_invitations_company_id_state_idx": {
           "name": "member_invitations_company_id_state_idx",
           "columns": [
@@ -5822,16 +5844,7 @@
           ]
         }
       },
-      "uniqueConstraints": {
-        "member_invitations_company_id_email_hash_key": {
-          "name": "member_invitations_company_id_email_hash_key",
-          "columns": [
-            "company_id",
-            "email_hash"
-          ],
-          "nullsNotDistinct": false
-        }
-      },
+      "uniqueConstraints": {},
       "policies": {},
       "checkConstraints": {
         "member_invitations_state": {

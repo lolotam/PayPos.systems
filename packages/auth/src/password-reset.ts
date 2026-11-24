@@ -30,43 +30,39 @@ export function passwordResetPlugin(options: {
   return {
     id: 'pospay-password-reset',
     endpoints: {
-      resetPassword: createAuthEndpoint(
-        '/reset-password',
-        { method: 'POST' },
-        async (ctx) => {
-          const body = (ctx.body ?? {}) as { token?: unknown; newPassword?: unknown };
-          const queryToken = (ctx.query as { token?: unknown } | undefined)?.token;
-          const token = [body.token, queryToken].find(
-            (value): value is string => typeof value === 'string' && value !== '',
-          );
-          if (token === undefined) throw APIError.from('BAD_REQUEST', INVALID_TOKEN);
-          if (typeof body.newPassword !== 'string') {
-            throw APIError.from('BAD_REQUEST', VALIDATION_ERROR);
-          }
-          const { minPasswordLength, maxPasswordLength } = ctx.context.password.config;
-          if (body.newPassword.length < minPasswordLength) {
-            throw APIError.from('BAD_REQUEST', PASSWORD_TOO_SHORT);
-          }
-          if (body.newPassword.length > maxPasswordLength) {
-            throw APIError.from('BAD_REQUEST', PASSWORD_TOO_LONG);
-          }
-          const identifier = identifierOf(token);
-          const now = options.clock?.now() ?? new Date();
-          // رابط ميت بيترفض قبل الـ hash: مفيش حد من بره يقدر يجبر السيرفر يحسب hash من غير رابط صالح.
-          if (!(await resets.linkIsLive(identifier, now))) {
-            throw APIError.from('BAD_REQUEST', INVALID_TOKEN);
-          }
-          const passwordHash = await ctx.context.password.hash(body.newPassword);
-          const outcome = await resets.consumeLinkAndSetPassword({
-            identifier,
-            passwordHash,
-            accountId: options.ids.newId(),
-            now: options.clock?.now() ?? new Date(),
-          });
-          if (outcome === 'invalid-link') throw APIError.from('BAD_REQUEST', INVALID_TOKEN);
-          return ctx.json({ status: true });
-        },
-      ),
+      resetPassword: createAuthEndpoint('/reset-password', { method: 'POST' }, async (ctx) => {
+        const body = (ctx.body ?? {}) as { token?: unknown; newPassword?: unknown };
+        const queryToken = (ctx.query as { token?: unknown } | undefined)?.token;
+        const token = [body.token, queryToken].find(
+          (value): value is string => typeof value === 'string' && value !== '',
+        );
+        if (token === undefined) throw APIError.from('BAD_REQUEST', INVALID_TOKEN);
+        if (typeof body.newPassword !== 'string') {
+          throw APIError.from('BAD_REQUEST', VALIDATION_ERROR);
+        }
+        const { minPasswordLength, maxPasswordLength } = ctx.context.password.config;
+        if (body.newPassword.length < minPasswordLength) {
+          throw APIError.from('BAD_REQUEST', PASSWORD_TOO_SHORT);
+        }
+        if (body.newPassword.length > maxPasswordLength) {
+          throw APIError.from('BAD_REQUEST', PASSWORD_TOO_LONG);
+        }
+        const identifier = identifierOf(token);
+        const now = options.clock?.now() ?? new Date();
+        // رابط ميت بيترفض قبل الـ hash: مفيش حد من بره يقدر يجبر السيرفر يحسب hash من غير رابط صالح.
+        if (!(await resets.linkIsLive(identifier, now))) {
+          throw APIError.from('BAD_REQUEST', INVALID_TOKEN);
+        }
+        const passwordHash = await ctx.context.password.hash(body.newPassword);
+        const outcome = await resets.consumeLinkAndSetPassword({
+          identifier,
+          passwordHash,
+          accountId: options.ids.newId(),
+          now: options.clock?.now() ?? new Date(),
+        });
+        if (outcome === 'invalid-link') throw APIError.from('BAD_REQUEST', INVALID_TOKEN);
+        return ctx.json({ status: true });
+      }),
     },
   };
 }

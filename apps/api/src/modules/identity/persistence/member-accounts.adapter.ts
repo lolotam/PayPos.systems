@@ -15,6 +15,7 @@ export function createMemberAccounts(auth: AuthService): MemberAccounts {
     isStaffEmail: (email) => isStaffSyntheticEmail(email),
     inspectEmail: (email, companyId) => auth.members.inspectEmail(email, companyId),
     createInvitedMember: (input) => auth.members.createInvitedMember(input),
+    discardInvitedMember: (input) => auth.members.discardInvitedMember(input),
     issueLink: async (input) => {
       try {
         return await auth.members.issueInvitationLink(input);

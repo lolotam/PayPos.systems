@@ -52,6 +52,16 @@ export interface OpenInvitationInput extends InvitationActor {
 export type OpenInvitationOutcome =
   { readonly invitationId: string } | { readonly refusal: MemberInvitationRefusal };
 
+/** إلغاء دعوة عالقة قديمة: الداعي الحالي ودوره ونطاقه، وأي دعوة أقدم من `staleBefore` بتتحسب مهجورة. */
+export interface StaleInvitationInput extends InvitationActor {
+  /** معرّف العملية اللي أنشأت الحساب العالق — هو معرّف صف الدعوة. */
+  readonly invitationId: string;
+  readonly roleCode: InvitableRole;
+  readonly scope: InvitationScope;
+  /** دعوة أحدث من الوقت ده ممكن يكون عليها طلب شغال، فمبتتلغيش. */
+  readonly staleBefore: Date;
+}
+
 /** مدخلات الإتمام: العضوية والتدقيق والحدث بتتبني من الصف المقفول مش من الطلب. */
 export interface CompleteInvitationInput extends InvitationActor {
   readonly invitationId: string;
@@ -140,6 +150,22 @@ export interface MemberInvitationTransactions {
    */
   cancelOpened(input: InvitationActor & { invitationId: string }): Promise<void>;
   /**
+   * بيلغي دعوة نفس المتصل اللي لسه ما اتكملتش بعد ما إتمامها اترفض (سلطة ضاعت أو نطاق اختفى)، عشان
+   * الحساب اللي طلبه اتعمل ما يفضلش عالق من غير عضوية ولا رابط. تكرار آمن.
+   *
+   * @param input الفاعل ومعرف الدعوة
+   * @returns true لما الدعوة ملغية ومفيش عضوية (حسابها يتمسح)، false لما اتكملت أو مش بتاعته
+   */
+  abandonOwn(input: InvitationActor & { invitationId: string }): Promise<boolean>;
+  /**
+   * بيلغي دعوة عالقة قديمة لحساب لسه من غير عضوية بطلب مالك حالي، تحت قفل صفها، ويمنع إتمامها؛ ما
+   * بيلغيش اللي يقدر المتصل يكملها نفسه ولا الأحدث من `staleBefore`. تكرار آمن بعد انقطاع.
+   *
+   * @param input الداعي الحالي والعملية العالقة ونطاق الدعوة المطلوبة
+   * @returns true لما الدعوة ملغية ومفيش عضوية (حسابها يتمسح)، false غير كده
+   */
+  abandonStale(input: StaleInvitationInput): Promise<boolean>;
+  /**
    * الإتمام: بيعيد فحص السلطة والنطاق جوه المعاملة، ويكتب العضوية والتدقيق والحدث من الصف المقفول (P1-a).
    *
    * @param input بيانات الإتمام
@@ -204,11 +230,20 @@ export interface MemberAccounts {
    * ينشئ حساب المدعوّ بحساب دخول من غير كلمة مرور وعلامته، بمعرّف العملية (ايدمبوتنس).
    *
    * @param input معرّف العملية والشركة والإيميل والاسم
-   * @returns الـ id وهل الحساب اتعمل من الدعوة دي (false لما سبقنا حساب بنفس الإيميل)
+   * @returns الـ id لو الحساب اتعمل من الدعوة دي، أو createdByInvitation false من غير id لما سبقنا حساب بنفس الإيميل
    */
   createInvitedMember(
     input: InvitedAccountInput,
-  ): Promise<{ userId: string; createdByInvitation: boolean }>;
+  ): Promise<{ createdByInvitation: true; userId: string } | { createdByInvitation: false }>;
+  /**
+   * يمسح حساب اتنشأ من عملية دعوة اتلغت ومفيش لها عضوية، لو لسه من غير كلمة مرور. تكرار آمن.
+   *
+   * @param input معرّف العملية والشركة
+   * @param input.operationId معرّف العملية اللي أنشأت الحساب (هو معرّف صف الدعوة)
+   * @param input.companyId الشركة الداعية
+   * @returns false لما الحساب له كلمة مرور فاتسابت
+   */
+  discardInvitedMember(input: { operationId: string; companyId: string }): Promise<boolean>;
   /**
    * يصدر رابط تعيين كلمة مرور بقفل صف اليوزر: يرفض لو اليوزر مش مدعوّ من الشركة دي أو
    * كلمة مروره اتحطت، ويبطل الروابط القديمة (P1-c).

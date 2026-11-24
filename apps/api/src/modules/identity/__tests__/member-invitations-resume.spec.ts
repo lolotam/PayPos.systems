@@ -57,6 +57,7 @@ async function crashAfter(step: 'open' | 'account' | 'complete' | 'claim', email
     email,
     name: 'Resumed',
   });
+  if (!account.createdByInvitation) throw new Error('the account should have been created');
   if (step === 'account') return { company, invitationId };
   const outcome = await transactions().complete({
     ...who,

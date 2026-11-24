@@ -53,6 +53,14 @@ export interface MemberInvitationQueries {
    * @returns true لما الرابط اتكتب، وfalse لما الإصدار مرفوض
    */
   issueInvitationLink(input: InvitationLinkRow): Promise<boolean>;
+  /**
+   * بيمسح حساب اتنشأ من عملية دعوة معيّنة لشركة معيّنة، بس لو لسه من غير كلمة مرور: بيقفل صف
+   * اليوزر وحسابه، ويمسح الروابط الحية، ويمسح اليوزر. بيتكرر بأمان: لو اليوزر اتمسح قبل كده يرجّع
+   * discarded. العضوية مش مرئية هنا — المتصل هو اللي أثبت (بإلغاء صف الدعوة تحت قفله) إن مفيش عضوية.
+   *
+   * @returns discarded لما الحساب اتمسح أو مكانش موجود، وkept لما له كلمة مرور فاتسابت
+   */
+  discardInvitedMember(operationId: string, companyId: string): Promise<'discarded' | 'kept'>;
 }
 
 type Database = PostgresJsDatabase<IdentitySchema>;
@@ -166,6 +174,31 @@ const issueInvitationLink = async (db: Database, input: InvitationLinkRow): Prom
     return true;
   });
 
+const discardInvitedMember = async (
+  db: Database,
+  operationId: string,
+  companyId: string,
+): Promise<'discarded' | 'kept'> =>
+  db.transaction(async (tx) => {
+    const [owner] = await tx
+      .select({ id: user.id })
+      .from(user)
+      .where(and(eq(user.invitationOperationId, operationId), eq(user.invitedByCompanyId, companyId)))
+      .for('update');
+    if (owner === undefined) return 'discarded';
+    const [login] = await tx
+      .select({ password: account.password })
+      .from(account)
+      .where(and(eq(account.userId, owner.id), eq(account.providerId, 'credential')))
+      .for('update');
+    if (login !== undefined && login.password !== null) return 'kept';
+    await tx
+      .delete(verification)
+      .where(and(eq(verification.value, owner.id), like(verification.identifier, 'reset-password:%')));
+    await tx.delete(user).where(eq(user.id, owner.id));
+    return 'discarded';
+  });
+
 /**
  * حدود جداول الهوية لدعوة الأعضاء (G1): الإيميل بيتخزن صريح في جدول اليوزر زي أي حساب، وصف
  * الدعوة في الشركة بيحمل بصمته بس — فمفيش إيميل ولا توكن بيخرج من الجدول ده للـ tenant.
@@ -181,5 +214,7 @@ export function memberInvitationQueries(db: Database): MemberInvitationQueries {
     readHasPassword: (userId) => readHasPassword(db, userId),
     createInvitedMember: (input) => createInvitedMember(db, input),
     issueInvitationLink: (input) => issueInvitationLink(db, input),
+    discardInvitedMember: (operationId, companyId) =>
+      discardInvitedMember(db, operationId, companyId),
   };
 }

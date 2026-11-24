@@ -15,10 +15,12 @@ export interface InvitationRecord extends Record<string, unknown> {
   scope_id: string;
   invited_by: string;
   state: MemberInvitationRow['state'];
+  /** drizzle بيرجّع الوقت نص من execute؛ بنحوّله Date عند الاستخدام. */
+  created_at: string | Date;
 }
 
 export const SELECT_INVITATION = sql`
-  SELECT id, user_id, membership_id, role_code, scope_type, scope_id, invited_by, state
+  SELECT id, user_id, membership_id, role_code, scope_type, scope_id, invited_by, state, created_at
   FROM member_invitations`;
 
 export const toRow = (row: InvitationRecord): MemberInvitationRow => ({
@@ -43,14 +45,15 @@ export async function lockInvitation(
   return row;
 }
 
-/** صف الدعوة بحسب بصمة الإيميل في الشركة، مقفول؛ undefined لما مفيش. */
+/** صف الدعوة الحي (مش CANCELLED) بحسب بصمة الإيميل في الشركة، مقفول؛ undefined لما مفيش. */
 export async function lockInvitationByEmail(
   tx: Tx,
   companyId: string,
   emailHash: string,
 ): Promise<InvitationRecord | undefined> {
   const [row] = await tx.execute<InvitationRecord>(sql`
-    ${SELECT_INVITATION} WHERE company_id = ${companyId} AND email_hash = ${emailHash} FOR UPDATE`);
+    ${SELECT_INVITATION} WHERE company_id = ${companyId} AND email_hash = ${emailHash} AND state <> 'CANCELLED'
+    FOR UPDATE`);
   return row;
 }
 

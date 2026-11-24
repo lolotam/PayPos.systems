@@ -62,7 +62,7 @@ async function invitedUser(email: string, companyId = COMPANY): Promise<string> 
     email,
     name: 'Member',
   });
-  expect(created.createdByInvitation).toBe(true);
+  if (!created.createdByInvitation) throw new Error('the invitation should have created the account');
   return created.userId;
 }
 
@@ -238,7 +238,53 @@ describe('email state and invited member creation', () => {
     expect(results.filter((result) => result.createdByInvitation)).toHaveLength(1);
     const rows = await owner`SELECT id FROM "user" WHERE email = 'raced@example.test'`;
     expect(rows).toHaveLength(1);
-    expect(new Set(results.map((result) => result.userId))).toEqual(new Set([rows[0]?.['id']]));
+    // الخاسر ما بيعرفش معرّف الحساب الغريب: ردّه من غير userId خالص.
+    const winners = results.filter((result) => result.createdByInvitation);
+    expect(winners.map((result) => (result.createdByInvitation ? result.userId : null))).toEqual([
+      rows[0]?.['id'],
+    ]);
+    for (const loser of results.filter((result) => !result.createdByInvitation)) {
+      expect(loser).toEqual({ createdByInvitation: false });
+    }
+  });
+});
+
+describe('discarding an abandoned invited account (G1 P1-4)', () => {
+  const discard = (operationId: string, companyId = COMPANY) =>
+    members().discardInvitedMember({ operationId, companyId });
+  const accountOf = async (operationId: string) =>
+    owner`SELECT id FROM "user" WHERE invitation_operation_id = ${operationId}`;
+
+  it('removes a passwordless account of exactly that operation and company, with its links, and is repeatable', async () => {
+    const operationId = systemUuidV7().newId();
+    const created = await members().createInvitedMember({
+      operationId,
+      companyId: COMPANY,
+      email: 'discard@example.test',
+      name: 'Discard',
+    });
+    if (!created.createdByInvitation) throw new Error('expected a created account');
+    await issue(created.userId);
+    expect(await discard(operationId, OTHER_COMPANY)).toBe(true);
+    expect(await accountOf(operationId)).toHaveLength(1);
+    expect(await discard(operationId)).toBe(true);
+    expect(await accountOf(operationId)).toHaveLength(0);
+    expect(await liveLinks(created.userId)).toHaveLength(0);
+    expect(await discard(operationId)).toBe(true);
+  });
+
+  it('keeps an account that already has a password', async () => {
+    const operationId = systemUuidV7().newId();
+    const created = await members().createInvitedMember({
+      operationId,
+      companyId: COMPANY,
+      email: 'discard-kept@example.test',
+      name: 'Kept',
+    });
+    if (!created.createdByInvitation) throw new Error('expected a created account');
+    await owner`UPDATE account SET password = 'x' WHERE user_id = ${created.userId}`;
+    expect(await discard(operationId)).toBe(false);
+    expect(await accountOf(operationId)).toHaveLength(1);
   });
 });
 

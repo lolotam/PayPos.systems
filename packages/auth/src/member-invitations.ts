@@ -20,12 +20,13 @@ export type EmailState =
   | { readonly kind: 'TAKEN' }
   | { readonly kind: 'OURS'; readonly operationId: string };
 
-/** نتيجة إنشاء حساب المدعوّ: هل الحساب اتعمل بهذه الدعوة ولا سبق له حساب بنفس الإيميل. */
-export interface InvitedMemberOutcome {
-  readonly userId: string;
-  /** false لما سبق له حساب (سباق بين دعوتين) — الطلب بيترفض بـ N1. */
-  readonly createdByInvitation: boolean;
-}
+/**
+ * نتيجة إنشاء حساب المدعوّ: الحساب اتعمل بهذه الدعوة، أو سبق له حساب بنفس الإيميل (سباق بين دعوتين) —
+ * والرد هنا من غير معرّف الحساب الغريب، لأن المتصل ما محتاجوش وكل ما يتعرف عنه بيتسرّب.
+ */
+export type InvitedMemberOutcome =
+  | { readonly createdByInvitation: true; readonly userId: string }
+  | { readonly createdByInvitation: false };
 
 /** الدعوة مرفوضة: المستخدم مش مدعو من الشركة دي، أو كلمة مروره اتحطت خلاص. */
 export class InvitationLinkRefusedError extends Error {
@@ -42,7 +43,7 @@ export interface MemberInvitationAccounts {
   hasPassword(userId: string): Promise<boolean>;
   /**
    * ينشئ حساب المدعوّ بحساب دخول من غير كلمة مرور وعلامته. نفس العملية بترجّع نفس الحساب
-   * (ايدمبوتنس)، وإيميل له حساب بيرجّع createdByInvitation: false.
+   * (ايدمبوتنس)، وإيميل له حساب بيرجّع createdByInvitation: false من غير معرّف.
    */
   createInvitedMember(input: {
     operationId: string;
@@ -58,6 +59,13 @@ export interface MemberInvitationAccounts {
     lifetimeMs: number;
     now: Date;
   }): Promise<string>;
+  /**
+   * يمسح حساب اتنشأ من عملية دعوة بعينها لو لسه من غير كلمة مرور. المتصل بيثبت قبلها إن صف الدعوة
+   * اتلغى ومفيش عضوية؛ بيتكرر بأمان.
+   *
+   * @returns false لما الحساب له كلمة مرور فاتسابت
+   */
+  discardInvitedMember(input: { operationId: string; companyId: string }): Promise<boolean>;
 }
 
 /** هل الإيميل تحت الدومين المحجوز لحسابات الموظفين (F1). */
@@ -108,9 +116,7 @@ async function createInvitedMember(
   // تعارض على الإيميل: يا عملية متزامنة بنفس الدعوة كتبت الصف، يا حساب غريب سبقنا.
   const racedByOperation = await queries.findMemberByInvitation(input.operationId, input.companyId);
   if (racedByOperation !== null) return { userId: racedByOperation.id, createdByInvitation: true };
-  const raced = await queries.findMemberByEmail(email);
-  if (raced === null) throw new Error('invited member vanished after an insert conflict');
-  return { userId: raced.id, createdByInvitation: false };
+  return { createdByInvitation: false };
 }
 
 /**
@@ -156,5 +162,7 @@ export function createMemberInvitationAccounts(options: {
       if (!issued) throw new InvitationLinkRefusedError();
       return `${options.baseUrl}/reset-password/${token}?callbackURL=${encodeURIComponent(input.redirectTo)}`;
     },
+    discardInvitedMember: async (input) =>
+      (await queries.discardInvitedMember(input.operationId, input.companyId)) === 'discarded',
   };
 }

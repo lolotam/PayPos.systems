@@ -7,7 +7,7 @@ import {
   primaryKey,
   text,
   timestamp,
-  unique,
+  uniqueIndex,
   uuid,
 } from 'drizzle-orm/pg-core';
 
@@ -51,8 +51,11 @@ export const memberInvitations = pgTable(
       columns: [t.companyId, t.membershipId],
       foreignColumns: [memberships.companyId, memberships.id],
     }),
-    // دعوة واحدة لكل إيميل في الشركة: مالكين اتنين على نفس الإيميل يطلعوا عضوية واحدة.
-    unique('member_invitations_company_id_email_hash_key').on(t.companyId, t.emailHash),
+    // دعوة حية واحدة لكل إيميل في الشركة: مالكين اتنين على نفس الإيميل يطلعوا عضوية واحدة. الصف الملغي
+    // (CANCELLED) بيفضل للتدقيق وما بيحجزش الإيميل، فدعوة جديدة لنفس الإيميل بتعدي لما يبقى حر.
+    uniqueIndex('member_invitations_company_id_email_hash_live_key')
+      .on(t.companyId, t.emailHash)
+      .where(sql`${t.state} <> 'CANCELLED'`),
     index('member_invitations_company_id_state_idx').on(t.companyId, t.state),
     index('member_invitations_company_id_user_id_idx').on(t.companyId, t.userId),
     // كل مفتاح أجنبي له فهرس (CLAUDE.md §5).

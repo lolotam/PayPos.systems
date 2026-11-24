@@ -11,6 +11,7 @@ import type {
   OpenInvitationInput,
   OpenInvitationOutcome,
   ReissueRefusal,
+  StaleInvitationInput,
 } from '../ports/member-invitations.port.ts';
 import {
   authorityAllows,
@@ -32,19 +33,28 @@ function resumeRefused(row: InvitationRecord, input: OpenInvitationInput): boole
   );
 }
 
-/** الخطوة الأولى جوه معاملة واحدة: سلطة المالك، ونطاق تابع للشركة، وكتابة أو إعادة استخدام PENDING. */
+/** سلطة المالك ثم نطاق تابع للشركة، بالحالة وقت المعاملة؛ null لما الاتنين سليمين. */
+async function authorityRefusal(
+  tx: Tx,
+  actor: InvitationActor,
+  scope: InvitationScope,
+): Promise<'FORBIDDEN' | 'MEMBER_ROLE_NOT_INVITABLE' | null> {
+  if (!(await authorityAllows(tx, actor.companyId, actor.actorUserId))) return 'FORBIDDEN';
+  return (await scopeBelongs(tx, actor.companyId, scope)) ? null : 'MEMBER_ROLE_NOT_INVITABLE';
+}
+
+/**
+ * الخطوة الأولى جوه معاملة واحدة: قفل صف الإيميل الأول، وبعده بس قراءة السلطة والنطاق (عشان DENY اتسجل
+ * وإحنا مستنيين القفل ما يفوتناش)، ثم كتابة أو إعادة استخدام PENDING. الصف الملغي مش بيحجز الإيميل.
+ */
 async function openInvitation(
   tx: Tx,
   ids: IdGenerator,
   input: OpenInvitationInput,
 ): Promise<OpenInvitationOutcome> {
-  if (!(await authorityAllows(tx, input.companyId, input.actorUserId))) {
-    return { refusal: 'FORBIDDEN' };
-  }
-  if (!(await scopeBelongs(tx, input.companyId, input.scope))) {
-    return { refusal: 'MEMBER_ROLE_NOT_INVITABLE' };
-  }
   const existing = await lockInvitationByEmail(tx, input.companyId, input.emailHash);
+  const refusal = await authorityRefusal(tx, input, input.scope);
+  if (refusal !== null) return { refusal };
   if (existing !== undefined) {
     return resumeRefused(existing, input)
       ? { refusal: 'MEMBER_INVITATION_EXISTS' }
@@ -56,7 +66,7 @@ async function openInvitation(
     VALUES (${input.companyId}, ${input.invitationId}, ${input.emailHash}, ${input.roleCode},
             ${input.scope.type}, ${input.scope.id}, ${input.actorUserId}, 'PENDING',
             ${input.now.toISOString()}::timestamptz)
-    ON CONFLICT (company_id, email_hash) DO NOTHING
+    ON CONFLICT (company_id, email_hash) WHERE state <> 'CANCELLED' DO NOTHING
     RETURNING id`);
   if (inserted.length === 1) {
     await transactionWriters(tx, ids).audit.record({
@@ -74,6 +84,8 @@ async function openInvitation(
   }
   // سباق على نفس الإيميل: الفايز اتكتب بالتوازي، فنحكم عليه بنفس قواعد الإعادة.
   const raced = await lockInvitationByEmail(tx, input.companyId, input.emailHash);
+  const racedRefusal = await authorityRefusal(tx, input, input.scope);
+  if (racedRefusal !== null) return { refusal: racedRefusal };
   return raced !== undefined && !resumeRefused(raced, input)
     ? { invitationId: raced.id }
     : { refusal: 'MEMBER_INVITATION_EXISTS' };
@@ -108,16 +120,16 @@ async function writeMembership(
   await writers.outbox.append(input.buildEvent(row, input.membershipId, input.userId));
 }
 
-/** الإتمام جوه معاملة واحدة: السلطة، قفل الصف، النطاق، ثم الكتابة من الصف المقفول (P1-a، P1-b). */
+/** الإتمام جوه معاملة واحدة: قفل الصف، ثم السلطة، ثم النطاق قبل أي رد «اتكمل قبل كده»، ثم الكتابة (P1-a، P1-b). */
 async function completeInvitation(
   tx: Tx,
   ids: IdGenerator,
   input: CompleteInvitationInput,
 ): Promise<CompleteInvitationOutcome> {
+  const invitation = await lockInvitation(tx, input.companyId, input.invitationId);
   if (!(await authorityAllows(tx, input.companyId, input.actorUserId))) {
     return { done: false, refusal: 'FORBIDDEN' };
   }
-  const invitation = await lockInvitation(tx, input.companyId, input.invitationId);
   // اليوزر والمالك لازم يكونوا نفس اللي الصف اتفتح بيهم؛ أي اختلاف معناه صف مش بتاعنا.
   if (
     invitation === undefined ||
@@ -127,12 +139,12 @@ async function completeInvitation(
   ) {
     return { done: false, refusal: 'MEMBER_INVITATION_EXISTS' };
   }
-  if (invitation.membership_id !== null) {
-    return { done: true, membershipId: invitation.membership_id, alreadyComplete: true };
-  }
   const scope: InvitationScope = { type: invitation.scope_type, id: invitation.scope_id };
   if (!(await scopeBelongs(tx, input.companyId, scope))) {
     return { done: false, refusal: 'MEMBER_ROLE_NOT_INVITABLE' };
+  }
+  if (invitation.membership_id !== null) {
+    return { done: true, membershipId: invitation.membership_id, alreadyComplete: true };
   }
   await writeMembership(tx, ids, input, invitation);
   return { done: true, membershipId: input.membershipId, alreadyComplete: false };
@@ -144,10 +156,10 @@ async function reissueClaim(
   ids: IdGenerator,
   input: InvitationActor & { invitationId: string },
 ): Promise<{ readonly userId: string } | { readonly refusal: ReissueRefusal }> {
+  const invitation = await lockInvitation(tx, input.companyId, input.invitationId);
   if (!(await authorityAllows(tx, input.companyId, input.actorUserId))) {
     return { refusal: 'FORBIDDEN' };
   }
-  const invitation = await lockInvitation(tx, input.companyId, input.invitationId);
   if (
     invitation === undefined ||
     invitation.state !== 'PENDING' ||
@@ -188,6 +200,45 @@ async function cancelOpenedInvitation(
     action: 'invite.cancelled',
     after: { invitation_id: input.invitationId, reason: 'EMAIL_NOT_INVITABLE' },
   });
+}
+
+/**
+ * بيلغي دعوة لسه ما اتكملتش (PENDING من غير يوزر ولا عضوية) تحت قفل صفها، ويسجّل التدقيق؛ الدعوة
+ * الملغية قبل كده بتتحسب ملغية (تكرار آمن بعد انقطاع). true معناها: مفيش عضوية واتقفل الإتمام،
+ * فحساب العملية دي يتمسح بأمان. false: الدعوة اتكملت أو مش من حق المتصل يلغيها دلوقتي.
+ */
+async function cancelUnfinished(
+  tx: Tx,
+  ids: IdGenerator,
+  input: InvitationActor & { invitationId: string },
+  mayCancel: (row: InvitationRecord) => boolean,
+): Promise<boolean> {
+  const row = await lockInvitation(tx, input.companyId, input.invitationId);
+  if (row === undefined || row.membership_id !== null || row.user_id !== null) return false;
+  if (row.state === 'CANCELLED') return true;
+  if (row.state !== 'PENDING' || !mayCancel(row)) return false;
+  await tx.execute(sql`
+    UPDATE member_invitations SET state = 'CANCELLED'
+    WHERE company_id = ${input.companyId} AND id = ${input.invitationId}`);
+  await transactionWriters(tx, ids).audit.record({
+    entity: 'member_invitation',
+    entityId: input.invitationId,
+    action: 'invite.abandoned',
+    after: { invitation_id: input.invitationId, reason: 'NEVER_COMPLETED' },
+  });
+  return true;
+}
+
+/** دعوة عالقة قديمة: المتصل مش هيكملها بنفس الدور والنطاق، وعدّى عليها وقت يكفي إن مفيش طلب شغال فيها. */
+function staleFor(input: StaleInvitationInput) {
+  return (row: InvitationRecord): boolean => {
+    const resumable =
+      row.invited_by === input.actorUserId &&
+      row.role_code === input.roleCode &&
+      row.scope_type === input.scope.type &&
+      row.scope_id === input.scope.id;
+    return !resumable && new Date(row.created_at).getTime() < input.staleBefore.getTime();
+  };
 }
 
 /** ختم وقت الإصدار الفعلي بعد كتابة التوكن، وتدقيق «link.issued» من غير أي سر. */
@@ -240,6 +291,16 @@ export function createMemberInvitationTransactions(
         }),
       ),
     cancelOpened: (input) => run(input, (tx) => cancelOpenedInvitation(tx, ids, input)),
+    abandonOwn: (input) =>
+      run(input, (tx) =>
+        cancelUnfinished(tx, ids, input, (row) => row.invited_by === input.actorUserId),
+      ),
+    abandonStale: (input) =>
+      run(input, async (tx) =>
+        (await authorityAllows(tx, input.companyId, input.actorUserId))
+          ? cancelUnfinished(tx, ids, input, staleFor(input))
+          : false,
+      ),
     complete: (input) => run(input, (tx) => completeInvitation(tx, ids, input)),
     claimLink: async ({ companyId, invitationId, at }) => {
       const claimed = await db.withTenant(companyId, (tx) =>

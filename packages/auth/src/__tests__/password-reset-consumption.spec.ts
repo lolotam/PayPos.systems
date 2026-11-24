@@ -114,9 +114,9 @@ const liveTokens = async (userId: string) =>
       WHERE value = ${userId} AND identifier LIKE 'reset-password:%' ORDER BY identifier`
   ).map((row) => String(row['identifier']).slice('reset-password:'.length));
 const storedHash = async (userId: string) =>
-  (await owner`SELECT password FROM account WHERE user_id = ${userId} AND provider_id = 'credential'`)[0]?.[
-    'password'
-  ] as string | null | undefined;
+  (
+    await owner`SELECT password FROM account WHERE user_id = ${userId} AND provider_id = 'credential'`
+  )[0]?.['password'] as string | null | undefined;
 
 // عدد الـ backends المستنية قفل في الداتابيز دي — الحاجز اللي الاختبار بيقف عليه بدل الانتظار الزمني.
 const lockWaiters = async () => {
@@ -192,7 +192,8 @@ describe('a successful reset ends every other reset link of that user only (P1-2
     expect((await consume(ordinaryLink)).status).toBe(400);
     expect(await liveTokens(userId)).toEqual([]);
     expect(await liveTokens(bystander.userId)).toEqual([bystanderLink]);
-    const [kept] = await owner`SELECT 1 FROM verification WHERE identifier = 'email-verification:keep-me'`;
+    const [kept] =
+      await owner`SELECT 1 FROM verification WHERE identifier = 'email-verification:keep-me'`;
     expect(kept).toBeDefined();
   });
 
@@ -255,6 +256,10 @@ describe('the reset keeps Better Auth behaviour for the link holder', () => {
 });
 
 async function createOrdinaryUser(email: string): Promise<{ userId: string; email: string }> {
-  const userId = await auth.provisionUser({ email, name: 'Ordinary', password: 'initial-password' });
+  const userId = await auth.provisionUser({
+    email,
+    name: 'Ordinary',
+    password: 'initial-password',
+  });
   return { userId, email };
 }
