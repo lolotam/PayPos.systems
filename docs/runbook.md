@@ -683,6 +683,45 @@ before re-issuance, switch off and bump before the rollback; (d) repairs and dat
 then the single resume order; 4(a) fork routing check before the API starts and before every issuance; 4(b)/4(c)
 partial restore and projection rewind — bump-first owner transaction.
 
+## 53-2 B2b: the parked commission event alert (ADR-0012 §3, A4)
+
+A counted commission event that the worker cannot consume is **parked** after its last attempt (ten attempts with
+exponential backoff, `apps/worker/src/outbox/retry-policy.ts`). A parked event stays **pending** for ADR-0012, so the
+month's approval keeps refusing `409 COMMISSION_UPDATES_PENDING` until the event is repaired. The alert tells the
+company's owners that the month is stuck and gives support the row's reference.
+
+**What the bell says.** One in-app bell per parked event, to the company's canonical owners (the memberships that hold
+the owner role over the company, read at the alert instant). The bell carries the event's type and id and nothing
+else — no payload, no amount, no employee name. It is **not** an alert-rule kind: it is never switched off and has no
+channel choice, because a blocked approval must always be visible to the owner.
+
+**Dedupe.** The bell is raised once per parked event id: the `consumed_events` row with the consumer id
+`commissions.park-alert` is written in the same transaction as the bell, so a second park of the same event id raises
+nothing. That mark is **not** the projection consumer's mark, so the event keeps counting as pending (parking never
+discharges an event).
+
+**Finding the parked row.** The bell gives the event id; the dispatcher log line `outbox event parked` gives the same
+event with its type. The row itself:
+
+```sql
+SELECT id, event_type, attempts, parked_at, last_error
+FROM outbox
+WHERE company_id = '<company uuid>' AND parked_at IS NOT NULL
+ORDER BY parked_at DESC;
+```
+
+**The alert never clears.** There is no operator path that re-queues a parked outbox event (see the replay section
+above), so the bell stays true until the event is repaired out of band, and the event stays pending until then. The
+parked row is never deleted, never un-parked and never re-delivered by the alert.
+
+**When the bell does not arrive.**
+
+- `commission park alert has no recipient` (error log) — the company has no owner membership active at the alert
+  instant, so nobody was told and no mark was written. The parked row is still there: find it with the SQL above and
+  pass it to support.
+- `outbox park alert failed` (error log) — the alert transaction itself failed. The park stays committed and the event
+  stays pending; retry the repair path, and the bell is raised again only if a new park of the same event id happens.
+
 ## 50-3d: replay all six counted types after a rollback (spec 059, CS-Q43)
 
 Replays the retained events of all six counted types of one company to the `commissions.project-inputs` consumer alone, through the

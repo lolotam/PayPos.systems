@@ -13,6 +13,8 @@ export interface DispatchLoopOptions {
   >;
   readonly deliver: (event: ClaimedEvent) => Promise<DeliveryOutcome>;
   readonly logger: Logger;
+  /** خطاف ما بعد الإيقاف: بينادى بالـ events اللي وقفها الـ dispatcher بعد ما الـpark يتثبت. */
+  readonly onParked?: (events: readonly ClaimedEvent[]) => void | Promise<void>;
   readonly pollIntervalMs?: number;
   readonly batchSize?: number;
   readonly sweepIntervalMs?: number;
@@ -65,7 +67,12 @@ export function createDispatchLoop(options: DispatchLoopOptions): {
     logger.info({ swept }, 'idempotency keys swept');
   };
 
-  const dispatchOptions = { maxAttempts: MAX_ATTEMPTS, onExhausted: logExhausted(logger) };
+  const dispatchOptions = {
+    maxAttempts: MAX_ATTEMPTS,
+    onExhausted: logExhausted(logger),
+    logger,
+    ...(options.onParked === undefined ? {} : { onParked: options.onParked }),
+  };
 
   const tick = async (): Promise<void> => {
     try {

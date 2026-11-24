@@ -288,3 +288,30 @@ withdrawn: PR #1233 ships no index migration and no `schema/outbox.ts` change.
 The tests keep the pending meaning, the cutoff, the role, the policies and tenant isolation, and assert for the large
 consumed history only what is true of every acceptable plan: count 0, no sequential scan of `outbox`, and rows examined at
 most the six-type history. The plan, rows and timing are printed as evidence.
+
+## Amendment — 2026-11-24: the parked-event alert is implemented (53-2 B2b)
+
+Section 3's "raise an owner-visible operational alert" and section 4 group 5's "produce the owner alert" are implemented at
+the boundary this ADR names: the worker, through the existing outbox/notification boundary.
+
+- **Where it is raised.** The dispatcher facade (`packages/db/src/dispatcher.ts`) reports the events it parked **after
+  the park is committed**: the failed-delivery path only when the parking `UPDATE` really parked the row, and the
+  exhausted-lease path once the claim transaction committed. The hook runs outside the dispatcher's transaction, so the
+  alert is a separate `pospay_app` transaction under `withTenant(company_id)` and the dispatcher role gains nothing.
+  `pospay_app` never reads the outbox: the dispatcher hands over the event's id, type and company id only, and no
+  payload is read or copied.
+- **Who is told.** The company's canonical owner memberships, active at the alert instant, read by the worker's identity
+  reader `companyOwners`. The alert is not an alert-rule kind: it is never switched off and has no channel choice,
+  because a blocked approval must always be visible to the owner.
+- **How often.** Once per parked event id: the `consumed_events` row with the consumer id `commissions.park-alert` is
+  written in the same transaction as the bell. It is **not** the projection consumer's mark, so a parked event keeps
+  counting as pending and parking never discharges it.
+- **The bell.** One in-app bell per group of at most 100 owners, carrying the event's type and id only — no payload, no
+  amount, no employee name.
+- **What it does not do.** It never un-parks, never re-delivers and never deletes the parked row. There is still no
+  operator path that re-queues a parked outbox event, so the alert is one-shot and never clears.
+
+Nothing in section 1 (the counted types, the consumer id and the pending predicate), section 2 (the role, the grants and
+the policies) or the installed count function changes: the alert's mark uses a different consumer id, so the count and the
+proof rules cannot diverge. The alert is raised for the six counted types only; another parked type does not block an
+approval, so it does not wake the owner.

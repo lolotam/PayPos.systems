@@ -3,6 +3,7 @@ export * from './statement-payments.js';
 export * from './period-repair-saved.js';
 export * from './period-repairs.js';
 export * from './correction-blocked-notice.js';
+export * from './parked-commission-event.js';
 export * from './blocked-corrections.js';
 export * from './statement-exports.js';
 export * from './service-overrides.js';

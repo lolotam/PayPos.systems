@@ -18,6 +18,10 @@ import {
 } from './low-rating-notifications.js';
 import { inAppBase } from './in-app-base.js';
 import {
+  commissionEventParkedParameters,
+  commissionEventParkedRecipient,
+} from './commissions/parked-commission-event.js';
+import {
   commissionCorrectionBlockedParameters,
   commissionCorrectionBlockedRecipient,
   statementAwaitingApprovalParameters,
@@ -229,6 +233,7 @@ export const inAppRecipient = z.discriminatedUnion('template_key', [
   discountSelfApprovedRecipient,
   commissionCorrectionBlockedRecipient,
   statementAwaitingApprovalRecipient,
+  commissionEventParkedRecipient,
   z.strictObject({
     ...inAppBase,
     template_key: z.literal('break_returned_other_branch'),
@@ -316,6 +321,11 @@ export const inAppNotification = z
       ...inAppNotificationBase,
       template_key: z.literal('statement_awaiting_approval'),
       safe_parameters: statementAwaitingApprovalParameters,
+    }),
+    responseObject({
+      ...inAppNotificationBase,
+      template_key: z.literal('commission_event_parked'),
+      safe_parameters: commissionEventParkedParameters,
     }),
     responseObject({
       ...inAppNotificationBase,

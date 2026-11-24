@@ -34,6 +34,9 @@ export function renderNotification(
   ) {
     return renderPeriodNotice(item, viewerLocale);
   }
+  if (item.template_key === 'commission_event_parked') {
+    return renderParkedEventNotice(item, viewerLocale);
+  }
   if (item.template_key === 'late_service_session') {
     const values = Object.fromEntries(
       item.safe_parameters.map((parameter) => [parameter.name, parameter.value]),
@@ -73,6 +76,14 @@ export function renderNotification(
 function renderPeriodNotice(item: ScalarNotification, viewerLocale?: Locale): string {
   return fill(
     t(viewerLocale ?? item.locale, `inApp.${item.template_key}`),
+    Object.fromEntries(item.safe_parameters.map((parameter) => [parameter.name, parameter.value])),
+  );
+}
+
+/** جرس الحدث الموقوف: نوع الحدث ورقمه المرجعي، وتبقى لغة الواجهة. */
+function renderParkedEventNotice(item: ScalarNotification, viewerLocale?: Locale): string {
+  return fill(
+    t(viewerLocale ?? item.locale, 'inApp.commission_event_parked'),
     Object.fromEntries(item.safe_parameters.map((parameter) => [parameter.name, parameter.value])),
   );
 }

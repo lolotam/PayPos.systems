@@ -182,6 +182,31 @@ describe('events whose every claim crashed', () => {
   });
 });
 
+describe('the stopped-event hook', () => {
+  it('hands the dispatcher the hook that tells the owners about a stopped event', async () => {
+    const seen: string[][] = [];
+    const loop = createDispatchLoop({
+      dispatcher: {
+        dispatchBatch: async (_limit, _deliver, options) => {
+          options?.onParked?.([{ ...EXHAUSTED }]);
+          return 0;
+        },
+        sweepExpiredIdempotencyKeys: async () => 0,
+      },
+      deliver,
+      logger,
+      onParked: (events) => {
+        seen.push(events.map((event) => event.id));
+      },
+      pollIntervalMs: 1,
+    });
+    loop.start();
+    await until(() => seen.length > 0);
+    await loop.stop();
+    expect(seen[0]).toEqual([EXHAUSTED.id]);
+  });
+});
+
 describe('a large expiry backlog', () => {
   it('sweeps batch after batch until one comes back short', async () => {
     const batches = [1_000, 1_000, 1_000, 12];

@@ -35,7 +35,7 @@ import {
   startStaffWorker,
 } from './modules/staff/index.ts';
 import { startCatalogWorker } from './modules/catalog/index.ts';
-import { businessPermissionHolders } from './modules/identity/index.ts';
+import { businessPermissionHolders, companyOwners } from './modules/identity/index.ts';
 import {
   daySessionsReader,
   startPackagePreviewWorker,
@@ -52,7 +52,7 @@ import {
 import { DocumentSourceRegistry } from './documents/source-registry.ts';
 import { createAttendanceStatementSource } from './documents/sources/attendance-statement.source.ts';
 import { createCommissionStatementSource } from './documents/sources/commission-statement.source.ts';
-import { createCommissionStatementExportReader } from './modules/commissions/index.ts';
+import { createCommissionStatementExportReader, createParkedCommissionAlert } from './modules/commissions/index.ts';
 import { businessCalendar, businessTimeZone } from './modules/tenancy/index.ts';
 import { drainDispatchAndDocuments } from './documents/shutdown-drain.ts';
 
@@ -200,7 +200,34 @@ const deliver: typeof businessDeliver = (event) =>
       ),
     ),
   );
-const loop = createDispatchLoop({ dispatcher, deliver, logger });
+const parkAlert = createParkedCommissionAlert({
+  database: app,
+  ids: systemUuidV7(),
+  clock: { now: () => new Date() },
+  owners: companyOwners,
+});
+const loop = createDispatchLoop({
+  dispatcher,
+  deliver,
+  logger,
+  // The park is already committed when the hook runs: the alert only reads the event's id and type.
+  onParked: (events) =>
+    Promise.all(
+      events.map(async (event) => {
+        const outcome = await parkAlert({
+          companyId: event.companyId,
+          eventId: event.id,
+          eventType: event.eventType,
+        });
+        if (outcome === 'NO_OWNERS') {
+          logger.error(
+            { event: { id: event.id, type: event.eventType, companyId: event.companyId } },
+            'commission park alert has no recipient',
+          );
+        }
+      }),
+    ).then(() => undefined),
+});
 
 const release = async (): Promise<void> => {
   stopping = true;
