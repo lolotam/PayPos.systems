@@ -23,6 +23,7 @@ export function StatementEmployeeCard({ employee }: { employee: CommissionStatem
           {t(locale, `${NS}.employeeNumber`)} <bdi>{employee.employee_number}</bdi>
         </span>
         {employee.partial ? <Badge variant="warning">{t(locale, `${NS}.partialBadge`)}</Badge> : null}
+        {/* TODO(spec): علامة «سابت الشغل» (CM-50، CS-Q28) محتاجة حقل موظفة سابت الشغل على موظفة الكشف، ومش موجود في العقد لسه. */}
       </div>
       {employee.partial ? <p className="text-sm text-muted-foreground">{t(locale, `${NS}.partialNote`)}</p> : null}
       <dl className="grid grid-cols-3 gap-3">

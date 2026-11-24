@@ -136,7 +136,7 @@ owner chose each grouping on 2026-11-21 from three options per section (`owner-q
 | Pay | Commission plans | 1 | Live | every business type | By page permission |
 | Pay | Commission overrides | 1 | Live | every business type | By page permission |
 | Pay | Salaries | 1 | Soon | every business type | Owner |
-| Pay | Commission statements | 1 | Live | every business type | Owner, General manager, Accountant, Business manager |
+| Pay | Commission statements | 1 | Live | every business type | Owner, General manager, Accountant, Business manager, Branch manager |
 | Pay | Payroll runs and payslips | 5 | Soon | every business type | Owner, General manager, Accountant |
 | Pay | Loans and advances | 5 | Soon | every business type | Owner, General manager, Accountant |
 
