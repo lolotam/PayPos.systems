@@ -26,7 +26,31 @@
 
 ## التحقق
 
-نتائج التشغيل النهائية يملؤها المنفّذ بعد تسليم DB slot؛ لا يُعدّ هذا السطر إثبات نجاح.
+تشغيل محلي على Postgres خاص بالـworktree (`stmt-h`)، مع ملف واحد نشط في كل لحظة (`fileParallelism=false`). لا اتصال Redis محلي.
+
+| الملف / المجموعة | النتيجة |
+| --- | --- |
+| `commission-activation-cli-db.spec.ts` | **12/12** بعد فصل قراءة tenancy عن query Orders |
+| db `commission-coverage-functions.spec.ts` | ناجح |
+| db `commission-coverage-guards.spec.ts` | ناجح |
+| db `privileges.spec.ts` | ناجح |
+| db `function-inventory.spec.ts` | ناجح |
+| db `roles.spec.ts` | ناجح |
+| db `role-defaults.spec.ts` | ناجح |
+| db `platform-grants.spec.ts` | ناجح |
+| db `dispatcher-role.spec.ts` | ناجح — مجموع ملفات db الثمانية: **1328 اختبارًا** |
+| worker `report-commission-coverage-db.spec.ts` | ناجح |
+| worker `commission-coverage-readers-db.spec.ts` | ناجح |
+| worker `report-commission-tips-db.spec.ts` | ناجح |
+| worker `report-commission-coverage.spec.ts` | ناجح |
+| worker `report-commission-coverage-tips.spec.ts` | ناجح |
+| worker `report-commission-coverage-scope.spec.ts` | ناجح |
+| worker `check-sale-coverage.spec.ts` | ناجح — مجموع ملفات التقرير السبعة: **83 اختبارًا** |
+| ملفا `coverage-issuance.unit.spec.ts` | **19/19** بلا قاعدة بيانات |
+
+نجحت typecheck لـdb والعامل والـAPI، وlint لـdb والعامل وملفات API المعدّلة، و`lint:docs` بلا أخطاء (30 تحذيرًا سابقًا)، و`module-map:check`، و`api:check` للـadmin والـPOS، وبناء العامل واعتمادياته. فحوص `clean-code-guard` و`test-guard` والمراجعة الأمنية على الـdiff مطبّقة؛ لا ثغرة مؤكدة باقية في النطاق المراجع. إثبات HTTP وقياس staging وبوابات CI تظل مطلوبة. لا U+FFFD في الملفات المعدّلة.
+
+الإجمالي المحلي المستهدف: **1442 اختبارًا ناجحًا**. أُغلق `stmt-h` بعد التشغيل؛ لا موارد DB باقية تخص هذه الجولة.
 
 **CI-only, not run locally:** `commission-activation-http.spec.ts` يستخدم fixture HTTP الأصلية لإثبات enable ثم إصدار ثم اعتماد حقيقي 200، وبعد disable يرفض شهرًا REVIEWED آخر بـ403. لم يُشغّل محليًا لأن الـharness يتصل بـRedis حقيقي، ومدير المسار منع أي اتصال Redis محلي.
 

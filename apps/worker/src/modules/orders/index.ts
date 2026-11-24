@@ -25,7 +25,7 @@ export { startPackagePreviewWorker } from './orders.module.ts';
 export { startPackageSaleWorker } from './orders.module.ts';
 export { startPackageImportCommitWorker } from './orders.module.ts';
 export { readCurrentSessionTips } from './queries/current-session-tips.reader.ts';
-export { readSessionTipsAfterBound } from './queries/session-tips-after-bound.reader.ts';
+export { createSessionTipsAfterBoundReader } from './queries/session-tips-after-bound.reader.ts';
 export {
   readServiceLineCoveragePage,
   serviceLineCoverageStatement,

@@ -19,9 +19,15 @@ import {
   writeTipRevision,
 } from '../modules/commissions/__tests__/bootstrap-session-tips-db.harness.ts';
 import {
-  readSessionTipsAfterBound,
+  createSessionTipsAfterBoundReader,
   sessionTipsAfterBoundStatement,
 } from '../modules/orders/queries/session-tips-after-bound.reader.ts';
+import { businessTimeZone } from '../modules/tenancy/index.ts';
+
+const readSessionTipsAfterBound = createSessionTipsAfterBoundReader({
+  isKnown: async (tx, companyId, businessId) =>
+    (await businessTimeZone(tx, companyId, businessId)) !== null,
+});
 
 useBootstrapHarness();
 

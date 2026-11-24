@@ -602,8 +602,10 @@ it with the round-trip test CM-34e.
 ### Addendum 2026-11-24 (53-2 B1): issuance CLI port bindings
 
 `apps/worker/src/issue-commission-coverage.ts` binds a commissions-owned `CoverageTipExistenceReader` to
-Orders' `readSessionTipsAfterBound`, a read-only existence query with `business_date > U` and no upper bound.
+Orders' `createSessionTipsAfterBoundReader`, a read-only existence query with `business_date > U` and no upper bound.
 It uses the existing app privileges inside `withTenant`, rejects an unknown business and returns only a boolean.
+Orders' `SessionTipBusinessReader` is bound there to tenancy's `businessTimeZone` on the same transaction,
+so the Orders query reads only its own tables, rather than joining `businesses` across the context boundary.
 The same root binds `CoverageIssuanceDependencies.businessIds` to tenancy's `coverageBusinessIds` to reject a partial
 company scope even in dry-run. These are port bindings, not module import arrows; no grant or migration is added.
 The generation and UTC bound are sampled together in one dispatcher SELECT using the existing 0250 generation function.

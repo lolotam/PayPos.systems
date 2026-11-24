@@ -18,7 +18,7 @@ import {
   listCurrentPackageSales,
   readCurrentSessionTips,
   readServiceLineCoveragePage,
-  readSessionTipsAfterBound,
+  createSessionTipsAfterBoundReader,
 } from './modules/orders/index.ts';
 import { readSalaryCoveragePage } from './modules/staff/index.ts';
 import { businessTimeZone, companyOpen, coverageBusinessIds } from './modules/tenancy/index.ts';
@@ -96,7 +96,12 @@ try {
         report,
         identity: coverageReportIdentity(app),
         businessIds: coverageBusinessIds,
-        tips: { existsAfter: readSessionTipsAfterBound },
+        tips: {
+          existsAfter: createSessionTipsAfterBoundReader({
+            isKnown: async (tx, companyId, businessId) =>
+              (await businessTimeZone(tx, companyId, businessId)) !== null,
+          }),
+        },
       },
       { ...input, stateId: ids.newId(), proofId: ids.newId() },
     );
