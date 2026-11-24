@@ -5,8 +5,11 @@ import { PageHeader, PageShell } from '@pospay/ui';
 import { useState } from 'react';
 import { useLocale } from '@/shared/locale/locale-context';
 import { statementScope } from '../api/commission-statement-client';
-import { isStatementDenied, useCommissionStatement } from '../api/use-commission-statement';
-import { useStatementAttemptMemory } from '../api/use-statement-command';
+import {
+  isStatementDenied,
+  isStatementRefused,
+  useCommissionStatement,
+} from '../api/use-commission-statement';
 import { statusOf } from '../model/statement-display';
 import { isGenerated } from '../model/statement-reading';
 import { defaultStatementPeriod } from '../model/statement-period';
@@ -27,9 +30,11 @@ export function CommissionStatementPage({ companyId, userId, businessId }: Commi
   const locale = useLocale();
   const scope = statementScope(companyId, businessId, userId);
   const [period, setPeriod] = useState(() => defaultStatementPeriod(new Date()));
-  const memory = useStatementAttemptMemory();
   const statement = useCommissionStatement(scope, period);
-  const reading = statement.data;
+  // رفض القراءة (403 أو 404) بيخفي الكشف اللي كان محمّل، مش بيسيبه على الشاشة جنب الرسالة.
+  const refused = statement.isError && isStatementRefused(statement.error);
+  const reading = refused ? undefined : statement.data;
+  const stale = statement.isRefetchError || statement.isFetching;
   return (
     <PageShell layout="list">
       <PageHeader title={t(locale, 'commissionStatementScreen.pageTitle')} />
@@ -40,6 +45,9 @@ export function CommissionStatementPage({ companyId, userId, businessId }: Commi
       />
       {statement.isPending ? <p role="status">{t(locale, 'commissionStatementScreen.loading')}</p> : null}
       {statement.isError && isStatementDenied(statement.error) ? <StatementDenied /> : null}
+      {statement.isRefetchError && reading !== undefined ? (
+        <p role="status">{t(locale, 'commissionStatementScreen.refreshFailed')}</p>
+      ) : null}
       {statement.isError && !isStatementDenied(statement.error) ? (
         <StatementLoadFailed error={statement.error} onRetry={() => void statement.refetch()} />
       ) : null}
@@ -51,7 +59,7 @@ export function CommissionStatementPage({ companyId, userId, businessId }: Commi
             scope={scope}
             period={period}
             reading={reading}
-            memory={memory}
+            stale={stale}
             onReload={() => void statement.refetch()}
           />
         </>

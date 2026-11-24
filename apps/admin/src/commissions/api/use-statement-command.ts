@@ -1,78 +1,65 @@
 'use client';
 
-import type {
-  CommissionStatementApproveRequest,
-  CommissionStatementReturnInput,
-  CommissionStatementReviewInput,
-} from '@pospay/contracts';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { useState, type RefObject } from 'react';
-import {
-  approveStatement,
-  generateStatement,
-  returnStatement,
-  reviewStatement,
-  statementKey,
-  type StatementScope,
-} from './commission-statement-client';
+import { useRef } from 'react';
+import { statementKey, type StatementScope } from './commission-statement-client';
+import { executeStatementCommand, staleRefusal, type StatementRequest } from './statement-commands';
+import { statementQueryOptions } from './use-commission-statement';
+import { statementVersion } from '../model/statement-version';
 
-/** أمر كتابة على الكشف مع جسمه: كل أمر بمفتاح محاولته. */
-export type StatementCommand =
-  | { kind: 'generate' }
-  | { kind: 'review'; body: CommissionStatementReviewInput }
-  | { kind: 'return'; body: CommissionStatementReturnInput }
-  | { kind: 'approve'; body: CommissionStatementApproveRequest };
-
-/** ذاكرة مفاتيح المحاولات اللي نتيجتها مجهولة، بتعيش مع الصفحة. */
-export type StatementAttemptMemory = RefObject<Map<string, string>>;
-
-/** ذاكرة محاولات الكتابة اللي بتعيش مع الصفحة: بتتصفّر بتغيّر الهوية لأن المسار بيعمل remount. */
-export function useStatementAttemptMemory(): StatementAttemptMemory {
-  const [attempts] = useState(() => ({ current: new Map<string, string>() }));
-  return attempts;
-}
-
-function hasResponse(error: unknown): boolean {
-  return typeof (error as { status?: unknown } | null)?.status === 'number';
-}
-
-async function run(
-  scope: StatementScope,
-  period: string,
-  key: string,
-  command: StatementCommand,
-): Promise<unknown> {
-  if (command.kind === 'generate') return generateStatement(scope, period, key);
-  if (command.kind === 'review') return reviewStatement(scope, period, key, command.body);
-  if (command.kind === 'approve') return approveStatement(scope, period, key, command.body);
-  return returnStatement(scope, period, key, command.body);
+/**
+ * رد السيرفر بيثبت إن الكتابة ما حصلتش: غلاف خطأ حقيقي بكوده، مش «لسه بيتعالج» ولا بوابة بتقول 502 أو 503 أو
+ * 504. أي رد تاني (انقطاع، مهلة، بوابة) ممكن يكون اتسجّل على السيرفر، فمفتاحه بيفضل للمحاولة اللي بعدها.
+ */
+function provesNotWritten(error: unknown): boolean {
+  const body = error as { status?: unknown; code?: unknown } | null;
+  if (typeof body?.code !== 'string' || body.code === 'IDEMPOTENCY_KEY_IN_PROGRESS') return false;
+  return body.status !== 502 && body.status !== 503 && body.status !== 504;
 }
 
 /**
- * ينفّذ أمر كتابة على كشف شهر: نفس الأمر بنفس الجسم لنفس الشهر بيستعمل مفتاح المحاولة المحفوظ لحد ما
- * نتيجة معروفة تيجي (رد مفقود ممكن يكون اتسجّل على السيرفر)، والجسم المختلف بياخد مفتاح جديد. أي رد
- * حقيقي من السيرفر بيحسم المحاولة ويمسح مفتاحها، إلا «لسه بيتعالج». بعد النجاح العرض بيتقرا من جديد.
+ * ينفّذ أمر كتابة على كشف شهر. قبل الإرسال بيقرا الكشف قراءة طازجة، ولو نسخته غير اللي المستخدم شافها
+ * لحظة فتح الحوار ما بيبعتش حاجة ويرفض كأن البصمة قديمة. مفتاح المحاولة بيعيش مع فتحة الحوار والجسم بس،
+ * ومحاولة ضاع ردها بتتعاد بنفس المفتاح جوّه نفس الفتحة. بعد النجاح الكشف المحفوظ بيتحدّث من رد الكتابة
+ * فورًا ثم بيتقرا من جديد؛ والأمر بيشتغل حتى والشبكة واقعة فيفشل في الحال برسالة الشبكة بدل ما يستنى.
  */
-export function useStatementCommand(scope: StatementScope, period: string, memory: StatementAttemptMemory) {
+export function useStatementCommand(scope: StatementScope, period: string) {
   const client = useQueryClient();
-  return useMutation({
+  const attempts = useRef(new Map<string, string>());
+  const mutation = useMutation({
     mutationKey: ['commission-statement-command', ...scope, period],
     retry: false,
     gcTime: 0,
-    mutationFn: async (command: StatementCommand) => {
-      const identity = `${period}:${command.kind}:${JSON.stringify('body' in command ? command.body : null)}`;
-      const key = memory.current.get(identity) ?? crypto.randomUUID();
-      memory.current.set(identity, key);
+    networkMode: 'always',
+    mutationFn: async ({ command, openingId, seenVersion }: StatementRequest) => {
+      const fresh = await client.fetchQuery(statementQueryOptions(scope, period));
+      if (statementVersion(fresh) !== seenVersion) throw staleRefusal();
+      const identity = `${openingId}:${command.kind}:${JSON.stringify('body' in command ? command.body : null)}`;
+      const key = attempts.current.get(identity) ?? crypto.randomUUID();
+      attempts.current.set(identity, key);
+      let next;
       try {
-        const result = await run(scope, period, key, command);
-        memory.current.delete(identity);
-        await client.invalidateQueries({ queryKey: statementKey(scope, period) });
-        return result;
+        next = await executeStatementCommand({ scope, period }, key, command, fresh);
       } catch (error) {
-        const inFlight = (error as { code?: unknown } | null)?.code === 'IDEMPOTENCY_KEY_IN_PROGRESS';
-        if (hasResponse(error) && !inFlight) memory.current.delete(identity);
+        if (provesNotWritten(error)) attempts.current.delete(identity);
         throw error;
       }
+      attempts.current.delete(identity);
+      if (next !== undefined) client.setQueryData(statementKey(scope, period), next);
+      await client.invalidateQueries({ queryKey: statementKey(scope, period) });
+      return next;
     },
   });
+  return {
+    mutate: mutation.mutate,
+    reset: mutation.reset,
+    isPending: mutation.isPending,
+    error: mutation.error,
+    /** بيمسح مفاتيح المحاولات اللي لسه نتيجتها مجهولة لما فتحة الحوار تتقفل. */
+    forget(openingId: string) {
+      for (const identity of attempts.current.keys()) {
+        if (identity.startsWith(`${openingId}:`)) attempts.current.delete(identity);
+      }
+    },
+  };
 }

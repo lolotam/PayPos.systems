@@ -1,7 +1,7 @@
 import type { CommissionStatementEmployee, CommissionStatementRow } from '@pospay/contracts';
-import { parseMoney, sumMoney } from '@pospay/domain';
-import { formatKwd, type Locale, type MessageKey } from '@pospay/i18n';
+import type { Locale, MessageKey } from '@pospay/i18n';
 import { isGenerated, isOpenBusinessReading, type StatementReading } from './statement-reading';
+import { sumAmounts } from './statement-sum';
 
 /** حالة الكشف للعرض: «لسه ما اتعملش» لما مفيش كشف متولّد للشهر، والمعتمد والمصروف للشهر المغلق. */
 export type StatementStatus = 'NONE' | 'DRAFT' | 'REVIEWED' | 'APPROVED' | 'PAID';
@@ -66,6 +66,17 @@ export function statementActions(reading: StatementReading): StatementActions {
   };
 }
 
+/** نفس الأزرار لكن كل شغّال بقى مقفول: الكشف المعروض ممكن يكون قديم لحد ما يتحمّل تاني. */
+export function switchedOff(actions: StatementActions): StatementActions {
+  const off = (state: ActionState): ActionState => (state === 'enabled' ? 'disabled' : state);
+  return {
+    generate: off(actions.generate),
+    review: off(actions.review),
+    returnToDraft: off(actions.returnToDraft),
+    approve: off(actions.approve),
+  };
+}
+
 /** نص نوع الصف من كتالوج الكشف نفسه (نفس تسميات ملف الإكسل). */
 export function kindKey(kind: CommissionStatementRow['kind']): MessageKey {
   const keys: Record<CommissionStatementRow['kind'], MessageKey> = {
@@ -127,11 +138,11 @@ export function groupRows(rows: readonly CommissionStatementRow[]): StatementRow
 
 /**
  * مجموع قسم التصحيحات للموظفة: العمولة وبقشيش الكارت بس، لأن بقشيش الكاش للعلم وما بيدخلش في اللي يتصرف.
- * العقد ما بيرجّعش المجموع، فبنجمعه من صفوف القسم بـ Money من packages/domain.
+ * العقد ما بيرجّعش المجموع، فبنجمعه من صفوف القسم من غير سقف الصف الواحد (`sumAmounts`).
  */
 export function correctionsTotal(rows: readonly CommissionStatementRow[]): string {
   const counted = rows.filter((row) => row.kind !== 'CORRECTION_TIP_CASH');
-  return formatKwd(sumMoney(counted.map((row) => parseMoney(row.amount))));
+  return formatAmount(sumAmounts(counted.map((row) => row.amount)));
 }
 
 /** تاريخ صف التصحيح: يوم البند الأصلي لو معروف، وإلا يوم عمل التصحيح. */

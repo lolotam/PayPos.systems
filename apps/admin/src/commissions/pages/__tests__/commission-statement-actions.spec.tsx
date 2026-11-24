@@ -215,6 +215,7 @@ it('approves with the two fingerprints the reviewer saw and shows the frozen mon
 });
 
 it.each([
+  ['FEATURE_DISABLED', 403, 'errFeatureDisabled'],
   ['COMMISSION_COVERAGE_NOT_PROVEN', 422, 'errCoverageNotProven'],
   ['COMMISSION_UPDATES_PENDING', 409, 'errUpdatesPending'],
   ['COMMISSION_STATEMENT_NOT_REVIEWED', 409, 'errNotReviewed'],
@@ -229,15 +230,6 @@ it.each([
   expect(screen.queryByText(code)).toBeNull();
   expect(screen.getByRole('dialog')).toBeTruthy();
   expect(screen.getByLabelText('Sara')).toBeTruthy();
-});
-
-it('says plainly that approval is not enabled when the switch is off, not that commissions are off', async () => {
-  current.answer = ok(REVIEWED());
-  api.POST.mockResolvedValue(refusal(403, 'FEATURE_DISABLED'));
-  await openDialog(S('approve'));
-  confirm();
-  expect(await screen.findByText(S('errApprovalNotEnabled'))).toBeTruthy();
-  expect(screen.queryByText(S('errFeatureDisabled'))).toBeNull();
 });
 
 it('lists the employees and the incomplete service lines behind a blocked approval', async () => {

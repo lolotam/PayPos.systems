@@ -51,23 +51,17 @@ function lineCountOf(details: unknown): number {
 /**
  * يحوّل رفض السيرفر لرسالة مقروءة بلغة الشاشة: الكود المعروف له نصه، وأي كود تاني ليه رسالة الغلاف نفسها،
  * ورد من غير غلاف (انقطاع شبكة مثلًا) بياخد الرسالة العامة.
- *
- * `FEATURE_DISABLED` على الاعتماد معناه مفتاح الاعتماد المقفول للشركة، وعلى باقي الخطوات معناه ميزة العمولات.
+ * `FEATURE_DISABLED` ممكن يجي من ميزة العمولات أو من مفتاح الاعتماد، والرد ما بيفرّقش بينهم، فرسالته
+ * واحدة وما بتسمّيش أيّهم.
  *
  * @param error الرفض زي ما رماه عميل الكشف
  * @param locale لغة الشاشة
- * @param step الخطوة اللي رفضها السيرفر لو هي الاعتماد
  * @returns الرسالة وتفاصيل المشاكل
  */
-export function statementFailure(error: unknown, locale: Locale, step?: 'approve'): StatementFailure {
+export function statementFailure(error: unknown, locale: Locale): StatementFailure {
   const body = (error ?? {}) as { code?: unknown; details?: unknown };
   const code = typeof body.code === 'string' ? body.code : null;
-  const key =
-    code === 'FEATURE_DISABLED' && step === 'approve'
-      ? 'commissionStatementScreen.errApprovalNotEnabled'
-      : code === null
-        ? undefined
-        : CODE_KEYS[code];
+  const key = code === null ? undefined : CODE_KEYS[code];
   const hasEnvelope = code !== null;
   return {
     code,

@@ -3,8 +3,7 @@
 import { t } from '@pospay/i18n';
 import { useLocale } from '@/shared/locale/locale-context';
 import type { StatementScope } from '../api/commission-statement-client';
-import type { StatementAttemptMemory } from '../api/use-statement-command';
-import { statementActions } from '../model/statement-display';
+import { statementActions, switchedOff } from '../model/statement-display';
 import { isGenerated, isOpenBusinessReading, type StatementReading } from '../model/statement-reading';
 import { StatementActions } from './statement-actions';
 import { StatementChangedNotice } from './statement-changed-notice';
@@ -22,18 +21,18 @@ export function StatementPanel(props: {
   scope: StatementScope;
   period: string;
   reading: StatementReading;
-  memory: StatementAttemptMemory;
+  stale: boolean;
   onReload(): void;
 }) {
-  const { scope, period, reading, memory, onReload } = props;
+  const { scope, period, reading, stale, onReload } = props;
   const locale = useLocale();
-  const dialog = useStatementDialog(scope, period, memory, onReload);
+  const dialog = useStatementDialog(scope, period, onReload);
   return (
     <div className="flex flex-col gap-4">
       {isOpenBusinessReading(reading) ? <StatementChangedNotice reading={reading} /> : null}
       {reading.reader_scope === 'BRANCHES' ? <p>{t(locale, `${NS}.branchReaderNote`)}</p> : null}
       <StatementActions
-        actions={statementActions(reading)}
+        actions={stale ? switchedOff(statementActions(reading)) : statementActions(reading)}
         generated={isGenerated(reading)}
         onPick={(pick) => dialog.show(pick, reading)}
       />
