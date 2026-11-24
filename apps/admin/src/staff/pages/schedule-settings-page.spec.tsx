@@ -13,10 +13,17 @@ const scope = { companyId: id, businessId: id, branchId: id, userId: id };
 const title = t('en', 'shell.schedule_settings_title');
 const limitLabel = t('en', 'shell.schedule_settings_limit');
 
+let savedLimit = 3;
+
 function answerRead(path: string) {
   if (path === '/v1/businesses/{businessId}/schedule-settings') {
     return {
-      data: { business_id: id, max_shifts_per_day: 3, is_default: true, updated_at: null },
+      data: {
+        business_id: id,
+        max_shifts_per_day: savedLimit,
+        is_default: savedLimit === 3,
+        updated_at: null,
+      },
       response: { status: 200, ok: true },
     };
   }
@@ -60,12 +67,21 @@ function renderPage() {
 }
 
 beforeEach(() => {
+  savedLimit = 3;
   api.GET.mockReset();
   api.PUT.mockReset();
   api.GET.mockImplementation((path: string) => Promise.resolve(answerRead(path)));
-  api.PUT.mockResolvedValue({
-    data: { business_id: id, max_shifts_per_day: 4, is_default: false, updated_at: null },
-    response: { status: 200 },
+  api.PUT.mockImplementation((_path: string, options: { body: { max_shifts_per_day: number } }) => {
+    savedLimit = options.body.max_shifts_per_day;
+    return Promise.resolve({
+      data: {
+        business_id: id,
+        max_shifts_per_day: savedLimit,
+        is_default: false,
+        updated_at: null,
+      },
+      response: { status: 200 },
+    });
   });
 });
 
@@ -92,6 +108,13 @@ it('saves the business limit from this page', async () => {
       }),
     ),
   );
+  await waitFor(() =>
+    expect((screen.getByLabelText(limitLabel) as HTMLInputElement).value).toBe('4'),
+  );
+  expect(
+    (screen.getByRole('button', { name: t('en', 'shell.schedule_settings_save') }) as HTMLButtonElement)
+      .disabled,
+  ).toBe(false);
 });
 
 it('shows loading while the read is pending', async () => {

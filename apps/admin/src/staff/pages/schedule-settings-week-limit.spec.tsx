@@ -102,7 +102,10 @@ beforeEach(() => {
 
 it('uses the limit saved on the settings page in the weekly grid', async () => {
   const client = new QueryClient({
-    defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+    defaultOptions: {
+      queries: { retry: false, staleTime: 30_000 },
+      mutations: { retry: false },
+    },
   });
   const schedules = render(
     <QueryClientProvider client={client}>
