@@ -20,7 +20,8 @@ export function ScheduleSettingsRoute() {
   };
   return (
     <ScheduleSettingsPage
-      key={`${scope.companyId}:${scope.businessId}:${scope.branchId}:${userId}`}
+      // المفتاح بيستثني الفرع عمداً، عشان تغيير الفرع ما يمسحش الرقم المكتوب في نموذج النشاط.
+      key={`${scope.companyId}:${scope.businessId}:${userId}`}
       scope={scope}
     />
   );
