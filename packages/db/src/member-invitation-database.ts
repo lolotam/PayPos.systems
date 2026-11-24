@@ -59,7 +59,10 @@ export interface MemberInvitationQueries {
 
 type Database = PostgresJsDatabase<IdentitySchema>;
 
-const findMemberByEmail = async (db: Database, email: string): Promise<IdentityEmailOwner | null> => {
+const findMemberByEmail = async (
+  db: Database,
+  email: string,
+): Promise<IdentityEmailOwner | null> => {
   const [row] = await db
     .select({
       id: user.id,
@@ -148,7 +151,12 @@ const issueInvitationLink = async (db: Database, input: InvitationLinkRow): Prom
     if (login === undefined || login.password !== null) return false;
     await tx
       .delete(verification)
-      .where(and(eq(verification.value, input.userId), like(verification.identifier, 'reset-password:%')));
+      .where(
+        and(
+          eq(verification.value, input.userId),
+          like(verification.identifier, 'reset-password:%'),
+        ),
+      );
     await tx.insert(verification).values({
       id: input.id,
       identifier: input.identifier,

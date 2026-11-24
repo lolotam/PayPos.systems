@@ -1,8 +1,4 @@
-import {
-  InvitationLinkRefusedError,
-  isStaffSyntheticEmail,
-  type AuthService,
-} from '@pospay/auth';
+import { InvitationLinkRefusedError, isStaffSyntheticEmail, type AuthService } from '@pospay/auth';
 
 import { MemberLinkRefusedError, type MemberAccounts } from '../ports/member-invitations.port.ts';
 

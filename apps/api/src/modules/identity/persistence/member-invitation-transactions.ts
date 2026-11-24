@@ -170,6 +170,43 @@ async function reissueClaim(
   return { userId: invitation.user_id };
 }
 
+/** إلغاء دعوة ما اتكتبش لها يوزر ولا عضوية، وتدقيق الإلغاء — بس لو لسه PENDING وفاضية. */
+async function cancelOpenedInvitation(
+  tx: Tx,
+  ids: IdGenerator,
+  input: InvitationActor & { invitationId: string },
+): Promise<void> {
+  const cancelled = await tx.execute<{ id: string }>(sql`
+    UPDATE member_invitations SET state = 'CANCELLED'
+    WHERE company_id = ${input.companyId} AND id = ${input.invitationId}
+      AND state = 'PENDING' AND user_id IS NULL AND membership_id IS NULL
+    RETURNING id`);
+  if (cancelled.length === 0) return;
+  await transactionWriters(tx, ids).audit.record({
+    entity: 'member_invitation',
+    entityId: input.invitationId,
+    action: 'invite.cancelled',
+    after: { invitation_id: input.invitationId, reason: 'EMAIL_NOT_INVITABLE' },
+  });
+}
+
+/** ختم وقت الإصدار الفعلي بعد كتابة التوكن، وتدقيق «link.issued» من غير أي سر. */
+async function stampIssuedLink(
+  tx: Tx,
+  ids: IdGenerator,
+  input: InvitationActor & { invitationId: string; at: Date },
+): Promise<void> {
+  await tx.execute(sql`
+    UPDATE member_invitations SET link_issued_at = ${input.at.toISOString()}::timestamptz
+    WHERE company_id = ${input.companyId} AND id = ${input.invitationId}`);
+  await transactionWriters(tx, ids).audit.record({
+    entity: 'member_invitation',
+    entityId: input.invitationId,
+    action: 'link.issued',
+    after: { invitation_id: input.invitationId },
+  });
+}
+
 /**
  * بيبني حدود جدول الدعوات: كل خطوة بتفتح معاملتها على pospay_app، والسلطة بتتقرأ جوه كل
  * معاملة كتابة (فتح، إتمام، حجز إعادة إصدار) عشان مفيش نافذة بين الفحص والكتابة.
@@ -194,29 +231,15 @@ export function createMemberInvitationTransactions(
       }),
     open: (input) => run(input, (tx) => openInvitation(tx, ids, input)),
     recordRefusal: (input) =>
-      run(input, async (tx) => {
-        await transactionWriters(tx, ids).audit.record({
+      run(input, (tx) =>
+        transactionWriters(tx, ids).audit.record({
           entity: 'member_invitation',
           entityId: ids.newId(),
           action: 'invite.refused',
           after: { reason: 'EMAIL_NOT_INVITABLE' },
-        });
-      }),
-    cancelOpened: (input) =>
-      run(input, async (tx) => {
-        const cancelled = await tx.execute<{ id: string }>(sql`
-          UPDATE member_invitations SET state = 'CANCELLED'
-          WHERE company_id = ${input.companyId} AND id = ${input.invitationId}
-            AND state = 'PENDING' AND user_id IS NULL AND membership_id IS NULL
-          RETURNING id`);
-        if (cancelled.length === 0) return;
-        await transactionWriters(tx, ids).audit.record({
-          entity: 'member_invitation',
-          entityId: input.invitationId,
-          action: 'invite.cancelled',
-          after: { invitation_id: input.invitationId, reason: 'EMAIL_NOT_INVITABLE' },
-        });
-      }),
+        }),
+      ),
+    cancelOpened: (input) => run(input, (tx) => cancelOpenedInvitation(tx, ids, input)),
     complete: (input) => run(input, (tx) => completeInvitation(tx, ids, input)),
     claimLink: async ({ companyId, invitationId, at }) => {
       const claimed = await db.withTenant(companyId, (tx) =>
@@ -228,17 +251,6 @@ export function createMemberInvitationTransactions(
       return claimed.length === 1;
     },
     claimReissue: (input) => run(input, (tx) => reissueClaim(tx, ids, input)),
-    stampLink: (input) =>
-      run(input, async (tx) => {
-        await tx.execute(sql`
-          UPDATE member_invitations SET link_issued_at = ${input.at.toISOString()}::timestamptz
-          WHERE company_id = ${input.companyId} AND id = ${input.invitationId}`);
-        await transactionWriters(tx, ids).audit.record({
-          entity: 'member_invitation',
-          entityId: input.invitationId,
-          action: 'link.issued',
-          after: { invitation_id: input.invitationId },
-        });
-      }),
+    stampLink: (input) => run(input, (tx) => stampIssuedLink(tx, ids, input)),
   };
 }

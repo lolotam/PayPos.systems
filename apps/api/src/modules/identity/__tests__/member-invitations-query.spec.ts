@@ -41,19 +41,17 @@ const invite = (email: string) =>
   });
 
 const database = () => h.app.get(DATABASE);
-const readPage = (actor: string, page: { limit: number; cursor?: string }) =>
-  listMemberInvitations(
-    database(),
-    { companyId: company, userId: actor },
-    page,
-    (userId) => h.auth.members.hasPassword(userId),
+const readPage = (actor: string, page: { limit: number; cursor?: string | undefined }) =>
+  listMemberInvitations(database(), { companyId: company, userId: actor }, page, (userId) =>
+    h.auth.members.hasPassword(userId),
   );
 
 describe('the invitations list query', () => {
   it('projects the page shape, hides the member who set a password behind ACTIVE, and paginates by id', async () => {
     const first = await invite('query-a@example.test');
     expect((await invite('query-b@example.test')).status).toBe(201);
-    const token = new URL(first.body['set_password_link'] as string).pathname.split('/').pop() ?? '';
+    const token =
+      new URL(first.body['set_password_link'] as string).pathname.split('/').pop() ?? '';
     const consumed = await h.app.inject({
       method: 'POST',
       url: '/v1/auth/reset-password',
@@ -73,16 +71,18 @@ describe('the invitations list query', () => {
       can_reissue: false,
     });
     expect(page['items'][0]).not.toHaveProperty('set_password_link');
-    const rest = await readPage(owner.userId, { limit: 20, cursor: page['next_cursor'] ?? undefined });
-    expect(rest['items'].map((row) => [row['state'], row['can_reissue']])).toEqual([['PENDING', true]]);
+    const rest = await readPage(owner.userId, {
+      limit: 20,
+      cursor: page['next_cursor'] ?? undefined,
+    });
+    expect(rest['items'].map((row) => [row['state'], row['can_reissue']])).toEqual([
+      ['PENDING', true],
+    ]);
     expect(rest['next_cursor']).toBeNull();
   });
 
   it('shows can_reissue only to the owner who created the invitation', async () => {
-    const other = await readPage(
-      '01920000-0000-7000-8000-0000000000aa',
-      { limit: 20 },
-    );
+    const other = await readPage('01920000-0000-7000-8000-0000000000aa', { limit: 20 });
     expect(other['items'].every((row) => row['can_reissue'] === false)).toBe(true);
   });
 });

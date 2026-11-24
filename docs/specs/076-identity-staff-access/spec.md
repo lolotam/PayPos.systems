@@ -168,7 +168,7 @@ F3 change phone, stop access, follow the branch · G2 end a membership. Plan: `p
   the earlier link no longer works.
 - **AC-G1-4** A general manager, a branch manager and an owner carrying a DENY override get 403. An owner inviting
   his own email is refused. Two owners inviting the same email at once produce one membership.
-- **AC-G1-5** A role outside the list, or a branch manager without a branch scope → 422; the owner role → 422.
+- **AC-G1-5** A role outside the list, or a branch manager without a branch scope → 422; the owner role → 422. A role whose scope type matches but whose business or branch belongs to another company → 422. A role code outside the schema enum (the owner role and any non-invitable role such as `cashier`) is rejected by the strict schema as 400 `VALIDATION_FAILED`, before any write (accepted ruling).
 - **AC-G1-6** The API logs of the request contain neither the link nor its token.
 
 ### F2

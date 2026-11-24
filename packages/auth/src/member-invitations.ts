@@ -13,7 +13,7 @@ export const MEMBER_INVITATION_LINK_TTL_MS = 48 * 60 * 60 * 1000;
 
 /**
  * حال الإيميل بالنسبة لشركة داعية: FREE مفيش حساب، TAKEN له حساب (قرار N1: بيترفض أياً كان
- * مصدره)، OURS حساب اتنشأ من دعوة سابقة لنفس الشركة — دي الحالة الوحيدة اللي الاستئناف بيعدّيها.
+ * مصدره)، OURS حساب اتنشأ من دعوة سابقة لنفس الشركة وما حطّش كلمة مرور — دي الحالة الوحيدة اللي الاستئناف بيعدّيها.
  */
 export type EmailState =
   | { readonly kind: 'FREE' }
@@ -63,7 +63,13 @@ export interface MemberInvitationAccounts {
 /** هل الإيميل تحت الدومين المحجوز لحسابات الموظفين (F1). */
 export function isStaffSyntheticEmail(email: string): boolean {
   const at = email.lastIndexOf('@');
-  return at > 0 && email.slice(at + 1).trim().toLowerCase() === STAFF_SYNTHETIC_EMAIL_DOMAIN;
+  return (
+    at > 0 &&
+    email
+      .slice(at + 1)
+      .trim()
+      .toLowerCase() === STAFF_SYNTHETIC_EMAIL_DOMAIN
+  );
 }
 
 const normalized = (email: string): string => email.trim().toLowerCase();
@@ -96,7 +102,12 @@ export function createMemberInvitationAccounts(options: {
     inspectEmail: async (email, companyId) => {
       const owner = await queries.findMemberByEmail(normalized(email));
       if (owner === null) return { kind: 'FREE' };
-      return owner.invitedByCompanyId === companyId && owner.invitationOperationId !== null
+      // الاستئناف بس لحساب اتنشأ من دعوة نفس الشركة ولسه ما حطش كلمة مرور؛ بعدها هو حساب موجود (N1).
+      const resumable =
+        owner.invitedByCompanyId === companyId &&
+        owner.invitationOperationId !== null &&
+        (await queries.readHasPassword(owner.id)) === false;
+      return resumable && owner.invitationOperationId !== null
         ? { kind: 'OURS', operationId: owner.invitationOperationId }
         : { kind: 'TAKEN' };
     },
@@ -121,7 +132,8 @@ export function createMemberInvitationAccounts(options: {
         input.operationId,
         input.companyId,
       );
-      if (racedByOperation !== null) return { userId: racedByOperation.id, createdByInvitation: true };
+      if (racedByOperation !== null)
+        return { userId: racedByOperation.id, createdByInvitation: true };
       const raced = await queries.findMemberByEmail(email);
       if (raced === null) throw new Error('invited member vanished after an insert conflict');
       return { userId: raced.id, createdByInvitation: false };

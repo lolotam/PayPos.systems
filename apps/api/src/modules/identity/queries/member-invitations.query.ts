@@ -3,7 +3,11 @@ import type { TenantWrappers } from '@pospay/db';
 import { sql } from 'drizzle-orm';
 
 /** جملة صفحة الدعوات (شاشة «دعوة عضو»): مرتبة بالمفتاح الأساسي (company_id, id) والـ cursor هو آخر id. */
-export function invitationsPageStatement(companyId: string, cursor: string | undefined, rows: number) {
+export function invitationsPageStatement(
+  companyId: string,
+  cursor: string | undefined,
+  rows: number,
+) {
   return sql`
     SELECT id, user_id, membership_id, invited_by, role_code, scope_type, scope_id, state,
            link_issued_at, created_at
@@ -57,7 +61,8 @@ export async function listMemberInvitations(
       scope_id: row.scope_id,
       state: states[position],
       // execute الخام بيرجّع التواريخ نصوص ISO، فالتحويل هنا قبل العقد.
-      link_issued_at: row.link_issued_at === null ? null : new Date(row.link_issued_at).toISOString(),
+      link_issued_at:
+        row.link_issued_at === null ? null : new Date(row.link_issued_at).toISOString(),
       created_at: new Date(row.created_at).toISOString(),
       // زر الإصدار بيتظهر بس للداعي نفسه على دعوة لسه معلّقة فعلاً (بالحالة المعروضة، مش
       // المخزّنة) وعضويتها مكتوبة — نفس شروط مسار الإصدار.

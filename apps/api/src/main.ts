@@ -348,7 +348,7 @@ try {
       staffAccessRoutes: staffAccessRoutesEnabled(process.env),
       ...(config.AUTH_TRUSTED_ORIGINS[0] === undefined
         ? {}
-        : { adminOrigin: config.AUTH_TRUSTED_ORIGINS[0] }),
+        : { memberInvitations: { adminOrigin: config.AUTH_TRUSTED_ORIGINS[0] } }),
       ratingPageOrigin: config.RATING_PAGE_ORIGIN,
       push: readPushApiConfiguration(process.env),
       ratingLinksAvailable,

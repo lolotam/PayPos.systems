@@ -53,9 +53,7 @@ export class ReissueMemberInvitation {
    * @param command الفاعل ومعرف الدعوة
    * @returns الرابط الجديد
    */
-  async execute(
-    command: ReissueMemberInvitationCommand,
-  ): Promise<ReissueMemberInvitationResult> {
+  async execute(command: ReissueMemberInvitationCommand): Promise<ReissueMemberInvitationResult> {
     const { actor, invitationId } = command;
     if (!(await this.#limiter.allow(actor.userId))) throw new ApiError('TOO_MANY_REQUESTS');
     const now = this.#clock.now();

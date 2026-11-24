@@ -56,11 +56,23 @@ export function InvitationsTable({
         <caption className="sr-only">{t(locale, 'invitations.listTitle')}</caption>
         <thead>
           <tr className="border-b text-start">
-            <th scope="col" className="p-2 text-start">{t(locale, 'invitations.roleLabel')}</th>
-            <th scope="col" className="p-2 text-start">{t(locale, 'invitations.scopeLabel')}</th>
-            <th scope="col" className="p-2 text-start">{t(locale, 'permissions.effect')}</th>
-            <th scope="col" className="p-2 text-start">{t(locale, 'invitations.invitedAt')}</th>
-            <th scope="col" className="p-2 text-start" aria-label={t(locale, 'invitations.reissue')} />
+            <th scope="col" className="p-2 text-start">
+              {t(locale, 'invitations.roleLabel')}
+            </th>
+            <th scope="col" className="p-2 text-start">
+              {t(locale, 'invitations.scopeLabel')}
+            </th>
+            <th scope="col" className="p-2 text-start">
+              {t(locale, 'permissions.effect')}
+            </th>
+            <th scope="col" className="p-2 text-start">
+              {t(locale, 'invitations.invitedAt')}
+            </th>
+            <th
+              scope="col"
+              className="p-2 text-start"
+              aria-label={t(locale, 'invitations.reissue')}
+            />
           </tr>
         </thead>
         <tbody>

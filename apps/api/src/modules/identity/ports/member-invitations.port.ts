@@ -4,15 +4,11 @@ import type { InvitableRole, InvitationScopeType } from '../domain/invitable-rol
 
 /** رفض متوقع في مسار الدعوة — الـ use case بيحوّله لكود خطأ معروف. */
 export type MemberInvitationRefusal =
-  | 'FORBIDDEN'
-  | 'MEMBER_INVITATION_EXISTS'
-  | 'MEMBER_ROLE_NOT_INVITABLE';
+  'FORBIDDEN' | 'MEMBER_INVITATION_EXISTS' | 'MEMBER_ROLE_NOT_INVITABLE';
 
 /** رفض إعادة إصدار الرابط: السلطة أو حالة الدعوة جوه المعاملة. */
 export type ReissueRefusal =
-  | 'FORBIDDEN'
-  | 'MEMBER_INVITATION_NOT_REISSUEABLE'
-  | 'MEMBER_ROLE_NOT_INVITABLE';
+  'FORBIDDEN' | 'MEMBER_INVITATION_NOT_REISSUEABLE' | 'MEMBER_ROLE_NOT_INVITABLE';
 
 /** رفض إصدار رابط الدعوة من جهة الهوية — رسالته عامة وما بتكشفش سبب الرفض ولا وجود أي حساب. */
 export class MemberLinkRefusedError extends Error {
@@ -54,8 +50,7 @@ export interface OpenInvitationInput extends InvitationActor {
 
 /** نتيجة الخطوة الأولى: صف الدعوة الجديد أو صف PENDING قديم اتعاد استخدامه بعد انقطاع (D6). */
 export type OpenInvitationOutcome =
-  | { readonly invitationId: string }
-  | { readonly refusal: MemberInvitationRefusal };
+  { readonly invitationId: string } | { readonly refusal: MemberInvitationRefusal };
 
 /** مدخلات الإتمام: العضوية والتدقيق والحدث بتتبني من الصف المقفول مش من الطلب. */
 export interface CompleteInvitationInput extends InvitationActor {
@@ -64,7 +59,11 @@ export interface CompleteInvitationInput extends InvitationActor {
   /** اليوزر اللي الخطوة التانية أنشأته لهذه العملية؛ بيتطابق مع الصف المقفول أو الإتمام بيرفض. */
   readonly userId: string;
   /** بيبني حدث MemberInvited من الصف المقفول — مفيش فيه إيميل ولا رابط ولا token. */
-  readonly buildEvent: (row: MemberInvitationRow, membershipId: string, userId: string) => DomainEvent;
+  readonly buildEvent: (
+    row: MemberInvitationRow,
+    membershipId: string,
+    userId: string,
+  ) => DomainEvent;
   /** بيبني صفوف التدقيق من الصف المقفول بترتيب الكتابة. */
   readonly buildAudit: (
     row: MemberInvitationRow,
@@ -83,6 +82,30 @@ export type CompleteInvitationOutcome =
       readonly alreadyComplete: boolean;
     }
   | { readonly done: false; readonly refusal: MemberInvitationRefusal };
+
+/** حجز إصدار الرابط الأول: الشركة والدعوة ووقت الحجز من الساعة المحقونة. */
+export interface LinkClaimInput {
+  readonly companyId: string;
+  readonly invitationId: string;
+  readonly at: Date;
+}
+
+/** بيانات حساب المدعوّ: معرّف العملية (ايدمبوتنس) والشركة الداعية والإيميل والاسم. */
+export interface InvitedAccountInput {
+  readonly operationId: string;
+  readonly companyId: string;
+  readonly email: string;
+  readonly name: string;
+}
+
+/** بيانات إصدار رابط تعيين كلمة المرور: اليوزر والشركة وصفحة set-password وعمر الرابط ووقت الإصدار. */
+export interface LinkIssueInput {
+  readonly userId: string;
+  readonly companyId: string;
+  readonly redirectTo: string;
+  readonly lifetimeMs: number;
+  readonly now: Date;
+}
 
 /** حدود جدول الدعوات — كل خطوة بتفتح معاملتها بنفسها (D6) وبتعيد فحص سلطة المالك جواها. */
 export interface MemberInvitationTransactions {
@@ -130,7 +153,7 @@ export interface MemberInvitationTransactions {
    * @param input الشركة والدعوة ووقت الحجز
    * @returns true لما الحجز يتم، وfalse لو طلب تاني حجزه قبل كده
    */
-  claimLink(input: { companyId: string; invitationId: string; at: Date }): Promise<boolean>;
+  claimLink(input: LinkClaimInput): Promise<boolean>;
   /**
    * إعادة الإصدار: بيعيد فحص السلطة والنطاق جوه معاملة قافلة الصف، ويتأكد إن الدعوة PENDING
    * ومن نفس المتصل وعضويتها مكتوبة، ويسجّل تدقيق الطلب (P1-a، P2-a).
@@ -183,12 +206,9 @@ export interface MemberAccounts {
    * @param input معرّف العملية والشركة والإيميل والاسم
    * @returns الـ id وهل الحساب اتعمل من الدعوة دي (false لما سبقنا حساب بنفس الإيميل)
    */
-  createInvitedMember(input: {
-    operationId: string;
-    companyId: string;
-    email: string;
-    name: string;
-  }): Promise<{ userId: string; createdByInvitation: boolean }>;
+  createInvitedMember(
+    input: InvitedAccountInput,
+  ): Promise<{ userId: string; createdByInvitation: boolean }>;
   /**
    * يصدر رابط تعيين كلمة مرور بقفل صف اليوزر: يرفض لو اليوزر مش مدعوّ من الشركة دي أو
    * كلمة مروره اتحطت، ويبطل الروابط القديمة (P1-c).
@@ -196,13 +216,7 @@ export interface MemberAccounts {
    * @param input اليوزر والشركة وصفحة set-password وعمر الرابط ووقت الإصدار
    * @returns الرابط مرة واحدة — فيه token، فبيتسلم للطلب ولا يتكتبش في log
    */
-  issueLink(input: {
-    userId: string;
-    companyId: string;
-    redirectTo: string;
-    lifetimeMs: number;
-    now: Date;
-  }): Promise<string>;
+  issueLink(input: LinkIssueInput): Promise<string>;
 }
 
 /** حدّ معدّل الدعوات لكل مالك في ساعة. */

@@ -106,7 +106,9 @@ describe('link lifetime (D9, IM-Q3)', () => {
     const now = new Date('2026-11-24T10:00:00.000Z');
     await issue(userId, COMPANY, now);
     const [row] = await liveLinks(userId);
-    expect((row?.['expires_at'] as Date).getTime()).toBe(now.getTime() + MEMBER_INVITATION_LINK_TTL_MS);
+    expect((row?.['expires_at'] as Date).getTime()).toBe(
+      now.getTime() + MEMBER_INVITATION_LINK_TTL_MS,
+    );
   });
 
   it('the token is stored exactly as Better Auth stores every reset token: plain in the identifier', async () => {
@@ -186,11 +188,20 @@ describe('email state and invited member creation', () => {
     await auth.provisionUser({ email: 'plain@example.test', name: 'Plain', password: PASSWORD });
     expect(await members().inspectEmail('nobody@example.test', COMPANY)).toEqual({ kind: 'FREE' });
     expect(await members().inspectEmail('PLAIN@example.test', COMPANY)).toEqual({ kind: 'TAKEN' });
-    expect(await members().inspectEmail('State@example.test', OTHER_COMPANY)).toEqual({ kind: 'TAKEN' });
+    expect(await members().inspectEmail('State@example.test', OTHER_COMPANY)).toEqual({
+      kind: 'TAKEN',
+    });
     expect(await members().inspectEmail('State@example.test', COMPANY)).toEqual({
       kind: 'OURS',
       operationId,
     });
+    // بعد ما صاحب الحساب يحط كلمة مروره بقى حساب موجود عادي حتى لنفس الشركة (N1).
+    await owner`UPDATE account SET password = 'x' WHERE provider_id = 'credential'
+      AND user_id = (SELECT id FROM "user" WHERE email = 'state@example.test')`;
+    expect(await members().inspectEmail('state@example.test', COMPANY)).toEqual({ kind: 'TAKEN' });
+    // بعد ما صاحب الحساب يحط كلمة مروره بقى حساب موجود عادي حتى لنفس الشركة (N1).
+    await owner;
+    expect(await members().inspectEmail('state@example.test', COMPANY)).toEqual({ kind: 'TAKEN' });
   });
 
   it('is idempotent by operation id and creates a credential account without a password', async () => {

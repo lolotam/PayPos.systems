@@ -134,14 +134,19 @@ export function identityProviders(
     origin: string | null;
     nativeOrigins?: readonly string[];
   },
-  /** أصل لوحة الإدارة — صفحة تعيين كلمة المرور بتتبني عليه. */
-  adminOrigin?: string,
-  clock: { now(): Date } = systemClock,
+  /** أصل لوحة الإدارة اللي رابط تعيين كلمة المرور بيتبني عليه، وساعة عمر الرابط. */
+  invitations?: { readonly adminOrigin: string; readonly clock?: { now(): Date } },
 ): Provider[] {
   const capabilities = identityCapabilities(database, ids, redis);
   return [
     ...permissionProviders(database, ids, redis),
-    ...memberInvitationProviders(database, ids, redis, adminOrigin, clock),
+    ...memberInvitationProviders(
+      database,
+      ids,
+      redis,
+      invitations?.adminOrigin,
+      invitations?.clock ?? systemClock,
+    ),
     {
       provide: STAFF_AUTHENTICATION,
       useValue: database === undefined ? null : createStaffEligibility(database),

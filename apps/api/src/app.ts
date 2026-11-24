@@ -102,12 +102,10 @@ import {
   type PersonalAuthentication,
 } from './shared/personal-authentication.ts';
 import { AUTH_SERVICE, SessionGuard } from './shared/session.guard.ts';
-import { MEMBER_INVITATION_ROUTE, staffAccessGateHook } from './shared/staff-access-routes.ts';
+import { mountStaffAccessGate } from './shared/staff-access-routes.ts';
 
 export interface AppDependencies {
   readonly ordersClock?: { now(): Date };
-  /** ساعة هوية الدعوات — عمر رابط الدعوة بيتقاس بيها على المسار الكامل (AC-G1-2). */
-  readonly clock?: { now(): Date };
   /** ساعة موديول العملاء — قرار رفض التقييم بيقاس بيها، عشان الاختبار يثبّت الوقت. */
   readonly customersClock?: { now(): Date };
   /** أقصى عمر لمعاملة رفض التقييم؛ القفل ما يعلّقش الطلب على زائر. */
@@ -119,8 +117,11 @@ export interface AppDependencies {
   readonly ratingLinksAvailable?: boolean;
   /** بوابة مسارات شريحة 076 (plan §1.1): مقفولة افتراضياً، فالمسارات بتجيب 503. */
   readonly staffAccessRoutes?: boolean;
-  /** أصل لوحة الإدارة — صفحة تعيين كلمة المرور بتتبني عليه زي ما سكريبت الـ operator بيعمل. */
-  readonly adminOrigin?: string;
+  /**
+   * دعوة الأعضاء: أصل لوحة الإدارة اللي صفحة تعيين كلمة المرور بتتبني عليه، وساعة بيتقاس بيها عمر
+   * الرابط (AC-G1-2). من غير الأصل مسارات الدعوة بترد NOT_READY.
+   */
+  readonly memberInvitations?: { readonly adminOrigin: string; readonly clock?: { now(): Date } };
   readonly commissionsClock?: { now(): Date };
   readonly employeeCardKey?: Buffer;
   readonly personal?: PersonalAuthentication | null;
@@ -277,8 +278,7 @@ class AppModule {
           deps.ids ?? systemUuidV7(),
           deps.redis,
           deps.staff,
-          deps.adminOrigin,
-          deps.clock,
+          deps.memberInvitations,
         ),
         {
           provide: RATE_LIMITER,
@@ -434,18 +434,12 @@ export async function createApp(
   const limiter = deps.redis === undefined ? null : createRedisRateLimiter(deps.redis);
   const adapter = buildAdapter(logger, deps.ids ?? systemUuidV7(), deps.trustedProxy ?? []);
   mountWhatsappSecurity(adapter, deps.whatsapp, deps.redis);
+  mountStaffAccessGate(adapter.getInstance(), deps.staffAccessRoutes === true);
   adapter.getInstance().addHook('onRoute', (route) => {
     if (/^\/v1\/devices\/me\/staff-(otp\/(request|verify)|pin\/sign-in)$/.test(route.url))
       route.bodyLimit = 1024;
     // المسارات العامة للتقييم: الحد والترويسات بتتحط قبل أي handler، عشان كل رد يطلع من المسار ده
     // يحملها — حتى الردود اللي بتترفض قبل ما يوصل المسار.
-    // بوابة شريحة 076 مقفولة: مسارات الدعوة بترد 503 قبل أي parsing أو حارس (plan §1.1).
-    if (deps.staffAccessRoutes !== true && MEMBER_INVITATION_ROUTE.test(route.url)) {
-      const gate = staffAccessGateHook();
-      if (route.onRequest === undefined) route.onRequest = gate;
-      else if (typeof route.onRequest === 'function') route.onRequest = [route.onRequest, gate];
-      else route.onRequest = [...route.onRequest, gate];
-    }
     if (RATING_ROUTE.test(route.url)) {
       const hook = ratingAdmissionHook({
         limiter,

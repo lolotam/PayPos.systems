@@ -1,5 +1,5 @@
 import { errorEnvelope } from '@pospay/contracts';
-import { OWNER_ROLE_ID, SYSTEM_ROLES } from '@pospay/db';
+import { OWNER_ROLE_ID, SYSTEM_ROLES, type TenantWrappers } from '@pospay/db';
 import { systemUuidV7 } from '@pospay/ids';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
@@ -12,13 +12,31 @@ import { systemClock } from '../../../shared/adapters/system-clock.ts';
 // إعادة الإصدار؛ والسباق على نفس الإيميل بأدوار مختلفة بيسيب عضوية واحدة بدور الفايز (P1-b).
 const ids = systemUuidV7();
 let h: Harness;
+// برج بين فتح الدعوة وإتمامها: بعد ما معاملة الفتح تكوميت بيفعّل الخطّاف مرة واحدة (P1-a).
+let betweenSteps: (() => Promise<void>) | null = null;
+const withBarrier = (db: TenantWrappers): TenantWrappers => ({
+  ...db,
+  withTenant: async (companyId, work, options) => {
+    const result = await db.withTenant(companyId, work, options);
+    const hook = betweenSteps;
+    if (hook !== null) {
+      const [pending] = await h.owner`
+        SELECT 1 FROM member_invitations WHERE company_id = ${companyId} AND membership_id IS NULL`;
+      if (pending !== undefined) {
+        betweenSteps = null;
+        await hook();
+      }
+    }
+    return result;
+  },
+});
 const ownerA = { email: 'g1x-owner-a@example.test', cookie: '', userId: '' };
 const ownerA2 = { email: 'g1x-owner-a2@example.test', cookie: '', userId: '' };
 
 const role = (code: string) => SYSTEM_ROLES.find((r) => r.code === code)?.id ?? '';
 
 beforeAll(async () => {
-  h = await startHarness({ staffAccessRoutes: true });
+  h = await startHarness({ staffAccessRoutes: true, wrapDatabase: withBarrier });
   for (const who of [ownerA, ownerA2]) {
     who.cookie = await h.signedInOperator(who.email);
     const [row] = await h.owner`SELECT id FROM "user" WHERE email = ${who.email}`;
@@ -81,12 +99,10 @@ describe('AC-G1-4 — authority at open: non-owners get 403', () => {
       ['g1x-bm@example.test', 'branch_manager', 'BRANCH', branch],
     ] as const) {
       const cookie = await h.signedInOperator(email);
-      const userId = await (
-        async () => {
-          const [row] = await h.owner`SELECT id FROM "user" WHERE email = ${email}`;
-          return (row?.['id'] as string) ?? '';
-        }
-      )();
+      const userId = await (async () => {
+        const [row] = await h.owner`SELECT id FROM "user" WHERE email = ${email}`;
+        return (row?.['id'] as string) ?? '';
+      })();
       await addSystemRoleMember(companyA, userId, roleCode, scopeType, scopeId);
       expect((await invite(cookie, companyA, body)).status).toBe(403);
     }
@@ -106,7 +122,11 @@ describe('AC-G1-4 — authority at open: non-owners get 403', () => {
         scope_type, scope_id, reason, granted_by)
       VALUES (${companyC}, ${ids.newId()}, ${membership?.['id']},
         'manage:memberships:company', 'DENY', 'COMPANY', ${companyC}, 'test', ${denyOwner.userId})`;
-    const response = await invite(denyOwner.cookie, companyC, bodyFor(companyC, 'denied@example.test'));
+    const response = await invite(
+      denyOwner.cookie,
+      companyC,
+      bodyFor(companyC, 'denied@example.test'),
+    );
     expect(response.status).toBe(403);
   });
 });
@@ -165,6 +185,89 @@ describe('P1-a — completion re-checks authority after an interrupted request',
   });
 });
 
+const denyInvitations = async (company: string, userId: string) => {
+  const [membership] = await h.owner`
+    SELECT id FROM memberships WHERE company_id = ${company} AND user_id = ${userId}
+      AND role_id = ${OWNER_ROLE_ID}::uuid`;
+  await h.owner`
+    INSERT INTO permission_overrides (company_id, id, membership_id, permission_code, effect,
+      scope_type, scope_id, reason, granted_by)
+    VALUES (${company}, ${ids.newId()}, ${membership?.['id']},
+      'manage:memberships:company', 'DENY', 'COMPANY', ${company}, 'test', ${userId})`;
+  return String(membership?.['id']);
+};
+
+describe('P1-a — the barrier between open and complete inside ONE request', () => {
+  it('an owner who loses authority between the two steps gets 403 and no membership or event', async () => {
+    const company = await h.onboard(ownerA.cookie, 'G1X Barrier Authority');
+    betweenSteps = async () => {
+      await denyInvitations(company, ownerA.userId);
+    };
+    const response = await invite(
+      ownerA.cookie,
+      company,
+      bodyFor(company, 'barrier-authority@example.test'),
+    );
+    betweenSteps = null;
+    expect([response.status, errorEnvelope.parse(response.body).code]).toEqual([403, 'FORBIDDEN']);
+    expect(
+      await h.owner`SELECT count(*)::int AS n FROM memberships WHERE company_id = ${company}`,
+    ).toEqual([{ n: 1 }]);
+    expect(
+      await h.owner`SELECT count(*)::int AS n FROM outbox WHERE company_id = ${company} AND event_type = 'MemberInvited'`,
+    ).toEqual([{ n: 0 }]);
+  });
+
+  it('a branch removed between the two steps makes the completion refuse 422 and write nothing', async () => {
+    const company = await h.onboard(ownerA.cookie, 'G1X Barrier Scope');
+    const { branch } = await addBusinessAndBranch(company);
+    betweenSteps = async () => {
+      await h.owner`DELETE FROM branches WHERE company_id = ${company} AND id = ${branch}`;
+    };
+    const response = await invite(ownerA.cookie, company, {
+      ...bodyFor(company, 'barrier-scope@example.test'),
+      role: 'branch_manager',
+      scope: { type: 'BRANCH', id: branch },
+    });
+    betweenSteps = null;
+    expect([response.status, errorEnvelope.parse(response.body).code]).toEqual([
+      422,
+      'MEMBER_ROLE_NOT_INVITABLE',
+    ]);
+    expect(
+      await h.owner`SELECT count(*)::int AS n FROM memberships WHERE company_id = ${company}`,
+    ).toEqual([{ n: 1 }]);
+  });
+});
+
+describe('P1-a — re-issue re-checks authority and scope in its own transaction', () => {
+  it('a scope that no longer belongs to the company is refused 422 and an owner carrying a DENY is refused FORBIDDEN', async () => {
+    const company = await h.onboard(ownerA.cookie, 'G1X Reissue Authority');
+    const { branch } = await addBusinessAndBranch(company);
+    const created = await invite(ownerA.cookie, company, {
+      ...bodyFor(company, 'reissue-authority@example.test'),
+      role: 'branch_manager',
+      scope: { type: 'BRANCH', id: branch },
+    });
+    expect(created.status).toBe(201);
+    const transactions = createMemberInvitationTransactions(h.app.get(DATABASE), ids);
+    const request = {
+      companyId: company,
+      actorUserId: ownerA.userId,
+      invitationId: String(created.body['invitation_id']),
+    };
+    expect(await transactions.claimReissue(request)).toMatchObject({ userId: expect.any(String) });
+    // العضوية بتمنع حذف الفرع (FK)، فنفس الحالة بتتحاكى بصف دعوة نطاقه ما بقاش تابع للشركة.
+    await h.owner`UPDATE member_invitations SET scope_id = ${ids.newId()}
+      WHERE company_id = ${company} AND id = ${request.invitationId}`;
+    expect(await transactions.claimReissue(request)).toEqual({
+      refusal: 'MEMBER_ROLE_NOT_INVITABLE',
+    });
+    await denyInvitations(company, ownerA.userId);
+    expect(await transactions.claimReissue(request)).toEqual({ refusal: 'FORBIDDEN' });
+  });
+});
+
 describe('AC-G1-4 / P1-b — a raced invitation with different roles keeps one membership, the winner role', () => {
   it('two owners inviting the same email with different roles produce one membership and one event', async () => {
     const companyA = await h.onboard(ownerA.cookie, 'G1X Company A7');
@@ -192,6 +295,25 @@ describe('AC-G1-4 / P1-b — a raced invitation with different roles keeps one m
         SELECT count(*)::int AS n FROM outbox WHERE company_id = ${companyA}
           AND event_type = 'MemberInvited'`,
     ).toEqual([{ n: 1 }]);
+  });
+});
+
+describe('P1-b — a pending row is never mutated by a later request', () => {
+  it('the same owner re-sending the email with another role gets 409 and the row keeps its role', async () => {
+    const company = await h.onboard(ownerA.cookie, 'G1X Fixed Row');
+    const first = await invite(ownerA.cookie, company, bodyFor(company, 'fixed-row@example.test'));
+    expect(first.status).toBe(201);
+    const second = await invite(ownerA.cookie, company, {
+      ...bodyFor(company, 'fixed-row@example.test'),
+      role: 'general_manager',
+    });
+    expect([second.status, errorEnvelope.parse(second.body).code]).toEqual([
+      409,
+      'MEMBER_INVITATION_EXISTS',
+    ]);
+    const [row] = await h.owner`
+      SELECT role_code, invited_by FROM member_invitations WHERE company_id = ${company}`;
+    expect(row).toEqual({ role_code: 'accountant', invited_by: ownerA.userId });
   });
 });
 
@@ -234,15 +356,16 @@ describe('AC-G1-5 — scope and role refusals', () => {
       422,
       'MEMBER_ROLE_NOT_INVITABLE',
     ]);
-    const ownerRole = await invite(ownerA.cookie, companyA, {
-      email: 'owner-role@example.test',
-      name: 'Owner Role',
-      role: 'owner',
-      scope: { type: 'COMPANY', id: companyA },
-      email_confirmed: true,
-    });
-    expect(ownerRole.status).toBe(400);
-    expect(errorEnvelope.parse(ownerRole.body).code).toBe('VALIDATION_FAILED');
+    for (const outOfList of ['owner', 'cashier']) {
+      const refused = await invite(ownerA.cookie, companyA, {
+        ...bodyFor(companyA, `${outOfList}-role@example.test`),
+        role: outOfList,
+      });
+      expect([refused.status, errorEnvelope.parse(refused.body).code]).toEqual([
+        400,
+        'VALIDATION_FAILED',
+      ]);
+    }
     expect(
       await h.owner`SELECT count(*)::int AS n FROM member_invitations WHERE company_id = ${companyA}`,
     ).toEqual([{ n: 0 }]);

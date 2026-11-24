@@ -129,18 +129,12 @@ export async function createAuth(options: AuthOptions): Promise<AuthService> {
   const auth = buildBetterAuth(options, database, cookieNames);
   const staff = staffSessions(options, auth, database, cookieNames);
   const personal = personalSessions(options, auth, database);
-  const passkeys = configuredPasskeys(options, auth, database);
   return {
     staff,
     personal,
-    passkeys,
+    passkeys: configuredPasskeys(options, auth, database),
     privateView: configuredPrivateView(options, database),
-    members: createMemberInvitationAccounts({
-      database,
-      ids: options.ids,
-      secret: options.secret,
-      baseUrl: (await auth.$context).baseURL,
-    }),
+    members: await configuredMembers(options, database, auth),
     handler: async (request) => {
       if (
         isPasskeyRoute(request.url) ||
@@ -183,6 +177,20 @@ export async function createAuth(options: AuthOptions): Promise<AuthService> {
 }
 
 type AuthContext = Awaited<ReturnType<typeof buildBetterAuth>['$context']>;
+
+/** حدود الدعوة على قاعدة الهوية — تركيبها هنا عشان createAuth يفضل خطوات تركيب بس. */
+async function configuredMembers(
+  options: AuthOptions,
+  database: ReturnType<typeof createAuthDatabase>,
+  auth: ReturnType<typeof buildBetterAuth>,
+): Promise<MemberInvitationAccounts> {
+  return createMemberInvitationAccounts({
+    database,
+    ids: options.ids,
+    secret: options.secret,
+    baseUrl: (await auth.$context).baseURL,
+  });
+}
 
 async function provision(
   context: AuthContext,

@@ -327,9 +327,6 @@ async function prepareHarness(
         ...personalWiring(options, auth, database),
         ids,
         ...(options.omitRedis === true ? {} : { redis }),
-        // أصل اللوحة اللي الرابط بيتبنى عليه؛ بوابة المسارات بتتفتح من الاختبارات اللي محتاجاها بس.
-        adminOrigin: ORIGIN,
-        ...(options.staffAccessRoutes === true ? { staffAccessRoutes: true } : {}),
       },
       {
         logger: harnessLogger(options),
@@ -385,9 +382,13 @@ function optionalWiring(options: HarnessOptions) {
     ...(options.commissionsClock === undefined
       ? {}
       : { commissionsClock: options.commissionsClock }),
-    // ساعة هوية الدعوات (AC-G1-2): الاختبار بيثبّت الوقت عشان عمر الرابط ينزل بالظبط.
-    ...(options.clock === undefined ? {} : { clock: options.clock }),
     ...(options.files === undefined ? {} : { files: options.files }),
+    // أصل اللوحة اللي رابط الدعوة بيتبنى عليه وساعتها؛ بوابة المسارات بتتفتح من الاختبارات اللي محتاجاها بس.
+    memberInvitations: {
+      adminOrigin: ORIGIN,
+      ...(options.clock === undefined ? {} : { clock: options.clock }),
+    },
+    ...(options.staffAccessRoutes === true ? { staffAccessRoutes: true } : {}),
   };
 }
 

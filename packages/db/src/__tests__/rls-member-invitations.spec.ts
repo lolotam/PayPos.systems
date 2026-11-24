@@ -47,9 +47,7 @@ afterAll(async () => {
 it('the invitations table carries forced row-level security and the three tenant policies', async () => {
   const owner = postgres(testDb.ownerUrl, { max: 1, onnotice: () => undefined });
   try {
-    const tables = await owner<
-      { relrowsecurity: boolean; relforcerowsecurity: boolean }[]
-    >`
+    const tables = await owner<{ relrowsecurity: boolean; relforcerowsecurity: boolean }[]>`
       SELECT relrowsecurity, relforcerowsecurity FROM pg_class WHERE relname = 'member_invitations'`;
     expect(tables).toEqual([{ relrowsecurity: true, relforcerowsecurity: true }]);
     const policies = await owner<{ cmd: string }[]>`
@@ -122,6 +120,7 @@ it('the stored row keeps an email hash and role metadata only — no email, no t
       'email_hash',
       'id',
       'invited_by',
+      'link_claimed_at',
       'link_issued_at',
       'membership_id',
       'role_code',

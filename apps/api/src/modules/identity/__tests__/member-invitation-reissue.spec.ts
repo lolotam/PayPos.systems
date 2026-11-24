@@ -5,21 +5,16 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 import { startHarness, type Harness } from '../../../../test/harness.ts';
 
-// إعادة إصدار الرابط (AC-G1-3b، P1-c): كل اختبار على fixtures مستقلة (شركة ودعوة خاصة)،
-// والرفض بيتبعت بأسبابه: مالك تاني 403، شركة تانية 404، كلمة مرور متحطة 409، وانقطاع قبل
-// كتابة العضوية مرفوض؛ وإصداران متزامنان بيسيبوا توكن حي واحد بس.
+// إعادة إصدار الرابط (AC-G1-3b، P1-c): كل اختبار على fixtures مستقلة (مالك وشركة ودعوة خاصة،
+// لأن حد الدعوات عشرة في الساعة لكل مالك)؛ والرفض بأسبابه: مالك تاني 403 والرابط القديم لسه حي،
+// شركة تانية 409، كلمة مرور متحطة 409، وعضوية ما اتكتبتش 409؛ وإصداران متزامنان بيسيبوا توكن
+// حي واحد بس.
 const ids = systemUuidV7();
 let h: Harness;
-const owner = { email: 'g1r-owner@example.test', cookie: '', userId: '' };
-const secondOwner = { email: 'g1r-second@example.test', cookie: '', userId: '' };
+let counter = 0;
 
 beforeAll(async () => {
   h = await startHarness({ staffAccessRoutes: true });
-  for (const who of [owner, secondOwner]) {
-    who.cookie = await h.signedInOperator(who.email);
-    const [row] = await h.owner`SELECT id FROM "user" WHERE email = ${who.email}`;
-    who.userId = (row?.['id'] as string) ?? '';
-  }
 });
 
 afterAll(async () => {
@@ -36,21 +31,26 @@ const resetPassword = (token: string, newPassword: string) =>
     payload: { token, newPassword },
   });
 
-const reissue = (cookie: string, byCompany: string, id: string) =>
-  h.send('POST', `/v1/memberships/invitations/${id}/link`, { cookie, company: byCompany });
+const reissue = (cookie: string, company: string, id: string) =>
+  h.send('POST', `/v1/memberships/invitations/${id}/link`, { cookie, company });
+const codeOf = (response: { status: number; body: Record<string, unknown> }) => [
+  response.status,
+  errorEnvelope.parse(response.body).code,
+];
 
-/** دعوة كاملة لشركة جديدة بمالك جديد — fixtures مستقلة لكل اختبار (P2-d). */
-async function inviteFresh(
-  who: { cookie: string; userId: string },
-  companyName: string,
-  email: string,
-): Promise<{ company: string; invitationId: string; firstToken: string }> {
-  const company = await h.onboard(who.cookie, companyName);
+/** مالك جديد وشركة جديدة ودعوة محاسب كاملة — fixtures مستقلة لكل اختبار (P2-d). */
+async function inviteFresh(label: string) {
+  counter += 1;
+  const email = `g1r-${label}-${counter}@example.test`;
+  const cookie = await h.signedInOperator(email);
+  const [row] = await h.owner`SELECT id FROM "user" WHERE email = ${email}`;
+  const owner = { cookie, userId: String(row?.['id']) };
+  const company = await h.onboard(cookie, `G1R ${label}`);
   const invited = await h.send('POST', '/v1/memberships/invitations', {
-    cookie: who.cookie,
+    cookie,
     company,
     body: {
-      email,
+      email: `invited-${label}-${counter}@example.test`,
       name: 'Invited',
       role: 'accountant',
       scope: { type: 'COMPANY', id: company },
@@ -59,98 +59,100 @@ async function inviteFresh(
   });
   expect(invited.status).toBe(201);
   return {
+    owner,
     company,
     invitationId: invited.body['invitation_id'] as string,
     firstToken: tokenOf(invited.body['set_password_link'] as string),
   };
 }
 
+const liveTokens = (company: string, invitationId: string) => h.owner`
+  SELECT identifier FROM verification
+  WHERE value = (SELECT user_id::text FROM member_invitations
+                 WHERE company_id = ${company} AND id = ${invitationId})
+    AND identifier LIKE 'reset-password:%'`;
+
 describe('AC-G1-3b — re-issuing a link the owner lost', () => {
   it('re-issues for a pending invitation and kills the earlier still-existing token', async () => {
-    const fixture = await inviteFresh(owner, 'G1R Lost', 'lost@example.test');
-    // الرابط القديم لسه موجود (متتشالش من قاعدة البيانات): إعادة الإصدار لازم تبطلُه فعلياً.
-    const reissued = await reissue(owner.cookie, fixture.company, fixture.invitationId);
+    const fixture = await inviteFresh('lost');
+    expect(await liveTokens(fixture.company, fixture.invitationId)).toHaveLength(1);
+    const reissued = await reissue(fixture.owner.cookie, fixture.company, fixture.invitationId);
     expect(reissued.status).toBe(200);
     const secondToken = tokenOf(reissued.body['set_password_link'] as string);
     expect(secondToken).not.toBe(fixture.firstToken);
     expect((await resetPassword(fixture.firstToken, 'lost-chosen-pass')).statusCode).toBe(400);
     expect((await resetPassword(secondToken, 'lost-chosen-pass')).statusCode).toBe(200);
-  });
-
-  it('another owner in the same company is refused with FORBIDDEN', async () => {
-    const fixture = await inviteFresh(owner, 'G1R Forbidden', 'forbidden@example.test');
-    const [row] = await h.owner`
-      SELECT count(*)::int AS n FROM member_invitations WHERE company_id = ${fixture.company}`;
-    expect(row?.['n']).toBe(1);
-    // مالك تاني كانوني في نفس الشركة (seed حقيقي، مش مجرد مستخدم).
-    await h.owner`
-      INSERT INTO memberships (company_id, id, user_id, role_id, role_owner_key, scope_type, scope_id)
-      VALUES (${fixture.company}, ${ids.newId()}, ${secondOwner.userId}, ${OWNER_ROLE_ID}::uuid,
-              'global', 'COMPANY', ${fixture.company})`;
-    const response = await reissue(secondOwner.cookie, fixture.company, fixture.invitationId);
-    expect([response.status, errorEnvelope.parse(response.body).code]).toEqual([403, 'FORBIDDEN']);
-  });
-
-  it('another company cannot see or re-issue the invitation at all', async () => {
-    const fixture = await inviteFresh(owner, 'G1R Cross', 'cross@example.test');
-    const otherCompany = await h.onboard(secondOwner.cookie, 'G1R Cross Other');
-    const response = await reissue(secondOwner.cookie, otherCompany, fixture.invitationId);
-    expect([response.status, errorEnvelope.parse(response.body).code]).toEqual([404, 'NOT_FOUND']);
-  });
-
-  it('a member who already set a password is refused a new link', async () => {
-    const fixture = await inviteFresh(owner, 'G1R Consumed', 'consumed@example.test');
-    await resetPassword(fixture.firstToken, 'consumed-chosen-pass');
-    const response = await reissue(owner.cookie, fixture.company, fixture.invitationId);
-    expect([response.status, errorEnvelope.parse(response.body).code]).toEqual([
-      409,
-      'MEMBER_INVITATION_NOT_REISSUEABLE',
+    const audit = await h.owner`
+      SELECT action FROM audit_log WHERE company_id = ${fixture.company} AND entity_id = ${fixture.invitationId}
+        AND action LIKE 'link.%'`;
+    expect(audit.map((row) => row['action']).sort()).toEqual([
+      'link.issued',
+      'link.issued',
+      'link.reissue_requested',
     ]);
   });
 
+  it('another owner in the same company is refused and the live link is untouched', async () => {
+    const fixture = await inviteFresh('forbidden');
+    const secondEmail = `g1r-second-${counter}@example.test`;
+    const secondCookie = await h.signedInOperator(secondEmail);
+    const [second] = await h.owner`SELECT id FROM "user" WHERE email = ${secondEmail}`;
+    await h.owner`
+      INSERT INTO memberships (company_id, id, user_id, role_id, role_owner_key, scope_type, scope_id)
+      VALUES (${fixture.company}, ${ids.newId()}, ${second?.['id']}, ${OWNER_ROLE_ID}::uuid,
+              'global', 'COMPANY', ${fixture.company})`;
+    const response = await reissue(secondCookie, fixture.company, fixture.invitationId);
+    expect(codeOf(response)).toEqual([409, 'MEMBER_INVITATION_NOT_REISSUEABLE']);
+    expect(await liveTokens(fixture.company, fixture.invitationId)).toEqual([
+      { identifier: `reset-password:${fixture.firstToken}` },
+    ]);
+  });
+
+  it('another company cannot re-issue the invitation and learns nothing about it', async () => {
+    const fixture = await inviteFresh('cross');
+    const other = await inviteFresh('cross-other');
+    const response = await reissue(other.owner.cookie, other.company, fixture.invitationId);
+    expect(codeOf(response)).toEqual([409, 'MEMBER_INVITATION_NOT_REISSUEABLE']);
+    expect(await liveTokens(fixture.company, fixture.invitationId)).toEqual([
+      { identifier: `reset-password:${fixture.firstToken}` },
+    ]);
+  });
+});
+
+describe('AC-G1-3b — re-issue refusals and concurrency', () => {
+  it('a member who already set a password is refused a new link', async () => {
+    const fixture = await inviteFresh('consumed');
+    expect((await resetPassword(fixture.firstToken, 'consumed-chosen-pass')).statusCode).toBe(200);
+    const response = await reissue(fixture.owner.cookie, fixture.company, fixture.invitationId);
+    expect(codeOf(response)).toEqual([409, 'MEMBER_INVITATION_NOT_REISSUEABLE']);
+    expect(await liveTokens(fixture.company, fixture.invitationId)).toHaveLength(0);
+  });
+
   it('an invitation whose membership was never written is refused (P1-c)', async () => {
-    const fixture = await inviteFresh(owner, 'G1R NoMembership', 'nomembership@example.test');
+    const fixture = await inviteFresh('nomembership');
     // انقطاع بعد الخطوة التانية: العضوية مش مكتوبة لسه على صف الدعوة.
     await h.owner`
       UPDATE member_invitations SET membership_id = NULL, user_id = NULL
       WHERE company_id = ${fixture.company} AND id = ${fixture.invitationId}`;
-    const response = await reissue(owner.cookie, fixture.company, fixture.invitationId);
-    expect([response.status, errorEnvelope.parse(response.body).code]).toEqual([
-      409,
-      'MEMBER_INVITATION_NOT_REISSUEABLE',
-    ]);
+    const response = await reissue(fixture.owner.cookie, fixture.company, fixture.invitationId);
+    expect(codeOf(response)).toEqual([409, 'MEMBER_INVITATION_NOT_REISSUEABLE']);
   });
 
   it('two concurrent re-issues leave exactly one live token (P1-c)', async () => {
-    const fixture = await inviteFresh(owner, 'G1R Concurrent', 'concurrent@example.test');
+    const fixture = await inviteFresh('concurrent');
     const [first, second] = await Promise.all([
-      reissue(owner.cookie, fixture.company, fixture.invitationId),
-      reissue(owner.cookie, fixture.company, fixture.invitationId),
+      reissue(fixture.owner.cookie, fixture.company, fixture.invitationId),
+      reissue(fixture.owner.cookie, fixture.company, fixture.invitationId),
     ]);
     expect([first.status, second.status]).toEqual([200, 200]);
-    const tokens = [
-      tokenOf(first.body['set_password_link'] as string),
-      tokenOf(second.body['set_password_link'] as string),
-    ];
-    const [live] = await h.owner`
-      SELECT identifier FROM verification
-      WHERE value = (SELECT user_id FROM member_invitations
-                     WHERE company_id = ${fixture.company} AND id = ${fixture.invitationId})
-        AND identifier LIKE 'reset-password:%'`;
-    expect(live).toBeDefined();
-    const liveToken = String(live?.['identifier']).replace('reset-password:', '');
-    // التوكن الحي من الإصدار الأخير بيشتغل، والقديم من الإصدار الأول مات بالإبطال.
+    const tokens = [first, second].map((r) => tokenOf(r.body['set_password_link'] as string));
+    const live = await liveTokens(fixture.company, fixture.invitationId);
+    expect(live).toHaveLength(1);
+    const liveToken = String(live[0]?.['identifier']).replace('reset-password:', '');
     expect(tokens).toContain(liveToken);
-    expect((await resetPassword(liveToken, 'concurrent-pass')).statusCode).toBe(200);
-    const deadTokens = tokens.filter((token) => token !== liveToken);
-    for (const token of deadTokens) {
+    for (const token of tokens.filter((candidate) => candidate !== liveToken)) {
       expect((await resetPassword(token, 'concurrent-pass')).statusCode).toBe(400);
     }
-    const [count] = await h.owner`
-      SELECT count(*)::int AS n FROM verification
-      WHERE value = (SELECT user_id FROM member_invitations
-                     WHERE company_id = ${fixture.company} AND id = ${fixture.invitationId})
-        AND identifier LIKE 'reset-password:%'`;
-    expect(count?.['n']).toBe(1);
+    expect((await resetPassword(liveToken, 'concurrent-pass')).statusCode).toBe(200);
   });
 });

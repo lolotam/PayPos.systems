@@ -52,9 +52,7 @@ function passwordStateProvider(): Provider {
   return {
     provide: MEMBER_PASSWORD_STATE,
     useFactory: (auth: AuthService | null): MemberPasswordState | null =>
-      auth === null
-        ? null
-        : async (userId) => auth.members.hasPassword(userId),
+      auth === null ? null : async (userId) => auth.members.hasPassword(userId),
     inject: [AUTH_SERVICE],
   };
 }

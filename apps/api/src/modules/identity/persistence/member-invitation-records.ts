@@ -85,7 +85,11 @@ export async function scopeBelongs(
   if (scope.type === 'COMPANY') return scope.id === companyId;
   const rows =
     scope.type === 'BUSINESS'
-      ? await tx.execute(sql`SELECT 1 FROM businesses WHERE company_id = ${companyId} AND id = ${scope.id}`)
-      : await tx.execute(sql`SELECT 1 FROM branches WHERE company_id = ${companyId} AND id = ${scope.id}`);
+      ? await tx.execute(
+          sql`SELECT 1 FROM businesses WHERE company_id = ${companyId} AND id = ${scope.id}`,
+        )
+      : await tx.execute(
+          sql`SELECT 1 FROM branches WHERE company_id = ${companyId} AND id = ${scope.id}`,
+        );
   return rows.length === 1;
 }

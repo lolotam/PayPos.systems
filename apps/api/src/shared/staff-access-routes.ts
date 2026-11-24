@@ -1,4 +1,4 @@
-import type { FastifyReply, FastifyRequest } from 'fastify';
+import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 
 import { ApiError } from './errors.ts';
 
@@ -19,14 +19,23 @@ export function staffAccessRoutesEnabled(env: NodeJS.ProcessEnv): boolean {
 }
 
 /**
- * خطّاف onRequest على مسارات الشريحة وهي مقفولة: بيرد 503 NOT_READY قبل parsing الجسم وقبل
- * حارس الجلسة وقبل أي pipe، فالطلب غير المسجّل أو المشوّه — حتى JSON باطل — بيرد نفس الرد.
+ * بوابة التفعيل (plan §1.1): وهي مقفولة بتركّب خطّاف onRequest على مسارات الدعوة، فبيرد
+ * 503 NOT_READY قبل parsing الجسم وقبل حارس الجلسة وقبل أي pipe — الطلب غير المسجّل أو
+ * المشوّه، حتى JSON باطل، بيرد نفس الرد.
  *
- * @returns خطّاف Fastify بيرد 503 دايماً
+ * @param app     نسخة Fastify قبل تسجيل المسارات
+ * @param enabled هل الشريحة مفعّلة (STAFF_ACCESS_ROUTES=on)
  */
-export function staffAccessGateHook(): (request: FastifyRequest, reply: FastifyReply) => Promise<void> {
-  return async (_request, reply) => {
+export function mountStaffAccessGate(app: FastifyInstance, enabled: boolean): void {
+  if (enabled) return;
+  const gate = async (_request: FastifyRequest, reply: FastifyReply): Promise<void> => {
     const error = new ApiError('NOT_READY');
     void reply.code(error.status).send(error.toEnvelope());
   };
+  app.addHook('onRoute', (route) => {
+    if (!MEMBER_INVITATION_ROUTE.test(route.url)) return;
+    if (route.onRequest === undefined) route.onRequest = gate;
+    else if (typeof route.onRequest === 'function') route.onRequest = [route.onRequest, gate];
+    else route.onRequest = [...route.onRequest, gate];
+  });
 }
