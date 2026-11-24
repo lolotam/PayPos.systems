@@ -1,4 +1,5 @@
 import { randomBytes } from 'node:crypto';
+import { createMyPreferences, type MyPreferences } from './my-preferences.ts';
 
 import { drizzleAdapter } from '@better-auth/drizzle-adapter';
 import { createAuthDatabase, createStaffOtpDatabase } from '@pospay/db';
@@ -73,6 +74,7 @@ export interface VerifiedSession {
  * Better Auth نفسه بيفضل جوه الـ package دي — مفيش package تاني بيشوف أنواعه.
  */
 export interface AuthService {
+  readonly preferences: MyPreferences;
   readonly staff: StaffSessions;
   readonly personal: PersonalSessions;
   readonly passkeys: PasskeyFacade;
@@ -129,6 +131,7 @@ export async function createAuth(options: AuthOptions): Promise<AuthService> {
   const passkeys = configuredPasskeys(options, auth, database);
   return {
     staff,
+    preferences: createMyPreferences(database),
     personal,
     passkeys,
     privateView: configuredPrivateView(options, database),

@@ -81,3 +81,4 @@ export type {
   PrivateViewScope,
 } from './private-view.ts';
 export { deriveEmployeeCardKey } from './employee-card-key.ts';
+export { createMyPreferences, type MyPreferences } from './my-preferences.ts';
