@@ -68,7 +68,9 @@ describe('the schedule settings entry as the current one', () => {
     const current = currentLinks(list);
     expect(current).toHaveLength(1);
     expect(current[0]?.getAttribute('href')).toBe('/schedules/settings');
-    expect(within(list).getByRole('link', { name: weeklyName }).getAttribute('aria-current')).toBeNull();
+    // في النمط B «إعدادات الورديات» تحت «الإعداد › النشاط» (design.md §4)،
+    // فـ«الجداول الأسبوعية» في وحدة «الأفراد» ومش في هذه القائمة المحلية.
+    expect(within(list).queryByRole('link', { name: weeklyName })).toBeNull();
   });
 
   it('marks the settings page and not Weekly schedules in the panel of style C', () => {

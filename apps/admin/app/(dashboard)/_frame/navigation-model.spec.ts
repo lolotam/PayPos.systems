@@ -262,6 +262,32 @@ describe('navigation groupings and active route resolution', () => {
       'kitchen-screens',
     );
   });
+
+  it('puts the schedule settings page where design.md §4 puts it in each style', () => {
+    const teamTabs = NAVIGATION_GROUPINGS.A.find((group) => group.id === 'team')?.tabs ?? [];
+    const schedulesTab = teamTabs.find((tab) => tab.id === 'schedules');
+    expect(schedulesTab?.pageIds).toContain('weekly-schedules');
+    expect(schedulesTab?.pageIds).toContain('schedule-settings');
+
+    const peopleColumns = NAVIGATION_GROUPINGS.B.find((mod) => mod.id === 'people')?.columns ?? [];
+    const businessColumns = NAVIGATION_GROUPINGS.B.find((mod) => mod.id === 'business')?.columns ?? [];
+    expect(peopleColumns.find((column) => column.id === 'schedules')?.pageIds).not.toContain(
+      'schedule-settings',
+    );
+    expect(businessColumns.find((column) => column.id === 'business')?.pageIds).toContain(
+      'schedule-settings',
+    );
+
+    const teamSections =
+      NAVIGATION_GROUPINGS.C.find((workspace) => workspace.id === 'team')?.panelSections ?? [];
+    expect(teamSections.find((section) => section.id === 'schedules')?.pageIds).toContain(
+      'schedule-settings',
+    );
+
+    expect(findTopLevelGroupForPage('A', 'schedule-settings')).toBe('team');
+    expect(findTopLevelGroupForPage('B', 'schedule-settings')).toBe('business');
+    expect(findTopLevelGroupForPage('C', 'schedule-settings')).toBe('team');
+  });
 });
 
 describe('navigation translation and icon coverage', () => {
