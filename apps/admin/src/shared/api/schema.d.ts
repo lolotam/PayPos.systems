@@ -3383,7 +3383,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** @description HMAC over the raw body; the scrubbed envelope is stored before the job is enqueued. */
+        /** @description HMAC over the raw body; allowlisted events are stored before enqueue, other verified event types are acknowledged without storage. */
         post: operations["receiveResendWebhook"];
         delete?: never;
         options?: never;
@@ -22246,7 +22246,7 @@ export interface operations {
             };
         };
         responses: {
-            /** @description Stored scrubbed and enqueued */
+            /** @description Verified event acknowledged; allowlisted events stored, other event types ignored */
             200: {
                 headers: {
                     [name: string]: unknown;

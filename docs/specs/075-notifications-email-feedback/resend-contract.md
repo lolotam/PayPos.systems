@@ -59,7 +59,7 @@ Source: [email.bounced](https://resend.com/docs/webhooks/emails/bounced) and
 
 Source: [Retrieve Sent Email](https://resend.com/docs/api-reference/emails/retrieve-email).
 
-`GET https://api.resend.com/emails/{id}` with the sending API key returns the sent email, and the
+`GET https://api.resend.com/emails/{id}` with a worker-only `full_access` API key returns the sent email, and the
 documented response **includes**:
 
 * `id` — the same id the webhook's `data.email_id` carries;
@@ -90,8 +90,14 @@ The permanent event digest is `HMAC-SHA256(digest key bytes, 'pospay:notificatio
 API only) and **not** the webhook signing secret: if the provider re-signs and resends an old
 `svix-id` after a signing-secret rotation, a secret-keyed digest would change and create a second
 inbox row and job for the same event. With the owned key the dedupe identity survives every
-rotation. This is a recorded divergence from the narrow reading of FR-006 ("only the webhook
-secret"): the API holds one extra managed key that is neither a sending credential nor a recipient
+signing-secret rotation. FR-006 and FR-024 explicitly permit this extra managed key that is neither a sending credential nor a recipient
 hash key — it can never resolve an address and never send. Domain separation keeps the digest
 distinct from the signature, and the raw provider event id never leaves the verified-intake
 memory: only the digest reaches the database.
+
+The digest key is frozen: never rotate it except through a documented migration preserving existing
+dedupe identities. Missing or invalid configuration leaves the intake NOT_READY (503) with a clear
+capability log; it never crashes API startup or affects `/ready`.
+
+Retrieval requires `full_access`; `sending_access` cannot retrieve sent emails or correlation tags
+([Resend API key permissions](https://resend.com/docs/api-reference/api-keys/create-api-key), verified 2026-11-24).

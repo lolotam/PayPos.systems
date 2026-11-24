@@ -4,6 +4,7 @@ import type { FastifyInstance, FastifyRequest } from 'fastify';
 import type { FastifyAdapter } from '@nestjs/platform-fastify';
 import type { Redis } from 'ioredis';
 import {
+  RESEND_INTAKE_BUDGET_MS,
   createResendEventDigest,
   verifyResendSignature,
 } from '@pospay/notifications';
@@ -15,6 +16,7 @@ const ROUTE = '/v1/webhooks/resend';
 const BODY_LIMIT = 65_536;
 const RATE_LIMIT = 120;
 const verified = new WeakMap<FastifyRequest, Buffer>();
+const deadlines = new WeakMap<FastifyRequest, Date>();
 const redisLogged = new WeakSet<FastifyRequest>();
 
 /**
@@ -23,6 +25,22 @@ const redisLogged = new WeakSet<FastifyRequest>();
  */
 export const verifiedResendDigest = (request: FastifyRequest): Buffer | undefined =>
   verified.get(request);
+
+export const resendDeadline = (request: FastifyRequest): Date | undefined => deadlines.get(request);
+
+export async function withinResendDeadline<T>(work: Promise<T>, remainingMs: number): Promise<T> {
+  let timer: NodeJS.Timeout | undefined;
+  try {
+    return await Promise.race([
+      work,
+      new Promise<never>((_, reject) => {
+        timer = setTimeout(() => reject(new ApiError('NOT_READY')), Math.max(0, remainingMs));
+      }),
+    ]);
+  } finally {
+    clearTimeout(timer);
+  }
+}
 
 const redisUnavailable = (request: FastifyRequest): void => {
   if (redisLogged.has(request)) return;
@@ -75,40 +93,53 @@ export function mountResendSecurity(
   app.addHook('onRequest', async (request, reply) => {
     if (!target(request)) return;
     if (intake === undefined || redis === undefined) return refuse(reply, 'NOT_READY');
+    const deadline = new Date(intake.clock.now().getTime() + RESEND_INTAKE_BUDGET_MS);
+    deadlines.set(request, deadline);
+    const admissionRedis = {
+      eval: (...args: Parameters<Redis['eval']>) =>
+        withinResendDeadline(redis.eval(...args), RESEND_INTAKE_BUDGET_MS),
+    } as Redis;
     if (
-      !(await limited(redis, `resend:ip:POST:${createHash('sha256').update(request.ip).digest('hex')}`, RATE_LIMIT, {
-        reply,
-        onUnavailable: () => redisUnavailable(request),
-        overQuota: 'RATE_LIMITED',
-      }))
+      !(await limited(
+        admissionRedis,
+        `resend:ip:POST:${createHash('sha256').update(request.ip).digest('hex')}`,
+        RATE_LIMIT,
+        {
+          reply,
+          onUnavailable: () => redisUnavailable(request),
+          overQuota: 'RATE_LIMITED',
+        },
+      ))
     )
       return;
     if (isNotJsonOnly(request)) return refuse(reply, 'UNSUPPORTED_MEDIA_TYPE');
   });
   app.addHook('onResponse', async (request) => {
     verified.delete(request);
+    deadlines.delete(request);
   });
   app.addHook('onRoute', (route) => {
     if (route.url !== ROUTE || route.method !== 'POST') return;
     route.bodyLimit = BODY_LIMIT;
     route.preParsing = async (request, _reply, payload) => {
       if (intake === undefined || redis === undefined) throw new ApiError('NOT_READY');
-      const body = await cappedBody(payload);
+      const deadline = deadlines.get(request);
+      if (deadline === undefined || intake.clock.now().getTime() >= deadline.getTime())
+        throw new ApiError('NOT_READY');
+      const body = await withinResendDeadline(
+        cappedBody(payload),
+        deadline.getTime() - intake.clock.now().getTime(),
+      );
       const id = singleHeader(request, 'svix-id');
       const headers = {
         id,
         timestamp: singleHeader(request, 'svix-timestamp'),
         signature: singleHeader(request, 'svix-signature'),
       };
-      if (
-        !verifyResendSignature(body, headers, intake.config.webhookSecret, intake.clock.now())
-      )
+      if (!verifyResendSignature(body, headers, intake.config.webhookSecret, intake.clock.now()))
         throw new ApiError('UNAUTHENTICATED');
       if (id !== undefined)
-        verified.set(
-          request,
-          createResendEventDigest(intake.config.eventDigestKey)(id),
-        );
+        verified.set(request, createResendEventDigest(intake.config.eventDigestKey)(id));
       return Readable.from([body]);
     };
   });

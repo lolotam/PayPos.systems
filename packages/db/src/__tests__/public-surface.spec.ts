@@ -16,6 +16,7 @@ const PUBLIC_EXPORTS = [
   'PERMISSIONS',
   'PLATFORM_ROLES',
   'PROVISIONAL_PLAN_ID',
+  'PlatformStorageUnavailableError',
   'ReplayCursorError',
   'SYSTEM_ROLES',
   'StatementPeriodClosedError',

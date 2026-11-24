@@ -80,7 +80,8 @@ export function verifyResendSignature(
   const { id, timestamp, signature } = headers;
   if (typeof id !== 'string' || !EVENT_ID.test(id)) return false;
   if (typeof timestamp !== 'string' || !TIMESTAMP.test(timestamp)) return false;
-  if (typeof signature !== 'string' || signature.length === 0) return false;
+  if (typeof signature !== 'string' || signature.length === 0 || signature.length > 512)
+    return false;
   const seconds = Number(timestamp);
   if (!Number.isSafeInteger(seconds)) return false;
   if (Math.abs(Math.floor(now.getTime() / 1000) - seconds) > RESEND_TIMESTAMP_WINDOW_SECONDS)
@@ -94,19 +95,21 @@ export function verifyResendSignature(
   } catch {
     return false;
   }
-  return signature.split(' ').some((entry) => {
+  let matched = false;
+  for (const entry of signature.split(' ')) {
     const separator = entry.indexOf(',');
-    if (separator < 0) return false;
-    if (entry.slice(0, separator) !== 'v1') return false;
+    if (separator < 0) continue;
+    if (entry.slice(0, separator) !== 'v1') continue;
     const encoded = entry.slice(separator + 1);
     // شكل صارم لكل زوج، ومافيش وقوف عند أول زوج مأهول: قيمة ملزوقة بفاصلة بتقرأ كـ base64 متسامح
     // وتقدر تعدّي المقارنة، فالنمط و إعادة الترميز بيرفضا أي حاجة مش base64 متسلسل سليم (FR-002).
-    if (!SIGNATURE_ENTRY.test(entry)) return false;
+    if (!SIGNATURE_ENTRY.test(entry)) continue;
     const provided = Buffer.from(encoded, 'base64');
-    if (provided.length !== expected.length) return false;
-    if (provided.toString('base64') !== encoded) return false;
-    return timingSafeEqual(expected, provided);
-  });
+    if (provided.length !== expected.length) continue;
+    if (provided.toString('base64') !== encoded) continue;
+    matched = timingSafeEqual(expected, provided) || matched;
+  }
+  return matched;
 }
 
 /**

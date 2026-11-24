@@ -56,8 +56,10 @@ Resend request shape or the email copy.
   then it answers 200 `{ "received": true }`. If the enqueue fails the row stays unconfirmed and the worker's
   recovery sweep picks it up; the API still answers 200 because the event is durable. The whole request stays inside
   the 200 ms budget; no provider call happens in the API.
-- **FR-006** The API holds no sending credential and no email hash key. It needs only the webhook secret and the
-  restricted `pospay_notifications` connection.
+- **FR-006** The API holds no sending credential and no email hash key. It needs the webhook signing secret, the
+  independent `RESEND_EVENT_DIGEST_KEY` and the restricted `pospay_notifications` connection. Missing or invalid
+  intake settings leave this capability NOT_READY (503) with a clear capability log; API startup and `/ready` continue.
+  The digest key is frozen: never rotate it except through a documented migration preserving existing dedupe identities.
 
 ## Requirements — C1: reconciliation (worker)
 
@@ -104,8 +106,10 @@ Resend request shape or the email copy.
   `email.module.ts:67` and `persistence/email-channel.adapter.ts:15`.
 - **FR-023** The API and worker capability logs report the real state and reason. Email readiness never affects
   `/ready`.
-- **FR-024** The sending keys are passed to the worker only. The API receives `RESEND_WEBHOOK_SECRET` and nothing
-  else of the email group.
+- **FR-024** The sending keys are passed to the worker only. The API receives `RESEND_WEBHOOK_SECRET` and the independent
+  `RESEND_EVENT_DIGEST_KEY`, never a sending or recipient-hash key. An empty digest key disables the intake with
+  NOT_READY and a clear capability log, never a startup crash. Never rotate the digest key except through a
+  documented migration preserving dedupe identities.
 
 ## Schema changes
 
@@ -171,10 +175,13 @@ None new. The webhook is authenticated by its signature. The delivery log keeps 
 1. The sending domain in Resend, and the DNS records Resend shows for it (SPF and DKIM) plus a DMARC record, in
    Cloudflare; wait until Resend shows the domain verified.
 2. Open and click tracking **off** for that domain.
-3. One API key for sending (worker only), per environment.
+3. One retrieval-capable `full_access` API key for sending and reconciliation (worker only), per environment;
+   `sending_access` cannot retrieve the sent email or its correlation tags.
 4. A webhook per environment — production `https://api.pospay.systems/v1/webhooks/resend`, staging
    `https://api.staging.pospay.systems/v1/webhooks/resend` — subscribed to the six events above; its signing secret
-   goes into `RESEND_WEBHOOK_SECRET` in Dokploy.
+   goes into `RESEND_WEBHOOK_SECRET` in Dokploy. Provision an independent 32+ character
+   `RESEND_EVENT_DIGEST_KEY` for the API replicas of that environment. Keep it frozen except through a
+   documented migration preserving existing dedupe identities; an empty key leaves the intake NOT_READY.
 5. The sender name, the sender address and a monitored Reply-To address.
 
 ## Edge cases

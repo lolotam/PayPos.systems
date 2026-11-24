@@ -1,6 +1,7 @@
 ﻿import { createHash } from 'node:crypto';
 import http from 'node:http';
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
+import { createResendEventDigest } from '@pospay/notifications';
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { NestFastifyApplication } from '@nestjs/platform-fastify';
 import { createApp } from '../../../../app.ts';
 import {
@@ -30,6 +31,41 @@ afterAll(async () => {
 });
 
 const rows = () => h.owner`SELECT * FROM platform_email_feedback_inbox`;
+
+it('answers NOT_READY without storing when Redis admission never completes', async () => {
+  const before = await rows();
+  const admission = vi.spyOn(h.redis, 'eval').mockReturnValueOnce(new Promise(() => undefined));
+  try {
+    const response = await h.post(JSON.stringify(event()), {}, true, 'msg_admission_timeout');
+    expect(response.statusCode).toBe(503);
+    expect(JSON.parse(response.body)).toMatchObject({ code: 'NOT_READY' });
+    expect(await rows()).toEqual(before);
+    expect(h.jobs).toHaveLength(0);
+  } finally {
+    admission.mockRestore();
+  }
+});
+
+it('answers NOT_READY after a driver disconnect without SQLSTATE', async () => {
+  const before = await rows();
+  const withGlobal = h.database.withGlobal;
+  const storage = vi.spyOn(h.database, 'withGlobal').mockImplementationOnce((_work, timeoutMs) =>
+    withGlobal(async () => {
+      throw new Error('driver failure', {
+        cause: Object.assign(new Error('socket closed'), { code: 'CONNECTION_CLOSED' }),
+      });
+    }, timeoutMs),
+  );
+  try {
+    const response = await h.post(JSON.stringify(event()), {}, true, 'msg_driver_disconnect');
+    expect(response.statusCode).toBe(503);
+    expect(JSON.parse(response.body)).toMatchObject({ code: 'NOT_READY' });
+    expect(await rows()).toEqual(before);
+    expect(h.jobs).toHaveLength(0);
+  } finally {
+    storage.mockRestore();
+  }
+});
 
 /** One real-socket POST whose svix-signature header is sent twice; answers the response status. */
 const twiceSignedStatus = (server: http.Server, payload: string): Promise<number> => {
@@ -75,7 +111,12 @@ describe('stores the scrubbed envelope and deduplicates', () => {
     expect(h.jobs).toHaveLength(1);
     expect(Object.keys(h.jobs[0] ?? {}).join()).toBe('inbox_id');
     const persisted = JSON.stringify(stored);
-    for (const forbidden of [address, 'Your document expires soon', 'company_id', 'mailbox unavailable'])
+    for (const forbidden of [
+      address,
+      'Your document expires soon',
+      'company_id',
+      'mailbox unavailable',
+    ])
       expect(persisted).not.toContain(forbidden);
     // الغلاف المخزّن منمّط: وقت ISO والتصنيف المحدود بس، مش كلمات المزود الخام. postgres.js بيرجّع jsonb
     // مفكوك بالفعل، فبقراه ككائن مباشرة.
@@ -99,7 +140,9 @@ describe('stores the scrubbed envelope and deduplicates', () => {
     expect((await h.post(payload, {}, true, 'msg_test_unknown_bounce')).statusCode).toBe(200);
     const stored = await rows();
     expect(stored).toHaveLength(before.length + 1);
-    const row = stored[stored.length - 1];
+    const digest = createResendEventDigest(Buffer.alloc(32, 9))('msg_test_unknown_bounce');
+    const [row] =
+      await h.owner`SELECT * FROM platform_email_feedback_inbox WHERE provider_event_digest = ${digest}`;
     expect(row?.['bounce_class']).toBeNull();
     const envelope = row?.['raw_event'] as { bounce_type?: string };
     expect(envelope.bounce_type).toBeUndefined();
@@ -119,9 +162,11 @@ describe('stores the scrubbed envelope and deduplicates', () => {
 
 describe('acknowledges replays and leaves late work to the recovery path', () => {
   it('acknowledges a replay of the same event and stores nothing new again', async () => {
+    const payload = JSON.stringify(event());
+    expect((await h.post(payload, {}, true, 'msg_test_replay_alone')).statusCode).toBe(200);
     const before = await rows();
     const jobs = h.jobs.length;
-    expect((await h.post(JSON.stringify(event()))).statusCode).toBe(200);
+    expect((await h.post(payload, {}, true, 'msg_test_replay_alone')).statusCode).toBe(200);
     expect(await rows()).toEqual(before);
     expect(h.jobs).toHaveLength(jobs);
   });
@@ -193,9 +238,9 @@ describe('refuses a malformed request and a degraded capability', () => {
         )
       ).statusCode,
     ).toBe(400);
-    expect((await h.post(JSON.stringify(event()), { 'content-type': 'text/plain' })).statusCode).toBe(
-      415,
-    );
+    expect(
+      (await h.post(JSON.stringify(event()), { 'content-type': 'text/plain' })).statusCode,
+    ).toBe(415);
     expect((await h.post(JSON.stringify(event()), { 'content-encoding': 'gzip' })).statusCode).toBe(
       415,
     );

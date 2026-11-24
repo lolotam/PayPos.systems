@@ -3,7 +3,7 @@
  * العنوان نفسه مش جزء من النوع ده: بيشتغل في الذاكرة وقت الاستقبال بس.
  */
 export interface EmailFeedbackEvent {
-  /** بصمة دائمة للحدث (HMAC مفضل بمفتاح الويبيوك)؛ دي اللي بيميّز إعادة التسليم. */
+  /** بصمة دائمة بمفتاح مستقل ثابت؛ دي اللي بتميّز إعادة التسليم بعد تدوير سر التوقيع. */
   readonly digest: Buffer;
   /** نوع الحدث المسموح به من المزود. */
   readonly type: string;
@@ -29,15 +29,21 @@ export interface EmailFeedbackInboxRepository {
    *
    * @param event الحدث المنقّح
    * @param at وقت الاستقبال المتحقن
+   * @param remainingMs ميزانية التخزين الباقية من الطلب
    */
-  accept(event: EmailFeedbackEvent, at: Date): Promise<{ id: string; inserted: boolean }>;
+  accept(
+    event: EmailFeedbackEvent,
+    at: Date,
+    remainingMs: number,
+  ): Promise<{ id: string; inserted: boolean }>;
   /**
    * يثبت نجاح التسليم للطابور بعد commit، من غير ما يغيّر هوية الحدث.
    *
    * @param id UUID محفوظ
    * @param at وقت التأكيد
+   * @param remainingMs ميزانية التأكيد الباقية من الطلب
    */
-  confirmEnqueue(id: string, at: Date): Promise<void>;
+  confirmEnqueue(id: string, at: Date, remainingMs: number): Promise<void>;
 }
 
 /** الطابور يحمل UUID فقط، ومفيش عنوان ولا بيانات مزود. */
@@ -49,4 +55,13 @@ export interface EmailFeedbackQueue {
    * @param deadline الموعد المشترك للاستقبال كله
    */
   enqueue(id: string, deadline: Date): Promise<void>;
+}
+
+/** تعذّر التسليم للطابور؛ الصف الدائم يفضل متاح لاسترداد العامل. */
+export class EmailFeedbackQueueUnavailableError extends Error {
+  /** ينشئ فشل التسليم المتوقع من غير تفاصيل اتصال أو بيانات مزود. */
+  constructor() {
+    super('EMAIL_FEEDBACK_QUEUE_UNAVAILABLE');
+    this.name = 'EmailFeedbackQueueUnavailableError';
+  }
 }

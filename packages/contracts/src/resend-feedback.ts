@@ -33,7 +33,7 @@ export const resendFeedbackBounceClass = z.enum([...RESEND_FEEDBACK_BOUNCE_CLASS
 export const resendFeedbackQuarantineReason = z.enum([...RESEND_FEEDBACK_QUARANTINE_REASONS]);
 
 /** معرّف الإيميل عند المزود بصيغته الموثقة (UUID) — أي قيمة تانية تبقى 400 قبل أي تخزين. */
-const PROVIDER_EMAIL_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const PROVIDER_EMAIL_ID = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/;
 
 /** The event type of a feedback body, read before the allowlist decides whether we keep it. */
 export const resendFeedbackType = z.object({ type: z.string().min(1).max(64) });

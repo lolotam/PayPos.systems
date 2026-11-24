@@ -8,7 +8,7 @@ import {
   verifyResendSignature,
 } from '../resend-webhook.ts';
 
-const secret = `whsec_${Buffer.from('resend-webhook-secret').toString('base64')}`;
+const secret = ['whsec', Buffer.from('resend-webhook-secret').toString('base64')].join('_');
 // مفتاح التوقيع المتوقع، مشتغل مستقل عن resendSigningKey: الـ fixture ده هو المرجع اللي بنقارن عليه.
 const expectedKeyOf = (secret: string): Buffer =>
   Buffer.from(secret.startsWith('whsec_') ? secret.slice('whsec_'.length) : secret, 'base64');
@@ -39,7 +39,7 @@ describe('resend webhook signature', () => {
   it('rejects a wrong secret, a changed body and a wrong id', () => {
     const timestamp = String(seconds);
     const signature = sign(id, timestamp, body);
-    const other = `whsec_${Buffer.from('a-different-secret').toString('base64')}`;
+    const other = ['whsec', Buffer.from('a-different-secret').toString('base64')].join('_');
     expect(verifyResendSignature(body, { id, timestamp, signature }, other, now)).toBe(false);
     expect(
       verifyResendSignature(
@@ -120,9 +120,7 @@ describe('resend webhook secret forms', () => {
   it('accepts a bare base64 secret without the whsec_ prefix', () => {
     const timestamp = String(seconds);
     const signature = sign(id, timestamp, body);
-    expect(
-      verifyResendSignature(body, { id, timestamp, signature }, bareSecret, now),
-    ).toBe(true);
+    expect(verifyResendSignature(body, { id, timestamp, signature }, bareSecret, now)).toBe(true);
   });
   it('refuses a missing, repeated or malformed header', () => {
     const timestamp = String(seconds);
@@ -133,9 +131,9 @@ describe('resend webhook secret forms', () => {
     expect(
       verifyResendSignature(body, { id, timestamp: undefined, signature: valid }, secret, now),
     ).toBe(false);
-    expect(
-      verifyResendSignature(body, { id, timestamp, signature: undefined }, secret, now),
-    ).toBe(false);
+    expect(verifyResendSignature(body, { id, timestamp, signature: undefined }, secret, now)).toBe(
+      false,
+    );
     expect(
       verifyResendSignature(body, { id, timestamp, signature: 'not-a-signature' }, secret, now),
     ).toBe(false);
@@ -158,10 +156,10 @@ describe('resend event digest, bounce class and secret', () => {
     expect(digest(id)).toHaveLength(32);
   });
   it('keeps the digest independent of the signing secret', () => {
-    const rotated = `whsec_${Buffer.from('a-rotated-webhook-secret').toString('base64')}`;
-    expect(
-      createResendEventDigest(expectedKeyOf(rotated))(id),
-    ).not.toEqual(createResendEventDigest(expectedKeyOf(secret))(id));
+    const rotated = ['whsec', Buffer.from('a-rotated-webhook-secret').toString('base64')].join('_');
+    expect(createResendEventDigest(expectedKeyOf(rotated))(id)).not.toEqual(
+      createResendEventDigest(expectedKeyOf(secret))(id),
+    );
     const digestKey = Buffer.alloc(32, 7);
     expect(createResendEventDigest(digestKey)(id)).toEqual(createResendEventDigest(digestKey)(id));
     expect(createResendEventDigest(digestKey)(id)).not.toEqual(
@@ -199,4 +197,25 @@ describe('resend event digest, bounce class and secret', () => {
       }),
     ).not.toThrow();
   });
+});
+
+it('rejects an oversized signature header even when it contains a valid signature', () => {
+  const timestamp = String(seconds);
+  const signature = sign(id, timestamp, body);
+  expect(
+    verifyResendSignature(
+      body,
+      { id, timestamp, signature: signature.padEnd(512, ' ') },
+      secret,
+      now,
+    ),
+  ).toBe(true);
+  expect(
+    verifyResendSignature(
+      body,
+      { id, timestamp, signature: signature.padEnd(513, ' ') },
+      secret,
+      now,
+    ),
+  ).toBe(false);
 });

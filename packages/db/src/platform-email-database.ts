@@ -28,6 +28,13 @@ const TRANSIENT_SQLSTATES = new Set([
   '08001',
   '08003',
   '08006',
+  'ECONNRESET',
+  'EPIPE',
+  'ECONNREFUSED',
+  'ETIMEDOUT',
+  'CONNECTION_CLOSED',
+  'CONNECTION_ENDED',
+  'CONNECTION_DESTROYED',
 ]);
 
 const isTransientStorage = (error: unknown): boolean => {
@@ -47,7 +54,7 @@ const isTransientStorage = (error: unknown): boolean => {
 /** واجهة الاستقبال العامة للإيميل؛ مفيش وصول لبيانات الشركات ولا اتصال خام. */
 export interface PlatformEmailDatabase {
   /** معاملة محدودة لعملية الاستقبال قبل الرد على المزود. */
-  withGlobal<T>(work: (tx: Tx) => Promise<T>): Promise<T>;
+  withGlobal<T>(work: (tx: Tx) => Promise<T>, timeoutMs?: number): Promise<T>;
   /** يفشل الاستعداد عند تغيّر الدور أو الصلاحيات أو قيد رفع الحظر. */
   ping(): Promise<void>;
   /** يغلق الاتصال؛ الإيقاف القسري يصرف بدء التشغيل الفاشل دون انتظار مهلة الاتصال. */
@@ -62,13 +69,13 @@ export function createPlatformEmailDatabase(options: {
   const client = openClient(options.url, options.maxConnections ?? 2);
   const db = drizzle(client);
   return {
-    withGlobal: (work) =>
-      withDeadline(200, (gate) =>
+    withGlobal: (work, timeoutMs = 200) =>
+      withDeadline(Math.max(1, timeoutMs), (gate) =>
         db.transaction(async (tx) => {
           gate.onStart();
           await tx.execute(sql`SET TRANSACTION ISOLATION LEVEL READ COMMITTED`);
-          await tx.execute(sql`SELECT set_config('statement_timeout','200ms',true),
-        set_config('lock_timeout','200ms',true), set_config('idle_in_transaction_session_timeout','200ms',true)`);
+          await tx.execute(sql`SELECT set_config('statement_timeout',${`${Math.max(1, timeoutMs)}ms`},true),
+        set_config('lock_timeout',${`${Math.max(1, timeoutMs)}ms`},true), set_config('idle_in_transaction_session_timeout',${`${Math.max(1, timeoutMs)}ms`},true)`);
           // فحص الاستعداد بيغطي الصلاحيات بالكامل؛ كل معاملة بتتأكد من دور الاتصال فقط.
           await assertNotificationsRole(tx);
           const result = await work(tx);

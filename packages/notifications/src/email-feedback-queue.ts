@@ -19,11 +19,3 @@ export function emailFeedbackJob(id: string) {
     options: { jobId: id, attempts: 1, removeOnComplete: true, removeOnFail: true },
   };
 }
-
-/** The queue could not take the job; the stored row stays unconfirmed and the worker's sweep retries it. */
-export class EmailFeedbackQueueUnavailableError extends Error {
-  constructor() {
-    super('EMAIL_FEEDBACK_QUEUE_UNAVAILABLE');
-    this.name = 'EmailFeedbackQueueUnavailableError';
-  }
-}

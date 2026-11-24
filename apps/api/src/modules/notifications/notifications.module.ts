@@ -1,3 +1,4 @@
+import { EmailFeedbackQueueUnavailableError } from './ports/email-feedback.repository.ts';
 import {
   WHATSAPP_INBOUND_QUEUE,
   whatsappInboundJob,
@@ -5,7 +6,6 @@ import {
 } from '@pospay/notifications';
 import {
   EMAIL_FEEDBACK_QUEUE,
-  EmailFeedbackQueueUnavailableError,
   emailFeedbackJob,
   readResendWebhookConfiguration,
 } from '@pospay/notifications';

@@ -4,15 +4,15 @@ import {
   resendFeedbackEnvelope,
   resendFeedbackType,
 } from '@pospay/contracts';
-import {
-  RESEND_INTAKE_BUDGET_MS,
-  resendBounceClass,
-  type ResendWebhookConfiguration,
-} from '@pospay/notifications';
+import { resendBounceClass, type ResendWebhookConfiguration } from '@pospay/notifications';
 import type { FastifyRequest } from 'fastify';
 import { Public } from '../../../shared/public.decorator.ts';
 import { ApiError } from '../../../shared/errors.ts';
-import { verifiedResendDigest } from './resend-webhook-security.ts';
+import {
+  resendDeadline,
+  verifiedResendDigest,
+  withinResendDeadline,
+} from './resend-webhook-security.ts';
 import type { ReceiveEmailFeedback } from '../use-cases/receive-email-feedback/receive-email-feedback.ts';
 
 export const RESEND_WEBHOOK = Symbol('RESEND_WEBHOOK');
@@ -43,25 +43,33 @@ export class ResendWebhookController {
       if (!parsed.success) throw new ApiError('BAD_REQUEST');
       const providerTimestamp = new Date(parsed.data.created_at);
       if (Number.isNaN(providerTimestamp.getTime())) throw new ApiError('BAD_REQUEST');
-      const bounceClass = resendBounceClass(parsed.data.data.bounce?.type);
+      const bounceClass =
+        parsed.data.type === 'email.bounced'
+          ? resendBounceClass(parsed.data.data.bounce?.type)
+          : null;
       // موعد واحد للطلب كله: الحفظ والتسليم والتأكيد؛ اللي يفات الموعد بعد التزم الحفظ بيكمل من الـ sweep.
-      const deadline = new Date(this.intake.clock.now().getTime() + RESEND_INTAKE_BUDGET_MS);
-      await this.intake.receive.execute(
-        {
-          digest,
-          type: parsed.data.type,
-          emailId: parsed.data.data.email_id,
-          bounceClass,
-          providerTimestamp,
-          envelope: {
+      const deadline = resendDeadline(request);
+      if (deadline === undefined || this.intake.clock.now().getTime() >= deadline.getTime())
+        throw new ApiError('NOT_READY');
+      await withinResendDeadline(
+        this.intake.receive.execute(
+          {
+            digest,
             type: parsed.data.type,
-            created_at: providerTimestamp.toISOString(),
-            email_id: parsed.data.data.email_id,
-            // التصنيف المحدود بس بيتخزن: الكلمة الخام من المزود بتشخّص وما بتنزلش القاعدة (FR-003).
-            ...(bounceClass === null ? {} : { bounce_type: bounceClass }),
+            emailId: parsed.data.data.email_id,
+            bounceClass,
+            providerTimestamp,
+            envelope: {
+              type: parsed.data.type,
+              created_at: providerTimestamp.toISOString(),
+              email_id: parsed.data.data.email_id,
+              // التصنيف المحدود بس بيتخزن: الكلمة الخام من المزود بتشخّص وما بتنزلش القاعدة (FR-003).
+              ...(bounceClass === null ? {} : { bounce_type: bounceClass }),
+            },
           },
-        },
-        deadline,
+          deadline,
+        ),
+        deadline.getTime() - this.intake.clock.now().getTime(),
       );
       return { received: true };
     } finally {

@@ -69,7 +69,6 @@ export {
   EMAIL_FEEDBACK_INBOX_ID,
   EMAIL_FEEDBACK_JOB,
   EMAIL_FEEDBACK_QUEUE,
-  EmailFeedbackQueueUnavailableError,
   emailFeedbackJob,
 } from './email-feedback-queue.ts';
 export { notificationRedisOptions } from './redis-connection.ts';

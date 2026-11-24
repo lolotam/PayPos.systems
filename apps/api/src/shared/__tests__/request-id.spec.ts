@@ -29,6 +29,7 @@ class Timing {
 const lines: Record<string, unknown>[] = [];
 let app: NestFastifyApplication;
 let port: number;
+let downstreamResponses = 0;
 
 beforeAll(async () => {
   const destination = new Writable({
@@ -43,6 +44,12 @@ beforeAll(async () => {
     { readiness: [], corsOrigins: ['http://admin.test'] },
     { controllers: [Timing], logger: createLogger('info', { destination }) },
   );
+  app
+    .getHttpAdapter()
+    .getInstance()
+    .addHook('onResponse', async () => {
+      downstreamResponses++;
+    });
   await app.listen({ host: '127.0.0.1', port: 0 });
   port = (app.getHttpServer().address() as { port: number }).port;
 });
@@ -119,4 +126,12 @@ describe('browsers can send and read the request id', () => {
     });
     expect(String(res.headers['access-control-expose-headers'])).toMatch(/x-request-id/i);
   });
+});
+
+it('completes a normal response and advances hooks after request logging', async () => {
+  const before = downstreamResponses;
+  const response = await app.inject({ method: 'GET', url: '/v1/probe/timing/fast' });
+  expect(response.statusCode).toBe(200);
+  expect(response.json()).toEqual({ ok: true });
+  expect(downstreamResponses).toBe(before + 1);
 });

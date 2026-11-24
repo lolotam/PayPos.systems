@@ -22126,7 +22126,7 @@
         },
         "responses": {
           "200": {
-            "description": "Stored scrubbed and enqueued",
+            "description": "Verified event acknowledged; allowlisted events stored, other event types ignored",
             "content": {
               "application/json": {
                 "schema": {
@@ -22176,7 +22176,7 @@
             }
           }
         ],
-        "description": "HMAC over the raw body; the scrubbed envelope is stored before the job is enqueued."
+        "description": "HMAC over the raw body; allowlisted events are stored before enqueue, other verified event types are acknowledged without storage."
       }
     },
     "/v1/me/notifications": {
@@ -43729,7 +43729,7 @@
               "email_id": {
                 "type": "string",
                 "maxLength": 36,
-                "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+                "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
               },
               "bounce": {
                 "type": "object",

@@ -11,7 +11,7 @@ export function createEmailFeedbackInboxRepository(
   ids: IdGenerator,
 ): EmailFeedbackInboxRepository {
   return {
-    accept: (event, at) =>
+    accept: (event, at, remainingMs) =>
       database.withGlobal(async (tx) => {
         const inserted = await tx.execute<{ id: string }>(sql`
           INSERT INTO public.platform_email_feedback_inbox
@@ -26,13 +26,13 @@ export function createEmailFeedbackInboxRepository(
         const row = existing[0];
         if (row === undefined) throw new Error('EMAIL_FEEDBACK_ROW_MISSING');
         return { id: row.id, inserted: false };
-      }),
-    confirmEnqueue: (id, at) =>
+      }, remainingMs),
+    confirmEnqueue: (id, at, remainingMs) =>
       database.withGlobal(async (tx) => {
         await tx.execute(
           sql`UPDATE public.platform_email_feedback_inbox SET enqueue_confirmed_at = ${at.toISOString()}::timestamptz
             WHERE id = ${id} AND enqueue_confirmed_at IS NULL`,
         );
-      }),
+      }, remainingMs),
   };
 }

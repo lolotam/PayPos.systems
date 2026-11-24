@@ -1,4 +1,4 @@
-import { EmailFeedbackQueueUnavailableError } from '@pospay/notifications';
+import { EmailFeedbackQueueUnavailableError } from '../../ports/email-feedback.repository.ts';
 import type { Clock } from '../../ports/clock.port.ts';
 import type {
   EmailFeedbackEvent,
@@ -15,7 +15,8 @@ export class ReceiveEmailFeedback {
   ) {}
 
   async execute(event: EmailFeedbackEvent, deadline: Date): Promise<void> {
-    const stored = await this.inbox.accept(event, this.clock.now());
+    const at = this.clock.now();
+    const stored = await this.inbox.accept(event, at, deadline.getTime() - at.getTime());
     // إعادة التسليم بتتأكد بـ 200 من غير تغيير: الصف موجود، والـ sweep بيكمّل لو هو لسه unconfirmed.
     if (!stored.inserted) return;
     // الصف اتعهد، فأي خطوة فاتتها الموعد بتسيبه للاسترداد بدل ما نتجاوز ميزانية الطلب (§6).
@@ -29,6 +30,10 @@ export class ReceiveEmailFeedback {
     }
     // تأكيد متأخر برضه بيسيب الصف unconfirmed: الاسترداد بيأكد بدل ما نعلّق على الرد.
     if (this.clock.now().getTime() >= deadline.getTime()) return;
-    await this.inbox.confirmEnqueue(stored.id, this.clock.now());
+    await this.inbox.confirmEnqueue(
+      stored.id,
+      this.clock.now(),
+      deadline.getTime() - this.clock.now().getTime(),
+    );
   }
 }

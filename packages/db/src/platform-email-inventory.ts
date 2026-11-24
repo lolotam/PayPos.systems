@@ -61,6 +61,21 @@ async function assertGlobalBoundary(tx: Pick<Tx, 'execute'>): Promise<void> {
           AND has_any_column_privilege(${READER_ROLE},c.oid,p)))`);
   const granted = readerTables.map((r) => r.grant);
   if (granted.length !== 1 || granted[0] !== 'platform_email_suppressions:SELECT') fail();
+  const columns = await tx.execute<{ name: string }>(sql`
+    SELECT a.attname AS name FROM pg_attribute a
+    WHERE a.attrelid = 'public.platform_email_suppressions'::regclass
+      AND a.attnum > 0 AND NOT a.attisdropped
+      AND has_column_privilege(${READER_ROLE},a.attrelid,a.attnum,'SELECT')
+    ORDER BY a.attname`);
+  const expected = [
+    'first_suppressed_at',
+    'hash_key_id',
+    'last_suppressed_at',
+    'lifted_at',
+    'recipient_hash',
+    'source',
+  ];
+  if (columns.map((column) => column.name).join() !== expected.join()) fail();
   const readerObjects = await tx.execute(sql`SELECT c.oid FROM pg_class c
     WHERE c.relnamespace='public'::regnamespace AND (c.relowner=${READER_ROLE}::regrole
       OR (c.relkind='S' AND has_sequence_privilege(${READER_ROLE},c.oid,'USAGE,SELECT,UPDATE')))`);

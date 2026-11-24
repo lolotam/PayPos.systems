@@ -80,7 +80,9 @@ it('keeps the lift column closed for the runtime role and for the owner', async 
 it('gives pospay_app the boolean check only, and no table privilege', async () => {
   const raw = postgres(test.appUrl, { max: 1, onnotice: () => undefined });
   try {
-    await expect(raw`SELECT 1 FROM platform_email_suppressions`).rejects.toThrow(/permission denied/);
+    await expect(raw`SELECT 1 FROM platform_email_suppressions`).rejects.toThrow(
+      /permission denied/,
+    );
     await expect(raw`SELECT 1 FROM platform_email_feedback_inbox`).rejects.toThrow(
       /permission denied/,
     );
@@ -110,9 +112,9 @@ it('keeps the function away from the other runtime roles and the reader from the
   await expect(intake`SET ROLE pospay_email_suppression_reader`).rejects.toThrow(
     /permission denied/,
   );
-  await expect(
-    intake`SELECT 1 FROM notification_attempt_feedback`,
-  ).rejects.toThrow(/permission denied/);
+  await expect(intake`SELECT 1 FROM notification_attempt_feedback`).rejects.toThrow(
+    /permission denied/,
+  );
 });
 
 it('isolates the tenant evidence table', async () => {
@@ -122,9 +124,7 @@ it('isolates the tenant evidence table', async () => {
         (company_id,id,attempt_id,event_type,bounce_class,provider_event_digest,provider_timestamp,recorded_at)
       VALUES (${B.company},${FEEDBACK},${ATTEMPT},'email.bounced','PERMANENT',${Buffer.alloc(32, 25)},now(),now())`,
   );
-  expect(
-    await run(A.company, sql`SELECT id FROM notification_attempt_feedback`),
-  ).toHaveLength(0);
+  expect(await run(A.company, sql`SELECT id FROM notification_attempt_feedback`)).toHaveLength(0);
   // مفتاح جديد كله: لو الـ INSERT policy وقعت، الانتهاك الوحيد المتبقي يكون 42501 من السياسة نفسها،
   // مش 23505 من تعارض المفتاح — فالتأكيد على SQLSTATE بيميّز السبب الصح. Drizzle بيلف خطأ postgres
   // في cause، فبمشّي على السلسلة لحد كود الحالة.
@@ -154,8 +154,11 @@ it('isolates the tenant evidence table', async () => {
     run(A.company, sql`UPDATE notification_attempt_feedback SET event_type = 'email.failed'`),
   ).rejects.toThrow();
   await expect(
-    run(B.company, sql`UPDATE notification_attempt_feedback SET event_type = 'email.failed'
-        WHERE id = ${FEEDBACK}`),
+    run(
+      B.company,
+      sql`UPDATE notification_attempt_feedback SET event_type = 'email.failed'
+        WHERE id = ${FEEDBACK}`,
+    ),
   ).rejects.toThrow();
   await expect(run(A.company, sql`DELETE FROM notification_attempt_feedback`)).rejects.toThrow();
   const [row] = await run(
@@ -191,3 +194,26 @@ it('rejects an inventory that drifts from the reviewed grants', async () => {
   }
   await global.ping();
 });
+
+it('rejects a reader reduced to one suppression column', async () => {
+  try {
+    await owner`REVOKE SELECT ON platform_email_suppressions FROM pospay_email_suppression_reader`;
+    await owner`GRANT SELECT (recipient_hash) ON platform_email_suppressions TO pospay_email_suppression_reader`;
+    await expect(global.ping()).rejects.toThrow('PLATFORM_NOTIFICATIONS_PRIVILEGES_INVALID');
+  } finally {
+    await owner`REVOKE SELECT (recipient_hash) ON platform_email_suppressions FROM pospay_email_suppression_reader`;
+    await owner`GRANT SELECT ON platform_email_suppressions TO pospay_email_suppression_reader`;
+  }
+  await expect(global.ping()).resolves.toBeUndefined();
+});
+
+it.each(['ECONNRESET', 'EPIPE', 'CONNECTION_CLOSED', 'CONNECTION_ENDED', 'CONNECTION_DESTROYED'])(
+  'maps a driver disconnect %s without SQLSTATE to a retryable storage failure',
+  async (code) => {
+    await expect(
+      global.withGlobal(async () => {
+        throw Object.assign(new Error('driver disconnected'), { code });
+      }),
+    ).rejects.toThrow('PLATFORM_STORAGE_UNAVAILABLE');
+  },
+);

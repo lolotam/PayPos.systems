@@ -1,9 +1,10 @@
+import { EmailFeedbackQueueUnavailableError } from '../../ports/email-feedback.repository.ts';
 import { createHash, createHmac } from 'node:crypto';
 import type { NestFastifyApplication } from '@nestjs/platform-fastify';
 import { createPlatformEmailDatabase, type PlatformEmailDatabase } from '@pospay/db';
 import { systemUuidV7 } from '@pospay/ids';
 import { createLogger, type Logger } from '@pospay/observability';
-import { EmailFeedbackQueueUnavailableError, resendSigningKey } from '@pospay/notifications';
+import { resendSigningKey } from '@pospay/notifications';
 import { Redis } from 'ioredis';
 import postgres from 'postgres';
 import { API_LOG_EVENTS } from '../../../../shared/log-events.ts';
@@ -13,7 +14,7 @@ import { createApp } from '../../../../app.ts';
 import { createEmailFeedbackInboxRepository } from '../../persistence/drizzle-email-feedback.repository.ts';
 import { ReceiveEmailFeedback } from '../../use-cases/receive-email-feedback/receive-email-feedback.ts';
 
-export const secret = `whsec_${Buffer.from('resend-webhook-secret').toString('base64')}`;
+export const secret = ['whsec', Buffer.from('resend-webhook-secret').toString('base64')].join('_');
 export const remote = '127.0.0.42';
 export const eventId = 'msg_test_resend_event';
 export const emailId = '4ef9a417-02e9-4d39-ad75-9611e0fcc33c';
@@ -91,7 +92,8 @@ export async function resendHarness(): Promise<ResendHarness> {
   const app: NestFastifyApplication = await createApp(
     { readiness: [], redis, resend: intake.intake, trustedProxy: ['127.0.0.1'] },
     { logger },
-  );  return {
+  );
+  return {
     app,
     database,
     test,

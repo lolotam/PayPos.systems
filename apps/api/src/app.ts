@@ -1,4 +1,5 @@
 import 'reflect-metadata';
+import { contexts, logCompleted } from './shared/request-completion.ts';
 
 import {
   Inject,
@@ -15,13 +16,7 @@ import type { IdGenerator, TenantWrappers } from '@pospay/db';
 import type { PushApiConfiguration } from '@pospay/notifications';
 import type { Redis } from 'ioredis';
 import { systemUuidV7 } from '@pospay/ids';
-import {
-  createLogger,
-  enterRequestContext,
-  withRequestContext,
-  type Logger,
-  type RequestContext,
-} from '@pospay/observability';
+import { createLogger, enterRequestContext, type Logger } from '@pospay/observability';
 import { LogController, type FastifyReply, type FastifyRequest } from 'fastify';
 
 import {
@@ -314,29 +309,6 @@ class AppModule {
   }
 }
 
-// Each request's own log context, looked up by the request so a callback running elsewhere can restore it.
-const contexts = new WeakMap<FastifyRequest, RequestContext>();
-
-// One line per request with safe, structural fields only: the route PATTERN, never the raw URL, whose path segments
-// and query string can carry tokens or phone numbers.
-function logCompleted(request: FastifyRequest, reply: FastifyReply): void {
-  const write = () =>
-    request.log.info(
-      {
-        http: {
-          method: request.method,
-          route: request.routeOptions.url ?? '[unmatched]',
-          status: reply.statusCode,
-          ms: Math.round(reply.elapsedTime),
-        },
-      },
-      'request completed',
-    );
-  const context = contexts.get(request);
-  if (context === undefined) write();
-  else withRequestContext(context, write);
-}
-
 // Fastify with the shared sanitising logger, request ids, and the envelope for errors Fastify raises itself.
 export function buildAdapter(
   logger: Logger,
@@ -462,8 +434,10 @@ export async function createApp(
     contexts.set(request, enterRequestContext(request.id));
     void reply.header('x-request-id', request.id);
   });
-  // logCompleted بيمرر نفس الوسيطين، والمرجع المباشر بيوفّر سطرين عند سقف الـ 400.
-  adapter.getInstance().addHook('onResponse', logCompleted);
+  // Fastify advances the hook chain when this Promise settles.
+  adapter.getInstance().addHook('onResponse', async (request, reply) => {
+    logCompleted(request, reply);
+  });
   const app = await NestFactory.create<NestFastifyApplication>(
     AppModule.forRoot(deps, controllers, logger, limiter),
     adapter,

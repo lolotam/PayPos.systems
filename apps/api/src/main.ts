@@ -16,7 +16,11 @@ import {
   readOtpTemplateApproval,
   readPushApiConfiguration,
 } from '@pospay/notifications';
-import { createDatabase, createPlatformEmailDatabase, createPlatformWhatsappDatabase } from '@pospay/db';
+import {
+  createDatabase,
+  createPlatformEmailDatabase,
+  createPlatformWhatsappDatabase,
+} from '@pospay/db';
 import { systemUuidV7 } from '@pospay/ids';
 import { createLogger } from '@pospay/observability';
 import { Redis } from 'ioredis';
@@ -158,13 +162,16 @@ try {
         { capability: { name: 'EMAIL_FEEDBACK_INTAKE', state: 'READY' } },
         'email feedback intake capability',
       );
-    } catch {
+    } catch (error) {
       logger.warn(
         {
           capability: {
             name: 'EMAIL_FEEDBACK_INTAKE',
             state: 'UNAVAILABLE',
-            reason: 'SETUP_FAILED',
+            reason:
+              error instanceof Error && error.message === 'RESEND_EVENT_DIGEST_KEY_INVALID'
+                ? 'EVENT_DIGEST_KEY_MISSING_OR_INVALID'
+                : 'SETUP_FAILED',
           },
         },
         'email feedback intake capability',
@@ -347,8 +354,9 @@ try {
   );
   // بلا proxy موثوق كل زائر بيشارك عنوان الـ proxy، والحدّ على عنوان واحد هيبقى دلو واحدة.
   // زي بوابة الواتساب بالظبط: في الإنتاج من غير TRUSTED_PROXY_CIDRS القدرة ماتتكونش موجودة.
-  const ratingLinksAvailable =
-    !(process.env['NODE_ENV'] === 'production' && config.TRUSTED_PROXY_CIDRS.length === 0);
+  const ratingLinksAvailable = !(
+    process.env['NODE_ENV'] === 'production' && config.TRUSTED_PROXY_CIDRS.length === 0
+  );
   if (!ratingLinksAvailable) {
     logger.warn(
       { capability: { name: 'RATING_LINKS', state: 'UNAVAILABLE', reason: 'NO_TRUSTED_PROXY' } },

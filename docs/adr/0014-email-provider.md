@@ -207,7 +207,7 @@ subject, a header, a tag or a bounce diagnostic**.
 | `platform_email_feedback_inbox` | `id uuid` PK, `provider_event_digest bytea` UNIQUE (32 bytes), `provider_email_id text`, `event_type text`, `bounce_class text`, `provider_timestamp`, `received_at`, `raw_event jsonb`, `enqueue_confirmed_at`, `attempts smallint`, `next_attempt_at`, `resolved_at`, `quarantined_at`, `quarantine_reason text` | `event_type` in the six allowlisted events; `bounce_class IN ('PERMANENT','TRANSIENT')` or NULL; `resolved_at` and `quarantined_at` never both set; `quarantine_reason` from a fixed code list |
 | `platform_email_audit` | `id uuid` PK, `recipient_hash bytea`, `hash_key_id text`, `source text`, `inbox_id uuid` FK, `operator_id uuid`, `action text`, `reason text`, `occurred_at` | `action = 'SUPPRESS'`; a provider source requires `inbox_id` and no operator; `MANUAL` requires an operator and no inbox; the reason is a finite code |
 
-The permanent dedupe identity is `HMAC-SHA256(webhook key bytes, 'pospay:notifications:resend-event:v1\0' ||
+The permanent dedupe identity is `HMAC-SHA256(RESEND_EVENT_DIGEST_KEY bytes, 'pospay:notifications:resend-event:v1\0' ||
 svix-id)`: the provider event id exists only in verified-intake memory, and only its digest reaches the
 database — the same rule ADR-0013 §2 set for the Meta message id. The digest survives the 30-day scrubbed
 payload cleanup, so a replay after retention is still refused.
@@ -257,3 +257,7 @@ ISO — and enqueues one id-only job. The provider tags in the webhook body are 
 The confirmed provider contract (header names, signing string, event names, bounce field, and the fact that
 `GET /emails/{id}` returns the tags and the recipient) is recorded in
 `docs/specs/075-notifications-email-feedback/resend-contract.md`.
+
+The event-digest key is frozen: never rotate it except through a documented migration preserving
+existing dedupe identities. Missing or invalid intake configuration leaves the capability NOT_READY
+with a clear log; API startup and `/ready` remain independent.

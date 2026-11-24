@@ -175,7 +175,7 @@ const PATHS = {
       ...operation(
         'receiveResendWebhook',
         '200',
-        'Stored scrubbed and enqueued',
+        'Verified event acknowledged; allowlisted events stored, other event types ignored',
         'ResendFeedbackAcknowledgement',
         'ResendFeedbackEnvelope',
       ),
@@ -201,7 +201,7 @@ const PATHS = {
         },
       ],
       description:
-        'HMAC over the raw body; the scrubbed envelope is stored before the job is enqueued.',
+        'HMAC over the raw body; allowlisted events are stored before enqueue, other verified event types are acknowledged without storage.',
     },
   },
   ...notificationPaths,
