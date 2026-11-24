@@ -263,6 +263,9 @@ describe('navigation groupings and active route resolution', () => {
     );
   });
 
+});
+
+describe('schedule settings placement', () => {
   it('puts the schedule settings page where design.md §4 puts it in each style', () => {
     const teamTabs = NAVIGATION_GROUPINGS.A.find((group) => group.id === 'team')?.tabs ?? [];
     const schedulesTab = teamTabs.find((tab) => tab.id === 'schedules');
