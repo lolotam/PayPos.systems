@@ -198,11 +198,11 @@ ADR states this, and a test proves the granted membership never exceeds the bran
 
 - Contract `packages/contracts/src/identity/member-invitation.ts`: input
   `{ email, name, role: enum of the four, scope: { type, id }, email_confirmed: z.literal(true) }` strict;
-  response `{ invitation_id, set_password_link: string | null }`.
+  response `{ invitation_id, set_password_link: string }` (N1: never `null`).
 - **The confirmation is always required (D10).** The screen always shows the full email and asks for the tick
-  before it posts, for a new and for an existing account alike; there is no lookup route and no 422 that tells the
-  two apart. A `null` link after a success is the only signal that the account existed; that difference follows
-  from IM-Q3 and IM-Q4 and is recorded as an accepted risk (spec §8). The route is rate-limited per owner in Redis
+  before it posts, for a new and for an existing account alike; there is no lookup route. Under N1 an email that already
+  has any account is refused with 422 `MEMBER_EMAIL_NOT_INVITABLE`; that refusal is the only signal that the account
+  existed and is recorded as an accepted risk (spec §8). The route is rate-limited per owner in Redis
   and every call is audited.
 - `identity/domain/invitable-roles.ts`: the table role → required scope type. Owner is absent by construction.
 - New tenant table `member_invitations` (`(company_id, id)`, forced RLS, negative test): `email_hash`, `user_id`,
@@ -213,11 +213,11 @@ ADR states this, and a test proves the granted membership never exceeds the bran
   are validated against the real business or branch of this company. Self-invitation is refused.
 - Use case `identity/use-cases/invite-member/`:
   1. tenant tx: authority; insert the invitation `PENDING` with its `operation_id`.
-  2. auth: find the user by email, or create it with a credential account and the marker
+  2. auth: refuse an email that already has any user (N1); otherwise create it with a credential account and the marker
      `invited_by_company_id` and `invitation_operation_id` (idempotent by operation id). A staff user's email is
      refused.
   3. tenant tx: no active membership of that user in the company; insert the membership; record `user_id` and
-     `membership_id` on the invitation; `ACTIVE` at once for an existing account, `PENDING` for a created one;
+     `membership_id` on the invitation; `PENDING` (the account is always a created one, N1);
      audit; outbox `MemberInvited`.
   4. for a created user: issue the link (48 hours, clock injected — `config.ts:208-214` uses `Date.now` today),
      stamp `link_issued_at`, return it once.
