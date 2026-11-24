@@ -317,7 +317,7 @@ export const ar: Catalog = {
     contractEnd: 'نهاية العقد (اختياري)',
     userId: 'معرف مستخدم موجود (اختياري)',
     create: 'إضافة موظف',
-    created: 'تمت إضافة الموظف:',
+    created: 'تم حفظ بيانات الموظفة:',
     invalid: 'راجع بيانات الموظف والتواريخ ومعرف المستخدم.',
     sectionIdentity: 'بيانات الموظف',
     sectionEmployment: 'التوظيف',

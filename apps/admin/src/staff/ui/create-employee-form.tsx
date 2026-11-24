@@ -14,6 +14,7 @@ import {
   useCreateEmployeeNumber,
 } from '../model/use-create-employee-number';
 import { useNameCheckedSubmit } from '../model/use-name-checked-submit';
+import { useResetAfterSave } from '../model/use-reset-after-save';
 import { DuplicateNameWarning } from './duplicate-name-warning';
 import { CreateEmployeeFormCard } from './create-employee-form-card';
 
@@ -27,6 +28,8 @@ type CreateEmployeeFormProps = {
   numberSent?: boolean;
   onNumberVisibility?: (shown: boolean) => void;
   onSave: (terms: CreateEmployeeInput) => void;
+  /** نتيجة آخر إنشاء ناجح؛ أي قيمة جديدة تفرّغ النموذج وترجع التركيز لأول حقل. */
+  saved?: unknown;
 };
 
 function emptyEmployee(branches: readonly WorkspaceBranch[]): CreateEmployeeInput {
@@ -47,6 +50,7 @@ export function CreateEmployeeForm(props: CreateEmployeeFormProps) {
     resolver: zodResolver(createEmployeeInput),
     defaultValues: emptyEmployee(props.branches),
   });
+  useResetAfterSave(form, props.saved);
   const branchId = useWatch({ control: form.control, name: 'primary_branch_id' });
   const number = useCreateEmployeeNumber({
     companyId: props.companyId,
