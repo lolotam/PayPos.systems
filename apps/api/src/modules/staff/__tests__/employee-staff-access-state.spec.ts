@@ -1,6 +1,7 @@
 import { systemUuidV7 } from '@pospay/ids';
+import { StaffAuthBusyError } from '@pospay/db';
 import { sql } from 'drizzle-orm';
-import { afterAll, beforeAll, expect, it } from 'vitest';
+import { afterAll, beforeAll, expect, it, vi } from 'vitest';
 import {
   addEmployee,
   cancelPending,
@@ -105,4 +106,20 @@ it('FR-F1-1 the GET state covers NONE, PENDING and a foreign employee 404', asyn
   expect(
     await f.h.owner`SELECT id FROM employee_staff_access WHERE employee_id = ${fresh}`,
   ).toHaveLength(0);
+});
+
+it('AC-ACT-3 a transient auth failure on the read route answers TRANSACTION_RETRY_REQUIRED', async () => {
+  const linked = await addEmployee(f, 'Busy read', f.salmiya, 21);
+  const phone = nextPhone(f);
+  expect((await grant(f, linked, phone)).status).toBe(200);
+  vi.spyOn(f.h.auth.staffUsers, 'read').mockRejectedValueOnce(new StaffAuthBusyError());
+  try {
+    expect(await readState(f, linked)).toMatchObject({
+      status: 409,
+      body: { code: 'TRANSACTION_RETRY_REQUIRED' },
+    });
+  } finally {
+    vi.restoreAllMocks();
+  }
+  expect((await readState(f, linked)).status).toBe(200);
 });

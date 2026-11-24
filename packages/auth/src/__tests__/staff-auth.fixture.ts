@@ -6,7 +6,8 @@ import { createAuth, type AuthService } from '../config.ts';
 import type { StaffDeviceContext } from '../staff-otp/types.ts';
 
 // The sign-out tests only exercise device locks, so the phone lock key stays local and deterministic.
-const staffPhoneLockKey = (hash: Uint8Array): bigint => {
+// Exported so a test can hold the very lock the runtime takes on a phone.
+export const staffPhoneLockKey = (hash: Uint8Array): bigint => {
   const digest = createHash('sha256').update('pospay:test:phone-lock\0').update(hash).digest();
   return digest.readBigInt64LE(0);
 };
