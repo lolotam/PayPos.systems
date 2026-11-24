@@ -55,6 +55,14 @@ const commissionStatementsColumns = {
   approvedAt: timestamp('approved_at', { withTimezone: true }),
   // لا تكتبه إلا قاعدة البيانات عند الاعتماد؛ هو دليل تريغر التجميد على معاملة الاعتماد نفسها.
   approvalXactId: xid8('approval_xact_id'),
+  // أعمدة الصرف الخمسة بيكتبها تريغر الانتقال APPROVED → PAID بس (54-1، FR-037)، والملاحظة اختيارية.
+  paidBy: uuid('paid_by').references(() => user.id),
+  paidAt: timestamp('paid_at', { withTimezone: true }),
+  paidOn: date('paid_on'),
+  paidMethod: text('paid_method'),
+  paidNote: text('paid_note'),
+  // دليل تريغر الدفع على معاملة الصرف نفسها؛ صفوف الدفع بتتقبل في المعاملة دي بس.
+  paymentXactId: xid8('payment_xact_id'),
   revision: integer('revision').notNull().default(0),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 };
@@ -94,6 +102,25 @@ const statementChecks = (t: StatementSelf) => [
         AND (${t.statementFingerprint} IS NULL OR ${t.statementFingerprint} ~ '^[0-9a-f]{64}$')`,
   ),
   check('commission_statements_revision', sql`${t.revision} >= 0`),
+  // طريقة الصرف من قايمة CS-Q6؛ والملاحظة بتفضل زي ما اتسجلت لحد ما الكشف يترجع مش ممكن أصلاً.
+  check(
+    'commission_statements_paid_method',
+    sql`${t.paidMethod} IS NULL OR ${t.paidMethod} IN ('WITH_SALARY','BANK_TRANSFER','CASH')`,
+  ),
+  // حد ملاحظة الصرف نفس حد ملاحظة الإجازة في العقود (500 حرف)، عشان المتصفح والقاعدة يتفقوا.
+  check(
+    'commission_statements_paid_note_length',
+    sql`${t.paidNote} IS NULL OR char_length(${t.paidNote}) <= 500`,
+  ),
+  // مرحلة الدفع متكاملة: PAID يعني كل أعمدة الصرف موجودة، وأي مرحلة تانية يعني كلها فاضية.
+  check(
+    'commission_statements_payment_stage',
+    sql`(${t.status} = 'PAID' AND ${t.paidBy} IS NOT NULL AND ${t.paidAt} IS NOT NULL
+          AND ${t.paidOn} IS NOT NULL AND ${t.paidMethod} IS NOT NULL AND ${t.paymentXactId} IS NOT NULL)
+        OR (${t.status} <> 'PAID' AND ${t.paidBy} IS NULL AND ${t.paidAt} IS NULL
+          AND ${t.paidOn} IS NULL AND ${t.paidMethod} IS NULL AND ${t.paidNote} IS NULL
+          AND ${t.paymentXactId} IS NULL)`,
+  ),
   check(
     'commission_statements_stage',
     sql`(${t.status} = 'DRAFT' AND ${t.reviewedFingerprint} IS NULL
@@ -124,6 +151,7 @@ const statementChecks = (t: StatementSelf) => [
 const statementIndexes = (t: StatementSelf) => [
   index('commission_statements_reviewed_by_idx').on(t.reviewedBy),
   index('commission_statements_approved_by_idx').on(t.approvedBy),
+  index('commission_statements_paid_by_idx').on(t.paidBy),
   index('commission_statements_reviewed_membership_idx').on(
     t.companyId,
     t.reviewedBy,

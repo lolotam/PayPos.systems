@@ -1,38 +1,16 @@
 import { FastifyAdapter } from '@nestjs/platform-fastify';
 import type { IdGenerator } from '@pospay/db';
-import { enterRequestContext, withRequestContext, type Logger, type RequestContext } from '@pospay/observability';
+import { enterRequestContext, type Logger } from '@pospay/observability';
 import { LogController, type FastifyReply, type FastifyRequest } from 'fastify';
 import { RATING_ROUTE } from './modules/customers/index.ts';
 import { ApiError, codeForStatus } from './shared/errors.ts';
+import { contexts, logCompleted } from './shared/request-completion.ts';
 
 const REQUEST_ID = /^[A-Za-z0-9._-]{8,128}$/;
 // Node's default 16 KiB covers the request line and every header together. The plan-employee cursor can
 // occupy 12288 URL characters and browser cookies share that budget, so set it explicitly
 // (SA decision recorded as 21:24); past the limit Fastify answers a raw 431 before Nest runs.
 export const API_MAX_HEADER_BYTES = 32_768;
-
-// Each request's own log context, looked up by the request so a callback running elsewhere can restore it.
-const contexts = new WeakMap<FastifyRequest, RequestContext>();
-
-// One line per request with safe, structural fields only: the route PATTERN, never the raw URL, whose path segments
-// and query string can carry tokens or phone numbers.
-function logCompleted(request: FastifyRequest, reply: FastifyReply): void {
-  const write = () =>
-    request.log.info(
-      {
-        http: {
-          method: request.method,
-          route: request.routeOptions.url ?? '[unmatched]',
-          status: reply.statusCode,
-          ms: Math.round(reply.elapsedTime),
-        },
-      },
-      'request completed',
-    );
-  const context = contexts.get(request);
-  if (context === undefined) write();
-  else withRequestContext(context, write);
-}
 
 // Fastify with the shared sanitising logger, request ids, and the envelope for errors Fastify raises itself.
 export function buildAdapter(
@@ -101,6 +79,7 @@ export function mountRequestLogging(adapter: FastifyAdapter): void {
     contexts.set(request, enterRequestContext(request.id));
     void reply.header('x-request-id', request.id);
   });
+  // Fastify advances the hook chain when this Promise settles.
   adapter.getInstance().addHook('onResponse', async (request, reply) => {
     logCompleted(request, reply);
   });

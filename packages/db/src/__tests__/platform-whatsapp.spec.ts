@@ -127,13 +127,13 @@ it('no runtime role has effective write access to opted_back_in_at', async () =>
 it('inventory rejects excess column and table grants', async () => {
   try {
     await owner`GRANT UPDATE (opted_back_in_at) ON platform_whatsapp_suppressions TO pospay_notifications`;
-    await expect(global.ping()).rejects.toThrow('PLATFORM_WHATSAPP_PRIVILEGES_INVALID');
+    await expect(global.ping()).rejects.toThrow('PLATFORM_NOTIFICATIONS_PRIVILEGES_INVALID');
   } finally {
     await owner`REVOKE UPDATE (opted_back_in_at) ON platform_whatsapp_suppressions FROM pospay_notifications`;
   }
   try {
     await owner`GRANT INSERT ON platform_whatsapp_suppressions TO pospay_notifications`;
-    await expect(global.ping()).rejects.toThrow('PLATFORM_WHATSAPP_PRIVILEGES_INVALID');
+    await expect(global.ping()).rejects.toThrow('PLATFORM_NOTIFICATIONS_PRIVILEGES_INVALID');
   } finally {
     await owner`REVOKE INSERT ON platform_whatsapp_suppressions FROM pospay_notifications`;
     await owner`GRANT INSERT (recipient_hash,hash_key_id,source,first_opted_out_at,last_opted_out_at) ON platform_whatsapp_suppressions TO pospay_notifications`;
@@ -143,24 +143,24 @@ it('inventory rejects excess column and table grants', async () => {
 
 // الجسر التراجعي (PR قبل 075 C1a): بعد migration 0248 بتحمل صلاحيات الإيميل على pospay_notifications،
 // والصورة القديمة لازم تفضل شغالة — الـ ping بيتسامح مع أي صلاحية platform_email_* ومايقعش.
-it('the rollback bridge tolerates the email grants that migration 0248 adds', async () => {
-  await owner`CREATE TABLE platform_email_feedback_inbox (id uuid PRIMARY KEY)`;
-  try {
-    await owner`GRANT SELECT, INSERT ON platform_email_feedback_inbox TO pospay_notifications`;
-    await owner`GRANT UPDATE (id) ON platform_email_feedback_inbox TO pospay_notifications`;
-    await expect(global.ping()).resolves.toBeUndefined();
-  } finally {
-    await owner`DROP TABLE platform_email_feedback_inbox`;
-  }
-  await global.ping();
+// صلاحيات الإيميل بتاعة migration 0251 موجودة فعلًا على الجداول من الميجريشن نفسه، وفحص الاتحاد
+// بيعدّها بالظبط: ده إثبات إن الصورة الجديدة مايحتاجش فلتر الجسر — الفحص الموحّد بيحصي الصنفين.
+it('the email grants of migration 0251 satisfy the union inventory', async () => {
+  const grants = await owner`
+    SELECT c.relname || ':' || p AS grant FROM pg_class c,
+      unnest(ARRAY['SELECT','INSERT','UPDATE','DELETE','TRUNCATE','REFERENCES','TRIGGER']) p
+    WHERE c.relnamespace = 'public'::regnamespace AND c.relname LIKE 'platform_email_%'
+      AND has_table_privilege('pospay_notifications', c.oid, p)`;
+  expect(grants.length).toBeGreaterThan(0);
+  await expect(global.ping()).resolves.toBeUndefined();
 });
 
 it('readiness rejects missing or unvalidated constraint', async () => {
   try {
     await owner`ALTER TABLE platform_whatsapp_suppressions DROP CONSTRAINT platform_whatsapp_suppressions_null_only`;
-    await expect(global.ping()).rejects.toThrow('PLATFORM_WHATSAPP_PRIVILEGES_INVALID');
+    await expect(global.ping()).rejects.toThrow('PLATFORM_NOTIFICATIONS_PRIVILEGES_INVALID');
     await owner`ALTER TABLE platform_whatsapp_suppressions ADD CONSTRAINT platform_whatsapp_suppressions_null_only CHECK (opted_back_in_at IS NULL) NOT VALID`;
-    await expect(global.ping()).rejects.toThrow('PLATFORM_WHATSAPP_PRIVILEGES_INVALID');
+    await expect(global.ping()).rejects.toThrow('PLATFORM_NOTIFICATIONS_PRIVILEGES_INVALID');
   } finally {
     await owner`ALTER TABLE platform_whatsapp_suppressions VALIDATE CONSTRAINT platform_whatsapp_suppressions_null_only`;
   }
@@ -170,9 +170,9 @@ it('readiness rejects missing or unvalidated constraint', async () => {
 it('wrong serving role fails readiness and work', async () => {
   const wrong = createPlatformWhatsappDatabase({ url: test.ownerUrl });
   try {
-    await expect(wrong.ping()).rejects.toThrow('PLATFORM_WHATSAPP_PRIVILEGES_INVALID');
+    await expect(wrong.ping()).rejects.toThrow('PLATFORM_NOTIFICATIONS_PRIVILEGES_INVALID');
     await expect(wrong.withGlobal(async () => undefined)).rejects.toThrow(
-      'PLATFORM_WHATSAPP_PRIVILEGES_INVALID',
+      'PLATFORM_NOTIFICATIONS_PRIVILEGES_INVALID',
     );
   } finally {
     await wrong.close();
@@ -182,13 +182,13 @@ it('wrong serving role fails readiness and work', async () => {
 it('rejects column-only tenant reads and excess definer EXECUTE even without table grants', async () => {
   try {
     await owner`GRANT SELECT (id) ON companies TO pospay_notifications`;
-    await expect(global.ping()).rejects.toThrow('PLATFORM_WHATSAPP_PRIVILEGES_INVALID');
+    await expect(global.ping()).rejects.toThrow('PLATFORM_NOTIFICATIONS_PRIVILEGES_INVALID');
   } finally {
     await owner`REVOKE SELECT (id) ON companies FROM pospay_notifications`;
   }
   try {
     await owner`GRANT EXECUTE ON FUNCTION platform_whatsapp_is_suppressed(bytea) TO PUBLIC`;
-    await expect(global.ping()).rejects.toThrow('PLATFORM_WHATSAPP_PRIVILEGES_INVALID');
+    await expect(global.ping()).rejects.toThrow('PLATFORM_NOTIFICATIONS_PRIVILEGES_INVALID');
   } finally {
     await owner`REVOKE EXECUTE ON FUNCTION platform_whatsapp_is_suppressed(bytea) FROM PUBLIC`;
   }

@@ -44,6 +44,19 @@ describe('visiblePageIds', () => {
     expect(idsFor({})).not.toContain('commission-plans');
   });
 
+  it('CS-Q20: shows the commission statements page to a branch manager and the finance roles, not to others', () => {
+    for (const role of ['owner', 'general_manager', 'accountant', 'business_manager', 'branch_manager']) {
+      expect(idsFor({ role })).toContain('commission-statements');
+    }
+    for (const role of ['cashier', 'viewer', '']) {
+      expect(idsFor({ role })).not.toContain('commission-statements');
+    }
+  });
+
+  it('keeps the branch manager out of the finance-only pages the statements entry once shared a group with', () => {
+    expect(idsFor({ role: 'branch_manager' })).not.toContain('payroll-runs-and-payslips');
+  });
+
   it('always shows pages whose condition is always', () => {
     expect(idsFor({ businessType: null, role: '' })).toEqual(
       expect.arrayContaining(['dashboard', 'employees', 'permissions']),

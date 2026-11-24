@@ -1,13 +1,17 @@
 import { describe, expect, it } from 'vitest';
 
 import { CommissionPlanVersionError } from '../domain/errors.ts';
-import type { CommissionStatementReader } from '../ports/commission-statement.port.ts';
+import type {
+  ClosedStatementPayment,
+  CommissionStatementReader,
+} from '../ports/commission-statement.port.ts';
 import { CanonicalSha256FingerprintHasher } from '../persistence/canonical-sha256-fingerprint-hasher.ts';
 import { computeStatement } from '../use-cases/compute-statement-view/compute-statement-view.ts';
 import { GetCommissionStatementUseCase } from '../use-cases/get-statement/get-statement.usecase.ts';
 import {
   BUSINESS,
   PERIOD,
+  RANA,
   SALMIYA,
   statementRecord,
   statementSource,
@@ -36,6 +40,7 @@ const ok = (
 const closedRead = (
   businessWide: boolean,
   status: 'APPROVED' | 'PAID',
+  payment: ClosedStatementPayment | null = null,
 ): Awaited<ReturnType<CommissionStatementReader['read']>> => {
   const computed = computeStatement(PERIOD, statementSource(), hasher);
   return {
@@ -49,9 +54,24 @@ const closedRead = (
         inputFingerprint: computed.inputFingerprint,
         statementFingerprint: computed.statementFingerprint,
         rows: computed.build.rows,
+        payment,
       },
     },
   };
+};
+
+const ELSEWHERE = '01920000-0000-7000-8000-0000000000e9';
+/** صرف كاش لموظفتين: واحدة مرئية لفرع القارئ (رنا) وواحدة بره الفرع. */
+const PAID_PAYMENT: ClosedStatementPayment = {
+  paidOn: '2026-11-03',
+  paidMethod: 'CASH',
+  paidNote: 'with salary',
+  paidAt: '2026-11-07T09:00:00.000Z',
+  paidBy: '01920000-0000-7000-8000-0000000000f1',
+  payments: [
+    { employeeId: RANA, exactPayable: '41.003', paidAmount: '41.005' },
+    { employeeId: ELSEWHERE, exactPayable: '10.000', paidAmount: '10.000' },
+  ],
 };
 
 const view = (reader: CommissionStatementReader) =>
@@ -174,7 +194,52 @@ describe('a closed month is read from its frozen rows (FR-025, FR-033)', () => {
   it('gives a branch reader the closed branch shape with no whole-statement field', async () => {
     const response = await view(readerOf(closedRead(false, 'APPROVED')));
 
-    expect(Object.keys(response).sort()).toEqual(['business_id', 'employees', 'period', 'reader_scope', 'status']);
+    expect(Object.keys(response).sort()).toEqual([
+      'business_id',
+      'employees',
+      'payment',
+      'period',
+      'reader_scope',
+      'status',
+    ]);
+  });
+
+  it('shows a paid month its payment: all rows and the total to the business-wide reader, only her rows to a branch reader (FR-037)', async () => {
+    const payment = PAID_PAYMENT;
+    const elsewhere = ELSEWHERE;
+
+    const business = await view(readerOf(closedRead(true, 'PAID', payment)));
+    const branch = await view(readerOf(closedRead(false, 'PAID', payment)));
+
+    expect(business).toMatchObject({
+      payment: {
+        paid_on: '2026-11-03',
+        paid_method: 'CASH',
+        paid_total: '51.005',
+        paid_by: payment.paidBy,
+        payments: [
+          { employee_id: RANA, exact_payable: '41.003', paid_amount: '41.005' },
+          { employee_id: elsewhere, exact_payable: '10.000', paid_amount: '10.000' },
+        ],
+      },
+    });
+    expect(branch).toMatchObject({
+      payment: {
+        paid_on: '2026-11-03',
+        paid_method: 'CASH',
+        payments: [{ employee_id: RANA, exact_payable: '41.003', paid_amount: '41.005' }],
+      },
+    });
+    expect(Object.keys((branch as { payment: object }).payment).sort()).toEqual([
+      'paid_method',
+      'paid_on',
+      'payments',
+    ]);
+  });
+
+  it('has no payment on an approved month', async () => {
+    expect(await view(readerOf(closedRead(true, 'APPROVED')))).toMatchObject({ payment: null });
+    expect(await view(readerOf(closedRead(false, 'APPROVED')))).toMatchObject({ payment: null });
   });
 
   it('refuses to guess when a closed month reaches the use case without its frozen rows', async () => {

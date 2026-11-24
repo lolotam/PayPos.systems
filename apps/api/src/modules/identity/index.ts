@@ -116,6 +116,7 @@ export {
   readCommissionApprovers,
   readCommissionReturnAccess,
 } from './persistence/commission-approval-access.ts';
+export { readCommissionStatementPayAccess } from './persistence/commission-statement-pay-access.ts';
 export {
   readCommissionFeatureEnabled,
   readCommissionScope,

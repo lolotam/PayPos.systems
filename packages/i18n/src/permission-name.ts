@@ -50,6 +50,7 @@ const keys: Readonly<Record<string, MessageKey>> = {
   'read:commissions:business': 'permissionCodes.readCommissionsBusiness',
   'review:commissions:business': 'permissionCodes.reviewCommissionsBusiness',
   'approve:commissions:business': 'permissionCodes.approveCommissionsBusiness',
+  'pay:commissions:business': 'permissionCodes.payCommissionsBusiness',
   'manage:employee-number:company': 'permissionCodes.manageEmployeeNumberCompany',
   'view:notifications:business': 'permissionCodes.viewNotificationsBusiness',
   'manage:files:business': 'permissionCodes.manageFilesBusiness',

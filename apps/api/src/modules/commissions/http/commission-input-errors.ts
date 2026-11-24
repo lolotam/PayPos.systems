@@ -6,6 +6,7 @@ import {
 
 import { ApiError } from '../../../shared/errors.ts';
 import { CommissionPlanVersionError } from '../use-cases/create-commission-plan-version/create-commission-plan-version.usecase.ts';
+import { CommissionStatementPayError } from '../use-cases/mark-statement-paid/mark-statement-paid.usecase.ts';
 
 /**
  * يرفض الكتابة بالخطأ المعروف: خطأ الـ domain يبقى كوده، والاستخدام المتكرر للمفتاح خطأ 422،
@@ -17,6 +18,9 @@ import { CommissionPlanVersionError } from '../use-cases/create-commission-plan-
 export function mapCommissionWriteError(error: unknown): never {
   if (error instanceof CommissionPlanVersionError) {
     throw new ApiError(error.code, error.details);
+  }
+  if (error instanceof CommissionStatementPayError) {
+    throw new ApiError(error.code);
   }
   if (error instanceof StatementPeriodClosedError) {
     throw new ApiError('COMMISSION_PERIOD_CLOSED');

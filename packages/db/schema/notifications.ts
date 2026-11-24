@@ -174,6 +174,49 @@ export const notificationAttempts = pgTable(
   ],
 );
 
+// دليل رد المزود لكل محاولة إيميل (spec 075): سطر مستأجر واحد، للقراءة فقط من ناحية الاستعمال.
+export const notificationAttemptFeedback = pgTable(
+  'notification_attempt_feedback',
+  {
+    companyId: uuid('company_id')
+      .notNull()
+      .references(() => companies.id),
+    id: uuid('id').notNull(),
+    attemptId: uuid('attempt_id').notNull(),
+    eventType: text('event_type').notNull(),
+    bounceClass: text('bounce_class'),
+    providerEventDigest: bytea('provider_event_digest').notNull(),
+    providerTimestamp: timestamp('provider_timestamp', { withTimezone: true }).notNull(),
+    recordedAt: timestamp('recorded_at', { withTimezone: true }).notNull(),
+  },
+  (t) => [
+    primaryKey({ name: 'notification_attempt_feedback_pkey', columns: [t.companyId, t.id] }),
+    unique('notification_attempt_feedback_event').on(t.companyId, t.providerEventDigest),
+    foreignKey({
+      name: 'notification_attempt_feedback_attempt_fk',
+      columns: [t.companyId, t.attemptId],
+      foreignColumns: [notificationAttempts.companyId, notificationAttempts.id],
+    }),
+    check(
+      'notification_attempt_feedback_event_type',
+      sql`${t.eventType} IN ('email.delivered','email.bounced','email.complained','email.failed','email.suppressed','email.delivery_delayed')`,
+    ),
+    check(
+      'notification_attempt_feedback_bounce_class',
+      sql`${t.bounceClass} IS NULL OR ${t.bounceClass} IN ('PERMANENT','TRANSIENT')`,
+    ),
+    check(
+      'notification_attempt_feedback_digest',
+      sql`octet_length(${t.providerEventDigest}) = 32`,
+    ),
+    index('notification_attempt_feedback_attempt_idx').on(
+      t.companyId,
+      t.attemptId,
+      t.providerTimestamp.desc(),
+    ),
+  ],
+);
+
 // اشتراكات الدفع الشخصية (ADR-0052 §3): صف لكل تثبيت متصفح في شركة؛ الأسرار بتمسح كلها أو ما بتمسحش.
 export const pushSubscriptions = pgTable(
   'push_subscriptions',

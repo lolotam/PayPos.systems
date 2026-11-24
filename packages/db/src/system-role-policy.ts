@@ -64,6 +64,8 @@ const deviceForbidden = [
   'review:commissions:business',
   // الجهاز لا يعتمد كشف العمولة أبداً؛ الاعتماد لتسجيل دخول إداري فردي (CS-Q5).
   'approve:commissions:business',
+  // الجهاز لا يصرف كشف عمولة أبداً؛ الصرف قرار بشري (CS-Q4).
+  'pay:commissions:business',
   'manage:employee-number:company',
   'view:notifications:business',
   'create:companies:platform',
@@ -149,6 +151,7 @@ export function systemRolePolicy(roleId: string, ownerKey: string) {
           code === 'manage:alert-rules:business' ||
           code === 'manage:rating-requests:business' ||
           code === 'manage:staff-app-columns:business' ||
+          code === 'pay:commissions:business' ||
           (DELEGATABLE_CATALOG_PERMISSIONS as readonly string[]).includes(code) ||
           optional[role.code]?.includes(code),
     ),

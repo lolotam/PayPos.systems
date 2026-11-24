@@ -1748,15 +1748,36 @@
     {
       "idx": 251,
       "version": "7",
-      "when": 1795498594762,
-      "tag": "0251_2026-11-24_staff-access-schema",
+      "when": 1795492873070,
+      "tag": "0251_2026-11-24_platform-email-feedback",
       "breakpoints": true
     },
     {
       "idx": 252,
       "version": "7",
-      "when": 1795498607676,
-      "tag": "0252_2026-11-24_staff-access-rls-and-seed",
+      "when": 1795492903221,
+      "tag": "0252_2026-11-24_platform-email-feedback-indexes",
+      "breakpoints": true
+    },
+    {
+      "idx": 253,
+      "version": "7",
+      "when": 1795497625478,
+      "tag": "0253_2026-11-24_commission-statement-payments",
+      "breakpoints": true
+    },
+    {
+      "idx": 254,
+      "version": "7",
+      "when": 1795514002594,
+      "tag": "0254_2026-11-24_staff-access-schema",
+      "breakpoints": true
+    },
+    {
+      "idx": 255,
+      "version": "7",
+      "when": 1795514014456,
+      "tag": "0255_2026-11-24_staff-access-rls-and-seed",
       "breakpoints": true
     }
   ]

@@ -1,0 +1,114 @@
+import type {
+  CommissionStatementApproveRequest,
+  MarkCommissionStatementPaidInput,
+  MarkCommissionStatementPaidResponse,
+  CommissionStatementReturnInput,
+  CommissionStatementReviewInput,
+} from '@pospay/contracts';
+import {
+  approveStatement,
+  generateStatement,
+  markStatementPaid,
+  returnStatement,
+  reviewStatement,
+  type StatementScope,
+} from './commission-statement-client';
+import { isClosedBusinessReading, isOpenBusinessReading, type StatementReading } from '../model/statement-reading';
+
+/** أمر كتابة على الكشف مع جسمه. */
+export type StatementCommand =
+  | { kind: 'generate' }
+  | { kind: 'review'; body: CommissionStatementReviewInput }
+  | { kind: 'return'; body: CommissionStatementReturnInput }
+  | { kind: 'approve'; body: CommissionStatementApproveRequest }
+  | { kind: 'pay'; body: MarkCommissionStatementPaidInput };
+
+/**
+ * طلب التنفيذ: الأمر، وهوية فتحة الحوار اللي طلعته (مفتاح المحاولة بيعيش معاها بس)، والنسخة اللي المستخدم
+ * شافها لحظة فتح الحوار.
+ */
+export interface StatementRequest {
+  command: StatementCommand;
+  openingId: string;
+  seenVersion: string;
+}
+
+/** الشاشة والشهر اللي الأمر بيشتغل عليهم. */
+export interface StatementTarget {
+  scope: StatementScope;
+  period: string;
+}
+
+/** رفض بشكل رد السيرفر لما النسخة اتغيّرت بين فتح الحوار والتأكيد، من غير ما نبعت أي حاجة. */
+export function staleRefusal() {
+  return { status: 409, code: 'COMMISSION_FINGERPRINT_STALE' };
+}
+
+/** الكشف بعد المراجعة بحسب ردها: بصمتا المراجعة هما اللي السيرفر قبلهم، وما بقاش في تغيّر بعدها. */
+function reviewed(cached: StatementReading, result: { reviewed_fingerprint: string; reviewed_statement_fingerprint: string }) {
+  if (!isOpenBusinessReading(cached)) return undefined;
+  return {
+    ...cached,
+    status: 'REVIEWED' as const,
+    generated: true,
+    reviewed_fingerprint: result.reviewed_fingerprint,
+    reviewed_statement_fingerprint: result.reviewed_statement_fingerprint,
+    changed_since_review: false,
+    change_cause: null,
+  };
+}
+
+/** الكشف بعد الإرجاع للمسودة: حقائق المراجعة اتمسحت. */
+function returned(cached: StatementReading) {
+  if (!isOpenBusinessReading(cached)) return undefined;
+  return {
+    ...cached,
+    status: 'DRAFT' as const,
+    reviewed_fingerprint: null,
+    reviewed_statement_fingerprint: null,
+    changed_since_review: false,
+    change_cause: null,
+  };
+}
+
+/** الشهر المعتمد بعد الصرف: حالة PAID وبيانات الصرف من رد السيرفر نفسه، لأن رد الصرف مش الكشف كله. */
+function paid(cached: StatementReading, result: MarkCommissionStatementPaidResponse) {
+  if (!isClosedBusinessReading(cached)) return undefined;
+  const { paid_on, paid_method, paid_note, paid_at, paid_by, paid_total, payments } = result;
+  return {
+    ...cached,
+    status: 'PAID' as const,
+    payment: { paid_on, paid_method, paid_note, paid_at, paid_by, paid_total, payments },
+  };
+}
+
+/**
+ * ينفّذ الأمر ويرجّع الكشف زي ما بقى بعده من رد الكتابة نفسه، عشان الشاشة ما تستناش قراءة تانية قد تفشل:
+ * العمل والاعتماد بيرجّعوا الكشف كله، والمراجعة والإرجاع والصرف بيرجّعوا النتيجة بس فبنعدّل الكشف المحفوظ بيها.
+ *
+ * @param target هوية الشاشة والشهر
+ * @param key مفتاح المحاولة
+ * @param command الأمر
+ * @param cached الكشف المحفوظ وقت الأمر
+ * @returns الكشف بعد الأمر، أو undefined لو ما قدرناش نحدده من الرد
+ */
+export async function executeStatementCommand(
+  target: StatementTarget,
+  key: string,
+  command: StatementCommand,
+  cached: StatementReading | undefined,
+): Promise<StatementReading | undefined> {
+  const { scope, period } = target;
+  if (command.kind === 'generate') return generateStatement(scope, period, key);
+  if (command.kind === 'approve') return approveStatement(scope, period, key, command.body);
+  if (command.kind === 'review') {
+    const result = await reviewStatement(scope, period, key, command.body);
+    return cached === undefined ? undefined : reviewed(cached, result);
+  }
+  if (command.kind === 'pay') {
+    const result = await markStatementPaid(scope, period, key, command.body);
+    return cached === undefined ? undefined : paid(cached, result);
+  }
+  await returnStatement(scope, period, key, command.body);
+  return cached === undefined ? undefined : returned(cached);
+}

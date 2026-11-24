@@ -80,6 +80,9 @@ export async function bootstrapRoles(sql: Sql, passwords: RolePasswords): Promis
       IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'pospay_suppression_reader') THEN
         CREATE ROLE pospay_suppression_reader NOLOGIN NOSUPERUSER NOBYPASSRLS NOINHERIT NOCREATEDB NOCREATEROLE NOREPLICATION;
       END IF;
+      IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'pospay_email_suppression_reader') THEN
+        CREATE ROLE pospay_email_suppression_reader NOLOGIN NOSUPERUSER NOBYPASSRLS NOINHERIT NOCREATEDB NOCREATEROLE NOREPLICATION;
+      END IF;
       IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'pospay_approval_reader') THEN
         CREATE ROLE pospay_approval_reader NOLOGIN NOSUPERUSER NOBYPASSRLS NOINHERIT NOCREATEDB NOCREATEROLE NOREPLICATION;
       END IF;

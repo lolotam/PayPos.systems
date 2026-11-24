@@ -3,6 +3,8 @@ import type { AttendanceChangeListQuery, WorkspaceBranch } from '@pospay/contrac
 import { t } from '@pospay/i18n';
 import { Label, NativeSelect } from '@pospay/ui';
 import { useLocale } from '@/shared/locale/locale-context';
+import { FilterField } from '@/shared/ui/filter-field';
+import { FilterRow } from '@/shared/ui/filter-row';
 import { AttendanceActionBranch } from './attendance-action-branch';
 type Props = {
   branches: WorkspaceBranch[];
@@ -22,14 +24,14 @@ export function AttendanceRequestFilters({
 }: Props) {
   const locale = useLocale();
   return (
-    <div className="flex flex-wrap items-end gap-3">
+    <FilterRow>
       <AttendanceActionBranch
         branches={branches}
         branchId={branchId}
         onBranch={onBranch}
         allowAllBranches={allowAllBranches}
       />
-      <div className="grid gap-1">
+      <FilterField>
         <Label htmlFor="attendance-request-status">{t(locale, 'attendanceBoard.status')}</Label>
         <NativeSelect
           id="attendance-request-status"
@@ -49,7 +51,7 @@ export function AttendanceRequestFilters({
             </option>
           ))}
         </NativeSelect>
-      </div>
-    </div>
+      </FilterField>
+    </FilterRow>
   );
 }

@@ -5,7 +5,7 @@ import type { PushApiConfiguration } from '@pospay/notifications';
 import type { Logger } from '@pospay/observability';
 import type { Redis } from 'ioredis';
 import type { FilesRuntime } from './modules/files/index.ts';
-import type { WhatsappIntake } from './modules/notifications/index.ts';
+import type { ResendIntake, WhatsappIntake } from './modules/notifications/index.ts';
 import type { PersonalAuthentication } from './shared/personal-authentication.ts';
 import type { ReadinessCheck } from './shared/readiness.ts';
 
@@ -51,6 +51,8 @@ export interface AppDependencies {
   /** أصل صفحة التقييم العامة بالمطابقة التامة؛ مستقل عن ثقة تسجيل الدخول، والقيمة الفارغة تعطّل CORS للتقييم العام. */
   readonly ratingPageOrigin?: string;
   readonly whatsapp?: WhatsappIntake;
+  /** بدون هذا الاستقبال الموقّع رد الويبيوك NOT_READY ومايتخزنش شيء. */
+  readonly resend?: ResendIntake;
   /** The push public key and subject, when push is configured; without them the push routes answer NOT_READY. */
   readonly push?: PushApiConfiguration | null;
   readonly trustedProxy?: readonly string[];

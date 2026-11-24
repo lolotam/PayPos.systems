@@ -4,6 +4,7 @@ import { t } from '@pospay/i18n';
 import { Input, Label } from '@pospay/ui';
 import { useState } from 'react';
 import { useLocale } from '@/shared/locale/locale-context';
+import { FilterField } from '@/shared/ui/filter-field';
 import { parseRatingsMonth } from '../model/ratings-period';
 
 /**
@@ -26,7 +27,7 @@ export function RatingsMonthField({
     setDraft(month ?? '');
   }
   return (
-    <div className="grid gap-1">
+    <FilterField>
       <Label htmlFor="ratings-month">{t(locale, 'ratings.month')}</Label>
       <Input
         id="ratings-month"
@@ -40,6 +41,6 @@ export function RatingsMonthField({
         }}
         onBlur={() => setDraft(month ?? '')}
       />
-    </div>
+    </FilterField>
   );
 }

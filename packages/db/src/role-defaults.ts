@@ -150,6 +150,8 @@ export const ROLE_DEFAULTS = {
   'review:commissions:business': managers,
   // CS-Q5 (2026-10-21): اعتماد كشف العمولة للمالك وحده افتراضياً، والمالك وحده يمنحها أو يسحبها.
   'approve:commissions:business': ['owner'],
+  // قرار CS-Q4: الصرف للمالك والمدير العام والمحاسب افتراضياً، وقابلة للمنح لأي دور بشري، والجهاز ممنوع.
+  'pay:commissions:business': ['owner', 'general_manager', 'accountant'],
   'view:notifications:business': managers,
   'manage:employees:business': managers,
   'read:services:business': managers,

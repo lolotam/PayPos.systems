@@ -233,3 +233,31 @@ existing membership, automatic email delivery of the invitation, and a «create 
   confirmation of the full email, always asked, is the control (D10).
 - After a successful invitation the owner learns whether the email already had an account (a link is shown or
   not). This follows from IM-Q3 and IM-Q4; the route is owner-only, rate-limited and audited.
+
+## 9. Activation conditions (open after F1)
+
+`STAFF_ACCESS_ROUTES` stays off in every environment (local defaults, staging, production) until every item
+below is closed and verified by one independent review. The final review of F1 (head `2c335b2f2`) ended with two
+P1 on the grant path, which exists only behind this gate; the project manager moved them to F2 as activation
+conditions (2026-11-24). They are the first mandatory items of F2.
+
+- **AC-ACT-1 Admission limit.** A grant request is admitted before the company transaction opens only when no
+  other grant of that company is in flight, and under a total cap smaller than the bounded auth pool; a refused
+  request gets the retryable 409 `TRANSACTION_RETRY_REQUIRED` at once. Without it a burst of grant requests can
+  hold the company lock and tenant connections while it waits on the auth step.
+- **AC-ACT-2 Re-grant retry is idempotent on the auth side.** A repeated re-grant of a stopped record (after a
+  lost response or a 409) must not approve the phone binding or write its audit row a second time: the auth
+  step records the attempt id it executed in the same transaction and skips a repeat of that attempt.
+- **AC-ACT-3 Transient failures never answer 500.** A connection lost while the phone lock is taken, and the
+  read route of a linked record when the bounded pool is full, answer the same retryable 409 as the write routes.
+- **AC-ACT-4 The 24-hour test pins the attempt time.** The cancel-window test moves both `created_at` and
+  `attempt_started_at` and asserts, with the injected clock, that a re-grant writes a new `attempt_started_at`.
+- **AC-ACT-5 The test fault capture cannot print a secret.** It records only an allow-list of fixed diagnostic
+  values (error class, code, SQLSTATE); no message text and no raw stack frame.
+- **AC-ACT-6 The gate covers every route of the slice.** The gate's route match is widened when F2 adds a route
+  under `/staff-access/…`, with a test that an unlisted sub-route is also closed while the gate is off.
+- **AC-ACT-7 Staff PIN sign-in under load.** `staff-pin-temporary` failed two of ten consecutive runs on a
+  loaded machine (one with a 503 `NOT_READY` from the existing staff PIN sign-in route, whose controller hides
+  the cause), then passed ten of ten with the cause recorded. The review did not find an F1 regression. Before
+  activation: ten clean consecutive runs with the gate on, and any 503 on that route explained from its
+  recorded cause.

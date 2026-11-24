@@ -475,6 +475,16 @@ export function checkModules(root, map) {
           );
         }
         if (
+          pkg === 'db' &&
+          (dep.names.includes('createPlatformEmailDatabase') ||
+            (!dep.typeOnly && dep.names.includes('*'))) &&
+          !(map.compositionRoots['platform-email-db'] ?? []).includes(rel)
+        ) {
+          problems.push(
+            `${rel}: email feedback DB facade is wired only by declared API/worker roots (ADR-0014)`,
+          );
+        }
+        if (
           (dep.spec === '@pospay/auth/rating-token' ||
             (target !== null && isRatingTokenCode(root, target))) &&
           !(map.compositionRoots['rating-token'] ?? []).includes(rel) &&

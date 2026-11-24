@@ -37,3 +37,28 @@ export class CommissionPlanVersionError extends Error {
     this.details = details;
   }
 }
+
+/** أسباب رفض تسجيل صرف كشف الشهر: الصلاحية، والميزة، وحالة الكشف، ونافذة تاريخ الصرف (54-1). */
+export type CommissionStatementPayErrorCode =
+  | 'FORBIDDEN'
+  | 'FEATURE_DISABLED'
+  | 'COMMISSION_STATEMENT_NOT_APPROVED'
+  | 'COMMISSION_STATEMENT_ALREADY_PAID'
+  | 'COMMISSION_PAID_ON_INVALID'
+  | 'COMMISSION_PAYABLE_TOO_LARGE';
+
+/** رفض صرف الكشف بكود مستقل عن HTTP حتى تبقى الترجمة في طبقة HTTP. */
+export class CommissionStatementPayError extends Error {
+  readonly code: CommissionStatementPayErrorCode;
+
+  /**
+   * يحتفظ بكود رفض الصرف حتى تترجمه طبقة HTTP دون أن يعرف الـ domain بها.
+   *
+   * @param code كود رفض تسجيل الصرف
+   */
+  constructor(code: CommissionStatementPayErrorCode) {
+    super(code);
+    this.name = 'CommissionStatementPayError';
+    this.code = code;
+  }
+}

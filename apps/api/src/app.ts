@@ -34,7 +34,7 @@ import {
 } from './modules/identity/index.ts';
 import { settingsProviders } from './modules/settings/index.ts';
 import { notificationsProviders } from './modules/notifications/index.ts';
-import { mountWhatsappSecurity } from './modules/notifications/index.ts';
+import { mountResendSecurity, mountWhatsappSecurity } from './modules/notifications/index.ts';
 import {
   businessCalendar,
   businessTimeZone,
@@ -209,7 +209,7 @@ class AppModule {
         ...ordersProviders(deps.database, deps.ids ?? systemUuidV7(), deps.ordersClock),
         ...commissionBindings(deps),
         ...settingsProviders(deps.database, deps.ids ?? systemUuidV7(), deps.redis),
-        ...notificationsProviders(deps.database, deps.whatsapp, deps.push),
+        ...notificationsProviders(deps.database, deps.whatsapp, deps.resend, deps.push),
         ...staffProviders(
           deps.database,
           deps.redis,
@@ -246,6 +246,7 @@ export async function createApp(
   const limiter = deps.redis === undefined ? null : createRedisRateLimiter(deps.redis);
   const adapter = buildAdapter(logger, deps.ids ?? systemUuidV7(), deps.trustedProxy ?? []);
   mountWhatsappSecurity(adapter, deps.whatsapp, deps.redis);
+  mountResendSecurity(adapter, deps.resend, deps.redis);
   mountStaffAccessGate(adapter.getInstance(), deps.staffAccessRoutes === true);
   adapter.getInstance().addHook('onRoute', (route) => {
     if (/^\/v1\/devices\/me\/staff-(otp\/(request|verify)|pin\/sign-in)$/.test(route.url))

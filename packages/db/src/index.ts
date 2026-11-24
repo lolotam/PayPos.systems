@@ -50,6 +50,8 @@ export {
 export { businessIdentityReadStatement, readBusinessIdentity } from './business-identity-read.ts';
 export { canonicalJson } from './canonical-json.ts';
 export { createDatabase, type Database, type DatabaseOptions } from './client.ts';
+export { createCoverageIssuer, CoverageIssuanceError, coverageIssuanceFailure } from './commission-coverage-issuer.ts';
+export type { CoverageIssuer, CoverageIssuanceSnapshot, CoverageIssuanceProof } from './commission-coverage-issuer.ts';
 export { markEventConsumed } from './consumed-events.ts';
 export {
   currentSessionTipsStatement,
@@ -125,6 +127,11 @@ export {
   createPlatformWhatsappDatabase,
   type PlatformWhatsappDatabase,
 } from './platform-whatsapp-database.ts';
+export {
+  createPlatformEmailDatabase,
+  PlatformStorageUnavailableError,
+  type PlatformEmailDatabase,
+} from './platform-email-database.ts';
 export { createStaffOtpDatabase, type StaffOtpDatabase } from './staff-otp-database.ts';
 export {
   checkStaffPrivateView,

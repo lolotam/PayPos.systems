@@ -6,6 +6,7 @@ import * as operator from '../operator/staging-staff.ts';
 
 const PUBLIC_EXPORTS = [
   'ALERT_KINDS_LIST',
+  'CoverageIssuanceError',
   'EmployeeNumberExhaustedError',
   'FEATURE_FLAGS',
   'IdempotencyKeyBusyError',
@@ -16,6 +17,7 @@ const PUBLIC_EXPORTS = [
   'PERMISSIONS',
   'PLATFORM_ROLES',
   'PROVISIONAL_PLAN_ID',
+  'PlatformStorageUnavailableError',
   'ReplayCursorError',
   'SYSTEM_ROLES',
   'StaffAuthBusyError',
@@ -39,9 +41,12 @@ const PUBLIC_EXPORTS = [
   'canonicalOwnerSql',
   'checkStaffPrivateView',
   'closeStaffPrivateView',
+  'coverageIssuanceFailure',
   'createAuthDatabase',
+  'createCoverageIssuer',
   'createDatabase',
   'createOutboxDispatcherDatabase',
+  'createPlatformEmailDatabase',
   'createPlatformWhatsappDatabase',
   'createStaffAccessDatabase',
   'createStaffOtpDatabase',

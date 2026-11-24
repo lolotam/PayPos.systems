@@ -46,8 +46,9 @@ Notes:
 
 - The use case contains no `drizzle`, `sql` or `fetch`; time and ids come from the `Clock` and `IdGenerator` ports.
 - The request body is cleared in a `finally`, as the WhatsApp controller does (line 64-66).
-- The digest key: reuse the notifications message-id HMAC helper with a new domain-separation label; do not add a
-  new secret unless that helper cannot take a label — then report.
+- The API uses the independent `RESEND_EVENT_DIGEST_KEY` for domain-separated event-id digests. Missing or
+  invalid configuration leaves the intake NOT_READY (503), logs the capability reason, and never crashes API startup.
+  This key is frozen: never rotate it except through a documented migration preserving existing dedupe identities.
 - Nothing in this PR reads or writes `notification_attempts`.
 
 ## PR-C1b — reconciliation, suppression, gate, delivery log (worker + one query) · about 520 lines

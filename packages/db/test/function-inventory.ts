@@ -120,6 +120,11 @@ export const FUNCTION_INVENTORY = [
     proconfig: ['search_path=public, pg_temp'],
   },
   {
+    proname: 'platform_email_is_suppressed',
+    prosecdef: true,
+    proconfig: ['search_path=pg_catalog, pg_temp'],
+  },
+  {
     proname: 'platform_whatsapp_is_suppressed',
     prosecdef: true,
     proconfig: ['search_path=pg_catalog, pg_temp'],
@@ -255,6 +260,16 @@ export const FUNCTION_INVENTORY = [
   },
   {
     proname: 'commission_statement_exports_update_guard',
+    prosecdef: false,
+    proconfig: ['search_path=pg_catalog, public'],
+  },
+  {
+    proname: 'commission_statement_payments_insert_guard',
+    prosecdef: false,
+    proconfig: ['search_path=pg_catalog, public'],
+  },
+  {
+    proname: 'commission_statements_payment_complete',
     prosecdef: false,
     proconfig: ['search_path=pg_catalog, public'],
   },

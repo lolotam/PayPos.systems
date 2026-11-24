@@ -1,4 +1,5 @@
 export * from './plan-versions.js';
+export * from './statement-payments.js';
 export * from './period-repair-saved.js';
 export * from './period-repairs.js';
 export * from './correction-blocked-notice.js';

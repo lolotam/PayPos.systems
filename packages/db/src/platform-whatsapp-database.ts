@@ -1,7 +1,8 @@
 import { sql } from 'drizzle-orm';
 import { drizzle } from 'drizzle-orm/postgres-js';
 import postgres from 'postgres';
-import { assertWhatsappInventory, assertWhatsappRole } from './platform-whatsapp-inventory.ts';
+import { assertNotificationsRole } from './platform-notifications-inventory.ts';
+import { assertWhatsappInventory } from './platform-whatsapp-inventory.ts';
 import { withDeadline, type Tx } from './with-tenant.ts';
 
 /** واجهة الاستقبال العامة لا تمنح أي وصول لبيانات الشركات أو اتصال خام. */
@@ -30,7 +31,7 @@ export function createPlatformWhatsappDatabase(options: {
           await tx.execute(sql`SELECT set_config('statement_timeout','200ms',true),
         set_config('lock_timeout','200ms',true), set_config('idle_in_transaction_session_timeout','200ms',true)`);
           // فحص الاستعداد يغطي الصلاحيات بالكامل؛ كل معاملة تتأكد أيضاً من دور الاتصال الحالي.
-          await assertWhatsappRole(tx);
+          await assertNotificationsRole(tx);
           const result = await work(tx);
           gate.beforeCommit();
           return result;

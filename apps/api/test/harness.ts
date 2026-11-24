@@ -48,6 +48,7 @@ export {
   readCommissionReviewAccess,
   readCommissionScope,
   readExplicitCompanyFeature,
+  readCommissionStatementPayAccess,
 } from '../src/modules/identity/index.ts';
 export { pendingCommissionEvents } from '../src/modules/commissions/index.ts';
 export {
@@ -77,7 +78,7 @@ export interface Harness {
   readonly auth: AuthService;
   readonly redis: Redis;
   readonly ownerUrl: string;
-  readonly urls: { readonly app: string; readonly auth: string; readonly owner: string };
+  readonly urls: { readonly app: string; readonly auth: string; readonly owner: string; readonly dispatcher: string };
   /**
    * What reached the database boundary, in order: every wrapper entered (with its tenant or user) and every SQL
    * statement executed inside it — the isolation proof asserts on the statements, not only on the wrapper calls.
@@ -358,7 +359,7 @@ function describeHarness(
     auth,
     redis,
     ownerUrl: testDb.ownerUrl,
-    urls: { app: testDb.appUrl, auth: testDb.authUrl, owner: testDb.ownerUrl },
+    urls: { app: testDb.appUrl, auth: testDb.authUrl, owner: testDb.ownerUrl, dispatcher: testDb.dispatcherUrl },
     calls,
     send,
     signedInOperator: operatorMaker(app, auth, testDb.ownerUrl, ids),

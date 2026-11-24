@@ -15,6 +15,12 @@ const FINANCE_BUSINESS: readonly [NavigationRoleCode, ...NavigationRoleCode[]] =
   'business_manager',
 ];
 
+// مدير الفرع قارئ لكشف العمولة لموظفات فرعه بس (CS-Q20 = PP-20.1، وPP-17.2 بيديله قراءة العمولات افتراضيًا).
+const STATEMENT_READERS: readonly [NavigationRoleCode, ...NavigationRoleCode[]] = [
+  ...FINANCE_BUSINESS,
+  'branch_manager',
+];
+
 /** مداخل الرواتب والعمولات (Pay) تحت قسم الفريق. */
 export const COMMISSIONS_NAV_PAGES: readonly NavigationPageEntry[] = [
   {
@@ -54,13 +60,16 @@ export const COMMISSIONS_NAV_PAGES: readonly NavigationPageEntry[] = [
   },
   {
     id: 'commission-statements',
+    route: '/commissions/statements',
+    formerSoonId: 'commission-statements',
     labelKey: 'adminNavPages.commissionStatements',
     icon: 'Star',
-    state: 'soon',
+    visible: 'always',
+    state: 'live',
     section: 'team',
     submenu: 'pay',
     businessTypes: [],
-    roles: FINANCE_BUSINESS,
+    roles: STATEMENT_READERS,
     appMapEntry: true,
   },
   {
