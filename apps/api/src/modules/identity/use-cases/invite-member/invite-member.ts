@@ -219,7 +219,9 @@ export class InviteMember {
 
   /**
    * الرابط مرة واحدة: حجز ذري يمنع سباق طلبين، والإصدار بيجي بعد الحجز، والختم بعد كتابة
-   * التوكن بس. دعوة رابطها اتحجز قبل كده بترد 409 وتحيل المالك لإعادة الإصدار.
+   * التوكن بس. الحجز بيعيد فحص سلطة المالك جوه معاملته، فلو اتسحبت بين الإتمام والحجز
+   * الطلب بيرفض بدل ما الرابط يطلع (AC-ACT-19). دعوة رابطها اتحجز قبل كده بترد 409 وتحيل
+   * المالك لإعادة الإصدار.
    */
   async #issueLink(
     userId: string,
@@ -228,11 +230,11 @@ export class InviteMember {
     now: Date,
   ): Promise<string> {
     const claimed = await this.#transactions.claimLink({
-      companyId: who.companyId,
+      ...who,
       invitationId,
       at: now,
     });
-    if (!claimed) throw new ApiError('MEMBER_INVITATION_EXISTS');
+    if (!claimed.claimed) throw new ApiError(claimed.refusal);
     let link: string;
     try {
       link = await this.#accounts.issueLink({

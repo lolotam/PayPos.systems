@@ -7,6 +7,8 @@ import type {
   CompleteInvitationOutcome,
   InvitationActor,
   InvitationScope,
+  LinkClaimInput,
+  LinkClaimOutcome,
   MemberInvitationTransactions,
   OpenInvitationInput,
   OpenInvitationOutcome,
@@ -150,6 +152,39 @@ async function completeInvitation(
   return { done: true, membershipId: input.membershipId, alreadyComplete: false };
 }
 
+/**
+ * حجز إصدار الرابط الأول: قفل صف الدعوة، سلطة المالك، النطاق، ثم تحديث ذري على link_claimed_at.
+ * الحجز بعد الإتمام في معاملة منفصلة، فسلطة المالك أو النطاق ممكن يتسحبوا في النافذة دي
+ * والطلب بيرفض بدل ما الرابط يطلع (AC-ACT-19).
+ */
+async function claimLink(tx: Tx, input: LinkClaimInput): Promise<LinkClaimOutcome> {
+  const invitation = await lockInvitation(tx, input.companyId, input.invitationId);
+  if (!(await authorityAllows(tx, input.companyId, input.actorUserId))) {
+    return { claimed: false, refusal: 'FORBIDDEN' };
+  }
+  // الصف لازم يبقى دعوة المالك نفسه وهي PENDING وعضويتها مكتوبة؛ أي اختلاف معناها مش صفّنا.
+  if (
+    invitation === undefined ||
+    invitation.state !== 'PENDING' ||
+    invitation.invited_by !== input.actorUserId ||
+    invitation.membership_id === null ||
+    invitation.user_id === null
+  ) {
+    return { claimed: false, refusal: 'MEMBER_INVITATION_EXISTS' };
+  }
+  const scope: InvitationScope = { type: invitation.scope_type, id: invitation.scope_id };
+  if (!(await scopeBelongs(tx, input.companyId, scope))) {
+    return { claimed: false, refusal: 'MEMBER_ROLE_NOT_INVITABLE' };
+  }
+  const claimed = await tx.execute<{ id: string }>(sql`
+    UPDATE member_invitations SET link_claimed_at = ${input.at.toISOString()}::timestamptz
+    WHERE company_id = ${input.companyId} AND id = ${input.invitationId} AND link_claimed_at IS NULL
+    RETURNING id`);
+  return claimed.length === 1
+    ? { claimed: true }
+    : { claimed: false, refusal: 'MEMBER_INVITATION_EXISTS' };
+}
+
 /** إعادة الإصدار جوه معاملة قافلة الصف: سلطة المالك، النطاق، الدعوة من نفس المتصل، والعضوية مكتوبة. */
 async function reissueClaim(
   tx: Tx,
@@ -173,6 +208,11 @@ async function reissueClaim(
   if (!(await scopeBelongs(tx, input.companyId, scope))) {
     return { refusal: 'MEMBER_ROLE_NOT_INVITABLE' };
   }
+  // الإصدار بيقفل خانة الحجز الأول: الحجز مرة واحدة بس، فالتعويض ما بيفتحش الباب لدعوة تانية
+  // تاخد الرابط (AC-ACT-19).
+  await tx.execute(sql`
+    UPDATE member_invitations SET link_claimed_at = COALESCE(link_claimed_at, now())
+    WHERE company_id = ${input.companyId} AND id = ${input.invitationId}`);
   await transactionWriters(tx, ids).audit.record({
     entity: 'member_invitation',
     entityId: input.invitationId,
@@ -314,15 +354,7 @@ export function createMemberInvitationTransactions(
         ),
       ),
     complete: (input) => run(input, (tx) => completeInvitation(tx, ids, input)),
-    claimLink: async ({ companyId, invitationId, at }) => {
-      const claimed = await db.withTenant(companyId, (tx) =>
-        tx.execute<{ id: string }>(sql`
-          UPDATE member_invitations SET link_claimed_at = ${at.toISOString()}::timestamptz
-          WHERE company_id = ${companyId} AND id = ${invitationId} AND link_claimed_at IS NULL
-          RETURNING id`),
-      );
-      return claimed.length === 1;
-    },
+    claimLink: (input) => run(input, (tx) => claimLink(tx, input)),
     claimReissue: (input) => run(input, (tx) => reissueClaim(tx, ids, input)),
     stampLink: (input) => run(input, (tx) => stampIssuedLink(tx, ids, input)),
   };
