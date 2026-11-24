@@ -9,7 +9,11 @@ import { VerifyDiscountApproverPin } from './verify-discount-approver-pin.ts';
 const input = {
   phone: '+99900000001',
   pin: '1234',
-  device: { companyId: 'synthetic-company', deviceId: 'synthetic-device', branchId: 'synthetic-branch' },
+  device: {
+    companyId: 'synthetic-company',
+    deviceId: 'synthetic-device',
+    branchId: 'synthetic-branch',
+  },
 };
 
 function fixture() {
@@ -35,8 +39,10 @@ function fixture() {
     issue: vi.fn(),
   };
   const cap = {
-    admit: vi.fn(async (): Promise<{ kind: 'ok'; admission: string } | { kind: 'locked' }> =>
-      ({ kind: 'ok', admission: 'admission-1' })),
+    admit: vi.fn(async (): Promise<{ kind: 'ok'; admission: string } | { kind: 'locked' }> => ({
+      kind: 'ok',
+      admission: 'admission-1',
+    })),
     failure: vi.fn(async (): Promise<'failed' | 'locked' | 'lockedNew' | 'expired'> => 'failed'),
     success: vi.fn(async (): Promise<'ok' | 'locked' | 'expired'> => 'ok'),
     claimLockAudit: vi.fn(async () => false),
@@ -59,7 +65,10 @@ it('ok returns the user and PIN revision without issuing a session', async () =>
   const f = fixture();
   const outcome = await f.useCase.execute(input);
   expect(outcome).toEqual({
-    kind: 'ok', userId: 'user-1', pinRevision: 'revision-1', confirmBinding: expect.any(Function),
+    kind: 'ok',
+    userId: 'user-1',
+    pinRevision: 'revision-1',
+    confirmBinding: expect.any(Function),
   });
   expect(f.sessions.issue).not.toHaveBeenCalled();
   if (outcome.kind === 'ok') {
@@ -80,13 +89,13 @@ it('an unknown phone reserves its pinCounterKey target and is refused', async ()
   expect(f.hasher.verify).toHaveBeenCalledWith(input.pin, null);
 });
 
-it('a bound user without a PIN reserves the per-phone counter and uses the dummy hash', async () => {
+it('a bound user without a PIN reserves the same user counter and uses the dummy hash', async () => {
   const f = fixture();
   f.find.mockResolvedValue(null);
   await expect(f.useCase.execute(input)).resolves.toEqual({ kind: 'refused' });
   expect(f.attempts.reserve).toHaveBeenCalledWith({
     companyId: input.device.companyId,
-    employeeId: `counter:${input.phone}`,
+    employeeId: 'staff-user:user-1',
   });
   expect(f.hasher.verify).toHaveBeenCalledWith(input.pin, null);
 });
@@ -170,19 +179,23 @@ it('a lock observed by cap.success wins over the correct PIN and audits a grante
   expect(f.cap.confirmLockAudit).toHaveBeenCalledWith(input.device);
 });
 
-it.each(['candidate', 'revision', 'device'] as const)('recheck refuses when the %s changes', async (change) => {
-  const f = fixture();
-  if (change === 'candidate') {
-    f.sessions.candidate.mockResolvedValueOnce('user-1').mockResolvedValueOnce('user-2');
-  } else if (change === 'revision') {
-    f.find.mockResolvedValueOnce({ id: 'revision-1', hash: 'stored-hash' })
-      .mockResolvedValueOnce({ id: 'revision-2', hash: 'new-hash' });
-  } else {
-    f.devices.valid.mockResolvedValue(false);
-  }
-  await expect(f.useCase.execute(input)).resolves.toEqual({ kind: 'refused' });
-  expect(f.sessions.issue).not.toHaveBeenCalled();
-});
+it.each(['candidate', 'revision', 'device'] as const)(
+  'recheck refuses when the %s changes',
+  async (change) => {
+    const f = fixture();
+    if (change === 'candidate') {
+      f.sessions.candidate.mockResolvedValueOnce('user-1').mockResolvedValueOnce('user-2');
+    } else if (change === 'revision') {
+      f.find
+        .mockResolvedValueOnce({ id: 'revision-1', hash: 'stored-hash' })
+        .mockResolvedValueOnce({ id: 'revision-2', hash: 'new-hash' });
+    } else {
+      f.devices.valid.mockResolvedValue(false);
+    }
+    await expect(f.useCase.execute(input)).resolves.toEqual({ kind: 'refused' });
+    expect(f.sessions.issue).not.toHaveBeenCalled();
+  },
+);
 
 it('the process concurrency cap answers busy without another admission', async () => {
   const f = fixture();

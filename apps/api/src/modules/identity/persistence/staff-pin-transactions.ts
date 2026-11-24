@@ -14,9 +14,8 @@ function scope(tx: Tx, companyId: string, ids: IdGenerator): StaffPinScope {
     },
     find: async (userId) => {
       // الرقم المؤقت الذي حدده المانح يُرفض كرقم غلط في كل قارئ لحد ما F2 تضيف تدفق التغيير (plan §1.1).
-      const [row] = await tx.execute<{ id: string; hash: string }>(sql`
-        SELECT id,pin_hash AS hash FROM cashier_pins WHERE company_id=${companyId} AND user_id=${userId}
-          AND temporary = false`);
+      const [row] = await tx.execute<{ id: string; hash: string; temporary: boolean }>(sql`
+        SELECT id,pin_hash AS hash,temporary FROM cashier_pins WHERE company_id=${companyId} AND user_id=${userId}`);
       return row ?? null;
     },
     save: async (userId, hash, actor, at) => {

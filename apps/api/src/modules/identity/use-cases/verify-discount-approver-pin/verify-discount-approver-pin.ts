@@ -70,9 +70,7 @@ export class VerifyDiscountApproverPin {
     const target = {
       companyId: input.device.companyId,
       employeeId:
-        row === null
-          ? this.sessions.pinCounterKey(input.phone)
-          : `staff-user:${userId}`,
+        userId === null ? this.sessions.pinCounterKey(input.phone) : `staff-user:${userId}`,
     };
     const reserved = await this.attempts.reserve(target);
     if (reserved.kind !== 'ok') {
@@ -88,7 +86,7 @@ export class VerifyDiscountApproverPin {
       await this.cap.release(input.device, admission);
       throw error;
     }
-    if (!matches || row === null || userId === null) {
+    if (!matches || row === null || row.temporary === true || userId === null) {
       return await this.refused(input.device, target, reserved.reservation, admission);
     }
     const recorded = await this.attempts.succeeded(target, reserved.reservation);
