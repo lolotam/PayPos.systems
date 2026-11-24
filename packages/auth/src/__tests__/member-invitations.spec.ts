@@ -214,6 +214,7 @@ describe('email state and invited member creation', () => {
     const operationId = systemUuidV7().newId();
     const input = { operationId, companyId: COMPANY, email: 'idempotent@example.test', name: 'M' };
     const first = await members().createInvitedMember(input);
+    if (!first.createdByInvitation) throw new Error('the first call should create the account');
     expect(await members().createInvitedMember(input)).toEqual({
       userId: first.userId,
       createdByInvitation: true,

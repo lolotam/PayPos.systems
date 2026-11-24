@@ -94,6 +94,7 @@ async function invitedUser(email: string): Promise<string> {
     email,
     name: 'Member',
   });
+  if (!created.createdByInvitation) throw new Error('the invitation should have created the account');
   return created.userId;
 }
 
