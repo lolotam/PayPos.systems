@@ -168,8 +168,7 @@ export function identityProviders(
     { provide: DISCOUNT_APPROVER_VERIFIER, useExisting: VERIFY_DISCOUNT_APPROVER_PIN },
     ...privateViewProviders(database, ids, redis),
     { provide: WORKSPACE_NAMES, useValue: names },
-    { provide: MY_PREFERENCES, useFactory: (auth: AuthService | null) => auth?.preferences ?? null, inject: [AUTH_SERVICE] },
-    { provide: SetMyPreferences, useFactory: (auth: AuthService | null) => auth === null ? null : new SetMyPreferences(auth.preferences), inject: [AUTH_SERVICE] },
+    ...preferenceProviders(),
     { provide: OnboardCompany, useValue: onboard },
     { provide: DEVICE_USE_CASES, useValue: devices?.useCases ?? null },
     { provide: DEVICE_AUTHENTICATOR, useValue: devices?.authenticator ?? null },
@@ -182,6 +181,23 @@ export function identityProviders(
     { provide: CheckFeature, useValue: reader === null ? null : new CheckFeature(reader) },
     { provide: APP_GUARD, useClass: AccessGuard },
     { provide: APP_GUARD, useClass: FeatureGuard },
+  ];
+}
+
+// تفضيل الحساب كله من واجهة الاعتماد نفسها؛ مفيش قاعدة بيانات ولا صلاحيات شركة في السلسلة.
+function preferenceProviders(): Provider[] {
+  return [
+    {
+      provide: MY_PREFERENCES,
+      useFactory: (auth: AuthService | null) => auth?.preferences ?? null,
+      inject: [AUTH_SERVICE],
+    },
+    {
+      provide: SetMyPreferences,
+      useFactory: (auth: AuthService | null) =>
+        auth === null ? null : new SetMyPreferences(auth.preferences),
+      inject: [AUTH_SERVICE],
+    },
   ];
 }
 

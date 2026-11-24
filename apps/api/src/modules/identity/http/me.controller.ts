@@ -7,9 +7,8 @@ import { Authenticated } from '../../../shared/access.decorators.ts';
 import { DATABASE } from '../../../shared/database.token.ts';
 import { ApiError } from '../../../shared/errors.ts';
 import { myMemberships } from '../queries/my-memberships.query.ts';
+import { myPreferences, type MyPreferencesReader } from '../queries/my-preferences.query.ts';
 import { myWorkspaces, type WorkspaceNames } from '../queries/my-workspaces.query.ts';
-import type { MyPreferencesReader } from '../ports/my-preferences.port.ts';
-import { myPreferences } from '../queries/my-preferences.query.ts';
 import { SetMyPreferences } from '../use-cases/set-my-preferences/set-my-preferences.ts';
 
 export const WORKSPACE_NAMES = Symbol('WORKSPACE_NAMES');
