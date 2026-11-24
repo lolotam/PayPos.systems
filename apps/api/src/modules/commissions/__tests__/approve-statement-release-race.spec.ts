@@ -1,3 +1,4 @@
+import { COMMISSION_COVERAGE_PROOF_VERSION } from '@pospay/domain';
 import type postgres from 'postgres';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
@@ -18,8 +19,8 @@ import {
   holdFreezeGate,
   holdTransaction,
   raceConnections,
+  waitForApprovalAtFreeze,
   waitForBlockers,
-  waitForStateShareLock,
   type RaceConnections,
 } from './approval-race-barriers.fixture.ts';
 
@@ -45,7 +46,7 @@ afterAll(async () => {
   await f?.h.close();
 });
 
-/** شهر REVIEWED بمفتاح اعتماد مفتوح وإثبات ساري بالنسخة المطلوبة (1)، بلا أي أثر اعتماد سابق. */
+/** شهر REVIEWED بمفتاح اعتماد مفتوح وإثبات ساري بالنسخة المطلوبة، بلا أي أثر اعتماد سابق. */
 async function freshMonth(): Promise<{ input: string; statement: string }> {
   await resetStatementToDraft(f);
   await resetCoverage(f);
@@ -56,20 +57,26 @@ async function freshMonth(): Promise<{ input: string; statement: string }> {
 }
 
 /**
- * يرجّع النسخة المطلوبة لِقيمة 1. تغيير في داتابيز الاختبار فقط: هجرة الإصدار بترفع النسخة إلى 2، والاختبار
- * اللي بعدها محتاج إثبات بالنسخة 1 يبقى شغّالًا.
+ * يرجّع النسخة المطلوبة لقيمة الإثبات الحالي. تغيير في داتابيز الاختبار فقط: هجرة الإصدار بترفع النسخة،
+ * والاختبار اللي بعدها محتاج إثبات بالنسخة القديمة يبقى شغّالًا.
  */
 async function restoreRequiredVersion(): Promise<void> {
-  await connections.owner`CREATE OR REPLACE FUNCTION public.commission_coverage_required_version()
-    RETURNS integer LANGUAGE sql STABLE SET search_path = pg_catalog AS $$ SELECT 1 $$`;
+  await connections.owner.unsafe(
+    `CREATE OR REPLACE FUNCTION public.commission_coverage_required_version()
+      RETURNS integer LANGUAGE sql STABLE SET search_path = pg_catalog
+      AS $$ SELECT ${COMMISSION_COVERAGE_PROOF_VERSION} $$`,
+  );
 }
 
 /** هجرة الإصدار: النسخة الجديدة ورفع الجيل في معاملة واحدة، بالترتيب اللي يثبت قفل صف الحالة. */
 async function releaseMigration(tx: postgres.TransactionSql): Promise<void> {
   await tx`UPDATE commission_coverage_state SET generation = generation + 1,
     bumped_at = pg_catalog.clock_timestamp(), reason = 'RELEASE' WHERE company_id = ${f.company}`;
-  await tx`CREATE OR REPLACE FUNCTION public.commission_coverage_required_version() RETURNS integer
-    LANGUAGE sql STABLE SET search_path = pg_catalog AS $$ SELECT 2 $$`;
+  await tx.unsafe(
+    `CREATE OR REPLACE FUNCTION public.commission_coverage_required_version() RETURNS integer
+      LANGUAGE sql STABLE SET search_path = pg_catalog
+      AS $$ SELECT ${COMMISSION_COVERAGE_PROOF_VERSION + 1} $$`,
+  );
 }
 
 /** جيل صف الحالة والسبب المحفوظان، والنسخة المطلوبة بعد الهجرة. */
@@ -97,9 +104,10 @@ describe('the release migration racing the approval (ADR-0054 §5 and §8)', () 
     const gate = await holdFreezeGate(connections.freeze);
     try {
       const request = approve(f, approver.cookie, 'race-release-approval-first', fingerprints);
-      const holders = await waitForStateShareLock(
+      const approvals = await waitForApprovalAtFreeze(
         connections.observer,
-        'the approval share lock on the coverage state row',
+        gate.pid,
+        'the approval past the coverage gate',
       );
       const migration = await holdTransaction(connections.owner, (tx) => releaseMigration(tx));
       const blockers = await waitForBlockers(
@@ -108,7 +116,7 @@ describe('the release migration racing the approval (ADR-0054 §5 and §8)', () 
         'the release migration behind the approval',
       );
       // اللي بيمنع الهجرة هو معاملة الاعتماد نفسها (هي اللي ماسكة القفل FOR SHARE).
-      expect(blockers.some((pid) => holders.includes(pid))).toBe(true);
+      expect(blockers.some((pid) => approvals.includes(pid))).toBe(true);
 
       gate.release();
       const [response] = await collect([request]);
@@ -122,7 +130,10 @@ describe('the release migration racing the approval (ADR-0054 §5 and §8)', () 
         status: 'APPROVED',
         audits: auditsBefore + 1,
       });
-      expect(await releaseState()).toMatchObject({ reason: 'RELEASE', version: 2 });
+      expect(await releaseState()).toMatchObject({
+        reason: 'RELEASE',
+        version: COMMISSION_COVERAGE_PROOF_VERSION + 1,
+      });
     } finally {
       gate.release();
     }
