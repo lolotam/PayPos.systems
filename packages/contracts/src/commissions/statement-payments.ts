@@ -3,7 +3,7 @@ import { z } from 'zod';
 import { id } from '../scalars/id.js';
 import { timestamp } from '../scalars/timestamp.js';
 import { responseObject } from '../response-object.js';
-import { commissionEstimateMoney } from './estimate.js';
+import { commissionStatementTotalMoney } from './statement.js';
 import { commissionPlanDate } from './plan-versions.js';
 
 /** شهر كشف العمولة بصيغة YYYY-MM، وسنة 0000 مرفوضة زي أي شهر في الكشف. */
@@ -30,8 +30,8 @@ export const markCommissionStatementPaidInput = z
 /** صف صرف موظفة واحدة: الصافي الدقيق والمبلغ اللي اتصرف فعلاً بالفلوس كنص KWD (D-19). */
 export const commissionStatementPaymentRow = responseObject({
   employee_id: id,
-  exact_payable: commissionEstimateMoney,
-  paid_amount: commissionEstimateMoney,
+  exact_payable: commissionStatementTotalMoney,
+  paid_amount: commissionStatementTotalMoney,
 })
   .strict()
   .meta({ id: 'CommissionStatementPaymentRow' });
@@ -46,7 +46,7 @@ export const markCommissionStatementPaidResponse = responseObject({
   paid_on: commissionPlanDate,
   paid_method: commissionStatementPaidMethod,
   paid_note: z.string().trim().min(1).max(500).nullable(),
-  paid_total: commissionEstimateMoney,
+  paid_total: commissionStatementTotalMoney,
   payments: z.array(commissionStatementPaymentRow),
 })
   .strict()

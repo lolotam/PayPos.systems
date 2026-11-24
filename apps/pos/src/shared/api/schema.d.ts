@@ -3839,8 +3839,8 @@ export interface components {
         CommissionStatementPaymentRow: {
             /** Format: uuid */
             employee_id: string;
-            exact_payable: components["schemas"]["CommissionEstimateMoney"];
-            paid_amount: components["schemas"]["CommissionEstimateMoney"];
+            exact_payable: components["schemas"]["CommissionStatementTotalMoney"];
+            paid_amount: components["schemas"]["CommissionStatementTotalMoney"];
         };
         MarkCommissionStatementPaidResponse: {
             /** Format: uuid */
@@ -3855,7 +3855,7 @@ export interface components {
             paid_on: components["schemas"]["CommissionPlanDate"];
             paid_method: components["schemas"]["CommissionStatementPaidMethod"];
             paid_note: string | null;
-            paid_total: components["schemas"]["CommissionEstimateMoney"];
+            paid_total: components["schemas"]["CommissionStatementTotalMoney"];
             payments: components["schemas"]["CommissionStatementPaymentRow"][];
         };
         CommissionStatementNotApprovedError: {
