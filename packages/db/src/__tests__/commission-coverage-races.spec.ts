@@ -46,9 +46,12 @@ beforeEach(async () => {
 });
 
 afterEach(async () => {
-  // (§10 اختبار 6) هجرة الإصدار ترفع النسخة المطلوبة، فترجعها هنا عشان الاختبارات اللي بعدها تبدأ من 1.
-  await owner`CREATE OR REPLACE FUNCTION public.commission_coverage_required_version() RETURNS integer
-    LANGUAGE sql STABLE SET search_path = pg_catalog AS $$ SELECT 1 $$`;
+  // (§10 اختبار 6) هجرة الإصدار ترفع النسخة المطلوبة، فترجعها هنا عشان الاختبارات اللي بعدها تبدأ من نسخة الإثبات الحالية.
+  await owner.unsafe(
+    `CREATE OR REPLACE FUNCTION public.commission_coverage_required_version() RETURNS integer
+      LANGUAGE sql STABLE SET search_path = pg_catalog
+      AS $$ SELECT ${COMMISSION_COVERAGE_PROOF_VERSION} $$`,
+  );
 });
 
 const sleep = (ms: number): Promise<void> =>
@@ -278,6 +281,7 @@ describe('the invalidation racing the approval gate (ADR-0054 §8)', () => {
       await tx`SELECT set_config('app.company_id', ${A.company}, true)`;
       gateSeen = [...(await tx`SELECT * FROM public.read_commission_coverage_gate(${STATE_ID}::uuid)`)];
     });
+    await gate.work;
     const invalidator = await hold(app, (tx) => invalidateIn(tx, A.company));
 
     await waitForWaiter(invalidator.pid, 'the invalidation behind the approval gate');
@@ -309,6 +313,7 @@ describe('the issuance racing the approval gate (ADR-0054 §8)', () => {
       await tx`SELECT set_config('app.company_id', ${A.company}, true)`;
       gateSeen = [...(await tx`SELECT * FROM public.read_commission_coverage_gate(${STATE_ID}::uuid)`)];
     });
+    await gate.work;
     const issuer = await hold(dispatcher, (tx) => issueIn(tx, A.company, issued));
 
     await waitForWaiter(issuer.pid, 'the issuance behind the approval gate');
@@ -341,9 +346,13 @@ describe('the release migration racing the approval gate (ADR-0054 §5 and §8)'
       await tx`SELECT set_config('app.company_id', ${A.company}, true)`;
       await tx`SELECT * FROM public.read_commission_coverage_gate(${STATE_ID}::uuid)`;
     });
+    await gate.work;
     const migration = await hold(owner, async (tx) => {
-      await tx`CREATE OR REPLACE FUNCTION public.commission_coverage_required_version() RETURNS integer
-        LANGUAGE sql STABLE SET search_path = pg_catalog AS $$ SELECT 2 $$`;
+      await tx.unsafe(
+        `CREATE OR REPLACE FUNCTION public.commission_coverage_required_version() RETURNS integer
+          LANGUAGE sql STABLE SET search_path = pg_catalog
+          AS $$ SELECT ${COMMISSION_COVERAGE_PROOF_VERSION + 1} $$`,
+      );
       await tx`UPDATE commission_coverage_state SET generation = generation + 1,
         bumped_at = pg_catalog.clock_timestamp(), reason = 'RELEASE' WHERE company_id = ${A.company}`;
     });
@@ -361,7 +370,7 @@ describe('the release migration racing the approval gate (ADR-0054 §5 and §8)'
     expect(await gateRows(A.company)).toEqual([]);
     const [version] = await owner<{ version: number }[]>`
       SELECT public.commission_coverage_required_version()::int AS version`;
-    expect(version?.['version']).toBe(2);
+    expect(version?.['version']).toBe(COMMISSION_COVERAGE_PROOF_VERSION + 1);
     expect(await stateRow(A.company)).toMatchObject({ reason: 'RELEASE' });
   }, TEST_TIMEOUT_MS);
 });
@@ -370,6 +379,7 @@ describe('an issue racing an invalidation (ADR-0054 §8)', () => {
   it('refuses the issuance with COVERAGE_GENERATION_MOVED when the invalidation commits first', async () => {
     const generation = await ensureState(A.company);
     const invalidator = await hold(app, (tx) => invalidateIn(tx, A.company));
+    await invalidator.work;
     const issuer = await hold(dispatcher, (tx) => issueIn(tx, A.company, generation));
 
     await waitForWaiter(issuer.pid, 'the issuance behind the invalidation');
