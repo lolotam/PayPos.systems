@@ -24,8 +24,12 @@ function BranchProbe() {
   const workspace = useWorkspace();
   return (
     <div data-testid="dashboard-content">
-      <span data-testid="dashboard-business">{workspace.business?.name_en ?? ''}</span>
-      <span data-testid="dashboard-branch">{workspace.branch?.name_en ?? ''}</span>
+      <span data-testid="dashboard-business">
+        {workspace.status === 'ready' ? (workspace.business?.name_en ?? '') : ''}
+      </span>
+      <span data-testid="dashboard-branch">
+        {workspace.status === 'ready' ? (workspace.branch?.name_en ?? '') : ''}
+      </span>
     </div>
   );
 }
@@ -128,7 +132,7 @@ function testEmptyEnglishName(): void {
     const { posts } = queue({ gets: [companyWithBusinessNoBranch] });
     renderScreen('en', <BranchProbe />);
     await waitForBranchForm();
-    await fillBranchAndSubmit('', 'الفرع الرئيسي');
+    await fillBranchAndSubmit('', 'Branch Main');
     const message = await screen.findByText(t('en', 'admin.branchNameRequired'));
     expect(message).not.toBeNull();
     const input = screen.getByLabelText(t('en', 'admin.branchNameEnLabel'));

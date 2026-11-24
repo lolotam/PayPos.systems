@@ -29,7 +29,7 @@ export const BUSINESS_BODY = {
   name_ar: 'Salon Rehearsal',
 };
 
-export const BRANCH_BODY = { name_en: 'Main Branch', name_ar: 'الفرع الرئيسي' };
+export const BRANCH_BODY = { name_en: 'Main Branch', name_ar: 'Branch Main' };
 
 export const ENVELOPE = (code: string, message: string) => ({
   code,
@@ -55,7 +55,7 @@ export const CREATED_BRANCH = {
   id: BRANCH_ID,
   company_id: COMPANY_ID,
   business_id: BUSINESS_ID,
-  name_ar: 'الفرع الرئيسي',
+  name_ar: 'Branch Main',
   name_en: 'Main Branch',
   address_ar: null,
   address_en: null,
@@ -142,7 +142,7 @@ export const companyWithBusinessAndBranch = () =>
               branches: [
                 {
                   id: BRANCH_ID,
-                  name_ar: 'الفرع الرئيسي',
+                  name_ar: 'Branch Main',
                   name_en: 'Main Branch',
                   effective_timezone: 'Asia/Kuwait',
                   is_active: true,
@@ -156,7 +156,7 @@ export const companyWithBusinessAndBranch = () =>
     200,
   );
 
-type Answer = (request: Request) => Response;
+type Answer = (request: Request) => Response | Promise<Response>;
 
 /**
  * بيوجّه الطلبات لمسارات منفصلة بالترتيب: آخر جواب بيتكرر لو اتطلب أكتر، والـ PUT بيرجع نجاح
@@ -240,7 +240,7 @@ export async function fillBusinessAndSubmit(en = 'Rehearsal Salon', ar = 'Salon 
   fireEvent.click(screen.getByRole('button', { name: t('en', 'admin.firstBusinessSubmit') }));
 }
 
-export async function fillBranchAndSubmit(en = 'Main Branch', ar = 'الفرع الرئيسي'): Promise<void> {
+export async function fillBranchAndSubmit(en = 'Main Branch', ar = 'Branch Main'): Promise<void> {
   fireEvent.change(screen.getByLabelText(t('en', 'admin.branchNameEnLabel')), {
     target: { value: en },
   });

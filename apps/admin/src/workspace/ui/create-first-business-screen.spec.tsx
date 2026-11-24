@@ -1,4 +1,4 @@
-import { fireEvent, screen, waitFor } from '@testing-library/react';
+import { screen, waitFor } from '@testing-library/react';
 import { onlineManager } from '@tanstack/react-query';
 import { t } from '@pospay/i18n';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -24,8 +24,12 @@ function BusinessProbe() {
   const workspace = useWorkspace();
   return (
     <div data-testid="dashboard-content">
-      <span data-testid="dashboard-business">{workspace.business?.name_en ?? ''}</span>
-      <span data-testid="dashboard-branch">{workspace.branch?.name_en ?? ''}</span>
+      <span data-testid="dashboard-business">
+        {workspace.status === 'ready' ? (workspace.business?.name_en ?? '') : ''}
+      </span>
+      <span data-testid="dashboard-branch">
+        {workspace.status === 'ready' ? (workspace.branch?.name_en ?? '') : ''}
+      </span>
     </div>
   );
 }
@@ -97,7 +101,7 @@ function testCountryPutFailure(): void {
     it(failure.name, async () => {
       // القراءة الثالثة (بتاعة الـ invalidation) متأجّلة: التنبيه بيفضل ظاهر لحد ما نسيبها تخلص،
       // بدل سباق مع تبديل الشاشة اللي بيحصل أول ما القراءة توصل.
-      let releaseThirdRead = () => undefined;
+      let releaseThirdRead: () => void = () => undefined;
       const deferredThirdRead = new Promise<Response>((resolve) => {
         releaseThirdRead = () => resolve(companyWithBusinessNoBranch());
       });

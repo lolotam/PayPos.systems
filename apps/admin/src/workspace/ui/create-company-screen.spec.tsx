@@ -48,7 +48,8 @@ function testValidSubmit(): void {
     await waitForForm();
     await fillAndSubmit();
     await waitFor(() => {
-      expect(screen.getByTestId('dashboard-content')).not.toBeNull();
+      // شركة منشأة من غير أنشطة بتفتح شاشة أول نشاط بدل لوحة الشركة (078).
+      expect(screen.getByLabelText(t('en', 'admin.businessNameEnLabel'))).not.toBeNull();
     });
     expect(posts).toHaveLength(1);
     expect(posts[0]?.url).toMatch(/\/v1\/companies$/);
@@ -118,7 +119,8 @@ function testGuardBlocksWhenCompanyExists(): void {
     await waitForForm();
     await fillAndSubmit();
     await waitFor(() => {
-      expect(screen.getByTestId('dashboard-content')).not.toBeNull();
+      // شركة منشأة من غير أنشطة بتفتح شاشة أول نشاط بدل لوحة الشركة (078).
+      expect(screen.getByLabelText(t('en', 'admin.businessNameEnLabel'))).not.toBeNull();
     });
     expect(posts).toHaveLength(0);
     expect(window.localStorage.getItem(STORAGE_NAME)).toBeNull();

@@ -134,18 +134,6 @@ describe('WorkspaceProvider refresh failures', () => {
     expect(screen.queryByTestId('ws-status')).toBeNull();
   });
 
-  it('a refetch failing with 401 and an empty body still shows the error state and drops the page content', async () => {
-    await readThenRefetchWith(() => new Response(null, { status: 401 }));
-    expect(await screen.findByRole('alert')).not.toBeNull();
-    expect(screen.queryByTestId('ws-status')).toBeNull();
-  });
-
-  it('a refetch failing with 403 and an empty body still shows the error state and drops the page content', async () => {
-    await readThenRefetchWith(() => new Response(null, { status: 403 }));
-    expect(await screen.findByRole('alert')).not.toBeNull();
-    expect(screen.queryByTestId('ws-status')).toBeNull();
-  });
-
   it('a refetch failing with 500 keeps the selected company and shows no error', async () => {
     await readThenRefetchWith(() =>
       jsonResponse(
@@ -166,5 +154,24 @@ describe('WorkspaceProvider refresh failures', () => {
     expect(screen.getByTestId('ws-status').textContent).toBe('ready');
     expect(screen.getByTestId('ws-company').textContent).toBe('Provider Company');
     expect(screen.queryByRole('alert')).toBeNull();
+  });
+});
+
+// رفض وصول بجسم فاضي لازم يوصل بحالته برضه بعد قراءة ناجحة: الجسم مش شرط في قرار رفض الوصول.
+describe('WorkspaceProvider bodyless access refusals', () => {
+  beforeEach(() => {
+    mockFetch.mockReset();
+  });
+
+  it('a refetch failing with 401 and an empty body still shows the error state and drops the page content', async () => {
+    await readThenRefetchWith(() => new Response(null, { status: 401 }));
+    expect(await screen.findByRole('alert')).not.toBeNull();
+    expect(screen.queryByTestId('ws-status')).toBeNull();
+  });
+
+  it('a refetch failing with 403 and an empty body still shows the error state and drops the page content', async () => {
+    await readThenRefetchWith(() => new Response(null, { status: 403 }));
+    expect(await screen.findByRole('alert')).not.toBeNull();
+    expect(screen.queryByTestId('ws-status')).toBeNull();
   });
 });

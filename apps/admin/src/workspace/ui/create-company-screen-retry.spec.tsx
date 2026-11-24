@@ -42,7 +42,8 @@ function testNetworkRetrySameKey(): void {
     expect(retry.getAttribute('disabled')).toBeNull();
     fireEvent.click(retry);
     await waitFor(() => {
-      expect(screen.getByTestId('dashboard-content')).not.toBeNull();
+      // شركة منشأة من غير أنشطة بتفتح شاشة أول نشاط بدل لوحة الشركة (078).
+      expect(screen.getByLabelText(t('en', 'admin.businessNameEnLabel'))).not.toBeNull();
     });
     expect(posts).toHaveLength(2);
     expect(posts[1]?.headers.get('idempotency-key')).toBe(posts[0]?.headers.get('idempotency-key'));
@@ -68,7 +69,8 @@ function testServer500Retry(): void {
     expect(retry.getAttribute('disabled')).toBeNull();
     fireEvent.click(retry);
     await waitFor(() => {
-      expect(screen.getByTestId('dashboard-content')).not.toBeNull();
+      // شركة منشأة من غير أنشطة بتفتح شاشة أول نشاط بدل لوحة الشركة (078).
+      expect(screen.getByLabelText(t('en', 'admin.businessNameEnLabel'))).not.toBeNull();
     });
     expect(screen.queryByText('First refusal fixture')).toBeNull();
     expect(posts).toHaveLength(2);
@@ -106,7 +108,8 @@ function testRemountKeepsAttempt(): void {
     expect((nameInput as HTMLInputElement).value).toBe('Rehearsal Salon');
     fireEvent.click(screen.getByRole('button', { name: t('en', 'admin.createCompanyRetry') }));
     await waitFor(() => {
-      expect(screen.getByTestId('dashboard-content')).not.toBeNull();
+      // شركة منشأة من غير أنشطة بتفتح شاشة أول نشاط بدل لوحة الشركة (078).
+      expect(screen.getByLabelText(t('en', 'admin.businessNameEnLabel'))).not.toBeNull();
     });
     expect(posts).toHaveLength(2);
     expect(posts[1]?.headers.get('idempotency-key')).toBe(posts[0]?.headers.get('idempotency-key'));
@@ -174,7 +177,8 @@ function testSuccessSurvivesRemount(): void {
     const reload = screen.getByRole('button', { name: t('en', 'admin.createCompanyReload') });
     fireEvent.click(reload);
     await waitFor(() => {
-      expect(screen.getByTestId('dashboard-content')).not.toBeNull();
+      // شركة منشأة من غير أنشطة بتفتح شاشة أول نشاط بدل لوحة الشركة (078).
+      expect(screen.getByLabelText(t('en', 'admin.businessNameEnLabel'))).not.toBeNull();
     });
     expect(window.localStorage.getItem(STORAGE_NAME)).toBeNull();
   });

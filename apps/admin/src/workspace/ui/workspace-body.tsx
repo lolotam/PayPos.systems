@@ -37,10 +37,16 @@ export function WorkspaceBody({
   if (workspace.status === 'ready') {
     // «مفيش نشاط» و«مفيش فرع» بيتفرّقوا عن «مختارش» بقوايم فاضية: قائمة فاضية معناها مفيش
     // اتعمل أصلًا فشاشة الإنشاء الأول هي اللي تظهر، وقائمة مش فاضية بتفضل لمحوّل الهيدر.
+    // الفرع المختار بيتقدّم على قائمة فروع النشاط (مصدر الحقيقة في المزوّد هو نفسه) عشان أي
+    // حالة جاهزة فيها فرع مختار تفضل رسم الصفحة العادي حتى لو القائمة فاضية مؤقتًا.
     if (workspace.company.businesses.length === 0) {
       return <CreateFirstBusinessScreen companyId={workspace.company.id} />;
     }
-    if (workspace.business !== undefined && workspace.business.branches.length === 0) {
+    if (
+      workspace.business !== undefined &&
+      workspace.branch === undefined &&
+      workspace.business.branches.length === 0
+    ) {
       return (
         <CreateFirstBranchScreen
           companyId={workspace.company.id}
