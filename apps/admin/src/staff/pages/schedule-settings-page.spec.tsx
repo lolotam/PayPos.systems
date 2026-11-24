@@ -143,19 +143,3 @@ it('shows the refusal when the read is forbidden', async () => {
   expect(screen.queryByRole('button', { name: t('en', 'shell.schedule_settings_save') })).toBeNull();
   expect(screen.getByRole('heading', { name: title })).toBeTruthy();
 });
-
-it('keeps the business draft when the branch changes', async () => {
-  const otherBranch = '01920000-0000-7000-8000-000000000102';
-  const { rerender, client } = renderPage();
-  const input = (await screen.findByLabelText(limitLabel)) as HTMLInputElement;
-  fireEvent.change(input, { target: { value: '4' } });
-  expect(input.value).toBe('4');
-  rerender(
-    <QueryClientProvider client={client}>
-      <ScheduleSettingsPage scope={{ ...scope, branchId: otherBranch }} />
-    </QueryClientProvider>,
-  );
-  await waitFor(() =>
-    expect((screen.getByLabelText(limitLabel) as HTMLInputElement).value).toBe('4'),
-  );
-});
