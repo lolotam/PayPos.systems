@@ -3,31 +3,43 @@ import type { Tx } from '@pospay/db';
 
 export const EMPLOYEE_ACCESS_STATE_READS = Symbol('EMPLOYEE_ACCESS_STATE_READS');
 
-/** سجل دخول الموظفة كما يصل من قارئ الحالة — بلا هاتف كامل ولا بريد ولا hash. */
-export interface EmployeeAccessRecordRow {
-  readonly id: string;
-  readonly state: 'PENDING' | 'ACTIVE' | 'STOPPED' | 'PHONE_CHANGING';
-  readonly roleCode: 'staff' | 'reception';
-  readonly branchId: string;
-  readonly operationId: string;
-  readonly userId: string | null;
-  readonly membershipId: string | null;
-}
-
-/** صف الحالة: فرع الموظفة الأساسي ومستخدمها المرتبط وسجل الدخول إن وُجد. */
+/**
+ * صف سجل الدخول كما يراه الاستعلام — نفس إسقاط `StaffAccessStateRow` من identity (P1-1): موظفة
+ * محذوفة أو غريبة عن النشاط تعني null، والموظفة الموجودة تعني فرعها الأساسي حتى بلا سجل.
+ */
 export interface EmployeeAccessStateRow {
+  /** الفرع الأساسي المحفوظ للموظفة. */
   readonly branchId: string;
+  /** المستخدم المرتبط أو null. */
   readonly linkedUserId: string | null;
-  readonly record: EmployeeAccessRecordRow | null;
+  /** سجل الدخول إن وُجد. */
+  readonly record:
+    | null
+    | {
+        /** معرّف السجل. */
+        readonly id: string;
+        /** حالة السجل. */
+        readonly state: 'PENDING' | 'ACTIVE' | 'STOPPED' | 'PHONE_CHANGING' | 'CANCELLING';
+        /** دور الطلب المقفول. */
+        readonly roleCode: 'staff' | 'reception';
+        /** الفرع الممنوح. */
+        readonly branchId: string;
+        /** معرّف العملية. */
+        readonly operationId: string;
+        /** المستخدم بعد التأكيد أو null. */
+        readonly userId: string | null;
+        /** العضوية المُنشأة أو null. */
+        readonly membershipId: string | null;
+      };
 }
 
 /**
- * قراءات شاشة دخول الموظفة (GET): الحالة من جدول السجل، والسلطة على الفرع الأساسي، وحساب الدخول
- * بآخر ثلاثة أرقام — الواجهة جنب الاستعلام والتنفيذ في persistence.
+ * قراءات شاشة دخول الموظفة (GET): الحالة من جدول السجل، وإذن قراءة الموظفة (P1-1) قبل أي كشف،
+ * والسلطة على الفرع الأساسي، وحساب الدخول بآخر ثلاثة أرقام — التنفيذ في persistence بلا أقفال كتابة.
  */
 export interface EmployeeAccessStateReads {
   /**
-   * يقرأ حالة الموظفة داخل معاملة القراءة؛ null لموظفة محذوفة أو غريبة عن النشاط.
+   * يقرأ حالة الموظفة داخل معاملة قراءة بلا أقفال كتابة؛ null لموظفة محذوفة أو غريبة.
    *
    * @param tx    معاملة القراءة داخل الشركة
    * @param input الشركة والنشاط والموظفة
@@ -36,6 +48,16 @@ export interface EmployeeAccessStateReads {
     tx: Tx,
     input: { companyId: string; businessId: string; employeeId: string },
   ): Promise<EmployeeAccessStateRow | null>;
+  /**
+   * يفحص إذن قراءة سجل الموظفة (`manage:employees:business` على نشاطها) — بوابة الـ 404 (P1-1).
+   *
+   * @param tx    معاملة القراءة داخل الشركة
+   * @param input الشركة والقارئ والنشاط والفرع
+   */
+  readAccess(
+    tx: Tx,
+    input: { companyId: string; actorUserId: string; businessId: string; branchId: string },
+  ): Promise<'ALLOWED' | 'DENIED' | 'FEATURE_DISABLED'>;
   /**
    * يفحص `manage:staff-access:branch` على فرع الموظفة الأساسي (FR-F1-3).
    *
@@ -55,13 +77,13 @@ export interface EmployeeAccessStateReads {
 }
 
 /**
- * شاشة لوحة الموظفين (GET staff-access): إسقاط صريح للحالة والدور والفرع وآخر ثلاثة أرقام
- * وصلاحية الإعطاء. رابط موظفة بمستخدم بلا سجل دخول يعني مستخدم لوحة عادي فالإعطاء ممنوع.
+ * شاشة لوحة الموظفين (GET staff-access): بوابة قراءة الموظفة أولًا (P1-1) — أي رفض أو غياب يعني
+ * 404 بلا كشف السجل ولا الدور ولا أرقام الهاتف — ثم إسقاط الحالة وصلاحية الإعطاء بلا أقفال كتابة.
  *
  * @param tx      معاملة القراءة داخل الشركة
  * @param context الشركة والنشاط والموظفة والقارئ من الجلسة
  * @param reads   القراءات المحقونة
- * @returns حالة الدخول، أو null لموظفة غير موجودة
+ * @returns حالة الدخول، أو null لموظفة غير موجودة أو ممنوع قراءتها
  */
 export async function readEmployeeStaffAccess(
   tx: Tx,
@@ -73,7 +95,15 @@ export async function readEmployeeStaffAccess(
     businessId: context.businessId,
     employeeId: context.employeeId,
   });
+  // الموظفة الغريبة والموظفة الممنوع قراءتها نفس الرد — الـ 404 الموحد قبل أي كشف (FR-F1-5، P1-1).
   if (row === null) return null;
+  const access = await reads.readAccess(tx, {
+    companyId: context.companyId,
+    actorUserId: context.actorUserId,
+    businessId: context.businessId,
+    branchId: row.branchId,
+  });
+  if (access !== 'ALLOWED') return null;
   const authority = await reads.authority(tx, {
     companyId: context.companyId,
     actorUserId: context.actorUserId,

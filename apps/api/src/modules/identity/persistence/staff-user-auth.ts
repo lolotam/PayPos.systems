@@ -19,7 +19,7 @@ import type {
  * الاستدعاء الآمن الوحيد من staff لخطوة auth — identity هو مستورد packages/auth الوحيد (plan §2.1).
  *
  * @param auth  واجهة packages/auth على pospay_auth
- * @param input معرّف العملية والشركة والهاتف والاسم والمانح ومولّد المعرّفات
+ * @param input معرّف العملية والشركة والهاتف والاسم والمانح وحالة السجل ومولّد المعرّفات
  * @returns معرف المستخدم الموجود أو المُنشأ
  */
 export async function provisionStaffUser(
@@ -83,6 +83,36 @@ function systemRoleId(code: 'staff' | 'cashier'): string {
  * @param input الشركة والمستخدم والفرع ودور الطلب ومعرّفات جديدة للعضوية
  * @returns معرف العضوية المُنشأة
  */
+/**
+ * يثبت أن المستخدم هو المقروض بمعرّف العملية وفي نفس الشركة عبر packages/auth (P1-5):
+ * إثبات المنح الوحيد المقبول — لا صف وسيط ولا شركة أخرى ولا مستخدم آخر يقبل به.
+ *
+ * @param auth  واجهة packages/auth على pospay_auth
+ * @param input الشركة والمستخدم ومعرّف العملية
+ * @returns لا شيء عند تطابق الربط، ويرفض بـ StaffUserRefused عند أي عدم تطابق
+ */
+export async function assertStaffUserBinding(
+  auth: StaffUserFacade,
+  input: { companyId: string; userId: string; operationId: string },
+): Promise<void> {
+  const binding = await auth.bindingOf(input.operationId);
+  if (
+    binding === null ||
+    binding.userId !== input.userId ||
+    binding.companyId !== input.companyId
+  )
+    throw new StaffUserRefused('STAFF_ACCESS_USER_NOT_STAFF');
+}
+
+/**
+ * يفتح عضوية الموظفة على فرعها الأساسي داخل معاملة staff نفسها (الاستثناء المحدود في ADR-0063).
+ * الدور ييجي من جدول identity لا من الطلب، والإثبات المسبق للربط عبر packages/auth مسؤولية
+ * المستدعِ (P1-5) — الدالة تكتب العضوية فقط بعد إثباتها.
+ *
+ * @param tx    معاملة الشركة التي فتحها use case الموظفين
+ * @param input الشركة والمستخدم والفرع ودور الطلب ومعرّفات جديدة للعضوية
+ * @returns معرف العضوية المُنشأة
+ */
 export async function grantStaffMembership(
   tx: Tx,
   input: {
@@ -93,9 +123,6 @@ export async function grantStaffMembership(
     ids: IdGenerator;
   },
 ): Promise<{ membershipId: string }> {
-  const held = await tx.execute(sql`SELECT 1 FROM employee_staff_access
-    WHERE company_id=${input.companyId} AND user_id=${input.userId} LIMIT 1`);
-  if (held.length === 0) throw new StaffUserRefused('STAFF_ACCESS_USER_NOT_STAFF');
   const membershipId = input.ids.newId();
   await tx.execute(sql`INSERT INTO memberships
     (company_id,id,user_id,employee_id,role_id,role_owner_key,scope_type,scope_id,ends_at)

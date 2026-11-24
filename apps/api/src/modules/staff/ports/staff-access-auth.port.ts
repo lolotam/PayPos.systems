@@ -1,7 +1,9 @@
+import type { IdGenerator } from '@pospay/db';
+
 /**
- * واجهة حساب الموظفة كما يحتاجها staff عبر identity (نفس شكل `StaffUserFacade` في identity):
- * الإنشاء والإيجاد والإلغاء بمعرّف العملية فقط، ومفيش أي مسار تعامل (D8). النوع محلي لأن
- * module wiring ما بيستوردش أنواعاً من موديول تاني.
+ * واجهة حساب الموظفة كما يحتاجها staff عبر identity — بنفس شكل `StaffUserFacade` في identity
+ * (الإنشاء والإيجاد والإلغاء والقراءة والإثبات والفحوصات بلا أي مسار تعامل، D8). النوع محلي
+ * لأن module wiring ما بيستوردش أنواعاً من موديول تاني.
  */
 
 /** مدخل الإنشاء أو الإيجاد. */
@@ -16,8 +18,12 @@ export interface StaffAccessProvisionInput {
   readonly phone: string;
   /** اسم الموظفة. */
   readonly name: string;
+  /** حالة سجل الدخول المقروءة تحت القفل — الإنشاء لسجل `PENDING` فقط (P1-2). */
+  readonly recordState: 'PENDING' | 'CANCELLING';
+  /** إعادة تثبيت ربط الهاتف عند استئناف سجل `STOPPED` (P1-4). */
+  readonly resetBinding: boolean;
   /** مولّد UUID v7. */
-  readonly ids: { newId(): string };
+  readonly ids: IdGenerator;
 }
 
 /** مدخل الإلغاء. */
@@ -29,7 +35,7 @@ export interface StaffAccessCancelInput {
   /** المانح الملغي. */
   readonly actorUserId: string;
   /** مولّد UUID v7 لصف التدقيق. */
-  readonly ids: { newId(): string };
+  readonly ids: IdGenerator;
 }
 
 /** واجهة حساب الموظفة كما يراها staff. */
@@ -52,4 +58,14 @@ export interface AuthFacadeForStaffAccess {
    * @param operationId معرّف العملية
    */
   read(operationId: string): Promise<{ userId: string; phoneLast3: string | null } | null>;
+  /** هل المستخدم حساب موظفة؟ (D8). */
+  isStaffUser(userId: string): Promise<boolean>;
+  /** هل الحساب (credential) يخص مستخدم موظفة؟ (P1-6). */
+  isStaffAccount(accountId: string): Promise<boolean>;
+  /** شركة حساب الموظفة أو null (P1-5). */
+  staffCompanyOf(userId: string): Promise<string | null>;
+  /** ربط المستخدم بمعرّف العملية (P1-5). */
+  bindingOf(operationId: string): Promise<{ userId: string; companyId: string | null } | null>;
+  /** مستخدم رابط token استهلاك كلمة السر (P1-6). */
+  userIdForResetToken(token: string): Promise<string | null>;
 }

@@ -3,6 +3,7 @@ import { sql } from 'drizzle-orm';
 import type { Tx } from '@pospay/db';
 
 import {
+  assertStaffUserBinding,
   cancelStaffUser,
   hashStaffPin,
   provisionStaffUser,
@@ -11,15 +12,14 @@ import {
 import { StaffAccessError } from '../domain/errors.ts';
 import { transactionWriters } from '../../../shared/adapters/transaction-writers.ts';
 import type { AuditTrail } from '../../../shared/ports/audit-trail.port.ts';
-import type { StaffAccessRecordRow } from '../domain/staff-access.ts';
-import type { AuthFacadeForStaffAccess } from '../ports/staff-access-auth.port.ts';
 import type {
   CancelPendingScope,
   CancelPendingStaffAccessSteps,
   StaffAccessActor,
-  StaffAccessEmployeeRow,
   StaffAccessUserSteps,
 } from '../ports/staff-access.port.ts';
+import type { AuthFacadeForStaffAccess } from '../ports/staff-access-auth.port.ts';
+import { lockCompanyRow, lockRecordWithEmployee } from './staff-access-rows.ts';
 
 interface CancelInput {
   readonly businessId: string;
@@ -28,14 +28,7 @@ interface CancelInput {
   readonly at: Date;
 }
 
-/**
- * خطوة auth في «إعطاء الدخول»: الإنشاء أو الإيجاد بمعرّف العملية وتصوير الرقم السري عبر identity —
- * سهم staff → identity المعلن، وpackages/auth لا يراه staff أبداً (plan §2.1). رفض الهاتف المملوك
- * لغيره بيتترجم هنا لخطأ staff معروف بلا أي تفاصيل عن الحساب الآخر (FR-F1-5).
- *
- * @param auth واجهة packages/auth على pospay_auth
- * @returns الخطوة الثانية بإنشاء المستخدم وتصوير الرقم
- */
+/** خطوة auth في «إعطاء الدخول» عبر identity (plan §2.1) مع ترجمة رفض الهاتف المملوك (FR-F1-5). */
 export function createStaffAccessUserSteps(auth: AuthFacadeForStaffAccess): StaffAccessUserSteps {
   return {
     provision: async (input) => {
@@ -46,7 +39,8 @@ export function createStaffAccessUserSteps(auth: AuthFacadeForStaffAccess): Staf
           phone: input.phone,
           name: input.name,
           actorUserId: input.actorUserId,
-          ids: input.ids,
+          recordState: input.recordState,
+          resetBinding: input.resetBinding,
         });
       } catch (error) {
         if (error instanceof StaffPhoneTakenError)
@@ -55,27 +49,46 @@ export function createStaffAccessUserSteps(auth: AuthFacadeForStaffAccess): Staf
       }
     },
     hash: (pin) => hashStaffPin(pin),
+    isPhoneTaken: (error) => error instanceof StaffPhoneTakenError,
   };
 }
 
 /**
- * إلغاء مستخدم الموظفة عبر identity — المسار الوحيد لحذف هذا الحساب (FR-F1-6)، ورفض identity
- * المتوقع بيتترجم لخطأ staff معروف قبل ما يوصل الـ use case.
+ * يبني مُنفّذ حذف مستخدم الموظفة عبر identity — المسار الوحيد لحذف الحساب (FR-F1-6).
  *
- * @param auth  واجهة packages/auth على pospay_auth
- * @param input معرّف العملية والشركة والمانح ومولّد المعرّفات
+ * @param auth واجهة حساب الموظفة عبر identity
+ * @returns المُنفّذ الذي يستخدمه use case الإلغاء بعد نقل السجل إلى CANCELLING
  */
-export async function cancelStaffUserThroughIdentity(
-  auth: AuthFacadeForStaffAccess,
-  input: { operationId: string; companyId: string; actorUserId: string; ids: { newId(): string } },
-): Promise<void> {
-  return cancelStaffUser(auth, input);
+export function createStaffAccessCancelUser(auth: AuthFacadeForStaffAccess) {
+  return (input: { operationId: string; companyId: string; actorUserId: string; ids: { newId(): string } }) =>
+    cancelStaffUser(auth, input);
 }
 
-function cancelScope(tx: Tx, actor: StaffAccessActor, input: CancelInput): CancelPendingScope {
-  const audit = transactionWriters(tx, input.ids).audit;
+/**
+ * يبني مُثبِت ربط المستخدم بمعرّف العملية عبر identity (P1-5): مستخدم آخر أو شركة أخرى يعني رفضًا
+ * بـ StaffUserRefused قبل كتابة أي عضوية.
+ *
+ * @param auth واجهة حساب الموظفة عبر identity
+ * @returns المُثبِت الذي تستدعيه الخطوة الثالثة قبل كتابة العضوية
+ */
+export function createStaffUserBindingAssert(auth: AuthFacadeForStaffAccess) {
+  return async (input: { companyId: string; userId: string; operationId: string }) => {
+    await assertStaffUserBinding(auth, input);
+  };
+}
+
+function cancelScope(
+  tx: Tx,
+  actor: StaffAccessActor,
+  input: CancelInput,
+  audit: AuditTrail,
+): CancelPendingScope {
   return {
-    lock: () => lockRecordAndEmployee(tx, actor, input),
+    lock: async () => {
+      // ترتيب الأقفال الموحد (P1-3): الشركة ← الموظفة ← سجل الدخول.
+      if (!(await lockCompanyRow(tx, actor.companyId))) return { employee: null, record: null };
+      return lockRecordWithEmployee(tx, actor, input);
+    },
     authority: (businessId, branchId) =>
       readStaffAccessAuthority(tx, {
         companyId: actor.companyId,
@@ -83,88 +96,71 @@ function cancelScope(tx: Tx, actor: StaffAccessActor, input: CancelInput): Cance
         businessId,
         branchId,
       }),
-    deleteRecord: (recordId) => deletePendingRecord(tx, actor, input, audit, recordId),
+    actorIsOwner: async () => {
+      const rows = await tx.execute(sql`SELECT 1 FROM memberships
+        WHERE company_id=${actor.companyId} AND user_id=${actor.userId}
+          AND role_id='01920000-0000-7000-8000-000000000101'::uuid
+          AND role_owner_key='global' AND scope_type='COMPANY' AND scope_id=${actor.companyId}
+          AND starts_at<=clock_timestamp() AND (ends_at IS NULL OR ends_at>clock_timestamp())
+        LIMIT 1`);
+      return rows.length !== 0;
+    },
+    markCancelling: (recordId) =>
+      markCancellingRow(tx, actor.companyId, recordId, input.at, audit, input.employeeId),
+    deleteRecord: (recordId) =>
+      deleteCancellingRecord(tx, actor.companyId, recordId, audit, input.employeeId),
   };
 }
 
-async function lockRecordAndEmployee(
+/** ينقل السجل إلى CANCELLING — true انتقل، false لم يعد PENDING (سباق منح متزامن). */
+async function markCancellingRow(
   tx: Tx,
-  actor: StaffAccessActor,
-  input: CancelInput,
-): Promise<{
-  employee: StaffAccessEmployeeRow | null;
-  record: StaffAccessRecordRow | null;
-}> {
-  const [employee] = await tx.execute<{
-    id: string;
-    business_id: string;
-    primary_branch_id: string;
-    user_id: string | null;
-    display_name: string;
-  }>(sql`SELECT id, business_id, primary_branch_id, user_id,
-      COALESCE(NULLIF(name_en, ''), name_ar, '') AS display_name FROM employees
-    WHERE company_id=${actor.companyId} AND business_id=${input.businessId}
-      AND id=${input.employeeId} AND deleted_at IS NULL FOR UPDATE`);
-  const [record] = await tx.execute<{
-    id: string;
-    state: StaffAccessRecordRow['state'];
-    role_code: StaffAccessRecordRow['roleCode'];
-    branch_id: string;
-    operation_id: string;
-    user_id: string | null;
-    membership_id: string | null;
-    created_at: Date;
-  }>(sql`SELECT id, state, role_code, branch_id, operation_id, user_id, membership_id, created_at
-    FROM employee_staff_access
-    WHERE company_id=${actor.companyId} AND employee_id=${input.employeeId} FOR UPDATE`);
-  return {
-    employee:
-      employee === undefined
-        ? null
-        : {
-            id: employee.id,
-            businessId: employee.business_id,
-            primaryBranchId: employee.primary_branch_id,
-            userId: employee.user_id,
-            displayName: employee.display_name,
-          },
-    record:
-      record === undefined
-        ? null
-        : {
-            id: record.id,
-            state: record.state,
-            roleCode: record.role_code,
-            branchId: record.branch_id,
-            operationId: record.operation_id,
-            userId: record.user_id,
-            membershipId: record.membership_id,
-            createdAt: new Date(record.created_at),
-          },
-  };
-}
-
-async function deletePendingRecord(
-  tx: Tx,
-  actor: StaffAccessActor,
-  input: CancelInput,
-  audit: AuditTrail,
+  companyId: string,
   recordId: string,
+  at: Date,
+  audit: AuditTrail,
+  employeeId: string,
 ): Promise<boolean> {
+  const moved = await tx.execute(sql`UPDATE employee_staff_access
+    SET state='CANCELLING',updated_at=${at.toISOString()}::timestamptz
+    WHERE company_id=${companyId} AND id=${recordId} AND state='PENDING' RETURNING id`);
+  if (moved.length === 0) return false;
+  await audit.record({
+    entity: 'employee_staff_access',
+    entityId: recordId,
+    action: 'cancelling',
+    after: { employee_id: employeeId, reason: 'PENDING_CANCELLED' },
+  });
+  return true;
+}
+
+/** يحذف سجلًا في حالة CANCELLING؛ true حُذف أو حُذف سابقًا، false غيّرت حالته (سباق منح). */
+async function deleteCancellingRecord(
+  tx: Tx,
+  companyId: string,
+  recordId: string,
+  audit: AuditTrail,
+  employeeId: string,
+): Promise<boolean> {
+  const state = await tx.execute<{ state: string }>(sql`SELECT state FROM employee_staff_access
+    WHERE company_id=${companyId} AND id=${recordId}`);
+  const current = state[0]?.state;
+  if (current === undefined) return true;
+  if (current !== 'CANCELLING') return false;
   const removed = await tx.execute(sql`DELETE FROM employee_staff_access
-    WHERE company_id=${actor.companyId} AND id=${recordId} AND state='PENDING' RETURNING id`);
-  if (removed.length === 0) return false;
+    WHERE company_id=${companyId} AND id=${recordId} AND state='CANCELLING' RETURNING id`);
+  if (removed.length === 0) return true;
   await audit.record({
     entity: 'employee_staff_access',
     entityId: recordId,
     action: 'deleted',
-    after: { employee_id: input.employeeId, reason: 'PENDING_CANCELLED' },
+    after: { employee_id: employeeId, reason: 'PENDING_CANCELLED' },
   });
   return true;
 }
 
 /**
- * يفتح معاملة إلغاء سجل الانتظار على pospay_app.
+ * يفتح معاملة إلغاء سجل الانتظار على pospay_app — المعاملة الأولى تنقل الحالة، والثانية تحذف.
  *
  * @param database مغلفات الشركة من @pospay/db
  * @returns المنفذ الذي يشغّل الإلغاء داخل معاملته
@@ -174,8 +170,13 @@ export function createCancelPendingStaffAccessSteps(
 ): CancelPendingStaffAccessSteps {
   return {
     run: (actor, input, work) =>
-      database.withTenant(actor.companyId, (tx) => work(cancelScope(tx, actor, input)), {
-        userId: actor.userId,
-      }),
+      database.withTenant(
+        actor.companyId,
+        (tx) => {
+          const writers = transactionWriters(tx, input.ids);
+          return work(cancelScope(tx, actor, input, writers.audit));
+        },
+        { userId: actor.userId },
+      ),
   };
 }

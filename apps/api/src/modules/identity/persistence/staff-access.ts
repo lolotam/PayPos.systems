@@ -12,7 +12,7 @@ export interface StaffAccessStateRow {
     | null
     | {
         readonly id: string;
-        readonly state: 'PENDING' | 'ACTIVE' | 'STOPPED' | 'PHONE_CHANGING';
+        readonly state: 'PENDING' | 'ACTIVE' | 'STOPPED' | 'PHONE_CHANGING' | 'CANCELLING';
         readonly roleCode: 'staff' | 'reception';
         readonly branchId: string;
         readonly operationId: string;
@@ -69,7 +69,7 @@ export async function readStaffAccessState(
   if (employee === undefined) return null;
   const [record] = await tx.execute<{
     id: string;
-    state: 'PENDING' | 'ACTIVE' | 'STOPPED' | 'PHONE_CHANGING';
+    state: 'PENDING' | 'ACTIVE' | 'STOPPED' | 'PHONE_CHANGING' | 'CANCELLING';
     role_code: 'staff' | 'reception';
     branch_id: string;
     operation_id: string;

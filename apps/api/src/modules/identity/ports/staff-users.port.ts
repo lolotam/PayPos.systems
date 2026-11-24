@@ -16,6 +16,10 @@ export interface StaffUserProvisionInput {
   readonly phone: string;
   /** اسم الموظفة كما يظهر في حساب الدخول. */
   readonly name: string;
+  /** حالة سجل الدخول المقروءة تحت القفل — الإنشاء لسجل `PENDING` فقط (P1-2). */
+  readonly recordState: 'PENDING' | 'CANCELLING';
+  /** إعادة تثبيت ربط الهاتف عند استئناف سجل `STOPPED` (P1-4). */
+  readonly resetBinding: boolean;
   /** المانح المُؤكِّد للهاتف — بيتسجل في تدقيق المنصة (قرار D2). */
   readonly actorUserId: string;
   /** مولّد UUID v7 لصفوف المنصة. */
@@ -68,4 +72,10 @@ export interface StaffUserFacade {
    * @returns المعرف وآخر ثلاثة أرقام من الهاتف، أو null لما مفيش حساب
    */
   read(operationId: string): Promise<StaffUserRead | null>;
+  /**
+   * ربط المستخدم بمعرّف العملية: المستخدم المطلوب فقط وشركته — إثبات المنح الوحيد (P1-5).
+   *
+   * @param operationId معرّف العملية
+   */
+  bindingOf(operationId: string): Promise<{ userId: string; companyId: string | null } | null>;
 }
