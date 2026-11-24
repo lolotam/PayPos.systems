@@ -287,7 +287,13 @@ export function buildBetterAuth(
     plugins: [
       twoFactor({ issuer: 'PosPay' }),
       registrationPlugin(passkeyPolicy(options.baseURL, options.trustedOrigins)),
-      passwordResetPlugin({ database, ids: options.ids, clock: options.clock }),
+      passwordResetPlugin({
+        database,
+        ids: options.ids,
+        clock: options.clock,
+        // نفس مستقبل الـ logs المنقّى: خطأ Drizzle بيتحول لتصنيف ثابت قبل ما يوصل لأي log (A8).
+        onLog: (entry) => options.onLog({ ...entry, errorNames: [] }),
+      }),
     ],
     advanced: {
       cookiePrefix: cookieNames.prefix,

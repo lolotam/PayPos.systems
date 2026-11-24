@@ -22,6 +22,8 @@ const PASSWORD = 'member-chosen-pass';
 let testDb: TestDatabase;
 let auth: AuthService;
 let owner: postgres.Sql;
+// كل سطر log وصل مُستقبل Better Auth في الاختبارات — الرسائل منقّاة، والاختبار بيفحص إن مفيش سرّ فيها.
+const authLogs: string[] = [];
 
 interface Deferred {
   readonly promise: Promise<void>;
@@ -53,7 +55,7 @@ beforeAll(async () => {
     trustedOrigins: [ORIGIN],
     ids: systemUuidV7(),
     secureCookies: false,
-    onLog: () => undefined,
+    onLog: (entry) => authLogs.push(entry.message),
     passwordHasher: {
       hash: async (password) => {
         if (gate.armed) {
@@ -223,6 +225,58 @@ describe('a successful reset ends every other reset link of that user only (P1-2
     expect((await consume(link)).status).toBe(200);
     expect(await liveTokens(userId)).toEqual([]);
     expect(await storedHash(userId)).not.toBe(before);
+  });
+});
+
+describe('a database failure in the reset path never leaks secrets', () => {
+  it('a failing transaction answers a fixed 500, logs nothing sensitive, and the link still works', async () => {
+    const { userId } = await createOrdinaryUser('leak@example.test');
+    const before = await storedHash(userId);
+    const link = tokenOf(await auth.issuePasswordSetLink(userId, `${ORIGIN}/set-password`));
+    await owner`INSERT INTO verification (id, identifier, value, expires_at, created_at, updated_at)
+      VALUES (${systemUuidV7().newId()}, 'reset-password:poison', ${userId},
+              now() + interval '1 day', now(), now())`;
+    // بقايا من تشغيلة فشلت قبل الفكس: بننضّف أي trigger/function من تشغيلة سابقة على نفس الداتابيز.
+    await owner.unsafe('DROP TRIGGER IF EXISTS block_poison_cleanup ON verification');
+    await owner.unsafe('DROP FUNCTION IF EXISTS block_poison_cleanup()');
+    await owner.unsafe(`
+      CREATE FUNCTION block_poison_cleanup() RETURNS trigger LANGUAGE plpgsql AS $$
+      BEGIN
+        IF OLD.identifier = 'reset-password:poison' THEN RAISE EXCEPTION 'forced cleanup failure'; END IF;
+        RETURN OLD;
+      END $$`);
+    await owner.unsafe(`
+      CREATE TRIGGER block_poison_cleanup BEFORE DELETE ON verification
+      FOR EACH ROW EXECUTE FUNCTION block_poison_cleanup()`);
+    const captured: string[] = [];
+    const spies = (['error', 'warn', 'log'] as const).map((level) =>
+      vi.spyOn(console, level).mockImplementation((...parts: unknown[]) =>
+        captured.push(parts.map((part) => String(part)).join(' ')),
+      ),
+    );
+    authLogs.length = 0;
+    let failed: Response;
+    try {
+      failed = await consume(link);
+    } finally {
+      for (const spy of spies) spy.mockRestore();
+      await owner.unsafe('DROP TRIGGER block_poison_cleanup ON verification');
+    }
+    const logged = [...captured.join('\n'), ...authLogs].join('\n');
+    // إجابة ثابتة من غير تفاصيل، ولا توكن ولا كلمة مرور ولا hash مخزّن في أي مخرَج log.
+    expect(failed.status).toBe(500);
+    expect(await failed.json()).toMatchObject({ code: 'INTERNAL_SERVER_ERROR' });
+    expect(logged).not.toContain(link);
+    expect(logged).not.toContain(PASSWORD);
+    for (const row of await owner`SELECT password FROM account WHERE password IS NOT NULL`) {
+      expect(logged).not.toContain(String(row['password']));
+    }
+    expect(logged).not.toContain('forced cleanup failure');
+    // مفيش حالة نص نص: نفس الرابط لسه شغّال بعد الفشل.
+    expect(await storedHash(userId)).toBe(before);
+    expect(await liveTokens(userId)).toContain(link);
+    expect((await consume(link)).status).toBe(200);
+    expect(await liveTokens(userId)).toEqual([]);
   });
 });
 
