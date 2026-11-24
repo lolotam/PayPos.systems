@@ -83,10 +83,13 @@ export async function readEmployeeStaffAccess(
     businessId: context.businessId,
     branchId: row.branchId,
   });
-  return projectState(row, authority, reads);
+  return projectState(row, authority, reads, false);
 }
 
-/** نتيجة الكتابة المرخّصة تُرد تحت إذن المنح؛ هذا لا يفتح GET لمن لا يحق له قراءة ملف الموظفة. */
+/**
+ * نتيجة الكتابة المرخّصة (الإلغاء) تُرد تحت إذن المنح؛ هذا لا يفتح GET لمن لا يحق له قراءة ملف
+ * الموظفة. الكتابة التزمت فعلاً، فتعذّر قراءة آخر ثلاثة أرقام من auth لا يحوّلها إلى 500.
+ */
 export async function readGrantedEmployeeStaffAccess(
   tx: Tx,
   context: { companyId: string; businessId: string; employeeId: string; actorUserId: string },
@@ -94,13 +97,23 @@ export async function readGrantedEmployeeStaffAccess(
 ): Promise<StaffAccessState | null> {
   const row = await reads.state(tx, context);
   if (row === null || !(await reads.authority(tx, { ...context, branchId: row.branchId }))) return null;
-  return projectState(row, true, reads);
+  return projectState(row, true, reads, true);
 }
 
-async function projectState(row: StaffAccessStateRow, authority: boolean, reads: EmployeeAccessStateReads) {
+async function projectState(
+  row: StaffAccessStateRow,
+  authority: boolean,
+  reads: EmployeeAccessStateReads,
+  committedWrite: boolean,
+) {
   const record = row.record;
   const staffUser =
-    record?.userId !== null && record !== null ? await reads.staffUser(record.operationId) : null;
+    record?.userId !== null && record !== null
+      ? await reads.staffUser(record.operationId).catch((error: unknown) => {
+          if (!committedWrite) throw error;
+          return null;
+        })
+      : null;
   return staffAccessState.parse({
     state:
       record === null

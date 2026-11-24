@@ -69,9 +69,12 @@ function beginScope(tx: Tx, actor: StaffAccessActor, input: BeginInput): GrantBe
     },
     authority: authorityChecker(tx, actor),
     findRecord: () => readRecordRow(tx, actor.companyId, input.employeeId),
+    releaseAttempt: (recordId, attemptId) =>
+      releaseAttemptRow(tx, actor, input, audit, { recordId, attemptId }),
     restartRecord: async (recordId, binding) => {
       await tx.execute(sql`UPDATE employee_staff_access SET state='PENDING',phone_hash=${binding.phoneHash},
         role_code=${binding.roleCode},branch_id=${binding.branchId},granted_by=${actor.userId},
+        attempt_id=${input.ids.newId()},attempt_started_at=${input.at.toISOString()}::timestamptz,
         updated_at=${input.at.toISOString()}::timestamptz WHERE company_id=${actor.companyId} AND id=${recordId}`);
       const record = await readRecordRow(tx, actor.companyId, input.employeeId);
       if (record === null) throw new Error('STAFF_RECORD_RESTART_FAILED');
@@ -91,10 +94,13 @@ async function insertPendingRecord(
 ): Promise<StaffAccessRecordRow & { grantedBy: string; phoneHash: string }> {
   const id = input.ids.newId();
   const operationId = input.ids.newId();
+  const attemptId = input.ids.newId();
   await tx.execute(sql`INSERT INTO employee_staff_access
-    (company_id,id,business_id,employee_id,operation_id,role_code,branch_id,state,granted_by,phone_hash)
+    (company_id,id,business_id,employee_id,operation_id,role_code,branch_id,state,granted_by,phone_hash,
+      attempt_id,attempt_started_at)
     VALUES (${actor.companyId},${id},${input.businessId},${input.employeeId},${operationId},
-      ${record.roleCode},${record.branchId},'PENDING',${actor.userId},${record.phoneHash})`);
+      ${record.roleCode},${record.branchId},'PENDING',${actor.userId},${record.phoneHash},
+      ${attemptId},${input.at.toISOString()}::timestamptz)`);
   await audit.record({
     entity: 'employee_staff_access',
     entityId: id,
@@ -109,10 +115,39 @@ async function insertPendingRecord(
     operationId,
     userId: null,
     membershipId: null,
-    createdAt: input.at,
+    attemptId,
+    attemptStartedAt: input.at,
     grantedBy: actor.userId,
     phoneHash: record.phoneHash,
   };
+}
+
+/** يحرر محاولة رُفضت بهاتف مملوك: يحذف سجلاً بلا مستخدم أو يعيد سجل إعادة المنح إلى STOPPED. */
+async function releaseAttemptRow(
+  tx: Tx,
+  actor: StaffAccessActor,
+  input: BeginInput,
+  audit: AuditTrail,
+  target: { recordId: string; attemptId: string },
+): Promise<boolean> {
+  const restored = await tx.execute(sql`UPDATE employee_staff_access
+    SET state='STOPPED',updated_at=${input.at.toISOString()}::timestamptz
+    WHERE company_id=${actor.companyId} AND id=${target.recordId} AND attempt_id=${target.attemptId}
+      AND state='PENDING' AND user_id IS NOT NULL RETURNING id`);
+  const removed =
+    restored.length !== 0
+      ? []
+      : await tx.execute(sql`DELETE FROM employee_staff_access
+    WHERE company_id=${actor.companyId} AND id=${target.recordId} AND attempt_id=${target.attemptId}
+      AND state='PENDING' AND user_id IS NULL RETURNING id`);
+  if (restored.length === 0 && removed.length === 0) return false;
+  await audit.record({
+    entity: 'employee_staff_access',
+    entityId: target.recordId,
+    action: restored.length !== 0 ? 'regrant_cancelled' : 'deleted',
+    after: { employee_id: input.employeeId, reason: 'PHONE_TAKEN' },
+  });
+  return true;
 }
 
 function commitScope(

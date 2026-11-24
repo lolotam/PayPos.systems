@@ -13,7 +13,10 @@ export interface StaffAccessRecordRow {
   readonly operationId: string;
   readonly userId: string | null;
   readonly membershipId: string | null;
-  readonly createdAt: Date;
+  /** هوية محاولة المنح الحالية — الطلب القديم الذي بدأ محاولة سابقة لا يلتزم على محاولة أحدث. */
+  readonly attemptId: string;
+  /** لحظة بداية محاولة PENDING الحالية؛ منها تُقاس مهلة الإلغاء. */
+  readonly attemptStartedAt: Date;
   /** hash الهاتف المطلوب عند إنشاء السجل — الاستئناف يقارن به بلا كشف الهاتف. */
   readonly phoneHash: string;
 }
@@ -37,18 +40,19 @@ export function staffAccessCancelAllowed(
 
 /**
  * هل يسمح إلغاء سجل الانتظار ده؟ PENDING أو CANCELLING (استئناف إلغاء متقطع) وبعد 24 ساعة من
- * إنشائه (FR-F1-6): قبل كده الطلب ممكن يكمل عادي بالاستئناف، وبعد كده الرقم المؤقت انتهى.
+ * بداية المحاولة الحالية (FR-F1-6): قبل كده الطلب ممكن يكمل عادي بالاستئناف، وبعد كده الرقم
+ * المؤقت انتهى. إعادة منح سجل قديم تبدأ محاولة جديدة فتبدأ مهلتها من لحظتها لا من عمر السجل.
  *
  * @param record سجل الدخول
  * @param record.state حالة السجل الحالية
- * @param record.createdAt لحظة إنشاء السجل
+ * @param record.attemptStartedAt لحظة بداية محاولة المنح الحالية
  * @param now اللحظة الحالية من الساعة المحقونة
- * @returns true لو الحالة قابلة للإلغاء وعمر السجل عدّى المدة
+ * @returns true لو الحالة قابلة للإلغاء وعمر المحاولة عدّى المدة
  */
 export function pendingStaffAccessCancellable(
-  record: { state: StaffAccessRecordRow['state']; createdAt: Date },
+  record: { state: StaffAccessRecordRow['state']; attemptStartedAt: Date },
   now: Date,
 ): boolean {
   if (record.state !== 'PENDING' && record.state !== 'CANCELLING') return false;
-  return now.getTime() - record.createdAt.getTime() >= PENDING_STAFF_ACCESS_CANCEL_TTL_MS;
+  return now.getTime() - record.attemptStartedAt.getTime() >= PENDING_STAFF_ACCESS_CANCEL_TTL_MS;
 }

@@ -36,12 +36,10 @@ export interface StaffAccessStateRow {
   readonly branchId: string;
   readonly linkedUserId: string | null;
   readonly record: null | {
-    readonly id: string;
     readonly state: 'PENDING' | 'ACTIVE' | 'STOPPED' | 'PHONE_CHANGING' | 'CANCELLING';
     readonly roleCode: 'staff' | 'reception';
     readonly branchId: string;
     readonly operationId: string;
     readonly userId: string | null;
-    readonly membershipId: string | null;
   };
 }

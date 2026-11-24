@@ -1,4 +1,4 @@
-import { createStaffAccessDatabase, StaffPhoneTakenError } from '@pospay/db';
+import { createStaffAccessDatabase, StaffPhoneTakenError, type AuthDatabase } from '@pospay/db';
 import type { BetterAuthOptions } from 'better-auth';
 import type { IdGenerator } from '@pospay/db';
 
@@ -83,6 +83,8 @@ export interface StaffUserAccess {
 export function createStaffUserAccess(options: {
   databaseUrl: string;
   phoneLockKey: (hash: Uint8Array) => bigint;
+  /** قراءات كل طلب (علامة الموظفة ورابط الاستهلاك) من المجمع العادي، لا من المجمع المحدود. */
+  readonly marker: Pick<AuthDatabase, 'staffMarker' | 'userIdForResetToken'>;
 }): StaffUserAccess & { close(): Promise<void> } {
   const database = createStaffAccessDatabase({
     url: options.databaseUrl,
@@ -110,16 +112,18 @@ export function createStaffUserAccess(options: {
     read: (operationId) => database.read(operationId),
     isStaffUser: async (userId) => {
       if (!UUID.test(userId)) return false;
-      const found = await database.byUserId(userId);
-      return found?.staff === true;
+      return (await options.marker.staffMarker(userId)).staff;
     },
     staffCompanyOf: async (userId) => {
       if (!UUID.test(userId)) return null;
-      const found = await database.byUserId(userId);
-      return found === null || !found.staff ? null : (found.companyId ?? null);
+      const found = await options.marker.staffMarker(userId);
+      return found.staff ? found.companyId : null;
     },
     bindingOf: (operationId) => database.bindingOf(operationId),
-    userIdForResetToken: (token) => database.userIdForResetToken(token),
+    userIdForResetToken: async (token) =>
+      token.length < 8 || token.length > 256 || !/^[A-Za-z0-9_-]+$/.test(token)
+        ? null
+        : options.marker.userIdForResetToken(token),
     close: () => database.close(),
   };
 }

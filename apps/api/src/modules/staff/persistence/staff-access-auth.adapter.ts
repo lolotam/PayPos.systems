@@ -48,6 +48,7 @@ export function createStaffAccessUserSteps(auth: AuthFacadeForStaffAccess): Staf
         throw error;
       }
     },
+    accountExists: async (operationId) => (await auth.bindingOf(operationId)) !== null,
     hash: (pin) => hashStaffPin(pin),
   };
 }

@@ -1748,14 +1748,14 @@
     {
       "idx": 251,
       "version": "7",
-      "when": 1795494400227,
+      "when": 1795498594762,
       "tag": "0251_2026-11-24_staff-access-schema",
       "breakpoints": true
     },
     {
       "idx": 252,
       "version": "7",
-      "when": 1795494419331,
+      "when": 1795498607676,
       "tag": "0252_2026-11-24_staff-access-rls-and-seed",
       "breakpoints": true
     }

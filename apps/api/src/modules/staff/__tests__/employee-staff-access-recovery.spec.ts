@@ -100,7 +100,7 @@ it('P1-2 cancel marks intent, survives auth failure and refuses resume during CA
   expect((await grant(f, employeeId, phone, f.managerCookie)).status).toBe(500);
   vi.restoreAllMocks();
   await f.h
-    .owner`UPDATE employee_staff_access SET created_at=now()-interval '25 hours' WHERE employee_id=${employeeId}`;
+    .owner`UPDATE employee_staff_access SET attempt_started_at=now()-interval '25 hours' WHERE employee_id=${employeeId}`;
   vi.spyOn(f.h.auth.staffUsers, 'cancel').mockRejectedValueOnce(
     new Error('INJECTED_CANCEL_FAILURE'),
   );
@@ -159,7 +159,7 @@ it('P1-2 an equally authorized branch manager cannot cancel another granter pend
   vi.spyOn(f.h.auth.staffUsers, 'provision').mockRejectedValueOnce(new Error('INJECTED_CRASH'));
   expect((await grant(f, employee, phone, f.managerCookie)).status).toBe(500);
   vi.restoreAllMocks();
-  await f.h.owner`UPDATE employee_staff_access SET created_at=now()-interval '25 hours' WHERE employee_id=${employee}`;
+  await f.h.owner`UPDATE employee_staff_access SET attempt_started_at=now()-interval '25 hours' WHERE employee_id=${employee}`;
   const cookie = await f.h.signedInOperator('other-granter@example.test');
   const actor = await f.h.auth.getSession(new Headers({ cookie }));
   if (actor === null) throw new Error('ACTOR_MISSING');

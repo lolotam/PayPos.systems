@@ -39,9 +39,9 @@ it('AC-F1-8 RLS: another tenant reads zero rows and cannot write ours', async ()
   const foreignEmployee = await addEmployee(f, 'Foreign target', f.salmiya, 14);
   const write = f.db.withTenant(otherCompany, (tx) =>
     tx.execute(sql`INSERT INTO employee_staff_access
-      (company_id,id,business_id,employee_id,operation_id,role_code,branch_id,state,granted_by,phone_hash)
+      (company_id,id,business_id,employee_id,operation_id,role_code,branch_id,state,granted_by,phone_hash,attempt_id)
       VALUES (${f.company},${ids.newId()},${f.business},${foreignEmployee},${ids.newId()},'staff',${f.salmiya},'PENDING',
-        ${ownerUser?.id},${'a'.repeat(64)})`),
+        ${ownerUser?.id},${'a'.repeat(64)},${ids.newId()})`),
   );
   await expect(write).rejects.toMatchObject({ cause: { code: '42501' } });
 });
@@ -91,9 +91,9 @@ it('FR-F1-1 the GET state covers NONE, PENDING and a foreign employee 404', asyn
   const [ownerUser] = await f.h
     .owner`SELECT id FROM "user" WHERE email='staff-access-owner@example.test'`;
   await f.h.owner`INSERT INTO employee_staff_access
-    (company_id,id,business_id,employee_id,operation_id,role_code,branch_id,state,granted_by,created_at,phone_hash)
+    (company_id,id,business_id,employee_id,operation_id,role_code,branch_id,state,granted_by,attempt_id,attempt_started_at,phone_hash)
     VALUES (${f.company},${ids.newId()},${f.business},${fresh},${ids.newId()},'reception',${f.salmiya},'PENDING',
-      ${ownerUser?.id}, now() - interval '25 hours',${'a'.repeat(64)})`;
+      ${ownerUser?.id},${ids.newId()}, now() - interval '25 hours',${'a'.repeat(64)})`;
   const pendingState = await readState(f, fresh);
   expect(pendingState.body).toMatchObject({
     state: 'PENDING',

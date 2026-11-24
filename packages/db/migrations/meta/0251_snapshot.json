@@ -1,5 +1,5 @@
 {
-  "id": "8f6b027d-b474-42b8-b64b-c4edc65aadaf",
+  "id": "4e44f482-17e7-44fd-b39e-3178d4b5a202",
   "prevId": "74b9acf1-f432-4368-8eb8-83041b32fa3f",
   "version": "7",
   "dialect": "postgresql",
@@ -364,6 +364,19 @@
           "type": "uuid",
           "primaryKey": false,
           "notNull": true
+        },
+        "attempt_id": {
+          "name": "attempt_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "attempt_started_at": {
+          "name": "attempt_started_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
         },
         "phone_hash": {
           "name": "phone_hash",

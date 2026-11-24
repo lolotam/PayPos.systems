@@ -29,6 +29,12 @@ export interface StaffAccessUserSteps {
    */
   provision(input: StaffAccessProvisionRequest): Promise<{ userId: string }>;
   /**
+   * هل لعملية السجل حساب في auth؟ — إثبات أن رفض الهاتف المملوك لم يترك حساباً قبل تحرير المحاولة.
+   *
+   * @param operationId معرّف العملية من السجل
+   */
+  accountExists(operationId: string): Promise<boolean>;
+  /**
    * يصوّر الرقم السري قبل المعاملة الثالثة — الـ hashing بطيء مقصود فلا يُنتظر داخل قفل صف.
    *
    * @param pin الرقم السري كما كُتب

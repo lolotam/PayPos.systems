@@ -83,17 +83,16 @@ it('P2-1 state query uses its employee index on representative rows and returns 
     SELECT ${f.company},md5(${f.company}||i::text)::uuid,${f.business},${f.salmiya},'Representative '||i,'representative '||i,'staff','2026-01-01',10000+i
     FROM generate_series(1,1500) i`;
   await f.h
-    .owner`INSERT INTO employee_staff_access(company_id,id,business_id,employee_id,operation_id,role_code,branch_id,state,granted_by,phone_hash)
+    .owner`INSERT INTO employee_staff_access(company_id,id,business_id,employee_id,operation_id,role_code,branch_id,state,granted_by,phone_hash,attempt_id)
     SELECT ${f.company},md5('access'||${f.company}||i::text)::uuid,${f.business},md5(${f.company}||i::text)::uuid,
-      md5('operation'||${f.company}||i::text)::uuid,'staff',${f.salmiya},'PENDING',${actor?.id},repeat('a',64) FROM generate_series(1,1500) i`;
+      md5('operation'||${f.company}||i::text)::uuid,'staff',${f.salmiya},'PENDING',${actor?.id},repeat('a',64),
+      md5('attempt'||${f.company}||i::text)::uuid FROM generate_series(1,1500) i`;
   await f.h.owner.unsafe('ANALYZE employee_staff_access');
   await f.db.withTenant(f.company, async (tx) => {
     const query = staffAccessRecordQuery({ companyId: f.company, employeeId: employee });
     const rows = await tx.execute(query);
     expect(Object.keys(rows[0] ?? {}).sort()).toEqual([
       'branch_id',
-      'id',
-      'membership_id',
       'operation_id',
       'role_code',
       'state',

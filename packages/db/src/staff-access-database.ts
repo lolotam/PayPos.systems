@@ -20,6 +20,32 @@ export class StaffPhoneTakenError extends Error {
   }
 }
 
+/**
+ * هل الخطأ انتهاك قيد تفرد هاتف المستخدم بالذات؟ يفحص الخطأ وسلسلة cause (Drizzle يغلف خطأ
+ * PostgreSQL) على SQLSTATE 23505 واسم القيد `user_phone_number_key` فقط — أي قيد آخر يبقى كما هو.
+ */
+export function isPhoneUniqueViolation(error: unknown): boolean {
+  const seen = new Set<unknown>();
+  let current: unknown = error;
+  while (typeof current === 'object' && current !== null && !seen.has(current)) {
+    seen.add(current);
+    const link = current as { code?: unknown; constraint_name?: unknown; cause?: unknown };
+    if (link.code === '23505' && link.constraint_name === 'user_phone_number_key') return true;
+    current = link.cause;
+  }
+  return false;
+}
+
+/** يشغّل كتابة هاتف ويترجم سباق الملكية (رقم أُعطي لمستخدم آخر بعد القراءة) إلى الرفض المتوقع (CLAUDE.md §5). */
+export async function translatingPhoneRace<T>(write: () => Promise<T>): Promise<T> {
+  try {
+    return await write();
+  } catch (error) {
+    if (isPhoneUniqueViolation(error)) throw new StaffPhoneTakenError();
+    throw error;
+  }
+}
+
 /** مدخل الإنشاء أو الإيجاد: معرّف العملية هوية الاستئناف، والمانح هو المؤكِّد للهاتف. */
 export interface StaffUserProvisionInput {
   readonly operationId: string;
@@ -102,20 +128,23 @@ async function provisionStaffUser(
       if (input.resetBinding) await resetStaffBinding(tx, runtime, input, existing.id, at);
       return { userId: existing.id };
     }
-    // قفل الهاتف يسلسل مع تدفق OTP على نفس المفتاح؛ قيد التفرد هو الحكم النهائي في السباق.
+    // قفل الهاتف يسلسل بين طلبات F1 نفسها فقط: مفتاحه مشتق من sha256 للهاتف، بينما OTP وربط المنصة
+    // يقفلان بصمة HMAC مختلفة، فقيد التفرد هو الحكم النهائي ويُترجم انتهاكه إلى رفض الهاتف المملوك.
     await runtime.lock(tx, createHash('sha256').update(`staff-provision:${input.phone}`).digest());
     const [taken] = await tx.execute<{ id: string }>(
       sql`SELECT id FROM "user" WHERE phone_number = ${input.phone} LIMIT 1`,
     );
     if (taken !== undefined) throw new StaffPhoneTakenError();
     const userId = input.ids.newId();
-    const [inserted] = await tx.execute<{ id: string }>(sql`
+    const [inserted] = await translatingPhoneRace(() =>
+      tx.execute<{ id: string }>(sql`
       INSERT INTO "user" (id, name, email, email_verified, phone_number, phone_number_verified,
         phone_binding_approved_at, staff_access_company_id, staff_access_operation_id)
       VALUES (${userId}, ${input.name}, ${input.email}, true,
         ${input.phone}, false, ${at.toISOString()}::timestamptz,
         ${input.companyId}, ${input.operationId})
-      RETURNING id`);
+      RETURNING id`),
+    );
     if (inserted === undefined) throw new Error('STAFF_USER_PROVISION_FAILED');
     // سجل المنصة insert-only ولا يشير بالـ FK: هوية الحساب تعيش في details ليصلح حذفه لاحقاً
     // إلغاءً بعد انتهاء مدة الانتظار (FR-F1-6).
@@ -143,9 +172,11 @@ async function resetStaffBinding(
     sql`SELECT id FROM "user" WHERE phone_number = ${input.phone} AND id <> ${userId} LIMIT 1`,
   );
   if (taken !== undefined) throw new StaffPhoneTakenError();
-  await tx.execute(sql`UPDATE "user"
+  await translatingPhoneRace(() =>
+    tx.execute(sql`UPDATE "user"
     SET phone_number = ${input.phone}, phone_number_verified = false
-    WHERE id = ${userId}`);
+    WHERE id = ${userId}`),
+  );
   await tx.execute(sql`UPDATE "user"
     SET phone_binding_approved_at = ${at.toISOString()}::timestamptz
     WHERE id = ${userId}`);
@@ -178,8 +209,8 @@ async function readStaffUser(
 ): Promise<{ userId: string; phoneLast3: string | null } | null> {
   if (!/^[0-9a-f-]{36}$/i.test(operationId)) throw new Error('STAFF_USER_INPUT_INVALID');
   return runtime.run(async (tx) => {
-    const [row] = await tx.execute<{ id: string; phone: string | null; company: string }>(sql`
-      SELECT id, phone_number AS phone, staff_access_company_id AS company FROM "user"
+    const [row] = await tx.execute<{ id: string; phone: string | null }>(sql`
+      SELECT id, phone_number AS phone FROM "user"
       WHERE staff_access_operation_id = ${operationId} LIMIT 1`);
     if (row === undefined) return null;
     return {
@@ -187,30 +218,6 @@ async function readStaffUser(
       phoneLast3: row.phone === null || row.phone.length < 3 ? null : row.phone.slice(-3),
     };
   });
-}
-
-async function readStaffUserKind(
-  runtime: OtpRuntime,
-  userId: string,
-): Promise<{ staff: boolean; companyId: string | null; operationId: string | null } | null> {
-  if (!/^[0-9a-f-]{36}$/i.test(userId)) return null;
-  // مهلة أوسع من الافتراضي: الفحص يمر بكل جلسة/طلب تعامل ولا يحتمل فشلاً عابراً (P1-6).
-  return runtime.run(
-    async (tx) => {
-      const [row] = await tx.execute<{
-        staff: boolean;
-        company: string | null;
-        operation: string | null;
-      }>(sql`
-        SELECT (staff_access_operation_id IS NOT NULL) AS staff,
-          staff_access_company_id AS company, staff_access_operation_id AS operation
-        FROM "user" WHERE id = ${userId} LIMIT 1`);
-      return row === undefined
-        ? null
-        : { staff: row.staff === true, companyId: row.company, operationId: row.operation };
-    },
-    new Date(Date.now() + 5000),
-  );
 }
 
 /** ربط حساب الموظفة بمعرّف العملية: المستخدم المطلوب فقط، ولا تحقيق عبر صفوف أخرى (P1-5). */
@@ -227,26 +234,11 @@ async function readStaffUserBinding(
   });
 }
 
-/** مستخدم رابط token استهلاك كلمة السر — فحص الاستهلاك قبل تسليم الطلب لـ Better Auth (P1-6). */
-async function readUserIdForResetToken(runtime: OtpRuntime, token: string): Promise<string | null> {
-  if (token.length < 8 || token.length > 256 || !/^[A-Za-z0-9_-]+$/.test(token)) return null;
-  // مهلة أوسع من الافتراضي: فحص الاستهلاك يمر بكل طلب reset ولا يحتمل فشلاً عابراً (P1-6).
-  return runtime.run(
-    async (tx) => {
-      const [row] = await tx.execute<{ value: string }>(sql`
-        SELECT value FROM verification
-        WHERE identifier = ${`reset-password:${token}`} AND expires_at > now() LIMIT 1`);
-      return row?.value ?? null;
-    },
-    new Date(Date.now() + 5000),
-  );
-}
-
 /**
  * يبني واجهة حساب الموظفة على pospay_auth؛ الاتصال مملوك للواجهة ويُغلق معها.
  *
  * @param options الاتصال ومفتاح قفل الهاتف المشترك
- * @returns الإنشاء والإيجاد والإلغاء والقراءة
+ * @returns الإنشاء والإيجاد والإلغاء والقراءة وإثبات الربط
  */
 export function createStaffAccessDatabase(options: StaffAccessDatabaseOptions) {
   const runtime = createOtpRuntime(options.url, options.phoneLockKey);
@@ -259,13 +251,8 @@ export function createStaffAccessDatabase(options: StaffAccessDatabaseOptions) {
       ids: IdGenerator;
     }) => cancelStaffUser(runtime, input),
     read: (operationId: string) => readStaffUser(runtime, operationId),
-    /** نوع المستخدم بمعرفه وهويته في الشركة — أساس إغلاق مسارات التعامل و exclusivity الشركة (D8، P1-5). */
-    byUserId: (userId: string) => readStaffUserKind(runtime, userId),
     /** ربط المستخدم بمعرّف العملية — إثبات المنح الوحيد المقبول قبل كتابة عضوية (P1-5). */
     bindingOf: (operationId: string) => readStaffUserBinding(runtime, operationId),
-    /** مستخدم رابط token استهلاك كلمة السر أو null — بوابة الاستهلاك قبل Better Auth (P1-6). */
-    userIdForResetToken: (token: string) => readUserIdForResetToken(runtime, token),
-    warm: () => runtime.warm(),
     close: () => runtime.close(),
   };
 }

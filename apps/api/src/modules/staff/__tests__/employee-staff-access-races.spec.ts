@@ -146,7 +146,7 @@ it('P1-2 cancel waits for in-flight auth provisioning, then deletes the account;
   expect((await grant(f, employeeId, input.phone)).status).toBe(500);
   vi.restoreAllMocks();
   await f.h
-    .owner`UPDATE employee_staff_access SET created_at=now()-interval '25 hours' WHERE employee_id=${employeeId}`;
+    .owner`UPDATE employee_staff_access SET attempt_started_at=now()-interval '25 hours' WHERE employee_id=${employeeId}`;
   const authGate = barrier();
   const hashGate = barrier();
   const pending = grantCase(hashGate, authGate).execute(input);
@@ -212,7 +212,7 @@ it('P1-2 a request resumed after another grant commits never provisions an ACTIV
   } finally {
     gate.release();
   }
-  expect(await delayed).toEqual({ kind: 'already' });
+  expect(await delayed).toMatchObject({ kind: 'already' });
   expect(provision).not.toHaveBeenCalled();
 });
 

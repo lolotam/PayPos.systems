@@ -1,5 +1,10 @@
 import { Body, Controller, Delete, Get, HttpCode, Inject, Param, Post, Req, UseGuards } from '@nestjs/common';
-import { grantStaffAccessInput, type GrantStaffAccessInput, id } from '@pospay/contracts';
+import {
+  grantStaffAccessInput,
+  staffAccessState,
+  type GrantStaffAccessInput,
+  id,
+} from '@pospay/contracts';
 import type { TenantWrappers } from '@pospay/db';
 import type { FastifyRequest } from 'fastify';
 
@@ -48,7 +53,7 @@ export class EmployeeAccessController {
     const actor = actorOf(request);
     this.ready();
     try {
-      await (this.grantUseCase as GrantEmployeeAccessUseCase).execute({
+      const granted = await (this.grantUseCase as GrantEmployeeAccessUseCase).execute({
         ...actor,
         businessId,
         employeeId,
@@ -56,11 +61,19 @@ export class EmployeeAccessController {
         phone: input.phone,
         pin: input.pin,
       });
+      // الرد من نتيجة المعاملة الملتزمة نفسها: لا قراءة تالية (معاملة جديدة ومكالمة auth) قد تفشل
+      // فتحوّل منحاً ملتزماً إلى 500. الحالة بعد المنح ACTIVE دائماً ولا إدارة متاحة عليها.
+      return staffAccessState.parse({
+        state: 'ACTIVE',
+        role: granted.role,
+        branch_id: granted.branchId,
+        phone_last3: granted.phoneLast3,
+        can_manage: false,
+      });
     } catch (error) {
       if (error instanceof StaffAccessError) throw new ApiError(error.code);
       throw error;
     }
-    return this.readStateOrNotFound(actor.companyId, actor.userId, businessId, employeeId, readGrantedEmployeeStaffAccess);
   }
 
   /** حالة الدخول للوحة: الدور والفرع وآخر ثلاثة أرقام وصلاحية الإعطاء. */

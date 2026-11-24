@@ -126,6 +126,7 @@ export async function createAuth(options: AuthOptions): Promise<AuthService> {
   const staffUsers = createStaffUserAccess({
     databaseUrl: options.databaseUrl,
     phoneLockKey: options.staffPhoneLockKey,
+    marker: database,
   });
   try {
     await database.ping();

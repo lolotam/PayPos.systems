@@ -90,14 +90,19 @@ async function authHandler(
   if (request.method === 'POST' && new URL(request.url).pathname === '/v1/auth/reset-password') {
     // الجسم يُقرأ مرة واحدة ويُعاد بناؤه للطلب المُمرَّر — البوابة تسبق Better Auth ولا تلغم المسار.
     const raw = await request.arrayBuffer();
-    let payload: { token?: unknown } = {};
+    let payload: unknown = null;
     try {
-      payload = JSON.parse(new TextDecoder().decode(raw)) as { token?: unknown };
+      payload = JSON.parse(new TextDecoder().decode(raw));
     } catch (error) {
       if (!(error instanceof SyntaxError)) throw error;
     }
-    if (typeof payload.token === 'string') {
-      const linked = await staffUsers.userIdForResetToken(payload.token);
+    // الجسم قد يكون null أو مصفوفة أو نصاً: لا نقرأ token إلا من كائن، والباقي يرده Better Auth برفض صحيح.
+    const token =
+      typeof payload === 'object' && payload !== null && !Array.isArray(payload)
+        ? (payload as { token?: unknown }).token
+        : undefined;
+    if (typeof token === 'string') {
+      const linked = await staffUsers.userIdForResetToken(token);
       const staffUserId = linked !== null && (await staffUsers.isStaffUser(linked)) ? linked : null;
       if (staffUserId !== null)
         return Response.json(

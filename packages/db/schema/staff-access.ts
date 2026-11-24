@@ -39,6 +39,11 @@ export const employeeStaffAccess = pgTable(
     // دور الطلب المقفول ('staff' | 'reception') — دور النظام الفعلي بيتحسم في identity.
     roleCode: text('role_code').notNull(),
     branchId: uuid('branch_id').notNull(),
+    // هوية المحاولة الحالية: تتجدد عند إنشاء السجل وعند كل إعادة منح من STOPPED، فلا ينهي طلب
+    // قديم محاولة أحدث على نفس السجل (operation_id يبقى ثابتاً لحساب auth فقط).
+    attemptId: uuid('attempt_id').notNull(),
+    // لحظة بداية محاولة PENDING الحالية من الساعة المحقونة — قاعدة الـ 24 ساعة للإلغاء تُقاس منها لا من created_at.
+    attemptStartedAt: timestamp('attempt_started_at', { withTimezone: true }).notNull().defaultNow(),
     // hash الهاتف المطلوب عند إنشاء السجل — الاستئناف بيرفض أي هاتف مختلف بلا كشف الهاتف.
     phoneHash: text('phone_hash').notNull(),
     // PENDING قبل الإتمام، ACTIVE بعد المعاملة الثالثة، STOPPED بعد «إيقاف الدخول» (F3)،

@@ -52,13 +52,11 @@ export async function readStaffAccessState(
       AND id=${input.employeeId} AND deleted_at IS NULL`);
   if (employee === undefined) return null;
   const [record] = await tx.execute<{
-    id: string;
     state: 'PENDING' | 'ACTIVE' | 'STOPPED' | 'PHONE_CHANGING' | 'CANCELLING';
     role_code: 'staff' | 'reception';
     branch_id: string;
     operation_id: string;
     user_id: string | null;
-    membership_id: string | null;
   }>(staffAccessRecordQuery(input));
   return {
     branchId: employee.primary_branch_id,
@@ -67,19 +65,17 @@ export async function readStaffAccessState(
       record === undefined
         ? null
         : {
-            id: record.id,
             state: record.state,
             roleCode: record.role_code,
             branchId: record.branch_id,
             operationId: record.operation_id,
             userId: record.user_id,
-            membershipId: record.membership_id,
           },
   };
 }
 
 /** نفس استعلام حالة الدخول للشاشة وEXPLAIN؛ الإسقاط محدود ولا يحمل الهاتف أو الـ hash. */
 export function staffAccessRecordQuery(input: { companyId: string; employeeId: string }) {
-  return sql`SELECT id, state, role_code, branch_id, operation_id, user_id, membership_id
+  return sql`SELECT state, role_code, branch_id, operation_id, user_id
     FROM employee_staff_access WHERE company_id=${input.companyId} AND employee_id=${input.employeeId}`;
 }

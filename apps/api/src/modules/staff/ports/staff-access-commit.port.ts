@@ -26,6 +26,7 @@ export interface GrantCommitScope {
       readonly branchId: string;
       readonly userId: string | null;
       readonly operationId: string;
+      readonly attemptId: string;
       readonly phoneHash: string;
     } | null;
   }>;

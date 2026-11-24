@@ -53,10 +53,25 @@ export interface GrantBeginOutcome {
   readonly employee: StaffAccessEmployeeRow;
 }
 
-/** ناتج الخطوة الثالثة: عضوية جديدة اتعملت، أو تكرار بعد نجاح سابق لا يكتب شيئاً. */
+/**
+ * ناتج الخطوة الثالثة: عضوية جديدة اتعملت، أو تكرار بعد نجاح سابق لا يكتب شيئاً. الدور والفرع
+ * من السجل المقفول، ليُبنى الرد بلا قراءة تالية بعد الالتزام (فلا يصير نجاح ملتزم 500).
+ */
 export type GrantCommitOutcome =
-  | { readonly kind: 'granted'; readonly membershipId: string; readonly userId: string }
-  | { readonly kind: 'already' };
+  | {
+      readonly kind: 'granted';
+      readonly membershipId: string;
+      readonly userId: string;
+      readonly role: StaffAccessRole;
+      readonly branchId: string;
+    }
+  | {
+      readonly kind: 'already';
+      readonly role: StaffAccessRole;
+      readonly branchId: string;
+      /** هل هاتف السجل هو هاتف هذا الطلب؟ */
+      readonly phoneMatches: boolean;
+    };
 
 /**
  * نطاق الخطوة الأولى داخل معاملة الشركة: قفل الشركة ثم الموظفة وفحص السلطة وإنشاء سجل الانتظار
@@ -78,7 +93,8 @@ export interface GrantBeginScope {
   authority(businessId: string, branchId: string): Promise<boolean>;
   /** يقرأ سجل الدخول للموظفة إن وُجد بلا قفل إضافي. */
   findRecord(): Promise<StaffAccessRecordRow | null>;
-  /** يثبت الهاتف والدور والفرع عند إعادة منح سجل متوقف قبل إنشاء أي أثر هوية.
+  /** يثبت الهاتف والدور والفرع عند إعادة منح سجل متوقف قبل إنشاء أي أثر هوية، ويبدأ محاولة جديدة
+   * بمعرّف محاولة جديد ولحظة بداية جديدة (P1-1/P1-3).
    *
    * @param recordId السجل المتوقف
    * @param input tuple الطلب الجديد
@@ -90,6 +106,14 @@ export interface GrantBeginScope {
     recordId: string,
     input: { phoneHash: string; roleCode: StaffAccessRole; branchId: string },
   ): Promise<StaffAccessRecordRow>;
+  /**
+   * يحرر محاولة المنح الحالية بعد رفض هاتف مملوك مؤكد: سجل بلا مستخدم يُحذف، وسجل إعادة منح يعود
+   * STOPPED، وكلاهما بشرط أن المحاولة ما زالت هي نفسها ويكتب التدقيق. false لو تغيّر السجل.
+   *
+   * @param recordId  السجل المقفول
+   * @param attemptId المحاولة التي رُفضت
+   */
+  releaseAttempt(recordId: string, attemptId: string): Promise<boolean>;
   /**
    * hash الهاتف الكانوني — المقارنة عند الاستئناف بلا كشف الهاتف (P1-4).
    *

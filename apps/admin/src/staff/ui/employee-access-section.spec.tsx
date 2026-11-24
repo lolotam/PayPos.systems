@@ -49,7 +49,6 @@ function mountSection() {
       <EmployeeAccessSection
         companyId={IDS.company}
         businessId={IDS.business}
-        userId={IDS.user}
         employeeId={IDS.employee}
       />,
     ),
@@ -105,7 +104,6 @@ describe('the employee access section visible states', () => {
         <EmployeeAccessSection
           companyId={IDS.company}
           businessId={IDS.business}
-          userId={IDS.user}
           employeeId={IDS.employee}
         />,
       ),

@@ -24,8 +24,6 @@ export function EmployeeAccessSection({
 }: {
   companyId: string;
   businessId: string;
-  /** معرّف مستخدم الجلسة — جزء من توقيع الأقسام الموحدة في اللوحة، لا تستخدمه القراءة. */
-  userId: string;
   employeeId: string;
 }) {
   const locale = useLocale();

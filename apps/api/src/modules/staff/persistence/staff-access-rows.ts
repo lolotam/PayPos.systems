@@ -11,7 +11,7 @@ export const STAFF_ACCESS_EMPLOYEE_COLUMNS = sql`id, business_id, primary_branch
 
 /** SQL سجل الدخول المشترك بكل أعمدته بما فيها hash الهاتف والمانح. */
 export const STAFF_ACCESS_RECORD_COLUMNS = sql`id, state, role_code, branch_id, operation_id,
-  user_id, membership_id, created_at, granted_by, phone_hash`;
+  user_id, membership_id, attempt_id, attempt_started_at, granted_by, phone_hash`;
 
 /** صف الموظفة كما يعود من SQL المشترك. */
 export type StaffAccessEmployeeSqlRow = {
@@ -31,7 +31,8 @@ export type StaffAccessRecordSqlRow = {
   readonly operation_id: string;
   readonly user_id: string | null;
   readonly membership_id: string | null;
-  readonly created_at: Date;
+  readonly attempt_id: string;
+  readonly attempt_started_at: Date;
   readonly granted_by: string;
   readonly phone_hash: string;
 };
@@ -59,7 +60,8 @@ export function toRecordRow(
     operationId: row.operation_id,
     userId: row.user_id,
     membershipId: row.membership_id,
-    createdAt: new Date(row.created_at),
+    attemptId: row.attempt_id,
+    attemptStartedAt: new Date(row.attempt_started_at),
     grantedBy: row.granted_by,
     phoneHash: row.phone_hash,
   };
@@ -98,12 +100,8 @@ export async function lockRecordWithEmployee(
     WHERE company_id=${companyId} AND business_id=${input.businessId}
       AND id=${input.employeeId} AND deleted_at IS NULL FOR UPDATE`,
   );
-  const [record] =
-    await tx.execute<StaffAccessRecordSqlRow>(sql`SELECT ${STAFF_ACCESS_RECORD_COLUMNS}
-    FROM employee_staff_access
-    WHERE company_id=${companyId} AND employee_id=${input.employeeId} FOR UPDATE`);
   return {
     employee: employee === undefined ? null : toEmployeeRow(employee),
-    record: record === undefined ? null : toRecordRow(record),
+    record: await readRecordRow(tx, companyId, input.employeeId),
   };
 }

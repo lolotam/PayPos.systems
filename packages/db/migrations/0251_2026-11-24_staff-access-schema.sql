@@ -8,6 +8,8 @@ CREATE TABLE "employee_staff_access" (
 	"membership_id" uuid,
 	"role_code" text NOT NULL,
 	"branch_id" uuid NOT NULL,
+	"attempt_id" uuid NOT NULL,
+	"attempt_started_at" timestamp with time zone DEFAULT now() NOT NULL,
 	"phone_hash" text NOT NULL,
 	"state" text NOT NULL,
 	"granted_by" uuid NOT NULL,
