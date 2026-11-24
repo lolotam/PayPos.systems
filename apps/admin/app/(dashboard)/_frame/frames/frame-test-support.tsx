@@ -51,6 +51,7 @@ export const frameState = {
   visible: [] as readonly string[],
   push: vi.fn(setPathname),
   replace: vi.fn(setPathname),
+  prefetch: vi.fn(),
   params: {} as Record<string, string>,
   settled: true,
   workspace: undefined as WorkspaceController | undefined,
@@ -79,6 +80,7 @@ export const NOT_FOUND_MESSAGE = 'NEXT_NOT_FOUND';
 const stableRouter = {
   push: (...args: Parameters<typeof frameState.push>) => frameState.push(...args),
   replace: (...args: Parameters<typeof frameState.replace>) => frameState.replace(...args),
+  prefetch: (...args: Parameters<typeof frameState.prefetch>) => frameState.prefetch(...args),
   refresh: () => undefined,
 };
 
@@ -211,6 +213,7 @@ export function resetFrameState(): void {
   frameState.push.mockImplementation(setPathname);
   frameState.replace.mockReset();
   frameState.replace.mockImplementation(setPathname);
+  frameState.prefetch.mockReset();
   vi.unstubAllGlobals();
   selectBusiness('restaurant');
 }

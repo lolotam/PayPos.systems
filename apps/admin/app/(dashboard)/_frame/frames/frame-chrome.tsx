@@ -1,7 +1,7 @@
 'use client';
 
 import { usePathname, useRouter } from 'next/navigation';
-import type { MouseEvent, ReactNode } from 'react';
+import { useRef, type MouseEvent, type ReactNode } from 'react';
 
 function sameOriginTarget(anchor: HTMLAnchorElement): string | null {
   const href = anchor.getAttribute('href');
@@ -26,6 +26,16 @@ function softNavigationTarget(event: MouseEvent<HTMLElement>): string | null {
   return anchor instanceof HTMLAnchorElement ? sameOriginTarget(anchor) : null;
 }
 
+function prefetchTarget(target: EventTarget | null): string | null {
+  if (!(target instanceof Element)) return null;
+  const anchor = target.closest('a[href]');
+  if (!(anchor instanceof HTMLAnchorElement)) return null;
+  const value = sameOriginTarget(anchor);
+  if (value === null) return null;
+  // الوجهة المسبقة بلا جزء (#...): الجلب يهمّه المسار والاستعلام لا موضع الصفحة داخلها.
+  return value.split('#', 1)[0] ?? null;
+}
+
 /**
  * حدّ تنقّل الإطار: يلفّ كل جزء من قوائم الإطار (الشريط الجانبي والعلوي واللوحة والحبوب والشريط السفلي
  * والباحث وقائمة الحساب). روابط @pospay/ui عناصر <a> عادية، فالضغطة العادية في نفس التبويب داخل هذا
@@ -36,6 +46,11 @@ function softNavigationTarget(event: MouseEvent<HTMLElement>): string | null {
  * لو رسمه في portal، لأن مكانه في شجرة React خارج هذا الحد.
  * الضغطة على رابط صفحة المسار الحالي لا تغيّر المسار، فلا تُغلق بها الحالات المرتبطة بمفتاح المسار؛
  * لذلك يستدعي الحد `onCurrentPage` ليغلقها المضيف.
+ * والحدّ يسبق (prefetch) وجهة رابط الإطار عند نيّة المستخدم (مرور المؤشر أو التركيز بلوحة المفاتيح
+ * أو اللمس)، ولا يكرّر الجلب ما بقي المؤشر على الوجهة نفسها، ويطلب الوجهة بلا جزء (#) منها، لأن
+ * روابط الكيت روابط <a> عادية لا يسبقها Next `Link` جلبًا مسبقًا.
+ * وتسري على هذا الجلب المسبق استثناءات الضغطة نفسها: أصل آخر أو رابط له target أو download أو
+ * رابط جزء (#) أو صفحة المسار الحالي.
  */
 export function FrameChrome({
   children,
@@ -46,6 +61,14 @@ export function FrameChrome({
 }) {
   const router = useRouter();
   const pathname = usePathname();
+  const lastPrefetched = useRef<string | null>(null);
+  const prefetch = (target: EventTarget | null) => {
+    const href = prefetchTarget(target);
+    if (href === null || href === lastPrefetched.current) return;
+    if (href.split('?', 1)[0] === pathname) return;
+    lastPrefetched.current = href;
+    router.prefetch(href);
+  };
   return (
     <div
       className="contents"
@@ -56,6 +79,9 @@ export function FrameChrome({
         router.push(href);
         if (href.split(/[?#]/, 1)[0] === pathname) onCurrentPage?.();
       }}
+      onPointerOver={(event) => prefetch(event.target)}
+      onFocus={(event) => prefetch(event.target)}
+      onTouchStart={(event) => prefetch(event.target)}
     >
       {children}
     </div>
