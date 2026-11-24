@@ -64,6 +64,24 @@ async function waitForMembershipShareWait(budgetMs: number): Promise<boolean> {
   return false;
 }
 
+/** يستنى معاملة الحاجز لحد ما قفل FOR UPDATE بتاعها يبقى مأخوذ فعلاً، بميزانية زمن صريحة. */
+async function waitForMembershipUpdateHeld(budgetMs: number): Promise<boolean> {
+  const deadline = Date.now() + budgetMs;
+  while (Date.now() < deadline) {
+    const [row] = await owner`SELECT EXISTS (
+      SELECT 1 FROM pg_locks l
+      JOIN pg_stat_activity a ON a.pid = l.pid
+      WHERE l.granted AND l.relation = 'memberships'::regclass
+        AND l.mode = 'RowExclusiveLock'
+        AND a.state = 'idle in transaction'
+        AND a.query ~* 'FROM\\s+memberships\\s+WHERE.*FOR\\s+UPDATE'
+        AND a.pid <> pg_backend_pid()) AS held`;
+    if (row?.['held'] === true) return true;
+    await new Promise((resolve) => setTimeout(resolve, 25));
+  }
+  return false;
+}
+
 /** يولّد الكشف ويراجعه ببصمتيه، فيصير REVIEWED جاهزاً لمحاولة الإرجاع. */
 async function seedReviewedStatement(generateKey: string, reviewKey: string): Promise<void> {
   expect((await generateStatement(f, f.cookie, generateKey, '2026-11')).status).toBe(200);
@@ -125,9 +143,12 @@ it(
       await gate;
     });
 
+    // بنستنى قفل الحاجز يبقى مأخوذ فعلاً قبل ما نبدأ طلب الإرجاع، بلا أي انتظار زمني ثابت.
+    const held = await waitForMembershipUpdateHeld(15_000);
     const attempt = attemptReturn(member.cookie, 'return-revoked');
     const blocked = await waitForMembershipShareWait(15_000);
     try {
+      expect(held).toBe(true);
       expect(blocked).toBe(true);
       // السحب بيلتزم والطلب لسه واقف على القفل، وبعدها البوابة بتفتح فالقفل بيتحرر.
       await revokeMemberGrants(member.membershipIds);

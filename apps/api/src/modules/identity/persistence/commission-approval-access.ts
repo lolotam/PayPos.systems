@@ -23,31 +23,24 @@ export type CommissionApprovalAccess =
  * بنفس ترتيب مسار المراجعة بالظبط (FR-031 مع CS-Q26): سحب الصلاحية أو تعطيل الشركة اللي بيحصل
  * جوّه إدارة الصلاحيات بيستنى المعاملة دي بالترتيب ده، فما يقدرش يتبني التزام بين فحص الوصول
  * وتغيير حالة الكشف. التوقيت بيتقري بـ clock_timestamp() بعد الانتظار على الأقفال، هو القرار
- * الواحد لقراءة الصلاحية والكشف (Codex 4336152050).
+ * الواحد لقراءة الصلاحية والكشف (Codex 4336152050). أخطاء قاعدة البيانات الحقيقية بتنتشر زي
+ * ما هي، والرفض الموحّد للشركة الغايبة بس هو اللي بيرجع نتيجة.
  *
  * @param tx        معاملة الشركة الجارية
  * @param companyId الشركة
- * @returns توقيت القرار بعد انتظار الأقفال
+ * @returns توقيت القرار بعد انتظار الأقفال، أو null عند غياب الشركة
  */
-async function lockCompanyAndMemberships(tx: Tx, companyId: string): Promise<Date> {
+async function lockCompanyAndMemberships(tx: Tx, companyId: string): Promise<Date | null> {
   const [company] = await tx.execute(
     sql`SELECT id FROM companies WHERE id=${companyId} AND deleted_at IS NULL FOR SHARE`,
   );
-  if (company === undefined) throw new CommissionAccessRaceError();
+  if (company === undefined) return null;
   await tx.execute(
     sql`SELECT id FROM memberships WHERE company_id=${companyId} ORDER BY id FOR SHARE`,
   );
   const [time] = await tx.execute<{ at: Date }>(sql`SELECT clock_timestamp() AS at`);
-  if (time === undefined) throw new CommissionAccessRaceError();
+  if (time === undefined) return null;
   return new Date(time.at);
-}
-
-/** فشل نادر على القراءة تحت القفل؛ بيتحوّل للرفض الموحّد 403 زي أي حالة مش مسموحة. */
-class CommissionAccessRaceError extends Error {
-  constructor() {
-    super('the company or its memberships disappeared under the access lock');
-    this.name = 'CommissionAccessRaceError';
-  }
 }
 
 /**
@@ -67,18 +60,14 @@ export async function readCommissionReturnAccess(
   userId: string,
   businessId: string,
 ): Promise<CommissionApprovalAccess> {
-  let at: Date;
-  try {
-    at = await lockCompanyAndMemberships(tx, companyId);
-  } catch {
-    return 'FORBIDDEN';
-  }
+  const at = await lockCompanyAndMemberships(tx, companyId);
+  if (at === null) return 'FORBIDDEN';
   const access = await readAccessTransaction(tx, companyId, userId, at);
   const holds =
     evaluateAccess(access.grants, REVIEW_PERMISSION, { companyId, businessId }) ||
     evaluateAccess(access.grants, APPROVE_PERMISSION, { companyId, businessId });
   if (!holds) return 'FORBIDDEN';
-  if (!(await isBusinessWideReader(tx, companyId, userId, businessId))) return 'FORBIDDEN';
+  if (!(await isBusinessWideReader(tx, companyId, userId, businessId, at))) return 'FORBIDDEN';
   return (await readFeatureEnabled(tx, companyId, 'commissions', at)) ? null : 'FEATURE_DISABLED';
 }
 
@@ -107,13 +96,14 @@ export async function commissionApproverHolds(
     })
   )
     return false;
-  return isBusinessWideReader(tx, scope.companyId, scope.userId, scope.businessId);
+  return isBusinessWideReader(tx, scope.companyId, scope.userId, scope.businessId, at);
 }
 
 /**
  * عضوية الفاعل السارية اللي بتتسجل مع المراجعة أو الإرجاع (FR-029، FR-031): عضوية تعطي الفاعل
- * سلطته على **النشاط ده** بالتحديد — نطاق شركة أو نطاق النشاط المطلوب — وعمّر ما بتتسجل عضوية
- * نشاط تاني حتى لو هي الأقدم. الترتيب: نطاق الشركة الأول ثم النشاط، ثم المعرّف للثبات.
+ * سلطته على **النشاط ده** بالتحديد — نطاق شركة، أو نطاق النشاط المطلوب، أو عضوية فرع من فروع
+ * النشاط ده — وعمّر ما بتتسجل عضوية نشاط تاني حتى لو هي الأقدم. الترتيب: نطاق الشركة، ثم
+ * النشاط، ثم فرع النشاط، ثم المعرّف للثبات.
  *
  * @param tx         معاملة الشركة الجارية
  * @param companyId  الشركة
@@ -130,8 +120,12 @@ export async function readCommissionActorMembership(
   const [row] = await tx.execute<{ id: string }>(sql`SELECT id FROM memberships
     WHERE company_id = ${companyId}::uuid AND user_id = ${userId}::uuid
       AND starts_at <= now() AND (ends_at IS NULL OR ends_at > now())
-      AND (scope_type = 'COMPANY' OR (scope_type = 'BUSINESS' AND scope_id = ${businessId}::uuid))
-    ORDER BY (CASE WHEN scope_type = 'COMPANY' THEN 0 ELSE 1 END), id
+      AND (scope_type = 'COMPANY'
+        OR (scope_type = 'BUSINESS' AND scope_id = ${businessId}::uuid)
+        OR (scope_type = 'BRANCH' AND scope_id IN (SELECT b.id FROM branches b
+          WHERE b.company_id = ${companyId}::uuid AND b.business_id = ${businessId}::uuid)))
+    ORDER BY (CASE WHEN scope_type = 'COMPANY' THEN 0 WHEN scope_type = 'BUSINESS' THEN 1
+      ELSE 2 END), id
     LIMIT 1`);
   return row?.id ?? null;
 }
@@ -166,6 +160,7 @@ export async function readCommissionApprovers(
 
 /**
  * قارئ نطاق القراءة على مستوى النشاط كله: نطاق الشركة أو النشاط نفسه بلا DENY (CS-Q26 = PP-24.1).
+ * بيقرا بتوقيت القرار الواحد المتمرر، فصلاحية الإجراء وقراءة النشاط كله متقيمين على نفس اللحظة.
  * عضوية فرع أو نشاط تاني ما بتعدّش قراءة نشاط كله، فالمراجعة والإرجاع بيرفضوها بالرفض الموحّد.
  */
 async function isBusinessWideReader(
@@ -173,8 +168,9 @@ async function isBusinessWideReader(
   companyId: string,
   userId: string,
   businessId: string,
+  at: Date,
 ): Promise<boolean> {
-  const scope = await readCommissionScope(tx, companyId, userId, businessId);
+  const scope = await readCommissionScope(tx, companyId, userId, businessId, at);
   return scope.kind === 'scope' && scope.scope.businessWide;
 }
 

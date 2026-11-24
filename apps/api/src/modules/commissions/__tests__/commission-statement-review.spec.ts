@@ -360,8 +360,7 @@ async function twoBusinessApprover(): Promise<{ cookie: string; userId: string; 
 }
 
 describe('CM-33b the return attribution names the membership with authority over this business', () => {
-  it('records the membership that carries authority over this business, never one of another business', async () => {
-    const approver = await twoBusinessApprover();
+  it('records the membership that carries authority over this business, never one of another business', async () => {    const approver = await twoBusinessApprover();
     expect((await generateStatement(g, g.cookie, 'generate-may-two', '2026-05')).status).toBe(200);
     const body = await expected(g, '2026-05');
     await review(g, g.cookie, 'review-may-two', body, '2026-05');
@@ -375,5 +374,49 @@ describe('CM-33b the return attribution names the membership with authority over
           WHERE company_id=${g.company} AND business_id=${g.business} AND period='2026-05')`;
     expect(row?.['returned_by']).toBe(approver.userId);
     expect(row?.['returned_membership_id']).toBe(approver.thisMembership);
+  });
+});
+
+describe('CM-33b an actor authorised through a business-scope override', () => {
+  /** تفويض شخصي ساري على مستوى النشاط ببصمتين: مراجعة وقراءة. */
+  const grantBusinessOverride = (
+    membershipId: string,
+    userId: string,
+    expiresAt: string,
+  ): Promise<unknown> =>
+    g.h.owner`INSERT INTO permission_overrides(
+      company_id,id,membership_id,permission_code,effect,scope_type,scope_id,reason,granted_by,expires_at)
+      VALUES (${g.company},gen_random_uuid(),${membershipId}::uuid,'review:commissions:business',
+        'ALLOW','BUSINESS',${g.business}::uuid,'override spec',${userId},${expiresAt}),
+        (${g.company},gen_random_uuid(),${membershipId}::uuid,'read:commissions:business',
+        'ALLOW','BUSINESS',${g.business}::uuid,'override spec',${userId},${expiresAt})`;
+
+  it('lets a branch-scoped member with a business override review and return, recording her own membership', async () => {
+    // عضوية فرع واحدة بس، والسلطة بتيجي من تفويض شخصي على مستوى النشاط: المراجعة والإرجاع
+    // بيجحوا، والعضوية المسجَّلة هي عضويتها هي على فرع من النشاط ده.
+    const member = await memberWithGrants(g, 'override-branch', [
+      { permission: 'read:commissions:business', scope: 'BRANCH' },
+    ]);
+    const [membership] = await g.h.owner`SELECT scope_id FROM memberships
+      WHERE company_id=${g.company} AND id = ANY(${member.membershipIds}::uuid[])`;
+    expect(membership?.['scope_id']).toBe(g.branch);
+    const [memberMembershipId] = member.membershipIds;
+    if (memberMembershipId === undefined) throw new Error('the member membership is missing');
+    await grantBusinessOverride(memberMembershipId, member.userId, '2027-01-01');
+
+    expect((await generateStatement(g, g.cookie, 'generate-april', '2026-04')).status).toBe(200);
+    const body = await expected(g, '2026-04');
+    const reviewed = await review(g, member.cookie, 'review-april-override', body, '2026-04');
+    expect(reviewed.status).toBe(200);
+    const returned = await returnStatement(g, member.cookie, 'return-april-override', 'سبب', '2026-04');
+    expect(returned.status).toBe(200);
+
+    const [row] = await g.h.owner`SELECT returned_by, returned_membership_id
+      FROM commission_statement_returns
+      WHERE company_id=${g.company} AND business_id=${g.business}
+        AND statement_id=(SELECT id FROM commission_statements
+          WHERE company_id=${g.company} AND business_id=${g.business} AND period='2026-04')`;
+    expect(row?.['returned_by']).toBe(member.userId);
+    expect(member.membershipIds).toContain(row?.['returned_membership_id']);
   });
 });
