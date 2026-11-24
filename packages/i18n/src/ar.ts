@@ -259,7 +259,7 @@ export const ar: Catalog = {
     PERMISSION_OVERRIDE_ENDED: 'هذا الاستثناء انتهى بالفعل',
     MEMBER_INVITATION_EXISTS: 'الإيميل ده عنده دعوة في الشركة بالفعل',
     MEMBER_ROLE_NOT_INVITABLE:
-      'الدور ده ما بيتدعىش، أو نطاقه ما بيответش للدور أو بيتبع شركة تانية',
+      'الدور ده ما بيتدعىش، أو نطاقه ما بيتوافقش مع الدور أو بيتبع شركة تانية',
     MEMBER_EMAIL_NOT_INVITABLE: 'الإيميل ده ما بيتدعىش',
     MEMBER_INVITATION_NOT_REISSUEABLE:
       'مينفعش نطلع رابط جديد للدعوة دي؛ العضو حط كلمة مروره بالفعل',
