@@ -77,6 +77,8 @@ const returnsIndexes = (t: ReturnsSelf) => [
     t.returnedBy,
     t.returnedMembershipId,
   ),
+  // مفتاح الراجِع المباشر على user (§5): كل مفتاح أجنبي له فهرس، والمفهرس المركّب ما بيغطياش بدايته.
+  index('commission_statement_returns_returned_by_idx').on(t.returnedBy),
 ];
 
 /**

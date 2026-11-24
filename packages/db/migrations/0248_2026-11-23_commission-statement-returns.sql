@@ -17,6 +17,7 @@ ALTER TABLE "commission_statement_returns" ADD CONSTRAINT "commission_statement_
 ALTER TABLE "commission_statement_returns" ADD CONSTRAINT "commission_statement_returns_membership_fk" FOREIGN KEY ("company_id","returned_by","returned_membership_id") REFERENCES "public"."memberships"("company_id","user_id","id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 CREATE INDEX "commission_statement_returns_statement_idx" ON "commission_statement_returns" USING btree ("company_id","business_id","statement_id");--> statement-breakpoint
 CREATE INDEX "commission_statement_returns_membership_idx" ON "commission_statement_returns" USING btree ("company_id","returned_by","returned_membership_id");--> statement-breakpoint
+CREATE INDEX "commission_statement_returns_returned_by_idx" ON "commission_statement_returns" USING btree ("returned_by");--> statement-breakpoint
 -- إرجاعات الكشوف للإضافة والقراءة بس (FR-031): ما فيش UPDATE ولا DELETE ولا منح لدور تاني ولا لـ PUBLIC.
 ALTER TABLE commission_statement_returns ENABLE ROW LEVEL SECURITY;
 --> statement-breakpoint

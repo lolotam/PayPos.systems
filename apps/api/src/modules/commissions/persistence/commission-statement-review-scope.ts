@@ -98,7 +98,8 @@ export function createCommissionStatementReviewScope(
         { companyId: actor.companyId, businessId: actor.businessId, period },
         readers.providers,
       ),
-    actorMembership: () => readers.actorMembership(tx, actor.companyId, actor.userId),
+    actorMembership: () =>
+      readers.actorMembership(tx, actor.companyId, actor.userId, actor.businessId),
     storeReview: (period, transition) => storeReview(context, period, transition),
     storeReturn: (period, transition) => storeReturn(context, period, transition),
     storeReturnRecord: (record) => storeReturnRecord(context, record),

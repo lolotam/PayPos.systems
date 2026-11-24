@@ -81,12 +81,15 @@ it('the approval notice carries the period and the recipients, and never more th
   });
   expect(payload.notification_recipients).toHaveLength(3);
   expect(commissionStatementNoticeGroupSize).toBe(100);
+  // مية معرّف سليم مميز: آخر أربعة خانات hex للمجموعة الأخيرة، فعلى 101 المفهرس ما يكسّرش شكل UUID.
+  const uuidAt = (index: number): string =>
+    `01920000-0000-7000-8000-${index.toString(16).padStart(12, '0')}`;
   expect(
     commissionStatementAwaitingApprovalRequested.safeParse({
       ...payload,
       notification_recipients: Array.from({ length: 101 }, (_, index) => ({
         ...recipients[0],
-        user_id: `01920000-0000-7000-8000-0000000001${String(index).padStart(2, '0')}`,
+        user_id: uuidAt(index),
       })),
     }).success,
   ).toBe(false);

@@ -79,7 +79,7 @@ export const commissionStatementPaths = {
     post: {
       operationId: 'reviewCommissionStatement',
       description:
-        'Reviews a business month statement and certifies it (FR-029): under one statement lock it checks the month has ended and the status is DRAFT, recomputes the input fingerprint and the statement fingerprint the builder gives now, refuses a mismatch with the reviewer’s expected fingerprints (409 COMMISSION_FINGERPRINT_STALE), refuses a blocking issue with 422 COMMISSION_STATEMENT_BLOCKED, then stores REVIEWED with both reviewed fingerprints, the reviewer membership and the time, writes one audit entry and appends one StatementAwaitingApproval notice for the approvers in the same transaction. Requires review:commissions:business and a business-wide read of commissions; a branch-scoped reader is refused with the uniform 403 before any fingerprint is computed or returned.',
+        'Reviews a business month statement and certifies it (FR-029): under one statement lock it checks the month has ended and the status is DRAFT, recomputes the input fingerprint and the statement fingerprint the builder gives now, refuses a mismatch with the reviewer’s expected fingerprints (409 COMMISSION_FINGERPRINT_STALE), refuses a blocking issue with 422 COMMISSION_STATEMENT_BLOCKED, then stores REVIEWED with both reviewed fingerprints, the reviewer membership and the time, writes one audit entry and appends one StatementAwaitingApproval notice for the approvers in the same transaction. Requires review:commissions:business and a business-wide read of commissions; a branch-scoped reader is refused with the uniform 403 before any fingerprint is computed or returned. A month that is already REVIEWED is refused with 409 COMMISSION_PERIOD_NOT_DRAFT and an APPROVED or PAID one with 409 COMMISSION_PERIOD_CLOSED.',
       parameters: [...parameters, idempotencyParameter],
       requestBody: { required: true, content: json('CommissionStatementReviewInput') },
       responses: {
@@ -89,7 +89,8 @@ export const commissionStatementPaths = {
         },
         '403': forbidden,
         '409': {
-          description: 'COMMISSION_FINGERPRINT_STALE or IDEMPOTENCY_KEY_IN_PROGRESS',
+          description:
+            'COMMISSION_FINGERPRINT_STALE, COMMISSION_PERIOD_NOT_DRAFT, COMMISSION_PERIOD_CLOSED or IDEMPOTENCY_KEY_IN_PROGRESS',
           content: json('ErrorEnvelope'),
         },
         '422': {
@@ -105,14 +106,15 @@ export const commissionStatementPaths = {
     post: {
       operationId: 'returnCommissionStatement',
       description:
-        'Returns a REVIEWED statement to DRAFT (FR-031): a holder of review:commissions:business or approve:commissions:business who is a business-wide reader clears the reviewed values under the statement lock, stores the reason in one insert-only commission_statement_returns row and writes one audit entry without the reason, all in one transaction. A branch-scoped reader is refused with the uniform 403 (CM-33d, CM-38b). An empty reason is refused with 422 COMMISSION_RETURN_REASON_INVALID and any status other than REVIEWED with 409 COMMISSION_STATEMENT_NOT_REVIEWED.',
+        'Returns a REVIEWED statement to DRAFT (FR-031): a holder of review:commissions:business or approve:commissions:business who is a business-wide reader clears the reviewed values under the statement lock, stores the reason in one insert-only commission_statement_returns row and writes one audit entry without the reason, all in one transaction. A branch-scoped reader is refused with the uniform 403 (CM-33d, CM-38b). An APPROVED or PAID month is refused with 409 COMMISSION_PERIOD_CLOSED under the same lock, an empty reason is refused with 422 COMMISSION_RETURN_REASON_INVALID and any other status that is not REVIEWED with 409 COMMISSION_STATEMENT_NOT_REVIEWED.',
       parameters: [...parameters, idempotencyParameter],
       requestBody: { required: true, content: json('CommissionStatementReturnInput') },
       responses: {
         '200': { description: 'The returned statement', content: json('CommissionStatementReturnResult') },
         '403': forbidden,
         '409': {
-          description: 'COMMISSION_STATEMENT_NOT_REVIEWED or IDEMPOTENCY_KEY_IN_PROGRESS',
+          description:
+            'COMMISSION_STATEMENT_NOT_REVIEWED, COMMISSION_PERIOD_CLOSED or IDEMPOTENCY_KEY_IN_PROGRESS',
           content: json('ErrorEnvelope'),
         },
         '422': {

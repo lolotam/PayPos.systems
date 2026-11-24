@@ -2,6 +2,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 import {
   generateStatement,
+  ids,
   memberWithGrants,
   readStatement,
   statementFixture,
@@ -189,11 +190,13 @@ describe('CM-33 the review permission', () => {
   });
 
   it('refuses a member with review on a branch only, and writes nothing (CM-33d)', async () => {
-    // سيناريو CM-33d: الكشف موجود الأول (مولَّد للشهر)، وبعدها محاولة المراجعة بترجع 403 موحّدة
-    // والكشف بيفضل مسودة، بلا بصمة ولا تدقيق.
+    // سيناريو CM-33d: الكشف موجود الأول (مولَّد للشهر)، وصلاحية المراجعة على النشاط مع قراءة
+    // فرع فقط — الحارس بيمرّر المنح على النشاط، فالرفض الموحّد بيجي من الفحص جوّه المعاملة:
+    // الكشف بيفضل مسودة، بلا بصمة ولا تدقيق.
     expect((await generateStatement(f, f.cookie, 'generate-may', '2026-05')).status).toBe(200);
     const member = await memberWithGrants(f, 'branch-review', [
-      { permission: 'review:commissions:business', scope: 'BRANCH' },
+      { permission: 'review:commissions:business', scope: 'BUSINESS' },
+      { permission: 'read:commissions:business', scope: 'BRANCH' },
     ]);
     const before = await auditCount(f, 'commission_statement.reviewed');
     const body = await expected(f, '2026-05');
@@ -252,6 +255,21 @@ describe('CM-33b returning a reviewed statement to draft', () => {
     expect(response.status).toBe(409);
     expect((response.body as { code: string }).code).toBe('COMMISSION_STATEMENT_NOT_REVIEWED');
   });
+
+  it('refuses the return of an APPROVED month with COMMISSION_PERIOD_CLOSED under the lock', async () => {
+    // الشهر المعتمد بيرفض تحت قفل الكشف قبل فحص الحالة: 409 COMMISSION_PERIOD_CLOSED بلا أي كتابة.
+    expect((await generateStatement(g, g.cookie, 'generate-august', '2026-08')).status).toBe(200);
+    const body = await expected(g, '2026-08');
+    expect((await review(g, g.cookie, 'review-august', body, '2026-08')).status).toBe(200);
+    await g.h
+      .owner`UPDATE commission_statements SET status='APPROVED'
+      WHERE company_id=${g.company} AND business_id=${g.business} AND period='2026-08'`;
+    const response = await returnStatement(g, g.cookie, 'return-approved', 'سبب', '2026-08');
+
+    expect(response.status).toBe(409);
+    expect((response.body as { code: string }).code).toBe('COMMISSION_PERIOD_CLOSED');
+    expect((await statementRow(g, '2026-08'))?.['status']).toBe('APPROVED');
+  });
 });
 
 describe('CM-33b who may return a reviewed statement', () => {
@@ -271,8 +289,11 @@ describe('CM-33b who may return a reviewed statement', () => {
   });
 
   it('refuses a member whose review grant is on a branch only (CM-33d)', async () => {
+    // منح المراجعة على النشاط مع قراءة فرع فقط: الحارس بيمرّر المنح، فالرفض الموحّد بيجي من فحص
+    // القراءة على مستوى النشاط كله جوّه المعاملة، والكشف بيفضل مراجَع بلا أي كتابة (CM-33d).
     const member = await memberWithGrants(g, 'branch-return', [
-      { permission: 'review:commissions:business', scope: 'BRANCH' },
+      { permission: 'review:commissions:business', scope: 'BUSINESS' },
+      { permission: 'read:commissions:business', scope: 'BRANCH' },
     ]);
     const body = await expected(g, '2026-07');
     await review(g, g.cookie, 'review-july', body, '2026-07');
@@ -293,5 +314,62 @@ describe('CM-33b who may return a reviewed statement', () => {
 
     expect(response.status).toBe(200);
     expect((await statementRow(g, '2026-06'))?.['status']).toBe('DRAFT');
+  });
+});
+
+/**
+ * عضو واحد بثنتين عضويات صاحب اعتماد: واحدة على نشاط ثانٍ لنفس الشركة بمعرّف أصغر، وواحدة على
+ * النشاط المطلوب بمعرّف أكبر — الترتيب ده كان بيجيب نسب الإرجاع الغلط قبل الإصلاح.
+ */
+async function twoBusinessApprover(): Promise<{ cookie: string; userId: string; thisMembership: string }> {
+  const secondBusiness = (
+    await g.h.send('POST', '/v1/businesses', {
+      cookie: g.cookie,
+      company: g.company,
+      key: 'review-second-business',
+      body: { vertical_type: 'salon', name_en: 'Second review salon', timezone: 'Asia/Kuwait' },
+    })
+  ).body['id'] as string;
+  const email = `commission-statement-two-biz-${ids.newId()}@example.test`;
+  const cookie = await g.h.signedInOperator(email);
+  const [user] = await g.h.owner`SELECT id FROM "user" WHERE email=${email}`;
+  const userId = user?.['id'] as string;
+  // عضوية النشاط التاني بمعرّف أصغر — كانت بتكسب في ترتيب «الأقدم» قبل الإصلاح.
+  const otherMembership = '01900000-0000-7000-8000-000000000001';
+  const thisMembership = '01930000-0000-7000-8000-000000000001';
+  const roleA = '01900000-0000-7000-8000-000000000002';
+  const roleB = '01930000-0000-7000-8000-000000000002';
+  for (const [role, code, membershipId, scopeId] of [
+    [roleA, 'statement_two_biz_other', otherMembership, secondBusiness],
+    [roleB, 'statement_two_biz_this', thisMembership, g.business],
+  ] as const) {
+    await g.h.owner`INSERT INTO roles(id,company_id,code,name_en)
+      VALUES (${role},${g.company},${code},'Two business approver role')`;
+    await g.h.owner`INSERT INTO role_permissions(role_id,role_owner_key,company_id,permission_code)
+      VALUES (${role},${g.company},${g.company},'approve:commissions:business'),
+        (${role},${g.company},${g.company},'read:commissions:business')`;
+    await g.h.owner`INSERT INTO memberships(
+      company_id,id,user_id,role_id,role_owner_key,scope_type,scope_id)
+      VALUES (${g.company},${membershipId},${userId},${role},${g.company},'BUSINESS',${scopeId}::uuid)`;
+  }
+  return { cookie, userId, thisMembership };
+}
+
+describe('CM-33b the return attribution names the membership with authority over this business', () => {
+  it('records the membership that carries authority over this business, never one of another business', async () => {
+    const approver = await twoBusinessApprover();
+    expect((await generateStatement(g, g.cookie, 'generate-may-two', '2026-05')).status).toBe(200);
+    const body = await expected(g, '2026-05');
+    await review(g, g.cookie, 'review-may-two', body, '2026-05');
+    const response = await returnStatement(g, approver.cookie, 'return-two-biz', 'سبب', '2026-05');
+
+    expect(response.status).toBe(200);
+    const [row] = await g.h.owner`SELECT returned_by, returned_membership_id
+      FROM commission_statement_returns
+      WHERE company_id=${g.company} AND business_id=${g.business}
+        AND statement_id=(SELECT id FROM commission_statements
+          WHERE company_id=${g.company} AND business_id=${g.business} AND period='2026-05')`;
+    expect(row?.['returned_by']).toBe(approver.userId);
+    expect(row?.['returned_membership_id']).toBe(approver.thisMembership);
   });
 });

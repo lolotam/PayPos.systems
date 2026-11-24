@@ -31292,6 +31292,21 @@
           "concurrently": false,
           "method": "btree",
           "with": {}
+        },
+        "commission_statement_returns_returned_by_idx": {
+          "name": "commission_statement_returns_returned_by_idx",
+          "columns": [
+            {
+              "expression": "returned_by",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
         }
       },
       "foreignKeys": {

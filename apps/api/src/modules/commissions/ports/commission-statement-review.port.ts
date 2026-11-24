@@ -160,10 +160,12 @@ export type CommissionApproversReader = (
 ) => Promise<readonly string[]>;
 
 /**
- * قارئ عضوية الفاعل: العضوية اللي بتتسجل مع المراجعة أو الإرجاع.
+ * قارئ عضوية الفاعل: العضوية السارية اللي بتدي الفاعل سلطته على النشاط المطلوب (نطاق شركة أو
+ * نطاق النشاط ده)، وهي اللي بتتسجل مع المراجعة أو الإرجاع.
  */
 export type CommissionActorMembershipReader = (
   tx: Tx,
   companyId: string,
   userId: string,
+  businessId: string,
 ) => Promise<string | null>;

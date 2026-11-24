@@ -144,6 +144,7 @@ describe('normalizeStatementReturnReason', () => {
     ['whitespace only', '   '],
     ['501 code points', 'ا'.repeat(501)],
     ['501 astral code points', '😀'.repeat(501)],
+    ['a NUL character inside the reason', `سبب\u0000مقبول`],
   ])('refuses a %s reason with COMMISSION_RETURN_REASON_INVALID', (_label, reason) => {
     expect(() => normalizeStatementReturnReason(reason)).toThrow(CommissionPlanVersionError);
     try {
