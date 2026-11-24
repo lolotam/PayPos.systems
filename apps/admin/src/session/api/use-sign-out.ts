@@ -3,6 +3,7 @@
 import { useState } from 'react';
 
 import { loadPage } from '@/shared/browser/load-page';
+import { clearNavStyleCookie } from '@/shared/nav-style/nav-style-cookie';
 
 import { signOutSession } from './session-calls';
 
@@ -19,6 +20,7 @@ export function useSignOut() {
       setFailed(true);
       return;
     }
+    clearNavStyleCookie();
     loadPage('/login');
   }
 

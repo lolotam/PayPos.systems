@@ -145,3 +145,14 @@ it('keeps an 8px gutter from the viewport edge on every side', async () => {
   expect(wrapper?.style.getPropertyValue('--radix-popper-available-width')).toBe('-16px');
   expect(wrapper?.style.getPropertyValue('--radix-popper-available-height')).toBe('-16px');
 });
+
+it('carries the full name and email as titles, because the menu truncates them', async () => {
+  const email = 'a.very.long.address.for.a.long.named.person@example-company.test';
+  render(menu({ name: 'Sara Ali Al-Mutairi Al-Sabah', email }));
+  openAccountMenu();
+  await screen.findByRole('menu', { name: 'Account menu' });
+  expect(screen.getByText('Sara Ali Al-Mutairi Al-Sabah').getAttribute('title')).toBe(
+    'Sara Ali Al-Mutairi Al-Sabah',
+  );
+  expect(screen.getByText(email).getAttribute('title')).toBe(email);
+});

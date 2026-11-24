@@ -10,6 +10,7 @@ import {
   monthOfEmployee,
   type GroupedMonth,
 } from './statement-grouping.ts';
+import { branchesOn } from './estimate-visibility.ts';
 import { lineRef, saleRef } from './statement-refs.ts';
 import {
   carryRow,
@@ -248,8 +249,39 @@ function employeeRows(
   for (const carry of assembled.carries) rows.push(carryRow(ctx, carry));
   const branches = monthlyBranches(scope.frozenOf.get(employeeId) ?? [], assembled.corrections);
   rows.push(employeeRow(ctx.label, branches));
-  const codes = [...new Set(priced.failures.map((failure) => failure.code))].sort();
-  return { rows, failures: codes.map((code) => ({ employeeId, code })) };
+  return { rows, failures: pricingFailures(ctx, assembled, priced.failures) };
+}
+
+/**
+ * فشل تسعير الموظفة مجمّعاً بالكود: لكل كود فروع الموظفة في يوم عمل مصادره الفاشلة، من ارتباطاتها الحيّة.
+ *
+ * @param ctx سياق الموظفة وارتباطاتها الحيّة
+ * @param assembled مصادرها بعد الاختيار المشترك
+ * @param failed المصادر اللي فشل تسعيرها بكودها
+ * @returns فشل واحد لكل كود، مرتب بالكود
+ */
+function pricingFailures(
+  ctx: EmployeeRowContext,
+  assembled: AssembledEmployee,
+  failed: readonly { readonly sourceRef: string; readonly code: 'NO_PLAN' | 'NO_SALARY' }[],
+): StatementPricingFailure[] {
+  const dateOf = new Map<string, string>();
+  for (const line of assembled.lines) dateOf.set(lineRef(line), line.businessDate);
+  for (const sale of assembled.sales) dateOf.set(saleRef(sale), sale.businessDate);
+  const codes = [...new Set(failed.map((failure) => failure.code))].sort();
+  return codes.map((code) => {
+    const branches = failed
+      .filter((failure) => failure.code === code)
+      .flatMap((failure) => {
+        const date = dateOf.get(failure.sourceRef);
+        return date === undefined ? [] : branchesOn(ctx.attachments, date);
+      });
+    return {
+      employeeId: ctx.label.employeeId,
+      code,
+      attachedBranchIds: [...new Set(branches)].sort(),
+    };
+  });
 }
 
 /**

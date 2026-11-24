@@ -29,6 +29,10 @@ they follow the ADR-0049 transport and are fixed by 56-1c, which records them in
 4. A fingerprint mismatch reports `changed` (`INPUTS` or `STATEMENT`; `INPUTS` when both differ) and `return_required`.
 5. No amount, salary or employee name is placed in a notification payload (spec 059 §6 _Events_).
 
+## Name readers (51-1 PR 2)
+
+The service, customer and branch name readers return **every referenced id**, including historical and deleted ones: an id with no row gets the one shared placeholder (`MISSING_NAME_PLACEHOLDER`, D-21) and never `null`, because the statement builder refuses a missing required name with a `RangeError`. The completion is one function (`completeNames`) used for all three readers, and a test proves that every requested id comes back.
+
 ## Non-HTTP contracts
 
 | Part | Contract |

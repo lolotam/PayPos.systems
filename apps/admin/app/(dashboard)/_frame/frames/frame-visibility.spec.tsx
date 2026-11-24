@@ -62,6 +62,9 @@ vi.mock('@/settings/imported-refunds/api/use-imported-refunds', () => ({
 vi.mock('@/staff/api/use-leave-report-access', () => ({
   useLeaveReportAccess: () => ({ allowed: false }),
 }));
+vi.mock('@/permissions/api/use-invitations-access', () => ({
+  useInvitationsAccess: () => ({ isSuccess: true, isFetchedAfterMount: true }),
+}));
 
 const panel = () =>
   within(screen.getByRole('complementary', { name: t('en', 'adminNav.localNavigation') }));

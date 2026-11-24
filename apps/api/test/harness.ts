@@ -36,15 +36,30 @@ import type { FilesRuntime } from '../src/modules/files/index.ts';
 export {
   readSessionServices,
   readCommissionOverrideServices,
+  readCommissionServiceNames,
 } from '../src/modules/catalog/index.ts';
 // جملة الـ EXPLAIN للاختبارات بس: استيراد معامل من ملف الـ persistence، مش من السطح العام للوحدة.
 export { commissionOverrideServicesStatement } from '../src/modules/catalog/persistence/commission-override-services.reader.ts';
 export {
+  readCommissionFeatureEnabled,
   readCommissionPlanAccess,
   readCommissionPlanListAccess,
+  readCommissionReviewAccess,
+  readCommissionScope,
 } from '../src/modules/identity/index.ts';
-export { employeeExistsInBusiness, lockEmployeeForUpdate } from '../src/modules/staff/index.ts';
-export { businessCalendar, businessTimeZone } from '../src/modules/tenancy/index.ts';
+export {
+  employeeExistsInBusiness,
+  lockEmployeeForUpdate,
+  readCommissionBranchAttachments,
+  readCommissionStatementEmployees,
+} from '../src/modules/staff/index.ts';
+export {
+  businessCalendar,
+  businessTimeZone,
+  readCommissionBranchNames,
+  commissionBranchNamesStatement,
+} from '../src/modules/tenancy/index.ts';
+export { readCommissionCustomerNames } from '../src/modules/customers/index.ts';
 
 // A real API over a cloned database with real Better Auth sessions. Users are made the way an operator makes them,
 // and every company goes through POST /v1/companies — the production path, never a raw insert.
@@ -249,6 +264,8 @@ interface HarnessOptions {
   controllers?: readonly Type<unknown>[];
   /** مصدر الجلسة الشخصية؛ من غيره المسار الشخصي مرفوض زي أي طلب بلا جلسة. */
   personalOrigin?: string;
+  /** بادئة اسم cookies الجلسة — للاختبار اللي بي证明了 إن cookie بيئة تانية ما بتتقراش. */
+  cookiePrefix?: string;
 }
 
 export async function startHarness(options: HarnessOptions = {}): Promise<Harness> {
@@ -419,6 +436,7 @@ function harnessAuth(
     trustedOrigins: [ORIGIN, ...(options.staffOrigin === undefined ? [] : [options.staffOrigin])],
     ids,
     secureCookies: false,
+    ...(options.cookiePrefix === undefined ? {} : { cookiePrefix: options.cookiePrefix }),
     onLog: () => undefined,
   });
 }

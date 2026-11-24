@@ -7,16 +7,16 @@ import {
   control,
   ledger,
 } from './employee-document-popup-fixture';
+import { chooseCompanyInSwitcher } from './workspace-switcher-ui';
 
 type Root = Page | FrameLocator;
 const openName = (locale: Locale) => t(locale, 'employeeDocuments.open');
 async function chooseStaff(root: Root, locale: Locale = 'en') {
   if (locale === 'en' && (await root.locator('html').getAttribute('lang')) !== 'en')
     await root.getByRole('button', { name: t('ar', 'admin.languageEnglish') }).click();
-  const company = root.locator('#workspace-company');
-  await expect(company).toBeVisible();
-  await company.click();
-  await root.getByRole('option', { name: 'Synthetic company A', exact: true }).click();
+  // اللغة تتبدل بعد إعادة تحميل الإطار؛ اسم حوار المبدّل يتبع لغة الصفحة فننتظرها.
+  await expect(root.locator('html')).toHaveAttribute('lang', locale);
+  await chooseCompanyInSwitcher(root, 'Synthetic company A', locale);
   await root
     .getByRole('button', { name: t(locale, 'staff.edit') })
     .first()
@@ -100,7 +100,7 @@ async function sandboxStaff(page: Page, permitted: boolean, locale: Locale) {
           readyState: document.readyState,
           width: innerWidth,
           height: innerHeight,
-          workspaceCount: document.querySelectorAll('#workspace-company').length,
+          switcherCount: document.querySelectorAll('button[aria-haspopup="dialog"]').length,
         })),
       ),
     );
@@ -117,11 +117,6 @@ async function sandboxStaff(page: Page, permitted: boolean, locale: Locale) {
   }
   return frame;
 }
-async function chooseCompany(page: Page, name: string) {
-  await page.locator('#workspace-company').click();
-  await page.getByRole('option', { name, exact: true }).click();
-}
-
 test.beforeEach(async () => control('/reset'));
 test.afterEach(async () => expect((await ledger()).unknown).toEqual([]));
 
@@ -236,7 +231,7 @@ test('employee change, panel unmount and workspace change each cancel only their
     .first()
     .click();
   const workspace = await clickOpen(page);
-  await chooseCompany(page, 'Synthetic company B');
+  await chooseCompanyInSwitcher(page, 'Synthetic company B');
   await expect.poll(() => workspace.isClosed()).toBe(true);
   await release();
   expect((await ledger()).destinations).toEqual([]);

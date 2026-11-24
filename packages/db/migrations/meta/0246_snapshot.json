@@ -1,6 +1,6 @@
 {
-  "id": "3cb4f624-96dd-4d97-923e-971279ae7517",
-  "prevId": "56fe8405-5416-47b5-a9f6-bbd1410d3f18",
+  "id": "7b2e44ff-040c-4254-a27f-1408df680d2b",
+  "prevId": "40a19e2f-ea03-4c7e-837e-8b8ef0f31081",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -4485,18 +4485,6 @@
           "primaryKey": false,
           "notNull": false
         },
-        "invited_by_company_id": {
-          "name": "invited_by_company_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "invitation_operation_id": {
-          "name": "invitation_operation_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": false
-        },
         "created_at": {
           "name": "created_at",
           "type": "timestamp with time zone",
@@ -4542,21 +4530,6 @@
           "with": {},
           "method": "btree",
           "concurrently": false
-        },
-        "user_invitation_operation_id_key": {
-          "name": "user_invitation_operation_id_key",
-          "columns": [
-            {
-              "expression": "invitation_operation_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": true,
-          "with": {},
-          "method": "btree",
-          "concurrently": false
         }
       },
       "foreignKeys": {},
@@ -4575,10 +4548,6 @@
         "user_name_length": {
           "name": "user_name_length",
           "value": "char_length(\"user\".\"name\") BETWEEN 1 AND 255"
-        },
-        "user_invitation_marker": {
-          "name": "user_invitation_marker",
-          "value": "num_nonnulls(\"user\".\"invited_by_company_id\", \"user\".\"invitation_operation_id\") <> 1"
         }
       },
       "isRLSEnabled": false
@@ -5593,256 +5562,6 @@
       },
       "isRLSEnabled": false
     },
-    "public.member_invitations": {
-      "name": "member_invitations",
-      "schema": "",
-      "columns": {
-        "company_id": {
-          "name": "company_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "id": {
-          "name": "id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "email_hash": {
-          "name": "email_hash",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "user_id": {
-          "name": "user_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "membership_id": {
-          "name": "membership_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "role_code": {
-          "name": "role_code",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "scope_type": {
-          "name": "scope_type",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "scope_id": {
-          "name": "scope_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "invited_by": {
-          "name": "invited_by",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "state": {
-          "name": "state",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "link_issued_at": {
-          "name": "link_issued_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        }
-      },
-      "indexes": {
-        "member_invitations_company_id_state_idx": {
-          "name": "member_invitations_company_id_state_idx",
-          "columns": [
-            {
-              "expression": "company_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "state",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "with": {},
-          "method": "btree",
-          "concurrently": false
-        },
-        "member_invitations_company_id_user_id_idx": {
-          "name": "member_invitations_company_id_user_id_idx",
-          "columns": [
-            {
-              "expression": "company_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "user_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "with": {},
-          "method": "btree",
-          "concurrently": false
-        },
-        "member_invitations_invited_by_idx": {
-          "name": "member_invitations_invited_by_idx",
-          "columns": [
-            {
-              "expression": "invited_by",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "with": {},
-          "method": "btree",
-          "concurrently": false
-        },
-        "member_invitations_membership_idx": {
-          "name": "member_invitations_membership_idx",
-          "columns": [
-            {
-              "expression": "company_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "membership_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "with": {},
-          "method": "btree",
-          "concurrently": false
-        }
-      },
-      "foreignKeys": {
-        "member_invitations_company_id_companies_id_fk": {
-          "name": "member_invitations_company_id_companies_id_fk",
-          "tableFrom": "member_invitations",
-          "columnsFrom": [
-            "company_id"
-          ],
-          "tableTo": "companies",
-          "columnsTo": [
-            "id"
-          ],
-          "onUpdate": "no action",
-          "onDelete": "no action"
-        },
-        "member_invitations_user_id_user_id_fk": {
-          "name": "member_invitations_user_id_user_id_fk",
-          "tableFrom": "member_invitations",
-          "columnsFrom": [
-            "user_id"
-          ],
-          "tableTo": "user",
-          "columnsTo": [
-            "id"
-          ],
-          "onUpdate": "no action",
-          "onDelete": "no action"
-        },
-        "member_invitations_invited_by_user_id_fk": {
-          "name": "member_invitations_invited_by_user_id_fk",
-          "tableFrom": "member_invitations",
-          "columnsFrom": [
-            "invited_by"
-          ],
-          "tableTo": "user",
-          "columnsTo": [
-            "id"
-          ],
-          "onUpdate": "no action",
-          "onDelete": "no action"
-        },
-        "member_invitations_membership_fk": {
-          "name": "member_invitations_membership_fk",
-          "tableFrom": "member_invitations",
-          "columnsFrom": [
-            "company_id",
-            "membership_id"
-          ],
-          "tableTo": "memberships",
-          "columnsTo": [
-            "company_id",
-            "id"
-          ],
-          "onUpdate": "no action",
-          "onDelete": "no action"
-        }
-      },
-      "compositePrimaryKeys": {
-        "member_invitations_pkey": {
-          "name": "member_invitations_pkey",
-          "columns": [
-            "company_id",
-            "id"
-          ]
-        }
-      },
-      "uniqueConstraints": {
-        "member_invitations_company_id_email_hash_key": {
-          "name": "member_invitations_company_id_email_hash_key",
-          "columns": [
-            "company_id",
-            "email_hash"
-          ],
-          "nullsNotDistinct": false
-        }
-      },
-      "policies": {},
-      "checkConstraints": {
-        "member_invitations_state": {
-          "name": "member_invitations_state",
-          "value": "\"member_invitations\".\"state\" IN ('PENDING', 'ACTIVE', 'CANCELLED')"
-        },
-        "member_invitations_scope_type": {
-          "name": "member_invitations_scope_type",
-          "value": "\"member_invitations\".\"scope_type\" IN ('COMPANY', 'BUSINESS', 'BRANCH')"
-        },
-        "member_invitations_email_hash_length": {
-          "name": "member_invitations_email_hash_length",
-          "value": "char_length(\"member_invitations\".\"email_hash\") BETWEEN 40 AND 64"
-        }
-      },
-      "isRLSEnabled": false
-    },
     "public.platform_audit_log": {
       "name": "platform_audit_log",
       "schema": "",
@@ -6800,6 +6519,10 @@
         "alert_rules_channels": {
           "name": "alert_rules_channels",
           "value": "\"alert_rules\".\"channels\" <@ ARRAY['IN_APP']::text[]"
+        },
+        "alert_rules_statement_roles": {
+          "name": "alert_rules_statement_roles",
+          "value": "\"alert_rules\".\"kind\" NOT IN ('STATEMENT_AWAITING_REVIEW','STATEMENT_AWAITING_APPROVAL') OR NOT ('branch_manager' = ANY(\"alert_rules\".\"recipient_roles\"))"
         },
         "alert_rules_delay_minutes": {
           "name": "alert_rules_delay_minutes",

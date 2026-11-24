@@ -54,6 +54,7 @@ const expectations: Record<string, readonly string[]> = {
     'read:schedules:business',
     'manage:schedules:business',
     'read:commissions:business',
+    'review:commissions:business',
   ],
   business_manager: [
     'approve:discounts:branch',
@@ -99,6 +100,7 @@ const expectations: Record<string, readonly string[]> = {
     'read:schedules:business',
     'manage:schedules:business',
     'read:commissions:business',
+    'review:commissions:business',
   ],
   accountant: [
     'read:businesses:company',

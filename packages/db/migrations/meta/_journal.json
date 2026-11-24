@@ -1706,15 +1706,36 @@
     {
       "idx": 245,
       "version": "7",
-      "when": 1795465438382,
-      "tag": "0245_2026-11-23_member-invitations",
+      "when": 1795459119343,
+      "tag": "0245_2026-11-23_statement-alert-roles-check",
       "breakpoints": true
     },
     {
       "idx": 246,
       "version": "7",
-      "when": 1795465457329,
-      "tag": "0246_2026-11-23_member-invitations-rls",
+      "when": 1795459136094,
+      "tag": "0246_2026-11-23_statement-alert-roles-validate",
+      "breakpoints": true
+    },
+    {
+      "idx": 247,
+      "version": "7",
+      "when": 1795464164017,
+      "tag": "0247_2026-11-23_review-commissions-permission",
+      "breakpoints": true
+    },
+    {
+      "idx": 248,
+      "version": "7",
+      "when": 1795480149477,
+      "tag": "0248_2026-11-24_member-invitations",
+      "breakpoints": true
+    },
+    {
+      "idx": 249,
+      "version": "7",
+      "when": 1795480166284,
+      "tag": "0249_2026-11-24_member-invitations-rls",
       "breakpoints": true
     }
   ]

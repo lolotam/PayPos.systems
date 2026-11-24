@@ -18,6 +18,11 @@ const state = vi.hoisted(() => ({
   ratings: {} as Read & { isFetchedAfterMount?: boolean },
   leave: { allowed: false } as { allowed: boolean },
   columns: {} as Read,
+  invitations: {
+    isSuccess: true,
+    isFetchedAfterMount: true,
+    isError: false,
+  } as Read & { isFetchedAfterMount?: boolean },
 }));
 
 vi.mock('@/shared/browser/use-mounted', () => ({ useMounted: () => true }));
@@ -48,6 +53,9 @@ vi.mock('@/staff/api/use-leave-report-access', () => ({ useLeaveReportAccess: ()
 vi.mock('@/settings/staff-app-columns/api/use-staff-columns', () => ({
   useStaffColumns: () => state.columns,
 }));
+vi.mock('@/permissions/api/use-invitations-access', () => ({
+  useInvitationsAccess: () => state.invitations,
+}));
 
 const id = '01920000-0000-7000-8000-0000000000a2';
 
@@ -63,6 +71,7 @@ beforeEach(() => {
   state.ratings = { isSuccess: false, isError: false, isFetchedAfterMount: false };
   state.leave = { allowed: false };
   state.columns = { isPending: true, isError: false };
+  state.invitations = { isSuccess: true, isFetchedAfterMount: true, isError: false };
   state.workspace = {
     status: 'ready',
     company: {
@@ -97,12 +106,22 @@ it('keeps every guarded condition closed while the reads are loading', () => {
     'commission-plans-access': false,
     'employee-app-link-access': false,
     'imported-refunds-access': false,
-    // دعوات الأعضاء مش شرط قراءة: بتيجي من الدور اللي في الـ workspace الجاهز أصلاً، فبتظهر فوراً (spec 076 G1).
+    // الدور جاي من الـ workspace الجاهز، والقراءة الرخيصة متأكدة في الـ fixture — فالشرط مفتوح.
     'invitations-owner': true,
     'leave-report-access': false,
     'ratings-access': false,
     'staff-app-columns-access': false,
   });
+});
+
+it('hides the invitations entry when the API answers NOT_READY while the gate is off', () => {
+  // 503 من بوابة شريحة 076: readAccessProof بيرجّع failed فالمدخل يختفي بدل صفحة معطوبة.
+  state.invitations = {
+    isSuccess: false,
+    isFetchedAfterMount: false,
+    isError: true,
+  } as Read & { isFetchedAfterMount?: boolean };
+  expect(conditions()['invitations-owner']).toBe(false);
 });
 
 it('opens the alert-rules condition when either read succeeds', () => {

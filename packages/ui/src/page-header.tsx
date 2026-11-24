@@ -11,6 +11,8 @@ export type PageHeaderProps = Omit<ComponentProps<'header'>, 'title'> & {
 
 // وصف الترويسة يحمل علامة بيانات يعلّق عليها PageShell سقف 65 حرفًا؛
 // الترويسة نفسها لا تقيّد العرض حتى لا تتغير صفحات الـ24 المستخدمة لها اليوم.
+// كتلة العنوان أساسها 14rem لا صفر: حين لا يبقى لها هذا العرض بجانب الإجراءات تنزل الإجراءات
+// تحتها بدل أن يُضغط العنوان إلى بضع خانات على الهاتف (#1234).
 export function PageHeader({
   title,
   description,
@@ -21,7 +23,7 @@ export function PageHeader({
 }: PageHeaderProps) {
   return (
     <header className={cn('flex flex-wrap items-start gap-2 text-start', className)} {...props}>
-      <div className="flex min-w-0 flex-1 flex-col gap-2">
+      <div className="flex min-w-0 flex-[1_1_14rem] flex-col gap-2">
         <h1 className="text-2xl font-bold leading-tight">{title}</h1>
         {description ? (
           <p data-page-header-description className="text-sm text-muted-foreground">

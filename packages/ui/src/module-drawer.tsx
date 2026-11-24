@@ -58,7 +58,7 @@ export function ModuleDrawer({
           variant="ghost"
           size="icon"
           aria-label={labels.drawerOpen}
-          className="min-[700px]:hidden"
+          className="shrink-0 min-[700px]:hidden"
         >
           <ListIcon aria-hidden="true" />
         </Button>

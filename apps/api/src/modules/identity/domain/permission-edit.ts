@@ -17,14 +17,16 @@ export const OWNER_GRANTED_PERMISSIONS: readonly string[] = [
   'manage:employee-number:company',
   'manage:commission-plans:business',
   'read:commissions:business',
+  'review:commissions:business',
 ];
 
-/** المالك وحده يمنح أو يمنع أو يسحب صلاحيات طلبات تعديل الحضور (ACR-Q1، ACR-Q4) وخطط العمولة (CS-Q27) ومرتجع الباقات المستوردة (PK-Q26)، لأن السحب يغيّر صاحب السلطة. */
+/** المالك وحده يمنح أو يمنع أو يسحب صلاحيات طلبات تعديل الحضور (ACR-Q1، ACR-Q4) وخطط العمولة (CS-Q27) وإنشاء كشف العمولة ومراجعته (CS-Q2) ومرتجع الباقات المستوردة (PK-Q26)، لأن السحب يغيّر صاحب السلطة. */
 export const OWNER_ONLY_EDIT_PERMISSIONS: readonly string[] = [
   'manage:imported-refunds:business',
   'request:attendance-change:branch',
   'decide:attendance-change:company',
   'manage:commission-plans:business',
+  'review:commissions:business',
 ];
 /** العضوية المستهدفة، بدون أي بيانات دخول حساسة. */
 export interface EditableMembership {

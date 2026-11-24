@@ -29,7 +29,7 @@ import {
   servicePage,
 } from '../../api/__tests__/override-http';
 import { CommissionOverridesRoute } from '../../../../app/(dashboard)/_frame/commission-overrides-route';
-import { CommissionPlansNavItem } from '../../../../app/(dashboard)/_frame/commission-plans-nav-item';
+import { VisibleIdsProbe } from '../../../../app/(dashboard)/_frame/menu/visible-ids-probe';
 
 const api = vi.hoisted(() => ({ GET: vi.fn(), POST: vi.fn() }));
 const state = vi.hoisted(() => ({
@@ -88,7 +88,7 @@ function renderScreen() {
   }
   return render(
     <>
-      <CommissionPlansNavItem />
+      <VisibleIdsProbe />
       <CommissionOverridesRoute />
     </>,
     { wrapper },
@@ -214,7 +214,7 @@ it('the route shows choose-business without a business and nothing without a use
   await act(async () => {
     view.rerender(
       <>
-        <CommissionPlansNavItem />
+        <VisibleIdsProbe />
         <CommissionOverridesRoute />
       </>,
     );

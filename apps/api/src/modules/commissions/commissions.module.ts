@@ -10,11 +10,20 @@ import { CommissionServiceOverridesController } from './http/commission-service-
 import { CommissionOverrideServicesController } from './http/commission-override-services.controller.ts';
 import { CommissionBlockedCorrectionsController } from './http/commission-blocked-corrections.controller.ts';
 import {
+  CommissionStatementsController,
+  GET_COMMISSION_STATEMENT,
+} from './http/commission-statements.controller.ts';
+import {
   GET_COMMISSION_ESTIMATE,
   CommissionEstimateController,
 } from './http/commission-estimate.controller.ts';
 import { createCommissionEstimateReader } from './persistence/commission-estimate-reader.ts';
 import type { CommissionEstimateProviders } from './persistence/commission-estimate-providers.ts';
+import { CanonicalSha256FingerprintHasher } from './persistence/canonical-sha256-fingerprint-hasher.ts';
+import { createCommissionStatementReader } from './persistence/commission-statement-reader.ts';
+import { createCommissionStatementGenerateTransactions } from './persistence/drizzle-commission-statement-generate-transactions.ts';
+import type { CommissionStatementGenerateReaders } from './persistence/commission-statement-generate-scope.ts';
+import type { CommissionStatementProviders } from './ports/commission-statement-providers.port.ts';
 import {
   createCommissionServiceOverrideListReaders,
   type CommissionServiceOverrideListReadProviders,
@@ -42,6 +51,8 @@ import { RepairCommissionPeriodUseCase } from './use-cases/repair-commission-per
 import { CreateCommissionPlanVersionUseCase } from './use-cases/create-commission-plan-version/create-commission-plan-version.usecase.ts';
 import { CreateCommissionServiceOverrideUseCase } from './use-cases/create-commission-service-override/create-commission-service-override.usecase.ts';
 import { GetCommissionEstimateUseCase } from './use-cases/get-commission-estimate/get-commission-estimate.usecase.ts';
+import { GenerateCommissionStatementUseCase } from './use-cases/generate-statement/generate-statement.usecase.ts';
+import { GetCommissionStatementUseCase } from './use-cases/get-statement/get-statement.usecase.ts';
 
 export const commissionsControllers = [
   CommissionPlanVersionsController,
@@ -51,6 +62,7 @@ export const commissionsControllers = [
   CommissionPlanEmployeesController,
   CommissionBlockedCorrectionsController,
   CommissionEstimateController,
+  CommissionStatementsController,
 ];
 
 /**
@@ -69,11 +81,13 @@ export function commissionsProviders(
   employeeListReads: CommissionPlanEmployeeListReads,
   blockedCorrectionListReads: CommissionBlockedCorrectionListReads,
   estimateProviders: CommissionEstimateProviders,
+  statement: CommissionStatementBindings,
   clock: Clock = systemClock,
 ): Provider[] {
   return [
     ...commissionWriteProviders(database, ids, readers, clock),
     ...commissionReadProviders(database, listReads, employeeListReads, blockedCorrectionListReads),
+    ...commissionStatementProviders(database, ids, statement, clock),
     {
       provide: GET_COMMISSION_ESTIMATE,
       useValue:
@@ -81,6 +95,53 @@ export function commissionsProviders(
           ? null
           : new GetCommissionEstimateUseCase(
               createCommissionEstimateReader(database, estimateProviders),
+            ),
+    },
+  ];
+}
+
+/**
+ * ما بيربطه الجذر لكشف العمولة: مزودو المصادر من الوحدات صاحبة البيانات، وفحص «الإنشاء والمراجعة»
+ * من identity، وتقويم النشاط (spec 059 D-16).
+ */
+export interface CommissionStatementBindings {
+  readonly providers: CommissionStatementProviders;
+  readonly reviewAccess: CommissionStatementGenerateReaders['reviewAccess'];
+  readonly businessCalendar: CommissionStatementGenerateReaders['businessCalendar'];
+}
+
+/** مزودو الكشف: القراءة (GET) والإنشاء (generate) على نفس مزودي المصادر ونفس منفذ التجزئة. */
+function commissionStatementProviders(
+  database: TenantWrappers | undefined,
+  ids: IdGenerator,
+  statement: CommissionStatementBindings,
+  clock: Clock,
+): Provider[] {
+  const hasher = new CanonicalSha256FingerprintHasher();
+  return [
+    {
+      provide: GET_COMMISSION_STATEMENT,
+      useValue:
+        database === undefined
+          ? null
+          : new GetCommissionStatementUseCase(
+              createCommissionStatementReader(database, statement.providers),
+              hasher,
+            ),
+    },
+    {
+      provide: GenerateCommissionStatementUseCase,
+      useValue:
+        database === undefined
+          ? null
+          : new GenerateCommissionStatementUseCase(
+              createCommissionStatementGenerateTransactions(database, ids, {
+                businessCalendar: statement.businessCalendar,
+                reviewAccess: statement.reviewAccess,
+                providers: statement.providers,
+              }),
+              hasher,
+              clock,
             ),
     },
   ];

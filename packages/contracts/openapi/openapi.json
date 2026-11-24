@@ -5085,6 +5085,207 @@
         }
       }
     },
+    "/v1/businesses/{businessId}/commission-statements/{period}": {
+      "get": {
+        "operationId": "getCommissionStatement",
+        "description": "The statement view of an open (DRAFT or REVIEWED) business month, computed on read in a read-only transaction: no row, fingerprint or lock is created (FR-025, D-25). generated is false until a review holder has generated it. Requires read:commissions:business and the commissions feature; a device session is refused. A business-wide reader (a current company- or business-scoped grant and no DENY) gets the CommissionStatementView with both current fingerprints, the reviewed ones and the changed-since-review flag with its cause; every other reader gets the CommissionStatementBranchView with her visible rows only and no whole-statement field. An APPROVED or PAID month is refused with COMMISSION_PERIOD_CLOSED until the frozen read ships with the approval part.",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "x-company-id",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "in": "path",
+            "name": "businessId",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "in": "path",
+            "name": "period",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^(?!0000-)\\d{4}-(0[1-9]|1[0-2])$"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The month view, in the shape that matches the reader",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/CommissionStatementView"
+                    },
+                    {
+                      "$ref": "#/components/schemas/CommissionStatementBranchView"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid business id or period",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No individual session",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Uniform 403 refusal",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "COMMISSION_PERIOD_CLOSED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Bilingual refusal",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/businesses/{businessId}/commission-statements/{period}/generate": {
+      "post": {
+        "operationId": "generateCommissionStatement",
+        "description": "Generates the statement of a business month that has ended in the business timezone: under one statement lock it ensures the DRAFT row, computes the view and both fingerprints and stores current_fingerprint (FR-025). On a REVIEWED month it recomputes and stores current_fingerprint only and never touches the status or the reviewed values. Requires review:commissions:business and a business-wide read of commissions; a branch-scoped reader is refused with the uniform 403. A month that has not ended is refused with COMMISSION_PERIOD_NOT_ENDED and an APPROVED or PAID one with COMMISSION_PERIOD_CLOSED. Audits commission_statement.generated.",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "x-company-id",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "in": "path",
+            "name": "businessId",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "in": "path",
+            "name": "period",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^(?!0000-)\\d{4}-(0[1-9]|1[0-2])$"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 255
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The generated view",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CommissionStatementView"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Uniform 403 refusal",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "COMMISSION_PERIOD_CLOSED or IDEMPOTENCY_KEY_IN_PROGRESS",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "COMMISSION_PERIOD_NOT_ENDED or IDEMPOTENCY_KEY_REUSED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Bilingual refusal",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/v1/document-types": {
       "get": {
         "operationId": "listDocumentTypes",
@@ -24292,6 +24493,318 @@
           "employees",
           "partial",
           "total"
+        ]
+      },
+      "CommissionStatementStatus": {
+        "type": "string",
+        "enum": [
+          "DRAFT",
+          "REVIEWED"
+        ]
+      },
+      "CommissionStatementRow": {
+        "type": "object",
+        "properties": {
+          "source_ref": {
+            "type": "string",
+            "minLength": 1
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "COMMISSION",
+              "SALE",
+              "TIP_CARD",
+              "TIP_CASH",
+              "CORRECTION",
+              "CORRECTION_TIP_CARD",
+              "CORRECTION_TIP_CASH",
+              "CARRY_COMMISSION",
+              "CARRY_TIP_CARD"
+            ]
+          },
+          "amount": {
+            "$ref": "#/components/schemas/CommissionEstimateMoney"
+          },
+          "previous_amount": {
+            "nullable": true,
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/CommissionEstimateMoney"
+              }
+            ]
+          },
+          "new_amount": {
+            "nullable": true,
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/CommissionEstimateMoney"
+              }
+            ]
+          },
+          "source_period": {
+            "nullable": true,
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/CommissionEstimatePeriod"
+              }
+            ]
+          },
+          "source_branch_id": {
+            "nullable": true,
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "source_branch_name_ar": {
+            "nullable": true,
+            "type": "string"
+          },
+          "source_branch_name_en": {
+            "nullable": true,
+            "type": "string"
+          },
+          "source_business_date": {
+            "nullable": true,
+            "type": "string",
+            "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+          },
+          "service_name_ar": {
+            "nullable": true,
+            "type": "string"
+          },
+          "service_name_en": {
+            "nullable": true,
+            "type": "string"
+          },
+          "customer_name": {
+            "nullable": true,
+            "type": "string"
+          },
+          "business_date": {
+            "nullable": true,
+            "type": "string",
+            "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+          }
+        },
+        "required": [
+          "source_ref",
+          "kind",
+          "amount",
+          "previous_amount",
+          "new_amount",
+          "source_period",
+          "source_branch_id",
+          "source_branch_name_ar",
+          "source_branch_name_en",
+          "source_business_date",
+          "service_name_ar",
+          "service_name_en",
+          "customer_name",
+          "business_date"
+        ]
+      },
+      "CommissionStatementIssue": {
+        "type": "object",
+        "properties": {
+          "kind": {
+            "type": "string",
+            "enum": [
+              "PRICING",
+              "BLOCKED_CORRECTION"
+            ]
+          },
+          "code": {
+            "type": "string",
+            "enum": [
+              "NO_PLAN",
+              "NO_SALARY"
+            ]
+          },
+          "source_period": {
+            "nullable": true,
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/CommissionEstimatePeriod"
+              }
+            ]
+          }
+        },
+        "required": [
+          "kind",
+          "code",
+          "source_period"
+        ]
+      },
+      "CommissionStatementEmployee": {
+        "type": "object",
+        "properties": {
+          "employee_id": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "employee_number": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 999999
+          },
+          "name_ar": {
+            "nullable": true,
+            "type": "string"
+          },
+          "name_en": {
+            "type": "string"
+          },
+          "partial": {
+            "type": "boolean"
+          },
+          "commission_subtotal": {
+            "$ref": "#/components/schemas/CommissionEstimateMoney"
+          },
+          "tip_side": {
+            "$ref": "#/components/schemas/CommissionEstimateMoney"
+          },
+          "payable": {
+            "$ref": "#/components/schemas/CommissionEstimateMoney"
+          },
+          "rows": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CommissionStatementRow"
+            }
+          },
+          "issues": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CommissionStatementIssue"
+            }
+          }
+        },
+        "required": [
+          "employee_id",
+          "employee_number",
+          "name_ar",
+          "name_en",
+          "partial",
+          "commission_subtotal",
+          "tip_side",
+          "payable",
+          "rows",
+          "issues"
+        ]
+      },
+      "CommissionStatementView": {
+        "type": "object",
+        "properties": {
+          "reader_scope": {
+            "type": "string",
+            "enum": [
+              "BUSINESS"
+            ]
+          },
+          "business_id": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "period": {
+            "$ref": "#/components/schemas/CommissionEstimatePeriod"
+          },
+          "status": {
+            "$ref": "#/components/schemas/CommissionStatementStatus"
+          },
+          "generated": {
+            "type": "boolean"
+          },
+          "current_fingerprint": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          },
+          "current_statement_fingerprint": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          },
+          "reviewed_fingerprint": {
+            "nullable": true,
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          },
+          "reviewed_statement_fingerprint": {
+            "nullable": true,
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          },
+          "changed_since_review": {
+            "type": "boolean"
+          },
+          "change_cause": {
+            "nullable": true,
+            "type": "string",
+            "enum": [
+              "INPUTS",
+              "STATEMENT"
+            ]
+          },
+          "employees": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CommissionStatementEmployee"
+            }
+          }
+        },
+        "required": [
+          "reader_scope",
+          "business_id",
+          "period",
+          "status",
+          "generated",
+          "current_fingerprint",
+          "current_statement_fingerprint",
+          "reviewed_fingerprint",
+          "reviewed_statement_fingerprint",
+          "changed_since_review",
+          "change_cause",
+          "employees"
+        ]
+      },
+      "CommissionStatementBranchView": {
+        "type": "object",
+        "properties": {
+          "reader_scope": {
+            "type": "string",
+            "enum": [
+              "BRANCHES"
+            ]
+          },
+          "business_id": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "period": {
+            "$ref": "#/components/schemas/CommissionEstimatePeriod"
+          },
+          "status": {
+            "$ref": "#/components/schemas/CommissionStatementStatus"
+          },
+          "generated": {
+            "type": "boolean"
+          },
+          "employees": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CommissionStatementEmployee"
+            }
+          }
+        },
+        "required": [
+          "reader_scope",
+          "business_id",
+          "period",
+          "status",
+          "generated",
+          "employees"
         ]
       },
       "EmployeeDocumentStatus": {

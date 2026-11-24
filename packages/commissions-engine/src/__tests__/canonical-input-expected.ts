@@ -312,7 +312,7 @@ const SARA_ENTRY = {
       amount: '1.500',
     },
   ],
-  salary: { effective_from: '2026-10-01', amount: '400.000', revision: '3' },
+  salary: { effective_from: '2026-10-01', revision: '3' },
   versions: SARA_VERSIONS,
   overrides: [
     {

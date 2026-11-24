@@ -126,9 +126,11 @@ export {
 export {
   confirmPasswordInput,
   loginInput,
+  setPasswordInput,
   totpCodeInput,
   type ConfirmPasswordInput,
   type LoginInput,
+  type SetPasswordInput,
   type TotpCodeInput,
 } from './identity/session.js';
 export * from './identity/workspaces.js';

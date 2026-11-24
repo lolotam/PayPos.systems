@@ -50,6 +50,9 @@ export const frameState = {
   locale: 'en' as 'en' | 'ar',
   visible: [] as readonly string[],
   push: vi.fn(setPathname),
+  replace: vi.fn(setPathname),
+  params: {} as Record<string, string>,
+  settled: true,
   workspace: undefined as WorkspaceController | undefined,
 };
 
@@ -69,19 +72,35 @@ function useExternal<T>(read: () => T): T {
   );
 }
 
+/** ما يرميه `notFound()` المحاكى؛ يلتقطه `NotFoundProbe` فيرسم «Not found». */
+export const NOT_FOUND_MESSAGE = 'NEXT_NOT_FOUND';
+
+// موجّه Next الحقيقي ثابت الهوية بين الرسمات، فالمحاكي كذلك حتى لا يعيد تأثيرٌ يعتمد عليه تشغيل نفسه.
+const stableRouter = {
+  push: (...args: Parameters<typeof frameState.push>) => frameState.push(...args),
+  replace: (...args: Parameters<typeof frameState.replace>) => frameState.replace(...args),
+  refresh: () => undefined,
+};
+
 export const navigationMock = {
   usePathname: () => useExternal(() => frameState.pathname),
   useSearchParams: () => {
     const search = useExternal(() => frameState.search);
     return useMemo(() => new URLSearchParams(search), [search]);
   },
-  useRouter: () => ({ push: frameState.push, refresh: () => undefined }),
+  useRouter: () => stableRouter,
+  useParams: () => frameState.params,
+  notFound: (): never => {
+    throw new Error(NOT_FOUND_MESSAGE);
+  },
 };
 export const localeMock = {
   useLocale: () => frameState.locale,
   useLocaleController: () => ({ locale: frameState.locale, setLocale: () => undefined }),
 };
 export const visibleMock = { useVisiblePageIds: () => frameState.visible };
+/** هل استقرت قراءات الظهور؛ الاختبارات التي لا تهمها هذه القراءات تتركها true. */
+export const settledMock = { useVisibilitySettled: () => frameState.settled };
 export const workspaceMock = { useWorkspace: () => frameState.workspace };
 export const sessionMock = {
   useSessionAccount: () => ({ id: 'user-1', name: 'Sara Ali', email: 'sara@example.test' }),
@@ -185,8 +204,12 @@ export function resetFrameState(): void {
   frameState.search = '';
   window.history.replaceState(null, '', window.location.pathname);
   frameState.locale = 'en';
+  frameState.params = {};
+  frameState.settled = true;
   frameState.push.mockReset();
   frameState.push.mockImplementation(setPathname);
+  frameState.replace.mockReset();
+  frameState.replace.mockImplementation(setPathname);
   vi.unstubAllGlobals();
   selectBusiness('restaurant');
 }

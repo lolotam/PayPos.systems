@@ -1,6 +1,7 @@
 import { useInfiniteQuery, useQuery } from '@tanstack/react-query';
 import type { WorkContext } from '../model/work-context';
 import { workCalls } from './my-work-calls';
+import type { MountScope } from './use-mount-scope';
 
 // القراءات ما بتتجددش لوحدها ولا بتفضل في الكاش بعد ما الشاشة تتقفل.
 const PERSONAL_READ = {
@@ -32,6 +33,7 @@ type PageParam = { cursor: string; month: string };
  * فعبور منتصف الليل بين صفحتين مبيخلطش الشهور ومبيبوّظش المؤشر.
  *
  * @param context مين بيفتح الشاشة
+ * @param scope مساحة مفاتيح الزيارة الحالية
  * @param month الشهر المطلوب أو undefined للحالي
  * @param onRefused معالج رفض السيرفر
  * @param enabled false بعد رفض الصلاحية، فالقراءة ما بتتعادش ولا بترجع صفحات اتمسحت من الكاش
@@ -39,6 +41,7 @@ type PageParam = { cursor: string; month: string };
  */
 export function useWorkLines(
   context: WorkContext,
+  scope: MountScope,
   month: string | undefined,
   onRefused: OnRefused,
   enabled = true,
@@ -46,7 +49,7 @@ export function useWorkLines(
   return useInfiniteQuery({
     ...PERSONAL_READ,
     enabled,
-    queryKey: ['my-work', context.identity, 'lines', month ?? 'current'],
+    queryKey: [...scope, 'lines', month ?? 'current'],
     initialPageParam: undefined as PageParam | undefined,
     queryFn: ({ pageParam, signal }) =>
       guarded(
@@ -69,14 +72,14 @@ export function useWorkLines(
 /**
  * متوسط تقييمها وعدده في الشهر الحالي؛ الرد بيحدد لوحده لو العمود مخفي (HIDDEN).
  *
- * @param context مين بيفتح الشاشة
+ * @param scope مساحة مفاتيح الزيارة الحالية
  * @param onRefused معالج رفض السيرفر
  * @returns استعلام ملخص التقييم
  */
-export function useRatingSummary(context: WorkContext, onRefused: OnRefused) {
+export function useRatingSummary(scope: MountScope, onRefused: OnRefused) {
   return useQuery({
     ...PERSONAL_READ,
-    queryKey: ['my-work', context.identity, 'rating-summary'],
+    queryKey: [...scope, 'rating-summary'],
     queryFn: ({ signal }) => guarded(() => workCalls.ratingSummary(signal), signal, onRefused),
   });
 }
@@ -86,14 +89,20 @@ export function useRatingSummary(context: WorkContext, onRefused: OnRefused) {
  * المعروض (شهر أول صفحة خدمات لو الموظفة لسه ما اختارتش)، فمتتحسبش «الحالي» بشكل مستقل عن الخدمات.
  *
  * @param context مين بيفتح الشاشة
+ * @param scope مساحة مفاتيح الزيارة الحالية
  * @param month الشهر المعروض، أو undefined قبل أول رد خدمات (القراءة بتستنى)
  * @param onRefused معالج رفض السيرفر
  * @returns استعلام الإكراميات
  */
-export function useWorkTips(context: WorkContext, month: string | undefined, onRefused: OnRefused) {
+export function useWorkTips(
+  context: WorkContext,
+  scope: MountScope,
+  month: string | undefined,
+  onRefused: OnRefused,
+) {
   return useQuery({
     ...PERSONAL_READ,
-    queryKey: ['my-work', context.identity, 'tips', month],
+    queryKey: [...scope, 'tips', month],
     enabled: month !== undefined,
     queryFn: ({ signal }) =>
       guarded(

@@ -232,6 +232,35 @@ it('validates per kind with ALERT_RULE_INVALID and saves nothing', async () => {
   expect((await audits()).length).toBe(before);
 });
 
+it('issue #486: the branch manager is refused on both statement kinds and nothing is saved', async () => {
+  const before = (await audits()).length;
+  for (const kind of ['STATEMENT_AWAITING_REVIEW', 'STATEMENT_AWAITING_APPROVAL'] as const) {
+    const rule = {
+      kind,
+      enabled: true,
+      recipient_roles: ['owner' as const, 'branch_manager' as const],
+      channels: ['IN_APP' as const],
+      delay_minutes: null,
+      lead_minutes: null,
+    };
+    const response = await put(null, [rule]);
+    expect(response.status).toBe(422);
+    expect(response.body).toMatchObject({ code: 'ALERT_RULE_INVALID' });
+  }
+  const accepted = await put(null, [
+    {
+      kind: 'STATEMENT_AWAITING_APPROVAL',
+      enabled: true,
+      recipient_roles: ['owner', 'general_manager', 'business_manager'],
+      channels: ['IN_APP'],
+      delay_minutes: null,
+      lead_minutes: null,
+    },
+  ]);
+  expect(accepted.status).toBe(200);
+  expect((await audits()).length).toBe(before + 1);
+});
+
 it('out-of-range minutes are ALERT_RULE_INVALID (422), not a 400 from the contract', async () => {
   const before = (await audits()).length;
   for (const rule of [
