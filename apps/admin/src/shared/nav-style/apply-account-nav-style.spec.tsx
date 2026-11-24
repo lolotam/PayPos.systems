@@ -101,6 +101,9 @@ async function signInAndAwait(kind: 'password' | 'totp'): Promise<void> {
   render(<SignInStyleProbe kind={kind} />);
   fireEvent.click(screen.getByRole('button'));
   await waitFor(() => expect(mocks.loadPage).toHaveBeenCalledTimes(1));
+  // ما يراه المستخدم لحظة الانتقال: الزر ما زال معطّلاً وبلا رسالة خطأ، فلا إرسال ثانٍ أثناء القراءة.
+  expect(screen.getByRole<HTMLButtonElement>('button', { name: 'Sign in' }).disabled).toBe(true);
+  expect(screen.queryByRole('alert')).toBeNull();
 }
 
 describe.each(['password', 'totp'] as const)('%s account style before navigation', (kind) => {
