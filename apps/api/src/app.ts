@@ -1,4 +1,5 @@
 import 'reflect-metadata';
+import { contexts, logCompleted } from './shared/request-completion.ts';
 
 import {
   Inject,
@@ -15,13 +16,7 @@ import type { IdGenerator, TenantWrappers } from '@pospay/db';
 import type { PushApiConfiguration } from '@pospay/notifications';
 import type { Redis } from 'ioredis';
 import { systemUuidV7 } from '@pospay/ids';
-import {
-  createLogger,
-  enterRequestContext,
-  withRequestContext,
-  type Logger,
-  type RequestContext,
-} from '@pospay/observability';
+import { createLogger, enterRequestContext, type Logger } from '@pospay/observability';
 import { LogController, type FastifyReply, type FastifyRequest } from 'fastify';
 
 import {
@@ -35,11 +30,15 @@ import {
   readCommissionPlanListAccess,
   readCommissionFeatureEnabled,
   readCommissionReviewAccess,
+  readCommissionActorMembership,
+  readCommissionApprovers,
+  readCommissionReturnAccess,
   readCommissionScope,
 } from './modules/identity/index.ts';
 import { settingsControllers, settingsProviders } from './modules/settings/index.ts';
 import { notificationsControllers, notificationsProviders } from './modules/notifications/index.ts';
-import { mountWhatsappSecurity, type WhatsappIntake } from './modules/notifications/index.ts';
+import { mountResendSecurity, mountWhatsappSecurity } from './modules/notifications/index.ts';
+import type { ResendIntake, WhatsappIntake } from './modules/notifications/index.ts';
 import {
   businessCalendar,
   businessTimeZone,
@@ -80,6 +79,8 @@ import {
   commissionsProviders,
   type CommissionEstimateProviders,
 } from './modules/commissions/index.ts';
+import { commissionApprovalBindings } from './commission-approval-bindings.ts';
+import { commissionAlertRules } from './modules/commissions/persistence/commission-alert-rule.adapter.ts';
 import {
   documentFileFacts,
   filesControllers,
@@ -148,6 +149,8 @@ export interface AppDependencies {
   /** أصل صفحة التقييم العامة بالمطابقة التامة؛ مستقل عن ثقة تسجيل الدخول، والقيمة الفارغة تعطّل CORS للتقييم العام. */
   readonly ratingPageOrigin?: string;
   readonly whatsapp?: WhatsappIntake;
+  /** بدون هذا الاستقبال الموقّع رد الويبيوك NOT_READY ومايتخزنش شيء. */
+  readonly resend?: ResendIntake;
   /** The push public key and subject, when push is configured; without them the push routes answer NOT_READY. */
   readonly push?: PushApiConfiguration | null;
   readonly trustedProxy?: readonly string[];
@@ -248,6 +251,14 @@ function commissionBindings(deps: AppDependencies) {
       },
       reviewAccess: readCommissionReviewAccess,
       businessCalendar,
+      // المراجعة والإرجاع (52-1): فحص الإرجاع (مراجع أو معتمد)، وعضوية الفاعل، ومستلمو إشعار
+      // الاعتماد، وقواعد التنبيه اللي بتحدد التشغيل والقناة بس (DR-008).
+      returnAccess: readCommissionReturnAccess,
+      actorMembership: readCommissionActorMembership,
+      approvers: readCommissionApprovers,
+      alertRules: commissionAlertRules,
+      // اعتماد الكشف (53-2): صلاحيته ومفتاحه وتواريخ العمل والعدّاد.
+      ...commissionApprovalBindings,
     },
     deps.commissionsClock,
   );
@@ -300,7 +311,7 @@ class AppModule {
         ...ordersProviders(deps.database, deps.ids ?? systemUuidV7(), deps.ordersClock),
         ...commissionBindings(deps),
         ...settingsProviders(deps.database, deps.ids ?? systemUuidV7(), deps.redis),
-        ...notificationsProviders(deps.database, deps.whatsapp, deps.push),
+        ...notificationsProviders(deps.database, deps.whatsapp, deps.resend, deps.push),
         ...staffProviders(
           deps.database,
           deps.redis,
@@ -313,29 +324,6 @@ class AppModule {
       ],
     };
   }
-}
-
-// Each request's own log context, looked up by the request so a callback running elsewhere can restore it.
-const contexts = new WeakMap<FastifyRequest, RequestContext>();
-
-// One line per request with safe, structural fields only: the route PATTERN, never the raw URL, whose path segments
-// and query string can carry tokens or phone numbers.
-function logCompleted(request: FastifyRequest, reply: FastifyReply): void {
-  const write = () =>
-    request.log.info(
-      {
-        http: {
-          method: request.method,
-          route: request.routeOptions.url ?? '[unmatched]',
-          status: reply.statusCode,
-          ms: Math.round(reply.elapsedTime),
-        },
-      },
-      'request completed',
-    );
-  const context = contexts.get(request);
-  if (context === undefined) write();
-  else withRequestContext(context, write);
 }
 
 // Fastify with the shared sanitising logger, request ids, and the envelope for errors Fastify raises itself.
@@ -435,6 +423,7 @@ export async function createApp(
   const adapter = buildAdapter(logger, deps.ids ?? systemUuidV7(), deps.trustedProxy ?? []);
   mountWhatsappSecurity(adapter, deps.whatsapp, deps.redis);
   mountStaffAccessGate(adapter.getInstance(), deps.staffAccessRoutes === true);
+  mountResendSecurity(adapter, deps.resend, deps.redis);
   adapter.getInstance().addHook('onRoute', (route) => {
     if (/^\/v1\/devices\/me\/staff-(otp\/(request|verify)|pin\/sign-in)$/.test(route.url))
       route.bodyLimit = 1024;
@@ -463,6 +452,7 @@ export async function createApp(
     contexts.set(request, enterRequestContext(request.id));
     void reply.header('x-request-id', request.id);
   });
+  // Fastify advances the hook chain when this Promise settles.
   adapter.getInstance().addHook('onResponse', async (request, reply) => {
     logCompleted(request, reply);
   });

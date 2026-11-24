@@ -16,6 +16,13 @@ import {
   lowRatingParameters,
   lowRatingRecipient,
 } from './low-rating-notifications.js';
+import { inAppBase } from './in-app-base.js';
+import {
+  commissionCorrectionBlockedParameters,
+  commissionCorrectionBlockedRecipient,
+  statementAwaitingApprovalParameters,
+  statementAwaitingApprovalRecipient,
+} from './statement-notifications.js';
 
 const safeText = z
   .string()
@@ -63,12 +70,6 @@ export const breakReturnedOtherBranchParameters = z.tuple([
   displayParameter('branch_name_ar'),
   displayParameter('branch_name_en'),
 ]);
-const inAppBase = {
-  channel: z.literal('IN_APP'),
-  user_id: id,
-  locale: z.enum(['ar', 'en']),
-  template_revision: z.literal(1),
-};
 export const lateServiceSessionParameters = z.tuple([
   displayParameter('branch_name_ar'),
   displayParameter('branch_name_en'),
@@ -197,21 +198,7 @@ export const discountSelfApprovedRecipient = z.strictObject({
   template_key: z.literal('discount_self_approved'),
   safe_parameters: discountSelfApprovedParameters,
 });
-/** شهر مصدر التصحيح الموقوف بصيغة YYYY-MM؛ معامل واحد آمن بلا مبلغ ولا اسم موظفة (FR-049). */
-export const commissionCorrectionPeriod = z.string().regex(/^\d{4}-(0[1-9]|1[0-2])$/);
-export const commissionCorrectionBlockedParameters = z.tuple([
-  z.strictObject({
-    name: z.literal('period'),
-    type: z.literal('text'),
-    value: commissionCorrectionPeriod,
-  }),
-]);
-/** مراجعة القالب 1 لأن نص الإيقاف ثابت؛ تغييره لاحقًا مراجعة جديدة حتى لا يُعاد تفسير الصفوف المخزنة. */
-export const commissionCorrectionBlockedRecipient = z.strictObject({
-  ...inAppBase,
-  template_key: z.literal('commission_correction_blocked'),
-  safe_parameters: commissionCorrectionBlockedParameters,
-});
+
 const changeParameter = z.strictObject({
   name: z.literal('change'),
   type: z.literal('text'),
@@ -241,6 +228,7 @@ export const inAppRecipient = z.discriminatedUnion('template_key', [
   discountApprovalRequestedRecipient,
   discountSelfApprovedRecipient,
   commissionCorrectionBlockedRecipient,
+  statementAwaitingApprovalRecipient,
   z.strictObject({
     ...inAppBase,
     template_key: z.literal('break_returned_other_branch'),
@@ -323,6 +311,11 @@ export const inAppNotification = z
       ...inAppNotificationBase,
       template_key: z.literal('commission_correction_blocked'),
       safe_parameters: commissionCorrectionBlockedParameters,
+    }),
+    responseObject({
+      ...inAppNotificationBase,
+      template_key: z.literal('statement_awaiting_approval'),
+      safe_parameters: statementAwaitingApprovalParameters,
     }),
     responseObject({
       ...inAppNotificationBase,

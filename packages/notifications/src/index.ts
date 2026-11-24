@@ -26,6 +26,7 @@ export { serviceLinePerformersChanged } from './templates/service-line-performer
 export { discountApprovalRequested } from './templates/discount-approval-requested.ts';
 export { discountSelfApproved } from './templates/discount-self-approved.ts';
 export { commissionCorrectionBlocked } from './templates/commission-correction-blocked.ts';
+export { statementAwaitingApproval } from './templates/statement-awaiting-approval.ts';
 export { shiftNotClockedIn } from './templates/shift-not-clocked-in.ts';
 export { attendanceExceptionRaised } from './templates/attendance-exception-raised.ts';
 export { documentExpiring } from './templates/document-expiring.ts';
@@ -53,6 +54,23 @@ export {
   readWhatsappWebhookConfiguration,
   type WhatsappWebhookConfiguration,
 } from './webhook-configuration.ts';
+export {
+  createResendEventDigest,
+  readResendWebhookConfiguration,
+  resendBounceClass,
+  resendSigningKey,
+  verifyResendSignature,
+  RESEND_INTAKE_BUDGET_MS,
+  RESEND_TIMESTAMP_WINDOW_SECONDS,
+  type ResendWebhookConfiguration,
+  type ResendWebhookHeaders,
+} from './resend-webhook.ts';
+export {
+  EMAIL_FEEDBACK_INBOX_ID,
+  EMAIL_FEEDBACK_JOB,
+  EMAIL_FEEDBACK_QUEUE,
+  emailFeedbackJob,
+} from './email-feedback-queue.ts';
 export { notificationRedisOptions } from './redis-connection.ts';
 
 export {

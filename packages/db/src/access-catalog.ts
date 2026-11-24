@@ -90,6 +90,8 @@ export const PERMISSIONS = [
   'read:commissions:business',
   // إنشاء كشف العمولة الشهري ومراجعته: المالك وحده يمنحها (CS-Q2، CS-Q2b = PP-25.1، CS-Q37 = PP-101.1).
   'review:commissions:business',
+  // اعتماد كشف العمولة الشهري: المالك وحده يمنحها (CS-Q5، CS-Q37 = PP-101.1).
+  'approve:commissions:business',
   'view:notifications:business',
   // صلاحية منصة: بتتدي بـ pnpm platform:grant بس، وعمرها ما بتبقى في role شركة (ADR-0003 §3).
   'create:companies:platform',

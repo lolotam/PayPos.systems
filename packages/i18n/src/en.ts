@@ -152,6 +152,9 @@ export const en = {
     never: 'No expiry',
     role: 'Role',
     choosePermission: 'Choose a permission',
+    // FR-029b: صلاحية المراجعة والاعتماد بلا قراءة النشاط كله مالهاش أثر، فالشاشة بتحذّر من كودين.
+    commissionBusinessWideOnly:
+      'This permission only takes effect together with business-wide read of commissions.',
     active: 'Active',
     expired: 'Expired',
   },
@@ -328,7 +331,7 @@ export const en = {
     contractEnd: 'Contract end (optional)',
     userId: 'Existing user ID (optional)',
     create: 'Create employee',
-    created: 'Employee created:',
+    created: 'Employee saved:',
     invalid: 'Check the employee details, dates and user ID.',
     sectionIdentity: 'Employee details',
     sectionEmployment: 'Employment',

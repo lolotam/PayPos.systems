@@ -150,6 +150,37 @@ it('DN-12 a failed name check saves directly without showing a warning', async (
   expect(screen.queryByRole('alert')).toBeNull();
 });
 
+it('empties every field and focuses the first one after a successful save', async () => {
+  const save = vi.fn();
+  const view = render(<CreateEmployeeForm {...props} onSave={save} />);
+  fillAndSubmit();
+  await waitFor(() => expect(save).toHaveBeenCalledOnce());
+  await waitFor(() => expect(screen.getByRole('button').closest('fieldset')?.disabled).toBe(false));
+  view.rerender(<CreateEmployeeForm {...props} onSave={save} saved={{ id: 'saved' }} />);
+  const nameEn = screen.getByLabelText(t('en', 'staff.nameEn')) as HTMLInputElement;
+  await waitFor(() => expect(nameEn.value).toBe(''));
+  expect((screen.getByLabelText(t('en', 'staff.nameAr')) as HTMLInputElement).value).toBe('');
+  expect((screen.getByLabelText(t('en', 'staff.hireDate')) as HTMLInputElement).value).toBe('');
+  expect((screen.getByLabelText(t('en', 'staff.contractEnd')) as HTMLInputElement).value).toBe('');
+  await waitFor(() => expect(document.activeElement).toBe(nameEn));
+});
+
+it('keeps the typed values when no save succeeded', async () => {
+  const save = vi.fn();
+  const view = render(<CreateEmployeeForm {...props} onSave={save} />);
+  fillAndSubmit();
+  await waitFor(() => expect(save).toHaveBeenCalledOnce());
+  view.rerender(
+    <CreateEmployeeForm {...props} onSave={save} serverError={{ code: 'VALIDATION' }} />,
+  );
+  expect((screen.getByLabelText(t('en', 'staff.nameEn')) as HTMLInputElement).value).toBe(
+    'Synthetic duplicate',
+  );
+  expect((screen.getByLabelText(t('en', 'staff.hireDate')) as HTMLInputElement).value).toBe(
+    '2026-01-01',
+  );
+});
+
 it.each(['companyId', 'businessId'] as const)('clears a warning when %s changes', async (field) => {
   state.check.mockResolvedValue(duplicate);
   const save = vi.fn();

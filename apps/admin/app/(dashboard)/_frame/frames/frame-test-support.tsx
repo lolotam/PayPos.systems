@@ -104,6 +104,7 @@ export const settledMock = { useVisibilitySettled: () => frameState.settled };
 export const workspaceMock = { useWorkspace: () => frameState.workspace };
 export const sessionMock = {
   useSessionAccount: () => ({ id: 'user-1', name: 'Sara Ali', email: 'sara@example.test' }),
+  useSessionIdentity: () => ({ userId: 'user-1', status: 'settled' as const }),
 };
 export const signOutMock = {
   useSignOut: () => ({ pending: false, failed: false, submit: () => Promise.resolve() }),

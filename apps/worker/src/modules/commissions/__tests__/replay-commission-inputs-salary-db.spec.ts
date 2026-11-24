@@ -27,6 +27,7 @@ import {
 } from '../jobs/replay-commission-inputs.ts';
 import { fakeBusinessTimeZone } from './commission-line-projection-time-zone.ts';
 import { commissionSalaryEvent } from './commission-tip-salary-events.ts';
+import { asReplicaOwner } from '../../../../../../packages/db/test/owner-cleanup.ts';
 
 let testDb: TestDatabase;
 let owner: postgres.Sql;
@@ -55,7 +56,7 @@ afterAll(async () => {
 beforeEach(async () => {
   await owner`DELETE FROM commission_salaries`;
   await owner`DELETE FROM consumed_events WHERE consumer_id='commissions.project-inputs'`;
-  await owner`DELETE FROM outbox`;
+  await asReplicaOwner(owner, (tx) => tx`DELETE FROM outbox`);
 });
 
 function createReplayHarness() {
@@ -204,7 +205,7 @@ it('produces the same commission_salaries rows when applied in forward or revers
   // تنظيف كامل قبل تجربة الترتيب العكسي
   await owner`DELETE FROM commission_salaries WHERE company_id=${A.company}`;
   await owner`DELETE FROM consumed_events WHERE consumer_id='commissions.project-inputs'`;
-  await owner`DELETE FROM outbox WHERE company_id=${A.company}`;
+  await asReplicaOwner(owner, (tx) => tx`DELETE FROM outbox WHERE company_id=${A.company}`);
 
   // بالترتيب العكسي: التاريخ الأحدث (يونيو) يُدرج بمعرف أقل ليُقرأ أولاً في الاستعادة
   const s2Reverse = commissionSalaryEvent(A, ids, { id: eventId(501), effectiveFrom: '2026-06-01', amount: '450.000', revision: 1 });

@@ -2,6 +2,9 @@
 // replaced by "log message withheld"; dynamic values belong in the log object's fields.
 export const API_LOG_EVENTS = [
   'email disabled',
+  'email feedback intake capability',
+  'email feedback queue error',
+  'resend redis unavailable',
   'staff OTP capability',
   'rating links capability',
   'staff OTP preparation outcome',

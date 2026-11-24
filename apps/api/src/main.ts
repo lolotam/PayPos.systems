@@ -16,7 +16,11 @@ import {
   readOtpTemplateApproval,
   readPushApiConfiguration,
 } from '@pospay/notifications';
-import { createDatabase, createPlatformWhatsappDatabase } from '@pospay/db';
+import {
+  createDatabase,
+  createPlatformEmailDatabase,
+  createPlatformWhatsappDatabase,
+} from '@pospay/db';
 import { systemUuidV7 } from '@pospay/ids';
 import { createLogger } from '@pospay/observability';
 import { Redis } from 'ioredis';
@@ -24,7 +28,7 @@ import { readEmailConfiguration } from '@pospay/notifications';
 
 import { createApp } from './app.ts';
 import { filesRuntime } from './modules/files/index.ts';
-import { createWhatsappIntake } from './modules/notifications/index.ts';
+import { createResendIntake, createWhatsappIntake } from './modules/notifications/index.ts';
 import { API_LOG_EVENTS } from './shared/log-events.ts';
 import { createActivePasskeyBindings, createPersonalEligibility } from './modules/staff/index.ts';
 import { membershipCompanies, staffOtpDependencies } from './modules/identity/index.ts';
@@ -61,7 +65,9 @@ const otpConfiguration = () =>
   readStaffOtpConfiguration(process.env, 'api', readOtpTemplateApproval(process.env));
 const intakeUrl = config.PLATFORM_NOTIFICATIONS_DATABASE_URL;
 let globalDatabase: ReturnType<typeof createPlatformWhatsappDatabase> | undefined;
+let emailDatabase: ReturnType<typeof createPlatformEmailDatabase> | undefined;
 let whatsapp: ReturnType<typeof createWhatsappIntake> | undefined;
+let resend: ReturnType<typeof createResendIntake> | undefined;
 
 // No offline queue: while Redis is down a command fails at once, so /ready reports it instead of hanging.
 const redis = new Redis(config.REDIS_URL, {
@@ -88,7 +94,9 @@ const release = async (): Promise<void> => {
   await Promise.race([
     Promise.allSettled([
       whatsapp?.close(true),
+      resend?.close(true),
       globalDatabase?.close(true),
+      emailDatabase?.close(true),
       database.close(),
       files?.close(),
       auth?.close(),
@@ -137,6 +145,52 @@ try {
         },
       },
       'staff OTP capability',
+    );
+  }
+  // The email feedback intake rides on the same restricted notifications database, but it needs its
+  // own webhook secret: without it the route answers NOT_READY and stores nothing.
+  if (intakeUrl !== undefined) {
+    try {
+      // بلا proxy موثوق في الإنتاج كل الطلبات بتوصل من عنوان الـ proxy نفسه، فحد المزوّد لكل IP
+      // بيبقى دلو واحدة، والـ 503 هو السلوك المتعمد (spec 075 FR-001).
+      if (process.env['NODE_ENV'] === 'production' && config.TRUSTED_PROXY_CIDRS.length === 0)
+        throw new Error('EMAIL_FEEDBACK_CAPABILITY_UNAVAILABLE');
+      emailDatabase = createPlatformEmailDatabase({ url: intakeUrl });
+      const intake = createResendIntake(emailDatabase, config.REDIS_URL, process.env, logger);
+      resend = intake;
+      await optionalWithin(() => intake.ready());
+      logger.info(
+        { capability: { name: 'EMAIL_FEEDBACK_INTAKE', state: 'READY' } },
+        'email feedback intake capability',
+      );
+    } catch (error) {
+      logger.warn(
+        {
+          capability: {
+            name: 'EMAIL_FEEDBACK_INTAKE',
+            state: 'UNAVAILABLE',
+            reason:
+              error instanceof Error && error.message === 'RESEND_EVENT_DIGEST_KEY_INVALID'
+                ? 'EVENT_DIGEST_KEY_MISSING_OR_INVALID'
+                : 'SETUP_FAILED',
+          },
+        },
+        'email feedback intake capability',
+      );
+      await closeOptional([() => resend?.close(true), () => emailDatabase?.close(true)]);
+      resend = undefined;
+      emailDatabase = undefined;
+    }
+  } else {
+    logger.info(
+      {
+        capability: {
+          name: 'EMAIL_FEEDBACK_INTAKE',
+          state: 'DISABLED',
+          reason: 'NOT_CONFIGURED',
+        },
+      },
+      'email feedback intake capability',
     );
   }
   auth = await createAuth({
@@ -301,8 +355,9 @@ try {
   );
   // بلا proxy موثوق كل زائر بيشارك عنوان الـ proxy، والحدّ على عنوان واحد هيبقى دلو واحدة.
   // زي بوابة الواتساب بالظبط: في الإنتاج من غير TRUSTED_PROXY_CIDRS القدرة ماتتكونش موجودة.
-  const ratingLinksAvailable =
-    !(process.env['NODE_ENV'] === 'production' && config.TRUSTED_PROXY_CIDRS.length === 0);
+  const ratingLinksAvailable = !(
+    process.env['NODE_ENV'] === 'production' && config.TRUSTED_PROXY_CIDRS.length === 0
+  );
   if (!ratingLinksAvailable) {
     logger.warn(
       { capability: { name: 'RATING_LINKS', state: 'UNAVAILABLE', reason: 'NO_TRUSTED_PROXY' } },
@@ -353,6 +408,7 @@ try {
       push: readPushApiConfiguration(process.env),
       ratingLinksAvailable,
       ...(whatsapp === undefined ? {} : { whatsapp }),
+      ...(resend === undefined ? {} : { resend }),
       trustedProxy: config.TRUSTED_PROXY_CIDRS,
     },
     { logger },

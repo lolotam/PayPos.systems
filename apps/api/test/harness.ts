@@ -44,14 +44,18 @@ export {
   readCommissionFeatureEnabled,
   readCommissionPlanAccess,
   readCommissionPlanListAccess,
+  readCommissionApproveAccess,
   readCommissionReviewAccess,
   readCommissionScope,
+  readExplicitCompanyFeature,
 } from '../src/modules/identity/index.ts';
+export { pendingCommissionEvents } from '../src/modules/commissions/index.ts';
 export {
   employeeExistsInBusiness,
   lockEmployeeForUpdate,
   readCommissionBranchAttachments,
   readCommissionStatementEmployees,
+  readEmployeeEmploymentDates,
 } from '../src/modules/staff/index.ts';
 export {
   businessCalendar,

@@ -1,5 +1,9 @@
 import { Catch, HttpException, type ArgumentsHost, type ExceptionFilter } from '@nestjs/common';
-import { IdempotencyKeyBusyError, IdempotencyKeyReusedError } from '@pospay/db';
+import {
+  IdempotencyKeyBusyError,
+  IdempotencyKeyReusedError,
+  PlatformStorageUnavailableError,
+} from '@pospay/db';
 import type { FastifyReply, FastifyRequest } from 'fastify';
 
 import { ApiError, codeForStatus } from './errors.ts';
@@ -34,6 +38,8 @@ function toApiError(exception: unknown): ApiError {
   if (exception instanceof IdempotencyKeyReusedError) return new ApiError('IDEMPOTENCY_KEY_REUSED');
   if (exception instanceof IdempotencyKeyBusyError)
     return new ApiError('IDEMPOTENCY_KEY_IN_PROGRESS');
+  // مهلة القفل أو التنفيذ أو نتيجة COMMIT مش معروفة على قاعدة المنصة: 503 NOT_READY والمزود يعيد.
+  if (exception instanceof PlatformStorageUnavailableError) return new ApiError('NOT_READY');
   if (exception instanceof HttpException) return new ApiError(codeForStatus(exception.getStatus()));
   const status = (exception as { statusCode?: unknown } | null)?.statusCode;
   // Fastify's own errors (e.g. a body over the size limit) carry a statusCode but are not HttpExceptions.

@@ -52,6 +52,8 @@ const FACADES = {
     'the pospay_dispatcher facade belongs to apps/worker (ADR-0003 §3).',
   createPlatformWhatsappDatabase:
     'the global messaging facade is wired only by API/worker roots (ADR-0013).',
+  createPlatformEmailDatabase:
+    'the email feedback facade is wired only by API/worker roots (ADR-0014 addendum).',
 };
 // The two restricted commissions packages (ADR-0054 §1 and its addendum): every block carries both sets of bans.
 const RESTRICTED_PACKAGE_PATTERNS = [

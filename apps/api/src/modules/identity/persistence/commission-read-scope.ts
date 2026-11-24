@@ -43,6 +43,8 @@ export type CommissionScopeResult =
  * @param companyId الشركة المؤكدة
  * @param userId المستخدم البشري الفاعل
  * @param businessId النشاط المطلوب
+ * @param decisionAt توقيت قرار اختياري للمتصلين اللي بيقراون تحت أقفالهم؛ غيابه بيعيّن التوقيت
+ *                   من الساعة هنا زي ما كان، فسلوك باقي المستدعين ما بيتبدلش.
  * @returns النطاق الفعّال أو سبب الرفض
  */
 export async function readCommissionScope(
@@ -50,14 +52,22 @@ export async function readCommissionScope(
   companyId: string,
   userId: string,
   businessId: string,
+  decisionAt?: Date,
 ): Promise<CommissionScopeResult> {
   const [business] = await tx.execute(sql`SELECT id FROM businesses
     WHERE company_id=${companyId} AND id=${businessId}
       AND EXISTS (SELECT 1 FROM companies WHERE id=${companyId} AND deleted_at IS NULL)`);
   if (business === undefined) return { kind: 'forbidden' };
-  const [time] = await tx.execute<{ at: Date }>(sql`SELECT clock_timestamp() AS at`);
-  if (time === undefined) return { kind: 'forbidden' };
-  const at = new Date(time.at);
+  // توقيت القرار بيتمرر من المتصلين اللي بيقراون تحت أقفالهم (فحص واحد لتوقيت واحد)،
+  // ولما يتغاب بيتعيّن من الساعة هنا بالظبط زي ما كان، فسلوك باقي المستدعين ما بيتبدلش.
+  let at: Date;
+  if (decisionAt === undefined) {
+    const [time] = await tx.execute<{ at: Date }>(sql`SELECT clock_timestamp() AS at`);
+    if (time === undefined) return { kind: 'forbidden' };
+    at = new Date(time.at);
+  } else {
+    at = decisionAt;
+  }
   const access = await readAccessTransaction(tx, companyId, userId, at);
   const mine = access.grants.filter((grant) => grant.permission === PERMISSION);
   const allows = mine.filter((grant) => grant.effect === 'ALLOW');

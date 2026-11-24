@@ -1,6 +1,6 @@
 import { z } from 'zod';
 
-import { commissionCorrectionPeriod } from '../in-app-notifications.js';
+import { commissionCorrectionPeriod } from '../statement-notifications.js';
 import { responseObject } from '../response-object.js';
 import { id } from '../scalars/id.js';
 import { timestamp } from '../scalars/timestamp.js';

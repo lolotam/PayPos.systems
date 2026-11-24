@@ -1,3 +1,5 @@
+import { COMMISSION_COVERAGE_FUNCTIONS } from './commission-coverage-function-inventory.ts';
+
 export const FUNCTION_INVENTORY = [
   {
     proname: 'package_import_preview_partition_guard',
@@ -116,6 +118,11 @@ export const FUNCTION_INVENTORY = [
     proname: 'notification_email_destination_guard',
     prosecdef: false,
     proconfig: ['search_path=public, pg_temp'],
+  },
+  {
+    proname: 'platform_email_is_suppressed',
+    prosecdef: true,
+    proconfig: ['search_path=pg_catalog, pg_temp'],
   },
   {
     proname: 'platform_whatsapp_is_suppressed',
@@ -376,4 +383,5 @@ export const FUNCTION_INVENTORY = [
     prosecdef: false,
     proconfig: ['search_path=pg_catalog, public'],
   },
+  ...COMMISSION_COVERAGE_FUNCTIONS,
 ].sort((a, b) => a.proname.localeCompare(b.proname));

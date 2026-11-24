@@ -157,6 +157,8 @@ export const ar: Catalog = {
     never: 'بلا انتهاء',
     role: 'الدور',
     choosePermission: 'اختر الصلاحية',
+    // FR-029b: صلاحية المراجعة والاعتماد بلا قراءة النشاط كله مالهاش أثر، فالشاشة بتحذّر من كودين.
+    commissionBusinessWideOnly: 'الصلاحية دي مالهاش أثر غير مع قراءة النشاط كله.',
     active: 'ساري',
     expired: 'منتهي',
   },
@@ -324,7 +326,7 @@ export const ar: Catalog = {
     contractEnd: 'نهاية العقد (اختياري)',
     userId: 'معرف مستخدم موجود (اختياري)',
     create: 'إضافة موظف',
-    created: 'تمت إضافة الموظف:',
+    created: 'تم حفظ بيانات الموظفة:',
     invalid: 'راجع بيانات الموظف والتواريخ ومعرف المستخدم.',
     sectionIdentity: 'بيانات الموظف',
     sectionEmployment: 'التوظيف',

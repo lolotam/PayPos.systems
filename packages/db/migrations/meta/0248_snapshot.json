@@ -1,5 +1,5 @@
 {
-  "id": "a9a393ef-7add-41e0-814c-99d0354c63b6",
+  "id": "548242a5-d4f2-4104-bc3e-6278a25c4fd7",
   "prevId": "b1f31977-7668-47b7-bd05-240beaa3d720",
   "version": "7",
   "dialect": "postgresql",
@@ -4485,18 +4485,6 @@
           "primaryKey": false,
           "notNull": false
         },
-        "invited_by_company_id": {
-          "name": "invited_by_company_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "invitation_operation_id": {
-          "name": "invitation_operation_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": false
-        },
         "created_at": {
           "name": "created_at",
           "type": "timestamp with time zone",
@@ -4542,21 +4530,6 @@
           "concurrently": false,
           "method": "btree",
           "with": {}
-        },
-        "user_invitation_operation_id_key": {
-          "name": "user_invitation_operation_id_key",
-          "columns": [
-            {
-              "expression": "invitation_operation_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": true,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
         }
       },
       "foreignKeys": {},
@@ -4575,10 +4548,6 @@
         "user_name_length": {
           "name": "user_name_length",
           "value": "char_length(\"user\".\"name\") BETWEEN 1 AND 255"
-        },
-        "user_invitation_marker": {
-          "name": "user_invitation_marker",
-          "value": "num_nonnulls(\"user\".\"invited_by_company_id\", \"user\".\"invitation_operation_id\") <> 1"
         }
       },
       "isRLSEnabled": false
@@ -5589,256 +5558,6 @@
         "roles_name_ar_length": {
           "name": "roles_name_ar_length",
           "value": "\"roles\".\"name_ar\" IS NULL OR char_length(\"roles\".\"name_ar\") BETWEEN 1 AND 255"
-        }
-      },
-      "isRLSEnabled": false
-    },
-    "public.member_invitations": {
-      "name": "member_invitations",
-      "schema": "",
-      "columns": {
-        "company_id": {
-          "name": "company_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "id": {
-          "name": "id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "email_hash": {
-          "name": "email_hash",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "user_id": {
-          "name": "user_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "membership_id": {
-          "name": "membership_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "role_code": {
-          "name": "role_code",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "scope_type": {
-          "name": "scope_type",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "scope_id": {
-          "name": "scope_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "invited_by": {
-          "name": "invited_by",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "state": {
-          "name": "state",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "link_issued_at": {
-          "name": "link_issued_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        }
-      },
-      "indexes": {
-        "member_invitations_company_id_state_idx": {
-          "name": "member_invitations_company_id_state_idx",
-          "columns": [
-            {
-              "expression": "company_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "state",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "member_invitations_company_id_user_id_idx": {
-          "name": "member_invitations_company_id_user_id_idx",
-          "columns": [
-            {
-              "expression": "company_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "user_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "member_invitations_invited_by_idx": {
-          "name": "member_invitations_invited_by_idx",
-          "columns": [
-            {
-              "expression": "invited_by",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "member_invitations_membership_idx": {
-          "name": "member_invitations_membership_idx",
-          "columns": [
-            {
-              "expression": "company_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "membership_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        }
-      },
-      "foreignKeys": {
-        "member_invitations_company_id_companies_id_fk": {
-          "name": "member_invitations_company_id_companies_id_fk",
-          "tableFrom": "member_invitations",
-          "tableTo": "companies",
-          "columnsFrom": [
-            "company_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
-        },
-        "member_invitations_user_id_user_id_fk": {
-          "name": "member_invitations_user_id_user_id_fk",
-          "tableFrom": "member_invitations",
-          "tableTo": "user",
-          "columnsFrom": [
-            "user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
-        },
-        "member_invitations_invited_by_user_id_fk": {
-          "name": "member_invitations_invited_by_user_id_fk",
-          "tableFrom": "member_invitations",
-          "tableTo": "user",
-          "columnsFrom": [
-            "invited_by"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
-        },
-        "member_invitations_membership_fk": {
-          "name": "member_invitations_membership_fk",
-          "tableFrom": "member_invitations",
-          "tableTo": "memberships",
-          "columnsFrom": [
-            "company_id",
-            "membership_id"
-          ],
-          "columnsTo": [
-            "company_id",
-            "id"
-          ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {
-        "member_invitations_pkey": {
-          "name": "member_invitations_pkey",
-          "columns": [
-            "company_id",
-            "id"
-          ]
-        }
-      },
-      "uniqueConstraints": {
-        "member_invitations_company_id_email_hash_key": {
-          "name": "member_invitations_company_id_email_hash_key",
-          "nullsNotDistinct": false,
-          "columns": [
-            "company_id",
-            "email_hash"
-          ]
-        }
-      },
-      "policies": {},
-      "checkConstraints": {
-        "member_invitations_state": {
-          "name": "member_invitations_state",
-          "value": "\"member_invitations\".\"state\" IN ('PENDING', 'ACTIVE', 'CANCELLED')"
-        },
-        "member_invitations_scope_type": {
-          "name": "member_invitations_scope_type",
-          "value": "\"member_invitations\".\"scope_type\" IN ('COMPANY', 'BUSINESS', 'BRANCH')"
-        },
-        "member_invitations_email_hash_length": {
-          "name": "member_invitations_email_hash_length",
-          "value": "char_length(\"member_invitations\".\"email_hash\") BETWEEN 40 AND 64"
         }
       },
       "isRLSEnabled": false
@@ -31461,6 +31180,212 @@
         "commission_carries_target_after_source": {
           "name": "commission_carries_target_after_source",
           "value": "\"commission_carries\".\"target_period\" > \"commission_carries\".\"source_period\""
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.commission_statement_returns": {
+      "name": "commission_statement_returns",
+      "schema": "",
+      "columns": {
+        "company_id": {
+          "name": "company_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "business_id": {
+          "name": "business_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "statement_id": {
+          "name": "statement_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "returned_by": {
+          "name": "returned_by",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "returned_membership_id": {
+          "name": "returned_membership_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "reason": {
+          "name": "reason",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "commission_statement_returns_statement_idx": {
+          "name": "commission_statement_returns_statement_idx",
+          "columns": [
+            {
+              "expression": "company_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "business_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "statement_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "commission_statement_returns_membership_idx": {
+          "name": "commission_statement_returns_membership_idx",
+          "columns": [
+            {
+              "expression": "company_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "returned_by",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "returned_membership_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "commission_statement_returns_returned_by_idx": {
+          "name": "commission_statement_returns_returned_by_idx",
+          "columns": [
+            {
+              "expression": "returned_by",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "commission_statement_returns_company_id_companies_id_fk": {
+          "name": "commission_statement_returns_company_id_companies_id_fk",
+          "tableFrom": "commission_statement_returns",
+          "tableTo": "companies",
+          "columnsFrom": [
+            "company_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "commission_statement_returns_returned_by_user_id_fk": {
+          "name": "commission_statement_returns_returned_by_user_id_fk",
+          "tableFrom": "commission_statement_returns",
+          "tableTo": "user",
+          "columnsFrom": [
+            "returned_by"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "commission_statement_returns_statement_fk": {
+          "name": "commission_statement_returns_statement_fk",
+          "tableFrom": "commission_statement_returns",
+          "tableTo": "commission_statements",
+          "columnsFrom": [
+            "company_id",
+            "business_id",
+            "statement_id"
+          ],
+          "columnsTo": [
+            "company_id",
+            "business_id",
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "commission_statement_returns_membership_fk": {
+          "name": "commission_statement_returns_membership_fk",
+          "tableFrom": "commission_statement_returns",
+          "tableTo": "memberships",
+          "columnsFrom": [
+            "company_id",
+            "returned_by",
+            "returned_membership_id"
+          ],
+          "columnsTo": [
+            "company_id",
+            "user_id",
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {
+        "commission_statement_returns_pkey": {
+          "name": "commission_statement_returns_pkey",
+          "columns": [
+            "company_id",
+            "id"
+          ]
+        }
+      },
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "commission_statement_returns_reason": {
+          "name": "commission_statement_returns_reason",
+          "value": "char_length(\"commission_statement_returns\".\"reason\") BETWEEN 1 AND 500"
         }
       },
       "isRLSEnabled": false

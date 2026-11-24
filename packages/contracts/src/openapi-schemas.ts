@@ -137,6 +137,12 @@ import {
   whatsappHandshake,
   whatsappWebhookAcknowledgement,
 } from './whatsapp-webhook.js';
+import {
+  resendFeedbackAcknowledgement,
+  resendFeedbackEnvelope,
+  resendStoredFeedbackEnvelope,
+  resendIgnoredFeedbackEnvelope,
+} from './resend-feedback.js';
 
 // التجميع مستقل عن المسارات، وترتيب السكيما يحفظ تسجيل المراجع المشتركة ووثيقة OpenAPI الحالية.
 export const openApiSchemas = [
@@ -209,6 +215,10 @@ export const openApiSchemas = [
   whatsappWebhookAcknowledgement,
   whatsappEnvelope,
   whatsappHandshake,
+  resendFeedbackAcknowledgement,
+  resendFeedbackEnvelope,
+  resendStoredFeedbackEnvelope,
+  resendIgnoredFeedbackEnvelope,
   inAppNotification,
   inAppNotificationPage,
   inAppNotificationQuery,

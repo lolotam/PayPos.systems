@@ -33,6 +33,7 @@ composition_roots:
   auth: [apps/api/src/app.ts, apps/api/src/main.ts, apps/worker/src/worker.ts, apps/worker/src/start-optional-capabilities.ts, apps/worker/src/rating-token-capability.ts]
   documents: [apps/worker/src/main.ts]
   notifications: [apps/api/src/app.ts, apps/api/src/main.ts, apps/api/scripts/bind-phone.ts, apps/api/scripts/staging-staff-user.ts, apps/worker/src/worker.ts, apps/worker/src/start-optional-capabilities.ts]
+  platform-email-db: [apps/api/src/main.ts, apps/worker/src/start-optional-capabilities.ts]
   platform-whatsapp-db: [apps/api/src/main.ts, apps/worker/src/start-optional-capabilities.ts]
   rating-token: [apps/worker/src/rating-token-capability.ts]
   staff-otp-db: [packages/auth/src/staff-otp/api.ts, packages/auth/src/staff-otp/execution.ts, packages/auth/src/config.ts, packages/auth/src/personal-sessions.ts, packages/auth/src/approve-phone-binding.ts, packages/auth/src/operator/staging-staff-identity.ts]
@@ -122,6 +123,7 @@ reads:
   - { from: orders, to: settings, symbol: readEffectiveDiscountLimit, file: apps/api/src/modules/orders/persistence/discount-limit.adapter.ts }
   - { from: orders, to: settings, symbol: readStaffColumns, file: apps/api/src/modules/orders/persistence/staff-columns.adapter.ts }
   - { from: commissions, to: settings, symbol: readStaffColumns, file: apps/api/src/modules/commissions/persistence/staff-columns.adapter.ts }
+  - { from: commissions, to: settings, symbol: readAlertRule, file: apps/api/src/modules/commissions/persistence/commission-alert-rule.adapter.ts }
   - { from: customers, to: settings, symbol: readStaffColumns, file: apps/api/src/modules/customers/persistence/staff-columns.adapter.ts }
   - { from: customers, to: tenancy, symbol: businessNames, file: apps/api/src/modules/customers/persistence/business-names.adapter.ts }
   - { from: customers, to: tenancy, symbol: businessNamesByIds, file: apps/api/src/modules/customers/persistence/workspace-names.adapter.ts }

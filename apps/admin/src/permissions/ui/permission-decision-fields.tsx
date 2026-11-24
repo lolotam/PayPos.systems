@@ -31,6 +31,11 @@ export function PermissionDecisionFields({ catalog }: { catalog: readonly string
       {code === 'read:salaries:business' || code === 'manage:salaries:business' ? (
         <p className="text-sm text-muted-foreground">{t(locale, 'salary.employeeAccessHint')}</p>
       ) : null}
+      {code === 'review:commissions:business' || code === 'approve:commissions:business' ? (
+        <p className="text-sm text-muted-foreground">
+          {t(locale, 'permissions.commissionBusinessWideOnly')}
+        </p>
+      ) : null}
       <Label htmlFor="override-effect">{t(locale, 'permissions.effect')}</Label>
       <Controller
         name="effect"

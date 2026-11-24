@@ -35,3 +35,31 @@ it.each(['ar', 'en'] as const)(
     expect(screen.queryByText(t(locale, 'salary.employeeAccessHint'))).toBeNull();
   },
 );
+
+it.each(['ar', 'en'] as const)(
+  'warns that the two statement permissions need business-wide read in %s',
+  (locale) => {
+    state.locale = locale;
+    const form = renderHook(() =>
+      useForm<PermissionOverrideInput>({ defaultValues: { permission_code: '', effect: 'ALLOW' } }),
+    );
+    render(
+      <FormProvider {...form.result.current}>
+        <PermissionDecisionFields
+          catalog={[
+            'review:commissions:business',
+            'approve:commissions:business',
+            'read:commissions:business',
+          ]}
+        />
+      </FormProvider>,
+    );
+    expect(screen.queryByText(t(locale, 'permissions.commissionBusinessWideOnly'))).toBeNull();
+    for (const code of ['review:commissions:business', 'approve:commissions:business']) {
+      act(() => form.result.current.setValue('permission_code', code));
+      expect(screen.getByText(t(locale, 'permissions.commissionBusinessWideOnly'))).toBeTruthy();
+    }
+    act(() => form.result.current.setValue('permission_code', 'read:commissions:business'));
+    expect(screen.queryByText(t(locale, 'permissions.commissionBusinessWideOnly'))).toBeNull();
+  },
+);
