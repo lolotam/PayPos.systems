@@ -9,15 +9,19 @@ import {
   BUSINESS_ID,
   COMPANY_ID,
   CREATED_BRANCH,
+  CREATED_BUSINESS,
   ENVELOPE,
   companyWithBusinessAndBranch,
   companyWithBusinessNoBranch,
+  companyWithoutBusiness,
   fillBranchAndSubmit,
+  fillBusinessAndSubmit,
   jsonResponse,
   mockFetch,
   queue,
   renderScreen,
   waitForBranchForm,
+  waitForBusinessForm,
 } from './create-first-screens-support';
 
 function BranchProbe() {
@@ -142,23 +146,17 @@ function testEmptyEnglishName(): void {
 }
 
 function testCountryAlertFollowsToBranchScreen(): void {
-  it('a country PUT failure shows the alert on the branch screen when the refresh lands immediately, and dismissing clears it', async () => {
+  it('a country PUT failure shows the alert on the branch screen when the refresh lands, and dismissing clears it', async () => {
     const { posts, puts } = queue({
-      gets: [
-        companyWithBusinessNoBranch,
-        companyWithBusinessNoBranch,
-        companyWithBusinessAndBranch,
-      ],
-      posts: [() => jsonResponse(CREATED_BRANCH, 201)],
+      gets: [companyWithoutBusiness, companyWithoutBusiness, companyWithBusinessNoBranch],
+      posts: [() => jsonResponse(CREATED_BUSINESS, 201)],
       puts: [() => jsonResponse(ENVELOPE('FORBIDDEN', 'Country refused fixture'), 403)],
     });
     renderScreen('en', <BranchProbe />);
+    await waitForBusinessForm();
+    await fillBusinessAndSubmit();
+    // التحديث وصل فورًا والشاشة بقت شاشة أول فرع — والتنبيه معاها رغم تبديل الشاشة.
     await waitForBranchForm();
-    await fillBranchAndSubmit();
-    await waitFor(() => {
-      expect(screen.getByTestId('dashboard-content')).not.toBeNull();
-    });
-    expect(await screen.findByRole('alert')).not.toBeNull();
     expect(screen.getByText(t('en', 'admin.businessCountryNotSaved'))).not.toBeNull();
     fireEvent.click(screen.getByRole('button', { name: t('en', 'admin.businessCountryDismiss') }));
     await waitFor(() => {
@@ -168,28 +166,21 @@ function testCountryAlertFollowsToBranchScreen(): void {
     expect(puts).toHaveLength(1);
   });
 }
-
 function testCountryRetryFromBranchScreen(): void {
   it('trying again from the branch screen resends the PUT for the same company and business and clears the alert', async () => {
     const { puts } = queue({
-      gets: [
-        companyWithBusinessNoBranch,
-        companyWithBusinessNoBranch,
-        companyWithBusinessAndBranch,
-      ],
-      posts: [() => jsonResponse(CREATED_BRANCH, 201)],
+      gets: [companyWithoutBusiness, companyWithoutBusiness, companyWithBusinessNoBranch],
+      posts: [() => jsonResponse(CREATED_BUSINESS, 201)],
       puts: [
         () => jsonResponse(ENVELOPE('UNEXPECTED', 'Country failed fixture'), 500),
         () => jsonResponse({ business_id: BUSINESS_ID, country: 'KW' }, 200),
       ],
     });
     renderScreen('en', <BranchProbe />);
+    await waitForBusinessForm();
+    await fillBusinessAndSubmit();
     await waitForBranchForm();
-    await fillBranchAndSubmit();
-    await waitFor(() => {
-      expect(screen.getByTestId('dashboard-content')).not.toBeNull();
-    });
-    expect(await screen.findByRole('alert')).not.toBeNull();
+    expect(screen.getByText(t('en', 'admin.businessCountryNotSaved'))).not.toBeNull();
     fireEvent.click(screen.getByRole('button', { name: t('en', 'admin.businessCountryRetry') }));
     await waitFor(() => {
       expect(screen.queryByRole('alert')).toBeNull();

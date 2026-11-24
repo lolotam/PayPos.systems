@@ -332,6 +332,7 @@ function testWritesNameTheFormCompany(): void {
         companyWithoutBusiness,
         companyWithoutBusiness,
         companyWithBusinessNoBranch,
+        companyWithBusinessNoBranch,
         companyWithBusinessAndBranch,
       ],
       posts: [
