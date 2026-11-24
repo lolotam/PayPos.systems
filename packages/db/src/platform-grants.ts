@@ -23,7 +23,8 @@ export type PlatformGrantOutcome =
 
 // Refused with a message that names the email the operator typed — it is their own input, never a customer's.
 // حساب الموظفة بلا صلاحيات منصة أبداً (D8): الإيميل الاصطناعي لو كتبه الـ operator بيتردد بنفس شكل رفض المدخل.
-async function userIdOf(tx: postgres.TransactionSql, email: string): Promise<string> {
+// Shared with the coverage switch command so both tools resolve the same user or both refuse (ADR-0054 §9).
+export async function userIdOf(tx: postgres.TransactionSql, email: string): Promise<string> {
   const [row] = await tx<
     { id: string; staff: boolean }[]
   >`SELECT id, (staff_access_operation_id IS NOT NULL) AS staff FROM "user" WHERE email = ${email.toLowerCase()}`;

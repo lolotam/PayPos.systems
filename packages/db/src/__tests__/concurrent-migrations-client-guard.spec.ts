@@ -2,6 +2,7 @@ import postgres from 'postgres';
 import { afterAll, beforeAll, beforeEach, expect, it, vi } from 'vitest';
 
 import { createTestDatabase, type TestDatabase } from '../../test/test-database.ts';
+import { none } from './data-step-none.ts';
 import { applyMigrations } from '../concurrent-migrations.ts';
 
 const files = vi.hoisted(() => ({ sql: [] as string[] }));
@@ -32,13 +33,13 @@ afterAll(async () => {
 it('refuses the client methods a data step does not need', async () => {
   files.sql = ['-- pospay:data-step hold\nSELECT 1'];
   await applyMigrations(owner, 'unused', {
-    hold: async (client) => {
+    hold: none(async (client) => {
       for (const name of ['file', 'reserve', 'notify', 'listen', 'largeObject', 'end'] as const)
         expect(() => (client[name] as () => unknown)()).toThrow(
           `client.${name}() is not available`,
         );
       expect(await client`SELECT 1 AS one`).toEqual([{ one: 1 }]);
-    },
+    }),
   });
 });
 
@@ -49,12 +50,12 @@ it('aborts a query consumed with forEach after the session died', async () => {
   try {
     await expect(
       applyMigrations(owner, 'unused', {
-        hold: async (client) => {
+        hold: none(async (client) => {
           const pending = client`INSERT INTO for_each_guard_test VALUES (9)`;
           const [{ pid }] = await client<[{ pid: number }]>`SELECT pg_backend_pid() AS pid`;
           await killer`SELECT pg_terminate_backend(${pid}, 5000)`;
           await pending.forEach(() => undefined);
-        },
+        }),
       }),
     ).rejects.toThrow('Migration session lost its advisory lock; aborting');
     expect(await owner`SELECT id FROM for_each_guard_test`).toHaveLength(0);
@@ -68,7 +69,7 @@ it('aborts a query consumed with forEach after the session died', async () => {
 it('rejects a second statement or begin while one is in flight and still finishes the first', async () => {
   files.sql = ['-- pospay:data-step hold\nSELECT 1'];
   await applyMigrations(owner, 'unused', {
-    hold: async (client) => {
+    hold: none(async (client) => {
       const first = client`SELECT pg_sleep(0.2), 1 AS one`;
       const settled = Promise.resolve(first);
       await expect(client`SELECT 2 AS two`).rejects.toThrow('one at a time');
@@ -76,7 +77,7 @@ it('rejects a second statement or begin while one is in flight and still finishe
       expect(await settled).toHaveLength(1);
       expect(await client`SELECT 3 AS three`).toEqual([{ three: 3 }]);
       expect(await client.begin(async (tx) => await tx`SELECT 4 AS four`)).toEqual([{ four: 4 }]);
-    },
+    }),
   });
 });
 
@@ -87,7 +88,7 @@ it('never dispatches a statement started during an in-flight one after the backe
   try {
     await expect(
       applyMigrations(owner, 'unused', {
-        hold: async (client) => {
+        hold: none(async (client) => {
           const [{ pid }] = await client<[{ pid: number }]>`SELECT pg_backend_pid() AS pid`;
           const slow = Promise.resolve(client`SELECT pg_sleep(30)`).then(
             () => null,
@@ -101,7 +102,7 @@ it('never dispatches a statement started during an in-flight one after the backe
           const [slowError, queuedError] = await Promise.all([slow, queued]);
           expect(slowError).toBeInstanceOf(Error);
           expect(String(queuedError)).toContain('one at a time');
-        },
+        }),
       }),
     ).rejects.toThrow('Migration session lost its advisory lock; aborting');
     // owner lost its backend, so the check goes through the separate connection.
@@ -114,7 +115,7 @@ it('never dispatches a statement started during an in-flight one after the backe
 it('applies the one-at-a-time rule and the restricted members to the transaction client', async () => {
   files.sql = ['-- pospay:data-step hold\nSELECT 1'];
   await applyMigrations(owner, 'unused', {
-    hold: async (client) => {
+    hold: none(async (client) => {
       const result = await client.begin(async (tx) => {
         const first = Promise.resolve(tx`SELECT pg_sleep(0.2), 1 AS one`);
         await expect(tx`SELECT 2 AS two`).rejects.toThrow('one at a time');
@@ -123,6 +124,6 @@ it('applies the one-at-a-time rule and the restricted members to the transaction
         return await tx`SELECT 3 AS three`;
       });
       expect(result).toEqual([{ three: 3 }]);
-    },
+    }),
   });
 });
