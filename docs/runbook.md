@@ -591,17 +591,24 @@ rather than mixed into. Use the same options to finish an interrupted trial; a d
 sequence of the activation section above for the TEST company (enable → dry-run report → issue → approve). Approve
 the REVIEWED statement once from the admin, then read the single duration from the api logs: every request logs
 `request completed` with `http.method`, `http.route`, `http.status` and `http.ms` (`apps/api/src/shared/request-completion.ts`);
-on staging, filter the api service logs for the approve route AND status 200 — refusals (403/409/422) on the same
-route are fast and must be ignored, for example:
+the logged route is the route PATTERN, never the raw URL, so the approve row carries the literal route
+`/v1/businesses/:businessId/commission-statements/:period/approve` and the method `POST`. On staging, filter the api
+service logs for that method AND that route AND status 200 — the generate and review calls of the same run, and the
+refusals (403/409/422) on the approve route itself, are fast and must be ignored, for example:
 
 ```sh
-docker logs <api-container> 2>&1 | grep 'request completed' | grep 'commission-statements' | grep '"status":200'
+docker logs <api-container> 2>&1 \
+  | grep 'request completed' \
+  | grep '"method":"POST"' \
+  | grep '"route":"/v1/businesses/:businessId/commission-statements/:period/approve"' \
+  | grep '"status":200'
 ```
 
-and record the `http.ms` of that one line. The approve is one-shot; a second sample needs another prepared period
-or business — run the script again with another `--period` (one month back at most) or a second test company, then
-repeat the measurement. The target company is enabled only if the measured approval is **under 200 ms**; otherwise
-its switch stays off and the owner decides.
+Exactly one line is expected; if there are several, take the one whose time matches your approve click, and ignore any
+line whose status is not 200. Then record the `http.ms` of that line. The approve is one-shot; a second sample needs
+another prepared period or business — run the script again with another `--period` (one month back at most) or a
+second test company, then repeat the measurement. The target company is enabled only if the measured approval is
+**under 200 ms**; otherwise its switch stays off and the owner decides.
 
 **Leave or clean up:** there is no delete API; the trial data stays in the dedicated TEST company on staging, which
 is intentional — it remains available for re-measurement. Do not reuse a period that already carries trial sources
