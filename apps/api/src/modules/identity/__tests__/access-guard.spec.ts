@@ -76,6 +76,7 @@ const SESSIONS: Record<string, { userId: string; hint: string | null; platform?:
   operator: { userId: STRANGER, hint: null, platform: ['create:companies:platform'] },
 };
 const fakeAuth: AuthService = {
+  preferences: {} as AuthService['preferences'],
   personal: {} as AuthService['personal'],
   passkeys: {} as AuthService['passkeys'],
   privateView: {} as AuthService['privateView'],
