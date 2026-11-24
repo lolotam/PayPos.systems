@@ -1,5 +1,6 @@
 import { COMMISSION_COVERAGE_PROOF_VERSION } from '@pospay/domain';
 import postgres from 'postgres';
+import { onTestFinished } from 'vitest';
 
 // حاجز سباقات الاعتماد (ADR-0054 §8 و§10 اختبار 6). كل حاجز قفل حقيقي: قفل جدول يوقف الاعتماد بعد بوابة
 // التغطية (الخطوة 5) وقبل التجميد (الخطوة 8)، أو معاملة ممسوكة تختار الاختبار وقت الـCOMMIT. الاستطلاع
@@ -90,6 +91,11 @@ export async function holdFreezeGate(owner: postgres.Sql): Promise<HeldLock> {
   });
   done.catch(() => undefined);
   await took;
+  // القفل بيتفرّج عنه في كل الأحوال (حتى لو فشل تأكيد في نصّ الاختبار)، فما بيقفلش باقي الاختبارات.
+  onTestFinished(async () => {
+    release();
+    await done.catch(() => undefined);
+  });
   return { release, done };
 }
 
@@ -142,6 +148,11 @@ export async function holdTransaction(
     await released;
   });
   const pid = await pidReady;
+  // المعاملة الممسوكة بتلتزم في كل الأحوال (حتى لو فشل تأكيد في نصّ الاختبار)، فما بتقفلش باقي الاختبارات.
+  onTestFinished(async () => {
+    release();
+    await done.catch(() => undefined);
+  });
   return { pid, work: workDone, done: done.catch(() => undefined), release };
 }
 

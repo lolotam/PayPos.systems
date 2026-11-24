@@ -1,6 +1,6 @@
 import { COMMISSION_COVERAGE_PROOF_VERSION } from '@pospay/domain';
 import postgres from 'postgres';
-import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, onTestFinished } from 'vitest';
 
 import { asReplicaOwner } from '../../test/owner-cleanup.ts';
 import { createTestDatabase, type TestDatabase } from '../../test/test-database.ts';
@@ -207,6 +207,11 @@ async function hold(
     await released;
   });
   const pid = await pidReady;
+  // القفل الممسوك بيتفرّج عنه في كل الأحوال (حتى لو فشل تأكيد في نصّ الاختبار)، فما بيقفلش باقي الاختبارات.
+  onTestFinished(async () => {
+    release();
+    await done.catch(() => undefined);
+  });
   return { pid, work: workDone, done: done.catch(() => undefined), release };
 }
 
