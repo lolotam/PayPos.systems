@@ -952,3 +952,44 @@ restored database is a recovery or a fork.
 - **Mark and handler share one transaction for a matched type.** `apps/worker/src/outbox/deliver.ts:64-75`: `if (!consumer.eventTypes.includes(event.eventType)) continue;` then, inside one `withTenant` transaction, `if (await markEventConsumed(tx, consumer.id, event.id)) await consumer.handle(tx, event);`; a failing handler rolls the mark back. In place since #24 (`6fab80970`, 2026-09-23). **The actual states for the rest:** a known event type with **no registered consumer** (`KNOWN_EVENT_TYPES`, `known-event-types.ts`) is skipped, the delivery still returns `delivered`, `published_at` is set (`packages/db/src/dispatcher.ts:134`) and **no mark exists**, so the event stays **pending in the ADR-0012 count until it is handled** (the 2026-10-08 and 2026-10-22 amendments, ADR-0012 line 161 onward); an **unknown** type throws `unknownEventType()`, retries, then parks. No release marks a counted type it does not handle.
 - **Registration of the six types** (git history of `commissions.module.ts`): `ServiceSessionRecorded` and the line types in #790 (`89da91835`, 2026-11-02); `SessionTipsChanged` and `SalaryChanged` in #928 (`656a34fa2`, 2026-11-11); `PackageSaleChanged` in #1149 (`cf70114e2`, 2026-11-21). Before each date that type was published without a mark and stayed pending, so that period fails closed.
 - **No purge of `outbox` in tracked files:** a search of the application, worker and `packages/db` sources and migrations, excluding tests, finds no `DELETE` on `outbox` and no retention job for it; the dispatcher has `UPDATE` on five columns only, and ADR-0012 forbids deleting an outbox row before its consumers commit. The claim is about **tracked files**; an operator session on a live database is outside it, which is why section 5 adds the refusing triggers. The only cleanup jobs found are for files and idempotency keys.
+
+### 14. The approval latency bound for launch (PP-264, 2026-11-24; technical, Waleed only)
+
+**Context.** The activation procedure required one real approval measured on staging at under 200 ms before any
+company's `commission_statement_approval` switch is enabled, following the rule of `CLAUDE.md` §6 that anything expected
+to exceed 200 ms is a BullMQ job. The measurement was taken on 2026-11-24 on staging (API image at `b4906865c`), on the
+October 2026 statement of the `TRIAL-` test company: 10 employees, 2001 lines. The approval returned 200 with
+`http.ms` = 898 (log time `2026-11-24T15:06:40.848Z`), as the first approval after the deploy. In the same log,
+generate took 611 ms then 314 ms and review 774 ms then 319 ms. Generate and review read the same live sources and build
+the same statement as approval and freeze nothing, so about 300 ms of an approval of that size is spent before the first
+frozen row is written. Approval then inserts every frozen row (batched, 500 rows per statement, each row passing the
+insert guard trigger and the table's indexes), reads the frozen rows back, hashes them a second time to compare with
+the reviewed fingerprint, and returns them. Each of these steps visits every line, so the cost grows with the number of
+lines. No per-phase timing was measured; the split is read from the code and from the three figures above.
+
+**Decision** (Waleed, card through the project manager, 2026-11-24 ≈18:20 Kuwait, verbatim: «نقبل حد أعلى موثّق للإطلاق
+(المقترح)»). For launch, approval stays one synchronous request in one transaction. An approval of up to **3000
+statement lines in the month** is accepted up to **1.5 seconds**. This replaces the «under 200 ms» gate in
+`docs/runbook.md` and is the recorded exception in `CLAUDE.md` §6 (V3.31). It only permits enabling a company; a company
+is enabled when Waleed asks for it.
+
+**Why an exception is acceptable here.** Approval is one action per business per month, started by the owner. While it
+runs, the transaction holds that business's period locks and the coverage lock, so the worker's commission projections
+for that business wait for it; nothing else waits. The request either commits whole or rolls back whole, so the
+longer duration adds no partial state. Generate and review already exceed 200 ms at the same size.
+
+**Alternatives not taken.** (1) An optimisation inside the transaction (dropping the read-back or replacing it with
+`RETURNING`) saves an estimated 100 to 200 ms and cannot reach 200 ms, because the source read and the build alone cost
+about 300 ms at 2001 lines; it also touches the fingerprint check of FR-034. (2) Moving the freeze to a BullMQ job
+behind an `APPROVING` state follows §6 literally, but needs a migration for the new state, a 202 response, polling on
+the screen, a refusal of payment during `APPROVING`, failure and retry paths, a rule for the coverage proof across the
+gap, and rewritten race tests; it was judged too large and too risky immediately before launch.
+
+**Tasks recorded for after launch.**
+
+1. Move the freeze to a BullMQ job behind an `APPROVING` state, then remove this exception from `CLAUDE.md` §6.
+2. Measure a second size: a new test business created in November 2026, about 500 lines in November, approved in
+   December 2026 on the November statement (the API accepts only the previous calendar month, and one approval per
+   month per business).
+3. A business expected to exceed 3000 lines in a month is not enabled under this bound; it waits for task 1 or for a
+   new owner decision.

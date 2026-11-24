@@ -520,9 +520,22 @@ is refused after the state-row lock and before the generation bump, so a refused
 
 **Mandatory activation gate:** the staging measurement is a **TRIAL run done BEFORE enabling the target company**, never
 on the target company itself. Measure one real approval on staging against a large, fully consumed history and record
-the elapsed time. A company is enabled only if this measured approval is **under 200 ms**; otherwise that company's
-switch stays off and the owner decides. The staging measurement is a separate operator receipt, not proved
-by shipping this CLI or its integration tests.
+the elapsed time. **Launch bound (Waleed, PP-264, 2026-11-24; replaces the earlier «under 200 ms» gate):** an approval of
+up to **3000 statement lines in the month** is accepted as a synchronous request of up to **1.5 seconds**. A company
+whose month is expected to exceed 3000 lines, or whose measured approval exceeds 1.5 seconds, keeps its switch off and
+the owner decides. Passing the bound only permits enabling a company; a company is enabled when Waleed asks for it, not
+before. The staging measurement is a separate operator receipt, not proved by shipping this CLI or its integration
+tests.
+
+**Measurement receipt (staging, 2026-11-24, API image at `b4906865c`):** one approval of the October 2026 statement of
+the `TRIAL-` test company (10 employees, 2001 lines) returned 200 with `http.ms` = **898** (log time
+`2026-11-24T15:06:40.848Z`; 1160 ms seen by the client). It was the first approval after the deploy, so it ran cold.
+From the same log, generate took 611 ms on its first run and 314 ms on its second, and review 774 ms then 319 ms; both
+read the same live sources and build the same statement as approval, without freezing any row. The cost grows with the
+number of lines, so the bound is stated in lines. This is the recorded exception to the 200 ms rule of `CLAUDE.md` §6
+(V3.31) and ADR-0054 addendum 14. Two follow-ups are recorded there for after launch: moving the freeze to a BullMQ job
+behind an `APPROVING` state, and a second measurement of about 500 lines on a new test business (created in November
+2026, measured in December on the November statement).
 
 To close approval (also invalidates the current proof), use:
 
@@ -607,8 +620,9 @@ docker logs <api-container> 2>&1 \
 Exactly one line is expected; if there are several, take the one whose time matches your approve click, and ignore any
 line whose status is not 200. Then record the `http.ms` of that line. The approve is one-shot; a second sample needs
 another prepared BUSINESS (or company), not another period: the API accepts only the previous calendar month, so run
-the script against a second prepared test business or company, then repeat the measurement. The target company is
-enabled only if the measured approval is **under 200 ms**; otherwise its switch stays off and the owner decides.
+the script against a second prepared test business or company, then repeat the measurement. The measured approval is
+judged against the launch bound in «53-2 B1» above (up to 3000 lines in the month, up to 1.5 seconds; PP-264); beyond
+it the switch stays off and the owner decides.
 
 **Leave or clean up:** there is no delete API; the trial data stays in the dedicated TEST company on staging, which
 is intentional — it remains available for re-measurement. Do not reuse a period that already carries trial sources
