@@ -1,23 +1,27 @@
 import type {
   CommissionStatementApproveRequest,
+  MarkCommissionStatementPaidInput,
+  MarkCommissionStatementPaidResponse,
   CommissionStatementReturnInput,
   CommissionStatementReviewInput,
 } from '@pospay/contracts';
 import {
   approveStatement,
   generateStatement,
+  markStatementPaid,
   returnStatement,
   reviewStatement,
   type StatementScope,
 } from './commission-statement-client';
-import { isOpenBusinessReading, type StatementReading } from '../model/statement-reading';
+import { isClosedBusinessReading, isOpenBusinessReading, type StatementReading } from '../model/statement-reading';
 
 /** أمر كتابة على الكشف مع جسمه. */
 export type StatementCommand =
   | { kind: 'generate' }
   | { kind: 'review'; body: CommissionStatementReviewInput }
   | { kind: 'return'; body: CommissionStatementReturnInput }
-  | { kind: 'approve'; body: CommissionStatementApproveRequest };
+  | { kind: 'approve'; body: CommissionStatementApproveRequest }
+  | { kind: 'pay'; body: MarkCommissionStatementPaidInput };
 
 /**
  * طلب التنفيذ: الأمر، وهوية فتحة الحوار اللي طلعته (مفتاح المحاولة بيعيش معاها بس)، والنسخة اللي المستخدم
@@ -67,9 +71,20 @@ function returned(cached: StatementReading) {
   };
 }
 
+/** الشهر المعتمد بعد الصرف: حالة PAID وبيانات الصرف من رد السيرفر نفسه، لأن رد الصرف مش الكشف كله. */
+function paid(cached: StatementReading, result: MarkCommissionStatementPaidResponse) {
+  if (!isClosedBusinessReading(cached)) return undefined;
+  const { paid_on, paid_method, paid_note, paid_at, paid_by, paid_total, payments } = result;
+  return {
+    ...cached,
+    status: 'PAID' as const,
+    payment: { paid_on, paid_method, paid_note, paid_at, paid_by, paid_total, payments },
+  };
+}
+
 /**
  * ينفّذ الأمر ويرجّع الكشف زي ما بقى بعده من رد الكتابة نفسه، عشان الشاشة ما تستناش قراءة تانية قد تفشل:
- * العمل والاعتماد بيرجّعوا الكشف كله، والمراجعة والإرجاع بيرجّعوا النتيجة بس فبنعدّل الكشف المحفوظ بيها.
+ * العمل والاعتماد بيرجّعوا الكشف كله، والمراجعة والإرجاع والصرف بيرجّعوا النتيجة بس فبنعدّل الكشف المحفوظ بيها.
  *
  * @param target هوية الشاشة والشهر
  * @param key مفتاح المحاولة
@@ -89,6 +104,10 @@ export async function executeStatementCommand(
   if (command.kind === 'review') {
     const result = await reviewStatement(scope, period, key, command.body);
     return cached === undefined ? undefined : reviewed(cached, result);
+  }
+  if (command.kind === 'pay') {
+    const result = await markStatementPaid(scope, period, key, command.body);
+    return cached === undefined ? undefined : paid(cached, result);
   }
   await returnStatement(scope, period, key, command.body);
   return cached === undefined ? undefined : returned(cached);

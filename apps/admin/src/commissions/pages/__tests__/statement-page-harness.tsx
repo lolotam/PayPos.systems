@@ -14,11 +14,13 @@ export interface ApiMock {
 
 /** يركّب الصفحة بعميل استعلامات جديد، ويرجّع نتيجة render. */
 export function renderStatementPage() {
-  return render(
-    <QueryClientProvider client={createQueryClient()}>
+  const client = createQueryClient();
+  const view = render(
+    <QueryClientProvider client={client}>
       <CommissionStatementPage companyId={COMPANY} userId={USER} businessId={BUSINESS_ID} />
     </QueryClientProvider>,
   );
+  return { ...view, client };
 }
 
 /** القراءة بترجّع الرد الحالي المتغيّر من الاختبار نفسه، عشان القراءة بعد الأمر تشوف الحالة الجديدة. */

@@ -13,9 +13,23 @@ const CODE_KEYS: Record<string, MessageKey> = {
   COMMISSION_PERIOD_NOT_DRAFT: 'commissionStatementScreen.errNotDraft',
   COMMISSION_PERIOD_NOT_ENDED: 'commissionStatementScreen.errNotEnded',
   COMMISSION_RETURN_REASON_INVALID: 'commissionStatementScreen.errReturnReason',
+  COMMISSION_STATEMENT_NOT_APPROVED: 'commissionStatementScreen.errNotApproved',
+  COMMISSION_STATEMENT_ALREADY_PAID: 'commissionStatementScreen.errAlreadyPaid',
+  COMMISSION_PAID_ON_INVALID: 'commissionStatementScreen.errPaidOnInvalid',
+  COMMISSION_PAYABLE_TOO_LARGE: 'commissionStatementScreen.errPayableTooLarge',
+  VALIDATION_FAILED: 'commissionStatementScreen.errInvalidRequest',
+  IDEMPOTENCY_KEY_REUSED: 'commissionStatementScreen.errKeyReused',
   FORBIDDEN: 'commissionStatementScreen.errForbidden',
   IDEMPOTENCY_KEY_IN_PROGRESS: 'commissionStatementScreen.errBusy',
 };
+
+/** رفض معناه إن حالة الكشف اتغيّرت عن اللي المستخدم شافه، فالحل تحميله من جديد. */
+const RELOAD_CODES: ReadonlySet<string> = new Set([
+  'COMMISSION_FINGERPRINT_STALE',
+  'COMMISSION_STATEMENT_NOT_APPROVED',
+  'COMMISSION_STATEMENT_ALREADY_PAID',
+  'IDEMPOTENCY_KEY_REUSED',
+]);
 
 /** مشكلة موقوفة جاية في تفاصيل الرفض: الموظفة وسبب المنع. */
 export interface FailureIssue {
@@ -72,7 +86,7 @@ export function statementFailure(error: unknown, locale: Locale): StatementFailu
         : t(locale, 'commissionStatementScreen.errGeneric'),
     issues: issuesOf(body.details),
     lineCount: lineCountOf(body.details),
-    stale: code === 'COMMISSION_FINGERPRINT_STALE',
+    stale: code !== null && RELOAD_CODES.has(code),
   };
 }
 
