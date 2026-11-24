@@ -1,4 +1,4 @@
-import { createStaffAccessDatabase, staffSyntheticEmail, StaffPhoneTakenError } from '@pospay/db';
+import { createStaffAccessDatabase, StaffPhoneTakenError } from '@pospay/db';
 import type { IdGenerator } from '@pospay/db';
 
 /**
@@ -89,9 +89,4 @@ export function createStaffUserAccess(options: {
     },
     close: () => database.close(),
   };
-}
-
-/** بريد الموظفة الاصطناعي لمعرّف عملية — للفحص في مسارات الإصدار والاختبارات فقط. */
-export function staffUserEmail(operationId: string): string {
-  return staffSyntheticEmail(operationId);
 }

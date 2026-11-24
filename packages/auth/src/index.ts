@@ -56,7 +56,6 @@ export { approvePhoneBinding } from './approve-phone-binding.ts';
 export {
   createStaffUserAccess,
   STAFF_USER_RESERVED_DOMAIN,
-  staffUserEmail,
   type StaffUserAccess,
 } from './staff-access-users.ts';
 
