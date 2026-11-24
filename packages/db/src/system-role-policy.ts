@@ -62,6 +62,8 @@ const deviceForbidden = [
   'read:commissions:business',
   // الجهاز لا ينشئ كشف العمولة ولا يراجعه أبداً؛ المراجعة لتسجيل دخول إداري فردي (CS-Q2).
   'review:commissions:business',
+  // الجهاز لا يعتمد كشف العمولة أبداً؛ الاعتماد لتسجيل دخول إداري فردي (CS-Q5).
+  'approve:commissions:business',
   'manage:employee-number:company',
   'view:notifications:business',
   'create:companies:platform',

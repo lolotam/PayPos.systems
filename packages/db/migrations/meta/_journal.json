@@ -1727,15 +1727,29 @@
     {
       "idx": 248,
       "version": "7",
-      "when": 1795483366765,
-      "tag": "0248_2026-11-24_staff-access-schema",
+      "when": 1795465529876,
+      "tag": "0248_2026-11-23_commission-statement-returns",
       "breakpoints": true
     },
     {
       "idx": 249,
       "version": "7",
-      "when": 1795483388979,
-      "tag": "0249_2026-11-24_staff-access-rls-and-seed",
+      "when": 1795465563375,
+      "tag": "0249_2026-11-23_approve-commissions-permission",
+      "breakpoints": true
+    },
+    {
+      "idx": 250,
+      "version": "7",
+      "when": 1795489139979,
+      "tag": "0250_2026-11-24_staff-access-schema",
+      "breakpoints": true
+    },
+    {
+      "idx": 251,
+      "version": "7",
+      "when": 1795489168201,
+      "tag": "0251_2026-11-24_staff-access-rls-and-seed",
       "breakpoints": true
     }
   ]

@@ -23,6 +23,8 @@ import { CanonicalSha256FingerprintHasher } from './persistence/canonical-sha256
 import { createCommissionStatementReader } from './persistence/commission-statement-reader.ts';
 import { createCommissionStatementGenerateTransactions } from './persistence/drizzle-commission-statement-generate-transactions.ts';
 import type { CommissionStatementGenerateReaders } from './persistence/commission-statement-generate-scope.ts';
+import { createCommissionStatementReviewTransactions } from './persistence/drizzle-commission-statement-review-transactions.ts';
+import type { CommissionStatementReviewReaders } from './persistence/commission-statement-review-scope.ts';
 import type { CommissionStatementProviders } from './ports/commission-statement-providers.port.ts';
 import {
   createCommissionServiceOverrideListReaders,
@@ -53,6 +55,8 @@ import { CreateCommissionServiceOverrideUseCase } from './use-cases/create-commi
 import { GetCommissionEstimateUseCase } from './use-cases/get-commission-estimate/get-commission-estimate.usecase.ts';
 import { GenerateCommissionStatementUseCase } from './use-cases/generate-statement/generate-statement.usecase.ts';
 import { GetCommissionStatementUseCase } from './use-cases/get-statement/get-statement.usecase.ts';
+import { ReviewCommissionStatementUseCase } from './use-cases/review-statement/review-statement.usecase.ts';
+import { ReturnCommissionStatementUseCase } from './use-cases/return-statement/return-statement.usecase.ts';
 
 export const commissionsControllers = [
   CommissionPlanVersionsController,
@@ -108,6 +112,14 @@ export interface CommissionStatementBindings {
   readonly providers: CommissionStatementProviders;
   readonly reviewAccess: CommissionStatementGenerateReaders['reviewAccess'];
   readonly businessCalendar: CommissionStatementGenerateReaders['businessCalendar'];
+  /** فحص الإرجاع: صاحب مراجعة أو صاحب اعتماد، وكلهم قارئ على مستوى النشاط كله (FR-031). */
+  readonly returnAccess: CommissionStatementReviewReaders['returnAccess'];
+  /** عضوية الفاعل اللي بتتسجل مع المراجعة أو الإرجاع (FR-029، FR-031). */
+  readonly actorMembership: CommissionStatementReviewReaders['actorMembership'];
+  /** أصحاب صلاحية الاعتماد: مستلمو إشعار «الكشف مستني الاعتماد» (FR-030). */
+  readonly approvers: CommissionStatementReviewReaders['approvers'];
+  /** قواعد التنبيه: بتشغيل النوع وقناته بس (DR-008). */
+  readonly alertRules: CommissionStatementReviewReaders['alertRules'];
 }
 
 /** مزودو الكشف: القراءة (GET) والإنشاء (generate) على نفس مزودي المصادر ونفس منفذ التجزئة. */
@@ -143,6 +155,41 @@ function commissionStatementProviders(
               hasher,
               clock,
             ),
+    },
+    ...commissionStatementReviewProviders(database, ids, statement, clock, hasher),
+  ];
+}
+
+/** مزودو المراجعة والإرجاع: نفس حد المعاملة ونفس القراء (52-1). */
+function commissionStatementReviewProviders(
+  database: TenantWrappers | undefined,
+  ids: IdGenerator,
+  statement: CommissionStatementBindings,
+  clock: Clock,
+  hasher: CanonicalSha256FingerprintHasher,
+): Provider[] {
+  const transactions = (db: TenantWrappers) =>
+    createCommissionStatementReviewTransactions(db, ids, {
+      businessCalendar: statement.businessCalendar,
+      reviewAccess: statement.reviewAccess,
+      returnAccess: statement.returnAccess,
+      providers: statement.providers,
+      actorMembership: statement.actorMembership,
+      approvers: statement.approvers,
+      alertRules: statement.alertRules,
+    });
+  return [
+    {
+      provide: ReviewCommissionStatementUseCase,
+      useValue:
+        database === undefined
+          ? null
+          : new ReviewCommissionStatementUseCase(transactions(database), hasher, clock),
+    },
+    {
+      provide: ReturnCommissionStatementUseCase,
+      useValue:
+        database === undefined ? null : new ReturnCommissionStatementUseCase(transactions(database), clock),
     },
   ];
 }

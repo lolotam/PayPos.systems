@@ -52,6 +52,7 @@ export const OWNER_GRANTED_PERMISSIONS = [
   'manage:commission-plans:business',
   'read:commissions:business',
   'review:commissions:business',
+  'approve:commissions:business',
 ] as const satisfies readonly PolicyPermission[];
 
 /** التفويض الشخصي للجدول والقوالب يخص الأدوار البشرية؛ دور الجهاز محظور في كل خانة. */
@@ -147,6 +148,8 @@ export const ROLE_DEFAULTS = {
   'read:commissions:business': [...managers, 'accountant', 'branch_manager'],
   // CS-Q2b = PP-25.1: إنشاء الكشف ومراجعته للمالك والمدير العام ومدير النشاط افتراضياً، والمالك وحده يمنحها أو يسحبها.
   'review:commissions:business': managers,
+  // CS-Q5 (2026-10-21): اعتماد كشف العمولة للمالك وحده افتراضياً، والمالك وحده يمنحها أو يسحبها.
+  'approve:commissions:business': ['owner'],
   'view:notifications:business': managers,
   'manage:employees:business': managers,
   'read:services:business': managers,

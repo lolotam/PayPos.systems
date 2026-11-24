@@ -1,4 +1,26 @@
 import type { CommissionStatementStatus } from './plan-periods.ts';
+import { CommissionPlanVersionError } from './errors.ts';
+
+/** أقصى طول لسبب الإرجاع بالأحرف (code points)، نفس حدّ CHECK القاعدة في سطر الإرجاع (FR-031). */
+const RETURN_REASON_MAX_LENGTH = 500;
+
+/**
+ * يطبّع سبب إرجاع الكشف ويفرض قاعدته (FR-031): قصّ الفراغات، ثم من حرف إلى 500 حرف (code points،
+ * بنفس عدّ `char_length` في CHECK القاعدة)، ولا يقبل أي محرف NUL لأن عمود النص في PostgreSQL
+ * ما بيقدرش يخزّنه فكان هيكسر الكتابة بخطأ غير متوقع. أي سبب فارغ بعد القص أو أطول من الحدّ
+ * أو فيه NUL بيُرفض بـ COMMISSION_RETURN_REASON_INVALID قبل أي قفل، فلا تُكتب أي حقيقة.
+ *
+ * @param reason السبب كما وصل من الطلب
+ * @returns السبب بعد القصّ
+ */
+export function normalizeStatementReturnReason(reason: string): string {
+  const trimmed = reason.trim();
+  const length = Array.from(trimmed).length;
+  if (length < 1 || length > RETURN_REASON_MAX_LENGTH || trimmed.includes('\0')) {
+    throw new CommissionPlanVersionError('COMMISSION_RETURN_REASON_INVALID');
+  }
+  return trimmed;
+}
 
 /**
  * حقائق مدخل خطة الإرجاع، يسلّمها المتصل بعد التحقق والقفل.

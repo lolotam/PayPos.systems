@@ -141,6 +141,20 @@ it('inventory rejects excess column and table grants', async () => {
   await global.ping();
 });
 
+// الجسر التراجعي (PR قبل 075 C1a): بعد migration 0248 بتحمل صلاحيات الإيميل على pospay_notifications،
+// والصورة القديمة لازم تفضل شغالة — الـ ping بيتسامح مع أي صلاحية platform_email_* ومايقعش.
+it('the rollback bridge tolerates the email grants that migration 0248 adds', async () => {
+  await owner`CREATE TABLE platform_email_feedback_inbox (id uuid PRIMARY KEY)`;
+  try {
+    await owner`GRANT SELECT, INSERT ON platform_email_feedback_inbox TO pospay_notifications`;
+    await owner`GRANT UPDATE (id) ON platform_email_feedback_inbox TO pospay_notifications`;
+    await expect(global.ping()).resolves.toBeUndefined();
+  } finally {
+    await owner`DROP TABLE platform_email_feedback_inbox`;
+  }
+  await global.ping();
+});
+
 it('readiness rejects missing or unvalidated constraint', async () => {
   try {
     await owner`ALTER TABLE platform_whatsapp_suppressions DROP CONSTRAINT platform_whatsapp_suppressions_null_only`;

@@ -157,6 +157,8 @@ export const ar: Catalog = {
     never: 'بلا انتهاء',
     role: 'الدور',
     choosePermission: 'اختر الصلاحية',
+    // FR-029b: صلاحية المراجعة والاعتماد بلا قراءة النشاط كله مالهاش أثر، فالشاشة بتحذّر من كودين.
+    commissionBusinessWideOnly: 'الصلاحية دي مالهاش أثر غير مع قراءة النشاط كله.',
     active: 'ساري',
     expired: 'منتهي',
   },
