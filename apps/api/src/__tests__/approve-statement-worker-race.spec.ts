@@ -35,9 +35,9 @@ import {
  *   assertFingerprintsCurrent(command, source.statement, computed);   (الخطوة 6)
  *   if ((await scope.countPendingEvents(cutoff)) > 0) refuse('COMMISSION_UPDATES_PENDING');   (الخطوة 7)
  * يعني: البصمة القديمة بتترفض قبل عدّاد الأحداث المعلّقة. فالحدث غير المستهلك بيخلي الاعتماد يرفض بـ
- * 409 COMMISSION_UPDATES_PENDING طالما المصدر ما اتغيّرش؛ وبعد ما المستهلك يكتب إسقاطه بيتغيّر المصدر، فالاعتماد
- * القديم يرفض بـ 409 COMMISSION_FINGERPRINT_STALE لحد ما المراجع يعيد المراجعة — وبعدها يعتمد، والحدث لازم
- * يكون وصل للصفوف المجمّدة مرة واحدة بالعلامة نفسها.
+ * 409 COMMISSION_UPDATES_PENDING طالما المصدر ما اتغيّرش؛ وبعد ما المستهلك يكتب إسقاطه بيعيد الشهر إلى DRAFT،
+ * فالاعتماد القديم يرفض بـ 409 COMMISSION_STATEMENT_NOT_REVIEWED لحد ما المراجع يعيد المراجعة — وبعدها يعتمد،
+ * والحدث لازم يكون وصل للصفوف المجمّدة مرة واحدة بالعلامة نفسها.
  * الملف هنا (مش جوّه موديول commissions) لأن اختبار بيستهلك موديول الـworker، وحدّ الموديول بيمر على الاستيراد
  * المتقاطع (نفس سبب commission-line-producer-delivery.spec.ts).
  */
@@ -174,8 +174,8 @@ function deliverPausedAfterMark(event: ClaimedEvent): Delivery {
 interface Race {
   /** رد الاعتماد والحدث لسه غير مستهلك. */
   readonly pending: { status: number; code: string | undefined };
-  /** رد الاعتماد بعد ما المستهلك كتب إسقاطه. */
-  readonly stale: { status: number; code: string | undefined };
+  /** رد الاعتماد بعد ما المستهلك أعاد الشهر إلى DRAFT. */
+  readonly reopened: { status: number; code: string | undefined };
   /** رد الاعتماد بعد إعادة المراجعة. */
   readonly approved: { status: number };
   /** البصمة اللي اتجمّدت مع الكشف. */
@@ -190,7 +190,7 @@ interface Race {
 
 /**
  * يسبّق الاعتماد بالمستهلك: الطلب شغّال جوه معاملة الاستهلاك (العلامة مكتوبة وغير ملتزمة)، فالاعتماد بيقرأ
- * الحدث كأنه لسه معلّق فيرفض؛ وبعد ما المستهلك يلتزم بيتغيّر المصدر فالاعتماد القديم يرفض ببصمة قديمة؛
+ * الحدث كأنه لسه معلّق فيرفض؛ وبعد ما المستهلك يلتزم يعيد الشهر إلى DRAFT فيرفض الاعتماد القديم لأنه مش مراجع؛
  * وبعد إعادة المراجعة يعتمد والصفوف المجمّدة بتطلع مرة واحدة.
  *
  * @param event الحدث المحسوب نوعه من الستة المحسوبة
@@ -224,10 +224,10 @@ async function raceTheWorker(event: ClaimedEvent): Promise<Race> {
   }
   await delivery.delivered;
 
-  const stale = await approve(f, approver.cookie, `worker-race-stale-${event.id}`, first);
-  const staleOutcome = {
-    status: stale.status,
-    code: (stale.body as { code?: string }).code,
+  const reopened = await approve(f, approver.cookie, `worker-race-reopened-${event.id}`, first);
+  const reopenedOutcome = {
+    status: reopened.status,
+    code: (reopened.body as { code?: string }).code,
   };
   await resetStatementToDraft(f);
   const second = await reviewedStatement(f, approver);
@@ -242,7 +242,7 @@ async function raceTheWorker(event: ClaimedEvent): Promise<Race> {
 
   return {
     pending,
-    stale: staleOutcome,
+    reopened: reopenedOutcome,
     approved: { status: approved.status },
     frozenFingerprint: (statement?.['input_fingerprint'] as string) ?? null,
     marks: marks[0]?.['total'] as number,
@@ -261,7 +261,7 @@ describe('the approval racing the worker consumer (CM-36)', () => {
     const race = await raceTheWorker(event);
 
     expect(race.pending).toEqual({ status: 409, code: 'COMMISSION_UPDATES_PENDING' });
-    expect(race.stale).toEqual({ status: 409, code: 'COMMISSION_FINGERPRINT_STALE' });
+    expect(race.reopened).toEqual({ status: 409, code: 'COMMISSION_STATEMENT_NOT_REVIEWED' });
     expect(race.approved.status).toBe(200);
     expect(race.frozenFingerprint).not.toBeNull();
     expect(race.marks).toBe(1);
@@ -278,7 +278,7 @@ describe('the approval racing the worker consumer (CM-36)', () => {
     const race = await raceTheWorker(event);
 
     expect(race.pending).toEqual({ status: 409, code: 'COMMISSION_UPDATES_PENDING' });
-    expect(race.stale).toEqual({ status: 409, code: 'COMMISSION_FINGERPRINT_STALE' });
+    expect(race.reopened).toEqual({ status: 409, code: 'COMMISSION_STATEMENT_NOT_REVIEWED' });
     expect(race.approved.status).toBe(200);
     expect(race.frozenFingerprint).not.toBeNull();
     expect(race.marks).toBe(1);
