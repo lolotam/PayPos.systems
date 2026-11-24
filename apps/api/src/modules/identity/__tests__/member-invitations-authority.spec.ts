@@ -10,10 +10,13 @@ import { systemClock } from '../../../shared/adapters/system-clock.ts';
 
 // سلطة الدعوة (AC-G1-4، P1-a): مالك كانوني بس، والفحص بيتعيد جوه معاملة الإتمام ومسار
 // إعادة الإصدار؛ والسباق على نفس الإيميل بأدوار مختلفة بيسيب عضوية واحدة بدور الفايز (P1-b).
+// وحجز الرابط الأول بيعيد فحص نفس السلطة جوه معاملته (AC-ACT-19).
 const ids = systemUuidV7();
 let h: Harness;
 // برج بين فتح الدعوة وإتمامها: بعد ما معاملة الفتح تكوميت بيفعّل الخطّاف مرة واحدة (P1-a).
 let betweenSteps: (() => Promise<void>) | null = null;
+// برج تاني بعد ما العضوية تتكتب وقبل حجز الرابط: صف الدعوة بقى له عضوية ولسه ما اتحجزش (AC-ACT-19).
+let beforeClaim: (() => Promise<void>) | null = null;
 const withBarrier = (db: TenantWrappers): TenantWrappers => ({
   ...db,
   withTenant: async (companyId, work, options) => {
@@ -25,6 +28,15 @@ const withBarrier = (db: TenantWrappers): TenantWrappers => ({
       if (pending !== undefined) {
         betweenSteps = null;
         await hook();
+      }
+    }
+    const claimHook = beforeClaim;
+    if (claimHook !== null) {
+      const [written] = await h.owner`
+        SELECT 1 FROM member_invitations WHERE company_id = ${companyId} AND membership_id IS NOT NULL AND link_claimed_at IS NULL`;
+      if (written !== undefined) {
+        beforeClaim = null;
+        await claimHook();
       }
     }
     return result;
@@ -237,6 +249,28 @@ describe('P1-a — the barrier between open and complete inside ONE request', ()
     expect(
       await h.owner`SELECT count(*)::int AS n FROM memberships WHERE company_id = ${company}`,
     ).toEqual([{ n: 1 }]);
+  });
+});
+
+describe('AC-ACT-19 — the first link claim re-checks the owner', () => {
+  it('an owner who loses authority after the membership commits gets 403 and the link stays unclaimed', async () => {
+    const company = await h.onboard(ownerA2.cookie, 'G1X Claim Authority');
+    // السلطة بتتسلب بعد ما العضوية تتكتب وقبل ما الرابط يتحجز: DENY على صلاحية الدعوة.
+    beforeClaim = async () => {
+      await denyInvitations(company, ownerA2.userId);
+    };
+    const response = await invite(
+      ownerA2.cookie,
+      company,
+      bodyFor(company, 'claim-authority@example.test'),
+    );
+    beforeClaim = null;
+    expect([response.status, errorEnvelope.parse(response.body).code]).toEqual([403, 'FORBIDDEN']);
+    expect(response.body['set_password_link']).toBeUndefined();
+    expect(
+      await h.owner`SELECT link_claimed_at IS NULL AS unclaimed FROM member_invitations
+        WHERE company_id = ${company}`,
+    ).toEqual([{ unclaimed: true }]);
   });
 });
 
