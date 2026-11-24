@@ -41,7 +41,7 @@ function paymentRows(payment: ClosedStatementPayment, visible: ReadonlySet<strin
 /**
  * يبني رد الكشف المغلق من صفوفه المجمّدة وحدها (FR-025، FR-033): مفيش حساب حي ولا مصدر خارج
  * `commission_statement_lines`. قارئ النشاط كله بياخد البصمتين المجمّدتين وكل بيانات الصرف، وقارئ الفروع بياخد صفوفه
- * المرئية بس حسب `attachedBranchIds` المجمّدة، وصرف موظفاتها المرئيات مع تاريخ الصرف وطريقته، من غير أي حقل على
+ * المرئية بس حسب `attachedBranchIds` المجمّدة، وصرف موظفاتها المرئيات بالكامل بس مع تاريخ الصرف وطريقته، من غير أي حقل على
  * الكشف كله (CM-28c): لا مجموع ولا دافع ولا ملاحظة ولا وقت تسجيل.
  *
  * @param context الصفوف المجمّدة وبيانات الاعتماد والصرف والنطاق
@@ -59,7 +59,9 @@ export function closedStatementView(
   }).map(employeeContract);
   const { payment } = context;
   if (!context.scope.businessWide) {
-    const visible = new Set(employees.map((employee) => employee.employee_id));
+    const visible = new Set(
+      employees.filter((employee) => !employee.partial).map((employee) => employee.employee_id),
+    );
     return {
       reader_scope: 'BRANCHES',
       business_id: context.businessId,

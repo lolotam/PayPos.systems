@@ -4275,6 +4275,7 @@ export interface components {
             approved_at: string;
             input_fingerprint: string;
             statement_fingerprint: string;
+            /** @default null */
             payment: components["schemas"]["CommissionClosedStatementPayment"] | null;
             employees: components["schemas"]["CommissionStatementEmployee"][];
         };

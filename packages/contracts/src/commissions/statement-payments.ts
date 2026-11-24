@@ -18,12 +18,18 @@ export const commissionStatementPaidMethod = z
   .meta({ id: 'CommissionStatementPaidMethod' });
 
 /** طلب تسجيل صرف كشف شهر: الطريقة وتاريخ الصرف اللي بيصرّحه الدافع (FR-037)،
- * والملاحظة اختيارية بنفس حد ملاحظة الإجازة (staff/leave.ts:11: 500 حرف). */
+ * والملاحظة اختيارية بنفس حد ملاحظة الإجازة (staff/leave.ts:11: 500 حرف)، ومن غير محرف NUL اللي PostgreSQL بيرفضه. */
 export const markCommissionStatementPaidInput = z
   .strictObject({
     paid_method: commissionStatementPaidMethod,
     paid_on: commissionPlanDate,
-    paid_note: z.string().trim().min(1).max(500).optional(),
+    paid_note: z
+      .string()
+      .trim()
+      .min(1)
+      .max(500)
+      .refine((note) => !note.includes('\u0000'))
+      .optional(),
   })
   .meta({ id: 'MarkCommissionStatementPaidInput' });
 

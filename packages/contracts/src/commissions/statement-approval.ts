@@ -45,7 +45,7 @@ export const commissionClosedStatementPayment = responseObject({
 }).meta({ id: 'CommissionClosedStatementPayment' });
 
 /**
- * بيانات صرف كشف PAID لقارئ فروع: تاريخ الصرف وطريقته وصفوف موظفاتها المرئية بس. من غير المجموع ولا الدافع ولا
+ * بيانات صرف كشف PAID لقارئ فروع: تاريخ الصرف وطريقته وصفوف الموظفات المرئية بالكامل بس. من غير المجموع ولا الدافع ولا
  * الملاحظة ولا وقت التسجيل لأنها حقول على الكشف كله وبتتحسب على فروع مش مرئية ليها (CM-28c).
  */
 export const commissionClosedStatementBranchPayment = responseObject({
@@ -56,7 +56,7 @@ export const commissionClosedStatementBranchPayment = responseObject({
 
 /**
  * كشف شهر مغلق لقارئ على مستوى النشاط كله، من صفوفه المجمّدة وحدها (FR-025، FR-033): من غير حساب حي ولا
- * بصمة حالية. بصمتا الاعتماد هما اللي اتجمّدتا، والاعتماد نفسه بيرجّع نفس الشكل.
+ * بصمة حالية. بصمتا الاعتماد هما اللي اتجمّدتا، والاعتماد نفسه بيرجّع نفس الشكل. غياب الصرف في رد اعتماد مخزّن قديم بيتحوّل إلى null.
  */
 export const commissionClosedStatementView = responseObject({
   reader_scope: z.literal('BUSINESS'),
@@ -66,7 +66,7 @@ export const commissionClosedStatementView = responseObject({
   approved_at: z.string().datetime({ offset: true }),
   input_fingerprint: fingerprint,
   statement_fingerprint: fingerprint,
-  payment: commissionClosedStatementPayment.nullable(),
+  payment: commissionClosedStatementPayment.nullable().default(null),
   employees: z.array(commissionStatementEmployee),
 }).meta({ id: 'CommissionClosedStatementView' });
 
