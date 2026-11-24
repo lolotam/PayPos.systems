@@ -141,6 +141,20 @@ it('inventory rejects excess column and table grants', async () => {
   await global.ping();
 });
 
+// الجسر التراجعي (PR قبل 075 C1a): بعد migration 0248 بتحمل صلاحيات الإيميل على pospay_notifications،
+// والصورة القديمة لازم تفضل شغالة — الـ ping بيتسامح مع أي صلاحية platform_email_* ومايقعش.
+// صلاحيات الإيميل بتاعة migration 0250 موجودة فعلًا على الجداول من الميجريشن نفسه، وفحص الاتحاد
+// بيعدّها بالظبط: ده إثبات إن الصورة الجديدة مايحتاجش فلتر الجسر — الفحص الموحّد بيحصي الصنفين.
+it('the email grants of migration 0250 satisfy the union inventory', async () => {
+  const grants = await owner`
+    SELECT c.relname || ':' || p AS grant FROM pg_class c,
+      unnest(ARRAY['SELECT','INSERT','UPDATE','DELETE','TRUNCATE','REFERENCES','TRIGGER']) p
+    WHERE c.relnamespace = 'public'::regnamespace AND c.relname LIKE 'platform_email_%'
+      AND has_table_privilege('pospay_notifications', c.oid, p)`;
+  expect(grants.length).toBeGreaterThan(0);
+  await expect(global.ping()).resolves.toBeUndefined();
+});
+
 it('readiness rejects missing or unvalidated constraint', async () => {
   try {
     await owner`ALTER TABLE platform_whatsapp_suppressions DROP CONSTRAINT platform_whatsapp_suppressions_null_only`;
