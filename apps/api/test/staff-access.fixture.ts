@@ -12,10 +12,8 @@ const sink = new Writable({
     done();
   },
 });
-/** سطور الأخطاء الأخيرة من سجل الـ API لتشخيص أي 500 داخل الاختبارات. */
+/** سجل API المحجوب عن stdout لفحص عدم تسريب الهاتف أو الرقم السري. */
 export const capturedLogs = () => logLines.join('\n');
-export const recentErrorLogs = () =>
-  logLines.filter((line) => line.includes('"level":50')).slice(-3);
 
 /** دوال النظام بمعرّفاتها الثابتة لإنشاء عضوية مدير فرع حقيقية. */
 export const systemRoleId = (code: string): string => {
@@ -58,7 +56,6 @@ export async function staffAccessFixture(
       body: { name_en: name, plan_id: (await import('@pospay/db')).PROVISIONAL_PLAN_ID },
     });
     if (res.status !== 201) {
-      console.log('ONBOARD FAILED', name, res.status, JSON.stringify(res.body));
       throw new Error(`onboarding failed with ${res.status}`);
     }
     return res.body['id'] as string;
@@ -139,13 +136,6 @@ export const grant = (
       cookie,
       company: f.company,
       body: { phone, phone_confirmed: true, role: 'staff', pin: '1234', ...body },
-    })
-    .then((response: { status: number; body: unknown }) => {
-      if (response.status >= 500) {
-        console.log('GRANT 500 BODY:', JSON.stringify(response.body));
-        console.log('RECENT ERROR LOGS:', recentErrorLogs().join('\n').slice(0, 2400));
-      }
-      return response;
     });
 
 export const readState = (f: Fixture, employeeId: string, cookie = f.ownerCookie) =>
@@ -173,7 +163,11 @@ function observeGrantFailures(h: Harness): void {
     } catch (error) {
       const code =
         error instanceof Error && /^[A-Z_]+$/.test(error.message) ? error.message : '[withheld]';
-      console.log('STAFF_ACCESS_DIAGNOSTIC', code);
+      const cause = error instanceof Error && 'cause' in error ? error.cause : error;
+      const dbCode =
+        typeof cause === 'object' && cause !== null && 'code' in cause &&
+        typeof cause.code === 'string' && /^[A-Z0-9_]+$/.test(cause.code) ? cause.code : '';
+      console.log('STAFF_ACCESS_DIAGNOSTIC', code, dbCode);
       throw error;
     }
   };

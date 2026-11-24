@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import { afterAll, beforeAll, expect, it } from 'vitest';
 import { systemUuidV7 } from '@pospay/ids';
 import {
@@ -24,8 +25,7 @@ it.each(['inside', 'outside'])(
   async (where) => {
     const phone = nextPhone(f);
     const userId = await phoneHolder(where, phone);
-    const pins = await f.h.owner`SELECT * FROM cashier_pins WHERE user_id=${userId}`;
-    const sessions = await f.h.owner`SELECT * FROM session WHERE user_id=${userId}`;
+    const before = await holderState(userId);
     const employee = await addEmployee(
       f,
       'Refused ' + where,
@@ -36,10 +36,9 @@ it.each(['inside', 'outside'])(
     const response = await grant(f, employee, phone, f.ownerCookie, { pin });
     expect(response).toMatchObject({ status: 409, body: { code: 'STAFF_ACCESS_PHONE_TAKEN' } });
     expect(JSON.stringify(response.body)).not.toContain(userId);
-    expect(await f.h.owner`SELECT * FROM cashier_pins WHERE user_id=${userId}`).toEqual(pins);
-    expect(await f.h.owner`SELECT * FROM session WHERE user_id=${userId}`).toEqual(sessions);
-    expect(capturedLogs()).not.toContain(phone);
-    expect(capturedLogs()).not.toContain(pin);
+    expect(await holderState(userId)).toEqual(before);
+    expect(capturedLogs().includes(phone), 'Full phone is absent from logs').toBe(false);
+    expect(capturedLogs().includes(pin), 'PIN is absent from logs').toBe(false);
   },
 );
 
@@ -61,4 +60,12 @@ async function phoneHolder(where: string, phone: string): Promise<string> {
     VALUES (${company},${ids.newId()},${userId},${hash},now(),false)`;
   expect(await f.h.owner`SELECT id FROM session WHERE user_id=${userId}`).not.toHaveLength(0);
   return userId;
+}
+
+async function holderState(userId: string) {
+  const pins = await f.h.owner`SELECT * FROM cashier_pins WHERE user_id=${userId} ORDER BY id`;
+  const sessions = await f.h.owner`SELECT * FROM session WHERE user_id=${userId} ORDER BY id`;
+  const fingerprint = (rows: unknown) =>
+    createHash('sha256').update(JSON.stringify(rows)).digest('hex');
+  return { pins: fingerprint(pins), sessions: fingerprint(sessions) };
 }

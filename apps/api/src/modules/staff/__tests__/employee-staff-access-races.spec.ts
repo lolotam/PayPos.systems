@@ -172,7 +172,7 @@ it('P1-3 real employee edit overlaps grant at a barrier without lock inversion',
 });
 
 it('P1-2 a request resumed after another grant commits never provisions an ACTIVE operation', async () => {
-  const employeeId = await addEmployee(f, 'Committed overlap', f.salmiya, 303);
+  const employeeId = await addEmployee(f, 'Committed overlap', f.salmiya, 304);
   const input = await command(employeeId, nextPhone(f));
   const gate = barrier();
   const steps = createGrantEmployeeAccessSteps(f.db, f.h.auth.staffUsers);
