@@ -553,32 +553,36 @@ those stay the manual steps of the «Order: enable → dry-run report → issue 
    measurable month). With the default period = previous month, a business created this month cannot be measured yet.
 3. Customer rating requests must be OFF for the business — the script reads `GET /v1/businesses/:businessId/rating-settings`
    and refuses when `requests_enabled` is on, so a recorded session can never schedule an outbound rating message.
+   The run must also carry `--notifications-off-confirmed`: the operator confirms the rating and notification messages
+   of that test business are switched OFF, and the script refuses before any request (so no credential is even sent).
 4. One active branch on the test business (or pass `--branch`), and that owner linked to exactly one recorder
    membership on the branch (verified from the recording-context read).
-5. Customer phones created by the trial come from the NANP fictional range `+1 555-0100`…`555-0119` (`calling_code 1`,
-   `national_number 5550100`–`5550119` — reserved for fiction, they can never belong to a real subscriber and they
-   pass the API phone normalisation) and names are `Trial Customer NN` / `Trial Employee NNN` — test data only.
+5. Customer phones created by the trial come from the NANP fictional range `+1 202-555-0100`…`202-555-0119`
+   (`calling_code 1`, `national_number 2025550100`–`2025550119` — reserved for fiction, they can never belong to a
+   real subscriber and they pass the API phone normalisation) and names are `Trial Customer NN` / `Trial Employee NNN` —
+   test data only.
 
 ```sh
 TRIAL_EMAIL=<test-owner-email> TRIAL_PASSWORD=<test-owner-password> \
 node scripts/staging/commission-approval-trial.mjs \
-  --api-url https://api.staging.pospay.systems --company <test-company-uuid> --business <test-business-uuid> --confirm-staging \
+  --api-url https://api.staging.pospay.systems --company <test-company-uuid> --business <test-business-uuid> \
+  --confirm-staging --notifications-off-confirmed \
   [--branch <uuid>] [--period YYYY-MM] [--employees 10] [--lines 2000] [--lines-per-session 2] \
   [--delay-ms 200] [--wait-timeout 600] [--poll-ms 2000] [--retry-backoff-ms 1000] [--resume] [--dry-run]
 ```
 
-`--dry-run` stops after the preflight. Idempotency: every keyed route sends an `Idempotency-Key` derived from the
-hash of its exact body (route identifiers included), so a re-run replays and a changed body can never replay an old
-key; un-keyed routes (employees, services) re-list before creating, so a create whose answer was lost is recovered,
-never duplicated. Any rejected service line stops the run with the session index and the rejection codes. The
-summary prints ids, counts, per-phase timings, the HTTP request count and the next manual steps. Run it from any
-machine that can reach the staging API over HTTPS; no container or database access is needed.
+`--dry-run` stops after the preflight. Idempotency: every keyed route sends an `Idempotency-Key` built from the RUN ID
+(the target period plus `--employees`, `--lines` and `--lines-per-session`) and the hash of its exact body, so a re-run
+replays and different options can never replay a key that was minted for another body; un-keyed routes (employees,
+services) list again after a failed or lost answer and create only when the record is still missing, so a create whose
+answer was lost is recovered and never duplicated. Any rejected service line stops the run with the session index and
+the rejection codes. The summary prints ids, counts, per-phase timings, the HTTP request count and the next manual
+steps. Run it from any machine that can reach the staging API over HTTPS; no container or database access is needed.
 
 **Resume:** if the period already carries commission sources, the preflight refuses unless `--resume` is given; with
-`--resume` it continues only when every source belongs to a `Trial Employee NNN` record and the employee count still
-matches `--employees` — anything else is a different trial and is refused. Changed `--lines` / `--lines-per-session`
-extend the same history with NEW sessions (their keys are new because they hash their bodies); use a clean period
-for a fresh measurement.
+`--resume` it continues only when every source belongs to an employee THIS run created — the trial employees are named
+`Trial Employee NNN (<run id>)`, so a period left by another option set is refused as «different options detected»
+rather than mixed into. Use the same options to finish an interrupted trial; a different option set needs a clean period.
 
 **After the script: measure the approval.** The statement of the period is now REVIEWED. Run the full manual
 sequence of the activation section above for the TEST company (enable → dry-run report → issue → approve). Approve

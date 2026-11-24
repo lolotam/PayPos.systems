@@ -29,7 +29,8 @@ const fakeState = () => ({
   requests: [], employees: [], services: [], customers: [], pricedRefs: [], lineCounter: 0,
   workerPaused: false, statementStatus: null, ratingEnabled: false, redirectSignIn: false,
   failEmployeeCreates: 0, sessionRejectsLeft: 0, businessCreatedAt: '2026-01-15T10:00:00.000Z',
-  salaryConflict: false, salaryCodeOverride: undefined, companyName: 'TRIAL-Commissions', businessName: 'TRIAL-Salon',
+  salaryConflict: false, salaryCodeOverride: undefined, brokenEstimate: false,
+  companyName: 'TRIAL-Commissions', businessName: 'TRIAL-Salon',
   salaryKeys: new Map(), planKeys: new Map(), sessionKeys: new Map(), generateKeys: new Map(), reviewKeys: new Map(),
 });
 
@@ -68,6 +69,7 @@ function fakeApiHandler(state) {
       return json(200, { generated_at: GENERATED_AT, business_timezone: 'Asia/Kuwait', recorder_membership_ids: ['m1'], recorder_membership_id: 'm1', discount_limit: { source: 'OWNER', bps: null } });
     }
     if ((match = path.match(/^\/v1\/businesses\/([^/]+)\/commissions\/periods\/([^/]+)\/estimate$/))) {
+      if (state.brokenEstimate) return json(200, { business_id: match[1], period: match[2], employees: null, partial: false, total: '0.000' });
       const employees = state.employees.map((employee, index) => ({
         employee_id: employee.id, name_ar: null, name_en: employee.name_en, employee_number: 1, status: 'OK', partial: false,
         total: '0.000',
@@ -187,6 +189,14 @@ function captureIo() {
   };
 }
 
+/** A fetch that reaches nothing: it records the attempt and refuses every host. */
+function blockedFetch() {
+  const calls = [];
+  const original = globalThis.fetch;
+  globalThis.fetch = async (url) => { calls.push(String(url)); throw new Error('blocked fetch'); };
+  return { calls, stop: () => { globalThis.fetch = original; } };
+}
+
 class Exit extends Error {
   constructor(code) { super(`process.exit(${code})`); this.code = code; }
 }
@@ -195,16 +205,17 @@ async function runTrial(argv) {
   const io = captureIo();
   const originalArgv = process.argv;
   process.argv = ['node', 'trial.mjs', ...argv];
-  let exitCode = 0;
+  process.exitCode = 0;
+  let exitCode;
   try {
     await trial.main();
     exitCode = process.exitCode ?? 0;
-    process.exitCode = 0;
   } catch (error) {
     if (error instanceof Exit) exitCode = error.code;
     else { io.out.push(`THROWN ${error?.name}: ${error?.message}`); exitCode = -1; }
   } finally {
     process.argv = originalArgv;
+    process.exitCode = 0;
     io.restore();
   }
   return { out: io.out, exitCode };
@@ -259,9 +270,13 @@ test('guard refuses every non-staging target, a missing confirm flag and non-uui
     ['--api-url', `https://${HOST}`, '--company', COMPANY, '--business', BUSINESS, '--confirm-staging', '--notifications-off-confirmed', '--period', '2026-13'],
   ];
   for (const argv of cases) {
-    const { out, exitCode } = await runTrial(argv);
-    assert.equal(exitCode, 2, argv.join(' '));
-    assert.ok(out.join('\n').startsWith('refused:'), argv.join(' '));
+    const blocked = blockedFetch();
+    try {
+      const { out, exitCode } = await runTrial(argv);
+      assert.equal(exitCode, 2, argv.join(' '));
+      assert.ok(out.join('\n').startsWith('refused:'), argv.join(' '));
+      assert.deepEqual(blocked.calls, [], `no request may leave the script: ${argv.join(' ')}`);
+    } finally { blocked.stop(); }
   }
 });
 
@@ -306,14 +321,24 @@ test('the dedicated-test-company marker: company and business names must start w
 test('the company and the business must both exist under the signed-in user, and the business under the company', async () => {
   await withEnv(async () => {
     const api = await startFakeApi();
+    const withOption = (name, value) => {
+      const argv = [...stagedArgs];
+      argv[argv.indexOf(name) + 1] = value;
+      return argv;
+    };
+    const other = '99999999-9999-4999-8999-999999999999';
     try {
-      const wrongCompany = await runTrial([...stagedArgs.slice(0, 2), '99999999-9999-4999-8999-999999999999', ...stagedArgs.slice(4)]);
+      const wrongCompany = await runTrial(withOption('--company', other));
       assert.equal(wrongCompany.exitCode, 2);
       assert.match(wrongCompany.out.join('\n'), /no membership in company/);
-      const wrongBusiness = await runTrial([...stagedArgs.slice(0, 4), '99999999-9999-4999-8999-999999999999', ...stagedArgs.slice(6)]);
+      const wrongBusiness = await runTrial(withOption('--business', other));
       assert.equal(wrongBusiness.exitCode, 2);
       assert.match(wrongBusiness.out.join('\n'), /not part of company/);
-      assert.ok(api.state.requests.every((r) => r.headers['x-company-id'] === COMPANY), 'x-company-id is always the chosen company');
+      // x-company-id is always the company of that run — never another one.
+      const headers = api.state.requests.map((r) => r.headers['x-company-id']);
+      assert.ok(headers.includes(COMPANY), 'the company run sent its own company id');
+      assert.ok(headers.includes(other), 'the other-company run sent that other company id');
+      assert.deepEqual([...new Set(headers)].sort(), [COMPANY, other].sort(), 'no run ever sent a third company id');
     } finally { await api.stop(); }
   });
 });
@@ -553,12 +578,13 @@ test('an API code that is not a catalogue code prints as UNKNOWN', async () => {
 test('an unexpected exception prints a fixed line and the error class, never the message', async () => {
   await withEnv(async () => {
     const api = await startFakeApi();
-    api.state.employees = null; // the estimate read then throws a TypeError deep in the run
+    api.state.brokenEstimate = true; // the estimate read answers a shape the script never expected
     try {
       const { out, exitCode } = await runTrial(stagedArgs);
       assert.equal(exitCode, 1);
       const text = out.join('\n');
       assert.match(text, /unexpected failure: TypeError/);
+      assert.ok(!text.includes('Cannot read'), 'the error message leaked');
       assert.ok(!text.includes(EMAIL), 'the email leaked from an unexpected error');
       assert.ok(!text.includes(PASSWORD), 'the password leaked from an unexpected error');
       assert.ok(!text.includes('stub-cookie-value'), 'a cookie-like string leaked from an unexpected error');
