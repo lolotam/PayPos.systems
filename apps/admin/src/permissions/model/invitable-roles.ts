@@ -33,9 +33,15 @@ export const INVITABLE_ROLE_OPTIONS: readonly InvitableRoleOption[] = [
   { role: 'accountant', scopeType: 'COMPANY', labelKey: 'invitations.roleAccountant' },
 ];
 
-/** اسم النطاق المعروض: معرّف الشركة للنطاق الشركة، ومعرّف فرع/نشاط مختار لغيره. */
-export function scopeIdFor(role: InvitableRole, companyId: string, picked: string): string {
+/**
+ * النطاق الكامل اللي الدور بيبدأ بيه في النموذج: نوعه من الدور، ومعرّفه معرّف الشركة للأدوار اللي
+ * نطاقها الشركة أو فاضي لحد ما المالك يختار نشاط أو فرع. دور مش في القائمة بيرجع نطاق الشركة.
+ */
+export function scopeForRole(
+  role: string,
+  companyId: string,
+): { type: InvitationScopeType; id: string } {
   const option = INVITABLE_ROLE_OPTIONS.find((candidate) => candidate.role === role);
-  return option?.scopeType === 'COMPANY' ? companyId : picked;
+  const type = option?.scopeType ?? 'COMPANY';
+  return { type, id: type === 'COMPANY' ? companyId : '' };
 }
-

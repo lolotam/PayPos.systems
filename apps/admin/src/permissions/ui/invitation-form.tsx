@@ -47,7 +47,7 @@ export function InvitationForm({ companyId, choices, disabled, pending, onSave }
         aria-label={t(locale, 'invitations.title')}
       >
         <fieldset disabled={disabled} className="flex flex-col gap-3">
-          <InvitationFields choices={choices} />
+          <InvitationFields choices={choices} companyId={companyId} />
         </fieldset>
         <button
           type="submit"

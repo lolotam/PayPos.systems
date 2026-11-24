@@ -10,7 +10,13 @@ import { t } from '@pospay/i18n';
 import { useLocale } from '@/shared/locale/locale-context';
 
 /** حقول الدعوة: الإيميل بيمسح التأكيد لو اتغير، والدور ونطاقه، وكتلة التأكيد الإجبارية (D10). */
-export function InvitationFields({ choices }: { choices: InvitationScopeChoices }) {
+export function InvitationFields({
+  choices,
+  companyId,
+}: {
+  choices: InvitationScopeChoices;
+  companyId: string;
+}) {
   const locale = useLocale();
   const form = useFormContext<InviteMemberInput>();
   return (
@@ -34,7 +40,7 @@ export function InvitationFields({ choices }: { choices: InvitationScopeChoices 
           className="w-full rounded-md border bg-background px-3 py-2"
         />
       </label>
-      <InvitationRoleScopeFields choices={choices} />
+      <InvitationRoleScopeFields choices={choices} companyId={companyId} />
       <InvitationConfirmFields />
     </>
   );
