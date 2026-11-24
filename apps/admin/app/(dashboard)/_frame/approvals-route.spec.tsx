@@ -3,7 +3,12 @@ import { screen, within } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { ApprovalsRoute } from './approvals-route';
-import { enterWorkspace, renderDashboard, resetDashboardState } from './dashboard-test-support';
+import {
+  enterWorkspace,
+  enterWorkspaceAt,
+  renderDashboard,
+  resetDashboardState,
+} from './dashboard-test-support';
 import { frameState, resetFrameState, stubViewport } from './frames/frame-test-support';
 import { NotFoundProbe } from './frames/not-found-probe';
 
@@ -126,5 +131,28 @@ describe('the Approvals inbox by its direct address', () => {
       expect(screen.queryByRole('heading', { name: label('adminNavPages.approvalsInbox') })).toBeNull();
     },
   );
+});
+
+describe('a workspace switch on the direct address', () => {
+  it('shows the inbox again after a workspace without it and back, at the same address', () => {
+    const page = (
+      <NotFoundProbe>
+        <ApprovalsRoute />
+      </NotFoundProbe>
+    );
+    enterWorkspaceAt('restaurant', 'owner', 'company-a', 'business-a');
+    const { rerenderDashboard } = renderDashboard(page);
+    expect(
+      main().getByRole('heading', { level: 1, name: label('adminNavPages.approvalsInbox') }),
+    ).toBeTruthy();
+    enterWorkspaceAt('salon', 'cashier', 'company-b', 'business-b');
+    rerenderDashboard(page);
+    expect(screen.getByText('Not found')).toBeTruthy();
+    enterWorkspaceAt('restaurant', 'owner', 'company-a', 'business-a');
+    rerenderDashboard(page);
+    expect(
+      main().getByRole('heading', { level: 1, name: label('adminNavPages.approvalsInbox') }),
+    ).toBeTruthy();
+  });
 });
 
