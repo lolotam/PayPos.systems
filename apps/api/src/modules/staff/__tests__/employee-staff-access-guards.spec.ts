@@ -1,5 +1,6 @@
 import { createDatabase } from '@pospay/db';
 import { systemUuidV7 } from '@pospay/ids';
+import { Controller, Get } from '@nestjs/common';
 import { afterAll, beforeAll, expect, it } from 'vitest';
 import {
   addEmployee,
@@ -9,7 +10,18 @@ import {
   staffAccessFixture,
   type Fixture,
 } from '../../../../test/staff-access.fixture.ts';
+import { Authenticated } from '../../../shared/access.decorators.ts';
 import { canLinkEmployeeUser } from '../persistence/employee-context.adapter.ts';
+
+// مسار اختباري تحت شجرة staff-access: يثبت إن البوابة تغطي كل مسارات الشريحة، مش المسارات الثلاثة بس.
+@Controller('businesses/:businessId/employees/:employeeId/staff-access')
+class TestStaffAccessSubRouteController {
+  @Get('anything/else')
+  @Authenticated()
+  async probe(): Promise<{ reached: boolean }> {
+    return { reached: true };
+  }
+}
 
 const ids = systemUuidV7();
 const ADMIN_ORIGIN = 'https://admin.example.test';
@@ -17,8 +29,14 @@ let f: Fixture;
 let gated: Fixture;
 let db: ReturnType<typeof createDatabase>;
 beforeAll(async () => {
-  f = await staffAccessFixture({ staffAccessRoutes: true });
-  gated = await staffAccessFixture({ corsOrigins: [ADMIN_ORIGIN] });
+  f = await staffAccessFixture({
+    staffAccessRoutes: true,
+    controllers: [TestStaffAccessSubRouteController],
+  });
+  gated = await staffAccessFixture({
+    corsOrigins: [ADMIN_ORIGIN],
+    controllers: [TestStaffAccessSubRouteController],
+  });
   db = createDatabase({ url: f.h.urls.app, ids });
 });
 afterAll(async () => {
@@ -55,6 +73,23 @@ async function readStateSafe(fixture: Fixture, employeeId: string) {
     company: fixture.company,
   });
 }
+
+it('AC-ACT-6 the gate covers every route under staff-access, not only the three F1 routes', async () => {
+  const gatedEmployee = await addEmployee(gated, 'Gated sub route', gated.salmiya, 31);
+  const gatedUrl = `/v1/businesses/${gated.business}/employees/${gatedEmployee}/staff-access/anything/else`;
+  // البوابة مقفولة: الرد 503 NOT_READY قبل المصادقة — الطلب بلا كوكي أصلاً.
+  const refused = await gated.h.app.inject({ method: 'GET', url: gatedUrl });
+  expect(refused.statusCode).toBe(503);
+  expect(refused.json()).toMatchObject({ code: 'NOT_READY' });
+  // البوابة مفتوحة: نفس المسار يوصل للـ handler.
+  const openEmployee = await addEmployee(f, 'Open sub route', f.salmiya, 34);
+  const opened = await f.h.send(
+    'GET',
+    `/v1/businesses/${f.business}/employees/${openEmployee}/staff-access/anything/else`,
+    { cookie: f.ownerCookie, company: f.company },
+  );
+  expect(opened).toMatchObject({ status: 200, body: { reached: true } });
+});
 
 it('AC-F1-7b the link availability rule answers false for a staff user and true for a normal member', async () => {
   const granted = await addEmployee(f, 'Availability probe', f.salmiya, 33);
