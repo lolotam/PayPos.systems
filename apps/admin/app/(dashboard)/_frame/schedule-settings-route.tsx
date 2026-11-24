@@ -20,7 +20,7 @@ export function ScheduleSettingsRoute() {
   };
   return (
     <ScheduleSettingsPage
-      key={`${scope.companyId}:${scope.businessId}:${scope.branchId}:${userId}`}
+      key={`${scope.companyId}:${scope.businessId}:${userId}`}
       scope={scope}
     />
   );
