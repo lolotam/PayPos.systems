@@ -10,6 +10,7 @@ import { CommissionServiceOverridesController } from './http/commission-service-
 import { CommissionOverrideServicesController } from './http/commission-override-services.controller.ts';
 import { CommissionBlockedCorrectionsController } from './http/commission-blocked-corrections.controller.ts';
 import { CommissionStatementApproveController } from './http/commission-statement-approve.controller.ts';
+import { CommissionStatementPayController } from './http/commission-statement-pay.controller.ts';
 import {
   CommissionStatementsController,
   GET_COMMISSION_STATEMENT,
@@ -24,6 +25,8 @@ import { CanonicalSha256FingerprintHasher } from './persistence/canonical-sha256
 import { createCommissionStatementReader } from './persistence/commission-statement-reader.ts';
 import { createCommissionStatementApproveTransactions } from './persistence/drizzle-commission-statement-approve-transactions.ts';
 import { createCommissionStatementGenerateTransactions } from './persistence/drizzle-commission-statement-generate-transactions.ts';
+import { createCommissionStatementPayTransactions } from './persistence/drizzle-commission-statement-pay-transactions.ts';
+import type { CommissionStatementPayReaders } from './persistence/commission-statement-pay-scope.ts';
 import type { CommissionStatementApproveReaders } from './persistence/commission-statement-approve-scope.ts';
 import type { CommissionStatementGenerateReaders } from './persistence/commission-statement-generate-scope.ts';
 import { createCommissionStatementReviewTransactions } from './persistence/drizzle-commission-statement-review-transactions.ts';
@@ -61,6 +64,7 @@ import { GenerateCommissionStatementUseCase } from './use-cases/generate-stateme
 import { GetCommissionStatementUseCase } from './use-cases/get-statement/get-statement.usecase.ts';
 import { ReviewCommissionStatementUseCase } from './use-cases/review-statement/review-statement.usecase.ts';
 import { ReturnCommissionStatementUseCase } from './use-cases/return-statement/return-statement.usecase.ts';
+import { MarkCommissionStatementPaidUseCase } from './use-cases/mark-statement-paid/mark-statement-paid.usecase.ts';
 
 export const commissionsControllers = [
   CommissionPlanVersionsController,
@@ -72,6 +76,7 @@ export const commissionsControllers = [
   CommissionEstimateController,
   CommissionStatementsController,
   CommissionStatementApproveController,
+  CommissionStatementPayController,
 ];
 
 /**
@@ -130,6 +135,8 @@ export interface CommissionStatementBindings {
   readonly explicitFeature: CommissionStatementApproveReaders['explicitFeature'];
   readonly employment: CommissionStatementApproveReaders['employment'];
   readonly pending: CommissionStatementApproveReaders['pending'];
+  /** صرف الكشف (54-1): فحص `pay:commissions:business` من identity، وتقويم النشاط من نفس الربط. */
+  readonly payAccess: CommissionStatementPayReaders['access'];
 }
 
 /** مزودو الكشف: القراءة (GET) والإنشاء (generate) على نفس مزودي المصادر ونفس منفذ التجزئة. */
@@ -168,6 +175,7 @@ function commissionStatementProviders(
     },
     ...commissionStatementReviewProviders(database, ids, statement, clock, hasher),
     approveProvider(database, ids, statement, clock, hasher),
+    payProvider(database, ids, statement, clock),
   ];
 }
 
@@ -195,6 +203,28 @@ function approveProvider(
               clock,
             }),
             hasher,
+          ),
+  };
+}
+
+/** مزود الصرف: حد معاملة واحد وقارئ التقويم وفحص الصلاحية من نفس الربط (54-1). */
+function payProvider(
+  database: TenantWrappers | undefined,
+  ids: IdGenerator,
+  statement: CommissionStatementBindings,
+  clock: Clock,
+): Provider {
+  return {
+    provide: MarkCommissionStatementPaidUseCase,
+    useValue:
+      database === undefined
+        ? null
+        : new MarkCommissionStatementPaidUseCase(
+            createCommissionStatementPayTransactions(database, ids, {
+              businessCalendar: statement.businessCalendar,
+              access: statement.payAccess,
+            }),
+            clock,
           ),
   };
 }

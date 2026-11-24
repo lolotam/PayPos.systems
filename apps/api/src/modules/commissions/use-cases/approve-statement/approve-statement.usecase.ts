@@ -197,6 +197,7 @@ async function freezeApproval(
     inputFingerprint: computed.inputFingerprint,
     statementFingerprint: computed.statementFingerprint,
     rows: frozen.rows,
+    payment: null,
     scope: BUSINESS_WIDE,
   });
 }

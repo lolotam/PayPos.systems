@@ -35,12 +35,30 @@ export interface CommissionStatementSource {
   readonly correctionLineDetails: ReadonlyMap<string, StatementLineHead>;
 }
 
-/** ما يخزّنه الاعتماد وتحتاجه قراءة شهر مغلق: وقت الاعتماد والبصمتان المجمّدتان والصفوف المجمّدة (FR-025). */
+/** صرف كشف PAID كما اتخزّن: أعمدة الصرف وصف الدفع لكل موظفة مجمّدة، والمبالغ نصوص KWD (FR-037). */
+export interface ClosedStatementPayment {
+  readonly paidOn: string;
+  readonly paidMethod: 'WITH_SALARY' | 'BANK_TRANSFER' | 'CASH';
+  readonly paidNote: string | null;
+  readonly paidAt: string;
+  readonly paidBy: string;
+  readonly payments: readonly {
+    readonly employeeId: string;
+    readonly exactPayable: string;
+    readonly paidAmount: string;
+  }[];
+}
+
+/**
+ * ما يخزّنه الاعتماد والصرف وتحتاجه قراءة شهر مغلق: وقت الاعتماد والبصمتان المجمّدتان والصفوف المجمّدة، وبيانات
+ * الصرف لما يكون الشهر PAID وإلا null (FR-025، FR-037).
+ */
 export interface ClosedStatementRead {
   readonly approvedAt: string;
   readonly inputFingerprint: string;
   readonly statementFingerprint: string;
   readonly rows: readonly StatementRow[];
+  readonly payment: ClosedStatementPayment | null;
 }
 
 /** نطاق القارئ كما حله قارئ identity، مع الكشف المقروء في نفس اللقطة. */

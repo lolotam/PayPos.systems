@@ -14,11 +14,14 @@ import { commissionPeriodRepairPaths } from './period-repairs-openapi.js';
 import { commissionPeriodRepairSchemas } from './period-repairs.js';
 import { commissionPlanVersionPaths } from './plan-versions-openapi.js';
 import { commissionPlanVersionSchemas } from './plan-versions.js';
+import { commissionStatementPaymentPaths } from './statement-payments-openapi.js';
+import { commissionStatementPaymentSchemas } from './statement-payments.js';
 import { commissionServiceOverridePaths } from './service-overrides-openapi.js';
 import { commissionServiceOverrideSchemas } from './service-overrides.js';
 
 export const commissionSchemas = [
   ...commissionPlanVersionSchemas,
+  ...commissionStatementPaymentSchemas,
   ...commissionPeriodRepairSchemas,
   ...commissionServiceOverrideSchemas,
   ...commissionOverrideServiceSchemas,
@@ -32,6 +35,7 @@ export const commissionSchemas = [
 
 export const commissionPaths = {
   ...commissionPlanVersionPaths,
+  ...commissionStatementPaymentPaths,
   ...commissionPeriodRepairPaths,
   ...commissionServiceOverridePaths,
   ...commissionPlanEmployeePaths,
