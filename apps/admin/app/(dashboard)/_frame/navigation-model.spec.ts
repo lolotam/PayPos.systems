@@ -148,11 +148,22 @@ describe('navigation model route coverage (074-1 + 074-2)', () => {
   });
 
   it('resolves an embedded page through its published Soon alias', () => {
-    const embedded = requiredPageById('schedule-settings');
-    if (embedded.state !== 'live' || embedded.embeddedInParent !== true)
-      throw new Error('Expected an embedded live page');
-    const promoted = { ...embedded, formerSoonId: 'new-schedules' };
-    expect(findNavigationEntryByPathname(soonPageHref('new-schedules'), [promoted])).toBe(promoted);
+    // إعدادات الجداول بقت صفحة مستقلة، فالمدخل المضمّن بيتبني من قيمة حرفية هنا.
+    const embedded: EmbeddedLivePageEntry = {
+      id: 'embedded-example',
+      parent: 'weekly-schedules',
+      embeddedInParent: true,
+      labelKey: 'shell.schedule_settings_title',
+      icon: 'Clock3',
+      visible: 'always',
+      state: 'live',
+      section: 'team',
+      submenu: 'schedules',
+      businessTypes: [],
+      appMapEntry: true,
+      formerSoonId: 'new-schedules',
+    };
+    expect(findNavigationEntryByPathname(soonPageHref('new-schedules'), [embedded])).toBe(embedded);
   });
 
   it('uses the parent list as the destination of a promoted dynamic child', () => {
@@ -250,6 +261,35 @@ describe('navigation groupings and active route resolution', () => {
     expect(findNavigationPageByPathname(soonPageHref('kitchen-screens'))?.id).toBe(
       'kitchen-screens',
     );
+  });
+
+});
+
+describe('schedule settings placement', () => {
+  it('puts the schedule settings page where design.md §4 puts it in each style', () => {
+    const teamTabs = NAVIGATION_GROUPINGS.A.find((group) => group.id === 'team')?.tabs ?? [];
+    const schedulesTab = teamTabs.find((tab) => tab.id === 'schedules');
+    expect(schedulesTab?.pageIds).toContain('weekly-schedules');
+    expect(schedulesTab?.pageIds).toContain('schedule-settings');
+
+    const peopleColumns = NAVIGATION_GROUPINGS.B.find((mod) => mod.id === 'people')?.columns ?? [];
+    const businessColumns = NAVIGATION_GROUPINGS.B.find((mod) => mod.id === 'business')?.columns ?? [];
+    expect(peopleColumns.find((column) => column.id === 'schedules')?.pageIds).not.toContain(
+      'schedule-settings',
+    );
+    expect(businessColumns.find((column) => column.id === 'business')?.pageIds).toContain(
+      'schedule-settings',
+    );
+
+    const teamSections =
+      NAVIGATION_GROUPINGS.C.find((workspace) => workspace.id === 'team')?.panelSections ?? [];
+    expect(teamSections.find((section) => section.id === 'schedules')?.pageIds).toContain(
+      'schedule-settings',
+    );
+
+    expect(findTopLevelGroupForPage('A', 'schedule-settings')).toBe('team');
+    expect(findTopLevelGroupForPage('B', 'schedule-settings')).toBe('business');
+    expect(findTopLevelGroupForPage('C', 'schedule-settings')).toBe('team');
   });
 });
 
@@ -376,7 +416,9 @@ describe('navigation Soon-entry filtering boundaries', () => {
     expect(isEntryShownForWorkspace(appearance, null, null)).toBe(true);
     expect(pageEntryHref(appearance)).toBe('/appearance');
 
-    expect(pageEntryHref(scheduleSettings)).toBe('/schedules');
+    expect(pageEntryHref(scheduleSettings)).toBe('/schedules/settings');
+    expect(resolveMenuEntryForPathname('/schedules/settings')?.id).toBe('schedule-settings');
+    expect(resolveMenuEntryForPathname('/schedules')?.id).toBe('weekly-schedules');
     expect(parseNavigationStyle('A')).toBe('A');
     expect(parseNavigationStyle('invalid')).toBe(DEFAULT_NAVIGATION_STYLE);
     expect(DEFAULT_NAVIGATION_STYLE).toBe('C');
