@@ -1,8 +1,14 @@
 import { SYSTEM_ROLES, createDatabase } from '@pospay/db';
 import { systemUuidV7 } from '@pospay/ids';
 import { Writable } from 'node:stream';
+import {
+  createCancelPendingStaffAccessSteps,
+  createStaffAccessCancelUser,
+} from '../src/modules/staff/persistence/staff-access-auth.adapter.ts';
+import { CancelPendingStaffAccessUseCase } from '../src/modules/staff/use-cases/cancel-pending-staff-access/cancel-pending-staff-access.ts';
 import { GrantEmployeeAccessUseCase } from '../src/modules/staff/use-cases/grant-employee-access/grant-employee-access.ts';
 import { startHarness, type Harness } from './harness.ts';
+import { captureServerFaults } from './server-faults.ts';
 
 const ids = systemUuidV7();
 const logLines: string[] = [];
@@ -47,6 +53,7 @@ export interface StaffAccessFixture {
 export async function staffAccessFixture(
   options: Parameters<typeof startHarness>[0] = {},
 ): Promise<StaffAccessFixture> {
+  captureServerFaults();
   const h = await startHarness({ ...options, logs: sink });
   if (options.staffAccessRoutes) observeGrantFailures(h);
   const onboardOrThrow = async (cookie: string, name: string) => {
@@ -143,6 +150,31 @@ export const readState = (f: Fixture, employeeId: string, cookie = f.ownerCookie
 
 export const cancelPending = (f: Fixture, employeeId: string, cookie = f.ownerCookie) =>
   f.h.send('DELETE', `${grantPath(f, employeeId)}/pending`, { cookie, company: f.company });
+
+/**
+ * إلغاء بالـ use case مباشرة وبساعة محقونة — الاختبار يتحكم في «الآن» بدل تعديل صفوف الجدول،
+ * فيثبت أن قاعدة الـ 24 ساعة تُقاس من بداية المحاولة الحالية.
+ */
+export async function cancelPendingAt(
+  f: Fixture,
+  employeeId: string,
+  now: Date,
+  cookie = f.ownerCookie,
+): Promise<void> {
+  const actor = await f.h.auth.getSession(new Headers({ cookie }));
+  if (actor === null) throw new Error('ACTOR_MISSING');
+  await new CancelPendingStaffAccessUseCase(
+    createCancelPendingStaffAccessSteps(f.db),
+    createStaffAccessCancelUser(f.h.auth.staffUsers),
+    { now: () => now },
+    ids,
+  ).execute({
+    companyId: f.company,
+    userId: actor.userId,
+    businessId: f.business,
+    employeeId,
+  });
+}
 
 /** صفوف تدقيق الشركة الخاصة بموظفة، بلا أي هاتف كامل داخلها. */
 export const auditRows = async (f: Fixture, employeeId: string) =>

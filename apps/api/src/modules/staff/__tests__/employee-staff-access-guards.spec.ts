@@ -12,12 +12,13 @@ import {
 import { canLinkEmployeeUser } from '../persistence/employee-context.adapter.ts';
 
 const ids = systemUuidV7();
+const ADMIN_ORIGIN = 'https://admin.example.test';
 let f: Fixture;
 let gated: Fixture;
 let db: ReturnType<typeof createDatabase>;
 beforeAll(async () => {
   f = await staffAccessFixture({ staffAccessRoutes: true });
-  gated = await staffAccessFixture();
+  gated = await staffAccessFixture({ corsOrigins: [ADMIN_ORIGIN] });
   db = createDatabase({ url: f.h.urls.app, ids });
 });
 afterAll(async () => {
@@ -122,3 +123,30 @@ it.each(['GET', 'POST', 'DELETE'] as const)(
     expect(response.json()).toMatchObject({ code: 'NOT_READY' });
   },
 );
+
+it('P1-4 with the gate off a cross-origin preflight succeeds and the three routes answer 503 with CORS headers', async () => {
+  const base = '/v1/businesses/malformed/employees/malformed/staff-access';
+  const preflight = await gated.h.app.inject({
+    method: 'OPTIONS',
+    url: base,
+    headers: {
+      origin: ADMIN_ORIGIN,
+      'access-control-request-method': 'POST',
+      'access-control-request-headers': 'content-type',
+    },
+  });
+  expect(preflight.statusCode).toBeLessThan(300);
+  expect(preflight.headers['access-control-allow-origin']).toBe(ADMIN_ORIGIN);
+  for (const method of ['GET', 'POST', 'DELETE'] as const) {
+    const response = await gated.h.app.inject({
+      method,
+      url: method === 'DELETE' ? `${base}/pending` : base,
+      headers: { origin: ADMIN_ORIGIN, 'content-type': 'application/json' },
+      ...(method === 'POST' ? { payload: '{broken' } : {}),
+    });
+    expect(response.statusCode).toBe(503);
+    expect(response.json()).toMatchObject({ code: 'NOT_READY' });
+    expect(response.headers['access-control-allow-origin']).toBe(ADMIN_ORIGIN);
+    expect(response.headers['access-control-allow-credentials']).toBe('true');
+  }
+});

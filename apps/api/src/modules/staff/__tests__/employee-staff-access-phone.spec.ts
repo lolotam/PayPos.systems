@@ -42,8 +42,29 @@ it.each(['inside', 'outside'])(
   },
 );
 
-async function phoneHolder(where: string, phone: string): Promise<string> {
-  const cookie = await f.h.signedInOperator(`phone-holder-${where}@example.test`);
+it.each(['inside', 'outside'])(
+  'E1 a confirmed refusal for a number owned %s the company releases the attempt so the corrected number works at once',
+  async (where) => {
+    const taken = nextPhone(f);
+    await phoneHolder(where, taken, '-release');
+    const employee = await addEmployee(f, 'Released ' + where, f.salmiya, where === 'inside' ? 411 : 412);
+    expect(await grant(f, employee, taken)).toMatchObject({
+      status: 409,
+      body: { code: 'STAFF_ACCESS_PHONE_TAKEN' },
+    });
+    expect(
+      await f.h.owner`SELECT id FROM employee_staff_access WHERE employee_id=${employee}`,
+    ).toHaveLength(0);
+    const corrected = nextPhone(f);
+    expect((await grant(f, employee, corrected)).status).toBe(200);
+    expect(
+      await f.h.owner`SELECT state FROM employee_staff_access WHERE employee_id=${employee}`,
+    ).toMatchObject([{ state: 'ACTIVE' }]);
+  },
+);
+
+async function phoneHolder(where: string, phone: string, tag = ''): Promise<string> {
+  const cookie = await f.h.signedInOperator(`phone-holder-${where}${tag}@example.test`);
   const holder = await f.h.auth.getSession(new Headers({ cookie }));
   if (holder === null) throw new Error('HOLDER_SESSION_MISSING');
   const userId = holder.userId;

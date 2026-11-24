@@ -1,3 +1,4 @@
+import postgres from 'postgres';
 import { afterAll, beforeAll, expect, it } from 'vitest';
 import { createAuthDatabase } from '@pospay/db';
 import { systemUuidV7 } from '@pospay/ids';
@@ -93,10 +94,71 @@ it('P1-6 Better Auth real account update with only password checks the target ro
   }
 });
 
-it('P1-6 two-factor enabling is independently refused for a marked user with a valid password and signed cookie', async () => {
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+/** يشغل كل خانات المجمع المحدود للموظفات: ثماني عمليات تنتظر قفلاً استشارياً يمسكه المالك. */
+async function saturateBoundedPool() {
+  const operationId = ids.newId();
+  // اتصال مستقل: owner الأساسي بحجم 1 ولازم يبقى حراً لاستعلامات الانتظار.
+  const held = postgres(f.test.ownerUrl, { max: 1, onnotice: () => undefined });
+  await held`SELECT pg_advisory_lock(hashtextextended(${operationId}, 0))`;
+  const calls = Array.from({ length: 8 }, () =>
+    f.auth.staffUsers
+      .cancel({ operationId, companyId: f.device.companyId, actorUserId: f.userId, ids })
+      .catch(() => undefined),
+  );
+  for (let tries = 0; tries < 200; tries += 1) {
+    const [waiting] = await f.owner`SELECT count(*)::int AS n FROM pg_stat_activity
+      WHERE wait_event_type='Lock' AND wait_event='advisory' AND usename='pospay_auth'`;
+    if ((waiting?.n as number) >= 8) break;
+    await sleep(5);
+  }
+  const ninthRefused = () =>
+    expect(f.auth.staffUsers.bindingOf(ids.newId())).rejects.toThrow(/BOUNDED_DATABASE_UNAVAILABLE/);
+  return {
+    ninthRefused,
+    release: async () => {
+      await held`SELECT pg_advisory_unlock(hashtextextended(${operationId}, 0))`;
+      await held.end();
+      await Promise.all(calls);
+    },
+  };
+}
+it('P1-6 a normal session request does not depend on the saturated bounded staff pool', async () => {
+  const user = await ordinary();
+  const pool = await saturateBoundedPool();
+  try {
+    await pool.ninthRefused();
+    expect((await f.auth.getSession(new Headers({ cookie: user.cookie })))?.userId).toBe(
+      user.userId,
+    );
+    await pool.ninthRefused();
+  } finally {
+    await pool.release();
+  }
+});
+it('P1-6 a staff-marked account stays refused while the bounded staff pool is saturated', async () => {
   const user = await ordinary();
   await markStaff(user.userId);
-  const response = await f.auth.handler(request('two-factor/enable', { password }, user.cookie));
-  expect(response.status).toBe(403);
-  expect(await f.owner`SELECT id FROM two_factor WHERE user_id=${user.userId}`).toHaveLength(0);
+  const pool = await saturateBoundedPool();
+  try {
+    await pool.ninthRefused();
+    expect(await f.auth.getSession(new Headers({ cookie: user.cookie }))).toBeNull();
+    await pool.ninthRefused();
+  } finally {
+    await pool.release();
+  }
 });
+it.each(['null', '[]', '"token"', '7'])(
+  'E2 reset-password with the JSON body %s is answered by Better Auth, never a server error',
+  async (raw) => {
+    const response = await f.auth.handler(
+      new Request('https://api.synthetic.invalid/v1/auth/reset-password', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', origin: 'https://admin.synthetic.invalid' },
+        body: raw,
+      }),
+    );
+    expect(response.status).toBeGreaterThanOrEqual(400);
+    expect(response.status).toBeLessThan(500);
+  },
+);

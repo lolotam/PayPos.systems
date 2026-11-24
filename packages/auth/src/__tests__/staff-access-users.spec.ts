@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import type postgres from 'postgres';
+import postgres from 'postgres';
 import { StaffPhoneTakenError } from '@pospay/db';
 import { systemUuidV7 } from '@pospay/ids';
 import { afterAll, beforeAll, expect, it } from 'vitest';
@@ -202,3 +202,46 @@ it.each(['CANCELLING', 'phone', 'company'] as const)(
     ).toEqual(before);
   },
 );
+
+/** يمسك رقماً على مستخدم آخر داخل معاملة مفتوحة، ثم يعتمدها حين يصبح الطلب منتظراً عند فهرس الرقم. */
+async function overlapPhoneWriter(phone: string, start: () => Promise<unknown>) {
+  const other = ids.newId();
+  await owner`INSERT INTO "user"(id,name,email) VALUES (${other},'Platform writer',${`w-${other}@example.test`})`;
+  const holder = postgres(f.test.ownerUrl, { max: 1, onnotice: () => undefined });
+  await holder`BEGIN`;
+  await holder`UPDATE "user" SET phone_number=${phone} WHERE id=${other}`;
+  const settled = start().then(
+    () => 'ok',
+    (error: unknown) => error,
+  );
+  for (let tries = 0; tries < 100; tries += 1) {
+    const [waiting] = await owner`SELECT count(*)::int AS n FROM pg_stat_activity
+      WHERE wait_event_type='Lock' AND wait_event='transactionid' AND usename='pospay_auth'`;
+    if ((waiting?.n as number) >= 1) break;
+    await new Promise((resolve) => setTimeout(resolve, 5));
+  }
+  await holder`COMMIT`;
+  await holder.end();
+  return { outcome: await settled, other };
+}
+
+it('P1-5 an insert that loses the phone to another writer after the read is the typed refusal', async () => {
+  const phone = phoneOf(70);
+  const { outcome, other } = await overlapPhoneWriter(phone, () => provision(phone));
+  expect(outcome).toBeInstanceOf(StaffPhoneTakenError);
+  expect(await owner`SELECT id FROM "user" WHERE phone_number = ${phone}`).toEqual([{ id: other }]);
+});
+
+it('P1-5 a binding reset that loses the phone to another writer is the typed refusal', async () => {
+  const operationId = ids.newId();
+  const { userId } = await provision(phoneOf(71), operationId);
+  const phone = phoneOf(72);
+  const { outcome } = await overlapPhoneWriter(
+    phone,
+    () => provision(phone, operationId, { resetBinding: true }),
+  );
+  expect(outcome).toBeInstanceOf(StaffPhoneTakenError);
+  expect(await owner`SELECT phone_number FROM "user" WHERE id = ${userId}`).toEqual([
+    { phone_number: phoneOf(71) },
+  ]);
+});

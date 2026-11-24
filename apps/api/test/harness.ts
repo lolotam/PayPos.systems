@@ -255,6 +255,8 @@ interface HarnessOptions {
   omitRedis?: boolean;
   /** بوابة دخول الموظفات (FR-F1-9): المسارات ترد NOT_READY ما دامت مطفأة. */
   staffAccessRoutes?: boolean;
+  /** الأصول المسموحة بـ CORS؛ بدونها لا يُسمح لأي أصل. */
+  corsOrigins?: readonly string[];
   commissionsClock?: { now(): Date };
   /** يلفّ غلاف قاعدة التطبيق، عشان اختبار يسجّل اتصالات معاملات الطلبات الحقيقية. */
   wrapDatabase?: (database: TenantWrappers) => TenantWrappers;
@@ -327,6 +329,7 @@ async function prepareHarness(
         employeeCardKey: deriveEmployeeCardKey('test-secret-that-is-long-enough-for-hmac'),
         database: wrappers,
         ...optionalWiring(options),
+        ...(options.corsOrigins === undefined ? {} : { corsOrigins: options.corsOrigins }),
         ...staffWiring(options, staffOtp, auth),
         ...personalWiring(options, auth, database),
         ids,

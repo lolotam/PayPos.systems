@@ -4,6 +4,7 @@ import {
   grant,
   readState,
   cancelPending,
+  cancelPendingAt,
   nextPhone,
   systemRoleId,
   staffAccessFixture,
@@ -170,7 +171,7 @@ it('P1-2 an equally authorized branch manager cannot cancel another granter pend
 });
 
 it.each(['before_auth', 'after_auth'] as const)(
-  'P1-2/4 cancel after STOPPED regrant crash %s restores STOPPED and allows a corrected grant',
+  'P1-2/3/4 cancel after STOPPED regrant crash %s counts from the new attempt, restores STOPPED and allows a corrected grant',
   async (phase) => {
     const employee = await addEmployee(f, 'Committed recovery ' + phase, f.salmiya, phase === 'before_auth' ? 114 : 115);
     const oldPhone = nextPhone(f);
@@ -178,7 +179,8 @@ it.each(['before_auth', 'after_auth'] as const)(
     const [before] = await f.h.owner`SELECT id,user_id,membership_id FROM employee_staff_access WHERE employee_id=${employee}`;
     await f.h.owner`UPDATE memberships SET ends_at=now() WHERE id=${before?.membership_id}`;
     await f.h.owner`DELETE FROM cashier_pins WHERE user_id=${before?.user_id}`;
-    await f.h.owner`UPDATE employee_staff_access SET state='STOPPED',created_at=now()-interval '25 hours' WHERE employee_id=${employee}`;
+    // السجل عمره أسبوع: عمر السجل الأصلي لا يجوز أن يُحتسب على محاولة إعادة المنح الحالية (P1-3).
+    await f.h.owner`UPDATE employee_staff_access SET state='STOPPED',created_at=now()-interval '7 days' WHERE employee_id=${employee}`;
     const phone = nextPhone(f);
     const real = f.h.auth.staffUsers.provision;
     vi.spyOn(f.h.auth.staffUsers, 'provision').mockImplementationOnce(async (input) => {
@@ -190,13 +192,20 @@ it.each(['before_auth', 'after_auth'] as const)(
     } finally {
       vi.restoreAllMocks();
     }
+    const hour = 60 * 60 * 1000;
+    await expect(cancelPendingAt(f, employee, new Date(Date.now() + hour))).rejects.toMatchObject({
+      code: 'STAFF_ACCESS_NOT_ALLOWED',
+    });
+    expect(await f.h.owner`SELECT state FROM employee_staff_access WHERE employee_id=${employee}`)
+      .toMatchObject([{ state: 'PENDING' }]);
     const cancel = vi.spyOn(f.h.auth.staffUsers, 'cancel');
     try {
-      expect(await cancelPending(f, employee)).toMatchObject({ status: 200, body: { state: 'STOPPED' } });
+      await cancelPendingAt(f, employee, new Date(Date.now() + 25 * hour));
       expect(cancel).not.toHaveBeenCalled();
     } finally {
       vi.restoreAllMocks();
     }
+    expect(await readState(f, employee)).toMatchObject({ status: 200, body: { state: 'STOPPED' } });
     expect(await f.h.owner`SELECT state,user_id,membership_id FROM employee_staff_access WHERE employee_id=${employee}`)
       .toMatchObject([{ state: 'STOPPED', user_id: before?.user_id, membership_id: before?.membership_id }]);
     const [bound] = await f.h.owner`SELECT phone_number FROM "user" WHERE id=${before?.user_id}`;
