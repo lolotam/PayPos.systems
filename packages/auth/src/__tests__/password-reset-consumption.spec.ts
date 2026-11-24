@@ -331,6 +331,29 @@ describe('the reset endpoint keeps Better Auth request validation', () => {
   });
 });
 
+describe('a staff account never gets a credential through the reset path', () => {
+  it('a link of a staff-marked account is refused from the query and from the body, and nothing is written', async () => {
+    const { userId } = await createOrdinaryUser('staff-marked@example.test');
+    const before = await storedHash(userId);
+    const link = tokenOf(await auth.issuePasswordSetLink(userId, `${ORIGIN}/set-password`));
+    // الحساب بقى حساب موظفة بعد ما الرابط اتصدر: الرفض لازم يحصل جوه المعاملة مش في فحص الجسم بس.
+    await owner`UPDATE "user" SET staff_access_company_id = ${COMPANY},
+      staff_access_operation_id = ${systemUuidV7().newId()} WHERE id = ${userId}`;
+    const fromQuery = await auth.handler(
+      new Request(`${BASE}/v1/auth/reset-password?token=${encodeURIComponent(link)}`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', origin: ORIGIN },
+        body: JSON.stringify({ newPassword: 'staff-query-pass' }),
+      }),
+    );
+    expect(fromQuery.status).toBe(400);
+    const fromBody = await consume(link, 'staff-body-pass');
+    expect(fromBody.status).toBe(400);
+    expect(await storedHash(userId)).toBe(before);
+    expect(await liveTokens(userId)).toContain(link);
+  });
+});
+
 describe('the link expiry is decided inside the transaction, after the user lock', () => {
   it('a link that expires while the reset waits on the user lock is refused and nothing is saved', async () => {
     const { userId } = await createOrdinaryUser('expiry-lock@example.test');

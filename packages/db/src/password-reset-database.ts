@@ -99,11 +99,15 @@ const consumeLinkAndSetPassword = async (
     // قفل صف اليوزر أول حاجة: إصدار الرابط بياخد نفس القفل بنفس الترتيب (يوزر ثم حساب)، فمفيش
     // طلب إصدار يقدر يدخل بين استهلاك الرابط وكتابة كلمة المرور.
     const [owner] = await tx
-      .select({ id: user.id })
+      .select({ id: user.id, staffOperation: user.staffAccessOperationId })
       .from(user)
       .where(eq(user.id, link.userId))
       .for('update');
     if (owner === undefined) return 'invalid-link';
+    // حساب الموظفة مالوش credential أبداً (spec 076 D8): الرفض هنا تحت القفل، قبل استهلاك الرابط وقبل
+    // أي كتابة، مهما كان مصدر التوكن في الطلب (جسم أو query) — الكتابة هنا SQL مباشر ما بيعدّيش على
+    // حارس Better Auth adapter.
+    if (owner.staffOperation !== null) return 'invalid-link';
     // ساعة الاستهلاك بتتقري بعد القفل: رابط بينتهي وإحنا مستنيين قفل اليوزر بيرفض هنا، والاستهلاك
     // بعد القفل: لو طلب تاني استهلك نفس الرابط أو إصدار جديد مسحه، الحذف هنا بيرجّع صفر.
     const now = input.now();

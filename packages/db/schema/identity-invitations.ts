@@ -60,6 +60,9 @@ export const memberInvitations = pgTable(
     index('member_invitations_company_id_user_id_idx').on(t.companyId, t.userId),
     // كل مفتاح أجنبي له فهرس (CLAUDE.md §5).
     index('member_invitations_invited_by_idx').on(t.invitedBy),
+    // الـ FK على user_id وحده (جدول اليوزر عام بلا company_id): فحص المرجع عند حذف يوزر محتاج فهرس
+    // بيبدأ بـ user_id.
+    index('member_invitations_user_id_idx').on(t.userId),
     index('member_invitations_membership_idx').on(t.companyId, t.membershipId),
     check('member_invitations_state', sql`${t.state} IN ${STATES}`),
     check('member_invitations_scope_type', sql`${t.scopeType} IN ${SCOPE_TYPES}`),

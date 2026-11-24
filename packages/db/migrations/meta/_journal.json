@@ -1783,14 +1783,14 @@
     {
       "idx": 256,
       "version": "7",
-      "when": 1795517839479,
+      "when": 1795520827235,
       "tag": "0256_2026-11-24_member-invitations",
       "breakpoints": true
     },
     {
       "idx": 257,
       "version": "7",
-      "when": 1795517845079,
+      "when": 1795520833185,
       "tag": "0257_2026-11-24_member-invitations-rls",
       "breakpoints": true
     }
