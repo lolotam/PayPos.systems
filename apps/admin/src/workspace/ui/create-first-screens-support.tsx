@@ -23,6 +23,8 @@ export const BUSINESS_ID = hoisted.businessId;
 export const BRANCH_ID = hoisted.branchId;
 /** شركة تانية للكوكي والقراءة اللي مفيش فيها الشركة بتاعة النموذج. */
 export const OTHER_COMPANY_ID = '01920000-0000-7000-8000-0000000000b2';
+/** نشاط تاني لنفس الشركة، ملوش فروع، لاختبار تبديل النشاط المختار. */
+export const SECOND_BUSINESS_ID = '01920000-0000-7000-8000-0000000000d2';
 
 /** المتوقع في جسم POST النشاط: بدون country وبدون currency وبدون timezone. */
 export const BUSINESS_BODY = {
@@ -131,6 +133,43 @@ export const companyWithBusinessNoBranch = (role: unknown = 'owner'): Response =
   );
 };
 
+/** شركتان منشأتان لسه ملهومش أنشطة — التبديل بينهم بيتم من الـ provider نفسه. */
+export const twoCompaniesWithoutBusiness = () =>
+  jsonResponse(
+    {
+      companies: [COMPANY_ID, OTHER_COMPANY_ID].map((id) => ({
+        id,
+        name_ar: null,
+        name_en: id === COMPANY_ID ? 'Provider Company' : 'Other Company',
+        role_code: 'owner',
+        scope: 'COMPANY',
+        businesses: [],
+      })),
+    },
+    200,
+  );
+
+/** شركة واحدة عندها نشاطان ملهومش فروع — التبديل بينهم بيتم من الـ provider نفسه. */
+export const companyWithTwoBusinessesNoBranch = () =>
+  jsonResponse(
+    {
+      companies: [
+        {
+          id: COMPANY_ID,
+          name_ar: null,
+          name_en: 'Provider Company',
+          role_code: 'owner',
+          scope: 'COMPANY',
+          businesses: [
+            WORKSPACE_BUSINESS,
+            { ...WORKSPACE_BUSINESS, id: SECOND_BUSINESS_ID, name_en: 'Second Salon' },
+          ],
+        },
+      ],
+    },
+    200,
+  );
+
 /** شركة تانية عندها نشاط وفرع — قراءة مفيش فيها الشركة بتاعة النموذج. */
 export const companyWithOtherCompany = () =>
   jsonResponse(
@@ -235,9 +274,11 @@ export function renderScreen(
   probe: ReactNode,
   client?: QueryClient,
   allowsLinkedWorkspace = false,
+  aside?: ReactNode,
 ) {
   const gates = (
     <WorkspaceProvider>
+      {aside}
       <WorkspaceBody allowsLinkedWorkspace={allowsLinkedWorkspace}>{probe}</WorkspaceBody>
     </WorkspaceProvider>
   );

@@ -123,6 +123,9 @@ switcher); settings screens to change the country later; any stored-attempt reco
   leaving the setup flow.
 - If the fresh workspaces read no longer contains the form's company, the business guard does not
   POST — the view moves on from that same read (a failed read shows the screen error as before).
+- The two screens carry a React `key` of what they are rendered for (business screen: company id;
+  branch screen: company id + business id), so switching the selection in the same tab remounts
+  the form: typed values, the held idempotency key and pending error state reset with it.
 - Known limits (recorded, not fixed here):
   - Two tabs that both read an empty list before either create commits can create two records;
     the durable guard belongs on the server.

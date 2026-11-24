@@ -4,6 +4,7 @@ import { t } from '@pospay/i18n';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { useWorkspace } from '../model/workspace-provider';
+import { WorkspaceChooseProbe } from './workspace-choose-probe';
 import {
   BRANCH_BODY,
   BUSINESS_ID,
@@ -11,8 +12,10 @@ import {
   CREATED_BRANCH,
   CREATED_BUSINESS,
   ENVELOPE,
+  SECOND_BUSINESS_ID,
   companyWithBusinessAndBranch,
   companyWithBusinessNoBranch,
+  companyWithTwoBusinessesNoBranch,
   companyWithoutBusiness,
   fillBranchAndSubmit,
   fillBusinessAndSubmit,
@@ -192,6 +195,36 @@ function testCountryRetryFromBranchScreen(): void {
   });
 }
 
+function testBranchFormResetsOnBusinessSwitch(): void {
+  it('switching the selected business empties the branch form', async () => {
+    queue({ gets: [companyWithTwoBusinessesNoBranch] });
+    const switchers = (
+      <>
+        <WorkspaceChooseProbe
+          label="Business 1"
+          next={{ companyId: COMPANY_ID, businessId: BUSINESS_ID }}
+        />
+        <WorkspaceChooseProbe
+          label="Business 2"
+          next={{ companyId: COMPANY_ID, businessId: SECOND_BUSINESS_ID }}
+        />
+      </>
+    );
+    renderScreen('en', <BranchProbe />, undefined, false, switchers);
+    fireEvent.click(await screen.findByRole('button', { name: 'Business 1' }));
+    await waitForBranchForm();
+    fireEvent.change(screen.getByLabelText(t('en', 'admin.branchNameEnLabel')), {
+      target: { value: 'A Branch' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Business 2' }));
+    await waitFor(() => {
+      const nameInput = screen.getByLabelText(t('en', 'admin.branchNameEnLabel')) as HTMLInputElement;
+      expect(nameInput.value).toBe('');
+    });
+    expect(screen.getByRole('heading', { name: t('en', 'admin.firstBranchTitle') })).not.toBeNull();
+  });
+}
+
 describe('CreateFirstBranchScreen', () => {
   beforeEach(() => {
     mockFetch.mockReset();
@@ -204,6 +237,7 @@ describe('CreateFirstBranchScreen', () => {
   });
 
   testBranchFormVisible();
+  testBranchFormResetsOnBusinessSwitch();
   testValidSubmit();
   testBranchForbidden();
   testGuardBlocksWhenBranchExists();

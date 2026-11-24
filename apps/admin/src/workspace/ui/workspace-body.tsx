@@ -71,11 +71,14 @@ export function WorkspaceBody({
   if (workspace.status === 'ready') {
     const setup = setupScreenOf(workspace, allowsLinkedWorkspace);
     if (setup === 'business') {
-      return <CreateFirstBusinessScreen companyId={workspace.company.id} />;
+      // المفتاح بتاع الشركة: تبديل الشركة المختارة في نفس التبويب بيعيد تركيب النموذج فالقيم
+      // المكتوبة والمفتاح الماسك وخطأ الانتظار بينضفوا بدل ما يتبعتوا للشركة الجديدة.
+      return <CreateFirstBusinessScreen key={workspace.company.id} companyId={workspace.company.id} />;
     }
     if (setup === 'branch' && workspace.business !== undefined) {
       return (
         <CreateFirstBranchScreen
+          key={`${workspace.company.id}-${workspace.business.id}`}
           companyId={workspace.company.id}
           businessId={workspace.business.id}
         />
