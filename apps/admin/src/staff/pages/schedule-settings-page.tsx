@@ -12,6 +12,7 @@ export function ScheduleSettingsPage({ scope }: { scope: ScheduleWorkspace }) {
       <ScheduleSettingsPanel
         key={`${scope.companyId}:${scope.businessId}:${scope.userId}`}
         scope={scope}
+        standalone
       />
     </PageShell>
   );

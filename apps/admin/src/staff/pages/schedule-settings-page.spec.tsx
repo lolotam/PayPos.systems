@@ -94,7 +94,17 @@ it('saves the business limit from this page', async () => {
   );
 });
 
-it('hides the settings when the read is refused', async () => {
+it('shows loading while the read is pending', async () => {
+  api.GET.mockImplementation((path: string) =>
+    path === '/v1/businesses/{businessId}/schedule-settings'
+      ? new Promise(() => undefined)
+      : Promise.resolve(answerRead(path)),
+  );
+  renderPage();
+  expect((await screen.findByRole('status')).textContent).toContain(t('en', 'admin.loading'));
+});
+
+it('shows the refusal when the read is forbidden', async () => {
   api.GET.mockImplementation((path: string) =>
     path === '/v1/businesses/{businessId}/schedule-settings'
       ? Promise.resolve({
@@ -104,6 +114,9 @@ it('hides the settings when the read is refused', async () => {
       : Promise.resolve(answerRead(path)),
   );
   renderPage();
-  await waitFor(() => expect(screen.queryByLabelText(limitLabel)).toBeNull());
+  const alert = await screen.findByRole('alert');
+  expect(alert.textContent).toContain(t('en', 'errors.FORBIDDEN'));
+  expect(screen.queryByLabelText(limitLabel)).toBeNull();
+  expect(screen.queryByRole('button', { name: t('en', 'shell.schedule_settings_save') })).toBeNull();
   expect(screen.getByRole('heading', { name: title })).toBeTruthy();
 });
