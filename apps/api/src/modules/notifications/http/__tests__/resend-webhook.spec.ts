@@ -1,7 +1,7 @@
 ﻿import { createHash } from 'node:crypto';
 import http from 'node:http';
 import { PassThrough } from 'node:stream';
-import { createResendEventDigest } from '@pospay/notifications';
+import { createResendEventDigest, RESEND_INTAKE_BUDGET_MS } from '@pospay/notifications';
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { NestFastifyApplication } from '@nestjs/platform-fastify';
 import { createApp } from '../../../../app.ts';
@@ -33,6 +33,26 @@ afterAll(async () => {
 });
 
 const rows = () => h.owner`SELECT * FROM platform_email_feedback_inbox`;
+
+async function postWithControlledEnqueue(id: string, beforeDeadline: boolean) {
+  vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'performance'] });
+  const queue = h.holdEnqueue();
+  try {
+    const response = h.post(JSON.stringify(event()), {}, true, id);
+    await Promise.race([
+      queue.entered,
+      response.then(({ statusCode }) => {
+        throw new Error(`Response ${statusCode} arrived before durable enqueue began`);
+      }),
+    ]);
+    if (beforeDeadline) queue.settle(true);
+    else await vi.advanceTimersByTimeAsync(RESEND_INTAKE_BUDGET_MS);
+    return await response;
+  } finally {
+    queue.settle(false);
+    vi.useRealTimers();
+  }
+}
 
 it('destroys an unfinished body reader at its deadline instead of retaining the upload', async () => {
   const stream = new PassThrough();
@@ -111,7 +131,7 @@ const twiceSignedStatus = (server: http.Server, payload: string): Promise<number
 describe('stores the scrubbed envelope and deduplicates', () => {
   it('stores one scrubbed row and enqueues one id-only job', async () => {
     const before = await rows();
-    const response = await h.post(JSON.stringify(event()));
+    const response = await postWithControlledEnqueue(eventId, true);
     expect(response.statusCode).toBe(200);
     expect(response.body).toBe('{"received":true}');
     const stored = await rows();
@@ -120,8 +140,7 @@ describe('stores the scrubbed envelope and deduplicates', () => {
     expect(row?.['event_type']).toBe('email.bounced');
     expect(row?.['bounce_class']).toBe('PERMANENT');
     expect(row?.['enqueue_confirmed_at']).not.toBeNull();
-    expect(h.jobs).toHaveLength(1);
-    expect(Object.keys(h.jobs[0] ?? {}).join()).toBe('inbox_id');
+    expect(h.jobs).toEqual([{ inbox_id: row?.['id'] }]);
     const persisted = JSON.stringify(stored);
     for (const forbidden of [
       address,
@@ -209,9 +228,8 @@ describe('acknowledges replays and leaves late work to the recovery path', () =>
   });
 
   it('acknowledges a committed row with 200 when enqueue never settles', async () => {
-    h.failEnqueue('hang');
     const id = 'msg_test_durable_enqueue_timeout';
-    const response = await h.post(JSON.stringify(event()), {}, true, id);
+    const response = await postWithControlledEnqueue(id, false);
     expect(response.statusCode).toBe(200);
     expect(JSON.parse(response.body)).toEqual({ received: true });
     const digest = createResendEventDigest(Buffer.alloc(32, 9))(id);

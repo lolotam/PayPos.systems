@@ -55,7 +55,8 @@ export interface ResendHarness {
   readonly redis: Redis;
   readonly chunks: string[];
   readonly jobs: { inbox_id: string }[];
-  readonly failEnqueue: (value: boolean | 'hang') => void;
+  readonly failEnqueue: (value: boolean) => void;
+  readonly holdEnqueue: () => { entered: Promise<void>; settle: (accepted: boolean) => void };
   readonly clearJobs: () => void;
   readonly post: (
     payload: string,
@@ -102,6 +103,7 @@ export async function resendHarness(): Promise<ResendHarness> {
     chunks,
     jobs: intake.jobs,
     failEnqueue: intake.failEnqueue,
+    holdEnqueue: intake.holdEnqueue,
     clearJobs: () => {
       intake.jobs.length = 0;
     },
@@ -119,14 +121,28 @@ export async function resendHarness(): Promise<ResendHarness> {
   };
 }
 
+function deferred<T>() {
+  let resolve!: (value: T) => void;
+  const promise = new Promise<T>((done) => {
+    resolve = done;
+  });
+  return { promise, resolve };
+}
+
 function testIntake(database: PlatformEmailDatabase) {
   const jobs: { inbox_id: string }[] = [];
-  let enqueueFailure: boolean | 'hang' = false;
+  let enqueueFailure = false;
+  let gate: { enter: () => void; outcome: Promise<boolean> } | undefined;
   const receive = new ReceiveEmailFeedback(
     createEmailFeedbackInboxRepository(database, systemUuidV7()),
     {
       enqueue: async (id, deadline) => {
-        if (enqueueFailure === 'hang') await new Promise<void>(() => undefined);
+        if (gate !== undefined) {
+          const pending = gate;
+          gate = undefined;
+          pending.enter();
+          if (!(await pending.outcome)) throw new EmailFeedbackQueueUnavailableError();
+        }
         if (enqueueFailure) throw new EmailFeedbackQueueUnavailableError();
         if (deadline.getTime() <= at.getTime()) throw new EmailFeedbackQueueUnavailableError();
         jobs.push({ inbox_id: id });
@@ -136,8 +152,14 @@ function testIntake(database: PlatformEmailDatabase) {
   );
   return {
     jobs,
-    failEnqueue: (value: boolean | 'hang') => {
+    failEnqueue: (value: boolean) => {
       enqueueFailure = value;
+    },
+    holdEnqueue: () => {
+      const entered = deferred<undefined>();
+      const outcome = deferred<boolean>();
+      gate = { enter: () => entered.resolve(undefined), outcome: outcome.promise };
+      return { entered: entered.promise, settle: outcome.resolve };
     },
     receive,
     intake: {
