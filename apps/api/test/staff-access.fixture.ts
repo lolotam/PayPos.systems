@@ -1,7 +1,8 @@
 import { SYSTEM_ROLES, createDatabase } from '@pospay/db';
 import { systemUuidV7 } from '@pospay/ids';
 import { Writable } from 'node:stream';
-import { startHarness, type Harness } from '../../../../test/harness.ts';
+import { GrantEmployeeAccessUseCase } from '../src/modules/staff/use-cases/grant-employee-access/grant-employee-access.ts';
+import { startHarness, type Harness } from './harness.ts';
 
 const ids = systemUuidV7();
 const logLines: string[] = [];
@@ -12,7 +13,9 @@ const sink = new Writable({
   },
 });
 /** سطور الأخطاء الأخيرة من سجل الـ API لتشخيص أي 500 داخل الاختبارات. */
-export const recentErrorLogs = () => logLines.filter((line) => line.includes('"level":50')).slice(-3);
+export const capturedLogs = () => logLines.join('\n');
+export const recentErrorLogs = () =>
+  logLines.filter((line) => line.includes('"level":50')).slice(-3);
 
 /** دوال النظام بمعرّفاتها الثابتة لإنشاء عضوية مدير فرع حقيقية. */
 export const systemRoleId = (code: string): string => {
@@ -47,6 +50,7 @@ export async function staffAccessFixture(
   options: Parameters<typeof startHarness>[0] = {},
 ): Promise<StaffAccessFixture> {
   const h = await startHarness({ ...options, logs: sink });
+  if (options.staffAccessRoutes) observeGrantFailures(h);
   const onboardOrThrow = async (cookie: string, name: string) => {
     const res = await h.send('POST', '/v1/companies', {
       cookie,
@@ -62,7 +66,8 @@ export async function staffAccessFixture(
   const ownerCookie = await h.signedInOperator('staff-access-owner@example.test');
   const managerCookie = await h.signedInOperator('staff-access-manager@example.test');
   const company = await onboardOrThrow(ownerCookie, 'Staff access employer');
-  const [managerUser] = await h.owner`SELECT id FROM "user" WHERE email='staff-access-manager@example.test'`;
+  const [managerUser] =
+    await h.owner`SELECT id FROM "user" WHERE email='staff-access-manager@example.test'`;
   const managerUserId = managerUser?.['id'] as string;
   const business = ids.newId();
   await h.owner`INSERT INTO businesses (company_id,id,name_en,vertical_type)
@@ -104,8 +109,12 @@ export const addEmployee = async (
   employeeNumber: number,
 ): Promise<string> => {
   const employeeId = ids.newId();
-  await f.h.owner`INSERT INTO employees (company_id,id,business_id,primary_branch_id,name_en,name_en_key,role_code,hire_date,employee_number)
+  await f.h
+    .owner`INSERT INTO employees (company_id,id,business_id,primary_branch_id,name_en,name_en_key,role_code,hire_date,employee_number)
     VALUES (${f.company},${employeeId},${f.business},${branchId},${name},${name.toLowerCase()},'staff','2026-01-01',${employeeNumber})`;
+  await f.h
+    .owner`INSERT INTO employee_branches(company_id,id,business_id,employee_id,branch_id,"from")
+    VALUES (${f.company},${ids.newId()},${f.business},${employeeId},${branchId},'2026-01-01')`;
   return employeeId;
 };
 
@@ -125,17 +134,19 @@ export const grant = (
   cookie = f.ownerCookie,
   body: Record<string, unknown> = {},
 ) =>
-  f.h.send('POST', grantPath(f, employeeId), {
-    cookie,
-    company: f.company,
-    body: { phone, phone_confirmed: true, role: 'staff', pin: '1234', ...body },
-  }).then((response: { status: number; body: unknown }) => {
-    if (response.status >= 500) {
-      console.log('GRANT 500 BODY:', JSON.stringify(response.body));
-      console.log('RECENT ERROR LOGS:', recentErrorLogs().join('\n').slice(0, 2400));
-    }
-    return response;
-  });
+  f.h
+    .send('POST', grantPath(f, employeeId), {
+      cookie,
+      company: f.company,
+      body: { phone, phone_confirmed: true, role: 'staff', pin: '1234', ...body },
+    })
+    .then((response: { status: number; body: unknown }) => {
+      if (response.status >= 500) {
+        console.log('GRANT 500 BODY:', JSON.stringify(response.body));
+        console.log('RECENT ERROR LOGS:', recentErrorLogs().join('\n').slice(0, 2400));
+      }
+      return response;
+    });
 
 export const readState = (f: Fixture, employeeId: string, cookie = f.ownerCookie) =>
   f.h.send('GET', grantPath(f, employeeId), { cookie, company: f.company });
@@ -152,3 +163,16 @@ export const auditRows = async (f: Fixture, employeeId: string) =>
 export const staffUsersOf = async (f: Fixture) =>
   f.h.owner`SELECT id, email, staff_access_operation_id, staff_access_company_id, phone_number,
     phone_binding_approved_at FROM "user" WHERE staff_access_company_id = ${f.company}`;
+
+function observeGrantFailures(h: Harness): void {
+  const useCase = h.app.get(GrantEmployeeAccessUseCase);
+  const execute = useCase.execute.bind(useCase);
+  useCase.execute = async (command) => {
+    try { return await execute(command); }
+    catch (error) {
+      const code = error instanceof Error && /^[A-Z_]+$/.test(error.message) ? error.message : '[withheld]';
+      console.log('STAFF_ACCESS_DIAGNOSTIC', code);
+      throw error;
+    }
+  };
+}

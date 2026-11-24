@@ -1,7 +1,6 @@
 import { createDatabase } from '@pospay/db';
 import { systemUuidV7 } from '@pospay/ids';
-import { sql } from 'drizzle-orm';
-import { afterAll, beforeAll, expect, it, vi } from 'vitest';
+import { afterAll, beforeAll, expect, it } from 'vitest';
 import {
   addEmployee,
   grant,
@@ -9,11 +8,8 @@ import {
   nextPhone,
   staffAccessFixture,
   type Fixture,
-} from './employee-staff-access.fixture.ts';
+} from '../../../../test/staff-access.fixture.ts';
 import { canLinkEmployeeUser } from '../persistence/employee-context.adapter.ts';
-import type { EmployeeUpdateScope, EmployeeUpdateTransactions } from '../ports/employee-update-transactions.port.ts';
-import { type EditableEmployee } from '../domain/update-employee.ts';
-import { UpdateEmployeeUseCase } from '../use-cases/update-employee/update-employee.usecase.ts';
 
 const ids = systemUuidV7();
 let f: Fixture;
@@ -59,26 +55,16 @@ async function readStateSafe(fixture: Fixture, employeeId: string) {
   });
 }
 
-it('AC-F1-7c a temporary PIN row is invisible to the staff PIN readers, exactly like no row', async () => {
-  const granted = await addEmployee(f, 'Reader probe', f.salmiya, 31);
-  expect((await grant(f, granted, nextPhone(f))).status).toBe(200);
-  const [record] = await f.h.owner`SELECT user_id FROM employee_staff_access WHERE employee_id = ${granted}`;
-  const userId = record?.user_id as string;
-  expect(userId).toBeTruthy();
-  const direct = await f.db.withTenant(f.company, (tx) =>
-    tx.execute(sql`SELECT pin_hash FROM cashier_pins WHERE company_id=${f.company} AND user_id=${userId}`),
-  );
-  expect(direct).toHaveLength(1);
-  // القارئ (identity/staff-pin-transactions.find) يُختبر من داخل identity: staff-pin-temporary.spec.ts.
-});
-
 it('AC-F1-7b the link availability rule answers false for a staff user and true for a normal member', async () => {
   const granted = await addEmployee(f, 'Availability probe', f.salmiya, 33);
   expect((await grant(f, granted, nextPhone(f))).status).toBe(200);
-  const [record] = await f.h.owner`SELECT user_id FROM employee_staff_access WHERE employee_id = ${granted}`;
+  const [record] = await f.h
+    .owner`SELECT user_id FROM employee_staff_access WHERE employee_id = ${granted}`;
   const normalMember = ids.newId();
-  await f.h.owner`INSERT INTO "user"(id,name,email) VALUES (${normalMember},'Normal member',${`member-${normalMember}@example.test`})`;
-  await f.h.owner`INSERT INTO memberships(company_id,id,user_id,role_id,role_owner_key,scope_type,scope_id)
+  await f.h
+    .owner`INSERT INTO "user"(id,name,email) VALUES (${normalMember},'Normal member',${`member-${normalMember}@example.test`})`;
+  await f.h
+    .owner`INSERT INTO memberships(company_id,id,user_id,role_id,role_owner_key,scope_type,scope_id)
     VALUES (${f.company},${ids.newId()},${normalMember},'01920000-0000-7000-8000-00000000010b','global','BRANCH',${f.salmiya})`;
   await f.db.withTenant(f.company, async (tx) => {
     expect(await canLinkEmployeeUser(tx, f.company, record?.user_id as string)).toBe(false);
@@ -87,101 +73,52 @@ it('AC-F1-7b the link availability rule answers false for a staff user and true 
   });
 });
 
-it('AC-F1-7b update-employee refuses any user_id change for an employee with an access record', async () => {
-  const record = {
-    id: 'employee-1',
-    business_id: 'business-1',
-    primary_branch_id: 'branch-1',
-    name_en: 'Current',
+it('P1-7 the real HTTP update renames ACTIVE staff but refuses changing their user link', async () => {
+  const employeeId = await addEmployee(f, 'Editable staff', f.salmiya, 40);
+  expect((await grant(f, employeeId, nextPhone(f))).status).toBe(200);
+  const [employee] = await f.h.owner`SELECT user_id,revision FROM employees WHERE id=${employeeId}`;
+  const body = {
+    primary_branch_id: f.salmiya,
+    name_en: 'Renamed staff',
     name_ar: null,
-    role_code: 'staff' as const,
+    role_code: 'staff',
     hire_date: '2026-01-01',
     contract_end: null,
-    user_id: null,
-    revision: 3,
-    branch_ids: ['branch-1'],
-    created_at: '2026-01-01T00:00:00Z',
-    employee_number: 1,
-  } satisfies EditableEmployee;
-  const scope: EmployeeUpdateScope = {
-    load: vi.fn(async () => ({ record, history: [] })),
-    authorize: vi.fn(async () => true),
-    contexts: vi.fn(async (r) => [
-      { businessExists: true, branchBusinessId: r.business_id },
-    ]),
-    hasAccessRecord: vi.fn(async () => true),
-    canLinkUser: vi.fn(async () => true),
-    save: vi.fn(async () => undefined),
+    user_id: employee?.user_id,
+    expected_revision: employee?.revision,
+    branch_ids: [f.salmiya],
+    branch_effective_date: '2026-11-24',
   };
-  const transactions = { run: vi.fn(async (_actor, work) => work(scope)) } as unknown as EmployeeUpdateTransactions;
-  const useCase = new UpdateEmployeeUseCase(transactions, ids);
-  await expect(
-    useCase.execute({
-      companyId: f.company,
-      userId: 'actor',
-      businessId: 'business-1',
-      employeeId: 'employee-1',
-      input: {
-        primary_branch_id: 'branch-1',
-        name_en: 'Renamed',
-        role_code: 'staff',
-        hire_date: '2026-01-01',
-        branch_ids: ['branch-1'],
-        branch_effective_date: '2026-01-02',
-        expected_revision: 3,
-        user_id: 'new-user',
-      },
-    }),
-  ).rejects.toMatchObject({ code: 'EMPLOYEE_USER_LINK_UNAVAILABLE' });
-  expect(scope.save).not.toHaveBeenCalled();
-  expect(vi.mocked(scope.canLinkUser)).not.toHaveBeenCalled();
+  const url = `/v1/businesses/${f.business}/employees/${employeeId}`;
+  const renamed = await f.h.send('PATCH', url, { cookie: f.ownerCookie, company: f.company, body });
+  expect(renamed).toMatchObject({
+    status: 200,
+    body: { name_en: 'Renamed staff', user_id: employee?.user_id },
+  });
+  const changed = await f.h.send('PATCH', url, {
+    cookie: f.ownerCookie,
+    company: f.company,
+    body: { ...body, expected_revision: Number(employee?.revision) + 1, user_id: null },
+  });
+  expect(changed).toMatchObject({ status: 400, body: { code: 'EMPLOYEE_USER_LINK_UNAVAILABLE' } });
+  const [persisted] = await f.h.owner`SELECT user_id,name_en FROM employees WHERE id=${employeeId}`;
+  expect(persisted).toMatchObject({ name_en: 'Renamed staff', user_id: employee?.user_id });
 });
 
-it('AC-F1-7b update-employee still allows unrelated edits for an employee with an access record', async () => {
-  const record = {
-    id: 'employee-2',
-    business_id: 'business-1',
-    primary_branch_id: 'branch-1',
-    name_en: 'Current',
-    name_ar: null,
-    role_code: 'staff' as const,
-    hire_date: '2026-01-01',
-    contract_end: null,
-    user_id: 'kept-user',
-    revision: 3,
-    branch_ids: ['branch-1'],
-    created_at: '2026-01-01T00:00:00Z',
-    employee_number: 2,
-  } satisfies EditableEmployee;
-  const scope: EmployeeUpdateScope = {
-    load: vi.fn(async () => ({ record, history: [] })),
-    authorize: vi.fn(async () => true),
-    contexts: vi.fn(async (r) => [
-      { businessExists: true, branchBusinessId: r.business_id },
-    ]),
-    hasAccessRecord: vi.fn(async () => true),
-    canLinkUser: vi.fn(async () => true),
-    save: vi.fn(async () => undefined),
-  };
-  const transactions = { run: vi.fn(async (_actor, work) => work(scope)) } as unknown as EmployeeUpdateTransactions;
-  const useCase = new UpdateEmployeeUseCase(transactions, ids);
-  const detail = await useCase.execute({
-    companyId: f.company,
-    userId: 'actor',
-    businessId: 'business-1',
-    employeeId: 'employee-2',
-    input: {
-      primary_branch_id: 'branch-1',
-      name_en: 'Renamed only',
-      role_code: 'staff',
-      hire_date: '2026-01-01',
-      branch_ids: ['branch-1'],
-      branch_effective_date: '2026-01-02',
-      expected_revision: 3,
-      // نفس قيمة الربط الحالية: تعديل بلا مساس بالربط يُسمح به لموظفة ذات سجل (FR-F1-8).
-      user_id: 'kept-user',
-    },
-  });
-  expect(detail.name_en).toBe('Renamed only');
-  expect(scope.save).toHaveBeenCalledTimes(1);
-});
+it.each(['GET', 'POST', 'DELETE'] as const)(
+  'P1-9 %s gate precedes auth, invalid ids and body validation',
+  async (method) => {
+    const url =
+      '/v1/businesses/malformed/employees/malformed/staff-access' +
+      (method === 'DELETE' ? '/pending' : '');
+    const response = await gated.h.app.inject({
+      method,
+      url,
+      ...(method === 'POST'
+        ? { headers: { 'content-type': 'application/json' }, payload: '{broken' }
+        : {}),
+    });
+    expect(response.statusCode).toBe(503);
+    expect(response.json()).toMatchObject({ code: 'NOT_READY' });
+  },
+);

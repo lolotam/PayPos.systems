@@ -1,50 +1,118 @@
+import { afterAll, beforeAll, expect, it, vi } from 'vitest';
 import { systemUuidV7 } from '@pospay/ids';
-import { sql } from 'drizzle-orm';
-import { afterAll, beforeAll, expect, it } from 'vitest';
-import { createDatabase } from '@pospay/db';
-import { startHarness, type Harness } from '../../../../test/harness.ts';
+import {
+  addEmployee,
+  grant,
+  nextPhone,
+  staffAccessFixture,
+  type Fixture,
+} from '../../../../test/staff-access.fixture.ts';
+import { paired, origin } from '../../../../test/staff-otp-harness.ts';
 import { createStaffPinTransactions } from '../persistence/staff-pin-transactions.ts';
-
+import { createRedisPinAttempts } from '../persistence/redis-pin-attempts.ts';
+import { createRedisDevicePinCap } from '../persistence/redis-device-pin-cap.ts';
+import { authPinHasher } from '../persistence/auth-pin-hasher.ts';
+import { VerifyDiscountApproverPin } from '../use-cases/verify-discount-approver-pin/verify-discount-approver-pin.ts';
+import { createStaffEligibility } from '../persistence/staff-eligibility.ts';
+import { readAttendanceDeviceAccess } from '../persistence/attendance-device-access.ts';
 const ids = systemUuidV7();
-let h: Harness;
-let db: ReturnType<typeof createDatabase>;
-let company: string;
-let permanentUser: string;
-let temporaryUser: string;
+let f: Fixture;
 beforeAll(async () => {
-  h = await startHarness();
-  const cookie = await h.signedInOperator('staff-pin-temporary@example.test');
-  company = await h.onboard(cookie, 'Temporary pin employer');
-  db = createDatabase({ url: h.urls.app, ids });
-  const business = ids.newId();
-  await h.owner`INSERT INTO businesses (company_id,id,name_en,vertical_type)
-    VALUES (${company},${business},'Temporary pin business','salon')`;
-  const branch = ids.newId();
-  await h.owner`INSERT INTO branches (company_id,id,business_id,name_en)
-    VALUES (${company},${branch},${business},'Temporary pin branch')`;
-  permanentUser = ids.newId();
-  temporaryUser = ids.newId();
-  for (const user of [permanentUser, temporaryUser]) {
-    await h.owner`INSERT INTO "user"(id,name,email) VALUES (${user},'Probe',${`tp-${user}@example.test`})`;
-    await h.owner`INSERT INTO memberships(company_id,id,user_id,role_id,role_owner_key,scope_type,scope_id)
-      VALUES (${company},${ids.newId()},${user},'01920000-0000-7000-8000-00000000010b','global','BRANCH',${branch})`;
-  }
-  await db.withTenant(company, (tx) =>
-    tx.execute(sql`INSERT INTO cashier_pins(company_id,id,user_id,pin_hash,set_by,set_at,temporary)
-      VALUES (${company},${ids.newId()},${permanentUser},'pbkdf2-sha256$x$y$z',NULL,now(),false),
-        (${company},${ids.newId()},${temporaryUser},'pbkdf2-sha256$x$y$z',NULL,now(),true)`),
-  );
+  f = await staffAccessFixture({ staffAccessRoutes: true, staffOrigin: origin });
 });
 afterAll(async () => {
-  await db?.close();
-  await h?.close();
+  await f?.db.close();
+  await f?.h.close();
 });
 
-it('AC-F1-7c the reader sees a permanent PIN and refuses a temporary one like a wrong PIN', async () => {
-  const staffPins = createStaffPinTransactions(db, ids);
-  const permanent = await staffPins.run(company, null, (scope) => scope.find(permanentUser));
-  expect(permanent).not.toBeNull();
-  const temporary = await staffPins.run(company, null, (scope) => scope.find(temporaryUser));
-  // الرقم المؤقت (حدده المانح) لا يراه القارئ إطلاقاً — نفس جواب «لا صف» أي PIN غلط حتى F2 (FR-F2-2).
-  expect(temporary).toBeNull();
+it.each(['staff', 'reception'] as const)(
+  'AC-F1-1/2 %s creates rows and usable eligibility; temporary PIN sign-in is refused like a wrong PIN until F2',
+  async (role) => {
+    const employee = await addEmployee(
+      f,
+      'Access ' + role,
+      f.salmiya,
+      role === 'staff' ? 201 : 202,
+    );
+    const phone = nextPhone(f);
+    expect((await grant(f, employee, phone, f.ownerCookie, { role })).status).toBe(200);
+    const [record] = await f.h
+      .owner`SELECT user_id,membership_id,state FROM employee_staff_access WHERE employee_id=${employee}`;
+    expect(record).toMatchObject({
+      state: 'ACTIVE',
+      user_id: expect.any(String),
+      membership_id: expect.any(String),
+    });
+    const device = await paired(f.h, f.ownerCookie, f.company, f.salmiya);
+    const context = {
+      companyId: f.company,
+      businessId: f.business,
+      branchId: f.salmiya,
+      deviceId: device.id,
+    };
+    expect(await createStaffEligibility(f.db).eligible(record?.user_id, context)).toBe(true);
+    expect(
+      await f.db.withTenant(f.company, (tx) =>
+        readAttendanceDeviceAccess(
+          tx,
+          f.company,
+          record?.user_id,
+          f.business,
+          f.salmiya,
+          new Date(),
+        ),
+      ),
+    ).toBe(role === 'reception');
+    const pin = await createStaffPinTransactions(f.db, ids).run(f.company, null, (scope) =>
+      scope.find(record?.user_id),
+    );
+    expect(pin).toMatchObject({ temporary: true });
+    const sendPin = (value: string) =>
+      f.h.app.inject({
+        method: 'POST',
+        url: '/v1/devices/me/staff-pin/sign-in',
+        headers: { authorization: `Device ${device.token}`, origin },
+        payload: { phone, pin: value },
+      });
+    const wrong = await sendPin('4321');
+    const temporary = await sendPin('1234');
+    expect(temporary.statusCode).toBe(401);
+    expect(temporary.json()).toEqual(wrong.json());
+    expect(await f.h.owner`SELECT id FROM session WHERE user_id=${record?.user_id}`).toHaveLength(
+      0,
+    );
+    const counter = `pin:${f.company}:staff-user:${record?.user_id}:failures`;
+    expect(await f.h.redis.get(counter)).toBe('2');
+  },
+);
+
+it('P1-8 discount approval compares the stored temporary PIN and charges the same user counter as wrong PINs', async () => {
+  const employee = await addEmployee(f, 'Approver temporary', f.salmiya, 203);
+  const phone = nextPhone(f);
+  expect((await grant(f, employee, phone)).status).toBe(200);
+  const [record] = await f.h
+    .owner`SELECT user_id FROM employee_staff_access WHERE employee_id=${employee}`;
+  const db = createStaffPinTransactions(f.db, ids);
+  const attempts = createRedisPinAttempts(f.h.redis, ids);
+  const reserve = vi.spyOn(attempts, 'reserve');
+  const verify = vi.spyOn(authPinHasher, 'verify');
+  const device = { companyId: f.company, branchId: f.salmiya, deviceId: ids.newId() };
+  const useCase = new VerifyDiscountApproverPin(
+    db,
+    authPinHasher,
+    attempts,
+    f.h.auth.staff,
+    createRedisDevicePinCap(f.h.redis, ids),
+    { valid: async () => true },
+  );
+  expect(await useCase.execute({ phone, pin: '4321', device })).toEqual({ kind: 'refused' });
+  expect(await useCase.execute({ phone, pin: '1234', device })).toEqual({ kind: 'refused' });
+  const stored = await db.run(f.company, null, (scope) => scope.find(record?.user_id));
+  expect(verify).toHaveBeenLastCalledWith('1234', stored?.hash);
+  expect(reserve.mock.calls.map(([target]) => target.employeeId)).toEqual([
+    `staff-user:${record?.user_id}`,
+    `staff-user:${record?.user_id}`,
+  ]);
+  expect(await f.h.redis.get(`pin:${f.company}:staff-user:${record?.user_id}:failures`)).toBe('2');
+  vi.restoreAllMocks();
 });
