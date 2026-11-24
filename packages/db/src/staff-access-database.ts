@@ -2,7 +2,7 @@ import { createHash } from 'node:crypto';
 import { sql } from 'drizzle-orm';
 
 import { createOtpRuntime, type OtpRuntime } from './staff-otp-runtime.ts';
-import type { IdGenerator } from './with-tenant.ts';
+import type { IdGenerator, Tx } from './with-tenant.ts';
 
 /**
  * واجهة حساب الموظفة على pospay_auth (spec 076 F1، ADR-0003 §2.1): الإنشاء والإيجاد والإلغاء كلها
@@ -87,35 +87,21 @@ async function provisionStaffUser(
   assertProvisionInput(input);
   return runtime.run(async (tx) => {
     // التسلسل على معرّف العملية قبل أي قراءة: استئنافان لنفس العملية لا يتداخلان ولا يقرأان قبل القفل (P1-4).
-    await tx.execute(
-      sql`SELECT pg_advisory_xact_lock(hashtextextended(${input.operationId}, 0))`,
-    );
-    const [existing] = await tx.execute<{ id: string; phone: string | null }>(sql`
-      SELECT id, phone_number AS phone FROM "user"
+    await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtextextended(${input.operationId}, 0))`);
+    const [existing] = await tx.execute<{ id: string; phone: string | null; company: string }>(sql`
+      SELECT id, phone_number AS phone, staff_access_company_id AS company FROM "user"
       WHERE staff_access_operation_id = ${input.operationId} LIMIT 1`);
+    if (input.recordState !== 'PENDING') throw new StaffRecordNotPendingError();
     const at = await runtime.now(tx);
     if (existing !== undefined) {
-      if (input.resetBinding) {
-        // سجل STOPPED يستأنف بهاتف الطلب: الهاتف إما مالكه المستخدم نفسه أو حر. التثبيت على خطوتين
-        // مثل otpApprovePhone — تغيير الهاتف يشغّل trigger الإبطال، فالاعتماد في أمر تالٍ بعده (P1-4).
-        await runtime.lock(tx, createHash('sha256').update(`staff-provision:${input.phone}`).digest());
-        const [taken] = await tx.execute<{ id: string }>(
-          sql`SELECT id FROM "user" WHERE phone_number = ${input.phone} AND id <> ${existing.id} LIMIT 1`,
-        );
-        if (taken !== undefined) throw new StaffPhoneTakenError();
-        await tx.execute(sql`UPDATE "user"
-          SET phone_number = ${input.phone}, phone_number_verified = false
-          WHERE id = ${existing.id}`);
-        await tx.execute(sql`UPDATE "user"
-          SET phone_binding_approved_at = ${at.toISOString()}::timestamptz
-          WHERE id = ${existing.id}`);
-        await tx.execute(sql`INSERT INTO platform_audit_log (id, actor, action, target_user_id, details)
-          VALUES (${input.ids.newId()}, ${input.actorUserId}, 'phone.binding_approved', NULL,
-            ${JSON.stringify({ user_id: existing.id })}::jsonb)`);
-      }
+      if (
+        existing.company !== input.companyId ||
+        (!input.resetBinding && existing.phone !== input.phone)
+      )
+        throw new StaffRecordNotPendingError();
+      if (input.resetBinding) await resetStaffBinding(tx, runtime, input, existing.id, at);
       return { userId: existing.id };
     }
-    if (input.recordState !== 'PENDING') throw new StaffRecordNotPendingError();
     // قفل الهاتف يسلسل مع تدفق OTP على نفس المفتاح؛ قيد التفرد هو الحكم النهائي في السباق.
     await runtime.lock(tx, createHash('sha256').update(`staff-provision:${input.phone}`).digest());
     const [taken] = await tx.execute<{ id: string }>(
@@ -143,11 +129,37 @@ async function provisionStaffUser(
   });
 }
 
+async function resetStaffBinding(
+  tx: Tx,
+  runtime: OtpRuntime,
+  input: StaffUserProvisionInput,
+  userId: string,
+  at: Date,
+): Promise<void> {
+  // سجل STOPPED يستأنف بهاتف الطلب: الهاتف إما مالكه المستخدم نفسه أو حر. التثبيت على خطوتين
+  // مثل otpApprovePhone — تغيير الهاتف يشغّل trigger الإبطال، فالاعتماد في أمر تالٍ بعده (P1-4).
+  await runtime.lock(tx, createHash('sha256').update(`staff-provision:${input.phone}`).digest());
+  const [taken] = await tx.execute<{ id: string }>(
+    sql`SELECT id FROM "user" WHERE phone_number = ${input.phone} AND id <> ${userId} LIMIT 1`,
+  );
+  if (taken !== undefined) throw new StaffPhoneTakenError();
+  await tx.execute(sql`UPDATE "user"
+    SET phone_number = ${input.phone}, phone_number_verified = false
+    WHERE id = ${userId}`);
+  await tx.execute(sql`UPDATE "user"
+    SET phone_binding_approved_at = ${at.toISOString()}::timestamptz
+    WHERE id = ${userId}`);
+  await tx.execute(sql`INSERT INTO platform_audit_log (id, actor, action, target_user_id, details)
+    VALUES (${input.ids.newId()}, ${input.actorUserId}, 'phone.binding_approved', NULL,
+      ${JSON.stringify({ user_id: userId })}::jsonb)`);
+}
+
 async function cancelStaffUser(
   runtime: OtpRuntime,
   input: { operationId: string; companyId: string; actorUserId: string; ids: IdGenerator },
 ): Promise<void> {
   return runtime.run(async (tx) => {
+    await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtextextended(${input.operationId}, 0))`);
     const [existing] = await tx.execute<{ id: string }>(sql`
       SELECT id FROM "user"
       WHERE staff_access_operation_id = ${input.operationId}
@@ -166,8 +178,8 @@ async function readStaffUser(
 ): Promise<{ userId: string; phoneLast3: string | null } | null> {
   if (!/^[0-9a-f-]{36}$/i.test(operationId)) throw new Error('STAFF_USER_INPUT_INVALID');
   return runtime.run(async (tx) => {
-    const [row] = await tx.execute<{ id: string; phone: string | null }>(sql`
-      SELECT id, phone_number AS phone FROM "user"
+    const [row] = await tx.execute<{ id: string; phone: string | null; company: string }>(sql`
+      SELECT id, phone_number AS phone, staff_access_company_id AS company FROM "user"
       WHERE staff_access_operation_id = ${operationId} LIMIT 1`);
     if (row === undefined) return null;
     return {
@@ -201,21 +213,6 @@ async function readStaffUserKind(
   );
 }
 
-/** هل الحساب (credential) يخص مستخدم موظفة؟ يُفحص قبل أي تحديث حساب عبر id الحساب (P1-6). */
-async function readStaffAccountKind(
-  runtime: OtpRuntime,
-  accountId: string,
-): Promise<{ staff: boolean } | null> {
-  if (!/^[0-9a-f-]{36}$/i.test(accountId)) return null;
-  return runtime.run(async (tx) => {
-    const [row] = await tx.execute<{ staff: boolean }>(sql`
-      SELECT (u.staff_access_operation_id IS NOT NULL) AS staff
-      FROM account a JOIN "user" u ON u.id = a.user_id
-      WHERE a.id = ${accountId} LIMIT 1`);
-    return row === undefined ? null : { staff: row.staff === true };
-  });
-}
-
 /** ربط حساب الموظفة بمعرّف العملية: المستخدم المطلوب فقط، ولا تحقيق عبر صفوف أخرى (P1-5). */
 async function readStaffUserBinding(
   runtime: OtpRuntime,
@@ -231,10 +228,8 @@ async function readStaffUserBinding(
 }
 
 /** مستخدم رابط token استهلاك كلمة السر — فحص الاستهلاك قبل تسليم الطلب لـ Better Auth (P1-6). */
-async function readUserIdForResetToken(
-  runtime: OtpRuntime,
-  token: string,
-): Promise<string | null> {  if (token.length < 8 || token.length > 256 || !/^[A-Za-z0-9_-]+$/.test(token)) return null;
+async function readUserIdForResetToken(runtime: OtpRuntime, token: string): Promise<string | null> {
+  if (token.length < 8 || token.length > 256 || !/^[A-Za-z0-9_-]+$/.test(token)) return null;
   // مهلة أوسع من الافتراضي: فحص الاستهلاك يمر بكل طلب reset ولا يحتمل فشلاً عابراً (P1-6).
   return runtime.run(
     async (tx) => {
@@ -266,8 +261,6 @@ export function createStaffAccessDatabase(options: StaffAccessDatabaseOptions) {
     read: (operationId: string) => readStaffUser(runtime, operationId),
     /** نوع المستخدم بمعرفه وهويته في الشركة — أساس إغلاق مسارات التعامل و exclusivity الشركة (D8، P1-5). */
     byUserId: (userId: string) => readStaffUserKind(runtime, userId),
-    /** نوع الحساب (credential) بمعرفه — فحص الهدف عند تحديث كلمة السر (P1-6). */
-    byAccountId: (accountId: string) => readStaffAccountKind(runtime, accountId),
     /** ربط المستخدم بمعرّف العملية — إثبات المنح الوحيد المقبول قبل كتابة عضوية (P1-5). */
     bindingOf: (operationId: string) => readStaffUserBinding(runtime, operationId),
     /** مستخدم رابط token استهلاك كلمة السر أو null — بوابة الاستهلاك قبل Better Auth (P1-6). */
@@ -278,4 +271,3 @@ export function createStaffAccessDatabase(options: StaffAccessDatabaseOptions) {
 }
 
 export type StaffAccessDatabase = ReturnType<typeof createStaffAccessDatabase>;
-

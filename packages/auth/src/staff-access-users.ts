@@ -15,9 +15,6 @@ import type { IdGenerator } from '@pospay/db';
 export const STAFF_SYNTHETIC_EMAIL_DOMAIN = 'staff.pospay.invalid';
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-// نفس عقد `canonicalStaffPhone` (8–15 رقمًا بعد الـ +) — رفض مبكر برسالة أوضح قبل فتح الاتصال.
-const PHONE = /^[+][1-9][0-9]{7,14}$/;
-
 /** بريد حساب الموظفة الاصطناعي لمعرّف عملية — المصدر الوحيد للصيغة في النظام كله. */
 export function staffSyntheticEmail(operationId: string): string {
   return `staff-${operationId}@${STAFF_SYNTHETIC_EMAIL_DOMAIN}`;
@@ -55,8 +52,6 @@ export interface StaffUserAccess {
   read(operationId: string): Promise<{ userId: string; phoneLast3: string | null } | null>;
   /** هل المستخدم حساب موظفة؟ يُفحص قبل إصدار أي مسار تعامل (D8). */
   isStaffUser(userId: string): Promise<boolean>;
-  /** هل الحساب (credential) يخص مستخدم موظفة؟ يُفحص على الهدف عند تحديث كلمة السر (P1-6). */
-  isStaffAccount(accountId: string): Promise<boolean>;
   /**
    * شركة حساب الموظفة أو null — exclusivity الشركة تُفحص قبل كل كتابة عضوية (P1-5).
    *
@@ -101,8 +96,6 @@ export function createStaffUserAccess(options: {
   };
   return {
     provision: async (input) => {
-      if (!UUID.test(input.operationId) || !UUID.test(input.companyId) || !PHONE.test(input.phone))
-        throw new Error('STAFF_USER_INPUT_INVALID');
       return database
         .provision({
           ...input,
@@ -120,10 +113,6 @@ export function createStaffUserAccess(options: {
       const found = await database.byUserId(userId);
       return found?.staff === true;
     },
-    isStaffAccount: async (accountId) => {
-      const found = await database.byAccountId(accountId);
-      return found?.staff === true;
-    },
     staffCompanyOf: async (userId) => {
       if (!UUID.test(userId)) return null;
       const found = await database.byUserId(userId);
@@ -138,8 +127,8 @@ export function createStaffUserAccess(options: {
 /**
  * D8 (spec 076): حساب الموظفة مقفول على كل مسار تعامل — لا account يتعمل ولا يتغير، ولا جلسة
  * عادية (بلا purpose) تتعمل له. جلسات STAFF_POS/STAFF_PERSONAL بتيجي من internalAdapter مباشرة.
- * Better Auth 1.7.5 يرسل { password } فقط عند تغيير كلمة السر — الهدف يُفحص بـ id الحساب نفسه
- * (P1-6)، فتغيير كلمة سر حساب موظفة مرفوض مهما كان شكل الحمولة.
+ * تحديث الحساب الذي لا يحمل userId محمي في staffCredentialAdapter بفلتر الهدف الحقيقي؛
+ * الخطاف هنا يحمي إنشاء الحساب وإصدار الجلسة وأي نقل حساب إلى مستخدم موظفة.
  */
 export function staffUserD8Hooks(
   staffUsers: StaffUserAccess,
@@ -155,10 +144,7 @@ export function staffUserD8Hooks(
       },
       update: {
         before: async (data) => {
-          if (
-            (data.userId !== undefined && (await staffUsers.isStaffUser(String(data.userId)))) ||
-            (data.id !== undefined && (await staffUsers.isStaffAccount(String(data.id))))
-          )
+          if (data.userId !== undefined && (await staffUsers.isStaffUser(String(data.userId))))
             throw new Error('STAFF_USER_CREDENTIAL_REFUSED');
           return { data };
         },
