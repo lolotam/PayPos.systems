@@ -20,9 +20,9 @@ import {
   issueProofOn,
   raceConnections,
   STATE_ID,
+  waitForApprovalAtFreeze,
   waitForBlockers,
   waitForGateWaiter,
-  waitForStateShareLock,
   type RaceConnections,
 } from './approval-race-barriers.fixture.ts';
 
@@ -94,9 +94,10 @@ describe('the invalidation racing the approval (ADR-0054 §8)', () => {
     try {
       const request = approve(f, approver.cookie, 'race-invalidation-approval-first', fingerprints);
       // الاعتماد عدّى البوابة (الخطوة 5) فماسك صف الحالة FOR SHARE، ووقف عند التجميد (الخطوة 8).
-      const holders = await waitForStateShareLock(
+      const approvals = await waitForApprovalAtFreeze(
         connections.observer,
-        'the approval share lock on the coverage state row',
+        gate.pid,
+        'the approval past the coverage gate',
       );
       const invalidator = await holdInvalidation();
       const blockers = await waitForBlockers(
@@ -105,7 +106,7 @@ describe('the invalidation racing the approval (ADR-0054 §8)', () => {
         'the invalidation behind the approval',
       );
       // اللي بيمنع الإبطال هو معاملة الاعتماد نفسها (هي اللي ماسكة القفل FOR SHARE).
-      expect(blockers.some((pid) => holders.includes(pid))).toBe(true);
+      expect(blockers.some((pid) => approvals.includes(pid))).toBe(true);
 
       gate.release();
       const [response] = await collect([request]);
@@ -160,9 +161,10 @@ describe('the issuance racing the approval (ADR-0054 §8)', () => {
     const gate = await holdFreezeGate(connections.freeze);
     try {
       const request = approve(f, approver.cookie, 'race-issuance-approval-first', fingerprints);
-      const holders = await waitForStateShareLock(
+      const approvals = await waitForApprovalAtFreeze(
         connections.observer,
-        'the approval share lock on the coverage state row',
+        gate.pid,
+        'the approval past the coverage gate',
       );
       const issuer = await holdIssuance(generation);
       const blockers = await waitForBlockers(
@@ -170,7 +172,7 @@ describe('the issuance racing the approval (ADR-0054 §8)', () => {
         issuer.pid,
         'the issuance behind the approval',
       );
-      expect(blockers.some((pid) => holders.includes(pid))).toBe(true);
+      expect(blockers.some((pid) => approvals.includes(pid))).toBe(true);
 
       gate.release();
       const [response] = await collect([request]);
