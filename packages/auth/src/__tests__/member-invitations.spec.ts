@@ -234,7 +234,9 @@ describe('email state and invited member creation', () => {
     expect(rows).toHaveLength(1);
     expect(new Set(results.map((result) => result.userId))).toEqual(new Set([rows[0]?.['id']]));
   });
+});
 
+describe('the user row marker', () => {
   it('the invitation marker is all-or-nothing on the user row', async () => {
     await expect(
       owner`INSERT INTO "user" (id, name, email, invited_by_company_id)

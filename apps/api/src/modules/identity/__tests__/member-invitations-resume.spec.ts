@@ -145,7 +145,9 @@ describe('resuming after the link was claimed, and the takeover guard', () => {
         WHERE company_id = ${company} AND id = ${invitationId}`,
     ).toEqual([{ role_code: 'accountant', membership_id: null }]);
   });
+});
 
+describe('the takeover guard', () => {
   it('a different owner cannot take over a pending invitation of the same email', async () => {
     const { company } = await crashAfter('account', 'resume-takeover@example.test');
     const second = { email: 'g1rs-second@example.test', cookie: '', userId: '' };

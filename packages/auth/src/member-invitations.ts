@@ -83,6 +83,36 @@ function emailHasher(secret: string): (email: string) => string {
       .digest('base64url');
 }
 
+type MemberQueries = AuthDatabase['memberInvitations'];
+
+/** ينشئ حساب المدعوّ (ايدمبوتنس بمعرّف العملية)، ويحكم على سباق الإيميل من القراءة بعد التعارض. */
+async function createInvitedMember(
+  queries: MemberQueries,
+  ids: { newId(): string },
+  input: { operationId: string; companyId: string; email: string; name: string },
+): Promise<InvitedMemberOutcome> {
+  const existing = await queries.findMemberByInvitation(input.operationId, input.companyId);
+  if (existing !== null) return { userId: existing.id, createdByInvitation: true };
+  const email = normalized(input.email);
+  const userId = ids.newId();
+  const insertion = await queries.createInvitedMember({
+    id: userId,
+    accountId: ids.newId(),
+    email,
+    name: input.name,
+    invitedByCompanyId: input.companyId,
+    invitationOperationId: input.operationId,
+    now: new Date(),
+  });
+  if (insertion === 'created') return { userId, createdByInvitation: true };
+  // تعارض على الإيميل: يا عملية متزامنة بنفس الدعوة كتبت الصف، يا حساب غريب سبقنا.
+  const racedByOperation = await queries.findMemberByInvitation(input.operationId, input.companyId);
+  if (racedByOperation !== null) return { userId: racedByOperation.id, createdByInvitation: true };
+  const raced = await queries.findMemberByEmail(email);
+  if (raced === null) throw new Error('invited member vanished after an insert conflict');
+  return { userId: raced.id, createdByInvitation: false };
+}
+
 /**
  * بيبني حدود جداول الهوية لعملية الدعوة. الرابط بيتكتب بنفس شكل صف Better Auth
  * (`reset-password:<token>`)، فتخزين التوكن هو نفس تخزين أي رابط reset موجود قبل الدعوات.
@@ -112,32 +142,7 @@ export function createMemberInvitationAccounts(options: {
         : { kind: 'TAKEN' };
     },
     hasPassword: async (userId) => (await queries.readHasPassword(userId)) === true,
-    createInvitedMember: async (input) => {
-      const existing = await queries.findMemberByInvitation(input.operationId, input.companyId);
-      if (existing !== null) return { userId: existing.id, createdByInvitation: true };
-      const email = normalized(input.email);
-      const userId = options.ids.newId();
-      const insertion = await queries.createInvitedMember({
-        id: userId,
-        accountId: options.ids.newId(),
-        email,
-        name: input.name,
-        invitedByCompanyId: input.companyId,
-        invitationOperationId: input.operationId,
-        now: new Date(),
-      });
-      if (insertion === 'created') return { userId, createdByInvitation: true };
-      // تعارض على الإيميل: يا عملية متزامنة بنفس الدعوة كتبت الصف، يا حساب غريب سبقنا.
-      const racedByOperation = await queries.findMemberByInvitation(
-        input.operationId,
-        input.companyId,
-      );
-      if (racedByOperation !== null)
-        return { userId: racedByOperation.id, createdByInvitation: true };
-      const raced = await queries.findMemberByEmail(email);
-      if (raced === null) throw new Error('invited member vanished after an insert conflict');
-      return { userId: raced.id, createdByInvitation: false };
-    },
+    createInvitedMember: (input) => createInvitedMember(queries, options.ids, input),
     issueInvitationLink: async (input) => {
       const token = randomBytes(24).toString('base64url');
       const issued = await queries.issueInvitationLink({

@@ -33,6 +33,62 @@ const SCOPE_KEY = {
   BRANCH: 'invitations.scopeBranch',
 } as const;
 
+type RowProps = {
+  invitation: MemberInvitation;
+  reissuePending: boolean;
+  onReissue: (invitation: MemberInvitation) => void;
+};
+
+/** صف دعوة: الدور والنطاق بالترجمة، وزر الإصدار بس لو الـ API قال إن المتصل يقدر. */
+function InvitationRow({ invitation, reissuePending, onReissue }: RowProps) {
+  const locale = useLocale();
+  const role = ROLE_KEY[invitation.role_code as keyof typeof ROLE_KEY];
+  return (
+    <tr className="border-b">
+      <td className="p-2">{role === undefined ? invitation.role_code : t(locale, role)}</td>
+      <td className="p-2">{t(locale, SCOPE_KEY[invitation.scope_type])}</td>
+      <td className="p-2">{t(locale, STATE_KEY[invitation.state])}</td>
+      <td className="p-2">{new Date(invitation.created_at).toLocaleString(locale)}</td>
+      <td className="p-2">
+        {invitation.can_reissue ? (
+          <button
+            type="button"
+            disabled={reissuePending}
+            onClick={() => onReissue(invitation)}
+            className="rounded-md border border-border px-3 py-1"
+          >
+            {t(locale, 'invitations.reissue')}
+          </button>
+        ) : null}
+      </td>
+    </tr>
+  );
+}
+
+/** رأس الجدول: الدور والنطاق والحالة ووقت الدعوة وعمود الإصدار. */
+function InvitationsHead() {
+  const locale = useLocale();
+  return (
+    <thead>
+      <tr className="border-b text-start">
+        <th scope="col" className="p-2 text-start">
+          {t(locale, 'invitations.roleLabel')}
+        </th>
+        <th scope="col" className="p-2 text-start">
+          {t(locale, 'invitations.scopeLabel')}
+        </th>
+        <th scope="col" className="p-2 text-start">
+          {t(locale, 'permissions.effect')}
+        </th>
+        <th scope="col" className="p-2 text-start">
+          {t(locale, 'invitations.invitedAt')}
+        </th>
+        <th scope="col" className="p-2 text-start" aria-label={t(locale, 'invitations.reissue')} />
+      </tr>
+    </thead>
+  );
+}
+
 /** قائمة الدعوات: أدوار ونطاقات بالترجمة وحالة كل صف، وزر الإصدار بس لمن يستحقه من الـ API. */
 export function InvitationsTable({
   items,
@@ -46,55 +102,19 @@ export function InvitationsTable({
   if (items.length === 0) {
     return <p className="text-sm text-muted-foreground">{t(locale, 'invitations.empty')}</p>;
   }
-  const roleLabel = (code: string) =>
-    code in ROLE_KEY ? t(locale, ROLE_KEY[code as keyof typeof ROLE_KEY]) : code;
-  const scopeLabel = (scopeType: string) =>
-    scopeType in SCOPE_KEY ? t(locale, SCOPE_KEY[scopeType as keyof typeof SCOPE_KEY]) : scopeType;
   return (
     <div className="flex flex-col gap-2">
       <table className="w-full border-collapse text-start text-sm">
         <caption className="sr-only">{t(locale, 'invitations.listTitle')}</caption>
-        <thead>
-          <tr className="border-b text-start">
-            <th scope="col" className="p-2 text-start">
-              {t(locale, 'invitations.roleLabel')}
-            </th>
-            <th scope="col" className="p-2 text-start">
-              {t(locale, 'invitations.scopeLabel')}
-            </th>
-            <th scope="col" className="p-2 text-start">
-              {t(locale, 'permissions.effect')}
-            </th>
-            <th scope="col" className="p-2 text-start">
-              {t(locale, 'invitations.invitedAt')}
-            </th>
-            <th
-              scope="col"
-              className="p-2 text-start"
-              aria-label={t(locale, 'invitations.reissue')}
-            />
-          </tr>
-        </thead>
+        <InvitationsHead />
         <tbody>
           {items.map((invitation) => (
-            <tr key={invitation.id} className="border-b">
-              <td className="p-2">{roleLabel(invitation.role_code)}</td>
-              <td className="p-2">{scopeLabel(invitation.scope_type)}</td>
-              <td className="p-2">{t(locale, STATE_KEY[invitation.state])}</td>
-              <td className="p-2">{new Date(invitation.created_at).toLocaleString(locale)}</td>
-              <td className="p-2">
-                {invitation.can_reissue ? (
-                  <button
-                    type="button"
-                    disabled={reissuePending}
-                    onClick={() => onReissue(invitation)}
-                    className="rounded-md border border-border px-3 py-1"
-                  >
-                    {t(locale, 'invitations.reissue')}
-                  </button>
-                ) : null}
-              </td>
-            </tr>
+            <InvitationRow
+              key={invitation.id}
+              invitation={invitation}
+              reissuePending={reissuePending}
+              onReissue={onReissue}
+            />
           ))}
         </tbody>
       </table>

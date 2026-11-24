@@ -7,12 +7,11 @@ import { useState } from 'react';
 import { useMemberInvitations } from '../api/use-member-invitations';
 import { useInvitationsAccess } from '../api/use-invitations-access';
 import { readAccessProof } from '@/shared/api/read-access-proof';
-import { envelopeMessage } from '@/shared/api/api-error';
 import { useLocale } from '@/shared/locale/locale-context';
 import { InvitationForm } from '../ui/invitation-form';
 import type { InvitationScopeChoices } from '../model/invitable-roles';
-import { InvitationLinkOnce } from '../ui/invitation-link-once';
-import { InvitationsTable } from '../ui/invitations-table';
+import { InvitationHandoff } from '../ui/invitation-handoff';
+import { InvitationsListSection } from '../ui/invitations-list-section';
 
 type Props = {
   companyId: string;
@@ -46,7 +45,6 @@ export function InvitationsPage({ companyId, userId, choices }: Props) {
       },
     });
   };
-  const items = list.data?.pages.flatMap((page) => page.items) ?? [];
 
   return (
     <section className="flex min-w-0 flex-col gap-10 text-start">
@@ -56,19 +54,12 @@ export function InvitationsPage({ companyId, userId, choices }: Props) {
       </div>
       {gateOpen ? (
         <>
-          {shownLink !== null ? (
-            <InvitationLinkOnce link={shownLink} onDismiss={() => setShownLink(null)} />
-          ) : null}
-          {reissued && shownLink !== null ? (
-            <p role="status" className="text-sm text-success">
-              {t(locale, 'invitations.reissued')}
-            </p>
-          ) : null}
-          {invite.isError || reissue.isError ? (
-            <p role="alert" className="text-sm text-destructive">
-              {envelopeMessage(invite.isError ? invite.error : reissue.error, locale)}
-            </p>
-          ) : null}
+          <InvitationHandoff
+            link={shownLink}
+            reissued={reissued}
+            error={invite.isError ? invite.error : reissue.isError ? reissue.error : null}
+            onDismiss={() => setShownLink(null)}
+          />
           <InvitationForm
             companyId={companyId}
             choices={choices}
@@ -83,21 +74,11 @@ export function InvitationsPage({ companyId, userId, choices }: Props) {
               })
             }
           />
-          <div className="flex flex-col gap-3">
-            <h2 className="text-lg font-semibold">{t(locale, 'invitations.listTitle')}</h2>
-            {list.isPending ? <p role="status">{t(locale, 'admin.loading')}</p> : null}
-            {list.isError ? <p role="alert">{envelopeMessage(list.error, locale)}</p> : null}
-            {list.data ? (
-              <InvitationsTable
-                items={items}
-                hasMore={list.hasNextPage}
-                onLoadMore={() => void list.fetchNextPage()}
-                loadingMore={list.isFetchingNextPage}
-                reissuePending={reissue.isPending}
-                onReissue={onReissue}
-              />
-            ) : null}
-          </div>
+          <InvitationsListSection
+            list={list}
+            reissuePending={reissue.isPending}
+            onReissue={onReissue}
+          />
         </>
       ) : (
         <p role="status">{t(locale, 'invitations.notReady')}</p>
