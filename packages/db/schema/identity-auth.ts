@@ -29,6 +29,8 @@ export const user = pgTable(
     email: text('email').notNull(),
     emailVerified: boolean('email_verified').notNull().default(false),
     image: text('image'),
+    // تفضيل عرض شخصي؛ NULL يبدأ على C ولا يغيّر أي صلاحية أو إعداد شركة.
+    navStyle: text('nav_style'),
     // two-factor plugin
     twoFactorEnabled: boolean('two_factor_enabled').notNull().default(false),
     // phone-number plugin (ADR-0003 §2.1) — the columns exist from T9b; the plugin is registered only with a delivery
@@ -48,6 +50,7 @@ export const user = pgTable(
     ),
     check('user_email_length', sql`char_length(${t.email}) BETWEEN 3 AND 320`),
     check('user_name_length', sql`char_length(${t.name}) BETWEEN 1 AND 255`),
+    check('user_nav_style', sql`${t.navStyle} IN ('A', 'B', 'C')`),
   ],
 );
 
