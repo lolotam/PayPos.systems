@@ -86,4 +86,80 @@ Stop and report if: code plus tests passes 2,200 before step 6; a page needs a b
 
 ## Implementation notes
 
-*(filled by the implementer: the route and its visibility condition, the grouping placements, template chosen per page with the reason, pages left alone, the branch audit table, changed assertions, guard results, what is not verified, sizes)*
+### The route and its visibility condition
+
+`apps/admin/app/(dashboard)/schedules/settings/page.tsx` re-exports `_frame/schedule-settings-route.tsx`, which follows `schedules-route.tsx`: it needs a ready workspace, a session user and a selected business, and it does not need a branch (the branch part of the panel appears only when the workspace has a branch). The nav entry `schedule-settings` keeps `visible: 'always'`: the panel is readable by everyone who opens `/schedules`, and the read itself refuses the users who have no permission on it (the panel returns nothing on `FORBIDDEN`/`NOT_FOUND`). No permission was added and the `roles` of the app-map (`Owner`) were not turned into a show condition, because FR-022 hands that to the page's own permission once the page is built.
+
+### The grouping placements
+
+The three groupings are derived from the entry's `section` and `submenu`, so `section: 'team'` and `submenu: 'schedules'` put the page in the Team group of A and in the Team workspace of C by themselves. Style B was the one gap: `design.md` §4 and the B prototype put «إعدادات الورديات» in the Setup module's Business column, next to the business identity and the alerts, and the model could not derive that from the page's section. The model now carries one explicit placement for that page in style B (`STYLE_B_PAGE_PLACEMENT`), so:
+
+| Style | Placement | Where it comes from |
+|---|---|---|
+| A | Team › Schedules | the entry's section and sub-menu |
+| B | Setup › Business | the explicit placement of design.md §4 (the B prototype: `setup` › `Business` = identity, alerts, schedule rules) |
+| C | Team › Schedules | the entry's section and sub-menu (the prototype calls that panel section Planning) |
+
+The model labels every style with the app-map sub-menu names, so the C section reads «الجداول» and not the prototype's «التخطيط»; `design.md` §3 gives the app-map precedence over the design's own wording.
+
+### The template per page, and why
+
+| Page | Template | Reason |
+|---|---|---|
+| Weekly schedules `/schedules` | List | a week grid with a week picker and paging: the week controls are the filter bar, the grid is the card, the paging is its footer |
+| Permissions `/permissions` | List | the page's content is the list of the role holders; the discount default is a form of its own above the list |
+| Alert rules `/alert-rules` | Form (840px) | a request form of titled rule sections with a save button, not a table |
+| Staff app link `/staff/employee-app-link` | Form (840px) | a link, a code and the actions: no table, no list |
+| Staff app columns `/staff-app-columns` | Form (840px) | a form of check boxes and one number field with a save button |
+| Imported refunds `/imported-refunds` | List | the spec's table names List; the page holds one card and has no table, no filter and no paging, so the list template degenerates to a header over one card |
+
+Three pages keep a card of their own instead of taking the template's outer card, because an outer card would nest cards and change the look (11a requirement 5): the Alert rules page (its rule rows and its two switches are already bordered blocks), the Imported refunds page (its switch is one bordered block) and the Weekly schedules page (the grid card is the template's card).
+
+The Permissions page keeps its scope selector above the card: the selector filters the membership list, but it lives outside the keyed membership browser, so it keeps its React position and the focus when the scope changes.
+
+### Pages left alone
+
+None of the six pages was already on `PageShell`/`PageHeader`: every one of them used a plain `<section>` (and the Imported refunds page its own `<h1>`), so every one was laid out. Left alone on purpose: the employee detail page and the employee leave page (step 10b), the three frames and the menu view model beyond the one entry, `packages/ui`, `apps/admin/src/session/**`, and every filter default in the app.
+
+### The branch audit
+
+Every page under `apps/admin/src/**/pages` and its route in `_frame` that offers a branch choice was read. No working-branch picker keeps its own state: the five working-branch pickers of the attendance pages were already wired to `workspace.choose` by 074-11a, and their route specs already prove that choosing on the page calls `workspace.choose` with the same company and business and that a workspace branch change reaches the page. Nothing was changed, so no new two-direction test was needed.
+
+| Page | Control | Class | Where the value comes from | Changed |
+|---|---|---|---|---|
+| `/staff/attendance` Attendance board | branch select in `attendance-board-filters.tsx` | working branch | the workspace branch (`scope.branchId`); the choice calls `workspace.choose` | No |
+| `/staff/attendance-requests` Attendance requests | `attendance-action-branch.tsx` (with «all branches») | working branch for a branch, filter for «all» | the workspace branch; «all» stays a page filter | No |
+| `/staff/attendance-exceptions` Attendance exceptions | `attendance-action-branch.tsx` | working branch | the workspace branch | No |
+| `/staff/attendance-report` Monthly report | `attendance-report-filters.tsx` (with «all branches») | working branch for a branch, filter for «all» | the workspace branch; «all» stays a page filter | No |
+| `/staff/attendance-statement` Statement | branch select in `attendance-statement-form.tsx` | working branch | the workspace branch | No |
+| `/ratings` Ratings | branch filter in `ratings-filters.tsx` («all branches») | filter | the page's own filters state, default «all branches» | No |
+| `/leave` Leave approvals | branch filter in `leave-inbox-filters.tsx` («all branches») | filter | the filter form, default «all branches» | No |
+| `/staff/leave-history` Leave history | branch filter in `leave-history-filters-form.tsx` | filter | the filter form, default «all branches» | No |
+| `/alert-rules` Alert rules | `scope-selector.tsx` (the business or one branch) | scope | the page's own state, default the business | No |
+| `/catalog/categories` Service categories | `service-category-scope-select.tsx` (the business level or one branch) | scope | the page's own state, default from `openingBranch` | No |
+| `/staff` Create and edit employee | branch field in `employee-placement-fields.tsx` | neither: a field of the employee record | the employee's own branch | No — open point |
+| `/staff/[employeeId]/leave` Employee leave | branch field in `leave-branch-field.tsx` | neither: a field of the leave request | the leave request's branch | No — open point |
+| `/schedules/settings` Schedule settings | no picker: the panel lists the branches of the business with their limits and edits the limit of the workspace branch | no choice | the workspace branch | No — open point |
+
+No filter default was changed, and the existing tests of the filter pages pass unchanged.
+
+### Changed assertions
+
+1. `navigation-model.spec.ts`, «resolves an embedded page through its published Soon alias»: the fixture was rewritten with a literal embedded entry because the model holds no embedded entry any more — the schedule settings page became a route of its own. The assertion was kept as it is, with the reason in a comment next to it.
+2. `navigation-model.spec.ts`, the Soon-entry boundary test: `pageEntryHref(scheduleSettings)` now expects `/schedules/settings`, and the test resolves both `/schedules/settings` and `/schedules` to their own entries.
+3. `schedule-settings-current.spec.tsx`, the style B case: the local list of `/schedules/settings` in style B is the Setup module's Business column, so «Weekly schedules» is not in that list any more. The assertion now reads that it is absent instead of reading a missing `aria-current`; the list still holds exactly one current entry, and it is the settings page.
+
+No other existing assertion was deleted or weakened. The specs of the tables that lost their own card (`permission-membership-table.spec.tsx`, `schedule-edit-dialog.spec.tsx`) pass unchanged.
+
+### Guard results
+
+`clean-code-guard` and `test-guard` were run over the whole branch diff; the findings and what was done about them are in the last section of these notes.
+
+### What is not verified
+
+The widths, the stacking under 600px, the 44px targets, the padding inside the cards and the Arabic layout are CSS outcomes: they are not browser-verified and belong to the 074-7b browser pass (#1192). The polling of the week read was not exercised either; only the request counts on the first mount and after a filter change.
+
+### Sizes (against `origin/main`)
+
+The whole branch is production +506 / −226 = 732 and tests +699 / −0 = 699, so 1,431 lines added plus removed outside the docs, inside the 2,800 cap. Steps 4 to 6 alone (against `af59d7bfb`) are production +434 / −211 = 645 and tests +360 / −1 = 361, so 1,006 lines. The docs are 89 lines (this file) and the generated maps are 4 lines (2 in `app-map.md`, 2 in its source), counted separately.
+
