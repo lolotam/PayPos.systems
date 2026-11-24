@@ -877,7 +877,9 @@ Named tests; each is an integration test against real Postgres (T2 stack, ADR-00
   `paid_by`, `paid_at` (the recording time), `paid_on` (the payout date the payer states, a business date not after today
   and not before the approval date) and `paid_method` (CS-Q6: with salary, bank transfer or cash, plus an optional note), all persisted, plus, when `paid_method` is cash, the rounded payable amount (CS-Q12, D-19: nearest 5 fils, half up) stored beside the exact payable figure, which is never overwritten; audit `commission_statement.paid` with both
   dates. Reads and the export show `paid_on` as the payment date.
-- **FR-038** Permission `pay:commissions:business` (CS-Q4).
+- **FR-038** Permission `pay:commissions:business` (CS-Q4). It takes effect only together with business-wide read of
+  statements, like review and approve (FR-029b, FR-036), because the response lists every employee's payable: a holder
+  whose read is branch-scoped, or who has none, gets the uniform 403 (54-1-PAY-1, Waleed, 2026-11-24; Abu Salem has not answered).
 
 ### 55 — corrections
 
@@ -1179,7 +1181,7 @@ Plus, in 53-1, the ADR-0012 objects (role `pospay_approval_reader`, function, po
 | `read:commissions:business` | owner, general manager, business manager, accountant **and branch manager** (CS-Q14 = PP-17.2, against the recommendation); grantable | new; estimate of all employees, statement view, export. A holder sees only the employees of her effective branch set (CS-Q20 = PP-20.1, below) |
 | `review:commissions:business` | owner, general manager, business manager (CS-Q2b = PP-25.1, Waleed 2026-10-21; CS-Q2, Abu Salem 2026-10-22, the same); granted and revoked **by the owner only**, to any user he chooses (51-1 registers the review code and 52-1 the approve code, each as owner-grantable only, CS-Q37 = PP-101.1; if spec 009's grant flow has no per-code granter rule yet, 51-1 adds it and 52-1 reuses it); usable only by a business-wide reader (CS-Q26 = PP-24.1, FR-029), and the grant screen warns of it (FR-029b) | named by SPEC §6 |
 | `approve:commissions:business` | owner (D-17, SPEC §11; CS-Q5, Waleed 2026-10-21); granted and revoked **by the owner only**, to a named person (51-1 registers the review code and 52-1 the approve code, each as owner-grantable only, CS-Q37 = PP-101.1; if spec 009's grant flow has no per-code granter rule yet, 51-1 adds it and 52-1 reuses it); usable only by a business-wide reader (FR-036, from PP-24.1), and the grant screen warns of it (FR-029b) | named by SPEC §6 |
-| `pay:commissions:business` | owner, general manager and accountant; grantable to anyone (CS-Q4, both owners 2026-10-22) | named by SPEC §6 |
+| `pay:commissions:business` | owner, general manager and accountant; grantable to anyone, but effective only with business-wide read (CS-Q4, both owners 2026-10-22; 54-1-PAY-1, Waleed 2026-11-24) | named by SPEC §6 |
 
 **Branch scope (CS-Q20 = PP-20.1):** every read and export first resolves, in the read's own transaction, the reader's
   **effective branch set** _R_ with the existing guard's rules (spec 009: union of active memberships, DENY wins, expired

@@ -77,7 +77,7 @@ it('refuses a branch grant of the pay permission, even one per branch, since pay
   expect(await footprint()).toEqual({ status: 'APPROVED', payments: 0, audits: 0 });
 });
 
-// 54-1-PAY-1 (اختيار 1 مؤقت): رد الصرف بيرجّع مستحق كل الموظفات، فالصلاحية من غير قراءة النشاط كله مرفوضة.
+// قرار 54-1-PAY-1 (وليد، 24 نوفمبر 2026): رد الصرف بيرجّع مستحق كل الموظفات، فالصلاحية من غير قراءة النشاط كله مرفوضة.
 it('refuses the pay permission without business-wide read, even with a branch read', async () => {
   const noRead = await memberWithGrants(f, 'pay-no-read', [{ permission: PAY, scope: 'BUSINESS' }]);
   const branchRead = await memberWithGrants(f, 'pay-branch-read', [
