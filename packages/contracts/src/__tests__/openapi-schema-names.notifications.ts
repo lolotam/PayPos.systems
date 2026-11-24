@@ -14,6 +14,8 @@ export const notificationSchemaNames = [
   'PushSubscriptionInput',
   'ResendFeedbackAcknowledgement',
   'ResendFeedbackEnvelope',
+  'ResendIgnoredFeedbackEnvelope',
+  'ResendStoredFeedbackEnvelope',
   'WhatsappEnvelope',
   'WhatsappHandshake',
   'WhatsappWebhookAcknowledgement',

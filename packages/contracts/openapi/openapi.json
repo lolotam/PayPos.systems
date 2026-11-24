@@ -43711,12 +43711,28 @@
         ]
       },
       "ResendFeedbackEnvelope": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/ResendStoredFeedbackEnvelope"
+          },
+          {
+            "$ref": "#/components/schemas/ResendIgnoredFeedbackEnvelope"
+          }
+        ]
+      },
+      "ResendStoredFeedbackEnvelope": {
         "type": "object",
         "properties": {
           "type": {
             "type": "string",
-            "minLength": 1,
-            "maxLength": 64
+            "enum": [
+              "email.delivered",
+              "email.bounced",
+              "email.complained",
+              "email.failed",
+              "email.suppressed",
+              "email.delivery_delayed"
+            ]
           },
           "created_at": {
             "type": "string",
@@ -43754,6 +43770,20 @@
           "type",
           "created_at",
           "data"
+        ]
+      },
+      "ResendIgnoredFeedbackEnvelope": {
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 64,
+            "pattern": "^(?!(?:email\\.delivered|email\\.bounced|email\\.complained|email\\.failed|email\\.suppressed|email\\.delivery_delayed)(?![\\s\\S]))[\\s\\S]+$"
+          }
+        },
+        "required": [
+          "type"
         ]
       },
       "InAppNotification": {

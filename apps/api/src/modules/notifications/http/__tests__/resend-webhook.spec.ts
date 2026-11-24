@@ -1,9 +1,11 @@
 ﻿import { createHash } from 'node:crypto';
 import http from 'node:http';
+import { PassThrough } from 'node:stream';
 import { createResendEventDigest } from '@pospay/notifications';
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { NestFastifyApplication } from '@nestjs/platform-fastify';
 import { createApp } from '../../../../app.ts';
+import { readResendBody } from '../resend-body.ts';
 import {
   address,
   emailId,
@@ -31,6 +33,16 @@ afterAll(async () => {
 });
 
 const rows = () => h.owner`SELECT * FROM platform_email_feedback_inbox`;
+
+it('destroys an unfinished body reader at its deadline instead of retaining the upload', async () => {
+  const stream = new PassThrough();
+  const body = readResendBody(stream, 10);
+  stream.write(Buffer.from('{"type":"email.bounced",'));
+  await expect(body).rejects.toMatchObject({ code: 'NOT_READY' });
+  expect(stream.destroyed).toBe(true);
+  expect(stream.readableLength).toBe(0);
+  expect(stream.listenerCount('data')).toBe(0);
+});
 
 it('answers NOT_READY without storing when Redis admission never completes', async () => {
   const before = await rows();
@@ -174,7 +186,7 @@ describe('acknowledges replays and leaves late work to the recovery path', () =>
   it('acknowledges an unknown event type without storing it', async () => {
     const before = await rows();
     const jobs = h.jobs.length;
-    const payload = JSON.stringify(event('email.clicked'));
+    const payload = JSON.stringify({ type: 'email.clicked' });
     expect((await h.post(payload)).statusCode).toBe(200);
     expect(await rows()).toEqual(before);
     expect(h.jobs).toHaveLength(jobs);
@@ -189,6 +201,20 @@ describe('acknowledges replays and leaves late work to the recovery path', () =>
     const unconfirmed = await h.owner`SELECT id FROM platform_email_feedback_inbox
       WHERE enqueue_confirmed_at IS NULL`;
     expect(unconfirmed).toHaveLength(1);
+    expect(h.jobs).toHaveLength(0);
+  });
+
+  it('acknowledges a committed row with 200 when enqueue never settles', async () => {
+    h.failEnqueue('hang');
+    const id = 'msg_test_durable_enqueue_timeout';
+    const response = await h.post(JSON.stringify(event()), {}, true, id);
+    expect(response.statusCode).toBe(200);
+    expect(JSON.parse(response.body)).toEqual({ received: true });
+    const digest = createResendEventDigest(Buffer.alloc(32, 9))(id);
+    const stored = await h.owner`SELECT enqueue_confirmed_at FROM platform_email_feedback_inbox
+      WHERE provider_event_digest = ${digest}`;
+    expect(stored).toHaveLength(1);
+    expect(stored[0]?.['enqueue_confirmed_at']).toBeNull();
     expect(h.jobs).toHaveLength(0);
   });
 });

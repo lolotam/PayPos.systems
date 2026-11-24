@@ -1,7 +1,7 @@
 import { Controller, Post, Inject, Req, HttpCode } from '@nestjs/common';
 import {
   isStoredResendFeedbackType,
-  resendFeedbackEnvelope,
+  resendStoredFeedbackEnvelope,
   resendFeedbackType,
 } from '@pospay/contracts';
 import { resendBounceClass, type ResendWebhookConfiguration } from '@pospay/notifications';
@@ -39,7 +39,7 @@ export class ResendWebhookController {
       if (!probe.success) throw new ApiError('BAD_REQUEST');
       // حدث مش من الستة: بيتأكد بـ 200 من غير تخزين (spec 075 FR-003).
       if (!isStoredResendFeedbackType(probe.data.type)) return { received: true };
-      const parsed = resendFeedbackEnvelope.safeParse(request.body);
+      const parsed = resendStoredFeedbackEnvelope.safeParse(request.body);
       if (!parsed.success) throw new ApiError('BAD_REQUEST');
       const providerTimestamp = new Date(parsed.data.created_at);
       if (Number.isNaN(providerTimestamp.getTime())) throw new ApiError('BAD_REQUEST');
@@ -51,6 +51,7 @@ export class ResendWebhookController {
       const deadline = resendDeadline(request);
       if (deadline === undefined || this.intake.clock.now().getTime() >= deadline.getTime())
         throw new ApiError('NOT_READY');
+      let durable = false;
       await withinResendDeadline(
         this.intake.receive.execute(
           {
@@ -68,8 +69,14 @@ export class ResendWebhookController {
             },
           },
           deadline,
+          () => {
+            durable = true;
+          },
         ),
         deadline.getTime() - this.intake.clock.now().getTime(),
+        () => {
+          if (!durable) throw new ApiError('NOT_READY');
+        },
       );
       return { received: true };
     } finally {

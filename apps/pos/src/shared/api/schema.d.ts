@@ -8521,8 +8521,10 @@ export interface components {
             /** @enum {boolean} */
             received: true;
         };
-        ResendFeedbackEnvelope: {
-            type: string;
+        ResendFeedbackEnvelope: components["schemas"]["ResendStoredFeedbackEnvelope"] | components["schemas"]["ResendIgnoredFeedbackEnvelope"];
+        ResendStoredFeedbackEnvelope: {
+            /** @enum {string} */
+            type: "email.delivered" | "email.bounced" | "email.complained" | "email.failed" | "email.suppressed" | "email.delivery_delayed";
             created_at: string;
             data: {
                 email_id: string;
@@ -8530,6 +8532,9 @@ export interface components {
                     type: string;
                 };
             };
+        };
+        ResendIgnoredFeedbackEnvelope: {
+            type: string;
         };
         InAppNotification: {
             /** Format: uuid */

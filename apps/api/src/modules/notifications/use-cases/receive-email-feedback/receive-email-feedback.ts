@@ -14,9 +14,11 @@ export class ReceiveEmailFeedback {
     private readonly clock: Clock,
   ) {}
 
-  async execute(event: EmailFeedbackEvent, deadline: Date): Promise<void> {
+  async execute(event: EmailFeedbackEvent, deadline: Date, onDurable: () => void): Promise<void> {
     const at = this.clock.now();
     const stored = await this.inbox.accept(event, at, deadline.getTime() - at.getTime());
+    // accept بيرجع بعد الـ commit فقط؛ من هنا انتهاء المهلة يتأكد بـ 200 حتى لو الطابور ما ردّش.
+    onDurable();
     // إعادة التسليم بتتأكد بـ 200 من غير تغيير: الصف موجود، والـ sweep بيكمّل لو هو لسه unconfirmed.
     if (!stored.inserted) return;
     // الصف اتعهد، فأي خطوة فاتتها الموعد بتسيبه للاسترداد بدل ما نتجاوز ميزانية الطلب (§6).

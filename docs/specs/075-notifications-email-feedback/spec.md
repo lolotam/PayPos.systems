@@ -41,6 +41,8 @@ Resend request shape or the email copy.
   rate limit, `application/json` only, no content encoding, a 64 KiB body cap, exactly one of each signature header,
   and the raw body captured for verification. Without `RESEND_WEBHOOK_SECRET`, the platform notifications database or
   Redis — and in production without `TRUSTED_PROXY_CIDRS` — the route answers 503 `NOT_READY` and stores nothing.
+  An upload still incomplete at the intake deadline is aborted and its connection closed, releasing buffered chunks;
+  the API does not drain an unbounded upload after the deadline.
 - **FR-002** The signature is verified before the body is parsed as an event: HMAC-SHA256 over
   `<svix-id>.<svix-timestamp>.<raw body>` with the decoded secret, compared in constant time against every `v1`
   signature in the header; the timestamp must be within ±5 minutes. Native `node:crypto`; no SDK (ADR-0014 §3). A
@@ -48,7 +50,8 @@ Resend request shape or the email copy.
   webhook documentation in the PR; if they differ, the PR records the difference and follows the documentation.)*
 - **FR-003** The verified body passes a strict allowlist (Zod, `packages/contracts`): `type`, `created_at`,
   `data.email_id` and, for a bounce, `data.bounce.type`. Everything else — addresses, subject, headers, tags,
-  diagnostics — is dropped before storage and never logged. An unknown `type` is acknowledged with 200 and not stored.
+  diagnostics — is dropped before storage and never logged. An unknown `type` is acknowledged with 200 and not stored;
+  its request variant requires only `type`, while stored types require the complete envelope.
 - **FR-004** One row is inserted into the platform inbox, keyed by a permanent digest of the provider event id
   (domain-separated HMAC of `svix-id`). A replay of the same event is acknowledged with 200 and changes nothing,
   including a row that is still unresolved.
@@ -56,6 +59,8 @@ Resend request shape or the email copy.
   then it answers 200 `{ "received": true }`. If the enqueue fails the row stays unconfirmed and the worker's
   recovery sweep picks it up; the API still answers 200 because the event is durable. The whole request stays inside
   the 200 ms budget; no provider call happens in the API.
+  At the deadline, a known committed row is acknowledged with 200 even if enqueue never settles. A storage outcome
+  not yet known to have committed answers 503 `NOT_READY`, allowing a safe provider retry.
 - **FR-006** The API holds no sending credential and no email hash key. It needs the webhook signing secret, the
   independent `RESEND_EVENT_DIGEST_KEY` and the restricted `pospay_notifications` connection. Missing or invalid
   intake settings leave this capability NOT_READY (503) with a clear capability log; API startup and `/ready` continue.

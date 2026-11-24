@@ -11,9 +11,9 @@ import {
 import type { ResendIntake } from './resend-webhook.controller.ts';
 import { ApiError } from '../../../shared/errors.ts';
 import { limited, refuse } from './webhook-limit.ts';
+import { readResendBody, RESEND_BODY_LIMIT } from './resend-body.ts';
 
 const ROUTE = '/v1/webhooks/resend';
-const BODY_LIMIT = 65_536;
 const RATE_LIMIT = 120;
 const verified = new WeakMap<FastifyRequest, Buffer>();
 const deadlines = new WeakMap<FastifyRequest, Date>();
@@ -28,13 +28,28 @@ export const verifiedResendDigest = (request: FastifyRequest): Buffer | undefine
 
 export const resendDeadline = (request: FastifyRequest): Date | undefined => deadlines.get(request);
 
-export async function withinResendDeadline<T>(work: Promise<T>, remainingMs: number): Promise<T> {
+export async function withinResendDeadline<T>(
+  work: Promise<T>,
+  remainingMs: number,
+  onDeadline: () => T = () => {
+    throw new ApiError('NOT_READY');
+  },
+): Promise<T> {
   let timer: NodeJS.Timeout | undefined;
   try {
     return await Promise.race([
       work,
-      new Promise<never>((_, reject) => {
-        timer = setTimeout(() => reject(new ApiError('NOT_READY')), Math.max(0, remainingMs));
+      new Promise<T>((resolve, reject) => {
+        timer = setTimeout(
+          () => {
+            try {
+              resolve(onDeadline());
+            } catch (error) {
+              reject(error);
+            }
+          },
+          Math.max(0, remainingMs),
+        );
       }),
     ]);
   } finally {
@@ -53,19 +68,6 @@ const target = (req: FastifyRequest) => req.routeOptions.url === ROUTE;
 const isNotJsonOnly = (request: FastifyRequest): boolean =>
   request.headers['content-encoding'] !== undefined ||
   !/^application\/json(?:\s*;\s*charset=utf-8)?$/i.test(request.headers['content-type'] ?? '');
-
-/** بيجمع الجسم الخام بحده 64KiB قبل أي تحليل — التوقيع على البايتات الأصلية. */
-const cappedBody = async (payload: AsyncIterable<string | Buffer>): Promise<Buffer> => {
-  const parts: Buffer[] = [];
-  let size = 0;
-  for await (const chunk of payload) {
-    const bytes = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
-    size += bytes.length;
-    if (size > BODY_LIMIT) throw new ApiError('PAYLOAD_TOO_LARGE');
-    parts.push(bytes);
-  }
-  return Buffer.concat(parts, size);
-};
 
 /** The header value, but only when the header was sent exactly once. */
 const singleHeader = (request: FastifyRequest, name: string): string | undefined => {
@@ -120,16 +122,13 @@ export function mountResendSecurity(
   });
   app.addHook('onRoute', (route) => {
     if (route.url !== ROUTE || route.method !== 'POST') return;
-    route.bodyLimit = BODY_LIMIT;
+    route.bodyLimit = RESEND_BODY_LIMIT;
     route.preParsing = async (request, _reply, payload) => {
       if (intake === undefined || redis === undefined) throw new ApiError('NOT_READY');
       const deadline = deadlines.get(request);
       if (deadline === undefined || intake.clock.now().getTime() >= deadline.getTime())
         throw new ApiError('NOT_READY');
-      const body = await withinResendDeadline(
-        cappedBody(payload),
-        deadline.getTime() - intake.clock.now().getTime(),
-      );
+      const body = await readResendBody(payload, deadline.getTime() - intake.clock.now().getTime());
       const id = singleHeader(request, 'svix-id');
       const headers = {
         id,

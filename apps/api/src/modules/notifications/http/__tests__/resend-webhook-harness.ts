@@ -55,7 +55,7 @@ export interface ResendHarness {
   readonly redis: Redis;
   readonly chunks: string[];
   readonly jobs: { inbox_id: string }[];
-  readonly failEnqueue: (value: boolean) => void;
+  readonly failEnqueue: (value: boolean | 'hang') => void;
   readonly clearJobs: () => void;
   readonly post: (
     payload: string,
@@ -121,11 +121,12 @@ export async function resendHarness(): Promise<ResendHarness> {
 
 function testIntake(database: PlatformEmailDatabase) {
   const jobs: { inbox_id: string }[] = [];
-  let enqueueFailure = false;
+  let enqueueFailure: boolean | 'hang' = false;
   const receive = new ReceiveEmailFeedback(
     createEmailFeedbackInboxRepository(database, systemUuidV7()),
     {
       enqueue: async (id, deadline) => {
+        if (enqueueFailure === 'hang') await new Promise<void>(() => undefined);
         if (enqueueFailure) throw new EmailFeedbackQueueUnavailableError();
         if (deadline.getTime() <= at.getTime()) throw new EmailFeedbackQueueUnavailableError();
         jobs.push({ inbox_id: id });
@@ -135,7 +136,7 @@ function testIntake(database: PlatformEmailDatabase) {
   );
   return {
     jobs,
-    failEnqueue: (value: boolean) => {
+    failEnqueue: (value: boolean | 'hang') => {
       enqueueFailure = value;
     },
     receive,

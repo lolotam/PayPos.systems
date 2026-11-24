@@ -33,7 +33,8 @@ export const resendFeedbackBounceClass = z.enum([...RESEND_FEEDBACK_BOUNCE_CLASS
 export const resendFeedbackQuarantineReason = z.enum([...RESEND_FEEDBACK_QUARANTINE_REASONS]);
 
 /** معرّف الإيميل عند المزود بصيغته الموثقة (UUID) — أي قيمة تانية تبقى 400 قبل أي تخزين. */
-const PROVIDER_EMAIL_ID = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/;
+const PROVIDER_EMAIL_ID =
+  /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/;
 
 /** The event type of a feedback body, read before the allowlist decides whether we keep it. */
 export const resendFeedbackType = z.object({ type: z.string().min(1).max(64) });
@@ -44,15 +45,31 @@ export const resendFeedbackType = z.object({ type: z.string().min(1).max(64) });
  * provider id must be in Resend's documented UUID shape, so a signed event carrying an address or
  * diagnostic text in its id field is refused instead of stored.
  */
-export const resendFeedbackEnvelope = z
+export const resendStoredFeedbackEnvelope = z
   .object({
-    type: z.string().min(1).max(64),
+    type: resendFeedbackEventType,
     created_at: z.string().min(1).max(64),
     data: z.object({
       email_id: z.string().max(36).regex(PROVIDER_EMAIL_ID),
       bounce: z.object({ type: z.string().min(1).max(64) }).optional(),
     }),
   })
+  .meta({ id: 'ResendStoredFeedbackEnvelope' });
+
+// The type discriminator is open for future provider events, but excludes the exact six stored
+// names. The negative end assertion also distinguishes a name followed by a newline from that name.
+const ignoredTypePattern = new RegExp(
+  `^(?!(?:${RESEND_FEEDBACK_EVENT_TYPES.map((type) => type.replaceAll('.', '\\.')).join('|')})(?![\\s\\S]))[\\s\\S]+$`,
+);
+export const resendIgnoredFeedbackEnvelope = z
+  .object({
+    type: z.string().min(1).max(64).regex(ignoredTypePattern),
+  })
+  .meta({ id: 'ResendIgnoredFeedbackEnvelope' });
+
+/** Mutually exclusive request variants, discriminated by the provider's event type. */
+export const resendFeedbackEnvelope = z
+  .union([resendStoredFeedbackEnvelope, resendIgnoredFeedbackEnvelope])
   .meta({ id: 'ResendFeedbackEnvelope' });
 
 /** The scrubbed envelope stored as the inbox row payload: identifiers, timestamps and nothing else. */
