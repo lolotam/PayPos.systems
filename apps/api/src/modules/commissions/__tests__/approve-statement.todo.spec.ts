@@ -5,10 +5,7 @@ import { describe, it } from 'vitest';
 
 describe('approve-statement: not proven in PR A', () => {
   it.todo('ADR-0012 group 5: a consumer rollback leaves its event pending, a committed effect and mark discharges it (worker side)');
-  // سباقات ADR-0054 §10 اختبار 6 التي تنتقل إلى PR B حيث يعيش الإصدار (مذكورة في وصف PR A تحت «Not proven in this PR»).
-  it.todo('PR B: an invalidation racing an approval: the approval holds the state row FOR SHARE, the invalidator waits or the approval waits and then refuses');
-  it.todo('PR B: an issuance racing an approval: the issue function waits on the share lock and the approval never sees a half-issued proof');
-  it.todo('PR B: an issue racing an invalidation: one of them commits first and the other applies to the locked value');
-  it.todo('PR B: two concurrent invalidators both succeed, each bump applied to the locked value');
-  it.todo('PR B: a release migration against an in-flight approval on a row its statement saw, in both orders');
 });
+// سباقات ADR-0054 §10 اختبار 6 اتنفّذت: approve-statement-coverage-races.spec.ts (الإبطال والإصدار ضد الاعتماد)
+// وapprove-statement-release-race.spec.ts (هجرة الإصدار ضد الاعتماد في الترتيبين) وcommission-coverage-races.spec.ts
+// في packages/db (الإصدار ضد الإبطال وإبطالان مع بعض)، وCM-36 في approve-statement-worker-race.spec.ts.
