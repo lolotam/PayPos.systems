@@ -34,6 +34,7 @@ const EMPLOYEE_DENIALS: [string, Record<string, string>][] = [
   ['/default-shifts', {}],
   ['/cards', {}],
   ['/leave-requests', { limit: '20' }],
+  ['/staff-access', {}],
 ];
 const BUSINESS_DENIALS = [
   '/alert-rules',
@@ -161,6 +162,7 @@ function inventory(): Route[] {
     routeOf('count', '/v1/me/notifications/unread-count'),
     routeOf('download', '/v1/files/download'),
     routeOf('denied', '/v1/employee-numbering'),
+    routeOf('denied', '/v1/memberships/invitations', undefined, { limit: '1' }),
   ];
   return [
     ...fixed,

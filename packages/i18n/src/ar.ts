@@ -4,6 +4,7 @@ import {
   attendanceReportAr,
 } from './attendance-actions-catalog.js';
 import { staffDuplicateNameAr } from './staff-duplicate-name-catalog.js';
+import { staffAccessAdminAr } from './staff-access-admin-catalog.js';
 import { attendanceChangeAr } from './attendance-change.js';
 import { inAppAr } from './in-app-catalog.js';
 import { catalogPackageTypesAr, packageTypeErrorsAr } from './catalog-package-types.js';
@@ -21,6 +22,7 @@ import { attendanceCorrectionErrorsAr } from './attendance-correction-catalog.js
 import { employeeDocumentsAr } from './employee-documents-catalog.js';
 import { personalStaffAr } from './personal-staff-catalog.js';
 import { salaryAr } from './salary-catalog.js';
+import { invitationsAr } from './invitations-catalog.js';
 import { staffLoginAr } from './staff-login-catalog.js';
 import { permissionCodesAr } from './permission-codes-catalog.js';
 import { catalogServicesAr, catalogServiceErrorsAr } from './catalog-services.js';
@@ -161,6 +163,7 @@ export const ar: Catalog = {
     active: 'ساري',
     expired: 'منتهي',
   },
+  invitations: invitationsAr,
   staffLogin: staffLoginAr,
   inApp: inAppAr,
   errors: {
@@ -233,6 +236,9 @@ export const ar: Catalog = {
     EMPLOYEE_USER_LINK_UNAVAILABLE: 'تعذر ربط المستخدم الموجود.',
     EMPLOYEE_CONTRACT_END_BEFORE_HIRE: 'يجب أن تكون نهاية العقد في تاريخ التعيين أو بعده.',
     EMPLOYEE_USER_ALREADY_LINKED: 'هذا المستخدم مرتبط بالفعل بموظف نشط في هذا النشاط.',
+    STAFF_ACCESS_PHONE_TAKEN: 'رقم الهاتف ده مربوط بحساب تاني. تأكدي من الرقم أو راجعي الموظفة.',
+    STAFF_ACCESS_ALREADY_GRANTED: 'الموظفة دي عندها دخول شغال بالفعل.',
+    STAFF_ACCESS_NOT_ALLOWED: 'مش مسموح ليك تعطي أو تلغي دخول الموظفة دي من فرعها الأساسي.',
     ...employeeNumberErrorsAr,
     EMPLOYEE_CARD_CODE_UNAVAILABLE: 'لا يمكن استخدام كود الكارت هذا. اختر كودًا آخر.',
     ...employeeImportErrorsAr,
@@ -251,6 +257,12 @@ export const ar: Catalog = {
     PERMISSION_ROLE_NOT_ELIGIBLE:
       'صلاحية قراءة التقييمات تُمنح لأدوار الإدارة فقط (المالك، المدير العام، مدير النشاط، مدير الفرع)',
     PERMISSION_OVERRIDE_ENDED: 'هذا الاستثناء انتهى بالفعل',
+    MEMBER_INVITATION_EXISTS: 'الإيميل ده عنده دعوة في الشركة بالفعل',
+    MEMBER_ROLE_NOT_INVITABLE:
+      'الدور ده ما بيتدعىش، أو نطاقه ما بيتوافقش مع الدور أو بيتبع شركة تانية',
+    MEMBER_EMAIL_NOT_INVITABLE: 'الإيميل ده ما بيتدعىش',
+    MEMBER_INVITATION_NOT_REISSUEABLE:
+      'مينفعش نطلع رابط جديد للدعوة دي؛ العضو حط كلمة مروره بالفعل',
     TRANSACTION_RETRY_REQUIRED: 'تعارض التغيير مع عملية أخرى ولم يُحفظ. حاول مرة أخرى.',
     OTP_UNAVAILABLE: 'الدخول بواتساب غير متاح. اطلب مساعدة المدير للدخول بالرقم السري الخاص بك.',
     PASSKEY_ALREADY_BOUND: 'تم ربط مفتاح مرور بالفعل. اطلب من المدير فك الربط أولاً.',
@@ -289,6 +301,7 @@ export const ar: Catalog = {
   },
   staff: {
     ...staffDuplicateNameAr,
+    ...staffAccessAdminAr,
     ...employeeNumberAdminAr,
     listTitle: 'الموظفون',
     listLead: 'أدر بيانات الموظفين وفروع العمل.',

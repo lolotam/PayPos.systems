@@ -9,6 +9,7 @@ export * from './idempotency.ts';
 export * from './consumed-events.ts';
 export * from './identity-auth.ts';
 export * from './identity-access.ts';
+export * from './identity-invitations.ts';
 export * from './identity-platform.ts';
 export * from './identity-devices.ts';
 export * from './identity-cashier-pins.ts';
@@ -40,6 +41,7 @@ export * from './staff-leave-history-reports.ts';
 
 export { employeeDefaultShifts } from './staff-default-shifts.ts';
 export { employeeNumberSequences } from './staff-employee-numbers.ts';
+export { employeeStaffAccess } from './staff-access.ts';
 export * from './orders.ts';
 export * from './orders-packages.ts';
 export * from './orders-package-redemptions.ts';

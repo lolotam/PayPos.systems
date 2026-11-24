@@ -1,3 +1,4 @@
+import { staffAccessPaths } from './staff/staff-access-openapi.js';
 import { leaveHistoryPaths } from './staff/leave-history-openapi.js';
 import { businessCountryPaths } from './tenancy/business-openapi.js';
 import { leaveHistoryReportApiPaths } from './staff/leave-history-report-api-openapi.js';
@@ -36,6 +37,7 @@ import { filePaths } from './files-openapi.js';
 import { employeeImportPaths } from './staff/employee-import-openapi.js';
 import { staffPaths } from './staff/staff-openapi.js';
 import { permissionPaths } from './identity/permissions-openapi.js';
+import { memberInvitationPaths, memberInvitationSchemas } from './identity/member-invitation-openapi.js';
 import { devicePaths, pendingDevicesPaths } from './identity/devices-openapi.js';
 import { staffSignInPaths } from './identity/staff-sign-in-openapi.js';
 import { privateViewPaths } from './identity/private-view-openapi.js';
@@ -56,6 +58,7 @@ const allSchemas: readonly z.ZodType[] = [
   ...openApiSchemas,
   ...packageExtensionSchemas,
   ...packageRefundSchemas,
+  ...memberInvitationSchemas,
 ];
 
 // المسارات اللي الـ frontends بتكلمها بالعميل المولّد، بنفس الـ status اللي الـ controller بيرجّعه.
@@ -94,6 +97,7 @@ const PATHS = {
   ...attendanceCorrectionPaths,
   ...attendanceChangePaths,
   ...permissionPaths,
+  ...memberInvitationPaths,
   ...pendingDevicesPaths,
   ...customerPaths,
   ...catalogPaths,
@@ -207,6 +211,7 @@ const PATHS = {
   ...notificationPaths,
   ...mePaths,
   ...devicePaths,
+  ...staffAccessPaths,
 };
 
 /**

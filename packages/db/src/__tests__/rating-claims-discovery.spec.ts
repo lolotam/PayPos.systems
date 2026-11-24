@@ -6,10 +6,10 @@ import { afterAll, beforeAll, beforeEach, expect, it, vi } from 'vitest';
 import {
   createDatabase,
   createOutboxDispatcherDatabase,
-  type Database,
   type OutboxDispatcherDatabase,
 } from '../index.ts';
 import { discoverRatingClaims } from '../data-steps/rating-claims-discovery.ts';
+import type { DataStepApp } from '../data-steps/coverage.ts';
 import { migrationDataSteps } from '../data-steps/index.ts';
 import { readPgTestEnv } from '../../test/pg-env.ts';
 import { createTestDatabase, type TestDatabase } from '../../test/test-database.ts';
@@ -47,7 +47,7 @@ vi.mock('postgres', async (importOriginal) => {
 const ids = systemUuidV7();
 let testDb: TestDatabase;
 let owner: postgres.Sql;
-let app: Database;
+let app: ReturnType<typeof createDatabase>;
 let dispatcher: OutboxDispatcherDatabase;
 const { A, B } = RATING_TENANT;
 
@@ -169,7 +169,9 @@ it('the registered migration step uses existing restricted credentials and logs 
   const log = vi.spyOn(console, 'log').mockImplementation(() => undefined);
   try {
     const steps = migrationDataSteps(testDb.ownerUrl, env.appPassword, env.dispatcherPassword);
-    await steps['rating-claims-discovery'](owner);
+    const discovery = steps['rating-claims-discovery'];
+    if (discovery === undefined) throw new Error('Missing rating-claims-discovery step');
+    await discovery.run(owner);
     expect(log.mock.calls).toEqual([
       [
         `rating_claims_discovery ${JSON.stringify({
@@ -190,11 +192,12 @@ it('the registered migration step uses existing restricted credentials and logs 
 });
 
 it('restarts after a committed company transaction loses its reply without duplicate discovery', async () => {
-  const lostReply: Pick<Database, 'withTenant'> = {
+  const lostReply: DataStepApp = {
     withTenant: async (companyId, callback, options) => {
       await app.withTenant(companyId, callback, options);
       throw new Error('SYNTHETIC_COMMIT_REPLY_LOST');
     },
+    close: async () => undefined,
   };
   await expect(discoverRatingClaims(owner, lostReply, dispatcher)).rejects.toThrow(
     'SYNTHETIC_COMMIT_REPLY_LOST',
@@ -286,7 +289,7 @@ it('serializes competing discoveries even when the migration owner lock is no lo
   const firstRead = new Promise<void>((resolve) => {
     observed = resolve;
   });
-  const competingApp: Pick<Database, 'withTenant'> = {
+  const competingApp: DataStepApp = {
     withTenant: (companyId, callback, options) =>
       app.withTenant(
         companyId,
@@ -297,6 +300,7 @@ it('serializes competing discoveries even when the migration owner lock is no lo
         },
         options,
       ),
+    close: async () => undefined,
   };
   const competingReader = {
     ratingClaimsDiscoveryExists: async (companyId: string) => {

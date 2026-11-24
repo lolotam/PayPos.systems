@@ -34,9 +34,20 @@ class ProtectedProbe {
 
 let seen: { method: string; url: string; body: string; cookie: string | null } | undefined;
 const fakeAuth: AuthService = {
+  members: {} as AuthService['members'],
   personal: {} as AuthService['personal'],
   passkeys: {} as AuthService['passkeys'],
   privateView: {} as AuthService['privateView'],
+  staffUsers: {
+    provision: async () => ({ userId: '' }),
+    cancel: async () => undefined,
+    read: async () => null,
+    isStaffUser: async () => false,
+    staffCompanyOf: async () => null,
+    bindingOf: async () => null,
+    userIdForResetToken: async () => null,
+    close: async () => undefined,
+  },
   staff: refusingStaffSessions,
   handler: async (request) => {
     seen = {

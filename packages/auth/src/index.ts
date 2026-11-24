@@ -20,6 +20,14 @@ export {
   type CreatePlatformUserInput,
 } from './create-platform-user.ts';
 export {
+  InvitationLinkRefusedError,
+  MEMBER_INVITATION_LINK_TTL_MS,
+  isStaffSyntheticEmail,
+  type EmailState,
+  type InvitedMemberOutcome,
+  type MemberInvitationAccounts,
+} from './member-invitations.ts';
+export {
   formatDeviceToken,
   hashDeviceSecret,
   newDeviceSecret,
@@ -54,6 +62,12 @@ export {
 } from './staff-session-fence.ts';
 export { OTP_LIFETIME_MS, OTP_RETRY_MS, STAFF_LOGIN_CONCURRENCY } from './staff-otp/policy.ts';
 export { approvePhoneBinding } from './approve-phone-binding.ts';
+export {
+  createStaffUserAccess,
+  STAFF_SYNTHETIC_EMAIL_DOMAIN,
+  staffSyntheticEmail,
+  type StaffUserAccess,
+} from './staff-access-users.ts';
 
 export type { PersonalWorkspace, PersonalSession } from './staff-otp/types.ts';
 export type { PersonalSessions } from './personal-sessions.ts';

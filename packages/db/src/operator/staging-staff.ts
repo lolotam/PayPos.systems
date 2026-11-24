@@ -3,11 +3,13 @@ import { sql } from 'drizzle-orm';
 import { SYSTEM_ROLES } from '../access-catalog.ts';
 import { appendAuditLog } from '../audit-log.ts';
 import { createDatabase } from '../client.ts';
+import { createAuthDatabase } from '../auth-database.ts';
 import type { IdGenerator, Tx } from '../with-tenant.ts';
 
 export { readStagingStaffIdentityRows } from './staging-staff-identity.ts';
 
 export type StagingStaffRefusalCode =
+  | 'STAFF_COMPANY_REFUSED'
   | 'TARGET_SCOPE_REFUSED'
   | 'EMPLOYEE_NOT_FOUND'
   | 'EMPLOYEE_LINKED_TO_ANOTHER_USER'
@@ -83,6 +85,7 @@ async function lockScope(
  */
 export async function ensureStaffBranchMembership(input: {
   appUrl: string;
+  authUrl: string;
   ids: IdGenerator;
   companyId: string;
   businessId: string;
@@ -97,6 +100,16 @@ export async function ensureStaffBranchMembership(input: {
         AND role_id=${staffRoleId()} AND role_owner_key='global' AND scope_type='BRANCH' AND scope_id=${input.branchId}
         AND starts_at <= now() AND (ends_at IS NULL OR ends_at > now()) LIMIT 1`);
     if (existing.length === 1) return 'unchanged';
+    const auth = createAuthDatabase({ url: input.authUrl, maxConnections: 1 });
+    try {
+      await auth.ping();
+      const [user] = await auth.db.execute<{ company: string | null }>(sql`
+        SELECT staff_access_company_id AS company FROM "user" WHERE id=${input.userId}`);
+      if (user === undefined || (user.company !== null && user.company !== input.companyId))
+        refuse('STAFF_COMPANY_REFUSED');
+    } finally {
+      await auth.close();
+    }
     const membershipId = input.ids.newId();
     await tx.execute(sql`INSERT INTO memberships
       (company_id,id,user_id,employee_id,role_id,role_owner_key,scope_type,scope_id,ends_at)

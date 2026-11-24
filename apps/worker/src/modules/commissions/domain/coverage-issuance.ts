@@ -38,6 +38,7 @@ export interface ConnectionIdentity {
  *
  * @param report     هوية اتصال التقرير (pospay_app)
  * @param dispatcher هوية اتصال الإصدار (pospay_dispatcher) من لقطة الدالة المحدودة
+ * @returns بلا قيمة — يرمي `CoverageProofRefused` على أول رفض (نسخة احتياطية أو اختلاف هوية)
  */
 export function assertSamePrimary(report: ConnectionIdentity, dispatcher: ConnectionIdentity): void {
   if (report.inRecovery || dispatcher.inRecovery)
@@ -49,6 +50,7 @@ export function assertSamePrimary(report: ConnectionIdentity, dispatcher: Connec
 /** يمنع إصدار دليل من تقرير جزئي أو متناقض حتى لو حمل عنوان COVERED خطأً.
  *
  * @param report نتيجة الفحص بكل أقسام المصدر
+ * @returns بلا قيمة — يرمي `CoverageProofRefused` (`COVERAGE_REPORT_NOT_COVERED`) على أول تناقض
  */
 export function assertIssuableCoverage(report: IssuableCoverageReport): void {
   if (

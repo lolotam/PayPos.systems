@@ -254,6 +254,10 @@ interface HarnessOptions {
   trustedProxy?: readonly string[];
   /** من غير Redis مفيش حدّ على المسارات العامة، فبترد NOT_READY. */
   omitRedis?: boolean;
+  /** بوابة دخول الموظفات (FR-F1-9): المسارات ترد NOT_READY ما دامت مطفأة. */
+  staffAccessRoutes?: boolean;
+  /** الأصول المسموحة بـ CORS؛ بدونها لا يُسمح لأي أصل. */
+  corsOrigins?: readonly string[];
   commissionsClock?: { now(): Date };
   /** يلفّ غلاف قاعدة التطبيق، عشان اختبار يسجّل اتصالات معاملات الطلبات الحقيقية. */
   wrapDatabase?: (database: TenantWrappers) => TenantWrappers;
@@ -326,6 +330,7 @@ async function prepareHarness(
         employeeCardKey: deriveEmployeeCardKey('test-secret-that-is-long-enough-for-hmac'),
         database: wrappers,
         ...optionalWiring(options),
+        ...(options.corsOrigins === undefined ? {} : { corsOrigins: options.corsOrigins }),
         ...staffWiring(options, staffOtp, auth),
         ...personalWiring(options, auth, database),
         ids,
@@ -386,20 +391,30 @@ function optionalWiring(options: HarnessOptions) {
       ? {}
       : { commissionsClock: options.commissionsClock }),
     ...(options.files === undefined ? {} : { files: options.files }),
+    // أصل اللوحة اللي رابط الدعوة بيتبنى عليه وساعتها؛ بوابة المسارات بتتفتح من الاختبارات اللي محتاجاها بس.
+    memberInvitations: {
+      adminOrigin: ORIGIN,
+      ...(options.clock === undefined ? {} : { clock: options.clock }),
+    },
+    ...(options.staffAccessRoutes === true ? { staffAccessRoutes: true } : {}),
   };
 }
 
 function staffWiring(options: HarnessOptions, api: StaffOtpApi | undefined, auth: AuthService) {
-  return options.staffOrigin === undefined
-    ? {}
-    : {
-        staff: {
-          api: api ?? null,
-          sessions: auth.staff ?? null,
-          origin: options.staffOrigin,
-          nativeOrigins: options.staffNativeOrigins ?? [],
-        },
-      };
+  // بوابة دخول الموظفات: الاختبارات التي تحتاج المسارات تشغّلها صراحةً (FR-F1-9).
+  const gate = options.staffAccessRoutes === true ? { staffAccessRoutes: true } : {};
+  const origins =
+    options.staffOrigin === undefined
+      ? {}
+      : {
+          staff: {
+            api: api ?? null,
+            sessions: auth.staff ?? null,
+            origin: options.staffOrigin,
+            nativeOrigins: options.staffNativeOrigins ?? [],
+          },
+        };
+  return { ...gate, ...origins };
 }
 
 // الجلسة الشخصية لها مصدر وجلسة وأهلية؛ من غير ما تتركب المسار الشخصي مرفوض.

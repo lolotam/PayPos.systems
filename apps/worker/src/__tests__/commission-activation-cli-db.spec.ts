@@ -177,26 +177,38 @@ it('an operator without an active platform grant is refused before any write', a
   ).toHaveLength(0);
 });
 
-it('operator email matching ignores letter case until two users differ only by case', async () => {
+it('operator email matching is the shared userIdOf lookup: email = lower(input), never two users', async () => {
   const mixed = switchArgs(true);
   mixed[mixed.length - 1] = 'Commission-Operator@Example.test';
   expect((await activationCli('switch', urls(), mixed)).code).toBe(0);
   await owner`INSERT INTO "user"(id,name,email)
     VALUES('01920000-0000-7000-8000-000000000cf1','Case twin','Commission-Operator@Example.test')`;
   try {
-    const ambiguous = switchArgs(true);
-    ambiguous[ambiguous.length - 1] = 'commission-operator@EXAMPLE.test';
-    const result = await activationCli('switch', urls(), ambiguous);
-    expect(result.code).toBe(1);
-    expect(result.stderr).toContain('COVERAGE_OPERATOR_AMBIGUOUS');
-    // الرفض بلا أي كتابة جديدة: يبقى أثر التمكين السابق وحده (صف حالة ومفتاح، بلا إثبات ولا تدقيق إضافي).
+    // المطابقة الموحّدة مع platform:grant هي email = lower(المُدخل): التوأم المختلف بالحالة لا
+    // يطابق البريد المُصغَّر، فيبقى الحل دائماً للمستخدم الأصلي وحده — لا مسار غموض إطلاقاً.
+    const lowered = switchArgs(true);
+    lowered[lowered.length - 1] = 'commission-operator@EXAMPLE.test';
+    expect((await activationCli('switch', urls(), lowered)).code).toBe(0);
+    // خطاب التوأم بإيميله الحرفي يُصغَّر هو الآخر، فيحلّ إلى المستخدم الأصلي المخزَّن بأحرف صغيرة
+    // ويُفعّل من جديد: بريد مخزَّن بأحرف مختلطة لا يمكن لأي مُدخل أن يصل إليه، بلا غموض.
+    const twin = switchArgs(true);
+    twin[twin.length - 1] = 'Commission-Operator@Example.test';
+    expect((await activationCli('switch', urls(), twin)).code).toBe(0);
     expect(await footprint()).toEqual({ states: 1, proofs: 0, switches: 1 });
+    // ثلاثة تمكينات ناجحة (مختلط الحالة، مُصغَّر، وإيميل التوأم المختلط بعد تصغيره) — كل واحد
+    // سطر تدقيق واحد على المستخدم الأصلي، والمفتاح صف واحد مُحدَّث.
     expect(
       (
         await owner`SELECT id FROM platform_audit_log WHERE action LIKE 'commissions.%'
           AND details->>'reason' = 'synthetic activation' ORDER BY at`
       ).map((row) => String(row['id'])),
-    ).toHaveLength(1);
+    ).toHaveLength(3);
+    // المستخدم الحلَّه الأمران: user:<id> في سطر التدقيق الوحيد هو معرّف المشغّل الأصلي المخزَّن.
+    const [operator] =
+      await owner`SELECT id FROM "user" WHERE email = 'commission-operator@example.test'`;
+    const [audit] = await owner`SELECT actor FROM platform_audit_log
+      WHERE action LIKE 'commissions.%' AND details->>'reason' = 'synthetic activation'`;
+    expect(String(audit?.['actor'])).toBe(`user:${String(operator?.['id'])}`);
   } finally {
     await owner`DELETE FROM "user" WHERE id = '01920000-0000-7000-8000-000000000cf1'`;
   }

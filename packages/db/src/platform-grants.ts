@@ -22,10 +22,12 @@ export type PlatformGrantOutcome =
   | { readonly status: 'already-granted' | 'not-granted'; readonly userId: string };
 
 // Refused with a message that names the email the operator typed — it is their own input, never a customer's.
-async function userIdOf(tx: postgres.TransactionSql, email: string): Promise<string> {
+// حساب الموظفة بلا صلاحيات منصة أبداً (D8): الإيميل الاصطناعي لو كتبه الـ operator بيتردد بنفس شكل رفض المدخل.
+// Shared with the coverage switch command so both tools resolve the same user or both refuse (ADR-0054 §9).
+export async function userIdOf(tx: postgres.TransactionSql, email: string): Promise<string> {
   const [row] = await tx<
-    { id: string }[]
-  >`SELECT id FROM "user" WHERE email = ${email.toLowerCase()}`;
+    { id: string; staff: boolean }[]
+  >`SELECT id, (staff_access_operation_id IS NOT NULL) AS staff FROM "user" WHERE email = ${email.toLowerCase()}`;
   if (row === undefined) {
     throw Object.assign(
       new Error('no user with that email — run pnpm platform:create-user first'),
@@ -33,6 +35,11 @@ async function userIdOf(tx: postgres.TransactionSql, email: string): Promise<str
         name: 'OperatorInputError',
       },
     );
+  }
+  if (row.staff) {
+    throw Object.assign(new Error('platform grants are refused for a staff user'), {
+      name: 'OperatorInputError',
+    });
   }
   return row.id;
 }
