@@ -94,7 +94,7 @@ it('labels every stacked cell that has content, row by row, naming the details c
   expect(labelsOf(rows[1])).toEqual([
     ...common,
     t('en', 'leave.status'),
-    t('en', 'leave.decisionReason'),
+    t('en', 'leaveHistory.details'),
   ]);
   expect(labelsOf(rows[2])).toEqual([...common, t('en', 'leave.status'), shift]);
   expect(labelsOf(rows[3])).toEqual([...common, null, shift]);
