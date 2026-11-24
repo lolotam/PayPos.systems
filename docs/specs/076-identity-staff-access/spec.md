@@ -65,16 +65,17 @@ F3 change phone, stop access, follow the branch · G2 end a membership. Plan: `p
 - **FR-G1-3** Before it posts, the screen always shows the full email and requires an explicit confirmation, for a
   new and for an existing account alike (D10). There is no route that tells whether an email has an account.
 - **FR-G1-4** For an email with no account: the system creates the user and the membership and shows a one-time
-  set-password link **once**, valid 48 hours (IM-Q3, D9). For an email that already has an account (IM-Q4): only
-  the membership is added and no link is shown. The link is never stored by the API, never logged and never
+  set-password link **once**, valid 48 hours (IM-Q3, D9). For an email that already has any account: the
+  invitation is refused with `MEMBER_EMAIL_NOT_INVITABLE` and nothing is written (decision N1, Waleed 2026-11-24;
+  it suspends IM-Q4 option 1 until email ownership can be proven). The link is never stored by the API, never logged and never
   returned again; the owner copies it and sends it himself.
 - **FR-G1-4b** Each invitation is recorded (no token, no link, no plain email). The owner who created a pending
   invitation can issue a new link while the invited person has never set a password; the earlier link stops
   working. No other company can issue a link for that account.
 - **FR-G1-5** Refusals: `MEMBER_ALREADY_IN_COMPANY` (409) for an active membership of the same user in the company;
   `MEMBER_ROLE_NOT_INVITABLE` (422) for a role outside the list, the owner role, or a scope that does not match
-  the role or does not belong to the company; `MEMBER_EMAIL_NOT_INVITABLE` (422) for a staff user's email or the
-  owner's own email. Authority is the canonical owner, decided inside the write transaction.
+  the role or does not belong to the company; `MEMBER_EMAIL_NOT_INVITABLE` (422) for an email that already has any
+  user account, the owner's own and a staff user's included (N1). Authority is the canonical owner, decided inside the write transaction.
 - **FR-G1-6** Audit rows for the user creation and the membership; outbox event `MemberInvited`.
 
 ### F2 — Temporary PIN and owner notice (PP-63.8, PP-63.9, D4)
@@ -159,8 +160,9 @@ F3 change phone, stop access, follow the branch · G2 end a membership. Plan: `p
   membership exist; the response carries a link once; opening it lets him set a password (PR-D page); a second
   read of any API never returns the link.
 - **AC-G1-2** The link is refused after 48 hours and after one use; operator-created links still last one hour.
-- **AC-G1-3** An existing account: only the membership is added and the response carries no link. A request
-  without the confirmation is rejected by the schema, whether or not the account exists.
+- **AC-G1-3** An existing account, with or without a password and whichever company created it: 422
+  `MEMBER_EMAIL_NOT_INVITABLE`, no membership and no link (N1). A request without the confirmation is rejected by
+  the schema, whether or not the account exists.
 - **AC-G1-3b** After a crash that left a created member without a link, the inviting owner issues a new link
   through the re-issue route; another owner, another company, and a member who already set a password are refused;
   the earlier link no longer works.
@@ -229,7 +231,8 @@ existing membership, automatic email delivery of the invitation, and a «create 
 
 - A granter can point an employee's sign-in at a phone he controls. It is visible in the audit log and, from F2,
   in the owner's notice (D2).
-- A mistyped invitation email that matches an existing account gives that person the role at once; the explicit
-  confirmation of the full email, always asked, is the control (D10).
-- After a successful invitation the owner learns whether the email already had an account (a link is shown or
-  not). This follows from IM-Q3 and IM-Q4; the route is owner-only, rate-limited and audited.
+- A mistyped invitation email creates an account for the wrong address; the explicit confirmation of the full
+  email, always asked, is the control (D10), and the link is handed over by the owner himself.
+- A refused invitation tells the owner that the email already has an account (N1). The route is owner-only,
+  rate-limited and audited; a person who works with two companies cannot be invited to the second one with the
+  same email until email ownership can be proven.
