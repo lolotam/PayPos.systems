@@ -190,17 +190,19 @@ export function statementPayments(
   payables: ReadonlyMap<string, Money>,
   roundCash: (payableMills: Money) => Money,
 ): StatementPayments {
-  let paidMills = 0n;
-  const rows = [...payables].map(([employeeId, exactPayable]) => {
-    const paid = storablePaidAmount(method, exactPayable, roundCash);
-    paidMills += paid;
-    return {
-      employeeId,
-      exactPayable: moneyToString(exactPayable),
-      paidAmount: moneyToString(paid),
-    };
-  });
-  return { rows, paidTotal: totalMillsToString(paidMills) };
+  const paid = [...payables].map(([employeeId, exactPayable]) => ({
+    employeeId,
+    exactPayable,
+    paidAmount: storablePaidAmount(method, exactPayable, roundCash),
+  }));
+  return {
+    rows: paid.map((row) => ({
+      employeeId: row.employeeId,
+      exactPayable: moneyToString(row.exactPayable),
+      paidAmount: moneyToString(row.paidAmount),
+    })),
+    paidTotal: totalMillsToString(paid.reduce((sum, row) => sum + row.paidAmount, 0n)),
+  };
 }
 
 /**
