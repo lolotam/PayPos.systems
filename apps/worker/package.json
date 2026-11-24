@@ -7,6 +7,7 @@
   "scripts": {
     "build": "tsc -p tsconfig.build.json",
     "typecheck": "tsc --noEmit",
+    "platform:commission-coverage": "node --env-file-if-exists=../../.env dist/issue-commission-coverage.js",
     "lint": "eslint .",
     "test": "vitest run",
     "start": "node --env-file-if-exists=../../.env dist/main.js"

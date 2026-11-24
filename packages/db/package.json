@@ -23,7 +23,8 @@
     "db:migrate": "node --env-file-if-exists=../../.env scripts/migrate.ts",
     "db:generate": "node scripts/generate-migration.ts",
     "db:seed": "node --env-file-if-exists=../../.env scripts/seed.ts",
-    "platform:grant": "node --env-file-if-exists=../../.env scripts/platform-grant.ts"
+    "platform:grant": "node --env-file-if-exists=../../.env scripts/platform-grant.ts",
+    "platform:commission-approval": "node --env-file-if-exists=../../.env scripts/platform-commission-approval.ts"
   },
   "dependencies": {
     "@pospay/domain": "workspace:*",

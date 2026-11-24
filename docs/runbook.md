@@ -471,6 +471,62 @@ no `published_at`, no `attempts`, no mark and no projection change.
      has scanned the lines, the salaries, the sales and the retained-event range, because the check compares the last event it read with the
      bound. It prints no report and exits 1; it is not a cheap pre-check.
 
+## 53-2 B1: enable approval for a company
+
+Only the authorized operator runs these commands, for one company in the verified environment and a quiet window
+covering the whole report and any repair/data-step run. `platform:commission-approval` uses `MIGRATION_DATABASE_URL`
+as `pospay_owner`, like `platform:grant`. Issuance uses `DATABASE_URL` as `pospay_app` for source reads under
+`withTenant` and `DISPATCHER_DATABASE_URL` as `pospay_dispatcher` for the limited 0250 functions; no Redis is needed.
+Supply every company business and a tip range covering all historical input days through PostgreSQL's UTC day plus one.
+The output contains only status, ids, counts, bounds, generation and rules version; never paste credentials.
+Build the current release first (`pnpm exec turbo run build --filter=@pospay/worker...`); issuance runs its compiled CLI.
+
+**Pre-checks before any command (ADR-0054, bootstrap addendum §12):**
+
+1. **Fork / repair condition:** confirm this database is not a fork of another environment or an unrestored copy. If it
+   was forked or restored, the fork procedure ran first (approval switch off, generations bumped), and the routing
+   check below is confirmed again for this run.
+2. **Same primary, not a replica:** the report and the issuance must run against the SAME primary database. The CLI
+   verifies that both connections report the same database name and cluster system identifier and refuses a standby
+   (`pg_is_in_recovery()`), but the operator confirms the URLs themselves point to the intended primary before the run.
+3. **Quiet window:** no data step, repair, replay or release migration is running or planned for the whole operation,
+   pauses and failed runs included. Issuing during any data step is forbidden; after the run finishes, follow the single
+   resume order (enable → new report → new proof).
+
+**Order: enable → dry-run report → issue → approve; enable bumps the generation and invalidates any earlier proof
+(ADR-0054, bootstrap addendum §9), so switch-on without a current proof still refuses approval.**
+
+```sh
+pnpm platform:commission-approval --company <uuid> --show
+pnpm platform:commission-approval --company <uuid> --enable --reason <reason> --operator-email <operator-email> [--expires <ISO-instant>]
+pnpm platform:commission-coverage --company <uuid> --businesses <uuid>[,<uuid>...] --from YYYY-MM-DD --to YYYY-MM-DD --run-id <run-label> --release <release-label> --dry-run
+pnpm platform:commission-coverage --company <uuid> --businesses <uuid>[,<uuid>...] --from YYYY-MM-DD --to YYYY-MM-DD --run-id <run-label> --release <release-label>
+pnpm platform:commission-approval --company <uuid> --show
+```
+
+Dry-run writes nothing. A refusal exits non-zero without issuing; fix the cause and repeat the full report.
+`COVERAGE_TIP_BOUND_MOVED` means repeat with the new PostgreSQL bound. A successful re-run issues a new proof on the
+next generation after verifying again. `SWITCH_ON_NO_CURRENT_PROOF` means the switch alone has not opened approval.
+The operator email must resolve to an existing user holding an **active platform grant** (`platform_grants`, the same
+condition the platform sessions use); a company approver without one is refused (`COVERAGE_OPERATOR_NOT_PLATFORM`), as
+is an email that matches two users differing only by letter case (`COVERAGE_OPERATOR_AMBIGUOUS`). Refusals write
+nothing: no state, no switch, no audit row. Audit stores `user:<id>` and that UUID, never the email.
+`--expires` takes a full ISO-8601 instant with an explicit `Z` or numeric offset only (a date-only value, a timestamp
+without an offset or a rolled date such as 31 February is usage-refused), and an expiry already past PostgreSQL's clock
+is refused after the state-row lock and before the generation bump, so a refused enable writes nothing.
+
+**Mandatory activation gate:** the staging measurement is a **TRIAL run done BEFORE enabling the target company**, never
+on the target company itself. Measure one real approval on staging against a large, fully consumed history and record
+the elapsed time. A company is enabled only if this measured approval is **under 200 ms**; otherwise that company's
+switch stays off and the owner decides. The staging measurement is a separate operator receipt, not proved
+by shipping this CLI or its integration tests.
+
+To close approval (also invalidates the current proof), use:
+
+```sh
+pnpm platform:commission-approval --company <uuid> --disable --reason <reason> --operator-email <operator-email>
+```
+
 ## 50-3d: replay all six counted types after a rollback (spec 059, CS-Q43)
 
 Replays the retained events of all six counted types of one company to the `commissions.project-inputs` consumer alone, through the
