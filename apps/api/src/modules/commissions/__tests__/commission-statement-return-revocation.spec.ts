@@ -68,11 +68,12 @@ async function waitForMembershipShareWait(budgetMs: number): Promise<boolean> {
 async function waitForMembershipUpdateHeld(budgetMs: number): Promise<boolean> {
   const deadline = Date.now() + budgetMs;
   while (Date.now() < deadline) {
+    // FOR UPDATE بياخد RowShareLock على العلاقة، والصفوف نفسها مقفولة لحد الـ commit.
     const [row] = await owner`SELECT EXISTS (
       SELECT 1 FROM pg_locks l
       JOIN pg_stat_activity a ON a.pid = l.pid
       WHERE l.granted AND l.relation = 'memberships'::regclass
-        AND l.mode = 'RowExclusiveLock'
+        AND l.mode = 'RowShareLock'
         AND a.state = 'idle in transaction'
         AND a.query ~* 'FROM\\s+memberships\\s+WHERE.*FOR\\s+UPDATE'
         AND a.pid <> pg_backend_pid()) AS held`;
