@@ -26,23 +26,6 @@ const FINANCE_BUSINESS: readonly [NavigationRoleCode, ...NavigationRoleCode[]] =
   'business_manager',
 ];
 
-/** كل أدوار الشركة؛ صفحة المظهر مفتوحة لكل مستخدم إدارة مسجّل بلا صلاحية (NAV-Q1، FR-005). */
-const ALL_COMPANY_ROLES: readonly [NavigationRoleCode, ...NavigationRoleCode[]] = [
-  'owner',
-  'general_manager',
-  'accountant',
-  'business_manager',
-  'branch_manager',
-  'shift_supervisor',
-  'cashier',
-  'waiter',
-  'kitchen',
-  'storekeeper',
-  'staff',
-  'marketing',
-  'viewer',
-];
-
 /** مداخل الإعدادات العامة والتنبيهات وأعمدة تطبيق الموظفين والمظهر والباقة والامتثال. */
 export const SETTINGS_NAV_PAGES: readonly NavigationPageEntry[] = [
   {
@@ -149,15 +132,16 @@ export const SETTINGS_NAV_PAGES: readonly NavigationPageEntry[] = [
   },
   {
     id: 'appearance',
+    route: '/appearance',
+    formerSoonId: 'appearance',
     labelKey: 'adminNavPages.appearance',
     descriptionKey: 'adminNav.appearanceLead',
     icon: 'Monitor',
-    state: 'soon',
-    plannedRoute: '/appearance',
+    visible: 'always',
+    state: 'live',
     section: 'setup',
     submenu: 'appearance',
     businessTypes: [],
-    roles: ALL_COMPANY_ROLES,
     appMapEntry: true,
   },
   {

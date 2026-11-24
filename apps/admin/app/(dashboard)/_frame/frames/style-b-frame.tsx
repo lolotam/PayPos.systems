@@ -5,9 +5,8 @@ import { useMemo, type ReactNode } from 'react';
 
 import { useMenuContext } from '../menu/use-menu-context';
 import { buildStyleBView } from '../menu/style-views';
-import { FrameActions } from './frame-actions';
+import { FrameBarEnd } from './frame-bar-end';
 import { FrameChrome } from './frame-chrome';
-import { FrameWorkspaceSwitcher } from './frame-workspace-switcher';
 import { useFrameLabels } from './use-frame-labels';
 import { useNavigationKey } from './use-navigation-key';
 
@@ -28,7 +27,7 @@ export function StyleBFrame({ children }: { children: ReactNode }) {
     <div className="flex min-h-dvh flex-col">
       <FrameChrome>
         <div className="flex items-center border-b border-sidebar-border bg-sidebar text-sidebar-foreground">
-          <div className="min-w-0 flex-1">
+          <div className="min-w-[3.75rem] flex-1">
             <TopNav
               modules={view.modules}
               labels={labels.chrome}
@@ -39,9 +38,8 @@ export function StyleBFrame({ children }: { children: ReactNode }) {
               resetKey={navigationKey}
             />
           </div>
-          <div className="flex shrink-0 items-center gap-2 px-2">
-            <FrameWorkspaceSwitcher />
-            <FrameActions />
+          <div className="min-w-0 px-2 py-2">
+            <FrameBarEnd />
           </div>
         </div>
       </FrameChrome>

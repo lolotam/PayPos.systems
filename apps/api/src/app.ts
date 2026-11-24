@@ -34,6 +34,7 @@ import {
   readCommissionPlanAccess,
   readCommissionPlanListAccess,
   readCommissionFeatureEnabled,
+  readCommissionReviewAccess,
   readCommissionScope,
 } from './modules/identity/index.ts';
 import { settingsControllers, settingsProviders } from './modules/settings/index.ts';
@@ -42,12 +43,14 @@ import { mountWhatsappSecurity, type WhatsappIntake } from './modules/notificati
 import {
   businessCalendar,
   businessTimeZone,
+  readCommissionBranchNames,
   tenancyControllers,
   tenancyProviders,
 } from './modules/tenancy/index.ts';
 import {
   customersControllers,
   customersProviders,
+  readCommissionCustomerNames,
   RATING_ROUTE,
   ratingAdmissionHook,
   ratingCorsPolicy,
@@ -67,11 +70,16 @@ import {
   lockEmployeeForUpdate,
   readCommissionBranchAttachments,
   readCommissionEstimateEmployees,
+  readCommissionStatementEmployees,
   readCommissionPlanEmployeeNames,
   staffControllers,
   staffProviders,
 } from './modules/staff/index.ts';
-import { commissionsControllers, commissionsProviders } from './modules/commissions/index.ts';
+import {
+  commissionsControllers,
+  commissionsProviders,
+  type CommissionEstimateProviders,
+} from './modules/commissions/index.ts';
 import {
   documentFileFacts,
   filesControllers,
@@ -177,6 +185,20 @@ class ShutdownHook implements OnApplicationShutdown {
   }
 }
 
+/** نطاق القارئ الفعّال من identity بشكل مزوّد التقدير والكشف: الرفض الموحّد والميزة المقفولة سببان منفصلان. */
+async function commissionReaderScope(
+  ...args: Parameters<typeof readCommissionScope>
+): ReturnType<CommissionEstimateProviders['scope']> {
+  const scope = await readCommissionScope(...args);
+  if (scope.kind === 'forbidden') return { kind: 'forbidden' };
+  if (scope.kind === 'feature_disabled') return { kind: 'feature_disabled' };
+  return {
+    kind: 'scope',
+    businessWide: scope.scope.businessWide,
+    branchIds: scope.scope.branchIds,
+  };
+}
+
 function commissionBindings(deps: AppDependencies) {
   return commissionsProviders(
     deps.database,
@@ -204,20 +226,25 @@ function commissionBindings(deps: AppDependencies) {
     { access: readCommissionPlanListAccess },
     {
       // تقدير العمولة (50-5): النطاق الفعّال من identity، والاسم والارتباطات من staff.
-      scope: async (tx, companyId, userId, businessId) => {
-        const scope = await readCommissionScope(tx, companyId, userId, businessId);
-        if (scope.kind === 'forbidden') return { kind: 'forbidden' };
-        if (scope.kind === 'feature_disabled') return { kind: 'feature_disabled' };
-        return {
-          kind: 'scope',
-          businessWide: scope.scope.businessWide,
-          branchIds: scope.scope.branchIds,
-        };
-      },
+      scope: commissionReaderScope,
       featureEnabled: readCommissionFeatureEnabled,
       employees: readCommissionEstimateEmployees,
       attachments: readCommissionBranchAttachments,
       serviceNames: readCommissionServiceNames,
+    },
+    {
+      // كشف العمولة (51-1): نفس النطاق والميزة، والأسماء من tenancy وcustomers والكتالوج، والإنشاء بفحصه الخاص.
+      providers: {
+        scope: commissionReaderScope,
+        featureEnabled: readCommissionFeatureEnabled,
+        employees: readCommissionStatementEmployees,
+        attachments: readCommissionBranchAttachments,
+        branchNames: readCommissionBranchNames,
+        serviceNames: readCommissionServiceNames,
+        customerNames: readCommissionCustomerNames,
+      },
+      reviewAccess: readCommissionReviewAccess,
+      businessCalendar,
     },
     deps.commissionsClock,
   );

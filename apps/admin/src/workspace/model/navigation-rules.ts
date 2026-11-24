@@ -101,6 +101,5 @@ export function isEntryShownForWorkspace(
 }
 
 export function isSoonEntryShownForRole(entry: SoonNavigationPageEntry, role: string): boolean {
-  // صفحة المظهر متاحة لأي مستخدم مسجّل، بما في ذلك الأدوار المخصصة (FR-005).
-  return entry.plannedRoute === '/appearance' || entry.roles.some((allowed) => allowed === role);
+  return entry.roles.some((allowed) => allowed === role);
 }

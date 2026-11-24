@@ -6,6 +6,7 @@ import { betterAuth, type BetterAuthOptions } from 'better-auth';
 import { twoFactor } from 'better-auth/plugins';
 import { createPersonalSessions, type PersonalSessions } from './personal-sessions.ts';
 import { configuredPrivateView, type PrivateViewFacade } from './private-view.ts';
+import { sessionCookieNames, type SessionCookieNames } from './session-cookie.ts';
 import { passkeyPolicy, registrationPlugin, isPasskeyRoute } from './passkey-policy.ts';
 import { createPasskeyFacade, type ActivePasskeyBindings, type PasskeyFacade } from './passkeys.ts';
 import { sessionFromRecord } from './staff-session-fence.ts';
@@ -34,6 +35,8 @@ export interface AuthOptions {
   readonly secureCookies: boolean;
   /** الدومين الأب اللي الـ session cookie بيتشارك عليه بين app. و api. (ADR-0001 §3)؛ من غيره الـ cookie host-only. */
   readonly cookieDomain?: string | undefined;
+  /** بادئة اسم cookies الجلسة — كل بيئة ببادئة، عشان cookie الإنتاج ما يتقراش في staging (ADR-0001 §3). */
+  readonly cookiePrefix?: string | undefined;
   /** بيستقبل أحداث Better Auth بعد التنضيف — من غير الـ error objects اللي ممكن تشيل tokens. */
   readonly onLog: (entry: AuthLogEntry) => void;
 }
@@ -114,6 +117,8 @@ export interface AuthService {
 export async function createAuth(options: AuthOptions): Promise<AuthService> {
   if (options.secret.length < 32)
     throw new Error('BETTER_AUTH_SECRET must be at least 32 characters');
+  // قبل أي pool: بادئة cookie غلط معناها اسم cookie مش متوقع، والتطبيق لازم يقف بدل ما يخدم.
+  const cookieNames = sessionCookieNames(options);
   const database = createAuthDatabase({ url: options.databaseUrl });
   const staffUsers = createStaffUserAccess({
     databaseUrl: options.databaseUrl,
@@ -127,8 +132,8 @@ export async function createAuth(options: AuthOptions): Promise<AuthService> {
     await staffUsers.close();
     throw error;
   }
-  const auth = buildBetterAuth(options, database, staffUsers);
-  const service = assembleAuthService(options, database, staffUsers, auth);
+  const auth = buildBetterAuth(options, database, staffUsers, cookieNames);
+  const service = assembleAuthService(options, database, staffUsers, auth, cookieNames);
   return service;
 }
 
@@ -138,8 +143,9 @@ function assembleAuthService(
   database: ReturnType<typeof createAuthDatabase>,
   staffUsers: StaffUserAccess,
   auth: ReturnType<typeof buildBetterAuth>,
+  cookieNames: SessionCookieNames,
 ): AuthService {
-  const staff = staffSessions(options, auth, database);
+  const staff = staffSessions(options, auth, database, cookieNames);
   const personal = personalSessions(options, auth, database);
   const passkeys = configuredPasskeys(options, auth, database);
   return {
@@ -259,6 +265,7 @@ export function buildBetterAuth(
   options: AuthOptions,
   database: ReturnType<typeof createAuthDatabase>,
   staffUsers: StaffUserAccess,
+  cookieNames: SessionCookieNames,
 ): ReturnType<typeof betterAuth<StaffAuthConfiguration>> {
   return betterAuth<StaffAuthConfiguration>({
     appName: 'PosPay',
@@ -276,7 +283,7 @@ export function buildBetterAuth(
     ],
     databaseHooks: staffUserHooks(staffUsers),
     advanced: {
-      cookiePrefix: 'pospay',
+      cookiePrefix: cookieNames.prefix,
       useSecureCookies: options.secureCookies,
       // Better Auth skips origin/callback checks when NODE_ENV is test; pinned on so tests run what production runs.
       disableOriginCheck: false,
@@ -356,6 +363,7 @@ function staffSessions(
   options: AuthOptions,
   auth: ReturnType<typeof buildBetterAuth>,
   authDatabase: ReturnType<typeof createAuthDatabase>,
+  cookieNames: SessionCookieNames,
 ): StaffSessions {
   return createStaffSessions({
     database: createStaffOtpDatabase({
@@ -364,7 +372,7 @@ function staffSessions(
     }),
     authDatabase,
     secret: options.secret,
-    normalCookie: `${options.secureCookies ? '__Secure-' : ''}pospay.session_token`,
+    normalCookie: cookieNames.normal,
     now: () => options.clock?.now() ?? new Date(),
     primitive: {
       create: async (userId, device, now, deadline) =>

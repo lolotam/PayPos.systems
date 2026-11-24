@@ -3,6 +3,7 @@ import { t, type Locale } from '@pospay/i18n';
 
 import { type E2eState } from './session-state';
 import { freshTotp } from './totp';
+import { chooseCompanyInSwitcher } from './workspace-switcher-ui';
 
 function byLabel(root: Page | Locator, name: string): Locator {
   return root.getByLabel(name, { exact: true });
@@ -72,16 +73,7 @@ export async function signInThroughUi(
 }
 
 export async function chooseCompany(page: Page, companyName: string): Promise<void> {
-  const company = page.locator('#workspace-company');
-  const locale = await documentLocale(page);
-  const open = page.getByRole('button', { name: t(locale, 'shell.openNavigation') });
-  // القائمة بتتحمل بعد الدخول؛ تحت 768px هي درج، فبنستنى أي الاتنين يظهر.
-  await expect(company.or(open)).toBeVisible();
-  if (!(await company.isVisible())) await open.click();
-  await company.click();
-  await page.getByRole('option', { name: companyName, exact: true }).click();
-  const close = page.getByRole('button', { name: t(locale, 'shell.closeNavigation') });
-  if (await close.isVisible()) await close.click();
+  await chooseCompanyInSwitcher(page, companyName);
 }
 
 function contextFor(response: Response, branchId: string): boolean {

@@ -8,15 +8,18 @@ import {
   type AccountMenuEntry,
   type ThemePreference,
 } from '@pospay/ui';
+import { usePathname } from 'next/navigation';
 import { useSyncExternalStore } from 'react';
 
-import { useSignOut } from '@/session/api/use-sign-out';
+import type { useSignOut } from '@/session/api/use-sign-out';
 import { useLocale } from '@/shared/locale/locale-context';
 import type { NavigationStyle } from '@/workspace/nav-types';
 
 import { APPEARANCE_HREF, TWO_FACTOR_HREF } from '../frame-routes';
 import { NAVIGATION_STYLES } from '../navigation-model';
 import { useNavStyle } from '../nav-style/nav-style-context';
+
+export type SignOutController = ReturnType<typeof useSignOut>;
 
 const STYLE_LABELS: Readonly<Record<NavigationStyle, MessageKey>> = {
   A: 'adminNav.styleALabel',
@@ -34,7 +37,7 @@ const THEMES: readonly (readonly [ThemePreference, MessageKey])[] = [
  * مداخل قائمة الحساب بالترتيب: الاسم يضيفه المكوّن، ثم المصادقة والمظهر واختيار النمط والوضع وتسجيل الخروج.
  * القائمة تقبل مداخل فقط، فعلامة «الحالي» تُكتب في نص المدخل بدل اللون وحده.
  */
-export function useAccountEntries(): AccountMenuEntry[] {
+export function useAccountEntries(signOut: SignOutController): AccountMenuEntry[] {
   const locale = useLocale();
   const { style, setStyle } = useNavStyle();
   const theme = useSyncExternalStore(
@@ -42,12 +45,20 @@ export function useAccountEntries(): AccountMenuEntry[] {
     readThemePreference,
     () => 'system',
   );
-  const signOut = useSignOut();
+  const pathname = usePathname();
   const mark = (text: string, current: boolean) =>
     current ? `${text} — ${t(locale, 'adminNav.currentStyleBadge')}` : text;
   return [
-    { id: 'authenticator', label: t(locale, 'admin.enrolLink'), href: TWO_FACTOR_HREF },
-    { id: 'appearance', label: t(locale, 'adminNav.appearanceTitle'), href: APPEARANCE_HREF },
+    {
+      id: 'authenticator',
+      label: mark(t(locale, 'admin.enrolLink'), pathname === TWO_FACTOR_HREF),
+      href: TWO_FACTOR_HREF,
+    },
+    {
+      id: 'appearance',
+      label: mark(t(locale, 'adminNav.appearanceTitle'), pathname === APPEARANCE_HREF),
+      href: APPEARANCE_HREF,
+    },
     ...NAVIGATION_STYLES.map((option) => ({
       id: `style-${option}`,
       label: mark(

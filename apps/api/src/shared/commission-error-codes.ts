@@ -1,0 +1,15 @@
+/**
+ * أكواد أخطاء العمولات وحالة HTTP لكل واحد، في ملف لوحده علشان كتالوج الأخطاء العام ما يعدّيش حد
+ * الأسطر. كل كود هنا بيترفع من الـ API بس، فالكتالوج بيستبعده من التحويل العكسي من حالة HTTP لكود.
+ */
+export const COMMISSION_ERROR_STATUS = {
+  COMMISSION_PERIOD_CLOSED: 409,
+  COMMISSION_PERIOD_NOT_DRAFT: 409,
+  COMMISSION_PLAN_INVALID: 422,
+  COMMISSION_EFFECTIVE_FROM_PAST: 422,
+  COMMISSION_PERIOD_BEFORE_BUSINESS: 422,
+  COMMISSION_REPAIR_NOT_ALLOWED: 422,
+  COMMISSION_PERIOD_NOT_ENDED: 422,
+  COMMISSION_STATEMENT_BLOCKED: 422,
+  COMMISSION_PLAN_EMPLOYEE_CURSOR_UNAVAILABLE: 503,
+} as const;

@@ -21,7 +21,8 @@ export interface VisibilityInput {
 
 /**
  * معرّفات الصفحات التي يراها المستخدم الآن في القوائم الثلاث.
- * الصفحة الحية تتبع شرط الظهور القديم كما هو (BR-006)، والصفحة غير المبنية تتبع الدور،
+ * الصفحة الحية تتبع شرط الظهور القديم كما هو (BR-006) وأدوارها إن حُددت لها،
+ * والصفحة غير المبنية تتبع الدور،
  * وكلتاهما تمرّان على قاعدة نوع النشاط والبلد المعرّفة في navigation-rules.
  */
 export function visiblePageIds(
@@ -32,6 +33,9 @@ export function visiblePageIds(
     .filter((entry) => {
       if (!isEntryShownForWorkspace(entry, input.businessType, input.country)) return false;
       if (entry.state === 'soon') return isSoonEntryShownForRole(entry, input.role);
+      if (entry.roles !== undefined && !entry.roles.some((allowed) => allowed === input.role)) {
+        return false;
+      }
       return input.conditions[entry.visible];
     })
     .map((entry) => entry.id);

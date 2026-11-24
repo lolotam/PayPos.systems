@@ -34,19 +34,33 @@ export type WorkspaceController = WorkspaceStatus & {
 
 const WorkspaceContext = createContext<WorkspaceController | null>(null);
 
+// رفض الوصول على قراءة مساحات العمل معناه الجلسة خلصت أو الوصول اتشال — بيظهر كخطأ دايمًا
+// حتى بعد قراءة ناجحة، زي ما باقي عملاء Admin بيقراو status الرفض؛ باقي الفشل مش وصول.
+function isAccessRefusal(error: unknown): boolean {
+  const status = (error as { status?: unknown }).status;
+  return status === 401 || status === 403;
+}
+
 function viewOf(
   mounted: boolean,
   pending: boolean,
   isError: boolean,
   error: unknown,
   locale: Locale,
+  hasRead: boolean,
   resolved: ResolvedSelection,
   companies: readonly WorkspaceCompanyRead[],
   choose: (next: SelectionChoice) => void,
 ): WorkspaceController {
   const shared = { companies, choose };
   if (!mounted || pending) return { ...shared, status: 'loading' };
-  if (isError) return { ...shared, status: 'error', message: envelopeMessage(error, locale) };
+  // `hasRead` = قراءة ناجحة حصلت قبل كده (الـ data موجودة حتى لو ليستة فاضية)، وفشل إعادة
+  // جلب بعدها ما يهدمش الصفحة: كل صفحات اللوحة بتفضل على المحتوى المختار من البيانات القديمة،
+  // وشاشة إنشاء الشركة (077) بتكمل بإعادة التحميل بتاعتها. الاستثناء هو رفض الوصول (401/403)
+  // على القراءة نفسها: الجلسة خلصت أو الوصول اتشال، فده لازم يظهر كخطأ زي أول قراءة فاشلة.
+  if (isError && (!hasRead || isAccessRefusal(error))) {
+    return { ...shared, status: 'error', message: envelopeMessage(error, locale) };
+  }
   if (resolved.status === 'empty') return { ...shared, status: 'empty' };
   if (resolved.status === 'choose' || !resolved.company) return { ...shared, status: 'choose' };
   return {
@@ -83,6 +97,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
     query.isError,
     query.error,
     locale,
+    query.data !== undefined,
     resolved,
     companies,
     choose,

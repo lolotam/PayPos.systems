@@ -16,6 +16,7 @@ import {
   performerAt,
   signInThroughUi,
 } from './session-fixture';
+import { expectCompanyInSwitcher } from './workspace-switcher-ui';
 
 const state = loadState();
 
@@ -69,7 +70,7 @@ test('clears the draft when another person signs in', async ({ page }) => {
   await expect(page.getByRole('status').filter({ hasText: customer })).toBeVisible();
   const other = await page.context().newPage();
   await signInThroughUi(other, state.otherEmail, state.otherPassword);
-  await expect(page.locator('#workspace-company')).toContainText(state.otherCompanyName);
+  await expectCompanyInSwitcher(page, state.otherCompanyName);
   const locale = await documentLocale(page);
   await expect(page.getByRole('heading', { name: t(locale, 'serviceSessions.title') })).toBeVisible();
   await expect(page.getByLabel(t(locale, 'serviceSessions.name'), { exact: true })).toHaveValue('');

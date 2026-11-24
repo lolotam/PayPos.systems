@@ -66,6 +66,11 @@ export interface AlertKindDefinition {
   readonly employeeOnly: boolean;
   /** الحدث ليه فرع، فالفرع يقدر يغيّر قاعدته (AL-Q2)؛ false = النوع بيتقري دايماً بقاعدة النشاط. */
   readonly branchScoped: boolean;
+  /**
+   * أدوار مستلمين مرفوضة للنوع ده حتى لو الأدوار قابلة للاختيار فيه (AL-Q7 = PP-29.1، issue #486):
+   * كشف العمولات على مستوى النشاط، فمدير الفرع مالوش دور فيه ولو اتخزّن هيحل لحد مش مقصود.
+   */
+  readonly refusedRecipientRoles: readonly AlertRecipientRole[];
 }
 
 const MANAGERS = ALERT_RECIPIENT_ROLES;
@@ -77,6 +82,7 @@ const managersInApp = (extra: Partial<AlertKindDefinition> = {}): AlertKindDefin
   hasLead: false,
   employeeOnly: false,
   branchScoped: true,
+  refusedRecipientRoles: [],
   ...extra,
 });
 const fixedOnly = (fixed: readonly FixedAlertRecipient[]): AlertKindDefinition =>
@@ -107,6 +113,7 @@ export const ALERT_KIND_DEFINITIONS: Readonly<Record<AlertKind, AlertKindDefinit
     hasLead: true,
     employeeOnly: true,
     branchScoped: true,
+    refusedRecipientRoles: [],
   },
   ATTENDANCE_EXCEPTION: managersInApp(),
   DOCUMENT_EXPIRING: {
@@ -124,10 +131,12 @@ export const ALERT_KIND_DEFINITIONS: Readonly<Record<AlertKind, AlertKindDefinit
   STATEMENT_AWAITING_REVIEW: {
     ...fixedOnly([{ selector: 'PERMISSION_HOLDERS', permission: 'review:commissions:business' }]),
     branchScoped: false,
+    refusedRecipientRoles: ['branch_manager'],
   },
   STATEMENT_AWAITING_APPROVAL: managersInApp({
     defaults: { enabled: true, recipientRoles: ['owner'], channels: IN_APP, delayMinutes: null, leadMinutes: null },
     branchScoped: false,
+    refusedRecipientRoles: ['branch_manager'],
   }),
   // جرس الموافقة على خصم على شغل الموافِق (057-3b، D-19، DA-Q11) يروح افتراضياً للمالكين بس، ومنهم المالك اللي وافق (DA-Q10).
   // بيتبع المفتاح العام وقاعدته الخاصة القابلة للتعديل زي أي تنبيه فريق.
@@ -219,6 +228,7 @@ export type AlertRuleViolation =
   | 'LEAD_REQUIRED'
   | 'MINUTES_OUT_OF_RANGE'
   | 'ROLES_NOT_ALLOWED'
+  | 'ROLE_NOT_ALLOWED_FOR_KIND'
   | 'CHANNELS_NOT_ALLOWED'
   | 'DUPLICATE_VALUE';
 
@@ -227,7 +237,8 @@ export const ALERT_MAX_MINUTES = 1440;
 
 /**
  * بيتأكد إن القاعدة المطلوبة مسموحة للنوع ده (FR-B16): المهلة والوقت المسبق في أنواعهم بس وفي المدى،
- * والأنواع اللي مستلمها ثابت (الموظفة نفسها) مالهاش أدوار ولا قنوات تتختار.
+ * والأنواع اللي مستلمها ثابت (الموظفة نفسها) مالهاش أدوار ولا قنوات تتختار، وأدوار النوع المرفوضة
+ * (مدير الفرع على تنبيهات كشف العمولات) ماتتخزّنش حتى لو مصدرها قاعدة قديمة.
  *
  * @param kind  نوع التنبيه
  * @param rule  القيم المطلوبة
@@ -245,6 +256,8 @@ export function alertRuleViolation(kind: AlertKind, rule: AlertRuleSettings): Al
   }
   if (definition.employeeOnly && rule.recipientRoles.length > 0) return 'ROLES_NOT_ALLOWED';
   if (definition.employeeOnly && rule.channels.length > 0) return 'CHANNELS_NOT_ALLOWED';
+  if (rule.recipientRoles.some((role) => definition.refusedRecipientRoles.includes(role)))
+    return 'ROLE_NOT_ALLOWED_FOR_KIND';
   if (new Set(rule.recipientRoles).size !== rule.recipientRoles.length) return 'DUPLICATE_VALUE';
   if (new Set(rule.channels).size !== rule.channels.length) return 'DUPLICATE_VALUE';
   return null;

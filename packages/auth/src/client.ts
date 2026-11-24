@@ -28,6 +28,8 @@ export interface PospayAuthClient {
   };
   getSession: (input?: SessionRequest) => Promise<AuthResponse>;
   signOut: () => Promise<AuthResponse>;
+  // استهلاك رابط تعيين كلمة المرور لمرة واحدة؛ التحقق من الـ token كله على الـ API.
+  resetPassword: (input: { token: string; newPassword: string }) => Promise<AuthResponse>;
   twoFactor: {
     enable: (input: { password: string; method: 'totp' }) => Promise<AuthResponse>;
     verifyTotp: (input: { code: string }) => Promise<AuthResponse>;

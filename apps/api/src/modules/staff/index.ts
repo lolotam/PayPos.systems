@@ -21,6 +21,10 @@ export {
   readCommissionBranchAttachments,
   readCommissionEstimateEmployees,
 } from './persistence/commission-estimate-readers.ts';
+export {
+  readCommissionStatementEmployees,
+  type CommissionStatementEmployeeRow,
+} from './persistence/commission-statement-employees.reader.ts';
 export { employeeNamesByUser } from './persistence/employee-names.ts';
 export {
   readEmployeeDisplayNames,

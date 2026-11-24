@@ -6,6 +6,7 @@ export {
   type AuthService,
   type VerifiedSession,
 } from './config.ts';
+export { AUTH_COOKIE_PREFIX_PATTERN, DEFAULT_AUTH_COOKIE_PREFIX } from './session-cookie.ts';
 export {
   resolveUserPrincipal,
   type Grant,
