@@ -1,7 +1,7 @@
 'use client';
 
 import { usePathname, useRouter } from 'next/navigation';
-import { useRef, type MouseEvent, type ReactNode } from 'react';
+import { useEffect, useRef, type MouseEvent, type ReactNode } from 'react';
 
 function sameOriginTarget(anchor: HTMLAnchorElement): string | null {
   const href = anchor.getAttribute('href');
@@ -51,6 +51,8 @@ function prefetchTarget(target: EventTarget | null): string | null {
  * روابط الكيت روابط <a> عادية لا يسبقها Next `Link` جلبًا مسبقًا.
  * وتسري على هذا الجلب المسبق استثناءات الضغطة نفسها: أصل آخر أو رابط له target أو download أو
  * رابط جزء (#) أو صفحة المسار الحالي.
+ * وتُنسى الوجهة المتذكّرة متى غادر المؤشرُ أو التركيزُ الرابطَ أو تغيّر المسار، فتلتقط نيّةٌ
+ * لاحقة الوجهةَ من جديد.
  */
 export function FrameChrome({
   children,
@@ -69,6 +71,16 @@ export function FrameChrome({
     lastPrefetched.current = href;
     router.prefetch(href);
   };
+  const forget = (target: EventTarget | null, next: EventTarget | null) => {
+    if (!(target instanceof Element)) return;
+    const anchor = target.closest('a[href]');
+    // الانتقال بين أجزاء الرابط نفسه ليس مغادرة.
+    if (anchor === null || (next instanceof Node && anchor.contains(next))) return;
+    lastPrefetched.current = null;
+  };
+  useEffect(() => {
+    lastPrefetched.current = null;
+  }, [pathname]);
   return (
     <div
       className="contents"
@@ -82,6 +94,8 @@ export function FrameChrome({
       onPointerOver={(event) => prefetch(event.target)}
       onFocus={(event) => prefetch(event.target)}
       onTouchStart={(event) => prefetch(event.target)}
+      onPointerOut={(event) => forget(event.target, event.relatedTarget)}
+      onBlur={(event) => forget(event.target, event.relatedTarget)}
     >
       {children}
     </div>

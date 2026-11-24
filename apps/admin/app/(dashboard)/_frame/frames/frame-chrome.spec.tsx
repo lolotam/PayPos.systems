@@ -2,7 +2,7 @@ import { fireEvent, screen } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { FrameChrome } from './frame-chrome';
-import { frameState, renderFrame, resetFrameState } from './frame-test-support';
+import { frameState, goTo, renderFrame, resetFrameState } from './frame-test-support';
 
 vi.mock('next/navigation', async () => (await import('./frame-test-support')).navigationMock);
 
@@ -50,7 +50,8 @@ describe('FrameChrome link prefetch on intent', () => {
     fireEvent.pointerOver(link);
     expect(frameState.prefetch).toHaveBeenCalledTimes(1);
     expect(frameState.prefetch).toHaveBeenCalledWith('/leave');
-    expect(link.isConnected).toBe(true);
+    expect(screen.getByRole('link', { name: 'Open' })).toBe(link);
+    expect(link.getAttribute('href')).toBe('/leave');
     expect(frameState.pathname).toBe('/staff');
   });
 
@@ -64,7 +65,8 @@ describe('FrameChrome link prefetch on intent', () => {
     fireEvent.focus(link);
     expect(frameState.prefetch).toHaveBeenCalledTimes(1);
     expect(frameState.prefetch).toHaveBeenCalledWith('/leave');
-    expect(link.isConnected).toBe(true);
+    expect(screen.getByRole('link', { name: 'Open' })).toBe(link);
+    expect(link.getAttribute('href')).toBe('/leave');
     expect(frameState.pathname).toBe('/staff');
   });
 
@@ -78,7 +80,8 @@ describe('FrameChrome link prefetch on intent', () => {
     fireEvent.touchStart(link);
     expect(frameState.prefetch).toHaveBeenCalledTimes(1);
     expect(frameState.prefetch).toHaveBeenCalledWith('/leave');
-    expect(link.isConnected).toBe(true);
+    expect(screen.getByRole('link', { name: 'Open' })).toBe(link);
+    expect(link.getAttribute('href')).toBe('/leave');
     expect(frameState.pathname).toBe('/staff');
   });
 });
@@ -101,7 +104,8 @@ describe('FrameChrome link prefetch exclusions', () => {
     fireEvent.focus(link);
     fireEvent.touchStart(link);
     expect(frameState.prefetch).not.toHaveBeenCalled();
-    expect(link.isConnected).toBe(true);
+    expect(screen.getByRole('link', { name: 'Open' })).toBe(link);
+    expect(link.getAttribute('href')).toBe(props.href);
     expect(frameState.pathname).toBe('/staff');
   });
 
@@ -116,7 +120,8 @@ describe('FrameChrome link prefetch exclusions', () => {
     fireEvent.focus(link);
     fireEvent.touchStart(link);
     expect(frameState.prefetch).not.toHaveBeenCalled();
-    expect(link.isConnected).toBe(true);
+    expect(screen.getByRole('link', { name: 'Open' })).toBe(link);
+    expect(link.getAttribute('href')).toBe('/staff?x=1#y');
     expect(frameState.pathname).toBe('/staff');
   });
 });
@@ -131,10 +136,13 @@ describe('FrameChrome link prefetch destinations', () => {
       </FrameChrome>,
     );
     const text = screen.getByText('Open');
+    const link = screen.getByRole('link', { name: 'Open' });
     fireEvent.pointerOver(text);
     expect(frameState.prefetch).toHaveBeenCalledTimes(1);
     expect(frameState.prefetch).toHaveBeenCalledWith('/leave');
-    expect(text.isConnected).toBe(true);
+    expect(screen.getByRole('link', { name: 'Open' })).toBe(link);
+    expect(screen.getByText('Open')).toBe(text);
+    expect(link.getAttribute('href')).toBe('/leave');
     expect(frameState.pathname).toBe('/staff');
   });
 
@@ -151,7 +159,10 @@ describe('FrameChrome link prefetch destinations', () => {
     fireEvent.pointerOver(create);
     fireEvent.pointerOver(leave);
     expect(frameState.prefetch.mock.calls).toEqual([['/leave'], ['/staff/create'], ['/leave']]);
-    expect(leave.isConnected).toBe(true);
+    expect(screen.getByRole('link', { name: 'Leave' })).toBe(leave);
+    expect(screen.getByRole('link', { name: 'Create' })).toBe(create);
+    expect(leave.getAttribute('href')).toBe('/leave');
+    expect(create.getAttribute('href')).toBe('/staff/create');
     expect(frameState.pathname).toBe('/staff');
   });
 
@@ -165,7 +176,8 @@ describe('FrameChrome link prefetch destinations', () => {
     fireEvent.pointerOver(link);
     expect(frameState.prefetch).toHaveBeenCalledTimes(1);
     expect(frameState.prefetch).toHaveBeenCalledWith('/leave?tab=open');
-    expect(link.isConnected).toBe(true);
+    expect(screen.getByRole('link', { name: 'Open' })).toBe(link);
+    expect(link.getAttribute('href')).toBe('/leave?tab=open#pending');
     expect(frameState.pathname).toBe('/staff');
   });
 });
@@ -180,7 +192,93 @@ describe('FrameChrome link prefetch and click', () => {
     const link = screen.getByRole('link', { name: 'Open' });
     fireEvent.pointerOver(link);
     expect(fireEvent.click(link)).toBe(false);
-    expect(link.isConnected).toBe(true);
+    expect(screen.getByRole('link', { name: 'Open' })).toBe(link);
+    expect(link.getAttribute('href')).toBe('/leave');
     expect(frameState.pathname).toBe('/leave');
+  });
+});
+
+describe('FrameChrome link prefetch when the pointer leaves a link', () => {
+  it('prefetches again after the pointer leaves the link', () => {
+    renderFrame(
+      <FrameChrome>
+        <a href="/leave">Open</a>
+        <p>Elsewhere</p>
+      </FrameChrome>,
+    );
+    const link = screen.getByRole('link', { name: 'Open' });
+    const other = screen.getByText('Elsewhere');
+    fireEvent.pointerOver(link);
+    fireEvent.pointerOut(link, { relatedTarget: other });
+    fireEvent.pointerOver(link);
+    expect(frameState.prefetch).toHaveBeenCalledTimes(2);
+    expect(frameState.prefetch).toHaveBeenCalledWith('/leave');
+    expect(screen.getByRole('link', { name: 'Open' })).toBe(link);
+    expect(link.getAttribute('href')).toBe('/leave');
+    expect(frameState.pathname).toBe('/staff');
+  });
+
+  it('keeps the remembered destination when the pointer moves inside the same link', () => {
+    renderFrame(
+      <FrameChrome>
+        <a href="/leave">
+          <span>Open</span>
+        </a>
+        <p>Elsewhere</p>
+      </FrameChrome>,
+    );
+    const link = screen.getByRole('link', { name: 'Open' });
+    const text = screen.getByText('Open');
+    const other = screen.getByText('Elsewhere');
+    fireEvent.pointerOver(link);
+    fireEvent.pointerOut(link, { relatedTarget: text });
+    fireEvent.pointerOver(link);
+    expect(frameState.prefetch).toHaveBeenCalledTimes(1);
+    fireEvent.pointerOut(link, { relatedTarget: other });
+    fireEvent.pointerOver(link);
+    expect(frameState.prefetch).toHaveBeenCalledTimes(2);
+    expect(frameState.prefetch).toHaveBeenCalledWith('/leave');
+    expect(screen.getByRole('link', { name: 'Open' })).toBe(link);
+    expect(link.getAttribute('href')).toBe('/leave');
+    expect(frameState.pathname).toBe('/staff');
+  });
+});
+
+describe('FrameChrome link prefetch when the focus or the route changes', () => {
+  it('prefetches again after the focus leaves the link', () => {
+    renderFrame(
+      <FrameChrome>
+        <a href="/leave">Open</a>
+        <p>Elsewhere</p>
+      </FrameChrome>,
+    );
+    const link = screen.getByRole('link', { name: 'Open' });
+    const other = screen.getByText('Elsewhere');
+    fireEvent.focus(link);
+    fireEvent.blur(link, { relatedTarget: other });
+    fireEvent.focus(link);
+    expect(frameState.prefetch).toHaveBeenCalledTimes(2);
+    expect(frameState.prefetch).toHaveBeenCalledWith('/leave');
+    expect(screen.getByRole('link', { name: 'Open' })).toBe(link);
+    expect(link.getAttribute('href')).toBe('/leave');
+    expect(frameState.pathname).toBe('/staff');
+  });
+
+  it('prefetches again after the route changes', () => {
+    renderFrame(
+      <FrameChrome>
+        <a href="/leave">Open</a>
+      </FrameChrome>,
+    );
+    const link = screen.getByRole('link', { name: 'Open' });
+    fireEvent.pointerOver(link);
+    goTo('/leave');
+    goTo('/staff');
+    fireEvent.pointerOver(link);
+    expect(frameState.prefetch).toHaveBeenCalledTimes(2);
+    expect(frameState.prefetch).toHaveBeenCalledWith('/leave');
+    expect(screen.getByRole('link', { name: 'Open' })).toBe(link);
+    expect(link.getAttribute('href')).toBe('/leave');
+    expect(frameState.pathname).toBe('/staff');
   });
 });
