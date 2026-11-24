@@ -133,6 +133,7 @@ export function closedView(
     approved_at: '2026-11-02T09:00:00.000Z',
     input_fingerprint: FP_INPUT,
     statement_fingerprint: FP_STATEMENT,
+    payment: null,
     employees: [statementEmployee()],
     ...overrides,
   };
@@ -147,6 +148,7 @@ export function closedBranchView(
     business_id: BUSINESS_ID,
     period: PERIOD,
     status: 'APPROVED',
+    payment: null,
     employees: [statementEmployee({ partial: true })],
     ...overrides,
   };
