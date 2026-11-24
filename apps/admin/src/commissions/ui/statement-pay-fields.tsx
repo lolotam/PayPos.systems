@@ -55,6 +55,7 @@ export function StatementPayFields({
           {...form.register('paid_note', { setValueAs: emptyAsMissing })}
         />
         <p className="text-sm text-muted-foreground">{t(locale, `${NS}.payNoteHint`)}</p>
+        {errors.paid_note !== undefined ? <p role="alert">{t(locale, `${NS}.payNoteInvalid`)}</p> : null}
       </div>
     </>
   );

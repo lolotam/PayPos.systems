@@ -17,6 +17,7 @@ const CODE_KEYS: Record<string, MessageKey> = {
   COMMISSION_STATEMENT_ALREADY_PAID: 'commissionStatementScreen.errAlreadyPaid',
   COMMISSION_PAID_ON_INVALID: 'commissionStatementScreen.errPaidOnInvalid',
   COMMISSION_PAYABLE_TOO_LARGE: 'commissionStatementScreen.errPayableTooLarge',
+  VALIDATION_FAILED: 'commissionStatementScreen.errInvalidRequest',
   FORBIDDEN: 'commissionStatementScreen.errForbidden',
   IDEMPOTENCY_KEY_IN_PROGRESS: 'commissionStatementScreen.errBusy',
 };

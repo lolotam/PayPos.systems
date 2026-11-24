@@ -15,6 +15,11 @@ it.each([
   ['COMMISSION_PERIOD_NOT_DRAFT', 'errNotDraft'],
   ['COMMISSION_PERIOD_NOT_ENDED', 'errNotEnded'],
   ['COMMISSION_RETURN_REASON_INVALID', 'errReturnReason'],
+  ['VALIDATION_FAILED', 'errInvalidRequest'],
+  ['COMMISSION_STATEMENT_NOT_APPROVED', 'errNotApproved'],
+  ['COMMISSION_STATEMENT_ALREADY_PAID', 'errAlreadyPaid'],
+  ['COMMISSION_PAID_ON_INVALID', 'errPaidOnInvalid'],
+  ['COMMISSION_PAYABLE_TOO_LARGE', 'errPayableTooLarge'],
   ['FORBIDDEN', 'errForbidden'],
   ['IDEMPOTENCY_KEY_IN_PROGRESS', 'errBusy'],
 ])('turns %s into its own readable message in both languages', (code, key) => {
@@ -36,8 +41,11 @@ it('reads the blocking issues and the incomplete line count out of the details',
   expect(failure.lineCount).toBe(2);
 });
 
-it('marks only a stale fingerprint as needing a reload', () => {
+it('marks a changed state, and only that, as needing a reload', () => {
   expect(statementFailure({ code: 'COMMISSION_FINGERPRINT_STALE' }, 'en').stale).toBe(true);
+  expect(statementFailure({ code: 'COMMISSION_STATEMENT_ALREADY_PAID' }, 'en').stale).toBe(true);
+  expect(statementFailure({ code: 'COMMISSION_STATEMENT_NOT_APPROVED' }, 'en').stale).toBe(true);
+  expect(statementFailure({ code: 'COMMISSION_PAID_ON_INVALID' }, 'en').stale).toBe(false);
   expect(statementFailure({ code: 'COMMISSION_UPDATES_PENDING' }, 'en').stale).toBe(false);
 });
 
