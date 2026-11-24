@@ -880,7 +880,7 @@ ship closed: with `STAFF_ACCESS_ROUTES` unset they answer 503 `NOT_READY` before
 hides the section.
 
 **Do not set `STAFF_ACCESS_ROUTES=on` in any environment — staging included — before every item of
-`docs/specs/076-identity-staff-access/spec.md` §9 (AC-ACT-1 … AC-ACT-7) is closed and one independent review
+`docs/specs/076-identity-staff-access/spec.md` §9 (AC-ACT-1 … AC-ACT-16) is closed and one independent review
 has confirmed it.** Turning it on is a deploy change and needs Waleed's decision; it is taken after G2, not
 with F1. Rollback is one step: unset the variable and restart the API; no data step is needed. Closing the
 gate does not revoke grants already made: their records, memberships and PINs stay as they are.

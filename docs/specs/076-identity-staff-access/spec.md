@@ -65,16 +65,17 @@ F3 change phone, stop access, follow the branch · G2 end a membership. Plan: `p
 - **FR-G1-3** Before it posts, the screen always shows the full email and requires an explicit confirmation, for a
   new and for an existing account alike (D10). There is no route that tells whether an email has an account.
 - **FR-G1-4** For an email with no account: the system creates the user and the membership and shows a one-time
-  set-password link **once**, valid 48 hours (IM-Q3, D9). For an email that already has an account (IM-Q4): only
-  the membership is added and no link is shown. The link is never stored by the API, never logged and never
+  set-password link **once**, valid 48 hours (IM-Q3, D9). For an email that already has any account: the
+  invitation is refused with `MEMBER_EMAIL_NOT_INVITABLE` and nothing is written (decision N1, Waleed 2026-11-24;
+  it suspends IM-Q4 option 1 until email ownership can be proven). The link is never stored by the API, never logged and never
   returned again; the owner copies it and sends it himself.
 - **FR-G1-4b** Each invitation is recorded (no token, no link, no plain email). The owner who created a pending
   invitation can issue a new link while the invited person has never set a password; the earlier link stops
   working. No other company can issue a link for that account.
 - **FR-G1-5** Refusals: `MEMBER_ALREADY_IN_COMPANY` (409) for an active membership of the same user in the company;
   `MEMBER_ROLE_NOT_INVITABLE` (422) for a role outside the list, the owner role, or a scope that does not match
-  the role or does not belong to the company; `MEMBER_EMAIL_NOT_INVITABLE` (422) for a staff user's email or the
-  owner's own email. Authority is the canonical owner, decided inside the write transaction.
+  the role or does not belong to the company; `MEMBER_EMAIL_NOT_INVITABLE` (422) for an email that already has any
+  user account, the owner's own and a staff user's included (N1). Authority is the canonical owner, decided inside the write transaction.
 - **FR-G1-6** Audit rows for the user creation and the membership; outbox event `MemberInvited`.
 
 ### F2 — Temporary PIN and owner notice (PP-63.8, PP-63.9, D4)
@@ -159,8 +160,9 @@ F3 change phone, stop access, follow the branch · G2 end a membership. Plan: `p
   membership exist; the response carries a link once; opening it lets him set a password (PR-D page); a second
   read of any API never returns the link.
 - **AC-G1-2** The link is refused after 48 hours and after one use; operator-created links still last one hour.
-- **AC-G1-3** An existing account: only the membership is added and the response carries no link. A request
-  without the confirmation is rejected by the schema, whether or not the account exists.
+- **AC-G1-3** An existing account, with or without a password and whichever company created it: 422
+  `MEMBER_EMAIL_NOT_INVITABLE`, no membership and no link (N1). A request without the confirmation is rejected by
+  the schema, whether or not the account exists.
 - **AC-G1-3b** After a crash that left a created member without a link, the inviting owner issues a new link
   through the re-issue route; another owner, another company, and a member who already set a password are refused;
   the earlier link no longer works.
@@ -229,17 +231,19 @@ existing membership, automatic email delivery of the invitation, and a «create 
 
 - A granter can point an employee's sign-in at a phone he controls. It is visible in the audit log and, from F2,
   in the owner's notice (D2).
-- A mistyped invitation email that matches an existing account gives that person the role at once; the explicit
-  confirmation of the full email, always asked, is the control (D10).
-- After a successful invitation the owner learns whether the email already had an account (a link is shown or
-  not). This follows from IM-Q3 and IM-Q4; the route is owner-only, rate-limited and audited.
+- A mistyped invitation email creates an account for the wrong address; the explicit confirmation of the full
+  email, always asked, is the control (D10), and the link is handed over by the owner himself.
+- A refused invitation tells the owner that the email already has an account (N1). The route is owner-only,
+  rate-limited and audited; a person who works with two companies cannot be invited to the second one with the
+  same email until email ownership can be proven.
 
 ## 9. Activation conditions (open after F1)
 
 `STAFF_ACCESS_ROUTES` stays off in every environment (local defaults, staging, production) until every item
 below is closed and verified by one independent review. The final review of F1 (head `2c335b2f2`) ended with two
 P1 on the grant path, which exists only behind this gate; the project manager moved them to F2 as activation
-conditions (2026-11-24). They are the first mandatory items of F2.
+conditions (2026-11-24). AC-ACT-8 to AC-ACT-16 come from the review panel on the F1 pull request (#1272) and
+were added the same day. All of them are the first mandatory items of F2.
 
 - **AC-ACT-1 Admission limit.** A grant request is admitted before the company transaction opens only when no
   other grant of that company is in flight, and under a total cap smaller than the bounded auth pool; a refused
@@ -261,3 +265,30 @@ conditions (2026-11-24). They are the first mandatory items of F2.
   the cause), then passed ten of ten with the cause recorded. The review did not find an F1 regression. Before
   activation: ten clean consecutive runs with the gate on, and any 503 on that route explained from its
   recorded cause.
+- **AC-ACT-8 Private view refuses a temporary PIN.** Staff PIN sign-in and discount approval refuse a
+  temporary PIN; `OpenPrivateView` still proves the stored hash and accepts it. It must refuse a temporary PIN
+  with the same comparison and the same failed-attempt accounting, with a regression test through an OTP session.
+- **AC-ACT-9 The existing company-wide PIN reset follows the temporary-PIN policy.** The existing reset route
+  must either mark the PIN it sets for a staff-access user as temporary or refuse that target, so that no
+  manager-known PIN becomes a permanent one outside the F2 flow.
+- **AC-ACT-10 Admin grant and cancel screens.** The plain PIN and the phone are not kept in the mutation cache;
+  the phone confirmation is cleared when the number is edited; the cancel control is offered only when the
+  24-hour rule and the granter rule allow it; a failure without an envelope code is shown; an in-flight read
+  cannot overwrite the result of a grant or a cancel.
+- **AC-ACT-11 No answer before authorization, none lost after commit.** Cancel answers the same refusal whether
+  or not a pending record exists when the caller lacks authority; a failure of the read or of the cache
+  invalidation after a committed grant or cancel does not turn the committed result into an error.
+- **AC-ACT-12 A pending grant survives a change of the employee's primary branch,** or the edit is refused while
+  a grant is pending; the record cannot be left where neither grant nor cancel can proceed.
+- **AC-ACT-13 The phone fingerprint in the tenant record is keyed.** The digest used to compare the phone of a
+  retried grant uses a server-side key, so that it cannot be reversed from the small space of phone numbers.
+- **AC-ACT-14 Contract and rollback notes.** The OpenAPI response of a repeated grant matches what the route
+  answers (409 `STAFF_ACCESS_ALREADY_GRANTED`); the runbook names the oldest API version that may run once the
+  gate has been on (an older API does not know temporary PINs), and asks for old instances to be drained before
+  the gate is turned on.
+- **AC-ACT-15 Narrow the company lock of the employee edit.** The `FOR NO KEY UPDATE` lock on the company row
+  that every employee edit takes since F1 is taken only by edits that change the user link, keeping the lock
+  order with the grant path.
+- **AC-ACT-16 Phone ownership before a global reservation.** A grant reserves a phone number on the global user
+  table before anyone has proven they hold that phone (named risk D2); F2's proof step closes it or the owner
+  notice makes it visible, as the plan decides.
