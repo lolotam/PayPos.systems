@@ -4,6 +4,7 @@ import { act, fireEvent, screen, waitFor, within } from '@testing-library/react'
 import { beforeEach, expect, it, vi } from 'vitest';
 
 import { useNavStyle } from '../nav-style/nav-style-context';
+import { NavStyleSaveNotice } from '../nav-style/nav-style-save-notice';
 import { FrameActions } from './frame-actions';
 import { frameState, goTo, renderFrame, resetFrameState } from './frame-test-support';
 import { FrameWorkspaceSwitcher } from './frame-workspace-switcher';
@@ -112,12 +113,12 @@ it('shows the fixed save-failure alert after switching from the account menu ent
     <>
       <FrameActions />
       <Probe />
+      <NavStyleSaveNotice />
     </>,
   );
   fireEvent.click(
-    within(openMenu()).getByRole('menuitem', {
-      name: new RegExp(label('adminNav.accountMenuStyle')),
-    }),
+    within(openMenu())
+      .getAllByRole('menuitem', { name: new RegExp(label('adminNav.accountMenuStyle')) })[0] as HTMLElement,
   );
   const alert = await screen.findByRole('alert');
   expect(alert.textContent).toContain(t('en', 'adminNav.saveFailed'));
@@ -131,12 +132,12 @@ it('a user with no ready workspace switches through the provider tree and sends 
     <>
       <FrameActions />
       <Probe />
+      <NavStyleSaveNotice />
     </>,
   );
   fireEvent.click(
-    within(openMenu()).getByRole('menuitem', {
-      name: new RegExp(label('adminNav.accountMenuStyle')),
-    }),
+    within(openMenu())
+      .getAllByRole('menuitem', { name: new RegExp(label('adminNav.accountMenuStyle')) })[0] as HTMLElement,
   );
   expect(screen.getByText('Style in use: A')).toBeTruthy();
   await waitFor(() => expect(preferencesApi.put).toHaveBeenCalledTimes(1));

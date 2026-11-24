@@ -7,6 +7,7 @@ import { LocaleProvider } from '@/shared/locale/locale-context';
 import { stopNavStyleSaving } from '@/shared/nav-style/nav-style-stop';
 
 import { NavStyleProvider, useNavStyle } from './nav-style-context';
+import { NavStyleSaveNotice } from './nav-style-save-notice';
 import { NavStyleSaveProbe } from './nav-style-save-probe.fixture';
 
 const api = vi.hoisted(() => ({ put: vi.fn() }));
@@ -22,6 +23,7 @@ const renderProbe = () =>
     <LocaleProvider locale="en" setLocale={() => undefined}>
       <NavStyleProvider initialStyle="C">
         <NavStyleSaveProbe />
+        <NavStyleSaveNotice />
       </NavStyleProvider>
     </LocaleProvider>,
   );
@@ -135,7 +137,12 @@ it('does not send the waiting choice and shows no alert when the announcement la
 /** الصفحة الحقيقية داخل المستضيف الحقيقي: الاختيار يمر من مسار المستخدم نفسه لا من مجسّ الاختبار. */
 function AppearanceHost() {
   const { style, setStyle } = useNavStyle();
-  return <AppearancePage style={style} onChoose={setStyle} />;
+  return (
+    <>
+      <AppearancePage style={style} onChoose={setStyle} />
+      <NavStyleSaveNotice />
+    </>
+  );
 }
 
 it('shows the fixed alert by role and text after a failed save from the Appearance page', async () => {

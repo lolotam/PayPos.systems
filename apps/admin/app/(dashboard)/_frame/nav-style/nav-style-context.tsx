@@ -6,11 +6,11 @@ import type { NavigationStyle } from '@/workspace/nav-types';
 import { useNavStyleSaver } from '@/shared/nav-style/use-nav-style-saver';
 
 import { writeNavStyleCookie } from './nav-style-cookie';
-import { NavStyleSaveAlert } from './nav-style-save-alert';
 
 interface NavStyleController {
   style: NavigationStyle;
   setStyle: (style: NavigationStyle) => void;
+  saveFailed: boolean;
 }
 
 const NavStyleContext = createContext<NavStyleController | null>(null);
@@ -32,13 +32,8 @@ export function NavStyleProvider({
     },
     [save],
   );
-  const value = useMemo(() => ({ style, setStyle }), [style, setStyle]);
-  return (
-    <NavStyleContext.Provider value={value}>
-      {children}
-      {failed && <NavStyleSaveAlert />}
-    </NavStyleContext.Provider>
-  );
+  const value = useMemo(() => ({ style, setStyle, saveFailed: failed }), [style, setStyle, failed]);
+  return <NavStyleContext.Provider value={value}>{children}</NavStyleContext.Provider>;
 }
 
 export function useNavStyle(): NavStyleController {
