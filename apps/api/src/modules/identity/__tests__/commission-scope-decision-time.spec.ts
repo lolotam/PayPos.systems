@@ -48,9 +48,11 @@ beforeAll(async () => {
   membershipId = '01940000-0000-7000-8000-000000000002';
   await owner`INSERT INTO roles(id,company_id,code,name_en)
     VALUES (${role},${company},'scope_decision_member','Decision time member role')`;
+  // العضوية بتبدأ قبل توقيت القرار التاريخي، وإلا كانت بتنعتم غير نشطة عنده وحكم المنحة بيروح.
   await owner`INSERT INTO memberships(
-    company_id,id,user_id,role_id,role_owner_key,scope_type,scope_id)
-    VALUES (${company},${membershipId},${userId},${role},${company},'BRANCH',${branch}::uuid)`;
+    company_id,id,user_id,role_id,role_owner_key,scope_type,scope_id,starts_at)
+    VALUES (${company},${membershipId},${userId},${role},${company},'BRANCH',${branch}::uuid,
+      '2025-01-01')`;
   await owner`INSERT INTO permission_overrides(
     company_id,id,membership_id,permission_code,effect,scope_type,scope_id,reason,granted_by,expires_at)
     VALUES (${company},gen_random_uuid(),${membershipId}::uuid,'read:commissions:business',
