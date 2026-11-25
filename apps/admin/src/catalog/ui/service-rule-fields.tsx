@@ -9,6 +9,7 @@ import {
   SERVICE_RULE_KINDS,
   type ServiceRuleKind,
 } from '../model/service-rule';
+import { wrapServiceGridCell } from './service-basics-fields';
 import { ServiceRuleValueField } from './service-rule-value-field';
 
 const KIND_LABEL: Record<ServiceRuleKind, MessageKey> = {
@@ -18,37 +19,53 @@ const KIND_LABEL: Record<ServiceRuleKind, MessageKey> = {
   FIXED: 'catalogServices.ruleFixed',
 };
 
-export function ServiceRuleFields() {
+function CommissionRuleControl({ grid }: { grid: boolean }) {
   const locale = useLocale();
   const { control } = useFormContext<CreateServiceInput>();
   return (
+    <Controller
+      name="commission_rule"
+      control={control}
+      render={({ field }) => {
+        const kind = field.value.kind;
+        const ruleField = (
+          <>
+            <Label htmlFor="service-rule">{t(locale, 'catalogServices.rule')}</Label>
+            <Select
+              id="service-rule"
+              value={kind}
+              onValueChange={(next) =>
+                field.onChange(defaultServiceRule(next as ServiceRuleKind))
+              }
+              options={SERVICE_RULE_KINDS.map((value) => ({
+                value,
+                label: t(locale, KIND_LABEL[value]),
+              }))}
+            />
+          </>
+        );
+        const valueField =
+          kind === 'PCT' || kind === 'FIXED' ? (
+            <ServiceRuleValueField kind={kind} value={field.value} onChange={field.onChange} />
+          ) : null;
+        return (
+          <>
+            {wrapServiceGridCell(grid, 'standard', ruleField)}
+            {valueField ? wrapServiceGridCell(grid, 'short', valueField) : null}
+          </>
+        );
+      }}
+    />
+  );
+}
+
+function ThresholdControl({ grid }: { grid: boolean }) {
+  const locale = useLocale();
+  const { control } = useFormContext<CreateServiceInput>();
+  return wrapServiceGridCell(
+    grid,
+    'standard',
     <>
-      <Label htmlFor="service-rule">{t(locale, 'catalogServices.rule')}</Label>
-      <Controller
-        name="commission_rule"
-        control={control}
-        render={({ field }) => {
-          const kind = field.value.kind;
-          return (
-            <>
-              <Select
-                id="service-rule"
-                value={kind}
-                onValueChange={(next) =>
-                  field.onChange(defaultServiceRule(next as ServiceRuleKind))
-                }
-                options={SERVICE_RULE_KINDS.map((value) => ({
-                  value,
-                  label: t(locale, KIND_LABEL[value]),
-                }))}
-              />
-              {kind === 'PCT' || kind === 'FIXED' ? (
-                <ServiceRuleValueField kind={kind} value={field.value} onChange={field.onChange} />
-              ) : null}
-            </>
-          );
-        }}
-      />
       <Label htmlFor="service-threshold">
         {t(locale, 'catalogServices.countsTowardThreshold')}
       </Label>
@@ -67,6 +84,16 @@ export function ServiceRuleFields() {
           />
         )}
       />
+    </>,
+  );
+}
+
+export function ServiceRuleFields({ grid = false }: { grid?: boolean }) {
+  const content = (
+    <>
+      <CommissionRuleControl grid={grid} />
+      <ThresholdControl grid={grid} />
     </>
   );
+  return grid ? <div className="grid grid-cols-12 gap-4">{content}</div> : content;
 }

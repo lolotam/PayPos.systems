@@ -1,7 +1,7 @@
 import type { Service, ServiceCategoryListItem, UpdateServiceInput } from '@pospay/contracts';
 import { t } from '@pospay/i18n';
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
-import { beforeEach, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import type { ServiceCategoriesQuery } from '../api/use-service-categories';
 import { EditServiceForm } from './edit-service-form';
 import { ServiceForm } from './service-form';
@@ -56,8 +56,21 @@ function categoryQuery(overrides: Partial<ServiceCategoriesQuery> = {}): Service
   };
 }
 
+const originalScrollIntoView = Element.prototype.scrollIntoView;
+const originalHasPointerCapture = Element.prototype.hasPointerCapture;
+
 beforeEach(() => {
   state.locale = 'en';
+  Element.prototype.scrollIntoView = () => undefined;
+  Element.prototype.hasPointerCapture = () => false;
+});
+
+afterEach(() => {
+  if (originalScrollIntoView === undefined) Reflect.deleteProperty(Element.prototype, 'scrollIntoView');
+  else Element.prototype.scrollIntoView = originalScrollIntoView;
+  if (originalHasPointerCapture === undefined)
+    Reflect.deleteProperty(Element.prototype, 'hasPointerCapture');
+  else Element.prototype.hasPointerCapture = originalHasPointerCapture;
 });
 
 it.each(['ar', 'en'] as const)(
@@ -275,4 +288,70 @@ it('uses the create-specific note when categories are refused', () => {
 it('disables submission during the pending request', () => {
   render(<ServiceForm categoryQuery={categoryQuery()} pending={true} onSave={vi.fn()} />);
   expect(screen.getByRole('button').closest('fieldset')?.disabled).toBe(true);
+});
+
+it.each(['en', 'ar'] as const)(
+  'places the create form in titled sections on the 12-column grid in %s',
+  async (locale) => {
+    state.locale = locale;
+    render(<ServiceForm categoryQuery={categoryQuery()} pending={false} onSave={vi.fn()} />);
+    const detailsHeading = screen.getByRole('heading', {
+      level: 2,
+      name: t(locale, 'catalogServices.basics'),
+    });
+    const commissionHeading = screen.getByRole('heading', {
+      level: 2,
+      name: t(locale, 'catalogServices.sectionCommission'),
+    });
+    expect(
+      detailsHeading.compareDocumentPosition(commissionHeading) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+
+    const cellClass = (key: Parameters<typeof t>[1]) =>
+      (screen.getByLabelText(t(locale, key)).parentElement as HTMLElement).className;
+
+    for (const key of [
+      'catalogServices.nameEn',
+      'catalogServices.nameAr',
+      'catalogServices.category',
+      'catalogServices.rule',
+      'catalogServices.countsTowardThreshold',
+    ] as const) {
+      expect(cellClass(key)).toContain('col-span-12');
+      expect(cellClass(key)).toContain('md:col-span-6');
+    }
+
+    for (const key of ['catalogServices.price', 'catalogServices.duration'] as const) {
+      expect(cellClass(key)).toContain('col-span-12');
+      expect(cellClass(key)).toContain('md:col-span-4');
+    }
+
+    const detailsGrid = screen.getByLabelText(t(locale, 'catalogServices.nameEn')).parentElement
+      ?.parentElement as HTMLElement;
+    const commissionGrid = screen.getByLabelText(t(locale, 'catalogServices.rule')).parentElement
+      ?.parentElement as HTMLElement;
+    expect(detailsGrid.className).toContain('grid-cols-12');
+    expect(commissionGrid.className).toContain('grid-cols-12');
+
+    // عند اختيار نسبة مئوية يظهر حقل القيمة داخل شبكة العمولة بعرض 4 أعمدة.
+    fireEvent.click(screen.getByLabelText(t(locale, 'catalogServices.rule')));
+    fireEvent.click(await screen.findByRole('option', { name: t(locale, 'catalogServices.rulePct') }));
+    expect(cellClass('catalogServices.ruleBps')).toContain('col-span-12');
+    expect(cellClass('catalogServices.ruleBps')).toContain('md:col-span-4');
+  },
+);
+
+it('leaves the edit form flat without section headings or the 12-column grid', () => {
+  render(
+    <EditServiceForm
+      categoryQuery={categoryQuery()}
+      record={record}
+      pending={false}
+      onSave={vi.fn()}
+    />,
+  );
+  expect(screen.queryByRole('heading')).toBeNull();
+  const nameParent = screen.getByLabelText(t('en', 'catalogServices.nameEn')).parentElement;
+  expect(nameParent?.className ?? '').not.toContain('grid-cols-12');
+  expect(nameParent?.className ?? '').not.toContain('md:col-span-6');
 });
