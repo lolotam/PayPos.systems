@@ -14,6 +14,7 @@ import {
   findNavigationEntryByPathname,
   isTopLevelPage,
   navigationEntryHref,
+  promotedSoonDestination,
   resolveMenuEntry,
 } from '@/workspace/model/navigation-rules';
 import { WORKSPACE_NAV_PAGES } from '@/workspace/nav';
@@ -317,8 +318,18 @@ export function parseNavigationStyle(raw: string | null | undefined): Navigation
 }
 
 
+export { promotedSoonDestination };
+
 export function pageEntryHref(entry: NavigationPageEntry): string {
   return navigationEntryHref(entry, PAGES_BY_ID);
+}
+
+/**
+ * وجهة التحويل الملموسة لرابط `/soon/<id>` على مستوى خريطة الصفحات الكاملة؛ تعيد `undefined` متى احتاج
+ * المسار معاملًا ديناميكيًا دون وجهة صريحة أو كان الأب مفقودًا/ديناميكيًا (#1167).
+ */
+export function pageSoonDestination(entry: NavigationPageEntry): string | undefined {
+  return promotedSoonDestination(entry, PAGES_BY_ID);
 }
 
 export function findNavigationPageByPathname(pathname: string): NavigationPageEntry | undefined {
