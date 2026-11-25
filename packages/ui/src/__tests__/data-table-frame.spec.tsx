@@ -102,7 +102,7 @@ it('lets unbroken text wrap inside every stacked cell so no value forces sideway
 });
 
 it('sets no row background in stacked mode, so a selected row keeps its own highlight', () => {
-  // قاعدة خلفية على 	body tr من الإطار أعلى تخصيصًا من صنف الصف نفسه، فكانت
+  // قاعدة خلفية على `tbody tr` من الإطار أعلى تخصيصًا من صنف الصف نفسه، فكانت
   // تمسح تمييز الخدمة المختارة للتعديل تحت 600px؛ البطاقة تاخد خلفيتها من الكارت.
   const { container } = render(frame({ stacked: true }));
   const stackedArea = container.querySelector('[class*="max-[599.99px]"]') as HTMLElement;
