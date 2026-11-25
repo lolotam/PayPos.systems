@@ -157,6 +157,37 @@ describe('the inbox state', () => {
   });
 });
 
+/** يرسم الصندوق على عميل واحد، زي ما الإطار بركّبه. */
+function renderInbox(client: QueryClient) {
+  return render(
+    <QueryClientProvider client={client}>
+      <ApprovalsInboxHost />
+    </QueryClientProvider>,
+  );
+}
+
+/**
+ * رفض محفوظ من زيارة سابقة ما يُقدَّم دليلاً: إعادة التحقق موقوفة بالاتصال، فالحالة «تعذّر التحقق»
+ * مش «مفيش قوائم»، والقراءة المخزَّنة من قبل ما تكفي.
+ */
+async function ignoresCachedRefusal(): Promise<void> {
+  api.GET.mockImplementation((path: string) =>
+    Promise.resolve({ data: bodies[path], response: { status: 200 } }),
+  );
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  const firstVisit = renderInbox(client);
+  await waitFor(() => expect(screen.getAllByRole('link')).toHaveLength(3));
+  api.GET.mockResolvedValue({ error: { code: 'FORBIDDEN' }, response: { status: 403 } });
+  await act(() => client.refetchQueries());
+  await waitFor(() => expect(screen.getByText(t('en', 'adminNav.approvalsInboxEmpty'))).toBeTruthy());
+  firstVisit.unmount();
+  onlineManager.setOnline(false);
+  renderInbox(client);
+  expect((await screen.findByRole('alert')).textContent).toBe(t('en', 'adminNav.approvalsInboxFailed'));
+  expect(screen.queryByText(t('en', 'adminNav.approvalsInboxEmpty'))).toBeNull();
+  expect(screen.queryAllByRole('link')).toHaveLength(0);
+}
+
 describe('the inbox while the connection is down', () => {
   afterEach(() => onlineManager.setOnline(true));
 
@@ -205,4 +236,6 @@ describe('the inbox while the connection is down', () => {
     await waitFor(() => expect(screen.getAllByRole('link')).toHaveLength(3));
     expect(screen.queryByRole('alert')).toBeNull();
   });
+
+  it('does not trust a cached refusal while the re-check is paused offline', ignoresCachedRefusal);
 });
