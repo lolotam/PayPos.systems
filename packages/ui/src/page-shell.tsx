@@ -1,4 +1,4 @@
-import type { ComponentProps, ReactNode } from 'react';
+import { Fragment, isValidElement, type ComponentProps, type ReactNode } from 'react';
 
 import { cn } from './shared/cn.js';
 
@@ -28,6 +28,20 @@ const DESCRIPTION_CAP_CLASS =
 
 const COLUMN_CLASS = 'flex min-w-0 flex-col gap-4 md:gap-6';
 
+// قاعدة وجود موحدة لخانتي الرئيسي والجانبي: تتجاهل الغائب والمنطقي والمصفوفات والفراغ الفارغ وتُبقي الرقم 0.
+function hasSlotContent(node: ReactNode): boolean {
+  if (node === undefined || node === null || typeof node === 'boolean' || node === '') {
+    return false;
+  }
+  if (Array.isArray(node)) {
+    return node.some(hasSlotContent);
+  }
+  if (isValidElement<{ children?: ReactNode }>(node) && node.type === Fragment) {
+    return hasSlotContent(node.props.children);
+  }
+  return true;
+}
+
 /**
  * إطار الصفحة المشترك: يملك العرض المركزي وفجوة الأقسام فقط، لا يحرك حشوة الصفحة —
  * عشان لا تتحشّر صفحة مرتين قبل أن تأتي حشوة القوالب مع 074-7.
@@ -56,8 +70,11 @@ export function PageShell({
       </div>
     );
   }
-  // `شرط && <كتلة />` يعطي false لما الكتلة غايبة، وReact لا يرسم القيم المنطقية
-  const hasMain = main !== undefined && main !== null && typeof main !== 'boolean';
+  // القاعدة الواحدة لخانتي العمودين: الغائب والمنطقي والمصفوفات الفاضية والفراغ الفارغ
+  // ما يبنيوش غلاف عمود، والقيمة الصفرية `0` محتوى حقيقي. غلاف فاضي في الخانة الجانبية
+  // معناه فجوة تحت 1024px وطفل شبكة فارغ من 1024px.
+  const hasMain = hasSlotContent(main);
+  const hasSide = hasSlotContent(side);
   return (
     <div
       data-page-shell="two-column"
@@ -75,7 +92,7 @@ export function PageShell({
           الجانبي وحدها في أول عمود (2fr) بترتيب الشبكة، فلا تُترك في الضيق. */}
       <div className={cn(COLUMN_CLASS, 'lg:grid lg:grid-cols-[2fr_1fr] lg:items-start lg:gap-6')}>
         {hasMain ? <div className={COLUMN_CLASS}>{main}</div> : null}
-        {side === undefined ? null : <div className={COLUMN_CLASS}>{side}</div>}
+        {hasSide ? <div className={COLUMN_CLASS}>{side}</div> : null}
       </div>
     </div>
   );
