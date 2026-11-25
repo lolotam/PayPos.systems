@@ -5,6 +5,7 @@ import {
   classifyCommissionPeriods,
   commissionPeriodLockPlan,
   currentBusinessPeriod,
+  nextCommissionPeriodToLock,
   type CommissionPeriodClassification,
 } from '../commission-periods.ts';
 import type { LockedCommissionPeriod } from '../commission-line-types.ts';
@@ -53,9 +54,12 @@ it.each([
     current: '2027-01',
     expected: ['2026-11', '2026-12', '2027-01'],
   },
-])('returns the exact candidates for $affected through $current', ({ affected, current, expected }) => {
-  expect(candidateCommissionPeriods(affected, current)).toEqual(expected);
-});
+])(
+  'returns the exact candidates for $affected through $current',
+  ({ affected, current, expected }) => {
+    expect(candidateCommissionPeriods(affected, current)).toEqual(expected);
+  },
+);
 
 it('locks the full ascending range while returning only affected months as affected', () => {
   expect(commissionPeriodLockPlan(['2026-12', '2026-11', '2026-12'], '2027-02')).toEqual({
@@ -106,4 +110,83 @@ const classifications: {
 
 it.each(classifications)('$label', ({ locked, affected, expected }) => {
   expect(classifyCommissionPeriods(locked, affected)).toEqual(expected);
+});
+
+/** حالة قفل شهر واحد: DRAFT أو REVIEWED أو APPROVED أو PAID. */
+type LockStatus = LockedCommissionPeriod['status'];
+
+/**
+ * يحاكي دورة القفل الحقيقية: بيقفل الشهر اللي الاختيار بيوصله ويكمّل لحد ما الاختيار
+ * يقف، فالاختبار بيشوف كل نداءات القفل مش بس أول خطوة.
+ */
+function lockRun(
+  affected: readonly string[],
+  currentPeriod: string,
+  statuses: Readonly<Record<string, LockStatus>>,
+): { readonly requested: string[]; readonly locked: LockedCommissionPeriod[] } {
+  const requested: string[] = [];
+  const locked: LockedCommissionPeriod[] = [];
+  for (;;) {
+    const next = nextCommissionPeriodToLock(affected, currentPeriod, locked);
+    if (next === null) break;
+    requested.push(next);
+    locked.push({
+      period: next,
+      statementId: `statement-${next}`,
+      status: statuses[next] ?? 'DRAFT',
+    });
+  }
+  return { requested, locked };
+}
+
+it('locks nothing when no month is affected', () => {
+  expect(nextCommissionPeriodToLock([], '2026-12', [])).toBeNull();
+});
+
+it('locks one open historical month and stops instead of walking to the current month', () => {
+  const run = lockRun(['0001-01'], '2026-12', { '0001-01': 'DRAFT' });
+  expect(run.requested).toEqual(['0001-01']);
+  expect(nextCommissionPeriodToLock(['0001-01'], '2026-12', run.locked)).toBeNull();
+});
+
+it('steps month by month from a closed historical month until the first open target', () => {
+  const run = lockRun(['2024-01'], '2024-06', {
+    '2024-01': 'APPROVED',
+    '2024-02': 'REVIEWED',
+    '2024-03': 'APPROVED',
+    '2024-04': 'PAID',
+    '2024-05': 'DRAFT',
+  });
+  expect(run.requested).toEqual(['2024-01', '2024-02', '2024-03', '2024-04', '2024-05']);
+  expect(nextCommissionPeriodToLock(['2024-01'], '2024-06', run.locked)).toBeNull();
+});
+
+it('skips the open months between two affected months', () => {
+  const run = lockRun(['2024-01', '2026-06'], '2026-12', { '2024-01': 'DRAFT' });
+  expect(run.requested).toEqual(['2024-01', '2026-06']);
+});
+
+it('walks from a closed affected month to its first open target and then jumps to the next affected month', () => {
+  const run = lockRun(['2024-01', '2026-06'], '2026-12', {
+    '2024-01': 'APPROVED',
+    '2024-02': 'REVIEWED',
+    '2024-03': 'DRAFT',
+  });
+  expect(run.requested).toEqual(['2024-01', '2024-02', '2024-03', '2026-06']);
+  expect(nextCommissionPeriodToLock(['2024-01', '2026-06'], '2026-12', run.locked)).toBeNull();
+});
+
+it('stops at the current month when no open target is left for the closed month', () => {
+  const run = lockRun(['2024-01'], '2024-03', {
+    '2024-01': 'APPROVED',
+    '2024-02': 'APPROVED',
+    '2024-03': 'APPROVED',
+  });
+  expect(run.requested).toEqual(['2024-01', '2024-02', '2024-03']);
+  expect(nextCommissionPeriodToLock(['2024-01'], '2024-03', run.locked)).toBeNull();
+});
+
+it('locks only the affected month when it is newer than the current month', () => {
+  const run = lockRun(['2027-01'], '2026-12', { '2027-01': 'APPROVED' });
+  expect(run.requested).toEqual(['2027-01']);
 });

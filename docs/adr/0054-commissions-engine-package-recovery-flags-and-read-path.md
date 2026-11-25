@@ -463,6 +463,18 @@ the package-sale coverage reader and the replay as the sale bootstrap.**
   `FORCE` RLS, tenant-qualified composite foreign keys, column-limited `UPDATE` and no `DELETE`, like the tip and
   salary tables of the 2026-11-05 entry. CM-R05 ships in the same PR.
 
+**Addendum 2026-11-26 (50-4 measurement, issue #1151).** The package-sale coverage reader was measured on an
+import-heavy history with PostgreSQL's own planner (`apps/worker/src/__tests__/package-sale-coverage-import-history-db.spec.ts`,
+`EXPLAIN (ANALYZE, BUFFERS, FORMAT JSON)` inside `withTenant`, no planner override). The tenant under test carried
+`1,500` `IMPORTED` rows and no sale; the table also carried another company's `10,000` sold packages, so its size and
+its `provenance` statistics are the production shape rather than a two-tenant toy. The import-only company returned `0`
+rows with `1,500` rows removed by the filter, and the import-heavy company returned its `12` `SOLD` rows across three
+`limit=5` keyset pages (`5`, `5`, `2`) with `1,500` filtered rows in total. Both plans are an `Index Scan` on
+`package_entitlements_pkey` with no sort: the scan stays strictly inside the reader's tenant (`Rows Removed by Filter`
+counts that tenant's own imported rows, never another company's), and the keyset advances so every imported row is
+inspected at most once across the pages. The primary key therefore serves the coverage proof on its own: **no extra
+`orders` index and no migration is needed**, and the reader keeps its single tenant transaction.
+
 ### 4.1 Scoped layer imports for 48-2/49-1 (PP-108.1)
 
 **Accepted by Waleed, 2026-11-01, channel «كارت في شات مدير الويب».** The verbatim decision is preserved in

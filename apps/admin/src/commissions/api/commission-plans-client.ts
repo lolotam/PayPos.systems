@@ -22,17 +22,27 @@ export function refusal(error: unknown, status: number): unknown {
   return { ...(error as object), status };
 }
 
-/** بيجيب صفحة موظفي الخطط (حتى 50) وبيحللها بسكيما العقد قبل ما تلمس الشاشة. */
+/**
+ * بيجيب صفحة موظفي الخطط (حتى 50) وبيحللها بسكيما العقد قبل ما تلمس الشاشة.
+ * فحص القائمة بيبعت سطر واحد بس، فبيمرر الحد من المتصل: 1 للفحص و50 للشاشة.
+ *
+ * @param scope هوية الشركة والنشاط والمستخدم
+ * @param cursor مؤشر الصفحة السابقة أو undefined لأول صفحة
+ * @param signal إشارة إلغاء الطلب
+ * @param limit أقصى عدد صفوف في الصفحة: واحد لفحص القائمة وخمسين للشاشة
+ * @returns صفحة موظفي الخطط بعد تحليلها بسكيما العقد
+ */
 export async function fetchCommissionPlanEmployees(
   scope: PlanScope,
   cursor: string | undefined,
   signal: AbortSignal,
+  limit: 1 | 50 = 50,
 ): Promise<CommissionPlanEmployeeList> {
   const result = await apiClient().GET(employeesPath, {
     params: {
       header: { 'x-company-id': scope[1] },
       path: { businessId: scope[2] },
-      query: { limit: 50, ...(cursor === undefined ? {} : { cursor }) },
+      query: { limit, ...(cursor === undefined ? {} : { cursor }) },
     },
     signal,
   });

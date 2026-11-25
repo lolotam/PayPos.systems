@@ -49,7 +49,7 @@ export function useVisibilityReads(userId: string | null): VisibilityReads {
     rating: useRatingSettings(companyId, userId, businessId),
     identity: useBusinessIdentityAccess(companyId, userId, businessId),
     planAccess: usePlanAccess(scope),
-    planEmployees: useCommissionPlanEmployees(scope),
+    planEmployees: useCommissionPlanEmployees(scope, { probe: true }),
     appLink: useEmployeeAppLink(companyId, userId, businessId),
     refunds: useImportedRefunds(companyId, userId, businessId),
     ratings: useRatingsAccess(companyId, userId, businessId),

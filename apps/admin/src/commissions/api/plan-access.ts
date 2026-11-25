@@ -21,6 +21,14 @@ export function planEmployeesKey(scope: PlanScope) {
   return [...scope, 'employees'] as const;
 }
 
+/**
+ * مفتاح فحص القائمة: بيعيش تحت مفتاح الموظفين، فإزالة مفتاح الموظفين في قفل الوصول
+ * بتمسح الفحص كمان من غير سطر زيادة.
+ */
+export function planProbeKey(scope: PlanScope) {
+  return [...planEmployeesKey(scope), 'probe'] as const;
+}
+
 export function planVersionsKey(scope: PlanScope, employeeId: string) {
   return [...scope, 'versions', employeeId] as const;
 }
