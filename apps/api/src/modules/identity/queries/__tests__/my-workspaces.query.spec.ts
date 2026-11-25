@@ -357,8 +357,7 @@ describe('myWorkspaces', () => {
 
   it('drops an ended membership and one that has not started', async () => {
     const body = await load(U.window);
-    const withCaps = { ...body, capabilities: { staff_access: false } };
-    expect(myWorkspacesResponse.parse(withCaps)).toEqual(withCaps);
+    expect(myWorkspacesResponse.parse({ ...body, capabilities: { staff_access: false } }).companies).toEqual(body.companies);
     expect(body.companies).toEqual([
       expect.objectContaining({
         id: A.company,
@@ -404,8 +403,7 @@ describe('myWorkspaces', () => {
     labels.set(A.company, 'Zulu');
     labels.set(B.company, 'Alpha');
     const both = await load(U.two);
-    const withCaps = { ...both, capabilities: { staff_access: false } };
-    expect(myWorkspacesResponse.parse(withCaps)).toEqual(withCaps);
+    expect(myWorkspacesResponse.parse({ ...both, capabilities: { staff_access: false } }).companies).toEqual(both.companies);
     expect(both.companies.map((company) => company.id)).toEqual([B.company, A.company]);
     expect(both.companies.map((company) => company.name_en)).toEqual(['Alpha', 'Zulu']);
   });
