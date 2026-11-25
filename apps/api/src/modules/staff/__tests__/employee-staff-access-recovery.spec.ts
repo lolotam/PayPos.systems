@@ -1,4 +1,5 @@
 import { afterAll, beforeAll, expect, it, vi } from 'vitest';
+import { systemUuidV7 } from '@pospay/ids';
 import {
   addEmployee,
   grant,
@@ -10,7 +11,11 @@ import {
   staffAccessFixture,
   type Fixture,
 } from '../../../../test/staff-access.fixture.ts';
+import { createGrantEmployeeAccessSteps } from '../persistence/staff-access.adapter.ts';
+import { createStaffAccessUserSteps } from '../persistence/staff-access-auth.adapter.ts';
+import { GrantEmployeeAccessUseCase } from '../use-cases/grant-employee-access/grant-employee-access.ts';
 import { StaffAuthBusyError } from '@pospay/db';
+const ids = systemUuidV7();
 let f: Fixture;
 beforeAll(async () => {
   f = await staffAccessFixture({ staffAccessRoutes: true });
@@ -181,7 +186,8 @@ it.each(['before_auth', 'after_auth'] as const)(
     await f.h.owner`UPDATE memberships SET ends_at=now() WHERE id=${before?.membership_id}`;
     await f.h.owner`DELETE FROM cashier_pins WHERE user_id=${before?.user_id}`;
     // السجل عمره أسبوع: عمر السجل الأصلي لا يجوز أن يُحتسب على محاولة إعادة المنح الحالية (P1-3).
-    await f.h.owner`UPDATE employee_staff_access SET state='STOPPED',created_at=now()-interval '7 days' WHERE employee_id=${employee}`;
+    // ولحظة المحاولة كمان بترجع أسبوع: من غير رجوعها الاختبار ما بيعرفش إن إعادة المنح كتبت لحظة محاولة جديدة.
+    await f.h.owner`UPDATE employee_staff_access SET state='STOPPED',created_at=now()-interval '7 days',attempt_started_at=now()-interval '7 days' WHERE employee_id=${employee}`;
     const phone = nextPhone(f);
     const real = f.h.auth.staffUsers.provision;
     vi.spyOn(f.h.auth.staffUsers, 'provision').mockImplementationOnce(async (input) => {
@@ -220,6 +226,44 @@ it.each(['before_auth', 'after_auth'] as const)(
       .toMatchObject([{ state: 'ACTIVE', user_id: before?.user_id }]);
   },
 );
+
+it('AC-ACT-4 a re-grant of a stopped record starts a new attempt whose time is the injected clock', async () => {
+  const employee = await addEmployee(f, 'Attempt time pinned', f.salmiya, 118);
+  const oldPhone = nextPhone(f);
+  expect((await grant(f, employee, oldPhone)).status).toBe(200);
+  const [before] = await f.h
+    .owner`SELECT id,user_id,membership_id FROM employee_staff_access WHERE employee_id=${employee}`;
+  await f.h.owner`UPDATE memberships SET ends_at=now() WHERE id=${before?.membership_id}`;
+  await f.h.owner`DELETE FROM cashier_pins WHERE user_id=${before?.user_id}`;
+  // السجل متوقف وعمره أسبوع: المحاولة الجديدة تبدأ بلحظة المنح الجديدة مش بلحظة السجل.
+  await f.h
+    .owner`UPDATE employee_staff_access SET state='STOPPED',created_at=now()-interval '7 days',attempt_started_at=now()-interval '7 days' WHERE employee_id=${employee}`;
+  const phone = nextPhone(f);
+  const actor = await f.h.auth.getSession(new Headers({ cookie: f.ownerCookie }));
+  if (actor === null) throw new Error('ACTOR_MISSING');
+  // ساعة محقونة بلحظة ثابتة: أي كتابة لوقت المحاولة لازم تساويها بالظبط من غير تسامح.
+  const regrantAt = new Date('2026-11-25T09:15:30.250Z');
+  const useCase = new GrantEmployeeAccessUseCase(
+    createGrantEmployeeAccessSteps(f.db, f.h.auth.staffUsers),
+    createStaffAccessUserSteps(f.h.auth.staffUsers),
+    { invalidate: async () => undefined },
+    { now: () => regrantAt },
+    ids,
+  );
+  const outcome = await useCase.execute({
+    companyId: f.company,
+    userId: actor.userId,
+    businessId: f.business,
+    employeeId: employee,
+    phone,
+    role: 'staff',
+    pin: '1234',
+  });
+  expect(outcome.kind).toBe('granted');
+  const [record] = await f.h
+    .owner`SELECT attempt_started_at FROM employee_staff_access WHERE employee_id=${employee}`;
+  expect(new Date(record?.['attempt_started_at'] as Date).getTime()).toBe(regrantAt.getTime());
+});
 
 it('a transient auth failure answers TRANSACTION_RETRY_REQUIRED and the same request then completes', async () => {
   const employeeId = await addEmployee(f, 'Busy auth', f.salmiya, 116);
