@@ -31,7 +31,7 @@ export function PackageRedemptionHistory({
       {open && proof === 'pending' ? (
         <p role="status">{t(locale, 'serviceSessions.packageLoading')}</p>
       ) : null}
-      {open && detail.isError ? (
+      {open && (proof === 'failed' || detail.isError) ? (
         <p role="alert">{t(locale, 'serviceSessions.packageHistoryLoadFailed')}</p>
       ) : null}
       {data ? <PackageRedemptionHistoryBody detail={data} /> : null}
