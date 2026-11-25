@@ -8,6 +8,7 @@ import { useWorkspace } from '@/workspace/model/workspace-provider';
 import { useCancelPendingStaffAccess } from '../api/use-cancel-pending-staff-access';
 import { useEmployeeStaffAccess } from '../api/use-employee-staff-access';
 import { EmployeeAccessGrantForm } from './employee-access-grant-form';
+import { EmployeeAccessPinResetForm } from './employee-access-pin-reset-form';
 import { EmployeeAccessReadout } from './employee-access-readout';
 
 function stateLine(state: 'NONE' | 'PENDING' | 'ACTIVE' | 'STOPPED', locale: 'ar' | 'en'): string {
@@ -56,6 +57,13 @@ export function EmployeeAccessSection({
               {t(locale, 'staff.giveAccess')}
             </Button>
           ) : null}
+          {shown.can_manage && shown.state === 'ACTIVE' ? (
+            <EmployeeAccessPinReset
+              companyId={companyId}
+              businessId={businessId}
+              employeeId={employeeId}
+            />
+          ) : null}
           {shown.can_cancel && shown.state === 'PENDING' ? (
             <PendingCancel cancel={cancel} locale={locale} />
           ) : null}
@@ -70,6 +78,36 @@ export function EmployeeAccessSection({
         />
       ) : null}
     </section>
+  );
+}
+
+/** زر إعادة الضبط ونموذجه: هو اللي بيملك فتح النموذج، عشان القسم يفضل قصير. */
+function EmployeeAccessPinReset({
+  companyId,
+  businessId,
+  employeeId,
+}: {
+  companyId: string;
+  businessId: string;
+  employeeId: string;
+}) {
+  const locale = useLocale();
+  const [open, setOpen] = useState(false);
+  const close = useCallback(() => setOpen(false), []);
+  if (!open) {
+    return (
+      <Button type="button" variant="outline" onClick={() => setOpen(true)}>
+        {t(locale, 'staff.resetPin')}
+      </Button>
+    );
+  }
+  return (
+    <EmployeeAccessPinResetForm
+      companyId={companyId}
+      businessId={businessId}
+      employeeId={employeeId}
+      onClose={close}
+    />
   );
 }
 

@@ -49,7 +49,7 @@ it('AC-F1-1 the owner grant creates user, binding, membership, link, temporary P
     role: 'staff',
     branch_id: f.salmiya,
     phone_last3: phone.slice(-3),
-    can_manage: false,
+    can_manage: true,
   });
   const [access] = await f.h.owner`SELECT operation_id FROM employee_staff_access WHERE employee_id=${sara}`;
   const users = (await staffUsersOf(f)).filter((u) => u.staff_access_operation_id === access?.operation_id);

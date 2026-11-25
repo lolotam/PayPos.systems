@@ -1,8 +1,16 @@
 import { zodResolver } from '@hookform/resolvers/zod';
-import { grantStaffAccessInput, type GrantStaffAccessInput } from '@pospay/contracts';
+import {
+  grantStaffAccessInput,
+  resetEmployeeStaffPinInput,
+  type GrantStaffAccessInput,
+  type ResetEmployeeStaffPinInput,
+} from '@pospay/contracts';
 
 /** نفس عقد السيرفر بالحرف: هاتف كانوني وتأكيد إجباري ودور من اتنين ورقم سري من أربعة أرقام. */
 export const staffAccessResolver = zodResolver(grantStaffAccessInput);
+
+/** نفس عقد السيرفر بالحرف: رقم سري من أربعة أرقام بس — مفيش غيره في جسم إعادة الضبط. */
+export const resetStaffPinResolver = zodResolver(resetEmployeeStaffPinInput);
 
 /**
  * قيم البداية: `phone_confirmed` تبدأ غير معلَّمة (`false` كنوع `true` لأن العقد literal) عشان
@@ -14,6 +22,9 @@ export const staffAccessDefaults = {
   role: 'staff',
   pin: '',
 } satisfies GrantStaffAccessInput;
+
+/** قيمة بداية نموذج إعادة الضبط: رقم سري فاضي لحد ما المدير يكتبه. */
+export const resetStaffPinDefaults = { pin: '' } satisfies ResetEmployeeStaffPinInput;
 
 /** هل رفض الطلب جاء من رفض الخادم المعروف (409/403/404) أم خطأ آخر؟ الرسائل تجيء من الحزمة مباشرة. */
 export function staffAccessErrorCode(error: unknown): string | null {

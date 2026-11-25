@@ -41,6 +41,7 @@ sync_writes:
   - { from: identity, to: tenancy, symbol: registerCompany, file: apps/api/src/modules/identity/persistence/tenancy-company-registry.adapter.ts }
   - { from: staff, to: identity, symbol: grantStaffMembership, file: apps/api/src/modules/staff/persistence/staff-access.adapter.ts }
   - { from: staff, to: identity, symbol: saveTemporaryStaffPin, file: apps/api/src/modules/staff/persistence/staff-access.adapter.ts }
+  - { from: staff, to: identity, symbol: saveTemporaryStaffPin, file: apps/api/src/modules/staff/persistence/staff-access-auth.adapter.ts }
   - { from: staff, to: identity, symbol: provisionStaffUser, file: apps/api/src/modules/staff/persistence/staff-access-auth.adapter.ts }
   - { from: staff, to: identity, symbol: cancelStaffUser, file: apps/api/src/modules/staff/persistence/staff-access-auth.adapter.ts }
 reads:
@@ -232,6 +233,7 @@ reads:
   - { from: orders, to: staff, symbol: readSessionPerformerOptions, file: apps/api/src/modules/orders/persistence/package-sale-context.adapter.ts }
   - { from: catalog, to: tenancy, symbol: packageSalePlace, file: apps/api/src/modules/catalog/persistence/package-sale-place.adapter.ts }
   - { from: staff, to: identity, symbol: staffAccessGrantedEvent, file: apps/api/src/modules/staff/persistence/staff-access.adapter.ts }
+  - { from: staff, to: identity, symbol: staffPinSetByOtherEvent, file: apps/api/src/modules/staff/persistence/staff-access-auth.adapter.ts }
   - { from: staff, to: identity, symbol: readStaffAccessAuthority, file: apps/api/src/modules/staff/persistence/staff-access.adapter.ts }
   - { from: staff, to: identity, symbol: createGrantInvalidator, file: apps/api/src/modules/staff/persistence/staff-access.adapter.ts }
   - { from: staff, to: identity, symbol: readStaffAccessAuthority, file: apps/api/src/modules/staff/persistence/staff-access-auth.adapter.ts }

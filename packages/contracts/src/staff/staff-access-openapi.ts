@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { grantStaffAccessInput, staffAccessState } from './staff-access.js';
+import { grantStaffAccessInput, resetEmployeeStaffPinInput, staffAccessState } from './staff-access.js';
 
 const errors = {
   description: 'Bilingual refusal',
@@ -80,6 +80,35 @@ export const staffAccessPaths = {
         '400': errors,
         '401': errors,
         '404': errors,
+        default: errors,
+      },
+    },
+  },
+  '/v1/businesses/{businessId}/employees/{employeeId}/staff-access/pin': {
+    post: {
+      operationId: 'resetEmployeeStaffPin',
+      description:
+        'Resets the temporary PIN of an ACTIVE staff-access employee on her primary branch. Requires manage:staff-access:branch on that branch, read inside the write transaction. The employee never resets her own PIN.',
+      parameters: [companyHeader, businessParam, employeeParam],
+      requestBody: {
+        required: true,
+        content: {
+          'application/json': {
+            schema: z.toJSONSchema(resetEmployeeStaffPinInput, {
+              target: 'openapi-3.0',
+              io: 'input',
+              metadata: z.registry(),
+            }),
+          },
+        },
+      },
+      responses: {
+        '200': stateResponse('The access state after the PIN reset'),
+        '400': errors,
+        '401': errors,
+        '403': errors,
+        '404': errors,
+        '409': errors,
         default: errors,
       },
     },

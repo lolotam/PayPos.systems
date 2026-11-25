@@ -12,6 +12,7 @@ import { createEmployeeAccessStateReads } from './persistence/employee-access-re
 import {
   createStaffAccessCancelUser,
   createCancelPendingStaffAccessSteps,
+  createResetEmployeeStaffPinSteps,
   createStaffAccessUserSteps,
 } from './persistence/staff-access-auth.adapter.ts';
 import {
@@ -22,6 +23,7 @@ import { createStaffAccessGrantAdmission } from './persistence/staff-access-admi
 import type { AuthFacadeForStaffAccess } from './ports/staff-access-auth.port.ts';
 import { GrantEmployeeAccessUseCase } from './use-cases/grant-employee-access/grant-employee-access.ts';
 import { CancelPendingStaffAccessUseCase } from './use-cases/cancel-pending-staff-access/cancel-pending-staff-access.ts';
+import { ResetEmployeeStaffPinUseCase } from './use-cases/reset-employee-staff-pin/reset-employee-staff-pin.ts';
 
 /**
  * ربط قدرة «إعطاء الدخول»: بوابة التفعيل من بيئة التشغيل، وخطوة auth عبر identity لما تكون موجودة،
@@ -55,6 +57,7 @@ export function staffAccessProviders(
       ? null
       : createGrantEmployeeAccessSteps(database, auth, phoneHashSecret);
   const cancelSteps = database === undefined ? null : createCancelPendingStaffAccessSteps(database);
+  const resetSteps = database === undefined ? null : createResetEmployeeStaffPinSteps(database);
   return [
     { provide: STAFF_ACCESS_ROUTES_ENABLED, useValue: routesEnabled },
     {
@@ -82,6 +85,13 @@ export function staffAccessProviders(
         cancelSteps === null || cancelUser === null
           ? null
           : new CancelPendingStaffAccessUseCase(cancelSteps, cancelUser, systemClock, ids),
+    },
+    {
+      provide: ResetEmployeeStaffPinUseCase,
+      useValue:
+        resetSteps === null || users === null
+          ? null
+          : new ResetEmployeeStaffPinUseCase(resetSteps, users, systemClock, ids),
     },
     EmployeeAccessController,
   ];

@@ -60,6 +60,18 @@ export interface StaffAccessGranted {
 
 export const STAFF_ACCESS_GRANTED = 'StaffAccessGranted';
 
+/**
+ * بيتبعت في نفس معاملة إعادة ضبط الرقم السري لموظفة من غير نفسها (F2b): الرقم اتغيّر
+ * والرقم القديم بقى منتهي — الحمولة معرّفات بس: مفيش رقم سري ولا hash ولا هاتف.
+ */
+export interface StaffPinSetByOther {
+  readonly employee_id: string;
+  readonly user_id: string;
+  readonly branch_id: string;
+}
+
+export const STAFF_PIN_SET_BY_OTHER = 'StaffPinSetByOther';
+
 /** اسم الـ aggregate اللي الحدث بيتعلق بيه في الـ outbox. */
 export const STAFF_ACCESS_AGGREGATE = 'employee';
 
@@ -76,4 +88,19 @@ export function staffAccessGrantedEvent(payload: StaffAccessGranted): {
   payload: StaffAccessGranted;
 } {
   return { eventType: STAFF_ACCESS_GRANTED, aggregateType: STAFF_ACCESS_AGGREGATE, payload };
+}
+
+/**
+ * بيبنى حمولة إعادة ضبط الرقم السري بنفس اسمها الثابت — staff بينادي الدالة دي (النداء الشرط
+ * الوحيد لاستيراد قيمة من موديول تاني) والاسم يفضل مصدره واحد في identity.
+ *
+ * @param payload معرّفات الموظفة والمستخدم والفرع
+ * @returns الحدث جاهز لصف الـ outbox: النوع والحمولة
+ */
+export function staffPinSetByOtherEvent(payload: StaffPinSetByOther): {
+  eventType: typeof STAFF_PIN_SET_BY_OTHER;
+  aggregateType: typeof STAFF_ACCESS_AGGREGATE;
+  payload: StaffPinSetByOther;
+} {
+  return { eventType: STAFF_PIN_SET_BY_OTHER, aggregateType: STAFF_ACCESS_AGGREGATE, payload };
 }

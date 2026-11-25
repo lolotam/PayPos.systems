@@ -438,6 +438,7 @@ sync_writes:
   - identity -> tenancy.registerCompany @ apps/api/src/modules/identity/persistence/tenancy-company-registry.adapter.ts
   - staff -> identity.grantStaffMembership @ apps/api/src/modules/staff/persistence/staff-access.adapter.ts
   - staff -> identity.saveTemporaryStaffPin @ apps/api/src/modules/staff/persistence/staff-access.adapter.ts
+  - staff -> identity.saveTemporaryStaffPin @ apps/api/src/modules/staff/persistence/staff-access-auth.adapter.ts
   - staff -> identity.provisionStaffUser @ apps/api/src/modules/staff/persistence/staff-access-auth.adapter.ts
   - staff -> identity.cancelStaffUser @ apps/api/src/modules/staff/persistence/staff-access-auth.adapter.ts
 reads:
@@ -629,6 +630,7 @@ reads:
   - orders -> staff.readSessionPerformerOptions @ apps/api/src/modules/orders/persistence/package-sale-context.adapter.ts
   - catalog -> tenancy.packageSalePlace @ apps/api/src/modules/catalog/persistence/package-sale-place.adapter.ts
   - staff -> identity.staffAccessGrantedEvent @ apps/api/src/modules/staff/persistence/staff-access.adapter.ts
+  - staff -> identity.staffPinSetByOtherEvent @ apps/api/src/modules/staff/persistence/staff-access-auth.adapter.ts
   - staff -> identity.readStaffAccessAuthority @ apps/api/src/modules/staff/persistence/staff-access.adapter.ts
   - staff -> identity.createGrantInvalidator @ apps/api/src/modules/staff/persistence/staff-access.adapter.ts
   - staff -> identity.readStaffAccessAuthority @ apps/api/src/modules/staff/persistence/staff-access-auth.adapter.ts
