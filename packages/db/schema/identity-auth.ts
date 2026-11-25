@@ -131,7 +131,11 @@ export const verification = pgTable(
     expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
     ...timestamps,
   },
-  (t) => [index('verification_identifier_idx').on(t.identifier)],
+  (t) => [
+    index('verification_identifier_idx').on(t.identifier),
+    // فهرس الـ value: مسح روابط اليوزر وقت تغيير كلمة المرور بيلاقيهم بــ id اليوزر نفسه، من غير مسح الجدول كله.
+    index('verification_value_idx').on(t.value),
+  ],
 );
 
 export const twoFactor = pgTable(
