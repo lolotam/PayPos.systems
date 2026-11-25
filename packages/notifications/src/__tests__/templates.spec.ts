@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { createTemplateRegistry, readNotificationConfiguration } from '../configuration.ts';
+import { ratingRequest } from '../templates/rating-request.ts';
 import { staffOtp } from '../templates/staff-otp.ts';
 import {
   templateComponents,
@@ -74,5 +75,76 @@ describe('additional safety checks', () => {
     expect(() => readNotificationConfiguration({ NOTIFICATIONS_MODE: 'live' })).toThrow(
       'NOTIFICATION_HASH_CONFIG_INVALID',
     );
+  });
+});
+
+const id = '0190a1b2-c3d4-7e5f-8a6b-7c8d9e0f1a2b';
+const firstName = { name: 'customer_first_name', type: 'text' as const, value: 'Mona' };
+const business = { name: 'business_name', type: 'text' as const, value: 'Salon Rose' };
+const performers = { name: 'performers', type: 'text' as const, value: 'Sara' };
+const requestId = { name: 'rating_request_id', type: 'text' as const, value: id };
+const full = [firstName, business, performers, requestId];
+const withoutFirstName = full.slice(1);
+
+describe('rating_request template (59b-3, dormant)', () => {
+  it('declares the approved ordered descriptors and ar/en copy', () => {
+    expect(ratingRequest).toMatchObject({
+      key: 'rating_request',
+      revision: 1,
+      category: 'UTILITY',
+      locales: ['ar', 'en'],
+    });
+    expect(ratingRequest.parameters.map((p) => [p.name, p.required])).toEqual([
+      ['customer_first_name', false],
+      ['business_name', true],
+      ['performers', true],
+      ['rating_request_id', true],
+    ]);
+    for (const locale of ['ar', 'en'] as const) {
+      expect(ratingRequest.copy[locale]).toContain('{{link}}');
+      expect(ratingRequest.copy[locale]).toContain('{{performers}}');
+    }
+  });
+
+  it.each(['ar', 'en'])('%s accepts four parameters and three without the first name', (locale) => {
+    expect(validateParameters(ratingRequest, locale, full)).toBe(true);
+    expect(validateParameters(ratingRequest, locale, withoutFirstName)).toBe(true);
+    expect(
+      templateComponents(ratingRequest, withoutFirstName).flatMap((c) =>
+        c.parameters.map((p) => p.text),
+      ),
+    ).toEqual(['Salon Rose', 'Sara', id]);
+  });
+
+  it('rejects a bad id, a link, a missing required, a duplicate, an extra or reordered parameter', () => {
+    const swap = (index: number, value: string) =>
+      full.map((p, i) => (i === index ? { ...p, value } : p));
+    expect(validateParameters(ratingRequest, 'ar', swap(3, id.toUpperCase()))).toBe(false);
+    expect(validateParameters(ratingRequest, 'ar', swap(3, 'https://x.test/#abc'))).toBe(false);
+    expect(validateParameters(ratingRequest, 'ar', swap(2, 'https://x.test'))).toBe(false);
+    expect(validateParameters(ratingRequest, 'ar', [firstName, business, requestId])).toBe(false);
+    expect(validateParameters(ratingRequest, 'ar', [firstName, ...full])).toBe(false);
+    expect(
+      validateParameters(ratingRequest, 'ar', [business, firstName, performers, requestId]),
+    ).toBe(false);
+    expect(validateParameters(ratingRequest, 'ar', [...full, requestId])).toBe(false);
+    expect(validateParameters(ratingRequest, 'fr', full)).toBe(false);
+    expect(() => templateComponents(ratingRequest, [business])).toThrow(
+      'NOTIFICATION_PARAMETERS_INVALID',
+    );
+  });
+
+  it('stays disabled by default and is enabled only by an explicit approved name', () => {
+    expect(createTemplateRegistry().prepare('rating_request', 1, 'ar', full)).toEqual({
+      valid: false,
+      code: 'CONFIG_INVALID',
+    });
+    const enabled = createTemplateRegistry(undefined, {
+      rating_request: { ar: 'rating_request_ar' },
+    });
+    expect(enabled.prepare('rating_request', 1, 'ar', withoutFirstName)).toMatchObject({
+      valid: true,
+      name: 'rating_request_ar',
+    });
   });
 });

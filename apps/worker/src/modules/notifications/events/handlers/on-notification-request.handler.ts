@@ -1,11 +1,18 @@
 import {
   notificationRequest,
+  RATING_REQUEST_TEMPLATE_KEY,
+  RATING_TOKEN_KEY_VERSION_MAX,
+  RATING_TOKEN_KEY_VERSION_PARAMETER,
   type InAppRecipient,
   type NotificationRecipient,
   type PushRecipient,
 } from '@pospay/contracts';
 import type { ClaimedEvent, Tx } from '@pospay/db';
-import type { createPhoneIdentity, createTemplateRegistry } from '@pospay/notifications';
+import type {
+  createPhoneIdentity,
+  createTemplateRegistry,
+  SafeParameter,
+} from '@pospay/notifications';
 
 import type { OutboxConsumer } from '../../../../outbox/consumer.ts';
 import type { AuthorizeNotification } from '../../use-cases/authorize-notification/authorize-notification.ts';
@@ -137,6 +144,7 @@ async function authorizeRecipient(
           recipient.safe_parameters,
         )
       : null;
+  const stored = storedParameters(event, recipient, prepared);
   await dependencies.authorize(tx).execute({
     companyId: event.companyId,
     sourceEventId: event.id,
@@ -148,11 +156,69 @@ async function authorizeRecipient(
     channel: recipient.channel,
     templateKey: recipient.template_key,
     templateRevision: recipient.template_revision,
-    providerTemplateName: prepared?.valid === true ? prepared.name : null,
-    safeParameters: prepared?.valid === true ? recipient.safe_parameters : [],
+    providerTemplateName: stored.providerTemplateName,
+    safeParameters: stored.safeParameters,
     deadline: recipient.send_deadline == null ? null : new Date(recipient.send_deadline),
-    configurationFailure: prepared?.valid === false ? prepared.code : null,
+    configurationFailure: stored.configurationFailure,
   });
+}
+
+/**
+ * يحدد ما يُخزَّن في محاولة الإذن: معاملات القالب المعتمدة، ولطلب التقييم يضاف إليها إصدار مفتاح الرابط من حدث الجاهزية.
+ * إصدار المفتاح رقم فقط (لا رابط ولا توكن)، والرابط نفسه يُشتق في الذاكرة وقت الإرسال ولا يُخزَّن أبداً.
+ *
+ * @param event حدث الجاهزية المستلَم
+ * @param recipient المستلم الجاهز للتفويض
+ * @param prepared نتيجة تحضير القالب أو null لما اللغة غير مدعومة
+ * @returns اسم قالب المزود والمعاملات المخزنة وسبب الرفض إن وُجد
+ */
+function storedParameters(
+  event: ClaimedEvent,
+  recipient: ScheduledRecipient,
+  prepared: ReturnType<AuthorizeDependencies['registry']['prepare']> | null,
+): {
+  readonly providerTemplateName: string | null;
+  readonly safeParameters: ScheduledRecipient['safe_parameters'] | readonly SafeParameter[];
+  readonly configurationFailure: 'CONFIG_INVALID' | 'PARAMETERS_INVALID' | null;
+} {
+  if (prepared?.valid !== true)
+    return {
+      providerTemplateName: null,
+      safeParameters: [],
+      configurationFailure: prepared?.valid === false ? prepared.code : null,
+    };
+  if (recipient.template_key !== RATING_REQUEST_TEMPLATE_KEY)
+    return {
+      providerTemplateName: prepared.name,
+      safeParameters: recipient.safe_parameters,
+      configurationFailure: null,
+    };
+  const version = isRecord(event.payload)
+    ? event.payload[RATING_TOKEN_KEY_VERSION_PARAMETER]
+    : undefined;
+  if (
+    typeof version !== 'number' ||
+    !Number.isInteger(version) ||
+    version < 1 ||
+    version > RATING_TOKEN_KEY_VERSION_MAX
+  )
+    return {
+      providerTemplateName: null,
+      safeParameters: [],
+      configurationFailure: 'PARAMETERS_INVALID',
+    };
+  return {
+    providerTemplateName: prepared.name,
+    safeParameters: [
+      ...recipient.safe_parameters,
+      { name: RATING_TOKEN_KEY_VERSION_PARAMETER, type: 'number', value: version },
+    ],
+    configurationFailure: null,
+  };
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
 function parseRequest(event: ClaimedEvent) {

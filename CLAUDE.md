@@ -1,5 +1,7 @@
 # CLAUDE.md — Project rules for AI-assisted development
 
+> **PP-273 / PP-274 (2026-11-25, owner-decisions):** a PR adds about 1,000–1,500 lines of production code (tests, generated migration snapshots and docs excluded). Small same-feature sub-tasks of 300–500 lines are batched into one PR, a larger slice is split into two PRs (backend first, then the screen), and a PR carries at most one database migration. This replaces «one slice / one use case per PR» in §1 and §10. The implementer runs `clean-code-guard` and `test-guard`; the Opus 5.5 medium reviewer runs `/engineering:code-review` on every PR and `/waleed-ui-restructure` on PRs that change screens, menus or layout.
+
 > **PP-208 (2026-11-20, owner-decisions item 125):** CodeRabbit reviews are optional for merge, including on Medium PRs under PP-195. Review any findings it posts under the applicable severity and round rules.
 
 > **Owner override — 2026-11-04, PP-117 (owner-decisions.ar.md §55).** This current instruction supersedes the older Super Admin routing/approval clauses below.
@@ -365,7 +367,7 @@ A PR that changes a documented function **and leaves its doc comment describing 
 
 ## 10. Git & delivery
 
-- Conventional commits (`feat(orders): …`). One slice per PR. PR description = link to spec + checklist (spec, migration, RLS, indexes, tests, i18n, **doc comments**, docs).
+- Conventional commits (`feat(orders): …`). One feature batch of about 1,000–1,500 production lines per PR, at most one migration (PP-274). PR description = link to spec + checklist (spec, migration, RLS, indexes, tests, i18n, **doc comments**, docs).
 - **CI must pass, in this order:**
   `typecheck → lint (incl. max-lines) → lint:docs (JSDoc coverage + banned comments) → boundaries (eslint-plugin-boundaries) → cycles (dependency-cruiser / madge) → module-map check → unit (domain) → integration → RLS negative tests → EXPLAIN checks → build all apps → docker images`
   This is the order in which every gate must pass before a merge, not a strict run order. The API test shards, worker integration job, `build`, and `admin-document-popup` start alongside `check`; the popup still performs its own complete production build. `ci-gate` requires every current job to succeed. Docker target builds use at most two concurrent processes after the shared build-stage prebuild; staging variants are built, inspected, and pushed only on main (Waleed, 2026-11-17, `docs/owner-decisions.ar.md`, unnumbered CI authorization).
