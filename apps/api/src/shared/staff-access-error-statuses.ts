@@ -4,4 +4,6 @@ export const STAFF_ACCESS_STATUS = {
   STAFF_ACCESS_PHONE_TAKEN: 409,
   STAFF_ACCESS_ALREADY_GRANTED: 409,
   STAFF_ACCESS_NOT_ALLOWED: 403,
+  // AC-ACT-12: منحة أو إلغاء «إعطاء الدخول» قيد التنفيذ يمنع نقل الموظفة لفرع تاني.
+  STAFF_ACCESS_PENDING_BRANCH_CHANGE: 409,
 } as const;

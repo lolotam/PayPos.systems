@@ -44,6 +44,13 @@ export class UpdateEmployeeUseCase {
         !(await scope.canLinkUser(plan.after.user_id))
       )
         throw new EmployeeCreationError('EMPLOYEE_USER_LINK_UNAVAILABLE');
+      // منحة أو إلغاء «إعطاء الدخول» قيد التنفيذ بيقفل نقل الموظفة لفرع تاني (AC-ACT-12): السجل
+      // المعلّق يفضل مربوط بالفرع القديم فيستحيل إكماله ولا إلغاؤه نظيفاً.
+      if (
+        plan.after.primary_branch_id !== current.record.primary_branch_id &&
+        (await scope.hasPendingAccessRecord(command.employeeId))
+      )
+        throw new EmployeeCreationError('STAFF_ACCESS_PENDING_BRANCH_CHANGE');
       if (plan.changed)
         await scope.save(
           current.record,
