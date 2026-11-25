@@ -149,7 +149,17 @@ it('F3-1 runs the three steps in order and answers from the locked record', asyn
   const { result, world } = await run(worldOf());
   expect(result).toEqual({ kind: 'changed', role: 'staff', branchId: BRANCH, phoneLast3: '999' });
   expect(world.order).toEqual([
-    'lock', 'authority', 'start', 'auth', 'hash', 'lock', 'authority', 'complete', 'event',
+    'lock',
+    'authority',
+    'start',
+    'lock',
+    'authority',
+    'auth',
+    'hash',
+    'lock',
+    'authority',
+    'complete',
+    'event',
   ]);
   expect(world.started).toEqual([
     { recordId: ACTIVE.id, userId: STAFF_USER, phoneHash: `hash:${PHONE}`, resumeAttempt: null },
@@ -210,6 +220,50 @@ it('F3-1 a refused phone stops the sequence before the PIN is saved', async () =
   await expect(run(world)).rejects.toMatchObject({ code: 'STAFF_ACCESS_PHONE_TAKEN' });
   expect(world.completed).toHaveLength(0);
   expect(world.events).toHaveLength(0);
+});
+
+it('F3-1 refuses the fenced auth step before touching auth when a newer attempt took over after step one', async () => {
+  let lockCalls = 0;
+  const world = worldOf();
+  const base = scopeOf(world);
+  const steps: ChangeEmployeeStaffPhoneSteps = {
+    run: async (_a, _i, work) =>
+      work({
+        ...base,
+        lock: async () => {
+          lockCalls += 1;
+          if (lockCalls === 2 && world.record !== null) {
+            world.record = { ...world.record, attemptId: '01920000-0000-7000-8000-0000000000ee' };
+          }
+          return base.lock();
+        },
+      }),
+  };
+  const users: StaffAccessPhoneUserSteps = {
+    changePhone: async (input) => {
+      world.changes.push(input);
+    },
+    hash: async (pin) => `hash:${pin}`,
+  };
+  const useCase = new ChangeEmployeeStaffPhoneUseCase(
+    steps,
+    users,
+    { invalidate: async () => undefined },
+    { now: () => new Date('2026-11-25T00:00:00.000Z') },
+    { newId: () => NEW_ATTEMPT },
+  );
+  await expect(
+    useCase.execute({
+      companyId: COMPANY,
+      userId: ACTOR,
+      businessId: BUSINESS,
+      employeeId: EMPLOYEE,
+      phone: PHONE,
+      pin: '4321',
+    }),
+  ).rejects.toMatchObject({ code: 'STAFF_ACCESS_NOT_ALLOWED' });
+  expect(world.changes).toHaveLength(0);
+  expect(world.completed).toHaveLength(0);
 });
 
 it('F3-1 refuses to commit when a newer attempt took over the record between the steps', async () => {

@@ -30,6 +30,7 @@ export const staffAccessAdminEn = {
   changePhoneLabel: 'Her new phone (canonical, with country code)',
   changePhonePinLabel: 'New temporary PIN (4 digits)',
   changePhoneButton: 'Change the phone',
+  accessPhoneChanging: 'Phone change interrupted — repeat «Change phone» to finish.',
   phoneChangedMessage:
     'The phone was changed. Her old PIN and sessions no longer work; the new PIN is temporary and expires after 24 hours if unused.',
   phoneInvalid: 'Enter the phone with a + and 8–15 digits, like +96512345678.',
@@ -69,6 +70,7 @@ export const staffAccessAdminAr: typeof staffAccessAdminEn = {
   changePhoneLabel: 'هاتفها الجديد (كامل مع رمز الدولة)',
   changePhonePinLabel: 'رقم سري مؤقت جديد (4 أرقام)',
   changePhoneButton: 'تغيير الهاتف',
+  accessPhoneChanging: 'تغيير الهاتف توقّف قبل أن يكتمل — أعيدي «تغيير الهاتف» لإتمامه.',
   phoneChangedMessage:
     'اتغيّر الهاتف. رقمها السري القديم وجلساتها القديمة ما بقوش يشتغلوا، والرقم الجديد مؤقت وبينتهي بعد 24 ساعة لو ما اتاستخدمش.',
   phoneInvalid: 'اكتب الهاتف بعلامة + ومن 8 إلى 15 رقمًا، مثل +96512345678.',

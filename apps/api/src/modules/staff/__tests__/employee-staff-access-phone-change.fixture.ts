@@ -27,8 +27,9 @@ export const GRANT_PIN = '1234';
 export const PERMANENT_PIN = '5678';
 export const NEW_PIN = '7351';
 
-/** نقطة فشل مُحقَنة بين خطوات التغيير لتمثيل انقطاع حقيقي في مكان محدد. */
+/** نقطة فشل أو حاجز مُحقَنة بين خطوات التغيير لتمثيل انقطاع أو تزامن حقيقي في مكان محدد. */
 export interface ChangeFaults {
+  readonly afterStepOne?: () => Promise<void>;
   readonly beforeAuthStep?: boolean;
   readonly afterAuthStep?: boolean;
 }
@@ -93,12 +94,25 @@ function personalSessionFactory(f: Fixture) {
   };
 }
 
-/** use case حقيقي على نفس القاعدة، بانقطاع قبل خطوة auth أو بعدها عند الطلب. */
+/** use case حقيقي على نفس القاعدة، بانقطاع أو حاجز بين الخطوات عند الطلب. */
 function useCaseFactory(f: Fixture) {
   return (faults: ChangeFaults = {}): ChangeEmployeeStaffPhoneUseCase => {
+    const baseSteps = createChangeEmployeeStaffPhoneSteps(f.db, f.cardKey);
+    let runs = 0;
+    const steps: typeof baseSteps =
+      faults.afterStepOne === undefined
+        ? baseSteps
+        : {
+            run: async (actor, input, work) => {
+              const value = await baseSteps.run(actor, input, work);
+              runs += 1;
+              if (runs === 1) await faults.afterStepOne?.();
+              return value;
+            },
+          };
     const real = createStaffAccessPhoneUserSteps(f.h.auth.staffUsers, (pin) => hashStaffPin(pin));
     return new ChangeEmployeeStaffPhoneUseCase(
-      createChangeEmployeeStaffPhoneSteps(f.db, f.cardKey),
+      steps,
       {
         changePhone: async (input) => {
           if (faults.beforeAuthStep === true) throw new Error('CRASH_BEFORE_AUTH_STEP');

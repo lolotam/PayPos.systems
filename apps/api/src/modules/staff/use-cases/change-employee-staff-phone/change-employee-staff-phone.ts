@@ -42,15 +42,7 @@ export class ChangeEmployeeStaffPhoneUseCase {
   async execute(command: ChangeEmployeeStaffPhoneCommand): Promise<ChangeStaffPhoneResult> {
     const actor: StaffAccessActor = { companyId: command.companyId, userId: command.userId };
     const begin = await this.#run(actor, command, (scope) => this.#begin(scope, command));
-    await this.users.changePhone({
-      operationId: begin.operationId,
-      companyId: command.companyId,
-      userId: begin.userId,
-      phone: command.phone,
-      actorUserId: command.userId,
-      attemptId: begin.attemptId,
-      ids: this.ids,
-    });
+    await this.#changePhoneFenced(actor, command, begin);
     const pinHash = await this.users.hash(command.pin);
     const result = await this.#run(actor, command, (scope) =>
       this.#commit(scope, command, begin, pinHash),
@@ -60,6 +52,37 @@ export class ChangeEmployeeStaffPhoneUseCase {
         .invalidate({ companyId: command.companyId, membershipId: begin.membershipId })
         .catch(() => undefined);
     return result;
+  }
+
+  /**
+   * الخطوة الثانية تحت قفل سجل الدخول (مثل منع P1-2 في المنح): تعيد قفل السجل وتتحقق من أن
+   * المحاولة نفسها لا تزال القائمة قبل تعديل الهاتف في auth، فلا تتداخل محاولتان مختلفتان أبداً.
+   */
+  #changePhoneFenced(
+    actor: StaffAccessActor,
+    command: ChangeEmployeeStaffPhoneCommand,
+    begin: ChangeStaffPhoneBegin,
+  ): Promise<void> {
+    return this.#run(actor, command, async (scope) => {
+      const { record } = await this.#lockedAuthorised(scope, command);
+      const sameAttempt =
+        record.id === begin.recordId &&
+        record.userId === begin.userId &&
+        record.attemptId === begin.attemptId &&
+        record.phoneHash === begin.phoneHash;
+      if (!sameAttempt) throw new StaffAccessError('STAFF_ACCESS_NOT_ALLOWED');
+      if (record.state === 'ACTIVE') return;
+      if (record.state !== 'PHONE_CHANGING') throw new StaffAccessError('STAFF_ACCESS_NOT_ALLOWED');
+      await this.users.changePhone({
+        operationId: begin.operationId,
+        companyId: command.companyId,
+        userId: begin.userId,
+        phone: command.phone,
+        actorUserId: command.userId,
+        attemptId: begin.attemptId,
+        ids: this.ids,
+      });
+    });
   }
 
   #run<T>(

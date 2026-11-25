@@ -46,7 +46,7 @@ export type ChangeEmployeeStaffPhoneInput = z.infer<typeof changeEmployeeStaffPh
 
 /** حالة دخول الموظفة كما تظهر في لوحة الموظفين؛ آخر ثلاثة أرقام فقط ولا هاتف كامل أبداً. */
 export const staffAccessState = responseObject({
-  state: z.enum(['NONE', 'PENDING', 'ACTIVE', 'STOPPED']),
+  state: z.enum(['NONE', 'PENDING', 'ACTIVE', 'PHONE_CHANGING', 'STOPPED']),
   role: z.enum(['staff', 'reception']).nullable(),
   branch_id: id.nullable(),
   phone_last3: z

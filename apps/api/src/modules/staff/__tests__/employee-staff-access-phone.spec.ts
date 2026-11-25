@@ -7,6 +7,7 @@ import {
   grant,
   nextPhone,
   capturedLogs,
+  readState,
   systemRoleId,
   staffAccessFixture,
   verifyStaffPin,
@@ -221,7 +222,7 @@ it('F3-1 an interruption after step two completes cleanly on the repeat with one
 });
 
 it.each(['inside', 'outside'])(
-  'F3-1 a phone owned %s the company is refused with 409 and leaves the other user untouched',
+  'F3-1 a phone owned %s the company is refused with 409, leaves PHONE_CHANGING recoverable and leaves the other user untouched',
   async (where) => {
     const staff = await h.activeStaff();
     const taken = nextPhone(f);
@@ -232,9 +233,63 @@ it.each(['inside', 'outside'])(
     expect(JSON.stringify(response.body)).not.toContain(holder);
     expect(await holderState(holder)).toEqual(holderBefore);
     expect(await h.phoneOf(staff.userId)).toMatchObject({ phone_number: staff.phone });
+    // الحالة المبلّغة تبقى PHONE_CHANGING فيقدر المانح يكمّل التغيير برقم متاح بعد إغلاق أو إعادة تحميل.
+    expect((await readState(f, staff.employee)).body).toMatchObject({
+      state: 'PHONE_CHANGING',
+      can_manage: true,
+    });
+    const freePhone = nextPhone(f);
+    expect(await h.changePhone(staff.employee, freePhone)).toMatchObject({
+      status: 200,
+      body: { state: 'ACTIVE', phone_last3: freePhone.slice(-3) },
+    });
+    expect(await h.phoneOf(staff.userId)).toMatchObject({ phone_number: freePhone });
     expect(capturedLogs().includes(taken), 'Full phone is absent from logs').toBe(false);
   },
 );
+
+it('F3-1 concurrent phone changes with different numbers converge with matching auth phone and tenant hash', async () => {
+  const staff = await h.activeStaff();
+  const ownerId = await h.ownerUserId();
+  const [phoneA, phoneB] = [nextPhone(f), nextPhone(f)];
+  let count = 0;
+  let release!: () => void;
+  let reached!: () => void;
+  const gate = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  const entered = new Promise<void>((resolve) => {
+    reached = resolve;
+  });
+  const runPhone = (phone: string, pin: string) =>
+    h
+      .useCase({
+        afterStepOne: async () => {
+          if (++count === 2) reached();
+          await gate;
+        },
+      })
+      .execute({
+        companyId: f.company,
+        userId: ownerId,
+        businessId: f.business,
+        employeeId: staff.employee,
+        phone,
+        pin,
+      });
+  const first = runPhone(phoneA, '2468');
+  const second = runPhone(phoneB, '1359');
+  await entered;
+  release();
+  const outcomes = await Promise.allSettled([first, second]);
+  expect(outcomes.map((o) => o.status).sort()).toEqual(['fulfilled', 'rejected']);
+  const winner = outcomes.find((o) => o.status === 'fulfilled')?.value;
+  const winningPhone = winner?.phoneLast3 === phoneA.slice(-3) ? phoneA : phoneB;
+  const winningPin = winningPhone === phoneA ? '2468' : '1359';
+  expect(await h.recordOf(staff.employee)).toMatchObject({ state: 'ACTIVE', phone_hash: h.phoneHash(winningPhone) });
+  expect(await h.phoneOf(staff.userId)).toMatchObject({ phone_number: winningPhone });
+  expect((await h.signIn(winningPin, winningPhone)).json().code).toBe('PIN_CHANGE_REQUIRED');
+});
 
 it('F3-1 the auth step refuses another company, another operation and a non-staff user, and changes nothing', async () => {
   const staff = await h.activeStaff();

@@ -28,6 +28,7 @@ async function loadEmployee(
   );
   if (
     scope === undefined ||
+    // يأخذ قفل الشركة FOR NO KEY UPDATE ثم العضويات FOR UPDATE قبل قفل الموظفة وسجل الدخول.
     !(await authorizeEmployeeCreation(tx, companyId, userId, businessId, scope.primary_branch_id))
   )
     return null;

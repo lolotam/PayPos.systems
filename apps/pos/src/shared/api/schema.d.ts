@@ -23815,7 +23815,7 @@ export interface operations {
                 content: {
                     "application/json": {
                         /** @enum {string} */
-                        state: "NONE" | "PENDING" | "ACTIVE" | "STOPPED";
+                        state: "NONE" | "PENDING" | "ACTIVE" | "PHONE_CHANGING" | "STOPPED";
                         /** @enum {string|null} */
                         role: "staff" | "reception" | null;
                         /** Format: uuid */
@@ -23897,7 +23897,7 @@ export interface operations {
                 content: {
                     "application/json": {
                         /** @enum {string} */
-                        state: "NONE" | "PENDING" | "ACTIVE" | "STOPPED";
+                        state: "NONE" | "PENDING" | "ACTIVE" | "PHONE_CHANGING" | "STOPPED";
                         /** @enum {string|null} */
                         role: "staff" | "reception" | null;
                         /** Format: uuid */
@@ -23986,7 +23986,7 @@ export interface operations {
                 content: {
                     "application/json": {
                         /** @enum {string} */
-                        state: "NONE" | "PENDING" | "ACTIVE" | "STOPPED";
+                        state: "NONE" | "PENDING" | "ACTIVE" | "PHONE_CHANGING" | "STOPPED";
                         /** @enum {string|null} */
                         role: "staff" | "reception" | null;
                         /** Format: uuid */
@@ -24081,7 +24081,7 @@ export interface operations {
                 content: {
                     "application/json": {
                         /** @enum {string} */
-                        state: "NONE" | "PENDING" | "ACTIVE" | "STOPPED";
+                        state: "NONE" | "PENDING" | "ACTIVE" | "PHONE_CHANGING" | "STOPPED";
                         /** @enum {string|null} */
                         role: "staff" | "reception" | null;
                         /** Format: uuid */
@@ -24179,7 +24179,7 @@ export interface operations {
                 content: {
                     "application/json": {
                         /** @enum {string} */
-                        state: "NONE" | "PENDING" | "ACTIVE" | "STOPPED";
+                        state: "NONE" | "PENDING" | "ACTIVE" | "PHONE_CHANGING" | "STOPPED";
                         /** @enum {string|null} */
                         role: "staff" | "reception" | null;
                         /** Format: uuid */
@@ -24268,7 +24268,7 @@ export interface operations {
                 content: {
                     "application/json": {
                         /** @enum {string} */
-                        state: "NONE" | "PENDING" | "ACTIVE" | "STOPPED";
+                        state: "NONE" | "PENDING" | "ACTIVE" | "PHONE_CHANGING" | "STOPPED";
                         /** @enum {string|null} */
                         role: "staff" | "reception" | null;
                         /** Format: uuid */

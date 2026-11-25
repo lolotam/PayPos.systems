@@ -98,11 +98,23 @@ describe('F3-1 the change phone button follows the server state', () => {
     expect(screen.queryByText('Change phone')).toBeNull();
   });
 
-  it('hides «Change phone» for a record that is not ACTIVE', async () => {
+  it('hides «Change phone» for a record that is not ACTIVE or PHONE_CHANGING', async () => {
     state.body = { ...ACTIVE, state: 'PENDING', can_cancel: true };
     mountSection();
     await waitFor(() => expect(screen.getByText(/Access pending/)).toBeTruthy());
     expect(screen.queryByText('Change phone')).toBeNull();
+  });
+
+  it('offers «Change phone» to resume an interrupted PHONE_CHANGING record and hides give/stop access', async () => {
+    state.body = { ...ACTIVE, state: 'PHONE_CHANGING' };
+    mountSection();
+    await waitFor(() =>
+      expect(screen.getByText('Phone change interrupted — repeat «Change phone» to finish.')).toBeTruthy(),
+    );
+    expect(screen.getByText('567')).toBeTruthy();
+    expect(screen.getByText('Change phone')).toBeTruthy();
+    expect(screen.queryByText('Give access')).toBeNull();
+    expect(screen.queryByText('Stop access')).toBeNull();
   });
 });
 
@@ -219,12 +231,15 @@ describe('F3-2 the stop access button follows the server state', () => {
     expect(screen.queryByText('Stop access')).toBeNull();
   });
 
-  it.each(['PENDING', 'STOPPED', 'NONE'])('hides «Stop access» for a %s record', async (value) => {
-    state.body = { ...ACTIVE, state: value, can_cancel: value === 'PENDING' };
-    mountSection();
-    await waitFor(() => expect(screen.getByText(/Access|No access/)).toBeTruthy());
-    expect(screen.queryByText('Stop access')).toBeNull();
-  });
+  it.each(['PENDING', 'PHONE_CHANGING', 'STOPPED', 'NONE'])(
+    'hides «Stop access» for a %s record',
+    async (value) => {
+      state.body = { ...ACTIVE, state: value, can_cancel: value === 'PENDING' };
+      mountSection();
+      await waitFor(() => expect(screen.getByText(/Access|No access|Phone change/)).toBeTruthy());
+      expect(screen.queryByText('Stop access')).toBeNull();
+    },
+  );
 });
 
 describe('F3-2 stopping access is one direct call that replaces the screen state', () => {

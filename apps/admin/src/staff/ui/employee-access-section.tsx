@@ -13,9 +13,13 @@ import { EmployeeAccessPinResetForm } from './employee-access-pin-reset-form';
 import { EmployeeAccessReadout } from './employee-access-readout';
 import { EmployeeAccessStop } from './employee-access-stop';
 
-function stateLine(state: 'NONE' | 'PENDING' | 'ACTIVE' | 'STOPPED', locale: 'ar' | 'en'): string {
+function stateLine(
+  state: 'NONE' | 'PENDING' | 'ACTIVE' | 'PHONE_CHANGING' | 'STOPPED',
+  locale: 'ar' | 'en',
+): string {
   if (state === 'NONE') return t(locale, 'staff.accessNone');
   if (state === 'PENDING') return t(locale, 'staff.accessPending');
+  if (state === 'PHONE_CHANGING') return t(locale, 'staff.accessPhoneChanging');
   if (state === 'STOPPED') return t(locale, 'staff.accessStopped');
   return t(locale, 'staff.accessActive');
 }
@@ -49,27 +53,15 @@ export function EmployeeAccessSection({
     <section className="flex flex-col gap-2" aria-label={t(locale, 'staff.accessTitle')}>
       <h3>{t(locale, 'staff.accessTitle')}</h3>
       {shown !== null ? (
-        <>
-          <p>{stateLine(shown.state, locale)}</p>
-          {shown.state === 'ACTIVE' || shown.state === 'PENDING' ? (
-            <EmployeeAccessReadout state={shown} />
-          ) : null}
-          {shown.can_manage && shown.state !== 'ACTIVE' ? (
-            <Button type="button" variant="outline" onClick={() => setOpen(true)}>
-              {t(locale, 'staff.giveAccess')}
-            </Button>
-          ) : null}
-          {shown.can_manage && shown.state === 'ACTIVE' ? (
-            <EmployeeAccessActiveActions
-              companyId={companyId}
-              businessId={businessId}
-              employeeId={employeeId}
-            />
-          ) : null}
-          {shown.can_cancel && shown.state === 'PENDING' ? (
-            <PendingCancel cancel={cancel} locale={locale} />
-          ) : null}
-        </>
+        <EmployeeAccessStatusBody
+          shown={shown}
+          companyId={companyId}
+          businessId={businessId}
+          employeeId={employeeId}
+          locale={locale}
+          cancel={cancel}
+          onOpenGrant={() => setOpen(true)}
+        />
       ) : null}
       {open ? (
         <EmployeeAccessGrantForm
@@ -80,6 +72,56 @@ export function EmployeeAccessSection({
         />
       ) : null}
     </section>
+  );
+}
+
+/** عرض حالة السجل وأزرار الحالة الحالية في جسم القسم، لإبقاء المكوّن الرئيسي تحت حدّ الأسطر. */
+function EmployeeAccessStatusBody({
+  shown,
+  companyId,
+  businessId,
+  employeeId,
+  locale,
+  cancel,
+  onOpenGrant,
+}: {
+  shown: NonNullable<ReturnType<typeof useEmployeeStaffAccess>['data']>;
+  companyId: string;
+  businessId: string;
+  employeeId: string;
+  locale: 'ar' | 'en';
+  cancel: ReturnType<typeof useCancelPendingStaffAccess>;
+  onOpenGrant: () => void;
+}) {
+  return (
+    <>
+      <p>{stateLine(shown.state, locale)}</p>
+      {shown.state === 'ACTIVE' || shown.state === 'PENDING' || shown.state === 'PHONE_CHANGING' ? (
+        <EmployeeAccessReadout state={shown} />
+      ) : null}
+      {shown.can_manage && shown.state !== 'ACTIVE' && shown.state !== 'PHONE_CHANGING' ? (
+        <Button type="button" variant="outline" onClick={onOpenGrant}>
+          {t(locale, 'staff.giveAccess')}
+        </Button>
+      ) : null}
+      {shown.can_manage && shown.state === 'PHONE_CHANGING' ? (
+        <EmployeeAccessPhoneChange
+          companyId={companyId}
+          businessId={businessId}
+          employeeId={employeeId}
+        />
+      ) : null}
+      {shown.can_manage && shown.state === 'ACTIVE' ? (
+        <EmployeeAccessActiveActions
+          companyId={companyId}
+          businessId={businessId}
+          employeeId={employeeId}
+        />
+      ) : null}
+      {shown.can_cancel && shown.state === 'PENDING' ? (
+        <PendingCancel cancel={cancel} locale={locale} />
+      ) : null}
+    </>
   );
 }
 

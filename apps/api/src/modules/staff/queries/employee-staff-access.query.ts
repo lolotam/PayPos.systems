@@ -136,11 +136,7 @@ async function projectState(
       : null;
   return staffAccessState.parse({
     state:
-      record === null
-        ? 'NONE'
-        : ['PHONE_CHANGING', 'CANCELLING'].includes(record.state)
-          ? 'PENDING'
-          : record.state,
+      record === null ? 'NONE' : record.state === 'CANCELLING' ? 'PENDING' : record.state,
     role: record?.roleCode ?? null,
     branch_id: record?.branchId ?? null,
     phone_last3: record?.userId != null ? (staffUser?.phoneLast3 ?? null) : null,
