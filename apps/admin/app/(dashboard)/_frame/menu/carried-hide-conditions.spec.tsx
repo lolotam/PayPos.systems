@@ -10,7 +10,7 @@ import {
   ok,
   refusal,
 } from '@/commissions/api/__tests__/plan-http';
-import { planEmployeesKey, planScope } from '@/commissions/api/plan-access';
+import { planProbeKey, planScope } from '@/commissions/api/plan-access';
 import { leaveId } from '@/staff/api/leave-decision.fixture';
 import { historyPage } from '@/staff/api/leave-history.fixture';
 import { envelopeFailure, requiredRefusal } from '@/staff/api/leave-report.fixture';
@@ -150,11 +150,21 @@ describe('commission plans and overrides (was commission-plans-nav-item.spec)', 
     await expectListed(PLANS);
     await expectListed(OVERRIDES);
     expect(probeCalls()).toHaveLength(1);
-    expect(carriedApi.GET).toHaveBeenCalledWith(employeesPath, readParams());
-    // تأكيد أن جواب الموظفين اتخزن تحت مفتاح نطاق الهوية نفسه اللي بتقرأ منه صفحة الخطط، فالمدخل والصفحة قراءة واحدة.
+    // فحص القوائم بيبعت سطر واحد بس: هو بيكفي لإظهار المدخل ومش بيقرا الشاشة كلها.
+    expect(carriedApi.GET).toHaveBeenCalledWith(
+      employeesPath,
+      expect.objectContaining({
+        params: expect.objectContaining({
+          header: { 'x-company-id': REF },
+          path: { businessId: REF },
+          query: { limit: 1 },
+        }),
+      }),
+    );
+    // تأكيد أن جواب الموظفين اتخزن تحت مفتاح فحص القائمة بتاع نفس الهوية.
     const userId = carriedState.userId;
     if (userId === null) throw new Error('the carried mocks run with a signed-in user');
-    expect(client.getQueryData(planEmployeesKey(planScope(REF, REF, userId)))).toBeDefined();
+    expect(client.getQueryData(planProbeKey(planScope(REF, REF, userId)))).toBeDefined();
   });
 
   it('shows neither entry for an admin without a chosen business', () => {

@@ -194,6 +194,8 @@ async function hold(
     finished = resolve;
     failed = reject;
   });
+  // workDone قد يُرفض على اتصاله قبل وصول المتصل إلى expect(held.work).rejects، فنعلم الوعد كمُعالَج.
+  workDone.catch(() => undefined);
   const pidReady = new Promise<number>((resolve) => {
     opened = resolve;
   });
@@ -385,10 +387,11 @@ describe('an issue racing an invalidation (ADR-0054 §8)', () => {
     await waitForWaiter(issuer.pid, 'the issuance behind the invalidation');
     expect(await blockedBy(issuer.pid, invalidator.pid)).toBe(true);
 
+    // نربط توقع الرفض قبل فك قفل الإبطال لأن خطأ المُصدِر قد يصل على اتصاله قبل إتمام COMMIT للإبطال.
+    const refusal = expect(issuer.work).rejects.toThrow('COVERAGE_GENERATION_MOVED');
     invalidator.release();
     await invalidator.done;
-
-    await expect(issuer.work).rejects.toThrow('COVERAGE_GENERATION_MOVED');
+    await refusal;
     await issuer.done;
     expect(await stateRow(A.company)).toMatchObject({ reason: 'SOURCE_WRITE' });
     const proofs = await owner`SELECT count(*)::int AS total FROM commission_coverage_proofs

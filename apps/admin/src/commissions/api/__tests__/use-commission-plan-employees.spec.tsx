@@ -1,10 +1,10 @@
-﻿import type { ReactNode } from 'react';
+import type { ReactNode } from 'react';
 import { act, renderHook, waitFor } from '@testing-library/react';
-import { QueryClientProvider } from '@tanstack/react-query';
+import { focusManager, QueryClientProvider } from '@tanstack/react-query';
 import type { QueryClient } from '@tanstack/react-query';
-import { beforeEach, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { createQueryClient } from '@/shared/api/query-client';
-import { denyPlanAccess, planEmployeesKey, planScope } from '../plan-access';
+import { denyPlanAccess, planEmployeesKey, planProbeKey, planScope } from '../plan-access';
 import { useCommissionPlanEmployees } from '../use-commission-plan-employees';
 import {
   deferredAnswer,
@@ -23,15 +23,21 @@ vi.mock('@/shared/api/client', () => ({ apiClient: () => api }));
 
 const scope = planScope('company', 'business', 'user');
 
-function mount(client: QueryClient) {
+function mount(client: QueryClient, probe = false) {
   function wrapper({ children }: { children: ReactNode }) {
     return <QueryClientProvider client={client}>{children}</QueryClientProvider>;
   }
-  return renderHook(() => useCommissionPlanEmployees(scope), { wrapper });
+  return renderHook(() => useCommissionPlanEmployees(scope, probe ? { probe: true } : undefined), {
+    wrapper,
+  });
 }
 
 beforeEach(() => {
   api.GET.mockReset();
+});
+
+afterEach(() => {
+  focusManager.setFocused(undefined);
 });
 
 it('pages the employee list by the cursor the server hands out', async () => {
@@ -42,7 +48,7 @@ it('pages the employee list by the cursor the server hands out', async () => {
     return options?.params?.query?.cursor === undefined ? first.promise : second.promise;
   });
   const hook = mount(createQueryClient());
-  first.resolve(ok(employeePage([employeeItem(EMP_A, 7, 'Ø³Ø§Ø±Ø©', 'Sara')], 'cursor-1')));
+  first.resolve(ok(employeePage([employeeItem(EMP_A, 7, 'سارة', 'Sara')], 'cursor-1')));
   await waitFor(() => expect(hook.result.current.isSuccess).toBe(true));
   expect(hook.result.current.data?.pages[0]?.items[0]?.name_en).toBe('Sara');
   act(() => void hook.result.current.fetchNextPage());
@@ -69,7 +75,7 @@ it('a 403 on any page closes the scope and stops asking without a request loop',
     options?.params?.query?.cursor === undefined ? first.promise : second.promise,
   );
   const hook = mount(client);
-  first.resolve(ok(employeePage([employeeItem(EMP_A, 7, 'Ø³Ø§Ø±Ø©', 'Sara')], 'cursor-1')));
+  first.resolve(ok(employeePage([employeeItem(EMP_A, 7, 'سارة', 'Sara')], 'cursor-1')));
   await waitFor(() => expect(hook.result.current.isSuccess).toBe(true));
   act(() => void hook.result.current.fetchNextPage());
   second.resolve(refusal(403, 'FORBIDDEN'));
@@ -103,9 +109,66 @@ it('ignores an answer that lands after the scope generation moved', async () => 
   routeGet(api.GET, async () => first.promise);
   const hook = mount(client);
   await denyPlanAccess(client, scope);
-  first.resolve(ok(employeePage([employeeItem(EMP_A, 7, 'Ø³Ø§Ø±Ø©', 'Sara')], null)));
+  first.resolve(ok(employeePage([employeeItem(EMP_A, 7, 'سارة', 'Sara')], null)));
   await new Promise((resolve) => setTimeout(resolve, 20));
   expect(client.getQueryData(planEmployeesKey(scope))).toBeUndefined();
   expect(hook.result.current.data).toBeUndefined();
   expect(api.GET).toHaveBeenCalledTimes(1);
+});
+
+it('the nav probe asks for one row only and keeps it under the probe key', async () => {
+  const client = createQueryClient();
+  const first = deferredAnswer();
+  routeGet(api.GET, async () => first.promise);
+  const hook = mount(client, true);
+  first.resolve(ok(employeePage([employeeItem(EMP_A, 7, null, 'Sara')], null)));
+  await waitFor(() => expect(hook.result.current.isSuccess).toBe(true));
+
+  expect(api.GET).toHaveBeenCalledWith(
+    employeesPath,
+    expect.objectContaining({
+      params: expect.objectContaining({ query: { limit: 1 } }),
+    }),
+  );
+  expect(client.getQueryData(planProbeKey(scope))).toBeDefined();
+  expect(client.getQueryData(planEmployeesKey(scope))).toBeUndefined();
+});
+
+it('the screen list satisfies the nav probe without a second request', async () => {
+  const client = createQueryClient();
+  const first = deferredAnswer();
+  routeGet(api.GET, async () => first.promise);
+  const hook = mount(client);
+  first.resolve(ok(employeePage([employeeItem(EMP_A, 7, null, 'Sara')], null)));
+  await waitFor(() => expect(hook.result.current.isSuccess).toBe(true));
+
+  expect(api.GET).toHaveBeenCalledTimes(1);
+  expect(client.getQueryData(planProbeKey(scope))).toBeDefined();
+});
+
+it('the nav probe never asks again after a window focus', async () => {
+  const client = createQueryClient();
+  const first = deferredAnswer();
+  routeGet(api.GET, async () => first.promise);
+  const hook = mount(client, true);
+  first.resolve(ok(employeePage([employeeItem(EMP_A, 7, null, 'Sara')], null)));
+  await waitFor(() => expect(hook.result.current.isSuccess).toBe(true));
+
+  focusManager.setFocused(false);
+  focusManager.setFocused(true);
+  await new Promise((resolve) => setTimeout(resolve, 20));
+
+  expect(api.GET).toHaveBeenCalledTimes(1);
+});
+
+it('the screen list reloads after a window focus so revoked access is caught', async () => {
+  const client = createQueryClient();
+  routeGet(api.GET, async () => ok(employeePage([employeeItem(EMP_A, 7, null, 'Sara')], null)));
+  const hook = mount(client);
+  await waitFor(() => expect(hook.result.current.isSuccess).toBe(true));
+  expect(api.GET).toHaveBeenCalledTimes(1);
+
+  focusManager.setFocused(false);
+  focusManager.setFocused(true);
+  await waitFor(() => expect(api.GET).toHaveBeenCalledTimes(2));
 });

@@ -5,6 +5,7 @@ import {
   denyPlanAccess,
   planEmployeesKey,
   planGeneration,
+  planProbeKey,
   planScope,
   planVersionsKey,
   restorePlanAccess,
@@ -66,6 +67,13 @@ it('denyPlanAccess keeps the access entry itself so the nav item and the page se
   await denyPlanAccess(client, scope);
   await waitFor(() => expect(accessEntry(client)?.denied).toBe(true));
   expect(accessEntry(client)).toEqual({ denied: true, generation: 1 });
+});
+
+it('denyPlanAccess removes the nav probe with the employee list it lives under', async () => {
+  const client = createQueryClient();
+  client.setQueryData(planProbeKey(scope), { pages: [], pageParams: [] });
+  await denyPlanAccess(client, scope);
+  expect(client.getQueryData(planProbeKey(scope))).toBeUndefined();
 });
 
 it('a deny landing while the access query initial fetch is in flight keeps the denied state and starts no loop', async () => {
