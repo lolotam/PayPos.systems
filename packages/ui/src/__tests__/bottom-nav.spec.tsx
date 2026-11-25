@@ -113,14 +113,14 @@ it('places the status mark in flow below the truncated label without overlapping
 });
 
 it('shows both count and status when a caller supplies both', () => {
-  // إذا زوّد المستدعي العدّاد والعلامة معًا يُعرض الاثنان ويظهران في الاسم المتاح للرابط
+  // إذا زوّد المستدعي العدّاد والعلامة معًا يُعرض الاثنان ويُحجز فضاء علوي في غياب الأيقونة
   render(
     <DirectionProvider dir="rtl">
       <BottomNav
         items={[
           {
             id: 'reports',
-            label: 'Reports',
+            label: 'Reports and analytics',
             href: '#reports',
             status: 'Soon',
             count: '3',
@@ -132,6 +132,39 @@ it('shows both count and status when a caller supplies both', () => {
   );
   expect(screen.getByText('Soon')).toBeTruthy();
   expect(screen.getByText('3')).toBeTruthy();
+  const link = screen.getByRole('link', { name: 'Reports and analytics Soon 3' });
+  expect(link.getAttribute('href')).toBe('#reports');
+  const label = screen.getByText('Reports and analytics');
+  const spacer = link.querySelector('span[aria-hidden="true"]') as HTMLElement;
+  expect(spacer).toBeTruthy();
+  expect(spacer.className).toContain('h-5');
+  expect(spacer.compareDocumentPosition(label) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+});
+
+it('reserves non-overlapping space when an entry carries an icon, status and count', () => {
+  render(
+    <DirectionProvider dir="rtl">
+      <BottomNav
+        items={[
+          {
+            id: 'reports',
+            label: 'Reports',
+            href: '#reports',
+            icon: <span data-testid="nav-icon" aria-hidden="true" />,
+            status: 'Soon',
+            count: '3',
+          },
+        ]}
+        labels={{ label: 'Workspace pages' }}
+      />
+    </DirectionProvider>,
+  );
+  expect(screen.getByText('Soon')).toBeTruthy();
+  expect(screen.getByText('3')).toBeTruthy();
+  const iconSlot = screen.getByTestId('nav-icon').parentElement as HTMLElement;
+  expect(iconSlot.className).toContain('me-5');
+  expect(iconSlot.className).toContain('h-5');
+  expect(iconSlot.className).toContain('w-7');
   const link = screen.getByRole('link', { name: 'Reports Soon 3' });
   expect(link.getAttribute('href')).toBe('#reports');
 });

@@ -30,6 +30,11 @@ export type BottomNavProps = {
 const CELL_CLASS =
   'relative flex min-w-0 flex-1 flex-col items-center justify-center gap-1 rounded-interactive px-1 py-1 text-[11px] font-medium transition-colors motion-reduce:transition-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring';
 
+function iconWrapperClass(item: ShellNavItem) {
+  if (!item.status) return 'h-7 w-13';
+  return item.count ? 'me-5 h-5 w-7 [&_svg]:size-4' : 'h-5 w-10 [&_svg]:size-4';
+}
+
 function BottomNavEntry({
   item,
   onNavigate,
@@ -52,12 +57,14 @@ function BottomNavEntry({
         <span
           className={cn(
             'flex items-center justify-center rounded-full',
-            item.status ? 'h-5 w-10 [&_svg]:size-4' : 'h-7 w-13',
+            iconWrapperClass(item),
             item.current && 'bg-secondary',
           )}
         >
           {item.icon}
         </span>
+      ) : item.status && item.count ? (
+        <span aria-hidden="true" className="h-5 shrink-0" />
       ) : null}
       <span className={cn('min-w-0 max-w-full truncate', item.status && 'leading-3.5')}>
         {item.label}
