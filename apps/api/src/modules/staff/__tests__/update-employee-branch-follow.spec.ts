@@ -10,6 +10,7 @@ import {
 } from '../../../../test/staff-access.fixture.ts';
 import { ownAttendanceContext } from '../persistence/own-attendance-context.adapter.ts';
 import { createEmployeeUpdateTransactions } from '../persistence/drizzle-employee-update.ts';
+import { leaveAuthority } from '../persistence/leave-context.adapter.ts';
 import { UpdateEmployeeUseCase } from '../use-cases/update-employee/update-employee.usecase.ts';
 
 const ids = systemUuidV7();
@@ -92,25 +93,46 @@ const accessOf = async (employee: string) =>
 const overridesOf = (membershipId: string) => f.h.owner`SELECT id, effect FROM permission_overrides
   WHERE company_id=${f.company} AND membership_id=${membershipId}`;
 
-it('F3-3 a primary-branch move ends the old membership, opens one on the new branch and drops every override', async () => {
-  const staff = await activeStaff();
+/** يزرع ALLOW (قراءة الإجازة) وDENY (قراءة الحضور) على العضوية القديمة لإثبات عدم انتقال أيٍّ منهما. */
+async function seedBranchOverrides(membershipId: string) {
   for (const [effect, permission, branch] of [
-    ['ALLOW', 'manage:employees:business', f.salmiya],
+    ['ALLOW', 'read:leave:branch', f.salmiya],
+    ['ALLOW', 'read:leave:branch', f.hawalli],
+    ['DENY', 'read:attendance:own', f.salmiya],
     ['DENY', 'read:attendance:own', f.hawalli],
   ] as const)
     await f.h.owner`INSERT INTO permission_overrides
       (company_id,id,membership_id,permission_code,effect,scope_type,scope_id,reason,granted_by)
-      VALUES (${f.company},${ids.newId()},${staff.membershipId},${permission},${effect},
+      VALUES (${f.company},${ids.newId()},${membershipId},${permission},${effect},
         'BRANCH',${branch},'Synthetic override',${ownerUserId})`;
-  const own = async (branch: string) =>
-    (await f.db.withTenant(f.company, (tx) =>
-      ownAttendanceContext(
-        tx,
-        { companyId: f.company, businessId: f.business, userId: staff.userId, branchId: branch },
-        new Date(),
+}
+
+/** يقيس الصلاحيتين من المقيّم الحقيقي: صلاحية الحضور الذاتي وصلاحية قراءة الإجازة عبر الفروع. */
+function accessChecks(userId: string) {
+  return {
+    own: async (branch: string) =>
+      (await f.db.withTenant(f.company, (tx) =>
+        ownAttendanceContext(
+          tx,
+          { companyId: f.company, businessId: f.business, userId, branchId: branch },
+          new Date(),
+        ),
+      )) !== null,
+    leaveBranches: () =>
+      f.db.withTenant(f.company, async (tx) =>
+        (await leaveAuthority(tx, f.company, userId, f.business, [f.salmiya, f.hawalli], new Date()))
+          .read,
       ),
-    )) !== null;
-  expect(await own(f.salmiya)).toBe(true);
+  };
+}
+
+it('F3-3 a primary-branch move ends the old membership, opens one on the new branch and drops every override', async () => {
+  const staff = await activeStaff();
+  await seedBranchOverrides(staff.membershipId);
+  const { own, leaveBranches } = accessChecks(staff.userId);
+  // قبل النقل: ALLOW منح read:leave:branch، وDENY منع read:attendance:own على العضوية القديمة.
+  expect(await leaveBranches()).toEqual(expect.arrayContaining([f.salmiya, f.hawalli]));
+  expect(await own(f.salmiya)).toBe(false);
 
   const moved = await execute(staff.employee, {
     primary_branch_id: f.hawalli,
@@ -129,8 +151,10 @@ it('F3-3 a primary-branch move ends the old membership, opens one on the new bra
     branch_id: f.hawalli,
     membership_id: fresh?.['id'],
   });
-  expect(await overridesOf(staff.membershipId)).toHaveLength(2);
+  expect(await overridesOf(staff.membershipId)).toHaveLength(4);
   expect(await overridesOf(fresh?.['id'] as string)).toHaveLength(0);
+  // بعد النقل: لا ALLOW ولا DENY انتقل للعضوية الجديدة؛ صلاحية الدور الافتراضية على الفرع الجديد تعمل.
+  expect(await leaveBranches()).toEqual([]);
   expect(await own(f.hawalli)).toBe(true);
   expect(await own(f.salmiya)).toBe(false);
 

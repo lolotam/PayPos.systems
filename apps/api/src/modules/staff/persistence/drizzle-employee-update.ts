@@ -159,7 +159,7 @@ function updateScope(
     hasPendingAccessRecord: async (employeeId) => {
       const rows = await tx.execute(sql`SELECT 1 FROM employee_staff_access
         WHERE company_id=${companyId} AND employee_id=${employeeId}
-          AND state IN ('PENDING', 'CANCELLING') LIMIT 1 FOR UPDATE`);
+          AND state IN ('PENDING', 'CANCELLING', 'PHONE_CHANGING') LIMIT 1 FOR UPDATE`);
       return rows.length !== 0;
     },
     save: async (before, plan, date, attachments) => {
