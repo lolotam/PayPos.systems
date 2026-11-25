@@ -1,12 +1,6 @@
-# 90 · Import open packages from Excel (preview only) — استيراد الباقات المفتوحة من Excel (المعاينة بس)
+# 90 · Import open packages from Excel — استيراد الباقات المفتوحة من Excel
 
-**Status / الحالة:** shipped in #851 (47-1a: requesting a preview and reading its status), #871 (47-1b: the worker
-that reads the workbook and builds the preview), #877 (47-2a: the proof for splitting the preview rows) and #889
-(47-2b: the worker's commit use case), all merged (spec 058 row 47). **Half built, API only:** a manager can upload a
-workbook and get a **preview** of what would be imported. **Nothing can be imported yet:** the commit request route
-and its activation (rows 47-2c and 47-2d) and the import screen (row 47-3) are not built, so no package is created
-from a file. The preview routes are on staging; they need the `orders` feature, the worker and object storage for the
-uploaded file (see the README's note on `STORAGE_*`).
+**Status / الحالة:** shipped across #851 (47-1a), #871 (47-1b), #877 (47-2a), #889 (47-2b), 47-2c (worker commit transport and recovery sweep), and 47-2d + 47-3 (template download, commit request route, and Admin screen `/orders/packages/import`). A manager can use the Admin screen (under Orders / package sales) or the API directly to download the template, upload a workbook, run asynchronous preview validation and commit the packages. The commit time budget is a provisional 10 minutes until measured on staging (`47-2c-Q1`). Both routes and the screen need the `orders` feature, the worker and object storage (`STORAGE_*`).
 
 What it is for: packages sold before PosPay, entered with their used and remaining sessions.
 
@@ -20,8 +14,11 @@ What it is for: packages sold before PosPay, entered with their used and remaini
 
 ## العربي
 
-API بس، والمعاينة بس.
+من شاشة الإدارة (`/orders/packages/import`، تحت بيع الباقات) أو عبر الـ API مباشرةً، من تنزيل القالب لحد تثبيت الباقات ومتابعة النتيجة.
 
+0. **نزّل القالب:** المدير ينزّل قالب Excel جاهز: ورقة «packages» بعناوينها (66 عمود) وملاحظة عربي على كل عنوان،
+   وورقة «services» فيها كل الخدمات **المفتوحة** في النشاط (الخدمة المقفولة مش بتظهر ومش بتتقبل). نشاط فيه أكتر من
+   962 خدمة مفتوحة ← الرد 422 (`IMPORT_TEMPLATE_EXCEEDS_LIMITS`) بدل ملف ناقص.
 1. **ارفع الملف:** المدير يرفع ملف Excel زي رفع استيراد الموظفين ([27](27-employee-import.md)) لحد ما الملف يبقى
    جاهز.
 2. **اطلب المعاينة:** يبعت طلب معاينة للملف ← الرد 202 ومعاه رقم المعاينة. الشغل بيتم في الخلفية.
@@ -35,10 +32,19 @@ API بس، والمعاينة بس.
 8. **ملف كبير:** أكتر من 500 صف، أو 68 عمود، أو 4 شيتات، أو 2 ميجا ← المعاينة «فشلت».
 9. **معاينة حد تاني:** مستخدم تاني، أو نشاط أو شركة تانية، يسأل عن نفس الرقم ← «مش موجودة» (`IMPORT_PREVIEW_NOT_FOUND`)،
    نفس الرد لرقم مش موجود أصلًا.
-10. **التثبيت:** لسه مفيش route يثبّت الاستيراد. المعاينة ما بتعملش أي باقة.
+10. **اطلب التثبيت:** المدير (صاحب المعاينة) يبعت طلب تثبيت برقم المعاينة ومعاه مفتاح تكرار (`Idempotency-Key`) ←
+    الرد 202. المعاينة بتبقى «طلب التثبيت اتقبل» والعامل بيعمل الباقات في الخلفية. إعادة نفس الطلب (بنفس المفتاح أو
+    بمفتاح جديد) ترجّع نفس الرد من غير تثبيت تاني.
+11. **رفض التثبيت:** معاينة فيها أخطاء (`IMPORT_PREVIEW_HAS_ERRORS`)، أو عدّى عليها 24 ساعة
+    (`IMPORT_PREVIEW_EXPIRED`)، أو لسه شغالة (`IMPORT_FILE_NOT_READY`)، أو فشلت (`IMPORT_COMMIT_FAILED`) ← رفض
+    ومفيش حاجة بتتكتب. معاينة حد تاني ← «مش موجودة».
+12. **المتابعة:** يسأل عن المعاينة برقمها ← «طلب التثبيت اتقبل»، وبعدها «اتثبّت» ومعاها عدد الباقات اللي اتعملت
+    والمتخطّاة (مرجع مستورد قبل كده)، أو «فشلت» ومعاها السبب. لو خدمة اتقفلت بعد المعاينة ← «فشلت»
+    (`IMPORT_SERVICE_NOT_FOUND`) ومفيش باقة اتعملت.
 
 **ممنوع يحصل:**
-- باقة تتعمل من المعاينة.
+- باقة تتعمل من المعاينة نفسها: الباقات بتتعمل بعد طلب التثبيت بس.
+- طلب التثبيت يتكرر فيكتب حدثين أو يعمل الباقات مرتين.
 - رقم عميلة كامل، أو صفوف الملف المخزّنة، يظهروا في رد المعاينة.
 - مستخدم يشوف معاينة مستخدم تاني.
 - نفس الملف يتعالج مرتين ويطلّع نتيجتين مختلفتين.
@@ -46,8 +52,12 @@ API بس، والمعاينة بس.
 
 ## English
 
-API only, and the preview only.
+Through the Admin screen (`/orders/packages/import`, child entry under package sales) or directly over the API, from template download through commit tracking.
 
+0. **Download the template:** the manager downloads a ready Excel template: a «packages» sheet with the 66 headers
+   and an Arabic note on each, and a «services» sheet listing every **open** service of the business (a closed
+   service is neither listed nor accepted). A business with more than 962 open services → 422
+   (`IMPORT_TEMPLATE_EXCEEDS_LIMITS`) instead of a truncated file.
 1. **Upload the file:** the manager uploads an Excel workbook the same way as the employee import
    ([27](27-employee-import.md)), until the file is ready.
 2. **Request the preview:** he posts a preview request for the file → 202 with the preview id. The work runs in the
@@ -59,15 +69,23 @@ API only, and the preview only.
    row is refused.
 6. **A past expiry:** a date in the past → accepted (the package is recorded as expired).
 7. **A duplicate reference:** the same `external_ref` twice inside the file → the row is refused
-   (`IMPORT_EXTERNAL_REF_DUPLICATE`). Skipping a reference that already exists in the company happens at commit,
-   which is not active yet.
+   (`IMPORT_EXTERNAL_REF_DUPLICATE`). Skipping a reference that already exists in the company happens at commit.
 8. **A big file:** more than 500 rows, 68 columns, 4 sheets or 2 MiB → the preview fails.
 9. **Someone else's preview:** another user, business or company asks for the same id → not found
    (`IMPORT_PREVIEW_NOT_FOUND`), the same answer as for an id that never existed.
-10. **Commit:** no route commits the import yet. A preview creates no package.
+10. **Request the commit:** the manager who owns the preview posts a commit request with the preview id and an
+    `Idempotency-Key` → 202. The preview becomes «commit requested» and the worker creates the packages in the
+    background. Repeating the request (same key or a new one) returns the same answer with no second commit.
+11. **Refused commit:** a preview with errors (`IMPORT_PREVIEW_HAS_ERRORS`), older than 24 hours
+    (`IMPORT_PREVIEW_EXPIRED`), still running (`IMPORT_FILE_NOT_READY`) or failed (`IMPORT_COMMIT_FAILED`) → refused
+    and nothing is written. Someone else's preview → not found.
+12. **Follow it:** he asks for the preview by its id → «commit requested», then «committed» with the count of
+    packages created and skipped (a reference imported before), or «failed» with the reason. A service closed after
+    the preview → «failed» (`IMPORT_SERVICE_NOT_FOUND`) and no package is created.
 
 **Must NOT happen:**
-- A package created by a preview.
+- A package created by the preview itself: packages are created only after a commit request.
+- A repeated commit request writing two events or creating the packages twice.
 - A full customer phone, or the stored candidate rows, in the preview answer.
 - A user seeing another user's preview.
 - One file processed twice giving two different results.
@@ -75,12 +93,14 @@ API only, and the preview only.
 
 ## For an agent
 
-- **Screens:** none (row 47-3).
-- **API** (`apps/api/src/modules/orders/http/package-import-preview.controller.ts`, `import:packages:business` + the
-  `orders` feature): `POST /v1/businesses/<BUSINESS_ID>/packages/import/previews` (accepts an owned, ready workbook;
-  202) · `GET …/previews/<PREVIEW_ID>` (creator-scoped polling).
+- **Screens:** Admin `/orders/packages/import` (`apps/admin/src/orders/pages/package-import-page.tsx`, nav item `import-packages` under `sell-package`, `appMapEntry: false`).
+- **API** (`apps/api/src/modules/orders/http/package-import-preview.controller.ts` and
+  `package-import-commit.controller.ts`, `import:packages:business` + the `orders` feature):
+  `GET /v1/businesses/<BUSINESS_ID>/packages/import/template` · `POST …/packages/import/previews` (accepts an owned,
+  ready workbook; 202) · `GET …/previews/<PREVIEW_ID>` (creator-scoped polling: pending, ready, commit_requested,
+  committed, failed) · `POST …/packages/import/commits` (202, `Idempotency-Key`, body `{ preview_id }`).
 - **Worker:** `apps/worker/src/modules/orders/use-cases/execute-package-preview`; the commit use case
-  `commit-package-import` exists but nothing requests it yet.
+  `commit-package-import` runs after `PackageImportCommitRequested` (47-2c transport, 10-minute stale window).
 - **Limits:** 500 rows, 68 columns, 2 MiB, 4 sheets (spec 058 row 47-1b).
 - **Row codes** (`apps/worker/src/modules/orders/domain/package-import-row.ts`, `package-import-validation.ts`):
   `IMPORT_CUSTOMER_NOT_FOUND` · `IMPORT_SERVICE_NOT_FOUND` · `IMPORT_SERVICE_AMBIGUOUS` · `IMPORT_PHONE_INVALID` ·

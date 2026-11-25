@@ -20,12 +20,16 @@ export * from './discount-approval.js';
 export * from './discount-approval-events.js';
 
 export {
+  PACKAGE_IMPORT_HEADERS,
   packageImportPreviewJob,
   requestPackageImportPreviewInput,
   packageImportPreviewAccepted,
   packageImportPreviewRequested,
   packageImportPreviewRowError,
   packageImportPreviewStatus,
+  packageImportPreviewFailureCode,
+  packageImportTemplate,
+  type PackageImportTemplate,
   type RequestPackageImportPreviewInput,
   type PackageImportPreviewRequested,
   type PackageImportPreviewStatus,
@@ -34,7 +38,12 @@ export {
 export {
   packageImportCommitRequested,
   packageImportCommitJob,
+  commitPackageImportInput,
+  packageImportCommitAccepted,
+  packageImportCommitSchemas,
   type PackageImportCommitRequested,
+  type CommitPackageImportInput,
+  type PackageImportCommitAccepted,
 } from './package-import-commit.js';
 
 export {

@@ -1,3 +1,4 @@
+import { packageImportCommitSchemas } from './package-import-commit.js';
 import { packageImportPreviewSchemas } from './package-import-preview.js';
 import { discountApprovalEventSchemas } from './discount-approval-events.js';
 import { discountApprovalSchemas } from './discount-approval.js';
@@ -17,6 +18,7 @@ import { sessionTipsSchemas } from './session-tips.js';
 /** مخططات orders بالترتيب الذي يسجّله openapi.ts، حتى يبقى الملف تحت حد الأسطر. */
 export const orderSchemas = [
   ...packageImportPreviewSchemas,
+  ...packageImportCommitSchemas,
   ...serviceSessionSchemas,
   ...sessionTipsSchemas,
   ...packageSaleSchemas,

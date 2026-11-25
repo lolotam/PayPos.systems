@@ -140,6 +140,40 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/businesses/{businessId}/packages/import/template": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description Downloads one XLSX import template for the business: the packages sheet with the 66 authoritative headers and Arabic cell notes, and a services sheet listing every open service of the business with its English and Arabic names (closed services are excluded, so they cannot be imported). A business whose complete services sheet exceeds the guarded reader limits is refused with IMPORT_TEMPLATE_EXCEEDS_LIMITS (422) instead of a truncated or unimportable template. Requires import:packages:business and orders. Never writes. */
+        get: operations["getPackageImportTemplate"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/businesses/{businessId}/packages/import/commits": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @description Requests a worker commit for a creator-owned, error-free, unexpired READY preview of the business. The preview is locked FOR UPDATE, moves to commit_requested with one injected instant and the accepting membership, and the id-only PackageImportCommitRequested event is appended in the same tenant transaction. Repeats on a commit_requested or committed preview return the same preview id and add no event. Requires Idempotency-Key, import:packages:business and orders; poll the preview status for the atomic result. */
+        post: operations["commitPackageImport"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/businesses/{businessId}/packages/import/previews": {
         parameters: {
             query?: never;
@@ -6871,9 +6905,39 @@ export interface components {
             /** Format: uuid */
             preview_id: string;
             /** @enum {string} */
+            status: "commit_requested";
+        } | {
+            /** Format: uuid */
+            preview_id: string;
+            /** @enum {string} */
+            status: "committed";
+            created_count: number;
+            skipped_count: number;
+        } | {
+            /** Format: uuid */
+            preview_id: string;
+            /** @enum {string} */
             status: "failed";
             /** @enum {string} */
-            error_code: "IMPORT_FILE_NOT_FOUND" | "IMPORT_FILE_NOT_READY" | "IMPORT_FILE_TYPE_INVALID" | "IMPORT_FILE_SIZE_INVALID" | "IMPORT_FILE_CONTENT_INVALID" | "IMPORT_HEADER_INVALID" | "IMPORT_ROW_LIMIT_EXCEEDED" | "STORAGE_UNAVAILABLE";
+            error_code: "IMPORT_FILE_NOT_FOUND" | "IMPORT_FILE_NOT_READY" | "IMPORT_FILE_TYPE_INVALID" | "IMPORT_FILE_SIZE_INVALID" | "IMPORT_FILE_CONTENT_INVALID" | "IMPORT_HEADER_INVALID" | "IMPORT_ROW_LIMIT_EXCEEDED" | "STORAGE_UNAVAILABLE" | "IMPORT_PREVIEW_EXPIRED" | "IMPORT_PREVIEW_HAS_ERRORS" | "IMPORT_COMMIT_FAILED" | "IMPORT_SERVICE_NOT_FOUND";
+        };
+        PackageImportTemplate: {
+            file_name: string;
+            /** @enum {string} */
+            content_type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
+            content_base64: string;
+        };
+        PackageImportCommitRequested: {
+            /** Format: uuid */
+            preview_id: string;
+        };
+        CommitPackageImportInput: {
+            /** Format: uuid */
+            preview_id: string;
+        };
+        PackageImportCommitAccepted: {
+            /** Format: uuid */
+            preview_id: string;
         };
         SessionMoney: string;
         SessionPerformerInput: {
@@ -11069,6 +11133,149 @@ export interface operations {
             };
         };
     };
+    getPackageImportTemplate: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-company-id": string;
+            };
+            path: {
+                businessId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Import template workbook */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PackageImportTemplate"];
+                };
+            };
+            /** @description Bilingual refusal */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Bilingual refusal */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Bilingual refusal */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Bilingual refusal */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    commitPackageImport: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-company-id": string;
+                "Idempotency-Key": string;
+            };
+            path: {
+                businessId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CommitPackageImportInput"];
+            };
+        };
+        responses: {
+            /** @description Commit accepted */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PackageImportCommitAccepted"];
+                };
+            };
+            /** @description Bilingual refusal */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Bilingual refusal */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Bilingual refusal */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Bilingual refusal */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Bilingual refusal */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Bilingual refusal */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
     requestPackageImportPreview: {
         parameters: {
             query?: never;
@@ -11129,7 +11336,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Pending, ready or failed preview */
+            /** @description Pending, ready, commit_requested, committed or failed preview */
             200: {
                 headers: {
                     [name: string]: unknown;

@@ -161,7 +161,7 @@ answer.
 | 87 | [Use a package session in a visit, and give it back](87-redeem-package-session.md) — استخدام جلسة من الباقة في زيارة وإرجاعها | #818, #820, #838, #839, #841, #846, #931, #956 | yes, on `/orders/service-sessions/new` («من الباقة») |
 | 88 | [Extend a package's expiry](88-extend-package.md) — تمديد صلاحية الباقة | #975, #985, #1045 | yes, in the package detail under «من الباقة» |
 | 89 | [Refund unused package sessions](89-refund-package-sessions.md) — استرداد جلسات الباقة اللي ما اتستخدمتش | #819, #999 | API on staging; no dialog or bell yet; imported packages cannot be refunded yet |
-| 90 | [Import open packages from Excel (preview only)](90-import-packages.md) — استيراد الباقات المفتوحة من Excel (المعاينة بس) | #851, #871, #877, #889 | preview API only; nothing can be committed yet; needs object storage |
+| 90 | [Import open packages from Excel](90-import-packages.md) — استيراد الباقات المفتوحة من Excel | #851, #871, #877, #889 | Admin screen `/orders/packages/import` + template, preview and commit request API (47-2d + 47-3); needs object storage |
 | 91 | [Stop and resume selling a package type](91-stop-resume-selling-package.md) — إيقاف بيع نوع باقة واستئنافه | #814, #1042, #1055, #1067 | yes (`/catalog/package-types`) |
 | 92 | [The «الإجازات» tab in an employee's file](92-employee-leave-tab.md) — تبويب «الإجازات» في ملف الموظفة | #893, #897, #898, #958 | yes (`/staff/<employee id>/leave`) |
 | 93 | [Leave history report for all employees](93-leave-history-report.md) — تقرير سجل الإجازات لكل الموظفين | #942, #981, #982, #997, #1001 | yes (`/staff/leave-history`); large reports are built by the worker |

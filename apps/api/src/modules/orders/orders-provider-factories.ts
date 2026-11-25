@@ -2,7 +2,6 @@ import type { InjectionToken, Provider } from '@nestjs/common';
 import type { IdGenerator, TenantWrappers } from '@pospay/db';
 import { editorLabel } from '@pospay/i18n';
 import type { Clock } from './ports/service-session-transactions.port.ts';
-import { RequestPackageImportPreviewUseCase } from './use-cases/request-package-import-preview/request-package-import-preview.usecase.ts';
 import { ExtendPackageUseCase } from './use-cases/extend-package/extend-package.usecase.ts';
 import { RefundPackageUseCase } from './use-cases/refund-package/refund-package.usecase.ts';
 import { EditServiceLinePriceUseCase } from './use-cases/edit-service-line-price/edit-service-line-price.usecase.ts';
@@ -16,7 +15,6 @@ import { DecideDiscountProposalsUseCase } from './use-cases/decide-discount-prop
 import { DecideDiscountByPinUseCase } from './use-cases/decide-discount-by-pin/decide-discount-by-pin.usecase.ts';
 import { AcceptPackageSaleUseCase } from './use-cases/accept-package-sale/accept-package-sale.usecase.ts';
 import { PackageSaleStatusQuery } from './queries/package-sale-status.query.ts';
-import type { createPackageImportRequestTransactions } from './persistence/package-import-request.transactions.ts';
 import type { createPackageExtensionTransactions } from './persistence/package-extension.transactions.ts';
 import type { createPackageRefundTransactions } from './persistence/package-refund.transactions.ts';
 import type { createPackageSaleRequestTransactions } from './persistence/package-sale-request.transactions.ts';
@@ -90,14 +88,6 @@ export type OrdersWrites = {
   recovery: ReturnType<typeof createSessionRecovery>;
 } | null;
 
-export function requestPackageImportValue(
-  database: TenantWrappers,
-  ids: IdGenerator,
-  clock: Clock,
-  transactions: typeof createPackageImportRequestTransactions,
-) {
-  return new RequestPackageImportPreviewUseCase(transactions(database, ids), ids, clock);
-}
 export function extendPackageValue(
   database: TenantWrappers,
   ids: IdGenerator,

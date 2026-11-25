@@ -1,4 +1,10 @@
-import type { ServiceSessionRecorded as Recorded, ServiceSessionLinesAdded as Added, ServiceLineChanged as Changed, SessionTipsChanged as TipsChanged, PackageSaleChanged as SaleChanged } from '@pospay/contracts';
+import type {
+  ServiceSessionRecorded as Recorded,
+  ServiceSessionLinesAdded as Added,
+  ServiceLineChanged as Changed,
+  SessionTipsChanged as TipsChanged,
+  PackageSaleChanged as SaleChanged,
+} from '@pospay/contracts';
 /** يصدر مرة عند إنشاء زيارة مع بنودها المقبولة بالنسخة الأولى في نفس معاملة المال. */
 export type ServiceSessionRecorded = Recorded;
 /** يصدر مرة لكل إضافة ناجحة ويحمل البنود الجديدة فقط دون إعادة إصدار الزيارة أو بنودها القديمة. */
@@ -15,3 +21,5 @@ export type { DiscountApprovalRequested } from '@pospay/contracts';
 export type { DiscountApprovedByPerformer } from '@pospay/contracts';
 /** يُكتب مع صف pending في معاملة طلب المعاينة نفسها؛ يحمل هوية المعاينة فقط، ولا ينشره API إلى BullMQ مباشرة. */
 export type { PackageImportPreviewRequested } from '@pospay/contracts';
+/** يُكتب في معاملة طلب التثبيت نفسها التي تنقل المعاينة الجاهزة إلى commit_requested، وبعد COMMIT فقط؛ يحمل هوية المعاينة فقط، ويستهلكه عامل orders لا الـ API. */
+export type { PackageImportCommitRequested } from '@pospay/contracts';

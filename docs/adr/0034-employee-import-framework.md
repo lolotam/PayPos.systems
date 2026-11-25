@@ -632,3 +632,37 @@ The failure write has its own 5 s timeout.
 tenants, so a healthy request queued behind a long commit for more than ten minutes is failed
 before it starts. It is fail-closed, with no partial money effect; 47-2d weighs it before the
 producer opens. Plan and debate record: `docs/specs/058-packages-sell-redeem/47-2c-plan.md`.
+
+## Addendum 2026-11-25 — package import commit request route (058 / 47-2d)
+
+**What.** The orders API now produces the event the 47-2c transport consumes. `POST
+/v1/businesses/{businessId}/packages/import/commits` (202, `Idempotency-Key`, `import:packages:business`, feature
+`orders`) runs one tenant transaction: the live access check with company and caller-membership locks (the same
+locks as the preview request) that also picks the **frozen accepting membership** — an active membership covering the
+business, preferring one that grants the permission, then the lowest id; the preview row `FOR UPDATE` with the
+creator/business ownership check; then `runIdempotent` around the decision. A `ready`, unexpired, error-free preview
+with a stored source-row partition moves to `commit_requested` with the injected instant and `commit_membership_id`,
+and `PackageImportCommitRequested { preview_id }` is appended in the same transaction. The 0215 guard allows exactly
+this transition, so a repeat on `commit_requested` or `committed` answers the same 202 **without** an update or a second
+event. `pending` is `IMPORT_FILE_NOT_READY` (409), `failed` or a preview without stored partitions is
+`IMPORT_COMMIT_FAILED` (422), expired is `IMPORT_PREVIEW_EXPIRED` (409), stored errors are `IMPORT_PREVIEW_HAS_ERRORS`
+(409), and any foreign id shares `IMPORT_PREVIEW_NOT_FOUND`. A missing membership refuses with `FORBIDDEN`, because
+the preview's foreign key cannot be null at this transition.
+
+**Template.** `GET …/packages/import/template` returns an XLSX with the 66 reference headers and Arabic cell notes and a
+`services` reference sheet listing every **open** service (`closed_at IS NULL`, owner decision SI-Q28, 2026-11-13). The
+reference sheet is bounded by the guarded reader (`floor(65536 / 68) = 963` rows including the header), so a business
+with more than 962 open services is refused with `IMPORT_TEMPLATE_EXCEEDS_LIMITS` instead of a truncated or
+unimportable file; the generated workbook is re-read with the same bounds before download.
+
+**SI-Q28 in the worker.** `readPackageImportServices` and `readPackageCommitServices` filter `closed_at IS NULL`: a
+closed service is `IMPORT_SERVICE_NOT_FOUND` at preview, never ambiguity against an open service of the same name, and a
+service closed after the preview fails the commit atomically with that code.
+
+**Status contract.** The preview status now has `commit_requested`, `committed` (`created_count`, `skipped_count`) and
+the four commit failure codes. The preview worker keeps its own eight-code failure enum
+(`packageImportPreviewFailureCode`).
+
+**Budget (47-2c-Q1).** Waleed accepted 600,000 ms as the provisional commit budget on 2026-11-25 12:11 Kuwait; it is
+measured and fixed on staging before the screen is opened to users. The single-concurrency queue limit recorded in the
+47-2c plan §8 was weighed and stays a known, fail-closed limit. No migration; the screen is 47-3.
