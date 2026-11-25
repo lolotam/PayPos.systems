@@ -64,9 +64,7 @@ describe('alerts and notifications (was alert-rules-nav-item.spec)', () => {
 
   it('is shown after a successful business read, reading the selected business', async () => {
     carriedApi.GET.mockImplementation((path: string) =>
-      Promise.resolve(
-        path === RATING_PATH ? { data: { requests_enabled: true } } : { data: rules },
-      ),
+      Promise.resolve(path === RATING_PATH ? { data: { requests_enabled: true } } : { data: rules }),
     );
     renderVisible();
     await expectListed(ID);
@@ -78,9 +76,7 @@ describe('alerts and notifications (was alert-rules-nav-item.spec)', () => {
 
   it('is shown when only the rating settings read succeeds', async () => {
     carriedApi.GET.mockImplementation((path: string) =>
-      Promise.resolve(
-        path === RATING_PATH ? { data: { requests_enabled: true } } : refusalAnswer(403),
-      ),
+      Promise.resolve(path === RATING_PATH ? { data: { requests_enabled: true } } : refusalAnswer(403)),
     );
     renderVisible();
     await expectListed(ID);
@@ -92,10 +88,7 @@ describe('business identity (was business-identity-nav-item.spec)', () => {
   const PATH = '/v1/businesses/{businessId}/settings/identity-capability';
 
   it('is hidden when the capability read says the caller cannot manage identity', async () => {
-    carriedApi.GET.mockResolvedValue({
-      data: { can_manage_identity: false },
-      response: { status: 200 },
-    });
+    carriedApi.GET.mockResolvedValue({ data: { can_manage_identity: false }, response: { status: 200 } });
     const { client } = renderVisible();
     await expectHiddenOnceSettled(client, ID);
   });
@@ -113,10 +106,7 @@ describe('business identity (was business-identity-nav-item.spec)', () => {
   });
 
   it('is shown when the capability read allows identity management', async () => {
-    carriedApi.GET.mockResolvedValue({
-      data: { can_manage_identity: true },
-      response: { status: 200 },
-    });
+    carriedApi.GET.mockResolvedValue({ data: { can_manage_identity: true }, response: { status: 200 } });
     renderVisible();
     await expectListed(ID);
     expect(carriedApi.GET).toHaveBeenCalledWith(PATH, readParams());
@@ -241,6 +231,7 @@ describe('imported refunds (was imported-refunds-nav-item.spec)', () => {
     expect(isListed(ID)).toBe(false);
     expect(carriedApi.GET).not.toHaveBeenCalled();
   });
+
 });
 
 describe('imported refunds, after a business switch or a refetch', () => {
@@ -250,15 +241,10 @@ describe('imported refunds, after a business switch or a refetch', () => {
   it('is hidden on switching to a previously cached business until its own read authorizes it', async () => {
     const other = '01920000-0000-7000-8000-0000000000b2';
     const client = newClient();
-    client.setQueryData(['imported-refunds', REF, 'user', other], {
-      imported_refunds_enabled: true,
-    });
+    client.setQueryData(['imported-refunds', REF, 'user', other], { imported_refunds_enabled: true });
     const answerFor = (enabled: boolean) => (path: string) =>
       path === PATH
-        ? Promise.resolve({
-            data: { imported_refunds_enabled: enabled },
-            response: { status: 200 },
-          })
+        ? Promise.resolve({ data: { imported_refunds_enabled: enabled }, response: { status: 200 } })
         : never();
     carriedApi.GET.mockImplementation(answerFor(false));
     const view = renderVisible(client);
@@ -382,3 +368,4 @@ describe('ratings and reviews (was ratings-nav-item.spec, added by #1228)', () =
     await expectHiddenOnceSettled(client, ID);
   });
 });
+

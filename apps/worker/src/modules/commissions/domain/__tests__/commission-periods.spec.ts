@@ -176,6 +176,16 @@ it('walks from a closed affected month to its first open target and then jumps t
   expect(nextCommissionPeriodToLock(['2024-01', '2026-06'], '2026-12', run.locked)).toBeNull();
 });
 
+it('walks from a second closed affected month after an earlier open affected month', () => {
+  const run = lockRun(['2024-01', '2026-06'], '2026-12', {
+    '2024-01': 'DRAFT',
+    '2026-06': 'APPROVED',
+    '2026-07': 'DRAFT',
+  });
+  expect(run.requested).toEqual(['2024-01', '2026-06', '2026-07']);
+  expect(nextCommissionPeriodToLock(['2024-01', '2026-06'], '2026-12', run.locked)).toBeNull();
+});
+
 it('stops at the current month when no open target is left for the closed month', () => {
   const run = lockRun(['2024-01'], '2024-03', {
     '2024-01': 'APPROVED',

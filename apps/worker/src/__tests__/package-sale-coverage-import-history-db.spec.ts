@@ -190,6 +190,9 @@ it('an import-only company returns nothing and reads its own rows through the pr
   const scan = entitlementScan(plan);
   const nodes = planNodes(plan);
   expect(nodes.some((node) => node['Node Type'] === 'Seq Scan')).toBe(false);
+  expect(nodes.some((node) => node['Node Type'] === 'Sort')).toBe(false);
+  expect(scan['Node Type']).toBe('Index Scan');
+  expect(scan['Index Name']).toBe('package_entitlements_pkey');
   expect(
     nodes.some(
       (node) =>
@@ -226,7 +229,13 @@ it('an import-heavy company pages its sales by the keyset and never leaves its o
   const scans = [];
   for (const after of [null, first.nextAfter, second.nextAfter]) {
     const pagePlan = await explainSaleRead(A.company, after, 5);
-    scans.push(entitlementScan(pagePlan));
+    const pageNodes = planNodes(pagePlan);
+    const scan = entitlementScan(pagePlan);
+    expect(pageNodes.some((node) => node['Node Type'] === 'Seq Scan')).toBe(false);
+    expect(pageNodes.some((node) => node['Node Type'] === 'Sort')).toBe(false);
+    expect(scan['Node Type']).toBe('Index Scan');
+    expect(scan['Index Name']).toBe('package_entitlements_pkey');
+    scans.push(scan);
   }
   const actualRows = scans.reduce((sum, scan) => sum + Number(scan['Actual Rows'] ?? 0), 0);
   const filteredRows = scans.reduce(

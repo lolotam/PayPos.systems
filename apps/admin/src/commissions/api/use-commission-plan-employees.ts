@@ -59,8 +59,8 @@ export function useCommissionPlanEmployees(
     retry: false,
     staleTime: probe ? Number.POSITIVE_INFINITY : 0,
     gcTime: 0,
-    refetchOnWindowFocus: false,
-    refetchOnReconnect: false,
+    refetchOnWindowFocus: !probe,
+    refetchOnReconnect: !probe,
     initialPageParam: undefined as string | undefined,
     getNextPageParam: (lastPage) => lastPage.next_cursor ?? undefined,
   });

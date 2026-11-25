@@ -2,7 +2,7 @@ import type { ReactNode } from 'react';
 import { act, renderHook, waitFor } from '@testing-library/react';
 import { focusManager, QueryClientProvider } from '@tanstack/react-query';
 import type { QueryClient } from '@tanstack/react-query';
-import { beforeEach, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { createQueryClient } from '@/shared/api/query-client';
 import { denyPlanAccess, planEmployeesKey, planProbeKey, planScope } from '../plan-access';
 import { useCommissionPlanEmployees } from '../use-commission-plan-employees';
@@ -34,6 +34,10 @@ function mount(client: QueryClient, probe = false) {
 
 beforeEach(() => {
   api.GET.mockReset();
+});
+
+afterEach(() => {
+  focusManager.setFocused(undefined);
 });
 
 it('pages the employee list by the cursor the server hands out', async () => {
@@ -155,4 +159,16 @@ it('the nav probe never asks again after a window focus', async () => {
   await new Promise((resolve) => setTimeout(resolve, 20));
 
   expect(api.GET).toHaveBeenCalledTimes(1);
+});
+
+it('the screen list reloads after a window focus so revoked access is caught', async () => {
+  const client = createQueryClient();
+  routeGet(api.GET, async () => ok(employeePage([employeeItem(EMP_A, 7, null, 'Sara')], null)));
+  const hook = mount(client);
+  await waitFor(() => expect(hook.result.current.isSuccess).toBe(true));
+  expect(api.GET).toHaveBeenCalledTimes(1);
+
+  focusManager.setFocused(false);
+  focusManager.setFocused(true);
+  await waitFor(() => expect(api.GET).toHaveBeenCalledTimes(2));
 });
