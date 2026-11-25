@@ -59,7 +59,8 @@ export class EmployeeCreationError extends Error {
       | 'FEATURE_DISABLED'
       | 'FORBIDDEN'
       | 'EMPLOYEE_NUMBER_TAKEN'
-      | 'TRANSACTION_RETRY_REQUIRED',
+      | 'TRANSACTION_RETRY_REQUIRED'
+      | 'STAFF_ACCESS_PENDING_BRANCH_CHANGE',
   ) {
     super(code);
     this.name = 'EmployeeCreationError';

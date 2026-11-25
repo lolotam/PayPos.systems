@@ -151,6 +151,13 @@ export function createEmployeeUpdateTransactions(
                   WHERE company_id=${companyId} AND employee_id=${employeeId} LIMIT 1 FOR UPDATE`);
                 return rows.length !== 0;
               },
+              // القفل على السجل هنا بيحافظ على ترتيب الأقفال: شركة ← عضويات ← موظفة ← سجل دخول.
+              hasPendingAccessRecord: async (employeeId) => {
+                const rows = await tx.execute(sql`SELECT 1 FROM employee_staff_access
+                  WHERE company_id=${companyId} AND employee_id=${employeeId}
+                    AND state IN ('PENDING', 'CANCELLING') LIMIT 1 FOR UPDATE`);
+                return rows.length !== 0;
+              },
               save: (before, plan, date, attachments) =>
                 saveEmployee(tx, companyId, ids, before, plan, date, attachments),
             }),
