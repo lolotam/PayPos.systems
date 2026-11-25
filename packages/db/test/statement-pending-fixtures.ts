@@ -71,3 +71,17 @@ export function pendingCountHarness(getOwner: () => postgres.Sql, getApp: () => 
 
   return { asApp, pending, seedEvent, markEvent, clean };
 }
+
+/** يغلق اتصالي الاختبار إن أُنشئا ثم يسقط القاعدة المستنسخة في finally حتى لو فشل الإعداد قبل إنشاء الاتصالين. */
+export async function closePendingCountTest(
+  test: { drop(): Promise<void> } | undefined,
+  owner: postgres.Sql | undefined,
+  app: postgres.Sql | undefined,
+): Promise<void> {
+  try {
+    await app?.end();
+    await owner?.end();
+  } finally {
+    await test?.drop();
+  }
+}

@@ -21,7 +21,7 @@ export interface CommissionStatementPaidCashSelection {
 /**
  * بيختار أرقام الكاش المدفوع اللي تظهر في ملف تصدير كشف مدفوع بطريقة CASH.
  * الموظفة الجزئية (شهرها فيه صفوف برّه فروع الطلب) بيتحجب رقمها بالكامل، لأن المبلغ المدفوع
- * ليه شهرها كله ومفيش صيغة معتمدة لتجزئته (CS-Q23)، فنخفيه بدل ما نكشف رقم الشهر الكامل لقارئ فرع.
+ * ليه شهرها كله وتبقى خانتها فاضية في تصدير الفرع (CS-Q23، PP-271)، فنخفيه بدل ما نكشف رقم الشهر الكامل لقارئ فرع.
  *
  * @param rows الصفوف المرئية للطلب بعد فلتر النطاق، وفيها علامة الجزئي لكل موظفة
  * @param payments صفوف الصرف المخزّنة للكشف كله
@@ -37,7 +37,7 @@ export function selectCommissionStatementPaidCash(
     if (row.partial) partial.add(row.employeeId);
     else fullMonth.add(row.employeeId);
   }
-  // TODO(spec): CS-Q23 وplan-56-1b.md ما بيحددوش صيغة كاش مدفوع للموظفة الجزئية، فرقم شهرها الكامل بيتحجب بدل ما يتكشف لقارئ الفرع.
+  // PP-271 (CS-Q23): في تصدير الفرع تبقى خانة الكاش المدفوع فاضية للموظفة المتشافة جزئيًا، لأن إجمالي الكاش المدفوع عن الشهر كله يظهر في تصدير الشركة للمالك فقط.
   for (const employeeId of partial) fullMonth.delete(employeeId);
   const stored = new Map(payments.map((payment) => [payment.employeeId, payment]));
   const paidCash: CommissionStatementStoredPayment[] = [];

@@ -2,7 +2,12 @@ import postgres from 'postgres';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 import { withClusterRoleLock } from '../../test/role-lock.ts';
-import { eventId, pendingCountHarness, type Tx } from '../../test/statement-pending-fixtures.ts';
+import {
+  closePendingCountTest,
+  eventId,
+  pendingCountHarness,
+  type Tx,
+} from '../../test/statement-pending-fixtures.ts';
 import { createTestDatabase, type TestDatabase } from '../../test/test-database.ts';
 import { seedTwoTenants, TENANT } from '../../test/tenancy-fixtures.ts';
 
@@ -37,11 +42,7 @@ beforeAll(async () => {
   app = postgres(test.appUrl, { max: 1, onnotice: () => undefined });
 });
 
-afterAll(async () => {
-  await app.end();
-  await owner.end();
-  await test.drop();
-});
+afterAll(async () => closePendingCountTest(test, owner, app));
 
 /** يقرأ الجداول كما يراها الدور نفسه: نفس صلاحيات الأعمدة وسياسات RLS، بسياق شركة أو بلا سياق. */
 async function asReader<T>(company: string | null, run: (tx: Tx) => Promise<T>): Promise<T> {
@@ -77,7 +78,7 @@ describe('group 1: the role (effective privileges)', () => {
 });
 
 describe('group 1: what the role owns', () => {
-  it('owns exactly this function and nothing else, with USAGE but no CREATE on the schema', async () => {
+  it('owns exactly this function and nothing else, with USAGE, no CREATE on schema or database, and PUBLIC-default TEMP', async () => {
     const [owned] = await withClusterRoleLock(
       'shared',
       () => owner`SELECT
@@ -86,6 +87,8 @@ describe('group 1: what the role owns', () => {
       (SELECT count(*) FROM pg_namespace WHERE nspowner = r.oid)::int AS schemas,
       has_schema_privilege(r.oid, 'public', 'USAGE') AS usage,
       has_schema_privilege(r.oid, 'public', 'CREATE') AS create_privilege,
+      has_database_privilege(r.oid, current_database(), 'CREATE') AS db_create,
+      has_database_privilege(r.oid, current_database(), 'TEMP') AS db_temp,
       has_function_privilege(r.oid, 'public.app_company_id()', 'EXECUTE') AS helper
       FROM pg_roles r WHERE r.rolname = ${ROLE}`,
     );
@@ -96,6 +99,8 @@ describe('group 1: what the role owns', () => {
       schemas: 0,
       usage: true,
       create_privilege: false,
+      db_create: false,
+      db_temp: true,
       helper: true,
     });
   });

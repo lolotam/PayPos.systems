@@ -2,7 +2,10 @@ import { COMMISSION_INPUT_EVENT_TYPES, COMMISSION_INPUTS_CONSUMER_ID } from '@po
 import postgres from 'postgres';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
-import { pendingCountHarness } from '../../test/statement-pending-fixtures.ts';
+import {
+  closePendingCountTest,
+  pendingCountHarness,
+} from '../../test/statement-pending-fixtures.ts';
 import {
   examined,
   planAsReader,
@@ -33,12 +36,14 @@ beforeAll(async () => {
   owner = postgres(test.ownerUrl, { max: 1, onnotice: () => undefined });
   app = postgres(test.appUrl, { max: 1, onnotice: () => undefined });
   const types = COMMISSION_INPUT_EVENT_TYPES;
+  // نفس تاريخ الأنواع الستة لكلا الشركتين: وجود تاريخ B يثبت أن خطة القراءة من outbox تبقى محدودة بتاريخ A وحده (examined <= HISTORY).
   await owner`INSERT INTO outbox (company_id, id, aggregate_type, aggregate_id, event_type, payload, created_at)
-    SELECT ${A.company}, gen_random_uuid(), 'service_session', gen_random_uuid(),
+    SELECT c, gen_random_uuid(), 'service_session', gen_random_uuid(),
       (${[...types]}::text[])[1 + (g % ${types.length}::int)], '{}'::jsonb, '2026-01-01'
-    FROM generate_series(1, ${HISTORY}::int) AS g`;
+    FROM unnest(ARRAY[${A.company}, ${B.company}]::uuid[]) AS c, generate_series(1, ${HISTORY}::int) AS g`;
   await owner`INSERT INTO consumed_events (company_id, consumer_id, event_id)
-    SELECT company_id, ${COMMISSION_INPUTS_CONSUMER_ID}, id FROM outbox WHERE company_id = ${A.company}`;
+    SELECT company_id, ${COMMISSION_INPUTS_CONSUMER_ID}, id FROM outbox
+    WHERE company_id IN (${A.company}, ${B.company})`;
   await owner`INSERT INTO outbox (company_id, id, aggregate_type, aggregate_id, event_type, payload, created_at)
     SELECT c, gen_random_uuid(), 'order', gen_random_uuid(), 'OrderCompleted', '{}'::jsonb, '2026-01-01'
     FROM unnest(ARRAY[${A.company}, ${B.company}]::uuid[]) AS c, generate_series(1, ${NOISE}::int)`;
@@ -46,11 +51,7 @@ beforeAll(async () => {
   await owner`ANALYZE consumed_events`;
 }, 180_000);
 
-afterAll(async () => {
-  await app.end();
-  await owner.end();
-  await test.drop();
-});
+afterAll(async () => closePendingCountTest(test, owner, app));
 
 const report = (label: string, plan: MeasuredPlan): void => {
   console.info('statement-pending-count.measured', {
@@ -87,6 +88,10 @@ describe('group 7: a large, fully processed history before the cutoff', () => {
     async ({ label, generic }) => {
       const plan = await planAsReader(owner, { tenant: A.company, generic });
       report(label, plan);
+      // القياس العام يحضّر عبارة باسم pending_q؛ لازم ما تفضلش معلّقة في جلسة الـ owner بعد ما القياس يخلص (#1240).
+      const prepared =
+        await owner`SELECT count(*)::int AS n FROM pg_prepared_statements WHERE name = 'pending_q'`;
+      expect(prepared).toEqual([{ n: 0 }]);
 
       expect(seqScansOutbox(plan.nodes)).toBe(false);
       expect(examined(plan.nodes)).toBeLessThanOrEqual(HISTORY);

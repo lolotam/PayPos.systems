@@ -106,7 +106,7 @@ Run against real PostgreSQL as the restricted roles (ADR-0006), with two synthet
 1. Catalogue/effective-privilege assertions: exact function signature, owner, SECURITY DEFINER/STABLE, pinned path,
    row_security, column ACLs and role attributes; PUBLIC/auth/dispatcher/notifications cannot execute it;
    app/other runtime roles cannot SET ROLE to the reader. Reader cannot read payloads, mutate either table,
-   access tenant business tables or create objects. App still cannot SELECT outbox metadata or payloads directly.
+   access tenant business tables or create objects in public (database-level TEMPORARY remains on PostgreSQL's PUBLIC default; the role is NOLOGIN and used only as the function owner). App still cannot SELECT outbox metadata or payloads directly.
 2. Context isolation: no context and malformed context error; A's function call never counts B, including identical
    event ids in different tenants. Pooled A → B → no-context calls, rollback, exceptions and concurrent tenant
    transactions preserve transaction-local context. NULL/old/future supplied cutoffs fail.
