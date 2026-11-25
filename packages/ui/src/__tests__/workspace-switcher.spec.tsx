@@ -1,4 +1,5 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { useState } from 'react';
 import { afterEach, expect, it, vi } from 'vitest';
 import { DirectionProvider } from '../direction-provider.js';
 import { WorkspaceSwitcher } from '../workspace-switcher.js';
@@ -110,14 +111,30 @@ it('keeps Business and Branch disabled while the caller reports no selection yet
   ).toBeNull();
 });
 
-it('reports the branch choice to the caller', async () => {
+// المبدّل محكوم من المستدعي: الاختيار يوصل له، وهو يغيّر الفرع فيظهر اسمه على الزر
+function SwitcherWithCallerState({ onBranchChange }: { onBranchChange: (value: string) => void }) {
+  const [branchValue, setBranchValue] = useState('br1');
+  return switcher({
+    branchValue,
+    branchName: branchOptions.find((option) => option.value === branchValue)?.label ?? '',
+    onBranchChange: (value) => {
+      onBranchChange(value);
+      setBranchValue(value);
+    },
+  });
+}
+
+it('reports the branch choice to the caller, whose new branch shows on the trigger', async () => {
   const onBranchChange = vi.fn();
-  render(switcher({ onBranchChange }));
-  fireEvent.click(screen.getByRole('button', { name: /One business/ }));
+  render(<SwitcherWithCallerState onBranchChange={onBranchChange} />);
+  const trigger = screen.getByRole('button', { name: /One business/ });
+  expect(trigger.textContent).toContain('Salmiya');
+  fireEvent.click(trigger);
   const branchTrigger = await screen.findByRole('combobox', { name: 'Branch' });
   fireEvent.keyDown(branchTrigger, { key: 'ArrowDown' });
   const option = await screen.findByRole('option', { name: 'Hawally' });
   fireEvent.click(option);
+  await waitFor(() => expect(trigger.textContent).toContain('Hawally'));
   expect(onBranchChange).toHaveBeenCalledWith('br2');
 });
 

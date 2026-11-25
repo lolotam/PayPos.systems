@@ -1,5 +1,6 @@
 import { fireEvent, render, screen } from '@testing-library/react';
-import { expect, it, vi } from 'vitest';
+import { useState } from 'react';
+import { expect, it } from 'vitest';
 import { BottomNav } from '../bottom-nav.js';
 import { DirectionProvider } from '../direction-provider.js';
 import type { ShellNavItem } from '../shell-nav-item.js';
@@ -41,11 +42,22 @@ it('shows a count only on the entry that carries one', () => {
   expect(now.querySelector('[class*="bg-cta"]')).toBeNull();
 });
 
-it('reports the extra entry press to its caller without building any sheet', () => {
-  const onPress = vi.fn();
-  render(bar({ id: 'more', label: 'More', onPress }));
+// المستدعي هو صاحب الورقة: الشريط يبلّغ بالضغطة فقط، والمستخدم يشوف ما يفتحه المستدعي
+function BarWithCallerSheet() {
+  const [sheetOpen, setSheetOpen] = useState(false);
+  return (
+    <>
+      {bar({ id: 'more', label: 'More', onPress: () => setSheetOpen(true) })}
+      {sheetOpen ? <p>All pages</p> : null}
+    </>
+  );
+}
+
+it('reports the extra entry press to its caller, which opens its own sheet', () => {
+  render(<BarWithCallerSheet />);
+  expect(screen.queryByText('All pages')).toBeNull();
   fireEvent.click(screen.getByRole('button', { name: 'More' }));
-  expect(onPress).toHaveBeenCalledTimes(1);
+  expect(screen.getByText('All pages')).toBeTruthy();
 });
 
 it('renders no extra control when the caller supplies none', () => {
