@@ -1,6 +1,7 @@
 // قائمة مستقلة بأسماء سكيما الباقات، عشان كل موديل يبقى له ملف أسماء قابل للمراجعة لوحده.
 export const packageSchemaNames = [
   'AcceptedPackageSale',
+  'CommitPackageImportInput',
   'CreatePackageTypeInput',
   'CustomerPackageComponent',
   'CustomerPackageDetail',
@@ -16,10 +17,13 @@ export const packageSchemaNames = [
   'RefundPackageInput',
   'PackageRefundResponse',
   'PackageExtensionResponse',
+  'PackageImportCommitAccepted',
+  'PackageImportCommitRequested',
   'PackageImportPreviewAccepted',
   'PackageImportPreviewRequested',
   'PackageImportPreviewRowError',
   'PackageImportPreviewStatus',
+  'PackageImportTemplate',
   'PackagePaidMethod',
   'PackageSaleChanged',
   'PackageSaleContext',

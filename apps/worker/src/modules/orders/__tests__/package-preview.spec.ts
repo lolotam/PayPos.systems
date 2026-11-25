@@ -297,3 +297,36 @@ it('holds the source file against concurrent purge until the ready result commit
     ],
   ).not.toBeNull();
 });
+
+it('rejects a closed service and resolves the open one when a closed service shares its name (SI-Q28)', async () => {
+  const closedOnly = f.ids.newId();
+  const twin = f.ids.newId();
+  await f.owner`INSERT INTO services(company_id,id,business_id,name_en,price,commission_rule_kind,closed_at)
+    VALUES(${f.company},${closedOnly},${f.business},'Closed only service','1.000','FOLLOW_PLAN',now()),
+      (${f.company},${twin},${f.business},'Service 0','1.000','FOLLOW_PLAN',now())`;
+  try {
+    const missing = await editPackageWorkbook(
+      await packageWorkbook(1, 1, 'closed-missing'),
+      (sheet) => {
+        sheet.getCell('G2').value = 'Closed only service';
+      },
+    );
+    const first = await f.requested(missing);
+    await f.worker.execute(f.company, first.id);
+    expect(
+      (await f.owner`SELECT status,errors FROM import_previews WHERE id=${first.id}`)[0],
+    ).toMatchObject({
+      status: 'ready',
+      errors: expect.arrayContaining([
+        expect.objectContaining({ code: 'IMPORT_SERVICE_NOT_FOUND' }),
+      ]),
+    });
+    const same = await f.requested(await packageWorkbook(1, 1, 'closed-twin'));
+    await f.worker.execute(f.company, same.id);
+    const [result] =
+      await f.owner`SELECT status,error_count,errors FROM import_previews WHERE id=${same.id}`;
+    expect(result).toMatchObject({ status: 'ready', error_count: 0, errors: [] });
+  } finally {
+    await f.owner`DELETE FROM services WHERE id IN (${closedOnly},${twin})`;
+  }
+});

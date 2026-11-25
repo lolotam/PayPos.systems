@@ -1895,6 +1895,202 @@
         }
       }
     },
+    "/v1/businesses/{businessId}/packages/import/template": {
+      "get": {
+        "operationId": "getPackageImportTemplate",
+        "description": "Downloads one XLSX import template for the business: the packages sheet with the 66 authoritative headers and Arabic cell notes, and a services sheet listing every open service of the business with its English and Arabic names (closed services are excluded, so they cannot be imported). A business whose complete services sheet exceeds the guarded reader limits is refused with IMPORT_TEMPLATE_EXCEEDS_LIMITS (422) instead of a truncated or unimportable template. Requires import:packages:business and orders. Never writes.",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "x-company-id",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "in": "path",
+            "name": "businessId",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Import template workbook",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PackageImportTemplate"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Bilingual refusal",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Bilingual refusal",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Bilingual refusal",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Bilingual refusal",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/businesses/{businessId}/packages/import/commits": {
+      "post": {
+        "operationId": "commitPackageImport",
+        "description": "Requests a worker commit for a creator-owned, error-free, unexpired READY preview of the business. The preview is locked FOR UPDATE, moves to commit_requested with one injected instant and the accepting membership, and the id-only PackageImportCommitRequested event is appended in the same tenant transaction. Repeats on a commit_requested or committed preview return the same preview id and add no event. Requires Idempotency-Key, import:packages:business and orders; poll the preview status for the atomic result.",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "x-company-id",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "in": "path",
+            "name": "businessId",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 255
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CommitPackageImportInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "Commit accepted",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PackageImportCommitAccepted"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bilingual refusal",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Bilingual refusal",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Bilingual refusal",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Bilingual refusal",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Bilingual refusal",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Bilingual refusal",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/v1/businesses/{businessId}/packages/import/previews": {
       "post": {
         "operationId": "requestPackageImportPreview",
@@ -1998,7 +2194,7 @@
         ],
         "responses": {
           "200": {
-            "description": "Pending, ready or failed preview",
+            "description": "Pending, ready, commit_requested, committed or failed preview",
             "content": {
               "application/json": {
                 "schema": {
@@ -38067,6 +38263,58 @@
               "status": {
                 "type": "string",
                 "enum": [
+                  "commit_requested"
+                ]
+              }
+            },
+            "required": [
+              "preview_id",
+              "status"
+            ]
+          },
+          {
+            "type": "object",
+            "properties": {
+              "preview_id": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+              },
+              "status": {
+                "type": "string",
+                "enum": [
+                  "committed"
+                ]
+              },
+              "created_count": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 500
+              },
+              "skipped_count": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 500
+              }
+            },
+            "required": [
+              "preview_id",
+              "status",
+              "created_count",
+              "skipped_count"
+            ]
+          },
+          {
+            "type": "object",
+            "properties": {
+              "preview_id": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+              },
+              "status": {
+                "type": "string",
+                "enum": [
                   "failed"
                 ]
               },
@@ -38080,7 +38328,11 @@
                   "IMPORT_FILE_CONTENT_INVALID",
                   "IMPORT_HEADER_INVALID",
                   "IMPORT_ROW_LIMIT_EXCEEDED",
-                  "STORAGE_UNAVAILABLE"
+                  "STORAGE_UNAVAILABLE",
+                  "IMPORT_PREVIEW_EXPIRED",
+                  "IMPORT_PREVIEW_HAS_ERRORS",
+                  "IMPORT_COMMIT_FAILED",
+                  "IMPORT_SERVICE_NOT_FOUND"
                 ]
               }
             },
@@ -38090,6 +38342,72 @@
               "error_code"
             ]
           }
+        ]
+      },
+      "PackageImportTemplate": {
+        "type": "object",
+        "properties": {
+          "file_name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 255
+          },
+          "content_type": {
+            "type": "string",
+            "enum": [
+              "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+            ]
+          },
+          "content_base64": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": [
+          "file_name",
+          "content_type",
+          "content_base64"
+        ]
+      },
+      "PackageImportCommitRequested": {
+        "type": "object",
+        "properties": {
+          "preview_id": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          }
+        },
+        "required": [
+          "preview_id"
+        ],
+        "additionalProperties": false
+      },
+      "CommitPackageImportInput": {
+        "type": "object",
+        "properties": {
+          "preview_id": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          }
+        },
+        "required": [
+          "preview_id"
+        ],
+        "additionalProperties": false
+      },
+      "PackageImportCommitAccepted": {
+        "type": "object",
+        "properties": {
+          "preview_id": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          }
+        },
+        "required": [
+          "preview_id"
         ]
       },
       "SessionMoney": {

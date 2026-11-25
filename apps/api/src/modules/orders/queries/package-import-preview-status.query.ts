@@ -17,11 +17,12 @@ export function packagePreviewStatusStatement(actor: PackagePreviewLookup) {
     ELSE jsonb_build_object('preview_id',id,'status',status) ||
     CASE status WHEN 'ready' THEN jsonb_build_object('row_count',row_count,'error_count',error_count,
       'skipped_count',skipped_count,'errors',errors)
+    WHEN 'committed' THEN jsonb_build_object('created_count',created_count,'skipped_count',row_count - created_count)
     WHEN 'failed' THEN jsonb_build_object('error_code',error_code)
     ELSE '{}'::jsonb END END AS body
     FROM import_previews WHERE company_id=${actor.companyId} AND business_id=${actor.businessId}
       AND created_by=${actor.userId} AND id=${actor.previewId} AND entity='packages'
-      AND status IN ('pending','ready','failed')`;
+      AND status IN ('pending','ready','commit_requested','committed','failed')`;
 }
 
 export function packageImportPreviewStatusQuery(

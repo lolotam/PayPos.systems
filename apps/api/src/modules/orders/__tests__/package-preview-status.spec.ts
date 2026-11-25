@@ -289,6 +289,66 @@ it.each(['failed', 'committed'] as const)(
   },
 );
 
+it('reports commit_requested and committed counts without rows, phones or membership ids', async () => {
+  const id = await acceptedFinancialPreview();
+  expect(await packageImportPreviewStatusQuery(f.database, actor(id))).toEqual({
+    preview_id: id,
+    status: 'commit_requested',
+  });
+  await f.database.withTenant(f.companyId, (tx) =>
+    tx.execute(
+      sql`UPDATE import_previews SET status='committed',committed_at=now(),created_count=0 WHERE id=${id}`,
+    ),
+  );
+  const committed = await packageImportPreviewStatusQuery(f.database, actor(id));
+  expect(committed).toEqual({
+    preview_id: id,
+    status: 'committed',
+    created_count: 0,
+    skipped_count: 1,
+  });
+  expect(JSON.stringify(committed)).not.toMatch(/membership|phone|rows/);
+});
+
+it('includes commit-time skipped rows in committed skipped_count', async () => {
+  const { preview_id: id } = await f.useCase.execute(f.command(await f.upload()));
+  await f.database.withTenant(f.companyId, async (tx) => {
+    await tx.execute(sql`UPDATE import_previews
+      SET status='ready',row_count=3,skipped_count=1,source_rows='[2,3,4]'::jsonb,skipped_rows='[2]'::jsonb,
+        rows='[{"row":3},{"row":4}]'::jsonb
+      WHERE id=${id}`);
+    await tx.execute(sql`UPDATE import_previews
+      SET status='commit_requested',requested_at=now(),commit_membership_id=${f.membershipId}
+      WHERE id=${id}`);
+    await tx.execute(sql`UPDATE import_previews
+      SET status='committed',committed_at=now(),created_count=1
+      WHERE id=${id}`);
+  });
+  expect(await packageImportPreviewStatusQuery(f.database, actor(id))).toEqual({
+    preview_id: id,
+    status: 'committed',
+    created_count: 1,
+    skipped_count: 2,
+  });
+});
+
+it.each([
+  'IMPORT_PREVIEW_EXPIRED',
+  'IMPORT_PREVIEW_HAS_ERRORS',
+  'IMPORT_COMMIT_FAILED',
+  'IMPORT_SERVICE_NOT_FOUND',
+] as const)('reports the commit failure code %s of an accepted request', async (code) => {
+  const id = await acceptedFinancialPreview();
+  await f.database.withTenant(f.companyId, (tx) =>
+    tx.execute(sql`UPDATE import_previews SET status='failed',error_code=${code} WHERE id=${id}`),
+  );
+  expect(await packageImportPreviewStatusQuery(f.database, actor(id))).toEqual({
+    preview_id: id,
+    status: 'failed',
+    error_code: code,
+  });
+});
+
 async function acceptedFinancialPreview() {
   const { preview_id: id } = await f.useCase.execute(f.command(await f.upload()));
   await f.database.withTenant(f.companyId, async (tx) => {
