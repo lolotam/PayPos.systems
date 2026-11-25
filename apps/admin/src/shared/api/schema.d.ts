@@ -3828,7 +3828,8 @@ export interface paths {
         put?: never;
         /** @description Requires manage:staff-access:branch on the employee primary branch, read inside the write transaction. The role and scope come from the server, never from the body. */
         post: operations["grantEmployeeStaffAccess"];
-        delete?: never;
+        /** @description Stops the staff access of an ACTIVE staff-access employee on her primary branch: ends her staff membership at once, clears her PIN and deletes her staff sessions, while keeping employees.user_id so a later grant reuses the same user. Requires manage:staff-access:branch on that branch, read inside the write transaction. The employee never stops her own access. */
+        delete: operations["stopEmployeeStaffAccess"];
         options?: never;
         head?: never;
         patch?: never;
@@ -3845,6 +3846,23 @@ export interface paths {
         put?: never;
         /** @description Resets the temporary PIN of an ACTIVE staff-access employee on her primary branch. Requires manage:staff-access:branch on that branch, read inside the write transaction. The employee never resets her own PIN. */
         post: operations["resetEmployeeStaffPin"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/businesses/{businessId}/employees/{employeeId}/staff-access/phone": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** @description Changes the phone of an ACTIVE (or interrupted PHONE_CHANGING) staff-access employee on her primary branch, clears her PIN, ends her staff sessions and saves a new temporary PIN. Requires manage:staff-access:branch on that branch, read inside the write transaction. A phone owned by any other user is refused. */
+        put: operations["changeEmployeeStaffPhone"];
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -24074,7 +24092,7 @@ export interface operations {
                 content: {
                     "application/json": {
                         /** @enum {string} */
-                        state: "NONE" | "PENDING" | "ACTIVE" | "STOPPED";
+                        state: "NONE" | "PENDING" | "ACTIVE" | "PHONE_CHANGING" | "STOPPED";
                         /** @enum {string|null} */
                         role: "staff" | "reception" | null;
                         /** Format: uuid */
@@ -24156,7 +24174,7 @@ export interface operations {
                 content: {
                     "application/json": {
                         /** @enum {string} */
-                        state: "NONE" | "PENDING" | "ACTIVE" | "STOPPED";
+                        state: "NONE" | "PENDING" | "ACTIVE" | "PHONE_CHANGING" | "STOPPED";
                         /** @enum {string|null} */
                         role: "staff" | "reception" | null;
                         /** Format: uuid */
@@ -24223,7 +24241,7 @@ export interface operations {
             };
         };
     };
-    resetEmployeeStaffPin: {
+    stopEmployeeStaffAccess: {
         parameters: {
             query?: never;
             header: {
@@ -24235,15 +24253,9 @@ export interface operations {
             };
             cookie?: never;
         };
-        requestBody: {
-            content: {
-                "application/json": {
-                    pin: string;
-                };
-            };
-        };
+        requestBody?: never;
         responses: {
-            /** @description The access state after the PIN reset */
+            /** @description The access state after stopping access */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -24251,7 +24263,7 @@ export interface operations {
                 content: {
                     "application/json": {
                         /** @enum {string} */
-                        state: "NONE" | "PENDING" | "ACTIVE" | "STOPPED";
+                        state: "NONE" | "PENDING" | "ACTIVE" | "PHONE_CHANGING" | "STOPPED";
                         /** @enum {string|null} */
                         role: "staff" | "reception" | null;
                         /** Format: uuid */
@@ -24318,6 +24330,199 @@ export interface operations {
             };
         };
     };
+    resetEmployeeStaffPin: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-company-id": string;
+            };
+            path: {
+                businessId: string;
+                employeeId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    pin: string;
+                };
+            };
+        };
+        responses: {
+            /** @description The access state after the PIN reset */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @enum {string} */
+                        state: "NONE" | "PENDING" | "ACTIVE" | "PHONE_CHANGING" | "STOPPED";
+                        /** @enum {string|null} */
+                        role: "staff" | "reception" | null;
+                        /** Format: uuid */
+                        branch_id: string | null;
+                        phone_last3: string | null;
+                        can_manage: boolean;
+                        can_cancel: boolean;
+                    };
+                };
+            };
+            /** @description Bilingual refusal */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Bilingual refusal */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Bilingual refusal */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Bilingual refusal */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Bilingual refusal */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Bilingual refusal */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    changeEmployeeStaffPhone: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-company-id": string;
+            };
+            path: {
+                businessId: string;
+                employeeId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    phone: string;
+                    /** @enum {boolean} */
+                    phone_confirmed: true;
+                    pin: string;
+                };
+            };
+        };
+        responses: {
+            /** @description The access state after the phone change */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @enum {string} */
+                        state: "NONE" | "PENDING" | "ACTIVE" | "PHONE_CHANGING" | "STOPPED";
+                        /** @enum {string|null} */
+                        role: "staff" | "reception" | null;
+                        /** Format: uuid */
+                        branch_id: string | null;
+                        phone_last3: string | null;
+                        can_manage: boolean;
+                        can_cancel: boolean;
+                    };
+                };
+            };
+            /** @description Bilingual refusal */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Bilingual refusal */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Bilingual refusal */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Bilingual refusal */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Bilingual conflict refusal (STAFF_ACCESS_PHONE_TAKEN or TRANSACTION_RETRY_REQUIRED) */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Bilingual refusal */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
     cancelPendingEmployeeStaffAccess: {
         parameters: {
             query?: never;
@@ -24340,7 +24545,7 @@ export interface operations {
                 content: {
                     "application/json": {
                         /** @enum {string} */
-                        state: "NONE" | "PENDING" | "ACTIVE" | "STOPPED";
+                        state: "NONE" | "PENDING" | "ACTIVE" | "PHONE_CHANGING" | "STOPPED";
                         /** @enum {string|null} */
                         role: "staff" | "reception" | null;
                         /** Format: uuid */

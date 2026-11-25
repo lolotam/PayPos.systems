@@ -1,8 +1,22 @@
-import { Body, Controller, Delete, Get, HttpCode, Inject, Param, Post, Req, UseGuards } from '@nestjs/common';
 import {
+  Body,
+  Controller,
+  Delete,
+  Get,
+  HttpCode,
+  Inject,
+  Param,
+  Post,
+  Put,
+  Req,
+  UseGuards,
+} from '@nestjs/common';
+import {
+  changeEmployeeStaffPhoneInput,
   grantStaffAccessInput,
   resetEmployeeStaffPinInput,
   staffAccessState,
+  type ChangeEmployeeStaffPhoneInput,
   type GrantStaffAccessInput,
   type ResetEmployeeStaffPinInput,
   id,
@@ -28,6 +42,8 @@ import {
   type CancelPendingStaffAccessOutcome,
 } from '../use-cases/cancel-pending-staff-access/cancel-pending-staff-access.ts';
 import { ResetEmployeeStaffPinUseCase } from '../use-cases/reset-employee-staff-pin/reset-employee-staff-pin.ts';
+import { ChangeEmployeeStaffPhoneUseCase } from '../use-cases/change-employee-staff-phone/change-employee-staff-phone.ts';
+import { StopEmployeeStaffAccessUseCase } from '../use-cases/stop-employee-staff-access/stop-employee-staff-access.ts';
 
 /** بوابة التفعيل (FR-F1-9): تُقرأ مرة واحدة عند التشغيل من STAFF_ACCESS_ROUTES، وكل المسارات ترد 503 بدونها. */
 export const STAFF_ACCESS_ROUTES_ENABLED = Symbol('STAFF_ACCESS_ROUTES_ENABLED');
@@ -50,6 +66,10 @@ export class EmployeeAccessController {
     private readonly cancelUseCase: CancelPendingStaffAccessUseCase | null,
     @Inject(ResetEmployeeStaffPinUseCase)
     private readonly resetUseCase: ResetEmployeeStaffPinUseCase | null,
+    @Inject(ChangeEmployeeStaffPhoneUseCase)
+    private readonly phoneUseCase: ChangeEmployeeStaffPhoneUseCase | null,
+    @Inject(StopEmployeeStaffAccessUseCase)
+    private readonly stopUseCase: StopEmployeeStaffAccessUseCase | null,
     @Inject(EMPLOYEE_ACCESS_STATE_READS)
     private readonly reads: EmployeeAccessStateReads | null,
   ) {}
@@ -120,6 +140,77 @@ export class EmployeeAccessController {
         state: 'ACTIVE',
         role: reset.role,
         branch_id: reset.branchId,
+        phone_last3: null,
+        can_manage: true,
+        can_cancel: false,
+      });
+    } catch (error) {
+      throw staffAccessApiError(error);
+    }
+  }
+
+  /**
+   * تغيير هاتف موظفة لها دخول فعّال: الرقم السري مؤقت وجديد، والجلسات القديمة والرقم القديم لا يعملان
+   * من أول خطوة. الاستئناف بعد الانقطاع بنفس الطلب. الرد هو الحالة من نتيجة المعاملة الملتزمة.
+   */
+  @Put('staff-access/phone')
+  @Authenticated()
+  @UseGuards(SelectedCompanyGuard)
+  @HttpCode(200)
+  async changePhone(
+    @Param('businessId', new ZodValidationPipe(id)) businessId: string,
+    @Param('employeeId', new ZodValidationPipe(id)) employeeId: string,
+    @Body(new ZodValidationPipe(changeEmployeeStaffPhoneInput)) input: ChangeEmployeeStaffPhoneInput,
+    @Req() request: FastifyRequest,
+  ): Promise<unknown> {
+    const actor = actorOf(request);
+    this.ready();
+    try {
+      const changed = await (this.phoneUseCase as ChangeEmployeeStaffPhoneUseCase).execute({
+        ...actor,
+        businessId,
+        employeeId,
+        phone: input.phone,
+        pin: input.pin,
+      });
+      return staffAccessState.parse({
+        state: 'ACTIVE',
+        role: changed.role,
+        branch_id: changed.branchId,
+        phone_last3: changed.phoneLast3,
+        can_manage: true,
+        can_cancel: false,
+      });
+    } catch (error) {
+      throw staffAccessApiError(error);
+    }
+  }
+
+  /**
+   * إيقاف الدخول: العضوية تنتهي فوراً والرقم السري يُمسح والجلسات تُنهى، و`employees.user_id` يبقى لإعادة
+   * الإعطاء لاحقاً. الرد من نتيجة المعاملة الملتزمة (STOPPED) بلا قراءة تالية.
+   */
+  @Delete('staff-access')
+  @Authenticated()
+  @UseGuards(SelectedCompanyGuard)
+  @HttpCode(200)
+  async stop(
+    @Param('businessId', new ZodValidationPipe(id)) businessId: string,
+    @Param('employeeId', new ZodValidationPipe(id)) employeeId: string,
+    @Req() request: FastifyRequest,
+  ): Promise<unknown> {
+    const actor = actorOf(request);
+    this.ready();
+    try {
+      const stopped = await (this.stopUseCase as StopEmployeeStaffAccessUseCase).execute({
+        ...actor,
+        businessId,
+        employeeId,
+      });
+      return staffAccessState.parse({
+        state: 'STOPPED',
+        role: stopped.role,
+        branch_id: stopped.branchId,
         phone_last3: null,
         can_manage: true,
         can_cancel: false,
@@ -201,6 +292,8 @@ export class EmployeeAccessController {
       this.grantUseCase === null ||
       this.cancelUseCase === null ||
       this.resetUseCase === null ||
+      this.phoneUseCase === null ||
+      this.stopUseCase === null ||
       this.reads === null ||
       this.database === null
     )

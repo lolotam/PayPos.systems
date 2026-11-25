@@ -41,6 +41,8 @@ const fakeAuth: AuthService = {
   privateView: {} as AuthService['privateView'],
   staffUsers: {
     provision: async () => ({ userId: '' }),
+    changePhone: async () => undefined,
+    deleteSessions: async () => undefined,
     cancel: async () => undefined,
     read: async () => null,
     isStaffUser: async () => false,

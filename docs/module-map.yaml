@@ -44,6 +44,12 @@ sync_writes:
   - { from: staff, to: identity, symbol: saveTemporaryStaffPin, file: apps/api/src/modules/staff/persistence/staff-access-auth.adapter.ts }
   - { from: staff, to: identity, symbol: provisionStaffUser, file: apps/api/src/modules/staff/persistence/staff-access-auth.adapter.ts }
   - { from: staff, to: identity, symbol: cancelStaffUser, file: apps/api/src/modules/staff/persistence/staff-access-auth.adapter.ts }
+  - { from: staff, to: identity, symbol: changeStaffUserPhone, file: apps/api/src/modules/staff/persistence/staff-access-phone.adapter.ts }
+  - { from: staff, to: identity, symbol: clearStaffPin, file: apps/api/src/modules/staff/persistence/staff-access-phone.adapter.ts }
+  - { from: staff, to: identity, symbol: saveTemporaryStaffPin, file: apps/api/src/modules/staff/persistence/staff-access-phone.adapter.ts }
+  - { from: staff, to: identity, symbol: endStaffMembership, file: apps/api/src/modules/staff/persistence/staff-access-stop.adapter.ts }
+  - { from: staff, to: identity, symbol: deleteStaffUserSessions, file: apps/api/src/modules/staff/persistence/staff-access-stop.adapter.ts }
+  - { from: staff, to: identity, symbol: moveStaffMembershipToBranch, file: apps/api/src/modules/staff/persistence/employee-access-branch-follow.ts }
 reads:
   - { from: orders, to: staff, symbol: readOwnEmployee, file: apps/api/src/modules/orders/persistence/own-work-context.adapter.ts }
   - { from: orders, to: identity, symbol: readOwnServiceSessionsAccess, file: apps/api/src/modules/orders/persistence/own-work-context.adapter.ts }
@@ -235,6 +241,7 @@ reads:
   - { from: catalog, to: tenancy, symbol: packageSalePlace, file: apps/api/src/modules/catalog/persistence/package-sale-place.adapter.ts }
   - { from: staff, to: identity, symbol: staffAccessGrantedEvent, file: apps/api/src/modules/staff/persistence/staff-access.adapter.ts }
   - { from: staff, to: identity, symbol: staffPinSetByOtherEvent, file: apps/api/src/modules/staff/persistence/staff-access-auth.adapter.ts }
+  - { from: staff, to: identity, symbol: staffPinSetByOtherEvent, file: apps/api/src/modules/staff/persistence/staff-access-phone.adapter.ts }
   - { from: staff, to: identity, symbol: readStaffAccessAuthority, file: apps/api/src/modules/staff/persistence/staff-access.adapter.ts }
   - { from: staff, to: identity, symbol: createGrantInvalidator, file: apps/api/src/modules/staff/persistence/staff-access.adapter.ts }
   - { from: staff, to: identity, symbol: readStaffAccessAuthority, file: apps/api/src/modules/staff/persistence/staff-access-auth.adapter.ts }

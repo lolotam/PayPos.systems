@@ -24217,6 +24217,7 @@
                         "NONE",
                         "PENDING",
                         "ACTIVE",
+                        "PHONE_CHANGING",
                         "STOPPED"
                       ]
                     },
@@ -24366,6 +24367,7 @@
                         "NONE",
                         "PENDING",
                         "ACTIVE",
+                        "PHONE_CHANGING",
                         "STOPPED"
                       ]
                     },
@@ -24448,12 +24450,10 @@
             }
           }
         }
-      }
-    },
-    "/v1/businesses/{businessId}/employees/{employeeId}/staff-access/pin": {
-      "post": {
-        "operationId": "resetEmployeeStaffPin",
-        "description": "Resets the temporary PIN of an ACTIVE staff-access employee on her primary branch. Requires manage:staff-access:branch on that branch, read inside the write transaction. The employee never resets her own PIN.",
+      },
+      "delete": {
+        "operationId": "stopEmployeeStaffAccess",
+        "description": "Stops the staff access of an ACTIVE staff-access employee on her primary branch: ends her staff membership at once, clears her PIN and deletes her staff sessions, while keeping employees.user_id so a later grant reuses the same user. Requires manage:staff-access:branch on that branch, read inside the write transaction. The employee never stops her own access.",
         "parameters": [
           {
             "in": "header",
@@ -24483,29 +24483,9 @@
             }
           }
         ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "properties": {
-                  "pin": {
-                    "type": "string",
-                    "pattern": "^\\d{4}$"
-                  }
-                },
-                "required": [
-                  "pin"
-                ],
-                "additionalProperties": false
-              }
-            }
-          }
-        },
         "responses": {
           "200": {
-            "description": "The access state after the PIN reset",
+            "description": "The access state after stopping access",
             "content": {
               "application/json": {
                 "schema": {
@@ -24517,6 +24497,7 @@
                         "NONE",
                         "PENDING",
                         "ACTIVE",
+                        "PHONE_CHANGING",
                         "STOPPED"
                       ]
                     },
@@ -24621,6 +24602,362 @@
         }
       }
     },
+    "/v1/businesses/{businessId}/employees/{employeeId}/staff-access/pin": {
+      "post": {
+        "operationId": "resetEmployeeStaffPin",
+        "description": "Resets the temporary PIN of an ACTIVE staff-access employee on her primary branch. Requires manage:staff-access:branch on that branch, read inside the write transaction. The employee never resets her own PIN.",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "x-company-id",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "in": "path",
+            "name": "businessId",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "in": "path",
+            "name": "employeeId",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "pin": {
+                    "type": "string",
+                    "pattern": "^\\d{4}$"
+                  }
+                },
+                "required": [
+                  "pin"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The access state after the PIN reset",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "state": {
+                      "type": "string",
+                      "enum": [
+                        "NONE",
+                        "PENDING",
+                        "ACTIVE",
+                        "PHONE_CHANGING",
+                        "STOPPED"
+                      ]
+                    },
+                    "role": {
+                      "nullable": true,
+                      "type": "string",
+                      "enum": [
+                        "staff",
+                        "reception"
+                      ]
+                    },
+                    "branch_id": {
+                      "nullable": true,
+                      "type": "string",
+                      "format": "uuid",
+                      "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                    },
+                    "phone_last3": {
+                      "nullable": true,
+                      "type": "string",
+                      "pattern": "^\\d{3}$"
+                    },
+                    "can_manage": {
+                      "type": "boolean"
+                    },
+                    "can_cancel": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "state",
+                    "role",
+                    "branch_id",
+                    "phone_last3",
+                    "can_manage",
+                    "can_cancel"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bilingual refusal",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Bilingual refusal",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Bilingual refusal",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Bilingual refusal",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Bilingual refusal",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Bilingual refusal",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/businesses/{businessId}/employees/{employeeId}/staff-access/phone": {
+      "put": {
+        "operationId": "changeEmployeeStaffPhone",
+        "description": "Changes the phone of an ACTIVE (or interrupted PHONE_CHANGING) staff-access employee on her primary branch, clears her PIN, ends her staff sessions and saves a new temporary PIN. Requires manage:staff-access:branch on that branch, read inside the write transaction. A phone owned by any other user is refused.",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "x-company-id",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "in": "path",
+            "name": "businessId",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "in": "path",
+            "name": "employeeId",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "phone": {
+                    "type": "string",
+                    "pattern": "^\\+[1-9]\\d{7,14}$"
+                  },
+                  "phone_confirmed": {
+                    "type": "boolean",
+                    "enum": [
+                      true
+                    ]
+                  },
+                  "pin": {
+                    "type": "string",
+                    "pattern": "^\\d{4}$"
+                  }
+                },
+                "required": [
+                  "phone",
+                  "phone_confirmed",
+                  "pin"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The access state after the phone change",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "state": {
+                      "type": "string",
+                      "enum": [
+                        "NONE",
+                        "PENDING",
+                        "ACTIVE",
+                        "PHONE_CHANGING",
+                        "STOPPED"
+                      ]
+                    },
+                    "role": {
+                      "nullable": true,
+                      "type": "string",
+                      "enum": [
+                        "staff",
+                        "reception"
+                      ]
+                    },
+                    "branch_id": {
+                      "nullable": true,
+                      "type": "string",
+                      "format": "uuid",
+                      "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                    },
+                    "phone_last3": {
+                      "nullable": true,
+                      "type": "string",
+                      "pattern": "^\\d{3}$"
+                    },
+                    "can_manage": {
+                      "type": "boolean"
+                    },
+                    "can_cancel": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "state",
+                    "role",
+                    "branch_id",
+                    "phone_last3",
+                    "can_manage",
+                    "can_cancel"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bilingual refusal",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Bilingual refusal",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Bilingual refusal",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Bilingual refusal",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Bilingual conflict refusal (STAFF_ACCESS_PHONE_TAKEN or TRANSACTION_RETRY_REQUIRED)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Bilingual refusal",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/v1/businesses/{businessId}/employees/{employeeId}/staff-access/pending": {
       "delete": {
         "operationId": "cancelPendingEmployeeStaffAccess",
@@ -24668,6 +25005,7 @@
                         "NONE",
                         "PENDING",
                         "ACTIVE",
+                        "PHONE_CHANGING",
                         "STOPPED"
                       ]
                     },

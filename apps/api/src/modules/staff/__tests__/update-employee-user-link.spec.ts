@@ -1,4 +1,5 @@
 import { afterAll, beforeAll, expect, it } from 'vitest';
+import { SYSTEM_ROLES } from '@pospay/db';
 import { employeeUserMembership } from './employees.fixture.ts';
 import {
   createForUpdate,
@@ -8,6 +9,7 @@ import {
   ids,
   type UpdateFixture,
 } from './update-employee.fixture.ts';
+const staffRoleId = (SYSTEM_ROLES.find((role) => role.code === 'staff') as { id: string }).id;
 let f: UpdateFixture;
 beforeAll(async () => {
   f = await updateEmployeeFixture();
@@ -22,20 +24,33 @@ async function user() {
     .owner`INSERT INTO "user"(id,name,email) VALUES (${userId},'Synthetic employee user',${`${userId}@example.test`})`;
   return userId;
 }
-/** سجل «إعطاء دخول» اصطناعي بحالة محددة؛ PENDING وCANCELLING يمنعان نقل الموظفة لفرع تاني. */
+/**
+ * سجل «إعطاء دخول» اصطناعي بحالة محددة؛ PENDING وCANCELLING وPHONE_CHANGING يمنعان نقل الموظفة لفرع
+ * تاني. الحالات المستقرة وتغيير الهاتف تأخذ مستخدم موظفة وعضوية فرع خاصين بها لا عضوية المالك:
+ * نقل الفرع بينهي العضوية، وإنهاء عضوية المالك الوحيدة بيكسر قاعدة «آخر مالك».
+ */
 async function staffAccessRow(
   fixture: UpdateFixture,
   employeeId: string,
-  state: 'PENDING' | 'CANCELLING' | 'ACTIVE' | 'STOPPED',
+  state: 'PENDING' | 'CANCELLING' | 'PHONE_CHANGING' | 'ACTIVE' | 'STOPPED',
 ) {
   const id = ids.newId();
-  const settled = state === 'ACTIVE' || state === 'STOPPED';
+  const hasUser = state === 'ACTIVE' || state === 'STOPPED' || state === 'PHONE_CHANGING';
+  const hasMembership = state === 'ACTIVE' || state === 'PHONE_CHANGING';
+  const staffUser = hasUser ? await user() : null;
+  const membershipId = ids.newId();
+  if (staffUser !== null)
+    await fixture.h.owner`INSERT INTO memberships
+      (company_id,id,user_id,role_id,role_owner_key,scope_type,scope_id,starts_at,ends_at)
+      VALUES (${fixture.company},${membershipId},${staffUser},${staffRoleId},'global','BRANCH',
+        ${fixture.branch},now() - interval '1 hour',
+        ${state === 'STOPPED' ? new Date(Date.now() - 60_000).toISOString() : null})`;
   await fixture.h.owner`INSERT INTO employee_staff_access
     (company_id,id,business_id,employee_id,operation_id,role_code,branch_id,state,granted_by,phone_hash,attempt_id,
       user_id,membership_id)
     VALUES (${fixture.company},${id},${fixture.business},${employeeId},${ids.newId()},'staff',${fixture.branch},${state},
-      ${fixture.userId},${'a'.repeat(64)},${ids.newId()},${settled ? fixture.userId : null},
-      ${settled ? fixture.memberId : null})`;
+      ${fixture.userId},${'a'.repeat(64)},${ids.newId()},${staffUser},
+      ${hasMembership ? membershipId : null})`;
   return id;
 }
 it('UE-02 links an active company member at another business, unlinks, and never edits access', async () => {
@@ -75,8 +90,8 @@ it('unknown, foreign and inactive user links share exactly the same 400 with no 
     await f.h.owner`SELECT id FROM audit_log WHERE entity_id=${record.id} AND action='updated'`,
   ).toHaveLength(0);
 });
-it('AC-ACT-12 refuses a primary-branch change while a grant or a cancel is pending', async () => {
-  for (const state of ['PENDING', 'CANCELLING'] as const) {
+it('AC-ACT-12 refuses a primary-branch change while a grant, cancel or phone change is pending', async () => {
+  for (const state of ['PENDING', 'CANCELLING', 'PHONE_CHANGING'] as const) {
     const record = await createForUpdate(f);
     const accessId = await staffAccessRow(f, record.id, state);
     const response = await patchEmployee(f, record, {

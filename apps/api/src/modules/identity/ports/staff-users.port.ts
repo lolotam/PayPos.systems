@@ -36,6 +36,24 @@ export interface StaffUserProvisioned {
   readonly userId: string;
 }
 
+/** مدخل تغيير هاتف حساب موظفة لها دخول فعّال (F3-1): الشركة ومعرّف العملية يثبتان ملكية الحساب. */
+export interface StaffUserPhoneChangeInput {
+  /** معرّف العملية من سجل الدخول — يطابق الماركر المكتوب على الحساب. */
+  readonly operationId: string;
+  /** شركة السجل؛ حساب شركة أخرى لا يُلمس. */
+  readonly companyId: string;
+  /** حساب الموظفة المطلوب تغيير هاتفه. */
+  readonly userId: string;
+  /** الهاتف الكانوني الجديد؛ رقم مملوك لأي مستخدم آخر يُرفض. */
+  readonly phone: string;
+  /** المانح المُؤكِّد للهاتف — بيتسجل في تدقيق المنصة. */
+  readonly actorUserId: string;
+  /** معرّف محاولة التغيير الحالية — تكرار المحاولة نفسها لا يكتب أثراً ثانياً. */
+  readonly attemptId: string;
+  /** مولّد UUID v7 لصفوف المنصة. */
+  readonly ids: IdGenerator;
+}
+
 /** مدخل إلغاء سجل انتظار: حذف مستخدم الموظفة بمعرّف العملية المرتبط بنفس الشركة. */
 export interface StaffUserCancelInput {
   readonly operationId: string;
@@ -44,6 +62,16 @@ export interface StaffUserCancelInput {
   readonly actorUserId: string;
   /** مولّد UUID v7 لصف التدقيق. */
   readonly ids: IdGenerator;
+}
+
+/** مدخل إنهاء جلسات حساب موظفة بعد «إيقاف الدخول» (F3-2): الشركة ومعرّف العملية يثبتان ملكية الحساب. */
+export interface StaffUserSessionsEndInput {
+  /** معرّف العملية من سجل الدخول — يطابق الماركر المكتوب على الحساب. */
+  readonly operationId: string;
+  /** شركة السجل؛ حساب شركة أخرى لا يُلمس. */
+  readonly companyId: string;
+  /** حساب الموظفة المطلوب إنهاء جلساته. */
+  readonly userId: string;
 }
 
 /** حالة مستخدم الموظفة للقراءة: المعرف وآخر ثلاثة أرقام من الهاتف فقط — لا هاتف كامل ولا بريد. */
@@ -64,6 +92,18 @@ export interface StaffUserFacade {
    * @returns معرف المستخدم بعد الإنشاء أو الإيجاد، ورفض الهاتف المملوك غيره
    */
   provision(input: StaffUserProvisionInput): Promise<StaffUserProvisioned>;
+  /**
+   * يغيّر هاتف حساب موظفة لهذه الشركة وينهي كل جلساتها في معاملة auth واحدة (F3-1 الخطوة 2).
+   *
+   * @param input الحساب والعملية والشركة والهاتف الجديد ومعرّف المحاولة
+   */
+  changePhone(input: StaffUserPhoneChangeInput): Promise<void>;
+  /**
+   * ينهي جلسات STAFF_POS وSTAFF_PERSONAL لحساب موظفة لهذه الشركة بعد التزام «إيقاف الدخول» (F3-2).
+   *
+   * @param input الحساب والشركة ومعرّف العملية
+   */
+  deleteSessions(input: StaffUserSessionsEndInput): Promise<void>;
   /**
    * يحذف مستخدم الموظفة بمعرّف العملية (إلغاء سجل انتظار متجاوز للمدة).
    *

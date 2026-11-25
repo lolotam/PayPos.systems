@@ -53,11 +53,12 @@ export interface EmployeeUpdateScope {
    */
   hasAccessRecord(employeeId: string): Promise<boolean>;
   /**
-   * هل فيه سجل «إعطاء دخول» في حالة انتظار أو إلغاء؟ هذي الحالات بتقفل نقل الموظفة لفرع تاني
-   * (AC-ACT-12): السجل المعلّق يبقى مربوط بالفرع القديم فيستحيل إكماله ولا إلغاؤه نظيفاً.
+   * هل فيه سجل «إعطاء دخول» في حالة انتظار أو إلغاء أو تغيير هاتف؟ هذي الحالات بتقفل نقل
+   * الموظفة لفرع تاني (AC-ACT-12): السجل المعلّق يبقى مربوط بالفرع القديم فيستحيل إكماله ولا
+   * إلغاؤه ولا استئناف تغيير هاتفه نظيفاً.
    *
    * @param employeeId الموظفة
-   * @returns true لو فيه سجل PENDING أو CANCELLING
+   * @returns true لو فيه سجل PENDING أو CANCELLING أو PHONE_CHANGING
    */
   hasPendingAccessRecord(employeeId: string): Promise<boolean>;
   /**

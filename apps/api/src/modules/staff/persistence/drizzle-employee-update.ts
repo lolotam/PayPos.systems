@@ -2,13 +2,18 @@ import { appendAuditLog, type IdGenerator, type TenantWrappers, type Tx } from '
 import { sql } from 'drizzle-orm';
 import { EmployeeCreationError } from '../domain/create-employee.ts';
 import type { EditableEmployee, EmployeeUpdatePlan } from '../domain/update-employee.ts';
-import type { EmployeeUpdateTransactions } from '../ports/employee-update-transactions.port.ts';
+import type {
+  EmployeeUpdateScope,
+  EmployeeUpdateTransactions,
+} from '../ports/employee-update-transactions.port.ts';
+import type { StaffAccessGrantCache } from '../ports/staff-access-user-steps.port.ts';
 import {
   authorizeEmployeeCreation,
   canLinkEmployeeUser,
   employeeBranchAccess,
   employeeContext,
 } from './employee-context.adapter.ts';
+import { followPrimaryBranch } from './employee-access-branch-follow.ts';
 import { lockedEmployee } from './employee-update-record.ts';
 
 async function loadEmployee(
@@ -23,6 +28,7 @@ async function loadEmployee(
   );
   if (
     scope === undefined ||
+    // يأخذ قفل الشركة FOR NO KEY UPDATE ثم العضويات FOR UPDATE قبل قفل الموظفة وسجل الدخول.
     !(await authorizeEmployeeCreation(tx, companyId, userId, businessId, scope.primary_branch_id))
   )
     return null;
@@ -49,7 +55,7 @@ async function saveEmployee(
   plan: EmployeeUpdatePlan,
   date: string,
   attachments: readonly { id: string; branchId: string }[],
-) {
+): Promise<Move | null> {
   const r = plan.after;
   const changed =
     await tx.execute(sql`UPDATE employees SET primary_branch_id=${r.primary_branch_id},name_en=${r.name_en},name_ar=${r.name_ar},name_en_key=${plan.name_en_key},name_ar_key=${plan.name_ar_key},role_code=${r.role_code},hire_date=${r.hire_date},contract_end=${r.contract_end},user_id=${r.user_id},revision=${r.revision}
@@ -79,6 +85,13 @@ async function saveEmployee(
             },
           }
         : r,
+  });
+  if (r.primary_branch_id === before.primary_branch_id) return null;
+  return followPrimaryBranch(tx, {
+    companyId,
+    employeeId: r.id,
+    branchId: r.primary_branch_id,
+    ids,
   });
 }
 
@@ -111,58 +124,73 @@ function updateError(error: unknown): never {
   throw new Error('EMPLOYEE_PERSISTENCE_FAILED');
 }
 
+/** إبطال كاش المنح بعد الالتزام: الافتراضي لا يفعل شيئاً فلا تتغير اختبارات تبني المنفذ بدون Redis. */
+const NO_INVALIDATION: StaffAccessGrantCache = { invalidate: async () => undefined };
+
+type Move = { oldMembershipId: string; newMembershipId: string };
+
+function updateScope(
+  tx: Tx,
+  actor: { companyId: string; userId: string },
+  ids: IdGenerator,
+  moved: Move[],
+): EmployeeUpdateScope {
+  const { companyId, userId } = actor;
+  return {
+    load: (businessId, employeeId) => loadEmployee(tx, companyId, userId, businessId, employeeId),
+    authorize: async (businessId, branchIds) => {
+      const decision = await employeeBranchAccess(tx, companyId, userId, businessId, branchIds);
+      if (decision.allowedBranchIds.length === new Set(branchIds).size && !decision.featureEnabled)
+        throw new EmployeeCreationError('FEATURE_DISABLED');
+      return branchIds.every((id) => decision.allowedBranchIds.includes(id));
+    },
+    contexts: (record, branchIds) =>
+      Promise.all(
+        branchIds.map((branchId) =>
+          employeeContext(tx, companyId, { ...record, primary_branch_id: branchId }),
+        ),
+      ),
+    canLinkUser: (linkedUserId) => canLinkEmployeeUser(tx, companyId, linkedUserId),
+    hasAccessRecord: async (employeeId) => {
+      const rows = await tx.execute(sql`SELECT 1 FROM employee_staff_access
+        WHERE company_id=${companyId} AND employee_id=${employeeId} LIMIT 1 FOR UPDATE`);
+      return rows.length !== 0;
+    },
+    // القفل على السجل هنا بيحافظ على ترتيب الأقفال: شركة ← عضويات ← موظفة ← سجل دخول.
+    hasPendingAccessRecord: async (employeeId) => {
+      const rows = await tx.execute(sql`SELECT 1 FROM employee_staff_access
+        WHERE company_id=${companyId} AND employee_id=${employeeId}
+          AND state IN ('PENDING', 'CANCELLING', 'PHONE_CHANGING') LIMIT 1 FOR UPDATE`);
+      return rows.length !== 0;
+    },
+    save: async (before, plan, date, attachments) => {
+      const move = await saveEmployee(tx, companyId, ids, before, plan, date, attachments);
+      if (move !== null) moved.push(move);
+    },
+  };
+}
+
 export function createEmployeeUpdateTransactions(
   database: TenantWrappers,
   ids: IdGenerator,
+  grantCache: StaffAccessGrantCache = NO_INVALIDATION,
 ): EmployeeUpdateTransactions {
   return {
-    run: async ({ companyId, userId }, work) => {
+    run: async (actor, work) => {
+      const moved: Move[] = [];
       try {
-        return await database.withTenant(
-          companyId,
-          (tx) =>
-            work({
-              load: (businessId, employeeId) =>
-                loadEmployee(tx, companyId, userId, businessId, employeeId),
-              authorize: async (businessId, branchIds) => {
-                const decision = await employeeBranchAccess(
-                  tx,
-                  companyId,
-                  userId,
-                  businessId,
-                  branchIds,
-                );
-                if (
-                  decision.allowedBranchIds.length === new Set(branchIds).size &&
-                  !decision.featureEnabled
-                )
-                  throw new EmployeeCreationError('FEATURE_DISABLED');
-                return branchIds.every((id) => decision.allowedBranchIds.includes(id));
-              },
-              contexts: (record, branchIds) =>
-                Promise.all(
-                  branchIds.map((branchId) =>
-                    employeeContext(tx, companyId, { ...record, primary_branch_id: branchId }),
-                  ),
-                ),
-              canLinkUser: (linkedUserId) => canLinkEmployeeUser(tx, companyId, linkedUserId),
-              hasAccessRecord: async (employeeId) => {
-                const rows = await tx.execute(sql`SELECT 1 FROM employee_staff_access
-                  WHERE company_id=${companyId} AND employee_id=${employeeId} LIMIT 1 FOR UPDATE`);
-                return rows.length !== 0;
-              },
-              // القفل على السجل هنا بيحافظ على ترتيب الأقفال: شركة ← عضويات ← موظفة ← سجل دخول.
-              hasPendingAccessRecord: async (employeeId) => {
-                const rows = await tx.execute(sql`SELECT 1 FROM employee_staff_access
-                  WHERE company_id=${companyId} AND employee_id=${employeeId}
-                    AND state IN ('PENDING', 'CANCELLING') LIMIT 1 FOR UPDATE`);
-                return rows.length !== 0;
-              },
-              save: (before, plan, date, attachments) =>
-                saveEmployee(tx, companyId, ids, before, plan, date, attachments),
-            }),
-          { userId },
+        const result = await database.withTenant(
+          actor.companyId,
+          (tx) => work(updateScope(tx, actor, ids, moved)),
+          { userId: actor.userId },
         );
+        // الإبطال بعد الالتزام best-effort: فشل الكاش لا يحوّل تعديلاً التزم إلى خطأ، والمنح تنتهي بمهلتها.
+        for (const move of moved)
+          for (const membershipId of [move.oldMembershipId, move.newMembershipId])
+            await grantCache
+              .invalidate({ companyId: actor.companyId, membershipId })
+              .catch(() => undefined);
+        return result;
       } catch (error) {
         updateError(error);
       }
