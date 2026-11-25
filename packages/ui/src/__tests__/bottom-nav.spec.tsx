@@ -77,9 +77,8 @@ it('carries the supplied Soon mark on its entry', () => {
   expect(screen.getByText('Soon')).toBeTruthy();
 });
 
-it('pins the status mark to the top end corner in place of the count, off the label line', () => {
-  // العلامة خارج تدفق الخانة: لا سطر ثالث يتجاوز 64px والاسم يحتفظ بسطره كاملًا؛
-  // والمدخل تحت التطوير لا يعرض عدّادًا فوق علامته
+it('places the status mark in flow below the truncated label without overlapping icon space', () => {
+  // العلامة في التدفق أسفل الاسم بحجز مساحة محكمة تحافظ على ارتفاع الشريط 64px وقص الاسم الطويل
   render(
     <DirectionProvider dir="rtl">
       <BottomNav
@@ -88,7 +87,42 @@ it('pins the status mark to the top end corner in place of the count, off the la
             id: 'reports',
             label: 'Reports',
             href: '#reports',
+            icon: <span data-testid="nav-icon" aria-hidden="true" />,
             status: 'Soon — under development for now',
+          },
+        ]}
+        labels={{ label: 'Workspace pages' }}
+      />
+    </DirectionProvider>,
+  );
+  const link = screen.getByRole('link', { name: /Reports/ });
+  const label = screen.getByText('Reports');
+  const badge = screen.getByText('Soon — under development for now');
+  const iconSlot = screen.getByTestId('nav-icon').parentElement as HTMLElement;
+
+  expect(link.className).toContain('gap-0.5');
+  expect(link.className).toContain('py-0.5');
+  expect(iconSlot.className).toContain('h-5');
+  expect(iconSlot.compareDocumentPosition(label) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  expect(label.compareDocumentPosition(badge) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  expect(label.className).toContain('truncate');
+  expect(label.className).toContain('max-w-full');
+  expect(badge.className).not.toContain('absolute');
+  expect(badge.className).toContain('truncate');
+  expect(badge.className).toContain('max-w-full');
+});
+
+it('shows both count and status when a caller supplies both', () => {
+  // إذا زوّد المستدعي العدّاد والعلامة معًا يُعرض الاثنان ويُحجز فضاء علوي في غياب الأيقونة
+  render(
+    <DirectionProvider dir="rtl">
+      <BottomNav
+        items={[
+          {
+            id: 'reports',
+            label: 'Reports and analytics',
+            href: '#reports',
+            status: 'Soon',
             count: '3',
           },
         ]}
@@ -96,11 +130,41 @@ it('pins the status mark to the top end corner in place of the count, off the la
       />
     </DirectionProvider>,
   );
-  const badge = screen.getByText('Soon — under development for now');
-  expect(badge.className).toContain('absolute');
-  expect(badge.className).toContain('end-0.5');
-  expect(badge.className).toContain('truncate');
-  expect(badge.className).toContain('max-w-[calc(100%-0.25rem)]');
-  expect(screen.queryByText('3')).toBeNull();
-  expect(screen.getByText('Reports').className).toContain('max-w-full');
+  expect(screen.getByText('Soon')).toBeTruthy();
+  expect(screen.getByText('3')).toBeTruthy();
+  const link = screen.getByRole('link', { name: 'Reports and analytics Soon 3' });
+  expect(link.getAttribute('href')).toBe('#reports');
+  const label = screen.getByText('Reports and analytics');
+  const spacer = link.querySelector('span[aria-hidden="true"]') as HTMLElement;
+  expect(spacer).toBeTruthy();
+  expect(spacer.className).toContain('h-5');
+  expect(spacer.compareDocumentPosition(label) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+});
+
+it('reserves non-overlapping space when an entry carries an icon, status and count', () => {
+  render(
+    <DirectionProvider dir="rtl">
+      <BottomNav
+        items={[
+          {
+            id: 'reports',
+            label: 'Reports',
+            href: '#reports',
+            icon: <span data-testid="nav-icon" aria-hidden="true" />,
+            status: 'Soon',
+            count: '3',
+          },
+        ]}
+        labels={{ label: 'Workspace pages' }}
+      />
+    </DirectionProvider>,
+  );
+  expect(screen.getByText('Soon')).toBeTruthy();
+  expect(screen.getByText('3')).toBeTruthy();
+  const iconSlot = screen.getByTestId('nav-icon').parentElement as HTMLElement;
+  expect(iconSlot.className).toContain('me-5');
+  expect(iconSlot.className).toContain('h-5');
+  expect(iconSlot.className).toContain('w-7');
+  const link = screen.getByRole('link', { name: 'Reports Soon 3' });
+  expect(link.getAttribute('href')).toBe('#reports');
 });

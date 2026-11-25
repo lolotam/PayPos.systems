@@ -27,6 +27,7 @@
     "platform:grant": "pnpm --filter @pospay/db platform:grant",
     "platform:commission-approval": "pnpm --filter @pospay/db platform:commission-approval",
     "platform:commission-coverage": "pnpm --filter @pospay/worker platform:commission-coverage",
+    "platform:commission-reminder-recovery": "pnpm --filter @pospay/worker platform:commission-reminder-recovery",
     "platform:create-user": "pnpm --filter @pospay/auth platform:create-user",
     "push:generate-vapid": "node scripts/push-generate-vapid.mjs",
     "module-map:generate": "node scripts/module-map/cli.mjs generate",

@@ -32,6 +32,7 @@ import { ReopenServiceUseCase } from './use-cases/reopen-service/reopen-service.
 import { UpdateServiceUseCase } from './use-cases/update-service/update-service.usecase.ts';
 import { GetServiceImportTemplateUseCase } from './use-cases/get-service-import-template/get-service-import-template.usecase.ts';
 import { PreviewServiceImportUseCase } from './use-cases/preview-service-import/preview-service-import.usecase.ts';
+import { CommitServiceImportUseCase } from './use-cases/commit-service-import/commit-service-import.usecase.ts';
 import type {
   ServiceImportFilesBinding,
 } from './persistence/service-import-adapters.ts';
@@ -93,6 +94,7 @@ function serviceImportProviders(
     return [
       { provide: GetServiceImportTemplateUseCase, useValue: null },
       { provide: PreviewServiceImportUseCase, useValue: null },
+      { provide: CommitServiceImportUseCase, useValue: null },
     ];
   const transactions = createServiceImportTransactions(database, files?.fileFacts ?? null, ids);
   const bytes = files?.bytes ?? null;
@@ -117,6 +119,11 @@ function serviceImportProviders(
               ids,
               systemClock,
             ),
+    },
+    {
+      // القبول لا يحتاج تخزيناً: الطلب وحدثه يُكتبان في معاملة واحدة مع قفل المعاينة.
+      provide: CommitServiceImportUseCase,
+      useValue: new CommitServiceImportUseCase(transactions, systemClock),
     },
   ];
 }

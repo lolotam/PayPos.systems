@@ -150,6 +150,26 @@ role/ACL/NULL constraint/definer inventory. Intake never accesses tenant data. A
 only the boolean definer on the existing `pospay_app` Tx, with a fresh READ COMMITTED statement after
 acquiring the shared platform-phone advisory lock. Errors fail closed; tenant RLS remains unchanged.
 
+### 2.6 Global operational flags — ADR-0061, spec 059 row 56b-1 (migration 0263)
+
+`operational_recovery_flags` is a global operational table (ADR-0054 §2): an append-only ledger of incident
+flags (`id`, `code`, `raised_at`, `cleared_at`, `cleared_by`) with no `company_id`, no tenant RLS, no tenant data and no
+personal data. It is neither identity (§2.1), reference data (§2.3) nor tenant data (§2.4), it is owned by the migration
+owner, and it never enters the tenant-table inventory. At most one flag per `code` is open (a partial unique index).
+The first code is `COMMISSION_REMINDER_SCHEDULES_LOST`.
+
+Access is exactly the `pospay_dispatcher` row of §3: `SELECT` and a column-level `INSERT (id, code, raised_at)` (it can
+raise a flag but never insert one already cleared), and `EXECUTE` on two `SECURITY DEFINER` functions, each owned by its
+own `NOLOGIN` role that owns that one function and no table. `recovery_company_ids(after_id, page_size)` is owned by
+`pospay_recovery_company_reader`, which holds `SELECT (id)` on `companies` through the role-scoped policy
+`companies_recovery_select … USING (deleted_at IS NULL)`; the function reads only live company ids, one page at a time.
+`clear_reminder_schedules_lost_flag(…)` is owned by `pospay_recovery_flag_clearer`, which holds `SELECT` and
+`UPDATE (cleared_at, cleared_by)` on the flag table and `INSERT` on `platform_audit_log`, so the one named incident
+of the one reminder code is cleared once, together with its audit row, in a single statement. No runtime role gains
+`BYPASSRLS`, no other runtime role touches the table, and the worker's `pospay_dispatcher` holds no grant on
+`consumed_events`. See [ADR-0061](0061-commission-reminder-schedule-recovery.md) §1 for the full grant table and
+[ADR-0054](0054-commissions-engine-package-recovery-flags-and-read-path.md) §2 for the table.
+
 ## 3. Database roles and the restricted wrappers
 
 | Role                                          | Attributes                                                                          | May touch                                                                                                                                                                                                   | Used by                                                                 |
@@ -157,9 +177,11 @@ acquiring the shared platform-phone advisory lock. Errors fail closed; tenant RL
 | `pospay_owner`                                | owns every table, runs migrations                                                   | everything                                                                                                                                                                                                  | `pnpm db:migrate` only — never a running container                      |
 | `pospay_app`                                  | `NOSUPERUSER`, `NOBYPASSRLS`, `NOINHERIT`, owns nothing                             | tenant + bridge tables under RLS; `SELECT` on `plans` and `permissions`; `SELECT, INSERT, UPDATE, DELETE` on `roles` and `role_permissions` (the split policies in §2.3 decide which rows)                  | `api`, `worker`                                                         |
 | `pospay_auth`                                 | `NOSUPERUSER`, `NOBYPASSRLS`, owns nothing                                          | **only** the §2.1 tables, table-level grants                                                                                                                                                                | `packages/auth`                                                         |
-| `pospay_dispatcher` (added 2026-09-23, T7b)   | `NOSUPERUSER`, `NOBYPASSRLS`, `NOINHERIT`, owns nothing, member of nothing          | **only** `outbox`: `SELECT`, and `UPDATE` of `published_at`, `attempts`, `last_error`, `next_attempt_at`, `parked_at`; plus `EXECUTE` on the one `SECURITY DEFINER` sweep of expired idempotency keys (T7b) and on the two coverage-proof issuance functions `current_commission_coverage_generation` / `issue_commission_coverage_proof` (ADR-0054 addendum 2026-11-22, migration 0250) | the outbox dispatcher in `apps/worker` and the coverage issuance CLI, through its own pool            |
+| `pospay_dispatcher` (added 2026-09-23, T7b)   | `NOSUPERUSER`, `NOBYPASSRLS`, `NOINHERIT`, owns nothing, member of nothing          | **only** `outbox`: `SELECT`, and `UPDATE` of `published_at`, `attempts`, `last_error`, `next_attempt_at`, `parked_at`; plus `EXECUTE` on the one `SECURITY DEFINER` sweep of expired idempotency keys (T7b) and on the two coverage-proof issuance functions `current_commission_coverage_generation` / `issue_commission_coverage_proof` (ADR-0054 addendum 2026-11-22, migration 0250); and, for the reminder-schedule recovery (ADR-0061, migration 0263), `SELECT` plus column `INSERT (id, code, raised_at)` on `operational_recovery_flags` (§2.6) and `EXECUTE` on `recovery_company_ids` and `clear_reminder_schedules_lost_flag`; it reads the parked `CompanyCreated` rows of `outbox` it already reads and holds no grant on `consumed_events` | the outbox dispatcher in `apps/worker` and the coverage issuance CLI, through its own pool            |
 | `pospay_notifications` (ADR-0013 Part A)      | `LOGIN`, `NOSUPERUSER`, `NOBYPASSRLS`, `NOINHERIT`, owns nothing, member of nothing | only the three section 2.5 global WhatsApp tables with the exact table/column grants there; never `opted_back_in_at`, DELETE or TRUNCATE                                                                    | API intake and inbound worker, through `createPlatformWhatsappDatabase` |
 | `pospay_suppression_reader` (ADR-0013 Part A) | `NOLOGIN`, `NOSUPERUSER`, `NOBYPASSRLS`, `NOINHERIT`, member of nothing             | only SELECT on suppression; owns only the boolean SECURITY DEFINER function; `pospay_app` alone may EXECUTE it                                                                                              | function execution on the existing tenant Tx, never a pool login        |
+| `pospay_recovery_company_reader` (ADR-0061; migration 0263) | `NOLOGIN`, `NOSUPERUSER`, `NOBYPASSRLS`, `NOINHERIT`, `NOCREATEDB`, `NOCREATEROLE`, `NOREPLICATION`, member of nothing, with no members | owns exactly `recovery_company_ids(uuid, integer)` and no table; `USAGE` on `public` (no `CREATE`), `SELECT (id)` on `companies` through the policy `companies_recovery_select` (`deleted_at IS NULL`, the only place that column is referenced); only `pospay_dispatcher` may EXECUTE the function | function execution through the dispatcher facade, never a pool login |
+| `pospay_recovery_flag_clearer` (ADR-0061; migration 0263) | `NOLOGIN`, `NOSUPERUSER`, `NOBYPASSRLS`, `NOINHERIT`, `NOCREATEDB`, `NOCREATEROLE`, `NOREPLICATION`, member of nothing, with no members | owns exactly `clear_reminder_schedules_lost_flag(uuid, text, uuid, integer, uuid)` and no table; `USAGE` on `public` (no `CREATE`), `SELECT`, `UPDATE (cleared_at, cleared_by)` on `operational_recovery_flags` and `INSERT` on `platform_audit_log`; only `pospay_dispatcher` may EXECUTE the function | function execution through the dispatcher facade, never a pool login |
 | `pospay_coverage_issuer` (ADR-0054 addendum 2026-11-22; migration 0250) | `NOLOGIN`, `NOSUPERUSER`, `NOBYPASSRLS`, `NOINHERIT`, `NOCREATEDB`, `NOCREATEROLE`, `NOREPLICATION`, member of nothing, with no members | owns exactly the eight coverage functions and no table: the five rule functions (`commission_coverage_required_version`, `current_commission_coverage_generation`, `issue_commission_coverage_proof`, `read_commission_coverage_gate`, `invalidate_commission_coverage`) and the three trigger functions (`refuse_commission_coverage_change`, `refuse_counted_outbox_delete`, `refuse_outbox_truncate`); holds the two tables' only grants (`SELECT`, `INSERT` on `commission_coverage_state`/`commission_coverage_proofs`, column `UPDATE (generation, bumped_at, reason)` on the state) with `USAGE` on `public` and no `CREATE`; `pospay_app` has no table privilege and EXECUTEs only the gate read and the invalidator (plus the version function); `pospay_dispatcher` EXECUTEs only the two issuance functions | function execution on the caller's existing transaction (dispatcher CLI / `withTenant`), never a pool login |
 
 No **runtime** role has `BYPASSRLS`. The platform bypass role stays deferred (review finding #14).
@@ -193,6 +215,15 @@ has `BYPASSRLS`. It runs migrations only and never serves a request; `packages/d
 > `coverage: 'INVALIDATES'` bumps through the invalidator at the start of every of its transactions. No runtime
 > role gains `BYPASSRLS` and no new login role. See
 > [ADR-0054](0054-commissions-engine-package-recovery-flags-and-read-path.md) §2–§5.
+
+> **Amendment (2026-11-25, ADR-0061 — accepted by the owner, CS-Q53, migration 0263).** A fifth exception joins the
+> idempotency sweep, the suppression boolean, the coverage proof and the migration data step: the worker's recovery of the
+> commission reminder schedules. `pospay_dispatcher` lists live company ids and clears one named incident through two
+> `SECURITY DEFINER` functions owned by `pospay_recovery_company_reader` and `pospay_recovery_flag_clearer`, and raises
+> and lists flags of the global table in §2.6 by column-level `INSERT` and `SELECT`. The recovery's own parked-event
+> predicate reads `outbox` rows the role already reads; no grant on `consumed_events` and no other grant is added.
+> No runtime role gains `BYPASSRLS` and no new login role. See
+> [ADR-0061](0061-commission-reminder-schedule-recovery.md) §1.
 
 **`pospay_dispatcher` — the one cross-tenant reader (2026-09-23).** `pospay_app` needs a tenant to read anything, so
 it cannot drain every company's outbox. The dispatcher role can, on `outbox` **only**:

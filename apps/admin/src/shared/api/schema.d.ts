@@ -616,6 +616,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/staff/me/commission-estimate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description Own commission estimate for one month (FR-A02). The employee comes from the session server-side; any subject key in the query is a 403. Live authority (membership, commissions feature, read:commissions:own) and the month window are checked before the column gate; HIDDEN contains only status and reads no commission row. An approved month answers APPROVED with the approved amount and the corrections as the manager sees them, never the customer (CS-Q30). STAFF_POS requires a live private-view window. Cache-Control: no-store. */
+        get: operations["ownCommissionEstimate"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/businesses/{businessId}/commission-statements/{period}": {
         parameters: {
             query?: never;
@@ -2592,10 +2609,27 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** @description One preview status without row data: preview_id, status, created_count and error_code, to its creator only. Unknown, foreign or other-entity previews share IMPORT_PREVIEW_NOT_FOUND (404). The commit acceptance endpoint and the producer event belong to later deliveries. Requires manage:services:business and the catalog feature. */
+        /** @description One preview status without row data: preview_id, status, created_count and error_code, to its creator only. Unknown, foreign or other-entity previews share IMPORT_PREVIEW_NOT_FOUND (404). Requires manage:services:business and the catalog feature. */
         get: operations["getServiceImportStatus"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/businesses/{businessId}/services/import/commits": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @description Requests a worker commit for a creator-owned clean, unexpired preview of the business. The preview is locked FOR UPDATE, moves to commit_requested with one injected instant, and the id-only ServiceImportCommitRequested event is appended in the same tenant transaction, so a lost event and a lost request cannot diverge. Repeats return the same preview id and add no event. Requires Idempotency-Key; poll the preview status for the atomic result. Requires manage:services:business and the catalog feature. */
+        post: operations["commitServiceImport"];
         delete?: never;
         options?: never;
         head?: never;
@@ -9325,6 +9359,34 @@ export interface components {
             /** Format: date-time */
             read_at: string | null;
             /** @enum {string} */
+            template_key: "statement_awaiting_review";
+            safe_parameters: {
+                /** @enum {string} */
+                name: "period";
+                /** @enum {string} */
+                type: "text";
+                value: string;
+            }[];
+        } | {
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            company_id: string;
+            /** Format: uuid */
+            business_id: string | null;
+            /** Format: uuid */
+            branch_id: string | null;
+            /** Format: uuid */
+            source_event_id: string;
+            /** @enum {number} */
+            template_revision: 1;
+            /** @enum {string} */
+            locale: "ar" | "en";
+            /** Format: date-time */
+            created_at: string;
+            /** Format: date-time */
+            read_at: string | null;
+            /** @enum {string} */
             template_key: "commission_event_parked";
             safe_parameters: ({
                 /** @enum {string} */
@@ -12776,6 +12838,138 @@ export interface operations {
             };
             /** @description Bilingual refusal */
             default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    ownCommissionEstimate: {
+        parameters: {
+            query?: {
+                month?: string;
+            };
+            header?: {
+                "x-private-view-window-id"?: string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description HIDDEN, the live estimate, a pricing failure, or the approved month */
+            200: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @enum {string} */
+                        status: "HIDDEN";
+                    } | {
+                        /** @enum {string} */
+                        status: "ESTIMATE";
+                        total: string;
+                        per_line: {
+                            /** Format: uuid */
+                            line_id: string;
+                            amount: string;
+                        }[];
+                        corrections: {
+                            /** @enum {string} */
+                            kind: "LINE" | "SALE" | "TIP_CARD" | "TIP_CASH";
+                            source_period: string;
+                            /** Format: date */
+                            business_date: string | null;
+                            service_name_ar: string | null;
+                            service_name_en: string | null;
+                            previous_amount: string;
+                            new_amount: string;
+                            amount: string;
+                        }[];
+                        recalculated: boolean;
+                    } | {
+                        /** @enum {string} */
+                        status: "NO_PLAN";
+                        corrections: {
+                            /** @enum {string} */
+                            kind: "LINE" | "SALE" | "TIP_CARD" | "TIP_CASH";
+                            source_period: string;
+                            /** Format: date */
+                            business_date: string | null;
+                            service_name_ar: string | null;
+                            service_name_en: string | null;
+                            previous_amount: string;
+                            new_amount: string;
+                            amount: string;
+                        }[];
+                    } | {
+                        /** @enum {string} */
+                        status: "NO_SALARY";
+                        corrections: {
+                            /** @enum {string} */
+                            kind: "LINE" | "SALE" | "TIP_CARD" | "TIP_CASH";
+                            source_period: string;
+                            /** Format: date */
+                            business_date: string | null;
+                            service_name_ar: string | null;
+                            service_name_en: string | null;
+                            previous_amount: string;
+                            new_amount: string;
+                            amount: string;
+                        }[];
+                    } | {
+                        /** @enum {string} */
+                        status: "APPROVED";
+                        total: string;
+                        corrections: {
+                            /** @enum {string} */
+                            kind: "LINE" | "SALE" | "TIP_CARD" | "TIP_CASH";
+                            source_period: string;
+                            /** Format: date */
+                            business_date: string | null;
+                            service_name_ar: string | null;
+                            service_name_en: string | null;
+                            previous_amount: string;
+                            new_amount: string;
+                            amount: string;
+                        }[];
+                    };
+                };
+            };
+            /** @description VALIDATION_FAILED */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description UNAUTHENTICATED */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description FORBIDDEN or PRIVATE_VIEW_EXPIRED */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description MY_PERIOD_OUT_OF_RANGE */
+            422: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -19456,6 +19650,89 @@ export interface operations {
             };
             /** @description Bilingual refusal */
             404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Bilingual refusal */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    commitServiceImport: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-company-id": string;
+                "Idempotency-Key": string;
+            };
+            path: {
+                businessId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CommitServiceImportInput"];
+            };
+        };
+        responses: {
+            /** @description Commit accepted */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServiceImportCommitAccepted"];
+                };
+            };
+            /** @description Bilingual refusal */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Bilingual refusal */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Bilingual refusal */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Bilingual refusal */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Bilingual refusal */
+            422: {
                 headers: {
                     [name: string]: unknown;
                 };

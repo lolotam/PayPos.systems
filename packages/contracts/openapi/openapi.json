@@ -5207,6 +5207,451 @@
         }
       }
     },
+    "/v1/staff/me/commission-estimate": {
+      "get": {
+        "operationId": "ownCommissionEstimate",
+        "description": "Own commission estimate for one month (FR-A02). The employee comes from the session server-side; any subject key in the query is a 403. Live authority (membership, commissions feature, read:commissions:own) and the month window are checked before the column gate; HIDDEN contains only status and reads no commission row. An approved month answers APPROVED with the approved amount and the corrections as the manager sees them, never the customer (CS-Q30). STAFF_POS requires a live private-view window. Cache-Control: no-store.",
+        "security": [
+          {
+            "PersonalStaffSession": []
+          },
+          {
+            "KioskStaffSession": [],
+            "DeviceToken": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "query",
+            "name": "month",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "pattern": "^[1-9][0-9]{3}-(0[1-9]|1[0-2])$"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-private-view-window-id",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "HIDDEN, the live estimate, a pricing failure, or the approved month",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "enum": [
+                    "no-store"
+                  ]
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "status": {
+                          "type": "string",
+                          "enum": [
+                            "HIDDEN"
+                          ]
+                        }
+                      },
+                      "required": [
+                        "status"
+                      ],
+                      "additionalProperties": false
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "status": {
+                          "type": "string",
+                          "enum": [
+                            "ESTIMATE"
+                          ]
+                        },
+                        "total": {
+                          "type": "string",
+                          "pattern": "^-?(0|[1-9]\\d{0,15})\\.\\d{3}$"
+                        },
+                        "per_line": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "line_id": {
+                                "type": "string",
+                                "format": "uuid",
+                                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                              },
+                              "amount": {
+                                "type": "string",
+                                "pattern": "^-?(0|[1-9]\\d{0,10})\\.\\d{3}$"
+                              }
+                            },
+                            "required": [
+                              "line_id",
+                              "amount"
+                            ],
+                            "additionalProperties": false
+                          }
+                        },
+                        "corrections": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "kind": {
+                                "type": "string",
+                                "enum": [
+                                  "LINE",
+                                  "SALE",
+                                  "TIP_CARD",
+                                  "TIP_CASH"
+                                ]
+                              },
+                              "source_period": {
+                                "type": "string",
+                                "pattern": "^(?!0000-)\\d{4}-(0[1-9]|1[0-2])$"
+                              },
+                              "business_date": {
+                                "nullable": true,
+                                "type": "string",
+                                "format": "date",
+                                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))$"
+                              },
+                              "service_name_ar": {
+                                "nullable": true,
+                                "type": "string"
+                              },
+                              "service_name_en": {
+                                "nullable": true,
+                                "type": "string"
+                              },
+                              "previous_amount": {
+                                "type": "string",
+                                "pattern": "^-?(0|[1-9]\\d{0,10})\\.\\d{3}$"
+                              },
+                              "new_amount": {
+                                "type": "string",
+                                "pattern": "^-?(0|[1-9]\\d{0,10})\\.\\d{3}$"
+                              },
+                              "amount": {
+                                "type": "string",
+                                "pattern": "^-?(0|[1-9]\\d{0,10})\\.\\d{3}$"
+                              }
+                            },
+                            "required": [
+                              "kind",
+                              "source_period",
+                              "business_date",
+                              "service_name_ar",
+                              "service_name_en",
+                              "previous_amount",
+                              "new_amount",
+                              "amount"
+                            ],
+                            "additionalProperties": false
+                          }
+                        },
+                        "recalculated": {
+                          "type": "boolean"
+                        }
+                      },
+                      "required": [
+                        "status",
+                        "total",
+                        "per_line",
+                        "corrections",
+                        "recalculated"
+                      ],
+                      "additionalProperties": false
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "status": {
+                          "type": "string",
+                          "enum": [
+                            "NO_PLAN"
+                          ]
+                        },
+                        "corrections": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "kind": {
+                                "type": "string",
+                                "enum": [
+                                  "LINE",
+                                  "SALE",
+                                  "TIP_CARD",
+                                  "TIP_CASH"
+                                ]
+                              },
+                              "source_period": {
+                                "type": "string",
+                                "pattern": "^(?!0000-)\\d{4}-(0[1-9]|1[0-2])$"
+                              },
+                              "business_date": {
+                                "nullable": true,
+                                "type": "string",
+                                "format": "date",
+                                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))$"
+                              },
+                              "service_name_ar": {
+                                "nullable": true,
+                                "type": "string"
+                              },
+                              "service_name_en": {
+                                "nullable": true,
+                                "type": "string"
+                              },
+                              "previous_amount": {
+                                "type": "string",
+                                "pattern": "^-?(0|[1-9]\\d{0,10})\\.\\d{3}$"
+                              },
+                              "new_amount": {
+                                "type": "string",
+                                "pattern": "^-?(0|[1-9]\\d{0,10})\\.\\d{3}$"
+                              },
+                              "amount": {
+                                "type": "string",
+                                "pattern": "^-?(0|[1-9]\\d{0,10})\\.\\d{3}$"
+                              }
+                            },
+                            "required": [
+                              "kind",
+                              "source_period",
+                              "business_date",
+                              "service_name_ar",
+                              "service_name_en",
+                              "previous_amount",
+                              "new_amount",
+                              "amount"
+                            ],
+                            "additionalProperties": false
+                          }
+                        }
+                      },
+                      "required": [
+                        "status",
+                        "corrections"
+                      ],
+                      "additionalProperties": false
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "status": {
+                          "type": "string",
+                          "enum": [
+                            "NO_SALARY"
+                          ]
+                        },
+                        "corrections": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "kind": {
+                                "type": "string",
+                                "enum": [
+                                  "LINE",
+                                  "SALE",
+                                  "TIP_CARD",
+                                  "TIP_CASH"
+                                ]
+                              },
+                              "source_period": {
+                                "type": "string",
+                                "pattern": "^(?!0000-)\\d{4}-(0[1-9]|1[0-2])$"
+                              },
+                              "business_date": {
+                                "nullable": true,
+                                "type": "string",
+                                "format": "date",
+                                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))$"
+                              },
+                              "service_name_ar": {
+                                "nullable": true,
+                                "type": "string"
+                              },
+                              "service_name_en": {
+                                "nullable": true,
+                                "type": "string"
+                              },
+                              "previous_amount": {
+                                "type": "string",
+                                "pattern": "^-?(0|[1-9]\\d{0,10})\\.\\d{3}$"
+                              },
+                              "new_amount": {
+                                "type": "string",
+                                "pattern": "^-?(0|[1-9]\\d{0,10})\\.\\d{3}$"
+                              },
+                              "amount": {
+                                "type": "string",
+                                "pattern": "^-?(0|[1-9]\\d{0,10})\\.\\d{3}$"
+                              }
+                            },
+                            "required": [
+                              "kind",
+                              "source_period",
+                              "business_date",
+                              "service_name_ar",
+                              "service_name_en",
+                              "previous_amount",
+                              "new_amount",
+                              "amount"
+                            ],
+                            "additionalProperties": false
+                          }
+                        }
+                      },
+                      "required": [
+                        "status",
+                        "corrections"
+                      ],
+                      "additionalProperties": false
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "status": {
+                          "type": "string",
+                          "enum": [
+                            "APPROVED"
+                          ]
+                        },
+                        "total": {
+                          "type": "string",
+                          "pattern": "^-?(0|[1-9]\\d{0,15})\\.\\d{3}$"
+                        },
+                        "corrections": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "kind": {
+                                "type": "string",
+                                "enum": [
+                                  "LINE",
+                                  "SALE",
+                                  "TIP_CARD",
+                                  "TIP_CASH"
+                                ]
+                              },
+                              "source_period": {
+                                "type": "string",
+                                "pattern": "^(?!0000-)\\d{4}-(0[1-9]|1[0-2])$"
+                              },
+                              "business_date": {
+                                "nullable": true,
+                                "type": "string",
+                                "format": "date",
+                                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))$"
+                              },
+                              "service_name_ar": {
+                                "nullable": true,
+                                "type": "string"
+                              },
+                              "service_name_en": {
+                                "nullable": true,
+                                "type": "string"
+                              },
+                              "previous_amount": {
+                                "type": "string",
+                                "pattern": "^-?(0|[1-9]\\d{0,10})\\.\\d{3}$"
+                              },
+                              "new_amount": {
+                                "type": "string",
+                                "pattern": "^-?(0|[1-9]\\d{0,10})\\.\\d{3}$"
+                              },
+                              "amount": {
+                                "type": "string",
+                                "pattern": "^-?(0|[1-9]\\d{0,10})\\.\\d{3}$"
+                              }
+                            },
+                            "required": [
+                              "kind",
+                              "source_period",
+                              "business_date",
+                              "service_name_ar",
+                              "service_name_en",
+                              "previous_amount",
+                              "new_amount",
+                              "amount"
+                            ],
+                            "additionalProperties": false
+                          }
+                        }
+                      },
+                      "required": [
+                        "status",
+                        "total",
+                        "corrections"
+                      ],
+                      "additionalProperties": false
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "VALIDATION_FAILED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "UNAUTHENTICATED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "FORBIDDEN or PRIVATE_VIEW_EXPIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "MY_PERIOD_OUT_OF_RANGE",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/v1/businesses/{businessId}/commission-statements/{period}": {
       "get": {
         "operationId": "getCommissionStatement",
@@ -16850,7 +17295,7 @@
     "/v1/businesses/{businessId}/services/import/previews/{previewId}": {
       "get": {
         "operationId": "getServiceImportStatus",
-        "description": "One preview status without row data: preview_id, status, created_count and error_code, to its creator only. Unknown, foreign or other-entity previews share IMPORT_PREVIEW_NOT_FOUND (404). The commit acceptance endpoint and the producer event belong to later deliveries. Requires manage:services:business and the catalog feature.",
+        "description": "One preview status without row data: preview_id, status, created_count and error_code, to its creator only. Unknown, foreign or other-entity previews share IMPORT_PREVIEW_NOT_FOUND (404). Requires manage:services:business and the catalog feature.",
         "parameters": [
           {
             "in": "header",
@@ -16892,6 +17337,124 @@
             }
           },
           "404": {
+            "description": "Bilingual refusal",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Bilingual refusal",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/businesses/{businessId}/services/import/commits": {
+      "post": {
+        "operationId": "commitServiceImport",
+        "description": "Requests a worker commit for a creator-owned clean, unexpired preview of the business. The preview is locked FOR UPDATE, moves to commit_requested with one injected instant, and the id-only ServiceImportCommitRequested event is appended in the same tenant transaction, so a lost event and a lost request cannot diverge. Repeats return the same preview id and add no event. Requires Idempotency-Key; poll the preview status for the atomic result. Requires manage:services:business and the catalog feature.",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "x-company-id",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "in": "path",
+            "name": "businessId",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 255
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CommitServiceImportInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "Commit accepted",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ServiceImportCommitAccepted"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bilingual refusal",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Bilingual refusal",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Bilingual refusal",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Bilingual refusal",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "422": {
             "description": "Bilingual refusal",
             "content": {
               "application/json": {
@@ -47781,6 +48344,117 @@
                 "type": "string",
                 "enum": [
                   "statement_awaiting_approval"
+                ]
+              },
+              "safe_parameters": {
+                "type": "array",
+                "items": {
+                  "anyOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "name": {
+                          "type": "string",
+                          "enum": [
+                            "period"
+                          ]
+                        },
+                        "type": {
+                          "type": "string",
+                          "enum": [
+                            "text"
+                          ]
+                        },
+                        "value": {
+                          "type": "string",
+                          "pattern": "^\\d{4}-(0[1-9]|1[0-2])$"
+                        }
+                      },
+                      "required": [
+                        "name",
+                        "type",
+                        "value"
+                      ],
+                      "additionalProperties": false
+                    }
+                  ]
+                },
+                "minItems": 1,
+                "maxItems": 1
+              }
+            },
+            "required": [
+              "id",
+              "company_id",
+              "business_id",
+              "branch_id",
+              "source_event_id",
+              "template_revision",
+              "locale",
+              "created_at",
+              "read_at",
+              "template_key",
+              "safe_parameters"
+            ]
+          },
+          {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+              },
+              "company_id": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+              },
+              "business_id": {
+                "nullable": true,
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+              },
+              "branch_id": {
+                "nullable": true,
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+              },
+              "source_event_id": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+              },
+              "template_revision": {
+                "type": "number",
+                "enum": [
+                  1
+                ]
+              },
+              "locale": {
+                "type": "string",
+                "enum": [
+                  "ar",
+                  "en"
+                ]
+              },
+              "created_at": {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+              },
+              "read_at": {
+                "nullable": true,
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+              },
+              "template_key": {
+                "type": "string",
+                "enum": [
+                  "statement_awaiting_review"
                 ]
               },
               "safe_parameters": {

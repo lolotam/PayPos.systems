@@ -10,10 +10,13 @@ import {
   Req,
 } from '@nestjs/common';
 import {
+  commitServiceImportInput,
   id,
   previewServiceImportInput,
   serviceImportRowsQuery,
+  type CommitServiceImportInput,
   type PreviewServiceImportInput,
+  type ServiceImportCommitAccepted,
   type ServiceImportPreview,
   type ServiceImportRowsPage,
   type ServiceImportRowsQuery,
@@ -27,10 +30,12 @@ import { Require, RequiresFeature } from '../../../shared/access.decorators.ts';
 import { actorOf } from '../../../shared/actor.ts';
 import { DATABASE } from '../../../shared/database.token.ts';
 import { ApiError } from '../../../shared/errors.ts';
+import { Idempotency, type IdempotencyInput } from '../../../shared/idempotency.ts';
 import { ZodValidationPipe } from '../../../shared/zod-validation.pipe.ts';
 import { serviceImportRowsPage } from '../queries/service-import-rows.query.ts';
 import { serviceImportStatusQuery } from '../queries/service-import-status.query.ts';
 import { ServiceImportError } from '../use-cases/preview-service-import/preview-service-import.usecase.ts';
+import { CommitServiceImportUseCase } from '../use-cases/commit-service-import/commit-service-import.usecase.ts';
 import { GetServiceImportTemplateUseCase } from '../use-cases/get-service-import-template/get-service-import-template.usecase.ts';
 import { PreviewServiceImportUseCase } from '../use-cases/preview-service-import/preview-service-import.usecase.ts';
 
@@ -42,6 +47,8 @@ export class ServiceImportController {
     private readonly template: GetServiceImportTemplateUseCase | null,
     @Inject(PreviewServiceImportUseCase)
     private readonly preview: PreviewServiceImportUseCase | null,
+    @Inject(CommitServiceImportUseCase)
+    private readonly commit: CommitServiceImportUseCase | null,
     @Inject(DATABASE) private readonly database: TenantWrappers | null,
   ) {}
 
@@ -122,5 +129,29 @@ export class ServiceImportController {
       businessId,
       previewId,
     );
+  }
+
+  @Post('commits')
+  @HttpCode(202)
+  @Require('manage:services:business', { business: 'businessId' })
+  @RequiresFeature('catalog')
+  async createCommit(
+    @Param('businessId', new ZodValidationPipe(id)) businessId: string,
+    @Body(new ZodValidationPipe(commitServiceImportInput)) input: CommitServiceImportInput,
+    @Idempotency() idem: IdempotencyInput,
+    @Req() request: FastifyRequest,
+  ): Promise<ServiceImportCommitAccepted> {
+    if (this.commit === null) throw new ApiError('NOT_READY');
+    try {
+      return await this.commit.execute({
+        ...actorOf(request),
+        businessId,
+        previewId: input.preview_id,
+        ...idem,
+      });
+    } catch (error) {
+      if (error instanceof ServiceImportError) throw new ApiError(error.code);
+      throw error;
+    }
   }
 }

@@ -31,3 +31,12 @@ export const statementAwaitingApprovalRecipient = z.strictObject({
   template_key: z.literal('statement_awaiting_approval'),
   safe_parameters: statementAwaitingApprovalParameters,
 });
+
+/** معاملات جرس المراجعة: الشهر وحده، بلا مبلغ ولا اسم موظفة ولا اسم عميل (FR-055). */
+export const statementAwaitingReviewParameters = z.tuple([periodParameter]);
+/** مراجعة القالب 1 لأن نص الإشعار ثابت؛ تغييره لاحقًا مراجعة جديدة. */
+export const statementAwaitingReviewRecipient = z.strictObject({
+  ...inAppBase,
+  template_key: z.literal('statement_awaiting_review'),
+  safe_parameters: statementAwaitingReviewParameters,
+});

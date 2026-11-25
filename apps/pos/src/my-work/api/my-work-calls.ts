@@ -1,4 +1,9 @@
-import type { OwnRatingSummary, OwnServiceLines, OwnTips } from '@pospay/contracts';
+import type {
+  OwnCommissionEstimate,
+  OwnRatingSummary,
+  OwnServiceLines,
+  OwnTips,
+} from '@pospay/contracts';
 import { personalApiClient, staffApiClient } from '@/shared/api/client';
 import type { WorkContext } from '../model/work-context';
 import { WorkHttpError } from '../model/work-error';
@@ -48,6 +53,14 @@ export const workCalls = {
   tips: async (read: Read): Promise<OwnTips> =>
     value(
       await client(read.mode).GET('/v1/staff/me/tips', {
+        signal: read.signal,
+        cache: 'no-store',
+        params: { header: windowHeader(read), query: read.month ? { month: read.month } : {} },
+      }),
+    ),
+  commissionEstimate: async (read: Read): Promise<OwnCommissionEstimate> =>
+    value(
+      await client(read.mode).GET('/v1/staff/me/commission-estimate', {
         signal: read.signal,
         cache: 'no-store',
         params: { header: windowHeader(read), query: read.month ? { month: read.month } : {} },

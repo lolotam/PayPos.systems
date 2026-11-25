@@ -29,6 +29,7 @@ const resources = vi.hoisted(() => ({
   redis: { set: vi.fn(), del: vi.fn(), get: vi.fn(), evalsha: vi.fn() },
   previews: { ready: vi.fn(async () => undefined), close: vi.fn(async () => undefined) },
   reports: { ready: vi.fn(async () => undefined) },
+  commissionReminders: { ready: vi.fn(async () => undefined) },
   ratingClaims: undefined as Customers.RatingClaimsLifecycle | undefined,
   deliverer: vi.fn(),
   maintenance: vi.fn((options: { databaseUrl: string }) => {
@@ -77,7 +78,8 @@ vi.mock('bullmq', async (original) => {
         args[0] === 'service-category-closing' ||
         args[0] === 'service-import-commit' ||
         args[0] === 'package-import-commit' ||
-        args[0] === 'package-import-recovery'
+        args[0] === 'package-import-recovery' ||
+        args[0] === 'service-import-recovery'
       )
         return { on: vi.fn(), waitUntilReady: async () => undefined, close: async () => undefined };
       if (args[0] === 'package-import-preview')
@@ -157,6 +159,14 @@ vi.mock('@pospay/notifications', async (original) => ({
   ...(await original<typeof Notifications>()),
   readWhatsappWebhookConfiguration: vi.fn(),
 }));
+vi.mock('../commission-reminders.ts', () => ({
+  startCommissionReminderWiring: () => ({
+    delivery: (event: unknown, next: (claimed: unknown) => Promise<unknown>) => next(event),
+    readiness: resources.commissionReminders.ready,
+    stop: vi.fn(),
+    close: vi.fn(async () => undefined),
+  }),
+}));
 vi.mock('./config.ts', () => ({
   readConfig: () => ({
     DATABASE_URL: 'synthetic',
@@ -184,6 +194,7 @@ beforeEach(() => {
   resources.otp.close.mockResolvedValue(undefined);
   resources.previews.ready.mockResolvedValue(undefined);
   resources.reports.ready.mockResolvedValue(undefined);
+  resources.commissionReminders.ready.mockResolvedValue(undefined);
 });
 afterEach(async () => {
   await resources.workerOptions.mock.calls.at(-1)?.[0]?.release?.();
@@ -231,6 +242,29 @@ it('leave history readiness is 503 with only leave-history-reports down', async 
     details: {
       checks: {
         'leave-history-reports': 'down',
+        'package-previews': 'up',
+        'package-import-commit': 'up',
+        database: 'up',
+        dispatcher: 'up',
+        redis: 'up',
+      },
+    },
+  });
+});
+
+it('commission reminder recovery readiness is 503 with only commission-reminder-recovery down', async () => {
+  await import('../main.ts');
+  resources.commissionReminders.ready.mockRejectedValueOnce(
+    new Error('COMMISSION_REMINDER_RECOVERY_SENTINEL_MISSING'),
+  );
+  const response = await readinessResponse();
+  expect(response.statusCode).toBe(503);
+  expect(response.json()).toMatchObject({
+    code: 'NOT_READY',
+    details: {
+      checks: {
+        'commission-reminder-recovery': 'down',
+        'leave-history-reports': 'up',
         'package-previews': 'up',
         'package-import-commit': 'up',
         database: 'up',

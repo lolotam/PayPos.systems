@@ -245,7 +245,8 @@ export const ALLOWED_TABLE_GRANTS: Record<string, string[]> = {
     'verification:UPDATE',
   ],
   // Cross-tenant reader of outbox only (ADR-0003 §3); its UPDATE is column-level, listed in OUTBOX_COLUMN_GRANTS.
-  pospay_dispatcher: ['outbox:SELECT'],
+  // جدول الأعلام التشغيلية قراءة بس للمرسّل؛ الإدراج بثلاثة أعمدة بس، والمسح بدالة definer (ADR-0054 §2، ADR-0061 §1).
+  pospay_dispatcher: ['operational_recovery_flags:SELECT', 'outbox:SELECT'],
   // دور دالة عدّ الاعتماد (ADR-0012 §2): لا صلاحية جدول ولا sequence إطلاقًا؛ قراءته أعمدة محدّدة فقط، في APPROVAL_READER_COLUMN_GRANTS.
   pospay_approval_reader: [],
   // دور دوال إثبات تغطية العمولات (ADR-0054 إضافة 2026-11-22): يقرأ ويُدرج في جدولي الإثبات فقط؛ تحديث صف الحالة بأعمدة
@@ -255,5 +256,12 @@ export const ALLOWED_TABLE_GRANTS: Record<string, string[]> = {
     'commission_coverage_proofs:SELECT',
     'commission_coverage_state:INSERT',
     'commission_coverage_state:SELECT',
+  ],
+  // دور قراءة معرّفات الشركات (ADR-0061 §1): يقرأ عمود id من companies فقط؛ الفلتر الوحيد على deleted_at في سياسة RLS.
+  pospay_recovery_company_reader: [],
+  // دور مسح علامة الاستعادة (ADR-0061 §1): يقرأ جدول العلامات ويحدّث عمودين منه ويسجّل سطر تدقيق واحد.
+  pospay_recovery_flag_clearer: [
+    'operational_recovery_flags:SELECT',
+    'platform_audit_log:INSERT',
   ],
 };

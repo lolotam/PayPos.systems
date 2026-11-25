@@ -1,4 +1,10 @@
 import type { Tx } from '@pospay/db';
+import {
+  isBusinessWideCommissionActor,
+  readsCommissionBusinessWide,
+  type CommissionActionPermission,
+  type CommissionReadInput,
+} from '@pospay/domain';
 import { sql } from 'drizzle-orm';
 
 import { readAccessTransaction } from './access-reader.ts';
@@ -81,13 +87,74 @@ export async function readCommissionScope(
   // مستوى النشاط لفرع (CM-23g).
   const relevantDenies = denies.filter((deny) => coversRequest(deny, companyId, businessId, branchIds));
   if (businessWideAllow && relevantDenies.length === 0) {
-    return { kind: 'scope', scope: { businessWide: true, branchIds } };
+    // قاعدة القراءة على مستوى النشاط كله في النواة المشتركة (FR-030): نفس الدالة اللي
+    // بتتحكم في فلتر المستلمين في العامل، فمفيش نسختين من القاعدة (CM-58b).
+    const wide = readsCommissionBusinessWide({
+      companyId,
+      businessId,
+      businessBranchIds: branchIds,
+      grants: access.grants,
+    } satisfies CommissionReadInput);
+    if (wide) return { kind: 'scope', scope: { businessWide: true, branchIds } };
   }
   const denied = deniedBranches(relevantDenies, companyId, businessId, branchIds);
   const allowed = allowedBranches(allows, companyId, businessId, branchIds);
   const effective = [...allowed].filter((id) => !denied.has(id)).sort();
   if (effective.length === 0) return { kind: 'forbidden' };
   return { kind: 'scope', scope: { businessWide: false, branchIds: effective } };
+}
+
+/**
+ * يقرأ «المستلم المؤهل» لفعل على كشف النشاط بنفس المسند المشترك في النواة (FR-030، CM-58b):
+ * يحمل صلاحية الفعل على النشاط (نطاق شركة أو نشاط، لا فرع) **و** هو قارئ للنشاط كله.
+ * نفس الدالة بتختار مستلمي الإشعار في العامل، فما يصح يبقى في نقطة النهاية نسخة تانية
+ * من القاعدة (CM-58b: «وحدة تثبت إن فلتر المستلمين وحراسة المراجعة والاعتماد بتنادي نفس المسند»).
+ *
+ * حماية المالك (ADR-0025) مطبّقة قبل النداء: `readAccessTransaction` بيشيل DENY من المالك
+ * canonical، فالمالك بيفضل على نطاق النشاط من غير استثناء إضافي هنا.
+ *
+ * @param tx                معاملة الشركة الحالية
+ * @param companyId         الشركة المؤكدة
+ * @param userId            المستخدم البشري الفاعل
+ * @param businessId        النشاط المطلوب
+ * @param actionPermissions صلاحية الفعل المطلوبة أو قائمة صلاحيات يكفي تحقق إحداها
+ * @param decisionAt        توقيت قرار اختياري؛ غيابه بيعيّن التوقيت من الساعة هنا
+ * @returns هل الفاعل مؤهل للمطالبة على كشف النشاط
+ */
+export async function readBusinessWideCommissionActor(
+  tx: Tx,
+  companyId: string,
+  userId: string,
+  businessId: string,
+  actionPermissions: CommissionActionPermission | readonly CommissionActionPermission[],
+  decisionAt?: Date,
+): Promise<boolean> {
+  const [business] = await tx.execute(sql`SELECT id FROM businesses
+    WHERE company_id=${companyId} AND id=${businessId}
+      AND EXISTS (SELECT 1 FROM companies WHERE id=${companyId} AND deleted_at IS NULL)`);
+  if (business === undefined) return false;
+  let at: Date;
+  if (decisionAt === undefined) {
+    const [time] = await tx.execute<{ at: Date }>(sql`SELECT clock_timestamp() AS at`);
+    if (time === undefined) return false;
+    at = new Date(time.at);
+  } else {
+    at = decisionAt;
+  }
+  const access = await readAccessTransaction(tx, companyId, userId, at);
+  const branches = await tx.execute<{ id: string }>(sql`SELECT id FROM branches
+    WHERE company_id=${companyId} AND business_id=${businessId} ORDER BY id`);
+  const businessBranchIds = branches.map((row) => row.id);
+  const required = typeof actionPermissions === 'string' ? [actionPermissions] : actionPermissions;
+  return required.some((actionPermission) =>
+    isBusinessWideCommissionActor({
+      companyId,
+      businessId,
+      businessBranchIds,
+      actionPermission,
+      grants: access.grants,
+    }),
+  );
 }
 
 /**

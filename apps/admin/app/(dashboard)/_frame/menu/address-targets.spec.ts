@@ -1,6 +1,13 @@
 import { describe, expect, it } from 'vitest';
 
-import { NAVIGATION_PAGES } from '../navigation-model';
+import { navigationEntryHref, promotedSoonDestination } from '@/workspace/model/navigation-rules';
+import type {
+  EmbeddedLivePageEntry,
+  LiveRoutePageEntry,
+  NavigationPageEntry,
+} from '@/workspace/nav-types';
+
+import { NAVIGATION_PAGES, pageSoonDestination } from '../navigation-model';
 import type { MenuContext } from './menu-context';
 import { resolveOverviewTarget } from './overview-target';
 import { resolveSoonTarget } from './soon-target';
@@ -103,3 +110,131 @@ describe('what a Soon address does', () => {
     expect(resolveSoonTarget(id, owner)).toEqual({ kind: 'forward', href });
   });
 });
+
+describe('promoted Soon alias destinations (#1167)', () => {
+  const owner = contextFor(OPEN, 'owner');
+
+  it('requires explicit concrete destination for promoted dynamic aliases and rejects missing or parameterized ones', () => {
+    const customPages = buildAliasTestPages();
+    const visibleAll: MenuContext = { ...owner, visibleIds: customPages.map((entry) => entry.id) };
+    const unauthorized: MenuContext = { ...owner, visibleIds: [] };
+
+    expect(resolveSoonTarget('old-catalog', visibleAll, customPages)).toEqual({
+      kind: 'forward',
+      href: '/catalog',
+    });
+    expect(resolveSoonTarget('legacy-leave-picker', visibleAll, customPages)).toEqual({
+      kind: 'forward',
+      href: '/staff/leave-picker',
+    });
+    expect(resolveSoonTarget('legacy-embedded', visibleAll, customPages)).toEqual({
+      kind: 'forward',
+      href: '/staff',
+    });
+    for (const id of [
+      'legacy-leave',
+      'legacy-missing',
+      'legacy-param-parent',
+      'legacy-embedded-param',
+    ]) {
+      expect(resolveSoonTarget(id, visibleAll, customPages)).toEqual({ kind: 'not-found' });
+    }
+    expect(resolveSoonTarget('legacy-leave-picker', unauthorized, customPages)).toEqual({
+      kind: 'not-found',
+    });
+    expect(resolveSoonTarget('customer-packages', owner)).toEqual({ kind: 'not-found' });
+  });
+
+  it('keeps published formerSoonId entries concrete and rejects dynamic explicit destinations', () => {
+    const aliases = NAVIGATION_PAGES.filter(
+      (entry): entry is Exclude<NavigationPageEntry, { state: 'soon' }> =>
+        entry.state === 'live' && entry.formerSoonId !== undefined,
+    );
+    expect(aliases.length).toBeGreaterThan(0);
+    for (const entry of aliases) {
+      const dest = pageSoonDestination(entry);
+      expect(dest).toMatch(/^\//);
+      expect(dest).not.toContain('[');
+    }
+    const pages = buildAliasTestPages();
+    const byId = new Map(pages.map((entry) => [entry.id, entry]));
+    const explicitEntry = pages.find(
+      (entry) => entry.id === 'emp-leave-explicit',
+    ) as LiveRoutePageEntry;
+    const explicitDynamic: LiveRoutePageEntry = {
+      ...explicitEntry,
+      formerSoonDestination: '/staff/[employeeId]/leave',
+    };
+    expect(promotedSoonDestination(explicitDynamic, byId)).toBeUndefined();
+    expect(navigationEntryHref(explicitEntry, byId)).toBe('/staff/leave-picker');
+  });
+});
+
+const ALIAS_TEST_LIVE_BASE: LiveRoutePageEntry = {
+  id: 'staff-list',
+  route: '/staff',
+  labelKey: 'catalogServices.listTitle',
+  icon: 'Store',
+  visible: 'always',
+  state: 'live',
+  section: 'catalog',
+  submenu: 'catalog',
+  businessTypes: [],
+  appMapEntry: true,
+};
+
+const ALIAS_TEST_EMBEDDED_BASE: EmbeddedLivePageEntry = {
+  id: 'embedded-promoted',
+  parent: 'staff-list',
+  embeddedInParent: true,
+  formerSoonId: 'legacy-embedded',
+  labelKey: 'catalogServices.listTitle',
+  icon: 'Store',
+  visible: 'always',
+  state: 'live',
+  section: 'catalog',
+  submenu: 'catalog',
+  businessTypes: [],
+  appMapEntry: true,
+};
+
+function buildAliasTestPages(): readonly NavigationPageEntry[] {
+  const dynamicChild: LiveRoutePageEntry = {
+    ...ALIAS_TEST_LIVE_BASE,
+    id: 'emp-leave-none',
+    route: '/staff/[employeeId]/leave',
+    parent: 'staff-list',
+    formerSoonId: 'legacy-leave',
+  };
+  return [
+    ALIAS_TEST_LIVE_BASE,
+    { ...ALIAS_TEST_LIVE_BASE, id: 'static-promoted', route: '/catalog', formerSoonId: 'old-catalog' },
+    { ...ALIAS_TEST_LIVE_BASE, id: 'staff-detail', route: '/staff/[employeeId]' },
+    dynamicChild,
+    {
+      ...dynamicChild,
+      id: 'emp-leave-missing-parent',
+      parent: 'no-such-parent',
+      formerSoonId: 'legacy-missing',
+    },
+    {
+      ...dynamicChild,
+      id: 'emp-leave-param-parent',
+      parent: 'staff-detail',
+      formerSoonId: 'legacy-param-parent',
+    },
+    {
+      ...dynamicChild,
+      id: 'emp-leave-explicit',
+      formerSoonId: 'legacy-leave-picker',
+      formerSoonDestination: '/staff/leave-picker',
+    },
+    ALIAS_TEST_EMBEDDED_BASE,
+    {
+      ...ALIAS_TEST_EMBEDDED_BASE,
+      id: 'embedded-param-parent',
+      parent: 'staff-detail',
+      formerSoonId: 'legacy-embedded-param',
+    },
+  ];
+}

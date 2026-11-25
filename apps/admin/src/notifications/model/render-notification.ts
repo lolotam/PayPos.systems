@@ -30,7 +30,8 @@ export function renderNotification(
   }
   if (
     item.template_key === 'commission_correction_blocked' ||
-    item.template_key === 'statement_awaiting_approval'
+    item.template_key === 'statement_awaiting_approval' ||
+    item.template_key === 'statement_awaiting_review'
   ) {
     return renderPeriodNotice(item, viewerLocale);
   }

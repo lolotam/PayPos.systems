@@ -156,3 +156,18 @@ export {
 } from './salary-thresholds.ts';
 export { resolveServiceCommissionRule } from './service-rule.ts';
 export { computeTierNumerator } from './tier-evaluators.ts';
+/** تقدير عمولة الموظفة لنفسها (57-3): الشهر المفتوح بالإسقاط الحي، والمغلق من الصفوف المجمّدة وحدها. */
+export {
+  computeClosedOwnCommissionEstimate,
+  computeOwnCommissionEstimate,
+} from './own-commission-estimate.ts';
+export type {
+  OwnCommissionClosedEstimate,
+  OwnCommissionCorrectionKind,
+  OwnCommissionCorrectionView,
+  OwnCommissionEstimateInput,
+  OwnCommissionEstimateLineView,
+  OwnCommissionEstimateProjection,
+  OwnCommissionOpenEstimate,
+  OwnCommissionUnpricedEstimate,
+} from './own-commission-estimate.ts';

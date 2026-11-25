@@ -43,6 +43,9 @@ export const COMMISSION_STATEMENT_TABLE_GRANTS = [
   // صرف الكشف صف للإضافة فقط في معاملة الدفع (54-1): مفيش UPDATE ولا DELETE لأي دور.
   'commission_statement_payments:INSERT',
   'commission_statement_payments:SELECT',
+  // تذكيرات الكشف صف للإضافة فقط (FR-055): بيتكتب مرة واحدة لكل نوع تذكير وتاريخ، فمفيش UPDATE ولا DELETE.
+  'commission_statement_reminders:INSERT',
+  'commission_statement_reminders:SELECT',
   // إرجاع الكشف صف للإضافة فقط (FR-031): السبب بيتكتب مرة واحدة وبيمسح مع المسودة، فمفيش UPDATE ولا DELETE.
   'commission_statement_returns:INSERT',
   'commission_statement_returns:SELECT',

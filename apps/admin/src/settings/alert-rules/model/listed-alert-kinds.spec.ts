@@ -33,14 +33,21 @@ const listed = [
   'ATTENDANCE_CHANGE_REQUESTED',
   'ATTENDANCE_CHANGE_DECIDED',
   'LOW_RATING',
+  'STATEMENT_AWAITING_REVIEW',
+  'STATEMENT_AWAITING_APPROVAL',
 ];
 
-it('lists exactly the fourteen emitted kinds in business order', () => {
+it('lists exactly the sixteen emitted kinds in business order', () => {
   expect(listedAlertKinds(rules, false).map((rule) => rule.kind)).toEqual(listed);
 });
 
-it('also removes document expiry from the branch view', () => {
+it('also removes the business-wide kinds from the branch view', () => {
   expect(listedAlertKinds(rules, true).map((rule) => rule.kind)).toEqual(
-    listed.filter((kind) => kind !== 'DOCUMENT_EXPIRING'),
+    listed.filter(
+      (kind) =>
+        kind !== 'DOCUMENT_EXPIRING' &&
+        kind !== 'STATEMENT_AWAITING_REVIEW' &&
+        kind !== 'STATEMENT_AWAITING_APPROVAL',
+    ),
   );
 });

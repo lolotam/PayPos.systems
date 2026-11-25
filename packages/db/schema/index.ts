@@ -60,5 +60,7 @@ export * from './commissions-sales.ts';
 export * from './commissions-corrections.ts';
 export * from './commissions-blocked-corrections.ts';
 export * from './commission-coverage.ts';
+export * from './commissions-statement-reminders.ts';
+export * from './operational-recovery-flags.ts';
 export * from './commissions-carries.ts';
 export * from './commissions-statement-returns.ts';

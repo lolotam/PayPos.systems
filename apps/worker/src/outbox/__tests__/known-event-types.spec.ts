@@ -40,6 +40,13 @@ vi.mock('../../modules/catalog/jobs/service-category-closing.processor.ts', () =
     deliver: async () => ({ delivered: true }),
   }),
 }));
+vi.mock('../../modules/catalog/jobs/service-import-recovery.processor.ts', () => ({
+  startServiceImportRecoveryProcessor: () => ({
+    ready: async () => undefined,
+    close: async () => undefined,
+    register: async () => undefined,
+  }),
+}));
 import { startCatalogWorker } from '../../modules/catalog/index.ts';
 import {
   startPackagePreviewWorker,
@@ -135,6 +142,13 @@ it('recognizes every event emitted by API and worker, including finite template 
   expect(consumers.flatMap((consumer) => consumer.eventTypes)).toContain('StaffAccessGranted');
   expect(consumers.flatMap((consumer) => consumer.eventTypes)).toContain('StaffPinSetByOther');
   expect(KNOWN_EVENT_TYPES).not.toContain('StaffAccessGranted');
+  // ADR-0061 §2: مستهلك علامة جدولة التذكيرات مسجَّل لـCompanyCreated في تركيب الإقلاع الحقيقي.
+  expect(consumers).toContainEqual(
+    expect.objectContaining({
+      id: 'commissions.reminder-schedule',
+      eventTypes: ['CompanyCreated'],
+    }),
+  );
   const supported = new Set([
     ...knownEventTypes(staff, notifications, null, previews, sales, imports, catalog),
     ...consumers.flatMap((consumer) => consumer.eventTypes),

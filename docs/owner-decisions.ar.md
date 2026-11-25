@@ -3499,3 +3499,28 @@ so much beteer to creat this advisore for the project level so you and the manag
 2. **رفع التوقف (يعدّل PP-265):** تستمر المسارات الثلاثة (`059` و`076` و`074`) فورًا دون انتظار 2026-11-25 15:00 الكويت، مع تفويض الدمج (`you have the merg approval and staging publish approval`، 21:50 الكويت) والنشر على staging عبر `DEP-1`.
 3. **مسار `059` (`53-2 B2b`):** اعتُمدت هجرة الفهرس الجزئي التوسعي (`CREATE INDEX CONCURRENTLY` على `outbox(seq)` فقط) مع التنفيذ على `opencode` (`minimax-coding-plan/MiniMax-M3.1-Flash`) والمراجعة المستقلة على `antigravity / claude-sonnet-5-5` (`medium`) + PR + `ci-gate` + البوتات.
 
+
+## PP-268 — المنفّذ أثناء حجز حصة Antigravity للمراجعة (2026-11-25)
+
+**قرار وليد.** 2026-11-25 00:35 الكويت، في محادثة المدير (`dfb4c927-5b17-4231-b0c8-34274c1edb05`). النص الحرفي محفوظ في تلك المحادثة، وهذا السجل يلخّص مضمونه.
+
+**التطبيق.**
+
+1. تنفيذ `076` و`074-10b` ينتقل، مثل `059`، إلى `opencode` / `minimax-coding-plan/MiniMax-M3.1-Flash`، بموجز صارم بقواعد PP-266 السبع ومراجعة المدير سطرًا بسطر.
+2. حصة Antigravity محجوزة للمراجعة المستقلة الإلزامية (PP-267). `059` يراجع على `antigravity / claude-sonnet-5-5` (`medium`) بتعليمات وليد المباشرة في محادثة `059`.
+3. مهام Sonnet 5.5 الجارية التي تقدّمت فعلًا تكمل خطوتها الحالية. بعد ذلك يذهب كل إرسال جديد وكل جولة إصلاح إلى المنفّذ الجديد.
+
+## PP-269 — المراجِع المستقل الأساسي بعد عودة حصة Claude Code (2026-11-25)
+
+**قرار وليد.** 2026-11-25 13:18 الكويت، في محادثة المدير. يسري من 2026-11-25 15:00 الكويت، موعد تجدد حصة Claude Code. النص الحرفي محفوظ في المحادثة، وهذا السجل يلخّصه.
+
+**التطبيق (يعدّل PP-267 البند 1).**
+
+1. المراجِع المستقل الأساسي: `claudeAgent` / `claude-opus-5-5` (`effort: "medium"`).
+2. البديل عند نفاد حصته: `antigravity` / `claude-opus-5-5` (`thought_level: "medium"`)، ثم `antigravity` / `gemini-4-argon` (`thought_level: "medium"`).
+3. كل مراجعة أو إعادة فحص تجري في `delegate_task` جديدة للقراءة فقط، إلى جانب `ci-gate` ولوحة البوتات.
+4. ما لم يتغيّر: لا جلسات Codex جديدة. المديرون على `antigravity`. `DEP-1` على `claudeAgent`.
+5. بدائل المنفّذ بعد توقف `minimax-coding-plan` (الخطأ 2056، 14:02 الكويت):
+   - شريحة متوسطة: `opencode-go/glm-5.3-flash` أو `opencode-go/minimax-m3.1-flash` (`variant: "high"`).
+   - بند صغير واحد: `opencode/big-pickle`.
+   - مال أو دخول أو هجرة، أو عند وصول OpenCode Go إلى حد الخمس ساعات: `claudeAgent / claude-sonnet-5-5` (`effort: "medium"`).

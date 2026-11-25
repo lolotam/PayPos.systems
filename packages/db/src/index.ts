@@ -87,6 +87,15 @@ export {
   type ParkedCommissionOutboxRow,
 } from './dispatcher.ts';
 export {
+  COMMISSION_REMINDER_SCHEDULES_LOST_CODE,
+  REMINDER_RECOVERY_SYSTEM_CLEARED_BY,
+  type ClearReminderFlagInput,
+  type OpenRecoveryFlag,
+  type ParkedCompanyPage,
+  type ReminderRecoveryCutoff,
+  type ReminderRecoveryDatabase,
+} from './dispatcher-recovery.ts';
+export {
   IdempotencyKeyBusyError,
   IdempotencyKeyReusedError,
   runIdempotent,

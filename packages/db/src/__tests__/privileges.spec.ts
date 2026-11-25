@@ -93,9 +93,20 @@ const COVERAGE_ISSUER_COLUMN_GRANTS = [
   'outbox.event_type:pospay_coverage_issuer:SELECT',
   'outbox.id:pospay_coverage_issuer:SELECT',
 ];
+// استعادة جدولة التذكيرات (ADR-0061 §1): دور القارئ يقرأ عمود id من companies بس، ودور المسّاح يحدّث عمودين من
+// جدول العلامات ويسجّل سطر تدقيق واحد، والمرسّل يرفع العلامات بثلاثة أعمدة بس.
+const RECOVERY_ROLE_COLUMN_GRANTS = [
+  'companies.id:pospay_recovery_company_reader:SELECT',
+  'operational_recovery_flags.cleared_at:pospay_recovery_flag_clearer:UPDATE',
+  'operational_recovery_flags.cleared_by:pospay_recovery_flag_clearer:UPDATE',
+  'operational_recovery_flags.code:pospay_dispatcher:INSERT',
+  'operational_recovery_flags.id:pospay_dispatcher:INSERT',
+  'operational_recovery_flags.raised_at:pospay_dispatcher:INSERT',
+];
 const REVIEWED_COLUMN_GRANTS = [
   ...APPROVAL_READER_COLUMN_GRANTS,
   ...COVERAGE_ISSUER_COLUMN_GRANTS,
+  ...RECOVERY_ROLE_COLUMN_GRANTS,
   ...COMMISSION_TIP_SALARY_COLUMN_GRANTS,
   ...COMMISSION_SALES_COLUMN_GRANTS,
   ...COMMISSION_CORRECTION_COLUMN_GRANTS,
@@ -142,6 +153,8 @@ const APP_ROLES = [
   'pospay_dispatcher',
   'pospay_approval_reader',
   'pospay_coverage_issuer',
+  'pospay_recovery_company_reader',
+  'pospay_recovery_flag_clearer',
 ];
 const IDENTITY_TABLES = [
   'passkey',
@@ -342,5 +355,34 @@ describe('effective access', () => {
       SELECT relname FROM pg_class
       WHERE relname = ANY(${TENANT_TABLES}) AND relrowsecurity AND relforcerowsecurity ORDER BY 1`;
     expect(rows.map((r) => r['relname'])).toEqual([...TENANT_TABLES].sort());
+  });
+});
+
+// ADR-0061 §1: القارئ مالوش أي صلاحية على جدول الهوية، والمسّاح مالوش غير الإدراج في سجل التدقيق
+// عشان سطر المسح يتدوّر في نفس المعاملة (فشل التدقيق يرجّع المسح).
+describe('recovery roles and the global identity tables', () => {
+  it('the recovery reader reaches no identity table', async () => {
+    const reader = await withClusterRoleLock(
+      'shared',
+      () => owner<{ table: string }[]>`
+      SELECT t AS table FROM unnest(${IDENTITY_TABLES}::text[]) AS t
+      WHERE has_table_privilege('pospay_recovery_company_reader', quote_ident(t),
+        'SELECT, INSERT, UPDATE, DELETE, TRUNCATE, REFERENCES, TRIGGER')`,
+    );
+    expect(reader).toEqual([]);
+  });
+
+  it('the recovery clearer reaches only the platform audit log, for inserts', async () => {
+    const clearer = await withClusterRoleLock(
+      'shared',
+      () => owner<{ role: string; table: string }[]>`
+      SELECT r AS role, t AS table
+      FROM unnest(${['pospay_recovery_flag_clearer']}::text[]) AS r, unnest(${IDENTITY_TABLES}::text[]) AS t
+      WHERE has_table_privilege(r, quote_ident(t),
+        'SELECT, INSERT, UPDATE, DELETE, TRUNCATE, REFERENCES, TRIGGER')`,
+    );
+    expect(clearer).toEqual([
+      { role: 'pospay_recovery_flag_clearer', table: 'platform_audit_log' },
+    ]);
   });
 });

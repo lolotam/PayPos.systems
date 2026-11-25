@@ -27,6 +27,34 @@ function fixedText(locale: Locale, recipient: FixedRecipient): string | null {
   return null;
 }
 
+type RecipientRole = (typeof alertRecipientRole.options)[number];
+
+// تنبيهات الكشوف مستلموها ثابتون بأصحاب الصلاحية (DR-008)، فلا تُعرَض مربعات أدوار لا تغيّر شيئًا.
+const PERMISSION_FIXED_KINDS = new Set<ListedAlertRuleView['kind']>([
+  'STATEMENT_AWAITING_REVIEW',
+  'STATEMENT_AWAITING_APPROVAL',
+]);
+
+function fixedRecipientsFor(rule: ListedAlertRuleView): readonly FixedRecipient[] {
+  if (
+    rule.kind === 'STATEMENT_AWAITING_APPROVAL' &&
+    !rule.fixed_recipients.some((recipient) => recipient.selector === 'PERMISSION_HOLDERS')
+  ) {
+    return [
+      ...rule.fixed_recipients,
+      { selector: 'PERMISSION_HOLDERS', permission: 'approve:commissions:business', who: null },
+    ];
+  }
+  return rule.fixed_recipients;
+}
+
+function toggledRoles(selected: readonly RecipientRole[], role: RecipientRole): RecipientRole[] {
+  const next = selected.includes(role)
+    ? selected.filter((value) => value !== role)
+    : [...selected, role];
+  return alertRecipientRole.options.filter((value) => next.includes(value));
+}
+
 export function AlertRuleRecipients({
   rule,
   index,
@@ -42,17 +70,16 @@ export function AlertRuleRecipients({
   });
   const selected = field.value;
   const kind = alertRuleKindLabel(locale, rule.kind);
-  const toggle = (role: (typeof alertRecipientRole.options)[number]) => {
-    const next = selected.includes(role)
-      ? selected.filter((value) => value !== role)
-      : [...selected, role];
-    field.onChange(alertRecipientRole.options.filter((value) => next.includes(value)));
-  };
+  const refused = ALERT_KIND_DEFINITIONS[rule.kind].refusedRecipientRoles;
+  const selectableRoles = alertRecipientRole.options.filter((role) => !refused.includes(role));
+  const showRoleChoices =
+    !ALERT_KIND_DEFINITIONS[rule.kind].employeeOnly && !PERMISSION_FIXED_KINDS.has(rule.kind);
+  const toggle = (role: RecipientRole) => field.onChange(toggledRoles(selected, role));
   return (
     <div className="flex flex-col gap-2">
       <p className="text-sm font-semibold">{t(locale, 'alertRules.recipientsTitle')}</p>
-      {!ALERT_KIND_DEFINITIONS[rule.kind].employeeOnly
-        ? alertRecipientRole.options.map((role) => {
+      {showRoleChoices
+        ? selectableRoles.map((role) => {
             const id = `alert-rule-${index}-${role}`;
             const roleLabel = roleName(locale, role, role);
             return (
@@ -73,7 +100,7 @@ export function AlertRuleRecipients({
             );
           })
         : null}
-      {rule.fixed_recipients.map((recipient, recipientIndex) => {
+      {fixedRecipientsFor(rule).map((recipient, recipientIndex) => {
         const text = fixedText(locale, recipient);
         return text === null ? null : (
           <p key={recipientIndex} className="text-sm text-muted-foreground">

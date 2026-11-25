@@ -8,6 +8,7 @@
     "build": "tsc -p tsconfig.build.json",
     "typecheck": "tsc --noEmit",
     "platform:commission-coverage": "node --env-file-if-exists=../../.env dist/issue-commission-coverage.js",
+    "platform:commission-reminder-recovery": "node --env-file-if-exists=../../.env dist/recover-commission-reminders.js",
     "lint": "eslint .",
     "test": "vitest run",
     "start": "node --env-file-if-exists=../../.env dist/main.js"

@@ -1,3 +1,5 @@
+import { ServiceImportError } from './errors.ts';
+
 /**
  * حدّ مصنف خدمات الاستيراد (ADR-0034 addendum §3): حجم الملف وعدد صفوف البيانات والأعمدة.
  * حد `maxWorksheets` ما بيتحددش هنا لأنه بيعتمد على أوراق القالب المرجعية، وهو شغل 32b-2.
@@ -59,4 +61,16 @@ export function serviceImportExpectedHeaders(headerTexts: readonly unknown[]): s
   const trimmed = headerTexts.map((header) => String(header ?? '').trim());
   const optional = SERVICE_IMPORT_OPTIONAL_HEADERS.filter((header) => trimmed.includes(header));
   return [...SERVICE_IMPORT_REQUIRED_HEADERS, ...optional];
+}
+
+/**
+ * لحظة قبول واحدة تربط صلاحية المعاينة بالطلب المحفوظ؛ المساواة منتهية مثل قاعدة الموظف.
+ *
+ * @param expiresAt انتهاء المعاينة المحفوظ
+ * @param requestedAt لحظة قبول الطلب من الساعة المحقونة
+ * @returns لا شيء عند القبول قبل الانتهاء، وإلا رفض انتهاء مسمى
+ */
+export function requireServiceImportRequestExpiry(expiresAt: string, requestedAt: Date): void {
+  if (new Date(expiresAt).getTime() <= requestedAt.getTime())
+    throw new ServiceImportError('IMPORT_PREVIEW_EXPIRED');
 }

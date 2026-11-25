@@ -20,9 +20,30 @@ export function soonPageHref(pageId: string): string {
   return `/soon/${pageId}`;
 }
 
-function concreteRoute(entry: NavigationPageEntry | undefined): string | undefined {
-  if (entry?.state !== 'live' || entry.route?.includes('[')) return undefined;
-  return entry.route;
+function isConcreteRoute(route: string | undefined): route is string {
+  return (
+    route !== undefined && route.startsWith('/') && !route.includes('[') && !route.includes(']')
+  );
+}
+
+/**
+ * وجهة التحويل الصالحة لرابط `/soon/<id>` بعد ترقية المدخل إلى `live` (#1167):
+ * - إذا صُرّح بوجهة ملموسة (`formerSoonDestination`) تُستعمل إن لم تحتوِ معامل مسار.
+ * - الصفحة الحية ذات المسار الثابت تحوّل لمسارها مباشرة.
+ * - الصفحة ذات المسار الديناميكي بلا `formerSoonDestination` ملموسة تعيد `undefined` (لا تحوّل للأب ولا للرئيسية).
+ * - الصفحة المضمّنة (`embeddedInParent`) تحوّل لمسار صفحتها الأب الحية متى كان ثابتًا ملموسًا.
+ */
+export function promotedSoonDestination(
+  entry: NavigationPageEntry,
+  pagesById: ReadonlyMap<string, NavigationPageEntry>,
+): string | undefined {
+  if (entry.state === 'soon') return undefined;
+  if (entry.formerSoonDestination !== undefined) {
+    return isConcreteRoute(entry.formerSoonDestination) ? entry.formerSoonDestination : undefined;
+  }
+  if (entry.route !== undefined) return isConcreteRoute(entry.route) ? entry.route : undefined;
+  const parent = pagesById.get(entry.parent);
+  return parent?.state === 'live' && isConcreteRoute(parent.route) ? parent.route : undefined;
 }
 
 export function navigationEntryHref(
@@ -30,9 +51,7 @@ export function navigationEntryHref(
   pagesById: ReadonlyMap<string, NavigationPageEntry>,
 ): string {
   if (entry.state === 'soon') return soonPageHref(entry.id);
-  const parent = entry.parent === undefined ? undefined : pagesById.get(entry.parent);
-  // عنوان Soon لا يحمل معرّفًا لملء المسار الديناميكي، فالرابط يفتح قائمة الصفحة الأب.
-  return concreteRoute(entry) ?? concreteRoute(parent) ?? '/';
+  return promotedSoonDestination(entry, pagesById) ?? '/';
 }
 
 function normalizePathname(pathname: string): string {

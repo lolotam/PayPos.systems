@@ -42,13 +42,15 @@ BEGIN
   END LOOP;
 END $$`;
 
-const APPROVAL_READER_MEMBERSHIPS_SQL = `
+const FUNCTION_OWNER_MEMBERSHIPS_SQL = `
 DO $$ DECLARE m record; BEGIN
   FOR m IN SELECT granted.rolname AS granted, member.rolname AS member, grantor.rolname AS grantor
     FROM pg_auth_members a JOIN pg_roles granted ON granted.oid = a.roleid
     JOIN pg_roles member ON member.oid = a.member JOIN pg_roles grantor ON grantor.oid = a.grantor
-    WHERE member.rolname IN ('pospay_approval_reader', 'pospay_coverage_issuer')
-       OR granted.rolname IN ('pospay_approval_reader', 'pospay_coverage_issuer') LOOP
+    WHERE member.rolname IN ('pospay_approval_reader', 'pospay_coverage_issuer',
+         'pospay_recovery_company_reader', 'pospay_recovery_flag_clearer')
+       OR granted.rolname IN ('pospay_approval_reader', 'pospay_coverage_issuer',
+         'pospay_recovery_company_reader', 'pospay_recovery_flag_clearer') LOOP
     EXECUTE format('REVOKE %I FROM %I GRANTED BY %I CASCADE', m.granted, m.member, m.grantor);
   END LOOP;
 END $$`;
@@ -73,6 +75,8 @@ export async function bootstrapRoles(sql: Sql, passwords: RolePasswords): Promis
                     set_config('pospay.auth_password', ${passwords.auth}, true),
                     set_config('pospay.dispatcher_password', ${passwords.dispatcher}, true)`;
     await tx.unsafe(ROLES_SQL);
+    // أدوار الدوال اللي مالها دخول: عدّاد الاعتماد، وإثبات التغطية، واستعادة الجدولة (ADR-0061 §1).
+    // كل واحد مالك دالة واحدة أو أكتر وما يعضوش في أي دور.
     await tx.unsafe(`DO $$ BEGIN
       IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'pospay_notifications') THEN
         CREATE ROLE pospay_notifications LOGIN NOSUPERUSER NOBYPASSRLS NOINHERIT NOCREATEDB NOCREATEROLE NOREPLICATION;
@@ -91,9 +95,17 @@ export async function bootstrapRoles(sql: Sql, passwords: RolePasswords): Promis
         CREATE ROLE pospay_coverage_issuer NOLOGIN NOSUPERUSER NOBYPASSRLS NOINHERIT NOCREATEDB NOCREATEROLE NOREPLICATION;
       END IF;
       ALTER ROLE pospay_coverage_issuer WITH NOLOGIN NOSUPERUSER NOBYPASSRLS NOINHERIT NOCREATEDB NOCREATEROLE NOREPLICATION;
+      IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'pospay_recovery_company_reader') THEN
+        CREATE ROLE pospay_recovery_company_reader NOLOGIN NOSUPERUSER NOBYPASSRLS NOINHERIT NOCREATEDB NOCREATEROLE NOREPLICATION;
+      END IF;
+      ALTER ROLE pospay_recovery_company_reader WITH NOLOGIN NOSUPERUSER NOBYPASSRLS NOINHERIT NOCREATEDB NOCREATEROLE NOREPLICATION;
+      IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'pospay_recovery_flag_clearer') THEN
+        CREATE ROLE pospay_recovery_flag_clearer NOLOGIN NOSUPERUSER NOBYPASSRLS NOINHERIT NOCREATEDB NOCREATEROLE NOREPLICATION;
+      END IF;
+      ALTER ROLE pospay_recovery_flag_clearer WITH NOLOGIN NOSUPERUSER NOBYPASSRLS NOINHERIT NOCREATEDB NOCREATEROLE NOREPLICATION;
     END $$`);
-    // دورا دالة العدّ ودوال إثبات التغطية لا يعضوان في أي دور ولا أحد يعضو فيهما؛ يُشال أي ربط قديم في الاتجاهين تحت نفس القفل، مع GRANTED BY و CASCADE كما أعلاه.
-    await tx.unsafe(APPROVAL_READER_MEMBERSHIPS_SQL);
+    // دورا دالة العدّ ودوال إثبات التغطية ودوال الاستعادة لا يعضوان في أي دور ولا أحد يعضو فيهم؛ يُشال أي ربط قديم في الاتجاهين تحت نفس القفل، مع GRANTED BY و CASCADE كما أعلاه.
+    await tx.unsafe(FUNCTION_OWNER_MEMBERSHIPS_SQL);
     if (passwords.notifications !== undefined) {
       if (passwords.notifications.length < 16)
         throw new Error('POSTGRES_NOTIFICATIONS_PASSWORD_INVALID');

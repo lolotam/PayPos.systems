@@ -91,10 +91,10 @@ describe('/soon/<page>', () => {
     expect(screen.queryByText('Not found')).toBeNull();
   });
 
-  it('forwards a built child entry to its parent list', () => {
+  it('treats the removed unpublished customer-packages Soon alias as not found (#1167)', () => {
     renderDashboard(route('customer-packages'));
-    expect(frameState.replace).toHaveBeenCalledWith('/orders/service-sessions');
-    expect(frameState.pathname).toBe('/orders/service-sessions');
+    expect(frameState.replace).not.toHaveBeenCalled();
+    expect(screen.getByText('Not found')).toBeTruthy();
   });
 });
 
