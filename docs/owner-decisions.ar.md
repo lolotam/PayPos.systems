@@ -3576,3 +3576,13 @@ so much beteer to creat this advisore for the project level so you and the manag
 1. حجم الـ PR المستهدف 1,000–1,500 سطر كود إنتاج من غير الاختبارات. الصب تاسكات الصغيرة من **نفس الميزة أو الموديول** تتجمّع في PR واحد، والأكبر من 1,500 يتقسم لـ PRين.
 2. هجرة قاعدة بيانات واحدة بس في كل PR.
 3. ده بيحل محل «use case واحد في كل PR» في `CLAUDE.md` §1 و§10 وفي `.claude/skills/pospay-pipeline/SKILL.md` §2، واتعدّلوا في نفس الكوميت.
+
+## PP-275 — فتح `STAFF_ACCESS_ROUTES` على staging (2026-11-26)
+
+**قرار وليد.** 2026-11-26 ~00:07 الكويت، كارت في محادثة المدير. السؤال: نفتح `STAFF_ACCESS_ROUTES` (دعوة الموظفة والرمز المؤقت والجلسة الشخصية، spec 076) إمتى، والـ runbook بيمنع فتحه في أي بيئة قبل ما بنود AC-ACT-1…AC-ACT-24 تتقفل؟ الإجابة: «staging بعد G2 (المقترح)».
+
+**التطبيق.**
+
+1. الفتح على staging بس، وبعد تلات حاجات: دمج 076-G2؛ جدول بكل بند من AC-ACT-1…AC-ACT-24 (`docs/specs/076-identity-staff-access/spec.md` §9) مقفول بإثباته، تأكده مراجعة مستقلة واحدة؛ وPR صغير يمرر `STAFF_ACCESS_ROUTES` (الافتراضي `off`) و`ADMIN_ORIGIN` للـ api في `deploy/docker-compose.staging-shared.yml`، مع التأكد إن `AUTH_TRUSTED_ORIGINS` بيغطي `ADMIN_ORIGIN`.
+2. بعدها المدير يحط `STAFF_ACCESS_ROUTES=on` و`ADMIN_ORIGIN` على staging بس (إذن مرة واحدة بالكارت ده)، ويعمل redeploy ويتحقق. الرجوع: شيل المتغير وإعادة تشغيل الـ api، مع قواعد الـ runbook (تصريف النسخ القديمة، وأرضية الرجوع لصورة 076-F2b).
+3. الإنتاج قرار منفصل لوليد. سؤال تقني، فمش بيتنشر على صفحة القرارات.
