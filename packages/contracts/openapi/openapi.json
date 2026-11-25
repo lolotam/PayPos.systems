@@ -51928,6 +51928,18 @@
             "nullable": true,
             "type": "string"
           },
+          "provider_receipt": {
+            "nullable": true,
+            "type": "string",
+            "enum": [
+              "DELIVERED",
+              "BOUNCED",
+              "COMPLAINED",
+              "SUPPRESSED",
+              "DELAYED",
+              "FAILED"
+            ]
+          },
           "failure_code": {
             "nullable": true,
             "type": "string",
@@ -51978,6 +51990,7 @@
           "sending_at",
           "finished_at",
           "provider_message_id",
+          "provider_receipt",
           "failure_code",
           "outcome_known",
           "created_at",
