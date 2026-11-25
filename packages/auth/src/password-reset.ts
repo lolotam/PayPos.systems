@@ -38,7 +38,39 @@ function validatedResetInput(
 }
 
 /** رابط تعيين كلمة المرور بيتخزن في verification بنفس الشكل اللي Better Auth بيقراه: `reset-password:<token>`. */
-const identifierOf = (token: string): string => `reset-password:${token}`;
+export const identifierOf = (token: string): string => `reset-password:${token}`;
+
+/** بوابة داخل العملية لكل identifier: ذيل الطلب اللي قبله، وطريقة فتح البوابة. */
+interface ResetGate {
+  /** ذيل الطلب اللي قبلنا بنفس التوكن — ننتظره قبل ما ندخل المنطقة الحرجة. */
+  readonly previous: Promise<void> | undefined;
+  /** يفتح البوابة وبيشيل الذيل من الخريطة بس لو لسه هو اللي فيها. */
+  release(): void;
+}
+
+/**
+ * بيحط ذيل الطلب في خريطة البوابة قبل ما ينتظر: كل طلب يلاقي ذيله هو، فترتيب الطابور متبان.
+ * الحذف من الخريطة بس لو الذيل لسه هو ده — وإلا الطلب اللي ورا بيضيع ترتيبه.
+ *
+ * @param inFlight خريطة الذيل لكل identifier
+ * @param identifier معرّف رابط إعادة التعيين
+ * @returns ذيل الطلب السابق وطريقة فتح البوابة
+ */
+function installGate(inFlight: Map<string, Promise<void>>, identifier: string): ResetGate {
+  const previous = inFlight.get(identifier);
+  let release = (): void => undefined;
+  const tail = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  inFlight.set(identifier, tail);
+  return {
+    previous,
+    release: () => {
+      release();
+      if (inFlight.get(identifier) === tail) inFlight.delete(identifier);
+    },
+  };
+}
 
 /** SQLSTATE من خطأ Postgres (أو من سببه داخل Drizzle) — خمسة محارف أرقام فقط، ولا شيء آخر يُقرأ من الخطأ. */
 const sqlstateOf = (error: unknown): string | undefined => {
@@ -49,6 +81,38 @@ const sqlstateOf = (error: unknown): string | undefined => {
   }
   return undefined;
 };
+
+/**
+ * المنطقة الحرجة لمسار الاستهلاك: فحص حياة الرابط، ثم حساب الـ hash، ثم الاستهلاك الذري. بتتقفل
+ * جوه بوابة واحدة لكل identifier، فطلبان بنفس التوكن ما بيحسبوش كلمة المرور مرتين.
+ *
+ * @param resets حدود الاستهلاك على جداول الهوية
+ * @param identifier `reset-password:<token>`
+ * @param newPassword كلمة المرور الجديدة
+ * @param hash مُجزّئ كلمات المرور
+ * @param accountId معرّف صف حساب الدخول لو اليوزر مالوش صف
+ * @param now ساعة الطلب
+ * @returns `dead-link` أو `invalid-link` أو `done`
+ */
+async function consumeReset(input: {
+  readonly resets: AuthDatabase['passwordResets'];
+  readonly identifier: string;
+  readonly newPassword: string;
+  readonly hash: (password: string) => Promise<string>;
+  readonly accountId: string;
+  readonly now: () => Date;
+}): Promise<'dead-link' | 'invalid-link' | 'done'> {
+  // رابط ميت بيترفض قبل الـ hash: مفيش حد من بره يقدر يجبر السيرفر يحسب hash من غير رابط صالح.
+  if (!(await input.resets.linkIsLive(input.identifier, input.now()))) return 'dead-link';
+  const passwordHash = await input.hash(input.newPassword);
+  return input.resets.consumeLinkAndSetPassword({
+    identifier: input.identifier,
+    passwordHash,
+    accountId: input.accountId,
+    // الساعة بتتقري جوه المعاملة بعد قفل اليوزر — مش هنا.
+    now: input.now,
+  });
+}
 
 /**
  * بيرجّع خطأ 500 ثابت لفشل قاعدة بيانات في مسار الـ reset: خطأ Drizzle بيحمل الـ SQL params
@@ -78,6 +142,8 @@ function resetFailed(
  * ميت. هنا الـ hash بيتحسب الأول بره أي قفل، ثم معاملة واحدة تحت قفل صف اليوزر (نفس قفل إصدار
  * الرابط) بتستهلك الرابط وتكتب كلمة المرور وتمسح كل رابط reset تاني لنفس اليوزر — أو بترجع كلها.
  * أي فشل قاعدة بيانات بيتحوّل لخطأ 500 ثابت من غير تفاصيل (لا توكن ولا hash في الـ log).
+ * وطلبان بنفس التوكن بيتراصّوا على بوابة داخل العملية: التاني بيستنى الأول، فالتشفير بيتحسب مرة
+ * واحدة بس والتاني بيرد 400 INVALID_TOKEN لأن الرابط اتستهلك.
  * الـ route والـ origin check والـ rate limit والأخطاء كلها بتفضل Better Auth زي ما هي.
  *
  * @param options قاعدة الهوية ومولّد الـ ids وساعة الطلب ومستقبل الـ log الآمن
@@ -90,6 +156,8 @@ export function passwordResetPlugin(options: {
   onLog?: ((entry: { readonly level: 'error'; readonly message: string }) => void) | undefined;
 }) {
   const resets = options.database.passwordResets;
+  // ذيل كل identifier: الطلب التاني بنفس التوكن بيستنى الأول، فالتشفير بيتحسب مرة واحدة بس.
+  const inFlight = new Map<string, Promise<void>>();
   return {
     id: 'pospay-password-reset',
     endpoints: {
@@ -105,28 +173,30 @@ export function passwordResetPlugin(options: {
           throw APIError.from('BAD_REQUEST', PASSWORD_TOO_LONG);
         }
         const identifier = identifierOf(token);
-        // الرفض المقصود (INVALID_TOKEN) بيتحدد بره الـ try: أي استثناء من قاعدة البيانات أو الـ hasher —
-        // حتى لو APIError — بيتحول للـ 500 الثابت، فمفيش تفصيلة من تبعية بتوصل للرد أو للـ log.
-        let outcome: 'dead-link' | 'invalid-link' | 'done';
+        const gate = installGate(inFlight, identifier);
         try {
-          // رابط ميت بيترفض قبل الـ hash: مفيش حد من بره يقدر يجبر السيرفر يحسب hash من غير رابط صالح.
-          if (!(await resets.linkIsLive(identifier, options.clock?.now() ?? new Date()))) {
-            outcome = 'dead-link';
-          } else {
-            const passwordHash = await ctx.context.password.hash(newPassword);
-            outcome = await resets.consumeLinkAndSetPassword({
+          await gate.previous;
+          // الرفض المقصود (INVALID_TOKEN) بيتحدد بره الـ try: أي استثناء من قاعدة البيانات أو الـ hasher —
+          // حتى لو APIError — بيتحول للـ 500 الثابت، فمفيش تفصيلة من تبعية بتوصل للرد أو للـ log.
+          let outcome: 'dead-link' | 'invalid-link' | 'done';
+          try {
+            outcome = await consumeReset({
+              resets,
               identifier,
-              passwordHash,
+              newPassword,
+              hash: (password) => ctx.context.password.hash(password),
               accountId: options.ids.newId(),
-              // الساعة بتتقري جوه المعاملة بعد قفل اليوزر — مش هنا.
               now: () => options.clock?.now() ?? new Date(),
             });
+          } catch (error) {
+            throw resetFailed(options.onLog, error);
           }
-        } catch (error) {
-          throw resetFailed(options.onLog, error);
+          if (outcome !== 'done') throw APIError.from('BAD_REQUEST', INVALID_TOKEN);
+          return ctx.json({ status: true });
+        } finally {
+          // البوابة بتتفتح في كل الأحوال: خطأ في الطلب تاني ما ينفعش يسيب الطابور واقف.
+          gate.release();
         }
-        if (outcome !== 'done') throw APIError.from('BAD_REQUEST', INVALID_TOKEN);
-        return ctx.json({ status: true });
       }),
     },
   };

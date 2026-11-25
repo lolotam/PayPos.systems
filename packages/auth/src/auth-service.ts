@@ -8,6 +8,7 @@ import { STAFF_SYNTHETIC_EMAIL_DOMAIN } from './staff-access-users.ts';
 import { configuredPrivateView } from './private-view.ts';
 import { createMyPreferences } from './my-preferences.ts';
 import { isPasskeyRoute } from './passkey-policy.ts';
+import { identifierOf } from './password-reset.ts';
 import type { StaffSessions } from './staff-sessions.ts';
 import {
   staffSessions,
@@ -59,11 +60,14 @@ export function assembleAuthService(
       };
     },
     provisionUser: async (input) => provision(await auth.$context, input),
-    issuePasswordSetLink: async (userId, redirectTo) => {
-      // حساب الموظفة بلا كلمة سر أبداً (D8): الرابط لا يُصدر له حتى لو حصل token من مسار آخر.
-      if (await staffUsers.isStaffUser(userId)) throw new Error('STAFF_USER_CREDENTIAL_REFUSED');
-      return issueSetPasswordLink(await auth.$context, userId, redirectTo);
-    },
+    issuePasswordSetLink: async (userId, redirectTo) =>
+      issueSetPasswordLink({
+        options,
+        database,
+        auth,
+        userId,
+        redirectTo,
+      }),
     discardUser: async (userId) => {
       await (await auth.$context).internalAdapter.deleteUser(userId);
     },
@@ -125,6 +129,15 @@ async function authHandler(
 
 type AuthContext = Awaited<ReturnType<typeof buildBetterAuth>['$context']>;
 
+/** طلب إصدار رابط تعيين كلمة المرور — الساعة ومولّد الـ ids والعميل كلهم من options. */
+interface SetPasswordLinkRequest {
+  readonly options: AuthOptions;
+  readonly database: ReturnType<typeof createAuthDatabase>;
+  readonly auth: ReturnType<typeof buildBetterAuth>;
+  readonly userId: string;
+  readonly redirectTo: string;
+}
+
 async function provision(
   context: AuthContext,
   input: { email: string; name: string; password: string },
@@ -157,17 +170,25 @@ async function provision(
   return user.id;
 }
 
-async function issueSetPasswordLink(
-  context: AuthContext,
-  userId: string,
-  redirectTo: string,
-): Promise<string> {
+/**
+ * بيصدر رابط تعيين كلمة المرور للـ operator. القرار على "الحساب ده موظفة ولا لأ" بيتاخد جوه معاملة
+ * الـ D8 تحت قفل صف اليوزر، فاليوزر اللي بقى موظفة بين الإصدار وما ينفّذش بياكلش رابط.
+ *
+ * @param request الساعة ومولّد الـ ids والعميل واليوزر وصفحة الرجوع
+ * @returns رابط فيه التوكن، صالح لمرة واحدة
+ */
+async function issueSetPasswordLink(request: SetPasswordLinkRequest): Promise<string> {
+  const context = await request.auth.$context;
   const token = randomBytes(24).toString('base64url');
-  // The same verification row Better Auth's own reset flow writes, consumed once by POST /reset-password.
-  await context.internalAdapter.createVerificationValue({
-    value: userId,
-    identifier: `reset-password:${token}`,
-    expiresAt: new Date(Date.now() + SET_PASSWORD_LINK_TTL_MS),
+  const now = request.options.clock?.now() ?? new Date();
+  const outcome = await request.database.passwordResets.issueOperatorResetLink({
+    id: request.options.ids.newId(),
+    identifier: identifierOf(token),
+    userId: request.userId,
+    expiresAt: new Date(now.getTime() + SET_PASSWORD_LINK_TTL_MS),
+    now,
   });
-  return `${context.baseURL}/reset-password/${token}?callbackURL=${encodeURIComponent(redirectTo)}`;
+  if (outcome === 'staff-user') throw new Error('STAFF_USER_CREDENTIAL_REFUSED');
+  if (outcome === 'missing-user') throw new Error('USER_NOT_FOUND');
+  return `${context.baseURL}/reset-password/${token}?callbackURL=${encodeURIComponent(request.redirectTo)}`;
 }
