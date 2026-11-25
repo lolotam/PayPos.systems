@@ -1,0 +1,78 @@
+import type { IdGenerator, TenantWrappers, Tx } from '@pospay/db';
+import { sql } from 'drizzle-orm';
+
+import { transactionWriters } from '../../../shared/adapters/transaction-writers.ts';
+import type {
+  EndMembershipCommand,
+  EndMembershipOutcome,
+  EndMembershipTransactions,
+} from '../ports/end-membership.port.ts';
+import { authorityAllows } from './member-invitation-records.ts';
+
+interface TargetRow extends Record<string, unknown> {
+  id: string;
+  ends_at: string | Date | null;
+}
+
+// التريجر المؤجّل 0013 بيرفض آخر مالك وقت الـ commit بـ P0001 وhint ثابت؛ الخطأ ممكن يكون ملفوف في cause.
+function isLastOwnerRefusal(error: unknown): boolean {
+  for (let node = error, depth = 0; typeof node === 'object' && node !== null && depth < 5; depth += 1) {
+    const { code, hint, cause } = node as { code?: unknown; hint?: unknown; cause?: unknown };
+    if (code === 'P0001' && hint === 'pospay:last-owner') return true;
+    node = cause;
+  }
+  return false;
+}
+
+// onBeforeCommit بيمسكه اختبار السباق بس: بعد التعديل والتدقيق وقبل الـ commit اللي بيشغّل تريجر 0013.
+export function createEndMembershipTransactions(
+  db: TenantWrappers,
+  ids: IdGenerator,
+  onBeforeCommit?: () => Promise<void>,
+): EndMembershipTransactions {
+  return {
+    end: async (command, now) => {
+      try {
+        return await db.withTenant(
+          command.companyId,
+          (tx) => endInside(tx, command, now, ids, onBeforeCommit),
+          { userId: command.actorUserId },
+        );
+      } catch (error) {
+        if (isLastOwnerRefusal(error)) return { refusal: 'LAST_OWNER' };
+        throw error;
+      }
+    },
+  };
+}
+
+async function endInside(
+  tx: Tx,
+  command: EndMembershipCommand,
+  now: Date,
+  ids: IdGenerator,
+  onBeforeCommit: (() => Promise<void>) | undefined,
+): Promise<EndMembershipOutcome> {
+  const { companyId, actorUserId, membershipId } = command;
+  if (!(await authorityAllows(tx, companyId, actorUserId))) return { refusal: 'FORBIDDEN' };
+  // قفل صف الهدف بس: قفل الشركة أو كل العضويات كان هيخلي مالك تاني يفقد سلطته قبل الفحص (403) بدل ما يوصل لتريجر 0013.
+  const [row] = await tx.execute<TargetRow>(sql`
+    SELECT id, ends_at FROM memberships
+    WHERE company_id = ${companyId} AND id = ${membershipId} FOR UPDATE`);
+  if (row === undefined) return { refusal: 'NOT_FOUND' };
+  if (!(await authorityAllows(tx, companyId, actorUserId))) return { refusal: 'FORBIDDEN' };
+  if (row.ends_at !== null) return { id: row.id, endsAt: new Date(row.ends_at).toISOString() };
+  const endsAt = now.toISOString();
+  await tx.execute(sql`
+    UPDATE memberships SET ends_at = ${endsAt}::timestamptz
+    WHERE company_id = ${companyId} AND id = ${membershipId} AND ends_at IS NULL`);
+  await transactionWriters(tx, ids).audit.record({
+    entity: 'membership',
+    entityId: membershipId,
+    action: 'membership.ended',
+    before: { ends_at: null },
+    after: { ends_at: endsAt },
+  });
+  await onBeforeCommit?.();
+  return { id: row.id, endsAt };
+}

@@ -2294,6 +2294,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/memberships/{membershipId}/end": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @description Requires manage:memberships:company and the canonical company owner decided inside the write transaction. Ends the membership in this company only; the last active owner cannot be ended (409 LAST_OWNER). No request body. */
+        post: operations["endMembership"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/branches/{branchId}/devices": {
         parameters: {
             query?: never;
@@ -10403,6 +10420,12 @@ export interface components {
             revision: number;
             /** Format: date-time */
             refunded_at: string;
+        };
+        EndMembershipResult: {
+            /** Format: uuid */
+            id: string;
+            /** Format: date-time */
+            ends_at: string;
         };
         InviteMemberInput: {
             /** Format: email */
@@ -18583,6 +18606,48 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["MemberInvitationResult"];
+                };
+            };
+            /** @description The API error envelope */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    endMembership: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-company-id": string;
+            };
+            path: {
+                membershipId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The ended membership */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EndMembershipResult"];
+                };
+            };
+            /** @description LAST_OWNER: the company would be left without an owner */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
             /** @description The API error envelope */

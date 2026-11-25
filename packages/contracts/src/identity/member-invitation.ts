@@ -36,6 +36,12 @@ export const memberInvitationResult = responseObject({
   set_password_link: z.string(),
 }).meta({ id: 'MemberInvitationResult' });
 
+/** نتيجة إنهاء العضوية: معرفها ووقت الانتهاء المحفوظ (نفس الوقت لو اتنهت قبل كده). */
+export const endMembershipResult = responseObject({
+  id,
+  ends_at: timestamp,
+}).meta({ id: 'EndMembershipResult' });
+
 /** صف دعوة في القائمة — مفيش فيه رابط ولا توكن ولا إيميل صريح. */
 export const memberInvitation = responseObject({
   id,
@@ -56,5 +62,6 @@ export type InvitableRole = z.infer<typeof invitableRole>;
 export type InvitationScopeType = z.infer<typeof invitationScopeType>;
 export type InviteMemberInput = z.infer<typeof inviteMemberInput>;
 export type MemberInvitationResult = z.infer<typeof memberInvitationResult>;
+export type EndMembershipResult = z.infer<typeof endMembershipResult>;
 export type MemberInvitation = z.infer<typeof memberInvitation>;
 export type MemberInvitationPage = z.infer<typeof memberInvitationPage>;

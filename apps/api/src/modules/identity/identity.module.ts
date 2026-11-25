@@ -83,6 +83,7 @@ import { SignInStaffPin } from './use-cases/sign-in-staff-pin/sign-in-staff-pin.
 import { ResetStaffPin } from './use-cases/reset-staff-pin/reset-staff-pin.ts';
 import { ChangeTemporaryStaffPin } from './use-cases/change-temporary-staff-pin/change-temporary-staff-pin.ts';
 import { MemberInvitationsController } from './http/member-invitations.controller.ts';
+import { MembershipsController } from './http/memberships.controller.ts';
 import { memberInvitationProviders } from './member-invitations.wiring.ts';
 import { PrivateViewController, PRIVATE_VIEW_WINDOWS } from './http/private-view.controller.ts';
 import { OpenPrivateView } from './use-cases/open-private-view/open-private-view.ts';
@@ -106,6 +107,7 @@ export const identityControllers = [
   StaffPinController,
   PrivateViewController,
   MemberInvitationsController,
+  MembershipsController,
 ];
 
 /** الربط العام يمر من composition root؛ تفاصيل القراءة والنقل تظل داخل الهوية. */
