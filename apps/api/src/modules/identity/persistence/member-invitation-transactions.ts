@@ -46,6 +46,39 @@ async function authorityRefusal(
 }
 
 /**
+ * دعوة عالقة من غير حساب: صف PENDING لسه فاضي (الطلب وقف بعد الفتح وقبل إنشاء الحساب) وعدّى
+ * عليه الوقت، ومحدش يقدر يكمله — فبيتلغى تحت قفل الصف والدعوة الجديدة بتكتب مكانه (AC-ACT-20).
+ * ولو الحساب القائم عملية تانية غير الصف ده، فالصف ما بيستأنفش كمان: الاستئناف هيصطدم بالحساب.
+ *
+ * @returns true لما الصف اتلغى، false لما الصف ما ينفعش يتلمس
+ */
+async function reclaimStaleRow(
+  tx: Tx,
+  ids: IdGenerator,
+  input: OpenInvitationInput,
+  row: InvitationRecord,
+): Promise<boolean> {
+  const staleBefore = input.staleBefore;
+  if (staleBefore === undefined) return false;
+  if (row.state !== 'PENDING' || row.user_id !== null || row.membership_id !== null) return false;
+  if (new Date(row.created_at).getTime() >= staleBefore.getTime()) return false;
+  const resumable = !resumeRefused(row, input);
+  const sameOperation = input.accountOperationId === undefined || input.accountOperationId === row.id;
+  if (resumable && sameOperation) return false;
+  await tx.execute(sql`
+    UPDATE member_invitations SET state = 'CANCELLED'
+    WHERE company_id = ${input.companyId} AND id = ${row.id} AND state = 'PENDING'
+      AND user_id IS NULL AND membership_id IS NULL`);
+  await transactionWriters(tx, ids).audit.record({
+    entity: 'member_invitation',
+    entityId: row.id,
+    action: 'invite.abandoned',
+    after: { invitation_id: row.id, reason: 'NEVER_COMPLETED' },
+  });
+  return true;
+}
+
+/**
  * الخطوة الأولى جوه معاملة واحدة: قفل صف الإيميل الأول، وبعده بس قراءة السلطة والنطاق (عشان DENY اتسجل
  * وإحنا مستنيين القفل ما يفوتناش)، ثم كتابة أو إعادة استخدام PENDING. الصف الملغي مش بيحجز الإيميل.
  */
@@ -58,9 +91,12 @@ async function openInvitation(
   const refusal = await authorityRefusal(tx, input, input.scope);
   if (refusal !== null) return { refusal };
   if (existing !== undefined) {
-    return resumeRefused(existing, input)
-      ? { refusal: 'MEMBER_INVITATION_EXISTS' }
-      : { invitationId: existing.id };
+    const reclaimed = await reclaimStaleRow(tx, ids, input, existing);
+    if (!reclaimed) {
+      return resumeRefused(existing, input)
+        ? { refusal: 'MEMBER_INVITATION_EXISTS' }
+        : { invitationId: existing.id };
+    }
   }
   const inserted = await tx.execute<{ id: string }>(sql`
     INSERT INTO member_invitations

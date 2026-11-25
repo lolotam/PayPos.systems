@@ -123,11 +123,12 @@ export class InviteMember {
     const denied = await this.#transactions.authorize({ ...who, scope });
     if (denied !== null) throw new ApiError(denied);
     const now = this.#clock.now();
+    const staleBefore = new Date(now.getTime() - STALE_INVITATION_AFTER_MS);
     let email = this.#accounts.isStaffEmail(input.email)
       ? { kind: 'TAKEN' as const }
       : await this.#accounts.inspectEmail(input.email, actor.companyId);
     if (email.kind === 'OURS') {
-      email = await this.#reclaimAbandoned(who, email, input, now);
+      email = await this.#reclaimAbandoned(who, email, input, staleBefore);
     }
     if (email.kind === 'TAKEN') await this.#refuseEmail(who);
     const opened = await this.#transactions.open({
@@ -137,23 +138,14 @@ export class InviteMember {
       roleCode: input.role,
       scope,
       now,
+      staleBefore,
+      accountOperationId: email.kind === 'OURS' ? email.operationId : undefined,
     });
     if ('refusal' in opened) throw new ApiError(opened.refusal);
     if (email.kind === 'OURS' && email.operationId !== opened.invitationId) {
-      await this.#refuseEmail(who);
+      await this.#freeDanglingAccount(who, email.operationId, opened.invitationId);
     }
-    const account = await this.#accounts.createInvitedMember({
-      operationId: opened.invitationId,
-      companyId: actor.companyId,
-      email: input.email,
-      name: input.name,
-    });
-    if (!account.createdByInvitation) {
-      // خسرنا سباق إنشاء الحساب لصالح حساب بنفس الإيميل: الدعوة اللي فتحناها بتتلغى (N1).
-      await this.#transactions.cancelOpened({ ...who, invitationId: opened.invitationId });
-      throw new ApiError('MEMBER_EMAIL_NOT_INVITABLE');
-    }
-    const userId = account.userId;
+    const userId = await this.#createAccount(who, opened.invitationId, input);
     const outcome = await this.#transactions.complete({
       ...who,
       invitationId: opened.invitationId,
@@ -186,6 +178,50 @@ export class InviteMember {
   }
 
   /**
+   * حساب المدعوّ: لو سبقنا حساب بنفس الإيميل، الدعوة اللي فتحناها بتتلغى (N1).
+   *
+   * @param who المتصل والشركة
+   * @param invitationId معرّف الدعوة المفتوحة
+   * @param input الإيميل والاسم من الطلب
+   * @returns معرّف الحساب الجديد
+   */
+  async #createAccount(
+    who: InvitationActor,
+    invitationId: string,
+    input: InviteMemberCommand['input'],
+  ): Promise<string> {
+    const account = await this.#accounts.createInvitedMember({
+      operationId: invitationId,
+      companyId: who.companyId,
+      email: input.email,
+      name: input.name,
+    });
+    if (account.createdByInvitation) return account.userId;
+    // خسرنا سباق إنشاء الحساب لصالح حساب بنفس الإيميل: الدعوة اللي فتحناها بتتلغى (N1).
+    await this.#transactions.cancelOpened({ ...who, invitationId });
+    throw new ApiError('MEMBER_EMAIL_NOT_INVITABLE');
+  }
+
+  /**
+   * حساب علق من دعوة ماتت (صفها اتلغى أو مفقود): ما ينفعش يتستأنف، فبيتّشال عشان الإيميل يرجع
+   * حر والدعوة الجديدة تكمل (AC-ACT-20). لو الحساب له كلمة مرور، الدعوة بترفض زي أي حساب (N1).
+   */
+  async #freeDanglingAccount(
+    who: InvitationActor,
+    operationId: string,
+    invitationId: string,
+  ): Promise<void> {
+    const discarded = await this.#accounts.discardInvitedMember({
+      operationId,
+      companyId: who.companyId,
+    });
+    if (discarded) return;
+    // الحساب مش راح: الدعوة اللي اتفتحت بتتألغى عشان ما تبقاش عالقة على الإيميل.
+    await this.#transactions.cancelOpened({ ...who, invitationId });
+    await this.#refuseEmail(who);
+  }
+
+  /**
    * حساب اتنشأ من دعوة قديمة لنفس الشركة ولسه من غير كلمة مرور: لو دعوته عالقة (ما اتكملتش وخلص
    * وقتها، أو اتلغت ومسح الحساب انقطع) بتتلغى وحسابها بيتمسح، والإيميل بيرجع حر لمالك حالي؛ لو مفيش
    * حاجة تتلغى بيفضل الحال زي ما هو (استئناف أو رفض بالقواعد القديمة).
@@ -194,14 +230,14 @@ export class InviteMember {
     who: InvitationActor,
     email: { kind: 'OURS'; operationId: string },
     input: InviteMemberCommand['input'],
-    now: Date,
+    staleBefore: Date,
   ): Promise<{ kind: 'FREE' } | { kind: 'TAKEN' } | { kind: 'OURS'; operationId: string }> {
     const abandoned = await this.#transactions.abandonStale({
       ...who,
       invitationId: email.operationId,
       roleCode: input.role,
       scope: { type: input.scope.type, id: input.scope.id },
-      staleBefore: new Date(now.getTime() - STALE_INVITATION_AFTER_MS),
+      staleBefore,
     });
     if (!abandoned) return email;
     const discarded = await this.#accounts.discardInvitedMember({

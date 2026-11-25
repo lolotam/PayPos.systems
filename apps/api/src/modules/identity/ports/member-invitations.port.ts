@@ -46,6 +46,17 @@ export interface OpenInvitationInput extends InvitationActor {
   readonly roleCode: InvitableRole;
   readonly scope: InvitationScope;
   readonly now: Date;
+  /**
+   * الحدّ اللي قبله الدعوة العالقة بتتحسب مهجورة: صف أقدم من الوقت ده ومفيش عليه طلب شغال،
+   * فمالك تاني يقدر يرجّعه. اختياري: من غيره مفيش استرجاع، فالدعوة الشغالة أو القابلة
+   * للاستئناف ما بتتلمسش.
+   */
+  readonly staleBefore?: Date | undefined;
+  /**
+   * معرّف العملية اللي أنشأت حساب الإيميل القائم (لو وُجد): لو يخالف صف الدعوة، الحساب معلّق
+   * على عملية ماتت، فصف الدعوة ده ما بيستأنفش.
+   */
+  readonly accountOperationId?: string | undefined;
 }
 
 /** نتيجة الخطوة الأولى: صف الدعوة الجديد أو صف PENDING قديم اتعاد استخدامه بعد انقطاع (D6). */
@@ -134,7 +145,9 @@ export interface MemberInvitationTransactions {
   ): Promise<MemberInvitationRefusal | null>;
   /**
    * الخطوة الأولى: السلطة والنطاق وكتابة صف PENDING مع تدقيق الفتح؛ صف PENDING موجود بيتعاد
-   * استخدامه بس من نفس الداعي بنفس الدور والنطاق، وأي اختلاف بيرفض (P1-b).
+   * استخدامه بس من نفس الداعي بنفس الدور والنطاق، وأي اختلاف بيرفض (P1-b). صف عالق من غير
+   * حساب (وقف قبل إنشاء الحساب) وعدّى عليه الوقت بيتلغى تحت القفل، والدعوة الجديدة بتكمّل
+   * مكانه (AC-ACT-20).
    *
    * @param input بيانات الدعوة
    * @returns معرّف الدعوة الجديد أو المعاد استخدامه، أو الرفض
