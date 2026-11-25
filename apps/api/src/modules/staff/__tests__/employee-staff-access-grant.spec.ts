@@ -1,5 +1,6 @@
 import { createHash } from 'node:crypto';
 import { afterAll, beforeAll, expect, it, vi } from 'vitest';
+import type { Provider } from '@nestjs/common';
 import { systemUuidV7 } from '@pospay/ids';
 import {
   addEmployee,
@@ -15,9 +16,8 @@ import { staffAccessProviders } from '../staff-access.providers.ts';
 import { GrantEmployeeAccessUseCase } from '../use-cases/grant-employee-access/grant-employee-access.ts';
 
 const ids = systemUuidV7();
-/** قيمة الـ provider بالرمز المحدد — التوصيل بيقدّم use case بجهة واحدة. */
 type ValueProvider = { provide: unknown; useValue: unknown };
-const valueOf = (providers: ReturnType<typeof staffAccessProviders>, token: unknown) =>
+const wiringOf = (providers: Provider[], token: unknown) =>
   (providers as ValueProvider[]).find((provider) => provider.provide === token)?.useValue;
 
 let f: Fixture;
@@ -280,6 +280,6 @@ it('AC-ACT-13 an empty key is refused at construction and the wiring keeps the u
   );
   for (const secret of ['', null]) {
     const providers = staffAccessProviders(f.db, f.h.redis, ids, f.h.auth.staffUsers, true, secret);
-    expect(valueOf(providers, GrantEmployeeAccessUseCase)).toBeNull();
+    expect(wiringOf(providers, GrantEmployeeAccessUseCase)).toBeNull();
   }
 });
