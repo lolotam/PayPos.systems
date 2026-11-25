@@ -157,6 +157,32 @@ describe('two resets of the same live token at the same time (AC-ACT-23)', () =>
   });
 });
 
+describe('verification lookup index by user id (AC-ACT-23)', () => {
+  it('deletes the reset links of one user through verification_value_idx, not a sequential scan', async () => {
+    const { userId } = await createOrdinaryUser('indexed-cleanup@example.test');
+    // 2000 صفSynthetic قيمتها UUID مش بتاعة اليوزر: لو الـ plan اعتمد على مسح الجدول كله، الـ rows دي هي اللي بتظهر.
+    await owner`
+      INSERT INTO verification (id, identifier, value, expires_at, created_at, updated_at)
+      SELECT gen_random_uuid(), 'reset-password:noise-' || noise_index, gen_random_uuid()::text,
+             now() + interval '1 hour', now(), now()
+      FROM generate_series(1, 2000) AS noise(noise_index)`;
+    // رابطين بس بتوع اليوزر: هما الصفوف اللي الـ DELETE المفروض يمسحهم.
+    await owner`
+      INSERT INTO verification (id, identifier, value, expires_at, created_at, updated_at)
+      SELECT gen_random_uuid(), 'reset-password:indexed-cleanup-' || link_index, ${userId},
+             now() + interval '1 hour', now(), now()
+      FROM generate_series(1, 2) AS link(link_index)`;
+    await owner`ANALYZE verification`;
+    // نفس شرط الحذف اللي بيشغّله مسار استهلاك الرابط (password-reset-database.ts).
+    const [row] = await owner`
+      EXPLAIN (ANALYZE, FORMAT JSON)
+      DELETE FROM verification WHERE value = ${userId} AND identifier LIKE 'reset-password:%'`;
+    const plan = JSON.stringify(Object.values(row ?? {})[0]);
+    expect(plan).toContain('verification_value_idx');
+    expect(plan).not.toContain('Seq Scan');
+  });
+});
+
 describe('the operator link issuance takes the user row lock (AC-ACT-23)', () => {
   it('waits for the lock and refuses a user that became staff inside the locking transaction', async () => {
     const { userId } = await createOrdinaryUser('locked-issue@example.test');
