@@ -15,8 +15,8 @@ import {
   serviceId,
 } from './catalog-openapi-common.js';
 
-const previewId = { ...serviceId, name: 'previewId' };
 import { serviceCategoryPaths } from './catalog-openapi-service-categories.js';
+import { serviceImportPaths } from './catalog-openapi-service-import.js';
 import { serviceImportSchemas } from './service-import.js';
 
 export const catalogSchemas = [
@@ -31,78 +31,7 @@ export const catalogSchemas = [
 
 export const catalogPaths = {
   ...serviceCategoryPaths,
-  '/v1/businesses/{businessId}/services/import/template': {
-    get: {
-      operationId: 'getServiceImportTemplate',
-      description:
-        'Downloads one XLSX import template for the business: the eight authoritative headers with Arabic cell notes, and a reference sheet explaining the four commission rules, the accepted boolean spellings, and every open category of the business with its English and Arabic names; import matches the English names. A business whose complete reference exceeds the guarded reader limits is refused with IMPORT_TEMPLATE_EXCEEDS_LIMITS (422) instead of a truncated or unimportable template. Requires manage:services:business and the catalog feature. Never writes.',
-      parameters,
-      responses: {
-        '200': { description: 'Import template workbook', content: json('ServiceImportTemplate') },
-        '404': errors,
-        '422': errors,
-        default: errors,
-      },
-    },
-  },
-  '/v1/businesses/{businessId}/services/import/previews': {
-    post: {
-      operationId: 'previewServiceImport',
-      description:
-        'Previews one verified private upload against the business: file ownership, READY status and XLSX type are checked before the bytes are read once outside any database transaction, and the 2 MiB and 500-row limits are enforced by the guarded reader on those bytes; category labels are matched in one PostgreSQL batch against open categories of the business and English names are compared against all stored services with the same PostgreSQL fold on both sides. Returns every error with its original sheet row and column, and only error-free normalized rows. The preview, its errors and its rows are saved in one tenant transaction; no service and no service audit is written, and the private-file access itself is recorded once in its own audit entry. Requires manage:services:business and the catalog feature.',
-      parameters,
-      requestBody: { required: true, content: json('PreviewServiceImportInput') },
-      responses: {
-        '201': { description: 'Saved preview with errors and first clean rows', content: json('ServiceImportPreview') },
-        '404': errors,
-        '409': errors,
-        '413': errors,
-        '415': errors,
-        '422': errors,
-        default: errors,
-      },
-    },
-  },
-  '/v1/businesses/{businessId}/services/import/previews/{previewId}/rows': {
-    get: {
-      operationId: 'getServiceImportRows',
-      description:
-        'Cursor-paginated clean normalized rows of one preview, to its creator only within the business; the cursor is the original Excel row number as a decimal string, so sparse sheets keep their numbering. Unknown, foreign or other-entity previews share IMPORT_PREVIEW_NOT_FOUND (404). Requires manage:services:business and the catalog feature.',
-      parameters: [
-        ...parameters,
-        previewId,
-        {
-          in: 'query',
-          name: 'cursor',
-          schema: { $ref: '#/components/schemas/ServiceImportRowsCursor' },
-          description: 'Original Excel row number of the last returned row; omit for the first page.',
-        },
-        {
-          in: 'query',
-          name: 'limit',
-          schema: { type: 'integer', minimum: 1, maximum: 100, default: 20 },
-        },
-      ],
-      responses: {
-        '200': { description: 'Clean rows page', content: json('ServiceImportRowsPage') },
-        '404': errors,
-        default: errors,
-      },
-    },
-  },
-  '/v1/businesses/{businessId}/services/import/previews/{previewId}': {
-    get: {
-      operationId: 'getServiceImportStatus',
-      description:
-        'One preview status without row data: preview_id, status, created_count and error_code, to its creator only. Unknown, foreign or other-entity previews share IMPORT_PREVIEW_NOT_FOUND (404). The commit acceptance endpoint and the producer event belong to later deliveries. Requires manage:services:business and the catalog feature.',
-      parameters: [...parameters, previewId],
-      responses: {
-        '200': { description: 'Preview status', content: json('ServiceImportStatus') },
-        '404': errors,
-        default: errors,
-      },
-    },
-  },
+  ...serviceImportPaths,
   '/v1/businesses/{businessId}/branches/{branchId}/service-categories': {
     get: {
       operationId: 'listBranchServiceCategories',
