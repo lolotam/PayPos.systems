@@ -30,6 +30,11 @@ export function ServicesPage({ companyId, business, userId }: ServicesPageProps)
       <PageHeader
         title={t(locale, 'catalogServices.listTitle')}
         description={t(locale, 'catalogServices.listLead')}
+        actions={
+          <Button asChild variant="outline">
+            <Link href="/catalog/import">{t(locale, 'catalogServiceImport.importLink')}</Link>
+          </Button>
+        }
         action={
           <Button asChild>
             <Link href="/catalog/create">{t(locale, 'catalogServices.create')}</Link>

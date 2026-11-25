@@ -80,7 +80,8 @@ vi.mock('bullmq', async (original) => {
       if (
         (queueName.startsWith('package-') && queueName !== 'package-import-preview') ||
         queueName === 'service-category-closing' ||
-        queueName === 'service-import-commit'
+        queueName === 'service-import-commit' ||
+        queueName === 'service-import-recovery'
       )
         return { on: vi.fn(), waitUntilReady: async () => undefined, close: async () => undefined };
       if (args[0] === 'package-import-preview')

@@ -3,6 +3,7 @@ import type { ServiceListItem } from '@pospay/contracts';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { render, screen, within } from '@testing-library/react';
 import { beforeEach, expect, it, vi } from 'vitest';
+import { t } from '@pospay/i18n';
 import { ServicesPage } from './services-page';
 
 const get = vi.hoisted(() => vi.fn());
@@ -196,4 +197,17 @@ it('keeps the edit panel below the list card', async () => {
     (listCard as HTMLElement).compareDocumentPosition(panelCard as HTMLElement) &
       Node.DOCUMENT_POSITION_FOLLOWING,
   ).toBeTruthy();
+});
+
+it('links to the import page next to the Add service action', async () => {
+  get.mockImplementation((path: string) =>
+    path === listRoute ? Promise.resolve(listResponse([listItem()])) : categoriesResponse(),
+  );
+  renderPage();
+  const importLink = await screen.findByRole('link', {
+    name: t('en', 'catalogServiceImport.importLink'),
+  });
+  expect(importLink.getAttribute('href')).toBe('/catalog/import');
+  const create = screen.getByRole('link', { name: 'Add service' });
+  expect(create.getAttribute('href')).toBe('/catalog/create');
 });

@@ -40,6 +40,13 @@ vi.mock('../../modules/catalog/jobs/service-category-closing.processor.ts', () =
     deliver: async () => ({ delivered: true }),
   }),
 }));
+vi.mock('../../modules/catalog/jobs/service-import-recovery.processor.ts', () => ({
+  startServiceImportRecoveryProcessor: () => ({
+    ready: async () => undefined,
+    close: async () => undefined,
+    register: async () => undefined,
+  }),
+}));
 import { startCatalogWorker } from '../../modules/catalog/index.ts';
 import {
   startPackagePreviewWorker,

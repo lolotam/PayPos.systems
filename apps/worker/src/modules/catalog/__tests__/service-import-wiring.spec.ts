@@ -1,8 +1,10 @@
 import { expect, it, vi } from 'vitest';
+import { Queue } from 'bullmq';
 import { systemUuidV7 } from '@pospay/ids';
 import type { ClaimedEvent, DeliveryOutcome, TenantWrappers } from '@pospay/db';
 
 import { startCatalogWorker } from '../catalog.module.ts';
+import { SERVICE_IMPORT_RECOVERY_QUEUE } from '../jobs/service-import-recovery.processor.ts';
 
 // حدث الاستيراد مسجّل باستهلك يُسلك في الطابور، وأحداث قفل التصنيف القديمة تظل تُسلَّم،
 // والأحداث الغريبة تمرّ للتالي، والعامل يجهز ويقفل بنظافة (حدود 32b-3). فرع قفل التصنيف
@@ -70,6 +72,59 @@ it(
       expect(nextSpy).not.toHaveBeenCalled();
     } finally {
       await worker.close();
+    }
+  },
+);
+
+it(
+  'registers the per-company recovery sweep before acknowledging a commit request',
+  { timeout: 60_000 },
+  async () => {
+    const ids = systemUuidV7();
+    const prefix = `catalog-recovery-wiring-${ids.newId()}`;
+    const companyId = ids.newId();
+    const previewId = ids.newId();
+    const worker = startCatalogWorker(
+      {} as Pick<TenantWrappers, 'withTenant'>,
+      ids,
+      redisUrl,
+      { now: () => new Date() },
+      prefix,
+    );
+    const queue = new Queue(SERVICE_IMPORT_RECOVERY_QUEUE, {
+      connection: { url: redisUrl },
+      prefix,
+    });
+    try {
+      await worker.ready();
+      const event: ClaimedEvent = {
+        companyId,
+        id: ids.newId(),
+        aggregateId: previewId,
+        aggregateType: 'import_preview',
+        eventType: 'ServiceImportCommitRequested',
+        payload: { preview_id: previewId },
+        attempt: 1,
+      };
+      const next = vi.fn(async (): Promise<DeliveryOutcome> => ({
+        delivered: false,
+        error: 'UNREACHABLE',
+        retryInMs: null,
+      }));
+      expect(await worker.deliver(event, next)).toEqual({
+        delivered: true,
+      });
+      const schedulers = await queue.getJobSchedulers();
+      const matches = schedulers.filter(
+        (entry) => entry.key === `service-import-recovery-${companyId}`,
+      );
+      expect(matches).toHaveLength(1);
+      expect(matches[0]?.every).toBe(60_000);
+      expect(matches[0]?.template?.data).toEqual({ companyId });
+    } finally {
+      await worker.close();
+      await queue.obliterate({ force: true });
+      await queue.close();
     }
   },
 );
