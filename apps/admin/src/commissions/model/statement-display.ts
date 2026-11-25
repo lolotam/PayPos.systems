@@ -6,6 +6,7 @@ import type {
 import type { Locale, MessageKey } from '@pospay/i18n';
 import {
   isClosedBusinessReading,
+  isClosedReading,
   isGenerated,
   isOpenBusinessReading,
   type StatementReading,
@@ -25,6 +26,8 @@ export interface StatementActions {
   returnToDraft: ActionState;
   approve: ActionState;
   pay: ActionState;
+  /** تصدير إكسل: الكشف المعتمد والمصروف لقارئ النشاط وقارئ الفروع (FR-050). */
+  export: ActionState;
 }
 
 const STATUS_KEYS: Record<StatementStatus, MessageKey> = {
@@ -58,6 +61,7 @@ const NO_ACTIONS: StatementActions = {
   returnToDraft: 'hidden',
   approve: 'hidden',
   pay: 'hidden',
+  export: 'hidden',
 };
 
 /** زرار يظهر بس في حالته: شغّال، أو مقفول لما السبب موجود قدام المستخدم (مشكلة أو تغيّر بعد المراجعة). */
@@ -67,12 +71,15 @@ function whenIn(status: StatementStatus, shownIn: StatementStatus, blocked: bool
 }
 
 /**
- * الأزرار حسب الحالة: قارئ الفروع والشهر المصروف ما فيهومش كتابة، والشهر المعتمد لقارئ النشاط كله فيه «تسجيل الدفع» بس، والمراجعة مقفولة وفي المشاكل، والاعتماد
+ * الأزرار حسب الحالة: قارئ الفروع والشهر المصروف ما فيهومش كتابة، والشهر المعتمد لقارئ النشاط كله فيه «تسجيل الدفع»، والتصدير إكسل ظاهر في كل شهر مغلق (معتمد أو مصروف) للقارئين، والمراجعة مقفولة وفي المشاكل، والاعتماد
  * مقفول وفي مشاكل أو تغيّر بعد المراجعة (هيرفضه السيرفر ببصمة قديمة)، والإرجاع للكشف المراجَع بس.
  * الصلاحية نفسها بيفحصها السيرفر؛ هنا بنخفي بس اللي مش بيتنفّذ أصلاً في الحالة دي.
  */
 export function statementActions(reading: StatementReading): StatementActions {
-  if (isClosedBusinessReading(reading)) return { ...NO_ACTIONS, pay: whenIn(reading.status, 'APPROVED', false) };
+  if (isClosedBusinessReading(reading)) {
+    return { ...NO_ACTIONS, pay: whenIn(reading.status, 'APPROVED', false), export: 'enabled' };
+  }
+  if (isClosedReading(reading)) return { ...NO_ACTIONS, export: 'enabled' };
   if (!isOpenBusinessReading(reading)) return NO_ACTIONS;
   const status = statusOf(reading);
   const blocked = hasBlockingIssues(reading);
@@ -82,6 +89,7 @@ export function statementActions(reading: StatementReading): StatementActions {
     returnToDraft: whenIn(status, 'REVIEWED', false),
     approve: whenIn(status, 'REVIEWED', blocked || reading.changed_since_review),
     pay: 'hidden',
+    export: 'hidden',
   };
 }
 
@@ -94,6 +102,7 @@ export function switchedOff(actions: StatementActions): StatementActions {
     returnToDraft: off(actions.returnToDraft),
     approve: off(actions.approve),
     pay: off(actions.pay),
+    export: off(actions.export),
   };
 }
 
@@ -182,7 +191,9 @@ export function correctionDate(row: CommissionStatementRow): string | null {
 
 /** اسم الخدمة بلغة الشاشة، أو null لو الصف مش بند خدمة. */
 export function serviceName(row: CommissionStatementRow, locale: Locale): string | null {
-  return locale === 'ar' ? (row.service_name_ar ?? row.service_name_en) : (row.service_name_en ?? row.service_name_ar);
+  return locale === 'ar'
+    ? (row.service_name_ar ?? row.service_name_en)
+    : (row.service_name_en ?? row.service_name_ar);
 }
 
 /** اسم الفرع اللي اتعمل فيه الشغل بلغة الشاشة. */

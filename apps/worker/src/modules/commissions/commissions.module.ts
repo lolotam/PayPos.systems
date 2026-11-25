@@ -68,6 +68,7 @@ import type { CommissionStatementExportData } from './ports/commission-statement
 import {
   commissionStatementExportRequestStatement,
   commissionStatementFrozenRowsStatement,
+  commissionStatementPaymentsStatement,
 } from './queries/commission-statement-export.query.ts';
 import { ReadCommissionStatementExport } from './use-cases/read-commission-statement-export/read-commission-statement-export.ts';
 
@@ -79,6 +80,7 @@ export function createCommissionStatementExportReader(
     commissionStatementExportTransactions(database, {
       request: commissionStatementExportRequestStatement,
       rows: commissionStatementFrozenRowsStatement,
+      payments: commissionStatementPaymentsStatement,
     }),
   );
   return (

@@ -14,6 +14,8 @@ export interface CommissionStatementExportRequest {
   readonly businessId: string;
   readonly period: string;
   readonly statementStatus: 'APPROVED' | 'PAID';
+  /** طريقة الصرف المسجّلة لما الكشف PAID، وnull لكشف لسه معتمد. */
+  readonly paidMethod: 'WITH_SALARY' | 'BANK_TRANSFER' | 'CASH' | null;
   readonly language: CommissionStatementExportLanguage;
   readonly scope: CommissionStatementExportScope;
   readonly branchIds: readonly string[] | null;
@@ -49,14 +51,20 @@ export interface CommissionStatementPaidCash {
   readonly amount: Money;
 }
 
-/** الطلب والصفوف المجمّدة كما اتقراها من الداتابيز، من غير أي إجماليات محسوبة. */
+/**
+ * الطلب والصفوف المجمّدة كما اتقراها من الداتابيز، من غير أي إجماليات محسوبة.
+ * paidCash يحتوي دفعات الكشف المسجّلة لصرف CASH كما هي في الداتابيز، وnull لأي حالة تانية.
+ */
 export interface CommissionStatementExportReaderData {
   readonly request: CommissionStatementExportRequest;
   readonly rows: readonly CommissionStatementFrozenRow[];
   readonly paidCash: readonly CommissionStatementPaidCash[] | null;
 }
 
-/** الطلب والصفوف وإجماليات كل موظفة؛ الإجماليات محسوبة في domain/مش في الملف. */
+/**
+ * الطلب والصفوف وإجماليات كل موظفة؛ الإجماليات محسوبة في domain/ مش في الملف،
+ * وpaidCash مفلتر هنا لموظفات الشهر الكامل المرئيات فقط (CS-Q23).
+ */
 export interface CommissionStatementExportData extends CommissionStatementExportReaderData {
   readonly employees: readonly CommissionStatementEmployeeTotal[];
 }

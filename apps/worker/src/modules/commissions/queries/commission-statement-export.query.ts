@@ -20,7 +20,7 @@ function uuidArray(ids: readonly string[]) {
 /** طلب التصدير الذي يحدد الكشف والنطاق واللغة؛ RLS والشرط الصريح يمنعان طلب مستأجر آخر. */
 export function commissionStatementExportRequestStatement(companyId: string, renderId: string) {
   return sql`SELECT e.statement_id, e.business_id, e.period::text AS period, e.language, e.scope,
-      e.branch_ids, e.employee_ids, s.status AS statement_status
+      e.branch_ids, e.employee_ids, s.status AS statement_status, s.paid_method
     FROM commission_statement_exports e
     JOIN commission_statements s ON s.company_id = e.company_id AND s.business_id = e.business_id
       AND s.period = e.period AND s.id = e.statement_id AND s.company_id = app_company_id()
@@ -62,4 +62,24 @@ export function commissionStatementFrozenRowsStatement(filter: CommissionStateme
       AND (${filter.scope} = 'BUSINESS'
         OR (lines.employee_id = ANY(${employeeIds}) AND lines.attached_branch_ids && ${branchIds}))
     ORDER BY lines.employee_number, lines.employee_id, lines.source_ref, lines.id`;
+}
+
+/** مفتاح قراءة صفوف الصرف لكشف واحد. */
+export interface CommissionStatementPaymentsFilter {
+  readonly companyId: string;
+  readonly businessId: string;
+  readonly statementId: string;
+}
+
+/**
+ * صفوف الصرف المخزّنة لكشف مدفوع، وبتغذّي عمود الكاش المدفوع في ملف التصدير؛
+ * بتمشي على commission_statement_payments_statement_idx وبـ app_company_id() صريح. من غير ORDER BY عمدًا: الترتيب بيخلّي المخطّط يفضّل فهرس الموظفة
+ * ويفلتر الكشف بعده، والقارئ ما بيعتمدش على الترتيب.
+ */
+export function commissionStatementPaymentsStatement(filter: CommissionStatementPaymentsFilter) {
+  return sql`SELECT p.employee_id, p.paid_amount::text AS paid_amount
+    FROM commission_statement_payments p
+    WHERE p.company_id = ${filter.companyId} AND p.company_id = app_company_id()
+      AND p.business_id = ${filter.businessId}::uuid
+      AND p.statement_id = ${filter.statementId}::uuid`;
 }
