@@ -1,5 +1,5 @@
 import { errorEnvelope, myWorkspacesResponse, type MyWorkspacesResponse } from '@pospay/contracts';
-import { SYSTEM_ROLES } from '@pospay/db';
+import { OWNER_ROLE_ID, SYSTEM_ROLES } from '@pospay/db';
 import { randomUUID } from 'node:crypto';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
@@ -8,12 +8,18 @@ import { startHarness, type Harness } from '../../../../test/harness.ts';
 const EMPTY_EMAIL = 'workspaces-empty@example.test';
 const OWNER_EMAIL = 'workspaces-owner@example.test';
 const OTHER_EMAIL = 'workspaces-other@example.test';
+const OWNER_WIDE_EMAIL = 'workspaces-owner-wide@example.test';
+const PLAIN_EMAIL = 'workspaces-plain@example.test';
 
 let h: Harness;
 let ownerCookie: string;
 let otherCookie: string;
 let emptyCookie: string;
 let emptyUserId: string;
+let ownerWideCookie: string;
+let ownerWideUserId: string;
+let plainCookie: string;
+let plainUserId: string;
 let companyA: string;
 let companyB: string;
 let northId: string;
@@ -38,7 +44,11 @@ async function signIn(): Promise<void> {
   emptyCookie = await h.signedInOperator(EMPTY_EMAIL);
   ownerCookie = await h.signedInOperator(OWNER_EMAIL);
   otherCookie = await h.signedInOperator(OTHER_EMAIL);
+  ownerWideCookie = await h.signedInOperator(OWNER_WIDE_EMAIL);
+  plainCookie = await h.signedInOperator(PLAIN_EMAIL);
   emptyUserId = await userId(EMPTY_EMAIL);
+  ownerWideUserId = await userId(OWNER_WIDE_EMAIL);
+  plainUserId = await userId(PLAIN_EMAIL);
   companyA = await h.onboard(ownerCookie, 'Alpha Co');
   companyB = await h.onboard(otherCookie, 'Beta Co');
 }
@@ -108,12 +118,13 @@ async function grant(input: {
   scopeId: string;
   role: string;
   starts?: string;
+  user?: string;
 }): Promise<void> {
   await h.owner`
     INSERT INTO memberships (
       company_id, id, user_id, role_id, role_owner_key, scope_type, scope_id, starts_at
     ) VALUES (
-      ${input.company}, ${randomUUID()}, ${emptyUserId}, ${input.role}, 'global',
+      ${input.company}, ${randomUUID()}, ${input.user ?? emptyUserId}, ${input.role}, 'global',
       ${input.scope}, ${input.scopeId}, ${input.starts ?? new Date(Date.now() - 60_000).toISOString()}::timestamptz
     )`;
 }
@@ -234,6 +245,49 @@ describe('GET /v1/me/workspaces for an owner', () => {
     expect(JSON.stringify(theirs)).not.toContain('Alpha Co');
     expect(JSON.stringify(mine)).not.toContain(companyB);
     expect(JSON.stringify(theirs)).not.toContain(companyA);
+  });
+});
+
+describe('GET /v1/me/workspaces for a company owner whose widest role is narrower', () => {
+  it('flags the canonical company owner even when an older membership wins the role', async () => {
+    await grant({
+      company: companyA,
+      scope: 'COMPANY',
+      scopeId: companyA,
+      role: roleId('cashier'),
+      starts: '2024-01-01T00:00:00Z',
+      user: ownerWideUserId,
+    });
+    await grant({
+      company: companyA,
+      scope: 'COMPANY',
+      scopeId: companyA,
+      role: OWNER_ROLE_ID,
+      starts: '2026-01-01T00:00:00Z',
+      user: ownerWideUserId,
+    });
+    const [company] = (await list(ownerWideCookie)).companies;
+    expect(company).toMatchObject({
+      id: companyA,
+      role_code: 'cashier',
+      scope: 'COMPANY',
+      is_owner: true,
+    });
+  });
+
+  it('leaves the owner flag off for a member who is not the company owner', async () => {
+    await grant({
+      company: companyA,
+      scope: 'COMPANY',
+      scopeId: companyA,
+      role: roleId('cashier'),
+      starts: '2024-01-01T00:00:00Z',
+      user: plainUserId,
+    });
+    const [company] = (await list(plainCookie)).companies;
+    expect(company).toMatchObject({ id: companyA, role_code: 'cashier', scope: 'COMPANY' });
+    // مفيش علم المالك على عضو عادي: الحقل نفسه مش موجود في الرد.
+    expect(Object.keys(company ?? {})).not.toContain('is_owner');
   });
 });
 
