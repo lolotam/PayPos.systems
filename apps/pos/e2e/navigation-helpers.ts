@@ -123,4 +123,15 @@ export async function expectTapAwayKeepsFocusOut(page: Page, trigger: Locator): 
   await expect(page.locator('[data-settled-layout="phone"]')).toBeAttached();
   await expect(page.locator('body')).toBeFocused();
   await expect(page.locator('html')).toHaveAttribute('data-opener-focus-count', '0');
+
+  // فحص الضبط الإيجابي (#1207): العودة لعرض التابلت ثم تركيز الزر والتصغير مجددًا مع
+  // انتظار العلامة بين الخطوات يثبت أن نقل التركيز يعمل حين يكون التركيز على التنقل فعلًا.
+  await page.setViewportSize({ width: 820, height: 900 });
+  await expect(page.locator('[data-settled-layout="tablet"]')).toBeAttached();
+  await trigger.focus();
+  await expect(trigger).toBeFocused();
+  await page.setViewportSize({ width: 390, height: 844 });
+  await expect(drawerOpener).toBeVisible();
+  await expect(page.locator('[data-settled-layout="phone"]')).toBeAttached();
+  await expect(drawerOpener).toBeFocused();
 }

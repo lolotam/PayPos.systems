@@ -40,6 +40,8 @@ type FocusTargets = {
 type UseTopNavSessionArgs = FocusTargets & {
   visibilityKey: string;
   layout: NavigationLayout;
+  // من غير وحدات ظاهرة الـ TopNav بيرجع null، فمفيش جذر نقدر نكتب عليه علامة التخطيط المستقر.
+  hasVisibleModules: boolean;
 };
 
 function freshSession(visibilityKey: string): Session {
@@ -103,6 +105,7 @@ function useLastFocusInNav(rootRef: RefObject<HTMLDivElement | null>) {
 type BreakpointFocusArgs = FocusTargets & {
   layout: NavigationLayout;
   hasOpenDialog: boolean;
+  hasVisibleModules: boolean;
   closeDialogs: () => void;
 };
 
@@ -112,6 +115,7 @@ function useBreakpointFocus({
   drawerTriggerRef,
   moduleTriggerRef,
   hasOpenDialog,
+  hasVisibleModules,
   closeDialogs,
 }: BreakpointFocusArgs) {
   const previousLayout = useRef(layout);
@@ -144,9 +148,11 @@ function useBreakpointFocus({
   ]);
   // ظهور الأزرار عند نقطة التحول بييجي من CSS قبل ما React يعالج التغيير. العلامة دي بتتكتب بعد
   // effect نقل التركيز في نفس الدورة، فأي فاحص خارجي يقدر يستنى قرار التركيز الفعلي (#1207).
+  // الوحدات ممكن تظهر بعد بناء الشريط دون تغيير العرض، فالعلامة لازم تتكتب فور
+  // تركيب الجذر، وإلا ينتظر الفاحص الخارجي علامة لن تصل.
   useEffect(() => {
-    rootRef.current?.setAttribute('data-settled-layout', layout);
-  }, [layout, rootRef]);
+    if (hasVisibleModules) rootRef.current?.setAttribute('data-settled-layout', layout);
+  }, [hasVisibleModules, layout, rootRef]);
   return target;
 }
 
@@ -311,6 +317,7 @@ function createSessionHandlers({
 export function useTopNavSession({
   visibilityKey,
   layout,
+  hasVisibleModules,
   rootRef,
   drawerTriggerRef,
   moduleTriggerRef,
@@ -334,6 +341,7 @@ export function useTopNavSession({
     drawerTriggerRef,
     moduleTriggerRef,
     hasOpenDialog: Boolean(current.openId || current.drawerOpen),
+    hasVisibleModules,
     closeDialogs,
   });
   return createSessionHandlers({
