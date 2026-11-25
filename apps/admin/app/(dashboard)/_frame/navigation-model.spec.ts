@@ -13,7 +13,7 @@ import {
   isEntryShownForWorkspace,
   isLiveRoutePage,
   isSoonEntryShownForRole,
-  navigationEntryHref,
+  promotedSoonDestination,
   soonPageHref,
 } from '@/workspace/model/navigation-rules';
 import type {
@@ -166,16 +166,6 @@ describe('navigation model route coverage (074-1 + 074-2)', () => {
     expect(findNavigationEntryByPathname(soonPageHref('new-schedules'), [embedded])).toBe(embedded);
   });
 
-  it('uses the parent list as the destination of a promoted dynamic child', () => {
-    const child = requiredPageById('employee-leave');
-    if (!isLiveRoutePage(child)) throw new Error('Expected a live child route');
-    const promoted = { ...child, formerSoonId: 'leave-detail' };
-    const parent = requiredPageById('employees');
-    const matched = findNavigationEntryByPathname(soonPageHref('leave-detail'), [promoted, parent]);
-    expect(matched).toBe(promoted);
-    expect(navigationEntryHref(promoted, new Map([[parent.id, parent]]))).toBe('/staff');
-  });
-
   it('keeps current and former Soon IDs unique', () => {
     const ids = NAVIGATION_PAGES.map((entry) => (entry.state === 'soon' ? entry.id : entry.formerSoonId))
       .filter((id) => id !== undefined);
@@ -188,6 +178,22 @@ describe('navigation model route coverage (074-1 + 074-2)', () => {
     const soon = requiredPageById('kitchen-screens');
     const entries = [soon, { ...live, formerSoonId: soon.id }];
     expect(findNavigationEntryByPathname(soonPageHref(soon.id), entries)).toBeUndefined();
+  });
+});
+
+describe('promoted Soon destination rules (#1167)', () => {
+  it('requires explicit concrete destination for a promoted dynamic child (#1167)', () => {
+    const child = requiredPageById('employee-leave');
+    if (!isLiveRoutePage(child)) throw new Error('Expected a live child route');
+    const parent = requiredPageById('employees');
+    const promoted = { ...child, formerSoonId: 'leave-detail' };
+    expect(promotedSoonDestination(promoted, new Map([[parent.id, parent]]))).toBeUndefined();
+    expect(
+      promotedSoonDestination(
+        { ...promoted, formerSoonDestination: '/staff/leave-picker' },
+        new Map([[parent.id, parent]]),
+      ),
+    ).toBe('/staff/leave-picker');
   });
 });
 
