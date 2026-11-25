@@ -32,14 +32,23 @@ export function InvitationFields({
           className="w-full rounded-md border bg-background px-3 py-2"
         />
       </label>
-      <label className="flex flex-col gap-1">
-        <span className="text-sm font-medium">{t(locale, 'invitations.nameLabel')}</span>
-        <input
-          required
-          {...form.register('name')}
-          className="w-full rounded-md border bg-background px-3 py-2"
-        />
-      </label>
+      <div className="flex flex-col gap-1">
+        <label className="flex flex-col gap-1">
+          <span className="text-sm font-medium">{t(locale, 'invitations.nameLabel')}</span>
+          <input
+            required
+            {...form.register('name')}
+            aria-invalid={Boolean(form.formState.errors.name)}
+            aria-describedby={form.formState.errors.name ? 'invitation-name-error' : undefined}
+            className="w-full rounded-md border bg-background px-3 py-2"
+          />
+        </label>
+        {form.formState.errors.name ? (
+          <p id="invitation-name-error" role="alert" className="text-sm text-destructive">
+            {t(locale, 'invitations.nameRequired')}
+          </p>
+        ) : null}
+      </div>
       <InvitationRoleScopeFields choices={choices} companyId={companyId} />
       <InvitationConfirmFields />
     </>

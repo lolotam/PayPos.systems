@@ -9945,6 +9945,7 @@ export interface components {
             role_code: string;
             /** @enum {string} */
             scope: "COMPANY" | "BUSINESS" | "BRANCH";
+            is_owner?: boolean;
         };
         BusinessIdentity: {
             official_name_ar: string | null;
