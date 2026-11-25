@@ -55,7 +55,9 @@ it('keeps the two entries given in the story order even with links and buttons m
   openAccountMenu();
   const signOut = await screen.findByRole('menuitem', { name: 'Sign out' });
   fireEvent.click(signOut);
-  await waitFor(() => expect(entries[3]?.onSelect).toHaveBeenCalled());
+  // اختيار الإجراء يقفل القائمة قدام المستخدم، وبجانبه إبلاغ المستدعي
+  await waitFor(() => expect(screen.queryByRole('menu', { name: 'Account menu' })).toBeNull());
+  expect(entries[3]?.onSelect).toHaveBeenCalled();
 });
 
 it('still opens with neither name nor email', async () => {
