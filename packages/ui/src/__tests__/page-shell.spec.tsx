@@ -5,8 +5,8 @@ import { DirectionProvider } from '../direction-provider.js';
 import { PageHeader } from '../page-header.js';
 import { PageShell } from '../page-shell.js';
 
-// قيم غائبة عن الخانة: ما ترسمش حاجة، ولازم الخانتين تعاملواها بنفس القاعدة.
-// الفراغ `<></>` والمصفوفات الفاضية قيم غايبرة زايدة، والقيمة الصفرية `0` مش منهم.
+// قيم غائبة عن الخانة: لا يُرسم لها غلاف، وتُعامَل الخانتان بالقاعدة نفسها
+// (الوسم الفارغ `<></>` والمصفوفات الفارغة غائبة، بخلاف القيمة الصفرية `0`).
 const ABSENT_SLOT_VALUES: Array<[string, ReactNode]> = [
   ['undefined', undefined],
   ['null', null],
