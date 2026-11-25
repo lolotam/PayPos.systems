@@ -14,6 +14,7 @@ import {
 import { createServiceImportTemplateBuilder } from '../persistence/service-import-template.ts';
 import { PreviewServiceImportUseCase } from '../use-cases/preview-service-import/preview-service-import.usecase.ts';
 import { GetServiceImportTemplateUseCase } from '../use-cases/get-service-import-template/get-service-import-template.usecase.ts';
+import { CommitServiceImportUseCase } from '../use-cases/commit-service-import/commit-service-import.usecase.ts';
 import { serviceImportStatusQuery } from '../queries/service-import-status.query.ts';
 import { serviceImportRowsPage } from '../queries/service-import-rows.query.ts';
 
@@ -78,6 +79,10 @@ export async function seedCatalogWorkspace(
   const company = await h.onboard(ownerCookie, 'Catalog import employer');
   const [holder] = await h.owner`SELECT id FROM "user" WHERE email='catalog-import-owner@example.test'`;
   const userId = holder?.['id'] as string;
+  // عضو ثانٍ في الشركة نفسها: منشئ معاينة غيره لا يطلب القبول باسمه.
+  await h.signedInOperator('catalog-import-other@example.test');
+  const [other] = await h.owner`SELECT id FROM "user" WHERE email='catalog-import-other@example.test'`;
+  const otherUserId = other?.['id'] as string;
   const business = ids.newId();
   const secondBusiness = ids.newId();
   for (const [id, name] of [
@@ -85,7 +90,7 @@ export async function seedCatalogWorkspace(
     [secondBusiness, 'Catalog other business'],
   ] as const)
     await h.owner`INSERT INTO businesses (company_id,id,name_en,vertical_type) VALUES (${company},${id},${name},'salon')`;
-  return { company, business, secondBusiness, userId };
+  return { company, business, secondBusiness, userId, otherUserId, ownerCookie };
 }
 
 type FixtureScope = {
@@ -164,6 +169,81 @@ function dataHelpers(scope: FixtureScope) {
   };
 }
 
+/**
+ * صف ملف جاهز لمعاينة: المفتاح الأجنبي (company_id, file_id) على import_previews
+ * يرفض معاينة بلا ملف، فيُبنى الملف أولاً بنفس الشركة والنشاط.
+ */
+function previewFileHelper(scope: FixtureScope, companyId: string, businessId: string): Promise<string> {
+  const fileId = scope.ids.newId();
+  const storageKey = `verified/${scope.ids.newId()}`;
+  scope.storage.set(storageKey, new Uint8Array(1));
+  return scope.h.owner`INSERT INTO file_objects
+    (company_id,id,business_id,owner_module,owner_entity_id,staging_key,storage_key,content_type,size_bytes,required_permission,created_by,created_at,status)
+    VALUES (${companyId},${fileId},${businessId},'catalog',${businessId},${`staging/${fileId}`},${storageKey},
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',1,
+      'read:files:business',${scope.userId},now(),'READY')
+    RETURNING id`.then((rows) => rows[0]?.['id'] as string);
+}
+
+/**
+ * معاينة جاهزة للقبول: تتحكم في الانتهاء والحالة والأخطاء والكيان والشركة والمنشئ،
+ * لأن رفض القبول يختبر هذه القيم لا المحتوى.
+ */
+async function commitPreviewHelper(
+  scope: FixtureScope,
+  options: {
+    businessId?: string;
+    companyId?: string;
+    createdBy?: string;
+    entity?: string;
+    status?: string;
+    expiresAt?: string;
+    errorCount?: number;
+    errors?: unknown;
+  } = {},
+): Promise<string> {
+  const id = scope.ids.newId();
+  const errors = options.errors ?? [];
+  const companyId = options.companyId ?? scope.company;
+  const businessId = options.businessId ?? scope.business;
+  const fileId = await previewFileHelper(scope, companyId, businessId);
+  return scope.h.owner`INSERT INTO import_previews
+    (company_id,id,business_id,entity,file_id,created_by,created_at,expires_at,row_count,error_count,rows,errors,status)
+    VALUES (${companyId},${id},${businessId},
+      ${options.entity ?? 'services'},${fileId},${options.createdBy ?? scope.userId},
+      ${'2026-11-22T09:00:00Z'},${options.expiresAt ?? '2026-11-23T10:00:00Z'},1,
+      ${options.errorCount ?? 0},'[]'::jsonb,${JSON.stringify(errors)}::jsonb,${options.status ?? 'ready'})
+    RETURNING id`.then((rows) => rows[0]?.['id'] as string);
+}
+
+/**
+ * يزرع نسخاً من معاينة موجودة حتى يختار المخطط الفهرس الأساسي بدل المسح التسلسلي،
+ * لأن EXPLAIN على جدول فيه صف واحد بيكذب على خطة القراءة.
+ */
+async function seedPreviewRowsHelper(
+  scope: FixtureScope,
+  previewId: string,
+  count: number,
+): Promise<void> {
+  const keys = Array.from({ length: count }, () => scope.ids.newId());
+  await scope.h.owner`INSERT INTO import_previews
+    (company_id,id,business_id,entity,file_id,created_by,created_at,expires_at,row_count,error_count,rows,errors,status)
+    SELECT p.company_id,k.id,p.business_id,p.entity,p.file_id,p.created_by,p.created_at,p.expires_at,
+      p.row_count,p.error_count,p.rows,p.errors,p.status
+    FROM (SELECT company_id,business_id,entity,file_id,created_by,created_at,expires_at,row_count,error_count,rows,errors,status
+      FROM import_previews WHERE company_id=${scope.company} AND id=${previewId}) p
+    CROSS JOIN unnest(${keys}::uuid[]) k(id)`;
+  await scope.h.owner`ANALYZE import_previews`;
+}
+
+/** عدد أحداث القبول المكتوبة لمعاينة واحدة: أقل واحد يعني طلبين بلا حدثين. */
+async function outboxCountHelper(scope: FixtureScope, previewId: string): Promise<number> {
+  const [row] =
+    await scope.h.owner`SELECT count(*)::int AS n FROM outbox WHERE aggregate_id=${previewId}
+      AND event_type='ServiceImportCommitRequested'`;
+  return Number(row?.['n'] ?? 0);
+}
+
 /** مساعدات مسارات القراءة: حالة وصفوف معاينة لمنشئ محدد، لاختبارات العزل بين المنشئين. */
 function queryHelpers(scope: FixtureScope, db: ReturnType<typeof createDatabase>) {
   return {
@@ -184,10 +264,40 @@ function queryHelpers(scope: FixtureScope, db: ReturnType<typeof createDatabase>
   };
 }
 
+/** حالات القالب والمعاينة، كلها على نفس المعاملات وساعة الـ fixture. */
+function previewUseCases(
+  transactions: ReturnType<typeof createServiceImportTransactions>,
+  files: ReturnType<typeof bindServiceImportFiles>,
+  ids: ReturnType<typeof systemUuidV7>,
+  clock: { value: Date },
+) {
+  const bytes = files.bytes as NonNullable<typeof files.bytes>;
+  return {
+    template: new GetServiceImportTemplateUseCase(transactions, createServiceImportTemplateBuilder()),
+    preview: new PreviewServiceImportUseCase(
+      transactions,
+      bytes,
+      createServiceImportSheetReader(),
+      ids,
+      { now: () => clock.value },
+    ),
+    // حالة استخدام ثانية على بوابة مستأجر يحددها الاختبار: لاختبار إحكام التدقيق عند فشل المعاملة.
+    previewWith: (database: TenantWrappers) =>
+      new PreviewServiceImportUseCase(
+        createServiceImportTransactions(database, files.fileFacts, ids),
+        bytes,
+        createServiceImportSheetReader(),
+        ids,
+        { now: () => clock.value },
+      ),
+  };
+}
+
 export async function serviceImportFixture() {
   const h = await startHarness();
   const ids = systemUuidV7();
-  const { company, business, secondBusiness, userId } = await seedCatalogWorkspace(h, ids);
+  const { company, business, secondBusiness, userId, otherUserId, ownerCookie } =
+    await seedCatalogWorkspace(h, ids);
   const db = createDatabase({ url: h.urls.app, ids });
   const storage = new Map<string, Uint8Array>();
   const clock = { value: new Date('2026-11-22T10:00:00Z') };
@@ -212,25 +322,11 @@ export async function serviceImportFixture() {
     business,
     secondBusiness,
     userId,
+    otherUserId,
+    ownerCookie,
     clock,
     ids,
-    template: new GetServiceImportTemplateUseCase(transactions, createServiceImportTemplateBuilder()),
-    preview: new PreviewServiceImportUseCase(
-      transactions,
-      files.bytes as NonNullable<typeof files.bytes>,
-      createServiceImportSheetReader(),
-      ids,
-      { now: () => clock.value },
-    ),
-    // حالة استخدام ثانية على بوابة مستأجر يحددها الاختبار: لاختبار إحكام التدقيق عند فشل المعاملة.
-    previewWith: (database: TenantWrappers) =>
-      new PreviewServiceImportUseCase(
-        createServiceImportTransactions(database, files.fileFacts, ids),
-        files.bytes as NonNullable<typeof files.bytes>,
-        createServiceImportSheetReader(),
-        ids,
-        { now: () => clock.value },
-      ),
+    ...previewUseCases(transactions, files, ids, clock),
     status: queries.status,
     statusFor: queries.statusFor,
     rows: queries.rows,
@@ -239,6 +335,14 @@ export async function serviceImportFixture() {
     category: helpers.category,
     service: helpers.service,
     previewRow: helpers.previewRow,
+    commitPreview: (options: Parameters<typeof commitPreviewHelper>[1]) =>
+      commitPreviewHelper(scope, options),
+    fileRow: (businessId?: string) =>
+      previewFileHelper(scope, scope.company, businessId ?? scope.business),
+    seedPreviewRows: (previewId: string, count: number) =>
+      seedPreviewRowsHelper(scope, previewId, count),
+    commit: new CommitServiceImportUseCase(transactions, { now: () => clock.value }),
+    outboxCount: (previewId: string) => outboxCountHelper(scope, previewId),
     close: async () => {
       await db.close();
       await h.close();
