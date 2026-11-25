@@ -42,6 +42,7 @@ recipients and channels **in the event**, so `notifications` never learns an ale
 | `PackageSaleChanged` | `orders` | `commissions` | an entitlement changed — sale, refund, status; commissions projects the seller's sale commission |
 | `SessionTipsChanged` | `orders` | `commissions` | a session's tips changed; commissions projects tips as statement inputs (`TIP_CARD`, `TIP_CASH`) |
 | `RatingRequestReady` | `customers` | `notifications` | a request was claimed (`SCHEDULED → SENDING`); notifications dispatches it and enforces `send_deadline` |
+| `NotificationDelivered` | `notifications` | `reporting`, `customers` | the provider accepted a message; for `rating_request` over WhatsApp, customers moves the request `SENDING → SENT` by `source_event_id` = the `RatingRequestReady` event id (D-B8, 59b-3) |
 | `LowRatingReceived` | `customers` | `notifications` | a rating of ≤ 2 stars arrived; notifications sends the alert when the rule is on |
 | `AttendanceExceptionRaised` | `staff` | `notifications` | geofence exceptions are raised without an event today; this event remains the missed-out job's (module-map row 173) |
 | `ShiftNotClockedIn` | `staff` | `notifications` | the job found a scheduled shift never clocked in; notifications alerts |
@@ -696,3 +697,12 @@ This entry documents the 61-2a implementation.
 - No import arrow is added. `customers → tenancy, settings, staff, identity` are already declared.
 - The `rating_average` column gate is read through customers' existing `StaffColumnsPort` and stays off until 61-3.
 - No event is added or changed.
+
+## Addendum 2026-11-25 — 59b-3 rating_request send and SENT tracking
+
+Scope: the dormant `rating_request` WhatsApp template, the in-memory link derivation at send time and the `NotificationDelivered` ⇒ `customers` event row left open by the 2026-10-21 addendum. No import arrow, port or event type is added.
+
+- **Template.** `packages/notifications` adds `rating_request` revision 1 (`UTILITY`, ar/en). `customer_first_name` is its only optional parameter (the `RatingRequestReady` payload omits it when the customer has no display-safe name); the validator now accepts an omitted optional parameter and still rejects an extra, duplicated, reordered, mistyped or unsafe one. The default registry keeps no approved provider name, so authorization records `FAILED` with `CONFIG_INVALID` until Meta approves one and a registry is installed explicitly.
+- **Sender-memory link.** The claim stores only the token hash and the key version (`token_key_version` on `RatingRequestReady`). Authorization appends that number to the stored safe parameters after validating the template without it. At send time the channel adapter derives the link in memory with the worker's sender codec at the stored version (`createRatingTokenSender` in `rating-token-capability.ts`, the only importer of `@pospay/auth/rating-token`) and substitutes `<origin>/#<token>` for the `rating_request_id` text in a fresh component array. The link is never stored, logged or written to `outbox`, `notification_attempts` or a job. A missing codec, a version absent from the ring or an invalid `RATING_PAGE_ORIGIN` makes both the preflight and the send fail closed with `CONFIG_INVALID`. In production or live mode the origin must be an explicit `https:` origin.
+- **SENT tracking.** The worker `customers` consumer `customers.rating-sent-v1` handles `NotificationDelivered` with template `rating_request`, channel `whatsapp` and status `SENT`, and moves the request `SENDING → SENT` where `ready_event_id = source_event_id`, setting `sent_at` to the event's `occurred_at`. Redelivery and any other status change nothing; `NotificationFailed` leaves the request `SENDING`. A malformed payload or an envelope that disagrees with it raises `RATING_SENT_EVENT_INVALID`.
+- **Production dormancy.** `main.ts` keeps `closedRatingClaimsLifecycle()` and the default registry, so no request is claimed or sent in production until slice 61-1 deploys the scheduler and an approved template name is installed.

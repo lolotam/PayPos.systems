@@ -23,6 +23,7 @@ import type {
   DueRatingRequest,
   RatingClaimRepository,
 } from '../../modules/customers/ports/rating-claim.repository.ts';
+import type { RatingTokenDeriver } from '../../modules/customers/ports/rating-token.port.ts';
 import type { RatingRequestsSwitchPort } from '../../modules/customers/ports/rating-requests-switch.port.ts';
 import {
   ClaimRatingRequest,
@@ -44,6 +45,8 @@ export interface SwitchFake extends RatingRequestsSwitchPort<Tx> {
 /** اشتقاق البصمة في الاختبار: البصمة من معرّف الطلب، وإصدار المفتاح هو اللي بيتبدّل. */
 export interface TokenFake {
   version: number;
+  /** اشتقاق حقيقي يستبدل بصمة الاختبار لما الاختبار محتاج بصمة تطابق الرابط المرسل (59b-3). */
+  deriver?: RatingTokenDeriver;
 }
 
 /**
@@ -156,10 +159,11 @@ function claimUseCase(
       label: performerLabelFormatter,
       claims,
       token: ratingTokenPort({
-        claim: (identity) => ({
-          tokenHash: testTokenHash(identity.ratingRequestId),
-          keyVersion: world.token.version,
-        }),
+        claim: (identity) =>
+          world.token.deriver?.claim(identity) ?? {
+            tokenHash: testTokenHash(identity.ratingRequestId),
+            keyVersion: world.token.version,
+          },
       }),
       outbox: ratingOutbox,
     },

@@ -29,36 +29,72 @@ const UNSAFE_TEXT = /(?:https?:|\+[1-9]\d{7,14}|\b(?:bearer|token|otp|code)\b|\b
 const DISPLAY_NAME_UNSAFE =
   /(?:https?:|[a-z][a-z\d+.-]*:\/\/|\b[a-z\d-]+\.[a-z]{2,}\b|\p{Nd}(?:[\s().+-]*\p{Nd}){6,}|\b(?:bearer|token|otp|code)\b|^\p{Nd}{4,8}$)/iu;
 
+/**
+ * بيطابق المعاملات المرسلة مع واصفات القالب بالترتيب المعلن.
+ * المعامل الاختياري (required: false) يجوز حذفه كله، لكن أي معامل موجود لازم يطابق اسمه ونوعه وحساسيته وقاعدة النص.
+ *
+ * @param definition تعريف القالب
+ * @param locale لغة القالب
+ * @param parameters المعاملات المرسلة بالترتيب
+ * @returns true لو كل واصف إجباري موجود وما فيش معامل زيادة أو مكرر أو بترتيب غلط
+ */
 export function validateParameters(
   definition: TemplateDefinition,
   locale: string,
   parameters: readonly SafeParameter[],
 ): boolean {
+  if (!definition.locales.includes(locale as 'ar' | 'en')) return false;
+  const matched = matchParameters(definition, parameters);
   return (
-    definition.locales.includes(locale as 'ar' | 'en') &&
-    definition.parameters.length === parameters.length &&
-    definition.parameters.every((descriptor, i) => {
-      const parameter = parameters[i];
-      return (
-        descriptor.sensitivity === 'safe' &&
-        parameter !== undefined &&
-        parameter.name === descriptor.name &&
-        parameter.type === descriptor.type &&
-        typeof parameter.value === (descriptor.type === 'number' ? 'number' : 'string') &&
-        (typeof parameter.value === 'number'
-          ? Number.isFinite(parameter.value)
-          : textAllowed(descriptor, parameter.value)) &&
-        (!descriptor.required || parameter.value !== '')
-      );
-    })
+    matched !== null &&
+    matched.every(({ descriptor, parameter }) => parameterAllowed(descriptor, parameter))
+  );
+}
+
+interface MatchedParameter {
+  readonly descriptor: TemplateParameter;
+  readonly parameter: SafeParameter;
+}
+
+/** بيربط كل معامل مرسل بواصفه بالترتيب؛ بيرجع null لو معامل إجباري ناقص أو فيه معامل زيادة أو مكرر أو بترتيب غلط. */
+function matchParameters(
+  definition: TemplateDefinition,
+  parameters: readonly SafeParameter[],
+): MatchedParameter[] | null {
+  const matched: MatchedParameter[] = [];
+  let cursor = 0;
+  for (const descriptor of definition.parameters) {
+    const parameter = parameters[cursor];
+    if (parameter !== undefined && parameter.name === descriptor.name) {
+      matched.push({ descriptor, parameter });
+      cursor += 1;
+    } else if (descriptor.required) {
+      return null;
+    }
+  }
+  return cursor === parameters.length ? matched : null;
+}
+
+function parameterAllowed(descriptor: TemplateParameter, parameter: SafeParameter): boolean {
+  return (
+    descriptor.sensitivity === 'safe' &&
+    parameter.type === descriptor.type &&
+    typeof parameter.value === (descriptor.type === 'number' ? 'number' : 'string') &&
+    (typeof parameter.value === 'number'
+      ? Number.isFinite(parameter.value)
+      : textAllowed(descriptor, parameter.value)) &&
+    (!descriptor.required || parameter.value !== '')
   );
 }
 
 function textAllowed(descriptor: TemplateParameter, value: string): boolean {
   if (value.length > 255) return false;
   if (descriptor.textKind === 'date')
-    return /^\d{4}-\d{2}-\d{2}$/.test(value) &&
-      Number.isFinite(Date.parse(value)) && new Date(value).toISOString().slice(0, 10) === value;
+    return (
+      /^\d{4}-\d{2}-\d{2}$/.test(value) &&
+      Number.isFinite(Date.parse(value)) &&
+      new Date(value).toISOString().slice(0, 10) === value
+    );
   if (descriptor.textKind === 'id')
     return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(value);
   if (descriptor.textKind === 'time') return /^([01]\d|2[0-3]):[0-5]\d$/.test(value);
@@ -74,9 +110,9 @@ export function templateComponents(
   parameters: readonly SafeParameter[],
 ): TemplateComponent[] {
   const components: TemplateComponent[] = [];
-  definition.parameters.forEach((descriptor, i) => {
-    const value = parameters[i];
-    if (value === undefined) throw new Error('NOTIFICATION_PARAMETERS_INVALID');
+  const matched = matchParameters(definition, parameters);
+  if (matched === null) throw new Error('NOTIFICATION_PARAMETERS_INVALID');
+  matched.forEach(({ descriptor, parameter: value }) => {
     const parameter = { type: 'text' as const, text: String(value.value) };
     const previous = components.at(-1);
     if (descriptor.component !== 'button' && previous?.type === descriptor.component) {

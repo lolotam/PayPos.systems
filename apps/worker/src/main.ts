@@ -30,7 +30,7 @@ import {
   startOptionalCapabilities,
   type OptionalCapabilities,
 } from './start-optional-capabilities.ts';
-import { reportRatingTokenCapability } from './rating-token-capability.ts';
+import { createRatingTokenSender, reportRatingTokenCapability } from './rating-token-capability.ts';
 import {
   createAttendanceStatementReader,
   readEmployeeBusiness,
@@ -121,6 +121,9 @@ if (!production) {
       production,
       email: email.module,
       push: { enabled: push.enabled },
+      // الرابط بيتشتق في الذاكرة وقت الإرسال بس؛ القالب نفسه مقفول افتراضياً لحد ما يتعتمد (CONFIG_INVALID).
+      ratingToken: createRatingTokenSender(process.env),
+      ratingPageOrigin: process.env['RATING_PAGE_ORIGIN'],
     });
   } catch {
     logger.warn(

@@ -27,6 +27,9 @@ import {
   lowRatingRepository,
 } from './persistence/low-rating-notice.repository.ts';
 import { onLowRatingSubmitted } from './events/handlers/on-low-rating-submitted.handler.ts';
+import { onNotificationDelivered } from './events/handlers/on-notification-delivered.handler.ts';
+import { ratingSentRepository } from './persistence/rating-sent.repository.ts';
+import { RecordRatingRequestSent } from './use-cases/record-rating-request-sent/record-rating-request-sent.ts';
 import { RequestLowRatingNotice } from './use-cases/request-low-rating-notice/request-low-rating-notice.ts';
 import { ratingClaimDiagnostics } from './persistence/rating-claim-diagnostics.ts';
 import { ratingClaimRepository } from './persistence/rating-claim.repository.ts';
@@ -76,6 +79,21 @@ export function createLowRatingNoticeConsumer(ids: IdGenerator, clock: Clock): O
     id: 'customers.low-rating-notice-v1',
     eventTypes: ['LowRatingSubmitted'],
     handle: (tx, event) => onLowRatingSubmitted(bind(tx), event),
+  };
+}
+
+/**
+ * مستهلك قبول واتساب لطلب التقييم: يحوّل `NotificationDelivered` (SENT) لرسالة `rating_request` إلى انتقال الطلب SENDING إلى SENT (D-B8).
+ * أي نتيجة لقالب أو قناة أو حالة غير ذلك تعدّي من غير أثر، والإعادة بلا أثر لأن الانتقال مشروط بحالة SENDING.
+ *
+ * @returns مستهلك الأوتبوكس لحدث `NotificationDelivered`
+ */
+export function createRatingSentConsumer(): OutboxConsumer {
+  const useCase = new RecordRatingRequestSent<Tx>(ratingSentRepository);
+  return {
+    id: 'customers.rating-sent-v1',
+    eventTypes: ['NotificationDelivered'],
+    handle: (tx, event) => onNotificationDelivered(useCase, tx, event),
   };
 }
 
