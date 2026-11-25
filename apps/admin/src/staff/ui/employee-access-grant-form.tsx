@@ -7,11 +7,7 @@ import { envelopeMessage } from '@/shared/api/api-error';
 import { useLocale } from '@/shared/locale/locale-context';
 import { ModalDialog } from '@/shared/ui/modal-dialog';
 import { useGrantEmployeeAccess } from '../api/use-grant-employee-access';
-import {
-  staffAccessDefaults,
-  staffAccessErrorCode,
-  staffAccessResolver,
-} from '../model/staff-access-form-schema';
+import { staffAccessDefaults, staffAccessResolver } from '../model/staff-access-form-schema';
 import { EmployeeAccessFields } from './employee-access-fields';
 
 type GrantFormProps = {
@@ -29,7 +25,6 @@ export function EmployeeAccessGrantForm(props: GrantFormProps) {
     resolver: staffAccessResolver,
     defaultValues: staffAccessDefaults,
   });
-  const refused = save.isError ? staffAccessErrorCode(save.error) : null;
   return (
     <ModalDialog
       title={t(locale, 'staff.giveAccessTitle')}
@@ -39,7 +34,7 @@ export function EmployeeAccessGrantForm(props: GrantFormProps) {
     >
       <form onSubmit={form.handleSubmit((body) => save.mutate(body))} className="flex flex-col gap-3">
         <EmployeeAccessFields form={form} />
-        {refused !== null ? <p role="alert">{envelopeMessage(save.error, locale)}</p> : null}
+        {save.isError ? <p role="alert">{envelopeMessage(save.error, locale)}</p> : null}
         {save.isSuccess ? <p>{t(locale, 'staff.grantedMessage')}</p> : null}
         <div className="flex flex-wrap gap-2">
           <Button type="submit" disabled={save.isPending}>

@@ -23378,6 +23378,9 @@
                     },
                     "can_manage": {
                       "type": "boolean"
+                    },
+                    "can_cancel": {
+                      "type": "boolean"
                     }
                   },
                   "required": [
@@ -23385,7 +23388,8 @@
                     "role",
                     "branch_id",
                     "phone_last3",
-                    "can_manage"
+                    "can_manage",
+                    "can_cancel"
                   ]
                 }
               }
@@ -23523,6 +23527,9 @@
                     },
                     "can_manage": {
                       "type": "boolean"
+                    },
+                    "can_cancel": {
+                      "type": "boolean"
                     }
                   },
                   "required": [
@@ -23530,7 +23537,8 @@
                     "role",
                     "branch_id",
                     "phone_last3",
-                    "can_manage"
+                    "can_manage",
+                    "can_cancel"
                   ]
                 }
               }
@@ -23650,6 +23658,9 @@
                     },
                     "can_manage": {
                       "type": "boolean"
+                    },
+                    "can_cancel": {
+                      "type": "boolean"
                     }
                   },
                   "required": [
@@ -23657,7 +23668,8 @@
                     "role",
                     "branch_id",
                     "phone_last3",
-                    "can_manage"
+                    "can_manage",
+                    "can_cancel"
                   ]
                 }
               }

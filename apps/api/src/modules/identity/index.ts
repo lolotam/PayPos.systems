@@ -161,6 +161,7 @@ export {
 } from './persistence/staff-user-auth.ts';
 export {
   readStaffAccessAuthority,
+  readStaffAccessOwner,
   readStaffAccessState,
   type StaffAccessStateRow,
 } from './persistence/staff-access.ts';

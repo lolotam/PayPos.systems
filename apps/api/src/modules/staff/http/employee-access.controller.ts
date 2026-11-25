@@ -79,6 +79,7 @@ export class EmployeeAccessController {
         branch_id: granted.branchId,
         phone_last3: granted.phoneLast3,
         can_manage: false,
+        can_cancel: false,
       });
     } catch (error) {
       throw staffAccessApiError(error);
@@ -146,6 +147,7 @@ export class EmployeeAccessController {
       branch_id: outcome.branchId,
       phone_last3: null,
       can_manage: true,
+      can_cancel: false,
     });
   }
 

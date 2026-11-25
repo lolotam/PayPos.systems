@@ -23356,6 +23356,7 @@ export interface operations {
                         branch_id: string | null;
                         phone_last3: string | null;
                         can_manage: boolean;
+                        can_cancel: boolean;
                     };
                 };
             };
@@ -23437,6 +23438,7 @@ export interface operations {
                         branch_id: string | null;
                         phone_last3: string | null;
                         can_manage: boolean;
+                        can_cancel: boolean;
                     };
                 };
             };
@@ -23525,6 +23527,7 @@ export interface operations {
                         branch_id: string | null;
                         phone_last3: string | null;
                         can_manage: boolean;
+                        can_cancel: boolean;
                     };
                 };
             };

@@ -40,6 +40,7 @@ const NONE_STATE = {
   branch_id: null,
   phone_last3: null,
   can_manage: true,
+  can_cancel: false,
 };
 
 const ACTIVE_STATE = {
@@ -48,6 +49,7 @@ const ACTIVE_STATE = {
   branch_id: BRANCH,
   phone_last3: '567',
   can_manage: false,
+  can_cancel: false,
 };
 
 const PENDING_STATE = {
@@ -97,7 +99,7 @@ function mountSection(client = createClient()) {
 
 /** وعد مؤجل — الطلب البطيء بيتحكم فيه الاختبار نفسه. */
 function deferred(): { promise: Promise<unknown>; resolve: (value: unknown) => void } {
-  let resolve = (_value: unknown): void => undefined;
+  let resolve: (value: unknown) => void = () => undefined;
   const promise = new Promise<unknown>((done) => {
     resolve = (value: unknown) => done(value);
   });
@@ -134,6 +136,7 @@ describe('the employee access section visible states', () => {
       branch_id: '01920000-0000-7000-8000-000000000001',
       phone_last3: '678',
       can_manage: false,
+      can_cancel: false,
     };
     mountSection();
     await waitFor(() => expect(screen.getByText('Access is active.')).toBeTruthy());
@@ -150,6 +153,7 @@ describe('the employee access section visible states', () => {
       branch_id: null,
       phone_last3: null,
       can_manage: true,
+      can_cancel: false,
     };
     mountSection();
     await waitFor(() => expect(screen.getByText('No access yet.')).toBeTruthy());
@@ -158,7 +162,9 @@ describe('the employee access section visible states', () => {
     // AC-F1-5: التأكيد الإجباري يمنع الإرسال قبل التعلّم.
     expect(screen.getByRole('alert').textContent).toBe('Tick the confirmation before saving.');
   });
+});
 
+describe('the employee access section gate and the pending record', () => {
   it('FR-F1-9 the section disappears entirely when the capability answers 503 NOT_READY', async () => {
     state.status = 503;
     state.body = { code: 'NOT_READY', message_en: 'not ready', message_ar: 'not ready' };
@@ -182,6 +188,39 @@ describe('the employee access section visible states', () => {
       branch_id: '01920000-0000-7000-8000-000000000001',
       phone_last3: null,
       can_manage: true,
+      can_cancel: true,
+    };
+    mountSection();
+    await waitFor(() => expect(screen.getByText('Reception / cashier')).toBeTruthy());
+    expect(screen.getByText('Cancel pending grant')).toBeTruthy();
+  });
+});
+
+describe('the pending cancel follows the permission the server computed', () => {
+  it('AC-ACT-10 hides the pending cancel when the server says the caller may not cancel', async () => {
+    state.body = {
+      state: 'PENDING',
+      role: 'reception',
+      branch_id: '01920000-0000-7000-8000-000000000001',
+      phone_last3: null,
+      can_manage: true,
+      can_cancel: false,
+    };
+    mountSection();
+    await waitFor(() => expect(screen.getByText('Reception / cashier')).toBeTruthy());
+    expect(screen.queryByText('Cancel pending grant')).toBeNull();
+    // «Give access» بتفضل موجودة: القدرة على الإعطاء مش مرتبطة بصلاحية الإلغاء.
+    expect(screen.getByText('Give access')).toBeTruthy();
+  });
+
+  it('AC-ACT-10 offers the pending cancel when the server says the caller may cancel', async () => {
+    state.body = {
+      state: 'PENDING',
+      role: 'reception',
+      branch_id: '01920000-0000-7000-8000-000000000001',
+      phone_last3: null,
+      can_manage: false,
+      can_cancel: true,
     };
     mountSection();
     await waitFor(() => expect(screen.getByText('Reception / cashier')).toBeTruthy());
@@ -213,7 +252,7 @@ it('P1-9 other read failures show the error to the user', async () => {
   await waitFor(() => expect(screen.getByRole('alert').textContent).toBe('Access refused'));
 });
 
-describe('the employee access grant keeps its secrets and its committed state', () => {
+describe('the employee access grant keeps its secrets', () => {
   it('AC-ACT-10 keeps the phone and the PIN out of the mutation cache and the query keys', async () => {
     state.body = NONE_STATE;
     const client = mountSection();
@@ -262,7 +301,9 @@ describe('the employee access grant keeps its secrets and its committed state', 
       ).toBe(false),
     );
   });
+});
 
+describe('the employee access grant shows every failure', () => {
   it('AC-ACT-10 shows a grant failure that is not an envelope error', async () => {
     state.body = NONE_STATE;
     mountSection();
@@ -273,7 +314,9 @@ describe('the employee access grant keeps its secrets and its committed state', 
     await waitFor(() => expect(screen.getByRole('alert')).toBeTruthy());
     expect(screen.getByRole('alert').textContent).toBe('Something went wrong. Try again.');
   });
+});
 
+describe('the committed grant and cancel survive a slow read', () => {
   it('AC-ACT-10 keeps the committed grant when a slow read lands after it', async () => {
     state.body = NONE_STATE;
     const client = mountSection();

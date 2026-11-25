@@ -47,6 +47,24 @@ export interface EmployeeAccessStateReads {
    * @param operationId معرّف العملية
    */
   staffUser(operationId: string): Promise<{ userId: string; phoneLast3: string | null } | null>;
+  /**
+   * يفحص عضوية المالك السارية في الشركة — صلاحية الإلغاء بعد الـ 24 ساعة (P1-2).
+   *
+   * @param tx    معاملة القراءة داخل الشركة
+   * @param input الشركة والفاعل من الجلسة
+   */
+  actorIsOwner(tx: Tx, input: { companyId: string; actorUserId: string }): Promise<boolean>;
+  /**
+   * صلاحية إلغاء السجل المعلّق للفاعل ده: المانح الأصلي أو مالك الشركة، وبعد 24 ساعة من
+   * بداية المحاولة (FR-F1-6، P1-2). القاعدة في الـ domain والمُنفّذ في persistence.
+   *
+   * @param tx    معاملة القراءة داخل الشركة
+   * @param input الشركة والفاعل وصف السجل
+   */
+  cancelAllowed(
+    tx: Tx,
+    input: { companyId: string; actorUserId: string; record: StaffAccessStateRow['record'] },
+  ): Promise<boolean>;
 }
 
 /**
@@ -83,7 +101,7 @@ export async function readEmployeeStaffAccess(
     businessId: context.businessId,
     branchId: row.branchId,
   });
-  return projectState(row, authority, reads, false);
+  return projectState(tx, row, authority, reads, false, context);
 }
 
 /**
@@ -97,14 +115,16 @@ export async function readGrantedEmployeeStaffAccess(
 ): Promise<StaffAccessState | null> {
   const row = await reads.state(tx, context);
   if (row === null || !(await reads.authority(tx, { ...context, branchId: row.branchId }))) return null;
-  return projectState(row, true, reads, true);
+  return projectState(tx, row, true, reads, true, context);
 }
 
 async function projectState(
+  tx: Tx,
   row: StaffAccessStateRow,
   authority: boolean,
   reads: EmployeeAccessStateReads,
   committedWrite: boolean,
+  context: { companyId: string; actorUserId: string },
 ) {
   const record = row.record;
   const staffUser =
@@ -128,5 +148,13 @@ async function projectState(
       record === null && row.linkedUserId !== null
         ? false
         : authority && (record === null || record.state !== 'ACTIVE'),
+    can_cancel:
+      authority && record !== null
+        ? await reads.cancelAllowed(tx, {
+            companyId: context.companyId,
+            actorUserId: context.actorUserId,
+            record,
+          })
+        : false,
   });
 }

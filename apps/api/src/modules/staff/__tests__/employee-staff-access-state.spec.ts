@@ -123,3 +123,72 @@ it('AC-ACT-3 a transient auth failure on the read route answers TRANSACTION_RETR
   }
   expect((await readState(f, linked)).status).toBe(200);
 });
+
+/** سجل انتظار للمانح المعطى وعمر المحاولة المعطى — السجل بيتقري من ساعة القاعدة. */
+async function pendingRecord(
+  employeeId: string,
+  grantedBy: string,
+  attemptAge: string,
+): Promise<void> {
+  await f.h.owner`INSERT INTO employee_staff_access
+    (company_id,id,business_id,employee_id,operation_id,role_code,branch_id,state,granted_by,attempt_id,attempt_started_at,phone_hash)
+    VALUES (${f.company},${ids.newId()},${f.business},${employeeId},${ids.newId()},'staff',${f.salmiya},'PENDING',
+      ${grantedBy},${ids.newId()}, now() - ${attemptAge}::interval,${'a'.repeat(64)})`;
+}
+
+/** مدير آخر للشركة: دور مخصص يقرأ الموظفة ويدير دخول فرع السالمية — مش هو المانح ولا المالك. */
+async function otherManager(): Promise<{ cookie: string; userId: string }> {
+  const cookie = await f.h.signedInOperator('staff-access-other-manager@example.test');
+  const [user] = await f.h
+    .owner`SELECT id FROM "user" WHERE email='staff-access-other-manager@example.test'`;
+  const role = ids.newId();
+  await f.h.owner`INSERT INTO roles(id,company_id,code,name_en)
+    VALUES (${role},${f.company},'synthetic_staff_manager','Synthetic staff manager')`;
+  for (const permission of ['manage:employees:business', 'manage:staff-access:branch']) {
+    await f.h.owner`INSERT INTO role_permissions(role_id,role_owner_key,company_id,permission_code)
+      VALUES (${role},${f.company},${f.company},${permission})`;
+  }
+  await f.h.owner`INSERT INTO memberships(company_id,id,user_id,role_id,role_owner_key,scope_type,scope_id)
+    VALUES (${f.company},${ids.newId()},${user?.['id']},${role},${f.company},'BUSINESS',${f.business})`;
+  return { cookie, userId: user?.['id'] as string };
+}
+
+it('AC-ACT-10 the cancel permission belongs to the granter or the owner and only after 24 hours', async () => {
+  const [owner] = await f.h
+    .owner`SELECT id FROM "user" WHERE email='staff-access-owner@example.test'`;
+  const ownerId = owner?.['id'] as string;
+  const manager = await otherManager();
+  const young = await addEmployee(f, 'Young attempt', f.salmiya, 22);
+  const byOwner = await addEmployee(f, 'Granted by the owner', f.salmiya, 23);
+  const byManager = await addEmployee(f, 'Granted by the other manager', f.salmiya, 24);
+  await pendingRecord(young, ownerId, '1 hour');
+  await pendingRecord(byOwner, ownerId, '25 hours');
+  await pendingRecord(byManager, manager.userId, '25 hours');
+  // المحاولة الشابة: الإلغاء مقفول حتى على المانح نفسه.
+  expect((await readState(f, young)).body).toMatchObject({
+    state: 'PENDING',
+    can_manage: true,
+    can_cancel: false,
+  });
+  // السجل القديم: المانح الأصلي يلغيه.
+  expect((await readState(f, byOwner)).body).toMatchObject({
+    state: 'PENDING',
+    can_cancel: true,
+  });
+  // مدير تاني مش المانح ومش مالك الشركة: الإلغاء مقفول مع إن صلاحية الفرع موجودة.
+  expect((await readState(f, byOwner, manager.cookie)).body).toMatchObject({
+    state: 'PENDING',
+    can_manage: true,
+    can_cancel: false,
+  });
+  // المدير التاني هو المانح الأصلي: الإلغاء مفتوح.
+  expect((await readState(f, byManager, manager.cookie)).body).toMatchObject({
+    state: 'PENDING',
+    can_cancel: true,
+  });
+  // مالك الشركة يلغي سجل مانحه غيره.
+  expect((await readState(f, byManager)).body).toMatchObject({
+    state: 'PENDING',
+    can_cancel: true,
+  });
+});
