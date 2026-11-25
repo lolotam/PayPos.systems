@@ -18866,7 +18866,7 @@ export interface operations {
                     "application/json": components["schemas"]["EndMembershipResult"];
                 };
             };
-            /** @description LAST_OWNER: the company would be left without an owner */
+            /** @description LAST_OWNER: the company would be left without an owner; STAFF_ACCESS_MANAGED_MEMBERSHIP: the membership is managed by employee staff access */
             409: {
                 headers: {
                     [name: string]: unknown;

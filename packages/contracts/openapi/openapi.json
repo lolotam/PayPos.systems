@@ -16002,7 +16002,7 @@
             }
           },
           "409": {
-            "description": "LAST_OWNER: the company would be left without an owner",
+            "description": "LAST_OWNER: the company would be left without an owner; STAFF_ACCESS_MANAGED_MEMBERSHIP: the membership is managed by employee staff access",
             "content": {
               "application/json": {
                 "schema": {

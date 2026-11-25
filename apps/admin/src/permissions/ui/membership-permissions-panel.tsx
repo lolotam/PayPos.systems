@@ -65,13 +65,13 @@ export function MembershipPermissionsPanel({
           limitBps={data.discount_limit.limit_bps}
           disabled={!data.discount_limit_editing_enabled}
         />
-        <EndMembershipSection companyId={companyId} userId={userId} membership={data.membership} />
         <PermissionMembershipHistory
           data={data}
           branchTimeZones={branchTimeZones}
           cursor={historyCursor}
           onCursorChange={setHistoryCursor}
         />
+        <EndMembershipSection companyId={companyId} userId={userId} membership={data.membership} />
       </CardContent>
     </Card>
   );

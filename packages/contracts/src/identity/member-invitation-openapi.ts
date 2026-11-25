@@ -73,7 +73,11 @@ export const memberInvitationPaths = {
         'Requires manage:memberships:company and the canonical company owner decided inside the write transaction. Ends the membership in this company only; the last active owner cannot be ended (409 LAST_OWNER). No request body.',
       responses: {
         '200': { description: 'The ended membership', content: json('EndMembershipResult') },
-        '409': { description: 'LAST_OWNER: the company would be left without an owner', content: json('ErrorEnvelope') },
+        '409': {
+          description:
+            'LAST_OWNER: the company would be left without an owner; STAFF_ACCESS_MANAGED_MEMBERSHIP: the membership is managed by employee staff access',
+          content: json('ErrorEnvelope'),
+        },
         default: { description: 'The API error envelope', content: json('ErrorEnvelope') },
       },
       parameters: [company, member],

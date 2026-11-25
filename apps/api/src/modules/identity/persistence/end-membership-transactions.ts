@@ -69,7 +69,7 @@ async function endInside(
       : sql`(membership_id = ${membershipId} OR user_id = ${row.user_id})`;
   const [staffManaged] = await tx.execute(sql`
     SELECT 1 FROM employee_staff_access
-    WHERE company_id = ${companyId} AND ${ownerFilter}
+    WHERE company_id = ${companyId} AND state <> 'STOPPED' AND ${ownerFilter}
     LIMIT 1`);
   if (staffManaged !== undefined) return { refusal: 'STAFF_ACCESS_MANAGED_MEMBERSHIP' };
   const previousEndsAt = row.ends_at === null ? null : new Date(row.ends_at);

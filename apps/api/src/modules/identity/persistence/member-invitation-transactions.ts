@@ -16,6 +16,7 @@ import type {
   StaleInvitationInput,
 } from '../ports/member-invitations.port.ts';
 import {
+  activeMembership,
   authorityAllows,
   lockInvitation,
   lockInvitationByEmail,
@@ -208,6 +209,9 @@ async function claimLink(tx: Tx, input: LinkClaimInput): Promise<LinkClaimOutcom
   ) {
     return { claimed: false, refusal: 'MEMBER_INVITATION_EXISTS' };
   }
+  if (!(await activeMembership(tx, input.companyId, invitation.membership_id))) {
+    return { claimed: false, refusal: 'MEMBER_INVITATION_EXISTS' };
+  }
   const scope: InvitationScope = { type: invitation.scope_type, id: invitation.scope_id };
   if (!(await scopeBelongs(tx, input.companyId, scope))) {
     return { claimed: false, refusal: 'MEMBER_ROLE_NOT_INVITABLE' };
@@ -238,6 +242,9 @@ async function reissueClaim(
     invitation.membership_id === null ||
     invitation.user_id === null
   ) {
+    return { refusal: 'MEMBER_INVITATION_NOT_REISSUEABLE' };
+  }
+  if (!(await activeMembership(tx, input.companyId, invitation.membership_id))) {
     return { refusal: 'MEMBER_INVITATION_NOT_REISSUEABLE' };
   }
   const scope: InvitationScope = { type: invitation.scope_type, id: invitation.scope_id };

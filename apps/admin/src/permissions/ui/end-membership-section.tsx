@@ -109,7 +109,7 @@ function EndMembershipConfirmDialog({
       <p>{t(locale, 'permissions.endMembershipLead')}</p>
       {refusal}
       <div className="flex gap-2">
-        <Button type="button" disabled={pending} onClick={onConfirm}>
+        <Button type="button" variant="destructive" disabled={pending} onClick={onConfirm}>
           {t(locale, 'permissions.endMembershipConfirm')}
         </Button>
         <Button type="button" variant="outline" disabled={pending} onClick={onClose}>

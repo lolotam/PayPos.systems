@@ -146,7 +146,7 @@ describe('AC-G2-1 (2) authority: only the canonical owner', () => {
 });
 
 describe('AC-G2-1 (3) the owner ends a member', () => {
-  it('answers { id, ends_at }, audits, bumps the grant version, refuses the member in that company only', async () => {
+  it('answers { id, ends_at }, audits, invalidates grants, refuses the member in that company only', async () => {
     const memberEmail = 'g2-accountant@example.test';
     const memberCookie = await h.signedInOperator(memberEmail);
     const memberId = await userIdOf(memberEmail);
@@ -265,29 +265,43 @@ describe('AC-G2-1 (6) a foreign company membership', () => {
   });
 });
 
+const addStaffAccessMembership = async (
+  company: string,
+  state: 'ACTIVE' | 'STOPPED',
+  stoppedAt?: string,
+): Promise<string> => {
+  const business = ids.newId();
+  const branch = ids.newId();
+  const employee = ids.newId();
+  const staffUser = ids.newId();
+  await h.owner`
+    INSERT INTO businesses (company_id, id, name_en, vertical_type)
+    VALUES (${company}, ${business}, 'G2 business', 'salon')`;
+  await h.owner`
+    INSERT INTO branches (company_id, id, business_id, name_en)
+    VALUES (${company}, ${branch}, ${business}, 'G2 branch')`;
+  await h.owner`
+    INSERT INTO "user" (id, name, email)
+    VALUES (${staffUser}, 'G2 Staff User', ${`${staffUser}@example.test`})`;
+  const membership = await addMember(company, staffUser, 'staff', 'BRANCH', branch);
+  if (stoppedAt !== undefined) {
+    await h.owner`
+      UPDATE memberships SET starts_at = now() - interval '2 minutes', ends_at = ${stoppedAt}::timestamptz
+      WHERE company_id = ${company} AND id = ${membership}`;
+  }
+  await h.owner`
+    INSERT INTO employees (company_id, id, business_id, primary_branch_id, user_id, name_en, name_en_key, role_code, hire_date, employee_number)
+    VALUES (${company}, ${employee}, ${business}, ${branch}, ${staffUser}, 'G2 Staff', 'g2 staff', 'staff', '2026-01-01', 1)`;
+  await h.owner`
+    INSERT INTO employee_staff_access (company_id, id, business_id, employee_id, operation_id, role_code, branch_id, state, granted_by, phone_hash, attempt_id, user_id, membership_id)
+    VALUES (${company}, ${ids.newId()}, ${business}, ${employee}, ${ids.newId()}, 'staff', ${branch}, ${state}, ${ownerA.userId}, ${'a'.repeat(64)}, ${ids.newId()}, ${staffUser}, ${state === 'STOPPED' ? null : membership})`;
+  return membership;
+};
+
 describe('AC-G2-1 (7) a membership managed by employee staff access', () => {
   it('answers 409 STAFF_ACCESS_MANAGED_MEMBERSHIP and keeps the membership active', async () => {
     const company = await h.onboard(ownerA.cookie, 'G2 Company Staff Access');
-    const business = ids.newId();
-    const branch = ids.newId();
-    const employee = ids.newId();
-    const staffUser = ids.newId();
-    await h.owner`
-      INSERT INTO businesses (company_id, id, name_en, vertical_type)
-      VALUES (${company}, ${business}, 'G2 business', 'salon')`;
-    await h.owner`
-      INSERT INTO branches (company_id, id, business_id, name_en)
-      VALUES (${company}, ${branch}, ${business}, 'G2 branch')`;
-    await h.owner`
-      INSERT INTO "user" (id, name, email)
-      VALUES (${staffUser}, 'G2 Staff User', ${`${staffUser}@example.test`})`;
-    const membership = await addMember(company, staffUser, 'staff', 'BRANCH', branch);
-    await h.owner`
-      INSERT INTO employees (company_id, id, business_id, primary_branch_id, user_id, name_en, name_en_key, role_code, hire_date, employee_number)
-      VALUES (${company}, ${employee}, ${business}, ${branch}, ${staffUser}, 'G2 Staff', 'g2 staff', 'staff', '2026-01-01', 1)`;
-    await h.owner`
-      INSERT INTO employee_staff_access (company_id, id, business_id, employee_id, operation_id, role_code, branch_id, state, granted_by, phone_hash, attempt_id, user_id, membership_id)
-      VALUES (${company}, ${ids.newId()}, ${business}, ${employee}, ${ids.newId()}, 'staff', ${branch}, 'ACTIVE', ${ownerA.userId}, ${'a'.repeat(64)}, ${ids.newId()}, ${staffUser}, ${membership})`;
+    const membership = await addStaffAccessMembership(company, 'ACTIVE');
 
     const response = await end(h, ownerA.cookie, company, membership);
 
@@ -297,6 +311,17 @@ describe('AC-G2-1 (7) a membership managed by employee staff access', () => {
     expect(
       await h.owner`SELECT 1 FROM audit_log WHERE company_id = ${company} AND action = 'membership.ended'`,
     ).toHaveLength(0);
+  });
+
+  it('allows idempotent completion after employee staff access is already STOPPED', async () => {
+    const company = await h.onboard(ownerA.cookie, 'G2 Company Staff Stopped');
+    const stoppedAt = new Date(Date.now() - 60_000).toISOString();
+    const membership = await addStaffAccessMembership(company, 'STOPPED', stoppedAt);
+
+    const response = await end(h, ownerA.cookie, company, membership);
+
+    expect(response.status).toBe(200);
+    expect(response.body['ends_at']).toBe(new Date(stoppedAt).toISOString());
   });
 });
 
@@ -329,5 +354,38 @@ describe('AC-G2-1 (8) a membership scheduled to end in the future', () => {
         after: { ends_at: response.body['ends_at'] },
       },
     ]);
+  });
+});
+
+describe('AC-G2-1 (9) an ended pending invitation cannot be reissued', () => {
+  it('refuses link reissue with 409 MEMBER_INVITATION_NOT_REISSUEABLE after ending the membership', async () => {
+    const company = await h.onboard(ownerA.cookie, 'G2 Company Ended Invite');
+    const invited = await h.send('POST', '/v1/memberships/invitations', {
+      cookie: ownerA.cookie,
+      company,
+      body: {
+        email: 'g2-ended-invite@example.test',
+        name: 'Ended Invite',
+        role: 'accountant',
+        scope: { type: 'COMPANY', id: company },
+        email_confirmed: true,
+      },
+    });
+    expect(invited.status).toBe(201);
+    const invitationId = String(invited.body['invitation_id']);
+    const [row] = await h.owner`
+      SELECT membership_id FROM member_invitations WHERE company_id = ${company} AND id = ${invitationId}`;
+    const membershipId = String(row?.['membership_id']);
+
+    const ended = await end(h, ownerA.cookie, company, membershipId);
+    expect(ended.status).toBe(200);
+
+    const reissued = await h.send(
+      'POST',
+      `/v1/memberships/invitations/${invitationId}/link`,
+      { cookie: ownerA.cookie, company },
+    );
+    expect(reissued.status).toBe(409);
+    expect(errorEnvelope.parse(reissued.body).code).toBe('MEMBER_INVITATION_NOT_REISSUEABLE');
   });
 });

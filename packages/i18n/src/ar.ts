@@ -22,7 +22,7 @@ import { attendanceCorrectionErrorsAr } from './attendance-correction-catalog.js
 import { employeeDocumentsAr } from './employee-documents-catalog.js';
 import { personalStaffAr } from './personal-staff-catalog.js';
 import { salaryAr } from './salary-catalog.js';
-import { invitationsAr } from './invitations-catalog.js';
+import { invitationsAr, invitationErrorsAr } from './invitations-catalog.js';
 import { staffLoginAr } from './staff-login-catalog.js';
 import { permissionCodesAr } from './permission-codes-catalog.js';
 import { catalogServicesAr, catalogServiceErrorsAr } from './catalog-services.js';
@@ -266,15 +266,7 @@ export const ar: Catalog = {
     PERMISSION_ROLE_NOT_ELIGIBLE:
       'صلاحية قراءة التقييمات تُمنح لأدوار الإدارة فقط (المالك، المدير العام، مدير النشاط، مدير الفرع)',
     PERMISSION_OVERRIDE_ENDED: 'هذا الاستثناء انتهى بالفعل',
-    MEMBER_INVITATION_EXISTS: 'الإيميل ده عنده دعوة في الشركة بالفعل',
-    MEMBER_ROLE_NOT_INVITABLE:
-      'الدور ده ما بيتدعىش، أو نطاقه ما بيتوافقش مع الدور أو بيتبع شركة تانية',
-    MEMBER_EMAIL_NOT_INVITABLE: 'الإيميل ده ما بيتدعىش',
-    MEMBER_INVITATION_NOT_REISSUEABLE:
-      'مينفعش نطلع رابط جديد للدعوة دي؛ العضو حط كلمة مروره بالفعل',
-    LAST_OWNER: 'مينفعش تنهي آخر مالك في الشركة؛ لازم يفضل للشركة مالك واحد على الأقل',
-    STAFF_ACCESS_MANAGED_MEMBERSHIP:
-      'عضوية دخول الموظفة بتتوقف من صفحة الموظفة عبر «إيقاف الدخول»، مش من شاشة الصلاحيات',
+    ...invitationErrorsAr,
     TRANSACTION_RETRY_REQUIRED: 'تعارض التغيير مع عملية أخرى ولم يُحفظ. حاول مرة أخرى.',
     OTP_UNAVAILABLE: 'الدخول بواتساب غير متاح. اطلب مساعدة المدير للدخول بالرقم السري الخاص بك.',
     PASSKEY_ALREADY_BOUND: 'تم ربط مفتاح مرور بالفعل. اطلب من المدير فك الربط أولاً.',

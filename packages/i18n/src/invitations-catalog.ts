@@ -69,3 +69,28 @@ export const invitationsAr = {
   loadMore: 'تحميل المزيد',
   notReady: 'مسارات الدعوة مقفولة على الـ API الآن (بوابة التفعيل). جرّب بعد التفعيل.',
 };
+
+export const invitationErrorsEn = {
+  MEMBER_INVITATION_EXISTS: 'This email already has an invitation in this company',
+  MEMBER_ROLE_NOT_INVITABLE:
+    'This role cannot be invited, or its scope does not match the role or belongs to another company',
+  MEMBER_EMAIL_NOT_INVITABLE: 'This email cannot be invited',
+  MEMBER_INVITATION_NOT_REISSUEABLE:
+    'A new link cannot be issued for this invitation; the member already set a password',
+  LAST_OWNER:
+    'The last owner of a company cannot be ended; the company must keep at least one owner',
+  STAFF_ACCESS_MANAGED_MEMBERSHIP:
+    'An employee staff-access membership is stopped from the employee page via Stop access, not from the permissions screen',
+} as const;
+
+export const invitationErrorsAr = {
+  MEMBER_INVITATION_EXISTS: 'الإيميل ده عنده دعوة في الشركة بالفعل',
+  MEMBER_ROLE_NOT_INVITABLE:
+    'الدور ده ما بيتدعىش، أو نطاقه ما بيتوافقش مع الدور أو بيتبع شركة تانية',
+  MEMBER_EMAIL_NOT_INVITABLE: 'الإيميل ده ما بيتدعىش',
+  MEMBER_INVITATION_NOT_REISSUEABLE:
+    'مينفعش نطلع رابط جديد للدعوة دي؛ العضو حط كلمة مروره بالفعل',
+  LAST_OWNER: 'مينفعش تنهي آخر مالك في الشركة؛ لازم يفضل للشركة مالك واحد على الأقل',
+  STAFF_ACCESS_MANAGED_MEMBERSHIP:
+    'عضوية دخول الموظفة بتتوقف من صفحة الموظفة عبر «إيقاف الدخول»، مش من شاشة الصلاحيات',
+} as const;
