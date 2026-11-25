@@ -1,7 +1,8 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { type ReactNode } from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { employeeStaffAccessKey } from '../api/use-employee-staff-access';
 import { EmployeeAccessSection } from './employee-access-section';
 
 window.HTMLElement.prototype.scrollIntoView = () => undefined;
@@ -29,8 +30,41 @@ const IDS = {
   employee: '01920000-0000-7000-8000-00000000000d',
 };
 
-function wrap(children: ReactNode) {
-  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+const PHONE = '+96551234567';
+const PIN = '1234';
+const BRANCH = '01920000-0000-7000-8000-000000000001';
+
+const NONE_STATE = {
+  state: 'NONE',
+  role: null,
+  branch_id: null,
+  phone_last3: null,
+  can_manage: true,
+};
+
+const ACTIVE_STATE = {
+  state: 'ACTIVE',
+  role: 'staff',
+  branch_id: BRANCH,
+  phone_last3: '567',
+  can_manage: false,
+};
+
+const PENDING_STATE = {
+  state: 'PENDING',
+  role: 'staff',
+  branch_id: BRANCH,
+  phone_last3: null,
+  can_manage: true,
+  can_cancel: true,
+};
+
+/** كاش استعلام جديد لكل اختبار — الاختبارات اللي تفحص الكاش نفسها بتبقيه في إيدها. */
+function createClient() {
+  return new QueryClient({ defaultOptions: { queries: { retry: false } } });
+}
+
+function wrap(children: ReactNode, client = createClient()) {
   return <QueryClientProvider client={client}>{children}</QueryClientProvider>;
 }
 
@@ -46,7 +80,7 @@ function accessResponse() {
 }
 
 /** يجهز حالة الاستعلام الجاهزة ويصيّر القسم — كل اختبار يبدأ منه. */
-function mountSection() {
+function mountSection(client = createClient()) {
   get.mockResolvedValue(accessResponse());
   render(
     wrap(
@@ -55,7 +89,32 @@ function mountSection() {
         businessId={IDS.business}
         employeeId={IDS.employee}
       />,
+      client,
     ),
+  );
+  return client;
+}
+
+/** وعد مؤجل — الطلب البطيء بيتحكم فيه الاختبار نفسه. */
+function deferred(): { promise: Promise<unknown>; resolve: (value: unknown) => void } {
+  let resolve = (_value: unknown): void => undefined;
+  const promise = new Promise<unknown>((done) => {
+    resolve = (value: unknown) => done(value);
+  });
+  return { promise, resolve };
+}
+
+/** يفتح نموذج المنح ويملؤه بهاتف ورقم سري — الت ticking يأتي بعد آخر تعديل للهاتف. */
+async function openGrantForm() {
+  fireEvent.click(screen.getByText('Give access'));
+  const phone = await screen.findByLabelText('Her phone (canonical, with country code)');
+  fireEvent.change(phone, { target: { value: PHONE } });
+  fireEvent.change(screen.getByLabelText('Temporary PIN (4 digits)'), { target: { value: PIN } });
+  fireEvent.click(screen.getByLabelText('I confirmed this number is hers'));
+  await waitFor(() =>
+    expect(
+      (screen.getByLabelText('I confirmed this number is hers') as HTMLInputElement).checked,
+    ).toBe(true),
   );
 }
 
@@ -152,4 +211,121 @@ it('P1-9 other read failures show the error to the user', async () => {
   state.body = { code: 'FORBIDDEN', message_en: 'Access refused', message_ar: 'refused' };
   mountSection();
   await waitFor(() => expect(screen.getByRole('alert').textContent).toBe('Access refused'));
+});
+
+describe('the employee access grant keeps its secrets and its committed state', () => {
+  it('AC-ACT-10 keeps the phone and the PIN out of the mutation cache and the query keys', async () => {
+    state.body = NONE_STATE;
+    const client = mountSection();
+    await waitFor(() => expect(screen.getByText('Give access')).toBeTruthy());
+    await openGrantForm();
+    post.mockResolvedValue({
+      response: { status: 200, ok: true },
+      data: ACTIVE_STATE,
+      error: undefined,
+    });
+    fireEvent.click(screen.getByText('Grant access'));
+    await waitFor(() => expect(post).toHaveBeenCalledTimes(1));
+    const variables = client
+      .getMutationCache()
+      .getAll()
+      .map((mutation) => JSON.stringify(mutation.state.variables ?? null))
+      .join('|');
+    expect(variables).not.toContain(PHONE);
+    expect(variables).not.toContain(PIN);
+    const keys = client
+      .getQueryCache()
+      .getAll()
+      .map((query) => query.queryKey.join(':'))
+      .join('|');
+    expect(keys).not.toContain(PHONE);
+    expect(keys).not.toContain(PIN);
+  });
+
+  it('AC-ACT-10 clears the phone confirmation as soon as the phone changes', async () => {
+    state.body = NONE_STATE;
+    mountSection();
+    await waitFor(() => expect(screen.getByText('Give access')).toBeTruthy());
+    fireEvent.click(screen.getByText('Give access'));
+    const phone = await screen.findByLabelText('Her phone (canonical, with country code)');
+    fireEvent.change(phone, { target: { value: PHONE } });
+    fireEvent.click(screen.getByLabelText('I confirmed this number is hers'));
+    await waitFor(() =>
+      expect(
+        (screen.getByLabelText('I confirmed this number is hers') as HTMLInputElement).checked,
+      ).toBe(true),
+    );
+    fireEvent.change(phone, { target: { value: '+96551234999' } });
+    await waitFor(() =>
+      expect(
+        (screen.getByLabelText('I confirmed this number is hers') as HTMLInputElement).checked,
+      ).toBe(false),
+    );
+  });
+
+  it('AC-ACT-10 shows a grant failure that is not an envelope error', async () => {
+    state.body = NONE_STATE;
+    mountSection();
+    await waitFor(() => expect(screen.getByText('Give access')).toBeTruthy());
+    await openGrantForm();
+    post.mockRejectedValue(new Error('NETWORK_DOWN'));
+    fireEvent.click(screen.getByText('Grant access'));
+    await waitFor(() => expect(screen.getByRole('alert')).toBeTruthy());
+    expect(screen.getByRole('alert').textContent).toBe('Something went wrong. Try again.');
+  });
+
+  it('AC-ACT-10 keeps the committed grant when a slow read lands after it', async () => {
+    state.body = NONE_STATE;
+    const client = mountSection();
+    await waitFor(() => expect(screen.getByText('Give access')).toBeTruthy());
+    const stale = accessResponse();
+    const slow = deferred();
+    get.mockImplementationOnce(() => slow.promise);
+    void client.refetchQueries({
+      queryKey: employeeStaffAccessKey(IDS.company, IDS.business, IDS.employee),
+    });
+    await waitFor(() => expect(get).toHaveBeenCalledTimes(2));
+    await openGrantForm();
+    post.mockResolvedValue({
+      response: { status: 200, ok: true },
+      data: ACTIVE_STATE,
+      error: undefined,
+    });
+    fireEvent.click(screen.getByText('Grant access'));
+    await waitFor(() => expect(screen.getByText('Access is active.')).toBeTruthy());
+    slow.resolve(stale);
+    await act(async () => {
+      await slow.promise;
+      await new Promise((resolve) => setTimeout(resolve, 20));
+    });
+    expect(screen.getByText('Access is active.')).toBeTruthy();
+    expect(screen.queryByText('No access yet.')).toBeNull();
+  });
+
+  it('AC-ACT-10 keeps the committed cancel when a slow read lands after it', async () => {
+    state.body = PENDING_STATE;
+    const client = mountSection();
+    await waitFor(() => expect(screen.getByText('Cancel pending grant')).toBeTruthy());
+    const stale = accessResponse();
+    const slow = deferred();
+    get.mockImplementationOnce(() => slow.promise);
+    void client.refetchQueries({
+      queryKey: employeeStaffAccessKey(IDS.company, IDS.business, IDS.employee),
+    });
+    await waitFor(() => expect(get).toHaveBeenCalledTimes(2));
+    deleteFn.mockResolvedValue({
+      response: { status: 200, ok: true },
+      data: NONE_STATE,
+      error: undefined,
+    });
+    fireEvent.click(screen.getByText('Cancel pending grant'));
+    await waitFor(() => expect(screen.getByText('No access yet.')).toBeTruthy());
+    slow.resolve(stale);
+    await act(async () => {
+      await slow.promise;
+      await new Promise((resolve) => setTimeout(resolve, 20));
+    });
+    expect(screen.getByText('No access yet.')).toBeTruthy();
+    expect(screen.queryByText('Cancel pending grant')).toBeNull();
+  });
 });
