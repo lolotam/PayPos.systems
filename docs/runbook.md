@@ -1214,7 +1214,11 @@ any 5xx alert until AC-ACT-17 is closed; every other 5xx on the API is a real fa
    running API replica runs the activation release (076-G2 onward) and that no older API instance is still
    serving. An API older than `076-F1` does not know the staff-access routes and reads only
    `cashier_pins.pin_hash`, so it would sign in a temporary PIN that the current release refuses. Drain the old
-   instances before the gate is on, not after.
+   instances before the gate is on, not after. `ADMIN_ORIGIN` must also be configured in the API environment and
+   matched by `AUTH_TRUSTED_ORIGINS` before the gate is on: without an admin origin the member-invitation path is
+   not mounted, so `POST /v1/memberships/invitations` answers 503 `NOT_READY` even while the admin gate shows the
+   feature enabled. Setting `ADMIN_ORIGIN` on staging or production is an environment change and needs Waleed's
+   decision (PP-117); the API refuses to start when it is set but not covered by `AUTH_TRUSTED_ORIGINS`.
 2. **The rollback floor is the `076-F2b` API release.** Once the gate has been on and a temporary PIN exists
    (`cashier_pins.temporary = true` or `cashier_pins.expires_at IS NOT NULL`), the API image does not go below
    `076-F2b`. `076-F1` and `076-G1` read `cashier_pins.temporary` and refuse a temporary PIN on the staff PIN
