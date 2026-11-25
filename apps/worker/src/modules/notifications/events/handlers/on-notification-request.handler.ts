@@ -76,6 +76,7 @@ export const NOTIFICATION_SOURCE_EVENTS = [
   'StatementAwaitingReview',
   'StatementAwaitingApproval',
   'CommissionCorrectionBlockedNoticeRequested',
+  'CommissionEventParkedNoticeRequested',
 ] as const;
 
 export function notificationRequestConsumer(

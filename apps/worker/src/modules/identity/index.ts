@@ -16,6 +16,10 @@ export {
   businessPermissionGrantsStatement,
 } from './persistence/business-permission-holders.ts';
 export {
+  companyOwners,
+  companyOwnersStatement,
+} from './persistence/company-owners.ts';
+export {
   decideBusinessPermissionHolders,
   type BusinessPermissionGrant,
 } from './domain/business-permission-access.ts';

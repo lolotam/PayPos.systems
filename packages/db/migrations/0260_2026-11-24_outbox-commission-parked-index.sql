@@ -1,0 +1,1 @@
+CREATE INDEX CONCURRENTLY "outbox_commission_parked_idx" ON "outbox" USING btree ("seq") WHERE "outbox"."parked_at" IS NOT NULL AND "outbox"."published_at" IS NULL AND "outbox"."event_type" IN ('ServiceSessionRecorded','ServiceSessionLinesAdded','ServiceLineChanged','SalaryChanged','SessionTipsChanged','PackageSaleChanged');
