@@ -9,6 +9,8 @@ export interface TemplateParameter {
   readonly buttonIndex?: string;
   /** safe يرفض أي سلسلة من ٤–٨ أرقام؛ display_name يسمح بسنة داخل الاسم ويرفض الرابط والهاتف والرمز وحده؛ date يثبت التاريخ الميلادي الفعلي؛ money يقبل 1250.000 كدينار بثلاث خانات لأن قاعدة ٤–٨ أرقام ترفض جزء 1250؛ id يقبل معرّف UUID بأحرف صغيرة فقط لأن الأرقام البينية ترفضها قاعدة ٤–٨ أرقام؛ time يقبل ساعة محلية HH:MM فقط بين 00:00 و23:59؛ period يقبل شهراً ميلادياً YYYY-MM وحده لأن قاعدة ٤–٨ أرقام ترفض سنة 2026. */
   readonly textKind?: 'safe' | 'display_name' | 'date' | 'money' | 'id' | 'time' | 'period';
+  /** قيمة ترحيب/تعويض ثابتة لكل لغة عند غياب معامل اختياري، للحفاظ على عدد متغيرات قالب Meta ثابتاً (PP-272). */
+  readonly defaultValue?: Readonly<Record<'ar' | 'en', string>>;
 }
 export interface TemplateDefinition {
   readonly key: string;
@@ -32,6 +34,7 @@ const DISPLAY_NAME_UNSAFE =
 /**
  * بيطابق المعاملات المرسلة مع واصفات القالب بالترتيب المعلن.
  * المعامل الاختياري (required: false) يجوز حذفه كله، لكن أي معامل موجود لازم يطابق اسمه ونوعه وحساسيته وقاعدة النص.
+ * المعامل الاختياري المحذوف والمكتوب له قيمة ثابتة لكل لغة بينعوّض بالقيمة دي وقت التحضير (PP-272).
  *
  * @param definition تعريف القالب
  * @param locale لغة القالب
@@ -44,7 +47,7 @@ export function validateParameters(
   parameters: readonly SafeParameter[],
 ): boolean {
   if (!definition.locales.includes(locale as 'ar' | 'en')) return false;
-  const matched = matchParameters(definition, parameters);
+  const matched = matchParameters(definition, parameters, locale as 'ar' | 'en');
   return (
     matched !== null &&
     matched.every(({ descriptor, parameter }) => parameterAllowed(descriptor, parameter))
@@ -56,10 +59,14 @@ interface MatchedParameter {
   readonly parameter: SafeParameter;
 }
 
-/** بيربط كل معامل مرسل بواصفه بالترتيب؛ بيرجع null لو معامل إجباري ناقص أو فيه معامل زيادة أو مكرر أو بترتيب غلط. */
+/**
+ * بيربط كل معامل مرسل بواصفه بالترتيب؛ المعامل الاختياري الغائب بينعوّض بقيمته الثابتة للغة إن وُجدت.
+ * بيرجع null لو معامل إجباري ناقص أو فيه معامل زيادة أو مكرر أو بترتيب غلط.
+ */
 function matchParameters(
   definition: TemplateDefinition,
   parameters: readonly SafeParameter[],
+  locale: 'ar' | 'en',
 ): MatchedParameter[] | null {
   const matched: MatchedParameter[] = [];
   let cursor = 0;
@@ -68,7 +75,16 @@ function matchParameters(
     if (parameter !== undefined && parameter.name === descriptor.name) {
       matched.push({ descriptor, parameter });
       cursor += 1;
-    } else if (descriptor.required) {
+    } else if (!descriptor.required) {
+      const fallback = descriptor.defaultValue?.[locale];
+      if (fallback !== undefined) {
+        if (descriptor.type !== 'text') return null;
+        matched.push({
+          descriptor,
+          parameter: { name: descriptor.name, type: 'text', value: fallback },
+        });
+      }
+    } else {
       return null;
     }
   }
@@ -105,12 +121,23 @@ function textAllowed(descriptor: TemplateParameter, value: string): boolean {
   return !UNSAFE_TEXT.test(value);
 }
 
+/**
+ * يبني مكوّنات القالب بالترتيب المعلن؛ المعامل الاختياري الغائب والمكتوب له قيمة ثابتة
+ * بينعوّض بالقيمة دي للغة المطلوبة، عشان يبقى عدد متغيرات قالب Meta ثابتاً (PP-272).
+ *
+ * @param definition تعريف القالب
+ * @param parameters المعاملات المرسلة بالترتيب
+ * @param locale لغة القالب، وبتستخدم للقيمة الثابتة بدل المعامل الاختياري الغائب
+ * @returns مكوّنات القالب جاهزة للإرسال
+ * @throws NOTIFICATION_PARAMETERS_INVALID لو المعاملات ناقصة أو مكررة أو مرتّبة غلط
+ */
 export function templateComponents(
   definition: TemplateDefinition,
   parameters: readonly SafeParameter[],
+  locale: 'ar' | 'en',
 ): TemplateComponent[] {
   const components: TemplateComponent[] = [];
-  const matched = matchParameters(definition, parameters);
+  const matched = matchParameters(definition, parameters, locale);
   if (matched === null) throw new Error('NOTIFICATION_PARAMETERS_INVALID');
   matched.forEach(({ descriptor, parameter: value }) => {
     const parameter = { type: 'text' as const, text: String(value.value) };

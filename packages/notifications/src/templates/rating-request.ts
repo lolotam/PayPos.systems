@@ -1,6 +1,11 @@
 import type { TemplateDefinition } from './definition.ts';
 
-// TODO(spec): اسم القالب المعتمد من Meta غير موجود بعد؛ approvedNames الافتراضي فاضي فيفضل rating_request مقفول (CONFIG_INVALID) لحد التفعيل. وقالب Meta ليه عدد متغيرات ثابت، فحالة غياب اسم العميل الأول (٣ معاملات) تحتاج قرار المالك قبل التفعيل.
+// TODO(spec): اسم القالب المعتمد من Meta ونص كلمة الترحيب النهائي عند غياب الاسم الأول (PP-272) يُحدَّدان مع تقديم القالب لـ Meta؛ approvedNames الافتراضي فاضي فيفضل rating_request مقفول (CONFIG_INVALID) لحد التفعيل.
+/** كلمة الترحيب الثابتة عند غياب اسم العميل الأول في قالب التقييم (PP-272)؛ النص النهائي يُعتمد عند تقديم القالب لـ Meta. */
+export const RATING_REQUEST_DEFAULT_GREETING: Readonly<Record<'ar' | 'en', string>> = {
+  ar: 'عميلتنا العزيزة',
+  en: 'valued guest',
+};
 /** قالب طلب التقييم عبر واتساب (RT-Q2 / PP-18.10): اسم الأول اختياري، والرابط بيتركّب في الذاكرة وقت الإرسال بدل rating_request_id. */
 export const ratingRequest: TemplateDefinition = {
   key: 'rating_request',
@@ -15,6 +20,7 @@ export const ratingRequest: TemplateDefinition = {
       sensitivity: 'safe',
       component: 'body',
       textKind: 'display_name',
+      defaultValue: RATING_REQUEST_DEFAULT_GREETING,
     },
     {
       name: 'business_name',

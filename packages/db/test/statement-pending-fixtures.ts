@@ -80,8 +80,11 @@ export async function closePendingCountTest(
 ): Promise<void> {
   try {
     await app?.end();
-    await owner?.end();
   } finally {
-    await test?.drop();
+    try {
+      await owner?.end();
+    } finally {
+      await test?.drop();
+    }
   }
 }

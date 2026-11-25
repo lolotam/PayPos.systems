@@ -1,13 +1,29 @@
 import { describe, expect, it } from 'vitest';
 
 import { createTemplateRegistry, readNotificationConfiguration } from '../configuration.ts';
-import { ratingRequest } from '../templates/rating-request.ts';
+import { RATING_REQUEST_DEFAULT_GREETING, ratingRequest } from '../templates/rating-request.ts';
 import { staffOtp } from '../templates/staff-otp.ts';
 import {
   templateComponents,
   validateParameters,
   type TemplateDefinition,
 } from '../templates/definition.ts';
+
+const testNotice: TemplateDefinition = {
+  key: 'test_notice',
+  revision: 1,
+  category: 'UTILITY',
+  locales: ['ar', 'en'],
+  copy: { ar: 'اختبار', en: 'Test' },
+  parameters: [
+    { name: 'name', component: 'header', type: 'text', required: true, sensitivity: 'safe' },
+    { name: 'count', component: 'body', type: 'number', required: true, sensitivity: 'safe' },
+  ],
+};
+const testNoticeOrdered = [
+  { name: 'name', type: 'text' as const, value: 'Test' },
+  { name: 'count', type: 'number' as const, value: 2 },
+];
 
 describe('immutable bilingual definitions', () => {
   it('staff_otp is authentication with a sensitive ordered code and ar/en preview only', () => {
@@ -26,39 +42,30 @@ describe('immutable bilingual definitions', () => {
       validateParameters(staffOtp, 'ar', [{ name: 'code', type: 'text', value: '000000' }]),
     ).toBe(false);
   });
-  const definition: TemplateDefinition = {
-    key: 'test_notice',
-    revision: 1,
-    category: 'UTILITY',
-    locales: ['ar', 'en'],
-    copy: { ar: 'اختبار', en: 'Test' },
-    parameters: [
-      { name: 'name', component: 'header', type: 'text', required: true, sensitivity: 'safe' },
-      { name: 'count', component: 'body', type: 'number', required: true, sensitivity: 'safe' },
-    ],
-  };
-  const ordered = [
-    { name: 'name', type: 'text' as const, value: 'Test' },
-    { name: 'count', type: 'number' as const, value: 2 },
-  ];
-  it.each(['ar', 'en'])('%s requires exact ordered count/types and declared language', (locale) => {
-    expect(validateParameters(definition, locale, ordered)).toBe(true);
-    expect(validateParameters(definition, locale, [...ordered].reverse())).toBe(false);
-    expect(validateParameters(definition, locale, ordered.slice(0, 1))).toBe(false);
-    expect(templateComponents(definition, ordered).map((v) => v.type)).toEqual(['header', 'body']);
-  });
+  it.each(['ar', 'en'] as const)(
+    '%s requires exact ordered count/types and declared language',
+    (locale) => {
+      expect(validateParameters(testNotice, locale, testNoticeOrdered)).toBe(true);
+      expect(validateParameters(testNotice, locale, [...testNoticeOrdered].reverse())).toBe(false);
+      expect(validateParameters(testNotice, locale, testNoticeOrdered.slice(0, 1))).toBe(false);
+      expect(templateComponents(testNotice, testNoticeOrdered, locale).map((v) => v.type)).toEqual([
+        'header',
+        'body',
+      ]);
+    },
+  );
   it('unapproved names/revisions and sensitive links/phones fail closed', () => {
     expect(
-      createTemplateRegistry([definition]).prepare('test_notice', 1, 'ar', ordered).valid,
+      createTemplateRegistry([testNotice]).prepare('test_notice', 1, 'ar', testNoticeOrdered).valid,
     ).toBe(false);
-    const registry = createTemplateRegistry([definition], {
+    const registry = createTemplateRegistry([testNotice], {
       test_notice: { ar: 'test_notice_ar' },
     });
-    expect(registry.prepare('test_notice', 2, 'ar', ordered).valid).toBe(false);
-    expect(validateParameters(definition, 'fr', ordered)).toBe(false);
+    expect(registry.prepare('test_notice', 2, 'ar', testNoticeOrdered).valid).toBe(false);
+    expect(validateParameters(testNotice, 'fr', testNoticeOrdered)).toBe(false);
     for (const value of ['https://example.test/bearer', '+96500000001', 'test-token', '000000']) {
       expect(
-        validateParameters(definition, 'ar', [
+        validateParameters(testNotice, 'ar', [
           { name: 'name', type: 'text', value },
           { name: 'count', type: 'number', value: 2 },
         ]),
@@ -76,6 +83,30 @@ describe('additional safety checks', () => {
       'NOTIFICATION_HASH_CONFIG_INVALID',
     );
   });
+
+  it('refuses a defaultValue on a non-text optional descriptor', () => {
+    const badDefault: TemplateDefinition = {
+      key: 'bad_default',
+      revision: 1,
+      category: 'UTILITY',
+      locales: ['ar', 'en'],
+      copy: { ar: 'اختبار', en: 'Test' },
+      parameters: [
+        {
+          name: 'count',
+          component: 'body',
+          type: 'number',
+          required: false,
+          sensitivity: 'safe',
+          defaultValue: { ar: 'واحد', en: 'one' },
+        },
+      ],
+    };
+    expect(validateParameters(badDefault, 'ar', [])).toBe(false);
+    expect(() => templateComponents(badDefault, [], 'ar')).toThrow(
+      'NOTIFICATION_PARAMETERS_INVALID',
+    );
+  });
 });
 
 const id = '0190a1b2-c3d4-7e5f-8a6b-7c8d9e0f1a2b';
@@ -86,6 +117,27 @@ const requestId = { name: 'rating_request_id', type: 'text' as const, value: id 
 const full = [firstName, business, performers, requestId];
 const withoutFirstName = full.slice(1);
 
+/** واصفات القالب بالترتيب: الاسم الأول اختياري والباقي إجباري. */
+const expectedDescriptors = [
+  ['customer_first_name', false],
+  ['business_name', true],
+  ['performers', true],
+  ['rating_request_id', true],
+];
+
+/** مكوّنات القالب المتوقعة: كلمة ترحيب ثابتة مكان الاسم الأول الغايب، وبعدها اسم النشاط والمنفذون ومعرّف الطلب. */
+const expectedComponents = (locale: 'ar' | 'en') => [
+  {
+    type: 'body',
+    parameters: [
+      { type: 'text', text: RATING_REQUEST_DEFAULT_GREETING[locale] },
+      { type: 'text', text: 'Salon Rose' },
+      { type: 'text', text: 'Sara' },
+      { type: 'text', text: id },
+    ],
+  },
+];
+
 describe('rating_request template (59b-3, dormant)', () => {
   it('declares the approved ordered descriptors and ar/en copy', () => {
     expect(ratingRequest).toMatchObject({
@@ -94,27 +146,22 @@ describe('rating_request template (59b-3, dormant)', () => {
       category: 'UTILITY',
       locales: ['ar', 'en'],
     });
-    expect(ratingRequest.parameters.map((p) => [p.name, p.required])).toEqual([
-      ['customer_first_name', false],
-      ['business_name', true],
-      ['performers', true],
-      ['rating_request_id', true],
-    ]);
+    expect(ratingRequest.parameters.map((p) => [p.name, p.required])).toEqual(expectedDescriptors);
     for (const locale of ['ar', 'en'] as const) {
       expect(ratingRequest.copy[locale]).toContain('{{link}}');
       expect(ratingRequest.copy[locale]).toContain('{{performers}}');
     }
   });
 
-  it.each(['ar', 'en'])('%s accepts four parameters and three without the first name', (locale) => {
-    expect(validateParameters(ratingRequest, locale, full)).toBe(true);
-    expect(validateParameters(ratingRequest, locale, withoutFirstName)).toBe(true);
-    expect(
-      templateComponents(ratingRequest, withoutFirstName).flatMap((c) =>
-        c.parameters.map((p) => p.text),
-      ),
-    ).toEqual(['Salon Rose', 'Sara', id]);
-  });
+  it.each(['ar', 'en'] as const)(
+    '%s accepts four parameters and three without the first name',
+    (locale) => {
+      expect(validateParameters(ratingRequest, locale, full)).toBe(true);
+      expect(validateParameters(ratingRequest, locale, withoutFirstName)).toBe(true);
+      const components = templateComponents(ratingRequest, withoutFirstName, locale);
+      expect(components).toEqual(expectedComponents(locale));
+    },
+  );
 
   it('rejects a bad id, a link, a missing required, a duplicate, an extra or reordered parameter', () => {
     const swap = (index: number, value: string) =>
@@ -129,7 +176,7 @@ describe('rating_request template (59b-3, dormant)', () => {
     ).toBe(false);
     expect(validateParameters(ratingRequest, 'ar', [...full, requestId])).toBe(false);
     expect(validateParameters(ratingRequest, 'fr', full)).toBe(false);
-    expect(() => templateComponents(ratingRequest, [business])).toThrow(
+    expect(() => templateComponents(ratingRequest, [business], 'ar')).toThrow(
       'NOTIFICATION_PARAMETERS_INVALID',
     );
   });
@@ -142,9 +189,10 @@ describe('rating_request template (59b-3, dormant)', () => {
     const enabled = createTemplateRegistry(undefined, {
       rating_request: { ar: 'rating_request_ar' },
     });
-    expect(enabled.prepare('rating_request', 1, 'ar', withoutFirstName)).toMatchObject({
+    expect(enabled.prepare('rating_request', 1, 'ar', withoutFirstName)).toEqual({
       valid: true,
       name: 'rating_request_ar',
+      components: expectedComponents('ar'),
     });
   });
 });
