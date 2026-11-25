@@ -46,6 +46,10 @@ export const inAppEn = {
   document_expiring: "{{employee_name_en}}'s {{document_type_en}} expires on {{expires_on}}",
   document_expiring_numbered:
     "{{employee_name_en}}'s {{document_type_en}} expires on {{expires_on}} · document no. {{document_number}}",
+  staff_access_granted:
+    '{{actor_name_en}} granted staff access to {{employee_name_en}} at {{branch_name_en}} on {{occurred_date}} at {{occurred_time}}.',
+  staff_pin_set_by_other:
+    '{{actor_name_en}} reset the PIN for {{employee_name_en}} at {{branch_name_en}} on {{occurred_date}} at {{occurred_time}}.',
   low_rating_summary:
     'Low rating: {{stars}} at {{branch}} on {{business_date}}. Performed by {{performers}}. Customer: {{customer}}, phone ending {{phone_last3}}.',
   low_rating_stars_1: '1 star',
@@ -99,6 +103,10 @@ export const inAppAr = {
     'مستند {{document_type_ar}} الخاص بـ {{employee_name_ar}} ينتهي يوم {{expires_on}}',
   document_expiring_numbered:
     'مستند {{document_type_ar}} الخاص بـ {{employee_name_ar}} ينتهي يوم {{expires_on}} — رقم المستند {{document_number}}',
+  staff_access_granted:
+    'منح {{actor_name_ar}} دخول موظفة لـ {{employee_name_ar}} في فرع {{branch_name_ar}} يوم {{occurred_date}} الساعة {{occurred_time}}.',
+  staff_pin_set_by_other:
+    'أعاد {{actor_name_ar}} ضبط الرقم السري لـ {{employee_name_ar}} في فرع {{branch_name_ar}} يوم {{occurred_date}} الساعة {{occurred_time}}.',
   low_rating_summary:
     'تقييم منخفض: {{stars}} في {{branch}} بتاريخ {{business_date}}. المنفّذون: {{performers}}. العميل: {{customer}}، الهاتف المنتهي بـ {{phone_last3}}.',
   low_rating_stars_1: 'نجمة واحدة',

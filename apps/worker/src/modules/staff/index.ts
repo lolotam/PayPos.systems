@@ -1,5 +1,6 @@
 export {
   createAttendanceStatementReader,
+  createStaffAccessNoticeConsumer,
   createStaffDocumentDefaults,
   startStaffWorker,
 } from './staff.module.ts';

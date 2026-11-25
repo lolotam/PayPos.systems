@@ -20,6 +20,14 @@ export {
   companyOwnersStatement,
 } from './persistence/company-owners.ts';
 export {
+  readTemporaryStaffPinSet,
+  type TemporaryStaffPinSet,
+} from './persistence/temporary-pin-set.ts';
+export {
+  readActorRoleSnapshot,
+  type ActorRoleSnapshot,
+} from './persistence/actor-role-snapshot.ts';
+export {
   decideBusinessPermissionHolders,
   type BusinessPermissionGrant,
 } from './domain/business-permission-access.ts';

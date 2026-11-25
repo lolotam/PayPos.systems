@@ -60,15 +60,20 @@ export function renderNotification(
       shiftValues(item.safe_parameters),
     );
   }
-  if (
-    item.template_key === 'attendance_exception_raised' ||
-    item.template_key === 'document_expiring'
-  ) {
-    return renderStaffAlert(item, viewerLocale, documentNumber);
-  }
+  if (isStaffAlert(item)) return renderStaffAlert(item, viewerLocale, documentNumber);
   return fill(
     t(item.locale, 'inApp.generic_notice'),
     Object.fromEntries(item.safe_parameters.map((parameter) => [parameter.name, parameter.value])),
+  );
+}
+
+/** جرسا الحضور والمستند ووصول الدخول: كلها بلغة الواجهة، والعربي الغائب يرجع للإنجليزي. */
+function isStaffAlert(item: ScalarNotification): boolean {
+  return (
+    item.template_key === 'attendance_exception_raised' ||
+    item.template_key === 'document_expiring' ||
+    item.template_key === 'staff_access_granted' ||
+    item.template_key === 'staff_pin_set_by_other'
   );
 }
 
@@ -117,7 +122,7 @@ export function documentIdOf(item: InAppNotification): string | null {
   return item.safe_parameters.find((parameter) => parameter.name === 'document_id')?.value ?? null;
 }
 
-/** جرسا استثناء الحضور وانتهاء المستند: لغة الواجهة، والعربي الغائب يرجع للإنجليزي، ومعرّف المستند ما يظهرش؛ رقم المستند الحالي فقط إذا وصل من القراءة الموثقة. */
+/** جرسا استثناء الحضور وانتهاء المستند وجرسا وصول الدخول: لغة الواجهة، والعربي الغائب يرجع للإنجليزي، ومعرّف المستند ما يظهرش؛ رقم المستند الحالي فقط إذا وصل من القراءة الموثقة. */
 function renderStaffAlert(
   item: ScalarNotification,
   viewerLocale?: Locale,
@@ -248,7 +253,7 @@ function shiftValues(parameters: ScalarParameters): Record<string, string> {
   };
 }
 
-/** قيم جرسَي الاستثناء والمستند: العربي الغائب يرجع للإنجليزي، ومعرّف المستند ما بيتبعتش للنص. */
+/** قيم جرسَي الاستثناء والمستند ووصول الدخول: العربي الغائب يرجع للإنجليزي، ومعرّف المستند ما بيتبعتش للنص. */
 function staffAlertValues(parameters: ScalarParameters): Record<string, string> {
   const read = (name: string) => parameters.find((item) => item.name === name)?.value ?? '';
   const arabic = (name: string, english: string) => {
@@ -258,7 +263,7 @@ function staffAlertValues(parameters: ScalarParameters): Record<string, string> 
   const values: Record<string, string> = {};
   for (const parameter of parameters)
     if (parameter.name !== 'document_id') values[parameter.name] = parameter.value;
-  for (const name of ['employee_name', 'branch_name', 'document_type']) {
+  for (const name of ['employee_name', 'actor_name', 'branch_name', 'document_type']) {
     values[`${name}_ar`] = arabic(`${name}_ar`, read(`${name}_en`));
   }
   return values;

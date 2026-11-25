@@ -243,3 +243,7 @@ reads:
   - { from: staff, to: identity, symbol: readStaffAccessAuthority, file: apps/api/src/modules/staff/persistence/employee-access-reads.adapter.ts }
   - { from: staff, to: identity, symbol: readStaffUser, file: apps/api/src/modules/staff/persistence/employee-access-reads.adapter.ts }
   - { from: staff, to: identity, symbol: readStaffAccessOwner, file: apps/api/src/modules/staff/persistence/employee-access-reads.adapter.ts }
+  - { from: staff, to: identity, symbol: companyOwners, file: apps/worker/src/modules/staff/persistence/staff-access-notice-recipients.adapter.ts }
+  - { from: staff, to: tenancy, symbol: companyOpen, file: apps/worker/src/modules/staff/persistence/staff-access-notice-recipients.adapter.ts }
+  - { from: staff, to: identity, symbol: readTemporaryStaffPinSet, file: apps/worker/src/modules/staff/persistence/staff-access-notice.repository.ts }
+  - { from: staff, to: identity, symbol: readActorRoleSnapshot, file: apps/worker/src/modules/staff/persistence/staff-access-notice.repository.ts }

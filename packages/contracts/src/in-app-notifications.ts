@@ -1,8 +1,6 @@
 import { z } from 'zod';
 import { responseObject } from './response-object.js';
 
-import { id } from './scalars/id.js';
-import { timestamp } from './scalars/timestamp.js';
 import { pageQuery } from './pagination/cursor.js';
 import {
   attendanceExceptionRaisedParameters,
@@ -11,12 +9,18 @@ import {
   documentExpiringRecipient,
 } from './staff-alert-notifications.js';
 import {
+  staffAccessGrantedNotification,
+  staffAccessGrantedRecipient,
+  staffPinSetByOtherNotification,
+  staffPinSetByOtherRecipient,
+} from './staff-access-notifications.js';
+import {
   lowRatingCommentParameters,
   lowRatingCommentRecipient,
   lowRatingParameters,
   lowRatingRecipient,
 } from './low-rating-notifications.js';
-import { inAppBase } from './in-app-base.js';
+import { inAppBase, inAppNotificationBase } from './in-app-base.js';
 import {
   commissionEventParkedParameters,
   commissionEventParkedRecipient,
@@ -266,20 +270,11 @@ export const inAppRecipient = z.discriminatedUnion('template_key', [
   }),
   attendanceExceptionRaisedRecipient,
   documentExpiringRecipient,
+  staffAccessGrantedRecipient,
+  staffPinSetByOtherRecipient,
   lowRatingRecipient,
   lowRatingCommentRecipient,
 ]);
-const inAppNotificationBase = {
-  id,
-  company_id: id,
-  business_id: id.nullable(),
-  branch_id: id.nullable(),
-  source_event_id: id,
-  template_revision: z.literal(1),
-  locale: z.enum(['ar', 'en']),
-  created_at: timestamp,
-  read_at: timestamp.nullable(),
-};
 export const inAppNotification = z
   .discriminatedUnion('template_key', [
     responseObject({
@@ -367,6 +362,8 @@ export const inAppNotification = z
       template_key: z.literal('document_expiring'),
       safe_parameters: documentExpiringParameters,
     }),
+    staffAccessGrantedNotification,
+    staffPinSetByOtherNotification,
     responseObject({
       ...inAppNotificationBase,
       template_key: z.literal('low_rating'),

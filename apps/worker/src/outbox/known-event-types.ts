@@ -29,7 +29,6 @@ export const KNOWN_EVENT_TYPES = [
   'FileUploadRequested',
   // spec 052: يُسجَّل قبل المنتج (27h-4) حتى لا يُوقف حدث شعار بلا مستهلك.
   'BusinessLogoChanged',
-  'StaffAccessGranted',
   'CompanyCreated',
   'BusinessCreated',
   'BranchCreated',

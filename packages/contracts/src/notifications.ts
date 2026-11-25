@@ -5,6 +5,9 @@ import { timestamp } from './scalars/timestamp.js';
 import { pageQuery } from './pagination/cursor.js';
 import { inAppRecipient } from './in-app-notifications.js';
 
+// جرسا وصول الدخول عقد إشعارات زيها، فبينتشرون من هنا مع بقية العقد.
+export * from './staff-access-notifications.js';
+
 export const notificationStatus = z.enum([
   'PENDING',
   'SENDING',
