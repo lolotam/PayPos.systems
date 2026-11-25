@@ -77,7 +77,8 @@ vi.mock('bullmq', async (original) => {
         args[0] === 'service-category-closing' ||
         args[0] === 'service-import-commit' ||
         args[0] === 'package-import-commit' ||
-        args[0] === 'package-import-recovery'
+        args[0] === 'package-import-recovery' ||
+        args[0] === 'service-import-recovery'
       )
         return { on: vi.fn(), waitUntilReady: async () => undefined, close: async () => undefined };
       if (args[0] === 'package-import-preview')

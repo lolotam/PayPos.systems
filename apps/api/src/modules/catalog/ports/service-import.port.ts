@@ -36,6 +36,35 @@ export interface StoredServiceImportPreview {
   readonly rows: readonly ServiceImportNormalizedRow[];
 }
 
+/** معاينة مقفلة كما يقرأها مسار القبول: حالتها وانتهاءها وأخطاؤها، بلا صفوف. */
+export interface StoredServiceImportCommitPreview {
+  readonly id: string;
+  readonly business_id: string;
+  readonly created_by: string;
+  readonly status: 'ready' | 'commit_requested' | 'committed' | 'failed';
+  readonly expires_at: string;
+  readonly error_count: number;
+  readonly errors: readonly ServiceImportRowIssue[];
+}
+
+/** نطاق المعاملة: قراءة المعاينة المقفلة وتسجيل طلب التثبيت وحدثه. */
+export interface ServiceImportCommitScope {
+  /**
+   * يقرأ المعاينة المقفلة FOR UPDATE للتحقق من الانتهاء والاستهلاك مرة واحدة.
+   *
+   * @param previewId معرّف المعاينة
+   * @returns المعاينة أو null للمجهول أو الخارج عن النشاط
+   */
+  load(previewId: string): Promise<StoredServiceImportCommitPreview | null>;
+  /**
+   * ينقل المعاينة إلى حالة الطلب المقبول ويسجّل حدث التثبيت داخل المعاملة نفسها؛ لا ينشئ خدمة في الـ API.
+   *
+   * @param previewId معرّف المعاينة المقفلة
+   * @param requestedAt لحظة قبول الطلب من الساعة المحقونة
+   */
+  request(previewId: string, requestedAt: string): Promise<void>;
+}
+
 /** نطاق معاملة المعاينة: حقائق الملف، تصنيفات النشاط، مطابقة التصنيفات بالدفعة، مطابقة الأسماء، والحفظ. */
 export interface ServiceImportPreviewScope {
   /**
@@ -121,6 +150,30 @@ export interface ServiceImportTransactions {
       >,
     ) => Promise<T>,
   ): Promise<T>;
+  /**
+   * يدخل الشركة مرة واحدة فيقفل المعاينة ويضم قراءة الطلب وتحديث حالته والحدث وردّه المخزّن مع مفتاح idempotency.
+   *
+   * @param actor              الهوية المتحقق منها
+   * @param actor.companyId    الشركة المستهدفة
+   * @param actor.userId       المستخدم المستورد
+   * @param actor.businessId   النشاط الذي تنتمي إليه المعاينة
+   * @param actor.previewId    المعاينة التي يثبت ملكيتها قبل إعادة الرد
+   * @param actor.key          مفتاح idempotency
+   * @param actor.fingerprint  بصمة الطلب (معرف المعاينة)
+   * @param work               عملية القبول
+   * @returns قبول الطلب بمعرف المعاينة، حتى عند إعادة الرد القديم
+   */
+  runCommit(
+    actor: {
+      companyId: string;
+      userId: string;
+      businessId: string;
+      previewId: string;
+      key: string;
+      fingerprint: string;
+    },
+    work: (scope: ServiceImportCommitScope) => Promise<{ preview_id: string }>,
+  ): Promise<{ preview_id: string }>;
 }
 
 /** قارئ بايتات الأجسام الموثقة عبر منفذ التخزين المحقون عند التركيب في app.ts (072 D-4، P-4). */
