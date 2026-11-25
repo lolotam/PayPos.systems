@@ -701,6 +701,57 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/businesses/{businessId}/commission-statements/{period}/exports": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @description Requires an individual session with read:commissions:business and the commissions feature; a device session is refused. The permission is checked inside the route transaction against the effective branch set of the caller (CS-Q20), never from the client. Exports an APPROVED or PAID month as an Excel workbook (FR-050). The authorized scope and the workbook language are stored before the job is queued; the scope is BUSINESS only for a business-wide reader and otherwise the whole effective branch set with the employees of the frozen statement rows that overlap it. 409 COMMISSION_STATEMENT_NOT_APPROVED when the month is not approved, 429 COMMISSION_STATEMENT_EXPORT_RATE_LIMITED for the user rate limit. */
+        post: operations["requestCommissionStatementExport"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/businesses/{businessId}/commission-statements/{period}/exports/{renderId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description Requires an individual session with read:commissions:business and the commissions feature; a device session is refused. The permission is checked inside the route transaction against the effective branch set of the caller (CS-Q20), never from the client. Cache-Control: no-store. Every render id outside the requester, business and month answers the same 404. */
+        get: operations["commissionStatementExportStatus"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/businesses/{businessId}/commission-statements/{period}/exports/{renderId}/download": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @description Requires an individual session with read:commissions:business and the commissions feature; a device session is refused. The permission is checked inside the route transaction against the effective branch set of the caller (CS-Q20), never from the client. Collects once, only by the requester. At collection the caller current authorization must still cover the saved scope and employees (FR-050); otherwise the bytes are discarded and the uniform 403 is returned with no audit entry. Another user, company or an unknown id gets the uniform 404. Writes the audit entry commission_statement.exported. Cache-Control: no-store. 409 DOCUMENT_NOT_READY or 410 DOCUMENT_EXPIRED. */
+        post: operations["downloadCommissionStatementExport"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/document-types": {
         parameters: {
             query?: never;
@@ -4382,6 +4433,20 @@ export interface components {
             status: components["schemas"]["CommissionClosedStatementStatus"];
             payment: components["schemas"]["CommissionClosedStatementBranchPayment"] | null;
             employees: components["schemas"]["CommissionStatementEmployee"][];
+        };
+        CommissionStatementExportRequest: {
+            /** @enum {string} */
+            language: "ar" | "en";
+        };
+        CommissionStatementExportAccepted: {
+            /** Format: uuid */
+            render_id: string;
+        };
+        CommissionStatementExportStatus: {
+            /** @enum {string} */
+            state: "QUEUED" | "RENDERING" | "READY" | "FAILED" | "EXPIRED" | "CONSUMED";
+            /** @enum {string} */
+            error_code?: "DOCUMENT_KIND_UNKNOWN" | "DOCUMENT_TOO_LARGE" | "DOCUMENT_RENDER_TIMEOUT" | "DOCUMENT_RENDER_FAILED" | "STATEMENT_EMPTY" | "COMMISSION_STATEMENT_UNAVAILABLE";
         };
         /** @enum {string} */
         EmployeeDocumentStatus: "NO_EXPIRY" | "VALID" | "EXPIRING" | "EXPIRED";
@@ -12840,6 +12905,125 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Bilingual refusal */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    requestCommissionStatementExport: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-company-id": string;
+            };
+            path: {
+                businessId: string;
+                period: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /** @enum {string} */
+                    language: "ar" | "en";
+                };
+            };
+        };
+        responses: {
+            /** @description Export queued */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** Format: uuid */
+                        render_id: string;
+                    };
+                };
+            };
+            /** @description Bilingual refusal */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    commissionStatementExportStatus: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-company-id": string;
+            };
+            path: {
+                businessId: string;
+                period: string;
+                renderId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Export state */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @enum {string} */
+                        state: "QUEUED" | "RENDERING" | "READY" | "FAILED" | "EXPIRED" | "CONSUMED";
+                        /** @enum {string} */
+                        error_code?: "DOCUMENT_KIND_UNKNOWN" | "DOCUMENT_TOO_LARGE" | "DOCUMENT_RENDER_TIMEOUT" | "DOCUMENT_RENDER_FAILED" | "STATEMENT_EMPTY" | "COMMISSION_STATEMENT_UNAVAILABLE";
+                    };
+                };
+            };
+            /** @description Bilingual refusal */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    downloadCommissionStatementExport: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-company-id": string;
+            };
+            path: {
+                businessId: string;
+                period: string;
+                renderId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Commission statement workbook */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": string;
                 };
             };
             /** @description Bilingual refusal */

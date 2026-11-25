@@ -5735,6 +5735,256 @@
         }
       }
     },
+    "/v1/businesses/{businessId}/commission-statements/{period}/exports": {
+      "post": {
+        "operationId": "requestCommissionStatementExport",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "x-company-id",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "in": "path",
+            "name": "businessId",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "in": "path",
+            "name": "period",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^(?!0000-)\\d{4}-(0[1-9]|1[0-2])$"
+            }
+          }
+        ],
+        "description": "Requires an individual session with read:commissions:business and the commissions feature; a device session is refused. The permission is checked inside the route transaction against the effective branch set of the caller (CS-Q20), never from the client. Exports an APPROVED or PAID month as an Excel workbook (FR-050). The authorized scope and the workbook language are stored before the job is queued; the scope is BUSINESS only for a business-wide reader and otherwise the whole effective branch set with the employees of the frozen statement rows that overlap it. 409 COMMISSION_STATEMENT_NOT_APPROVED when the month is not approved, 429 COMMISSION_STATEMENT_EXPORT_RATE_LIMITED for the user rate limit.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "language": {
+                    "type": "string",
+                    "enum": [
+                      "ar",
+                      "en"
+                    ]
+                  }
+                },
+                "required": [
+                  "language"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "Export queued",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "render_id": {
+                      "type": "string",
+                      "format": "uuid",
+                      "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                    }
+                  },
+                  "required": [
+                    "render_id"
+                  ]
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Bilingual refusal",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/businesses/{businessId}/commission-statements/{period}/exports/{renderId}": {
+      "get": {
+        "operationId": "commissionStatementExportStatus",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "x-company-id",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "in": "path",
+            "name": "businessId",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "in": "path",
+            "name": "period",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^(?!0000-)\\d{4}-(0[1-9]|1[0-2])$"
+            }
+          },
+          {
+            "in": "path",
+            "name": "renderId",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "description": "Requires an individual session with read:commissions:business and the commissions feature; a device session is refused. The permission is checked inside the route transaction against the effective branch set of the caller (CS-Q20), never from the client. Cache-Control: no-store. Every render id outside the requester, business and month answers the same 404.",
+        "responses": {
+          "200": {
+            "description": "Export state",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "state": {
+                      "type": "string",
+                      "enum": [
+                        "QUEUED",
+                        "RENDERING",
+                        "READY",
+                        "FAILED",
+                        "EXPIRED",
+                        "CONSUMED"
+                      ]
+                    },
+                    "error_code": {
+                      "type": "string",
+                      "enum": [
+                        "DOCUMENT_KIND_UNKNOWN",
+                        "DOCUMENT_TOO_LARGE",
+                        "DOCUMENT_RENDER_TIMEOUT",
+                        "DOCUMENT_RENDER_FAILED",
+                        "STATEMENT_EMPTY",
+                        "COMMISSION_STATEMENT_UNAVAILABLE"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "state"
+                  ]
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Bilingual refusal",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/businesses/{businessId}/commission-statements/{period}/exports/{renderId}/download": {
+      "post": {
+        "operationId": "downloadCommissionStatementExport",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "x-company-id",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "in": "path",
+            "name": "businessId",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "in": "path",
+            "name": "period",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^(?!0000-)\\d{4}-(0[1-9]|1[0-2])$"
+            }
+          },
+          {
+            "in": "path",
+            "name": "renderId",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "description": "Requires an individual session with read:commissions:business and the commissions feature; a device session is refused. The permission is checked inside the route transaction against the effective branch set of the caller (CS-Q20), never from the client. Collects once, only by the requester. At collection the caller current authorization must still cover the saved scope and employees (FR-050); otherwise the bytes are discarded and the uniform 403 is returned with no audit entry. Another user, company or an unknown id gets the uniform 404. Writes the audit entry commission_statement.exported. Cache-Control: no-store. 409 DOCUMENT_NOT_READY or 410 DOCUMENT_EXPIRED.",
+        "responses": {
+          "200": {
+            "description": "Commission statement workbook",
+            "content": {
+              "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Bilingual refusal",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/v1/document-types": {
       "get": {
         "operationId": "listDocumentTypes",
@@ -26405,6 +26655,65 @@
           "status",
           "payment",
           "employees"
+        ]
+      },
+      "CommissionStatementExportRequest": {
+        "type": "object",
+        "properties": {
+          "language": {
+            "type": "string",
+            "enum": [
+              "ar",
+              "en"
+            ]
+          }
+        },
+        "required": [
+          "language"
+        ],
+        "additionalProperties": false
+      },
+      "CommissionStatementExportAccepted": {
+        "type": "object",
+        "properties": {
+          "render_id": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          }
+        },
+        "required": [
+          "render_id"
+        ]
+      },
+      "CommissionStatementExportStatus": {
+        "type": "object",
+        "properties": {
+          "state": {
+            "type": "string",
+            "enum": [
+              "QUEUED",
+              "RENDERING",
+              "READY",
+              "FAILED",
+              "EXPIRED",
+              "CONSUMED"
+            ]
+          },
+          "error_code": {
+            "type": "string",
+            "enum": [
+              "DOCUMENT_KIND_UNKNOWN",
+              "DOCUMENT_TOO_LARGE",
+              "DOCUMENT_RENDER_TIMEOUT",
+              "DOCUMENT_RENDER_FAILED",
+              "STATEMENT_EMPTY",
+              "COMMISSION_STATEMENT_UNAVAILABLE"
+            ]
+          }
+        },
+        "required": [
+          "state"
         ]
       },
       "EmployeeDocumentStatus": {

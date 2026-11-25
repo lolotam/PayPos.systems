@@ -38,6 +38,7 @@ import { staffScreensEn } from './staff-screens-catalog.js';
 import { businessIdentityEn } from './business-identity-catalog.js';
 import { roleNamesEn } from './role-names-catalog.js';
 import { commissionPlanErrorsEn } from './commission-plan-errors.js';
+import { commissionStatementExportErrorsEn } from './commission-statement-export-errors.js';
 import { idempotencyErrorsEn } from './idempotency-errors.js';
 import { phoneLockEn } from './phone-lock-en.js';
 // The English catalog — the reference: every key here must exist in ar.ts (the type makes a missing one a build error).
@@ -165,6 +166,7 @@ export const en = {
   inApp: inAppEn,
   errors: {
     ...commissionPlanErrorsEn,
+    ...commissionStatementExportErrorsEn,
     ATTENDANCE_MANUAL_INVALID_TIMES:
       'Manual attendance times must end after they start, not be in the future, last at most 16 hours, and not overlap another session.',
     ATTENDANCE_MANUAL_NOT_ELIGIBLE:

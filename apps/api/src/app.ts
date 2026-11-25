@@ -31,6 +31,7 @@ import {
   readCommissionApprovers,
   readCommissionReturnAccess,
   readCommissionScope,
+  readCommissionRequesterMembership,
 } from './modules/identity/index.ts';
 import { settingsProviders } from './modules/settings/index.ts';
 import { notificationsProviders } from './modules/notifications/index.ts';
@@ -58,6 +59,9 @@ import {
 import { ordersProviders } from './modules/orders/index.ts';
 import { enableApiCors } from './shared/cors.ts';
 import {
+  createDocumentRenderTransport,
+  createDocumentStatusReader,
+  createRedisDocumentBytesStore,
   employeeExistsInBusiness,
   lockEmployeeForUpdate,
   readCommissionBranchAttachments,
@@ -69,6 +73,7 @@ import {
 } from './modules/staff/index.ts';
 import {
   commissionsProviders,
+  commissionStatementExportProviders,
   type CommissionEstimateProviders,
 } from './modules/commissions/index.ts';
 import { commissionApprovalBindings } from './commission-approval-bindings.ts';
@@ -163,6 +168,31 @@ function commissionBindings(deps: AppDependencies) {
   );
 }
 
+/**
+ * ربط تصدير كشف العمولات (56-1c): النطاق والميزة وعضوية الطالب من identity، ونقل المستند وبايتاته
+ * وحالته من staff (ADR-0049). الوحدة نفسها ما بتستوردش أي منهم.
+ */
+function commissionStatementExportBindings(deps: AppDependencies) {
+  return commissionStatementExportProviders(
+    deps.database,
+    deps.redis,
+    deps.ids ?? systemUuidV7(),
+    {
+      readers: {
+        scope: readCommissionScope,
+        featureEnabled: readCommissionFeatureEnabled,
+        requesterMembership: readCommissionRequesterMembership,
+      },
+      documents: {
+        transport: createDocumentRenderTransport,
+        store: createRedisDocumentBytesStore,
+        status: createDocumentStatusReader,
+      },
+    },
+    deps.commissionsClock,
+  );
+}
+
 @Module({})
 class AppModule {
   static forRoot(
@@ -192,10 +222,7 @@ class AppModule {
           deps.memberInvitations,
           deps.staffAccessRoutes === true,
         ),
-        {
-          provide: RATE_LIMITER,
-          useValue: limiter,
-        },
+        { provide: RATE_LIMITER, useValue: limiter },
         { provide: DATABASE, useValue: deps.database ?? null },
         ...tenancyProviders(deps.database, deps.ids ?? systemUuidV7()),
         ...customersProviders(
@@ -211,6 +238,7 @@ class AppModule {
         ),
         ...ordersProviders(deps.database, deps.ids ?? systemUuidV7(), deps.ordersClock),
         ...commissionBindings(deps),
+        ...commissionStatementExportBindings(deps),
         ...settingsProviders(deps.database, deps.ids ?? systemUuidV7(), deps.redis),
         ...notificationsProviders(deps.database, deps.whatsapp, deps.resend, deps.push),
         ...staffProviders(

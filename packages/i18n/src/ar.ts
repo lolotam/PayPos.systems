@@ -39,6 +39,7 @@ import { staffScreensAr } from './staff-screens-catalog.js';
 import { businessIdentityAr } from './business-identity-catalog.js';
 import { roleNamesAr } from './role-names-catalog.js';
 import { commissionPlanErrorsAr } from './commission-plan-errors.js';
+import { commissionStatementExportErrorsAr } from './commission-statement-export-errors.js';
 import { idempotencyErrorsAr } from './idempotency-errors.js';
 
 // الكتالوج العربي — نفس مفاتيح en.ts بالظبط، والـ type بيوقع الـ build لو مفتاح ناقص أو زيادة.
@@ -169,6 +170,7 @@ export const ar: Catalog = {
   inApp: inAppAr,
   errors: {
     ...commissionPlanErrorsAr,
+    ...commissionStatementExportErrorsAr,
     ATTENDANCE_MANUAL_INVALID_TIMES:
       'أوقات اليوم اليدوي مش صحيحة: الخروج لازم بعد الدخول، مش في المستقبل، ١٦ ساعة بالكتير، ومن غير تداخل مع حضور تاني',
     ATTENDANCE_MANUAL_NOT_ELIGIBLE: 'الموظفة مش مرتبطة بالفرع ده في اليوم ده أو اليوم برّه عقدها',

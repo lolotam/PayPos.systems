@@ -26,6 +26,9 @@ export {
   readCommissionStatementEmployees,
   type CommissionStatementEmployeeRow,
 } from './persistence/commission-statement-employees.reader.ts';
+export { createDocumentRenderTransport } from './persistence/bullmq-document-render-transport.ts';
+export { createRedisDocumentBytesStore } from './persistence/redis-document-bytes-store.ts';
+export { createDocumentStatusReader } from './persistence/redis-document-status.ts';
 export { employeeNamesByUser } from './persistence/employee-names.ts';
 export {
   readEmployeeDisplayNames,
