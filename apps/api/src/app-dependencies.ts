@@ -7,6 +7,7 @@ import type { Redis } from 'ioredis';
 import type { FilesRuntime } from './modules/files/index.ts';
 import type { ResendIntake, WhatsappIntake } from './modules/notifications/index.ts';
 import type { PersonalAuthentication } from './shared/personal-authentication.ts';
+import type { Clock } from './shared/ports/clock.port.ts';
 import type { ReadinessCheck } from './shared/readiness.ts';
 
 export interface AppDependencies {
@@ -35,6 +36,11 @@ export interface AppDependencies {
    * وكل مسارات القدرة ترد 503 ما دامت مطفأة. تشغيلها قرار deploy بعد دمج PRs الخمسة كلها.
    */
   readonly staffAccessRoutes?: boolean;
+  /**
+   * ساعة مسار الرقم السري للموظفات: مدّة الرقم المؤقت ومدّة دليل التغيير بتتقاس بيها، والاختبار
+   * يحكم في الوقت بدل ما يعدّل صفوف الجدول.
+   */
+  readonly staffPinClock?: Clock | undefined;
   /**
    * دعوة الأعضاء: أصل لوحة الإدارة اللي صفحة تعيين كلمة المرور بتتبني عليه، وساعة بيتقاس بيها عمر
    * الرابط (AC-G1-2). من غير الأصل مسارات الدعوة بترد NOT_READY.

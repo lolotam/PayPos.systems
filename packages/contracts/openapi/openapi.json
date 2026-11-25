@@ -21968,6 +21968,56 @@
               }
             }
           },
+          "403": {
+            "description": "PIN_CHANGE_REQUIRED when the PIN is temporary, PIN_EXPIRED when its 24 hours are over",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "The API error envelope",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/devices/me/staff-pin/change": {
+      "post": {
+        "operationId": "changeTemporaryStaffPin",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ChangeTemporaryStaffPinInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "204": {
+            "description": "The temporary PIN is now permanent; no session issued"
+          },
+          "403": {
+            "description": "PIN_EXPIRED when the temporary PIN ran out; PIN_CHANGE_REQUIRED is the sign-in refusal",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
           "default": {
             "description": "The API error envelope",
             "content": {
@@ -44829,6 +44879,25 @@
         },
         "required": [
           "user_id",
+          "pin"
+        ],
+        "additionalProperties": false
+      },
+      "ChangeTemporaryStaffPinInput": {
+        "type": "object",
+        "properties": {
+          "proof": {
+            "type": "string",
+            "minLength": 16,
+            "maxLength": 256
+          },
+          "pin": {
+            "type": "string",
+            "pattern": "^\\d{4}$"
+          }
+        },
+        "required": [
+          "proof",
           "pin"
         ],
         "additionalProperties": false

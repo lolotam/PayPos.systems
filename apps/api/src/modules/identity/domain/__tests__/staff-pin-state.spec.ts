@@ -10,7 +10,7 @@ it('a permanent PIN without an expiry is usable', () => {
 
 it('a temporary PIN before its expiry needs a change', () => {
   expect(
-    pinState({ temporary: true, expiresAt: new Date('2026-11-25T09:59:59.000Z') }, now),
+    pinState({ temporary: true, expiresAt: new Date('2026-11-25T10:00:00.001Z') }, now),
   ).toBe('CHANGE_REQUIRED');
 });
 
@@ -19,7 +19,7 @@ it('a temporary PIN at the moment of its expiry is already expired', () => {
 });
 
 it('a temporary PIN after its expiry is expired', () => {
-  expect(pinState({ temporary: true, expiresAt: new Date('2026-11-25T10:00:00.001Z') }, now)).toBe(
+  expect(pinState({ temporary: true, expiresAt: new Date('2026-11-25T09:59:59.999Z') }, now)).toBe(
     'EXPIRED',
   );
 });

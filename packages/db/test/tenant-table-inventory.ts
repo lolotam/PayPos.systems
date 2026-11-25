@@ -98,6 +98,7 @@ export const TENANT_TABLES = [
   'consumed_events',
   'devices',
   'cashier_pins',
+  'staff_pin_change_proofs',
   'business_settings',
   'alert_rules',
   'memberships',

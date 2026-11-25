@@ -1,6 +1,10 @@
 import { expect, it, vi } from 'vitest';
 import { SignInStaffPin } from './sign-in-staff-pin.ts';
-import type { StaffPinAuthority, StaffPinTransactions } from '../../ports/staff-pins.port.ts';
+import type {
+  StaffPinAuthority,
+  StaffPinProofIssuer,
+  StaffPinTransactions,
+} from '../../ports/staff-pins.port.ts';
 import type { PinAttempts } from '../../ports/cashier-pins.port.ts';
 
 const device = {
@@ -33,12 +37,19 @@ function fixture(userId: string | null = null) {
     succeeded: vi.fn(),
     release: vi.fn(),
   } as unknown as PinAttempts;
+  const proofs = {
+    issue: vi.fn(() => ({ proof: 'synthetic-proof', hash: 'synthetic-hash' })),
+    digest: vi.fn(() => 'synthetic-hash'),
+  } as unknown as StaffPinProofIssuer;
+  const clock = { now: () => new Date('2026-11-25T10:00:00.000Z') };
+  const ids = { newId: () => 'synthetic-id' };
   return {
     authority,
     db,
     hasher,
     attempts,
-    signIn: new SignInStaffPin(db, hasher, attempts, authority),
+    proofs,
+    signIn: new SignInStaffPin(db, hasher, attempts, authority, proofs, clock, ids, false),
   };
 }
 

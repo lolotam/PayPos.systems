@@ -8,12 +8,16 @@ function operation(
   description: string,
   response: string,
   body?: string,
+  forbidden?: string,
 ) {
   return {
     operationId,
     ...(body === undefined ? {} : { requestBody: { required: true, content: json(body) } }),
     responses: {
       [status]: { description, content: json(response) },
+      ...(forbidden === undefined
+        ? {}
+        : { '403': { description: forbidden, content: json('ErrorEnvelope') } }),
       default: { description: 'The API error envelope', content: json('ErrorEnvelope') },
     },
   };
@@ -28,7 +32,23 @@ export const staffSignInPaths = {
       'Restricted staff session',
       'StaffSessionContext',
       'StaffPinInput',
+      'PIN_CHANGE_REQUIRED when the PIN is temporary, PIN_EXPIRED when its 24 hours are over',
     ),
+  },
+  '/v1/devices/me/staff-pin/change': {
+    post: {
+      operationId: 'changeTemporaryStaffPin',
+      requestBody: { required: true, content: json('ChangeTemporaryStaffPinInput') },
+      responses: {
+        '204': { description: 'The temporary PIN is now permanent; no session issued' },
+        '403': {
+          description:
+            'PIN_EXPIRED when the temporary PIN ran out; PIN_CHANGE_REQUIRED is the sign-in refusal',
+          content: json('ErrorEnvelope'),
+        },
+        default: { description: 'The API error envelope', content: json('ErrorEnvelope') },
+      },
+    },
   },
   '/v1/staff-pins/reset': {
     post: {

@@ -10,7 +10,7 @@ import { COMMISSION_SALES_TABLE_GRANTS } from './commission-sales-grants.ts';
 import { COMMISSION_PLAN_VERSION_TABLE_GRANTS } from './commission-plan-version-grants.ts';
 import { COMMISSION_SERVICE_OVERRIDE_TABLE_GRANTS } from './commission-service-override-grants.ts';
 import { COMMISSION_LINE_TABLE_GRANTS } from './commission-line-grants.ts';
-import { SCHEDULE_TABLE_GRANTS } from './schedule-grants.ts';
+import { SCHEDULE_TABLE_GRANTS, BRANCH_SCHEDULE_TABLE_GRANTS } from './schedule-grants.ts';
 import { RATING_TABLE_GRANTS } from './rating-grants.ts';
 import { PACKAGE_TABLE_GRANTS } from './package-grants.ts';
 import { LEAVE_HISTORY_REPORT_TABLE_GRANTS } from './leave-history-report-grants.ts';
@@ -196,6 +196,11 @@ export const ALLOWED_TABLE_GRANTS: Record<string, string[]> = {
     'session_tip_revisions:SELECT',
     'session_tips:INSERT',
     'session_tips:SELECT',
+    ...BRANCH_SCHEDULE_TABLE_GRANTS,
+    // دليل تغيير الرقم السري المؤقت: بصمة الدليل بتقرأ وبتكتب وبتستهلك مرة واحدة، وما ينفعش يتحذف.
+    'staff_pin_change_proofs:INSERT',
+    'staff_pin_change_proofs:SELECT',
+    'staff_pin_change_proofs:UPDATE',
     ...SCHEDULE_TABLE_GRANTS,
     'staff_schedule_shifts:DELETE',
     'staff_schedule_shifts:INSERT',

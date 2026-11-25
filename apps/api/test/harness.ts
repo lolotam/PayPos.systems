@@ -414,7 +414,8 @@ function staffWiring(options: HarnessOptions, api: StaffOtpApi | undefined, auth
             nativeOrigins: options.staffNativeOrigins ?? [],
           },
         };
-  return { ...gate, ...origins };
+  // ساعة اختبار الموظفات: نفس ساعة الاختبار، عشان مدّة الرقم المؤقت ومدّة دليل التغيير يتقاسوا بيها.
+  return { staffPinClock: options.clock, ...gate, ...origins };
 }
 
 // الجلسة الشخصية لها مصدر وجلسة وأهلية؛ من غير ما تتركب المسار الشخصي مرفوض.

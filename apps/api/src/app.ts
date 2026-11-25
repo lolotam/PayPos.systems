@@ -191,11 +191,9 @@ class AppModule {
           deps.auth?.service.staffUsers.staffCompanyOf,
           deps.memberInvitations,
           deps.staffAccessRoutes === true,
+          deps.staffPinClock,
         ),
-        {
-          provide: RATE_LIMITER,
-          useValue: limiter,
-        },
+        { provide: RATE_LIMITER, useValue: limiter },
         { provide: DATABASE, useValue: deps.database ?? null },
         ...tenancyProviders(deps.database, deps.ids ?? systemUuidV7()),
         ...customersProviders(

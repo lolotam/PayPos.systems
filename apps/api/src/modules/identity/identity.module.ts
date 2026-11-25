@@ -14,6 +14,7 @@ import type { IdGenerator, TenantWrappers } from '@pospay/db';
 import type { Redis } from 'ioredis';
 
 import { systemClock } from '../../shared/adapters/system-clock.ts';
+import type { Clock } from '../../shared/ports/clock.port.ts';
 import { DEVICE_AUTHENTICATOR } from '../../shared/device-authenticator.ts';
 import { STAFF_AUTHENTICATION } from '../../shared/staff-authentication.ts';
 import {
@@ -72,12 +73,15 @@ import { VerifyCashierPin } from './use-cases/verify-cashier-pin/verify-cashier-
 import { VerifyDiscountApproverPin } from './use-cases/verify-discount-approver-pin/verify-discount-approver-pin.ts';
 import {
   StaffPinController,
+  STAFF_PIN_CHANGE_ENABLED,
   STAFF_PIN_USE_CASES,
   type StaffPinUseCases,
 } from './http/staff-pin.controller.ts';
 import { createStaffPinTransactions } from './persistence/staff-pin-transactions.ts';
+import { createStaffPinProofIssuer } from './persistence/staff-pin-proofs.ts';
 import { SignInStaffPin } from './use-cases/sign-in-staff-pin/sign-in-staff-pin.ts';
 import { ResetStaffPin } from './use-cases/reset-staff-pin/reset-staff-pin.ts';
+import { ChangeTemporaryStaffPin } from './use-cases/change-temporary-staff-pin/change-temporary-staff-pin.ts';
 import { MemberInvitationsController } from './http/member-invitations.controller.ts';
 import { memberInvitationProviders } from './member-invitations.wiring.ts';
 import { PrivateViewController, PRIVATE_VIEW_WINDOWS } from './http/private-view.controller.ts';
@@ -129,6 +133,7 @@ export function staffOtpDependencies(options: {
  * @param ids      the UUID v7 generator
  * @param redis    the API's Redis client, for pairing codes and PIN attempts (devices and PINs need it)
  * @param staffAccessRoutes whether the spec 076 staff-access slice is open; the workspace read tells the admin
+ * @param staffPinClock the clock the staff PIN flow measures the temporary PIN and its proof against
  * @returns the providers to add to the root module, after the session guard
  */
 export function identityProviders(
@@ -145,6 +150,7 @@ export function identityProviders(
   /** أصل لوحة الإدارة اللي رابط تعيين كلمة المرور بيتبني عليه، وساعة عمر الرابط. */
   invitations?: { readonly adminOrigin: string; readonly clock?: { now(): Date } },
   staffAccessRoutes = false,
+  staffPinClock: Clock = systemClock,
 ): Provider[] {
   const capabilities = identityCapabilities(database, ids, redis, staffCompanyOf);
   const reader = capabilities.reader;
@@ -168,10 +174,7 @@ export function identityProviders(
       provide: STAFF_POS_ORIGIN,
       useValue: staff?.origin ? { pos: staff.origin, native: staff.nativeOrigins ?? [] } : null,
     },
-    {
-      provide: STAFF_PIN_USE_CASES,
-      useValue: database === undefined ? null : staffPinUseCases(database, ids, redis, sessions),
-    },
+    ...staffPinProviders(database, ids, redis, sessions, staffAccessRoutes, staffPinClock),
     ...discountApproverProviders(database, ids, redis, sessions),
     { provide: DISCOUNT_APPROVER_VERIFIER, useExisting: VERIFY_DISCOUNT_APPROVER_PIN },
     ...privateViewProviders(database, ids, redis),
@@ -337,21 +340,59 @@ function cashierPinUseCases(
   };
 }
 
+// مسارات الرقم السري للموظفات: الدخول والتغيير والإعادة. من غير داتابيز أو Redis أو جلسات
+// المسار كله بيرفض؛ والبوابة بتتاق مع شجرة 076.
+function staffPinProviders(
+  database: TenantWrappers | undefined,
+  ids: IdGenerator,
+  redis: Redis | undefined,
+  sessions: StaffSessions | null,
+  staffAccessRoutes: boolean,
+  clock: Clock,
+): Provider[] {
+  return [
+    {
+      provide: STAFF_PIN_USE_CASES,
+      useValue:
+        database === undefined
+          ? null
+          : staffPinUseCases(database, ids, redis, sessions, staffAccessRoutes, clock),
+    },
+    { provide: STAFF_PIN_CHANGE_ENABLED, useValue: staffAccessRoutes },
+  ];
+}
+
 function staffPinUseCases(
   database: TenantWrappers,
   ids: IdGenerator,
   redis: Redis | undefined,
   sessions: StaffSessions | null,
+  staffAccessRoutes: boolean,
+  clock: Clock,
 ): StaffPinUseCases | null {
   if (redis === undefined || sessions === null) return null;
   const db = createStaffPinTransactions(database, ids);
   const eligibility = createStaffEligibility(database);
+  const proofs = createStaffPinProofIssuer();
   return {
-    reset: new ResetStaffPin(db, authPinHasher, systemClock),
-    signIn: new SignInStaffPin(db, authPinHasher, createRedisPinAttempts(redis, ids), {
-      sessions,
-      ...eligibility,
-    }),
+    reset: new ResetStaffPin(db, authPinHasher, clock),
+    signIn: new SignInStaffPin(
+      db,
+      authPinHasher,
+      createRedisPinAttempts(redis, ids),
+      { sessions, ...eligibility },
+      proofs,
+      clock,
+      ids,
+      staffAccessRoutes,
+    ),
+    change: new ChangeTemporaryStaffPin(
+      db,
+      authPinHasher,
+      createRedisPinAttempts(redis, ids),
+      proofs,
+      clock,
+    ),
   };
 }
 

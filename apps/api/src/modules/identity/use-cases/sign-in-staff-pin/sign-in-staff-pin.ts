@@ -1,8 +1,14 @@
 import type { StaffDeviceContext } from '@pospay/auth';
 import { StaffProofChanged, STAFF_LOGIN_CONCURRENCY } from '@pospay/auth';
+import type { Clock } from '../../../../shared/ports/clock.port.ts';
+import type { IdGenerator } from '../../../../shared/ports/id-generator.port.ts';
+import { StaffPinError } from '../staff-pin-error.ts';
+import { staffPinProofExpiresAt } from '../../domain/staff-pin-proof.ts';
+import { pinState } from '../../domain/staff-pin-state.ts';
 import type { PinAttempts, PinHasher } from '../../ports/cashier-pins.port.ts';
 import type {
   StaffPinAuthority,
+  StaffPinProofIssuer,
   StaffPinRecord,
   StaffPinTransactions,
 } from '../../ports/staff-pins.port.ts';
@@ -15,6 +21,10 @@ export class SignInStaffPin {
     private readonly hasher: PinHasher,
     private readonly attempts: PinAttempts,
     private readonly authority: StaffPinAuthority,
+    private readonly proofs: StaffPinProofIssuer,
+    private readonly clock: Clock,
+    private readonly ids: IdGenerator,
+    private readonly staffAccessRoutes: boolean,
   ) {}
 
   /** الجهاز متحقق مسبقاً، والربط العالمي المعتمد يحدد صاحب الإثبات. */
@@ -52,9 +62,24 @@ export class SignInStaffPin {
       await this.attempts.release(target, reservation.reservation);
       throw error;
     }
-    if (!matches || row === null || row.temporary === true || userId === null) {
+    if (!matches || row === null || userId === null) {
       await this.attempts.failed(target, reservation.reservation);
       return null;
+    }
+    // قبل فتح شريحة F2 الرقم المؤقت زي أي رقم غلط: مفيش تغيير ولا دليل ولا جلسة.
+    if (!this.staffAccessRoutes && row.temporary === true) {
+      await this.attempts.failed(target, reservation.reservation);
+      return null;
+    }
+    const state = this.staffAccessRoutes ? pinState(row, this.clock.now()) : 'USABLE';
+    if (state !== 'USABLE') {
+      // الرقم اتقبل، فالعدّاد بيتصفّر؛ الردّ بيقول لازم يتغيّر، ومفيش جلسة بتتصدر.
+      if ((await this.attempts.succeeded(target, reservation.reservation)) !== 'ok') return null;
+      if (state === 'EXPIRED') throw new StaffPinError('PIN_EXPIRED');
+      throw new StaffPinError(
+        'PIN_CHANGE_REQUIRED',
+        await this.issueChangeProof(userId, row, input.device),
+      );
     }
     if ((await this.attempts.succeeded(target, reservation.reservation)) !== 'ok') return null;
     if (!(await this.current(userId, row.id, input))) return null;
@@ -74,6 +99,28 @@ export class SignInStaffPin {
       if (error instanceof StaffProofChanged) return null;
       throw error;
     }
+  }
+
+  /** بيصدر دليل تغيير للرقم المؤقت: البصمة بس بتتخزن، والدليل الخام بيرجع للعميل مرة واحدة. */
+  private async issueChangeProof(
+    userId: string,
+    row: StaffPinRecord,
+    device: StaffDeviceContext,
+  ): Promise<string> {
+    const now = this.clock.now();
+    const issued = this.proofs.issue();
+    await this.db.run(device.companyId, userId, (scope) =>
+      scope.issueProof({
+        id: this.ids.newId(),
+        userId,
+        deviceId: device.deviceId,
+        pinRevision: row.id,
+        proofHash: issued.hash,
+        at: now,
+        expiresAt: staffPinProofExpiresAt(now),
+      }),
+    );
+    return issued.proof;
   }
 
   private read(userId: string, device: StaffDeviceContext) {

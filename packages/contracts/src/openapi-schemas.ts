@@ -67,6 +67,7 @@ import {
   signOutResult,
   staffPinInput,
   staffPinResetInput,
+  changeTemporaryStaffPinInput,
 } from './identity/staff-otp.js';
 import {
   privateViewOpenInput,
@@ -209,6 +210,7 @@ export const openApiSchemas = [
   attendanceQrIssue,
   staffPinInput,
   staffPinResetInput,
+  changeTemporaryStaffPinInput,
   staffOtpRequestInput,
   staffOtpVerifyInput,
   staffOtpAcknowledgement,
