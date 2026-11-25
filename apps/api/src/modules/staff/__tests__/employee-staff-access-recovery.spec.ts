@@ -14,6 +14,11 @@ import {
 import { createGrantEmployeeAccessSteps } from '../persistence/staff-access.adapter.ts';
 import { createStaffAccessUserSteps } from '../persistence/staff-access-auth.adapter.ts';
 import { GrantEmployeeAccessUseCase } from '../use-cases/grant-employee-access/grant-employee-access.ts';
+import {
+  EMPLOYEE_ACCESS_STATE_READS,
+  type EmployeeAccessStateReads,
+} from '../queries/employee-staff-access.query.ts';
+import type { StaffAccessGrantCache } from '../ports/staff-access-user-steps.port.ts';
 import { StaffAuthBusyError } from '@pospay/db';
 const ids = systemUuidV7();
 let f: Fixture;
@@ -319,4 +324,51 @@ it('AC-ACT-2 a repeated re-grant of the same attempt approves the phone binding 
   expect(
     await f.h.owner`SELECT phone_number, phone_binding_approved_at FROM "user" WHERE id=${record?.user_id}`,
   ).toMatchObject([{ phone_number: replacement, phone_binding_approved_at: expect.any(Date) }]);
+});
+
+it('AC-ACT-11 a state read that fails after a committed cancel still answers 200 with the committed state', async () => {
+  const employee = await addEmployee(f, 'Unreadable cancel', f.salmiya, 119);
+  const [owner] = await f.h
+    .owner`SELECT id FROM "user" WHERE email='staff-access-owner@example.test'`;
+  await f.h.owner`INSERT INTO employee_staff_access
+    (company_id,id,business_id,employee_id,operation_id,role_code,branch_id,state,granted_by,attempt_id,attempt_started_at,phone_hash)
+    VALUES (${f.company},${ids.newId()},${f.business},${employee},${ids.newId()},'staff',${f.salmiya},'PENDING',
+      ${owner?.id},${ids.newId()}, now() - interval '25 hours',${'a'.repeat(64)})`;
+  // قراءة الحالة هي اللي بتجيب رد المسار: فشلها بعد الإلغاء ما بيرجعش النتيجة الملتزمة لخطأ.
+  const reads = f.h.app.get<EmployeeAccessStateReads | null>(EMPLOYEE_ACCESS_STATE_READS);
+  if (reads === null) throw new Error('STATE_READS_MISSING');
+  vi.spyOn(reads, 'state').mockRejectedValueOnce(new Error('INJECTED_STATE_READ_FAILURE'));
+  try {
+    expect(await cancelPending(f, employee)).toMatchObject({
+      status: 200,
+      body: { state: 'NONE' },
+    });
+  } finally {
+    vi.restoreAllMocks();
+  }
+  // الإلغاء تزم فعلاً: الرد مبني على النتيجة الملتزمة لا على قراءة نجحت بالصدفة.
+  expect(
+    await f.h.owner`SELECT id FROM employee_staff_access WHERE employee_id = ${employee}`,
+  ).toHaveLength(0);
+});
+
+it('AC-ACT-11 a cache invalidation that fails after a committed grant still answers 200 with the committed state', async () => {
+  const employee = await addEmployee(f, 'Stale cache grant', f.salmiya, 120);
+  const phone = nextPhone(f);
+  // منفذ إبطال الكاش هو منفذ Redis: فشله بعد الالتزام ما بيرجعش المنحة الملتومة لخطأ.
+  const cache = (
+    f.h.app.get(GrantEmployeeAccessUseCase) as unknown as { cache: StaffAccessGrantCache }
+  ).cache;
+  vi.spyOn(cache, 'invalidate').mockRejectedValueOnce(new Error('INJECTED_CACHE_FAILURE'));
+  try {
+    expect(await grant(f, employee, phone)).toMatchObject({
+      status: 200,
+      body: { state: 'ACTIVE' },
+    });
+  } finally {
+    vi.restoreAllMocks();
+  }
+  expect(
+    await f.h.owner`SELECT state FROM employee_staff_access WHERE employee_id = ${employee}`,
+  ).toMatchObject([{ state: 'ACTIVE' }]);
 });
