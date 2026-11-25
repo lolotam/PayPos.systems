@@ -407,3 +407,36 @@ describe('E1 — authority is read after the invitation row lock, and scope befo
     expect(again).toEqual({ done: false, refusal: 'MEMBER_ROLE_NOT_INVITABLE' });
   });
 });
+
+// E5 (AC-ACT-20): صف دعوة وقف قبل إنشاء الحساب (من غير حساب خالص) بيتلغى تحت قفله، والدعوة
+// الجديدة لمالك حالي بتكمّل مكانه؛ وكمان لو الحساب القائم عملية ماتت (معرّفها مش معرّف صف
+// الدعوة) فالحساب العالق بيتشال والإيميل يرجع حر.
+describe('E5 — an invitation that stopped before its account was created is reclaimed', () => {
+  it('a current owner re-invites the same email after the stale window and the invitation goes through', async () => {
+    const company = await companyWithTwoOwners('G1AB Stuck Before Account');
+    const email = 'stuck-before-account@example.test';
+    // الطلب وقف بعد الفتح وقبل إنشاء الحساب: صف PENDING من غير يوزر ولا عضوية.
+    const stuck = await stuckAfterAccount(company, email);
+    await h.owner`DELETE FROM "user" WHERE id = ${stuck.userId}`;
+    await ageInvitation(company, stuck.invitationId);
+    const response = await invite(ownerB, company, email);
+    expect([response.status, await stateOf(company, stuck.invitationId)]).toEqual([201, 'CANCELLED']);
+    expect(await accountsOf(email)).toHaveLength(1);
+    const abandoned = await h.owner`
+      SELECT entity_id FROM audit_log WHERE company_id = ${company} AND action = 'invite.abandoned'`;
+    expect(abandoned.map((row) => row['entity_id'])).toEqual([stuck.invitationId]);
+  });
+
+  it('the account of an abandoned attempt does not match the stale row: the row is reclaimed and the invitation goes through', async () => {
+    const company = await companyWithTwoOwners('G1AB Mismatched Operation');
+    const email = 'mismatched-operation@example.test';
+    // الحساب بقى علق على عملية ماتت غير صف الدعوة.
+    const stuck = await stuckAfterAccount(company, email);
+    await h.owner`UPDATE "user" SET invitation_operation_id = ${ids.newId()} WHERE id = ${stuck.userId}`;
+    await ageInvitation(company, stuck.invitationId);
+    // نفس الداعي كان يقدر يستأنف الصف، بس الحساب مش بيته: فالمسار ينضف والدعوة تكمّل.
+    const response = await invite(ownerA, company, email);
+    expect([response.status, await stateOf(company, stuck.invitationId)]).toEqual([201, 'CANCELLED']);
+    expect((await accountsOf(email)).map((row) => row['id'])).not.toContain(stuck.userId);
+  });
+});
