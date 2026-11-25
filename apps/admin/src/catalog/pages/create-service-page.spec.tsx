@@ -76,7 +76,19 @@ it('lays the form on the 840px shell with all fields and the save action in one 
   const save = screen.getByRole('button', { name: 'Add service' });
   const card = save.closest('.rounded-card') as HTMLElement;
   expect(card).not.toBeNull();
+  const detailsHeading = within(card).getByRole('heading', { level: 2, name: 'Service details' });
+  const commissionHeading = within(card).getByRole('heading', { level: 2, name: 'Commission' });
+  expect(
+    detailsHeading.compareDocumentPosition(commissionHeading) & Node.DOCUMENT_POSITION_FOLLOWING,
+  ).toBeTruthy();
+  expect(
+    commissionHeading.compareDocumentPosition(save) & Node.DOCUMENT_POSITION_FOLLOWING,
+  ).toBeTruthy();
   const english = within(card).getByLabelText('English name');
+  expect((english.parentElement as HTMLElement).className).toContain('md:col-span-6');
+  expect((english.parentElement?.parentElement as HTMLElement).className).toContain('grid-cols-12');
+  const price = within(card).getByLabelText('Price (KWD, 3 decimals)');
+  expect((price.parentElement as HTMLElement).className).toContain('md:col-span-4');
   const inputs = within(card).getAllByRole('textbox');
   expect(inputs.length).toBeGreaterThanOrEqual(2);
   inputs.forEach((input) => {

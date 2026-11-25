@@ -10,6 +10,16 @@ import { ServiceAttributesFields } from './service-attributes-fields';
 import { ServiceBasicsFields } from './service-basics-fields';
 import { ServiceRuleFields } from './service-rule-fields';
 
+const CREATE_SERVICE_DEFAULTS: CreateServiceInput = {
+  name_en: '',
+  name_ar: null,
+  price: '0.000',
+  commission_rule: { kind: 'FOLLOW_PLAN' },
+  counts_toward_threshold: true,
+  duration_minutes: null,
+  category_id: null,
+};
+
 export function ServiceForm({
   categoryQuery,
   pending,
@@ -22,15 +32,7 @@ export function ServiceForm({
   const locale = useLocale();
   const form = useForm<CreateServiceInput>({
     resolver: zodResolver(createServiceInput),
-    defaultValues: {
-      name_en: '',
-      name_ar: null,
-      price: '0.000',
-      commission_rule: { kind: 'FOLLOW_PLAN' },
-      counts_toward_threshold: true,
-      duration_minutes: null,
-      category_id: null,
-    },
+    defaultValues: CREATE_SERVICE_DEFAULTS,
   });
   const submit = form.handleSubmit((terms) => {
     onSave(omitRefusedCategory(terms, categoryQuery.error));
@@ -40,14 +42,25 @@ export function ServiceForm({
       <form onSubmit={submit} className="flex flex-col gap-4 text-start">
         <fieldset disabled={pending} className="contents">
           <Card>
-            <CardContent className="flex flex-col gap-3">
-              <ServiceBasicsFields />
-              <ServiceAttributesFields
-                categoryQuery={categoryQuery}
-                currentCategoryId={null}
-                currentCategory={null}
-              />
-              <ServiceRuleFields />
+            <CardContent className="flex flex-col gap-6">
+              <section className="flex flex-col gap-4">
+                <h2 className="text-lg font-semibold">{t(locale, 'catalogServices.basics')}</h2>
+                <div className="grid grid-cols-12 gap-4">
+                  <ServiceBasicsFields grid />
+                  <ServiceAttributesFields
+                    grid
+                    categoryQuery={categoryQuery}
+                    currentCategoryId={null}
+                    currentCategory={null}
+                  />
+                </div>
+              </section>
+              <section className="flex flex-col gap-4">
+                <h2 className="text-lg font-semibold">
+                  {t(locale, 'catalogServices.sectionCommission')}
+                </h2>
+                <ServiceRuleFields grid />
+              </section>
             </CardContent>
             <CardFooter>
               <Button type="submit" className="ms-auto">
