@@ -67,6 +67,12 @@ it('selects a branch and hides document expiry there', async () => {
   expect(
     screen.queryByRole('switch', { name: t('en', 'alertRules.kind_DOCUMENT_EXPIRING') }),
   ).toBeNull();
+  for (const name of [
+    t('en', 'alertRules.kind_STATEMENT_AWAITING_REVIEW'),
+    t('en', 'alertRules.kind_STATEMENT_AWAITING_APPROVAL'),
+  ]) {
+    expect(screen.queryByRole('switch', { name })).toBeNull();
+  }
   expect(screen.getByText(t('en', 'alertRules.documentExpiryBranchNote'))).toBeTruthy();
 });
 

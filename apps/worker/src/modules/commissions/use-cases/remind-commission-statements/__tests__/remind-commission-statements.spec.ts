@@ -207,6 +207,7 @@ describe('remindCommissionStatements — recipients and switches', () => {
     expect(result.reminders).toBe(1);
     expect(state.ledger.map((row) => row.kind)).toEqual(['REVIEW_DAY3']);
   });
+
   it('records a durable zero-recipient decision and emits no event', async () => {
     const state = harness({ approvers: [], reviewers: [] });
     const result = await remindCommissionStatements(
@@ -227,6 +228,34 @@ describe('remindCommissionStatements — recipients and switches', () => {
     );
 
     expect(result.reminders).toBe(0);
+    expect(state.events).toEqual([]);
+  });
+});
+
+describe('remindCommissionStatements — alert rules (RT-26)', () => {
+  it('sends no review notice while the review alert rule is off (RT-26)', async () => {
+    const state = harness({ reviewRuleEnabled: false });
+    const result = await remindCommissionStatements(
+      { transactions: transactionsOf(state), clock: clock('2026-11-03T06:00:00Z') },
+      COMPANY,
+    );
+
+    expect(result.reminders).toBe(1);
+    expect(state.ledger.map((row) => row.kind)).toEqual(['APPROVAL_DAY3']);
+    expect(state.events.map((event) => event.templateKey)).toEqual([
+      'statement_awaiting_approval',
+    ]);
+  });
+
+  it('sends no notice at all while both statement alert rules are off (RT-26)', async () => {
+    const state = harness({ approvalRuleEnabled: false, reviewRuleEnabled: false });
+    const result = await remindCommissionStatements(
+      { transactions: transactionsOf(state), clock: clock('2026-11-03T06:00:00Z') },
+      COMPANY,
+    );
+
+    expect(result.reminders).toBe(0);
+    expect(state.ledger).toEqual([]);
     expect(state.events).toEqual([]);
   });
 });

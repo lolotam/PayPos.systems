@@ -16,13 +16,15 @@ const LISTED_ALERT_KINDS = [
   'ATTENDANCE_CHANGE_REQUESTED',
   'ATTENDANCE_CHANGE_DECIDED',
   'LOW_RATING',
+  'STATEMENT_AWAITING_REVIEW',
+  'STATEMENT_AWAITING_APPROVAL',
 ] as const;
 
 export type ListedAlertKind = (typeof LISTED_ALERT_KINDS)[number];
 export type AlertRuleView = AlertRules['rules'][number];
 export type ListedAlertRuleView = AlertRuleView & { kind: ListedAlertKind };
 
-// الأنواع دي بس اللي المُرسِلات بتاعتها بتقري AlertRulesPort النهارده؛ 62-2c بيضيف STATEMENT_*.
+// كل نوع مُدرج هنا مُرسِله بيقري AlertRulesPort، فلا يظهر مفتاح لا يغيّر شيئًا.
 export function listedAlertKinds(
   rules: readonly AlertRuleView[],
   branchView: boolean,
