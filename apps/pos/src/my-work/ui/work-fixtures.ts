@@ -1,3 +1,5 @@
+import type { OwnCommissionCorrection, OwnCommissionEstimate } from '@pospay/contracts';
+
 export const LINE_1 = '00000000-0000-4000-8000-000000000001';
 export const LINE_2 = '00000000-0000-4000-8000-000000000002';
 export const LINE_3 = '00000000-0000-4000-8000-000000000003';
@@ -63,3 +65,45 @@ export const visibleRating = (average: string | null, count: number) => ({
   count,
 });
 export const hiddenRating = () => ({ visibility: 'HIDDEN' as const });
+
+export const hiddenEstimate = (): OwnCommissionEstimate => ({ status: 'HIDDEN' });
+/** تقدير مفتوح: مجموع 6.750 وعمولة 4.250 للبند الأول و2.500 للبند التاني (الملغي). */
+export const openEstimate = (recalculated = false): OwnCommissionEstimate => ({
+  status: 'ESTIMATE',
+  total: '6.750',
+  per_line: [
+    { line_id: LINE_1, amount: '4.250' },
+    { line_id: LINE_2, amount: '2.500' },
+  ],
+  corrections: [],
+  recalculated,
+});
+export const lineCorrection = (): OwnCommissionCorrection => ({
+  kind: 'LINE',
+  source_period: '2026-10',
+  business_date: '2026-10-15',
+  service_name_ar: 'Shampoo AR',
+  service_name_en: 'Shampoo',
+  previous_amount: '3.000',
+  new_amount: '1.500',
+  amount: '-1.500',
+});
+export const saleCorrection = (): OwnCommissionCorrection => ({
+  kind: 'SALE',
+  source_period: '2026-09',
+  business_date: null,
+  service_name_ar: null,
+  service_name_en: null,
+  previous_amount: '2.000',
+  new_amount: '2.750',
+  amount: '0.750',
+});
+export const noPlanEstimate = (
+  corrections: OwnCommissionCorrection[] = [],
+): OwnCommissionEstimate => ({ status: 'NO_PLAN', corrections });
+export const noSalaryEstimate = (
+  corrections: OwnCommissionCorrection[] = [],
+): OwnCommissionEstimate => ({ status: 'NO_SALARY', corrections });
+export const approvedEstimate = (
+  corrections: OwnCommissionCorrection[] = [],
+): OwnCommissionEstimate => ({ status: 'APPROVED', total: '8.125', corrections });

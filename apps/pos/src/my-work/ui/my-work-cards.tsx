@@ -1,4 +1,4 @@
-import type { OwnRatingSummary, OwnTips } from '@pospay/contracts';
+import type { OwnCommissionEstimate, OwnRatingSummary, OwnTips } from '@pospay/contracts';
 import type { LinesView } from '../model/private-window-state';
 import { monthOutOfRange } from '../model/work-error';
 import { nextMonth, previousMonth } from '../model/work-month';
@@ -25,7 +25,8 @@ export type MyWorkCardsProps = {
   tipsFailed: boolean;
   /** ملخص التقييم: موبايلها الشخصي بس (AC-3-4)، وجهاز الاستقبال بيبعت undefined. */
   rating: OwnRatingSummary | undefined;
-  estimateAllowed: boolean;
+  /** تقدير العمولة المثبت للشهر المعروض؛ undefined أو HIDDEN = مفيش كارت ولا عمولة بند. */
+  estimate: OwnCommissionEstimate | undefined;
   /** undefined = الشهر الحالي من غير شهر صريح، عشان السيرفر يسمّيه تاني لو الشهر اتغيّر والشاشة مفتوحة. */
   onMonth: (month: string | undefined) => void;
   onRetry: () => void;
@@ -37,11 +38,15 @@ export type MyWorkCardsProps = {
  * محتوى «شغلي» الشكلي: الشهر، كارت التقدير، كارت التقييم، الإكراميات، وخدمات الشهر. بيتغذّى من react-query
  * على موبايلها الشخصي ومن متحكم النافذة على جهاز الاستقبال، ومعاه نفس العرض في الحالتين.
  * قاعدة AC-3-4: مسار rating-summary للجلسة الشخصية بس، فمفيش كارت تقييم على جهاز الاستقبال.
- * قاعدة AC-57-4-4 (معدّلة): كارت التقدير ما بيتعرضش من أي مدخل إنتاج لحد 57-5.
+ * عمولة البند بتتعرض من `per_line` لما التقدير ESTIMATE بس (MY-05)، والكارت نفسه من رد التقدير.
  * «السابق» بيتقفل وطلب الشهر لسه معلّق، فمفيش ضغطات متتالية تعدّي حد الشهور قبل ما السيرفر يرد 422.
  */
 export function MyWorkCards(props: MyWorkCardsProps) {
-  const { month, home, lines } = props;
+  const { month, home, lines, estimate } = props;
+  const lineCommissions =
+    estimate?.status === 'ESTIMATE'
+      ? new Map(estimate.per_line.map((line) => [line.line_id, line.amount]))
+      : undefined;
   return (
     <div className="grid gap-4">
       <MonthStepper
@@ -55,10 +60,15 @@ export function MyWorkCards(props: MyWorkCardsProps) {
         onPrevious={() => month && props.onMonth(previousMonth(month))}
         onNext={() => month && props.onMonth(forward(month, home))}
       />
-      <EstimateCard allowed={props.estimateAllowed} />
+      <EstimateCard estimate={estimate} />
       <RatingSummaryCard summary={props.rating} />
       <TipsBlock tips={props.tips} failed={props.tipsFailed} onRetry={props.onRetryTips} />
-      <WorkLines lines={lines} onRetry={props.onRetry} onLoadMore={props.onLoadMore} />
+      <WorkLines
+        lines={lines}
+        lineCommissions={lineCommissions}
+        onRetry={props.onRetry}
+        onLoadMore={props.onLoadMore}
+      />
     </div>
   );
 }

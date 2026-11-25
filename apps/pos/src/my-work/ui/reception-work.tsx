@@ -10,15 +10,8 @@ import { ReceptionOpenWork } from './reception-open-work';
  * مفيش كارت تقييم هنا (AC-3-4).
  *
  * @param props.onLeave بتتنده لما الجلسة تتقفل (401)
- * @param props.estimateAllowed هل كارت التقدير مسموح؛ الافتراضي false من كل مدخل إنتاج لحد 57-5
  */
-export function ReceptionWork({
-  onLeave,
-  estimateAllowed,
-}: {
-  onLeave: () => void;
-  estimateAllowed: boolean;
-}) {
+export function ReceptionWork({ onLeave }: { onLeave: () => void }) {
   const { state, controller, attachRoot, submitPin, stepMonth, retry, retryTips, loadMore } =
     usePrivateWindow({ onLeave });
   if (state.phase === 'leave') return null;
@@ -36,7 +29,6 @@ export function ReceptionWork({
     <div ref={attachRoot}>
       <ReceptionOpenWork
         controller={controller}
-        estimateAllowed={estimateAllowed}
         onMonth={stepMonth}
         onRetry={retry}
         onRetryTips={retryTips}

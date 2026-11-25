@@ -31,6 +31,7 @@ export type PrivateWindowCalls = {
   close: typeof privateViewCalls.close;
   lines: typeof workCalls.lines;
   tips: typeof workCalls.tips;
+  commissionEstimate: typeof workCalls.commissionEstimate;
 };
 
 export type PrivateWindowDeps = { env: PrivateWindowEnv; calls: PrivateWindowCalls };
@@ -49,6 +50,7 @@ export const defaultCalls: PrivateWindowCalls = {
   close: (windowId) => privateViewCalls.close(windowId),
   lines: (read) => workCalls.lines(read),
   tips: (read) => workCalls.tips(read),
+  commissionEstimate: (read) => workCalls.commissionEstimate(read),
 };
 
 /**

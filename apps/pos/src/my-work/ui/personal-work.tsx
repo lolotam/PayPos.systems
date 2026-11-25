@@ -3,7 +3,11 @@ import { useCallback, useEffect, useState } from 'react';
 import type { OwnServiceLines } from '@pospay/contracts';
 import { useMountScope } from '../api/use-mount-scope';
 import { usePersonalLines } from '../api/use-personal-lines';
-import { usePersonalRating, usePersonalTips } from '../api/use-personal-reads';
+import {
+  usePersonalCommissionEstimate,
+  usePersonalRating,
+  usePersonalTips,
+} from '../api/use-personal-reads';
 import { type LinesView, PENDING_LINES } from '../model/private-window-state';
 import type { WorkContext } from '../model/work-context';
 import { monthOutOfRange, sessionEnded } from '../model/work-error';
@@ -33,17 +37,8 @@ function toLinesView(query: LinesQuery, deniedError: unknown, proven: boolean): 
  *
  * @param props.context مين بيفتح الشاشة وهويته
  * @param props.onLeave بتتنده لما الجلسة تتقفل (401)
- * @param props.estimateAllowed هل كارت التقدير مسموح؛ الافتراضي false من كل مدخل إنتاج لحد 57-5
  */
-export function PersonalWork({
-  context,
-  onLeave,
-  estimateAllowed,
-}: {
-  context: WorkContext;
-  onLeave: () => void;
-  estimateAllowed: boolean;
-}) {
+export function PersonalWork({ context, onLeave }: { context: WorkContext; onLeave: () => void }) {
   const cache = useQueryClient();
   // كل تركيب للشاشة ليه مفاتيحه، فزيارتان على نفس الـ client ما بيتشاركوش في كاش ولا طلب شغال.
   const scope = useMountScope(context.identity);
@@ -77,6 +72,8 @@ export function PersonalWork({
   // الإكراميات بتتطلب بالشهر المعروض (شهر أول صفحة خدمات لو مفيش شهر صريح) فمتبانش تحت شهر غير شهرها.
   const tips = usePersonalTips(context, scope, shown, onRefused);
   const rating = usePersonalRating(context, scope, onRefused);
+  // التقدير بيتطلب بنفس الشهر المعروض؛ رفضه (403) بيخفي الكارت من غير ما يقفل الخدمات.
+  const estimate = usePersonalCommissionEstimate(context, scope, shown, onRefused);
   if (month === undefined && serverMonth !== undefined && home !== serverMonth)
     setHome(serverMonth);
   return (
@@ -88,7 +85,7 @@ export function PersonalWork({
       tipsFailed={tips.query.isError && !monthOutOfRange(tips.query.error)}
       onRetryTips={() => void tips.query.refetch()}
       rating={rating}
-      estimateAllowed={estimateAllowed}
+      estimate={estimate}
       onMonth={(next) => {
         resetDenied();
         setMonth(next);

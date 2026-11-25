@@ -1,6 +1,11 @@
 import type { WorkContext } from '../model/work-context';
 import type { MountScope } from './use-mount-scope';
-import { type OnRefused, useRatingSummary, useWorkTips } from './use-my-work';
+import {
+  type OnRefused,
+  useRatingSummary,
+  useWorkCommissionEstimate,
+  useWorkTips,
+} from './use-my-work';
 import { useReadThisVisit } from './use-read-this-visit';
 
 /**
@@ -36,5 +41,26 @@ export function usePersonalTips(
 export function usePersonalRating(context: WorkContext, scope: MountScope, onRefused: OnRefused) {
   const query = useRatingSummary(scope, onRefused);
   const proven = useReadThisVisit(`${context.identity}:rating`, query);
+  return proven ? query.data : undefined;
+}
+
+/**
+ * تقدير عمولة موبايلها الشخصي، بنفس شرط الإثبات: ما يتعرضش إلا بعد رد ناجح من السيرفر على شهره في الزيارة دي، وأي
+ * خطأ حالي (403 لتعطيل العمولات مثلاً) بيخفيه من غير ما يقفل الشاشة؛ الخدمات والإكراميات بتفضل ظاهرة.
+ *
+ * @param context مين بيفتح الشاشة
+ * @param scope مساحة مفاتيح الزيارة الحالية
+ * @param month الشهر المعروض أو undefined قبل أول رد خدمات
+ * @param onRefused معالج رفض السيرفر
+ * @returns التقدير المثبت، أو undefined
+ */
+export function usePersonalCommissionEstimate(
+  context: WorkContext,
+  scope: MountScope,
+  month: string | undefined,
+  onRefused: OnRefused,
+) {
+  const query = useWorkCommissionEstimate(context, scope, month, onRefused);
+  const proven = useReadThisVisit(`${context.identity}:estimate:${month}`, query);
   return proven ? query.data : undefined;
 }

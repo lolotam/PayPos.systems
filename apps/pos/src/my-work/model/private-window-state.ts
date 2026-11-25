@@ -1,4 +1,4 @@
-import type { OwnServiceLines, OwnTips } from '@pospay/contracts';
+import type { OwnCommissionEstimate, OwnServiceLines, OwnTips } from '@pospay/contracts';
 import {
   type PrivateViewDeadlines,
   type PrivateViewRemaining,
@@ -28,6 +28,8 @@ export type WorkData = {
   tips: OwnTips | undefined;
   /** قراءة الإكراميات فشلت (نقل أو سيرفر)؛ غير حالة HIDDEN اللي بتخفي البلوك بقرار الصلاحيات. */
   tipsFailed: boolean;
+  /** تقدير عمولة الشهر المعروض؛ undefined = لسه ما اتحمّلش أو القراءة اترفضت، والكارت ما بيظهرش. */
+  estimate: OwnCommissionEstimate | undefined;
 };
 
 export type PrivateWindowState =
@@ -54,7 +56,8 @@ export type PrivateWindowAction =
   | { type: 'linesFailed'; error: unknown }
   | { type: 'tipsLoaded'; tips: OwnTips }
   | { type: 'tipsFailed' }
-  | { type: 'tipsRetry' };
+  | { type: 'tipsRetry' }
+  | { type: 'estimateLoaded'; month: string | undefined; estimate: OwnCommissionEstimate };
 
 export const PENDING_LINES: LinesView = {
   status: 'pending',
@@ -69,6 +72,7 @@ const EMPTY_DATA: WorkData = {
   lines: PENDING_LINES,
   tips: undefined,
   tipsFailed: false,
+  estimate: undefined,
 };
 
 /**
@@ -90,10 +94,17 @@ function reduceData(data: WorkData, action: PrivateWindowAction): WorkData {
         lines: PENDING_LINES,
         tips: undefined,
         tipsFailed: false,
+        estimate: undefined,
       };
     case 'retry':
       // الإعادة بتقرا الخدمات والإكراميات مع بعض، فالإكراميات القديمة بتتشال لحد ما الجديدة توصل (فشلها يفضّل البلوك مخفي)
-      return { ...data, lines: PENDING_LINES, tips: undefined, tipsFailed: false };
+      return {
+        ...data,
+        lines: PENDING_LINES,
+        tips: undefined,
+        tipsFailed: false,
+        estimate: undefined,
+      };
     case 'linesMore':
       return { ...data, lines: { ...data.lines, fetchingMore: true, moreError: undefined } };
     case 'linesLoaded': {
@@ -114,6 +125,12 @@ function reduceData(data: WorkData, action: PrivateWindowAction): WorkData {
       const shown = shownMonth(data);
       if (shown !== undefined && shown !== action.tips.month) return data;
       return { ...data, tips: action.tips, tipsFailed: false };
+    }
+    case 'estimateLoaded': {
+      // التقدير بيتعرض بس لو شهره هو الشهر المعروض؛ رد شهر تاني مبيتحطش تحت شهر مختلف (زي الإكراميات).
+      const shown = shownMonth(data);
+      if (shown !== undefined && shown !== action.month) return data;
+      return { ...data, estimate: action.estimate };
     }
     case 'tipsFailed':
       return { ...data, tips: undefined, tipsFailed: true };

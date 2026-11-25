@@ -1,6 +1,6 @@
-import type { OwnServiceLines } from '@pospay/contracts';
+import type { OwnCommissionEstimate, OwnServiceLines } from '@pospay/contracts';
 import { type LinesView, type WorkData, shownMonth } from '../model/private-window-state';
-import { monthOutOfRange } from '../model/work-error';
+import { monthOutOfRange, workForbidden } from '../model/work-error';
 import type { Scope, WindowHost } from './private-window-host';
 
 type Settled<T> = { ok: true; value: T } | { ok: false };
@@ -84,6 +84,32 @@ export async function loadTips(host: WindowHost, scope: Scope) {
 }
 
 /**
+ * قراءة تقدير العمولة للشهر المطلوب. أي 401 أو انتهاء النافذة بيعالجه المتحكم زي باقي القراءات، لكن 403 لتعطيل
+ * العمولات أو منع `read:commissions:own` (وكمان 404 و503 وأعطال النقل) بيسيب التقدير غير محمّل: الكارت بيختفي
+ * والخدمات والإكراميات بتفضل ظاهرة، ومبتقفلش نافذة «شغلي».
+ *
+ * @param host المتحكم
+ * @param scope نطاق الطلب، وشهره هو الشهر الصريح اللي بيتطلب بيه التقدير
+ */
+export async function loadEstimate(host: WindowHost, scope: Scope): Promise<void> {
+  const result = await settle<OwnCommissionEstimate | undefined>(host, scope, async () => {
+    try {
+      return await host.deps.calls.commissionEstimate({
+        mode: 'reception',
+        month: scope.month,
+        windowId: scope.windowId,
+        signal: scope.signal,
+      });
+    } catch (error) {
+      if (workForbidden(error)) return undefined;
+      throw error;
+    }
+  });
+  if (result.ok && result.value !== undefined)
+    host.commit(scope, { type: 'estimateLoaded', month: scope.month, estimate: result.value });
+}
+
+/**
  * قراءة شهر كامل: الخدمات والإكراميات لنفس الشهر دايماً. من غير شهر مطلوب السيرفر هو اللي بيحدد «الحالي»
  * لكل طلب لوحده، وعبر حدود الشهر ممكن الاتنين يرجعوا شهرين مختلفين؛ فالإكراميات بتستنى أول صفحة خدمات
  * وبتتطلب بالشهر اللي رجعته (مصدر واحد للشهر). مع شهر صريح الاتنين بيمشوا مع بعض.
@@ -93,11 +119,17 @@ export async function loadTips(host: WindowHost, scope: Scope) {
  */
 export async function loadMonth(host: WindowHost, scope: Scope): Promise<void> {
   if (scope.month !== undefined) {
-    await Promise.all([loadLines(host, scope, undefined), loadTips(host, scope)]);
+    await Promise.all([
+      loadLines(host, scope, undefined),
+      loadTips(host, scope),
+      loadEstimate(host, scope),
+    ]);
     return;
   }
   const first = await loadLines(host, scope, undefined);
-  if (first !== undefined) await loadTips(host, { ...scope, month: first.month });
+  if (first === undefined) return;
+  const monthScope = { ...scope, month: first.month };
+  await Promise.all([loadTips(host, monthScope), loadEstimate(host, monthScope)]);
 }
 
 /**

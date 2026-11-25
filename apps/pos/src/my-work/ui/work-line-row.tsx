@@ -18,8 +18,17 @@ import {
  *
  * @param props.item صف «شغلي»
  * @param props.timeZone توقيت النشاط من رد «شغلي»؛ الوقت وتاريخ الإلغاء بيتعرضوا بيه دايماً
+ * @param props.estimatedCommission عمولة البند التقديرية (MY-05)؛ بتتعرض لو الحالة ESTIMATE والبند مش ملغي (MY-07)
  */
-export function WorkLineRow({ item, timeZone }: { item: OwnServiceLine; timeZone: string }) {
+export function WorkLineRow({
+  item,
+  timeZone,
+  estimatedCommission,
+}: {
+  item: OwnServiceLine;
+  timeZone: string;
+  estimatedCommission?: string | undefined;
+}) {
   const locale = useLocale();
   const field = (label: string, value: string) => (
     <>
@@ -50,6 +59,9 @@ export function WorkLineRow({ item, timeZone }: { item: OwnServiceLine; timeZone
           {item.share_bps === undefined
             ? null
             : field(t(locale, 'myWork.share'), formatShare(item.share_bps))}
+          {!item.cancelled && estimatedCommission !== undefined
+            ? field(t(locale, 'myWork.lineCommission'), estimatedCommission)
+            : null}
         </dl>
         <div className="flex flex-wrap gap-2">
           {item.late ? <Badge variant="warning">{t(locale, 'myWork.late')}</Badge> : null}
