@@ -1,7 +1,11 @@
 import type { GrantInvalidator } from './permission-overrides.port.ts';
 
 /** رفض متوقع في إنهاء العضوية — الـ use case بيحوّله لكود خطأ معروف. */
-export type EndMembershipRefusal = 'FORBIDDEN' | 'NOT_FOUND' | 'LAST_OWNER';
+export type EndMembershipRefusal =
+  | 'FORBIDDEN'
+  | 'NOT_FOUND'
+  | 'LAST_OWNER'
+  | 'STAFF_ACCESS_MANAGED_MEMBERSHIP';
 
 /** المتصل والعضوية المطلوب إنهاؤها، والشركة مؤكدة من الحارس. */
 export interface EndMembershipCommand {

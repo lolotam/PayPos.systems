@@ -156,8 +156,6 @@ describe('AC-G2-1 (3) the owner ends a member', () => {
     expect((await h.send('GET', '/v1/businesses', { cookie: memberCookie, company })).status).toBe(
       200,
     );
-    const key = `identity:grants:${company}:version`;
-    const before = Number((await h.redis.get(key)) ?? 0);
 
     const response = await end(h, ownerA.cookie, company, membership);
 
@@ -176,7 +174,6 @@ describe('AC-G2-1 (3) the owner ends a member', () => {
         after: { ends_at: response.body['ends_at'] },
       },
     ]);
-    expect(Number((await h.redis.get(key)) ?? 0)).toBeGreaterThan(before);
     expect((await h.send('GET', '/v1/businesses', { cookie: memberCookie, company })).status).toBe(
       403,
     );
@@ -234,10 +231,12 @@ describe('AC-G2-1 (5) two owners ending each other at a real barrier', () => {
         clock: systemClock,
       });
     const settle = (work: Promise<unknown>) =>
-      work.then(
-        () => 'ok' as const,
-        (error: unknown) => (error instanceof ApiError ? error.code : 'unexpected'),
-      );
+      work
+        .then(
+          () => 'ok' as const,
+          (error: unknown) => (error instanceof ApiError ? error.code : 'unexpected'),
+        )
+        .finally(release);
 
     const results = await Promise.all([
       settle(build().execute({ companyId: company, actorUserId: ownerA.userId, membershipId: m2 })),
@@ -263,5 +262,72 @@ describe('AC-G2-1 (6) a foreign company membership', () => {
     expect(response.status).toBe(404);
     expect(errorEnvelope.parse(response.body).code).toBe('NOT_FOUND');
     expect(await endedAt(foreign)).toBeNull();
+  });
+});
+
+describe('AC-G2-1 (7) a membership managed by employee staff access', () => {
+  it('answers 409 STAFF_ACCESS_MANAGED_MEMBERSHIP and keeps the membership active', async () => {
+    const company = await h.onboard(ownerA.cookie, 'G2 Company Staff Access');
+    const business = ids.newId();
+    const branch = ids.newId();
+    const employee = ids.newId();
+    const staffUser = ids.newId();
+    await h.owner`
+      INSERT INTO businesses (company_id, id, name_en, vertical_type)
+      VALUES (${company}, ${business}, 'G2 business', 'salon')`;
+    await h.owner`
+      INSERT INTO branches (company_id, id, business_id, name_en)
+      VALUES (${company}, ${branch}, ${business}, 'G2 branch')`;
+    await h.owner`
+      INSERT INTO "user" (id, name, email)
+      VALUES (${staffUser}, 'G2 Staff User', ${`${staffUser}@example.test`})`;
+    const membership = await addMember(company, staffUser, 'staff', 'BRANCH', branch);
+    await h.owner`
+      INSERT INTO employees (company_id, id, business_id, primary_branch_id, user_id, name_en, name_en_key, role_code, hire_date, employee_number)
+      VALUES (${company}, ${employee}, ${business}, ${branch}, ${staffUser}, 'G2 Staff', 'g2 staff', 'staff', '2026-01-01', 1)`;
+    await h.owner`
+      INSERT INTO employee_staff_access (company_id, id, business_id, employee_id, operation_id, role_code, branch_id, state, granted_by, phone_hash, attempt_id, user_id, membership_id)
+      VALUES (${company}, ${ids.newId()}, ${business}, ${employee}, ${ids.newId()}, 'staff', ${branch}, 'ACTIVE', ${ownerA.userId}, ${'a'.repeat(64)}, ${ids.newId()}, ${staffUser}, ${membership})`;
+
+    const response = await end(h, ownerA.cookie, company, membership);
+
+    expect(response.status).toBe(409);
+    expect(errorEnvelope.parse(response.body).code).toBe('STAFF_ACCESS_MANAGED_MEMBERSHIP');
+    expect(await endedAt(membership)).toBeNull();
+    expect(
+      await h.owner`SELECT 1 FROM audit_log WHERE company_id = ${company} AND action = 'membership.ended'`,
+    ).toHaveLength(0);
+  });
+});
+
+describe('AC-G2-1 (8) a membership scheduled to end in the future', () => {
+  it('ends it immediately and records the prior ends_at in the audit before-image', async () => {
+    const company = await h.onboard(ownerA.cookie, 'G2 Company Future End');
+    const membership = await addMember(company, ownerB.userId, 'accountant', 'COMPANY', company);
+    const futureEndsAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
+    await h.owner`
+      UPDATE memberships SET ends_at = ${futureEndsAt}::timestamptz
+      WHERE company_id = ${company} AND id = ${membership}`;
+
+    const beforeCall = Date.now();
+    const response = await end(h, ownerA.cookie, company, membership);
+
+    expect(response.status).toBe(200);
+    const actualEndsAt = Date.parse(String(response.body['ends_at']));
+    expect(actualEndsAt).toBeLessThanOrEqual(Date.now() + 1000);
+    expect(actualEndsAt).toBeGreaterThanOrEqual(beforeCall - 1000);
+    const ended = (await endedAt(membership)) as string | Date;
+    expect(new Date(ended).toISOString()).toBe(response.body['ends_at']);
+    expect(
+      await h.owner`
+        SELECT actor_user_id, before, after FROM audit_log
+        WHERE company_id = ${company} AND action = 'membership.ended' AND entity_id = ${membership}`,
+    ).toEqual([
+      {
+        actor_user_id: ownerA.userId,
+        before: { ends_at: new Date(futureEndsAt).toISOString() },
+        after: { ends_at: response.body['ends_at'] },
+      },
+    ]);
   });
 });

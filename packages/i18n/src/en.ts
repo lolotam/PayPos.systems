@@ -275,20 +275,16 @@ export const en = {
     MEMBER_EMAIL_NOT_INVITABLE: 'This email cannot be invited',
     MEMBER_INVITATION_NOT_REISSUEABLE:
       'A new link cannot be issued for this invitation; the member already set a password',
-    LAST_OWNER:
-      'The last owner of a company cannot be ended; the company must keep at least one owner',
+    LAST_OWNER: 'The last owner of a company cannot be ended; the company must keep at least one owner',
+    STAFF_ACCESS_MANAGED_MEMBERSHIP: 'An employee staff-access membership is stopped from the employee page via Stop access, not from the permissions screen',
     ALERT_RULE_REVISION_CONFLICT: 'Another manager changed this alert rule. Reload before saving.',
-    TRANSACTION_RETRY_REQUIRED:
-      'The change conflicted with another transaction and was not saved. Please retry.',
-    INVALID_CUSTOMER_PHONE:
-      'Choose a valid country calling code and enter national digits; Kuwait requires eight digits',
-    OTP_UNAVAILABLE:
-      'WhatsApp sign-in is unavailable. Ask your manager for help using your own cashier PIN.',
+    TRANSACTION_RETRY_REQUIRED: 'The change conflicted with another transaction and was not saved. Please retry.',
+    INVALID_CUSTOMER_PHONE: 'Choose a valid country calling code and enter national digits; Kuwait requires eight digits',
+    OTP_UNAVAILABLE: 'WhatsApp sign-in is unavailable. Ask your manager for help using your own cashier PIN.',
     PASSKEY_ALREADY_BOUND: 'A passkey is already bound. Ask your manager to unbind it first.',
     PASSKEY_INVALID: 'The passkey could not be verified.',
     PASSKEY_SELF_UNBIND: 'You cannot unbind your own passkey. Ask another permitted manager.',
-    PASSKEY_REVISION_CONFLICT:
-      'The passkey binding changed. Refresh its status before trying again.',
+    PASSKEY_REVISION_CONFLICT: 'The passkey binding changed. Refresh its status before trying again.',
     PUSH_KEY_STALE: 'The notification key changed. Turn notifications on again.',
     PUSH_REGISTRATION_BUSY: 'Another registration for this device is in progress. Try again.',
     OTP_INVALID: 'The sign-in code is not valid.',

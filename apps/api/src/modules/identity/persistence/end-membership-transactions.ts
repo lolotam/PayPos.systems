@@ -11,6 +11,8 @@ import { authorityAllows } from './member-invitation-records.ts';
 
 interface TargetRow extends Record<string, unknown> {
   id: string;
+  user_id: string | null;
+  starts_at: string | Date;
   ends_at: string | Date | null;
 }
 
@@ -57,20 +59,35 @@ async function endInside(
   if (!(await authorityAllows(tx, companyId, actorUserId))) return { refusal: 'FORBIDDEN' };
   // قفل صف الهدف بس: قفل الشركة أو كل العضويات كان هيخلي مالك تاني يفقد سلطته قبل الفحص (403) بدل ما يوصل لتريجر 0013.
   const [row] = await tx.execute<TargetRow>(sql`
-    SELECT id, ends_at FROM memberships
+    SELECT id, user_id, starts_at, ends_at FROM memberships
     WHERE company_id = ${companyId} AND id = ${membershipId} FOR UPDATE`);
   if (row === undefined) return { refusal: 'NOT_FOUND' };
   if (!(await authorityAllows(tx, companyId, actorUserId))) return { refusal: 'FORBIDDEN' };
-  if (row.ends_at !== null) return { id: row.id, endsAt: new Date(row.ends_at).toISOString() };
-  const endsAt = now.toISOString();
+  const ownerFilter =
+    row.user_id === null
+      ? sql`membership_id = ${membershipId}`
+      : sql`(membership_id = ${membershipId} OR user_id = ${row.user_id})`;
+  const [staffManaged] = await tx.execute(sql`
+    SELECT 1 FROM employee_staff_access
+    WHERE company_id = ${companyId} AND ${ownerFilter}
+    LIMIT 1`);
+  if (staffManaged !== undefined) return { refusal: 'STAFF_ACCESS_MANAGED_MEMBERSHIP' };
+  const previousEndsAt = row.ends_at === null ? null : new Date(row.ends_at);
+  if (previousEndsAt !== null && previousEndsAt.getTime() <= now.getTime()) {
+    return { id: row.id, endsAt: previousEndsAt.toISOString() };
+  }
+  // Postgres now() بيرجّع مايكروثانية، فلو الاستدعاء في نفس الملليثانية ممكن يكون now <= starts_at ويكسر قيد memberships_window.
+  const startsAtMs = new Date(row.starts_at).getTime();
+  const effectiveNow = now.getTime() > startsAtMs ? now : new Date(startsAtMs + 1);
+  const endsAt = effectiveNow.toISOString();
   await tx.execute(sql`
     UPDATE memberships SET ends_at = ${endsAt}::timestamptz
-    WHERE company_id = ${companyId} AND id = ${membershipId} AND ends_at IS NULL`);
+    WHERE company_id = ${companyId} AND id = ${membershipId}`);
   await transactionWriters(tx, ids).audit.record({
     entity: 'membership',
     entityId: membershipId,
     action: 'membership.ended',
-    before: { ends_at: null },
+    before: { ends_at: previousEndsAt === null ? null : previousEndsAt.toISOString() },
     after: { ends_at: endsAt },
   });
   await onBeforeCommit?.();

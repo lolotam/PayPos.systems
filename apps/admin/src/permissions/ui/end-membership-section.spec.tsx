@@ -36,19 +36,19 @@ beforeEach(() => {
 });
 afterEach(() => vi.restoreAllMocks());
 
-function renderSection(ended = false) {
+function renderSection(endsAt: string | null = null) {
   const client = createQueryClient();
   const invalidate = vi.spyOn(client, 'invalidateQueries');
-  render(
+  const view = render(
     <QueryClientProvider client={client}>
       <EndMembershipSection
         companyId={ids.company}
         userId={ids.user}
-        membership={{ id: ids.membership, ends_at: ended ? '2026-01-01T00:00:00Z' : null }}
+        membership={{ id: ids.membership, ends_at: endsAt }}
       />
     </QueryClientProvider>,
   );
-  return invalidate;
+  return { invalidate, unmount: () => view.unmount() };
 }
 const label = (key: Parameters<typeof t>[1]) => t(state.locale, key);
 
@@ -73,7 +73,7 @@ it.each(['ar', 'en'] as const)('hides the action unless every condition holds in
     view.unmount();
   }
   Object.assign(state, { staffAccess: true, role: 'owner' });
-  renderSection(true);
+  renderSection('2026-01-01T00:00:00Z');
   expect(screen.queryByRole('button', { name: label('permissions.endMembership') })).toBeNull();
 });
 
@@ -85,7 +85,7 @@ it.each(['ar', 'en'] as const)('confirm dialog, cancel and confirm in %s', async
     data: { id: ids.membership, ends_at: '2026-11-25T10:00:00Z' },
     error: undefined,
   });
-  const invalidate = renderSection();
+  const invalidate = renderSection().invalidate;
   fireEvent.click(screen.getByRole('button', { name: label('permissions.endMembership') }));
   expect(await screen.findByText(label('permissions.endMembershipLead'))).toBeTruthy();
   expect(state.post).not.toHaveBeenCalled();
@@ -128,4 +128,40 @@ it.each(['ar', 'en'] as const)('shows the localized LAST_OWNER refusal in %s', a
   );
   const alert = await screen.findByRole('alert');
   expect(alert.textContent).toBe(t(locale, 'errors.LAST_OWNER'));
+});
+
+it.each(['ar', 'en'] as const)('keeps the action while the membership ends in the future in %s', (locale) => {
+  state.locale = locale;
+  const future = renderSection(new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString());
+  expect(screen.queryByRole('button', { name: label('permissions.endMembership') })).not.toBeNull();
+  future.unmount();
+  renderSection(new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString());
+  expect(screen.queryByRole('button', { name: label('permissions.endMembership') })).toBeNull();
+});
+
+it.each(['ar', 'en'] as const)('clears the stale refusal when the dialog is reopened in %s', async (locale) => {
+  state.locale = locale;
+  state.post.mockResolvedValue({
+    data: undefined,
+    error: {
+      code: 'LAST_OWNER',
+      message_ar: t('ar', 'errors.LAST_OWNER'),
+      message_en: t('en', 'errors.LAST_OWNER'),
+    },
+  });
+  renderSection();
+  fireEvent.click(screen.getByRole('button', { name: label('permissions.endMembership') }));
+  fireEvent.click(
+    await screen.findByRole('button', { name: label('permissions.endMembershipConfirm') }),
+  );
+  expect(await screen.findByRole('alert')).toBeTruthy();
+
+  fireEvent.click(screen.getByRole('button', { name: label('permissions.endMembershipCancel') }));
+  await waitFor(() =>
+    expect(screen.queryByText(label('permissions.endMembershipLead'))).toBeNull(),
+  );
+  expect(screen.queryByRole('alert')).not.toBeNull();
+
+  fireEvent.click(screen.getByRole('button', { name: label('permissions.endMembership') }));
+  await waitFor(() => expect(screen.queryByRole('alert')).toBeNull());
 });

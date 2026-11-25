@@ -41,6 +41,7 @@ describe('EndMembership', () => {
     ['FORBIDDEN', 403],
     ['NOT_FOUND', 404],
     ['LAST_OWNER', 409],
+    ['STAFF_ACCESS_MANAGED_MEMBERSHIP', 409],
   ] as const)('maps the %s refusal to an ApiError and never invalidates', async (refusal, status) => {
     const { useCase, wrapped } = build({ refusal });
     const error = await useCase.execute(command).catch((e: unknown) => e);
