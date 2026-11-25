@@ -112,3 +112,33 @@ export function useWorkTips(
       ),
   });
 }
+
+/**
+ * تقدير عمولتها للشهر المعروض؛ لو العمود مخفي أو العمولات متوقفة الرد HIDDEN أو الرفض 403 ومفيش كارت. بتتطلب بشهر
+ * صريح زي الإكراميات، فمتتحسبش «الحالي» بشكل مستقل عن الخدمات.
+ *
+ * @param context مين بيفتح الشاشة
+ * @param scope مساحة مفاتيح الزيارة الحالية
+ * @param month الشهر المعروض، أو undefined قبل أول رد خدمات (القراءة بتستنى)
+ * @param onRefused معالج رفض السيرفر
+ * @returns استعلام التقدير
+ */
+export function useWorkCommissionEstimate(
+  context: WorkContext,
+  scope: MountScope,
+  month: string | undefined,
+  onRefused: OnRefused,
+) {
+  return useQuery({
+    ...PERSONAL_READ,
+    queryKey: [...scope, 'commission-estimate', month],
+    enabled: month !== undefined,
+    queryFn: ({ signal }) =>
+      guarded(
+        () =>
+          workCalls.commissionEstimate({ mode: context.mode, month, windowId: undefined, signal }),
+        signal,
+        onRefused,
+      ),
+  });
+}

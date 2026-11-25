@@ -75,6 +75,9 @@ export function build(dropTimer?: (ms: number) => boolean) {
     close: vi.fn<PrivateWindowCalls['close']>(async () => undefined),
     lines: vi.fn<PrivateWindowCalls['lines']>(async () => page()),
     tips: vi.fn<PrivateWindowCalls['tips']>(async () => ({ month: '2026-11', status: 'HIDDEN' })),
+    commissionEstimate: vi.fn<PrivateWindowCalls['commissionEstimate']>(async () => ({
+      status: 'HIDDEN',
+    })),
   };
   const onLeave = vi.fn();
   const controller = new PrivateWindowController({ env: time.env, calls }, onLeave);
