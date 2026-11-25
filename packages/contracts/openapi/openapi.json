@@ -23436,7 +23436,7 @@
             }
           },
           "409": {
-            "description": "Bilingual refusal",
+            "description": "Bilingual conflict refusal (STAFF_ACCESS_ALREADY_GRANTED, STAFF_ACCESS_PHONE_TAKEN, or TRANSACTION_RETRY_REQUIRED)",
             "content": {
               "application/json": {
                 "schema": {

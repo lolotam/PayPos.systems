@@ -1143,3 +1143,34 @@ While the gate is off, two admin reads answer 503 `NOT_READY` by design: the sta
 employee page (`GET /v1/businesses/:businessId/employees/:employeeId/staff-access`) and, for an owner,
 the invitations probe (`GET /v1/memberships/invitations?limit=1`). Exclude these two routes by name from
 any 5xx alert until AC-ACT-17 is closed; every other 5xx on the API is a real fault.
+
+**Three operator rules for the activation (AC-ACT-14).**
+
+1. **Drain every older API replica before the gate is on.** Before `STAFF_ACCESS_ROUTES=on`, confirm that every
+   running API replica runs the activation release (076-G2 onward) and that no older API instance is still
+   serving. An API older than `076-F1` does not know the staff-access routes and reads only
+   `cashier_pins.pin_hash`, so it would sign in a temporary PIN that the current release refuses. Drain the old
+   instances before the gate is on, not after.
+2. **The rollback floor is the `076-F2b` API release.** Once the gate has been on and a temporary PIN exists
+   (`cashier_pins.temporary = true` or `cashier_pins.expires_at IS NOT NULL`), the API image does not go below
+   `076-F2b`. `076-F1` and `076-G1` read `cashier_pins.temporary` and refuse a temporary PIN on the staff PIN
+   sign-in (`POST /v1/devices/me/staff-pin/sign-in`), but they have no PIN-change flow, so that PIN can never be
+   rotated while such an image runs and the employee stays locked out of the POS; an API older than `076-F1`
+   reads only `cashier_pins.pin_hash` and would accept a temporary or an expired PIN outright. To switch the
+   feature off safely on the current image, unset `STAFF_ACCESS_ROUTES` and restart the API; do not roll the
+   image back.
+3. **Run the read-only count before any image rollback below the floor.** As `pospay_owner` (the migration role
+   and the cluster superuser, so the forced row-level security on these tables does not hide the rows; a role
+   that is not a superuser reads zero rows here and the check is void):
+
+   ```sql
+   SELECT
+     (SELECT count(*) FROM employee_staff_access) AS staff_access_rows,
+     (SELECT count(*) FROM member_invitations) AS invitation_rows,
+     (SELECT count(*) FROM cashier_pins
+      WHERE temporary = true OR expires_at IS NOT NULL) AS temporary_pin_rows;
+   ```
+
+   If any count is non-zero, rolling the API image back below `076-F2b` is forbidden: close
+   `STAFF_ACCESS_ROUTES` on the current release instead (unset the variable and restart the API). Record the
+   three counts and the time of the check with the decision.
