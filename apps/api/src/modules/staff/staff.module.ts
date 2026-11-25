@@ -107,8 +107,7 @@ import { createEmployeeDetailAccess } from './persistence/employee-detail-access
 import { EMPLOYEE_DETAIL_ACCESS } from './queries/employee-detail.query.ts';
 import { createEmployeeTransactions } from './persistence/drizzle-employee-transactions.ts';
 import { CreateEmployeeUseCase } from './use-cases/create-employee/create-employee.usecase.ts';
-import { UpdateEmployeeUseCase } from './use-cases/update-employee/update-employee.usecase.ts';
-import { createEmployeeUpdateTransactions } from './persistence/drizzle-employee-update.ts';
+import { updateEmployeeProvider } from './update-employee.provider.ts';
 import { createEmployeeImportTransactions } from './persistence/drizzle-employee-import.ts';
 import {
   createImportSheetReader,
@@ -339,13 +338,7 @@ export function staffProviders(
     ...salaryProviders(database, ids),
     ...employeeIbanProviders(database, ids),
     ...documentProviders(database, ids),
-    {
-      provide: UpdateEmployeeUseCase,
-      useValue:
-        database === undefined
-          ? null
-          : new UpdateEmployeeUseCase(createEmployeeUpdateTransactions(database, ids), ids),
-    },
+    updateEmployeeProvider(database, redis, ids),
     EmployeeDetailGuard,
     {
       provide: EMPLOYEE_DETAIL_ACCESS,

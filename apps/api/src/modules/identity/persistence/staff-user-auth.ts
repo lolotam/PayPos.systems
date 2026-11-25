@@ -86,7 +86,7 @@ export async function hashStaffPin(pin: string): Promise<string> {
   return hashCashierPin(pin);
 }
 
-function systemRoleId(code: 'staff' | 'cashier'): string {
+export function systemRoleId(code: 'staff' | 'cashier'): string {
   const found = SYSTEM_ROLES.find((candidate) => candidate.code === code);
   if (found === undefined) throw new StaffUserRefused('STAFF_ACCESS_ROLE_MISSING');
   return found.id;

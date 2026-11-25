@@ -6,7 +6,8 @@ export class StaffUserRefused extends Error {
     | 'STAFF_ACCESS_USER_NOT_STAFF'
     | 'STAFF_ACCESS_PIN_INVALID'
     | 'STAFF_ACCESS_ROLE_MISSING'
-    | 'STAFF_ACCESS_PHONE_TAKEN';
+    | 'STAFF_ACCESS_PHONE_TAKEN'
+    | 'STAFF_MEMBERSHIP_NOT_ACTIVE';
 
   /**
    * يبني الرفض بكوده.
@@ -18,7 +19,8 @@ export class StaffUserRefused extends Error {
       | 'STAFF_ACCESS_USER_NOT_STAFF'
       | 'STAFF_ACCESS_PIN_INVALID'
       | 'STAFF_ACCESS_ROLE_MISSING'
-      | 'STAFF_ACCESS_PHONE_TAKEN',
+      | 'STAFF_ACCESS_PHONE_TAKEN'
+      | 'STAFF_MEMBERSHIP_NOT_ACTIVE',
   ) {
     super(code);
     this.code = code;

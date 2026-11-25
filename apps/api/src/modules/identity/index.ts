@@ -171,6 +171,7 @@ export {
   readStaffUser,
   saveTemporaryStaffPin,
 } from './persistence/staff-user-auth.ts';
+export { moveStaffMembershipToBranch } from './persistence/staff-membership-move.ts';
 export {
   readStaffAccessAuthority,
   readStaffAccessOwner,
