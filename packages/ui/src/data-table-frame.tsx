@@ -26,7 +26,6 @@ const STACKED_CLASS = [
   'max-[599.99px]:[&_tbody_tr]:block',
   'max-[599.99px]:[&_tbody_tr]:rounded-card',
   'max-[599.99px]:[&_tbody_tr]:border',
-  'max-[599.99px]:[&_tbody_tr]:bg-card',
   'max-[599.99px]:[&_tbody_tr]:p-2',
   'max-[599.99px]:[&_tbody_tr:last-child]:mb-0',
   'max-[599.99px]:[&_tbody_td]:block',
