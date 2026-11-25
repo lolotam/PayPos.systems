@@ -40,6 +40,19 @@ export {
   COMMISSION_INPUTS_CONSUMER_ID,
   createCommissionTipsBootstrap,
 } from './commissions.module.ts';
+export { createParkedCommissionAlert } from './commissions.module.ts';
+export {
+  PARKED_ALERT_CONSUMER_ID,
+  RaiseParkedCommissionAlert,
+} from './use-cases/raise-parked-commission-alert/raise-parked-commission-alert.ts';
+export type {
+  ParkedAlertOutcome,
+  ParkedCommissionEvent,
+} from './use-cases/raise-parked-commission-alert/raise-parked-commission-alert.ts';
+export type {
+  ParkedAlertNotice,
+  ParkedAlertOwnersReader,
+} from './ports/parked-commission-alert.port.ts';
 export { runSessionTipsBootstrap } from './use-cases/bootstrap-session-tips/bootstrap-session-tips.ts';
 export type {
   SessionTipsBootstrapResult,

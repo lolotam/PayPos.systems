@@ -182,6 +182,67 @@ describe('events whose every claim crashed', () => {
   });
 });
 
+describe('the parked commission sweep', () => {
+  it('runs on its own interval, apart from the idempotency sweep', async () => {
+    let clock = 0;
+    let parkedSweeps = 0;
+    let keySweeps = 0;
+    const loop = createDispatchLoop({
+      dispatcher: {
+        dispatchBatch: async () => {
+          clock += 30_000;
+          return 0;
+        },
+        sweepExpiredIdempotencyKeys: async () => {
+          keySweeps += 1;
+          return 0;
+        },
+      },
+      deliver,
+      logger,
+      pollIntervalMs: 1,
+      sweepIntervalMs: 10 * 60 * 1000,
+      parkedAlertIntervalMs: 60_000,
+      sweepParkedCommissionAlerts: async () => {
+        parkedSweeps += 1;
+      },
+      now: () => clock,
+    });
+    loop.start();
+    await until(() => parkedSweeps > 0);
+    await loop.stop();
+    expect(parkedSweeps).toBeGreaterThanOrEqual(1);
+    expect(keySweeps).toBe(0);
+  });
+
+  it('survives a failing sweep and keeps dispatching', async () => {
+    let clock = 0;
+    let batches = 0;
+    const loop = createDispatchLoop({
+      dispatcher: {
+        dispatchBatch: async () => {
+          batches += 1;
+          clock += 60_000;
+          return 0;
+        },
+        sweepExpiredIdempotencyKeys: async () => 0,
+      },
+      deliver,
+      logger,
+      pollIntervalMs: 1,
+      parkedAlertIntervalMs: 1,
+      sweepParkedCommissionAlerts: async () => {
+        throw new Error('synthetic sweep failure');
+      },
+      now: () => clock,
+    });
+    loop.start();
+    await until(() => batches > 2);
+    await loop.stop();
+    expect(batches).toBeGreaterThan(2);
+  });
+});
+
 describe('a large expiry backlog', () => {
   it('sweeps batch after batch until one comes back short', async () => {
     const batches = [1_000, 1_000, 1_000, 12];

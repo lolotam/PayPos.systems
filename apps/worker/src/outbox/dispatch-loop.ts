@@ -13,9 +13,12 @@ export interface DispatchLoopOptions {
   >;
   readonly deliver: (event: ClaimedEvent) => Promise<DeliveryOutcome>;
   readonly logger: Logger;
+  /** مسح دوري لأحداث العمولة الموقوفة: هو المصدر الوحيد لتنبيه المالك (ADR-0012 §3). */
+  readonly sweepParkedCommissionAlerts?: () => Promise<void>;
   readonly pollIntervalMs?: number;
   readonly batchSize?: number;
   readonly sweepIntervalMs?: number;
+  readonly parkedAlertIntervalMs?: number;
   readonly now?: () => number;
 }
 
@@ -28,6 +31,27 @@ const logExhausted =
       logger.error({ event: fields, attempt: event.attempt }, 'outbox event parked');
     }
   };
+
+// مسح تنبيه الأحداث الموقوفة: له فترته الخاصة (ADR-0012 §4)، وبيشتغل جوه الـtick
+// عشان stop() يستنى المسح الجاري زي ما بيستنى الـbatch الجاري. فشل المسح ما بيوقفش الحلقة.
+function createParkedSweep(
+  options: DispatchLoopOptions,
+  now: () => number,
+  isStopped: () => boolean,
+): () => Promise<void> {
+  const intervalMs = options.parkedAlertIntervalMs ?? 60_000;
+  let lastParkedSweep = now();
+  return async (): Promise<void> => {
+    if (isStopped() || options.sweepParkedCommissionAlerts === undefined) return;
+    if (now() - lastParkedSweep < intervalMs) return;
+    lastParkedSweep = now();
+    try {
+      await options.sweepParkedCommissionAlerts();
+    } catch (error) {
+      options.logger.error({ err: error }, 'parked commission alert sweep failed');
+    }
+  };
+}
 
 /**
  * The polling loop: drain the outbox batch by batch, wait, repeat; sweep expired idempotency keys every
@@ -65,7 +89,14 @@ export function createDispatchLoop(options: DispatchLoopOptions): {
     logger.info({ swept }, 'idempotency keys swept');
   };
 
-  const dispatchOptions = { maxAttempts: MAX_ATTEMPTS, onExhausted: logExhausted(logger) };
+  // مسح تنبيه الأحداث الموقوفة: له فترته الخاصة (ADR-0012 §4)، وبيشتغل جوه الـtick
+  // عشان stop() يستنى المسح الجاري زي ما بيستنى الـbatch الجاري.
+  const sweepParkedIfDue = createParkedSweep(options, now, () => stopped);
+
+  const dispatchOptions = {
+    maxAttempts: MAX_ATTEMPTS,
+    onExhausted: logExhausted(logger),
+  };
 
   const tick = async (): Promise<void> => {
     try {
@@ -75,6 +106,7 @@ export function createDispatchLoop(options: DispatchLoopOptions): {
       while (!stopped && full) {
         full = (await dispatcher.dispatchBatch(batchSize, deliver, dispatchOptions)) === batchSize;
         await sweepIfDue();
+        await sweepParkedIfDue();
       }
     } catch (error) {
       logger.error({ err: error }, 'outbox dispatch failed');

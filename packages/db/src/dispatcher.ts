@@ -25,6 +25,17 @@ export type DeliveryOutcome =
   | { readonly delivered: false; readonly error: string; readonly retryInMs: number | null };
 
 /**
+ * صف من أحداث العمولة الموقوفة غير المنشورة: هويته ونوعه وشركته ورقم ترتيبه في الأوتبوكس، بلا حمولة.
+ * المسح الدوري بيقرأ السطور دي بس عشان يرفع تنبيه المالك (ADR-0012 §3).
+ */
+export interface ParkedCommissionOutboxRow {
+  readonly companyId: string;
+  readonly id: string;
+  readonly eventType: string;
+  readonly seq: string;
+}
+
+/**
  * الـ facade المحدود بتاع الـ dispatcher (ADR-0003 §3): ياخد batch ويوصّله ويسجّل النتيجة، ينضّف مفاتيح
  * الـ idempotency القديمة، يتأكد إن الاتصال شغال، ويقفل الـ pool — ومفيش أي طريقة تانية يوصل بيها لأي جدول.
  */
@@ -53,6 +64,11 @@ export interface OutboxDispatcherDatabase {
   ratingClaimsReplayPage(companyId: string, afterId: string | null, throughId: string | null, limit: number): Promise<{
     throughId: string | null; events: readonly ClaimedEvent[];
   }>;
+  /** يقرأ صفحة من أحداث العمولة الستة الموقوفة غير المنشورة بترتيب seq، بلا حمولة وبلا تعديل، لمسح تنبيه المالك الدوري (ADR-0012 §3). */
+  commissionParkedEventPage(
+    afterSeq: string | bigint,
+    limit: number,
+  ): Promise<readonly ParkedCommissionOutboxRow[]>;
   ping(): Promise<void>;
   close(): Promise<void>;
 }
@@ -77,6 +93,13 @@ interface Row extends Record<string, unknown> {
   event_type: string;
   payload: unknown;
   attempts: number;
+}
+
+interface ParkedRow extends Record<string, unknown> {
+  company_id: string;
+  id: string;
+  event_type: string;
+  seq: string;
 }
 
 const MAX_BATCH = 100;
@@ -163,6 +186,27 @@ const validate = (limit: number, leaseMs: number, maxAttempts: number): void => 
   }
 };
 
+// مؤشر صفحة الأحداث الموقوفة: رقم تسلسلي عشري غير سالب. الـ seq عمود bigint في القاعدة، والرقم
+// جاي من JavaScript كـ string عشان ما يبقاش فيه تقريب في double، والـ bigint جاي من كود القاعدة.
+const PARKED_CURSOR = /^(?:0|[1-9]\d*)$/;
+
+/**
+ * يحوّل مؤشر الصفحة إلى نص عشري قانوني، ويرفض أي رقم JavaScript (تقريب) أو نص مش عشري.
+ *
+ * @param afterSeq المؤشر كما جاء من المستدعي
+ * @returns المؤشر كنص عشري
+ */
+const parkedCursor = (afterSeq: string | bigint): string => {
+  if (typeof afterSeq === 'bigint') {
+    if (afterSeq < 0n) throw new TypeError('PARKED_CURSOR_INVALID');
+    return afterSeq.toString(10);
+  }
+  if (typeof afterSeq !== 'string' || !PARKED_CURSOR.test(afterSeq)) {
+    throw new TypeError('PARKED_CURSOR_INVALID');
+  }
+  return afterSeq;
+};
+
 /**
  * بيفتح pool على pospay_dispatcher ويرجّع الـ facade بس — الـ client بيفضل جوه الـ closure (CLAUDE.md §5).
  * الـ worker بس اللي بيربطه؛ أي role تاني (أو superuser) بيترفض قبل أي شغل.
@@ -221,6 +265,7 @@ export function createOutboxDispatcherDatabase(options: {
     }),
     ...ratingReplayReaders(db, assertRole),
     ...commissionReplayReaders(db, assertRole),
+    ...commissionParkedReaders(db, assertRole),
     sweepExpiredIdempotencyKeys: async (batchSize) => {
       const [row] = await db.transaction(async (tx) => {
         await assertRole(tx);
@@ -234,6 +279,40 @@ export function createOutboxDispatcherDatabase(options: {
     ping: () => assertRole(db),
     close: () => client.end({ timeout: 5 }),
   };
+}
+
+/**
+ * صفحة أحداث العمولة الموقوفة غير المنشورة: قراءة فقط بلا حمولة (ADR-0012 §3).
+ * الترتيب برقم الصف العشري نفسه (`outbox.seq`)، مش بالاسم المستعار النصي، عشان
+ * الفهرس الجزئي يغطي الترتيب من غير خطوة فرز.
+ *
+ * @param tx      معاملة القراءة بعد التأكد من الدور
+ * @param afterSeq المؤشر: رقم تسلسلي نصي عشري أو bigint
+ * @param limit   أقصى عدد صفوف في الصفحة (1..100)
+ * @returns صفوف الصفحة بلا حمولة
+ */
+async function readParkedCommissionPage(
+  tx: Pick<PostgresJsDatabase, 'execute'>,
+  afterSeq: string | bigint,
+  limit: number,
+): Promise<readonly ParkedCommissionOutboxRow[]> {
+  const cursor = parkedCursor(afterSeq);
+  validate(limit, DEFAULT_LEASE_MS, DEFAULT_MAX_ATTEMPTS);
+  const rows = await tx.execute<ParkedRow>(sql`
+    SELECT company_id, id, event_type, seq::text AS seq
+    FROM outbox
+    WHERE parked_at IS NOT NULL
+      AND published_at IS NULL
+      AND ${COMMISSION_RETAINED_REPLAY_TYPES}
+      AND seq > ${cursor}::bigint
+    ORDER BY outbox.seq ASC
+    LIMIT ${limit}`);
+  return rows.map((row) => ({
+    companyId: row.company_id,
+    id: row.id,
+    eventType: row.event_type,
+    seq: row.seq,
+  }));
 }
 
 async function readReplayPage(
@@ -292,6 +371,20 @@ function commissionReplayReaders(
   return {
     commissionInputReplayPage: page(COMMISSION_INPUT_REPLAY_TYPES),
     commissionRetainedEventPage: page(COMMISSION_RETAINED_REPLAY_TYPES),
+  };
+}
+
+// صفحة أحداث العمولة الموقوفة: قراءة فقط على دور المرسِل، والمؤشر رقم تسلسلي نصي أو bigint.
+function commissionParkedReaders(
+  db: PostgresJsDatabase,
+  assertRole: (runner: Pick<PostgresJsDatabase, 'execute'>) => Promise<void>,
+): Pick<OutboxDispatcherDatabase, 'commissionParkedEventPage'> {
+  return {
+    commissionParkedEventPage: (afterSeq, limit) =>
+      db.transaction(async (tx) => {
+        await assertRole(tx);
+        return readParkedCommissionPage(tx, afterSeq, limit);
+      }),
   };
 }
 

@@ -1,12 +1,21 @@
 import {
   commissionCorrectionBlockedNoticeGroupSize,
   commissionCorrectionBlockedNoticeRequested,
+  commissionEventParkedNoticeGroupSize,
+  commissionEventParkedNoticeRequested,
 } from '@pospay/contracts';
 import type { TenantWrappers, Tx } from '@pospay/db';
 import { COMMISSION_INPUT_EVENT_TYPES, COMMISSION_INPUTS_CONSUMER_ID } from '@pospay/domain';
 
 import type { OutboxConsumer } from '../../outbox/consumer.ts';
 import { onCommissionInputEvent } from './events/handlers/on-commission-input-event.handler.ts';
+import { createParkedCommissionAlertNotifier } from './persistence/parked-commission-alert.outbox.ts';
+import {
+  RaiseParkedCommissionAlert,
+  type ParkedAlertOutcome,
+  type ParkedCommissionEvent,
+} from './use-cases/raise-parked-commission-alert/raise-parked-commission-alert.ts';
+import type { ParkedAlertOwnersReader } from './ports/parked-commission-alert.port.ts';
 import {
   runSessionTipsBootstrap,
   type SessionTipsBootstrapResult,
@@ -18,7 +27,7 @@ import {
 } from './persistence/commission-line-projection.scope.ts';
 import { createCommissionCorrectionScope } from '@pospay/commissions-posting';
 import { createCommissionBlockNotices } from './persistence/commission-block-notice.outbox.ts';
-import { markCommissionEventConsumed } from './persistence/commission-event-consumption.ts';
+import { markCommissionEventConsumed, isCommissionInputEventConsumed } from './persistence/commission-event-consumption.ts';
 import { createCoverageProjectionReader } from './persistence/commission-coverage.reads.ts';
 import type { CommissionPermissionHoldersReader } from './ports/commission-block-notice.port.ts';
 import type {
@@ -140,6 +149,33 @@ export function createCommissionInputsConsumer(
     eventTypes: [...COMMISSION_INPUT_EVENT_TYPES],
     handle: (tx, event) => onCommissionInputEvent(bind(tx), event),
   };
+}
+
+/** ما يحتاجه تنبيه الحدث الموقوف: معاملة الشركة ومالكيها ومولّد الهوية والساعة. */
+export interface ParkedCommissionAlertDependencies {
+  readonly database: Pick<TenantWrappers, 'withTenant'>;
+  readonly ids: IdGenerator;
+  readonly clock: Clock;
+  readonly owners: ParkedAlertOwnersReader<Tx>;
+}
+
+/** يربط تنبيه الحدث الموقوف بمعاملة الشركة وبمالكيها وبمولّد هوية الجرس. */
+export function createParkedCommissionAlert(
+  dependencies: ParkedCommissionAlertDependencies,
+): (event: ParkedCommissionEvent) => Promise<ParkedAlertOutcome> {
+  const alert = new RaiseParkedCommissionAlert<Tx>({
+    withTenant: dependencies.database.withTenant,
+    owners: dependencies.owners,
+    isInputProjected: isCommissionInputEventConsumed,
+    markConsumed: markCommissionEventConsumed,
+    appendNotice: createParkedCommissionAlertNotifier(
+      dependencies.ids,
+      (payload) => commissionEventParkedNoticeRequested.parse(payload),
+    ),
+    now: () => dependencies.clock.now(),
+    groupSize: commissionEventParkedNoticeGroupSize,
+  });
+  return (event) => alert.execute(event);
 }
 
 /** يربط مشغّل تهيئة البقشيش بالقارئ وبإسقاط البقشيش وبمعرّف المستهلك نفسه. */

@@ -18,6 +18,7 @@ import {
   startPushCapability,
 } from './modules/notifications/index.ts';
 import { createDispatchLoop } from './outbox/dispatch-loop.ts';
+import { createParkedCommissionSweep } from './outbox/parked-commission-sweep.ts';
 import { retryDelayMs } from './outbox/retry-policy.ts';
 import { readConfig } from './shared/config.ts';
 import { WORKER_LOG_EVENTS } from './shared/log-events.ts';
@@ -35,7 +36,7 @@ import {
   startStaffWorker,
 } from './modules/staff/index.ts';
 import { startCatalogWorker } from './modules/catalog/index.ts';
-import { businessPermissionHolders } from './modules/identity/index.ts';
+import { businessPermissionHolders, companyOwners } from './modules/identity/index.ts';
 import {
   daySessionsReader,
   startPackagePreviewWorker,
@@ -52,7 +53,7 @@ import {
 import { DocumentSourceRegistry } from './documents/source-registry.ts';
 import { createAttendanceStatementSource } from './documents/sources/attendance-statement.source.ts';
 import { createCommissionStatementSource } from './documents/sources/commission-statement.source.ts';
-import { createCommissionStatementExportReader } from './modules/commissions/index.ts';
+import { createCommissionStatementExportReader, createParkedCommissionAlert } from './modules/commissions/index.ts';
 import { businessCalendar, businessTimeZone } from './modules/tenancy/index.ts';
 import { drainDispatchAndDocuments } from './documents/shutdown-drain.ts';
 
@@ -200,7 +201,25 @@ const deliver: typeof businessDeliver = (event) =>
       ),
     ),
   );
-const loop = createDispatchLoop({ dispatcher, deliver, logger });
+const parkAlert = createParkedCommissionAlert({
+  database: app,
+  ids: systemUuidV7(),
+  clock: { now: () => new Date() },
+  owners: companyOwners,
+});
+// المسح الدوري هو المصدر الوحيد لتنبيه المالك عن حدث عمولة وقف (ADR-0012 §3): الـdispatcher
+// بيقرا الصفحات بس، والتنبيه بيتكتب في معاملة الشركة مع علامة التكرار.
+const parkedSweep = createParkedCommissionSweep({
+  readPage: (afterSeq, limit) => dispatcher.commissionParkedEventPage(afterSeq, limit),
+  raiseAlert: parkAlert,
+  logger,
+});
+const loop = createDispatchLoop({
+  dispatcher,
+  deliver,
+  logger,
+  sweepParkedCommissionAlerts: parkedSweep,
+});
 
 const release = async (): Promise<void> => {
   stopping = true;

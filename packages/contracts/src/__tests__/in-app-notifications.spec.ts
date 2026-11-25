@@ -137,6 +137,40 @@ it('shares the result envelope without exposing parameters or a destination', ()
   ).toBe(false);
 });
 
+it('accepts the stopped-event bell in the recipient and in the inbox row shape', () => {
+  const notice = {
+    ...recipient,
+    template_key: 'commission_event_parked',
+    locale: 'ar',
+    safe_parameters: [
+      { name: 'event_type', type: 'text', value: 'SessionTipsChanged' },
+      { name: 'event_id', type: 'text', value: '01920000-0000-7000-8000-0000000000b1' },
+    ],
+  };
+  expect(inAppRecipient.parse(notice)).toEqual(notice);
+  expect(notificationRequest.safeParse({ notification_recipients: [notice] }).success).toBe(true);
+  const row = {
+    template_key: notice.template_key,
+    template_revision: notice.template_revision,
+    locale: notice.locale,
+    safe_parameters: notice.safe_parameters,
+    id: recipient.user_id,
+    company_id: recipient.user_id,
+    business_id: null,
+    branch_id: null,
+    source_event_id: recipient.user_id,
+    created_at: '2026-11-24T09:00:00Z',
+    read_at: null,
+  };
+  expect(inAppNotification.parse(row)).toEqual(row);
+  expect(
+    inAppRecipient.safeParse({
+      ...notice,
+      safe_parameters: [...notice.safe_parameters, { name: 'period', type: 'text', value: '2026-09' }],
+    }).success,
+  ).toBe(false);
+});
+
 it('accepts the break_not_returned in-app recipient with a break end only', () => {
   const names = [
     { name: 'employee_name_ar', type: 'text', value: 'Synthetic employee' },

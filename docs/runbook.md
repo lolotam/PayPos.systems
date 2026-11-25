@@ -781,6 +781,70 @@ before re-issuance, switch off and bump before the rollback; (d) repairs and dat
 then the single resume order; 4(a) fork routing check before the API starts and before every issuance; 4(b)/4(c)
 partial restore and projection rewind — bump-first owner transaction.
 
+## 53-2 B2b: the parked commission event alert (ADR-0012 §3, A4)
+
+A counted commission event that the worker cannot consume is **parked** after its last attempt (ten attempts with
+exponential backoff, `apps/worker/src/outbox/retry-policy.ts`). A parked event stays **pending** for ADR-0012, so the
+month's approval keeps refusing `409 COMMISSION_UPDATES_PENDING` until the event is repaired. The alert tells the
+company's owners that the month is stuck and gives support the row's reference.
+
+**Who raises it, and when.** A periodic sweep in the worker (`apps/worker/src/outbox/parked-commission-sweep.ts`),
+wired into the dispatch loop under its own option `parkedAlertIntervalMs` (default 60 seconds). It is the only trigger:
+the dispatcher hook of the first draft was removed because it fires once per park and is never re-armed, so a worker
+that stops between the committed park and the alert transaction would leave the owner never told. The sweep reads one
+read-only page at a time through `createOutboxDispatcherDatabase().commissionParkedEventPage(afterSeq, limit)` on the
+`pospay_dispatcher` role, and it writes the alert as `pospay_app` under `withTenant(company_id)`.
+
+**The guarantee.** After the park of a counted event that still blocks the approval is committed, exactly one durable
+notice request (`CommissionEventParkedNoticeRequested`) exists for that event id, whatever happens to the worker process
+in between, as long as the worker runs again. The `consumed_events` row with the consumer id `commissions.park-alert` is
+the only source of truth; the in-memory settled set (an LRU of at most 10 000 ids) only saves transactions, and losing it
+costs one extra `ALREADY_ALERTED` and no second notice. That mark is **not** the projection consumer's mark, so the event
+keeps counting as pending — parking never discharges an event, and the money gate still refuses the approval.
+
+**Only approval-blocking events alert.** When the `commissions.project-inputs` mark already exists for the parked event
+(the commission consumer applied it and another consumer caused the park, or an operator ran `replay-commission-inputs`
+on the parked row), the event no longer blocks the approval: the sweep writes the park-alert mark and no bell, and the
+event is settled.
+
+**What the bell says.** One in-app bell per parked event, to the company's canonical owners (the memberships that hold
+the owner role over the company, read at the alert instant). The bell carries the event's type and id and nothing
+else — no payload, no amount, no employee name. It is **not** an alert-rule kind: it is never switched off and has no
+channel choice, because a blocked approval must always be visible to the owner.
+
+**Finding the parked row.** The bell gives the event id; the dispatcher log line `outbox event parked` gives the same
+event with its type. The row itself:
+
+```sql
+SELECT id, event_type, attempts, parked_at, last_error
+FROM outbox
+WHERE company_id = '<company uuid>' AND parked_at IS NOT NULL
+ORDER BY parked_at DESC;
+```
+
+The partial index `outbox_commission_parked_idx` on `outbox (seq)` (predicate: parked, unpublished and one of the six
+counted types) is what keeps the sweep cheap: the query plan for the sweep page is an index scan with the cursor in the
+index condition, with no sequential scan and no sort.
+
+**The alert never clears.** There is no operator path that re-queues a parked outbox event (see the replay section
+above), so the bell stays true until the event is repaired out of band, and the event stays pending until then. The
+parked row is never deleted, never un-parked and never re-delivered by the alert. An operator procedure that clears
+`parked_at` must not publish a counted row without its commission effect: the projection mark
+`commissions.project-inputs` is what discharges the event, and clearing the park alone leaves the month still pending.
+
+**When the bell does not arrive.**
+
+- `commission park alert has no recipient` (error log) — the company has no owner membership active at the alert
+  instant, so nobody was told and no mark was written. The parked row is still there: find it with the SQL above and
+  pass it to support. The next sweep tries the same event again, so the bell arrives within one interval of an owner
+  membership existing.
+- `outbox park alert failed` (error log) — the alert transaction itself failed. The park stays committed and the event
+  stays pending; the next sweep retries the same event. A repeated failure of the same event is logged again at most
+  once every ten minutes.
+- `parked commission alert sweep reached transaction cap` (info log) — the sweep opened its 200 tenant transactions for
+  this interval and stopped; the next sweep starts again from the first parked row and passes over the events it has
+  already settled.
+
 ## 50-3d: replay all six counted types after a rollback (spec 059, CS-Q43)
 
 Replays the retained events of all six counted types of one company to the `commissions.project-inputs` consumer alone, through the
