@@ -26,7 +26,7 @@ afterAll(async () => {
 });
 
 it.each(['staff', 'reception'] as const)(
-  'AC-F1-1/2 %s creates rows and usable eligibility; temporary PIN sign-in is refused like a wrong PIN until F2 (P1-8)',
+  'AC-F1-1/2 %s creates rows and usable eligibility; a temporary PIN asks for a change before it signs in (F2)',
   async (role) => {
     const employee = await addEmployee(
       f,
@@ -75,14 +75,18 @@ it.each(['staff', 'reception'] as const)(
         payload: { phone, pin: value },
       });
     const wrong = await sendPin('4321');
+    expect(wrong.statusCode).toBe(401);
+    expect(wrong.json().code).toBe('PIN_INVALID');
     const temporary = await sendPin('1234');
-    expect(temporary.statusCode).toBe(401);
-    expect(temporary.json()).toEqual(wrong.json());
+    expect(temporary.statusCode).toBe(403);
+    expect(temporary.json().code).toBe('PIN_CHANGE_REQUIRED');
+    expect((temporary.json().details as { proof?: string }).proof).toEqual(expect.any(String));
     expect(await f.h.owner`SELECT id FROM session WHERE user_id=${record?.user_id}`).toHaveLength(
       0,
     );
     const counter = `pin:${f.company}:staff-user:${record?.user_id}:failures`;
-    expect(await f.h.redis.get(counter)).toBe('2');
+    // الرقم اتقبل، فالعدّاد اتصفّر: الردّ مش رفض، هو طلب تغيير.
+    expect(await f.h.redis.get(counter)).toBeNull();
   },
 );
 
