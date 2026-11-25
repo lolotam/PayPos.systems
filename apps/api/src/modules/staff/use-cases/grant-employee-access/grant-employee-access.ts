@@ -44,6 +44,7 @@ export class GrantEmployeeAccessUseCase {
    * بيشغّل الخطوات بالترتيب: قفل الشركة والموظفة وفحص السلطة قبل أي إجابة كاشفة (P1-1)، ثم
    * المستخدم على auth بمعرّف العملية، ثم العضوية والربط والرقم المؤقت والحدث في تراجع واحد،
    * وبعد الالتزام إبطال الكاش. الاستئناف يقارن الهاتف والدور والفرع بالسجل المقفول (P1-4).
+   * فشل إبطال الكاش بعد الالتزام ما بيحوّلش منحة ملتومة لخطأ (AC-ACT-11).
    *
    * @param command الموظفة والدور والهاتف والرقم السري والمانح من الجلسة
    * @returns `already` لتكرار ناجح، أو `granted`، ومعهما الدور والفرع وآخر ثلاثة أرقام للرد
@@ -53,11 +54,14 @@ export class GrantEmployeeAccessUseCase {
     const { userId } = await this.#provision(command, begin);
     const pinHash = await this.users.hash(command.pin);
     const outcome = await this.#commit(command, begin, userId, pinHash);
+    // بعد الالتزام: إبطال الكاش خطوة مساعدة، وفشلها ما بيرجعش منحة ملتومة لخطأ (AC-ACT-11).
     if (outcome.kind === 'granted')
-      await this.cache.invalidate({
-        companyId: command.companyId,
-        membershipId: outcome.membershipId,
-      });
+      await this.cache
+        .invalidate({
+          companyId: command.companyId,
+          membershipId: outcome.membershipId,
+        })
+        .catch(() => undefined);
     return {
       kind: outcome.kind,
       role: outcome.role,
