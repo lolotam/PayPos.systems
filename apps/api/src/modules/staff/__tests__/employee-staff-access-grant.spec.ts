@@ -35,6 +35,10 @@ const pinRow = async (userId: string) =>
       .owner`SELECT id, pin_hash, temporary, expires_at, set_by FROM cashier_pins WHERE user_id = ${userId}`
   )[0];
 
+/** كود الرفض في رد HTTP — undefined لما الرد ماشي. */
+const codeOf = (response: { body: Record<string, unknown> }): string | undefined =>
+  (response.body as { code?: string })?.code;
+
 it('AC-F1-1 the owner grant creates user, binding, membership, link, temporary PIN, audits and one event', async () => {
   const sara = await addEmployee(f, 'Sara', f.salmiya, 1);
   const phone = nextPhone(f);
@@ -174,9 +178,12 @@ it('AC-F1-6b two concurrent grants for one employee produce one access; one phon
   // أو يرفض الخاسر 409 لو وصل الخطوة الأولى بعد الالتزام — كلاهما سجل واحد وعضوية واحدة.
   expect(statuses.every((status) => status === 200 || status === 409)).toBe(true);
   expect(statuses).toContain(200);
-  const refused = first.status === 409 ? first : second;
+  let refused = first.status === 409 ? first : second;
+  // حد المنح (AC-ACT-1) ردّ الطلب التاني فورًا قبل أي معاملة — الطلب بيتعاد مرة واحدة بعد ما
+  // الطلبين يهدوا، فيشوف الحالة النهائية زي ما كان شايف قبل البوابة.
+  if (codeOf(refused) === 'TRANSACTION_RETRY_REQUIRED') refused = await grant(f, dana, phone);
   if (refused.status === 409) {
-    expect(['STAFF_ACCESS_ALREADY_GRANTED']).toContain((refused.body as { code?: string })?.code);
+    expect(['STAFF_ACCESS_ALREADY_GRANTED']).toContain(codeOf(refused));
   }
   expect(
     await f.h.owner`SELECT id FROM employee_staff_access WHERE employee_id = ${dana}`,
@@ -194,7 +201,13 @@ it('AC-F1-6b two concurrent grants for one employee produce one access; one phon
     grant(f, zain, otherPhone),
   ]);
   expect([samePhoneOne.status, samePhoneTwo.status]).toContain(200);
-  const phoneRefused = samePhoneOne.status === 409 ? samePhoneOne : samePhoneTwo;
+  let phoneRefused = samePhoneOne.status === 409 ? samePhoneOne : samePhoneTwo;
+  // نفس سبب التكرار: الطلب المرفوض بحد المنح بيتعاد مرة واحدة بعد ما الطلبين يهدوا، فلقى الهاتف
+  // مملوك للطلب الناجح — رفض الهاتف المملوك نفسه.
+  if (codeOf(phoneRefused) === 'TRANSACTION_RETRY_REQUIRED') {
+    const refusedEmployee = samePhoneOne.status === 409 ? maya : zain;
+    phoneRefused = await grant(f, refusedEmployee, otherPhone);
+  }
   expect(phoneRefused.status).toBe(409);
   expect(phoneRefused.body).toMatchObject({ code: 'STAFF_ACCESS_PHONE_TAKEN' });
   const loser = samePhoneOne.status === 409 ? maya : zain;

@@ -11,6 +11,10 @@ import type {
   StaffAccessUserSteps,
 } from '../../ports/staff-access.port.ts';
 import type { GrantBeginScope } from '../../ports/staff-access-begin.port.ts';
+import {
+  unlimitedStaffAccessGrantAdmission,
+  type StaffAccessGrantAdmission,
+} from '../../ports/staff-access-admission.port.ts';
 import type { Clock } from '../../../../shared/ports/clock.port.ts';
 
 export { StaffAccessError };
@@ -38,6 +42,7 @@ export class GrantEmployeeAccessUseCase {
     private readonly cache: StaffAccessGrantCache,
     private readonly clock: Clock,
     private readonly ids: StaffAccessIds,
+    private readonly admission: StaffAccessGrantAdmission = unlimitedStaffAccessGrantAdmission,
   ) {}
 
   /**
@@ -45,30 +50,38 @@ export class GrantEmployeeAccessUseCase {
    * المستخدم على auth بمعرّف العملية، ثم العضوية والربط والرقم المؤقت والحدث في تراجع واحد،
    * وبعد الالتزام إبطال الكاش. الاستئناف يقارن الهاتف والدور والفرع بالسجل المقفول (P1-4).
    * فشل إبطال الكاش بعد الالتزام ما بيحوّلش منحة ملتومة لخطأ (AC-ACT-11).
+   * قبل أول معاملة بتتحجز حصة المنح: منحة جارية لنفس الشركة أو تجاوز حد المنح الجارية بيرفض
+   * بكود قابل لإعادة المحاولة من غير ما يفتح معاملة ولا يتصل بـ auth (AC-ACT-1).
    *
    * @param command الموظفة والدور والهاتف والرقم السري والمانح من الجلسة
    * @returns `already` لتكرار ناجح، أو `granted`، ومعهما الدور والفرع وآخر ثلاثة أرقام للرد
    */
   async execute(command: GrantEmployeeAccessCommand): Promise<GrantEmployeeAccessResult> {
-    const begin = await this.#begin(command);
-    const { userId } = await this.#provision(command, begin);
-    const pinHash = await this.users.hash(command.pin);
-    const outcome = await this.#commit(command, begin, userId, pinHash);
-    // بعد الالتزام: إبطال الكاش خطوة مساعدة، وفشلها ما بيرجعش منحة ملتومة لخطأ (AC-ACT-11).
-    if (outcome.kind === 'granted')
-      await this.cache
-        .invalidate({
-          companyId: command.companyId,
-          membershipId: outcome.membershipId,
-        })
-        .catch(() => undefined);
-    return {
-      kind: outcome.kind,
-      role: outcome.role,
-      branchId: outcome.branchId,
-      phoneLast3:
-        outcome.kind === 'already' && !outcome.phoneMatches ? null : command.phone.slice(-3),
-    };
+    const slot = this.admission.admit(command.companyId);
+    if (slot === null) throw new StaffAccessError('TRANSACTION_RETRY_REQUIRED');
+    try {
+      const begin = await this.#begin(command);
+      const { userId } = await this.#provision(command, begin);
+      const pinHash = await this.users.hash(command.pin);
+      const outcome = await this.#commit(command, begin, userId, pinHash);
+      // بعد الالتزام: إبطال الكاش خطوة مساعدة، وفشلها ما بيرجعش منحة ملتومة لخطأ (AC-ACT-11).
+      if (outcome.kind === 'granted')
+        await this.cache
+          .invalidate({
+            companyId: command.companyId,
+            membershipId: outcome.membershipId,
+          })
+          .catch(() => undefined);
+      return {
+        kind: outcome.kind,
+        role: outcome.role,
+        branchId: outcome.branchId,
+        phoneLast3:
+          outcome.kind === 'already' && !outcome.phoneMatches ? null : command.phone.slice(-3),
+      };
+    } finally {
+      this.admission.release(slot);
+    }
   }
 
   /** الخطوة الأولى: الشركة ← الموظفة (P1-3)، والسلطة قبل أي رفض كاشف بالحالة (P1-1). */
