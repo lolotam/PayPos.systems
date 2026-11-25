@@ -63,6 +63,14 @@ beforeEach(() => {
   api.POST.mockReset();
   api.GET.mockReset();
   api.GET.mockImplementation(async (path: string) => {
+    if (path.endsWith('/template'))
+      return {
+        data: {
+          file_name: 'services.xlsx',
+          content_type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+          content_base64: 'UEsD',
+        },
+      };
     if (path.endsWith('/rows'))
       return { data: { items: [previewRow(4, 'Colour')], next_cursor: null } };
     return {
@@ -199,4 +207,49 @@ it.each(['en', 'ar'] as const)('shows the %s envelope message in one alert', asy
   expect(alerts).toHaveLength(1);
   expect(alerts[0]?.textContent).toBe(language === 'ar' ? 'AR message' : 'English message');
   expect(document.body.textContent).not.toContain('[object Object]');
+});
+
+it('rejects a late rows page whose preview has been replaced on the same file', async () => {
+  cleanup();
+  const secondPreview = '01920000-0000-7000-8000-0000000000e2';
+  render(
+    <QueryClientProvider client={new QueryClient()}>
+      <ServiceImportPanel companyId={company} businessId={business} userId={user} />
+    </QueryClientProvider>,
+  );
+  let resolveRows!: (value: { data: { items: ReturnType<typeof previewRow>[]; next_cursor: null } }) => void;
+  api.GET.mockImplementation(async (path: string) => {
+    if (path.endsWith('/rows'))
+      return new Promise((done) => {
+        resolveRows = done;
+      });
+    return {
+      data: {
+        file_name: 'services.xlsx',
+        content_type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        content_base64: 'UEsD',
+      },
+    };
+  });
+  api.POST.mockResolvedValueOnce(cleanPreview(firstPreview, '101'));
+  select('A.xlsx');
+  fireEvent.click(button(t('en', 'catalogServiceImport.preview')));
+  await waitFor(() => expect(button(t('en', 'catalogServiceImport.loadMoreRows')).disabled).toBe(false));
+  fireEvent.click(button(t('en', 'catalogServiceImport.loadMoreRows')));
+  api.POST.mockResolvedValueOnce({
+    data: {
+      preview_id: secondPreview,
+      row_count: 1,
+      error_count: 0,
+      errors: [],
+      rows: [previewRow(2, 'Manicure')],
+      next_cursor: '101',
+    },
+  });
+  fireEvent.click(button(t('en', 'catalogServiceImport.preview')));
+  await waitFor(() => expect(screen.getByText('Manicure')).toBeTruthy());
+  await act(async () => resolveRows({ data: { items: [previewRow(4, 'StaleColour')], next_cursor: null } }));
+  expect(screen.queryByText('StaleColour')).toBeNull();
+  expect(screen.getByText('Manicure')).toBeTruthy();
+  expect(button(t('en', 'catalogServiceImport.loadMoreRows')).disabled).toBe(false);
 });

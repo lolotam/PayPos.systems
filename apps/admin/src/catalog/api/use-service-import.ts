@@ -85,7 +85,8 @@ function useRowsMutation({ companyId, businessId, userId }: Scope, request: Requ
       if (result.error) throw refusal(result.error, result.response);
       return serviceImportRowsPage.parse(result.data);
     },
-    onSuccess: (data, variables) => request.acceptRows(variables.token, data),
+    onSuccess: (data, variables) =>
+      request.acceptRows(variables.token, variables.previewId, data),
   });
 }
 

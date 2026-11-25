@@ -31,11 +31,13 @@ export function ServiceImportPanel({ companyId, businessId, userId }: ServiceImp
     userId,
   );
   const previewId = request.preview?.preview_id;
+  const statusPreviewId = commit.data?.preview_id ?? selection.resumedPreviewId;
+  const stale = previewId !== undefined && previewId !== statusPreviewId;
   const clean = previewId !== undefined && request.preview?.error_count === 0;
-  const showResult = selection.file === undefined || commit.isSuccess;
+  const showResult = (selection.file === undefined || commit.isSuccess) && !stale;
   const error =
-    [preview, rows, commit, showResult ? status : undefined].find((query) => query?.isError)?.error ??
-    null;
+    [preview, rows, commit, showResult ? status : undefined, template].find((query) => query?.isError)
+      ?.error ?? null;
   return (
     <>
       <ServiceImportFormCard
@@ -68,7 +70,7 @@ export function ServiceImportPanel({ companyId, businessId, userId }: ServiceImp
             cursor: request.nextCursor,
           });
         }}
-        accepted={commit.isSuccess}
+        accepted={commit.isSuccess && !stale}
         status={showResult ? status.data : undefined}
         timedOut={showResult && status.timedOut}
         error={error}
