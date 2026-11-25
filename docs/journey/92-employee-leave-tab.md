@@ -1,5 +1,7 @@
 # 92 · The «الإجازات» tab in an employee's file — تبويب «الإجازات» في ملف الموظفة
 
+> **Since 074-10b / منذ 074-10b:** **Edit** opens the employee's own page `/staff/<id>`; the leave section is on its **Leave** tab. / **تعديل** بيفتح صفحة الموظف `/staff/<id>`؛ قسم الإجازات في تبويب **الإجازات**.
+
 **Status / الحالة:** shipped in #893 (68-1a: the employee's upcoming and pending leave list), #897 (68-1b: the
 employee's leave history read, with unexcused absence), #898 (the reader of an employee's business over time) and
 #958 (68-3: the tab in the employee file on `/staff/<employee id>/leave`), all merged (spec 068). **Runs on

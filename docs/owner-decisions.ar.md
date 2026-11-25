@@ -3480,3 +3480,22 @@ so much beteer to creat this advisore for the project level so you and the manag
 7. المدير يتأكد أن الجلسة الملغاة توقفت فعلًا قبل فتح منفّذ آخر على نفس المجلد، ويعتبر أي تعديل غير محفوظ بـcommit غير موثوق.
 
 **ما لم يتغيّر.** PP-265 سارٍ: التنفيذ الحساس متوقف حتى 2026-11-25 15:00 الكويت، ولا جلسات Codex جديدة. **مفتوح:** من هو المراجِع المستقل للحساس عند عودة Sonnet؛ يُسأل وليد حينها.
+
+## PP-267 — المراجِع المستقل المؤقت ورفع التوقف عن العمل الحساس واعتماد هجرة 53-2 B2b (2026-11-24)
+
+**تعليمات وليد حرفيًا.**
+
+- 23:10 الكويت (محادثة المدير): «put the antigravity opus 5.5 medium as the reviewer until finish his quota will compensate with antigravity Argon medium».
+- 23:11 الكويت (محادثة المدير): «so after the implementation will reviewed by antigravity opus 5.5 medium as the reviewer until finish his quota will compensate with antigravity Argon medium  in replasing the codex sol 6.2 untile sol quta qill come back».
+- 23:38 الكويت (محادثة `059`): «تسمية **المراجع المستقل** واعتماد **هجرة الفهرس الجزئي** لـ"`53-2 B2b`"  3.2 flash coding palne medium   use open code minimax and will be reviewed with the skills antigravity sonnet 5.5 medium then PR Then CI +Bots».
+- 23:52 الكويت (محادثة المدير، ردًا على سؤال التوقف حتى الغد): «dont wait for tomorrow continue work now to finish wake up all the session to continue».
+
+**التطبيق.**
+
+1. **المراجِع المستقل المؤقت (يغلق البند المفتوح في PP-266 ويحل محل `codex / gpt-6.2-sol` حتى عودة حصة Codex):**
+   - الأساسي: `antigravity` / `claude-opus-5-5` (`thought_level: "medium"`).
+   - البديل التلقائي فور نفاد حصة `claude-opus-5-5`: `antigravity` / `gemini-4-argon` (`thought_level: "medium"`).
+   - كل مراجعة أو إعادة فحص في `delegate_task` جديدة للقراءة فقط إلى جانب `ci-gate` ولوحة البوتات. لا جلسات Codex جديدة حتى عودة حصته.
+2. **رفع التوقف (يعدّل PP-265):** تستمر المسارات الثلاثة (`059` و`076` و`074`) فورًا دون انتظار 2026-11-25 15:00 الكويت، مع تفويض الدمج (`you have the merg approval and staging publish approval`، 21:50 الكويت) والنشر على staging عبر `DEP-1`.
+3. **مسار `059` (`53-2 B2b`):** اعتُمدت هجرة الفهرس الجزئي التوسعي (`CREATE INDEX CONCURRENTLY` على `outbox(seq)` فقط) مع التنفيذ على `opencode` (`minimax-coding-plan/MiniMax-M3.1-Flash`) والمراجعة المستقلة على `antigravity / claude-sonnet-5-5` (`medium`) + PR + `ci-gate` + البوتات.
+

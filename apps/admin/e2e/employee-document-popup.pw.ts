@@ -17,9 +17,18 @@ async function chooseStaff(root: Root, locale: Locale = 'en') {
   // اللغة تتبدل بعد إعادة تحميل الإطار؛ اسم حوار المبدّل يتبع لغة الصفحة فننتظرها.
   await expect(root.locator('html')).toHaveAttribute('lang', locale);
   await chooseCompanyInSwitcher(root, 'Synthetic company A', locale);
+  await openEmployee(root, 0, locale);
+}
+// «تعديل» رابط إلى صفحة الموظف، والوثائق تبويب فيها؛ العنوان نفسه يثبت أن القسم ظهر.
+async function openEmployee(root: Root, index: number, locale: Locale = 'en') {
   await root
-    .getByRole('button', { name: t(locale, 'staff.edit') })
-    .first()
+    .getByRole('row')
+    .getByRole('link', { name: t(locale, 'staff.edit') })
+    .nth(index)
+    .click();
+  await root
+    .getByRole('navigation', { name: t(locale, 'leaveHistory.tabsLabel') })
+    .getByRole('link', { name: t(locale, 'leaveHistory.tabDocuments'), exact: true })
     .click();
   await expect(
     root.getByRole('heading', {
@@ -27,6 +36,10 @@ async function chooseStaff(root: Root, locale: Locale = 'en') {
       name: t(locale, 'employeeDocuments.title'),
     }),
   ).toBeVisible();
+}
+// رابط العودة إلى القائمة حلّ محل زر «إلغاء» في لوحة التعديل.
+async function backToList(root: Root, locale: Locale = 'en') {
+  await root.getByRole('link', { name: t(locale, 'staff.cancel'), exact: true }).click();
 }
 async function openStaff(page: Page, locale: Locale = 'en') {
   await page.goto('/staff');
@@ -218,18 +231,13 @@ test('employee change, panel unmount and workspace change each cancel only their
 }) => {
   await openStaff(page);
   const employee = await clickOpen(page);
-  await page
-    .getByRole('button', { name: t('en', 'staff.edit') })
-    .nth(1)
-    .click();
+  await backToList(page);
+  await openEmployee(page, 1);
   await expect.poll(() => employee.isClosed()).toBe(true);
   const panel = await clickOpen(page);
-  await page.getByRole('button', { name: t('en', 'staff.cancel') }).click();
+  await backToList(page);
   await expect.poll(() => panel.isClosed()).toBe(true);
-  await page
-    .getByRole('button', { name: t('en', 'staff.edit') })
-    .first()
-    .click();
+  await openEmployee(page, 0);
   const workspace = await clickOpen(page);
   await chooseCompanyInSwitcher(page, 'Synthetic company B');
   await expect.poll(() => workspace.isClosed()).toBe(true);
@@ -249,10 +257,8 @@ test('old settlement cannot navigate a successor and a handed-off document survi
   await expect.poll(() => failed.isClosed()).toBe(true);
   expect(first.isClosed()).toBe(false);
   const old = await clickOpen(page, page, 'Passport');
-  await page
-    .getByRole('button', { name: t('en', 'staff.edit') })
-    .nth(1)
-    .click();
+  await backToList(page);
+  await openEmployee(page, 1);
   await expect.poll(() => old.isClosed()).toBe(true);
   const successor = await clickOpen(page);
   await release();

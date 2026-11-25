@@ -141,5 +141,5 @@ it('stacks the rows under 600px and labels every cell that has content', () => {
     null,
   ]);
   expect(cells[0]?.textContent).toBe('3');
-  expect(within(cells[4] as HTMLElement).getByRole('button', { name: 'Edit' })).toBeTruthy();
+  expect(within(cells[4] as HTMLElement).getByRole('link', { name: 'Edit' })).toBeTruthy();
 });

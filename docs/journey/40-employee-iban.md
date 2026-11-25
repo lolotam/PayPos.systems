@@ -1,5 +1,7 @@
 # 40 · Employee IBAN (bank account) — الحساب البنكي للموظف (الآيبان)
 
+> **Since 074-10b / منذ 074-10b:** **Edit** opens the employee's own page `/staff/<id>`; the bank-account section is on its **Pay** tab. / **تعديل** بيفتح صفحة الموظف `/staff/<id>`؛ قسم الحساب البنكي في تبويب **الراتب**.
+
 **Status / الحالة:** shipped in #140 (PR 9b, merged). The three API routes are **live on staging** (api + worker at commit
 `6c220e4`, 2026-10-11); the **admin screen is not deployed** (issue #54), so the section runs locally only. No OTP involved.
 Your decisions of 2026-10-09 (IB-Q1 to IB-Q11) apply, with Abu Salem's choice differing only on IB-Q2:

@@ -5,7 +5,7 @@ import { type ReactNode } from 'react';
 import { beforeEach, expect, it, vi } from 'vitest';
 import { useEmployees } from '../api/use-employees';
 import { useCompanyEmployeeNumbers } from '../company-numbers/api/use-company-employee-numbers';
-import { EmployeeEditPanel } from './employee-edit-panel';
+import { EmployeeDetailPage } from '../pages/employee-detail-page';
 import { EmployeeListPanel } from './employee-list-panel';
 
 window.HTMLElement.prototype.scrollIntoView = () => undefined;
@@ -27,8 +27,8 @@ vi.mock('@/shared/locale/locale-context', () => ({ useLocale: () => 'en' as cons
 vi.mock('../api/use-employee-name-matches', () => ({
   useEmployeeNameMatches: () => ({ mutateAsync: vi.fn() }),
 }));
-vi.mock('./employee-record-sections', () => ({ EmployeeRecordSections: () => null }));
-vi.mock('./employee-leave-section', () => ({ EmployeeLeaveSection: () => null }));
+vi.mock('next/navigation', () => ({ useRouter: () => ({ push: vi.fn() }) }));
+vi.mock('./employee-access-section', () => ({ EmployeeAccessSection: () => null }));
 
 const id = '01920000-0000-7000-8000-0000000000a2';
 const business = {
@@ -84,20 +84,12 @@ function ProfileAndList() {
       <EmployeeListPanel
         list={list}
         branches={business.branches}
-        selectedId=""
         cursor={undefined}
         search=""
         onSearch={() => undefined}
-        onSelect={() => undefined}
         onPage={() => undefined}
       />
-      <EmployeeEditPanel
-        companyId={id}
-        business={business}
-        userId={id}
-        employeeId={id}
-        onClose={() => undefined}
-      />
+      <EmployeeDetailPage companyId={id} business={business} userId={id} employeeId={id} tab="data" />
     </>
   );
 }
@@ -373,12 +365,12 @@ it('hides edit number after the employee moves to a branch the capability denies
   const query = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   render(
     <QueryClientProvider client={query}>
-      <EmployeeEditPanel
+      <EmployeeDetailPage
         companyId={id}
         business={{ ...business, branches: [...business.branches, branch] }}
         userId={id}
         employeeId={id}
-        onClose={() => undefined}
+        tab="data"
       />
     </QueryClientProvider>,
   );
