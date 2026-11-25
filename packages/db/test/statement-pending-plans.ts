@@ -67,12 +67,15 @@ export async function planAsReader(
     generic ? '$1' : `'${options.tenant}'::uuid`,
     generic ? '$2' : 'transaction_timestamp()',
   );
+  // PREPAREd غير مُلغاة بـ rollback، فتبقى في جلسة الـ owner؛ لازم نلغيها بعد القياس.
+  let prepared = false;
   try {
     await owner.begin(async (tx) => {
       await tx`SET LOCAL ROLE pospay_approval_reader`;
       await tx`SELECT set_config('app.company_id', ${options.tenant}, true)`;
       if (generic) {
         await tx.unsafe(`PREPARE pending_q(uuid, timestamptz) AS ${query}`);
+        prepared = true;
         await tx`SET LOCAL plan_cache_mode = force_generic_plan`;
       }
       const statement = generic
@@ -88,6 +91,8 @@ export async function planAsReader(
   } catch (error) {
     if (error instanceof PlanCaptured) return error.measured;
     throw error;
+  } finally {
+    if (prepared) await owner.unsafe('DEALLOCATE pending_q');
   }
   throw new Error('unreachable: the plan transaction always rolls back');
 }

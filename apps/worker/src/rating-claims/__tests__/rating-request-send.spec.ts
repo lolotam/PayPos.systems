@@ -93,7 +93,11 @@ function sendModule(channel: Channel, env: NodeJS.ProcessEnv) {
 }
 
 /** زيارة ثم مطالبة حقيقية: بيطلع حدث الجاهزية في الـ outbox والطلب في SENDING. */
-async function claimedReady(deriver: RatingTokenDeriver, customerName?: string) {
+async function claimedReady(
+  deriver: RatingTokenDeriver,
+  customerName?: string,
+  locale?: 'ar' | 'en',
+) {
   f.token.deriver = deriver;
   const branchId = await f.branch({
     timezone: KUWAIT,
@@ -102,6 +106,9 @@ async function claimedReady(deriver: RatingTokenDeriver, customerName?: string) 
   const customerId = await f.customer();
   if (customerName !== undefined)
     await f.owner`UPDATE customers SET name = ${customerName}
+      WHERE company_id = ${f.company} AND id = ${customerId}`;
+  if (locale !== undefined)
+    await f.owner`UPDATE customers SET locale = ${locale}
       WHERE company_id = ${f.company} AND id = ${customerId}`;
   const { sessionId } = await f.session({ customerId, branchId, occurredAt: VISIT });
   await f.schedule(sessionId);
@@ -189,13 +196,28 @@ function linkOf(channel: {
 
 const sha256 = (value: string) => createHash('sha256').update(value, 'utf8').digest('hex');
 
+/** كلمة الترحيب الثابتة عند غياب اسم العميل الأول (PP-272). */
+const FIXED_GREETING_AR = 'عميلتنا العزيزة';
+
 it.each([
-  { name: 'with the customer first name', customerName: undefined, bodyParameters: 4 },
-  { name: 'without a safe customer first name', customerName: '12345678', bodyParameters: 3 },
+  {
+    name: 'with the customer first name',
+    customerName: undefined,
+    locale: 'en' as const,
+    bodyParameters: 4,
+    firstParameter: 'Synthetic',
+  },
+  {
+    name: 'without a safe customer first name',
+    customerName: '12345678',
+    locale: 'ar' as const,
+    bodyParameters: 4,
+    firstParameter: FIXED_GREETING_AR,
+  },
 ])(
   'RT-14 RT-14b D-B8 rotated ring sends the stored-version link and SENT follows acceptance $name',
-  async ({ customerName, bodyParameters }) => {
-    const { requestId, eventId } = await claimedReady(claimDeriver(ENV_V1), customerName);
+  async ({ customerName, locale, bodyParameters, firstParameter }) => {
+    const { requestId, eventId } = await claimedReady(claimDeriver(ENV_V1), customerName, locale);
     const channel = recordingChannel();
     const module = sendModule(channel, ENV_V2);
     const { logger, lines } = recordingLogger();
@@ -207,8 +229,12 @@ it.each([
     await module.send.execute(f.company, attempt?.id ?? '');
 
     // الرابط اتركّب في الذاكرة بمفتاح الإصدار القديم، وبصمته هي المخزنة في الطلب وقت المطالبة.
-    const { texts, token } = linkOf(channel);
+    const { texts, link, token } = linkOf(channel);
     expect(texts).toHaveLength(bodyParameters);
+    // الاسم الأول موجود بيبقى زي ما هو، وغيابه بيتعوّض بكلمة ترحيب ثابتة للغة (PP-272).
+    expect(texts[0]).toBe(firstParameter);
+    // الرابط آخر متغير في القالب الثابت.
+    expect(texts.at(-1)).toBe(link);
     const stored = await requestRow(requestId);
     expect(Buffer.from(stored['token_hash'] as Buffer).toString('hex')).toBe(sha256(token));
     expect(channel.calls).toHaveLength(1);
@@ -240,6 +266,21 @@ it.each([
     );
   },
 );
+
+it('PP-272 the fixed greeting substitutes the omitted first name at send time and is never stored', async () => {
+  const { eventId } = await claimedReady(claimDeriver(ENV_V1), '12345678', 'ar');
+  const channel = recordingChannel();
+  const module = sendModule(channel, ENV_V2);
+  await deliverer(module, recordingLogger().logger)(await eventById(eventId));
+  const attempt = await attemptOf(eventId);
+  await module.send.execute(f.company, attempt?.id ?? '');
+  // المتغيرات بتضل أربعة في الحالتين، والاسم الغايب مكانه كلمة ترحيب ثابتة للغة.
+  const { texts } = linkOf(channel);
+  expect(texts).toHaveLength(4);
+  expect(texts[0]).toBe(FIXED_GREETING_AR);
+  // الكلمة الثابتة بديل وقت الإرسال فقط: ما بتتخزنش في المحاولة ولا في الحدث.
+  expect(await storedText()).not.toContain(FIXED_GREETING_AR);
+});
 
 it('D-B8 a cross-tenant NotificationDelivered neither mutates nor leaks another tenant request', async () => {
   const { requestId, eventId } = await claimedReady(claimDeriver(ENV_V1));

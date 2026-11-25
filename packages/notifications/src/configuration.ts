@@ -63,7 +63,7 @@ export function createTemplateRegistry(
       // TODO(spec): every real approved template name must be supplied after owner/Meta approval.
       if (name === undefined || !/^[a-z][a-z0-9_]{0,511}$/.test(name))
         return { valid: false, code: 'CONFIG_INVALID' };
-      return { valid: true, name, components: templateComponents(definition, parameters) };
+      return { valid: true, name, components: templateComponents(definition, parameters, locale) };
     },
   };
 }

@@ -2,7 +2,11 @@ import { COMMISSION_INPUT_EVENT_TYPES, COMMISSION_INPUTS_CONSUMER_ID } from '@po
 import postgres from 'postgres';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
-import { eventId, pendingCountHarness } from '../../test/statement-pending-fixtures.ts';
+import {
+  closePendingCountTest,
+  eventId,
+  pendingCountHarness,
+} from '../../test/statement-pending-fixtures.ts';
 import { createTestDatabase, type TestDatabase } from '../../test/test-database.ts';
 import { seedTwoTenants, TENANT } from '../../test/tenancy-fixtures.ts';
 
@@ -26,11 +30,7 @@ beforeAll(async () => {
   app = postgres(test.appUrl, { max: 1, onnotice: () => undefined });
 });
 
-afterAll(async () => {
-  await app.end();
-  await owner.end();
-  await test.drop();
-});
+afterAll(async () => closePendingCountTest(test, owner, app));
 
 describe('group 2: the tenant context and the cutoff', () => {
   it('refuses a missing context even when the tables are empty, and a malformed one', async () => {
