@@ -241,7 +241,10 @@ const WORKSPACE_COMPANY = {
 };
 
 /** رد مساحة العمل والقوائم مع بعض، زي ما السيرفر بيجاوب على المسارات دي. */
-function answerWorkspacesAndLists(path: string): { data?: unknown; response: { status: number } } {
+function answerWorkspacesAndLists(path: string): {
+  data?: unknown;
+  response: { status: number; ok?: boolean };
+} {
   if (path === WORKSPACES) {
     return {
       data: { companies: [WORKSPACE_COMPANY], capabilities: { staff_access: false } },
