@@ -8,6 +8,7 @@ import {
 import { CancelPendingStaffAccessUseCase } from '../src/modules/staff/use-cases/cancel-pending-staff-access/cancel-pending-staff-access.ts';
 import { GrantEmployeeAccessUseCase } from '../src/modules/staff/use-cases/grant-employee-access/grant-employee-access.ts';
 import { startHarness, type Harness } from './harness.ts';
+import { testEmployeeCardKey } from './employee-card-key.ts';
 import { authPinHasher } from '../src/modules/identity/persistence/auth-pin-hasher.ts';
 import { captureServerFaults, recordSwallowedFault } from './server-faults.ts';
 import {
@@ -49,6 +50,11 @@ export interface StaffAccessFixture {
   readonly managerCookie: string;
   readonly db: ReturnType<typeof createDatabase>;
   readonly phoneCounter: { n: number };
+  /**
+   * مفتاح بصمة الهاتف نفسه اللي التطبيق شغّال عليه — الاختبارات اللي تبني خطوات المنح بنفسها
+   * لازم تبنيها بالمفتاح ده، وإلا بصمة الهاتف ما تطابقش السجل اللي كاتبه التطبيق.
+   */
+  readonly cardKey: Buffer;
 }
 
 /**
@@ -106,6 +112,7 @@ export async function staffAccessFixture(
     managerCookie,
     db,
     phoneCounter: { n: 100 },
+    cardKey: testEmployeeCardKey,
   };
 }
 

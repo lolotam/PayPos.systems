@@ -317,7 +317,7 @@ export function staffProviders(
     ...ownAttendanceProviders(),
     { provide: PERSONAL_BRANCH_CLOCK, useValue: systemClock },
     { provide: PERSONAL_BRANCH_READS, useValue: personalBranchReads },
-    ...staffAccessProviders(database, redis, ids, staffAccessAuth, staffAccessRoutes),
+    ...staffAccessProviders(database, redis, ids, staffAccessAuth, staffAccessRoutes, employeeCardKey),
     ...attendanceProviders(database, redis, passkeys, ids, logger),
     { provide: ATTENDANCE_BOARD_CONTEXT, useValue: attendanceBoardContext },
     { provide: EMPLOYEE_APP_LINK_NAMES, useValue: employeeAppLinkNames },

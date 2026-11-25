@@ -249,7 +249,7 @@ it('AC-ACT-4 a re-grant of a stopped record starts a new attempt whose time is t
   // ساعة محقونة بلحظة ثابتة: أي كتابة لوقت المحاولة لازم تساويها بالظبط من غير تسامح.
   const regrantAt = new Date('2026-11-25T09:15:30.250Z');
   const useCase = new GrantEmployeeAccessUseCase(
-    createGrantEmployeeAccessSteps(f.db, f.h.auth.staffUsers),
+    createGrantEmployeeAccessSteps(f.db, f.h.auth.staffUsers, f.cardKey),
     createStaffAccessUserSteps(f.h.auth.staffUsers),
     { invalidate: async () => undefined },
     { now: () => regrantAt },
