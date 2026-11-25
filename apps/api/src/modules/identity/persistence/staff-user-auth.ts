@@ -2,12 +2,15 @@ import { SYSTEM_ROLES, type IdGenerator, type Tx } from '@pospay/db';
 import { hashCashierPin } from '@pospay/auth';
 import { sql } from 'drizzle-orm';
 
+import { transactionWriters } from '../../../shared/adapters/transaction-writers.ts';
+
 import { isWellFormedCashierPin } from '../domain/cashier-pin.ts';
 import { StaffUserRefused } from '../domain/staff-access-errors.ts';
 import { staffAccessSystemRole, temporaryStaffPinExpiresAt } from '../domain/staff-access-roles.ts';
 import type { StaffAccessRole } from '../domain/staff-access-roles.ts';
 import type {
   StaffUserCancelInput,
+  StaffUserSessionsEndInput,
   StaffUserFacade,
   StaffUserPhoneChangeInput,
   StaffUserProvisionInput,
@@ -190,4 +193,61 @@ export async function clearStaffPin(
     WHERE company_id=${input.companyId} AND user_id=${input.userId}`);
   await tx.execute(sql`UPDATE staff_pin_change_proofs SET consumed_at=${at}::timestamptz
     WHERE company_id=${input.companyId} AND user_id=${input.userId} AND consumed_at IS NULL`);
+}
+
+/**
+ * ينهي جلسات الموظفة بعد التزام «إيقاف الدخول» (F3-2) على pospay_auth — يستدعيها staff بعد التزام معاملة
+ * الشركة، فأي انقطاع قبلها لا يترك الجلسات حية: فحص الأهلية يرفض طلبها التالي على أي حال.
+ *
+ * @param auth  واجهة packages/auth على pospay_auth
+ * @param input الحساب والشركة ومعرّف العملية
+ */
+export async function deleteStaffUserSessions(
+  auth: StaffUserFacade,
+  input: StaffUserSessionsEndInput,
+): Promise<void> {
+  return auth.deleteSessions(input);
+}
+
+/**
+ * ينهي عضوية الموظفة فوراً (`ends_at = at`) ويمسح رقمها السري ويكتب التدقيق داخل معاملة staff نفسها
+ * (الاستثناء المحدود في ADR-0063، D5). المسؤولة الوحيدة عن إنهاء عضوية موظفة: «إيقاف الدخول» اليوم
+ * وأرشفة الموظفة لاحقاً. عضوية منتهية فعلاً لا تفشل الدالة: الإيقاف يتقارب إلى نفس الحالة ولا يُكرَّر
+ * تدقيق «انتهاء العضوية». الرقم يُمسح بـ UPDATE لا DELETE لأن `pospay_app` لا يملك DELETE على `cashier_pins`.
+ *
+ * @param tx    معاملة الشركة التي فتحها use case الموظفين
+ * @param input الشركة والعضوية وصاحبها والمنفذ ولحظة الإنهاء ومولّد المعرّفات
+ */
+export async function endStaffMembership(
+  tx: Tx,
+  input: {
+    companyId: string;
+    membershipId: string;
+    userId: string;
+    actorUserId: string;
+    at: Date;
+    ids: IdGenerator;
+  },
+): Promise<void> {
+  const at = input.at.toISOString();
+  const ended = await tx.execute(sql`UPDATE memberships SET ends_at=${at}::timestamptz
+    WHERE company_id=${input.companyId} AND id=${input.membershipId} AND user_id=${input.userId}
+      AND (ends_at IS NULL OR ends_at > ${at}::timestamptz)
+    RETURNING id`);
+  await clearStaffPin(tx, input);
+  const { audit } = transactionWriters(tx, input.ids);
+  if (ended.length > 0)
+    await audit.record({
+      entity: 'membership',
+      entityId: input.membershipId,
+      action: 'staff.membership_ended',
+      before: { ends_at: null },
+      after: { user_id: input.userId, ends_at: at },
+    });
+  await audit.record({
+    entity: 'cashier_pin',
+    entityId: input.userId,
+    action: 'staff.pin_cleared',
+    after: { set_by: input.actorUserId },
+  });
 }

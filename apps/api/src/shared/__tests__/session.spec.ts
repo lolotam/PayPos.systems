@@ -42,6 +42,7 @@ const fakeAuth: AuthService = {
   staffUsers: {
     provision: async () => ({ userId: '' }),
     changePhone: async () => undefined,
+    deleteSessions: async () => undefined,
     cancel: async () => undefined,
     read: async () => null,
     isStaffUser: async () => false,

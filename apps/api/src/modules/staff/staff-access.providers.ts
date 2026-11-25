@@ -23,6 +23,10 @@ import {
   createChangeEmployeeStaffPhoneSteps,
   createStaffAccessPhoneUserSteps,
 } from './persistence/staff-access-phone.adapter.ts';
+import {
+  createStaffAccessSessionEnder,
+  createStopEmployeeStaffAccessSteps,
+} from './persistence/staff-access-stop.adapter.ts';
 import { createStaffAccessGrantAdmission } from './persistence/staff-access-admission.adapter.ts';
 import type { AuthFacadeForStaffAccess } from './ports/staff-access-auth.port.ts';
 import type { StaffAccessGrantCache, StaffAccessUserSteps } from './ports/staff-access.port.ts';
@@ -30,6 +34,7 @@ import { GrantEmployeeAccessUseCase } from './use-cases/grant-employee-access/gr
 import { CancelPendingStaffAccessUseCase } from './use-cases/cancel-pending-staff-access/cancel-pending-staff-access.ts';
 import { ResetEmployeeStaffPinUseCase } from './use-cases/reset-employee-staff-pin/reset-employee-staff-pin.ts';
 import { ChangeEmployeeStaffPhoneUseCase } from './use-cases/change-employee-staff-phone/change-employee-staff-phone.ts';
+import { StopEmployeeStaffAccessUseCase } from './use-cases/stop-employee-staff-access/stop-employee-staff-access.ts';
 
 /**
  * مزوّد use case تغيير الهاتف: يرجع null لو قاعدة البيانات أو auth أو مفتاح بصمة الهاتف ناقص،
@@ -56,6 +61,29 @@ function changePhoneProvider(deps: {
       steps === null || phoneUsers === null
         ? null
         : new ChangeEmployeeStaffPhoneUseCase(steps, phoneUsers, cache, systemClock, ids),
+  };
+}
+
+/** مزوّد use case «إيقاف الدخول»: null بلا قاعدة بيانات أو auth فيرد المسار NOT_READY. */
+function stopProvider(deps: {
+  database: TenantWrappers | undefined;
+  auth: AuthFacadeForStaffAccess | null;
+  cache: StaffAccessGrantCache;
+  ids: IdGenerator;
+}): Provider {
+  const { database, auth, cache, ids } = deps;
+  return {
+    provide: StopEmployeeStaffAccessUseCase,
+    useValue:
+      database === undefined || auth === null
+        ? null
+        : new StopEmployeeStaffAccessUseCase(
+            createStopEmployeeStaffAccessSteps(database),
+            createStaffAccessSessionEnder(auth),
+            cache,
+            systemClock,
+            ids,
+          ),
   };
 }
 
@@ -128,6 +156,7 @@ export function staffAccessProviders(
           : new ResetEmployeeStaffPinUseCase(resetSteps, users, systemClock, ids),
     },
     changePhoneProvider({ database, auth, users, phoneHashSecret, cache, ids }),
+    stopProvider({ database, auth, cache, ids }),
     EmployeeAccessController,
   ];
 }

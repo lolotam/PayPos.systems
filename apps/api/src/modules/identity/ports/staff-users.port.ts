@@ -64,6 +64,16 @@ export interface StaffUserCancelInput {
   readonly ids: IdGenerator;
 }
 
+/** مدخل إنهاء جلسات حساب موظفة بعد «إيقاف الدخول» (F3-2): الشركة ومعرّف العملية يثبتان ملكية الحساب. */
+export interface StaffUserSessionsEndInput {
+  /** معرّف العملية من سجل الدخول — يطابق الماركر المكتوب على الحساب. */
+  readonly operationId: string;
+  /** شركة السجل؛ حساب شركة أخرى لا يُلمس. */
+  readonly companyId: string;
+  /** حساب الموظفة المطلوب إنهاء جلساته. */
+  readonly userId: string;
+}
+
 /** حالة مستخدم الموظفة للقراءة: المعرف وآخر ثلاثة أرقام من الهاتف فقط — لا هاتف كامل ولا بريد. */
 export interface StaffUserRead {
   readonly userId: string;
@@ -88,6 +98,12 @@ export interface StaffUserFacade {
    * @param input الحساب والعملية والشركة والهاتف الجديد ومعرّف المحاولة
    */
   changePhone(input: StaffUserPhoneChangeInput): Promise<void>;
+  /**
+   * ينهي جلسات STAFF_POS وSTAFF_PERSONAL لحساب موظفة لهذه الشركة بعد التزام «إيقاف الدخول» (F3-2).
+   *
+   * @param input الحساب والشركة ومعرّف العملية
+   */
+  deleteSessions(input: StaffUserSessionsEndInput): Promise<void>;
   /**
    * يحذف مستخدم الموظفة بمعرّف العملية (إلغاء سجل انتظار متجاوز للمدة).
    *

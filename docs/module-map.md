@@ -448,6 +448,8 @@ sync_writes:
   - staff -> identity.changeStaffUserPhone @ apps/api/src/modules/staff/persistence/staff-access-phone.adapter.ts
   - staff -> identity.clearStaffPin @ apps/api/src/modules/staff/persistence/staff-access-phone.adapter.ts
   - staff -> identity.saveTemporaryStaffPin @ apps/api/src/modules/staff/persistence/staff-access-phone.adapter.ts
+  - staff -> identity.endStaffMembership @ apps/api/src/modules/staff/persistence/staff-access-stop.adapter.ts
+  - staff -> identity.deleteStaffUserSessions @ apps/api/src/modules/staff/persistence/staff-access-stop.adapter.ts
 reads:
   - orders -> staff.readOwnEmployee @ apps/api/src/modules/orders/persistence/own-work-context.adapter.ts
   - orders -> identity.readOwnServiceSessionsAccess @ apps/api/src/modules/orders/persistence/own-work-context.adapter.ts

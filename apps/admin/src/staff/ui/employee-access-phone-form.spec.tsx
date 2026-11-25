@@ -7,8 +7,9 @@ window.HTMLElement.prototype.scrollIntoView = () => undefined;
 
 const get = vi.hoisted(() => vi.fn());
 const put = vi.hoisted(() => vi.fn());
+const del = vi.hoisted(() => vi.fn());
 const state = vi.hoisted(() => ({ body: null as unknown }));
-vi.mock('@/shared/api/client', () => ({ apiClient: () => ({ GET: get, PUT: put }) }));
+vi.mock('@/shared/api/client', () => ({ apiClient: () => ({ GET: get, PUT: put, DELETE: del }) }));
 vi.mock('@/shared/locale/locale-context', () => ({ useLocale: () => 'en' as const }));
 vi.mock('@/workspace/model/workspace-provider', () => ({
   useWorkspace: () => ({ staffAccess: true }),
@@ -79,6 +80,7 @@ function cacheText(client: QueryClient): { variables: string; keys: string } {
 beforeEach(() => {
   get.mockReset();
   put.mockReset();
+  del.mockReset();
   state.body = ACTIVE;
 });
 
@@ -200,5 +202,71 @@ describe('F3-1 the change is a direct call that keeps its secrets', () => {
     );
     expect(screen.queryByText(/The phone was changed\./)).toBeNull();
     expect(screen.getByLabelText(PHONE_LABEL)).toBeTruthy();
+  });
+});
+
+describe('F3-2 the stop access button follows the server state', () => {
+  it('offers «Stop access» for an ACTIVE record the caller may manage', async () => {
+    mountSection();
+    await waitFor(() => expect(screen.getByText('Access is active.')).toBeTruthy());
+    expect(screen.getByText('Stop access')).toBeTruthy();
+  });
+
+  it('hides «Stop access» when the server says the caller may not manage', async () => {
+    state.body = { ...ACTIVE, can_manage: false };
+    mountSection();
+    await waitFor(() => expect(screen.getByText('Access is active.')).toBeTruthy());
+    expect(screen.queryByText('Stop access')).toBeNull();
+  });
+
+  it.each(['PENDING', 'STOPPED', 'NONE'])('hides «Stop access» for a %s record', async (value) => {
+    state.body = { ...ACTIVE, state: value, can_cancel: value === 'PENDING' };
+    mountSection();
+    await waitFor(() => expect(screen.getByText(/Access|No access/)).toBeTruthy());
+    expect(screen.queryByText('Stop access')).toBeNull();
+  });
+});
+
+describe('F3-2 stopping access is one direct call that replaces the screen state', () => {
+  it('calls DELETE once and shows the stopped state with the give-access button instead of the active actions', async () => {
+    mountSection();
+    await waitFor(() => expect(screen.getByText('Stop access')).toBeTruthy());
+    del.mockResolvedValue({
+      response: { status: 200, ok: true },
+      data: { ...ACTIVE, state: 'STOPPED', phone_last3: null },
+      error: undefined,
+    });
+    fireEvent.click(screen.getByText('Stop access'));
+    await waitFor(() => expect(screen.getByText('Access is stopped.')).toBeTruthy());
+    expect(del).toHaveBeenCalledTimes(1);
+    expect(del.mock.calls[0]?.[1]).toMatchObject({
+      params: {
+        header: { 'x-company-id': IDS.company },
+        path: { businessId: IDS.business, employeeId: IDS.employee },
+      },
+    });
+    expect(screen.queryByText('Stop access')).toBeNull();
+    expect(screen.queryByText('Change phone')).toBeNull();
+    expect(screen.getByText('Give access')).toBeTruthy();
+  });
+
+  it('shows the refusal under the button and keeps the active actions when the stop fails', async () => {
+    mountSection();
+    await waitFor(() => expect(screen.getByText('Stop access')).toBeTruthy());
+    del.mockResolvedValue({
+      response: { status: 403, ok: false },
+      data: undefined,
+      error: {
+        code: 'STAFF_ACCESS_NOT_ALLOWED',
+        message_en: 'You cannot manage access for this employee.',
+        message_ar: 'x',
+      },
+    });
+    fireEvent.click(screen.getByText('Stop access'));
+    await waitFor(() =>
+      expect(screen.getByText('You cannot manage access for this employee.')).toBeTruthy(),
+    );
+    expect(screen.getByText('Access is active.')).toBeTruthy();
+    expect(screen.getByText('Stop access')).toBeTruthy();
   });
 });

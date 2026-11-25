@@ -78,6 +78,12 @@ export interface StaffUserAccess {
    * @param input الحساب والعملية والشركة والهاتف الجديد والمحاولة
    */
   changePhone(input: StaffUserPhoneChangeRequest): Promise<void>;
+  /**
+   * ينهي جلسات STAFF_POS وSTAFF_PERSONAL لحساب موظفة لهذه الشركة بعد التزام «إيقاف الدخول» (F3-2).
+   *
+   * @param input الحساب والشركة ومعرّف العملية
+   */
+  deleteSessions(input: { operationId: string; companyId: string; userId: string }): Promise<void>;
   cancel(input: {
     operationId: string;
     companyId: string;
@@ -147,6 +153,7 @@ export function createStaffUserAccess(options: {
         }),
       ),
     changePhone: (input) => translated(database.changePhone(input)),
+    deleteSessions: (input) => translated(database.deleteSessions(input)),
     cancel: (input) => translated(database.cancel(input)),
     read: (operationId) => translated(database.read(operationId)),
     isStaffUser: async (userId) => {

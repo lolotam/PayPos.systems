@@ -88,6 +88,21 @@ export const staffAccessPaths = {
         default: errors,
       },
     },
+    delete: {
+      operationId: 'stopEmployeeStaffAccess',
+      description:
+        'Stops the staff access of an ACTIVE staff-access employee on her primary branch: ends her staff membership at once, clears her PIN and deletes her staff sessions, while keeping employees.user_id so a later grant reuses the same user. Requires manage:staff-access:branch on that branch, read inside the write transaction. The employee never stops her own access.',
+      parameters: [companyHeader, businessParam, employeeParam],
+      responses: {
+        '200': stateResponse('The access state after stopping access'),
+        '400': errors,
+        '401': errors,
+        '403': errors,
+        '404': errors,
+        '409': errors,
+        default: errors,
+      },
+    },
   },
   '/v1/businesses/{businessId}/employees/{employeeId}/staff-access/pin': {
     post: {

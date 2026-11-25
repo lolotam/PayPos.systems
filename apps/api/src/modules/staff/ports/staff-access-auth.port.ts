@@ -61,6 +61,16 @@ export interface StaffAccessPhoneChangeInput {
   readonly ids: StaffAccessIds;
 }
 
+/** مدخل إنهاء جلسات حساب موظفة بعد «إيقاف الدخول» (F3-2). */
+export interface StaffAccessSessionsEndInput {
+  /** معرّف العملية من سجل الدخول. */
+  readonly operationId: string;
+  /** الشركة. */
+  readonly companyId: string;
+  /** حساب الموظفة. */
+  readonly userId: string;
+}
+
 /** واجهة حساب الموظفة كما يراها staff. */
 export interface AuthFacadeForStaffAccess {
   /**
@@ -69,6 +79,12 @@ export interface AuthFacadeForStaffAccess {
    * @param input الحساب والعملية والشركة والهاتف الجديد والمحاولة
    */
   changePhone(input: StaffAccessPhoneChangeInput): Promise<void>;
+  /**
+   * ينهي جلسات الموظفة (STAFF_POS وSTAFF_PERSONAL) بعد التزام «إيقاف الدخول».
+   *
+   * @param input الحساب والشركة ومعرّف العملية
+   */
+  deleteSessions(input: StaffAccessSessionsEndInput): Promise<void>;
   /**
    * ينشئ مستخدم الموظفة أو يجيده بمعرّف العملية.
    *

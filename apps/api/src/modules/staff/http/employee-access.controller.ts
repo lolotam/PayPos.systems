@@ -43,6 +43,7 @@ import {
 } from '../use-cases/cancel-pending-staff-access/cancel-pending-staff-access.ts';
 import { ResetEmployeeStaffPinUseCase } from '../use-cases/reset-employee-staff-pin/reset-employee-staff-pin.ts';
 import { ChangeEmployeeStaffPhoneUseCase } from '../use-cases/change-employee-staff-phone/change-employee-staff-phone.ts';
+import { StopEmployeeStaffAccessUseCase } from '../use-cases/stop-employee-staff-access/stop-employee-staff-access.ts';
 
 /** بوابة التفعيل (FR-F1-9): تُقرأ مرة واحدة عند التشغيل من STAFF_ACCESS_ROUTES، وكل المسارات ترد 503 بدونها. */
 export const STAFF_ACCESS_ROUTES_ENABLED = Symbol('STAFF_ACCESS_ROUTES_ENABLED');
@@ -67,6 +68,8 @@ export class EmployeeAccessController {
     private readonly resetUseCase: ResetEmployeeStaffPinUseCase | null,
     @Inject(ChangeEmployeeStaffPhoneUseCase)
     private readonly phoneUseCase: ChangeEmployeeStaffPhoneUseCase | null,
+    @Inject(StopEmployeeStaffAccessUseCase)
+    private readonly stopUseCase: StopEmployeeStaffAccessUseCase | null,
     @Inject(EMPLOYEE_ACCESS_STATE_READS)
     private readonly reads: EmployeeAccessStateReads | null,
   ) {}
@@ -183,6 +186,40 @@ export class EmployeeAccessController {
     }
   }
 
+  /**
+   * إيقاف الدخول: العضوية تنتهي فوراً والرقم السري يُمسح والجلسات تُنهى، و`employees.user_id` يبقى لإعادة
+   * الإعطاء لاحقاً. الرد من نتيجة المعاملة الملتزمة (STOPPED) بلا قراءة تالية.
+   */
+  @Delete('staff-access')
+  @Authenticated()
+  @UseGuards(SelectedCompanyGuard)
+  @HttpCode(200)
+  async stop(
+    @Param('businessId', new ZodValidationPipe(id)) businessId: string,
+    @Param('employeeId', new ZodValidationPipe(id)) employeeId: string,
+    @Req() request: FastifyRequest,
+  ): Promise<unknown> {
+    const actor = actorOf(request);
+    this.ready();
+    try {
+      const stopped = await (this.stopUseCase as StopEmployeeStaffAccessUseCase).execute({
+        ...actor,
+        businessId,
+        employeeId,
+      });
+      return staffAccessState.parse({
+        state: 'STOPPED',
+        role: stopped.role,
+        branch_id: stopped.branchId,
+        phone_last3: null,
+        can_manage: true,
+        can_cancel: false,
+      });
+    } catch (error) {
+      throw staffAccessApiError(error);
+    }
+  }
+
   /** حالة الدخول للوحة: الدور والفرع وآخر ثلاثة أرقام وصلاحية الإعطاء. */
   @Get('staff-access')
   @Authenticated()
@@ -256,6 +293,7 @@ export class EmployeeAccessController {
       this.cancelUseCase === null ||
       this.resetUseCase === null ||
       this.phoneUseCase === null ||
+      this.stopUseCase === null ||
       this.reads === null ||
       this.database === null
     )

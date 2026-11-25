@@ -117,3 +117,41 @@ export async function changeStaffUserPhone(
       VALUES (${input.ids.newId()}, ${input.actorUserId}, 'staff.phone_changed', NULL, ${details}::jsonb)`);
   });
 }
+
+/** مدخل إنهاء جلسات موظفة (F3-2): معرّف العملية والشركة يثبتان أن الحساب حساب موظفة لهذه الشركة بالذات. */
+export interface StaffSessionsEndInput {
+  /** معرّف عملية سجل الدخول المكتوب على المستخدم. */
+  readonly operationId: string;
+  /** الشركة التي يجب أن يطابقها ماركر المستخدم. */
+  readonly companyId: string;
+  /** حساب الموظفة المطلوب إنهاء جلساته. */
+  readonly userId: string;
+}
+
+/**
+ * ينهي كل جلسات STAFF_POS وSTAFF_PERSONAL لحساب موظفة لهذه الشركة مع نوافذ العرض الخاصة بها، بعد التزام
+ * «إيقاف الدخول» (F3-2). يتحقق من الماركر ومعرّف العملية تحت قفل صف المستخدم فلا يمس حساب شركة أخرى ولا
+ * مستخدماً عادياً. جلسات كلمة المرور لأي مستخدم آخر لا تُلمس، ولا يُكتب هاتف ولا سر في أي مكان.
+ *
+ * @param kit   أدوات المعاملة وفئة الرفض من الواجهة الأم
+ * @param input الحساب والشركة ومعرّف العملية
+ */
+export async function deleteStaffSessions(
+  kit: Pick<StaffPhoneChangeKit, 'run' | 'notStaff'>,
+  input: StaffSessionsEndInput,
+): Promise<void> {
+  if (![input.operationId, input.companyId, input.userId].every((value) => UUID.test(value)))
+    throw new Error('STAFF_USER_INPUT_INVALID');
+  return kit.run(async (tx) => {
+    await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtextextended(${input.operationId}, 0))`);
+    const [bound] = await tx.execute<{ company: string | null; operation: string | null }>(sql`
+      SELECT staff_access_company_id AS company, staff_access_operation_id AS operation
+      FROM "user" WHERE id = ${input.userId} FOR UPDATE`);
+    if (bound === undefined || bound.company !== input.companyId || bound.operation !== input.operationId)
+      throw kit.notStaff();
+    const removed = await tx.execute<{ id: string }>(sql`
+      DELETE FROM session WHERE user_id = ${input.userId}
+        AND purpose IN ('STAFF_POS', 'STAFF_PERSONAL') RETURNING id`);
+    await deleteStaffPrivateViewRows(tx, removed.map((row) => row.id));
+  });
+}

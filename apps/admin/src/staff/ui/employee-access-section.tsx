@@ -11,6 +11,7 @@ import { EmployeeAccessGrantForm } from './employee-access-grant-form';
 import { EmployeeAccessPhoneForm } from './employee-access-phone-form';
 import { EmployeeAccessPinResetForm } from './employee-access-pin-reset-form';
 import { EmployeeAccessReadout } from './employee-access-readout';
+import { EmployeeAccessStop } from './employee-access-stop';
 
 function stateLine(state: 'NONE' | 'PENDING' | 'ACTIVE' | 'STOPPED', locale: 'ar' | 'en'): string {
   if (state === 'NONE') return t(locale, 'staff.accessNone');
@@ -82,7 +83,7 @@ export function EmployeeAccessSection({
   );
 }
 
-/** أزرار الدخول الفعّال: إعادة ضبط الرقم السري وتغيير الهاتف، وكل واحد بيملك فتح نموذجه. */
+/** أزرار الدخول الفعّال: إعادة ضبط الرقم السري وتغيير الهاتف وإيقاف الدخول. */
 function EmployeeAccessActiveActions(props: {
   companyId: string;
   businessId: string;
@@ -92,6 +93,7 @@ function EmployeeAccessActiveActions(props: {
     <>
       <EmployeeAccessPinReset {...props} />
       <EmployeeAccessPhoneChange {...props} />
+      <EmployeeAccessStop {...props} />
     </>
   );
 }

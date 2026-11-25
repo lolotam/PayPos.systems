@@ -163,6 +163,8 @@ export {
   changeStaffUserPhone,
   CLEARED_STAFF_PIN_HASH,
   clearStaffPin,
+  deleteStaffUserSessions,
+  endStaffMembership,
   grantStaffMembership,
   hashStaffPin,
   provisionStaffUser,
