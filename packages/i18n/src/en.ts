@@ -63,6 +63,7 @@ export const en = {
     dark: 'Dark',
     system: 'System',
   },
+  workspace: { offline: 'Could not load your workspace: no connection.' },
   salary: salaryEn,
   employeeCard: clockCardAdminEn,
   personalAttendance: attendanceEn,
