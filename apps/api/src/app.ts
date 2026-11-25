@@ -77,6 +77,7 @@ import {
   type CommissionEstimateProviders,
 } from './modules/commissions/index.ts';
 import { commissionApprovalBindings } from './commission-approval-bindings.ts';
+import { commissionOwnEstimateBindings } from './commission-own-estimate-bindings.ts';
 import { commissionAlertRules } from './modules/commissions/persistence/commission-alert-rule.adapter.ts';
 import {
   documentFileFacts,
@@ -240,6 +241,7 @@ class AppModule {
         ...ordersProviders(deps.database, deps.ids ?? systemUuidV7(), deps.ordersClock),
         ...commissionBindings(deps),
         ...commissionStatementExportBindings(deps),
+        ...commissionOwnEstimateBindings(deps.commissionsClock),
         ...settingsProviders(deps.database, deps.ids ?? systemUuidV7(), deps.redis),
         ...notificationsProviders(deps.database, deps.whatsapp, deps.resend, deps.push),
         ...staffProviders(

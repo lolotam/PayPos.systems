@@ -5,3 +5,7 @@ export {
   commissionStatementExportProviders,
   type StatementExportBindings,
 } from './commission-statement-export.providers.ts';
+export {
+  ownCommissionEstimateProviders,
+  type OwnCommissionEstimateBindings,
+} from './commission-own-estimate.providers.ts';
