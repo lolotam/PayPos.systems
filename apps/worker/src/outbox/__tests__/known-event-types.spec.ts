@@ -131,6 +131,10 @@ it('recognizes every event emitted by API and worker, including finite template 
   const consumers = productionConsumers();
   expect(consumers.flatMap((consumer) => consumer.eventTypes)).toContain('LowRatingSubmitted');
   expect(KNOWN_EVENT_TYPES).not.toContain('LowRatingSubmitted');
+  // جرس وصول الدخول: الحدثان لهما مستهلك حقيقي مسجَّل، فمفيش سبب معروف بلا مستهلك.
+  expect(consumers.flatMap((consumer) => consumer.eventTypes)).toContain('StaffAccessGranted');
+  expect(consumers.flatMap((consumer) => consumer.eventTypes)).toContain('StaffPinSetByOther');
+  expect(KNOWN_EVENT_TYPES).not.toContain('StaffAccessGranted');
   const supported = new Set([
     ...knownEventTypes(staff, notifications, null, previews, sales, imports, catalog),
     ...consumers.flatMap((consumer) => consumer.eventTypes),
@@ -161,7 +165,6 @@ it('keeps notification transport recognition conditional on the active module', 
 });
 
 it.each([
-  'StaffAccessGranted',
   'SalaryChanged',
   'SessionTipsChanged',
   'PackageSaleChanged',
