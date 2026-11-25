@@ -233,6 +233,28 @@ describe('N1 / P0 — an email that already has an account is refused, cross-com
   });
 });
 
+describe('AC-ACT-21 — the invitation link goes to the admin origin by name', () => {
+  it('builds the set-password address from the admin origin, not from the API origin', async () => {
+    const company = await h.onboard(ownerA.cookie, 'G1 AC-ACT-21');
+    const response = await invite(
+      ownerA.cookie,
+      company,
+      accountantBody(company, 'act-21@example.test'),
+    );
+    expect(response.status).toBe(201);
+    const link = response.body['set_password_link'] as string;
+    const url = new URL(link);
+    // عنوان صفحة تعيين كلمة المرور هو أصل لوحة الإدارة (ADMIN_ORIGIN)، مش أصل الـ API اللي
+    // الرابط جاي منه.
+    expect(url.searchParams.get('callbackURL')).toBe(`${ORIGIN}/set-password`);
+    const opened = await linkRequest(link);
+    expect(opened.statusCode).toBe(302);
+    expect(String(opened.headers['location'])).toContain(
+      `${ORIGIN}/set-password?token=${tokenOf(link)}`,
+    );
+  });
+});
+
 describe('AC-G1-3 — the confirmation tick is schema-mandatory, for a new email and an existing one', () => {
   it('rejects the request without the confirmation, before any write', async () => {
     const company = await h.onboard(ownerA.cookie, 'G1 A3');

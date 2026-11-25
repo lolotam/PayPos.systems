@@ -27,6 +27,17 @@ function validProxy(value: string): boolean {
   );
 }
 
+// أصل HTTP واحد: بروتوكول http أو https، من غير مسار ولا استعلام ولا بيانات اعتماد. نفس قواعد
+// صفحة التقييم، والنتيجة ما بتتسربش في رسالة الخطأ لأن readConfig بيسمّي المفاتيح بس.
+function isSingleHttpOrigin(origin: string): boolean {
+  try {
+    const url = new URL(origin);
+    return /^https?:$/.test(url.protocol) && url.origin === origin;
+  } catch {
+    return false;
+  }
+}
+
 const schema = z.object({
   PLATFORM_NOTIFICATIONS_DATABASE_URL: z.preprocess(
     (value) => (value === '' ? undefined : value),
@@ -64,15 +75,14 @@ const schema = z.object({
     .string()
     .trim()
     .default('')
-    .refine((origin) => {
-      if (origin === '') return true;
-      try {
-        const url = new URL(origin);
-        return /^https?:$/.test(url.protocol) && url.origin === origin;
-      } catch {
-        return false;
-      }
-    }),
+    .refine((origin) => origin === '' || isSingleHttpOrigin(origin)),
+  // أصل لوحة الإدارة بالاسم (AC-ACT-21): رابط دعوة العضو بيتبني عليه. فاضي = مسار الدعوة ما
+  // يتركبش (NOT_READY)، ومضبوط لازم يكون من الأصول الموثوقة نفسها.
+  ADMIN_ORIGIN: z
+    .string()
+    .trim()
+    .default('')
+    .refine((origin) => origin === '' || isSingleHttpOrigin(origin)),
   // The parent domain the session cookie is shared on (.pospay.systems, .staging.pospay.systems — ADR-0001 §3, §6).
   // Unset in local development: the cookie stays host-only.
   COOKIE_DOMAIN: z.preprocess(
@@ -95,6 +105,20 @@ const schema = z.object({
 });
 
 export type ApiConfig = z.output<typeof schema>;
+
+/**
+ * الأصل الصريح لازم يكون من الأصول الموثوقة نفسها (AC-ACT-21): رابط الدعوة ما يبنيش على أصل
+ * موثوق تاني. الأصل الفاضي معناه إن مسار الدعوة ما يتركبش أصلًا.
+ *
+ * @param config الإعداد المقروء
+ * @returns true لما الأصل فاضي أو مغطّى بنمط موثوق
+ */
+function adminOriginIsTrusted(config: ApiConfig): boolean {
+  if (config.ADMIN_ORIGIN === '') return true;
+  return config.AUTH_TRUSTED_ORIGINS.some((pattern) =>
+    matchesTrustedOrigin(config.ADMIN_ORIGIN, pattern),
+  );
+}
 
 /**
  * Parses the API's environment. The error names the missing keys but never echoes a value — the URLs
@@ -127,10 +151,39 @@ export function readConfig(env: NodeJS.ProcessEnv): ApiConfig {
             .success,
       },
     )
+    // نفس قاعدة صفحة التقييم: http مسموح في التطوير والاختبار بس.
+    .refine(
+      (config) =>
+        !config.ADMIN_ORIGIN.startsWith('http:') ||
+        env.NODE_ENV === 'development' ||
+        env.NODE_ENV === 'test',
+      { path: ['ADMIN_ORIGIN'] },
+    )
+    .refine(adminOriginIsTrusted, {
+      path: ['ADMIN_ORIGIN'],
+      // نفس الحارس: نقيس العلاقة بعد صلاحية القيم حتى لا يكشف استثناء URL إعدادًا غير صالح.
+      when: (payload) =>
+        schema.pick({ ADMIN_ORIGIN: true }).safeParse(payload.value).success,
+    })
     .safeParse(env);
   if (!result.success) {
     const keys = [...new Set(result.error.issues.map((issue) => issue.path.join('.')))];
     throw new Error(`Invalid API configuration: ${keys.join(', ')} — see .env.example`);
   }
   return result.data;
+}
+
+/**
+ * ربط مسار دعوة العضو بالأصل الصريح (AC-ACT-21): رابط تعيين كلمة المرور بيتبني على `ADMIN_ORIGIN`
+ * بعد ما readConfig يتحقق إنه من الأصول الموثوقة، مش على أول أصل موثوق. من غير أصل، المسار ما
+ * يتركبش والكنترولر بيرد NOT_READY.
+ *
+ * @param config الإعداد المقروء
+ * @returns تبعيات الدعوة أو كائن فاضي
+ */
+export function memberInvitationsDependency(config: ApiConfig): {
+  readonly memberInvitations?: { readonly adminOrigin: string };
+} {
+  if (config.ADMIN_ORIGIN === '') return {};
+  return { memberInvitations: { adminOrigin: config.ADMIN_ORIGIN } };
 }

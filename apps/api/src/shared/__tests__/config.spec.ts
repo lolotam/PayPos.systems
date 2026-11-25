@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { readConfig } from '../config.ts';
+import { readConfig, memberInvitationsDependency } from '../config.ts';
 
 const valid = {
   DATABASE_URL: 'postgres://pospay_app:s3cret-pass@127.0.0.1:5432/pospay',
@@ -273,6 +273,23 @@ describe('the explicit admin origin of the invitation link (AC-ACT-21)', () => {
     expect(readConfig(valid).ADMIN_ORIGIN).toBe('');
   });
 
+  it('feeds the explicit admin origin to the invitation path, not the first trusted origin', () => {
+    const config = readConfig({
+      ...valid,
+      ADMIN_ORIGIN: 'https://admin.example.test',
+      AUTH_TRUSTED_ORIGINS: 'https://pos.example.test, https://admin.example.test',
+    });
+    expect(memberInvitationsDependency(config)).toEqual({
+      memberInvitations: { adminOrigin: 'https://admin.example.test' },
+    });
+  });
+
+  it('leaves the invitation path unmounted without an explicit admin origin', () => {
+    expect(memberInvitationsDependency(readConfig(valid))).toEqual({});
+  });
+});
+
+describe('the value of the explicit admin origin (AC-ACT-21)', () => {
   it.each([
     'https://admin.example.test/path',
     'https://admin.example.test/',
