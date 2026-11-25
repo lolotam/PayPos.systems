@@ -22,6 +22,20 @@ export interface ResetLinkConsumption {
   readonly now: () => Date;
 }
 
+/** مدخلات إصدار رابط تعيين كلمة المرور للـ operator: صف verification جاهز، والقرار يتاخد تحت القفل. */
+export interface OperatorResetLinkRow {
+  /** معرّف صف verification (UUID v7). */
+  readonly id: string;
+  /** `reset-password:<token>` — نفس الشكل اللي Better Auth بيقراه. */
+  readonly identifier: string;
+  /** اليوزر اللي الرابط ليه. */
+  readonly userId: string;
+  /** وقت انتهاء الرابط. */
+  readonly expiresAt: Date;
+  /** ساعة الإصدار — بتتقيّد جوه المعاملة وقت الكتابة. */
+  readonly now: Date;
+}
+
 /** استهلاك روابط تعيين كلمة المرور — كل SQL هنا، والباقي ما بيلمسش verification ولا account. */
 export interface PasswordResetQueries {
   /**
@@ -40,6 +54,14 @@ export interface PasswordResetQueries {
    * @returns `invalid-link` لما الرابط اتستهلك أو انتهى أو اليوزر اتمسح، وإلا `done`
    */
   consumeLinkAndSetPassword(input: ResetLinkConsumption): Promise<'done' | 'invalid-link'>;
+  /**
+   * بيصدر رابط تعيين كلمة المرور للـ operator تحت قفل صف اليوزر: علامة حساب الموظفة بتتغيّر جوه
+   * معاملة تانية (تفعيل وصول موظفة)، والفحص من غير قفل بيشوف نسخة قديمة وبيصدر رابط لحساب بقى
+   * موظفة. القرار هنا جوه القفل، فاليوزر اللي اتحوّل موظفة ما بياخدش رابط.
+   *
+   * @returns `issued` لما الرابط اتكتب، `staff-user` لما اليوزر بقى حساب موظفة، و`missing-user` لما اليوزر مش موجود
+   */
+  issueOperatorResetLink(input: OperatorResetLinkRow): Promise<'issued' | 'staff-user' | 'missing-user'>;
 }
 
 type Database = PostgresJsDatabase<IdentitySchema>;
@@ -134,6 +156,43 @@ const consumeLinkAndSetPassword = async (
   });
 
 /**
+ * إصدار رابط تعيين كلمة المرور للـ operator تحت قفل صف اليوزر. القفل على صف اليوزر هو نفسه اللي
+ * بياخده الاستهلاك وبنفس الترتيب (يوزر قبل verification)، فالإصدار والاستهلاك لنفس اليوزر
+ * مايتداخلوش.
+ *
+ * @param db اتصال الهوية على pospay_auth
+ * @param input صف الرابط والساعة
+ * @returns `issued` أو `staff-user` أو `missing-user`
+ */
+const issueOperatorResetLink = async (
+  db: Database,
+  input: OperatorResetLinkRow,
+): Promise<'issued' | 'staff-user' | 'missing-user'> =>
+  db.transaction(async (tx) => {
+    // قفل صف اليوزر: علامة حساب الموظفة بتتغيّر جوه معاملة تانية، والفحص من غير قفل بيشوف النسخة
+    // القديمة وبيصدر رابط لحساب بقى موظفة — فالفحص لازم يكون بعد القفل.
+    const [owner] = await tx
+      .select({ id: user.id, staffOperation: user.staffAccessOperationId })
+      .from(user)
+      .where(eq(user.id, input.userId))
+      .for('update');
+    if (owner === undefined) return 'missing-user';
+    // حساب الموظفة بلا كلمة سر أبداً (spec 076 D8): الرفض تحت القفل، قبل أي كتابة.
+    if (owner.staffOperation !== null) return 'staff-user';
+    // رابط واحد جديد جنب أي رابط تاني موجود: الإصدارات المتعددة مستقلة ومفيش حذف هنا — الحذف في
+    // الاستهلاك، وبيقتل روابط اليوزر كلها مع كلمة المرور.
+    await tx.insert(verification).values({
+      id: input.id,
+      identifier: input.identifier,
+      value: input.userId,
+      expiresAt: input.expiresAt,
+      createdAt: input.now,
+      updatedAt: input.now,
+    });
+    return 'issued';
+  });
+
+/**
  * حدود استهلاك رابط تعيين كلمة المرور على pospay_auth. بتحل محل مسار Better Auth الأصلي
  * (استهلاك، ثم hash، ثم كتابة في خطوات منفصلة من غير قفل) بمسار واحد ذري تحت قفل صف اليوزر.
  *
@@ -144,5 +203,6 @@ export function passwordResetQueries(db: Database): PasswordResetQueries {
   return {
     linkIsLive: (identifier, now) => linkIsLive(db, identifier, now),
     consumeLinkAndSetPassword: (input) => consumeLinkAndSetPassword(db, input),
+    issueOperatorResetLink: (input) => issueOperatorResetLink(db, input),
   };
 }
