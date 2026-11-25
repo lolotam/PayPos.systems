@@ -10,6 +10,7 @@ import { PermissionMembershipHistory } from './permission-membership-history';
 import { MembershipDiscountLimit } from './membership-discount-limit';
 import { PermissionMembershipHeading } from './permission-membership-heading';
 import { PermissionDetailState } from './permission-detail-state';
+import { EndMembershipSection } from './end-membership-section';
 
 type Props = {
   companyId: string;
@@ -64,6 +65,7 @@ export function MembershipPermissionsPanel({
           limitBps={data.discount_limit.limit_bps}
           disabled={!data.discount_limit_editing_enabled}
         />
+        <EndMembershipSection companyId={companyId} userId={userId} membership={data.membership} />
         <PermissionMembershipHistory
           data={data}
           branchTimeZones={branchTimeZones}

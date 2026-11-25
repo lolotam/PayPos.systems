@@ -133,6 +133,12 @@ export const ar: Catalog = {
     overrides: 'استثناءات الشخص',
     empty: 'لا توجد عضويات.',
     noDefaults: 'لم تُزرع صلاحيات افتراضية لهذا الدور.',
+    endMembership: 'إنهاء العضوية',
+    endMembershipTitle: 'تأكيد إنهاء العضوية',
+    endMembershipLead:
+      'سيتم إنهاء هذه العضوية فورًا وإلغاء وصول العضو إلى هذه الشركة دون التأثير على شركاته الأخرى.',
+    endMembershipConfirm: 'تأكيد الإنهاء',
+    endMembershipCancel: 'إلغاء',
     noOverrides: 'لا توجد استثناءات في هذه الصفحة.',
     readOnly: 'لا يمكنك تعديل صلاحيات هذه العضوية.',
     history: 'الاستثناءات المنتهية',

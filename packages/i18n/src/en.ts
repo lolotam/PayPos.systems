@@ -128,6 +128,12 @@ export const en = {
     overrides: 'Personal overrides',
     empty: 'No memberships found.',
     noDefaults: 'This role has no seeded defaults.',
+    endMembership: 'End membership',
+    endMembershipTitle: 'Confirm ending membership',
+    endMembershipLead:
+      'This membership will end immediately and the member will lose access to this company without affecting their other companies.',
+    endMembershipConfirm: 'Confirm end',
+    endMembershipCancel: 'Cancel',
     noOverrides: 'No overrides on this page.',
     readOnly: 'You cannot edit this membership’s permissions.',
     history: 'Ended overrides',
@@ -269,7 +275,8 @@ export const en = {
     MEMBER_EMAIL_NOT_INVITABLE: 'This email cannot be invited',
     MEMBER_INVITATION_NOT_REISSUEABLE:
       'A new link cannot be issued for this invitation; the member already set a password',
-    LAST_OWNER: 'The last owner of a company cannot be ended; the company must keep at least one owner',
+    LAST_OWNER:
+      'The last owner of a company cannot be ended; the company must keep at least one owner',
     ALERT_RULE_REVISION_CONFLICT: 'Another manager changed this alert rule. Reload before saving.',
     TRANSACTION_RETRY_REQUIRED:
       'The change conflicted with another transaction and was not saved. Please retry.',
