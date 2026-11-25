@@ -27,6 +27,7 @@ import { staffLoginAr } from './staff-login-catalog.js';
 import { permissionCodesAr } from './permission-codes-catalog.js';
 import { catalogServicesAr, catalogServiceErrorsAr } from './catalog-services.js';
 import { serviceImportAr } from './service-import.js';
+import { customerImportAr } from './customer-import.js';
 import { catalogServiceCategoriesAr } from './catalog-service-categories.js';
 import { catalogServiceCategoryBranchesAr } from './catalog-service-category-branches.js';
 import { adminAr } from './admin-catalog.js';
@@ -251,6 +252,7 @@ export const ar: Catalog = {
     ...employeeNumberErrorsAr,
     EMPLOYEE_CARD_CODE_UNAVAILABLE: 'لا يمكن استخدام كود الكارت هذا. اختر كودًا آخر.',
     ...employeeImportErrorsAr,
+    IMPORT_BUSINESS_COUNTRY_REQUIRED: 'حدّد دولة النشاط في الإعدادات أولاً قبل استيراد العملاء.',
     ...catalogServiceErrorsAr,
     ALERT_RULE_INVALID: 'قيمة القاعدة برّه المسموح لنوع التنبيه ده (المدة أو الأدوار أو القنوات).',
     ALERT_RULE_REVISION_CONFLICT: 'عدّل مدير آخر قاعدة التنبيه. أعد التحميل قبل الحفظ.',
@@ -341,6 +343,7 @@ export const ar: Catalog = {
   },
   catalogServices: catalogServicesAr,
   catalogServiceImport: serviceImportAr,
+  customerImport: customerImportAr,
   catalogServiceCategories: catalogServiceCategoriesAr,
   catalogServiceCategoryBranches: catalogServiceCategoryBranchesAr,
   catalogPackageTypes: catalogPackageTypesAr,

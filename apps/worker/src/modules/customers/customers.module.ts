@@ -47,6 +47,13 @@ import type { RatingRequestsSwitchPort } from './ports/rating-requests-switch.po
 import { ClaimRatingRequest } from './use-cases/claim-rating-request/claim-rating-request.ts';
 import { ClaimRatingRequests } from './use-cases/claim-rating-requests/claim-rating-requests.ts';
 import { ScheduleRatingRequest } from './use-cases/schedule-rating-request/schedule-rating-request.ts';
+import { startCustomerImportProcessor } from './jobs/customer-import.processor.ts';
+import { customerImportCommitTransactions } from './persistence/customer-import-commit.transactions.ts';
+import {
+  CommitCustomerImport,
+  RecoverCustomerImports,
+} from './use-cases/commit-customer-import/commit-customer-import.ts';
+import type { CustomerImportCommitClock } from './ports/customer-import-commit.port.ts';
 
 interface RatingScheduleDeps {
   ids: IdGenerator;
@@ -306,5 +313,27 @@ export function closedRatingClaimsLifecycle(): RatingClaimsLifecycle {
     ready: async () => undefined,
     close: async () => undefined,
     eventTypes: [],
+  };
+}
+
+/** يشغّل عامل تثبيت استيراد العملاء: يسلّم حدث الطلب إلى الطابور ويمسح الطلبات العالقة (073 D-4). */
+export function startCustomersImportWorker(
+  database: Pick<TenantWrappers, 'withTenant'>,
+  ids: IdGenerator,
+  options: { redisUrl: string; clock: CustomerImportCommitClock; prefix?: string },
+) {
+  const transactions = customerImportCommitTransactions(database, ids);
+  const processor = startCustomerImportProcessor(
+    new CommitCustomerImport(transactions, options.clock),
+    new RecoverCustomerImports(transactions, options.clock),
+    options.redisUrl,
+    options.prefix,
+  );
+  return {
+    eventTypes: ['CustomerImportCommitRequested'],
+    deliver: (event: ClaimedEvent, next: (event: ClaimedEvent) => Promise<DeliveryOutcome>) =>
+      event.eventType === 'CustomerImportCommitRequested' ? processor.deliver(event) : next(event),
+    ready: processor.ready,
+    close: processor.close,
   };
 }
