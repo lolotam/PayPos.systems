@@ -1,131 +1,37 @@
-import { employeeNameMatchKey } from '@pospay/domain';
-import { systemUuidV7 } from '@pospay/ids';
 import { sql } from 'drizzle-orm';
-import postgres from 'postgres';
-import { afterAll, beforeAll, expect, it } from 'vitest';
+import { expect, it } from 'vitest';
 
-import { createDatabase, type Database } from '@pospay/db';
-import {
-  COMMISSION_TENANT,
-  insertCommissionLine,
-  insertStatementExport,
-  seedCommissionStatementTenants,
-  walkCommissionStatement,
-  type CommissionTenant,
-  type FrozenLineOverrides,
-  type StatementExportOverrides,
-} from '../../../../../../packages/db/test/commission-statement-fixtures.ts';
-import {
-  createTestDatabase,
-  type TestDatabase,
-} from '../../../../../../packages/db/test/test-database.ts';
-import {
-  CommissionStatementExportRequestMissing,
-  CommissionStatementPaymentDataUnavailable,
-  createCommissionStatementExportReader,
-} from '../index.ts';
+import { CommissionStatementExportRequestMissing } from '../index.ts';
 import {
   commissionStatementExportRequestStatement,
   commissionStatementFrozenRowsStatement,
 } from '../queries/commission-statement-export.query.ts';
+import {
+  A,
+  B,
+  businessStatement,
+  ctx,
+  exportRequest,
+  ids,
+  planNodes,
+  statement,
+  transferredStatement,
+  useExportHarness,
+} from './commission-statement-export-harness.ts';
 
-let testDb: TestDatabase;
-let owner: postgres.Sql;
-let db: Database;
-let reader: ReturnType<typeof createCommissionStatementExportReader>;
-const ids = systemUuidV7();
-const { A, B } = COMMISSION_TENANT;
-
-beforeAll(async () => {
-  testDb = await createTestDatabase();
-  await seedCommissionStatementTenants(testDb.ownerUrl);
-  owner = postgres(testDb.ownerUrl, { max: 1, onnotice: () => undefined });
-  db = createDatabase({ url: testDb.appUrl, ids });
-  reader = createCommissionStatementExportReader(db);
-});
-
-afterAll(async () => {
-  await db?.close();
-  await owner?.end();
-  await testDb?.drop();
-});
-
-async function statement(
-  tenant: CommissionTenant,
-  period: string,
-  rows: readonly FrozenLineOverrides[] = [],
-): Promise<string> {
-  return walkCommissionStatement(db, {
-    tenant,
-    period,
-    ids,
-    afterApproved: async (tx, statementId) => {
-      for (const row of rows) await insertCommissionLine(tx, tenant, statementId, ids, row);
-    },
-  });
-}
-
-async function exportRequest(
-  tenant: CommissionTenant,
-  statementId: string,
-  period: string,
-  overrides: StatementExportOverrides = {},
-): Promise<string> {
-  const renderId = ids.newId();
-  await db.withTenant(tenant.company, (tx) =>
-    insertStatementExport(tx, { tenant, statementId, period, ids }, { ...overrides, renderId }),
-  );
-  return renderId;
-}
-
-async function addBranch(tenant: CommissionTenant): Promise<string> {
-  const branchId = ids.newId();
-  await owner`INSERT INTO branches(company_id,id,business_id,name_en)
-    VALUES(${tenant.company},${branchId},${tenant.business},'Hawally')`;
-  return branchId;
-}
-
-async function addEmployee(tenant: CommissionTenant, primaryBranchId: string): Promise<string> {
-  const employeeId = ids.newId();
-  const name = 'Other employee';
-  await owner`INSERT INTO employees(
-    company_id,id,business_id,primary_branch_id,name_en,name_en_key,role_code,hire_date,employee_number)
-    VALUES(${tenant.company},${employeeId},${tenant.business},${primaryBranchId},${name},
-      ${employeeNameMatchKey(name)},'staff','2026-01-01',3)`;
-  return employeeId;
-}
-
-async function businessStatement(period: string): Promise<string> {
-  return statement(A, period, [
-    { sourceRef: 'employee:a', attachedBranchIds: [A.branch] },
-    {
-      sourceRef: 'line:business',
-      kind: 'COMMISSION',
-      amount: '41.003',
-      attachedBranchIds: [A.branch],
-      serviceNameAr: 'قص شعر',
-      serviceNameEn: 'Haircut',
-      customerName: 'نورة محمد',
-    },
-    {
-      sourceRef: 'carry:business',
-      kind: 'CARRY_COMMISSION',
-      amount: '-3.000',
-      attachedBranchIds: [],
-    },
-  ]);
-}
+useExportHarness();
 
 it('BUSINESS returns every frozen row and its exact result shape', async () => {
   const period = '2026-10';
   const statementId = await businessStatement(period);
   const renderId = await exportRequest(A, statementId, period, { language: 'en' });
-  const result = await reader(A.company, renderId);
+  const result = await ctx.reader(A.company, renderId);
   expect(result.request).toEqual({
     statementId,
     businessId: A.business,
     period,
     statementStatus: 'APPROVED',
+    paidMethod: null,
     language: 'en',
     scope: 'BUSINESS',
     branchIds: null,
@@ -165,57 +71,6 @@ it('BUSINESS returns every frozen row and its exact result shape', async () => {
   });
 });
 
-interface TransferredStatement {
-  readonly statementId: string;
-  readonly hawally: string;
-  readonly otherEmployee: string;
-}
-
-async function transferredStatement(period: string): Promise<TransferredStatement> {
-  const hawally = await addBranch(A);
-  const otherEmployee = await addEmployee(A, A.branch);
-  const statementId = await statement(A, period, [
-    { sourceRef: 'employee:sara', attachedBranchIds: [A.branch, hawally] },
-    {
-      sourceRef: 'line:early',
-      kind: 'COMMISSION',
-      amount: '10.000',
-      sourceBranchId: hawally,
-      sourceBranchNameAr: 'حولي وقت الاعتماد',
-      sourceBranchNameEn: 'Hawally at approval',
-      sourceBusinessDate: '2026-10-10',
-      attachedBranchIds: [A.branch],
-      customerName: 'Early customer',
-    },
-    {
-      sourceRef: 'line:late',
-      kind: 'COMMISSION',
-      amount: '20.000',
-      sourceBranchId: hawally,
-      sourceBusinessDate: '2026-10-20',
-      attachedBranchIds: [hawally],
-      customerName: 'Late customer',
-    },
-    {
-      sourceRef: 'correction:early',
-      kind: 'CORRECTION',
-      amount: '5.000',
-      previousAmount: '10.000',
-      newAmount: '15.000',
-      sourceBranchNameAr: 'السالمية وقت الاعتماد',
-      sourceBranchNameEn: 'Salmiya at approval',
-      attachedBranchIds: [A.branch],
-    },
-    {
-      sourceRef: 'employee:other',
-      employeeId: otherEmployee,
-      employeeNumber: 3,
-      attachedBranchIds: [A.branch],
-    },
-  ]);
-  return { statementId, hawally, otherEmployee };
-}
-
 it('BRANCHES applies both saved sets to every row, including the transferred employee', async () => {
   const period = '2026-11';
   const { statementId, hawally, otherEmployee } = await transferredStatement(period);
@@ -224,7 +79,7 @@ it('BRANCHES applies both saved sets to every row, including the transferred emp
     branchIds: [A.branch],
     employeeIds: [A.employee, otherEmployee],
   });
-  const result = await reader(A.company, renderId);
+  const result = await ctx.reader(A.company, renderId);
   expect(result.rows.map((row) => row.sourceRef).sort()).toEqual([
     'correction:early',
     'employee:other',
@@ -267,7 +122,7 @@ it('BRANCHES excludes an empty-branch carry and still marks the employee partial
     branchIds: [A.branch],
     employeeIds: [A.employee],
   });
-  const result = await reader(A.company, renderId);
+  const result = await ctx.reader(A.company, renderId);
   expect(result.rows.map((row) => row.sourceRef)).toEqual(['employee:sara']);
   expect(result.rows[0]?.partial).toBe(true);
 });
@@ -276,20 +131,11 @@ it('a missing render id and another tenant render id both find no request', asyn
   const period = '2026-12';
   const statementId = await statement(A, period);
   const renderId = await exportRequest(A, statementId, period);
-  await expect(reader(A.company, ids.newId())).rejects.toThrow(
+  await expect(ctx.reader(A.company, ids.newId())).rejects.toThrow(
     CommissionStatementExportRequestMissing,
   );
-  await expect(reader(B.company, renderId)).rejects.toThrow(
+  await expect(ctx.reader(B.company, renderId)).rejects.toThrow(
     CommissionStatementExportRequestMissing,
-  );
-});
-
-it('a paid request fails explicitly while the 54-1 payment record is unavailable', async () => {
-  const period = '2027-02';
-  const statementId = await walkCommissionStatement(db, { tenant: A, period, ids, to: 'PAID' });
-  const renderId = await exportRequest(A, statementId, period);
-  await expect(reader(A.company, renderId)).rejects.toThrow(
-    CommissionStatementPaymentDataUnavailable,
   );
 });
 
@@ -299,7 +145,7 @@ it('the request and frozen-row reads use their indexes and keep their result sha
     { sourceRef: 'employee:index', attachedBranchIds: [A.branch] },
   ]);
   const renderId = await exportRequest(A, statementId, period);
-  const plans = await db.withTenant(A.company, async (tx) => {
+  const plans = await ctx.db.withTenant(A.company, async (tx) => {
     await tx.execute(sql`SET LOCAL enable_seqscan=off`);
     const requestPlan = await tx.execute(
       sql`EXPLAIN (ANALYZE, FORMAT JSON) ${commissionStatementExportRequestStatement(
@@ -363,11 +209,4 @@ function expectLinesIndexScan(plan: unknown): void {
       String(node['Index Name'] ?? '').startsWith('commission_statement_lines_'),
     ),
   ).toBe(true);
-}
-
-function planNodes(value: unknown): Record<string, unknown>[] {
-  if (value === null || typeof value !== 'object') return [];
-  if (Array.isArray(value)) return value.flatMap(planNodes);
-  const node = value as Record<string, unknown>;
-  return [node, ...Object.values(node).flatMap(planNodes)];
 }

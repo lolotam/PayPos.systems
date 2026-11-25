@@ -21,7 +21,10 @@ type RequestRow = {
   branch_ids: string[] | null;
   employee_ids: string[] | null;
   statement_status: 'APPROVED' | 'PAID';
+  paid_method: 'WITH_SALARY' | 'BANK_TRANSFER' | 'CASH' | null;
 };
+
+type PaymentRow = { employee_id: string; paid_amount: string };
 
 type FrozenRow = {
   employee_id: string;
@@ -57,6 +60,11 @@ export interface CommissionStatementRowsFilter {
 export interface CommissionStatementExportStatements {
   readonly request: (companyId: string, renderId: string) => SQL;
   readonly rows: (filter: CommissionStatementRowsFilter) => SQL;
+  readonly payments: (filter: {
+    readonly companyId: string;
+    readonly businessId: string;
+    readonly statementId: string;
+  }) => SQL;
 }
 
 /**
@@ -78,6 +86,7 @@ function request(row: RequestRow): CommissionStatementExportRequest {
     businessId: row.business_id,
     period: row.period,
     statementStatus: row.statement_status,
+    paidMethod: row.paid_method,
     language: row.language === 'en' ? 'en' : 'ar',
     scope: commissionStatementExportScope(row.scope),
     branchIds: row.branch_ids,
@@ -120,6 +129,24 @@ async function readRequest(
   return row === undefined ? null : request(row);
 }
 
+/**
+ * صفوف الصرف المخزّنة لكشف مدفوع بـ CASH، في نفس معاملة القراءة؛ كشف غير مدفوع أو صرف غير كاش بيرجّع null.
+ * التصفية لموظفات الشهر الكامل بس (CS-Q23) وكشف النقص بيتموا في الـ use case.
+ */
+async function readPaidCash(
+  tx: Tx,
+  statements: CommissionStatementExportStatements,
+  companyId: string,
+  exportRequest: CommissionStatementExportRequest,
+): Promise<CommissionStatementExportReaderData['paidCash']> {
+  if (exportRequest.statementStatus !== 'PAID' || exportRequest.paidMethod !== 'CASH') return null;
+  const stored = await tx.execute<PaymentRow>(statements.payments({ companyId, ...exportRequest }));
+  return stored.map((payment) => ({
+    employeeId: payment.employee_id,
+    amount: parseMoney(payment.paid_amount),
+  }));
+}
+
 /** قارئ التصدير: معاملة قراءة واحدة للطلب وصفوفه المجمّدة، ثم تُقفل قبل بناء الملف. */
 export function commissionStatementExportTransactions(
   database: Pick<TenantWrappers, 'withTenant'>,
@@ -138,7 +165,10 @@ export function commissionStatementExportTransactions(
           statements.rows({ companyId, ...exportRequest }),
         );
         signal?.throwIfAborted();
-        return { request: exportRequest, rows: rows(records), paidCash: null };
+        const frozen = rows(records);
+        const paidCash = await readPaidCash(tx, statements, companyId, exportRequest);
+        signal?.throwIfAborted();
+        return { request: exportRequest, rows: frozen, paidCash };
       });
     },
   };

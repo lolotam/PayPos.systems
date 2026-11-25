@@ -17,6 +17,7 @@ import {
   groupRows,
   statementActions,
   statusOf,
+  switchedOff,
 } from '../statement-display';
 import { approvalDay, dayBefore, defaultStatementPeriod } from '../statement-period';
 
@@ -29,6 +30,7 @@ it('offers generate and review on a clean draft, and review stays closed while a
     returnToDraft: 'hidden',
     approve: 'hidden',
     pay: 'hidden',
+    export: 'hidden',
   });
   const blocked = businessView({ employees: [statementEmployee({ issues: [PLAN_ISSUE] })] });
   expect(statementActions(blocked).review).toBe('disabled');
@@ -41,6 +43,7 @@ it('offers only generate before the first generation, and refresh, return and ap
     returnToDraft: 'hidden',
     approve: 'hidden',
     pay: 'hidden',
+    export: 'hidden',
   });
   expect(statementActions(businessView({ status: 'REVIEWED' }))).toEqual({
     generate: 'enabled',
@@ -48,26 +51,76 @@ it('offers only generate before the first generation, and refresh, return and ap
     returnToDraft: 'enabled',
     approve: 'enabled',
     pay: 'hidden',
+    export: 'hidden',
   });
 });
 
-const NO_ACTIONS = { generate: 'hidden', review: 'hidden', returnToDraft: 'hidden', approve: 'hidden', pay: 'hidden' };
+const NO_ACTIONS = {
+  generate: 'hidden',
+  review: 'hidden',
+  returnToDraft: 'hidden',
+  approve: 'hidden',
+  pay: 'hidden',
+  export: 'hidden',
+};
 
-it('hides every write action from a branch reader and from a paid month', () => {
+it('hides every action from a branch reader of an open month', () => {
   expect(statementActions(branchView())).toEqual(NO_ACTIONS);
-  expect(statementActions(closedBranchView())).toEqual(NO_ACTIONS);
-  expect(statementActions(closedView({ status: 'PAID' }))).toEqual(NO_ACTIONS);
 });
 
-it('offers only the payment on an approved month for a whole-business reader', () => {
-  expect(statementActions(closedView())).toEqual({ ...NO_ACTIONS, pay: 'enabled' });
+it('offers only the export on a closed month for a branch reader, approved or paid', () => {
+  expect(statementActions(closedBranchView())).toEqual({ ...NO_ACTIONS, export: 'enabled' });
+  expect(statementActions(closedBranchView({ status: 'PAID' }))).toEqual({
+    ...NO_ACTIONS,
+    export: 'enabled',
+  });
+});
+
+it('offers payment and export on an approved month for a whole-business reader', () => {
+  expect(statementActions(closedView())).toEqual({
+    ...NO_ACTIONS,
+    pay: 'enabled',
+    export: 'enabled',
+  });
+});
+
+it('offers only the export on a paid month for a whole-business reader', () => {
+  expect(statementActions(closedView({ status: 'PAID' }))).toEqual({
+    ...NO_ACTIONS,
+    export: 'enabled',
+  });
+});
+
+it('hides the export from an open month, whatever its status', () => {
+  for (const status of ['DRAFT', 'REVIEWED'] as const) {
+    expect(statementActions(businessView({ status })).export).toBe('hidden');
+  }
+  expect(statementActions(businessView({ generated: false })).export).toBe('hidden');
+});
+
+it('switches an enabled export off while the reading is stale, and keeps a hidden one hidden', () => {
+  expect(switchedOff(statementActions(closedView())).export).toBe('disabled');
+  expect(switchedOff(statementActions(businessView())).export).toBe('hidden');
 });
 
 it('closes approve on a reviewed statement that changed since the review or has an issue, keeping return open', () => {
-  const changed = businessView({ status: 'REVIEWED', changed_since_review: true, change_cause: 'STATEMENT' });
-  expect(statementActions(changed)).toMatchObject({ approve: 'disabled', returnToDraft: 'enabled' });
-  const blocked = businessView({ status: 'REVIEWED', employees: [statementEmployee({ issues: [PLAN_ISSUE] })] });
-  expect(statementActions(blocked)).toMatchObject({ approve: 'disabled', returnToDraft: 'enabled' });
+  const changed = businessView({
+    status: 'REVIEWED',
+    changed_since_review: true,
+    change_cause: 'STATEMENT',
+  });
+  expect(statementActions(changed)).toMatchObject({
+    approve: 'disabled',
+    returnToDraft: 'enabled',
+  });
+  const blocked = businessView({
+    status: 'REVIEWED',
+    employees: [statementEmployee({ issues: [PLAN_ISSUE] })],
+  });
+  expect(statementActions(blocked)).toMatchObject({
+    approve: 'disabled',
+    returnToDraft: 'enabled',
+  });
 });
 
 it('names a closed month by its frozen status, whatever else the reading carries', () => {
@@ -109,7 +162,11 @@ it('totals the corrections section from commission and card-tip corrections only
 
 it('dates a correction by its original day, falling back to the day it was posted', () => {
   expect(correctionDate(correctionRow('c', '-1.000', '2.000', '1.000'))).toBe('2026-09-20');
-  expect(correctionDate(statementRow('c', 'CORRECTION', '-1.000', { source_business_date: '2026-10-03' }))).toBe('2026-10-03');
+  expect(
+    correctionDate(
+      statementRow('c', 'CORRECTION', '-1.000', { source_business_date: '2026-10-03' }),
+    ),
+  ).toBe('2026-10-03');
   expect(correctionDate(statementRow('c', 'CORRECTION', '-1.000'))).toBeNull();
 });
 
