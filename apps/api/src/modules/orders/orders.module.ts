@@ -4,7 +4,6 @@ import { serviceSessionErrors } from '@pospay/i18n';
 import { systemClock } from '../../shared/adapters/system-clock.ts';
 import { SelectedCompanyGuard } from '../../shared/selected-company.guard.ts';
 import { DISCOUNT_APPROVER_VERIFIER } from '../../shared/discount-approver-pin.ts';
-import { PackageImportPreviewController } from './http/package-import-preview.controller.ts';
 import { PackageExtensionController } from './http/package-extension.controller.ts';
 import { PackageRefundController } from './http/package-refund.controller.ts';
 import { SessionRecoveryController } from './http/session-recovery.controller.ts';
@@ -17,7 +16,6 @@ import { OwnWorkController, OWN_WORK_CLOCK } from './http/own-work.controller.ts
 import { PackageSalesController } from './http/package-sales.controller.ts';
 import { PackageSaleContextController } from './http/package-sale-context.controller.ts';
 import { CustomerPackagesController } from './http/customer-packages.controller.ts';
-import { RequestPackageImportPreviewUseCase } from './use-cases/request-package-import-preview/request-package-import-preview.usecase.ts';
 import { ExtendPackageUseCase } from './use-cases/extend-package/extend-package.usecase.ts';
 import { RefundPackageUseCase } from './use-cases/refund-package/refund-package.usecase.ts';
 import { AcceptPackageSaleUseCase } from './use-cases/accept-package-sale/accept-package-sale.usecase.ts';
@@ -51,7 +49,10 @@ import { PackageSaleContextQueryHandler } from './queries/package-sale-context.q
 import { packageSaleContextValue } from './queries/package-sale-context.query.ts';
 import { OWN_WORK_READS } from './queries/own-work-context.ts';
 import { sessionTime } from './domain/session-time.ts';
-import { createPackageImportRequestTransactions } from './persistence/package-import-request.transactions.ts';
+import {
+  packageImportControllers,
+  packageImportProviders,
+} from './orders-package-import-providers.ts';
 import { createPackageExtensionTransactions } from './persistence/package-extension.transactions.ts';
 import { createPackageRefundTransactions } from './persistence/package-refund.transactions.ts';
 import { createPackageSaleRequestTransactions } from './persistence/package-sale-request.transactions.ts';
@@ -141,13 +142,12 @@ import {
   recordTipsValue,
   refundPackageValue,
   requestDiscountValue,
-  requestPackageImportValue,
   valueProvider as value,
   type OrdersWrites,
 } from './orders-provider-factories.ts';
 
 export const ordersControllers: Type[] = [
-  PackageImportPreviewController,
+  ...packageImportControllers,
   PackageExtensionController,
   PackageRefundController,
   SessionRecoveryController,
@@ -261,14 +261,7 @@ function ordersPackageCommandProviders(
   clock: Clock,
 ): Provider[] {
   return [
-    fromDb(
-      RequestPackageImportPreviewUseCase,
-      database,
-      requestPackageImportValue,
-      ids,
-      clock,
-      createPackageImportRequestTransactions,
-    ),
+    ...packageImportProviders(database, ids, clock),
     fromDb(
       ExtendPackageUseCase,
       database,

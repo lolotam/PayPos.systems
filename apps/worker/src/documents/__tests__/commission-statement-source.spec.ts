@@ -20,6 +20,7 @@ function data(language: 'ar' | 'en'): CommissionStatementExportData {
       businessId: 'business-1',
       period: '2026-10',
       statementStatus: 'APPROVED',
+      paidMethod: null,
       language,
       scope: 'BUSINESS',
       branchIds: null,

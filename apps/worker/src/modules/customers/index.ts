@@ -5,6 +5,7 @@ export {
   createRatingBootstrap,
   createRatingClaimsRuntime,
   createRatingSchedulingConsumer,
+  createRatingSentConsumer,
   performerLabelFormatter,
 } from './customers.module.ts';
 export type {

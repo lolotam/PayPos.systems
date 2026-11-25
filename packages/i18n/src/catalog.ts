@@ -18,6 +18,7 @@ import {
 } from './commission-statement-screen-catalog.js';
 import { en } from './en.js';
 import { nativeShellAr, nativeShellEn } from './native-shell-catalog.js';
+import { packageImportAr, packageImportEn } from './package-import-catalog.js';
 import { packageSaleAr, packageSaleEn } from './package-sale-catalog.js';
 import { customerPackagesAr, customerPackagesEn } from './customer-packages-catalog.js';
 import { importedRefundsAr, importedRefundsEn } from './imported-refunds-catalog.js';
@@ -67,6 +68,7 @@ type RegisteredCatalog = Catalog & {
   readonly staffPush: Record<keyof typeof staffPushEn, string>;
   readonly nativeShell: Record<keyof typeof nativeShellEn, string>;
   readonly packageSale: Record<keyof typeof packageSaleEn, string>;
+  readonly packageImport: Record<keyof typeof packageImportEn, string>;
   readonly ratingRequest: Record<keyof typeof ratingRequestEn, string>;
   readonly ratings: Record<keyof typeof ratingsEn, string>;
   readonly customerPackages: Record<keyof typeof customerPackagesEn, string>;
@@ -107,6 +109,7 @@ const CATALOGS: Record<Locale, RegisteredCatalog> = {
     staffPush: staffPushAr,
     nativeShell: nativeShellAr,
     packageSale: packageSaleAr,
+    packageImport: packageImportAr,
     ratingRequest: ratingRequestAr,
     ratings: ratingsAr,
     customerPackages: customerPackagesAr,
@@ -137,6 +140,7 @@ const CATALOGS: Record<Locale, RegisteredCatalog> = {
     staffPush: staffPushEn,
     nativeShell: nativeShellEn,
     packageSale: packageSaleEn,
+    packageImport: packageImportEn,
     ratingRequest: ratingRequestEn,
     ratings: ratingsEn,
     customerPackages: customerPackagesEn,

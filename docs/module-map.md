@@ -139,6 +139,8 @@ The consumer owns the interface. The adapter lives in the consumer's `persistenc
 | `staff` | `ScheduleScope`, `ScheduleReadAccess` | `tenancy` | branch ownership and effective timezone through describeWorkspaces, using PR 19 fallback (ADR-0024) |
 | `staff` | `EmployeeAppLinkNames` (read-side interface beside the query) | `tenancy` | the business name and id for the employee-app link screen through describeWorkspaces; access is the route's `manage:employees:business` guard (spec 069, EL-Q3) |
 | `orders` | `PackageImportRequestScope.fileFacts` | `files` | READY workbook facts on the request transaction; no bytes/parser in acceptance (ADR-0034, 47-1a) |
+| `orders` | `PackageImportTemplateScope.services` | `catalog` | `readPackageImportTemplateServices` returns the open services' names (`closed_at IS NULL`, SI-Q28) on the template transaction, capped at one over the template capacity; names only, no ids or prices (spec 058, 47-2d) |
+| `orders` | `PackageImportCommitTransactions.runCommit` | `identity` | `readPackageImportCommitAccess` locks company and caller memberships, checks `import:packages:business` and the orders feature, and returns the one deterministic covering membership frozen as `commit_membership_id` (spec 058, 47-2d) |
 | `orders` | `CustomerLookupPort` | `customers` | company-scoped customer existence, name and already-masked phone; reception first finds/creates the customer through customers' own endpoint (ADR-0041) |
 | `orders` | `PerformerCheckPort` | `staff` | dated employee/branch eligibility, persisted user link and attendance/approved-leave warnings at occurredAt; staff owns the working-day calculation (ADR-0041) |
 | `orders` | `DiscountLimitPort` | `settings` | selected recorder's fresh effective limit, including explicit zero/unlimited/not-configured (ADR-0041); spec 057 reuses it for the selected approver membership's limit, read after the proposal locks (ADR-0051, 057-6) |
@@ -300,7 +302,7 @@ The producer appends to the outbox inside its own transaction and knows **none**
 | `DeviceRegistered` / `DeviceRevoked`                                        | `identity`      | `realtime`, `notifications`                                                                       |
 | `MemberInvited` | `identity` | None in Phase 1; known to the dispatcher. Ids and the invited role/scope only — no email, no link, no token (spec 076 G1) |
 | `GatewayAccountConnected`                                                   | `payments`      | `notifications`, `platform`                                                                       |
-| `NotificationDelivered` / `NotificationFailed`                              | `notifications` | `reporting`                                                                                       |
+| `NotificationDelivered` / `NotificationFailed`                              | `notifications` | `reporting`; `NotificationDelivered` also worker `customers` (`customers.rating-sent-v1`: `rating_request` over WhatsApp with status `SENT` moves the request `SENDING → SENT`, spec 060 D-B8, 59b-3; every other template, channel and status is ignored) |
 | `NotificationSendAuthorized` (internal, ADR-0018)                           | `notifications` | worker transport publisher → `notifications-send` BullMQ queue, outside database-effect consumers |
 | `PushSendAuthorized` (internal, ADR-0052)                                   | `notifications` | worker transport publisher → `push-send` BullMQ queue (id-only job), outside database-effect consumers; routed only when the worker's push readiness is on (ADR-0052) |
 | `DocumentReady`                                                             | `reporting`     | `notifications`, `realtime`                                                                       |
@@ -315,7 +317,7 @@ The producer appends to the outbox inside its own transaction and knows **none**
 | `ServiceCategoryClosingRequested` | `catalog` (emitted from 32b-cat-2-worker sub-PR 3, in the accept transaction of a close or reopen above 300 services) | worker `catalog` `service-category-closing` processor (sub-PR 2); id-only `{ closing_id }`, company in the envelope, transported after the outbox claim commits (ADR-0018); no business consumer |
 | `ImportCommitted` | `staff`, `orders` (package commit summary; transport activation deferred to 47-2c/d) | None in Phase 1; known to the dispatcher (ADR-0034) |
 | `PackageSaleRequested` | `orders` acceptance, in the same transaction as the `pending` request | worker `orders` `package-sale` processor; id-only `{ sale_request_id }`, envelope `aggregateType='package_sale_request'`, `aggregateId` = request id and company in the envelope (ADR-0034 addendum 2026-11-11, spec 058 FR-018) |
-| `PackageImportCommitRequested` | `orders` commit request (47-2d; **not emitted yet**), in the same transaction that sets the package preview `commit_requested` | worker `orders`: registers the per-company `package-import-recovery` sweep, then transports `package-import-commit` after the outbox claim commits; id-only `{ preview_id }`, envelope `aggregateType='import_preview'`, `aggregateId` = preview id (ADR-0034 addendum 2026-11-20, ADR-0018, spec 058 row 47-2c) |
+| `PackageImportCommitRequested` | `orders` commit request (47-2d; emitted by `POST …/packages/import/commits`), in the same transaction that sets the package preview `commit_requested` | worker `orders`: registers the per-company `package-import-recovery` sweep, then transports `package-import-commit` after the outbox claim commits; id-only `{ preview_id }`, envelope `aggregateType='import_preview'`, `aggregateId` = preview id (ADR-0034 addendum 2026-11-20, ADR-0018, spec 058 row 47-2c) |
 | `BusinessLogoChanged` | `settings` (`set-business-logo`, 27h-4) | worker `files` retire consumer (27h-3, ADR-0046) |
 | `CommissionPeriodRepairSaved` | `commissions` (`repair-commission-period`, 55-2f), in the same transaction as the repair version, the corrections, the block update and the audit entry | None; known to the dispatcher. Ids and the block's outcome only (no plan content, amounts or personal data); not one of the six counted types of ADR-0012 and never re-runs a correction (spec 059 FR-047). Deploy the worker before the API: an older worker retries an unknown type with backoff and parks it (`apps/worker/src/outbox/deliver.ts`) |
 | `CompanyCreated` | `identity` | `staff` (worker seeds the recommended document types, ADR-0031, and registers the not-clocked-in schedule, ADR-0037); worker `commissions` (`commissions.reminder-schedule`) registers the per-company commission-statement reminder schedule, ADR-0061 §2 and FR-053 |
@@ -367,7 +369,7 @@ consumer is worker orders in 47-1b. **No runtime consumer/known-type registratio
 in 47-1a**, and its request controller is unregistered in production. Registration and
 production producer activation land together in 47-1b. This is preview work only;
 The financial commit landed in 47-2b and its worker transport and recovery sweep in 47-2c
-(`PackageImportCommitRequested`, row above); the API producer is 47-2d. See ADR-0034's
+(`PackageImportCommitRequested`, row above); the API producer landed in 47-2d. See ADR-0034's
 2026-11-05 request addendum, its 2026-11-20 addendum and spec 058.
 
 ## 5. The `reporting` exception
@@ -485,6 +487,9 @@ reads:
   - staff -> tenancy.activeBusinessTimeZone @ apps/api/src/modules/staff/persistence/own-attendance-context.adapter.ts
   - orders -> files.documentFileFacts @ apps/api/src/modules/orders/persistence/package-import-request.transactions.ts
   - orders -> identity.readPackageImportAccess @ apps/api/src/modules/orders/persistence/package-import-request.transactions.ts
+  - orders -> identity.readPackageImportCommitAccess @ apps/api/src/modules/orders/persistence/package-import-commit.transactions.ts
+  - orders -> catalog.readPackageImportTemplateServices @ apps/api/src/modules/orders/persistence/package-import-template.transactions.ts
+  - orders -> identity.readPackageImportAccess @ apps/api/src/modules/orders/persistence/package-import-template.transactions.ts
   - orders -> staff.readSessionPerformerOptions @ apps/api/src/modules/orders/persistence/session-performer-options.adapter.ts
   - orders -> catalog.readSessionServiceOptions @ apps/api/src/modules/orders/persistence/session-service-options.adapter.ts
   - orders -> identity.readServiceSessionAccess @ apps/api/src/modules/orders/persistence/recording-context.adapter.ts

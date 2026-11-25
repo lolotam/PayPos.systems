@@ -3,8 +3,8 @@ import { Redis } from 'ioredis';
 import { z } from 'zod';
 import {
   packageImportPreviewJob,
+  packageImportPreviewFailureCode,
   packageImportPreviewRequested,
-  packageImportPreviewStatus,
 } from '@pospay/contracts';
 import type { ClaimedEvent, DeliveryOutcome } from '@pospay/db';
 import {
@@ -16,7 +16,7 @@ export const PACKAGE_PREVIEW_QUEUE = 'package-import-preview';
 const FINALIZING_FAILURE = 'finalizing-preview-failure';
 const failureProgress = z.strictObject({
   stage: z.literal(FINALIZING_FAILURE),
-  code: packageImportPreviewStatus.options[2].shape.error_code,
+  code: packageImportPreviewFailureCode,
 });
 type Failure = z.infer<typeof failureProgress>;
 

@@ -1,6 +1,7 @@
 import { WHATSAPP_PROVIDER_ID } from './identifier-patterns.ts';
 import type { SafeParameter, TemplateDefinition } from './templates/definition.ts';
 import { templateComponents, validateParameters } from './templates/definition.ts';
+import { ratingRequest } from './templates/rating-request.ts';
 import { staffOtp } from './templates/staff-otp.ts';
 
 export const GRAPH_API_VERSION = 'v23.0';
@@ -44,7 +45,7 @@ export type TemplatePreparation =
     };
 
 export function createTemplateRegistry(
-  definitions: readonly TemplateDefinition[] = [staffOtp],
+  definitions: readonly TemplateDefinition[] = [staffOtp, ratingRequest],
   approvedNames: Readonly<Record<string, Readonly<Partial<Record<'ar' | 'en', string>>>>> = {},
 ) {
   return {
@@ -62,7 +63,7 @@ export function createTemplateRegistry(
       // TODO(spec): every real approved template name must be supplied after owner/Meta approval.
       if (name === undefined || !/^[a-z][a-z0-9_]{0,511}$/.test(name))
         return { valid: false, code: 'CONFIG_INVALID' };
-      return { valid: true, name, components: templateComponents(definition, parameters) };
+      return { valid: true, name, components: templateComponents(definition, parameters, locale) };
     },
   };
 }

@@ -18,6 +18,7 @@ export { FakeChannel } from './adapters/fake.channel.ts';
 export type { FakeOutcome, FakeChannelHooks } from './adapters/fake.channel.ts';
 export { WhatsAppChannel } from './adapters/whatsapp.channel.ts';
 export { staffOtp } from './templates/staff-otp.ts';
+export { ratingRequest } from './templates/rating-request.ts';
 export { genericNotice, validInAppTemplate } from './templates/generic-notice.ts';
 export { lateServiceSession } from './templates/late-service-session.ts';
 export { serviceLinePriceEdited } from './templates/service-line-price-edited.ts';

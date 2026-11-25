@@ -1,7 +1,12 @@
 import postgres from 'postgres';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
-import { eventId, pendingCountHarness, type Tx } from '../../test/statement-pending-fixtures.ts';
+import {
+  closePendingCountTest,
+  eventId,
+  pendingCountHarness,
+  type Tx,
+} from '../../test/statement-pending-fixtures.ts';
 import { createTestDatabase, type TestDatabase } from '../../test/test-database.ts';
 import { seedTwoTenants, TENANT } from '../../test/tenancy-fixtures.ts';
 
@@ -23,11 +28,7 @@ beforeAll(async () => {
   app = postgres(test.appUrl, { max: 1, onnotice: () => undefined });
 });
 
-afterAll(async () => {
-  await app.end();
-  await owner.end();
-  await test.drop();
-});
+afterAll(async () => closePendingCountTest(test, owner, app));
 
 interface OverlapResult {
   before: string;

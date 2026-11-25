@@ -9,6 +9,12 @@ export const RATING_REQUEST_TEMPLATE_KEY = 'rating_request';
 /** مراجعة القالب المرسلة مع الحدث؛ أي تغيير في النص بيبقى مراجعة جديدة. */
 export const RATING_REQUEST_TEMPLATE_REVISION = 1;
 
+/** اسم المعامل المخزَّن الذي يحمل إصدار مفتاح اشتقاق الرابط (رقم فقط) من الحدث إلى لحظة الإرسال؛ الرابط نفسه لا يُخزَّن. */
+export const RATING_TOKEN_KEY_VERSION_PARAMETER = 'token_key_version';
+
+/** أكبر إصدار مفتاح يقبله مشتق الرابط؛ نفس حد packages/auth (smallint). */
+export const RATING_TOKEN_KEY_VERSION_MAX = 32767;
+
 /** رقم العميل بصيغة E.164، بنفس نمط قيد قاعدة البيانات `customers_phone_e164`. */
 const customerPhoneE164 = z.string().regex(/^\+[1-9]\d{1,14}$/);
 

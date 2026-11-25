@@ -22,7 +22,11 @@ export { lockMembershipDiscountSubject } from './persistence/membership-discount
 export { lockEmployeeCreationAccess } from './persistence/employee-creation-access.ts';
 export { lockEmployeeManagementAccess } from './persistence/employee-creation-access.ts';
 export { readEmployeeManagementAccess } from './persistence/employee-creation-access.ts';
-export { readPackageImportAccess } from './persistence/package-import-access.ts';
+export {
+  readPackageImportAccess,
+  readPackageImportCommitAccess,
+  type PackageImportCommitAccess,
+} from './persistence/package-import-access.ts';
 export { lockPackageExtensionAccess } from './persistence/package-extension-access.ts';
 export { readPackageExtensionAccess } from './persistence/package-extension-access.ts';
 export { lockPackageSaleAccess } from './persistence/package-sale-access.ts';

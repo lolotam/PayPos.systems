@@ -25,6 +25,8 @@ import { Worker, type Queue } from 'bullmq';
 
 import type { Clock } from './ports/clock.port.ts';
 import type { IdGenerator } from './ports/id-generator.port.ts';
+import type { RatingTokenSender } from './ports/channel.port.ts';
+import { resolveRatingPageOrigin } from './domain/rating-page-origin.ts';
 import type { SendAdmission } from './ports/send-admission.port.ts';
 import type { SuppressionGate } from './ports/suppression-gate.port.ts';
 import { createAttemptsRepository } from './persistence/drizzle-attempts.repository.ts';
@@ -34,7 +36,7 @@ import { createPushAttemptsRepository } from './persistence/drizzle-push-attempt
 import { StoreInAppNotification } from './use-cases/store-in-app-notification/store-in-app-notification.ts';
 import { StorePushAttempts } from './use-cases/store-push-attempts/store-push-attempts.ts';
 import { createSuppressionGate } from './persistence/drizzle-suppression.gate.ts';
-import { createChannelAdapter } from './persistence/channel.adapter.ts';
+import { createChannelAdapter, type RatingLinkOptions } from './persistence/channel.adapter.ts';
 import {
   NOTIFICATION_SOURCE_EVENTS,
   notificationRequestConsumer,
@@ -72,6 +74,10 @@ export interface NotificationModuleOptions {
   readonly email?: ReturnType<typeof createEmailModule>;
   /** جاهزية الدفع في العامل: هي اللي بتفعّل كتابة محاولات الدفع (ADR-0052 قرار 2). */
   readonly push?: { readonly enabled: boolean };
+  /** مشتق رابط التقييم في الذاكرة؛ null أو غيابه يقفل إرسال طلب التقييم بـ CONFIG_INVALID. */
+  readonly ratingToken?: RatingTokenSender | null;
+  /** أصل صفحة التقييم (RATING_PAGE_ORIGIN)؛ https صريح في الإنتاج أو الوضع الحي. */
+  readonly ratingPageOrigin?: string | undefined;
 }
 
 export function createNotificationModule(options: NotificationModuleOptions) {
@@ -83,7 +89,7 @@ export function createNotificationModule(options: NotificationModuleOptions) {
   const identity = createPhoneIdentity(configuration.hashKey, configuration.hashKeyId);
   const registry = options.registry ?? createTemplateRegistry();
   const channel = options.channel ?? bindChannel(configuration, clock);
-  const adapter = createChannelAdapter(channel, registry);
+  const adapter = createChannelAdapter(channel, registry, ratingLinkOptions(options));
   const email =
     options.email ??
     createEmailModule({
@@ -134,6 +140,17 @@ export function createNotificationModule(options: NotificationModuleOptions) {
       // حدث إذن الدفع بيتكتب مع كل محاولة معلّقة، والـ worker بيوجّهه لطابور push-send لما الدفع يكون جاهز.
       'PushSendAuthorized',
     ],
+  };
+}
+
+/** مدخلات رابط التقييم: المشتق في الذاكرة والأصل المتحقق منه؛ الأصل https صريح في الإنتاج أو الوضع الحي. */
+function ratingLinkOptions(options: NotificationModuleOptions): RatingLinkOptions {
+  return {
+    token: options.ratingToken ?? null,
+    origin: resolveRatingPageOrigin(
+      options.ratingPageOrigin,
+      options.production || options.configuration.mode === 'live',
+    ),
   };
 }
 

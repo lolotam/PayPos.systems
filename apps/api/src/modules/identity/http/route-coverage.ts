@@ -14,7 +14,12 @@ import {
 
 const MARKERS = [PUBLIC_ROUTE, AUTHENTICATED_ONLY, REQUIRE_ACCESS, REQUIRE_PLATFORM];
 
-const PACKAGE_PREVIEW_METHODS = new Set(['PackageImportPreviewController.request', 'PackageImportPreviewController.status']);
+const PACKAGE_PREVIEW_METHODS = new Set([
+  'PackageImportPreviewController.request',
+  'PackageImportPreviewController.status',
+  'PackageImportCommitController.template',
+  'PackageImportCommitController.commit',
+]);
 
 // Every route handler Nest will mount, inherited ones included: walk the prototype chain the way Nest's metadata
 // scanner does, keeping the most-derived definition of each name.
@@ -66,10 +71,17 @@ export function assertEveryRouteGuarded(controllers: readonly Type<unknown>[]): 
         );
       }
       if (PACKAGE_PREVIEW_METHODS.has(`${controller.name}.${name}`)) {
-        const access = Reflect.getMetadata(REQUIRE_ACCESS, handler as object) as RequiredAccess | undefined;
-        if (access?.permissions.length !== 1 || access.permissions[0] !== 'import:packages:business'
-          || access.target.business !== 'businessId' || Reflect.getMetadata(REQUIRES_FEATURE, handler as object) !== 'orders') {
-          problems.push(`${controller.name}.${name} (package preview permission/feature declaration)`);
+        const access = Reflect.getMetadata(REQUIRE_ACCESS, handler as object) as
+          RequiredAccess | undefined;
+        if (
+          access?.permissions.length !== 1 ||
+          access.permissions[0] !== 'import:packages:business' ||
+          access.target.business !== 'businessId' ||
+          Reflect.getMetadata(REQUIRES_FEATURE, handler as object) !== 'orders'
+        ) {
+          problems.push(
+            `${controller.name}.${name} (package preview permission/feature declaration)`,
+          );
         }
       }
     }

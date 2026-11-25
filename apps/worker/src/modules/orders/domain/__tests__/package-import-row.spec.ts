@@ -1,8 +1,17 @@
 import { expect, it } from 'vitest';
-import { parsePackageImportRow, indexPackageImportServices } from '../package-import-row.ts';
+import { PACKAGE_IMPORT_HEADERS as contractPackageImportHeaders } from '@pospay/contracts';
+import {
+  PACKAGE_IMPORT_HEADERS,
+  parsePackageImportRow,
+  indexPackageImportServices,
+} from '../package-import-row.ts';
 import { allocatePackagePrice, validatePackageDefinition } from '@pospay/domain';
 import { createPackageSlots } from '@pospay/domain';
 import { INVALID_CELL } from '../package-import-cells.ts';
+
+it('keeps worker headers identical to @pospay/contracts PACKAGE_IMPORT_HEADERS', () => {
+  expect(PACKAGE_IMPORT_HEADERS).toEqual([...contractPackageImportHeaders]);
+});
 
 const services = [
   { id: 'a', name_en: 'Hair', name_ar: 'شعر', price: '99.000' },
