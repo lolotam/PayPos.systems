@@ -188,6 +188,40 @@ it('P1-3 real employee edit overlaps grant at a barrier without lock inversion',
   expect(await pending).toMatchObject({ kind: 'granted' });
 });
 
+it('AC-ACT-12 a pending grant refuses the employee move and still completes', async () => {
+  const employeeId = await addEmployee(f, 'Pending branch move', f.salmiya, 307);
+  const input = await command(employeeId, nextPhone(f));
+  const gate = barrier();
+  const pending = grantCase(gate).execute(input);
+  await gate.entered;
+  // الخطوة الأولى ات.commitت: سجل الانتظار ظاهر للمعاملات التانية، والمنحة واقفة قبل الخطوة الثالثة.
+  expect(
+    await f.h.owner`SELECT state FROM employee_staff_access WHERE employee_id=${employeeId}`,
+  ).toMatchObject([{ state: 'PENDING' }]);
+  const [employee] = await f.h.owner`SELECT revision FROM employees WHERE id=${employeeId}`;
+  const edit = await f.h.send('PATCH', `/v1/businesses/${f.business}/employees/${employeeId}`, {
+    cookie: f.ownerCookie,
+    company: f.company,
+    body: {
+      name_en: 'Edited while granting',
+      role_code: 'staff',
+      hire_date: '2026-01-01',
+      user_id: null,
+      branch_ids: [f.hawalli],
+      primary_branch_id: f.hawalli,
+      expected_revision: employee?.revision,
+      branch_effective_date: '2026-11-24',
+    },
+  });
+  expect(edit.status).toBe(409);
+  expect(edit.body['code']).toBe('STAFF_ACCESS_PENDING_BRANCH_CHANGE');
+  gate.release();
+  expect(await pending).toMatchObject({ kind: 'granted' });
+  expect(await f.h.owner`SELECT primary_branch_id FROM employees WHERE id=${employeeId}`).toEqual([
+    { primary_branch_id: f.salmiya },
+  ]);
+});
+
 it('P1-2 a request resumed after another grant commits never provisions an ACTIVE operation', async () => {
   const employeeId = await addEmployee(f, 'Committed overlap', f.salmiya, 304);
   const input = await command(employeeId, nextPhone(f));
