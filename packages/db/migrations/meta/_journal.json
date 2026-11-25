@@ -1807,6 +1807,13 @@
       "when": 1795524024388,
       "tag": "0259_2026-11-24_user-nav-style-validate",
       "breakpoints": true
+    },
+    {
+      "idx": 260,
+      "version": "7",
+      "when": 1795579832729,
+      "tag": "0260_2026-11-25_verification-value-index",
+      "breakpoints": true
     }
   ]
 }

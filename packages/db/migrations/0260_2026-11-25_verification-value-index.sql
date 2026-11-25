@@ -1,0 +1,1 @@
+CREATE INDEX CONCURRENTLY IF NOT EXISTS "verification_value_idx" ON "verification" USING btree ("value");
