@@ -1,6 +1,9 @@
 import type { IdGenerator } from '@pospay/ids';
 
-import { createCommissionInputsConsumer } from './modules/commissions/index.ts';
+import {
+  createCommissionInputsConsumer,
+  createCommissionReminderScheduleConsumer,
+} from './modules/commissions/index.ts';
 import {
   createLowRatingNoticeConsumer,
   createRatingSchedulingConsumer,
@@ -54,5 +57,6 @@ export function businessConsumers(deps: BusinessConsumerDeps): readonly OutboxCo
     createLowRatingNoticeConsumer(newIds(), clock),
     createRatingSchedulingConsumer({ ids: newIds(), clock, daySessions: deps.daySessions }),
     createCommissionInputsConsumer({ ids: newIds(), clock, ...deps.commissions }),
+    createCommissionReminderScheduleConsumer(),
   ];
 }

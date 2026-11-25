@@ -10,6 +10,7 @@ import { commissionStatementNoticeGroupSize } from '@pospay/contracts';
 import { sql } from 'drizzle-orm';
 
 import type { AlertRulesPort } from '../ports/alert-rules.port.ts';
+import type { ExplicitFeatureReader } from './approval-coverage-gate.ts';
 import type {
   CommissionActorMembershipReader,
   CommissionApproversReader,
@@ -21,6 +22,7 @@ import type { CommissionStatementReturnRecord } from '../domain/statement-return
 import type { CommissionStatementReviewTransition } from '../domain/statement-review-plan.ts';
 import type { StatementFingerprints } from '../domain/statement-change-cause.ts';
 import { groupStatementNoticeRecipients, statementNoticeRecipients } from '../domain/statement-notice.ts';
+import { APPROVAL_SWITCH_FLAG } from './approval-coverage-gate.ts';
 import { readCommissionStatementSource } from './commission-statement-source.ts';
 
 /** هوية الفاعل في المراجعة والإرجاع: الشركة والمستخدم والنشاط. */
@@ -49,6 +51,8 @@ export interface CommissionStatementReviewReaders {
   readonly actorMembership: CommissionActorMembershipReader;
   readonly approvers: CommissionApproversReader;
   readonly alertRules: AlertRulesPort;
+  /** قارئ المفتاح الصريح للشركة: الاعتماد المقفول يخلّي المطالبة بلا معنى (53-2-B2a-FR030-1). */
+  readonly explicitFeature: ExplicitFeatureReader;
 }
 
 /** كل ما steps الكتابة بتحتاجه: المعاملة، ومولّد المعرّفات، والقراء، والفاعل. */
@@ -193,6 +197,10 @@ async function auditReturn(
  * إشعار «الكشف مستني الاعتماد»: القاعدة بتحدد التشغيل والقناة بس، والمستلمون هم أصحاب صلاحية
  * الاعتماد اللي شايفين النشاط كله وقت الحدث (FR-030، DR-008، CS-Q52 = PP-227). الحدث بيتكتب في
  * نفس معاملة المراجعة، مجموعة لكل مية مستلم (ADR-0037 §5).
+ *
+ * المطالبة بتتطلب كمان مفتاح الاعتماد الصريح مفتوحًا (53-2-B2a-FR030-1): الاعتماد المقفول
+ * بيرد 403 `FEATURE_DISABLED`، فإرسال جرس لطلب ما ينفعش يتبنى ولا يرد عليه كسر لـ FR-030.
+ * إثبات التغطية وعدد الأحداث المعلّقة فحصان وقت الاعتماد مش جزء من مسند المستلمين.
  */
 async function appendApprovalNotice(
   context: CommissionStatementReviewContext,
@@ -201,6 +209,15 @@ async function appendApprovalNotice(
   businessId: string,
 ): Promise<void> {
   const { tx, ids, readers, actor } = context;
+  const [decision] = await tx.execute<{ at: Date }>(sql`SELECT clock_timestamp() AS at`);
+  if (decision === undefined) throw new Error('The database clock is unavailable');
+  const switchEnabled = await readers.explicitFeature(
+    tx,
+    actor.companyId,
+    APPROVAL_SWITCH_FLAG,
+    new Date(decision.at),
+  );
+  if (!switchEnabled) return;
   const rule = await readers.alertRules.rule(
     tx,
     actor.companyId,

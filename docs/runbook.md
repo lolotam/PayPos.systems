@@ -1242,3 +1242,92 @@ any 5xx alert until AC-ACT-17 is closed; every other 5xx on the API is a real fa
    If any count is non-zero, rolling the API image back below `076-F2b` is forbidden: close
    `STAFF_ACCESS_ROUTES` on the current release instead (unset the variable and restart the API). Record the
    three counts and the time of the check with the decision.
+
+## 56b-1: commission statement reminders and reminder-schedule recovery (ADR-0061)
+
+The worker sends the day-3 and day-5 statement reminders (FR-053, FR-054, FR-055) from one BullMQ job scheduler per
+company, `commissions-statement-reminders-<companyId>`, which lives **only in Redis**. If Redis is lost, reminders stop
+silently, so the worker records the loss outside Redis (the global ledger `operational_recovery_flags`, code
+`COMMISSION_REMINDER_SCHEDULES_LOST`) and **recovers by itself**.
+
+### Automatic recovery comes first
+
+Do nothing while the worker is recovering. A worker pass owns one Redis key, lists every live company in one complete
+listing (`recovery_company_ids`), registers the scheduler of each company that lacks one, clears the incident through
+`clear_reminder_schedules_lost_flag` only when every company succeeded, and then publishes the readiness certificate.
+It starts at every worker start, on every 60 s heartbeat that finds a loss, and it retries on a fixed schedule (at once,
+then 1, 3, 7 and 15 minutes after the incident, then every 15 minutes) until it succeeds. `/ready` of the worker reports
+`commission-reminder-recovery` degraded while the certificate is missing or stale, while a pass owns the key, while an
+incident of any code is open and while a `CompanyCreated` event is parked for a company whose scheduler is missing.
+
+### The three Redis keys
+
+| Key | Meaning |
+| --- | --- |
+| `commissions:reminders:recovery` | a pass owns the recovery; lease and marker in one key, 120 s TTL, renewed under a `pass_id` compare-and-set |
+| `commissions:reminders:sentinel` | the readiness certificate: `release`, `run_id`, `pass_id`, `cutoff` and `cutoff_seq` of the pass that published it |
+| `commissions:reminders:recovery-slot` | the shared retry pacing record: incident, anchor and last slot attempted; 24 h TTL, deleted by the publication |
+
+Never delete these keys by hand while a worker is running and never run `FLUSHDB` on a shared Redis: a loss is detected
+and repaired by the worker, and a manual flush only creates a new incident.
+
+### Alerts
+
+| Alert code (log field `code`) | Meaning | What to do |
+| --- | --- | --- |
+| `COMMISSION_REMINDER_SCHEDULES_LOST` | a loss was found and an incident was raised or adopted; repeats on every round while it is open | wait for the automatic pass; investigate Redis if it repeats for more than a few rounds |
+| `COMMISSION_REMINDER_COMPANY_SCHEDULING_PARKED` | a `CompanyCreated` event is parked **and** the scheduler of that company is missing in Redis | the next pass registers it; if it repeats, look at that company's outbox rows |
+| `COMMISSION_REMINDER_RECERTIFICATION_FAILED` | a pass without a loss (a start-up or a P-driven re-certification) stopped before publishing: a stalled page or upsert, a lost key, a changed Redis `run_id` or a failed registration | the next slot retries; check Redis latency and the worker logs |
+
+A parked `CompanyCreated` whose scheduler exists (for example the `staff` consumer failed) raises none of these and does
+not degrade `/ready`.
+
+### Rollout rule
+
+1. Deploy the migration (0263) first: the tables, the two definer roles and the grants are additive.
+2. Deploy the worker. Its start-up pass rebuilds every company's scheduler (every scheduler is missing on the first run,
+   which raises and then clears one incident, `CM-57`); the worker is ready only after that pass publishes its certificate,
+   so the deploy probe waits for it.
+3. A rollback of the worker image below this release leaves the schedulers in Redis running but unsupervised; the
+   incident ledger and the grants stay in place.
+
+### Operator fallback
+
+Use the command only when automatic recovery does not complete (for example a company that cannot be rebuilt) and an
+incident stays open. It runs the same pass as the worker with the same Redis key, so **stop the worker pass first** if one
+owns the key:
+
+```bash
+pnpm platform:commission-reminder-recovery -- --incident-id <uuid>
+# equivalent: pnpm --filter @pospay/worker run platform:commission-reminder-recovery -- --incident-id <uuid>
+```
+
+It needs `MIGRATION_DATABASE_URL`, `DISPATCHER_DATABASE_URL` and `REDIS_URL`, clears **only the incident it names** (an
+id that is no longer the open incident stops the command without touching anything) and records its own identity in the
+audit row. It prints one JSON result and exits non-zero unless the outcome is `PUBLISHED`.
+
+**Prerequisite check (issue #1222 item 8).** Before it touches any scheduler, key or flag the command checks that
+`public.recovery_company_ids(uuid, integer)` exists and is owned by `pospay_recovery_company_reader`, that the policy
+`companies_recovery_select` exists on `companies`, and that a probe call returns a page. If a check fails it stops with
+one of `COMMISSION_REMINDER_RECOVERY_FUNCTION_MISSING`, `COMMISSION_REMINDER_RECOVERY_POLICY_MISSING` or
+`COMMISSION_REMINDER_RECOVERY_PROBE_FAILED`. The command never lists companies with a direct `SELECT` (which would bypass
+the live-company filter), so these are fixed in the database, never worked around. Verify as the migration owner:
+
+```sql
+SELECT p.oid::regprocedure AS function, r.rolname AS owner,
+       pg_catalog.has_function_privilege('pospay_dispatcher', p.oid, 'EXECUTE') AS dispatcher_execute
+FROM pg_proc p JOIN pg_roles r ON r.oid = p.proowner
+WHERE p.oid = pg_catalog.to_regprocedure('public.recovery_company_ids(uuid, integer)');
+SELECT policyname FROM pg_policies
+WHERE schemaname = 'public' AND tablename = 'companies' AND policyname = 'companies_recovery_select';
+SELECT id FROM public.recovery_company_ids(NULL::uuid, 1);
+```
+
+Repair: run the privilege-inventory checks (`pnpm --filter @pospay/db test -- privileges`) to see which grant, owner or
+policy differs from the inventory, then restore exactly the statements of
+`packages/db/migrations/0263_2026-11-25_commission-statement-reminders.sql` that define the missing object (the function
+body and its owner, the `GRANT`s and the policy `companies_recovery_select`) as the migration owner, and record what was
+restored with the incident. A fresh environment gets all of it from `pnpm db:migrate`. Retry the command only after the three queries above return the owner `pospay_recovery_company_reader`, `dispatcher_execute = true`, the policy row and one id.
+
+Replaying `CompanyCreated` is no longer part of the recovery: a consumer's mark in `consumed_events` makes a replay skip a
+company, so it can never be relied on to rebuild a scheduler.

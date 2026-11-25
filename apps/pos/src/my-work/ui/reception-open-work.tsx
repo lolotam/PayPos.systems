@@ -8,7 +8,6 @@ import { MyWorkCards } from './my-work-cards';
  * فمفيش مكوّن دائم بيحتفظ بلقطة فيها صفحاتها بعد الرجوع لخطوة الـ PIN.
  *
  * @param props.controller متحكم النافذة
- * @param props.estimateAllowed هل كارت التقدير مسموح
  * @param props.onMonth تغيير الشهر
  * @param props.onRetry إعادة المحاولة
  * @param props.onRetryTips إعادة قراءة الإكراميات بس
@@ -16,14 +15,12 @@ import { MyWorkCards } from './my-work-cards';
  */
 export function ReceptionOpenWork({
   controller,
-  estimateAllowed,
   onMonth,
   onRetry,
   onRetryTips,
   onLoadMore,
 }: {
   controller: PrivateWindowController;
-  estimateAllowed: boolean;
   onMonth: (month: string | undefined) => void;
   onRetry: () => void;
   onRetryTips: () => void;
@@ -39,7 +36,7 @@ export function ReceptionOpenWork({
       tips={data.tips}
       tipsFailed={data.tipsFailed}
       rating={undefined}
-      estimateAllowed={estimateAllowed}
+      estimate={data.estimate}
       onMonth={onMonth}
       onRetry={onRetry}
       onRetryTips={onRetryTips}

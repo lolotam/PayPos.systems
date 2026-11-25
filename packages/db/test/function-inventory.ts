@@ -1,4 +1,5 @@
 import { COMMISSION_COVERAGE_FUNCTIONS } from './commission-coverage-function-inventory.ts';
+import { REMINDER_RECOVERY_FUNCTIONS } from './reminder-recovery-function-inventory.ts';
 
 export const FUNCTION_INVENTORY = [
   {
@@ -146,6 +147,7 @@ export const FUNCTION_INVENTORY = [
     proconfig: ['search_path=pg_catalog, pg_temp', 'row_security=on'],
   },
   {
+    // استعادة جدولة التذكيرات (ADR-0061 §1): الدالتان definer، ومالك كل واحدة دور مالك دالة، والمسار مثبّت في الدالة نفسها.
     proname: 'sweep_expired_idempotency_keys',
     prosecdef: true,
     proconfig: ['search_path=pg_catalog, pg_temp'],
@@ -394,4 +396,5 @@ export const FUNCTION_INVENTORY = [
     proconfig: ['search_path=pg_catalog, public'],
   },
   ...COMMISSION_COVERAGE_FUNCTIONS,
+  ...REMINDER_RECOVERY_FUNCTIONS,
 ].sort((a, b) => a.proname.localeCompare(b.proname));

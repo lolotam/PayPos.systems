@@ -29,4 +29,10 @@ export const WORKER_LOG_EVENTS = [
   'document render',
   'document renderer unavailable',
   'document renderer available',
+  'commission reminder schedule repair failed',
+  'commission reminder recovery lease renewal failed',
+  'commission reminder recovery pass failed',
+  'commission reminder recovery pass stopped',
+  'commission reminder recovery alert',
+  'commission reminder recovery published',
 ] as const;

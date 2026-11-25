@@ -9324,6 +9324,34 @@ export interface components {
             /** Format: date-time */
             read_at: string | null;
             /** @enum {string} */
+            template_key: "statement_awaiting_review";
+            safe_parameters: {
+                /** @enum {string} */
+                name: "period";
+                /** @enum {string} */
+                type: "text";
+                value: string;
+            }[];
+        } | {
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            company_id: string;
+            /** Format: uuid */
+            business_id: string | null;
+            /** Format: uuid */
+            branch_id: string | null;
+            /** Format: uuid */
+            source_event_id: string;
+            /** @enum {number} */
+            template_revision: 1;
+            /** @enum {string} */
+            locale: "ar" | "en";
+            /** Format: date-time */
+            created_at: string;
+            /** Format: date-time */
+            read_at: string | null;
+            /** @enum {string} */
             template_key: "commission_event_parked";
             safe_parameters: ({
                 /** @enum {string} */

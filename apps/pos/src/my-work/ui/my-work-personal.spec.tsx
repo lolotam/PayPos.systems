@@ -28,14 +28,8 @@ function serve({ lines, tips }: Handlers = {}) {
     return undefined;
   });
 }
-const open = (props: { onLeave?: () => void; estimateAllowed?: boolean } = {}) =>
-  renderWork(
-    <MyWorkScreen
-      context={context}
-      onLeave={props.onLeave ?? (() => undefined)}
-      {...(props.estimateAllowed === undefined ? {} : { estimateAllowed: props.estimateAllowed })}
-    />,
-  );
+const open = (props: { onLeave?: () => void } = {}) =>
+  renderWork(<MyWorkScreen context={context} onLeave={props.onLeave ?? (() => undefined)} />);
 
 beforeEach(() => localStorage.clear());
 afterEach(() => vi.unstubAllGlobals());
@@ -113,16 +107,11 @@ it('shows her own tips by method when tips are allowed and no tips block when hi
   expect(screen.queryByText(label('myWork.tipsTitle'))).toBeNull();
 });
 
-it('shows the estimate card as pending only, and no card when the column is not allowed', async () => {
+it('shows no estimate card when the estimate read is not available for her', async () => {
   serve();
-  const hidden = open();
+  open();
   expect(await screen.findByText('Haircut')).toBeTruthy();
   expect(screen.queryByText(label('myWork.estimateTitle'))).toBeNull();
-  hidden.unmount();
-  open({ estimateAllowed: true });
-  expect(await screen.findByText(label('myWork.estimateTitle'))).toBeTruthy();
-  expect(screen.getByText(label('myWork.estimatePending'))).toBeTruthy();
-  expect(screen.queryByText(/\d+\.\d{3}\s*KWD/)).toBeNull();
 });
 
 it('shows loading first and then the empty state when the month has no lines', async () => {

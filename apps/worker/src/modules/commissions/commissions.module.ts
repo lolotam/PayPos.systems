@@ -5,7 +5,11 @@ import {
   commissionEventParkedNoticeRequested,
 } from '@pospay/contracts';
 import type { TenantWrappers, Tx } from '@pospay/db';
-import { COMMISSION_INPUT_EVENT_TYPES, COMMISSION_INPUTS_CONSUMER_ID } from '@pospay/domain';
+import {
+  COMMISSION_INPUT_EVENT_TYPES,
+  COMMISSION_INPUTS_CONSUMER_ID,
+  COMMISSION_REMINDER_SCHEDULE_CONSUMER_ID,
+} from '@pospay/domain';
 
 import type { OutboxConsumer } from '../../outbox/consumer.ts';
 import { onCommissionInputEvent } from './events/handlers/on-commission-input-event.handler.ts';
@@ -27,7 +31,10 @@ import {
 } from './persistence/commission-line-projection.scope.ts';
 import { createCommissionCorrectionScope } from '@pospay/commissions-posting';
 import { createCommissionBlockNotices } from './persistence/commission-block-notice.outbox.ts';
-import { markCommissionEventConsumed, isCommissionInputEventConsumed } from './persistence/commission-event-consumption.ts';
+import {
+  markCommissionEventConsumed,
+  isCommissionInputEventConsumed,
+} from './persistence/commission-event-consumption.ts';
 import { createCoverageProjectionReader } from './persistence/commission-coverage.reads.ts';
 import type { CommissionPermissionHoldersReader } from './ports/commission-block-notice.port.ts';
 import type {
@@ -168,9 +175,8 @@ export function createParkedCommissionAlert(
     owners: dependencies.owners,
     isInputProjected: isCommissionInputEventConsumed,
     markConsumed: markCommissionEventConsumed,
-    appendNotice: createParkedCommissionAlertNotifier(
-      dependencies.ids,
-      (payload) => commissionEventParkedNoticeRequested.parse(payload),
+    appendNotice: createParkedCommissionAlertNotifier(dependencies.ids, (payload) =>
+      commissionEventParkedNoticeRequested.parse(payload),
     ),
     now: () => dependencies.clock.now(),
     groupSize: commissionEventParkedNoticeGroupSize,
@@ -237,4 +243,20 @@ export function createCommissionCoverageReport(dependencies: {
       },
       scope,
     );
+}
+
+/**
+ * مستهلك علامة تسجيل جدولة التذكيرات لـ`CompanyCreated` (ADR-0061 §2 و§8). التسجيل الفعلي في Redis
+ * بيحصل في مسار التسليم قبل أي علامة استهلاك، فالمستهلك نفسه ما بيعملش أي أثر: وجوده بس بيخلّي
+ * `consumed_events` يكتب علامة `commissions.reminder-schedule` بعد نجاح التسجيل، ويخلّي الحدث
+ * المعلّق يتميّز عن حدث شركة جدولتها موجودة.
+ *
+ * @returns مستهلك بلا أثر على قاعدة البيانات
+ */
+export function createCommissionReminderScheduleConsumer(): OutboxConsumer {
+  return {
+    id: COMMISSION_REMINDER_SCHEDULE_CONSUMER_ID,
+    eventTypes: ['CompanyCreated'],
+    handle: async () => undefined,
+  };
 }

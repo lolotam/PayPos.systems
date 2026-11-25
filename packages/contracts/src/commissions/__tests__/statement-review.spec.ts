@@ -4,6 +4,7 @@ import {
   commissionStatementAwaitingApprovalRequested,
   commissionStatementNoticeGroupSize,
 } from '../statement-awaiting-approval.js';
+import { commissionStatementAwaitingReviewRequested } from '../statement-awaiting-review.js';
 import {
   commissionStatementReturnInput,
   commissionStatementReturnResult,
@@ -86,6 +87,50 @@ it('the approval notice carries the period and the recipients, and never more th
     `01920000-0000-7000-8000-${index.toString(16).padStart(12, '0')}`;
   expect(
     commissionStatementAwaitingApprovalRequested.safeParse({
+      ...payload,
+      notification_recipients: Array.from({ length: 101 }, (_, index) => ({
+        ...recipients[0],
+        user_id: uuidAt(index),
+      })),
+    }).success,
+  ).toBe(false);
+});
+
+it('the review notice carries the period and the recipients, and never more than a hundred', () => {
+  const recipients = Array.from({ length: 3 }, (_, index) => ({
+    channel: 'IN_APP',
+    user_id: `01920000-0000-7000-8000-00000000000${index}`,
+    locale: 'ar',
+    template_key: 'statement_awaiting_review',
+    template_revision: 1,
+    safe_parameters: [{ name: 'period', type: 'text', value: '2026-11' }],
+  }));
+  const payload = commissionStatementAwaitingReviewRequested.parse({
+    schema_version: 1,
+    business_id: '01920000-0000-7000-8000-000000000001',
+    statement_id: '01920000-0000-7000-8000-000000000002',
+    period: '2026-11',
+    group_index: 0,
+    notification_recipients: recipients,
+  });
+  expect(payload.notification_recipients).toHaveLength(3);
+  // المستلمون عربيون بس (لغة التخزين)، والمجموعة الفاضية أو الـ 101 مرفوضين.
+  expect(
+    commissionStatementAwaitingReviewRequested.safeParse({
+      ...payload,
+      notification_recipients: [],
+    }).success,
+  ).toBe(false);
+  expect(
+    commissionStatementAwaitingReviewRequested.safeParse({
+      ...payload,
+      notification_recipients: [{ ...recipients[0], locale: 'en' }],
+    }).success,
+  ).toBe(false);
+  const uuidAt = (index: number): string =>
+    `01920000-0000-7000-8000-${index.toString(16).padStart(12, '0')}`;
+  expect(
+    commissionStatementAwaitingReviewRequested.safeParse({
       ...payload,
       notification_recipients: Array.from({ length: 101 }, (_, index) => ({
         ...recipients[0],

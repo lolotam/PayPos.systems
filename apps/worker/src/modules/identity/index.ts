@@ -39,3 +39,5 @@ export {
   decideRatingCommentReaders,
   type RatingCommentGrant,
 } from './domain/rating-comment-access.ts';
+export { commissionStatementRecipients } from './persistence/commission-statement-recipients.ts';
+export { readExplicitCompanyFeature } from './persistence/explicit-company-feature.ts';

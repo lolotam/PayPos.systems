@@ -118,3 +118,32 @@ it('drops a tips answer for a month other than the shown one and keeps loaded li
   expect(state.data.lines.pages.length).toBe(1);
   expect(state.data.lines.moreError).toBeInstanceOf(Error);
 });
+
+it('shows the estimate only for the shown month and drops it when the month changes or a retry starts', () => {
+  let state = reducePrivateWindow(open(), {
+    type: 'linesLoaded',
+    page: page('2026-11'),
+    append: false,
+  });
+  state = reducePrivateWindow(state, {
+    type: 'estimateLoaded',
+    month: '2026-10',
+    estimate: { status: 'NO_PLAN', corrections: [] },
+  });
+  expect(state.phase === 'open' && state.data.estimate).toBeUndefined();
+  state = reducePrivateWindow(state, {
+    type: 'estimateLoaded',
+    month: '2026-11',
+    estimate: { status: 'NO_PLAN', corrections: [] },
+  });
+  expect(state.phase === 'open' && state.data.estimate?.status).toBe('NO_PLAN');
+  state = reducePrivateWindow(state, { type: 'retry' });
+  expect(state.phase === 'open' && state.data.estimate).toBeUndefined();
+  state = reducePrivateWindow(state, {
+    type: 'estimateLoaded',
+    month: '2026-11',
+    estimate: { status: 'NO_PLAN', corrections: [] },
+  });
+  state = reducePrivateWindow(state, { type: 'month', month: '2026-10' });
+  expect(state.phase === 'open' && state.data.estimate).toBeUndefined();
+});

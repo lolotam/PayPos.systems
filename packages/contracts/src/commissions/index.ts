@@ -14,5 +14,7 @@ export * from './own-commission-estimate.js';
 export * from './statement.js';
 export * from './statement-review.js';
 export * from './statement-awaiting-approval.js';
+export * from './statement-awaiting-review.js';
+export * from './statement-reminders.js';
 export * from './statement-approval.js';
 export * from './statement-export-requests.js';

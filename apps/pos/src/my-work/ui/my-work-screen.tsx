@@ -11,17 +11,8 @@ import { ReceptionWork } from './reception-work';
  *
  * @param props.context مين بيفتح الشاشة وهويته
  * @param props.onLeave بتتنده لما الجلسة تتقفل (401) والشاشة الخاصة تتقفل كلها
- * @param props.estimateAllowed هل كارت التقدير مسموح؛ الافتراضي false من كل مدخل إنتاج لحد 57-5 (AC-57-4-4 المعدّلة)
  */
-export function MyWorkScreen({
-  context,
-  onLeave,
-  estimateAllowed = false,
-}: {
-  context: WorkContext;
-  onLeave: () => void;
-  estimateAllowed?: boolean;
-}) {
+export function MyWorkScreen({ context, onLeave }: { context: WorkContext; onLeave: () => void }) {
   const locale = useLocale();
   const [online, setOnline] = useState(navigator.onLine);
   useEffect(() => {
@@ -42,9 +33,9 @@ export function MyWorkScreen({
       <h2>{t(locale, 'myWork.title')}</h2>
       {online ? (
         context.mode === 'reception' ? (
-          <ReceptionWork onLeave={onLeave} estimateAllowed={estimateAllowed} />
+          <ReceptionWork onLeave={onLeave} />
         ) : (
-          <PersonalWork context={context} onLeave={onLeave} estimateAllowed={estimateAllowed} />
+          <PersonalWork context={context} onLeave={onLeave} />
         )
       ) : (
         <p role="status">{t(locale, 'myWork.offline')}</p>

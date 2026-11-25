@@ -250,6 +250,7 @@ function commissionStatementReviewProviders(
       actorMembership: statement.actorMembership,
       approvers: statement.approvers,
       alertRules: statement.alertRules,
+      explicitFeature: statement.explicitFeature,
     });
   return [
     {

@@ -15,13 +15,16 @@ import { WorkLinesMore } from './work-lines-more';
  * @param props.lines حالة الصفحات (react-query أو المتحكم)
  * @param props.onRetry إعادة تحميل الصفحة الأولى
  * @param props.onLoadMore الصفحة التالية بالـ cursor
+ * @param props.lineCommissions عمولة كل بند بالـ line_id لما التقدير ESTIMATE، وإلا undefined
  */
 export function WorkLines({
   lines,
+  lineCommissions,
   onRetry,
   onLoadMore,
 }: {
   lines: LinesView;
+  lineCommissions: ReadonlyMap<string, string> | undefined;
   onRetry: () => void;
   onLoadMore: () => void;
 }) {
@@ -51,7 +54,12 @@ export function WorkLines({
     <>
       <ul className="grid gap-3">
         {items.map(({ item, timeZone }) => (
-          <WorkLineRow key={item.line_id} item={item} timeZone={timeZone} />
+          <WorkLineRow
+            key={item.line_id}
+            item={item}
+            timeZone={timeZone}
+            estimatedCommission={lineCommissions?.get(item.line_id)}
+          />
         ))}
       </ul>
       <WorkLinesMore lines={lines} onLoadMore={onLoadMore} />

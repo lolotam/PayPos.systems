@@ -90,6 +90,17 @@ async function noticeEvents(fixture: StatementFixture): Promise<{ payload: unkno
   return fixture.h.owner`SELECT payload FROM outbox WHERE event_type='StatementAwaitingApproval'`;
 }
 
+/** مفتاح الاعتماد الصريح للشركة؛ المطالبة على الاعتماد بتتطلبه (53-2-B2a-FR030-1). */
+const SWITCH_FLAG = 'commission_statement_approval';
+
+async function setSwitch(fixture: StatementFixture, enabled: boolean): Promise<void> {
+  const [owner] = await fixture.h.owner`SELECT id FROM "user" WHERE email='commission-estimate-owner@example.test'`;
+  const setBy = owner?.['id'] as string;
+  await fixture.h.owner`INSERT INTO company_feature_overrides (company_id, flag, enabled, reason, set_by)
+    VALUES (${fixture.company}, ${SWITCH_FLAG}, ${enabled}, 'review fixture', ${setBy})
+    ON CONFLICT (company_id, flag) DO UPDATE SET enabled = ${enabled}, expires_at = NULL`;
+}
+
 describe('CM-30 reviewing a month that has ended', () => {
   it('stores REVIEWED with both reviewed fingerprints, the reviewer and the time, and audits it once', async () => {
     const body = await expected(f, '2026-11');
@@ -115,6 +126,7 @@ describe('CM-30 reviewing a month that has ended', () => {
   });
 
   it('appends one StatementAwaitingApproval notice for the approvers, in the same transaction', async () => {
+    await setSwitch(f, true);
     const body = await expected(f, '2026-10');
     const before = (await noticeEvents(f)).length;
     await review(f, f.cookie, 'review-november-notice', body, '2026-10');
@@ -130,6 +142,17 @@ describe('CM-30 reviewing a month that has ended', () => {
     for (const recipient of payload.notification_recipients) {
       expect(recipient.template_key).toBe('statement_awaiting_approval');
     }
+  });
+
+  it('emits no approval notice while the explicit approval switch is off', async () => {
+    await setSwitch(f, false);
+    expect((await generateStatement(f, f.cookie, 'generate-march', '2026-03')).status).toBe(200);
+    const body = await expected(f, '2026-03');
+    const before = (await noticeEvents(f)).length;
+    const response = await review(f, f.cookie, 'review-march-no-switch', body, '2026-03');
+
+    expect(response.status).toBe(200);
+    expect((await noticeEvents(f)).length).toBe(before);
   });
 
   it('refuses to review a month that is already reviewed', async () => {

@@ -31,6 +31,8 @@ export const inAppEn = {
     'A commission correction for {{period}} is on hold: an employee has no commission plan or no salary for that month. Open the blocked corrections to fix it.',
   statement_awaiting_approval:
     'The commission statement for {{period}} has been reviewed and is waiting for approval.',
+  statement_awaiting_review:
+    'The commission statement for {{period}} is ready and waiting for review.',
   commission_event_parked:
     'Some commission data could not be recorded because of a technical error, so the commission statement for this month cannot be approved until it is fixed. Contact support and give them this reference: {{event_id}} (type: {{event_type}}).',
   editor_role_owner: 'Owner',
@@ -87,6 +89,7 @@ export const inAppAr = {
   commission_correction_blocked:
     'فيه تصحيح عمولة موقوف عن شهر {{period}}: موظفة ناقصها خطة عمولة أو مرتب. افتح التصحيحات الموقوفة عشان يتصلّح.',
   statement_awaiting_approval: 'كشف العمولة عن شهر {{period}} اتراجع، ومستني الاعتماد.',
+  statement_awaiting_review: 'كشف العمولة عن شهر {{period}} جاهز ومستني المراجعة.',
   commission_event_parked:
     'بيانات عمولة ما اتسجّلتش بسبب خطأ فني، واعتماد كشف عمولات الشهر واقف لحد ما المشكلة تتحل. كلّم الدعم وابعت لهم الرقم ده: {{event_id}} (النوع: {{event_type}}).',
   editor_role_owner: 'المالك',
