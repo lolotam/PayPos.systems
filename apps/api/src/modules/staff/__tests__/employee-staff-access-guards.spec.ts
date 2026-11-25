@@ -4,6 +4,7 @@ import { Controller, Get } from '@nestjs/common';
 import { afterAll, beforeAll, expect, it } from 'vitest';
 import {
   addEmployee,
+  cancelPending,
   grant,
   grantPath,
   nextPhone,
@@ -206,4 +207,28 @@ it('P1-4 with the gate off a cross-origin preflight succeeds and the three route
     expect(response.headers['access-control-allow-origin']).toBe(ADMIN_ORIGIN);
     expect(response.headers['access-control-allow-credentials']).toBe('true');
   }
+});
+
+it('AC-ACT-11 a cancel without authority answers the same refusal with and without a pending record', async () => {
+  const [owner] = await f.h
+    .owner`SELECT id FROM "user" WHERE email='staff-access-owner@example.test'`;
+  const withRecord = await addEmployee(f, 'Unauthorized with record', f.hawalli, 41);
+  const withoutRecord = await addEmployee(f, 'Unauthorized without record', f.hawalli, 42);
+  // سجل انتظار قديم ومنح من المالك: الفارق بين الحالتين هو وجود السجل نفسه لا غير.
+  await f.h.owner`INSERT INTO employee_staff_access
+    (company_id,id,business_id,employee_id,operation_id,role_code,branch_id,state,granted_by,attempt_id,attempt_started_at,phone_hash)
+    VALUES (${f.company},${ids.newId()},${f.business},${withRecord},${ids.newId()},'staff',${f.hawalli},'PENDING',
+      ${owner?.id},${ids.newId()}, now() - interval '25 hours',${'a'.repeat(64)})`;
+  // مدير السالمية بلا سلطان على فرع حولي: الرفض لازم يكون واحد في الحالتين.
+  const refused = await cancelPending(f, withRecord, f.managerCookie);
+  const refusedWithoutRecord = await cancelPending(f, withoutRecord, f.managerCookie);
+  expect(refused).toMatchObject({ status: 403, body: { code: 'STAFF_ACCESS_NOT_ALLOWED' } });
+  expect(refusedWithoutRecord).toMatchObject({
+    status: 403,
+    body: { code: 'STAFF_ACCESS_NOT_ALLOWED' },
+  });
+  // الرفض ما بيلمسش السجل ولا بيكشف وجوده.
+  expect(
+    await f.h.owner`SELECT id FROM employee_staff_access WHERE employee_id = ${withRecord}`,
+  ).toHaveLength(1);
 });
