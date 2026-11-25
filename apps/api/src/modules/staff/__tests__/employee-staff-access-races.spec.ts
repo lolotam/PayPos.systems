@@ -80,7 +80,7 @@ function observedDatabase() {
 function grantCase(
   hashBarrier?: ReturnType<typeof barrier>,
   provisionBarrier?: ReturnType<typeof barrier>,
-  steps = createGrantEmployeeAccessSteps(observedDatabase(), f.h.auth.staffUsers),
+  steps = createGrantEmployeeAccessSteps(observedDatabase(), f.h.auth.staffUsers, f.cardKey),
 ) {
   const users = createStaffAccessUserSteps(f.h.auth.staffUsers);
   const hash = users.hash;
@@ -226,7 +226,7 @@ it('P1-2 a request resumed after another grant commits never provisions an ACTIV
   const employeeId = await addEmployee(f, 'Committed overlap', f.salmiya, 304);
   const input = await command(employeeId, nextPhone(f));
   const gate = barrier();
-  const steps = createGrantEmployeeAccessSteps(f.db, f.h.auth.staffUsers);
+  const steps = createGrantEmployeeAccessSteps(f.db, f.h.auth.staffUsers, f.cardKey);
   const begin = steps.begin;
   let calls = 0;
   steps.begin = async (...args) => {
@@ -300,7 +300,7 @@ it('P1-2 authority removed between the first step and provisioning writes nothin
   const employeeId = await addEmployee(f, 'Authority lost', f.salmiya, 306);
   const input = await command(employeeId, nextPhone(f), { cookie });
   const gate = barrier();
-  const steps = createGrantEmployeeAccessSteps(f.db, f.h.auth.staffUsers);
+  const steps = createGrantEmployeeAccessSteps(f.db, f.h.auth.staffUsers, f.cardKey);
   const begin = steps.begin;
   let calls = 0;
   steps.begin = async (...args) => {

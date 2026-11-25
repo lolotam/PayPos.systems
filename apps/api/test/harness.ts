@@ -1,7 +1,6 @@
 import type { NestFastifyApplication } from '@nestjs/platform-fastify';
 import {
   createAuth,
-  deriveEmployeeCardKey,
   createPlatformUser,
   type AuthService,
   type StaffOtpApi,
@@ -28,6 +27,7 @@ import { grantPlatformPermission } from '../../../packages/db/src/platform-grant
 import { PROVISIONAL_PLAN_ID, seedReferenceData } from '../../../packages/db/src/seed.ts';
 import { createTestDatabase, type TestDatabase } from '../../../packages/db/test/test-database.ts';
 import { cleanupStack } from './cleanup-stack.ts';
+import { testEmployeeCardKey } from './employee-card-key.ts';
 import { createApp } from '../src/app.ts';
 import { API_LOG_EVENTS } from '../src/shared/log-events.ts';
 import { createPersonalEligibility } from '../src/modules/staff/index.ts';
@@ -327,7 +327,7 @@ async function prepareHarness(
       {
         readiness: [],
         auth: { service: auth, baseURL: BASE },
-        employeeCardKey: deriveEmployeeCardKey('test-secret-that-is-long-enough-for-hmac'),
+        employeeCardKey: testEmployeeCardKey,
         database: wrappers,
         ...optionalWiring(options),
         ...(options.corsOrigins === undefined ? {} : { corsOrigins: options.corsOrigins }),

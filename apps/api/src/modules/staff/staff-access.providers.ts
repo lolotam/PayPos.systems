@@ -26,11 +26,13 @@ import { CancelPendingStaffAccessUseCase } from './use-cases/cancel-pending-staf
  * ربط قدرة «إعطاء الدخول»: بوابة التفعيل من بيئة التشغيل، وخطوة auth عبر identity لما تكون موجودة،
  * والuse cases بلا قاعدة بيانات يرجعون null فكل المسارات ترد NOT_READY.
  *
- * @param database     مغلفات الشركة من @pospay/db أو undefined في تطبيق بلا قاعدة
- * @param redis        عميل Redis لإبطال الكاش أو undefined
- * @param ids          مولّد UUID v7
- * @param auth         واجهة حساب الموظفة عبر identity أو null
- * @param routesEnabled بوابة STAFF_ACCESS_ROUTES المقروءة مرة واحدة عند التشغيل
+ * @param database        مغلفات الشركة من @pospay/db أو undefined في تطبيق بلا قاعدة
+ * @param redis           عميل Redis لإبطال الكاش أو undefined
+ * @param ids             مولّد UUID v7
+ * @param auth            واجهة حساب الموظفة عبر identity أو null
+ * @param routesEnabled   بوابة STAFF_ACCESS_ROUTES المقروءة مرة واحدة عند التشغيل
+ * @param phoneHashSecret مفتاح بصمة الهاتف (HMAC) أو null — null أو فاضي يمنع بناء الخطوات فترد
+ *                        المسارات NOT_READY بدل ما تكتب بصمة بلا مفتاح
  * @returns الـ providers المضافة لموديول staff
  */
 export function staffAccessProviders(
@@ -39,12 +41,18 @@ export function staffAccessProviders(
   ids: IdGenerator,
   auth: AuthFacadeForStaffAccess | null,
   routesEnabled: boolean,
+  phoneHashSecret: Buffer | string | null = null,
 ): Provider[] {
   const cache = createStaffAccessGrantCache(redis);
   const users = auth === null ? null : createStaffAccessUserSteps(auth);
   const cancelUser = auth === null ? null : createStaffAccessCancelUser(auth);
   const steps =
-    database === undefined || auth === null ? null : createGrantEmployeeAccessSteps(database, auth);
+    database === undefined ||
+    auth === null ||
+    phoneHashSecret === null ||
+    phoneHashSecret.length === 0
+      ? null
+      : createGrantEmployeeAccessSteps(database, auth, phoneHashSecret);
   const cancelSteps = database === undefined ? null : createCancelPendingStaffAccessSteps(database);
   return [
     { provide: STAFF_ACCESS_ROUTES_ENABLED, useValue: routesEnabled },
