@@ -47,7 +47,8 @@ export class StaffAccessError extends Error {
       | 'EMPLOYEE_NOT_FOUND'
       | 'STAFF_ACCESS_NOT_ALLOWED'
       | 'STAFF_ACCESS_ALREADY_GRANTED'
-      | 'STAFF_ACCESS_PHONE_TAKEN',
+      | 'STAFF_ACCESS_PHONE_TAKEN'
+      | 'TRANSACTION_RETRY_REQUIRED',
   ) {
     super(code);
   }

@@ -18,6 +18,7 @@ import {
   createGrantEmployeeAccessSteps,
   createStaffAccessGrantCache,
 } from './persistence/staff-access.adapter.ts';
+import { createStaffAccessGrantAdmission } from './persistence/staff-access-admission.adapter.ts';
 import type { AuthFacadeForStaffAccess } from './ports/staff-access-auth.port.ts';
 import { GrantEmployeeAccessUseCase } from './use-cases/grant-employee-access/grant-employee-access.ts';
 import { CancelPendingStaffAccessUseCase } from './use-cases/cancel-pending-staff-access/cancel-pending-staff-access.ts';
@@ -66,7 +67,14 @@ export function staffAccessProviders(
       useValue:
         steps === null || users === null
           ? null
-          : new GrantEmployeeAccessUseCase(steps, users, cache, systemClock, ids),
+          : new GrantEmployeeAccessUseCase(
+              steps,
+              users,
+              cache,
+              systemClock,
+              ids,
+              createStaffAccessGrantAdmission(),
+            ),
     },
     {
       provide: CancelPendingStaffAccessUseCase,
