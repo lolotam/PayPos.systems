@@ -185,8 +185,10 @@ The first code is `COMMISSION_REMINDER_SCHEDULES_LOST` (FR-053).
 
 **Access.** The worker uses the existing role `pospay_dispatcher` through the existing facade
 `createOutboxDispatcherDatabase` in `packages/db/src/dispatcher.ts`, which gains two operations: **raise**
-(`INSERT … ON CONFLICT DO NOTHING`) and **list the open flags**. Grants: `SELECT` and `INSERT` on this table only, to
-`pospay_dispatcher`; no `UPDATE`, `DELETE` or `TRUNCATE` for any runtime role; `PUBLIC` nothing. This replaces the
+(`INSERT … ON CONFLICT DO NOTHING`) and **list the open flags**. Grants: `SELECT` and a column-level
+`INSERT (id, code, raised_at)` on this table only, to `pospay_dispatcher` (it can raise a flag but never insert one
+already cleared; the full grant table, the two definer functions and their owner roles are in
+[ADR-0061](0061-commission-reminder-schedule-recovery.md) §1, and ADR-0003 §2.6 classifies the table); no `UPDATE`, `DELETE` or `TRUNCATE` for any runtime role; `PUBLIC` nothing. This replaces the
 `SELECT, INSERT, UPDATE` grant list that FR-053 first sketched: the runtime holds no `UPDATE`, because the runtime must
 not be able to clear its own flag.
 
@@ -196,7 +198,13 @@ query path, and would need a context-free entry point in `packages/db` — the "
 The facade's `ping()` already feeds the worker's `/ready` (`apps/worker/src/main.ts`); `/ready` reports degraded while
 any flag is open. The API never reads the table.
 
-**Clearing.** Only an operator script run as the migration owner (the `platform:grant` precedent of ADR-0003 §3). It
+**Clearing (final, per [ADR-0061](0061-commission-reminder-schedule-recovery.md) §3 and §7).** The worker clears its own
+flag after a complete rebuild through the definer function `clear_reminder_schedules_lost_flag`, owned by
+`pospay_recovery_flag_clearer` (the only holder of `UPDATE (cleared_at, cleared_by)`), which clears one named incident of the
+reminder code once and writes its `platform_audit_log` row in the same statement; the operator command
+`platform:commission-reminder-recovery` is the audited fallback. The original text follows for the record.
+
+**Clearing (original).** Only an operator script run as the migration owner (the `platform:grant` precedent of ADR-0003 §3). It
 names the **id of the incident** it confirms — never "the open flag of this code" — sets `cleared_at` and `cleared_by` in
 one statement, and inserts a `platform_audit_log` row in the same transaction. A restart never clears: the runtime holds
 no `UPDATE` and no `DELETE` on the table, so it cannot clear its own alarm. **Superseded by CS-Q32 (2026-10-23):** the

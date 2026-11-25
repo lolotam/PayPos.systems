@@ -7,6 +7,7 @@ import * as operator from '../operator/staging-staff.ts';
 const PUBLIC_EXPORTS = [
   'ALERT_KINDS_LIST',
   'AuthUserNotFoundError',
+  'COMMISSION_REMINDER_SCHEDULES_LOST_CODE',
   'CoverageIssuanceError',
   'EmployeeNumberExhaustedError',
   'FEATURE_FLAGS',
@@ -19,6 +20,7 @@ const PUBLIC_EXPORTS = [
   'PLATFORM_ROLES',
   'PROVISIONAL_PLAN_ID',
   'PlatformStorageUnavailableError',
+  'REMINDER_RECOVERY_SYSTEM_CLEARED_BY',
   'ReplayCursorError',
   'SYSTEM_ROLES',
   'StaffAuthBusyError',

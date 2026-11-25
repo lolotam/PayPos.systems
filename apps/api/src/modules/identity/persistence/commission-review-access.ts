@@ -1,12 +1,10 @@
 import type { Tx } from '@pospay/db';
 import { sql } from 'drizzle-orm';
 
-import { evaluateAccess } from '../domain/access.ts';
-import { readAccessTransaction } from './access-reader.ts';
-import { readCommissionScope } from './commission-read-scope.ts';
+import { readBusinessWideCommissionActor } from './commission-read-scope.ts';
 import { readFeatureEnabled } from './feature-reader.ts';
 
-const PERMISSION = 'review:commissions:business';
+const PERMISSION = 'review:commissions:business' as const;
 
 /**
  * يقفل الشركة وعضوياتها ثم يعيد قرار «إنشاء الكشف ومراجعته» داخل معاملة الكاتب (FR-029): صلاحية
@@ -15,6 +13,9 @@ const PERMISSION = 'review:commissions:business';
  * ومنح الفروع لو غطّت كل الفروع مش بيكفي (CS-Q26 = PP-24.1). كل رفض 403 موحّد بنفس الشكل، فصاحب
  * المراجعة من غير قراءة النشاط كله مش بيعرف إن الصلاحية هي الناقصة. الأقفال زي كاتب الخطة: سحب الصلاحية
  * بياخد أقفال الشركة والعضويات، فالكتابة تستناه أو هو يستناها.
+ *
+ * القرار نفسه بيتقاس بالمسند المشترك في النواة مع فلتر المستلمين في العامل (FR-030، CM-58b)،
+ * فما يصح تتفرق القاعدة بين نقطة النهاية والحدث.
  *
  * @param tx معاملة الكاتب الحالية
  * @param companyId الشركة المؤكدة
@@ -38,14 +39,19 @@ export async function readCommissionReviewAccess(
   const [time] = await tx.execute<{ at: Date }>(sql`SELECT clock_timestamp() AS at`);
   if (time === undefined) return 'FORBIDDEN';
   const at = new Date(time.at);
-  const access = await readAccessTransaction(tx, companyId, userId, at);
-  if (!evaluateAccess(access.grants, PERMISSION, { companyId, businessId })) return 'FORBIDDEN';
-  const scope = await readCommissionScope(tx, companyId, userId, businessId, at);
-  if (scope.kind !== 'scope' || !scope.scope.businessWide) return 'FORBIDDEN';
+  const eligible = await readBusinessWideCommissionActor(
+    tx,
+    companyId,
+    userId,
+    businessId,
+    PERMISSION,
+    at,
+  );
+  if (!eligible) return 'FORBIDDEN';
   return (await readFeatureEnabled(tx, companyId, 'commissions', at)) ? null : 'FEATURE_DISABLED';
 }
 
-const APPROVE_PERMISSION = 'approve:commissions:business';
+const APPROVE_PERMISSION = 'approve:commissions:business' as const;
 
 /**
  * نفس قرار «الإنشاء والمراجعة» بالضبط لكن على صلاحية الاعتماد `approve:commissions:business` (ADR-0054 §7 الخطوة 1)، في
@@ -79,11 +85,14 @@ export async function readCommissionApproveAccess(
   const [time] = await tx.execute<{ at: Date }>(sql`SELECT clock_timestamp() AS at`);
   if (time === undefined) return 'FORBIDDEN';
   const at = new Date(time.at);
-  const access = await readAccessTransaction(tx, companyId, userId, at);
-  if (!evaluateAccess(access.grants, APPROVE_PERMISSION, { companyId, businessId })) {
-    return 'FORBIDDEN';
-  }
-  const scope = await readCommissionScope(tx, companyId, userId, businessId, at);
-  if (scope.kind !== 'scope' || !scope.scope.businessWide) return 'FORBIDDEN';
+  const eligible = await readBusinessWideCommissionActor(
+    tx,
+    companyId,
+    userId,
+    businessId,
+    APPROVE_PERMISSION,
+    at,
+  );
+  if (!eligible) return 'FORBIDDEN';
   return (await readFeatureEnabled(tx, companyId, 'commissions', at)) ? null : 'FEATURE_DISABLED';
 }

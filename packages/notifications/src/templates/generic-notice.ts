@@ -8,6 +8,7 @@ import { discountSelfApproved } from './discount-self-approved.ts';
 import { commissionCorrectionBlocked } from './commission-correction-blocked.ts';
 import { commissionEventParked } from './commission-event-parked.ts';
 import { statementAwaitingApproval } from './statement-awaiting-approval.ts';
+import { statementAwaitingReview } from './statement-awaiting-review.ts';
 import { serviceLinePriceEdited } from './service-line-price-edited.ts';
 import { shiftNotClockedIn } from './shift-not-clocked-in.ts';
 import { attendanceChangeRequested } from './attendance-change-requested.ts';
@@ -54,6 +55,7 @@ export function validInAppTemplate(
       discountSelfApproved,
       commissionCorrectionBlocked,
       statementAwaitingApproval,
+      statementAwaitingReview,
       commissionEventParked,
       shiftNotClockedIn,
       breakNotReturned,

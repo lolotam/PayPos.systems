@@ -1,6 +1,7 @@
 import { sql, type SQL } from 'drizzle-orm';
 import { drizzle, type PostgresJsDatabase } from 'drizzle-orm/postgres-js';
 import postgres from 'postgres';
+import { reminderRecoveryReaders, type ReminderRecoveryDatabase } from './dispatcher-recovery.ts';
 import { assertReplayBounds, ReplayCursorError } from './replay-cursor.ts';
 
 /**
@@ -39,7 +40,7 @@ export interface ParkedCommissionOutboxRow {
  * الـ facade المحدود بتاع الـ dispatcher (ADR-0003 §3): ياخد batch ويوصّله ويسجّل النتيجة، ينضّف مفاتيح
  * الـ idempotency القديمة، يتأكد إن الاتصال شغال، ويقفل الـ pool — ومفيش أي طريقة تانية يوصل بيها لأي جدول.
  */
-export interface OutboxDispatcherDatabase {
+export interface OutboxDispatcherDatabase extends ReminderRecoveryDatabase {
   /** يفحص وجود اكتشاف شركة أثناء الترحيل دون منح التطبيق قراءة outbox أو تعديل إيصالاته. */
   ratingClaimsDiscoveryExists(companyId: string): Promise<boolean>;
   dispatchBatch(
@@ -266,6 +267,7 @@ export function createOutboxDispatcherDatabase(options: {
     ...ratingReplayReaders(db, assertRole),
     ...commissionReplayReaders(db, assertRole),
     ...commissionParkedReaders(db, assertRole),
+    ...reminderRecoveryReaders(db, assertRole),
     sweepExpiredIdempotencyKeys: async (batchSize) => {
       const [row] = await db.transaction(async (tx) => {
         await assertRole(tx);

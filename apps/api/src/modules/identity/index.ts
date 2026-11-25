@@ -120,6 +120,7 @@ export { readCommissionStatementPayAccess } from './persistence/commission-state
 export {
   readCommissionFeatureEnabled,
   readCommissionScope,
+  readBusinessWideCommissionActor,
 } from './persistence/commission-read-scope.ts';
 
 export { readCommissionRequesterMembership } from './persistence/commission-requester-membership.ts';

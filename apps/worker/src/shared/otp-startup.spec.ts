@@ -34,6 +34,7 @@ const resources = vi.hoisted(() => ({
   redis: { set: vi.fn(), del: vi.fn(), get: vi.fn(), evalsha: vi.fn() },
   previews: { ready: vi.fn(async () => undefined), close: vi.fn(async () => undefined) },
   reports: { ready: vi.fn(async () => undefined) },
+  commissionReminders: { ready: vi.fn(async () => undefined) },
   ratingClaims: undefined as Customers.RatingClaimsLifecycle | undefined,
   deliverer: vi.fn(),
   maintenance: vi.fn((options: { databaseUrl: string }) => {
@@ -54,9 +55,7 @@ vi.mock('@pospay/auth', () => ({
 vi.mock('@pospay/observability', () => ({ createLogger: () => resources.logger }));
 vi.mock('ioredis', () => ({
   Redis: class Redis {
-    duplicate() {
-      return new Redis();
-    }
+    duplicate = () => new Redis();
     on() {}
     quit = vi.fn();
     disconnect = vi.fn();
@@ -116,17 +115,11 @@ vi.mock('../modules/customers/index.ts', async (original) => {
 vi.mock('../worker.ts', () => ({
   createWorker: async (options: unknown) => {
     resources.workerOptions(options);
-    return {
-      listen: resources.listen,
-      enableShutdownHooks: vi.fn(),
-    };
+    return { listen: resources.listen, enableShutdownHooks: vi.fn() };
   },
 }));
 vi.mock('../outbox/deliver.ts', () => ({
-  createDeliverer: vi.fn((...args: unknown[]) => {
-    resources.deliverer(...args);
-    return undefined;
-  }),
+  createDeliverer: vi.fn((...args: unknown[]) => void resources.deliverer(...args)),
 }));
 vi.mock('../outbox/dispatch-loop.ts', () => ({ createDispatchLoop: () => resources.loop }));
 vi.mock('../modules/notifications/index.ts', async (original) => ({
@@ -163,6 +156,14 @@ vi.mock('@pospay/notifications', async (original) => ({
   ...(await original<typeof Notifications>()),
   readWhatsappWebhookConfiguration: vi.fn(),
 }));
+vi.mock('../commission-reminders.ts', () => ({
+  startCommissionReminderWiring: () => ({
+    delivery: (e: ClaimedEvent, next: (c: ClaimedEvent) => Promise<DeliveryOutcome>) => next(e),
+    readiness: resources.commissionReminders.ready,
+    stop: vi.fn(),
+    close: vi.fn(async () => undefined),
+  }),
+}));
 vi.mock('./config.ts', () => ({
   readConfig: () => ({
     DATABASE_URL: 'synthetic',
@@ -174,6 +175,9 @@ vi.mock('./config.ts', () => ({
   }),
 }));
 
+const resolveVoid = (...fns: ReturnType<typeof vi.fn>[]) =>
+  fns.forEach((fn) => fn.mockResolvedValue(undefined));
+
 beforeEach(() => {
   vi.resetModules();
   vi.clearAllMocks();
@@ -181,15 +185,14 @@ beforeEach(() => {
   vi.stubEnv('NODE_ENV', 'production');
   vi.stubEnv('AUTH_DATABASE_URL', '');
   resources.global.ping.mockRejectedValue(new Error('SYNTHETIC_INTAKE_FAILURE'));
-  resources.global.close.mockResolvedValue(undefined);
-  resources.inbound.close.mockResolvedValue(undefined);
-  resources.inbound.ready.mockResolvedValue(undefined);
   resources.configuration.state = 'DISABLED';
-  resources.execution.readiness.mockResolvedValue(undefined);
-  resources.execution.close.mockResolvedValue(undefined);
-  resources.otp.close.mockResolvedValue(undefined);
-  resources.previews.ready.mockResolvedValue(undefined);
-  resources.reports.ready.mockResolvedValue(undefined);
+  resolveVoid(resources.global.close, resources.inbound.close, resources.inbound.ready);
+  resolveVoid(resources.execution.readiness, resources.execution.close, resources.otp.close);
+  resolveVoid(
+    resources.previews.ready,
+    resources.reports.ready,
+    resources.commissionReminders.ready,
+  );
 });
 afterEach(async () => {
   await resources.workerOptions.mock.calls.at(-1)?.[0]?.release?.();
@@ -289,6 +292,7 @@ it('invalid email identity settings disable email alone without affecting ordina
     'service-category-closing',
     'dispatcher',
     'redis',
+    'commission-reminder-recovery',
   ]);
 });
 
@@ -357,8 +361,6 @@ it('hung final OTP readiness cannot advertise READY or retain an unsuccessful wo
 
 it('a failing optional intake is diagnosed and isolated from ordinary worker readiness', async () => {
   vi.stubEnv('STAFF_OTP_ENABLED', 'true');
-  vi.stubEnv('NODE_ENV', 'production');
-  vi.stubEnv('AUTH_DATABASE_URL', '');
   vi.stubEnv('PLATFORM_NOTIFICATIONS_DATABASE_URL', 'synthetic');
   const exit = vi.spyOn(process, 'exit').mockImplementation(() => {
     throw new Error('SYNTHETIC_EXIT');

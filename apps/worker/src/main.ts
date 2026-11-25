@@ -23,6 +23,7 @@ import { retryDelayMs } from './outbox/retry-policy.ts';
 import { readConfig } from './shared/config.ts';
 import { WORKER_LOG_EVENTS } from './shared/log-events.ts';
 import { createWorker } from './worker.ts';
+import type { ReadinessCheck } from './shared/health.controller.ts';
 import { startFilesWorker } from './modules/files/index.ts';
 import { deliverFilesEvent } from './outbox/files-deliver.ts';
 import {
@@ -55,6 +56,7 @@ import { createAttendanceStatementSource } from './documents/sources/attendance-
 import { createCommissionStatementSource } from './documents/sources/commission-statement.source.ts';
 import { createCommissionStatementExportReader, createParkedCommissionAlert } from './modules/commissions/index.ts';
 import { businessCalendar, businessTimeZone } from './modules/tenancy/index.ts';
+import { startCommissionReminderWiring } from './commission-reminders.ts';
 import { drainDispatchAndDocuments } from './documents/shutdown-drain.ts';
 
 const config = readConfig(process.env);
@@ -192,11 +194,14 @@ const deliver: typeof businessDeliver = (event) =>
     sales.deliver(event, (event) =>
       imports.deliver(event, (event) =>
         catalog.deliver(event, (event) =>
-          deliverFilesEvent(event, {
-            register: (claimed) => files.deliver(claimed),
-            staff: (claimed, next) => staff.deliver(claimed, next),
-            core: (claimed) => ratingClaims.deliver(claimed, pushTransport),
-          }),
+          // تسجيل جدولة التذكيرات بيحصل قبل أي علامة استهلاك (ADR-0061 §2).
+          commissionReminders.delivery(event, (claimed) =>
+            deliverFilesEvent(claimed, {
+              register: (claimed) => files.deliver(claimed),
+              staff: (claimed, next) => staff.deliver(claimed, next),
+              core: (claimed) => ratingClaims.deliver(claimed, pushTransport),
+            }),
+          ),
         ),
       ),
     ),
@@ -214,6 +219,14 @@ const parkedSweep = createParkedCommissionSweep({
   raiseAlert: parkAlert,
   logger,
 });
+// استعادة جدولة التذكيرات (ADR-0061): الجدولة كلها في Redis، فالخسارة بتوقف التذكيرات
+// بصمت. التسجيل والاستعادة بيعملوا في Redis بره معاملة قاعدة البيانات.
+const commissionReminders = startCommissionReminderWiring({
+  app,
+  dispatcher,
+  redisUrl: config.REDIS_URL,
+  logger,
+});
 const loop = createDispatchLoop({
   dispatcher,
   deliver,
@@ -224,6 +237,7 @@ const loop = createDispatchLoop({
 const release = async (): Promise<void> => {
   stopping = true;
   clearInterval(capabilityTimer);
+  commissionReminders.stop();
   // تثبيت الاستيراد أول عامل يُغلق وبالقوة: الإغلاق القسري لا ينتظر، ويمنعه من بدء تثبيت مالي جديد بينما بقية العمال تُصفّى.
   await imports.close();
   // ننتظر فحص الملفات الجاري قبل إغلاق اتصال قاعدة البيانات.
@@ -249,12 +263,38 @@ const release = async (): Promise<void> => {
         email.close(),
         dispatcher.close(),
         app.close(),
+        commissionReminders.close(),
         redis.quit(),
       ]),
     5000,
   ).catch(() => undefined);
   redis.disconnect();
 };
+
+/** فحوص الجاهزية بالترتيب: كل اعتماد لازم يرد قبل ما العامل يبقى جاهز. */
+function readinessChecks(): readonly ReadinessCheck[] {
+  return [
+    { name: 'database', check: () => app.ping() },
+    { name: 'package-previews', check: () => previews.ready() },
+    { name: 'package-sale', check: () => sales.ready() },
+    { name: 'package-import-commit', check: () => imports.ready() },
+    { name: 'leave-history-reports', check: () => staff.reportsReady() },
+    { name: 'service-category-closing', check: () => catalog.ready() },
+    // A wrong dispatcher URL or password leaves the worker with nothing to do — it is not ready.
+    { name: 'dispatcher', check: () => dispatcher.ping() },
+    {
+      name: 'redis',
+      check: async () => {
+        await redis.ping();
+      },
+    },
+    {
+      // الجاهزية ما بتضعفش عن الاستعادة: نفس الشروط اللي بيحكم فيها المسار (ADR-0061 §4).
+      name: 'commission-reminder-recovery',
+      check: () => commissionReminders.readiness(),
+    },
+  ];
+}
 
 async function startWorkerCore(): Promise<void> {
   reportRatingTokenCapability(process.env, logger);
@@ -277,22 +317,7 @@ async function startWorkerCore(): Promise<void> {
   capabilityTimer = started.timer;
   const worker = await createWorker(
     {
-      readiness: [
-        { name: 'database', check: () => app.ping() },
-        { name: 'package-previews', check: () => previews.ready() },
-        { name: 'package-sale', check: () => sales.ready() },
-        { name: 'package-import-commit', check: () => imports.ready() },
-        { name: 'leave-history-reports', check: () => staff.reportsReady() },
-        { name: 'service-category-closing', check: () => catalog.ready() },
-        // A wrong dispatcher URL or password leaves the worker with nothing to do — it is not ready.
-        { name: 'dispatcher', check: () => dispatcher.ping() },
-        {
-          name: 'redis',
-          check: async () => {
-            await redis.ping();
-          },
-        },
-      ],
+      readiness: readinessChecks(),
       stopPolling: async () => {
         stopping = true;
         email.stop();

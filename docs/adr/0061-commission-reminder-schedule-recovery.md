@@ -330,7 +330,7 @@ scheduler (the job ends without writing, FR-053).
 
 ### 7. Fallback: the operator command
 
-For a worker that cannot reach the database function or a company that cannot be rebuilt. **It runs the same pass routine
+The audited fallback when automatic recovery does not complete: a Redis-side failure, a missing dispatcher grant or a company that cannot be rebuilt (issue #1222 item 8). **It depends on the same definer function and policy as the worker** — the owner role can EXECUTE `recovery_company_ids` without a grant to `pospay_dispatcher`, but the function still runs as `pospay_recovery_company_reader` under `companies_recovery_select`, so a missing or broken definer or a missing or wrong policy cannot be worked around, and **the command never runs a direct `SELECT` that would bypass the live-company filter**. Before it lists, it therefore checks that the function exists and is owned by `pospay_recovery_company_reader`, that the policy `companies_recovery_select` exists on `companies`, and that a probe call returns a page; **if any check fails it stops with a fixed error code (`COMMISSION_REMINDER_RECOVERY_FUNCTION_MISSING`, `…_POLICY_MISSING` or `…_PROBE_FAILED`) before touching any scheduler, key or flag.** `docs/runbook.md` gives the verification and repair steps (the privilege-inventory check, re-applying the migration) before a retry. **It runs the same pass routine
 as the worker (point 4, steps 1–5), with four differences only:** **(1)** it runs as the owner role but **lists companies by calling the same definer function
 `recovery_company_ids`** (same keyset order, same page size), **not by a query of its own**: the live-company predicate is
 written once, in the RLS policy `companies_recovery_select` (point 1), which applies to the function's owner role whoever
@@ -357,6 +357,48 @@ clears**: an abort or a crash after the clear then leaves the sentinel absent an
 old certificate. A worker pass that owns the key makes the operator wait or stop that worker first. Replaying
 `CompanyCreated` is no longer part of this primary path: it stays a documented secondary tool (a consumer's mark in
 `consumed_events` makes a replay skip a company, so it can never be relied on to rebuild).
+
+### Refinements made in the 56b-1 code PR (issue #1222; no accepted decision changes)
+
+The code PR closes the items of [issue #1222](https://github.com/lolotam/PayPos.systems/issues/1222) by proof or fix, never by a
+weaker readiness. The contract of points 1 to 7 above is unchanged; these refinements only make it precise.
+
+- **The outbox sequence fence (item 2).** The sentinel also carries `cutoff_seq`, the highest `outbox.seq` at the moment `C`
+  was read (same statement). The parked-event predicate P selects a parked `CompanyCreated` row when `parked_at > C` **or**
+  `seq > cutoff_seq`, so a row parked with `parked_at <= C` after a backward clock correction is still detected, and a
+  database clock that reads earlier than `C` invalidates the certificate and starts a pass.
+- **Consumer specificity of P (point 2, item 3 of §2).** A parked `CompanyCreated` counts toward P, the parked alert and
+  `/ready` only when **the commission scheduler of that company is actually missing from Redis**; one parked for another
+  consumer (for example `staff`) whose scheduler exists never starts a pass or degrades readiness.
+- **Bracketed `/ready` (item 3).** The probe reads PostgreSQL before and after the Redis check of the parked companies'
+  schedulers and degrades on any change of the open flags or of the parked set between the two reads, in addition to the
+  certificate comparison of point 4; it never reports healthy for a state that was never healthy.
+- **Pacing (items 4 to 7).** Pacing is applied **after** the under-lease read: a pacing record of another (closed)
+  incident never delays a new loss, an operator command records the slot only after verifying that the incident it named
+  is the open one, a process start's first pass of a Redis generation skips the refusal once (the record keeps
+  `startup_run_id`) and every later start in the same generation follows the shared schedule, and the «nothing needed» exit is
+  taken only when the fresh read shows a valid sentinel, no open reminder incident and P false, with no start-up reason.
+- **Incident adoption (point 4 step 2).** A pass adopts the open incident, or raises one the moment it finds a loss
+  (a sentinel missing or from another `run_id` outside a start-up pass, or any company without its scheduler during the
+  rebuild), invalidates the sentinel before the clear path, and rebinds the pacing record to that incident. By design, a
+  `STARTUP` pass with a missing or stale sentinel raises `COMMISSION_REMINDER_SCHEDULES_LOST` only if at least one live
+  company lacks its scheduler, so a first deploy with zero companies or a process start where every scheduler is intact
+  re-certifies without opening a spurious incident.
+- **Snapshot ordering fence (issue #1222 item 2).** `cutoff_seq` carries `<max_outbox_seq>@<pg_current_snapshot>` captured
+  in the same statement as `C`, so an in-flight `CompanyCreated` transaction open when `C` was sampled that commits and parks
+  later with a regressed clock (`parked_at <= C` and `seq <= max_outbox_seq`) is still detected via
+  `NOT pg_visible_in_snapshot(o.xmin::text::xid8, snap)`. Casting 32-bit `xmin` to `xid8` assumes transaction-ID epoch 0
+  (`< 2^32` transactions) and falls back safely to `seq > cutoff_seq` / `parked_at > cutoff` beyond epoch 0.
+- **Pacing and healthy detection (point 4 step 1).** Periodic `DETECT` ticks evaluate `snapshot`, open flags, parked events,
+  and parked schedulers read-only before acquiring `commissions:reminders:recovery`, so a healthy system never raises false
+  `RECOVERY_IN_PROGRESS` on `/ready`. All recovery PostgreSQL calls run under operation deadlines while holding the lease, and
+  rebuild passes upsert every company scheduler in the listing (idempotent refresh).
+- **Stalled work (point 4 step 3).** Page reads, scheduler checks and upserts have their deadlines (30 s, 30 s, 10 s) and the
+  pass a maximum interval without progress (90 s) and a hard pass deadline; on any of them the pass stops renewing,
+  deletes its own key by compare-and-set and ends as a failed round without a clear or a publication.
+- **The consumer mark (point 2 of §2, CM-57b).** The consumer `commissions.reminder-schedule` is registered for
+  `CompanyCreated`; the scheduler is registered in Redis in the delivery path before its `consumed_events` mark and outside
+  the database transaction, so a Redis failure is a retryable failure with no mark.
 
 ## What the code PR must amend
 

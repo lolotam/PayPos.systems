@@ -7,3 +7,5 @@ export { branchScheduleHours } from './persistence/branch-schedule-hours.ts';
 export { companyOpen } from './persistence/company-open.ts';
 export { coverageBusinessIds } from './persistence/coverage-business-ids.ts';
 export { packageSalePlace } from './persistence/package-sale-place.reader.ts';
+export { companyBusinesses } from './persistence/company-businesses.ts';
+export { companyFeatureEnabled } from './persistence/company-feature-enabled.ts';

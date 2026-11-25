@@ -2,9 +2,7 @@ import type { Tx } from '@pospay/db';
 import { systemRoleGrantAllowedSql, systemRoleOverrideAllowedSql } from '@pospay/db';
 import { sql } from 'drizzle-orm';
 
-import { evaluateAccess } from '../domain/access.ts';
-import { readAccessTransaction } from './access-reader.ts';
-import { readCommissionScope } from './commission-read-scope.ts';
+import { readBusinessWideCommissionActor } from './commission-read-scope.ts';
 import { readFeatureEnabled } from './feature-reader.ts';
 
 /** صلاحية الاعتماد: أصحابها مستلمو إشعار «الكشف مستني الاعتماد» ومسموح لهم بالإرجاع (CS-Q5). */
@@ -62,12 +60,15 @@ export async function readCommissionReturnAccess(
 ): Promise<CommissionApprovalAccess> {
   const at = await lockCompanyAndMemberships(tx, companyId);
   if (at === null) return 'FORBIDDEN';
-  const access = await readAccessTransaction(tx, companyId, userId, at);
-  const holds =
-    evaluateAccess(access.grants, REVIEW_PERMISSION, { companyId, businessId }) ||
-    evaluateAccess(access.grants, APPROVE_PERMISSION, { companyId, businessId });
+  const holds = await readBusinessWideCommissionActor(
+    tx,
+    companyId,
+    userId,
+    businessId,
+    [REVIEW_PERMISSION, APPROVE_PERMISSION],
+    at,
+  );
   if (!holds) return 'FORBIDDEN';
-  if (!(await isBusinessWideReader(tx, companyId, userId, businessId, at))) return 'FORBIDDEN';
   return (await readFeatureEnabled(tx, companyId, 'commissions', at)) ? null : 'FEATURE_DISABLED';
 }
 
@@ -88,15 +89,14 @@ export async function commissionApproverHolds(
   scope: { companyId: string; userId: string; businessId: string },
   at: Date,
 ): Promise<boolean> {
-  const access = await readAccessTransaction(tx, scope.companyId, scope.userId, at);
-  if (
-    !evaluateAccess(access.grants, APPROVE_PERMISSION, {
-      companyId: scope.companyId,
-      businessId: scope.businessId,
-    })
-  )
-    return false;
-  return isBusinessWideReader(tx, scope.companyId, scope.userId, scope.businessId, at);
+  return readBusinessWideCommissionActor(
+    tx,
+    scope.companyId,
+    scope.userId,
+    scope.businessId,
+    APPROVE_PERMISSION,
+    at,
+  );
 }
 
 /**
@@ -156,22 +156,6 @@ export async function readCommissionApprovers(
       approvers.push(userId);
   }
   return approvers.sort();
-}
-
-/**
- * قارئ نطاق القراءة على مستوى النشاط كله: نطاق الشركة أو النشاط نفسه بلا DENY (CS-Q26 = PP-24.1).
- * بيقرا بتوقيت القرار الواحد المتمرر، فصلاحية الإجراء وقراءة النشاط كله متقيمين على نفس اللحظة.
- * عضوية فرع أو نشاط تاني ما بتعدّش قراءة نشاط كله، فالمراجعة والإرجاع بيرفضوها بالرفض الموحّد.
- */
-async function isBusinessWideReader(
-  tx: Tx,
-  companyId: string,
-  userId: string,
-  businessId: string,
-  at: Date,
-): Promise<boolean> {
-  const scope = await readCommissionScope(tx, companyId, userId, businessId, at);
-  return scope.kind === 'scope' && scope.scope.businessWide;
 }
 
 /**

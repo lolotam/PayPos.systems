@@ -30,6 +30,7 @@ import {
   commissionCorrectionBlockedRecipient,
   statementAwaitingApprovalParameters,
   statementAwaitingApprovalRecipient,
+  statementAwaitingReviewParameters, statementAwaitingReviewRecipient,
 } from './statement-notifications.js';
 
 const safeText = z
@@ -237,6 +238,7 @@ export const inAppRecipient = z.discriminatedUnion('template_key', [
   discountSelfApprovedRecipient,
   commissionCorrectionBlockedRecipient,
   statementAwaitingApprovalRecipient,
+  statementAwaitingReviewRecipient,
   commissionEventParkedRecipient,
   z.strictObject({
     ...inAppBase,
@@ -317,6 +319,7 @@ export const inAppNotification = z
       template_key: z.literal('statement_awaiting_approval'),
       safe_parameters: statementAwaitingApprovalParameters,
     }),
+    responseObject({ ...inAppNotificationBase, template_key: z.literal('statement_awaiting_review'), safe_parameters: statementAwaitingReviewParameters }),
     responseObject({
       ...inAppNotificationBase,
       template_key: z.literal('commission_event_parked'),

@@ -28,6 +28,7 @@ export { discountSelfApproved } from './templates/discount-self-approved.ts';
 export { commissionCorrectionBlocked } from './templates/commission-correction-blocked.ts';
 export { commissionEventParked } from './templates/commission-event-parked.ts';
 export { statementAwaitingApproval } from './templates/statement-awaiting-approval.ts';
+export { statementAwaitingReview } from './templates/statement-awaiting-review.ts';
 export { shiftNotClockedIn } from './templates/shift-not-clocked-in.ts';
 export { attendanceExceptionRaised } from './templates/attendance-exception-raised.ts';
 export { documentExpiring } from './templates/document-expiring.ts';

@@ -135,6 +135,13 @@ it('recognizes every event emitted by API and worker, including finite template 
   expect(consumers.flatMap((consumer) => consumer.eventTypes)).toContain('StaffAccessGranted');
   expect(consumers.flatMap((consumer) => consumer.eventTypes)).toContain('StaffPinSetByOther');
   expect(KNOWN_EVENT_TYPES).not.toContain('StaffAccessGranted');
+  // ADR-0061 §2: مستهلك علامة جدولة التذكيرات مسجَّل لـCompanyCreated في تركيب الإقلاع الحقيقي.
+  expect(consumers).toContainEqual(
+    expect.objectContaining({
+      id: 'commissions.reminder-schedule',
+      eventTypes: ['CompanyCreated'],
+    }),
+  );
   const supported = new Set([
     ...knownEventTypes(staff, notifications, null, previews, sales, imports, catalog),
     ...consumers.flatMap((consumer) => consumer.eventTypes),
