@@ -2,8 +2,8 @@ import type { PackageSaleChanged } from '@pospay/contracts';
 
 import {
   classifyCommissionPeriods,
-  commissionPeriodLockPlan,
   currentBusinessPeriod,
+  nextCommissionPeriodToLock,
 } from '../../domain/commission-periods.ts';
 import {
   affectedCommissionSaleEmployees,
@@ -12,6 +12,7 @@ import {
   saleAffectedPeriods,
   type CommissionSaleInputEvent,
 } from '../../domain/commission-sale-inputs.ts';
+import type { LockedCommissionPeriod } from '../../domain/commission-line-types.ts';
 import {
   CommissionBusinessMissingError,
   CommissionPeriodRolledOverError,
@@ -64,17 +65,26 @@ export class ProjectPackageSale {
     if (timeZone === null) throw new CommissionBusinessMissingError(input.businessId);
     const plannedPeriod = currentBusinessPeriod(this.clock.now(), timeZone);
     const affected = saleAffectedPeriods(held?.period ?? null, input.businessDate);
-    const plan = commissionPeriodLockPlan(affected, plannedPeriod);
-    const locked = await this.scope.lockPeriods({
-      businessId: input.businessId,
-      periods: plan.periodsToLock,
-      ids: this.ids,
-    });
+    // القفل بيتقفل شهر شهر وبترتيب صاعد: شهر متأثر مقفول ولسه بلا هدف مفتوح بعده لازم
+    // يتقفل، بس شهر مفتوح مفيش داعي لقفل الشهور اللي بينه وبين الشهر الحالي (50-4).
+    const locked: LockedCommissionPeriod[] = [];
+    for (;;) {
+      const next = nextCommissionPeriodToLock(affected, plannedPeriod, locked);
+      if (next === null) break;
+      const rows = await this.scope.lockPeriods({
+        businessId: input.businessId,
+        periods: [next],
+        ids: this.ids,
+      });
+      // القفل بيرجّع صف الشهر المقفول؛ من غيره مافيش تقدم، فالدورة بتقف بدل ما تدور للأبد.
+      if (!rows.some((row) => row.period === next)) break;
+      locked.push(...rows);
+    }
     const currentPeriod = currentBusinessPeriod(this.clock.now(), timeZone);
     if (currentPeriod !== plannedPeriod) {
       throw new CommissionPeriodRolledOverError(plannedPeriod, currentPeriod);
     }
-    const { closed, reviewed } = classifyCommissionPeriods(locked, plan.affectedPeriods);
+    const { closed, reviewed } = classifyCommissionPeriods(locked, affected);
     // الهدف بيتختار من لقطة الأقفال قبل أي كتابة، والهدف الأول هو أول شهر DRAFT بعد الشهر
     // المصدر؛ reopenReviewed بييجي بعد التصحيح فكيفي على ترتيب D-5.
     const targets = selectCommissionCorrectionTargets(locked, closed, currentPeriod);

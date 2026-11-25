@@ -1,194 +1,42 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it } from 'vitest';
 
-import type { LockedCommissionPeriod } from '../../domain/commission-line-types.ts';
 import {
   CommissionBusinessMissingError,
   CommissionPeriodRolledOverError,
   CommissionSaleInputInvalidError,
 } from '../../domain/errors.ts';
-import type { CommissionSaleProjectionRow } from '../../domain/commission-sale-inputs.ts';
-import type {
-  CommissionSaleProjectionScope,
-} from '../../ports/commission-sale-projection.port.ts';
-import type {
-  CommissionCorrectionScope,
-  CommissionBlockNotices,
-} from '@pospay/commissions-posting';
+import {
+  BUSINESS,
+  COMPANY,
+  correctionCalls,
+  fakeCorrections,
+  fakeNotices,
+  fakeScope,
+  frozenStatementIds,
+  heldRow,
+  input,
+  locked,
+  resetSaleProjectionCalls,
+  SALE,
+} from './__tests__/project-package-sale.fixture.ts';
 import { ProjectPackageSale } from './project-package-sale.ts';
 
-const COMPANY = '01920000-0000-7000-8000-0000000000a0';
-const BUSINESS = '01920000-0000-7000-8000-0000000000b1';
-const SALE = '01970000-0000-7000-8000-000000000001';
-
-/** نداءات نطاق التصحيح ومنفذ الجرس في آخر اختبار، عشان كل اختبار يبدأ نظيف. */
-const correctionCalls: string[] = [];
+const IDS = { newId: () => '01980000-0000-7000-8000-0000000000f1' };
 
 beforeEach(() => {
-  correctionCalls.length = 0;
+  resetSaleProjectionCalls();
 });
 
-const input = (overrides: Record<string, unknown> = {}) => ({
-  companyId: COMPANY,
-  eventId: '01970000-0000-7000-8000-000000000009',
-  businessId: BUSINESS,
-  branchId: '01920000-0000-7000-8000-0000000000c1',
-  saleId: SALE,
-  sellerEmployeeId: '01920000-0000-7000-8000-0000000000e1',
-  businessDate: '2026-11-01',
-  pricePaid: '30.000',
-  refundedAmount: '0.000',
-  status: 'SOLD',
-  revision: 1,
-  ...overrides,
-});
-
-const heldRow = (revision: number): CommissionSaleProjectionRow => ({
-  businessId: BUSINESS,
-  saleId: SALE,
-  branchId: '01920000-0000-7000-8000-0000000000c1',
-  sellerEmployeeId: '01920000-0000-7000-8000-0000000000e1',
-  businessDate: '2026-11-01',
-  period: '2026-11',
-  pricePaid: 30000n,
-  refundedAmount: 0n,
-  status: 'SOLD',
-  revision,
-});
-
-const locked = (period: string, status: 'DRAFT' | 'REVIEWED' | 'APPROVED' | 'PAID'): LockedCommissionPeriod => ({
-  period,
-  statementId: '01920000-0000-7000-8000-0000000000s1',
-  status,
-});
-
-type CallLog = string[];
-
-interface FakeOverrides {
-  readonly held?: CommissionSaleProjectionRow | null;
-  readonly timeZone?: string | null;
-  readonly locked?: readonly LockedCommissionPeriod[];
-  readonly rolledOverTo?: string;
-}
-
-/** ساعة تدفع الشهر الحالي ثم الشهر البديل بعد أول قراءتين، لمحاكاة تدبّر الشهر بين القفل والتصنيف. */
-function fakeClock(rolledOverTo: string | undefined): { now: () => Date } {
-  let nowReads = 0;
-  return {
-    now: () => {
-      nowReads += 1;
-      return rolledOverTo !== undefined && nowReads >= 2
-        ? new Date(rolledOverTo)
-        : new Date('2026-11-05T09:00:00Z');
-    },
-  };
-}
-
-function fakeScope(overrides: FakeOverrides = {}): {
-  readonly scope: CommissionSaleProjectionScope;
-  readonly calls: CallLog;
-  readonly clock: { now: () => Date };
-} {  const calls: CallLog = [];
-  const scope: CommissionSaleProjectionScope = {
-    lockSale: vi.fn(async () => {
-      calls.push('lockSale');
-    }),
-    readSale: vi.fn(async () => {
-      calls.push('readSale');
-      return overrides.held ?? null;
-    }),
-    businessTimeZone: vi.fn(async () => {
-      calls.push('businessTimeZone');
-      return overrides.timeZone === undefined ? 'Asia/Kuwait' : overrides.timeZone;
-    }),
-    lockPeriods: vi.fn(async (input) => {
-      calls.push(`lockPeriods:${input.periods.join(',')}`);
-      return overrides.locked ?? [];
-    }),
-    upsertSale: vi.fn(async () => {
-      calls.push('upsertSale');
-    }),
-    reopenReviewed: vi.fn(async (input) => {
-      calls.push(`reopenReviewed:${input.periods.join(',')}`);
-    }),
-  };
-  return { scope, calls, clock: fakeClock(overrides.rolledOverTo) };
-}
-
-/**
- * نطاق تصحيح مسجّل: بيرجّع قيم فاضية صالحة فالمسار المغلق بيوصل لآخره،
- * وسجل نداءاته بيقول هل التصحيح اشتغل أو لا.
- */
-function fakeCorrections(calls: string[]): CommissionCorrectionScope {
-  return {
-    readFrozenSources: async () => {
-      calls.push('readFrozenSources');
-      return [];
-    },
-    readPostedCorrections: async () => {
-      calls.push('readPostedCorrections');
-      return [];
-    },
-    readAttachmentSnapshot: async () => {
-      calls.push('readAttachmentSnapshot');
-      return [];
-    },
-    readMonthProjection: async () => {
-      calls.push('readMonthProjection');
-      return {
-        employeeId: '01920000-0000-7000-8000-0000000000e1',
-        period: '2026-10',
-        lines: [],
-        sales: [],
-        salaries: [],
-        versions: [],
-        overrides: [],
-        tips: [],
-        corrections: [],
-      };
-    },
-    bumpGeneration: async () => {
-      calls.push('bumpGeneration');
-      return 1;
-    },
-    insertCorrections: async () => {
-      calls.push('insertCorrections');
-    },
-    readOpenBlock: async () => {
-      calls.push('readOpenBlock');
-      return null;
-    },
-    insertBlock: async () => {
-      calls.push('insertBlock');
-      return '01980000-0000-7000-8000-0000000000f2';
-    },
-    updateBlockCode: async () => {
-      calls.push('updateBlockCode');
-    },
-    resolveBlock: async () => {
-      calls.push('resolveBlock');
-    },
-  };
-}
-
-/** منفذ جرس مسجّل؛ بيتنادى بس لما التصحيح يتوقف فعلاً. */
-function fakeNotices(calls: string[]): CommissionBlockNotices {
-  return {
-    now: () => new Date('2026-11-05T09:00:00Z'),
-    recipientGroups: async () => {
-      calls.push('recipientGroups');
-      return [];
-    },
-    append: async () => {
-      calls.push('append');
-    },
-  };
-}
-
-describe('ProjectPackageSale order (FR-015)', () => {  it('locks the sale identity before reading and writes after the period lock', async () => {
-    const { scope, calls, clock } = fakeScope({
-      locked: [locked('2026-11', 'DRAFT')],
-    });
-    await new ProjectPackageSale(scope, clock, { newId: () => '01980000-0000-7000-8000-0000000000f1' }, fakeCorrections(correctionCalls), fakeNotices(correctionCalls)).execute(input());
+describe('ProjectPackageSale order (FR-015)', () => {
+  it('locks the sale identity before reading and writes after the period lock', async () => {
+    const { scope, calls, clock } = fakeScope({ locked: [locked('2026-11', 'DRAFT')] });
+    await new ProjectPackageSale(
+      scope,
+      clock,
+      IDS,
+      fakeCorrections(correctionCalls),
+      fakeNotices(correctionCalls),
+    ).execute(input());
 
     expect(calls[0]).toBe('lockSale');
     expect(calls[1]).toBe('readSale');
@@ -199,32 +47,50 @@ describe('ProjectPackageSale order (FR-015)', () => {  it('locks the sale identi
 
   it('drops an equal or older revision before any calendar read or write', async () => {
     const { scope, calls } = fakeScope({ held: heldRow(2) });
-    await new ProjectPackageSale(scope, { now: () => new Date('2026-11-05T09:00:00Z') }, { newId: () => '01980000-0000-7000-8000-0000000000f1' }, fakeCorrections(correctionCalls), fakeNotices(correctionCalls)).execute(input({ revision: 2 }));
+    await new ProjectPackageSale(
+      scope,
+      { now: () => new Date('2026-11-05T09:00:00Z') },
+      IDS,
+      fakeCorrections(correctionCalls),
+      fakeNotices(correctionCalls),
+    ).execute(input({ revision: 2 }));
 
     expect(calls).toEqual(['lockSale', 'readSale']);
     expect(scope.upsertSale).not.toHaveBeenCalled();
   });
+});
 
-  it('locks the held month, the new month and every candidate through the current month', async () => {
+describe('ProjectPackageSale period lock (FR-015)', () => {
+  it('locks the held month and the new month in ascending order, one month per lock', async () => {
     const { scope, calls, clock } = fakeScope({
       held: heldRow(1),
       locked: [locked('2026-10', 'DRAFT'), locked('2026-11', 'DRAFT')],
     });
-    await new ProjectPackageSale(scope, clock, { newId: () => '01980000-0000-7000-8000-0000000000f1' }, fakeCorrections(correctionCalls), fakeNotices(correctionCalls)).execute(
-      input({ revision: 2, businessDate: '2026-10-20', refundedAmount: '5.000' }),
-    );
+    await new ProjectPackageSale(
+      scope,
+      clock,
+      IDS,
+      fakeCorrections(correctionCalls),
+      fakeNotices(correctionCalls),
+    ).execute(input({ revision: 2, businessDate: '2026-10-20', refundedAmount: '5.000' }));
 
-    const lockCall = calls.find((entry) => entry.startsWith('lockPeriods:'));
-    expect(lockCall).toBe('lockPeriods:2026-10,2026-11');
+    expect(calls.filter((entry) => entry.startsWith('lockPeriods:'))).toEqual([
+      'lockPeriods:2026-10',
+      'lockPeriods:2026-11',
+    ]);
   });
 
   it('posts a correction for the closed affected month instead of refusing it (55-1d)', async () => {
     const { scope, calls, clock } = fakeScope({
       locked: [locked('2026-10', 'APPROVED'), locked('2026-11', 'DRAFT')],
     });
-    await new ProjectPackageSale(scope, clock, { newId: () => '01980000-0000-7000-8000-0000000000f1' }, fakeCorrections(correctionCalls), fakeNotices(correctionCalls)).execute(
-      input({ revision: 2, businessDate: '2026-10-20' }),
-    );
+    await new ProjectPackageSale(
+      scope,
+      clock,
+      IDS,
+      fakeCorrections(correctionCalls),
+      fakeNotices(correctionCalls),
+    ).execute(input({ revision: 2, businessDate: '2026-10-20' }));
 
     expect(calls.includes('upsertSale')).toBe(true);
     expect(correctionCalls).toContain('bumpGeneration');
@@ -239,7 +105,13 @@ describe('ProjectPackageSale refusals (FR-015)', () => {
       locked: [locked('2026-11', 'DRAFT')],
       rolledOverTo: '2026-12',
     });
-    const work = new ProjectPackageSale(scope, clock, { newId: () => '01980000-0000-7000-8000-0000000000f1' }, fakeCorrections(correctionCalls), fakeNotices(correctionCalls)).execute(input());
+    const work = new ProjectPackageSale(
+      scope,
+      clock,
+      IDS,
+      fakeCorrections(correctionCalls),
+      fakeNotices(correctionCalls),
+    ).execute(input());
 
     await expect(work).rejects.toThrow(CommissionPeriodRolledOverError);
     expect(scope.upsertSale).not.toHaveBeenCalled();
@@ -247,19 +119,31 @@ describe('ProjectPackageSale refusals (FR-015)', () => {
 
   it('throws the business-missing error for an unknown business and writes nothing', async () => {
     const { scope, calls, clock } = fakeScope({ timeZone: null });
-    const work = new ProjectPackageSale(scope, clock, { newId: () => '01980000-0000-7000-8000-0000000000f1' }, fakeCorrections(correctionCalls), fakeNotices(correctionCalls)).execute(input());
+    const work = new ProjectPackageSale(
+      scope,
+      clock,
+      IDS,
+      fakeCorrections(correctionCalls),
+      fakeNotices(correctionCalls),
+    ).execute(input());
 
     await expect(work).rejects.toThrow(CommissionBusinessMissingError);
     expect(calls.includes('upsertSale')).toBe(false);
   });
+});
 
+describe('ProjectPackageSale review and identity (FR-015)', () => {
   it('reopens only the REVIEWED affected months after the write', async () => {
     const { scope, calls, clock } = fakeScope({
       locked: [locked('2026-10', 'REVIEWED'), locked('2026-11', 'DRAFT')],
     });
-    await new ProjectPackageSale(scope, clock, { newId: () => '01980000-0000-7000-8000-0000000000f1' }, fakeCorrections(correctionCalls), fakeNotices(correctionCalls)).execute(
-      input({ revision: 2, businessDate: '2026-10-20' }),
-    );
+    await new ProjectPackageSale(
+      scope,
+      clock,
+      IDS,
+      fakeCorrections(correctionCalls),
+      fakeNotices(correctionCalls),
+    ).execute(input({ revision: 2, businessDate: '2026-10-20' }));
 
     expect(calls.at(-1)).toBe('reopenReviewed:2026-10');
   });
@@ -269,7 +153,12 @@ describe('ProjectPackageSale refusals (FR-015)', () => {
     const { normalizePackageSaleEvent } = await import('./project-package-sale.ts');
     const work = () =>
       normalizePackageSaleEvent(
-        { id: '01970000-0000-7000-8000-000000000009', aggregateType: 'package_entitlement', aggregateId: SALE, companyId: COMPANY },
+        {
+          id: '01970000-0000-7000-8000-000000000009',
+          aggregateType: 'package_entitlement',
+          aggregateId: SALE,
+          companyId: COMPANY,
+        },
         {
           sale_id: '01970000-0000-7000-8000-000000000002',
           business_id: BUSINESS,
@@ -286,5 +175,50 @@ describe('ProjectPackageSale refusals (FR-015)', () => {
       );
     expect(work).toThrow(CommissionSaleInputInvalidError);
     expect(calls).toEqual([]);
+  });
+});
+
+describe('ProjectPackageSale historical replay (50-4)', () => {
+  it('locks one open historical month only and never walks towards the current month', async () => {
+    const { scope, calls, clock } = fakeScope({ now: '2026-12-05T09:00:00Z' });
+    await new ProjectPackageSale(
+      scope,
+      clock,
+      IDS,
+      fakeCorrections(correctionCalls),
+      fakeNotices(correctionCalls),
+    ).execute(input({ businessDate: '0001-01-15' }));
+
+    expect(calls.filter((entry) => entry.startsWith('lockPeriods:'))).toEqual([
+      'lockPeriods:0001-01',
+    ]);
+  });
+
+  it('walks a closed historical month to its first open target and stops there', async () => {
+    const { scope, calls, clock } = fakeScope({
+      now: '2026-12-05T09:00:00Z',
+      locked: [
+        locked('2024-01', 'APPROVED'),
+        locked('2024-02', 'REVIEWED'),
+        locked('2024-03', 'DRAFT'),
+      ],
+    });
+    await new ProjectPackageSale(
+      scope,
+      clock,
+      IDS,
+      fakeCorrections(correctionCalls),
+      fakeNotices(correctionCalls),
+    ).execute(input({ businessDate: '2024-01-15' }));
+
+    // القفل بيقف عند أول شهر مفتوح بعد الشهر المقفول، فمفيش قفل للشهور اللي بينه وبين الشهر الحالي.
+    expect(calls.filter((entry) => entry.startsWith('lockPeriods:'))).toEqual([
+      'lockPeriods:2024-01',
+      'lockPeriods:2024-02',
+      'lockPeriods:2024-03',
+    ]);
+    // التصحيح اشتغل على الشهر المقفول 2024-01، والهدف هو أول شهر مفتوح بعده وهو 2024-03.
+    expect(frozenStatementIds).toContain('statement-2024-01');
+    expect(correctionCalls).toContain('insertCorrections');
   });
 });

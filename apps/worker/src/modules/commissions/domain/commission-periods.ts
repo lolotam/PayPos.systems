@@ -73,6 +73,63 @@ export function commissionPeriodLockPlan(
   };
 }
 
+/**
+ * يختار الشهر التالي اللي ينفع يقفل في مسار تصحيح بيع باقة، والقرار بيتبني على لقطة
+ * الأقفال المحقونة مش على مدى كامل: شهر متأثر مقفول لسه بلا هدف DRAFT بيحتاج شهر
+ * مفتوح بعده، فيُقفل الشهر اللي بعده شهر شهر؛ غير كده ينتقل القفل لأقرب شهر متأثر
+ * تالٍ فوراً. القفل بيفضل صاعد عشان ما يحصلش deadlock مع كاتب تاني (CM-02).
+ *
+ * @param affectedPeriods شهور الحذف أو الإضافة، مرتبة تصاعدياً بعد إزالة التكرار
+ * @param currentPeriod شهر اليوم المحلي للنشاط
+ * @param locked الشهور المقفولة بحالاتها بعد كل نداءات القفل السابقة
+ * @returns الشهر التالي المراد قفله، أو null لما ما فيهش شهر تاني مطلوب
+ */
+export function nextCommissionPeriodToLock(
+  affectedPeriods: readonly string[],
+  currentPeriod: string,
+  locked: readonly LockedCommissionPeriod[],
+): string | null {
+  const affected = [...new Set(affectedPeriods)].sort();
+  if (affected.length === 0) return null;
+  const lastLocked = locked.at(-1)?.period ?? null;
+  if (needsCorrectionTarget(affected, currentPeriod, locked)) {
+    // الشهر المقفول بلا هدف مفتوح لازم ياخد هدفه من شهر بعده داخل الشهر الحالي، فلو وصلنا
+    // للشهر الحالي من غير هدف فالقفل بيقف والاختيار بيرفض العملية بنفسه.
+    if (lastLocked === null || lastLocked >= currentPeriod) return null;
+    return nextPeriod(lastLocked);
+  }
+  const next = affected.find((period) => lastLocked === null || period > lastLocked);
+  return next ?? null;
+}
+
+/**
+ * يقول إن فيه شهر متأثر مقفول لسه بلا هدف DRAFT مفتوح بعده وداخل الشهر الحالي؛
+ * الهدف المقفول لسه شغّال على شهر مقفول تاني فمابقاش هدف.
+ *
+ * @param affected الشهور المتأثرة مرتبة تصاعدياً
+ * @param currentPeriod شهر اليوم المحلي للنشاط
+ * @param locked الشهور المقفولة بحالاتها
+ * @returns true حين يحتاج شهر متأثر مقفول إلى شهر مفتوح بعده
+ */
+function needsCorrectionTarget(
+  affected: readonly string[],
+  currentPeriod: string,
+  locked: readonly LockedCommissionPeriod[],
+): boolean {
+  return locked.some(
+    (row) =>
+      affected.includes(row.period) &&
+      (row.status === 'APPROVED' || row.status === 'PAID') &&
+      row.period < currentPeriod &&
+      !locked.some(
+        (candidate) =>
+          candidate.status === 'DRAFT' &&
+          row.period < candidate.period &&
+          candidate.period <= currentPeriod,
+      ),
+  );
+}
+
 function nextPeriod(period: string): string {
   const year = Number(period.slice(0, 4));
   const month = Number(period.slice(5, 7));
