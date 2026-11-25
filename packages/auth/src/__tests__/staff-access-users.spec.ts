@@ -158,6 +158,24 @@ it('P1-4 resetBinding re-approves the requested phone on the existing user and r
   await owner`DELETE FROM "user" WHERE id = ${otherUser}`;
 });
 
+/**
+ * معرّف الصف القديم لاعتماد الربط: دايجست sha256 للمحاولة والمستخدم ورقم الهاتف، وبتات النسخة
+ * بتوعه فوق بايتات معرّف المحاولة. بنحسبه هنا عشان نثبت إن معرّف صف الاعتماد ما يحملش رقم
+ * الهاتف (P2-1) — المعرّف لازم يبقى دايجست (المحاولة، المستخدم) بس.
+ */
+function legacyPhoneBearingAuditId(attemptId: string, userId: string, phone: string): string {
+  const bytes = Buffer.from(attemptId.replaceAll('-', ''), 'hex');
+  const digest = createHash('sha256')
+    .update(`staff-binding:${attemptId}:${userId}:${phone}`)
+    .digest();
+  bytes[6] = 0x70 | (digest.readUInt8(0) & 0x0f);
+  bytes[7] = digest.readUInt8(1);
+  bytes[8] = 0x80 | (digest.readUInt8(2) & 0x3f);
+  digest.copy(bytes, 9, 3, 10);
+  const hex = bytes.toString('hex');
+  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
+}
+
 it('AC-ACT-2 a repeated binding reset of the same attempt approves the phone once', async () => {
   const operationId = ids.newId();
   const attemptId = ids.newId();
@@ -172,10 +190,13 @@ it('AC-ACT-2 a repeated binding reset of the same attempt approves the phone onc
   // تكرار نفس المحاولة: مفيش اعتماد تاني ولا صف تاني.
   await provision(phone, operationId, { resetBinding: true, attemptId });
   expect(await bindingRows()).toHaveLength(2);
-  const attempts = await owner`SELECT details FROM platform_audit_log
+  const attempts = await owner`SELECT id, details FROM platform_audit_log
     WHERE action = 'phone.binding_approved' AND details->>'attempt_id' = ${attemptId}`;
   expect(attempts).toHaveLength(1);
   expect(attempts[0]?.details).toMatchObject({ user_id: userId, attempt_id: attemptId });
+  // معرّف صف الاعتماد ما يحملش رقم الهاتف (P2-1): المعرّف القديم كان دايجست (المحاولة، المستخدم،
+  // الهاتف)، فرقم الهاتف كان بايت في معرّف الصف. لازم يكون دايجست (المحاولة، المستخدم) بس.
+  expect(attempts[0]?.id).not.toBe(legacyPhoneBearingAuditId(attemptId, userId, phone));
   const [user] =
     await owner`SELECT phone_number, phone_binding_approved_at FROM "user" WHERE id = ${userId}`;
   expect(user?.phone_number).toBe(phone);
