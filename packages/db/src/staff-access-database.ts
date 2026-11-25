@@ -172,16 +172,18 @@ function bindingDetails(userId: string, attemptId: string | undefined): Record<s
 }
 
 /**
- * معرّف صف اعتماد الربط: وقت المحاولة وبتات النسخة بتوعها، والباقي دايجست (المحاولة، المستخدم،
- * الهاتف). نفس المحاولة على نفس الهاتف بتدي نفس المعرّف — فالتصادم على المفتاح الأساسي هو
- * الحارس الوحيد ضد تكرار المحاولة (AC-ACT-2)، لأن سجل المنصة insert-only على pospay_auth فما
- * ينفعش القارئ يقرأ صفه عشان يتأكد إنه اتكتب. من غير معرّف محاولة المولّد العادي هو اللي بيكتب.
+ * معرّف صف اعتماد الربط: وقت المحاولة وبتات النسخة بتوعها، والباقي دايجست (المحاولة، المستخدم)
+ * بس — رقم الهاتف مش جزء من الدايجست، فالمعرّف نفسه ما يحملش رقم هاتف (P2-1). مطابقة الهاتف
+ * بتتأكد قبل كده على صف المستخدم نفسه، فإثبات التكرار ما بيحتاجش الرقم في المعرّف. نفس المحاولة
+ * على نفس المستخدم بتدي نفس المعرّف — فالتصادم على المفتاح الأساسي هو الحارس الوحيد ضد تكرار
+ * المحاولة (AC-ACT-2)، لأن سجل المنصة insert-only على pospay_auth فما ينفعش القارئ يقرأ صفه عشان
+ * يتأكد إنه اتكتب. من غير معرّف محاولة المولّد العادي هو اللي بيكتب.
  */
 function bindingAuditId(input: StaffUserProvisionInput, userId: string): string {
   if (input.attemptId === undefined) return input.ids.newId();
   const attempt = Buffer.from(input.attemptId.replaceAll('-', ''), 'hex');
   const digest = createHash('sha256')
-    .update(`staff-binding:${input.attemptId}:${userId}:${input.phone}`)
+    .update(`staff-binding:${input.attemptId}:${userId}`)
     .digest();
   attempt[6] = 0x70 | (digest.readUInt8(0) & 0x0f);
   attempt[7] = digest.readUInt8(1);
@@ -192,8 +194,9 @@ function bindingAuditId(input: StaffUserProvisionInput, userId: string): string 
 }
 
 /**
- * يكتب صف اعتماد ربط الهاتف في سجل المنصة. المعرّف ثابت لكل (محاولة، مستخدم، هاتف)، فالتكرار
- * مايكتبش صفين — والتصادم على المفتاح هو اللي بيقول إن المحاولة دي اتنفذت قبل كده (AC-ACT-2).
+ * يكتب صف اعتماد ربط الهاتف في سجل المنصة. المعرّف ثابت لكل (محاولة، مستخدم) — بدون رقم الهاتف —
+ * فالتكرار مايكتبش صفين — والتصادم على المفتاح هو اللي بيقول إن المحاولة دي اتنفذت قبل كده
+ * (AC-ACT-2).
  *
  * `ON CONFLICT DO NOTHING` من غير هدف محدد و`RETURNING 1` بقيمة ثابتة: سجل المنصة insert-only
  * على pospay_auth، فأي `RETURNING` لعمود من الجدول أو أي هدف صراع بيطلب صلاحية SELECT ما

@@ -264,7 +264,8 @@ All of them are the first mandatory items of F2.
   loaded machine (one with a 503 `NOT_READY` from the existing staff PIN sign-in route, whose controller hides
   the cause), then passed ten of ten with the cause recorded. The review did not find an F1 regression. Before
   activation: ten clean consecutive runs with the gate on, and any 503 on that route explained from its
-  recorded cause.
+  recorded cause. Verified 2026-11-25 (076-F2a): ten consecutive clean runs (10/10, 3/3 tests per run) of
+  `staff-pin-temporary.spec.ts` passed with `STAFF_ACCESS_ROUTES=on` and zero 503 responses.
 - **AC-ACT-8 Private view refuses a temporary PIN.** Staff PIN sign-in and discount approval refuse a
   temporary PIN; `OpenPrivateView` still proves the stored hash and accepts it. It must refuse a temporary PIN
   with the same comparison and the same failed-attempt accounting, with a regression test through an OTP session.
