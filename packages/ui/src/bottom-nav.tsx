@@ -30,10 +30,70 @@ export type BottomNavProps = {
 const CELL_CLASS =
   'relative flex min-w-0 flex-1 flex-col items-center justify-center gap-1 rounded-interactive px-1 py-1 text-[11px] font-medium transition-colors motion-reduce:transition-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring';
 
+function BottomNavEntry({
+  item,
+  onNavigate,
+}: {
+  item: ShellNavItem;
+  onNavigate?: (item: ShellNavItem) => void;
+}) {
+  return (
+    <a
+      href={item.href}
+      aria-current={item.current ? 'page' : undefined}
+      onClick={onNavigate ? () => onNavigate(item) : undefined}
+      className={cn(
+        CELL_CLASS,
+        item.status && 'gap-0.5 py-0.5',
+        item.current ? 'font-semibold text-foreground' : 'text-muted-foreground hover:text-foreground',
+      )}
+    >
+      {item.icon ? (
+        <span
+          className={cn(
+            'flex items-center justify-center rounded-full',
+            item.status ? 'h-5 w-10 [&_svg]:size-4' : 'h-7 w-13',
+            item.current && 'bg-secondary',
+          )}
+        >
+          {item.icon}
+        </span>
+      ) : null}
+      <span className={cn('min-w-0 max-w-full truncate', item.status && 'leading-3.5')}>
+        {item.label}
+      </span>
+      {/* علامة الحالة في التدفق أسفل الاسم حتى لا تغطي الأيقونة ولا تقصّها خانة الهاتف
+          الضيقة (نحو 62px)، مع تصغير غلاف الأيقونة وإحكام التباعد ليبقى الشريط 64px.
+          العدّاد مستقل في الركن العلوي فلا يُسقط إذا جمع المدخل بين العلامة والعدّاد. */}
+      {item.status ? (
+        <>
+          {' '}
+          <span className="max-w-full shrink-0 truncate rounded-full border border-border bg-card px-1.5 py-0 text-[10px] leading-3.5 font-medium text-muted-foreground">
+            {item.status}
+          </span>
+        </>
+      ) : null}
+      {item.count ? (
+        <>
+          {' '}
+          <span
+            className={cn(
+              shellNavCountClass,
+              item.status ? 'absolute end-0.5 top-0.5' : 'absolute end-2 top-1',
+            )}
+          >
+            {item.count}
+          </span>
+        </>
+      ) : null}
+    </a>
+  );
+}
+
 /**
- * الشريط السفلي 64px لروابط صفحات الهاتف داخل معلم تنقّل مسمّى؛ خانة العدّاد
- * أو علامة الحالة مطلقة عند ركن النهاية العلوي حتى لا تزحزح النص،
- * والمدخل الإضافي زرّ يبلّغ.
+ * الشريط السفلي 64px لروابط صفحات الهاتف داخل معلم تنقّل مسمّى؛ خانة العدّاد مطلقة
+ * عند ركن النهاية العلوي وعلامة الحالة تُعرض في التدفق أسفل الاسم مع حجز مساحة غير
+ * متداخلة للأيقونة والاسم والعلامة ضمن 64px، والمدخل الإضافي زرّ يبلّغ.
  */
 export function BottomNav({ items, labels, extra, onNavigate, className }: BottomNavProps) {
   return (
@@ -42,40 +102,11 @@ export function BottomNav({ items, labels, extra, onNavigate, className }: Botto
       className={cn('flex h-16 items-stretch border-t border-border bg-card', className)}
     >
       {items.map((item) => (
-        <a
+        <BottomNavEntry
           key={item.id}
-          href={item.href}
-          aria-current={item.current ? 'page' : undefined}
-          onClick={onNavigate ? () => onNavigate(item) : undefined}
-          className={cn(
-            CELL_CLASS,
-            item.current
-              ? 'font-semibold text-foreground'
-              : 'text-muted-foreground hover:text-foreground',
-          )}
-        >
-          {item.icon ? (
-            <span
-              className={cn(
-                'flex h-7 w-13 items-center justify-center rounded-full',
-                item.current && 'bg-secondary',
-              )}
-            >
-              {item.icon}
-            </span>
-          ) : null}
-          <span className="min-w-0 max-w-full truncate">{item.label}</span>
-          {/* العلامة مطلقة عند ركن النهاية العلوي، مكان العدّاد، وتمتد نحو البداية: سطر ثالث
-              تحت الأيقونة يتجاوز ارتفاع الشريط 64px، ووضعها بجانب الاسم يقصّها في خانة
-              هاتف عرضها نحو 62px. المدخل تحت التطوير لا عدّاد له، فالعلامة تحل محله. */}
-          {item.status ? (
-            <span className="absolute end-0.5 top-0.5 max-w-[calc(100%-0.25rem)] truncate rounded-full border border-border bg-card px-1.5 py-0 text-[10px] font-medium text-muted-foreground">
-              {item.status}
-            </span>
-          ) : item.count ? (
-            <span className={cn(shellNavCountClass, 'absolute end-2 top-1')}>{item.count}</span>
-          ) : null}
-        </a>
+          item={item}
+          {...(onNavigate === undefined ? {} : { onNavigate })}
+        />
       ))}
       {extra ? (
         <button
