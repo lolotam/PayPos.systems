@@ -81,7 +81,7 @@ export function createStaffAccessCancelUser(auth: AuthFacadeForStaffAccess) {
  * فحص `manage:staff-access:branch` على فرع محدد جوه معاملة الشركة — نفس القاعدة للإلغاء
  * وإعادة الضبط، عشان سحب الصلاحية أثناء المعاملة ما يعديش في أي منهم.
  */
-function staffAccessAuthority(
+export function staffAccessAuthority(
   tx: Tx,
   actor: StaffAccessActor,
 ): (businessId: string, branchId: string) => Promise<boolean> {

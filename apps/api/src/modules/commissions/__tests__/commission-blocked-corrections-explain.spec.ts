@@ -96,6 +96,19 @@ it('L2 the resolved status keeps an index; the all status keeps the list order w
   expect(all).not.toContain('"Node Type":"Sort"');
 });
 
+type ExplainNode = {
+  readonly 'Node Type': string;
+  readonly 'Index Name'?: string;
+  readonly 'Relation Name'?: string;
+  readonly 'Actual Rows'?: number;
+  readonly 'Rows Removed by Filter'?: number;
+  readonly Plans?: readonly ExplainNode[];
+};
+
+function nodesBelow(node: ExplainNode): ExplainNode[] {
+  return (node.Plans ?? []).flatMap((child) => [child, ...nodesBelow(child)]);
+}
+
 it('L2 the sparse open page uses an ordered index path through resolved history', async () => {
   // سيناريو تمثيلي صناعي: تاريخ محلول كثيف أحدث من الصفوف المفتوحة. الفهرس الحالي بيمسح
   // بالترتيب وبيفلتر كل صف محلول يعديه — الكلفة دي ظاهرة في المسح الفعلي بالأرقام، من غير
@@ -115,11 +128,24 @@ it('L2 the sparse open page uses an ordered index path through resolved history'
   expect(seeded).toHaveLength(200);
   await f.h.owner`ANALYZE commission_blocked_corrections`;
   const text = await explainPlan('open', null);
-  expect(text).toContain('"Index Name":');
-  expect(text).not.toContain('"Node Type":"Sort"');
-  expect(text).not.toContain('"Node Type":"Seq Scan"');
-  const removed = (text.match(/"Rows Removed by Filter":(\d+)/g) ?? [])
-    .map((entry) => Number(/(\d+)$/.exec(entry)?.[1] ?? 0))
-    .reduce((max, value) => (value > max ? value : max), 0);
+  const parsed = JSON.parse(text) as readonly { readonly Plan?: ExplainNode }[];
+  const root = parsed[0]?.Plan;
+  expect(root?.['Node Type']).toBe('Limit');
+  expect(root?.['Actual Rows']).toBe(21);
+  if (root === undefined) throw new Error('EXPLAIN returned no Plan root');
+  const below = nodesBelow(root);
+  const belowTypes = below.map((node) => node['Node Type']);
+  expect(belowTypes).not.toContain('Seq Scan');
+  expect(belowTypes).not.toContain('Sort');
+  expect(belowTypes).not.toContain('Incremental Sort');
+  const scans = below.filter((node) => node['Node Type'].includes('Scan'));
+  expect(scans).toHaveLength(1);
+  const [scan] = scans;
+  expect(['Index Scan', 'Index Only Scan']).toContain(scan?.['Node Type']);
+  expect(scan?.['Relation Name']).toBe('commission_blocked_corrections');
+  expect(scan?.['Index Name']).toBeDefined();
+  expect(scan?.['Actual Rows']).toBe(21);
+  const removed = below.reduce((sum, node) => sum + (node['Rows Removed by Filter'] ?? 0), 0);
+  expect(removed).toBeGreaterThanOrEqual(0);
   expect(removed).toBeLessThanOrEqual(seeded.length);
 });

@@ -2,13 +2,17 @@ import { SYSTEM_ROLES, type IdGenerator, type Tx } from '@pospay/db';
 import { hashCashierPin } from '@pospay/auth';
 import { sql } from 'drizzle-orm';
 
+import { transactionWriters } from '../../../shared/adapters/transaction-writers.ts';
+
 import { isWellFormedCashierPin } from '../domain/cashier-pin.ts';
 import { StaffUserRefused } from '../domain/staff-access-errors.ts';
 import { staffAccessSystemRole, temporaryStaffPinExpiresAt } from '../domain/staff-access-roles.ts';
 import type { StaffAccessRole } from '../domain/staff-access-roles.ts';
 import type {
   StaffUserCancelInput,
+  StaffUserSessionsEndInput,
   StaffUserFacade,
+  StaffUserPhoneChangeInput,
   StaffUserProvisionInput,
   StaffUserProvisioned,
   StaffUserRead,
@@ -27,6 +31,20 @@ export async function provisionStaffUser(
   input: StaffUserProvisionInput,
 ): Promise<StaffUserProvisioned> {
   return auth.provision(input);
+}
+
+/**
+ * الخطوة الثانية من «تغيير الهاتف» (F3-1): تغيير هاتف حساب الموظفة وإنهاء جلساتها على pospay_auth —
+ * identity هو المدخل الوحيد لـ packages/auth، وstaff ينادي هذه الدالة فقط.
+ *
+ * @param auth  واجهة packages/auth على pospay_auth
+ * @param input الحساب والعملية والشركة والهاتف الجديد ومعرّف المحاولة
+ */
+export async function changeStaffUserPhone(
+  auth: StaffUserFacade,
+  input: StaffUserPhoneChangeInput,
+): Promise<void> {
+  return auth.changePhone(input);
 }
 
 /**
@@ -68,7 +86,7 @@ export async function hashStaffPin(pin: string): Promise<string> {
   return hashCashierPin(pin);
 }
 
-function systemRoleId(code: 'staff' | 'cashier'): string {
+export function systemRoleId(code: 'staff' | 'cashier'): string {
   const found = SYSTEM_ROLES.find((candidate) => candidate.code === code);
   if (found === undefined) throw new StaffUserRefused('STAFF_ACCESS_ROLE_MISSING');
   return found.id;
@@ -147,4 +165,90 @@ export async function saveTemporaryStaffPin(
     ON CONFLICT(company_id,user_id) DO UPDATE SET id=EXCLUDED.id,pin_hash=EXCLUDED.pin_hash,
       set_by=EXCLUDED.set_by,set_at=EXCLUDED.set_at,temporary=true,expires_at=EXCLUDED.expires_at`,
   );
+}
+
+/**
+ * قيمة بصمة «الرقم الممسوح»: تحقق قيد صيغة `cashier_pins` (`pbkdf2-sha256$%`) لكنها ليست بصمة
+ * حقيقية أبداً، وكل قارئ للرقم السري يستبعدها فيعامل الصف كأنه غير موجود.
+ */
+export const CLEARED_STAFF_PIN_HASH = 'pbkdf2-sha256$cleared';
+
+/**
+ * يمسح الرقم السري لموظفة قبل تغيير هاتفها (F3-1): `pospay_app` لا يملك DELETE على `cashier_pins`
+ * ولا على أدلة تغيير الرقم، فالمسح UPDATE: يقلب `id` (فيبطل أي دليل أو فحص إصدار جارٍ) ويضع بصمة
+ * الرقم الممسوح، ثم يحرق كل أدلة تغيير الرقم غير المستهلكة. الرقم المؤقت الجديد يكتب فوق الصف
+ * بـ `saveTemporaryStaffPin`. الدالة لا تفتح معاملة: تعمل داخل معاملة staff التي استدعتها.
+ *
+ * @param tx    معاملة الشركة التي فتحها use case الموظفين
+ * @param input الشركة وصاحب الرقم والمانح ولحظة المسح ومولّد المعرّفات
+ */
+export async function clearStaffPin(
+  tx: Tx,
+  input: { companyId: string; userId: string; actorUserId: string; at: Date; ids: IdGenerator },
+): Promise<void> {
+  const at = input.at.toISOString();
+  await tx.execute(sql`UPDATE cashier_pins
+    SET id=${input.ids.newId()},pin_hash=${CLEARED_STAFF_PIN_HASH},set_by=${input.actorUserId},
+      set_at=${at}::timestamptz,temporary=true,expires_at=${at}::timestamptz
+    WHERE company_id=${input.companyId} AND user_id=${input.userId}`);
+  await tx.execute(sql`UPDATE staff_pin_change_proofs SET consumed_at=${at}::timestamptz
+    WHERE company_id=${input.companyId} AND user_id=${input.userId} AND consumed_at IS NULL`);
+}
+
+/**
+ * ينهي جلسات الموظفة بعد التزام «إيقاف الدخول» (F3-2) على pospay_auth — يستدعيها staff بعد التزام معاملة
+ * الشركة، فأي انقطاع قبلها لا يترك الجلسات حية: فحص الأهلية يرفض طلبها التالي على أي حال.
+ *
+ * @param auth  واجهة packages/auth على pospay_auth
+ * @param input الحساب والشركة ومعرّف العملية
+ */
+export async function deleteStaffUserSessions(
+  auth: StaffUserFacade,
+  input: StaffUserSessionsEndInput,
+): Promise<void> {
+  return auth.deleteSessions(input);
+}
+
+/**
+ * ينهي عضوية الموظفة فوراً (`ends_at = at`) ويمسح رقمها السري ويكتب التدقيق داخل معاملة staff نفسها
+ * (الاستثناء المحدود في ADR-0063، D5). المسؤولة الوحيدة عن إنهاء عضوية موظفة: «إيقاف الدخول» اليوم
+ * وأرشفة الموظفة لاحقاً. على مستوى البدائية نفسها، عضوية منتهية فعلاً لا تفشل الدالة حتى تتقارب
+ * للمنتهي ولا يتكرر تدقيق «انتهاء العضوية»، بينما مسار «إيقاف الدخول» (`StopEmployeeStaffAccessUseCase`)
+ * يشترط سجلًا فعّالًا ويرفض السجل الموقوف بـ 403. الرقم يُمسح بـ UPDATE لا DELETE لأن `pospay_app` لا يملك DELETE على `cashier_pins`.
+ *
+ * @param tx    معاملة الشركة التي فتحها use case الموظفين
+ * @param input الشركة والعضوية وصاحبها والمنفذ ولحظة الإنهاء ومولّد المعرّفات
+ */
+export async function endStaffMembership(
+  tx: Tx,
+  input: {
+    companyId: string;
+    membershipId: string;
+    userId: string;
+    actorUserId: string;
+    at: Date;
+    ids: IdGenerator;
+  },
+): Promise<void> {
+  const at = input.at.toISOString();
+  const ended = await tx.execute(sql`UPDATE memberships SET ends_at=${at}::timestamptz
+    WHERE company_id=${input.companyId} AND id=${input.membershipId} AND user_id=${input.userId}
+      AND (ends_at IS NULL OR ends_at > ${at}::timestamptz)
+    RETURNING id`);
+  await clearStaffPin(tx, input);
+  const { audit } = transactionWriters(tx, input.ids);
+  if (ended.length > 0)
+    await audit.record({
+      entity: 'membership',
+      entityId: input.membershipId,
+      action: 'staff.membership_ended',
+      before: { ends_at: null },
+      after: { user_id: input.userId, ends_at: at },
+    });
+  await audit.record({
+    entity: 'cashier_pin',
+    entityId: input.userId,
+    action: 'staff.pin_cleared',
+    after: { set_by: input.actorUserId },
+  });
 }

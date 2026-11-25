@@ -3524,3 +3524,14 @@ so much beteer to creat this advisore for the project level so you and the manag
    - شريحة متوسطة: `opencode-go/glm-5.3-flash` أو `opencode-go/minimax-m3.1-flash` (`variant: "high"`).
    - بند صغير واحد: `opencode/big-pickle`.
    - مال أو دخول أو هجرة، أو عند وصول OpenCode Go إلى حد الخمس ساعات: `claudeAgent / claude-sonnet-5-5` (`effort: "medium"`).
+
+## PP-270 — المنفّذ الأساسي بعد عودة خطة MiniMax (2026-11-25)
+
+**قرار وليد.** 2026-11-25 21:45 الكويت، في محادثة المدير. النص الحرفي: «open code minimax 3.1 fast coding plane is working now so start implementing main model with sonnet 5.5 medium as fallback second choice after finish (sfter finish use clean code guard , test guard».
+
+**التطبيق (يعدّل PP-269 البند 5).**
+
+1. المنفّذ الأساسي لكل شريحة جديدة ولكل جولة إصلاح: `opencode` / `minimax-coding-plan/MiniMax-M3.1-Flash`، بموجز صارم بقواعد PP-266 السبع ومراجعة المدير سطرًا بسطر.
+2. البديل الثاني فقط عند فشله (حد الاستخدام 2056 أو خطأ لا يُحل بإعادة واحدة): `claudeAgent` / `claude-sonnet-5-5` (`effort: "medium"`).
+3. بعد انتهاء التنفيذ وقبل فتح الـ PR أو طلب الدمج: `clean-code-guard` على كود الإنتاج و`test-guard` على الاختبارات، وتُصلح ملاحظاتهما أو تُسجّل.
+4. ما لم يتغيّر: المراجِع المستقل وبدائله (PP-269)، و`ci-gate` على الـ head بالضبط، ولوحة البوتات الاستشارية، ولا جلسات Codex جديدة. الخطوات الجارية حاليًا على نموذج آخر تكمل خطوتها الحالية، ثم يذهب كل إرسال جديد إلى المنفّذ الأساسي.

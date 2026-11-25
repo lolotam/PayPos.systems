@@ -67,6 +67,7 @@ export {
   STAFF_SYNTHETIC_EMAIL_DOMAIN,
   staffSyntheticEmail,
   type StaffUserAccess,
+  type StaffUserPhoneChangeRequest,
 } from './staff-access-users.ts';
 
 export type { PersonalWorkspace, PersonalSession } from './staff-otp/types.ts';
