@@ -1,4 +1,4 @@
-import { and, eq, like } from 'drizzle-orm';
+import { and, eq, inArray, isNotNull, like } from 'drizzle-orm';
 import type { PostgresJsDatabase } from 'drizzle-orm/postgres-js';
 
 import type { IdentitySchema } from './auth-database.ts';
@@ -42,6 +42,14 @@ export interface MemberInvitationQueries {
   findMemberByInvitation(operationId: string, companyId: string): Promise<{ id: string } | null>;
   /** هل لحساب دخول المستخدم كلمة مرور؛ null لما مفيش مستخدم بالمعرّف ده. */
   readHasPassword(userId: string): Promise<boolean | null>;
+  /**
+   * المعرفات اللي ليها حساب دخول بكلمة مرور، في قراءة واحدة: قائمة الدعوات كانت بتقرأ حالة كلمة
+   * المرور لكل صف على حدة (N+1 على جداول الهوية). القائمة الفاضية بترجّع set فاضية من غير استعلام.
+   *
+   * @param userIds معرّفات المستخدمين المراد فحصهم (التكرار بيتشال)
+   * @returns المعرفات اللي كلمة مرورها موجودة
+   */
+  readHasPasswords(userIds: readonly string[]): Promise<ReadonlySet<string>>;
   /**
    * بينشئ المدعوّ وحساب دخول من غير كلمة مرور في معاملة واحدة. إيميل موجود بيرجّع
    * conflict من غير استثناء، فالمتصل بيعيد القراءة ويحكم.
@@ -104,6 +112,25 @@ const readHasPassword = async (db: Database, userId: string): Promise<boolean | 
     .limit(1);
   const row = rows[0];
   return row === undefined ? null : row.password !== null;
+};
+
+const readHasPasswords = async (
+  db: Database,
+  userIds: readonly string[],
+): Promise<ReadonlySet<string>> => {
+  const unique = [...new Set(userIds)];
+  if (unique.length === 0) return new Set();
+  const rows = await db
+    .select({ userId: account.userId })
+    .from(account)
+    .where(
+      and(
+        inArray(account.userId, unique),
+        eq(account.providerId, 'credential'),
+        isNotNull(account.password),
+      ),
+    );
+  return new Set(rows.map((row) => row.userId));
 };
 
 const createInvitedMember = async (
@@ -220,6 +247,7 @@ export function memberInvitationQueries(db: Database): MemberInvitationQueries {
     findMemberByInvitation: (operationId, companyId) =>
       findMemberByInvitation(db, operationId, companyId),
     readHasPassword: (userId) => readHasPassword(db, userId),
+    readHasPasswords: (userIds) => readHasPasswords(db, userIds),
     createInvitedMember: (input) => createInvitedMember(db, input),
     issueInvitationLink: (input) => issueInvitationLink(db, input),
     discardInvitedMember: (operationId, companyId) =>

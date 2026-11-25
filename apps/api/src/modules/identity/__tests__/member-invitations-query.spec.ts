@@ -43,8 +43,8 @@ const invite = (email: string) =>
 
 const database = () => h.app.get(DATABASE);
 const readPage = (actor: string, page: { limit: number; cursor?: string | undefined }) =>
-  listMemberInvitations(database(), { companyId: company, userId: actor }, page, (userId) =>
-    h.auth.members.hasPassword(userId),
+  listMemberInvitations(database(), { companyId: company, userId: actor }, page, (userIds) =>
+    h.auth.members.hasPasswords(userIds),
   );
 
 describe('the invitations list query', () => {
@@ -86,7 +86,9 @@ describe('the invitations list query', () => {
     const other = await readPage('01920000-0000-7000-8000-0000000000aa', { limit: 20 });
     expect(other['items'].every((row) => row['can_reissue'] === false)).toBe(true);
   });
+});
 
+describe('the invitations list cursor and the batched password state', () => {
   it('refuses a cursor that is not an invitation id with 400, never a 500', async () => {
     const response = await h.send('GET', '/v1/memberships/invitations?cursor=not-a-uuid', {
       cookie: owner.cookie,
@@ -115,16 +117,20 @@ describe('the invitations list query', () => {
       expect(invited.status).toBe(201);
     }
     const hasPassword = vi.spyOn(h.auth.members, 'hasPassword');
+    const hasPasswords = vi.spyOn(h.auth.members, 'hasPasswords');
     try {
       const response = await h.send('GET', '/v1/memberships/invitations?limit=20', {
         cookie: owner.cookie,
         company: batch,
       });
       expect(response.status).toBe(200);
-      // ثلاث دعوات معلّقة: قراءة واحدة للصفحة كلها، مش قراءة لكل صف.
-      expect(hasPassword.mock.calls.length).toBeLessThanOrEqual(1);
+      // ثلاث دعوات معلّقة: قراءة واحدة مجمّعة للصفحة كلها، مش قراءة لكل صف.
+      expect(hasPasswords.mock.calls.length).toBe(1);
+      expect(hasPasswords.mock.calls[0]?.[0]).toHaveLength(3);
+      expect(hasPassword.mock.calls.length).toBe(0);
     } finally {
       hasPassword.mockRestore();
+      hasPasswords.mockRestore();
     }
   });
 });

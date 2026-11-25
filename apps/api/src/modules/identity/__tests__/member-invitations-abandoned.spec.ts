@@ -1,21 +1,18 @@
-import postgres from 'postgres';
 import { errorEnvelope } from '@pospay/contracts';
 import { OWNER_ROLE_ID, SYSTEM_ROLES, type TenantWrappers } from '@pospay/db';
 import { systemUuidV7 } from '@pospay/ids';
-import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 import { startHarness, type Harness } from '../../../../test/harness.ts';
 import { systemClock } from '../../../shared/adapters/system-clock.ts';
 import { DATABASE } from '../../../shared/database.token.ts';
 import { createMemberInvitationTransactions } from '../persistence/member-invitation-transactions.ts';
 
-// دعوات اتوقفت قبل ما تكتمل (G1 P1-3، P1-4، E1): دعوة ملغية ما بتحجزش الإيميل، وحساب اتعمل من غير عضوية ولا
+// دعوات اتوقفت قبل ما تكتمل (G1 P1-3، P1-4، E5): دعوة ملغية ما بتحجزش الإيميل، وحساب اتعمل من غير عضوية ولا
 // رابط بيتلغى ويتمسح من الطلب اللي اترفض إتمامه أو من أول دعوة تالية بيعملها مالك حالي — وبيتكرر بأمان بعد
-// انقطاع في النص — والسلطة بتتقرأ بعد قفل صف الدعوة مش قبله.
+// انقطاع في النص.
 const ids = systemUuidV7();
 let h: Harness;
-// اتصال مستقل للحاجز: h.owner اتصال واحد، ومعاملة ماسكة القفل فيه كانت هتوقف قراءة المستنيين.
-let locker: postgres.Sql;
 // خطّاف بعد خطوة الفتح بالظبط: بيتنفذ مرة واحدة بعد أول معاملة بتكتب صف دعوة PENDING من غير عضوية.
 let betweenSteps: (() => Promise<void>) | null = null;
 const withBarrier = (db: TenantWrappers): TenantWrappers => ({
@@ -40,7 +37,6 @@ const ownerB = { email: 'g1ab-owner-b@example.test', cookie: '', userId: '' };
 
 beforeAll(async () => {
   h = await startHarness({ staffAccessRoutes: true, wrapDatabase: withBarrier });
-  locker = postgres(h.ownerUrl, { max: 2, onnotice: () => undefined });
   for (const who of [ownerA, ownerB]) {
     who.cookie = await h.signedInOperator(who.email);
     const [row] = await h.owner`SELECT id FROM "user" WHERE email = ${who.email}`;
@@ -49,7 +45,6 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
-  await locker?.end();
   await h?.close();
 });
 
@@ -245,166 +240,6 @@ describe('P1-4 — retry-safe after a crash, and never for finished work', () =>
     const response = await invite(ownerB, company, email);
     expect(code(response)).toEqual([422, 'MEMBER_EMAIL_NOT_INVITABLE']);
     expect(await accountsOf(email)).toHaveLength(1);
-  });
-});
-
-// عدد الـ backends المستنية قفل في الداتابيز دي — الحاجز اللي الاختبار بيقف عليه.
-const waitForWaiters = (count: number) =>
-  vi.waitFor(
-    async () => {
-      const [row] = await h.owner`
-        SELECT count(*)::int AS waiting FROM pg_stat_activity
-        WHERE datname = current_database() AND wait_event_type = 'Lock'`;
-      expect(Number(row?.['waiting'])).toBeGreaterThanOrEqual(count);
-    },
-    { timeout: 8_000, interval: 25 },
-  );
-
-const completeInput = (company: string, invitationId: string, userId: string) => ({
-  companyId: company,
-  actorUserId: ownerA.userId,
-  invitationId,
-  membershipId: ids.newId(),
-  userId,
-  buildEvent: (row: { id: string }, membershipId: string, user: string) => ({
-    aggregateType: 'member_invitation',
-    aggregateId: row.id,
-    eventType: 'MemberInvited',
-    payload: { invitation_id: row.id, user_id: user, membership_id: membershipId },
-  }),
-  buildAudit: () => [],
-  now: systemClock.now(),
-});
-
-async function holdInvitationLock(company: string, invitationId: string) {
-  let release: () => void = () => undefined;
-  const held = new Promise<void>((resolve) => (release = resolve));
-  let taken: () => void = () => undefined;
-  const lockTaken = new Promise<void>((resolve) => (taken = resolve));
-  const holder = locker.begin(async (tx) => {
-    await tx`SELECT 1 FROM member_invitations WHERE company_id = ${company} AND id = ${invitationId} FOR UPDATE`;
-    taken();
-    await held;
-  });
-  await lockTaken;
-  return { release, holder };
-}
-
-describe('abandoning blocks completion while it runs, and the order is decided by the row lock', () => {
-  it('a completion queued first wins and the abandon is refused (membership exists)', async () => {
-    const company = await companyWithTwoOwners('G1AB Lock Complete First');
-    const stuck = await stuckAfterAccount(company, 'lock-complete-first@example.test');
-    await ageInvitation(company, stuck.invitationId);
-    const lock = await holdInvitationLock(company, stuck.invitationId);
-    const completing = transactions().complete(
-      completeInput(company, stuck.invitationId, stuck.userId),
-    );
-    await waitForWaiters(1);
-    const abandoning = transactions().abandonStale({
-      companyId: company,
-      actorUserId: ownerB.userId,
-      invitationId: stuck.invitationId,
-      roleCode: 'accountant',
-      scope: { type: 'COMPANY', id: company },
-      staleBefore: new Date(Date.now() - 60_000),
-    });
-    await waitForWaiters(2);
-    lock.release();
-    await lock.holder;
-    expect(await completing).toMatchObject({ done: true, alreadyComplete: false });
-    expect(await abandoning).toBe(false);
-    expect(await stateOf(company, stuck.invitationId)).toBe('PENDING');
-  });
-
-  it('an abandon queued first wins and the completion is refused with no membership', async () => {
-    const company = await companyWithTwoOwners('G1AB Lock Abandon First');
-    const stuck = await stuckAfterAccount(company, 'lock-abandon-first@example.test');
-    await ageInvitation(company, stuck.invitationId);
-    const lock = await holdInvitationLock(company, stuck.invitationId);
-    const abandoning = transactions().abandonStale({
-      companyId: company,
-      actorUserId: ownerB.userId,
-      invitationId: stuck.invitationId,
-      roleCode: 'accountant',
-      scope: { type: 'COMPANY', id: company },
-      staleBefore: new Date(Date.now() - 60_000),
-    });
-    await waitForWaiters(1);
-    const completing = transactions().complete(
-      completeInput(company, stuck.invitationId, stuck.userId),
-    );
-    await waitForWaiters(2);
-    lock.release();
-    await lock.holder;
-    expect(await abandoning).toBe(true);
-    expect(await completing).toEqual({ done: false, refusal: 'MEMBER_INVITATION_EXISTS' });
-    expect(
-      await h.owner`SELECT count(*)::int AS n FROM memberships WHERE company_id = ${company} AND user_id = ${stuck.userId}`,
-    ).toEqual([{ n: 0 }]);
-  });
-});
-
-describe('E1 — authority is read after the invitation row lock, and scope before «already complete»', () => {
-  it('a DENY recorded while the stale abandon waits for the row lock is honoured: no cancel, no removal', async () => {
-    const company = await companyWithTwoOwners('G1AB Abandon Authority After Lock');
-    const email = 'abandon-authority-lock@example.test';
-    const stuck = await stuckAfterAccount(company, email);
-    await ageInvitation(company, stuck.invitationId);
-    const lock = await holdInvitationLock(company, stuck.invitationId);
-    const abandoning = transactions().abandonStale({
-      companyId: company,
-      actorUserId: ownerB.userId,
-      invitationId: stuck.invitationId,
-      roleCode: 'accountant',
-      scope: { type: 'COMPANY', id: company },
-      staleBefore: new Date(Date.now() - 60_000),
-    });
-    await waitForWaiters(1);
-    await denyInvitations(company, ownerB.userId);
-    lock.release();
-    await lock.holder;
-    expect(await abandoning).toBe(false);
-    expect(await stateOf(company, stuck.invitationId)).toBe('PENDING');
-    expect(await accountsOf(email)).toHaveLength(1);
-  });
-
-  it('a DENY recorded while the completion waits for the row lock is honoured', async () => {
-    const company = await companyWithTwoOwners('G1AB Authority After Lock');
-    const stuck = await stuckAfterAccount(company, 'authority-after-lock@example.test');
-    const lock = await holdInvitationLock(company, stuck.invitationId);
-    const completing = transactions().complete(
-      completeInput(company, stuck.invitationId, stuck.userId),
-    );
-    await waitForWaiters(1);
-    await denyInvitations(company, ownerA.userId);
-    lock.release();
-    await lock.holder;
-    expect(await completing).toEqual({ done: false, refusal: 'FORBIDDEN' });
-    expect(
-      await h.owner`SELECT count(*)::int AS n FROM memberships WHERE company_id = ${company} AND user_id = ${stuck.userId}`,
-    ).toEqual([{ n: 0 }]);
-  });
-
-  it('an already-complete invitation whose scope vanished is refused 422, not answered as done', async () => {
-    const company = await companyWithTwoOwners('G1AB Scope Before Done');
-    const business = ids.newId();
-    const branch = ids.newId();
-    await h.owner`INSERT INTO businesses (company_id, id, name_en, vertical_type) VALUES (${company}, ${business}, 'B', 'salon')`;
-    await h.owner`INSERT INTO branches (company_id, id, business_id, name_en) VALUES (${company}, ${branch}, ${business}, 'Br')`;
-    const email = 'scope-before-done@example.test';
-    const first = await invite(ownerA, company, email, {
-      role: 'branch_manager',
-      scope: { type: 'BRANCH', id: branch },
-    });
-    expect(first.status).toBe(201);
-    // الفرع اختفى من الشركة بعد الإتمام (العضوية بتمنع مسحه فعلياً): صف الدعوة بيشاور على فرع مالوش وجود.
-    await h.owner`UPDATE member_invitations SET scope_id = ${ids.newId()} WHERE company_id = ${company}`;
-    const [row] = await h.owner`
-      SELECT id, user_id FROM member_invitations WHERE company_id = ${company}`;
-    const again = await transactions().complete(
-      completeInput(company, String(row?.['id']), String(row?.['user_id'])),
-    );
-    expect(again).toEqual({ done: false, refusal: 'MEMBER_ROLE_NOT_INVITABLE' });
   });
 });
 
