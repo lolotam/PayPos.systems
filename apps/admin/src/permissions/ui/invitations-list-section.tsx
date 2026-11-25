@@ -6,6 +6,7 @@ import type { UseInfiniteQueryResult } from '@tanstack/react-query';
 
 import { envelopeMessage } from '@/shared/api/api-error';
 import { useLocale } from '@/shared/locale/locale-context';
+import type { InvitationScopeChoices } from '../model/invitable-roles';
 import { InvitationsTable } from './invitations-table';
 
 type Props = {
@@ -19,12 +20,14 @@ type Props = {
     | 'fetchNextPage'
     | 'isFetchingNextPage'
   >;
+  /** أسماء الأنشطة والفروع: بتفرّق صف الدعوة عن صف شبهه (AC-ACT-22). */
+  choices?: InvitationScopeChoices | undefined;
   reissuePending: boolean;
   onReissue: (invitation: MemberInvitation) => void;
 };
 
 /** قسم قائمة الدعوات: حالة التحميل والخطأ، والجدول بصفحاته من غير تكرار. */
-export function InvitationsListSection({ list, reissuePending, onReissue }: Props) {
+export function InvitationsListSection({ list, choices, reissuePending, onReissue }: Props) {
   const locale = useLocale();
   const items = list.data?.pages.flatMap((page) => page.items) ?? [];
   return (
@@ -35,6 +38,7 @@ export function InvitationsListSection({ list, reissuePending, onReissue }: Prop
       {list.data ? (
         <InvitationsTable
           items={items}
+          choices={choices}
           hasMore={list.hasNextPage}
           onLoadMore={() => void list.fetchNextPage()}
           loadingMore={list.isFetchingNextPage}

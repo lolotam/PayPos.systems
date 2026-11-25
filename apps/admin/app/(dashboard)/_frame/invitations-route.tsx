@@ -30,6 +30,7 @@ export function InvitationsRoute() {
       userId={userId}
       choices={choices}
       staffAccess={workspace.staffAccess === true}
+      owner={workspace.company.role_code === 'owner' || workspace.company.is_owner === true}
     />
   );
 }

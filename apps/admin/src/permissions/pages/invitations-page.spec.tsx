@@ -27,9 +27,16 @@ const item = (id: string, overrides: Record<string, unknown> = {}) => ({
 });
 let client: QueryClient;
 
-type Choices = { readonly businesses: readonly { id: string; name: string }[]; readonly branches: readonly { id: string; name: string }[] };
+type Choices = {
+  readonly businesses: readonly { id: string; name: string }[];
+  readonly branches: readonly { id: string; name: string }[];
+};
 
-const renderPage = (staffAccess = true, owner = true, choices: Choices = { businesses: [], branches: [] }) => {
+const renderPage = (
+  staffAccess = true,
+  owner = true,
+  choices: Choices = { businesses: [], branches: [] },
+) => {
   const props = {
     companyId: COMPANY,
     userId: 'user-1',
@@ -283,8 +290,8 @@ it('refuses a whitespace-only name with an alert and sends nothing', async () =>
   // الرسالة اللي في الكتالوج: invitations.nameRequired.
   const alert = await screen.findByRole('alert');
   expect(alert.textContent).toBe('Enter the member name.');
-  expect(
-    screen.getByLabelText(t('en', 'invitations.nameLabel')).getAttribute('aria-invalid'),
-  ).toBe('true');
+  expect(screen.getByLabelText(t('en', 'invitations.nameLabel')).getAttribute('aria-invalid')).toBe(
+    'true',
+  );
   expect(api.post).not.toHaveBeenCalled();
 });

@@ -45,6 +45,12 @@ export const workspaceCompany = workspaceCompanyNames
   .extend({
     role_code: roleCode,
     scope: z.enum(['COMPANY', 'BUSINESS', 'BRANCH']),
+    /**
+     * المالك الأساسي للشركة: اليوزر عنده عضوية المالك العامة على الشركة نفسها، حتى لو
+     * أضيق دور فعّال عنده أقدم من دي. الأدمن بيحتاجها عشان يقبل مدخل دعوات الأعضاء
+     * لغير صاحب الدور 'owner' (AC-ACT-22). غايب لما مش مالك.
+     */
+    is_owner: z.boolean().optional(),
   })
   .meta({ id: 'WorkspaceCompany' });
 

@@ -50142,6 +50142,9 @@
               "BUSINESS",
               "BRANCH"
             ]
+          },
+          "is_owner": {
+            "type": "boolean"
           }
         },
         "required": [
