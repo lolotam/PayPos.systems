@@ -161,6 +161,7 @@ export {
 export {
   cancelStaffUser,
   changeStaffUserPhone,
+  CLEARED_STAFF_PIN_HASH,
   clearStaffPin,
   grantStaffMembership,
   hashStaffPin,

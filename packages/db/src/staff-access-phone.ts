@@ -78,8 +78,14 @@ export async function changeStaffUserPhone(
   assertPhoneChangeInput(input);
   return kit.run(async (tx) => {
     await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtextextended(${input.operationId}, 0))`);
-    const [bound] = await tx.execute<{ company: string | null; operation: string | null }>(sql`
-      SELECT staff_access_company_id AS company, staff_access_operation_id AS operation
+    const [bound] = await tx.execute<{
+      company: string | null;
+      operation: string | null;
+      phone: string | null;
+      approved: boolean;
+    }>(sql`
+      SELECT staff_access_company_id AS company, staff_access_operation_id AS operation,
+        phone_number AS phone, phone_binding_approved_at IS NOT NULL AS approved
       FROM "user" WHERE id = ${input.userId} FOR UPDATE`);
     if (bound === undefined || bound.company !== input.companyId || bound.operation !== input.operationId)
       throw kit.notStaff();
@@ -91,7 +97,8 @@ export async function changeStaffUserPhone(
         'phone.binding_approved', NULL, ${details}::jsonb)
       ON CONFLICT DO NOTHING
       RETURNING 1 AS written`);
-    if (written.length === 0) return;
+    // صف المحاولة الموجود لا يكفي وحده: لازم الهاتف المطلوب مثبت ومعتمد فعلاً، وإلا تُكمل الخطوة كاملة.
+    if (written.length === 0 && bound.phone === input.phone && bound.approved) return;
     const [taken] = await tx.execute<{ id: string }>(
       sql`SELECT id FROM "user" WHERE phone_number = ${input.phone} AND id <> ${input.userId} LIMIT 1`,
     );

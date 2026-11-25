@@ -236,6 +236,31 @@ it.each(['inside', 'outside'])(
   },
 );
 
+it('F3-1 the auth step refuses another company, another operation and a non-staff user, and changes nothing', async () => {
+  const staff = await h.activeStaff();
+  const [marker] = await f.h.owner`SELECT staff_access_operation_id AS operation FROM "user"
+    WHERE id=${staff.userId}`;
+  const base = {
+    operationId: marker?.operation as string,
+    companyId: f.company,
+    userId: staff.userId,
+    phone: nextPhone(f),
+    actorUserId: await h.ownerUserId(),
+    attemptId: ids.newId(),
+    ids,
+  };
+  const plain = ids.newId();
+  await f.h.owner`INSERT INTO "user"(id,name,email) VALUES (${plain},'Plain',${`plain-${plain}@example.test`})`;
+  for (const refused of [
+    { ...base, companyId: ids.newId() },
+    { ...base, operationId: ids.newId() },
+    { ...base, userId: plain },
+  ])
+    await expect(f.h.auth.staffUsers.changePhone(refused)).rejects.toThrow('STAFF_RECORD_NOT_PENDING');
+  expect(await h.phoneOf(staff.userId)).toMatchObject({ phone_number: staff.phone });
+  expect(await h.sessionStatus(staff.cookie, PERMANENT_PIN)).toBe(200);
+});
+
 it('F3-1 the gate answers 503 NOT_READY before authentication while the capability is off', async () => {
   const response = await gated.h.app.inject({
     method: 'PUT',
