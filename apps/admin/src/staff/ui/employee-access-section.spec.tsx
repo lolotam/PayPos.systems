@@ -265,6 +265,7 @@ describe('the employee access grant keeps its secrets', () => {
     });
     fireEvent.click(screen.getByText('Grant access'));
     await waitFor(() => expect(post).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(screen.getByText('Access is active.')).toBeTruthy());
     const variables = client
       .getMutationCache()
       .getAll()
