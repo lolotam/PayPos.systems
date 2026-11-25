@@ -41,6 +41,7 @@ export function createStaffAccessUserSteps(auth: AuthFacadeForStaffAccess): Staf
           ids: input.ids,
           recordState: input.recordState,
           resetBinding: input.resetBinding,
+          ...(input.attemptId === undefined ? {} : { attemptId: input.attemptId }),
         });
       } catch (error) {
         if (error instanceof StaffPhoneTakenError)

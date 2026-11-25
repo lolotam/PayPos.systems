@@ -44,9 +44,13 @@ export function useVisibilityConditions(): VisibilityConditions {
   const workspace = useWorkspace();
   const ready = workspace.status === 'ready' && workspace.business !== undefined ? workspace : null;
   // القراءة للمالك وحده: غيره ما يشوفش المدخل أصلاً، فما نبعتش طلب بيرجع 503 والبوابة مقفولة.
-  const owner = ready !== null && ready.company.role_code === 'owner';
-  const access = useInvitationsAccess(ready?.company.id, userId, owner);
-  const invitationsOwner = owner && readAccessProof(access) === 'granted';
+  // المالك الأساسي للشركة ممكن يكون أضيق دور فعّال عنده أقدم (is_owner)، وهو مالك برضه.
+  const owner =
+    ready !== null && (ready.company.role_code === 'owner' || ready.company.is_owner === true);
+  // القدرة مقفولة على السيرفر: القراءة نفسها مقفولة كمان، فمفيش 503 من بوابة الشريحة (AC-ACT-17).
+  const staffAccess = workspace.staffAccess === true;
+  const access = useInvitationsAccess(ready?.company.id, userId, owner && staffAccess, 'menu');
+  const invitationsOwner = owner && staffAccess && readAccessProof(access) === 'granted';
   const keys = Object.values(next);
   return useMemo(
     () => ({ ...next, 'invitations-owner': invitationsOwner }),

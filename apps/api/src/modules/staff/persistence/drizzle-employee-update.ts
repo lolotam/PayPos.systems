@@ -18,7 +18,6 @@ async function loadEmployee(
   businessId: string,
   employeeId: string,
 ) {
-  await tx.execute(sql`SELECT id FROM companies WHERE id=${companyId} FOR NO KEY UPDATE`);
   const [scope] = await tx.execute<{ primary_branch_id: string }>(
     sql`SELECT primary_branch_id FROM employees WHERE company_id=${companyId} AND business_id=${businessId} AND id=${employeeId} AND deleted_at IS NULL`,
   );
@@ -150,6 +149,13 @@ export function createEmployeeUpdateTransactions(
               hasAccessRecord: async (employeeId) => {
                 const rows = await tx.execute(sql`SELECT 1 FROM employee_staff_access
                   WHERE company_id=${companyId} AND employee_id=${employeeId} LIMIT 1 FOR UPDATE`);
+                return rows.length !== 0;
+              },
+              // القفل على السجل هنا بيحافظ على ترتيب الأقفال: شركة ← عضويات ← موظفة ← سجل دخول.
+              hasPendingAccessRecord: async (employeeId) => {
+                const rows = await tx.execute(sql`SELECT 1 FROM employee_staff_access
+                  WHERE company_id=${companyId} AND employee_id=${employeeId}
+                    AND state IN ('PENDING', 'CANCELLING') LIMIT 1 FOR UPDATE`);
                 return rows.length !== 0;
               },
               save: (before, plan, date, attachments) =>

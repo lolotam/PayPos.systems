@@ -637,6 +637,7 @@ reads:
   - staff -> identity.readStaffAccessState @ apps/api/src/modules/staff/persistence/employee-access-reads.adapter.ts
   - staff -> identity.readStaffAccessAuthority @ apps/api/src/modules/staff/persistence/employee-access-reads.adapter.ts
   - staff -> identity.readStaffUser @ apps/api/src/modules/staff/persistence/employee-access-reads.adapter.ts
+  - staff -> identity.readStaffAccessOwner @ apps/api/src/modules/staff/persistence/employee-access-reads.adapter.ts
 ```
 
 The check (`pnpm module-map:check`, plan v4 T12b): `docs/module-map.yaml` is generated from this block and must be

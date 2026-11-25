@@ -17,6 +17,13 @@ type Props = {
   companyId: string;
   userId: string;
   choices: InvitationScopeChoices;
+  /** هل قدرة شريحة 076 مفتوحة على السيرفر؟ مقفولة: مفيش طلب ولا 503 (AC-ACT-17). */
+  staffAccess: boolean;
+  /**
+   * هل المتصل مالك الشركة؟ غير المالك ما بيشوفش الشاشة دي، ومفيش طلب ولا واحد
+   * بيتبعت له (AC-ACT-22).
+   */
+  owner?: boolean;
 };
 
 /**
@@ -24,13 +31,17 @@ type Props = {
  * لحالة محلية — مفيش useMutation، فالإيميل والرابط مش في أي كاش ولا مفتاح React.
  * البوابة مقفولة (503 NOT_READY) بتظهر رسالة بدل النموذج.
  */
-export function InvitationsPage({ companyId, userId, choices }: Props) {
+export function InvitationsPage({ companyId, userId, choices, staffAccess, owner = true }: Props) {
   const locale = useLocale();
-  const { list, invite, reissue } = useMemberInvitations(companyId, userId);
+  const allowed = staffAccess && owner;
+  // قراءة الصفحة بمفتاحها هي: قراءة المدخل المخزّنة ما بتفتحش الصفحة من غير قراءة جديدة.
+  const access = useInvitationsAccess(companyId, userId, allowed, 'page');
+  const gateOpen = allowed && readAccessProof(access) === 'granted';
+  const { list, invite, reissue } = useMemberInvitations(companyId, userId, gateOpen);
   const [shownLink, setShownLink] = useState<string | null>(null);
   const [reissued, setReissued] = useState(false);
-  const access = useInvitationsAccess(companyId, userId, true);
-  const gateOpen = readAccessProof(access) === 'granted';
+  // القفل مشترك: طلب واحد شغّال يمنع التاني، فاتنين دعوات أو رابطين بعضهم في نفس الوقت.
+  const busy = invite.pending || reissue.pending;
 
   const showLink = (link: string, wasReissued: boolean) => {
     setReissued(wasReissued);
@@ -65,12 +76,13 @@ export function InvitationsPage({ companyId, userId, choices }: Props) {
             companyId={companyId}
             choices={choices}
             disabled={false}
-            pending={invite.pending}
+            pending={busy}
             onSave={(input) => void onInvite(input)}
           />
           <InvitationsListSection
             list={list}
-            reissuePending={reissue.pending}
+            choices={choices}
+            reissuePending={busy}
             onReissue={(invitation) => void onReissue(invitation)}
           />
         </>

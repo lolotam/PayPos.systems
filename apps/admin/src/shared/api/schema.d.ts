@@ -9948,6 +9948,7 @@ export interface components {
         };
         MyWorkspacesResponse: {
             companies: components["schemas"]["WorkspaceCompany"][];
+            capabilities: components["schemas"]["WorkspaceCapabilities"];
         };
         WorkspaceBranch: {
             /** Format: uuid */
@@ -9967,6 +9968,9 @@ export interface components {
             country: "KW" | "SA" | "AE" | "BH" | "QA" | "OM" | null;
             branches: components["schemas"]["WorkspaceBranch"][];
         };
+        WorkspaceCapabilities: {
+            staff_access: boolean;
+        };
         WorkspaceCompany: {
             /** Format: uuid */
             id: string;
@@ -9976,6 +9980,7 @@ export interface components {
             role_code: string;
             /** @enum {string} */
             scope: "COMPANY" | "BUSINESS" | "BRANCH";
+            is_owner?: boolean;
         };
         BusinessIdentity: {
             official_name_ar: string | null;
@@ -23387,6 +23392,7 @@ export interface operations {
                         branch_id: string | null;
                         phone_last3: string | null;
                         can_manage: boolean;
+                        can_cancel: boolean;
                     };
                 };
             };
@@ -23468,6 +23474,7 @@ export interface operations {
                         branch_id: string | null;
                         phone_last3: string | null;
                         can_manage: boolean;
+                        can_cancel: boolean;
                     };
                 };
             };
@@ -23507,7 +23514,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Bilingual refusal */
+            /** @description Bilingual conflict refusal (STAFF_ACCESS_ALREADY_GRANTED, STAFF_ACCESS_PHONE_TAKEN, or TRANSACTION_RETRY_REQUIRED) */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -23556,6 +23563,7 @@ export interface operations {
                         branch_id: string | null;
                         phone_last3: string | null;
                         can_manage: boolean;
+                        can_cancel: boolean;
                     };
                 };
             };

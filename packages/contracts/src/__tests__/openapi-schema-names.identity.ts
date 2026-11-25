@@ -43,5 +43,6 @@ export const identitySchemaNames = [
   'VerifyCashierPinInput',
   'WorkspaceBranch',
   'WorkspaceBusiness',
+  'WorkspaceCapabilities',
   'WorkspaceCompany',
 ];

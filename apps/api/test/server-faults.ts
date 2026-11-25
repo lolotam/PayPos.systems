@@ -2,24 +2,25 @@ import type { ArgumentsHost } from '@nestjs/common';
 import type { FastifyReply } from 'fastify';
 import { EnvelopeExceptionFilter } from '../src/shared/exception.filter.ts';
 
-/** سبب واحد من سلسلة الخطأ: الفئة والكود وSQLSTATE واسم القيد بلا نص رسالة قد يحمل معاملات. */
+/** سبب واحد من سلسلة الخطأ: الفئة والكود وSQLSTATE واسم القيد بس، بلا نص رسالة قد يحمل معاملات. */
 interface FaultLink {
   readonly name: string;
   readonly code: string | null;
+  readonly sqlstate: string | null;
   readonly constraint: string | null;
-  readonly message: string;
 }
 
-/** خطأ خادم 5xx كما رآه مرشح الاستثناءات: السلسلة وإطارات المكدس فقط. */
+/** خطأ خادم 5xx كما رآه مرشح الاستثناءات: السلسلة بقيمها المسموحة فقط. */
 export interface ServerFault {
   readonly status: number;
   readonly chain: readonly FaultLink[];
-  readonly frames: readonly string[];
 }
 
 const faults: ServerFault[] = [];
 let installed = false;
 const SYMBOLIC = /^[A-Z][A-Z0-9_]{2,63}$/;
+const SQLSTATE = /^[0-9A-Z]{5}$/;
+const INJECTED = 'INJECTED_';
 
 function link(error: unknown): FaultLink {
   const value = (typeof error === 'object' && error !== null ? error : {}) as Record<string, unknown>;
@@ -30,9 +31,8 @@ function link(error: unknown): FaultLink {
   return {
     name: error instanceof Error ? error.constructor.name : typeof error,
     code: text('code', /^[A-Z0-9_]{1,64}$/),
+    sqlstate: text('sqlstate', SQLSTATE),
     constraint: text('constraint_name', /^[a-z0-9_]{1,63}$/) ?? text('constraint', /^[a-z0-9_]{1,63}$/),
-    // الرسائل الرمزية فقط؛ أي نص آخر قد يحمل معاملات SQL أو هاتفاً فيُحجب.
-    message: error instanceof Error && SYMBOLIC.test(error.message) ? error.message : '[withheld]',
   };
 }
 
@@ -45,18 +45,33 @@ function describe(exception: unknown, status: number): ServerFault {
     chain.push(link(current));
     current = (current as { cause?: unknown }).cause;
   }
-  const stack = exception instanceof Error ? (exception.stack ?? '') : '';
-  const frames = stack
-    .split('\n')
-    .filter((line) => /^\s+at /.test(line))
-    .slice(0, 14)
-    .map((line) => line.trim());
-  return { status, chain, frames };
+  return { status, chain };
+}
+
+/**
+ * هل الخطأ محقون عمداً في الاختبار؟ تُقرأ رسالة الخطأ هنا فقط — مش بتتخزَّن — عشان نكتم ضجيج
+ * الأخطاء المحقونة، والسجل نفسه يبقى قيم السماح بس.
+ */
+function isInjectedFault(exception: unknown): boolean {
+  const seen = new Set<unknown>();
+  let current: unknown = exception;
+  while (current !== undefined && current !== null && !seen.has(current)) {
+    seen.add(current);
+    if (
+      current instanceof Error &&
+      SYMBOLIC.test(current.message) &&
+      current.message.startsWith(INJECTED)
+    ) {
+      return true;
+    }
+    current = (current as { cause?: unknown }).cause;
+  }
+  return false;
 }
 
 /**
  * يلتقط كل خطأ 5xx يمر بمرشح الاستثناءات في تطبيق الاختبار ويطبعه فوراً (الفئة والكود وSQLSTATE
- * واسم القيد وإطارات المكدس بلا رسائل حرة). يُطبع كل شيء ما عدا الأخطاء المحقونة عمداً.
+ * واسم القيد بس، بلا نص رسالة ولا إطار مكدس). يُطبع كل شيء ما عدا الأخطاء المحقونة عمداً.
  */
 export function captureServerFaults(): void {
   if (installed) return;
@@ -72,8 +87,7 @@ export function captureServerFaults(): void {
     if (status < 500) return;
     const fault = describe(exception, status);
     faults.push(fault);
-    if (!fault.chain.some((entry) => entry.message.startsWith('INJECTED_')))
-      console.error('SERVER_FAULT', JSON.stringify(fault));
+    if (!isInjectedFault(exception)) console.error('SERVER_FAULT', JSON.stringify(fault));
   };
 }
 

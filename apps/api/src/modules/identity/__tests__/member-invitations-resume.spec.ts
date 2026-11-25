@@ -76,8 +76,8 @@ async function crashAfter(step: 'open' | 'account' | 'complete' | 'claim', email
   expect(outcome).toMatchObject({ done: true, alreadyComplete: false });
   if (step === 'complete') return { company, invitationId };
   expect(
-    await transactions().claimLink({ companyId: company, invitationId, at: systemClock.now() }),
-  ).toBe(true);
+    await transactions().claimLink({ ...who, invitationId, at: systemClock.now() }),
+  ).toEqual({ claimed: true });
   return { company, invitationId };
 }
 

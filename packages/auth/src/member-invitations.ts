@@ -38,6 +38,13 @@ export interface MemberInvitationAccounts {
   /** هل المستخدم حط كلمة مرور؛ false لمستخدم مش موجود. */
   hasPassword(userId: string): Promise<boolean>;
   /**
+   * المعرفات اللي حطت كلمة مرور، في قراءة واحدة للصفحة كلها — القائمة الفاضية بترجّع set فاضية.
+   *
+   * @param userIds معرّفات المستخدمين المراد فحصهم
+   * @returns المعرفات اللي كلمة مرورها موجودة
+   */
+  hasPasswords(userIds: readonly string[]): Promise<ReadonlySet<string>>;
+  /**
    * ينشئ حساب المدعوّ بحساب دخول من غير كلمة مرور وعلامته. نفس العملية بترجّع نفس الحساب
    * (ايدمبوتنس)، وإيميل له حساب بيرجّع createdByInvitation: false من غير معرّف.
    */
@@ -144,6 +151,7 @@ export function createMemberInvitationAccounts(options: {
         : { kind: 'TAKEN' };
     },
     hasPassword: async (userId) => (await queries.readHasPassword(userId)) === true,
+    hasPasswords: async (userIds) => queries.readHasPasswords(userIds),
     createInvitedMember: (input) => createInvitedMember(queries, options.ids, input),
     issueInvitationLink: async (input) => {
       const token = randomBytes(24).toString('base64url');

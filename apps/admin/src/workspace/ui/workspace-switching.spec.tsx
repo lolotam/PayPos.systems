@@ -119,7 +119,7 @@ describe('workspace switching with the real provider and the frame switcher', ()
       businessId: firstCompany.businesses[0]?.id,
       branchId: activeBranch.id,
     });
-    mockFetch.mockImplementation(async () => makeResponse({ companies: [firstCompany, secondCompany] }));
+    mockFetch.mockImplementation(async () => makeResponse({ companies: [firstCompany, secondCompany], capabilities: { staff_access: false } }));
 
     renderWorkspace();
     await waitFor(() => expect(screen.getByText('Workspace content')).toBeTruthy());
@@ -144,7 +144,7 @@ describe('workspace switching with the real provider and the frame switcher', ()
       businessId: firstCompany.businesses[0]?.id,
       branchId: activeBranch.id,
     });
-    mockFetch.mockImplementation(async () => makeResponse({ companies: [firstCompany, secondCompany] }));
+    mockFetch.mockImplementation(async () => makeResponse({ companies: [firstCompany, secondCompany], capabilities: { staff_access: false } }));
 
     renderWorkspace();
     await waitFor(() => expect(screen.getByText('Workspace content')).toBeTruthy());

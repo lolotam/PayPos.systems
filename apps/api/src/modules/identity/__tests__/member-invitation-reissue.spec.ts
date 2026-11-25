@@ -46,11 +46,12 @@ async function inviteFresh(label: string) {
   const [row] = await h.owner`SELECT id FROM "user" WHERE email = ${email}`;
   const owner = { cookie, userId: String(row?.['id']) };
   const company = await h.onboard(cookie, `G1R ${label}`);
+  const invitedEmail = `invited-${label}-${counter}@example.test`;
   const invited = await h.send('POST', '/v1/memberships/invitations', {
     cookie,
     company,
     body: {
-      email: `invited-${label}-${counter}@example.test`,
+      email: invitedEmail,
       name: 'Invited',
       role: 'accountant',
       scope: { type: 'COMPANY', id: company },
@@ -61,6 +62,7 @@ async function inviteFresh(label: string) {
   return {
     owner,
     company,
+    invitedEmail,
     invitationId: invited.body['invitation_id'] as string,
     firstToken: tokenOf(invited.body['set_password_link'] as string),
   };
@@ -136,6 +138,36 @@ describe('AC-G1-3b — re-issue refusals and concurrency', () => {
       WHERE company_id = ${fixture.company} AND id = ${fixture.invitationId}`;
     const response = await reissue(fixture.owner.cookie, fixture.company, fixture.invitationId);
     expect(codeOf(response)).toEqual([409, 'MEMBER_INVITATION_NOT_REISSUEABLE']);
+  });
+
+  it('a recovery re-issue closes the first claim slot, so a repeat invitation cannot take the link', async () => {
+    const fixture = await inviteFresh('recovery');
+    // دعوة ما اتحجزش رابطها الأول (طلب اتقطع قبل الحجز): إعادة الإصدار بتقفل خانة الحجز الأول.
+    await h.owner`
+      UPDATE member_invitations SET link_claimed_at = NULL
+      WHERE company_id = ${fixture.company} AND id = ${fixture.invitationId}`;
+    const reissued = await reissue(fixture.owner.cookie, fixture.company, fixture.invitationId);
+    expect(reissued.status).toBe(200);
+    const [row] = await h.owner`
+      SELECT link_claimed_at IS NOT NULL AS claimed FROM member_invitations
+      WHERE company_id = ${fixture.company} AND id = ${fixture.invitationId}`;
+    expect(row).toEqual({ claimed: true });
+    // الدعوة المتكررة ما بتقدرش تحجز الرابط من جديد بعد إعادة الإصدار.
+    const repeat = await h.send('POST', '/v1/memberships/invitations', {
+      cookie: fixture.owner.cookie,
+      company: fixture.company,
+      body: {
+        email: fixture.invitedEmail,
+        name: 'Invited',
+        role: 'accountant',
+        scope: { type: 'COMPANY', id: fixture.company },
+        email_confirmed: true,
+      },
+    });
+    expect(codeOf(repeat)).toEqual([409, 'MEMBER_INVITATION_EXISTS']);
+    expect(repeat.body['set_password_link']).toBeUndefined();
+    // الرابط اللي صدر من إعادة الإصدار هو الحي الوحيد.
+    expect(await liveTokens(fixture.company, fixture.invitationId)).toHaveLength(1);
   });
 
   it('two concurrent re-issues leave exactly one live token (P1-c)', async () => {

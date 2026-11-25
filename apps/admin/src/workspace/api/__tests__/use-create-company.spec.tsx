@@ -63,7 +63,10 @@ beforeEach(() => {
   window.localStorage.clear();
   // القراءة الافتراضية لمساحات العمل في هذا الملف فاضية، فحارس القراءة قبل الإرسال يسمح بالطلب إلا في الاختبارات التي تغيّرها.
   // الـ response موجود زي ما عميل OpenAPI الحقيقي بيرجّعه دايمًا (fetchWorkspaces بيقرا ok).
-  api.GET.mockResolvedValue({ data: { companies: [] }, response: { status: 200, ok: true } });
+  api.GET.mockResolvedValue({
+    data: { companies: [], capabilities: { staff_access: false } },
+    response: { status: 200, ok: true },
+  });
 });
 
 it('sends the body and the header through the generated client path', async () => {
@@ -218,7 +221,7 @@ it('a retry with nothing stored refuses without sending', async () => {
 
 it('a successful create keeps a created marker while the workspaces read is still empty', async () => {
   const client = createQueryClient();
-  client.setQueryData(['me', 'workspaces'], { companies: [] });
+  client.setQueryData(['me', 'workspaces'], { companies: [], capabilities: { staff_access: false } });
   const hook = mount(client);
   api.POST.mockResolvedValueOnce(answer(CREATED, 201));
   await act(async () => {
@@ -235,6 +238,7 @@ it('a create when the workspaces read already shows a company sends no POST and 
   seedAttempt();
   api.GET.mockResolvedValueOnce({
     data: {
+      capabilities: { staff_access: false },
       companies: [
         {
           id: '01920000-0000-7000-8000-0000000000c9',
@@ -263,6 +267,7 @@ it('a retry when the workspaces read shows a company sends no POST and removes t
   const hook = mount(client);
   api.GET.mockResolvedValueOnce({
     data: {
+      capabilities: { staff_access: false },
       companies: [
         {
           id: '01920000-0000-7000-8000-0000000000c9',

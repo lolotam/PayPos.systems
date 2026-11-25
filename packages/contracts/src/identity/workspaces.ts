@@ -45,10 +45,24 @@ export const workspaceCompany = workspaceCompanyNames
   .extend({
     role_code: roleCode,
     scope: z.enum(['COMPANY', 'BUSINESS', 'BRANCH']),
+    /**
+     * المالك الأساسي للشركة: اليوزر عنده عضوية المالك العامة على الشركة نفسها، حتى لو
+     * أضيق دور فعّال عنده أقدم من دي. الأدمن بيحتاجها عشان يقبل مدخل دعوات الأعضاء
+     * لغير صاحب الدور 'owner' (AC-ACT-22). غايب لما مش مالك.
+     */
+    is_owner: z.boolean().optional(),
   })
   .meta({ id: 'WorkspaceCompany' });
 
-export const myWorkspacesResponse = responseObject({ companies: z.array(workspaceCompany) }).meta({
+/** قدرات الشريحة المتاحة على السيرفر: اللوحة بتقرأها بدل ما تخمّن وتطلب مسار مقفول. */
+export const workspaceCapabilities = responseObject({ staff_access: z.boolean() }).meta({
+  id: 'WorkspaceCapabilities',
+});
+
+export const myWorkspacesResponse = responseObject({
+  companies: z.array(workspaceCompany),
+  capabilities: workspaceCapabilities,
+}).meta({
   id: 'MyWorkspacesResponse',
 });
 
@@ -56,6 +70,7 @@ export type WorkspaceBranch = z.infer<typeof workspaceBranch>;
 export type WorkspaceBusiness = z.infer<typeof workspaceBusiness>;
 export type WorkspaceCompanyNames = z.infer<typeof workspaceCompanyNames>;
 export type WorkspaceCompany = z.infer<typeof workspaceCompany>;
+export type WorkspaceCapabilities = z.infer<typeof workspaceCapabilities>;
 export type MyWorkspacesResponse = z.infer<typeof myWorkspacesResponse>;
 
 /** قارئ الأدمن بيتحمّل رد API أقدم أثناء النشر، والحقول تفضل إلزامية في عقد الرد الجديد. */
@@ -65,6 +80,8 @@ const workspaceCompanyRead = workspaceCompany.extend({
 });
 export const myWorkspacesReadResponse = myWorkspacesResponse.extend({
   companies: z.array(workspaceCompanyRead),
+  // API أقدم أثناء النشر ما بيبعتش capabilities: غيابها معناه إن القدرة مقفولة.
+  capabilities: workspaceCapabilities.optional(),
 });
 export type WorkspaceBusinessRead = z.infer<typeof workspaceBusinessRead>;
 export type WorkspaceCompanyRead = z.infer<typeof workspaceCompanyRead>;

@@ -16,6 +16,7 @@ async function readEmployeeStaffAccess(
   companyId: string,
   businessId: string,
   employeeId: string,
+  signal: AbortSignal,
 ): Promise<StaffAccessState | null> {
   const result = await apiClient().GET(
     '/v1/businesses/{businessId}/employees/{employeeId}/staff-access',
@@ -24,6 +25,7 @@ async function readEmployeeStaffAccess(
         header: { 'x-company-id': companyId },
         path: { businessId, employeeId },
       },
+      signal,
     },
   );
   if (result.error) throw result.error;
@@ -32,15 +34,18 @@ async function readEmployeeStaffAccess(
 
 /**
  * حالة دخول الموظفة للوحة: NONE يعني لا سجل، والـ 404 يظهر للموظفة غير الموجودة فينشال الطلب.
+ * `enabled` بيتقفل لما القدرة مقفولة على السيرفر، فمفيش طلب بيطلع أصلاً.
  */
 export function useEmployeeStaffAccess(
   companyId: string,
   businessId: string,
   employeeId: string,
+  enabled: boolean,
 ): UseQueryResult<StaffAccessState | null> {
   return useQuery({
     queryKey: employeeStaffAccessKey(companyId, businessId, employeeId),
-    queryFn: () => readEmployeeStaffAccess(companyId, businessId, employeeId),
+    queryFn: ({ signal }) => readEmployeeStaffAccess(companyId, businessId, employeeId, signal),
+    enabled,
     retry: false,
     staleTime: 30_000,
   });

@@ -28,6 +28,8 @@ export const staffAccessState = responseObject({
     .regex(/^\d{3}$/)
     .nullable(),
   can_manage: z.boolean(),
+  /** صلاحية إلغاء السجل المعلّق: المانح الأصلي أو مالك الشركة، وبعد 24 ساعة من بداية المحاولة. */
+  can_cancel: z.boolean(),
 }).meta({ id: 'StaffAccessState' });
 export type StaffAccessState = z.infer<typeof staffAccessState>;
 
@@ -41,5 +43,11 @@ export interface StaffAccessStateRow {
     readonly branchId: string;
     readonly operationId: string;
     readonly userId: string | null;
+    /** المانح الأصلي — هو وحده أو مالك الشركة يقدران يلغيان السجل المعلّق. */
+    readonly grantedBy: string;
+    /** لحظة بداية محاولة المنح الحالية — منها تُقاس مهلة الإلغاء. */
+    readonly attemptStartedAt: Date;
+    /** لحظة القراءة من ساعة القاعدة — المرجع الوحيد لعمر المحاولة. */
+    readonly now: Date;
   };
 }

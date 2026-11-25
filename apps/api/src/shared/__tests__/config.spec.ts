@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { readConfig } from '../config.ts';
+import { readConfig, memberInvitationsDependency } from '../config.ts';
 
 const valid = {
   DATABASE_URL: 'postgres://pospay_app:s3cret-pass@127.0.0.1:5432/pospay',
@@ -235,6 +235,112 @@ it.each(['0', '-1', '2.5', 'abc', '101'])('refuses DATABASE_POOL_MAX %s', (value
   } catch (error) {
     expect(String(error)).not.toContain(value);
   }
+});
+
+describe('the explicit admin origin of the invitation link (AC-ACT-21)', () => {
+  it('refuses an admin origin the trusted origins do not cover, and never prints it', () => {
+    const attempt = () =>
+      readConfig({
+        ...valid,
+        ADMIN_ORIGIN: 'https://admin.example.test',
+        AUTH_TRUSTED_ORIGINS: 'https://pos.example.test',
+      });
+    expect(attempt).toThrow(/ADMIN_ORIGIN/);
+    expect(attempt).not.toThrow('https://admin.example.test');
+  });
+
+  it('accepts an admin origin the trusted origins cover and keeps it', () => {
+    expect(
+      readConfig({
+        ...valid,
+        ADMIN_ORIGIN: 'https://admin.example.test',
+        AUTH_TRUSTED_ORIGINS: 'https://pos.example.test, https://admin.example.test',
+      }).ADMIN_ORIGIN,
+    ).toBe('https://admin.example.test');
+  });
+
+  it('accepts an admin origin a wildcard trusted origin covers', () => {
+    expect(
+      readConfig({
+        ...valid,
+        ADMIN_ORIGIN: 'https://admin.example.test',
+        AUTH_TRUSTED_ORIGINS: 'https://*.example.test',
+      }).ADMIN_ORIGIN,
+    ).toBe('https://admin.example.test');
+  });
+
+  it('is unset by default, so the invitation path stays unmounted', () => {
+    expect(readConfig(valid).ADMIN_ORIGIN).toBe('');
+  });
+
+  it('feeds the explicit admin origin to the invitation path, not the first trusted origin', () => {
+    const config = readConfig({
+      ...valid,
+      ADMIN_ORIGIN: 'https://admin.example.test',
+      AUTH_TRUSTED_ORIGINS: 'https://pos.example.test, https://admin.example.test',
+    });
+    expect(memberInvitationsDependency(config)).toEqual({
+      memberInvitations: { adminOrigin: 'https://admin.example.test' },
+    });
+  });
+
+  it('leaves the invitation path unmounted without an explicit admin origin', () => {
+    expect(memberInvitationsDependency(readConfig(valid))).toEqual({});
+  });
+});
+
+describe('the value of the explicit admin origin (AC-ACT-21)', () => {
+  it.each([
+    'https://admin.example.test/path',
+    'https://admin.example.test/',
+    'https://admin.example.test?x=1',
+    'https://admin.example.test#x',
+    'https://user:pass@admin.example.test',
+    'https://one.test,https://two.test',
+    'not-an-origin',
+  ])('refuses a value that is not one http(s) origin: %s', (origin) => {
+    const attempt = () =>
+      readConfig({ ...valid, ADMIN_ORIGIN: origin, AUTH_TRUSTED_ORIGINS: '*' });
+    expect(attempt).toThrow(/ADMIN_ORIGIN/);
+    expect(attempt).not.toThrow(origin);
+  });
+
+  it.each(['production', 'staging', undefined])(
+    'requires HTTPS outside dev/test: %s',
+    (NODE_ENV) => {
+      expect(() =>
+        readConfig({
+          ...valid,
+          NODE_ENV,
+          ADMIN_ORIGIN: 'http://admin.example.test',
+          AUTH_TRUSTED_ORIGINS: 'http://admin.example.test',
+        }),
+      ).toThrow(/ADMIN_ORIGIN/);
+      expect(
+        readConfig({
+          ...valid,
+          NODE_ENV,
+          ADMIN_ORIGIN: 'https://admin.example.test',
+          AUTH_TRUSTED_ORIGINS: 'https://admin.example.test',
+        }).ADMIN_ORIGIN,
+      ).toBe('https://admin.example.test');
+    },
+  );
+
+  it.each(['development', 'test'])('allows HTTP for explicit %s', (NODE_ENV) => {
+    expect(
+      readConfig({
+        ...valid,
+        NODE_ENV,
+        ADMIN_ORIGIN: 'http://admin.example.test',
+        AUTH_TRUSTED_ORIGINS: 'http://admin.example.test',
+      }).ADMIN_ORIGIN,
+    ).toBe('http://admin.example.test');
+  });
+
+  it('leaves an unset admin origin alone in production', () => {
+    expect(readConfig({ ...valid, NODE_ENV: 'production' }).ADMIN_ORIGIN).toBe('');
+  });
 });
 
 it.each(['true', 'false'])(

@@ -149,7 +149,9 @@ describe('invitation link authority and re-issue', () => {
     expect((await consume(tokenOf(await issue(userId)))).status).toBe(200);
     await expect(issue(userId)).rejects.toBeInstanceOf(InvitationLinkRefusedError);
   });
+});
 
+describe('the account row lock during a re-issue', () => {
   it('a password set while a re-issue holds the lock leaves no live link (P1-c)', async () => {
     const userId = await invitedUser('race@example.test');
     const old = tokenOf(await issue(userId));
@@ -166,22 +168,28 @@ describe('invitation link authority and re-issue', () => {
       locked();
       await held;
     });
-    await lockTaken;
-    const consuming = consume(old);
-    // الحاجز: الاستهلاك واقف على قفل صف الحساب اللي معاملة الإصدار ماسكاه، مش انتظار زمني.
-    await vi.waitFor(
-      async () => {
-        const [row] = await owner`
-          SELECT count(*)::int AS waiting FROM pg_stat_activity
-          WHERE datname = ${testDb.name} AND wait_event_type = 'Lock'`;
-        expect(Number(row?.['waiting'])).toBeGreaterThanOrEqual(1);
-      },
-      { timeout: 8_000, interval: 25 },
-    );
-    release();
-    await reissuing;
-    expect((await consuming).status).toBe(200);
-    expect(await liveLinks(userId)).toHaveLength(0);
+    try {
+      await lockTaken;
+      const consuming = consume(old);
+      // الحاجز: الاستهلاك واقف على قفل صف الحساب اللي معاملة الإصدار ماسكاه، مش انتظار زمني.
+      await vi.waitFor(
+        async () => {
+          const [row] = await owner`
+            SELECT count(*)::int AS waiting FROM pg_stat_activity
+            WHERE datname = ${testDb.name} AND wait_event_type = 'Lock'`;
+          expect(Number(row?.['waiting'])).toBeGreaterThanOrEqual(1);
+        },
+        { timeout: 8_000, interval: 25 },
+      );
+      release();
+      await reissuing;
+      expect((await consuming).status).toBe(200);
+      expect(await liveLinks(userId)).toHaveLength(0);
+    } finally {
+      // القفل بيتفك في كل الأحوال، وإلا باقي الملف بيفضل واقف على نفس صف الحساب.
+      release();
+      await reissuing.catch(() => undefined);
+    }
   });
 });
 

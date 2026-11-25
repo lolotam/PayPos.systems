@@ -97,6 +97,7 @@ beforeEach(() => {
     },
     branch: undefined,
     companies: [],
+    staffAccess: true,
     choose: vi.fn(),
   };
 });
@@ -140,6 +141,28 @@ it('asks the API about invitations only for an owner, so no other role sends a r
   } as unknown as typeof state.workspace;
   invitationProbes.length = 0;
   expect(conditions()['invitations-owner']).toBe(false);
+  expect(invitationProbes.at(-1)?.[2]).toBe(false);
+});
+
+it('opens the invitations entry for a company owner whose widest role is narrower, and probes it as the menu source', () => {
+  // المالك الحقيقي بدوره الأضيق: العلامة is_owner من الـ API هي اللي بتقول إنه مالك.
+  const ready = state.workspace as unknown as { company: { role_code: string } };
+  state.workspace = {
+    ...ready,
+    company: { ...ready.company, role_code: 'cashier', is_owner: true },
+  } as unknown as typeof state.workspace;
+  invitationProbes.length = 0;
+  expect(conditions()['invitations-owner']).toBe(true);
+  expect(invitationProbes.at(-1)?.[2]).toBe(true);
+  // الوسائط الرابع هو مصدر القراءة: المدخل بيبعت قراءته لوحده.
+  expect(invitationProbes.at(-1)?.[3]).toBe('menu');
+});
+
+it('AC-ACT-17 sends no invitations read while the staff-access capability is off', () => {
+  state.workspace = { ...(state.workspace ?? {}), staffAccess: false } as WorkspaceController;
+  invitationProbes.length = 0;
+  expect(conditions()['invitations-owner']).toBe(false);
+  // الوسائط التالت هو «القراءة مفعّلة»: مع القدرة مقفولة مفيش طلب للدعوات أصلاً.
   expect(invitationProbes.at(-1)?.[2]).toBe(false);
 });
 

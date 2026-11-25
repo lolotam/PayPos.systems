@@ -21,7 +21,10 @@ import {
   type EmployeeAccessStateReads,
 } from '../queries/employee-staff-access.query.ts';
 import { StaffAccessError, GrantEmployeeAccessUseCase } from '../use-cases/grant-employee-access/grant-employee-access.ts';
-import { CancelPendingStaffAccessUseCase } from '../use-cases/cancel-pending-staff-access/cancel-pending-staff-access.ts';
+import {
+  CancelPendingStaffAccessUseCase,
+  type CancelPendingStaffAccessOutcome,
+} from '../use-cases/cancel-pending-staff-access/cancel-pending-staff-access.ts';
 
 /** بوابة التفعيل (FR-F1-9): تُقرأ مرة واحدة عند التشغيل من STAFF_ACCESS_ROUTES، وكل المسارات ترد 503 بدونها. */
 export const STAFF_ACCESS_ROUTES_ENABLED = Symbol('STAFF_ACCESS_ROUTES_ENABLED');
@@ -76,6 +79,7 @@ export class EmployeeAccessController {
         branch_id: granted.branchId,
         phone_last3: granted.phoneLast3,
         can_manage: false,
+        can_cancel: false,
       });
     } catch (error) {
       throw staffAccessApiError(error);
@@ -108,8 +112,9 @@ export class EmployeeAccessController {
   ): Promise<unknown> {
     const actor = actorOf(request);
     this.ready();
+    let outcome: CancelPendingStaffAccessOutcome;
     try {
-      await (this.cancelUseCase as CancelPendingStaffAccessUseCase).execute({
+      outcome = await (this.cancelUseCase as CancelPendingStaffAccessUseCase).execute({
         ...actor,
         businessId,
         employeeId,
@@ -117,7 +122,33 @@ export class EmployeeAccessController {
     } catch (error) {
       throw staffAccessApiError(error);
     }
-    return this.readStateOrNotFound(actor.companyId, actor.userId, businessId, employeeId, readGrantedEmployeeStaffAccess);
+    try {
+      return await this.readStateOrNotFound(
+        actor.companyId,
+        actor.userId,
+        businessId,
+        employeeId,
+        readGrantedEmployeeStaffAccess,
+      );
+    } catch {
+      // الإلغاء تزم: قراءة الحالة هي اللي بتجيب الرد، وفشلها ما بيرجعش النتيجة الملتزمة لخطأ (AC-ACT-11).
+      return this.committedCancelState(outcome);
+    }
+  }
+
+  /**
+   * حالة الإلغاء الملتزم بلا قراءة تانية: NONE للسجل اللي اتشال وSTOPPED لللي رجع متوقفاً.
+   * آخر ثلاثة أرقام بتضيع مع القراءة الفاشلة — أحسن من رقم مخترع.
+   */
+  private committedCancelState(outcome: CancelPendingStaffAccessOutcome): unknown {
+    return staffAccessState.parse({
+      state: outcome.kind === 'cancelled' ? 'NONE' : 'STOPPED',
+      role: outcome.role,
+      branch_id: outcome.branchId,
+      phone_last3: null,
+      can_manage: true,
+      can_cancel: false,
+    });
   }
 
   /** كل مسارات القدرة مقفولة حتى تُشغَّل من المتغير عند التشغيل (plan §1.1). */
@@ -141,17 +172,22 @@ export class EmployeeAccessController {
   ): Promise<unknown> {
     const database = this.database as TenantWrappers;
     const reads = this.reads as EmployeeAccessStateReads;
-    const state = await database.withTenant(
-      companyId,
-      (tx) =>
-        query(
-          tx,
-          { companyId, businessId, employeeId, actorUserId: userId },
-          reads,
-        ),
-      { userId },
-    );
-    if (state === null) throw new ApiError('EMPLOYEE_NOT_FOUND');
-    return state;
+    try {
+      const state = await database.withTenant(
+        companyId,
+        (tx) =>
+          query(
+            tx,
+            { companyId, businessId, employeeId, actorUserId: userId },
+            reads,
+          ),
+        { userId },
+      );
+      if (state === null) throw new ApiError('EMPLOYEE_NOT_FOUND');
+      return state;
+    } catch (error) {
+      // فشل عابر في قراءة auth (انقطاع اتصال أو مجمع محدود) يُعاد كـ 409 مثل مسار الكتابة.
+      throw staffAccessApiError(error);
+    }
   }
 }

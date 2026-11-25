@@ -88,6 +88,7 @@ vi.mock('../../modules/staff/index.ts', () => ({
 // تشغيل API وworker المبنيين مع الملفات والإعدادات الاختيارية الفارغة مغطى في files/production.spec.ts.
 vi.mock('../../modules/files/index.ts', () => ({ filesRuntime: () => null }));
 vi.mock('../config.ts', () => ({
+  memberInvitationsDependency: () => ({}),
   readConfig: () => ({
     DATABASE_URL: 'synthetic',
     REDIS_URL: 'synthetic',
@@ -95,6 +96,7 @@ vi.mock('../config.ts', () => ({
     PLATFORM_NOTIFICATIONS_DATABASE_URL: 'synthetic',
     TRUSTED_PROXY_CIDRS: ['127.0.0.1/32'],
     AUTH_TRUSTED_ORIGINS: [],
+    ADMIN_ORIGIN: '',
     BETTER_AUTH_URL: 'https://api.synthetic.invalid',
     BETTER_AUTH_SECRET: 'synthetic-auth-root-for-startup-tests',
   }),

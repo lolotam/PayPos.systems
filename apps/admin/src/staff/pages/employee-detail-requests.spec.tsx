@@ -11,6 +11,9 @@ vi.mock('@/shared/api/client', () => ({
   apiClient: () => ({ GET: api.get, POST: api.get, PUT: api.get, PATCH: api.get }),
 }));
 vi.mock('@/shared/locale/locale-context', () => ({ useLocale: () => 'en' as const }));
+vi.mock('@/workspace/model/workspace-provider', () => ({
+  useWorkspace: () => ({ staffAccess: true }),
+}));
 vi.mock('next/navigation', () => ({ useRouter: () => ({ push: vi.fn() }) }));
 
 const EMPLOYEE = '/v1/businesses/{businessId}/employees/{employeeId}';

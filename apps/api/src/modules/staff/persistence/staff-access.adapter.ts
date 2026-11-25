@@ -1,7 +1,7 @@
 import type { AuthFacadeForStaffAccess } from '../ports/staff-access-auth.port.ts';
 import type { IdGenerator, TenantWrappers, Tx } from '@pospay/db';
 import type { Redis } from 'ioredis';
-import { createHash } from 'node:crypto';
+import { createHmac } from 'node:crypto';
 import { sql } from 'drizzle-orm';
 
 import {
@@ -55,7 +55,12 @@ function authorityChecker(tx: Tx, actor: StaffAccessActor): GrantBeginScope['aut
     });
 }
 
-function beginScope(tx: Tx, actor: StaffAccessActor, input: BeginInput): GrantBeginScope {
+function beginScope(
+  tx: Tx,
+  actor: StaffAccessActor,
+  input: BeginInput,
+  phoneHashSecret: Buffer | string,
+): GrantBeginScope {
   const audit = transactionWriters(tx, input.ids).audit;
   return {
     lockCompany: () => lockCompanyRow(tx, actor.companyId),
@@ -80,7 +85,12 @@ function beginScope(tx: Tx, actor: StaffAccessActor, input: BeginInput): GrantBe
       if (record === null) throw new Error('STAFF_RECORD_RESTART_FAILED');
       return record;
     },
-    phoneHash: (phone) => createHash('sha256').update(`staff-access-phone:${phone}`).digest('hex'),
+    // بصمة الهاتف مفتاحية: HMAC بمفتاح الجذر مع فاصل نطاق، فالهاتف ما بيرجعش من البصمة.
+    phoneHash: (phone) =>
+      createHmac('sha256', phoneHashSecret)
+        .update('pospay:staff-access:phone:v1\0')
+        .update(phone)
+        .digest('hex'),
     insertRecord: (record) => insertPendingRecord(tx, actor, input, audit, record),
   };
 }
@@ -291,18 +301,26 @@ async function appendGrantedEvent(
  * يفتح معاملتي «إعطاء الدخول» على pospay_app: الخطوة الأولى تنشئ سجل الانتظار، والثالثة تُنجز
  * العضوية والربط والرقم المؤقت والحدث في التراجع الواحد (plan §4.2).
  *
- * @param database مغلفات الشركة من @pospay/db
+ * @param database        مغلفات الشركة من @pospay/db
+ * @param auth            واجهة حساب الموظفة عبر identity
+ * @param phoneHashSecret مفتاح بصمة الهاتف (HMAC) — فاضي يرفع خطأ عند البناء بدل بصمة ضعيفة
  * @returns المنفذ الذي يشغّل شغل كل خطوة داخل معاملتها
  */
 export function createGrantEmployeeAccessSteps(
   database: TenantWrappers,
   auth: AuthFacadeForStaffAccess,
+  phoneHashSecret: Buffer | string,
 ): GrantEmployeeAccessSteps {
+  if (phoneHashSecret.length === 0) throw new Error('STAFF_ACCESS_PHONE_HASH_SECRET_EMPTY');
   return {
     begin: (actor, input, work) =>
-      database.withTenant(actor.companyId, (tx) => work(beginScope(tx, actor, input)), {
-        userId: actor.userId,
-      }),
+      database.withTenant(
+        actor.companyId,
+        (tx) => work(beginScope(tx, actor, input, phoneHashSecret)),
+        {
+          userId: actor.userId,
+        },
+      ),
     commit: (actor, input, work) =>
       database.withTenant(actor.companyId, (tx) => work(commitScope(tx, actor, input, auth)), {
         userId: actor.userId,

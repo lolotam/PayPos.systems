@@ -18,6 +18,11 @@ export interface StaffAccessProvisionRequest {
   readonly recordState: 'PENDING' | 'CANCELLING';
   /** إعادة تثبيت ربط الهاتف عند استئناف سجل `STOPPED` (P1-4). */
   readonly resetBinding: boolean;
+  /**
+   * معرّف المحاولة التي نفّذت الخطوة — بيتكرر في صف اعتماد الربط عشان تكرار المحاولة نفسها
+   * مايعملش اعتماداً ثانياً ولا صف تدقيق ثاني (AC-ACT-2).
+   */
+  readonly attemptId?: string;
 }
 
 /** خطوة المستخدم على pospay_auth مع تصوير الرقم السري — الجسر الوحيد بين staff وpackages/auth. */

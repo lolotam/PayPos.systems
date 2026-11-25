@@ -1,4 +1,4 @@
-import type { Tx } from '@pospay/db';
+import { OWNER_ROLE_ID, type Tx } from '@pospay/db';
 import { sql } from 'drizzle-orm';
 
 import { evaluateAccess } from '../domain/access.ts';
@@ -37,6 +37,7 @@ export async function readStaffAccessAuthority(
 /**
  * حالة دخول موظفة واحدة للقراءة (شاشة لوحة الموظفين): فرعها الأساسي ومستخدمها المرتبط وسجل الدخول
  * إن وُجد. الموظفة المحذوفة أو الغريبة بترجع null عشان المسار يرد EMPLOYEE_NOT_FOUND من غير كشف أي شيء.
+ * ومع السجل بتترجع بيانات الإلغاء: المانح الأصلي وبداية المحاولة ولحظة القراءة من ساعة القاعدة.
  *
  * @param tx    معاملة قراءة داخل الشركة
  * @param input الشركة والنشاط والموظفة
@@ -58,20 +59,70 @@ export async function readStaffAccessState(
     operation_id: string;
     user_id: string | null;
   }>(staffAccessRecordQuery(input));
+  if (record === undefined) {
+    return { branchId: employee.primary_branch_id, linkedUserId: employee.user_id, record: null };
+  }
+  const meta = await readStaffAccessCancelMeta(tx, input);
   return {
     branchId: employee.primary_branch_id,
     linkedUserId: employee.user_id,
-    record:
-      record === undefined
-        ? null
-        : {
-            state: record.state,
-            roleCode: record.role_code,
-            branchId: record.branch_id,
-            operationId: record.operation_id,
-            userId: record.user_id,
-          },
+    record: {
+      state: record.state,
+      roleCode: record.role_code,
+      branchId: record.branch_id,
+      operationId: record.operation_id,
+      userId: record.user_id,
+      grantedBy: meta.grantedBy,
+      attemptStartedAt: meta.attemptStartedAt,
+      now: meta.now,
+    },
   };
+}
+
+/**
+ * بيانات الإلغاء للسجل: المانح الأصلي وبداية المحاولة ولحظة القراءة من ساعة القاعدة. القراية
+ * التانية خفيفة وبتاخد القيم من نفس القاعدة، فما فيش فرق ساعة بين البحث والنتيجة. لو السجل
+ * ما اتقراش (سباق مع حذف) القيم اللي بترجع تبقى صفر-عمر، فمفيش صلاحية إلغاء.
+ *
+ * @param tx    معاملة القراءة داخل الشركة
+ * @param input الشركة والموظفة
+ * @returns المانح وبداية المحاولة ولحظة القراءة
+ */
+async function readStaffAccessCancelMeta(
+  tx: Tx,
+  input: { companyId: string; employeeId: string },
+): Promise<{ grantedBy: string; attemptStartedAt: Date; now: Date }> {
+  const [row] = await tx.execute<{ granted_by: string; attempt_started_at: Date; now: Date }>(sql`
+    SELECT granted_by, attempt_started_at, clock_timestamp() AS now
+    FROM employee_staff_access
+    WHERE company_id=${input.companyId} AND employee_id=${input.employeeId}`);
+  const now = row === undefined ? new Date() : new Date(row.now);
+  return {
+    grantedBy: row?.granted_by ?? '',
+    attemptStartedAt: row === undefined ? now : new Date(row.attempt_started_at),
+    now,
+  };
+}
+
+/**
+ * هل الفاعل مالك الشركة؟ مالك الشركة يقدر يلغي سجل الانتظار زي المانح الأصلي (P1-2) — العضوية
+ * سارية على مستوى الشركة ودورها هو دور المالك النظامي.
+ *
+ * @param tx    معاملة القراءة داخل الشركة
+ * @param input الشركة والفاعل من الجلسة
+ * @returns true لو الفاعل مالك الشركة
+ */
+export async function readStaffAccessOwner(
+  tx: Tx,
+  input: { companyId: string; actorUserId: string },
+): Promise<boolean> {
+  const rows = await tx.execute(sql`SELECT 1 FROM memberships
+    WHERE company_id=${input.companyId} AND user_id=${input.actorUserId}
+      AND role_id=${OWNER_ROLE_ID}::uuid
+      AND role_owner_key='global' AND scope_type='COMPANY' AND scope_id=${input.companyId}
+      AND starts_at<=clock_timestamp() AND (ends_at IS NULL OR ends_at>clock_timestamp())
+    LIMIT 1`);
+  return rows.length !== 0;
 }
 
 /** نفس استعلام حالة الدخول للشاشة وEXPLAIN؛ الإسقاط محدود ولا يحمل الهاتف أو الـ hash. */

@@ -4,7 +4,7 @@ import { StaffAuthBusyError, StaffPhoneTakenError } from '@pospay/db';
 import { systemUuidV7 } from '@pospay/ids';
 import { afterAll, beforeAll, expect, it } from 'vitest';
 import { STAFF_SYNTHETIC_EMAIL_DOMAIN } from '../staff-access-users.ts';
-import { staffAuthFixture, type StaffAuthFixture } from './staff-auth.fixture.ts';
+import { staffAuthFixture, staffPhoneLockKey, type StaffAuthFixture } from './staff-auth.fixture.ts';
 
 let f: StaffAuthFixture;
 let owner: postgres.Sql;
@@ -21,7 +21,11 @@ const phoneOf = (n: number) => `+965500000${String(n).padStart(2, '0')}`;
 const provision = (
   phone: string,
   operationId = ids.newId(),
-  options: { recordState?: 'PENDING' | 'CANCELLING'; resetBinding?: boolean } = {},
+  options: {
+    recordState?: 'PENDING' | 'CANCELLING';
+    resetBinding?: boolean;
+    attemptId?: string;
+  } = {},
 ) =>
   f.auth.staffUsers.provision({
     operationId,
@@ -32,6 +36,7 @@ const provision = (
     ids,
     recordState: options.recordState ?? 'PENDING',
     resetBinding: options.resetBinding ?? false,
+    ...(options.attemptId === undefined ? {} : { attemptId: options.attemptId }),
   });
 
 it('AC-F1-1 provision creates the user with markers, synthetic email, no credential account and an approved binding', async () => {
@@ -151,6 +156,51 @@ it('P1-4 resetBinding re-approves the requested phone on the existing user and r
   const [unchanged] = await owner`SELECT phone_number FROM "user" WHERE id = ${userId}`;
   expect(unchanged?.phone_number).toBe(newPhone);
   await owner`DELETE FROM "user" WHERE id = ${otherUser}`;
+});
+
+/**
+ * معرّف الصف القديم لاعتماد الربط: دايجست sha256 للمحاولة والمستخدم ورقم الهاتف، وبتات النسخة
+ * بتوعه فوق بايتات معرّف المحاولة. بنحسبه هنا عشان نثبت إن معرّف صف الاعتماد ما يحملش رقم
+ * الهاتف (P2-1) — المعرّف لازم يبقى دايجست (المحاولة، المستخدم) بس.
+ */
+function legacyPhoneBearingAuditId(attemptId: string, userId: string, phone: string): string {
+  const bytes = Buffer.from(attemptId.replaceAll('-', ''), 'hex');
+  const digest = createHash('sha256')
+    .update(`staff-binding:${attemptId}:${userId}:${phone}`)
+    .digest();
+  bytes[6] = 0x70 | (digest.readUInt8(0) & 0x0f);
+  bytes[7] = digest.readUInt8(1);
+  bytes[8] = 0x80 | (digest.readUInt8(2) & 0x3f);
+  digest.copy(bytes, 9, 3, 10);
+  const hex = bytes.toString('hex');
+  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
+}
+
+it('AC-ACT-2 a repeated binding reset of the same attempt approves the phone once', async () => {
+  const operationId = ids.newId();
+  const attemptId = ids.newId();
+  const { userId } = await provision(phoneOf(19), operationId);
+  const phone = phoneOf(20);
+  await provision(phone, operationId, { resetBinding: true, attemptId });
+  const bindingRows = () =>
+    owner`SELECT details FROM platform_audit_log
+      WHERE action = 'phone.binding_approved' AND details->>'user_id' = ${userId}`;
+  // صف إنشاء الحساب وصف اعتماد الهاتف الجديد — واحد لكل منهما.
+  expect(await bindingRows()).toHaveLength(2);
+  // تكرار نفس المحاولة: مفيش اعتماد تاني ولا صف تاني.
+  await provision(phone, operationId, { resetBinding: true, attemptId });
+  expect(await bindingRows()).toHaveLength(2);
+  const attempts = await owner`SELECT id, details FROM platform_audit_log
+    WHERE action = 'phone.binding_approved' AND details->>'attempt_id' = ${attemptId}`;
+  expect(attempts).toHaveLength(1);
+  expect(attempts[0]?.details).toMatchObject({ user_id: userId, attempt_id: attemptId });
+  // معرّف صف الاعتماد ما يحملش رقم الهاتف (P2-1): المعرّف القديم كان دايجست (المحاولة، المستخدم،
+  // الهاتف)، فرقم الهاتف كان بايت في معرّف الصف. لازم يكون دايجست (المحاولة، المستخدم) بس.
+  expect(attempts[0]?.id).not.toBe(legacyPhoneBearingAuditId(attemptId, userId, phone));
+  const [user] =
+    await owner`SELECT phone_number, phone_binding_approved_at FROM "user" WHERE id = ${userId}`;
+  expect(user?.phone_number).toBe(phone);
+  expect(user?.phone_binding_approved_at).not.toBeNull();
 });
 
 it('two concurrent provisions of one phone produce one user and one typed refusal', async () => {
@@ -277,4 +327,46 @@ it('a lock held past the whole budget is a typed retry error, never an untyped f
     await lock.release();
   }
   expect(await owner`SELECT id FROM "user" WHERE staff_access_operation_id = ${operationId}`).toHaveLength(0);
+});
+
+/** يمسك قفل الهاتف الاستشاري نفسه من اتصال مستقل، ويتيح فكه متى شاء الاختبار. */
+async function holdPhoneLock(phone: string) {
+  const key = staffPhoneLockKey(createHash('sha256').update(`staff-provision:${phone}`).digest());
+  const held = postgres(f.test.ownerUrl, { max: 1, onnotice: () => undefined });
+  await held`SELECT pg_advisory_lock(${key.toString()}::bigint)`;
+  return {
+    release: async () => {
+      await held`SELECT pg_advisory_unlock(${key.toString()}::bigint)`;
+      await held.end();
+    },
+  };
+}
+
+/** الـ backend العالق على قفل الهاتف في قاعدة الهوية — pidه هو الذي يُقطع اتصاله. */
+async function waitForPhoneLockWaiter(): Promise<number> {
+  for (let tries = 0; tries < 200; tries += 1) {
+    const [row] = await owner`
+      SELECT pid FROM pg_stat_activity
+      WHERE datname=${f.test.name} AND usename='pospay_auth'
+        AND wait_event_type='Lock' AND wait_event='advisory'`;
+    if (row?.pid !== undefined) return row.pid as number;
+    await new Promise((resolve) => setTimeout(resolve, 5));
+  }
+  throw new Error('PHONE_LOCK_WAITER_MISSING');
+}
+
+it('AC-ACT-3 a connection lost while the phone lock is taken is the typed retry error', async () => {
+  const phone = phoneOf(90);
+  const lock = await holdPhoneLock(phone);
+  try {
+    const pending = provision(phone);
+    // الطلب يتعطل على القفل حتى قطع الاتصال؛ بدون هذا الحارس يبقى الرفض بلا مراقب.
+    void pending.catch(() => undefined);
+    const pid = await waitForPhoneLockWaiter();
+    await owner`SELECT pg_terminate_backend(${pid})`;
+    await expect(pending).rejects.toBeInstanceOf(StaffAuthBusyError);
+  } finally {
+    await lock.release();
+  }
+  expect(await owner`SELECT id FROM "user" WHERE phone_number = ${phone}`).toHaveLength(0);
 });

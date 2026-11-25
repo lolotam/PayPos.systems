@@ -43,6 +43,7 @@ export function readyWorkspace(withBusiness = true, id = REF): WorkspaceControll
       : undefined,
     branch: undefined,
     companies: [],
+    staffAccess: true,
     choose: vi.fn(),
   };
 }

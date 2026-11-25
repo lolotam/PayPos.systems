@@ -240,3 +240,4 @@ reads:
   - { from: staff, to: identity, symbol: readStaffAccessState, file: apps/api/src/modules/staff/persistence/employee-access-reads.adapter.ts }
   - { from: staff, to: identity, symbol: readStaffAccessAuthority, file: apps/api/src/modules/staff/persistence/employee-access-reads.adapter.ts }
   - { from: staff, to: identity, symbol: readStaffUser, file: apps/api/src/modules/staff/persistence/employee-access-reads.adapter.ts }
+  - { from: staff, to: identity, symbol: readStaffAccessOwner, file: apps/api/src/modules/staff/persistence/employee-access-reads.adapter.ts }

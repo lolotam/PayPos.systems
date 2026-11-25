@@ -83,3 +83,18 @@ it('own write operations answer OwnLeaveWriteResult while admin write operations
     ),
   ).toBe('#/components/schemas/LeaveRequest');
 });
+
+// AC-ACT-14: المستند لازم يقول أكواد الرفض الثلاثة اللي الراوت بيرد بيها 409،
+// عشان العميل يقرا الوثيقة ويعرف إمتى يعيد المحاولة بدل ما يشوف 409 مجهول.
+it('AC-ACT-14 the grant route publishes every conflict code it answers 409 with', () => {
+  const paths = buildOpenApiDocument()['paths'] as Record<
+    string,
+    Record<string, { responses: Record<string, { description?: string }> }>
+  >;
+  const description =
+    paths['/v1/businesses/{businessId}/employees/{employeeId}/staff-access']?.post?.responses['409']
+      ?.description ?? '';
+  expect(description).toContain('STAFF_ACCESS_ALREADY_GRANTED');
+  expect(description).toContain('STAFF_ACCESS_PHONE_TAKEN');
+  expect(description).toContain('TRANSACTION_RETRY_REQUIRED');
+});

@@ -3,9 +3,12 @@
 import { t } from '@pospay/i18n';
 import type { MemberInvitation } from '@pospay/contracts';
 import { useLocale } from '@/shared/locale/locale-context';
+import type { InvitationScopeChoices } from '../model/invitable-roles';
 
 type Props = {
   items: readonly MemberInvitation[];
+  /** أسماء الأنشطة والفروع: بتسمّي نطاق كل دعوة (AC-ACT-22). */
+  choices?: InvitationScopeChoices | undefined;
   /** فيه صفحة تالية؟ */
   hasMore: boolean;
   onLoadMore: () => void;
@@ -35,18 +38,42 @@ const SCOPE_KEY = {
 
 type RowProps = {
   invitation: MemberInvitation;
+  choices?: InvitationScopeChoices | undefined;
   reissuePending: boolean;
   onReissue: (invitation: MemberInvitation) => void;
 };
 
+/**
+ * اسم النشاط أو الفرع اللي الدعوة محتاجاه: صفّين بنفس الدور والنطاق بيبانوا مختلفين
+ * لما اسم الهدف يتفق معاهم (AC-ACT-22).
+ */
+function scopeTarget(
+  invitation: MemberInvitation,
+  choices: InvitationScopeChoices | undefined,
+): string | null {
+  if (choices === undefined) return null;
+  if (invitation.scope_type === 'BUSINESS') {
+    return choices.businesses.find((option) => option.id === invitation.scope_id)?.name ?? null;
+  }
+  if (invitation.scope_type === 'BRANCH') {
+    return choices.branches.find((option) => option.id === invitation.scope_id)?.name ?? null;
+  }
+  return null;
+}
+
 /** صف دعوة: الدور والنطاق بالترجمة، وزر الإصدار بس لو الـ API قال إن المتصل يقدر. */
-function InvitationRow({ invitation, reissuePending, onReissue }: RowProps) {
+function InvitationRow({ invitation, choices, reissuePending, onReissue }: RowProps) {
   const locale = useLocale();
   const role = ROLE_KEY[invitation.role_code as keyof typeof ROLE_KEY];
+  const target = scopeTarget(invitation, choices);
   return (
     <tr className="border-b">
       <td className="p-2">{role === undefined ? invitation.role_code : t(locale, role)}</td>
-      <td className="p-2">{t(locale, SCOPE_KEY[invitation.scope_type])}</td>
+      <td className="p-2">
+        <span>{t(locale, SCOPE_KEY[invitation.scope_type])}</span>
+        {target === null ? null : <span className="ms-1">{target}</span>}
+        <span className="ms-1 text-muted-foreground">{`#${invitation.id.slice(-6)}`}</span>
+      </td>
       <td className="p-2">{t(locale, STATE_KEY[invitation.state])}</td>
       <td className="p-2">{new Date(invitation.created_at).toLocaleString(locale)}</td>
       <td className="p-2">
@@ -92,6 +119,7 @@ function InvitationsHead() {
 /** قائمة الدعوات: أدوار ونطاقات بالترجمة وحالة كل صف، وزر الإصدار بس لمن يستحقه من الـ API. */
 export function InvitationsTable({
   items,
+  choices,
   hasMore,
   onLoadMore,
   loadingMore,
@@ -112,6 +140,7 @@ export function InvitationsTable({
             <InvitationRow
               key={invitation.id}
               invitation={invitation}
+              choices={choices}
               reissuePending={reissuePending}
               onReissue={onReissue}
             />

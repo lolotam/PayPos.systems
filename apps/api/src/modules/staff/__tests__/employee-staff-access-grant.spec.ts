@@ -1,4 +1,7 @@
-import { afterAll, beforeAll, expect, it } from 'vitest';
+import { createHash } from 'node:crypto';
+import { afterAll, beforeAll, expect, it, vi } from 'vitest';
+import type { Provider } from '@nestjs/common';
+import { systemUuidV7 } from '@pospay/ids';
 import {
   addEmployee,
   grant,
@@ -8,6 +11,14 @@ import {
   staffUsersOf,
   type Fixture,
 } from '../../../../test/staff-access.fixture.ts';
+import { createGrantEmployeeAccessSteps } from '../persistence/staff-access.adapter.ts';
+import { staffAccessProviders } from '../staff-access.providers.ts';
+import { GrantEmployeeAccessUseCase } from '../use-cases/grant-employee-access/grant-employee-access.ts';
+
+const ids = systemUuidV7();
+type ValueProvider = { provide: unknown; useValue: unknown };
+const wiringOf = (providers: Provider[], token: unknown) =>
+  (providers as ValueProvider[]).find((provider) => provider.provide === token)?.useValue;
 
 let f: Fixture;
 beforeAll(async () => {
@@ -23,6 +34,10 @@ const pinRow = async (userId: string) =>
     await f.h
       .owner`SELECT id, pin_hash, temporary, expires_at, set_by FROM cashier_pins WHERE user_id = ${userId}`
   )[0];
+
+/** كود الرفض في رد HTTP — undefined لما الرد ماشي. */
+const codeOf = (response: { body: Record<string, unknown> }): string | undefined =>
+  (response.body as { code?: string })?.code;
 
 it('AC-F1-1 the owner grant creates user, binding, membership, link, temporary PIN, audits and one event', async () => {
   const sara = await addEmployee(f, 'Sara', f.salmiya, 1);
@@ -163,9 +178,12 @@ it('AC-F1-6b two concurrent grants for one employee produce one access; one phon
   // أو يرفض الخاسر 409 لو وصل الخطوة الأولى بعد الالتزام — كلاهما سجل واحد وعضوية واحدة.
   expect(statuses.every((status) => status === 200 || status === 409)).toBe(true);
   expect(statuses).toContain(200);
-  const refused = first.status === 409 ? first : second;
+  let refused = first.status === 409 ? first : second;
+  // حد المنح (AC-ACT-1) ردّ الطلب التاني فورًا قبل أي معاملة — الطلب بيتعاد مرة واحدة بعد ما
+  // الطلبين يهدوا، فيشوف الحالة النهائية زي ما كان شايف قبل البوابة.
+  if (codeOf(refused) === 'TRANSACTION_RETRY_REQUIRED') refused = await grant(f, dana, phone);
   if (refused.status === 409) {
-    expect(['STAFF_ACCESS_ALREADY_GRANTED']).toContain((refused.body as { code?: string })?.code);
+    expect(['STAFF_ACCESS_ALREADY_GRANTED']).toContain(codeOf(refused));
   }
   expect(
     await f.h.owner`SELECT id FROM employee_staff_access WHERE employee_id = ${dana}`,
@@ -183,7 +201,13 @@ it('AC-F1-6b two concurrent grants for one employee produce one access; one phon
     grant(f, zain, otherPhone),
   ]);
   expect([samePhoneOne.status, samePhoneTwo.status]).toContain(200);
-  const phoneRefused = samePhoneOne.status === 409 ? samePhoneOne : samePhoneTwo;
+  let phoneRefused = samePhoneOne.status === 409 ? samePhoneOne : samePhoneTwo;
+  // نفس سبب التكرار: الطلب المرفوض بحد المنح بيتعاد مرة واحدة بعد ما الطلبين يهدوا، فلقى الهاتف
+  // مملوك للطلب الناجح — رفض الهاتف المملوك نفسه.
+  if (codeOf(phoneRefused) === 'TRANSACTION_RETRY_REQUIRED') {
+    const refusedEmployee = samePhoneOne.status === 409 ? maya : zain;
+    phoneRefused = await grant(f, refusedEmployee, otherPhone);
+  }
   expect(phoneRefused.status).toBe(409);
   expect(phoneRefused.body).toMatchObject({ code: 'STAFF_ACCESS_PHONE_TAKEN' });
   const loser = samePhoneOne.status === 409 ? maya : zain;
@@ -194,4 +218,81 @@ it('AC-F1-6b two concurrent grants for one employee produce one access; one phon
   const loserActive = await f.h
     .owner`SELECT count(*) AS n FROM employee_staff_access WHERE employee_id = ${loser} AND state = 'ACTIVE'`;
   expect(Number(loserActive[0]?.n)).toBe(0);
+});
+
+it('AC-ACT-13 the stored phone fingerprint is keyed, not an unkeyed digest of the phone', async () => {
+  const hana = await addEmployee(f, 'Hana', f.salmiya, 21);
+  const phone = nextPhone(f);
+  expect((await grant(f, hana, phone)).status).toBe(200);
+  const [record] = await f.h
+    .owner`SELECT phone_hash FROM employee_staff_access WHERE employee_id = ${hana}`;
+  const stored = String(record?.['phone_hash'] ?? '');
+  expect(stored).toMatch(/^[0-9a-f]{64}$/);
+  expect(stored).not.toBe(createHash('sha256').update(`staff-access-phone:${phone}`).digest('hex'));
+});
+
+it('AC-ACT-13 a crash and its resumable retry keep the same keyed phone fingerprint', async () => {
+  const dana = await addEmployee(f, 'Dana resume', f.salmiya, 22);
+  const phone = nextPhone(f);
+  const real = f.h.auth.staffUsers.provision;
+  vi.spyOn(f.h.auth.staffUsers, 'provision').mockImplementationOnce(async (input) => {
+    await real(input);
+    throw new Error('INJECTED_AC_ACT_13_CRASH');
+  });
+  try {
+    expect((await grant(f, dana, phone)).status).toBe(500);
+  } finally {
+    vi.restoreAllMocks();
+  }
+  const [pending] = await f.h
+    .owner`SELECT phone_hash FROM employee_staff_access WHERE employee_id = ${dana}`;
+  const pendingHash = String(pending?.['phone_hash'] ?? '');
+  expect(pendingHash).toMatch(/^[0-9a-f]{64}$/);
+  // الاستئناف بنفس الهاتف والمفتاح: البصمة نفسها، فالمحاولة تكمّل بلا رفض.
+  expect((await grant(f, dana, phone)).status).toBe(200);
+  const [active] = await f.h
+    .owner`SELECT phone_hash FROM employee_staff_access WHERE employee_id = ${dana}`;
+  expect(String(active?.['phone_hash'] ?? '')).toBe(pendingHash);
+});
+
+it('AC-ACT-13 two keys write two different fingerprints for the same phone', async () => {
+  const one = await addEmployee(f, 'Key one', f.salmiya, 23);
+  const two = await addEmployee(f, 'Key two', f.salmiya, 24);
+  const phone = nextPhone(f);
+  const actor = await f.h.auth.getSession(new Headers({ cookie: f.ownerCookie }));
+  if (actor === null) throw new Error('ACTOR_MISSING');
+  const beginWith = async (employeeId: string, secret: string) =>
+    createGrantEmployeeAccessSteps(f.db, f.h.auth.staffUsers, secret).begin(
+      { companyId: f.company, userId: actor.userId },
+      { businessId: f.business, employeeId, ids, at: new Date() },
+      async (scope) => {
+        if (!(await scope.lockCompany())) throw new Error('COMPANY_MISSING');
+        const employee = await scope.lockEmployee();
+        if (employee === null) throw new Error('EMPLOYEE_MISSING');
+        return scope.insertRecord({
+          roleCode: 'staff',
+          branchId: employee.primaryBranchId,
+          phoneHash: scope.phoneHash(phone),
+        });
+      },
+    );
+  await beginWith(one, 'secret-one');
+  await beginWith(two, 'secret-two');
+  const rows = await f.h.owner`SELECT employee_id, phone_hash FROM employee_staff_access
+    WHERE employee_id IN (${one}, ${two})`;
+  const stored = new Map(rows.map((row) => [String(row['employee_id']), String(row['phone_hash'])]));
+  expect(stored.get(one)).toMatch(/^[0-9a-f]{64}$/);
+  expect(stored.get(two)).toMatch(/^[0-9a-f]{64}$/);
+  // نفس الهاتف بمفتاحين: بصمتان مختلفتان، فالمفتاح هو اللي بيفرّق.
+  expect(stored.get(one)).not.toBe(stored.get(two));
+});
+
+it('AC-ACT-13 an empty key is refused at construction and the wiring keeps the use case null', () => {
+  expect(() => createGrantEmployeeAccessSteps(f.db, f.h.auth.staffUsers, '')).toThrow(
+    'STAFF_ACCESS_PHONE_HASH_SECRET_EMPTY',
+  );
+  for (const secret of ['', null]) {
+    const providers = staffAccessProviders(f.db, f.h.redis, ids, f.h.auth.staffUsers, true, secret);
+    expect(wiringOf(providers, GrantEmployeeAccessUseCase)).toBeNull();
+  }
 });

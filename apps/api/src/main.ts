@@ -32,7 +32,7 @@ import { createResendIntake, createWhatsappIntake } from './modules/notification
 import { API_LOG_EVENTS } from './shared/log-events.ts';
 import { createActivePasskeyBindings, createPersonalEligibility } from './modules/staff/index.ts';
 import { membershipCompanies, staffOtpDependencies } from './modules/identity/index.ts';
-import { readConfig } from './shared/config.ts';
+import { readConfig, memberInvitationsDependency } from './shared/config.ts';
 import { closeOptional, optionalWithin } from './shared/optional-capability.ts';
 import { staffAccessRoutesEnabled } from './shared/staff-access-routes.ts';
 import { staffNativeOriginsFrom } from './shared/staff-origin.token.ts';
@@ -401,9 +401,7 @@ try {
       corsOrigins: config.AUTH_TRUSTED_ORIGINS,
       // البوابة بتتقرأ مرة واحدة هنا عند الإقلاع: مفيش مسار من شريحة 076 يوصل قبل ما تتدمج.
       staffAccessRoutes: staffAccessRoutesEnabled(process.env),
-      ...(config.AUTH_TRUSTED_ORIGINS[0] === undefined
-        ? {}
-        : { memberInvitations: { adminOrigin: config.AUTH_TRUSTED_ORIGINS[0] } }),
+      ...memberInvitationsDependency(config),
       ratingPageOrigin: config.RATING_PAGE_ORIGIN,
       push: readPushApiConfiguration(process.env),
       ratingLinksAvailable,

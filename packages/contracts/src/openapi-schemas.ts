@@ -81,6 +81,7 @@ import {
   myWorkspacesResponse,
   workspaceBranch,
   workspaceBusiness,
+  workspaceCapabilities,
   workspaceCompany,
 } from './identity/workspaces.js';
 import {
@@ -259,6 +260,7 @@ export const openApiSchemas = [
   myWorkspacesResponse,
   workspaceBranch,
   workspaceBusiness,
+  workspaceCapabilities,
   workspaceCompany,
   businessIdentity,
   businessIdentityNames,

@@ -63,7 +63,11 @@ export const staffAccessPaths = {
         '401': errors,
         '403': errors,
         '404': errors,
-        '409': errors,
+        '409': {
+          ...errors,
+          description:
+            'Bilingual conflict refusal (STAFF_ACCESS_ALREADY_GRANTED, STAFF_ACCESS_PHONE_TAKEN, or TRANSACTION_RETRY_REQUIRED)',
+        },
         default: errors,
       },
     },

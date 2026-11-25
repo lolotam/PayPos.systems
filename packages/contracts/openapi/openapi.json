@@ -23378,6 +23378,9 @@
                     },
                     "can_manage": {
                       "type": "boolean"
+                    },
+                    "can_cancel": {
+                      "type": "boolean"
                     }
                   },
                   "required": [
@@ -23385,7 +23388,8 @@
                     "role",
                     "branch_id",
                     "phone_last3",
-                    "can_manage"
+                    "can_manage",
+                    "can_cancel"
                   ]
                 }
               }
@@ -23432,7 +23436,7 @@
             }
           },
           "409": {
-            "description": "Bilingual refusal",
+            "description": "Bilingual conflict refusal (STAFF_ACCESS_ALREADY_GRANTED, STAFF_ACCESS_PHONE_TAKEN, or TRANSACTION_RETRY_REQUIRED)",
             "content": {
               "application/json": {
                 "schema": {
@@ -23523,6 +23527,9 @@
                     },
                     "can_manage": {
                       "type": "boolean"
+                    },
+                    "can_cancel": {
+                      "type": "boolean"
                     }
                   },
                   "required": [
@@ -23530,7 +23537,8 @@
                     "role",
                     "branch_id",
                     "phone_last3",
-                    "can_manage"
+                    "can_manage",
+                    "can_cancel"
                   ]
                 }
               }
@@ -23650,6 +23658,9 @@
                     },
                     "can_manage": {
                       "type": "boolean"
+                    },
+                    "can_cancel": {
+                      "type": "boolean"
                     }
                   },
                   "required": [
@@ -23657,7 +23668,8 @@
                     "role",
                     "branch_id",
                     "phone_last3",
-                    "can_manage"
+                    "can_manage",
+                    "can_cancel"
                   ]
                 }
               }
@@ -50127,10 +50139,14 @@
             "items": {
               "$ref": "#/components/schemas/WorkspaceCompany"
             }
+          },
+          "capabilities": {
+            "$ref": "#/components/schemas/WorkspaceCapabilities"
           }
         },
         "required": [
-          "companies"
+          "companies",
+          "capabilities"
         ]
       },
       "WorkspaceBranch": {
@@ -50218,6 +50234,17 @@
           "branches"
         ]
       },
+      "WorkspaceCapabilities": {
+        "type": "object",
+        "properties": {
+          "staff_access": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "staff_access"
+        ]
+      },
       "WorkspaceCompany": {
         "type": "object",
         "properties": {
@@ -50254,6 +50281,9 @@
               "BUSINESS",
               "BRANCH"
             ]
+          },
+          "is_owner": {
+            "type": "boolean"
           }
         },
         "required": [

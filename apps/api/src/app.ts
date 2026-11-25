@@ -190,6 +190,7 @@ class AppModule {
           deps.staff,
           deps.auth?.service.staffUsers.staffCompanyOf,
           deps.memberInvitations,
+          deps.staffAccessRoutes === true,
         ),
         {
           provide: RATE_LIMITER,

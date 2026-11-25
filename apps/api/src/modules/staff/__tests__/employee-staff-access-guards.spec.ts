@@ -1,15 +1,40 @@
 import { createDatabase } from '@pospay/db';
 import { systemUuidV7 } from '@pospay/ids';
+import { Controller, Get } from '@nestjs/common';
 import { afterAll, beforeAll, expect, it } from 'vitest';
 import {
   addEmployee,
+  cancelPending,
   grant,
   grantPath,
   nextPhone,
   staffAccessFixture,
   type Fixture,
 } from '../../../../test/staff-access.fixture.ts';
+import { Authenticated } from '../../../shared/access.decorators.ts';
 import { canLinkEmployeeUser } from '../persistence/employee-context.adapter.ts';
+
+// مسار اختباري تحت شجرة staff-access: يثبت إن البوابة تغطي كل مسارات الشريحة، مش المسارات الثلاثة بس.
+@Controller('businesses/:businessId/employees/:employeeId/staff-access')
+class TestStaffAccessSubRouteController {
+  @Get('anything/else')
+  @Authenticated()
+  async probe(): Promise<{ reached: boolean }> {
+    return { reached: true };
+  }
+}
+
+// مسار شقيق بنفس الجذر: لازم يفضل بره البوابة، عشان توسيع النمط ما يقفلش مسار تاني.
+@Controller('businesses/:businessId/employees/:employeeId')
+class TestStaffAccessSiblingController {
+  @Get('staff-access-sibling')
+  @Authenticated()
+  async sibling(): Promise<{ reached: boolean }> {
+    return { reached: true };
+  }
+}
+
+const TEST_ROUTE_CONTROLLERS = [TestStaffAccessSubRouteController, TestStaffAccessSiblingController];
 
 const ids = systemUuidV7();
 const ADMIN_ORIGIN = 'https://admin.example.test';
@@ -17,8 +42,14 @@ let f: Fixture;
 let gated: Fixture;
 let db: ReturnType<typeof createDatabase>;
 beforeAll(async () => {
-  f = await staffAccessFixture({ staffAccessRoutes: true });
-  gated = await staffAccessFixture({ corsOrigins: [ADMIN_ORIGIN] });
+  f = await staffAccessFixture({
+    staffAccessRoutes: true,
+    controllers: TEST_ROUTE_CONTROLLERS,
+  });
+  gated = await staffAccessFixture({
+    corsOrigins: [ADMIN_ORIGIN],
+    controllers: TEST_ROUTE_CONTROLLERS,
+  });
   db = createDatabase({ url: f.h.urls.app, ids });
 });
 afterAll(async () => {
@@ -55,6 +86,33 @@ async function readStateSafe(fixture: Fixture, employeeId: string) {
     company: fixture.company,
   });
 }
+
+it('AC-ACT-6 the gate covers every route under staff-access, not only the three F1 routes', async () => {
+  const gatedEmployee = await addEmployee(gated, 'Gated sub route', gated.salmiya, 31);
+  const gatedUrl = `/v1/businesses/${gated.business}/employees/${gatedEmployee}/staff-access/anything/else`;
+  // البوابة مقفولة: الرد 503 NOT_READY قبل المصادقة — الطلب بلا كوكي أصلاً.
+  const refused = await gated.h.app.inject({ method: 'GET', url: gatedUrl });
+  expect(refused.statusCode).toBe(503);
+  expect(refused.json()).toMatchObject({ code: 'NOT_READY' });
+  // البوابة مفتوحة: نفس المسار يوصل للـ handler.
+  const openEmployee = await addEmployee(f, 'Open sub route', f.salmiya, 34);
+  const opened = await f.h.send(
+    'GET',
+    `/v1/businesses/${f.business}/employees/${openEmployee}/staff-access/anything/else`,
+    { cookie: f.ownerCookie, company: f.company },
+  );
+  expect(opened).toMatchObject({ status: 200, body: { reached: true } });
+});
+
+it('AC-ACT-6 the widened gate leaves a sibling route outside the staff-access tree open', async () => {
+  const employee = await addEmployee(gated, 'Sibling route', gated.salmiya, 32);
+  const sibling = await gated.h.send(
+    'GET',
+    `/v1/businesses/${gated.business}/employees/${employee}/staff-access-sibling`,
+    { cookie: gated.ownerCookie, company: gated.company },
+  );
+  expect(sibling).toMatchObject({ status: 200, body: { reached: true } });
+});
 
 it('AC-F1-7b the link availability rule answers false for a staff user and true for a normal member', async () => {
   const granted = await addEmployee(f, 'Availability probe', f.salmiya, 33);
@@ -149,4 +207,28 @@ it('P1-4 with the gate off a cross-origin preflight succeeds and the three route
     expect(response.headers['access-control-allow-origin']).toBe(ADMIN_ORIGIN);
     expect(response.headers['access-control-allow-credentials']).toBe('true');
   }
+});
+
+it('AC-ACT-11 a cancel without authority answers the same refusal with and without a pending record', async () => {
+  const [owner] = await f.h
+    .owner`SELECT id FROM "user" WHERE email='staff-access-owner@example.test'`;
+  const withRecord = await addEmployee(f, 'Unauthorized with record', f.hawalli, 41);
+  const withoutRecord = await addEmployee(f, 'Unauthorized without record', f.hawalli, 42);
+  // سجل انتظار قديم ومنح من المالك: الفارق بين الحالتين هو وجود السجل نفسه لا غير.
+  await f.h.owner`INSERT INTO employee_staff_access
+    (company_id,id,business_id,employee_id,operation_id,role_code,branch_id,state,granted_by,attempt_id,attempt_started_at,phone_hash)
+    VALUES (${f.company},${ids.newId()},${f.business},${withRecord},${ids.newId()},'staff',${f.hawalli},'PENDING',
+      ${owner?.id},${ids.newId()}, now() - interval '25 hours',${'a'.repeat(64)})`;
+  // مدير السالمية بلا سلطان على فرع حولي: الرفض لازم يكون واحد في الحالتين.
+  const refused = await cancelPending(f, withRecord, f.managerCookie);
+  const refusedWithoutRecord = await cancelPending(f, withoutRecord, f.managerCookie);
+  expect(refused).toMatchObject({ status: 403, body: { code: 'STAFF_ACCESS_NOT_ALLOWED' } });
+  expect(refusedWithoutRecord).toMatchObject({
+    status: 403,
+    body: { code: 'STAFF_ACCESS_NOT_ALLOWED' },
+  });
+  // الرفض ما بيلمسش السجل ولا بيكشف وجوده.
+  expect(
+    await f.h.owner`SELECT id FROM employee_staff_access WHERE employee_id = ${withRecord}`,
+  ).toHaveLength(1);
 });

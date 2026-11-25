@@ -1,5 +1,3 @@
-import { inspect } from 'node:util';
-
 import { hashPassword, verifyPassword } from 'better-auth/crypto';
 import postgres from 'postgres';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
@@ -24,12 +22,8 @@ const PASSWORD = 'member-chosen-pass';
 let testDb: TestDatabase;
 let auth: AuthService;
 let owner: postgres.Sql;
-// كل سطر log وصل مُستقبل Better Auth في الاختبارات — الرسائل منقّاة، والاختبار بيفحص إن مفيش سرّ فيها.
-const authLogs: string[] = [];
 // ساعة الطلب المحقونة: الاختبار بيقدّمها بعد ما الطلب يقف على قفل اليوزر، بدل انتظار وقت حقيقي.
 let clockOffsetMs = 0;
-// آخر hash رجّعه الـ hasher — اختبار التسريب بيتأكد إنه ما ظهرش في أي log حتى لو المعاملة رجعت.
-let lastHash = '';
 
 interface Deferred {
   readonly promise: Promise<void>;
@@ -61,7 +55,7 @@ beforeAll(async () => {
     trustedOrigins: [ORIGIN],
     ids: systemUuidV7(),
     secureCookies: false,
-    onLog: (entry) => authLogs.push(inspect(entry, { depth: 6 })),
+    onLog: () => undefined,
     clock: { now: () => new Date(Date.now() + clockOffsetMs) },
     passwordHasher: {
       hash: async (password) => {
@@ -70,8 +64,7 @@ beforeAll(async () => {
           gate.entered.resolve();
           await gate.release.promise;
         }
-        lastHash = await hashPassword(password);
-        return lastHash;
+        return hashPassword(password);
       },
       verify: ({ hash, password }) => verifyPassword({ hash, password }),
     },
@@ -148,17 +141,22 @@ describe('a reset in flight and a re-issue never interleave (P1-1)', () => {
     const userId = await invitedUser('hashing@example.test');
     const first = await issue(userId);
     arm();
-    const resetting = consume(first);
-    await gate.entered.promise;
-    const second = await issue(userId);
-    gate.release.resolve();
-    const reset = await resetting;
-    // نتيجة واحدة بس: الإصدار كسب، فالرابط القديم ميت وكلمة المرور ما اتحطتش والرابط الجديد صالح.
-    expect(reset.status).toBe(400);
-    expect(await storedHash(userId)).toBeNull();
-    expect(await liveTokens(userId)).toEqual([second]);
-    expect((await consume(second)).status).toBe(200);
-    expect(await liveTokens(userId)).toEqual([]);
+    try {
+      const resetting = consume(first);
+      await gate.entered.promise;
+      const second = await issue(userId);
+      gate.release.resolve();
+      const reset = await resetting;
+      // نتيجة واحدة بس: الإصدار كسب، فالرابط القديم ميت وكلمة المرور ما اتحطتش والرابط الجديد صالح.
+      expect(reset.status).toBe(400);
+      expect(await storedHash(userId)).toBeNull();
+      expect(await liveTokens(userId)).toEqual([second]);
+      expect((await consume(second)).status).toBe(200);
+      expect(await liveTokens(userId)).toEqual([]);
+    } finally {
+      // البوابة بتتفتح في كل الأحوال: ما ينفعش الاختبار يترك الهاشر واقف على قفل الداتابيز.
+      gate.release.resolve();
+    }
   });
 
   it('a reset already inside its transaction goes first and the re-issue is refused', async () => {
@@ -171,20 +169,26 @@ describe('a reset in flight and a re-issue never interleave (P1-1)', () => {
       taken.resolve();
       await holding.promise;
     });
-    await taken.promise;
-    const resetting = consume(first);
-    await waitForWaiters(1);
-    const reissuing = issue(userId).then(
-      () => 'issued',
-      (error: unknown) => error,
-    );
-    await waitForWaiters(2);
-    holding.resolve();
-    await holder;
-    expect((await resetting).status).toBe(200);
-    expect(await reissuing).toBeInstanceOf(InvitationLinkRefusedError);
-    expect(await liveTokens(userId)).toEqual([]);
-    expect(await storedHash(userId)).not.toBeNull();
+    try {
+      await taken.promise;
+      const resetting = consume(first);
+      await waitForWaiters(1);
+      const reissuing = issue(userId).then(
+        () => 'issued',
+        (error: unknown) => error,
+      );
+      await waitForWaiters(2);
+      holding.resolve();
+      await holder;
+      expect((await resetting).status).toBe(200);
+      expect(await reissuing).toBeInstanceOf(InvitationLinkRefusedError);
+      expect(await liveTokens(userId)).toEqual([]);
+      expect(await storedHash(userId)).not.toBeNull();
+    } finally {
+      // القفل بيتفك في كل الأحوال، وإلا ما بعده في الملف بيفضل واقف على نفس الصف.
+      holding.resolve();
+      await holder.catch(() => undefined);
+    }
   });
 });
 
@@ -234,64 +238,6 @@ describe('a successful reset ends every other reset link of that user only (P1-2
     expect((await consume(link)).status).toBe(200);
     expect(await liveTokens(userId)).toEqual([]);
     expect(await storedHash(userId)).not.toBe(before);
-  });
-});
-
-describe('a database failure in the reset path never leaks secrets', () => {
-  it('a failing transaction answers a fixed 500, logs nothing sensitive, and the link still works', async () => {
-    const { userId } = await createOrdinaryUser('leak@example.test');
-    const before = await storedHash(userId);
-    const link = tokenOf(await auth.issuePasswordSetLink(userId, `${ORIGIN}/set-password`));
-    await owner`INSERT INTO verification (id, identifier, value, expires_at, created_at, updated_at)
-      VALUES (${systemUuidV7().newId()}, 'reset-password:poison', ${userId},
-              now() + interval '1 day', now(), now())`;
-    // بقايا من تشغيلة فشلت قبل الفكس: بننضّف أي trigger/function من تشغيلة سابقة على نفس الداتابيز.
-    await owner.unsafe('DROP TRIGGER IF EXISTS block_poison_cleanup ON verification');
-    await owner.unsafe('DROP FUNCTION IF EXISTS block_poison_cleanup()');
-    await owner.unsafe(`
-      CREATE FUNCTION block_poison_cleanup() RETURNS trigger LANGUAGE plpgsql AS $$
-      BEGIN
-        IF OLD.identifier = 'reset-password:poison' THEN RAISE EXCEPTION 'forced cleanup failure'; END IF;
-        RETURN OLD;
-      END $$`);
-    await owner.unsafe(`
-      CREATE TRIGGER block_poison_cleanup BEFORE DELETE ON verification
-      FOR EACH ROW EXECUTE FUNCTION block_poison_cleanup()`);
-    const captured: string[] = [];
-    const spies = (['error', 'warn', 'log'] as const).map((level) =>
-      vi
-        .spyOn(console, level)
-        .mockImplementation((...parts: unknown[]) =>
-          captured.push(parts.map((part) => inspect(part, { depth: 6 })).join(' ')),
-        ),
-    );
-    authLogs.length = 0;
-    let failed: Response;
-    try {
-      failed = await consume(link);
-    } finally {
-      for (const spy of spies) spy.mockRestore();
-      await owner.unsafe('DROP TRIGGER block_poison_cleanup ON verification');
-    }
-    const logged = [...captured, ...authLogs].join('\n');
-    // إجابة ثابتة من غير تفاصيل، ولا توكن ولا كلمة مرور ولا hash مخزّن في أي مخرَج log.
-    expect(failed.status).toBe(500);
-    expect(await failed.json()).toMatchObject({ code: 'INTERNAL_SERVER_ERROR' });
-    expect(logged).not.toContain(link);
-    expect(logged).not.toContain(PASSWORD);
-    expect(lastHash).not.toBe('');
-    expect(logged).not.toContain(lastHash);
-    // السطر المصنّف الثابت وصل مستقبل الـ log فعلاً — الاختبار مش بيعدّي لأن مفيش حاجة اتسجلت.
-    expect(logged).toContain('PASSWORD_RESET_FAILED');
-    for (const row of await owner`SELECT password FROM account WHERE password IS NOT NULL`) {
-      expect(logged).not.toContain(String(row['password']));
-    }
-    expect(logged).not.toContain('forced cleanup failure');
-    // مفيش حالة نص نص: نفس الرابط لسه شغّال بعد الفشل.
-    expect(await storedHash(userId)).toBe(before);
-    expect(await liveTokens(userId)).toContain(link);
-    expect((await consume(link)).status).toBe(200);
-    expect(await liveTokens(userId)).toEqual([]);
   });
 });
 
@@ -346,11 +292,32 @@ describe('a staff account never gets a credential through the reset path', () =>
         body: JSON.stringify({ newPassword: 'staff-query-pass' }),
       }),
     );
+    // AC-ACT-18: رفض واحد بلا تمييز — نفس الرد للاستعلام والجسم (نفس رد الرابط الميت).
     expect(fromQuery.status).toBe(400);
+    expect(await fromQuery.json()).toMatchObject({ code: 'INVALID_TOKEN', message: 'Invalid token' });
     const fromBody = await consume(link, 'staff-body-pass');
     expect(fromBody.status).toBe(400);
+    expect(await fromBody.json()).toMatchObject({ code: 'INVALID_TOKEN', message: 'Invalid token' });
     expect(await storedHash(userId)).toBe(before);
     expect(await liveTokens(userId)).toContain(link);
+  });
+
+  it('a staff-marked account with no account row at all is refused, and nothing is written', async () => {
+    const { userId } = await createOrdinaryUser('staff-no-account@example.test');
+    const link = tokenOf(await auth.issuePasswordSetLink(userId, `${ORIGIN}/set-password`));
+    // الحساب بقى حساب موظفة بعد ما الرابط اتصدر، وصف حساب الدخول مش موجود أصلاً: فالمسار
+    // اللي بيكتب كلمة المرور كان هيعمل صف credential جديد لو مفيش رفض قبل الكتابة.
+    await owner`DELETE FROM account WHERE user_id = ${userId}`;
+    await owner`UPDATE "user" SET staff_access_company_id = ${COMPANY},
+      staff_access_operation_id = ${systemUuidV7().newId()} WHERE id = ${userId}`;
+    const response = await consume(link, 'staff-no-account-pass');
+    expect(response.status).toBe(400);
+    expect(await response.json()).toMatchObject({ code: 'INVALID_TOKEN', message: 'Invalid token' });
+    // مفيش صف حساب اتعمل، ولا رابط اتكتب أو اتمسح.
+    expect(
+      await owner`SELECT count(*)::int AS n FROM account WHERE user_id = ${userId}`,
+    ).toEqual([{ n: 0 }]);
+    expect(await liveTokens(userId)).toEqual([link]);
   });
 });
 

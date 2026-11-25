@@ -67,7 +67,10 @@ it('accepts an older workspace response without guessing its business type or co
     role_code: 'owner',
     scope: 'COMPANY',
   };
-  const body = { companies: [{ ...company, businesses: [previous, baseBusiness] }] };
+  const body = {
+    companies: [{ ...company, businesses: [previous, baseBusiness] }],
+    capabilities: { staff_access: false },
+  };
 
   expect(myWorkspacesReadResponse.parse(body)).toEqual(body);
   expect(myWorkspacesResponse.safeParse(body).success).toBe(false);
@@ -76,4 +79,43 @@ it('accepts an older workspace response without guessing its business type or co
       companies: [{ ...company, businesses: [{ ...previous, business_type: 'invalid' }] }],
     }).success,
   ).toBe(false);
+});
+
+describe('workspace staff-access capability contract (076 A1)', () => {
+  it('carries the staff-access flag on a workspace read', () => {
+    const body = { companies: [], capabilities: { staff_access: false } };
+    expect(myWorkspacesReadResponse.parse(body)).toEqual(body);
+  });
+
+  it('a workspace read from an older API without capabilities still parses', () => {
+    const parsed = myWorkspacesReadResponse.parse({ companies: [] });
+    expect(parsed.capabilities).toBeUndefined();
+  });
+
+  it('a present capabilities object on a workspace read must carry a boolean staff_access', () => {
+    for (const capabilities of [{}, { staff_access: 'yes' }]) {
+      expect(myWorkspacesReadResponse.safeParse({ companies: [], capabilities }).success).toBe(
+        false,
+      );
+    }
+    const parsed = myWorkspacesReadResponse.parse({
+      companies: [],
+      capabilities: { staff_access: true, extra: 1 },
+    });
+    expect(parsed.capabilities).toEqual({ staff_access: true });
+  });
+
+  it('the response contract itself still requires capabilities', () => {
+    expect(myWorkspacesResponse.safeParse({ companies: [] }).success).toBe(false);
+    expect(
+      myWorkspacesResponse.safeParse({ companies: [], capabilities: { staff_access: false } })
+        .success,
+    ).toBe(true);
+  });
+
+  it('publishes the required capability field in OpenAPI', () => {
+    const schema = committedDocument.components.schemas.WorkspaceCapabilities;
+    expect(schema.required).toEqual(['staff_access']);
+    expect(schema.properties.staff_access).toEqual({ type: 'boolean' });
+  });
 });

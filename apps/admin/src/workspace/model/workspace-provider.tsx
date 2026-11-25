@@ -29,6 +29,11 @@ type WorkspaceStatus =
 
 export type WorkspaceController = WorkspaceStatus & {
   companies: readonly WorkspaceCompanyRead[];
+  /**
+   * هل قدرة دخول الموظفات (spec 076) مفتوحة على السيرفر؟ الأدمن بيقراها من قراءة مساحات العمل
+   * بدل ما يخمّن ويطلب مسار مقفول يرد 503. اختياري: أي مزوّد ما بيعرفش القدرة تُقرأ مقفولة.
+   */
+  staffAccess?: boolean;
   choose: (next: SelectionChoice) => void;
 };
 
@@ -50,9 +55,10 @@ function viewOf(
   hasRead: boolean,
   resolved: ResolvedSelection,
   companies: readonly WorkspaceCompanyRead[],
+  staffAccess: boolean,
   choose: (next: SelectionChoice) => void,
 ): WorkspaceController {
-  const shared = { companies, choose };
+  const shared = { companies, staffAccess, choose };
   if (!mounted || pending) return { ...shared, status: 'loading' };
   // `hasRead` = قراءة ناجحة حصلت قبل كده (الـ data موجودة حتى لو ليستة فاضية)، وفشل إعادة
   // جلب بعدها ما يهدمش الصفحة: كل صفحات اللوحة بتفضل على المحتوى المختار من البيانات القديمة،
@@ -100,6 +106,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
     query.data !== undefined,
     resolved,
     companies,
+    query.data?.capabilities?.staff_access === true,
     choose,
   );
   return <WorkspaceContext.Provider value={value}>{children}</WorkspaceContext.Provider>;

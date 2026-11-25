@@ -19,7 +19,7 @@ import { InviteMember } from '../use-cases/invite-member/invite-member.ts';
 import { ReissueMemberInvitation } from '../use-cases/reissue-member-invitation/reissue-member-invitation.ts';
 
 /** بيقول إن العضو حط كلمة مروره — القارئ من جداول الهوية، مربوط في identity.module.ts. */
-export type MemberPasswordState = (userId: string) => Promise<boolean>;
+export type MemberPasswordState = (userIds: readonly string[]) => Promise<ReadonlySet<string>>;
 
 /** رمز الحقن لقراءة حالة كلمة المرور من جداول الهوية. */
 export const MEMBER_PASSWORD_STATE = Symbol('MEMBER_PASSWORD_STATE');
@@ -57,7 +57,8 @@ export class MemberInvitationsController {
   @Get()
   @Require('manage:memberships:company')
   async list(
-    @Query(new ZodValidationPipe(pageQuery)) page: PageQuery,
+    // الـ cursor هنا معرّف دعوة (uuid): أي نص تاني بيرفض في الـ validation قبل أي SQL، مش 500.
+    @Query(new ZodValidationPipe(pageQuery.extend({ cursor: id.optional() }))) page: PageQuery,
     @Req() request: FastifyRequest,
   ) {
     if (this.database === null || this.passwordState === null) throw new ApiError('NOT_READY');

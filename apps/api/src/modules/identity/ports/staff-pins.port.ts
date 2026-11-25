@@ -24,6 +24,8 @@ export interface StaffPinScope {
   find(userId: string): Promise<StaffPinRecord | null>;
   /**
    * يتبدل id مع كل reset كي لا يقبل إصدار الجلسة مقارنة لاعتماد قديم.
+   * الرقم بيتخزن مؤقتاً (ينتهي بعد 24 ساعة) لو صاحب الاعتماد عنده سجل «إعطاء الدخول»
+   * في الشركة، ودائماً لغيره (AC-ACT-9).
    *
    * @param userId صاحب الاعتماد
    * @param hash الـ hash الناتج من المصادقة

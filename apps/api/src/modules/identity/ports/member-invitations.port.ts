@@ -46,6 +46,17 @@ export interface OpenInvitationInput extends InvitationActor {
   readonly roleCode: InvitableRole;
   readonly scope: InvitationScope;
   readonly now: Date;
+  /**
+   * الحدّ اللي قبله الدعوة العالقة بتتحسب مهجورة: صف أقدم من الوقت ده ومفيش عليه طلب شغال،
+   * فمالك تاني يقدر يرجّعه. اختياري: من غيره مفيش استرجاع، فالدعوة الشغالة أو القابلة
+   * للاستئناف ما بتتلمسش.
+   */
+  readonly staleBefore?: Date | undefined;
+  /**
+   * معرّف العملية اللي أنشأت حساب الإيميل القائم (لو وُجد): لو يخالف صف الدعوة، الحساب معلّق
+   * على عملية ماتت، فصف الدعوة ده ما بيستأنفش.
+   */
+  readonly accountOperationId?: string | undefined;
 }
 
 /** نتيجة الخطوة الأولى: صف الدعوة الجديد أو صف PENDING قديم اتعاد استخدامه بعد انقطاع (D6). */
@@ -93,12 +104,16 @@ export type CompleteInvitationOutcome =
     }
   | { readonly done: false; readonly refusal: MemberInvitationRefusal };
 
-/** حجز إصدار الرابط الأول: الشركة والدعوة ووقت الحجز من الساعة المحقونة. */
-export interface LinkClaimInput {
-  readonly companyId: string;
+/** حجز إصدار الرابط الأول: الشركة والدعوة والمالك اللي بيحجز ووقت الحجز من الساعة المحقونة. */
+export interface LinkClaimInput extends InvitationActor {
   readonly invitationId: string;
   readonly at: Date;
 }
+
+/** نتيجة حجز الرابط الأول: الحجز تم، أو سبب الرفض (سلطة اتسحبت، نطاق مش تابع، أو صف مش ماسك). */
+export type LinkClaimOutcome =
+  | { readonly claimed: true }
+  | { readonly claimed: false; readonly refusal: MemberInvitationRefusal };
 
 /** بيانات حساب المدعوّ: معرّف العملية (ايدمبوتنس) والشركة الداعية والإيميل والاسم. */
 export interface InvitedAccountInput {
@@ -130,7 +145,9 @@ export interface MemberInvitationTransactions {
   ): Promise<MemberInvitationRefusal | null>;
   /**
    * الخطوة الأولى: السلطة والنطاق وكتابة صف PENDING مع تدقيق الفتح؛ صف PENDING موجود بيتعاد
-   * استخدامه بس من نفس الداعي بنفس الدور والنطاق، وأي اختلاف بيرفض (P1-b).
+   * استخدامه بس من نفس الداعي بنفس الدور والنطاق، وأي اختلاف بيرفض (P1-b). صف عالق من غير
+   * حساب (وقف قبل إنشاء الحساب) وعدّى عليه الوقت بيتلغى تحت القفل، والدعوة الجديدة بتكمّل
+   * مكانه (AC-ACT-20).
    *
    * @param input بيانات الدعوة
    * @returns معرّف الدعوة الجديد أو المعاد استخدامه، أو الرفض
@@ -173,16 +190,18 @@ export interface MemberInvitationTransactions {
    */
   complete(input: CompleteInvitationInput): Promise<CompleteInvitationOutcome>;
   /**
-   * بيحجز إصدار الرابط الأول مرة واحدة (تحديث ذري على link_claimed_at) — الحجز مش ختم
-   * الإصدار الفعلي (P2-a).
+   * بيحجز إصدار الرابط الأول مرة واحدة جوه معاملة على مستوى الشركة: بيعيد فحص سلطة المالك
+   * والنطاق ويمسك صف الدعوة، فسلطة اتسحبت بين الإتمام والحجز بترفض بدل ما الرابط يطلع
+   * (AC-ACT-19). الحجز نفسه مش ختم الإصدار الفعلي (P2-a).
    *
-   * @param input الشركة والدعوة ووقت الحجز
-   * @returns true لما الحجز يتم، وfalse لو طلب تاني حجزه قبل كده
+   * @param input الشركة والدعوة والمالك ووقت الحجز
+   * @returns claimed true لما الحجز يتم، أو claimed false مع سبب الرفض
    */
-  claimLink(input: LinkClaimInput): Promise<boolean>;
+  claimLink(input: LinkClaimInput): Promise<LinkClaimOutcome>;
   /**
    * إعادة الإصدار: بيعيد فحص السلطة والنطاق جوه معاملة قافلة الصف، ويتأكد إن الدعوة PENDING
-   * ومن نفس المتصل وعضويتها مكتوبة، ويسجّل تدقيق الطلب (P1-a، P2-a).
+   * ومن نفس المتصل وعضويتها مكتوبة، ويسجّل تدقيق الطلب (P1-a، P2-a). الإصدار بيقفل خانة
+   * الحجز الأول، فمفيش حجز جديد بعده (AC-ACT-19).
    *
    * @param input الفاعل ومعرف الدعوة
    * @returns يوزر الدعوة اللي الرابط هيصدر له، أو الرفض

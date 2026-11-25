@@ -1,9 +1,8 @@
 import type {
-  MyWorkspacesResponse,
   WorkspaceCompany,
   WorkspaceCompanyNames,
 } from '@pospay/contracts';
-import type { TenantWrappers, Tx } from '@pospay/db';
+import { OWNER_ROLE_ID, type TenantWrappers, type Tx } from '@pospay/db';
 import { sql } from 'drizzle-orm';
 
 export interface WorkspaceScope {
@@ -119,10 +118,21 @@ async function oneCompany(
         rows.map((row) => ({ scope: row.scope_type, scopeId: row.scope_id })),
       );
       if (described === null) return null;
+      const code = await roleCode(tx, winner.role_id, winner.role_owner_key);
+      // العضوية الأساسية للمالك: دور المالك العام على نطاق الشركة نفسها. وجودها معناه إن
+      // اليوزر مالك الشركة، حتى لو أضيق دور فعّال عنده أقدم وماربحش الدور الأوسع.
+      const hasCompanyOwner = rows.some(
+        (row) =>
+          row.role_id === OWNER_ROLE_ID &&
+          row.role_owner_key === 'global' &&
+          row.scope_type === 'COMPANY' &&
+          row.scope_id === row.company_id,
+      );
       return {
         ...described,
-        role_code: await roleCode(tx, winner.role_id, winner.role_owner_key),
+        role_code: code,
         scope: winner.scope_type,
+        ...(code !== 'owner' && hasCompanyOwner ? { is_owner: true } : {}),
       };
     },
     { userId },
@@ -133,7 +143,7 @@ export async function myWorkspaces(
   db: TenantWrappers,
   names: WorkspaceNames,
   userId: string,
-): Promise<MyWorkspacesResponse> {
+): Promise<{ companies: WorkspaceCompany[] }> {
   const companies: WorkspaceCompany[] = [];
   for (const group of byCompany(await readMemberships(db, userId))) {
     const company = await oneCompany(db, names, userId, group);

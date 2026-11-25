@@ -98,17 +98,21 @@ export class OpenPrivateView {
   ): Promise<ProvenPin | null> {
     let proof: PrivateViewProof | null;
     let revision: string | null;
+    let temporary: boolean;
     try {
       const row = await this.db.run(session.context.companyId, null, (read) =>
         read.find(session.userId),
       );
       revision = row?.id ?? null;
+      temporary = row?.temporary === true;
+      // المقارنة بتجري قبل الرفض، عشان رقم مؤقت ما يردّ أسرع من رقم غلط.
       proof = await this.privateView.provePin({ pin, hash: row?.hash ?? null, scope });
     } catch (error) {
       await this.attempts.release(target, reservation);
       throw error;
     }
-    if (proof === null || revision === null) {
+    // الرقم المؤقت مرفوض زي الرقم الغلط بالظبط، وعلى نفس عدّاد المحاولات.
+    if (proof === null || revision === null || temporary) {
       await this.attempts.failed(target, reservation);
       return null;
     }
@@ -130,7 +134,9 @@ export class OpenPrivateView {
     try {
       await this.db.run(session.context.companyId, session.userId, async (read) => {
         // إعادة تعيين الـ PIN أثناء المقارنة بتغيّر id السجل؛ المقارنة على اعتماد ملغى ما تفتحش نافذة.
-        if ((await read.find(session.userId))?.id !== revision)
+        // والرقم المؤقت مرفوض في نفس اللحظة، حتى لو اتغيّر بعد المقارنة.
+        const current = await read.find(session.userId);
+        if (current === null || current.id !== revision || current.temporary === true)
           throw new OpeningRefused({ kind: 'refused' });
         await read.audit.record({
           entity: 'cashier_pin',

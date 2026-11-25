@@ -26,7 +26,7 @@ export async function listMemberInvitations(
   db: TenantWrappers,
   actor: { companyId: string; userId: string },
   page: PageQuery,
-  hasPassword: (userId: string) => Promise<boolean>,
+  hasPasswords: (userIds: readonly string[]) => Promise<ReadonlySet<string>>,
 ) {
   const rows = await db.withTenant(
     actor.companyId,
@@ -46,12 +46,16 @@ export async function listMemberInvitations(
     { userId: actor.userId, readOnly: true },
   );
   const items = rows.slice(0, page.limit);
-  const states = await Promise.all(
-    items.map(async (row) =>
-      row.state === 'PENDING' && row.user_id !== null && (await hasPassword(row.user_id))
-        ? 'ACTIVE'
-        : row.state,
-    ),
+  // حالة كلمة المرور للصفحة كلها في قراءة واحدة: قراءة لكل صف المعلّق كانت N+1 على جداول الهوية.
+  const pendingUserIds = items.flatMap((row) =>
+    row.state === 'PENDING' && row.user_id !== null ? [row.user_id] : [],
+  );
+  const withPassword =
+    pendingUserIds.length === 0 ? new Set<string>() : await hasPasswords(pendingUserIds);
+  const states = items.map((row) =>
+    row.state === 'PENDING' && row.user_id !== null && withPassword.has(row.user_id)
+      ? 'ACTIVE'
+      : row.state,
   );
   return memberInvitationPage.parse({
     items: items.map((row, position) => ({

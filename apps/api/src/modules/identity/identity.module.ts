@@ -35,7 +35,12 @@ import {
 } from './http/cashier-pins.controller.ts';
 import { CompaniesController } from './http/companies.controller.ts';
 import { PendingDevicesController } from './http/pending-devices.controller.ts';
-import { MeController, MY_PREFERENCES, WORKSPACE_NAMES } from './http/me.controller.ts';
+import {
+  MeController,
+  MY_PREFERENCES,
+  STAFF_ACCESS_CAPABILITY,
+  WORKSPACE_NAMES,
+} from './http/me.controller.ts';
 import { SetMyPreferences } from './use-cases/set-my-preferences/set-my-preferences.ts';
 import {
   DEVICE_USE_CASES,
@@ -123,6 +128,7 @@ export function staffOtpDependencies(options: {
  * @param database the tenant wrappers, when the app has a database
  * @param ids      the UUID v7 generator
  * @param redis    the API's Redis client, for pairing codes and PIN attempts (devices and PINs need it)
+ * @param staffAccessRoutes whether the spec 076 staff-access slice is open; the workspace read tells the admin
  * @returns the providers to add to the root module, after the session guard
  */
 export function identityProviders(
@@ -138,15 +144,19 @@ export function identityProviders(
   staffCompanyOf: (userId: string) => Promise<string | null> = unavailableStaffCompany,
   /** أصل لوحة الإدارة اللي رابط تعيين كلمة المرور بيتبني عليه، وساعة عمر الرابط. */
   invitations?: { readonly adminOrigin: string; readonly clock?: { now(): Date } },
+  staffAccessRoutes = false,
 ): Provider[] {
   const capabilities = identityCapabilities(database, ids, redis, staffCompanyOf);
+  const reader = capabilities.reader;
+  const sessions = staff?.sessions ?? null;
   return [
     ...permissionProviders(database, ids, redis),
     ...memberInvitationProviders(
       database,
       ids,
       redis,
-      invitations?.adminOrigin, invitations?.clock ?? systemClock,
+      invitations?.adminOrigin,
+      invitations?.clock ?? systemClock,
     ),
     {
       provide: STAFF_AUTHENTICATION,
@@ -160,12 +170,12 @@ export function identityProviders(
     },
     {
       provide: STAFF_PIN_USE_CASES,
-      useValue: database === undefined ? null : staffPinUseCases(database, ids, redis, staff?.sessions ?? null),
+      useValue: database === undefined ? null : staffPinUseCases(database, ids, redis, sessions),
     },
-    ...discountApproverProviders(database, ids, redis, staff?.sessions ?? null),
+    ...discountApproverProviders(database, ids, redis, sessions),
     { provide: DISCOUNT_APPROVER_VERIFIER, useExisting: VERIFY_DISCOUNT_APPROVER_PIN },
     ...privateViewProviders(database, ids, redis),
-    ...meProviders(capabilities.names),
+    ...meProviders(capabilities.names, staffAccessRoutes),
     { provide: OnboardCompany, useValue: capabilities.onboard },
     { provide: DEVICE_USE_CASES, useValue: capabilities.devices?.useCases ?? null },
     { provide: DEVICE_AUTHENTICATOR, useValue: capabilities.devices?.authenticator ?? null },
@@ -173,15 +183,9 @@ export function identityProviders(
       provide: CASHIER_PIN_USE_CASES,
       useValue: database === undefined ? null : cashierPinUseCases(database, ids, redis),
     },
-    {
-      provide: AuthorizeRequest,
-      useValue: capabilities.reader === null ? null : new AuthorizeRequest(capabilities.reader),
-    },
+    { provide: AuthorizeRequest, useValue: reader === null ? null : new AuthorizeRequest(reader) },
     { provide: REQUEST_AUTHORIZER, useExisting: AuthorizeRequest },
-    {
-      provide: CheckFeature,
-      useValue: capabilities.reader === null ? null : new CheckFeature(capabilities.reader),
-    },
+    { provide: CheckFeature, useValue: reader === null ? null : new CheckFeature(reader) },
     { provide: APP_GUARD, useClass: AccessGuard },
     { provide: APP_GUARD, useClass: FeatureGuard },
   ];
@@ -209,10 +213,14 @@ function identityCapabilities(
   };
 }
 
-// ما يحتاجه MeController: أسماء مساحات العمل، وتفضيل الحساب اللي كله من واجهة الاعتماد نفسها بلا قاعدة بيانات ولا صلاحيات شركة.
-function meProviders(names: ReturnType<typeof createWorkspaceNames> | null): Provider[] {
+// ما يحتاجه MeController: أسماء مساحات العمل، وقدرة 076، وتفضيل الحساب اللي كله من واجهة الاعتماد نفسها بلا قاعدة بيانات ولا صلاحيات شركة.
+function meProviders(
+  names: ReturnType<typeof createWorkspaceNames> | null,
+  staffAccessRoutes: boolean,
+): Provider[] {
   return [
     { provide: WORKSPACE_NAMES, useValue: names },
+    { provide: STAFF_ACCESS_CAPABILITY, useValue: staffAccessRoutes },
     {
       provide: MY_PREFERENCES,
       useFactory: (auth: AuthService | null) => auth?.preferences ?? null,

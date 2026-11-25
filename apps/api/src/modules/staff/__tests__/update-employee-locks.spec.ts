@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import postgres from 'postgres';
 import { afterAll, beforeAll, expect, it, vi } from 'vitest';
 import {
@@ -65,4 +66,36 @@ it('rechecks a target grant that expires while the employee lock is held', async
   expect(
     await f.h.owner`SELECT id FROM audit_log WHERE entity_id=${record.id} AND action='updated'`,
   ).toHaveLength(0);
+});
+
+it('answers NOT_FOUND for a missing employee without waiting on the company lock', async () => {
+  const record = await createForUpdate(f);
+  let signal!: () => void, release!: () => void;
+  const locked = new Promise<void>((resolve) => {
+    signal = resolve;
+  });
+  const ready = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  const holder = f.h.owner.begin(async (tx) => {
+    await tx`SELECT id FROM companies WHERE id=${f.company} FOR NO KEY UPDATE`;
+    signal();
+    await ready;
+  });
+  await locked;
+  let timer: NodeJS.Timeout | undefined;
+  try {
+    const request = executeUpdate(f, { ...record, id: randomUUID() }).catch(
+      (error: unknown) => error,
+    );
+    // مؤقت كاشف تعليق فقط: إن بقي الطلب منتظراً قفل الشركة المحجوز فلن يُنجز قبل انتهائه.
+    const hang = new Promise<string>((resolve) => {
+      timer = setTimeout(() => resolve('BLOCKED_ON_COMPANY_LOCK'), 3000);
+    });
+    expect(await Promise.race([request, hang])).toMatchObject({ message: 'NOT_FOUND' });
+  } finally {
+    clearTimeout(timer);
+    release();
+    await holder;
+  }
 });
