@@ -1,4 +1,4 @@
-﻿import type { ReactNode } from 'react';
+import type { ReactNode } from 'react';
 import { act, renderHook, waitFor } from '@testing-library/react';
 import { focusManager, QueryClientProvider } from '@tanstack/react-query';
 import type { QueryClient } from '@tanstack/react-query';
@@ -44,7 +44,7 @@ it('pages the employee list by the cursor the server hands out', async () => {
     return options?.params?.query?.cursor === undefined ? first.promise : second.promise;
   });
   const hook = mount(createQueryClient());
-  first.resolve(ok(employeePage([employeeItem(EMP_A, 7, 'Ø³Ø§Ø±Ø©', 'Sara')], 'cursor-1')));
+  first.resolve(ok(employeePage([employeeItem(EMP_A, 7, 'سارة', 'Sara')], 'cursor-1')));
   await waitFor(() => expect(hook.result.current.isSuccess).toBe(true));
   expect(hook.result.current.data?.pages[0]?.items[0]?.name_en).toBe('Sara');
   act(() => void hook.result.current.fetchNextPage());
@@ -71,7 +71,7 @@ it('a 403 on any page closes the scope and stops asking without a request loop',
     options?.params?.query?.cursor === undefined ? first.promise : second.promise,
   );
   const hook = mount(client);
-  first.resolve(ok(employeePage([employeeItem(EMP_A, 7, 'Ø³Ø§Ø±Ø©', 'Sara')], 'cursor-1')));
+  first.resolve(ok(employeePage([employeeItem(EMP_A, 7, 'سارة', 'Sara')], 'cursor-1')));
   await waitFor(() => expect(hook.result.current.isSuccess).toBe(true));
   act(() => void hook.result.current.fetchNextPage());
   second.resolve(refusal(403, 'FORBIDDEN'));
@@ -105,7 +105,7 @@ it('ignores an answer that lands after the scope generation moved', async () => 
   routeGet(api.GET, async () => first.promise);
   const hook = mount(client);
   await denyPlanAccess(client, scope);
-  first.resolve(ok(employeePage([employeeItem(EMP_A, 7, 'Ø³Ø§Ø±Ø©', 'Sara')], null)));
+  first.resolve(ok(employeePage([employeeItem(EMP_A, 7, 'سارة', 'Sara')], null)));
   await new Promise((resolve) => setTimeout(resolve, 20));
   expect(client.getQueryData(planEmployeesKey(scope))).toBeUndefined();
   expect(hook.result.current.data).toBeUndefined();

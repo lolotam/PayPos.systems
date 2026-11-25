@@ -30,7 +30,7 @@ const OTHER_SOLD_ROWS = 10_000;
 const SOLD_SUFFIXES = [1, 3, 5, 7, 499, 501, 503, 505, 2995, 2997, 2999, 3001];
 const INDEX_SCAN_TYPES = ['Index Scan', 'Index Only Scan', 'Bitmap Index Scan'];
 
-/** عقدة خطة واحدة: JSON الـ EXPLING بيتقرا بالمفتاح، فالنوع عام ومقروء بالاسم. */
+/** عقدة خطة واحدة: JSON الـ EXPLAIN بيتقرا بالمفتاح، فالنوع عام ومقروء بالاسم. */
 type PlanNode = Record<string, string | number | undefined>;
 
 beforeAll(async () => {
