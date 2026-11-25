@@ -214,6 +214,18 @@ it('marks the layout it has settled on after each breakpoint focus decision', as
   expect(view.container.querySelector('[data-settled-layout="tablet"]')).not.toBeNull();
   screen.getByRole('button', { name: /People/ }).focus();
 
+  const drawerOpener = screen.getByRole('button', { name: chromeLabels.drawerOpen });
+  let markerDuringFocus: string | null | undefined;
+  drawerOpener.addEventListener(
+    'focus',
+    () => {
+      markerDuringFocus = view.container
+        .querySelector('[data-settled-layout]')
+        ?.getAttribute('data-settled-layout');
+    },
+    { once: true },
+  );
+
   width.value = 699;
   view.rerender(tree({ currentModuleId: 'people' }));
 
@@ -221,5 +233,19 @@ it('marks the layout it has settled on after each breakpoint focus decision', as
     expect(view.container.querySelector('[data-settled-layout="phone"]')).not.toBeNull(),
   );
   // The marker is written after the focus transfer, so focus has already reached the drawer opener.
-  expect(document.activeElement).toBe(screen.getByRole('button', { name: chromeLabels.drawerOpen }));
+  expect(document.activeElement).toBe(drawerOpener);
+  // During the transfer the marker still holds the layout the nav had settled on before the change.
+  expect(markerDuringFocus).toBe('tablet');
+});
+
+it('writes the settled layout marker when visible modules mount later without a viewport change (#1207)', () => {
+  const width = { value: 820 };
+  stubBreakpoints(width);
+  const view = render(tree({ visiblePageIds: [] }));
+  // TopNav renders nothing while no module has a visible page, so there is no root to mark yet.
+  expect(view.container.querySelector('[data-settled-layout]')).toBeNull();
+
+  view.rerender(tree({ currentModuleId: 'people' }));
+
+  expect(view.container.querySelector('[data-settled-layout="tablet"]')).not.toBeNull();
 });

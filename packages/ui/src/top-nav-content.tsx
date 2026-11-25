@@ -24,6 +24,7 @@ export function TopNavContent({
   const state = useTopNavSession({
     visibilityKey,
     layout,
+    hasVisibleModules: visibleModules.length > 0,
     rootRef,
     drawerTriggerRef,
     moduleTriggerRef,
