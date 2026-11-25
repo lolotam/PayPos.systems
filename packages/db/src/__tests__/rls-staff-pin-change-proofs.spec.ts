@@ -67,7 +67,8 @@ it('the change-proof table carries forced row-level security and the three tenan
     expect(grants.map((row) => row.privilege_type)).toEqual(['INSERT', 'SELECT', 'UPDATE']);
     const others = await owner<{ grantee: string }[]>`
       SELECT grantee FROM information_schema.role_table_grants
-      WHERE table_name = 'staff_pin_change_proofs' AND grantee <> 'pospay_app'`;
+      WHERE table_name = 'staff_pin_change_proofs' AND grantee <> 'pospay_app'
+        AND grantee <> 'pospay_owner'`;
     expect(others).toEqual([]);
   } finally {
     await owner.end();

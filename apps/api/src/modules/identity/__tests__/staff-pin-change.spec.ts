@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, expect, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 import {
   addEmployee,
@@ -119,24 +119,30 @@ it('a manager reset after the proof was issued invalidates the proof', async () 
   expect(refused.json().code).toBe('PIN_INVALID');
 });
 
-it('five wrong PINs lock the change for the user, and the locked change is refused', async () => {
+it('five refused changes lock the user, and the locked change is refused', async () => {
   const { phone } = await staffWithTemporaryPin();
   const proof = proofOf(await signIn(TEMPORARY_PIN, phone));
+  // إعادة اختيار الرقم المؤقت الحالي مرفوضة، فكل محاولة بتعدّ غلطة على صاحب الرقم.
   for (let attempt = 0; attempt < 5; attempt += 1)
-    expect((await change(proof, '9999')).statusCode).toBe(401);
+    expect((await change(proof, TEMPORARY_PIN)).statusCode).toBe(401);
   const locked = await change(proof, NEW_PIN);
   expect(locked.statusCode).toBe(423);
   expect(locked.json().code).toBe('PIN_LOCKED');
 });
 
-it('a temporary PIN past its twenty-four hours is expired, and only the correct PIN says so', async () => {
-  let now = new Date();
-  const expired = await staffAccessFixture({
-    staffAccessRoutes: true,
-    staffOrigin: origin,
-    staffPinClock: { now: () => now },
-  });
-  try {
+describe('a temporary PIN past its twenty-four hours', () => {
+  // ساعة الاختبار بتتحرك مع الوقت الحقيقي وبتزيح بعدين؛ ساعة الاعتماد نفسها بتفضل سليمة.
+  let offset = 0;
+  let expired: Fixture;
+  let expiredDevice: Awaited<ReturnType<typeof paired>>;
+  let phone: string;
+
+  beforeAll(async () => {
+    expired = await staffAccessFixture({
+      staffAccessRoutes: true,
+      staffOrigin: origin,
+      clock: { now: () => new Date(Date.now() + offset) },
+    });
     employeeNumber += 1;
     const employee = await addEmployee(
       expired,
@@ -144,14 +150,17 @@ it('a temporary PIN past its twenty-four hours is expired, and only the correct 
       expired.salmiya,
       employeeNumber,
     );
-    const phone = nextPhone(expired);
+    phone = nextPhone(expired);
     expect((await grant(expired, employee, phone, expired.ownerCookie)).status).toBe(200);
-    const expiredDevice = await paired(
-      expired.h,
-      expired.ownerCookie,
-      expired.company,
-      expired.salmiya,
-    );
+    expiredDevice = await paired(expired.h, expired.ownerCookie, expired.company, expired.salmiya);
+  });
+
+  afterAll(async () => {
+    await expired?.db.close();
+    await expired?.h.close();
+  });
+
+  it('is expired, and only the correct PIN says so', async () => {
     const send = (pin: string) =>
       expired.h.app.inject({
         method: 'POST',
@@ -163,14 +172,11 @@ it('a temporary PIN past its twenty-four hours is expired, and only the correct 
     expect(wrong.statusCode).toBe(401);
     expect(wrong.json().code).toBe('PIN_INVALID');
     // ربع يوم بعد ما اتضبط الرقم: خلصت مدة الـ24 ساعة.
-    now = new Date(now.getTime() + 25 * 60 * 60 * 1000);
+    offset = 25 * 60 * 60 * 1000;
     const lapsed = await send(TEMPORARY_PIN);
     expect(lapsed.statusCode).toBe(403);
     expect(lapsed.json().code).toBe('PIN_EXPIRED');
-  } finally {
-    await expired.db.close();
-    await expired.h.close();
-  }
+  });
 });
 
 it('the change route answers 503 NOT_READY while the activation gate is off', async () => {

@@ -223,24 +223,9 @@ export {
   type AttendanceQrBranch,
   type AttendanceQrIssue,
 } from './staff/attendance-qr.js';
-export {
-  staffOtpRequestInput,
-  canonicalStaffPhone,
-  staffOtpVerifyInput,
-  staffOtpAcknowledgement,
-  staffSessionContext,
-  signOutResult,
-  staffOtpJob,
-  staffPinInput,
-  staffPinResetInput,
-  type StaffPinInput,
-  type StaffPinResetInput,
-  type StaffOtpRequestInput,
-  type StaffOtpVerifyInput,
-  type StaffOtpAcknowledgement,
-  type StaffSessionContext,
-  type SignOutResult,
-} from './identity/staff-otp.js';
+// مسارات دخول الموظف (OTP والرقم السري) في ملف واحد: التصدير بنجمة بيخلي البرميل تحت حد الـ400
+// سطر من غير ما ننسى اسماً.
+export * from './identity/staff-otp.js';
 export {
   PRIVATE_VIEW_WINDOW_HEADER,
   PRIVATE_VIEW_IDLE_REMAINING_HEADER,

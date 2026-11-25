@@ -3294,6 +3294,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/devices/me/staff-pin/change": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["changeTemporaryStaffPin"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/staff-pins/reset": {
         parameters: {
             query?: never;
@@ -8698,6 +8714,10 @@ export interface components {
         StaffPinResetInput: {
             /** Format: uuid */
             user_id: string;
+            pin: string;
+        };
+        ChangeTemporaryStaffPinInput: {
+            proof: string;
             pin: string;
         };
         StaffOtpRequestInput: {
@@ -22375,6 +22395,55 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["StaffSessionContext"];
+                };
+            };
+            /** @description PIN_CHANGE_REQUIRED when the PIN is temporary, PIN_EXPIRED when its 24 hours are over */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description The API error envelope */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    changeTemporaryStaffPin: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ChangeTemporaryStaffPinInput"];
+            };
+        };
+        responses: {
+            /** @description The temporary PIN is now permanent; no session issued */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description PIN_EXPIRED when the temporary PIN ran out; PIN_CHANGE_REQUIRED is the sign-in refusal */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
             /** @description The API error envelope */
