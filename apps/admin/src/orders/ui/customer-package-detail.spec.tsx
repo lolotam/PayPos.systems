@@ -1,8 +1,8 @@
 ﻿import { t } from '@pospay/i18n';
 import { DirectionProvider } from '@pospay/ui';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { QueryClient, QueryClientProvider, onlineManager } from '@tanstack/react-query';
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
-import { beforeEach, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import type { SessionServiceScope } from '../api/use-session-services';
 import { CustomerPackageDetail } from './customer-package-detail';
 
@@ -121,6 +121,8 @@ function renderDetail(
 beforeEach(() => {
   api.GET.mockReset();
 });
+
+afterEach(() => onlineManager.setOnline(true));
 
 it('a sold package shows its sale facts, the sessions one by one, the visits and the extensions', async () => {
   api.GET.mockResolvedValue({ data: soldDetail(true), response: { status: 200 } });
@@ -275,4 +277,19 @@ it('the open extension dialog closes when the entitlement loses extension capabi
   expect(await screen.findByRole('button', { name: extendLabel })).toBeTruthy();
   expect(screen.queryByRole('dialog')).toBeNull();
   view.unmount();
+});
+
+it('a package reopened while the connection is down shows the load failure, not the cached sale', async () => {
+  api.GET.mockResolvedValue({ data: soldDetail(true), response: { status: 200 } });
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  const first = renderDetail(client);
+  await screen.findByText('Gold');
+  first.view.unmount();
+  onlineManager.setOnline(false);
+  const second = renderDetail(client);
+  const alert = await screen.findByRole('alert');
+  expect(alert.textContent).toContain(t('en', 'customerPackages.detailLoadFailed'));
+  expect(screen.queryByText('Gold')).toBeNull();
+  expect(screen.queryByRole('button', { name: t('en', 'customerPackages.extend') })).toBeNull();
+  second.view.unmount();
 });

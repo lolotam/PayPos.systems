@@ -1,8 +1,9 @@
 import { render, screen } from '@testing-library/react';
 import { act } from 'react';
-import { QueryClientProvider, type QueryClient } from '@tanstack/react-query';
+import { onlineManager, QueryClientProvider, type QueryClient } from '@tanstack/react-query';
 import { DirectionProvider } from '@pospay/ui';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { t } from '@pospay/i18n';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { createQueryClient } from '@/shared/api/query-client';
 import { LocaleProvider } from '@/shared/locale/locale-context';
@@ -41,6 +42,9 @@ const COMPANY = {
 const mockFetch = vi.fn();
 globalThis.fetch = mockFetch;
 
+// كل اختبار ينتهي والشبكة راجعة online، عشان حالة مقفولة من اختبار ما تسرّبش للتالي.
+afterEach(() => onlineManager.setOnline(true));
+
 function jsonResponse(data: unknown, status: number): Response {
   return new Response(JSON.stringify(data), {
     status,
@@ -61,10 +65,10 @@ function WorkspaceProbe() {
   );
 }
 
-function renderProvider(client: QueryClient) {
+function renderProvider(client: QueryClient, locale: 'en' | 'ar' = 'en') {
   return render(
-    <DirectionProvider dir="ltr">
-      <LocaleProvider locale="en" setLocale={() => undefined}>
+    <DirectionProvider dir={locale === 'ar' ? 'rtl' : 'ltr'}>
+      <LocaleProvider locale={locale} setLocale={() => undefined}>
         <QueryClientProvider client={client}>
           <WorkspaceProvider>
             <WorkspaceBody>
@@ -197,5 +201,39 @@ describe('WorkspaceProvider with an older API (076 A1)', () => {
     renderProvider(createQueryClient());
     await screen.findByTestId('ws-company');
     expect(screen.getByTestId('ws-staff-access').textContent).toBe('on');
+  });
+});
+
+// انقطاع الاتصال قبل أول قراءة: الصفحة لازم تقول إن الاتصال قاطع بدل ما تفضل «جارٍ التحميل» للأبد.
+describe('WorkspaceProvider while the connection is down', () => {
+  it.each(['en', 'ar'] as const)(
+    'shows the offline message instead of loading forever when the first read is paused (%s)',
+    async (locale) => {
+      onlineManager.setOnline(false);
+      mockFetch.mockImplementation(async () =>
+        jsonResponse({ companies: [COMPANY], capabilities: { staff_access: false } }, 200),
+      );
+      renderProvider(createQueryClient(), locale);
+      expect((await screen.findByRole('alert')).textContent).toBe(t(locale, 'workspace.offline'));
+      expect(screen.queryByTestId('ws-status')).toBeNull();
+      act(() => onlineManager.setOnline(true));
+      expect((await screen.findByTestId('ws-company')).textContent).toBe('Provider Company');
+      expect(screen.queryByRole('alert')).toBeNull();
+    },
+  );
+
+  it('keeps the last read visible when a refetch is paused offline', async () => {
+    const client = createQueryClient();
+    mockFetch.mockImplementation(async () =>
+      jsonResponse({ companies: [COMPANY], capabilities: { staff_access: false } }, 200),
+    );
+    renderProvider(client);
+    await screen.findByTestId('ws-company');
+    onlineManager.setOnline(false);
+    await act(async () => {
+      void client.refetchQueries({ queryKey: ['me', 'workspaces'] });
+    });
+    expect(screen.getByTestId('ws-company').textContent).toBe('Provider Company');
+    expect(screen.queryByRole('alert')).toBeNull();
   });
 });

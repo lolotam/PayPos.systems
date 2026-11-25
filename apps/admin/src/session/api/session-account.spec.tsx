@@ -90,3 +90,41 @@ it('reports an identity read paused offline as failed, then settles when the con
   await waitFor(() => expect(result.current).toEqual({ userId: 'user-1', status: 'settled' }));
   unmount();
 });
+
+/**
+ * زائر مجهول محفوظ من زيارة سابقة: إعادة التحقق موقوفة بالاتصال وما فيش معرّف، فالحالة «تعذّر»
+ * مش «مستقر بلا مستخدم»، ولما يرجع الاتصال بتتقرأ الهوية الجديدة.
+ */
+it('reports a cached anonymous session as failed while the re-check is paused offline', async () => {
+  const client = createQueryClient();
+  const wrapper = ({ children }: { children: ReactNode }) => (
+    <QueryClientProvider client={client}>{children}</QueryClientProvider>
+  );
+  getSession.mockResolvedValue({ error: { status: 401 } });
+  const first = renderHook(() => useSessionIdentity(true), { wrapper });
+  await waitFor(() => expect(first.result.current).toEqual({ userId: null, status: 'settled' }));
+  first.unmount();
+  onlineManager.setOnline(false);
+  getSession.mockResolvedValue({ data: { user: { id: 'user-1' } } });
+  const second = renderHook(() => useSessionIdentity(true), { wrapper });
+  await waitFor(() => expect(second.result.current).toEqual({ userId: null, status: 'failed' }));
+  act(() => onlineManager.setOnline(true));
+  await waitFor(() => expect(second.result.current).toEqual({ userId: 'user-1', status: 'settled' }));
+});
+
+/** مستخدم مسجّل محفوظ: المعرّف المخزَّن يكفي والقراءة الموقوفة ما تمسحش حالته المستقرة. */
+it('keeps the cached user id settled while the re-check is paused offline', async () => {
+  const client = createQueryClient();
+  const wrapper = ({ children }: { children: ReactNode }) => (
+    <QueryClientProvider client={client}>{children}</QueryClientProvider>
+  );
+  getSession.mockResolvedValue({
+    data: { user: { id: 'user-1', email: 'first@example.test', name: 'Synthetic First' } },
+  });
+  const first = renderHook(() => useSessionIdentity(true), { wrapper });
+  await waitFor(() => expect(first.result.current).toEqual({ userId: 'user-1', status: 'settled' }));
+  first.unmount();
+  onlineManager.setOnline(false);
+  const second = renderHook(() => useSessionIdentity(true), { wrapper });
+  await waitFor(() => expect(second.result.current).toEqual({ userId: 'user-1', status: 'settled' }));
+});

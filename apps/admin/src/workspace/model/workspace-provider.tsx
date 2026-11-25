@@ -1,7 +1,7 @@
 'use client';
 
 import type { WorkspaceBranch, WorkspaceBusinessRead, WorkspaceCompanyRead } from '@pospay/contracts';
-import type { Locale } from '@pospay/i18n';
+import { t, type Locale } from '@pospay/i18n';
 import { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
 
 import { envelopeMessage } from '@/shared/api/api-error';
@@ -48,7 +48,7 @@ function isAccessRefusal(error: unknown): boolean {
 
 function viewOf(
   mounted: boolean,
-  pending: boolean,
+  wait: { pending: boolean; paused: boolean },
   isError: boolean,
   error: unknown,
   locale: Locale,
@@ -59,7 +59,13 @@ function viewOf(
   choose: (next: SelectionChoice) => void,
 ): WorkspaceController {
   const shared = { companies, staffAccess, choose };
-  if (!mounted || pending) return { ...shared, status: 'loading' };
+  if (!mounted) return { ...shared, status: 'loading' };
+  // قراءة أولى أوقفها انقطاع الاتصال ولا بيانات لها: تعامل كخطأ متصل بالرسالة نفسها لا انتظار دائم،
+  // بينما قراءة سابقة ناجحة (`hasRead`) تحافظ على آخر عرض مسجّل عند التوقف.
+  if (!hasRead && wait.paused) {
+    return { ...shared, status: 'error', message: t(locale, 'workspace.offline') };
+  }
+  if (wait.pending) return { ...shared, status: 'loading' };
   // `hasRead` = قراءة ناجحة حصلت قبل كده (الـ data موجودة حتى لو ليستة فاضية)، وفشل إعادة
   // جلب بعدها ما يهدمش الصفحة: كل صفحات اللوحة بتفضل على المحتوى المختار من البيانات القديمة،
   // وشاشة إنشاء الشركة (077) بتكمل بإعادة التحميل بتاعتها. الاستثناء هو رفض الوصول (401/403)
@@ -99,7 +105,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
   const choose = (next: SelectionChoice) => setChoice(next);
   const value = viewOf(
     mounted,
-    query.isPending,
+    { pending: query.isPending, paused: query.fetchStatus === 'paused' },
     query.isError,
     query.error,
     locale,

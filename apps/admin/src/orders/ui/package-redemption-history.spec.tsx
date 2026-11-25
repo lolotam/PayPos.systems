@@ -4,9 +4,9 @@ import type {
   CustomerPackageRedemption,
 } from '@pospay/contracts';
 import { formatInstant, t } from '@pospay/i18n';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { QueryClient, QueryClientProvider, onlineManager } from '@tanstack/react-query';
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
-import { beforeEach, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { PackageRedemptionHistory } from './package-redemption-history';
 
 function deferred<T>() {
@@ -122,6 +122,8 @@ beforeEach(() => {
     this.removeAttribute('open');
   });
 });
+
+afterEach(() => onlineManager.setOnline(true));
 
 it('fetches only after opening and shows session, service, visit date and reversed badge', async () => {
   get.mockResolvedValueOnce({
@@ -258,4 +260,34 @@ it('hides the visit history cache until a guarded read and closes the dialog whe
   expect(screen.getByRole('alert').textContent).toBe(
     t('en', 'serviceSessions.packageHistoryLoadFailed'),
   );
+});
+
+it('shows the load failure inside the opened section when the connection drops before the history reads', async () => {
+  const client = new QueryClient({
+    defaultOptions: { queries: { retry: false, staleTime: 30_000 } },
+  });
+  const key = [
+    'customer-package-detail',
+    scope.companyId,
+    scope.businessId,
+    scope.branchId,
+    scope.userId,
+    customerId,
+    entitlementId,
+  ];
+  client.setQueryData(
+    key,
+    detail(
+      [redemption('01920000-0000-7000-8000-000000000041', 2, null)],
+      [],
+      'Asia/Kuwait',
+      false,
+    ),
+  );
+  onlineManager.setOnline(false);
+  renderHistory(client);
+  openHistory();
+  const alert = await screen.findByRole('alert');
+  expect(alert.textContent).toBe(t('en', 'serviceSessions.packageHistoryLoadFailed'));
+  expect(screen.queryByText('Session 2 Synthetic service')).toBeNull();
 });

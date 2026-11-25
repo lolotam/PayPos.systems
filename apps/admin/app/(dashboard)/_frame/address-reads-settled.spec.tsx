@@ -1,7 +1,7 @@
 import { t } from '@pospay/i18n';
-import { QueryClientProvider } from '@tanstack/react-query';
+import { onlineManager, QueryClientProvider } from '@tanstack/react-query';
 import { act, screen, waitFor } from '@testing-library/react';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { deferredAnswer } from '@/commissions/api/__tests__/plan-http';
 
@@ -61,6 +61,9 @@ beforeEach(() => {
   carriedState.workspace = readyWorkspace();
 });
 
+// كل اختبار ينتهي والشبكة راجعة online، عشان حالة مقفولة من اختبار ما تسرّبش للتالي.
+afterEach(() => onlineManager.setOnline(true));
+
 describe('an address that depends on a read that has not answered yet', () => {
   it('forwards the old Soon address of ratings only after its read is granted', async () => {
     const late = deferredAnswer();
@@ -110,6 +113,41 @@ describe('an address that depends on a read that has not answered yet', () => {
     await act(async () => {
       late.resolve({ data: { can_manage_identity: true }, response: { status: 200, ok: true } });
     });
+    expect(await screen.findByText('Not found')).toBeTruthy();
+  });
+});
+
+/**
+ * انقطاع الاتصال قبل ما أي قراءة تجيب: الجواب مش هيوصل، فلازم العنوان يقرر من الشروط المغلقة
+ * بدل ما يفضل «جارٍ التحميل» للأبد.
+ */
+describe('when every visibility read is paused offline', () => {
+  it('shows the always-visible team overview instead of loading forever', async () => {
+    onlineManager.setOnline(false);
+    renderRoute('overview', 'team');
+    await waitFor(() => expect(screen.queryByRole('status')).toBeNull());
+    expect(screen.getByRole('heading', { name: t('en', 'adminNav.workspaceCTeam') })).toBeTruthy();
+  });
+
+  it('leaves the setup overview without forwarding to the identity page', async () => {
+    onlineManager.setOnline(false);
+    renderRoute('overview', 'setup');
+    await waitFor(() => expect(frameState.replace).toHaveBeenCalledTimes(1));
+    expect(frameState.pathname).not.toBe('/business-identity');
+  });
+
+  it('shows the not-built subscription page instead of loading forever', async () => {
+    onlineManager.setOnline(false);
+    renderRoute('soon', 'subscription-and-billing');
+    await waitFor(() => expect(screen.queryByRole('status')).toBeNull());
+    expect(
+      screen.getByRole('heading', { name: t('en', 'adminNavPages.subscriptionAndBilling') }),
+    ).toBeTruthy();
+  });
+
+  it('says not found for a ratings page whose access never answered', async () => {
+    onlineManager.setOnline(false);
+    renderRoute('soon', 'ratings-and-reviews');
     expect(await screen.findByText('Not found')).toBeTruthy();
   });
 });

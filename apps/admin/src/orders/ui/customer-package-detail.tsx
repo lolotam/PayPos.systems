@@ -28,9 +28,12 @@ export function CustomerPackageDetail({
   const proof = readAccessProof(detail);
   if (detail.isLoading || proof === 'pending')
     return <p role="status">{t(locale, 'customerPackages.detailLoading')}</p>;
-  if (proof === 'refused' || detail.isError) {
+  if (proof === 'refused' || proof === 'failed' || detail.isError) {
     const status =
-      typeof detail.error === 'object' && detail.error !== null && 'status' in detail.error
+      detail.fetchStatus !== 'paused' &&
+      typeof detail.error === 'object' &&
+      detail.error !== null &&
+      'status' in detail.error
         ? (detail.error as { status?: unknown }).status
         : undefined;
     const mode =

@@ -68,6 +68,7 @@ export const ar: Catalog = {
     dark: 'غامق',
     system: 'حسب النظام',
   },
+  workspace: { offline: 'تعذّر تحميل مساحة العمل: لا يوجد اتصال بالإنترنت.' },
   salary: salaryAr,
   employeeCard: clockCardAdminAr,
   personalAttendance: attendanceAr,

@@ -32,17 +32,18 @@ export function useSessionAccount(enabled: boolean): SessionAccount | null {
 
 /**
  * معرّف المستخدم مع حال قراءة هويته: `pending` قبل التركيب أو أثناء القراءة، و`failed` إن فشلت أو أوقفها
- * انقطاع الاتصال قبل أن تبدأ ولا بيانات لها (تستأنف عند عودته)، و`settled` بعد نجاحها (ويبقى المعرّف فارغًا
- * إن لم يكن هناك مستخدم). null وحده لا يفرّق بينها.
+ * انقطاع الاتصال ولا معرّف مستخدم مخزَّن لها (لا بيانات بعد أو جواب مجهول `null`؛ وتستأنف عند عودته)،
+ * و`settled` بعد نجاحها (ويبقى المعرّف المخزَّن أثناء التوقّف أو فارغًا إن لم يكن هناك مستخدم).
+ * null وحده لا يفرّق بينها.
  */
 export function useSessionIdentity(enabled: boolean): {
   userId: string | null;
   status: 'pending' | 'failed' | 'settled';
 } {
   const query = useSessionAccountQuery(enabled);
-  const pausedWithoutData = query.fetchStatus === 'paused' && query.data === undefined;
-  const failed = enabled && (query.isError || pausedWithoutData);
-  const settled = enabled && query.isSuccess;
+  const pausedWithoutUser = query.fetchStatus === 'paused' && !query.data?.id;
+  const failed = enabled && (query.isError || pausedWithoutUser);
+  const settled = enabled && !failed && query.isSuccess;
   return {
     userId: settled ? (query.data?.id ?? null) : null,
     status: failed ? 'failed' : settled ? 'settled' : 'pending',
