@@ -127,6 +127,7 @@ const ROUTE_MARKERS: Readonly<
   'StaffOtpController.request': { staff: 'device' },
   'StaffOtpController.signOut': { signOut: 'staff' },
   'StaffOtpController.verify': { staff: 'device' },
+  'StaffPinController.change': { staff: 'device' },
   'StaffPinController.signIn': { staff: 'device' },
 };
 const PERSONAL_GUARD = 'apps/api/src/shared/personal-session.guard.ts#personalSessionRequest';

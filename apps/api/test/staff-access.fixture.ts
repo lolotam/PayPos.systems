@@ -10,6 +10,7 @@ import { GrantEmployeeAccessUseCase } from '../src/modules/staff/use-cases/grant
 import { startHarness, type Harness } from './harness.ts';
 import { testEmployeeCardKey } from './employee-card-key.ts';
 import { authPinHasher } from '../src/modules/identity/persistence/auth-pin-hasher.ts';
+import { StaffPinError } from '../src/modules/identity/use-cases/staff-pin-error.ts';
 import { captureServerFaults, recordSwallowedFault } from './server-faults.ts';
 import {
   STAFF_PIN_USE_CASES,
@@ -207,7 +208,7 @@ function observeSwallowedPinFailures(h: Harness): void {
     try {
       return await execute(input);
     } catch (error) {
-      recordSwallowedFault(error, 503);
+      if (!(error instanceof StaffPinError)) recordSwallowedFault(error, 503);
       throw error;
     }
   };

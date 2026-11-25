@@ -3345,6 +3345,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/devices/me/staff-pin/change": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["changeTemporaryStaffPin"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/staff-pins/reset": {
         parameters: {
             query?: never;
@@ -3778,6 +3794,23 @@ export interface paths {
         put?: never;
         /** @description Requires manage:staff-access:branch on the employee primary branch, read inside the write transaction. The role and scope come from the server, never from the body. */
         post: operations["grantEmployeeStaffAccess"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/businesses/{businessId}/employees/{employeeId}/staff-access/pin": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @description Resets the temporary PIN of an ACTIVE staff-access employee on her primary branch. Requires manage:staff-access:branch on that branch, read inside the write transaction. The employee never resets her own PIN. */
+        post: operations["resetEmployeeStaffPin"];
         delete?: never;
         options?: never;
         head?: never;
@@ -8748,6 +8781,10 @@ export interface components {
             user_id: string;
             pin: string;
         };
+        ChangeTemporaryStaffPinInput: {
+            proof: string;
+            pin: string;
+        };
         StaffOtpRequestInput: {
             phone: string;
             /** @enum {string} */
@@ -9675,6 +9712,148 @@ export interface components {
                 /** @enum {string} */
                 type: "text";
                 /** Format: uuid */
+                value: string;
+            })[];
+        } | {
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            company_id: string;
+            /** Format: uuid */
+            business_id: string | null;
+            /** Format: uuid */
+            branch_id: string | null;
+            /** Format: uuid */
+            source_event_id: string;
+            /** @enum {number} */
+            template_revision: 1;
+            /** @enum {string} */
+            locale: "ar" | "en";
+            /** Format: date-time */
+            created_at: string;
+            /** Format: date-time */
+            read_at: string | null;
+            /** @enum {string} */
+            template_key: "staff_access_granted";
+            safe_parameters: ({
+                /** @enum {string} */
+                name: "employee_name_ar";
+                /** @enum {string} */
+                type: "text";
+                value: string;
+            } | {
+                /** @enum {string} */
+                name: "employee_name_en";
+                /** @enum {string} */
+                type: "text";
+                value: string;
+            } | {
+                /** @enum {string} */
+                name: "actor_name_ar";
+                /** @enum {string} */
+                type: "text";
+                value: string;
+            } | {
+                /** @enum {string} */
+                name: "actor_name_en";
+                /** @enum {string} */
+                type: "text";
+                value: string;
+            } | {
+                /** @enum {string} */
+                name: "branch_name_ar";
+                /** @enum {string} */
+                type: "text";
+                value: string;
+            } | {
+                /** @enum {string} */
+                name: "branch_name_en";
+                /** @enum {string} */
+                type: "text";
+                value: string;
+            } | {
+                /** @enum {string} */
+                name: "occurred_date";
+                /** @enum {string} */
+                type: "text";
+                /** Format: date */
+                value: string;
+            } | {
+                /** @enum {string} */
+                name: "occurred_time";
+                /** @enum {string} */
+                type: "text";
+                value: string;
+            })[];
+        } | {
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            company_id: string;
+            /** Format: uuid */
+            business_id: string | null;
+            /** Format: uuid */
+            branch_id: string | null;
+            /** Format: uuid */
+            source_event_id: string;
+            /** @enum {number} */
+            template_revision: 1;
+            /** @enum {string} */
+            locale: "ar" | "en";
+            /** Format: date-time */
+            created_at: string;
+            /** Format: date-time */
+            read_at: string | null;
+            /** @enum {string} */
+            template_key: "staff_pin_set_by_other";
+            safe_parameters: ({
+                /** @enum {string} */
+                name: "employee_name_ar";
+                /** @enum {string} */
+                type: "text";
+                value: string;
+            } | {
+                /** @enum {string} */
+                name: "employee_name_en";
+                /** @enum {string} */
+                type: "text";
+                value: string;
+            } | {
+                /** @enum {string} */
+                name: "actor_name_ar";
+                /** @enum {string} */
+                type: "text";
+                value: string;
+            } | {
+                /** @enum {string} */
+                name: "actor_name_en";
+                /** @enum {string} */
+                type: "text";
+                value: string;
+            } | {
+                /** @enum {string} */
+                name: "branch_name_ar";
+                /** @enum {string} */
+                type: "text";
+                value: string;
+            } | {
+                /** @enum {string} */
+                name: "branch_name_en";
+                /** @enum {string} */
+                type: "text";
+                value: string;
+            } | {
+                /** @enum {string} */
+                name: "occurred_date";
+                /** @enum {string} */
+                type: "text";
+                /** Format: date */
+                value: string;
+            } | {
+                /** @enum {string} */
+                name: "occurred_time";
+                /** @enum {string} */
+                type: "text";
                 value: string;
             })[];
         } | {
@@ -22544,6 +22723,55 @@ export interface operations {
                     "application/json": components["schemas"]["StaffSessionContext"];
                 };
             };
+            /** @description PIN_CHANGE_REQUIRED when the PIN is temporary, PIN_EXPIRED when its 24 hours are over */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description The API error envelope */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    changeTemporaryStaffPin: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ChangeTemporaryStaffPinInput"];
+            };
+        };
+        responses: {
+            /** @description The temporary PIN is now permanent; no session issued */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description PIN_EXPIRED when the temporary PIN ran out; PIN_CHANGE_REQUIRED is the sign-in refusal */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
             /** @description The API error envelope */
             default: {
                 headers: {
@@ -23699,6 +23927,101 @@ export interface operations {
                 };
             };
             /** @description Bilingual conflict refusal (STAFF_ACCESS_ALREADY_GRANTED, STAFF_ACCESS_PHONE_TAKEN, or TRANSACTION_RETRY_REQUIRED) */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Bilingual refusal */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    resetEmployeeStaffPin: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-company-id": string;
+            };
+            path: {
+                businessId: string;
+                employeeId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    pin: string;
+                };
+            };
+        };
+        responses: {
+            /** @description The access state after the PIN reset */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @enum {string} */
+                        state: "NONE" | "PENDING" | "ACTIVE" | "STOPPED";
+                        /** @enum {string|null} */
+                        role: "staff" | "reception" | null;
+                        /** Format: uuid */
+                        branch_id: string | null;
+                        phone_last3: string | null;
+                        can_manage: boolean;
+                        can_cancel: boolean;
+                    };
+                };
+            };
+            /** @description Bilingual refusal */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Bilingual refusal */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Bilingual refusal */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Bilingual refusal */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Bilingual refusal */
             409: {
                 headers: {
                     [name: string]: unknown;

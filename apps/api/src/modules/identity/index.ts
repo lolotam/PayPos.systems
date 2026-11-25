@@ -154,6 +154,11 @@ export {
   type StaffAccessGranted,
 } from './events/published.ts';
 export {
+  STAFF_PIN_SET_BY_OTHER,
+  staffPinSetByOtherEvent,
+  type StaffPinSetByOther,
+} from './events/published.ts';
+export {
   cancelStaffUser,
   grantStaffMembership,
   hashStaffPin,

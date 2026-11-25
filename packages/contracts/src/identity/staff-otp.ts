@@ -74,5 +74,13 @@ export const staffPinResetInput = z
   })
   .strict()
   .meta({ id: 'StaffPinResetInput' });
+export const changeTemporaryStaffPinInput = z
+  .object({
+    proof: z.string().min(16).max(256),
+    pin: z.string().regex(/^\d{4}$/),
+  })
+  .strict()
+  .meta({ id: 'ChangeTemporaryStaffPinInput' });
 export type StaffPinInput = z.infer<typeof staffPinInput>;
 export type StaffPinResetInput = z.infer<typeof staffPinResetInput>;
+export type ChangeTemporaryStaffPinInput = z.infer<typeof changeTemporaryStaffPinInput>;

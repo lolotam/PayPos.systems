@@ -7,13 +7,18 @@ import {
   hashStaffPin,
   provisionStaffUser,
   readStaffAccessAuthority,
+  saveTemporaryStaffPin,
+  staffPinSetByOtherEvent,
 } from '../../identity/index.ts';
 import { StaffAccessError } from '../domain/errors.ts';
 import { transactionWriters } from '../../../shared/adapters/transaction-writers.ts';
 import type { AuditTrail } from '../../../shared/ports/audit-trail.port.ts';
+import type { OutboxWriter } from '../../../shared/ports/outbox-writer.port.ts';
 import type {
   CancelPendingScope,
   CancelPendingStaffAccessSteps,
+  ResetEmployeeStaffPinScope,
+  ResetEmployeeStaffPinSteps,
   StaffAccessActor,
   StaffAccessUserSteps,
 } from '../ports/staff-access.port.ts';
@@ -26,6 +31,9 @@ interface CancelInput {
   readonly ids: { newId(): string };
   readonly at: Date;
 }
+
+/** نطاق إعادة الضبط — نفس مدخلات خطوة الإلغاء (نشاط وموظفة ومعرّفات ولحظة). */
+type ResetInput = CancelInput;
 
 /** خطوة auth في «إعطاء الدخول» عبر identity (plan §2.1) مع ترجمة رفض الهاتف المملوك (FR-F1-5). */
 export function createStaffAccessUserSteps(auth: AuthFacadeForStaffAccess): StaffAccessUserSteps {
@@ -69,6 +77,23 @@ export function createStaffAccessCancelUser(auth: AuthFacadeForStaffAccess) {
   }) => cancelStaffUser(auth, input);
 }
 
+/**
+ * فحص `manage:staff-access:branch` على فرع محدد جوه معاملة الشركة — نفس القاعدة للإلغاء
+ * وإعادة الضبط، عشان سحب الصلاحية أثناء المعاملة ما يعديش في أي منهم.
+ */
+function staffAccessAuthority(
+  tx: Tx,
+  actor: StaffAccessActor,
+): (businessId: string, branchId: string) => Promise<boolean> {
+  return (businessId, branchId) =>
+    readStaffAccessAuthority(tx, {
+      companyId: actor.companyId,
+      actorUserId: actor.userId,
+      businessId,
+      branchId,
+    });
+}
+
 function cancelScope(
   tx: Tx,
   actor: StaffAccessActor,
@@ -81,13 +106,7 @@ function cancelScope(
       if (!(await lockCompanyRow(tx, actor.companyId))) return { employee: null, record: null };
       return lockRecordWithEmployee(tx, actor.companyId, input);
     },
-    authority: (businessId, branchId) =>
-      readStaffAccessAuthority(tx, {
-        companyId: actor.companyId,
-        actorUserId: actor.userId,
-        businessId,
-        branchId,
-      }),
+    authority: staffAccessAuthority(tx, actor),
     actorIsOwner: async () => {
       const rows = await tx.execute(sql`SELECT 1 FROM memberships
         WHERE company_id=${actor.companyId} AND user_id=${actor.userId}
@@ -193,6 +212,99 @@ export function createCancelPendingStaffAccessSteps(
           const writers = transactionWriters(tx, input.ids);
           return work(cancelScope(tx, actor, input, writers.audit));
         },
+        { userId: actor.userId },
+      ),
+  };
+}
+
+/** نطاق إعادة الضبط: قفل الشركة والموظفة والسجل، ثم فحص السلطة، ثم الكتابة كلها في معاملة واحدة. */
+function resetPinScope(
+  tx: Tx,
+  actor: StaffAccessActor,
+  input: ResetInput,
+): ResetEmployeeStaffPinScope {
+  const writers = transactionWriters(tx, input.ids);
+  return {
+    lockCompany: () => lockCompanyRow(tx, actor.companyId),
+    lock: () => lockRecordWithEmployee(tx, actor.companyId, input),
+    authority: staffAccessAuthority(tx, actor),
+    saveTemporaryPin: (userId, pinHash) =>
+      saveResetPinAndAudit(tx, {
+        actor,
+        input,
+        audit: writers.audit,
+        userId,
+        pinHash,
+      }),
+    appendEvent: (payload) =>
+      appendPinSetEvent(writers.outbox, payload, { actorUserId: actor.userId, at: input.at }),
+  };
+}
+
+/** يحفظ الرقم المؤقت ويسجل تدقيق إعادة الضبط — الفاعل هو المانح، ومفيش رقم سري في الصف. */
+async function saveResetPinAndAudit(
+  tx: Tx,
+  context: {
+    readonly actor: StaffAccessActor;
+    readonly input: ResetInput;
+    readonly audit: AuditTrail;
+    readonly userId: string;
+    readonly pinHash: string;
+  },
+): Promise<void> {
+  const { actor, input, audit, userId, pinHash } = context;
+  await saveTemporaryStaffPin(tx, {
+    companyId: actor.companyId,
+    userId,
+    pinHash,
+    setBy: actor.userId,
+    at: input.at,
+    ids: input.ids,
+  });
+  await audit.record({
+    entity: 'cashier_pin',
+    entityId: userId,
+    action: 'staff.pin_reset_temporary',
+    after: { set_by: actor.userId, temporary: true },
+  });
+}
+
+/** يكتب حدث إعادة الضبط في الـ outbox — معرّفات بس، مفيش رقم سري ولا hash. */
+async function appendPinSetEvent(
+  outbox: OutboxWriter,
+  payload: { employeeId: string; userId: string; branchId: string },
+  stamp: { actorUserId: string; at: Date },
+): Promise<void> {
+  const built = staffPinSetByOtherEvent({
+    employee_id: payload.employeeId,
+    user_id: payload.userId,
+    branch_id: payload.branchId,
+    actor_user_id: stamp.actorUserId,
+    occurred_at: stamp.at.toISOString(),
+  });
+  await outbox.append({
+    aggregateType: built.aggregateType,
+    aggregateId: payload.employeeId,
+    eventType: built.eventType,
+    payload: built.payload,
+  });
+}
+
+/**
+ * يفتح معاملة إعادة الضبط على pospay_app — القفل وفحص السلطة والرقم المؤقت والتدقيق والحدث
+ * في معاملة واحدة، فمفيش رقم اتغيّر من غير ما يكتمل كله.
+ *
+ * @param database مغلفات الشركة من @pospay/db
+ * @returns المنفذ الذي يشغّل شغل إعادة الضبط داخل معاملته
+ */
+export function createResetEmployeeStaffPinSteps(
+  database: TenantWrappers,
+): ResetEmployeeStaffPinSteps {
+  return {
+    run: (actor, input, work) =>
+      database.withTenant(
+        actor.companyId,
+        (tx) => work(resetPinScope(tx, actor, input)),
         { userId: actor.userId },
       ),
   };

@@ -4,6 +4,8 @@ import { ApiError } from '../../../shared/errors.ts';
 // كل مسارات شجرة staff-access مقفولة معاً: أي مسار جديد تحت الشجرة يورث البوابة من غير تعديل.
 // الشرط «/» بعد staff-access بيخلي المسارات الشقيقة (staff-access-something) بره النطاق.
 const STAFF_ACCESS_ROUTE = /^\/v1\/businesses\/:businessId\/employees\/:employeeId\/staff-access(?:\/.*)?$/;
+// تغيير الرقم السري المؤقت (076 F2) جزء من شجرة 076: مقفول معاها، والطلب بيجيب 503 قبل أي مصادقة.
+const STAFF_PIN_CHANGE_ROUTE = /^\/v1\/devices\/me\/staff-pin\/change$/;
 
 /**
  * بوابة القدرة كـ onRequest على كل مسارات شجرة دخول الموظفات: تعمل بعد خطّاف CORS على مستوى
@@ -17,7 +19,7 @@ export function mountStaffAccessGate(server: FastifyInstance, enabled: boolean):
     return reply.code(error.status).send(error.toEnvelope());
   };
   server.addHook('onRoute', (route) => {
-    if (!STAFF_ACCESS_ROUTE.test(route.url)) return;
+    if (!STAFF_ACCESS_ROUTE.test(route.url) && !STAFF_PIN_CHANGE_ROUTE.test(route.url)) return;
     const existing = route.onRequest;
     route.onRequest =
       existing === undefined ? [refuse] : [...(Array.isArray(existing) ? existing : [existing]), refuse];

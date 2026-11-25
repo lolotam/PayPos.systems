@@ -1,6 +1,7 @@
 // قائمة مستقلة بأسماء سكيما الهوية والصلاحيات، عشان كل موديل يبقى له ملف أسماء قابل للمراجعة لوحده.
 export const identitySchemaNames = [
   'CashierPinVerified',
+  'ChangeTemporaryStaffPinInput',
   'ClaimDeviceInput',
   'DeviceIdentity',
   'DeviceRegistration',

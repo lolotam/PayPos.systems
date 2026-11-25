@@ -15,10 +15,14 @@ export const SCHEDULE_COLUMN_GRANTS = [
   'staff_schedule_settings.updated_by:pospay_app:UPDATE',
 ];
 
-export const SCHEDULE_TABLE_GRANTS = [
+// جداول إعدادات الجدول على مستوى الفرع، منفصلة عن إعدادات الشركة: القائمة المراجعة بتقارن
+// بالترتيب، فالقسمين لازم يفضلوا كل واحد في مكانه.
+export const BRANCH_SCHEDULE_TABLE_GRANTS = [
   'staff_branch_schedule_settings:DELETE',
   'staff_branch_schedule_settings:INSERT',
   'staff_branch_schedule_settings:SELECT',
+];
+export const SCHEDULE_TABLE_GRANTS = [
   'staff_schedule_settings:INSERT',
   'staff_schedule_settings:SELECT',
 ];

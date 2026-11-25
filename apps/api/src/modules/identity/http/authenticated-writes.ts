@@ -269,6 +269,10 @@ export const AUTHENTICATED_WRITES: Readonly<Record<string, AuthenticatedWriteDec
       'DEVICE_ONLY',
       'apps/api/src/shared/session.guard.ts##staff',
     ),
+    'StaffPinController.change': declared(
+      'DEVICE_ONLY',
+      'apps/api/src/modules/identity/http/staff-pin.controller.ts#change',
+    ),
     'EmployeeAccessController.grant': declared(
       'RECORD_SCOPED',
       'apps/api/src/modules/staff/persistence/staff-access.adapter.ts#authorityChecker',
@@ -276,5 +280,9 @@ export const AUTHENTICATED_WRITES: Readonly<Record<string, AuthenticatedWriteDec
     'EmployeeAccessController.cancelPending': declared(
       'RECORD_SCOPED',
       'apps/api/src/modules/staff/persistence/staff-access-auth.adapter.ts#cancelScope',
+    ),
+    'EmployeeAccessController.resetPin': declared(
+      'RECORD_SCOPED',
+      'apps/api/src/modules/staff/persistence/staff-access.adapter.ts#authorityChecker',
     ),
   });

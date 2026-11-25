@@ -223,6 +223,8 @@ The consumer owns the interface. The adapter lives in the consumer's `persistenc
 | worker `staff` | `BranchPlaceReader` | worker `tenancy` | both branch names, the business display names and the effective timezone (branch, otherwise business) on the caller's tenant transaction; adapter bound at the staff composition root (ADR-0037; the attendance statement reuses it for its names, ADR-0056 addendum 2026-10-25); PR 62 does not remove this read |
 | worker `staff` | `FileReaderRecipients.holders` | worker `identity` | users of active memberships who effectively hold `read:files:business` at the employee's business (role grants, personal ALLOW/DENY overrides, the canonical owner ignores DENY), read on the document-expiry job's locked transaction; the `DOCUMENT_EXPIRING` recipients are these holders, narrowed to the rule's role candidates when the rule names roles (ADR-0037 addendum 2026-10-23, spec 060 AL-Q7, issue #489, 62-2d) |
 | worker `staff` | `LockedShiftEnding.userHasAccess`, `LockedNotClockedIn.userHasAccess` | worker `identity` | `activeMembership`: whether the employee's linked user holds a membership active at the decision instant that covers the company, her business or one of her branches (any role; the branch ids come from staff), read on the shift-ending detector's locked employee transaction; without one the reminder carries no push recipient (ADR-0052 §5, ADR-0053 decision 13, 064-3); the not-clocked-in detector reads it the same way on its own locked employee transaction, and without a current personal access the employee's own push is not sent (ADR-0052 §5, 28b-5) |
+| worker `staff` | `StaffAccessNoticePorts.companyOpen`, `StaffAccessNoticePorts.owners` | worker `tenancy`, worker `identity` | company eligibility before the recipients snapshot, and the company's active canonical owners at the decision instant, read on the staff-access-notice consumer's transaction (spec 076 FR-F2-3, ADR-0063) |
+| worker `staff` | `StaffAccessNoticePorts.readActorRecord`, `StaffAccessNoticePorts.readActorProfile` | worker `identity` | the temporary PIN's setter and instant (`set_by`, `set_at` only — never `pin_hash`) and the actor's active role snapshot, read on the same consumer transaction; without them the bell names the actor by role or falls back to a generic user (spec 076 FR-F2-3, ADR-0063) |
 | `staff`, `customers`, `commissions` | `AlertRulesPort`, `StaffColumnsPort`                                                    | `settings`  | alert rules (recipients, channels) and staff-app columns — reads (ADR-0010)                                                                                          |
 | `staff` | `AlertRulesPort.roleHolders` | `identity` | active system-role holders whose company, business or branch membership covers the event branch at the event time, with the canonical company-owner flag; read on the attendance-change writer's transaction (ADR-0040 addendum 2026-10-21, spec 060 D-B13, 62-2b) |
 | `orders` | `StaffColumnsPort` | `settings` | the business's allowed staff-app columns and `staff_months_back`, read in the «شغلي» transaction so a hidden column never leaves the server (ADR-0010 addendum 2026-10-21, spec 060 D-A3, 57c-1) |
@@ -440,6 +442,7 @@ sync_writes:
   - identity -> tenancy.registerCompany @ apps/api/src/modules/identity/persistence/tenancy-company-registry.adapter.ts
   - staff -> identity.grantStaffMembership @ apps/api/src/modules/staff/persistence/staff-access.adapter.ts
   - staff -> identity.saveTemporaryStaffPin @ apps/api/src/modules/staff/persistence/staff-access.adapter.ts
+  - staff -> identity.saveTemporaryStaffPin @ apps/api/src/modules/staff/persistence/staff-access-auth.adapter.ts
   - staff -> identity.provisionStaffUser @ apps/api/src/modules/staff/persistence/staff-access-auth.adapter.ts
   - staff -> identity.cancelStaffUser @ apps/api/src/modules/staff/persistence/staff-access-auth.adapter.ts
 reads:
@@ -631,6 +634,7 @@ reads:
   - orders -> staff.readSessionPerformerOptions @ apps/api/src/modules/orders/persistence/package-sale-context.adapter.ts
   - catalog -> tenancy.packageSalePlace @ apps/api/src/modules/catalog/persistence/package-sale-place.adapter.ts
   - staff -> identity.staffAccessGrantedEvent @ apps/api/src/modules/staff/persistence/staff-access.adapter.ts
+  - staff -> identity.staffPinSetByOtherEvent @ apps/api/src/modules/staff/persistence/staff-access-auth.adapter.ts
   - staff -> identity.readStaffAccessAuthority @ apps/api/src/modules/staff/persistence/staff-access.adapter.ts
   - staff -> identity.createGrantInvalidator @ apps/api/src/modules/staff/persistence/staff-access.adapter.ts
   - staff -> identity.readStaffAccessAuthority @ apps/api/src/modules/staff/persistence/staff-access-auth.adapter.ts
@@ -640,6 +644,10 @@ reads:
   - staff -> identity.readStaffAccessAuthority @ apps/api/src/modules/staff/persistence/employee-access-reads.adapter.ts
   - staff -> identity.readStaffUser @ apps/api/src/modules/staff/persistence/employee-access-reads.adapter.ts
   - staff -> identity.readStaffAccessOwner @ apps/api/src/modules/staff/persistence/employee-access-reads.adapter.ts
+  - staff -> identity.companyOwners @ apps/worker/src/modules/staff/persistence/staff-access-notice-recipients.adapter.ts
+  - staff -> tenancy.companyOpen @ apps/worker/src/modules/staff/persistence/staff-access-notice-recipients.adapter.ts
+  - staff -> identity.readTemporaryStaffPinSet @ apps/worker/src/modules/staff/persistence/staff-access-notice.repository.ts
+  - staff -> identity.readActorRoleSnapshot @ apps/worker/src/modules/staff/persistence/staff-access-notice.repository.ts
 ```
 
 The check (`pnpm module-map:check`, plan v4 T12b): `docs/module-map.yaml` is generated from this block and must be

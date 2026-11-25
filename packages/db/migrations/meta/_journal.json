@@ -1821,6 +1821,13 @@
       "when": 1795581706926,
       "tag": "0261_2026-11-25_verification-value-index",
       "breakpoints": true
+    },
+    {
+      "idx": 262,
+      "version": "7",
+      "when": 1795589504558,
+      "tag": "0262_2026-11-25_staff-pin-change-proofs",
+      "breakpoints": true
     }
   ]
 }

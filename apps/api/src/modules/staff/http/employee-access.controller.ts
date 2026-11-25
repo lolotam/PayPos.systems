@@ -1,8 +1,10 @@
 import { Body, Controller, Delete, Get, HttpCode, Inject, Param, Post, Req, UseGuards } from '@nestjs/common';
 import {
   grantStaffAccessInput,
+  resetEmployeeStaffPinInput,
   staffAccessState,
   type GrantStaffAccessInput,
+  type ResetEmployeeStaffPinInput,
   id,
 } from '@pospay/contracts';
 import { StaffAuthBusyError, type TenantWrappers } from '@pospay/db';
@@ -25,6 +27,7 @@ import {
   CancelPendingStaffAccessUseCase,
   type CancelPendingStaffAccessOutcome,
 } from '../use-cases/cancel-pending-staff-access/cancel-pending-staff-access.ts';
+import { ResetEmployeeStaffPinUseCase } from '../use-cases/reset-employee-staff-pin/reset-employee-staff-pin.ts';
 
 /** بوابة التفعيل (FR-F1-9): تُقرأ مرة واحدة عند التشغيل من STAFF_ACCESS_ROUTES، وكل المسارات ترد 503 بدونها. */
 export const STAFF_ACCESS_ROUTES_ENABLED = Symbol('STAFF_ACCESS_ROUTES_ENABLED');
@@ -45,6 +48,8 @@ export class EmployeeAccessController {
     private readonly grantUseCase: GrantEmployeeAccessUseCase | null,
     @Inject(CancelPendingStaffAccessUseCase)
     private readonly cancelUseCase: CancelPendingStaffAccessUseCase | null,
+    @Inject(ResetEmployeeStaffPinUseCase)
+    private readonly resetUseCase: ResetEmployeeStaffPinUseCase | null,
     @Inject(EMPLOYEE_ACCESS_STATE_READS)
     private readonly reads: EmployeeAccessStateReads | null,
   ) {}
@@ -72,13 +77,51 @@ export class EmployeeAccessController {
         pin: input.pin,
       });
       // الرد من نتيجة المعاملة الملتزمة نفسها: لا قراءة تالية (معاملة جديدة ومكالمة auth) قد تفشل
-      // فتحوّل منحاً ملتزماً إلى 500. الحالة بعد المنح ACTIVE دائماً ولا إدارة متاحة عليها.
+      // فتحوّل منحاً ملتزماً إلى 500. الحالة بعد المنح ACTIVE دائماً.
       return staffAccessState.parse({
         state: 'ACTIVE',
         role: granted.role,
         branch_id: granted.branchId,
         phone_last3: granted.phoneLast3,
-        can_manage: false,
+        can_manage: true,
+        can_cancel: false,
+      });
+    } catch (error) {
+      throw staffAccessApiError(error);
+    }
+  }
+
+  /**
+   * إعادة ضبط الرقم السري لموظفة على فرعها الأساسي: الرقم الجديد مؤقت وينتهي بعد 24 ساعة،
+   * والسلطة بتتفحص على فرعها جوه معاملة الكتابة نفسها. الموظفة ما بتضبطش رقمها بنفسها.
+   */
+  @Post('staff-access/pin')
+  @Authenticated()
+  @UseGuards(SelectedCompanyGuard)
+  @HttpCode(200)
+  async resetPin(
+    @Param('businessId', new ZodValidationPipe(id)) businessId: string,
+    @Param('employeeId', new ZodValidationPipe(id)) employeeId: string,
+    @Body(new ZodValidationPipe(resetEmployeeStaffPinInput)) input: ResetEmployeeStaffPinInput,
+    @Req() request: FastifyRequest,
+  ): Promise<unknown> {
+    const actor = actorOf(request);
+    this.ready();
+    try {
+      const reset = await (this.resetUseCase as ResetEmployeeStaffPinUseCase).execute({
+        ...actor,
+        businessId,
+        employeeId,
+        pin: input.pin,
+      });
+      // الرد من السجل المقفول: بلا قراءة تالية بعد الالتزام، وبلا آخر ثلاثة أرقام لأن الهاتف
+      // على auth وما ينفعش يتقرا بعد ما المعاملة تلتزم.
+      return staffAccessState.parse({
+        state: 'ACTIVE',
+        role: reset.role,
+        branch_id: reset.branchId,
+        phone_last3: null,
+        can_manage: true,
         can_cancel: false,
       });
     } catch (error) {
@@ -157,6 +200,7 @@ export class EmployeeAccessController {
       !this.enabled ||
       this.grantUseCase === null ||
       this.cancelUseCase === null ||
+      this.resetUseCase === null ||
       this.reads === null ||
       this.database === null
     )

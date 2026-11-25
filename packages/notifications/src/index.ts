@@ -31,6 +31,7 @@ export { statementAwaitingApproval } from './templates/statement-awaiting-approv
 export { shiftNotClockedIn } from './templates/shift-not-clocked-in.ts';
 export { attendanceExceptionRaised } from './templates/attendance-exception-raised.ts';
 export { documentExpiring } from './templates/document-expiring.ts';
+export { staffAccessGranted, staffPinSetByOther } from './templates/staff-access-notice.ts';
 export { breakNotReturned } from './templates/break-not-returned.ts';
 export {
   lowRating,

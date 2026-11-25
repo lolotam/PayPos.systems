@@ -144,10 +144,15 @@ async function projectState(
     role: record?.roleCode ?? null,
     branch_id: record?.branchId ?? null,
     phone_last3: record?.userId != null ? (staffUser?.phoneLast3 ?? null) : null,
+    // الموظفة ما بتديرش نفسها: ولا الموظفة المرتبطة بمستخدم تاني، ولا موظفة ليها حساب
+    // دخول وبلا سجل (المنح نفسه بيرفض الحالة دي). الباقي صلاحية الفرع زي ما هي — حتى على
+    // السجل النشط، عشان إعادة الضبط تبقى متاحة لمدير الفرع (F2b).
     can_manage:
-      record === null && row.linkedUserId !== null
+      (record === null && row.linkedUserId !== null) ||
+      row.linkedUserId === context.actorUserId ||
+      record?.userId === context.actorUserId
         ? false
-        : authority && (record === null || record.state !== 'ACTIVE'),
+        : authority,
     can_cancel:
       authority && record !== null
         ? await reads.cancelAllowed(tx, {

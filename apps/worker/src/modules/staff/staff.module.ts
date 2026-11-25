@@ -1,11 +1,23 @@
-import { t } from '@pospay/i18n';
+import { editorLabel, safeDisplayName, t } from '@pospay/i18n';
 import { LEAVE_HISTORY_REPORT_ROW_CAP } from '@pospay/contracts';
 import { createLogger } from '@pospay/observability';
 import { notClockedInDiagnostics } from './persistence/not-clocked-in-diagnostics.ts';
 import { branchPlaceAdapter } from './persistence/branch-place.adapter.ts';
-import type { IdGenerator, TenantWrappers } from '@pospay/db';
+import type { IdGenerator, TenantWrappers, Tx } from '@pospay/db';
 import type { Clock } from './ports/clock.port.ts';
 import { companyCreatedConsumer } from './events/handlers/on-company-created.handler.ts';
+import { onStaffAccessNotice } from './events/handlers/on-staff-access-notice.handler.ts';
+import { staffAccessNoticeRecipients } from './persistence/staff-access-notice-recipients.adapter.ts';
+import {
+  appendStaffAccessNotice,
+  claimStaffAccessNotice,
+  readStaffAccessActorProfile,
+  readStaffAccessActorRecord,
+  readStaffAccessEmployee,
+} from './persistence/staff-access-notice.repository.ts';
+import type { StaffAccessNoticeFallback } from './domain/staff-access-notice.ts';
+import { RequestStaffAccessNotice } from './use-cases/request-staff-access-notice/request-staff-access-notice.ts';
+import type { OutboxConsumer } from '../../outbox/consumer.ts';
 import { createDocumentTypeSeeds } from './persistence/drizzle-document-type-seeds.ts';
 import { SeedDocumentTypes } from './use-cases/seed-document-types/seed-document-types.ts';
 import { DetectMissedOuts } from './use-cases/detect-missed-outs/detect-missed-outs.ts';
@@ -68,6 +80,57 @@ const STAFF_ALERT_NAME_FALLBACK = {
 
 export function createStaffDocumentDefaults(ids: IdGenerator) {
   return companyCreatedConsumer((tx) => new SeedDocumentTypes(createDocumentTypeSeeds(tx), ids));
+}
+
+/** تسميات جرس وصول الدخول: الموظفة والفرع والفاعل، من كتالوج اللغتين (CLAUDE.md §7). */
+function staffAccessNoticeFallback(): StaffAccessNoticeFallback {
+  return {
+    employee: { ar: t('ar', 'inApp.generic_employee'), en: t('en', 'inApp.generic_employee') },
+    branch: { ar: t('ar', 'inApp.generic_branch'), en: t('en', 'inApp.generic_branch') },
+    actor: { ar: t('ar', 'inApp.editor_generic'), en: t('en', 'inApp.editor_generic') },
+    safeName: safeDisplayName,
+    actorText: editorLabel,
+  };
+}
+
+/**
+ * مستهلك جرس وصول الدخول: يحوّل حدث منح الدخول وإعادة ضبط الرقم السري لجرس للمالكين النشطين.
+ * التسمية والاسم الآمن من الكتالوج، والجرس ما فيهوش رقم سري ولا هاتف.
+ *
+ * @param ids مولّد المعرّفات لصف الدفتر وأحداث المجموعات
+ * @param clock الساعة التي تحدد لحظة نافذة العضوية
+ * @returns مستهلك الأوتبوكس لحدثي `StaffAccessGranted` و`StaffPinSetByOther`
+ */
+export function createStaffAccessNoticeConsumer(ids: IdGenerator, clock: Clock): OutboxConsumer {
+  const bind = (tx: Tx) =>
+    new RequestStaffAccessNotice(
+      {
+        ...staffAccessNoticeRecipients(tx),
+        place: async (companyId, businessId, branchId) => {
+          const place = await branchPlaceAdapter.forBranch(tx, companyId, businessId, branchId);
+          if (place === null) return null;
+          return { nameAr: place.nameAr, nameEn: place.nameEn, timeZone: place.timeZone };
+        },
+        readEmployee: (companyId, employeeId) =>
+          readStaffAccessEmployee(tx, companyId, employeeId),
+        readActorRecord: (event) => readStaffAccessActorRecord(tx, event),
+        readActorProfile: (companyId, businessId, actorUserId, at) =>
+          readStaffAccessActorProfile(tx, companyId, businessId, actorUserId, at),
+        claim: (sourceEventId) => claimStaffAccessNotice(tx, sourceEventId),
+        outbox: {
+          append: (eventId, employeeId, kind, payload) =>
+            appendStaffAccessNotice(tx, eventId, employeeId, kind, payload),
+        },
+      },
+      ids,
+      clock,
+      staffAccessNoticeFallback(),
+    );
+  return {
+    id: 'staff.staff-access-notice-v1',
+    eventTypes: ['StaffAccessGranted', 'StaffPinSetByOther'],
+    handle: (tx, event) => onStaffAccessNotice(bind(tx), event),
+  };
 }
 
 /**

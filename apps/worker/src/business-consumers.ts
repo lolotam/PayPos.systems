@@ -13,7 +13,7 @@ import {
   createPerformersChangeNoticeConsumer,
   createPriceEditNoticeConsumer,
 } from './modules/orders/index.ts';
-import { createStaffDocumentDefaults } from './modules/staff/index.ts';
+import { createStaffAccessNoticeConsumer, createStaffDocumentDefaults } from './modules/staff/index.ts';
 import type { OutboxConsumer } from './outbox/consumer.ts';
 
 type SchedulingDeps = Parameters<typeof createRatingSchedulingConsumer>[0];
@@ -44,6 +44,7 @@ export function businessConsumers(deps: BusinessConsumerDeps): readonly OutboxCo
     deps.files,
     ...(notices === null ? [] : [notices]),
     createStaffDocumentDefaults(newIds()),
+    createStaffAccessNoticeConsumer(newIds(), clock),
     createLateServiceSessionNoticeConsumer(newIds(), clock),
     createPriceEditNoticeConsumer(newIds(), clock),
     createLineCancelNoticeConsumer(newIds(), clock),

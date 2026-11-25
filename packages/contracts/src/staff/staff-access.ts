@@ -18,6 +18,18 @@ export const grantStaffAccessInput = z
   .meta({ id: 'GrantStaffAccessInput' });
 export type GrantStaffAccessInput = z.infer<typeof grantStaffAccessInput>;
 
+/**
+ * إعادة ضبط الرقم السري لموظفة على فرعها الأساسي (spec 076 F2b): الطلب strict —
+ * رقم سري من أربعة أرقام بس، وما فيش أي رقم تاني (الرقم القديم ما بيرجعش من السيرفر).
+ */
+export const resetEmployeeStaffPinInput = z
+  .object({
+    pin: z.string().regex(/^\d{4}$/),
+  })
+  .strict()
+  .meta({ id: 'ResetEmployeeStaffPinInput' });
+export type ResetEmployeeStaffPinInput = z.infer<typeof resetEmployeeStaffPinInput>;
+
 /** حالة دخول الموظفة كما تظهر في لوحة الموظفين؛ آخر ثلاثة أرقام فقط ولا هاتف كامل أبداً. */
 export const staffAccessState = responseObject({
   state: z.enum(['NONE', 'PENDING', 'ACTIVE', 'STOPPED']),

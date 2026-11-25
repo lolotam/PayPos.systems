@@ -317,6 +317,58 @@ describe('the employee access grant shows every failure', () => {
   });
 });
 
+describe('the employee access section resets the PIN of an active employee', () => {
+  it('F2b-1 offers the reset button for an ACTIVE record the caller may manage', async () => {
+    state.body = { ...ACTIVE_STATE, can_manage: true };
+    mountSection();
+    await waitFor(() => expect(screen.getByText('Access is active.')).toBeTruthy());
+    expect(screen.getByText('Reset PIN')).toBeTruthy();
+    // «Give access» بتفضل مقفولة على السجل النشط.
+    expect(screen.queryByText('Give access')).toBeNull();
+  });
+
+  it('F2b-1 hides the reset button when the server says the caller may not manage', async () => {
+    state.body = ACTIVE_STATE;
+    mountSection();
+    await waitFor(() => expect(screen.getByText('Access is active.')).toBeTruthy());
+    expect(screen.queryByText('Reset PIN')).toBeNull();
+  });
+
+  it('F2b-1 submits the reset directly and keeps the PIN out of every cache', async () => {
+    state.body = { ...ACTIVE_STATE, can_manage: true };
+    const client = mountSection();
+    await waitFor(() => expect(screen.getByText('Reset PIN')).toBeTruthy());
+    post.mockResolvedValue({
+      response: { status: 200, ok: true },
+      data: { ...ACTIVE_STATE, can_manage: true },
+      error: undefined,
+    });
+    fireEvent.click(screen.getByText('Reset PIN'));
+    const pin = await screen.findByLabelText('New temporary PIN (4 digits)');
+    fireEvent.change(pin, { target: { value: '4321' } });
+    fireEvent.click(screen.getByText('Reset the PIN'));
+    await waitFor(() => expect(post).toHaveBeenCalledTimes(1));
+    // النتيجة للمستخدم: رسالة نجاح ظاهرة بعد الطلب المباشر.
+    await waitFor(() =>
+      expect(
+        screen.getByText('The PIN was reset. It is temporary and expires after 24 hours if unused.'),
+      ).toBeTruthy(),
+    );
+    const variables = client
+      .getMutationCache()
+      .getAll()
+      .map((mutation) => JSON.stringify(mutation.state.variables ?? null))
+      .join('|');
+    expect(variables).not.toContain('4321');
+    const keys = client
+      .getQueryCache()
+      .getAll()
+      .map((query) => query.queryKey.join(':'))
+      .join('|');
+    expect(keys).not.toContain('4321');
+  });
+});
+
 describe('the committed grant and cancel survive a slow read', () => {
   it('AC-ACT-10 keeps the committed grant when a slow read lands after it', async () => {
     state.body = NONE_STATE;
