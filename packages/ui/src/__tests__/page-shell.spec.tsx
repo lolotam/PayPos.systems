@@ -1,8 +1,22 @@
 import { render, screen } from '@testing-library/react';
+import type { ReactNode } from 'react';
 import { expect, it } from 'vitest';
 import { DirectionProvider } from '../direction-provider.js';
 import { PageHeader } from '../page-header.js';
 import { PageShell } from '../page-shell.js';
+
+// قيم غائبة عن الخانة: ما ترسمش حاجة، ولازم الخانتين تعاملواها بنفس القاعدة.
+// الفراغ `<></>` والمصفوفات الفاضية قيم غايبرة زايدة، والقيمة الصفرية `0` مش منهم.
+const ABSENT_SLOT_VALUES: Array<[string, ReactNode]> = [
+  ['undefined', undefined],
+  ['null', null],
+  ['false', false],
+  ['true', true],
+  ['an empty string', ''],
+  ['an empty array', [] as ReactNode[]],
+  ['an array of absent values', [null, false, '', undefined] as ReactNode[]],
+  ['an empty fragment', <></>],
+];
 
 it('centres list pages on 1200px and forms on 840px, owning width and gaps only', () => {
   render(
@@ -66,11 +80,7 @@ it('keeps a lone block in the main column with no side column', () => {
   expect(screen.queryByText('side column')).toBeNull();
 });
 
-it.each([
-  ['absent', undefined],
-  ['null', null],
-  ['false from a `condition && block` expression', false],
-] as const)(
+it.each(ABSENT_SLOT_VALUES)(
   'puts a lone side block first in the grid when main is %s, so it takes the main column',
   (_case, main) => {
     // حالة هوية النشاط بلا كتلة أسماء: الشعار يبقى في خانته الثابتة، ومن غير خانة
@@ -87,6 +97,67 @@ it.each([
     expect(columns.firstElementChild?.textContent).toBe('logo alone in side slot');
   },
 );
+
+it.each(ABSENT_SLOT_VALUES)(
+  'drops the side column when side is %s, so no empty wrapper is left in the grid (#1200)',
+  (_case, side) => {
+    // الخانة الجانبية الغائبة ما تبنيش غلاف فاضي: غلاف فاضي يعني فجوة تحت 1024px
+    // وطفل شبكة فارغ من 1024px، وهو نفس معاملة الخانة الرئيسية الغائبة.
+    render(
+      <PageShell layout="two-column" main={<p>main only</p>} side={side}>
+        <span>header</span>
+      </PageShell>,
+    );
+    const columns = screen.getByText('main only').parentElement?.parentElement as HTMLElement;
+    expect(columns.children).toHaveLength(1);
+    expect(columns.firstElementChild?.textContent).toBe('main only');
+  },
+);
+
+it('keeps a zero in the main slot as content, because zero is a value and not an absence', () => {
+  render(
+    <PageShell layout="two-column" main={0}>
+      <span>header</span>
+    </PageShell>,
+  );
+  const zero = screen.getByText('0');
+  expect(zero.textContent).toBe('0');
+  // العدّاد الصفري محتوى حقيقي: غلافه موجود في العمود ومش بيتخطّى
+  expect(zero.parentElement?.children).toHaveLength(1);
+});
+
+it('keeps a zero in the side slot as content, because zero is a value and not an absence', () => {
+  render(
+    <PageShell layout="two-column" side={0}>
+      <span>header</span>
+    </PageShell>,
+  );
+  const zero = screen.getByText('0');
+  expect(zero.textContent).toBe('0');
+  expect(zero.parentElement?.children).toHaveLength(1);
+});
+
+it('keeps the side block mounted when the main slot appears, so it does not lose its state', () => {
+  const { rerender } = render(
+    <PageShell layout="two-column" main={false} side={<p>sticky side</p>}>
+      <span>header</span>
+    </PageShell>,
+  );
+  const sideBefore = screen.getByText('sticky side');
+  rerender(
+    <PageShell layout="two-column" main={<p>now present</p>} side={<p>sticky side</p>}>
+      <span>header</span>
+    </PageShell>,
+  );
+  const sideAfter = screen.getByText('sticky side');
+  // نفس عقدة DOM: الكتلة الجانبية ما تفكّكتش لما ظهرت الخانة الرئيسية
+  expect(sideAfter).toBe(sideBefore);
+  expect(
+    screen
+      .getByText('now present')
+      .compareDocumentPosition(sideAfter) & Node.DOCUMENT_POSITION_FOLLOWING,
+  ).toBeTruthy();
+});
 
 it.each(['rtl', 'ltr'] as const)(
   'caps the page header description to 65 characters only inside the shell in %s',
