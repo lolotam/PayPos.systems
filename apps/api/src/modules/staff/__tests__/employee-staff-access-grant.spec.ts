@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import { afterAll, beforeAll, expect, it } from 'vitest';
 import {
   addEmployee,
@@ -194,4 +195,15 @@ it('AC-F1-6b two concurrent grants for one employee produce one access; one phon
   const loserActive = await f.h
     .owner`SELECT count(*) AS n FROM employee_staff_access WHERE employee_id = ${loser} AND state = 'ACTIVE'`;
   expect(Number(loserActive[0]?.n)).toBe(0);
+});
+
+it('AC-ACT-13 the stored phone fingerprint is keyed, not an unkeyed digest of the phone', async () => {
+  const hana = await addEmployee(f, 'Hana', f.salmiya, 21);
+  const phone = nextPhone(f);
+  expect((await grant(f, hana, phone)).status).toBe(200);
+  const [record] = await f.h
+    .owner`SELECT phone_hash FROM employee_staff_access WHERE employee_id = ${hana}`;
+  const stored = String(record?.['phone_hash'] ?? '');
+  expect(stored).toMatch(/^[0-9a-f]{64}$/);
+  expect(stored).not.toBe(createHash('sha256').update(`staff-access-phone:${phone}`).digest('hex'));
 });
