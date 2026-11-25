@@ -137,6 +137,8 @@ async function rotatePin(
     SET id=${ids.newId()},pin_hash=${pin.hash},set_by=NULL,set_at=${pin.at.toISOString()}::timestamptz,
       temporary=false,expires_at=NULL
     WHERE company_id=${companyId} AND user_id=${pin.userId} AND id=${pin.pinRevision}
+      AND NOT EXISTS (SELECT 1 FROM employee_staff_access a
+        WHERE a.company_id=${companyId} AND a.user_id=${pin.userId} AND a.state <> 'ACTIVE')
     RETURNING id`);
   return rows.length !== 0;
 }

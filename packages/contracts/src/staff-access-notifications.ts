@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { inAppBase, inAppNotificationBase } from './in-app-base.js';
 import { responseObject } from './response-object.js';
 import { id } from './scalars/id.js';
+import { timestamp } from './scalars/timestamp.js';
 
 // قواعد التنقية هنا مطابقة لِما في in-app-notifications.ts: اسم العرض يرفض الرابط والهاتف والرمز وحده،
 // والساعة المحلية HH:MM. التكرار مقصود: in-app-notifications.ts يستورد مستلمي هذا الملف، فاستيراده
@@ -31,6 +32,8 @@ export const staffAccessGrantedEventPayload = z.strictObject({
   membership_id: id,
   branch_id: id,
   role: z.enum(['staff', 'reception']),
+  actor_user_id: id.optional(),
+  occurred_at: timestamp.optional(),
 });
 
 /** حدث إعادة ضبط الرقم السري من غير نفسها: معرّفات بس — مفيش رقم سري ولا hash ولا هاتف (076-F2b-4). */
@@ -38,6 +41,8 @@ export const staffPinSetByOtherEventPayload = z.strictObject({
   employee_id: id,
   user_id: id,
   branch_id: id,
+  actor_user_id: id.optional(),
+  occurred_at: timestamp.optional(),
 });
 
 /**

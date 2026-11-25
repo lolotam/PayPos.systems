@@ -71,6 +71,11 @@ export class SignInStaffPin {
       await this.attempts.failed(target, reservation.reservation);
       return null;
     }
+    // الأهلية قبل أي حالة PIN مؤقت: موقوفة أو جهاز غير معتمد = رقم غلط، بلا دليل ولا رسالة تغيير.
+    if (!(await this.current(userId, row.id, input))) {
+      await this.attempts.failed(target, reservation.reservation);
+      return null;
+    }
     const state = this.staffAccessRoutes ? pinState(row, this.clock.now()) : 'USABLE';
     if (state !== 'USABLE') {
       // الرقم اتقبل، فالعدّاد بيتصفّر؛ الردّ بيقول لازم يتغيّر، ومفيش جلسة بتتصدر.
@@ -83,6 +88,14 @@ export class SignInStaffPin {
     }
     if ((await this.attempts.succeeded(target, reservation.reservation)) !== 'ok') return null;
     if (!(await this.current(userId, row.id, input))) return null;
+    return this.issueSession(userId, row, input);
+  }
+
+  private async issueSession(
+    userId: string,
+    row: StaffPinRecord,
+    input: { phone: string; device: StaffDeviceContext },
+  ) {
     try {
       return await this.authority.sessions.issue(userId, input.device, async () => {
         if (!(await this.current(userId, row.id, input))) return false;

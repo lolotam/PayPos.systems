@@ -279,3 +279,65 @@ it('refuses a malformed staff access event and emits nothing', async () => {
   expect(outcome.delivered).toBe(false);
   expect(await f.notices(w.scope.company)).toHaveLength(0);
 }, 60_000);
+
+it('keeps the actor and time stamped on a granted event after the access row changes', async () => {
+  const w = await world('stamped grant');
+  const membershipId = await f.member({
+    scope: w.scope,
+    userId: w.managerUserId,
+    roleId: ROLE.general_manager,
+    scopeType: 'COMPANY',
+    scopeId: w.scope.company,
+  });
+  await f.grant({
+    scope: w.scope,
+    employeeId: w.employeeId,
+    userId: w.employeeUserId,
+    membershipId,
+    grantedBy: w.managerUserId,
+    updatedAt: new Date('2026-11-26T10:00:00.000Z'),
+  });
+  await f.owner`UPDATE employee_staff_access SET state = 'STOPPED'
+    WHERE company_id = ${w.scope.company} AND employee_id = ${w.employeeId}`;
+  const event = grantedEvent(f.ids, w.scope, {
+    employeeId: w.employeeId,
+    userId: w.employeeUserId,
+    membershipId,
+    stamp: { actorUserId: w.ownerUserId, occurredAt: OCCURRED_AT },
+  });
+  expect(await f.deliver(event)).toEqual({ delivered: true });
+  const parameters = parametersOf((await f.notices(w.scope.company))[0]?.['payload']);
+  expect(parameters[2]?.value).toBe('المالك');
+  expect(parameters[6]?.value).toBe('2026-11-25');
+  expect(parameters[7]?.value).toBe('09:30');
+}, 60_000);
+
+it('keeps the actor and time stamped on a PIN event after another manager resets again', async () => {
+  const w = await world('stamped pin');
+  await f.pin({
+    scope: w.scope,
+    userId: w.employeeUserId,
+    setBy: w.managerUserId,
+    setAt: new Date('2026-11-26T10:00:00.000Z'),
+  });
+  const event = pinEvent(f.ids, w.scope, {
+    employeeId: w.employeeId,
+    userId: w.employeeUserId,
+    stamp: { actorUserId: w.ownerUserId, occurredAt: OCCURRED_AT },
+  });
+  expect(await f.deliver(event)).toEqual({ delivered: true });
+  const parameters = parametersOf((await f.notices(w.scope.company))[0]?.['payload']);
+  expect(parameters[2]?.value).toBe('المالك');
+  expect(parameters[6]?.value).toBe('2026-11-25');
+  expect(parameters[7]?.value).toBe('09:30');
+}, 60_000);
+
+it('still resolves a legacy event that omits the actor and time', async () => {
+  const w = await world('legacy pin');
+  await f.pin({ scope: w.scope, userId: w.employeeUserId, setBy: w.managerUserId, setAt: OCCURRED_AT });
+  const event = pinEvent(f.ids, w.scope, { employeeId: w.employeeId, userId: w.employeeUserId });
+  expect(await f.deliver(event)).toEqual({ delivered: true });
+  const parameters = parametersOf((await f.notices(w.scope.company))[0]?.['payload']);
+  expect(parameters[2]?.value).toBe('المدير');
+  expect(parameters[7]?.value).toBe('09:30');
+}, 60_000);

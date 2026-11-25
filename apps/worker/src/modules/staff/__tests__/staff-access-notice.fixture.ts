@@ -181,11 +181,23 @@ async function addResetAudit(owner: postgres.Sql, ids: IdGenerator, input: Reset
   return id;
 }
 
+/** الفاعل ولحظته كما تثبّتهما الـ API في الحدث الحديث؛ غيابهما يمثّل حدثاً أقدم في الطابور. */
+export interface EventStamp {
+  readonly actorUserId: string;
+  readonly occurredAt: Date;
+}
+
+const stampPayload = (stamp: EventStamp | undefined) =>
+  stamp === undefined
+    ? {}
+    : { actor_user_id: stamp.actorUserId, occurred_at: stamp.occurredAt.toISOString() };
+
 /** حدث وصول الدخول كما لو نشرته الـ API في نفس معاملة المنح. */
 export function grantedEvent(ids: IdGenerator, scope: Scope, input: {
   readonly employeeId: string;
   readonly userId: string;
   readonly membershipId: string;
+  readonly stamp?: EventStamp;
 }): ClaimedEvent {
   return {
     companyId: scope.company,
@@ -199,6 +211,7 @@ export function grantedEvent(ids: IdGenerator, scope: Scope, input: {
       membership_id: input.membershipId,
       branch_id: scope.branch,
       role: 'staff',
+      ...stampPayload(input.stamp),
     },
     attempt: 1,
   };
@@ -208,6 +221,7 @@ export function grantedEvent(ids: IdGenerator, scope: Scope, input: {
 export function pinEvent(ids: IdGenerator, scope: Scope, input: {
   readonly employeeId: string;
   readonly userId: string;
+  readonly stamp?: EventStamp;
 }): ClaimedEvent {
   return {
     companyId: scope.company,
@@ -219,6 +233,7 @@ export function pinEvent(ids: IdGenerator, scope: Scope, input: {
       employee_id: input.employeeId,
       user_id: input.userId,
       branch_id: scope.branch,
+      ...stampPayload(input.stamp),
     },
     attempt: 1,
   };

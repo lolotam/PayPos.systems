@@ -236,7 +236,8 @@ function resetPinScope(
         userId,
         pinHash,
       }),
-    appendEvent: (payload) => appendPinSetEvent(writers.outbox, payload),
+    appendEvent: (payload) =>
+      appendPinSetEvent(writers.outbox, payload, { actorUserId: actor.userId, at: input.at }),
   };
 }
 
@@ -272,11 +273,14 @@ async function saveResetPinAndAudit(
 async function appendPinSetEvent(
   outbox: OutboxWriter,
   payload: { employeeId: string; userId: string; branchId: string },
+  stamp: { actorUserId: string; at: Date },
 ): Promise<void> {
   const built = staffPinSetByOtherEvent({
     employee_id: payload.employeeId,
     user_id: payload.userId,
     branch_id: payload.branchId,
+    actor_user_id: stamp.actorUserId,
+    occurred_at: stamp.at.toISOString(),
   });
   await outbox.append({
     aggregateType: built.aggregateType,

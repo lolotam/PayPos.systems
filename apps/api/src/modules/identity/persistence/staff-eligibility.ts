@@ -32,8 +32,13 @@ export function createStaffEligibility(database: TenantWrappers) {
       return database.withTenant(
         device.companyId,
         async (tx) => {
+          // أي سجل وصول موظف غير ACTIVE (متوقف/معلّق/قيد التغيير) يمنع الأهلية فورًا،
+          // حتى لو لم تنتهِ العضوية بعد (ends_at مفتوح).
           const [company] = await tx.execute<{ active: boolean }>(
-            sql`SELECT deleted_at IS NULL AS active FROM companies WHERE id=${device.companyId}`,
+            sql`SELECT (deleted_at IS NULL AND NOT EXISTS (
+              SELECT 1 FROM employee_staff_access a
+              WHERE a.company_id=${device.companyId} AND a.user_id=${userId} AND a.state <> 'ACTIVE'
+            )) AS active FROM companies WHERE id=${device.companyId}`,
           );
           if (company?.active !== true) return false;
           const access = await readAccessTransaction(tx, device.companyId, userId);

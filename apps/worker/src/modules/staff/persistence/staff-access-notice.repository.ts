@@ -49,6 +49,9 @@ export async function readStaffAccessActorRecord(
   tx: Tx,
   event: StaffAccessNoticeEvent,
 ): Promise<StaffAccessNoticeActorRecord | null> {
+  // الحدث الحديث بيحمل الفاعل واللحظة؛ ما نقراش صفوف قابلة للتغيّر ونغيّر إشعار حدث قديم.
+  if (event.actorUserId !== undefined && event.occurredAt !== undefined)
+    return { actorUserId: event.actorUserId, occurredAt: event.occurredAt };
   if (event.kind === 'staff_access_granted') {
     const rows = await tx.execute<{ granted_by: string; updated_at: Date }>(sql`
       SELECT granted_by, updated_at FROM employee_staff_access

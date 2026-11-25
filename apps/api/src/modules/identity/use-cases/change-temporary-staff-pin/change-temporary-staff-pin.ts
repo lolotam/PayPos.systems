@@ -3,6 +3,7 @@ import type { Clock } from '../../../../shared/ports/clock.port.ts';
 import { pinState } from '../../domain/staff-pin-state.ts';
 import type { PinAttempts, PinHasher, PinTarget } from '../../ports/cashier-pins.port.ts';
 import type {
+  StaffPinAuthority,
   StaffPinProofIssuer,
   StaffPinProofRecord,
   StaffPinTransactions,
@@ -31,6 +32,7 @@ export class ChangeTemporaryStaffPin {
     private readonly attempts: PinAttempts,
     private readonly proofs: StaffPinProofIssuer,
     private readonly clock: Clock,
+    private readonly authority: Pick<StaffPinAuthority, 'deviceValid' | 'eligible'>,
   ) {}
 
   /**
@@ -87,6 +89,11 @@ export class ChangeTemporaryStaffPin {
       return { kind: 'invalid' };
     const row = await this.db.run(input.device.companyId, null, (scope) => scope.find(found.userId));
     if (row === null) return { kind: 'invalid' };
+    if (
+      !(await this.authority.deviceValid(input.device)) ||
+      !(await this.authority.eligible(found.userId, input.device))
+    )
+      return { kind: 'invalid' };
     const state = pinState(row, now);
     if (state === 'EXPIRED') return { kind: 'expired' };
     if (state !== 'CHANGE_REQUIRED') return { kind: 'invalid' };
@@ -106,6 +113,7 @@ export class ChangeTemporaryStaffPin {
   ): Promise<ChangeTemporaryStaffPinOutcome> {
     try {
       return await this.db.run(input.device.companyId, found.userId, async (scope) => {
+        if (!(await scope.member(found.userId))) throw new ChangeRefused();
         const consumed = await scope.consumeProof({
           userId: found.userId,
           deviceId: input.device.deviceId,

@@ -203,3 +203,34 @@ it('reads both bells through the in-app notification contract', () => {
     ).toBe(false);
   }
 });
+
+it('accepts the optional actor and timestamp on the staff access events', () => {
+  const stamp = { actor_user_id: USER, occurred_at: '2026-11-25T06:30:00.000Z' };
+  expect(
+    staffAccessGrantedEventPayload.parse({
+      employee_id: EMPLOYEE,
+      user_id: USER,
+      membership_id: MEMBERSHIP,
+      branch_id: BRANCH,
+      role: 'staff',
+      ...stamp,
+    }),
+  ).toMatchObject(stamp);
+  expect(
+    staffPinSetByOtherEventPayload.parse({
+      employee_id: EMPLOYEE,
+      user_id: USER,
+      branch_id: BRANCH,
+      ...stamp,
+    }),
+  ).toMatchObject(stamp);
+  expect(
+    staffPinSetByOtherEventPayload.safeParse({
+      employee_id: EMPLOYEE,
+      user_id: USER,
+      branch_id: BRANCH,
+      actor_user_id: USER,
+      occurred_at: 'yesterday',
+    }).success,
+  ).toBe(false);
+});

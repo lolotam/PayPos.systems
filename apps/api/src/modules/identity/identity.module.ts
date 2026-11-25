@@ -392,6 +392,7 @@ function staffPinUseCases(
       createRedisPinAttempts(redis, ids),
       proofs,
       clock,
+      eligibility,
     ),
   };
 }

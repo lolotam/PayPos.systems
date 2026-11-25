@@ -130,6 +130,8 @@ it('F2b-1 the branch manager resets the PIN of her own branch ACTIVE employee', 
     employee_id: sara,
     user_id: userId,
     branch_id: f.salmiya,
+    actor_user_id: f.managerUserId,
+    occurred_at: expect.stringMatching(/^\d{4}-\d{2}-\d{2}T.*Z$/),
   });
 
   // التدقيق: الفاعل هو المانح، والصف مفيهوش رقم سري ولا hash.

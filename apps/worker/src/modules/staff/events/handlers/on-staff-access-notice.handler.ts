@@ -27,6 +27,9 @@ export async function onStaffAccessNotice(
       employeeId: parsed.data.employee_id,
       userId: parsed.data.user_id,
       branchId: parsed.data.branch_id,
+      actorUserId: parsed.data.actor_user_id,
+      occurredAt:
+        parsed.data.occurred_at === undefined ? undefined : new Date(parsed.data.occurred_at),
     });
     return;
   }
@@ -42,6 +45,9 @@ export async function onStaffAccessNotice(
       employeeId: parsed.data.employee_id,
       userId: parsed.data.user_id,
       branchId: parsed.data.branch_id,
+      actorUserId: parsed.data.actor_user_id,
+      occurredAt:
+        parsed.data.occurred_at === undefined ? undefined : new Date(parsed.data.occurred_at),
     });
     return;
   }

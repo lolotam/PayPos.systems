@@ -184,7 +184,8 @@ function commitScope(
         WHERE company_id=${actor.companyId} AND id=${mark.recordId}`,
         )
         .then(() => undefined),
-    appendEvent: (payload) => appendGrantedEvent(writers.outbox, payload),
+    appendEvent: (payload) =>
+      appendGrantedEvent(writers.outbox, payload, { actorUserId: actor.userId, at: input.at }),
   };
 }
 
@@ -280,6 +281,7 @@ async function appendGrantedEvent(
     branchId: string;
     role: StaffAccessRole;
   },
+  stamp: { actorUserId: string; at: Date },
 ): Promise<void> {
   const event: StaffAccessGranted = {
     employee_id: payload.employeeId,
@@ -287,6 +289,8 @@ async function appendGrantedEvent(
     membership_id: payload.membershipId,
     branch_id: payload.branchId,
     role: payload.role,
+    actor_user_id: stamp.actorUserId,
+    occurred_at: stamp.at.toISOString(),
   };
   const built = staffAccessGrantedEvent(event);
   await outbox.append({

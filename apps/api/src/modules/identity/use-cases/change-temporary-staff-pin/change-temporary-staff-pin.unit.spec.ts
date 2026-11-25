@@ -24,12 +24,22 @@ interface Overrides {
   readonly rotatePin?: StaffPinScope['rotatePin'];
   readonly reserve?: PinAttempts['reserve'];
   readonly verify?: PinHasher['verify'];
+  readonly member?: boolean;
+  readonly deviceValid?: boolean;
+  readonly eligible?: boolean;
+}
+
+function authorityOf(overrides: Overrides) {
+  return {
+    deviceValid: vi.fn(async () => overrides.deviceValid ?? true),
+    eligible: vi.fn(async () => overrides.eligible ?? true),
+  };
 }
 
 function fixture(overrides: Overrides = {}) {
   const scope = {
     audit: { record: vi.fn() },
-    member: vi.fn(async () => true),
+    member: vi.fn(async () => overrides.member ?? true),
     find: vi.fn(
       overrides.find ??
         (async () => ({
@@ -74,13 +84,15 @@ function fixture(overrides: Overrides = {}) {
     issue: vi.fn(() => ({ proof: 'raw-proof', hash: 'raw-proof-hash' })),
     digest: vi.fn(() => 'raw-proof-hash'),
   } as unknown as StaffPinProofIssuer;
+  const authority = authorityOf(overrides);
   return {
     scope,
+    authority,
     db,
     hasher,
     attempts,
     proofs,
-    useCase: new ChangeTemporaryStaffPin(db, hasher, attempts, proofs, { now: () => now }),
+    useCase: new ChangeTemporaryStaffPin(db, hasher, attempts, proofs, { now: () => now }, authority),
   };
 }
 
@@ -201,4 +213,16 @@ it('a PIN the manager reset after the proof was issued is refused', async () => 
   const f = fixture({ rotatePin: async () => false });
   expect(await f.useCase.execute({ proof: 'raw-proof', pin, device })).toEqual({ kind: 'invalid' });
   expect(f.scope.audit.record).not.toHaveBeenCalled();
+});
+
+it.each([
+  ['an invalid device', { deviceValid: false }],
+  ['an ineligible user', { eligible: false }],
+  ['a lapsed membership', { member: false }],
+] as const)('%s is refused without rotating the PIN', async (_name, overrides) => {
+  const f = fixture(overrides);
+  expect(await f.useCase.execute({ proof: 'raw-proof', pin, device })).toEqual({ kind: 'invalid' });
+  expect(f.scope.rotatePin).not.toHaveBeenCalled();
+  expect(f.scope.audit.record).not.toHaveBeenCalled();
+  expect(f.attempts.failed).toHaveBeenCalledOnce();
 });

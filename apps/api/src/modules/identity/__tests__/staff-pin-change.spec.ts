@@ -194,3 +194,42 @@ it('the change route answers 503 NOT_READY while the activation gate is off', as
     await closed.close();
   }
 });
+
+const proofRows = (userId: string) =>
+  f.h.owner`SELECT id FROM staff_pin_change_proofs WHERE user_id=${userId}`;
+const pinRow = (userId: string) =>
+  f.h.owner`SELECT id,pin_hash,temporary FROM cashier_pins WHERE user_id=${userId}`;
+
+it('a stopped user signing in with her temporary PIN gets PIN_INVALID and no proof', async () => {
+  const { phone, userId } = await staffWithTemporaryPin();
+  await f.h.owner`UPDATE employee_staff_access SET state='STOPPED' WHERE user_id=${userId}`;
+  const refused = await signIn(TEMPORARY_PIN, phone);
+  expect(refused.statusCode).toBe(401);
+  expect(refused.json().code).toBe('PIN_INVALID');
+  expect(await proofRows(userId)).toHaveLength(0);
+});
+
+it('a user at another branch device gets PIN_INVALID and no proof', async () => {
+  const { phone, userId } = await staffWithTemporaryPin();
+  const elsewhere = await paired(f.h, f.ownerCookie, f.company, f.hawalli);
+  const refused = await f.h.app.inject({
+    method: 'POST',
+    url: '/v1/devices/me/staff-pin/sign-in',
+    headers: { authorization: `Device ${elsewhere.token}`, origin },
+    payload: { phone, pin: TEMPORARY_PIN },
+  });
+  expect(refused.statusCode).toBe(401);
+  expect(refused.json().code).toBe('PIN_INVALID');
+  expect(await proofRows(userId)).toHaveLength(0);
+});
+
+it('a user stopped after the proof was issued cannot change the PIN', async () => {
+  const { phone, userId } = await staffWithTemporaryPin();
+  const proof = proofOf(await signIn(TEMPORARY_PIN, phone));
+  const before = await pinRow(userId);
+  await f.h.owner`UPDATE employee_staff_access SET state='STOPPED' WHERE user_id=${userId}`;
+  const refused = await change(proof, NEW_PIN);
+  expect(refused.statusCode).toBe(401);
+  expect(refused.json().code).toBe('PIN_INVALID');
+  expect(await pinRow(userId)).toEqual(before);
+});

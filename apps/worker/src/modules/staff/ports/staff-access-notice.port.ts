@@ -5,7 +5,11 @@ import type {
   StaffAccessNoticeParameters,
 } from '../domain/staff-access-notice.ts';
 
-/** حدث وصول الدخول: نوعه ومكانه ومعرّفاته — بلا رقم سري ولا هاتف. */
+/**
+ * حدث وصول الدخول: نوعه ومكانه ومعرّفاته — بلا رقم سري ولا هاتف.
+ * `actorUserId` و`occurredAt` مثبّتان في الحدث وقت الفعل؛ لو وُجدا فالإشعار يستعملهما بدل قراءة
+ * صفوف قابلة للتغيّر، ولو غابا (حدث أقدم في الطابور) يرجع الإشعار للقراءة القديمة.
+ */
 export interface StaffAccessNoticeEvent {
   readonly kind: StaffAccessNoticeKind;
   readonly companyId: string;
@@ -13,6 +17,8 @@ export interface StaffAccessNoticeEvent {
   readonly employeeId: string;
   readonly userId: string;
   readonly branchId: string;
+  readonly actorUserId?: string | undefined;
+  readonly occurredAt?: Date | undefined;
 }
 
 /** لقطتا اسم الموظفة: اسمها العربي والإنجليزي ونشاطها. */

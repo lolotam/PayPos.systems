@@ -75,8 +75,12 @@ it('AC-F1-1 the owner grant creates user, binding, membership, link, temporary P
   expect(pin).toMatchObject({ temporary: true, set_by: expect.any(String) });
   expect(pin?.expires_at).not.toBeNull();
   const events = await f.h
-    .owner`SELECT event_type FROM outbox WHERE event_type = 'StaffAccessGranted' AND aggregate_id=${sara}`;
+    .owner`SELECT event_type, payload FROM outbox WHERE event_type = 'StaffAccessGranted' AND aggregate_id=${sara}`;
   expect(events).toHaveLength(1);
+  expect(events[0]?.payload).toMatchObject({
+    actor_user_id: expect.any(String),
+    occurred_at: expect.stringMatching(/^\d{4}-\d{2}-\d{2}T.*Z$/),
+  });
   const platformAudits = await f.h.owner`SELECT action, details FROM platform_audit_log
     WHERE details->>'user_id' = ${user.id} ORDER BY action`;
   expect(platformAudits.map((row) => row.action)).toEqual([

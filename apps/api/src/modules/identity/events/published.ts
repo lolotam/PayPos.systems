@@ -49,6 +49,8 @@ export const MEMBER_INVITED = 'MemberInvited';
 /**
  * بيتبعت في نفس معاملة اكتمال «إعطاء الدخول» (خطوة 3): العضوية والربط والرقم المؤقت والسجل صاروا
  * ACTIVE — والتكرار بعد النجاح ما بيبعتش الحدث تاني (FR-F1-4). الحمولة معرّفات بس: مفيش هاتف ولا PIN.
+ * `actor_user_id` المانح و`occurred_at` لحظة الإعطاء بيتثبتوا في الحدث نفسه، فالإشعار ما بيتأثرش
+ * بتغيّر لاحق في السجل؛ وهما اختياريان عشان أحداث أقدم في الطابور ما فيهاش القيمتين.
  */
 export interface StaffAccessGranted {
   readonly employee_id: string;
@@ -56,6 +58,8 @@ export interface StaffAccessGranted {
   readonly membership_id: string;
   readonly branch_id: string;
   readonly role: 'staff' | 'reception';
+  readonly actor_user_id?: string;
+  readonly occurred_at?: string;
 }
 
 export const STAFF_ACCESS_GRANTED = 'StaffAccessGranted';
@@ -63,11 +67,14 @@ export const STAFF_ACCESS_GRANTED = 'StaffAccessGranted';
 /**
  * بيتبعت في نفس معاملة إعادة ضبط الرقم السري لموظفة من غير نفسها (F2b): الرقم اتغيّر
  * والرقم القديم بقى منتهي — الحمولة معرّفات بس: مفيش رقم سري ولا hash ولا هاتف.
+ * `actor_user_id` من أعاد الضبط و`occurred_at` لحظته بيتثبتوا في الحدث نفسه (اختياريان للأحداث الأقدم).
  */
 export interface StaffPinSetByOther {
   readonly employee_id: string;
   readonly user_id: string;
   readonly branch_id: string;
+  readonly actor_user_id?: string;
+  readonly occurred_at?: string;
 }
 
 export const STAFF_PIN_SET_BY_OTHER = 'StaffPinSetByOther';
