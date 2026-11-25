@@ -22,7 +22,7 @@ import { employeeDocumentsEn } from './employee-documents-catalog.js';
 import { enPasskeyAdmin } from './passkey-admin.js';
 import { personalStaffEn } from './personal-staff-catalog.js';
 import { salaryEn } from './salary-catalog.js';
-import { invitationsEn } from './invitations-catalog.js';
+import { invitationsEn, invitationErrorsEn } from './invitations-catalog.js';
 import { staffLoginEn } from './staff-login-catalog.js';
 import { catalogServicesEn, catalogServiceErrorsEn } from './catalog-services.js';
 import { serviceImportEn } from './service-import.js';
@@ -128,6 +128,12 @@ export const en = {
     overrides: 'Personal overrides',
     empty: 'No memberships found.',
     noDefaults: 'This role has no seeded defaults.',
+    endMembership: 'End membership',
+    endMembershipTitle: 'Confirm ending membership',
+    endMembershipLead:
+      'This membership will end immediately and the member will lose access to this company without affecting their other companies.',
+    endMembershipConfirm: 'Confirm end',
+    endMembershipCancel: 'Cancel',
     noOverrides: 'No overrides on this page.',
     readOnly: 'You cannot edit this membership’s permissions.',
     history: 'Ended overrides',
@@ -263,12 +269,7 @@ export const en = {
     PERMISSION_ROLE_NOT_ELIGIBLE:
       'The ratings-read permission can only be granted to management roles (owner, general manager, business manager, branch manager)',
     PERMISSION_OVERRIDE_ENDED: 'This override has already ended',
-    MEMBER_INVITATION_EXISTS: 'This email already has an invitation in this company',
-    MEMBER_ROLE_NOT_INVITABLE:
-      'This role cannot be invited, or its scope does not match the role or belongs to another company',
-    MEMBER_EMAIL_NOT_INVITABLE: 'This email cannot be invited',
-    MEMBER_INVITATION_NOT_REISSUEABLE:
-      'A new link cannot be issued for this invitation; the member already set a password',
+    ...invitationErrorsEn,
     ALERT_RULE_REVISION_CONFLICT: 'Another manager changed this alert rule. Reload before saving.',
     TRANSACTION_RETRY_REQUIRED:
       'The change conflicted with another transaction and was not saved. Please retry.',

@@ -10,6 +10,7 @@ const ROUTES = [
   { method: 'POST', url: '/v1/memberships/invitations' },
   { method: 'GET', url: '/v1/memberships/invitations' },
   { method: 'POST', url: '/v1/memberships/invitations/01920000-0000-7000-8000-0000000000d1/link' },
+  { method: 'POST', url: '/v1/memberships/01920000-0000-7000-8000-0000000000d1/end' },
 ] as const;
 const BAD_BODIES = [
   { name: 'no body', payload: undefined },

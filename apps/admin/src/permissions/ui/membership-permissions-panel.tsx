@@ -10,6 +10,7 @@ import { PermissionMembershipHistory } from './permission-membership-history';
 import { MembershipDiscountLimit } from './membership-discount-limit';
 import { PermissionMembershipHeading } from './permission-membership-heading';
 import { PermissionDetailState } from './permission-detail-state';
+import { EndMembershipSection } from './end-membership-section';
 
 type Props = {
   companyId: string;
@@ -70,6 +71,7 @@ export function MembershipPermissionsPanel({
           cursor={historyCursor}
           onCursorChange={setHistoryCursor}
         />
+        <EndMembershipSection companyId={companyId} userId={userId} membership={data.membership} />
       </CardContent>
     </Card>
   );

@@ -8,6 +8,7 @@ export const identitySchemaNames = [
   'DeviceToken',
   'DiscountLimit',
   'DiscountLimitInput',
+  'EndMembershipResult',
   'InviteMemberInput',
   'MembershipPageQuery',
   'MembershipPermissions',

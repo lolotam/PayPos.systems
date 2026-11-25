@@ -96,3 +96,16 @@ export async function scopeBelongs(
         );
   return rows.length === 1;
 }
+
+/** العضوية المرتبطة بالدعوة لسه سارية؛ لو انتهت بـ EndMembership مفيش إصدار رابط عليها. */
+export async function activeMembership(
+  tx: Tx,
+  companyId: string,
+  membershipId: string,
+): Promise<boolean> {
+  const rows = await tx.execute(sql`
+    SELECT 1 FROM memberships
+    WHERE company_id = ${companyId} AND id = ${membershipId}
+      AND (ends_at IS NULL OR ends_at > now())`);
+  return rows.length === 1;
+}

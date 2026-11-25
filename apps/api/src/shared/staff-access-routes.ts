@@ -8,6 +8,9 @@ import { ApiError } from './errors.ts';
  */
 export const MEMBER_INVITATION_ROUTE = /^\/(?:v1\/)?memberships\/invitations(?:\/:[^/]+\/link)?$/;
 
+/** مسار إنهاء العضوية (G2) بنفس شكل التسجيل: بوابة التفعيل بتغطيه زي مسارات الدعوة. */
+export const MEMBERSHIP_END_ROUTE = /^\/(?:v1\/)?memberships\/:[^/]+\/end$/;
+
 /**
  * بيقول إن مسارات شريحة 076 مفعّلة ولا لأ (plan §1.1): القيمة بتتقرأ مرة واحدة عند الإقلاع.
  *
@@ -33,7 +36,7 @@ export function mountMemberInvitationGate(app: FastifyInstance, enabled: boolean
     void reply.code(error.status).send(error.toEnvelope());
   };
   app.addHook('onRoute', (route) => {
-    if (!MEMBER_INVITATION_ROUTE.test(route.url)) return;
+    if (!MEMBER_INVITATION_ROUTE.test(route.url) && !MEMBERSHIP_END_ROUTE.test(route.url)) return;
     if (route.onRequest === undefined) route.onRequest = gate;
     else if (typeof route.onRequest === 'function') route.onRequest = [route.onRequest, gate];
     else route.onRequest = [...route.onRequest, gate];

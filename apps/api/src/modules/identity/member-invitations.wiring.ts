@@ -6,6 +6,7 @@ import type { Redis } from 'ioredis';
 
 import { AUTH_SERVICE } from '../../shared/session.guard.ts';
 import { createGrantInvalidator } from './persistence/grant-invalidator.ts';
+import { createEndMembershipTransactions } from './persistence/end-membership-transactions.ts';
 import { createMemberAccounts } from './persistence/member-accounts.adapter.ts';
 import { createMemberInvitationTransactions } from './persistence/member-invitation-transactions.ts';
 import { createInvitationRateLimiter } from './persistence/redis-invitation-rates.ts';
@@ -17,6 +18,7 @@ import {
   INVITATION_RATE_LIMITER,
   type InvitationRateLimiter,
 } from './ports/member-invitations.port.ts';
+import { EndMembership } from './use-cases/end-membership/end-membership.ts';
 import { InviteMember } from './use-cases/invite-member/invite-member.ts';
 import { ReissueMemberInvitation } from './use-cases/reissue-member-invitation/reissue-member-invitation.ts';
 
@@ -44,6 +46,7 @@ export function memberInvitationProviders(
     passwordStateProvider(),
     inviteMemberProvider(database, ids, redis, redirectTo, clock),
     reissueMemberInvitationProvider(database, ids, redirectTo, clock),
+    endMembershipProvider(database, ids, redis, clock),
   ];
 }
 
@@ -119,5 +122,25 @@ function reissueMemberInvitationProvider(
       });
     },
     inject: [AUTH_SERVICE, INVITATION_RATE_LIMITER],
+  };
+}
+
+// إنهاء العضوية من غير حساب ولا Redis إلزامي: ناقص الداتابيز بس معناه المسار مش جاهز (503 من الكنترولر).
+function endMembershipProvider(
+  database: TenantWrappers | undefined,
+  ids: IdGenerator,
+  redis: Redis | undefined,
+  clock: { now(): Date },
+): Provider {
+  return {
+    provide: EndMembership,
+    useFactory: () =>
+      database === undefined
+        ? null
+        : new EndMembership({
+            transactions: createEndMembershipTransactions(database, ids),
+            invalidator: createGrantInvalidator(redis),
+            clock,
+          }),
   };
 }
