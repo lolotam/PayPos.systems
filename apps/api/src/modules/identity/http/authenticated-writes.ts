@@ -61,6 +61,14 @@ export const AUTHENTICATED_WRITES: Readonly<Record<string, AuthenticatedWriteDec
       'RECORD_SCOPED',
       'apps/api/src/modules/identity/persistence/schedule-access.ts#scheduleAccess',
     ),
+    'CommissionStatementExportsController.requestExport': declared(
+      'RECORD_SCOPED',
+      'apps/api/src/modules/identity/persistence/commission-read-scope.ts#readCommissionScope',
+    ),
+    'CommissionStatementExportsController.download': declared(
+      'RECORD_SCOPED',
+      'apps/api/src/modules/identity/persistence/commission-read-scope.ts#readCommissionScope',
+    ),
     'CashierPinsController.verify': declared(
       'DEVICE_ONLY',
       'apps/api/src/modules/identity/http/cashier-pins.controller.ts#verify',

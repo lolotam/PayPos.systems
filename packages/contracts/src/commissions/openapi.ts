@@ -18,6 +18,8 @@ import { commissionStatementPaymentPaths } from './statement-payments-openapi.js
 import { commissionStatementPaymentSchemas } from './statement-payments.js';
 import { commissionServiceOverridePaths } from './service-overrides-openapi.js';
 import { commissionServiceOverrideSchemas } from './service-overrides.js';
+import { commissionStatementExportPaths } from './statement-export-openapi.js';
+import { commissionStatementExportSchemas } from './statement-export-requests.js';
 
 export const commissionSchemas = [
   ...commissionPlanVersionSchemas,
@@ -31,6 +33,7 @@ export const commissionSchemas = [
   ...commissionStatementSchemas,
   ...commissionStatementReviewSchemas,
   ...commissionStatementApprovalSchemas,
+  ...commissionStatementExportSchemas,
 ];
 
 export const commissionPaths = {
@@ -43,4 +46,5 @@ export const commissionPaths = {
   ...commissionEstimatePaths,
   ...commissionStatementPaths,
   ...commissionStatementApprovalPaths,
+  ...commissionStatementExportPaths,
 };

@@ -9,6 +9,7 @@ import { CommissionPlanEmployeesController } from './http/commission-plan-employ
 import { CommissionServiceOverridesController } from './http/commission-service-overrides.controller.ts';
 import { CommissionOverrideServicesController } from './http/commission-override-services.controller.ts';
 import { CommissionBlockedCorrectionsController } from './http/commission-blocked-corrections.controller.ts';
+import { CommissionStatementExportsController } from './http/commission-statement-exports.controller.ts';
 import { CommissionStatementApproveController } from './http/commission-statement-approve.controller.ts';
 import { CommissionStatementPayController } from './http/commission-statement-pay.controller.ts';
 import {
@@ -77,6 +78,7 @@ export const commissionsControllers = [
   CommissionStatementsController,
   CommissionStatementApproveController,
   CommissionStatementPayController,
+  CommissionStatementExportsController,
 ];
 
 /**

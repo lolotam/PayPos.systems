@@ -122,6 +122,8 @@ export {
   readCommissionScope,
 } from './persistence/commission-read-scope.ts';
 
+export { readCommissionRequesterMembership } from './persistence/commission-requester-membership.ts';
+
 export { readOwnAttendanceAccess } from './persistence/own-attendance-access.ts';
 
 export { readOwnServiceSessionsAccess } from './persistence/own-service-sessions-access.ts';
