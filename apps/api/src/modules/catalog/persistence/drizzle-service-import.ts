@@ -7,13 +7,16 @@ import {
   SERVICE_IMPORT_TEMPLATE_REFERENCE_FIXED_ROWS,
 } from '../domain/service-import-template.ts';
 import type { ServiceImportFileFacts } from '../domain/service-import-file.ts';
-import { ServiceImportError } from '../domain/errors.ts';
 import type {
   SaveServiceImportPreviewInput,
   ServiceImportCategoryMatch,
   ServiceImportFileFactsPort,
   ServiceImportTransactions,
 } from '../ports/service-import.port.ts';
+import {
+  cleanImportError,
+  createServiceImportCommitTransactions,
+} from './drizzle-service-import-commit.ts';
 
 /** تصنيفات النشاط المفتوحة للاستعلام المشترك؛ الحد أعلى من سقف القالب بصف واحد ليكشف التجاوز
  * دون مادةلة قائمة كاملة لنشاط فوق السقف (P2 مراجعة 1186). */
@@ -144,17 +147,6 @@ async function savePreview(
       ${JSON.stringify(input.rows)}::jsonb,${JSON.stringify(input.errors)}::jsonb)`);
 }
 
-function cleanImportError(error: unknown): never {
-  if (error instanceof ServiceImportError) throw error;
-  const cause = error instanceof Error && 'cause' in error ? error.cause : error;
-  if (typeof cause === 'object' && cause !== null && 'code' in cause) {
-    const code = String(cause.code);
-    if (['40001', '40P01', '55P03'].includes(code))
-      throw new ServiceImportError('TRANSACTION_RETRY_REQUIRED');
-  }
-  throw new Error('SERVICE_IMPORT_PERSISTENCE_FAILED', { cause: error });
-}
-
 /** يسجّل دخولًا تدقيقيًا على الوصول للملف الخاص في مسار المعاينة (CLAUDE.md §8). */
 async function auditFileAccess(tx: Tx, fileId: string, id: string): Promise<void> {
   await appendAuditLog(tx, id, {
@@ -179,6 +171,7 @@ export function createServiceImportTransactions(
   fileFacts: ServiceImportFileFactsPort | null,
   ids: IdGenerator,
 ): ServiceImportTransactions {
+  const commit = createServiceImportCommitTransactions(database, ids);
   return {
     runFacts: async ({ companyId, userId }, work) => {
       try {
@@ -210,5 +203,6 @@ export function createServiceImportTransactions(
         cleanImportError(error);
       }
     },
+    runCommit: commit.runCommit,
   };
 }

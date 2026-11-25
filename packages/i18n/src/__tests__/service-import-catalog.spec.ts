@@ -1,6 +1,7 @@
 import { expect, it, describe } from 'vitest';
 
 import { ar } from '../ar.js';
+import { t } from '../catalog.js';
 import { en } from '../en.js';
 import { serviceImportAr, serviceImportEn } from '../service-import.js';
 
@@ -46,6 +47,46 @@ const REFERENCE_LABELS = [
   'reference_boolean_spellings',
 ] as const;
 
+// نصوص شاشة الاستيراد (32b-6): الترويسة والأزرار وعناوين جدول الصفوف وقواعد العرض.
+const SCREEN_LABELS = [
+  'title',
+  'lead',
+  'sectionTemplate',
+  'sectionFile',
+  'download',
+  'choose',
+  'preview',
+  'commit',
+  'clean',
+  'errorsTitle',
+  'rowsTitle',
+  'row',
+  'column',
+  'reason',
+  'colNameEn',
+  'colNameAr',
+  'colPrice',
+  'colDuration',
+  'colCategory',
+  'colCommission',
+  'colThreshold',
+  'loadMoreRows',
+  'loadingMoreRows',
+  'ruleDefaulted',
+  'ruleFollowPlan',
+  'ruleZero',
+  'rulePct',
+  'ruleFixed',
+  'booleanYes',
+  'booleanNo',
+  'emptyValue',
+  'committed',
+  'pending',
+  'delayed',
+  'failed',
+  'importLink',
+] as const;
+
 describe('service-import catalog (A-3)', () => {
   it('carries both languages for every row error code and column name', () => {
     for (const code of ERROR_CODES) {
@@ -62,12 +103,22 @@ describe('service-import catalog (A-3)', () => {
     }
   });
 
+  it('carries both languages for every screen label', () => {
+    for (const label of SCREEN_LABELS) {
+      expect(serviceImportEn[label]).toMatch(/\S/);
+      expect(serviceImportAr[label]).toMatch(/\S/);
+    }
+    expect(t('ar', 'catalogServiceImport.ruleDefaulted')).not.toBe(
+      t('en', 'catalogServiceImport.ruleDefaulted'),
+    );
+  });
+
   it('registers the section in both catalogs under the same keys', () => {
     expect(Object.keys(ar.catalogServiceImport).sort()).toEqual(
       Object.keys(en.catalogServiceImport).sort(),
     );
     expect(Object.keys(en.catalogServiceImport).length).toBe(
-      ERROR_CODES.length + COLUMNS.length + REFERENCE_LABELS.length,
+      ERROR_CODES.length + COLUMNS.length + REFERENCE_LABELS.length + SCREEN_LABELS.length,
     );
   });
 });
