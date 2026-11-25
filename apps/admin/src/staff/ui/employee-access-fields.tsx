@@ -16,7 +16,16 @@ export function EmployeeAccessFields({
   return (
     <>
       <Label htmlFor="staff-access-phone">{t(locale, 'staff.phoneLabel')}</Label>
-      <Input id="staff-access-phone" dir="ltr" inputMode="tel" {...form.register('phone')} />
+      <Input
+        id="staff-access-phone"
+        dir="ltr"
+        inputMode="tel"
+        {...form.register('phone', {
+          // تغيير الرقم بيمسح التأكيد: التعلم على رقم ما اتأكدش عليه بعد ما يتغير.
+          onChange: () =>
+            form.setValue('phone_confirmed', false as true, { shouldValidate: true }),
+        })}
+      />
       {form.formState.errors.phone ? (
         <p role="alert">{t(locale, 'staff.phoneInvalid')}</p>
       ) : null}

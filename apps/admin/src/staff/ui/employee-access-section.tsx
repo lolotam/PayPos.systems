@@ -56,7 +56,7 @@ export function EmployeeAccessSection({
               {t(locale, 'staff.giveAccess')}
             </Button>
           ) : null}
-          {shown.can_manage && shown.state === 'PENDING' ? (
+          {shown.can_cancel && shown.state === 'PENDING' ? (
             <PendingCancel cancel={cancel} locale={locale} />
           ) : null}
         </>

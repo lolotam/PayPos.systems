@@ -26,8 +26,11 @@ export function useCancelPendingStaffAccess(
       if (result.error) throw result.error;
       return result.data;
     },
-    onSuccess: (state) => {
-      client.setQueryData(employeeStaffAccessKey(companyId, businessId, employeeId), state);
+    onSuccess: async (state) => {
+      // أي قراءة قديمة لسه طالعة ما لازمش تكتب فوق حالة الإلغاء الملتزمة.
+      const key = employeeStaffAccessKey(companyId, businessId, employeeId);
+      await client.cancelQueries({ queryKey: key });
+      client.setQueryData(key, state);
     },
   });
 }
