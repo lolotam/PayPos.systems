@@ -27,17 +27,22 @@ const item = (id: string, overrides: Record<string, unknown> = {}) => ({
 });
 let client: QueryClient;
 
-const renderPage = (staffAccess = true) =>
-  render(
+type Choices = { readonly businesses: readonly { id: string; name: string }[]; readonly branches: readonly { id: string; name: string }[] };
+
+const renderPage = (staffAccess = true, owner = true, choices: Choices = { businesses: [], branches: [] }) => {
+  const props = {
+    companyId: COMPANY,
+    userId: 'user-1',
+    choices,
+    staffAccess,
+    owner,
+  };
+  return render(
     <QueryClientProvider client={client}>
-      <InvitationsPage
-        companyId={COMPANY}
-        userId="user-1"
-        choices={{ businesses: [], branches: [] }}
-        staffAccess={staffAccess}
-      />
+      <InvitationsPage {...props} />
     </QueryClientProvider>,
   );
+};
 
 const cachesJson = () =>
   JSON.stringify([
@@ -65,6 +70,22 @@ const holdPost = () => {
   api.post.mockImplementation(() => new Promise((resolve) => (settle = resolve)));
   return (value: unknown) => settle(value);
 };
+
+/** يملأ النموذج ويثبّت علامة التأكيد، فزر الإرسال يبقى متاح. */
+async function fillForm(name = 'Ahmed'): Promise<void> {
+  fireEvent.change(await screen.findByLabelText(t('en', 'invitations.emailLabel')), {
+    target: { value: 'ahmed@example.test' },
+  });
+  fireEvent.change(screen.getByLabelText(t('en', 'invitations.nameLabel')), {
+    target: { value: name },
+  });
+  fireEvent.click(screen.getByLabelText(t('en', 'invitations.confirmTick')));
+}
+
+const submitButton = () =>
+  screen.getByRole('button', { name: t('en', 'invitations.submit') }) as HTMLButtonElement;
+const reissueButton = () =>
+  screen.getByRole('button', { name: t('en', 'invitations.reissue') }) as HTMLButtonElement;
 
 it('keeps the email and the link out of both caches while the request is in flight and at hand-over', async () => {
   api.get.mockResolvedValue({ data: { items: [], next_cursor: null } });
@@ -172,4 +193,98 @@ it('pages the list without duplicates, labels the role, and offers the new link 
   expect(grown.getByText(t('en', 'invitations.roleBranchManager'))).toBeTruthy();
   expect(grown.getByText(t('en', 'invitations.scopeBranch'))).toBeTruthy();
   expect(screen.queryByRole('button', { name: t('en', 'invitations.loadMore') })).toBeNull();
+});
+
+it('sends no request at all for a member who is not the company owner', async () => {
+  api.get.mockResolvedValue({ data: { items: [], next_cursor: null } });
+  renderPage(true, false);
+  expect(screen.getByRole('status').textContent).toBe(t('en', 'invitations.notReady'));
+  expect(screen.queryByLabelText(t('en', 'invitations.emailLabel'))).toBeNull();
+  await waitFor(() => expect(api.get).not.toHaveBeenCalled());
+  expect(api.post).not.toHaveBeenCalled();
+});
+
+it('probes the page with its own key, so a cached menu probe never opens the page silently', async () => {
+  api.get.mockResolvedValue({ data: { items: [], next_cursor: null } });
+  // قراءة المدخل (menu) اتجاوبت واتخزنت قبل ما الصفحة تفتح.
+  client.setQueryData(['invitations', 'access', COMPANY, 'user-1'], true);
+  renderPage();
+  await waitFor(() =>
+    expect(screen.queryByLabelText(t('en', 'invitations.emailLabel'))).not.toBeNull(),
+  );
+});
+
+it('locks the invite form while a new link is being issued', async () => {
+  const id = '01920000-0000-7000-8000-000000000001';
+  api.get.mockResolvedValue({
+    data: { items: [item(id, { can_reissue: true })], next_cursor: null },
+  });
+  const answer = holdPost();
+  renderPage();
+  await fillForm();
+  expect(submitButton().disabled).toBe(false);
+  fireEvent.click(await screen.findByRole('button', { name: t('en', 'invitations.reissue') }));
+  await waitFor(() => expect(api.post).toHaveBeenCalledTimes(1));
+  // إصدار الرابط شغّال: مفيش دعوة جديدة في نفس الوقت.
+  expect(submitButton().disabled).toBe(true);
+  answer({ data: { invitation_id: id, set_password_link: LINK } });
+});
+
+it('locks the reissue button while an invitation is in flight', async () => {
+  const id = '01920000-0000-7000-8000-000000000001';
+  api.get.mockResolvedValue({
+    data: { items: [item(id, { can_reissue: true })], next_cursor: null },
+  });
+  const answer = holdPost();
+  renderPage();
+  await fillForm();
+  await screen.findByRole('button', { name: t('en', 'invitations.reissue') });
+  fireEvent.click(submitButton());
+  await waitFor(() => expect(api.post).toHaveBeenCalledTimes(1));
+  // الدعوة شغّالة: مفيش إصدار رابط جديد في نفس الوقت.
+  expect(reissueButton().disabled).toBe(true);
+  answer({ data: { invitation_id: id, set_password_link: LINK } });
+});
+
+it('tells two similar rows apart by the scope target and a short reference', async () => {
+  const first = '01920000-0000-7000-8000-0000000000a1';
+  const second = '01920000-0000-7000-8000-0000000000a2';
+  api.get.mockResolvedValue({
+    data: {
+      items: [
+        item(first, { scope_type: 'BUSINESS', scope_id: '01920000-0000-7000-8000-0000000000b1' }),
+        item(second, { scope_type: 'BUSINESS', scope_id: '01920000-0000-7000-8000-0000000000b2' }),
+      ],
+      next_cursor: null,
+    },
+  });
+  renderPage(true, true, {
+    businesses: [
+      { id: '01920000-0000-7000-8000-0000000000b1', name: 'North Shop' },
+      { id: '01920000-0000-7000-8000-0000000000b2', name: 'South Shop' },
+    ],
+    branches: [],
+  });
+  const table = await screen.findByRole('table');
+  const rows = within(table).getAllByRole('row').slice(1);
+  expect(rows).toHaveLength(2);
+  expect(rows[0]?.textContent).not.toBe(rows[1]?.textContent);
+  expect(within(table).getByText('North Shop')).toBeTruthy();
+  expect(within(table).getByText('South Shop')).toBeTruthy();
+  expect(within(table).getByText(`#${first.slice(-6)}`)).toBeTruthy();
+  expect(within(table).getByText(`#${second.slice(-6)}`)).toBeTruthy();
+});
+
+it('refuses a whitespace-only name with an alert and sends nothing', async () => {
+  api.get.mockResolvedValue({ data: { items: [], next_cursor: null } });
+  renderPage();
+  await fillForm('   ');
+  fireEvent.click(submitButton());
+  // الرسالة اللي في الكتالوج: invitations.nameRequired.
+  const alert = await screen.findByRole('alert');
+  expect(alert.textContent).toBe('Enter the member name.');
+  expect(
+    screen.getByLabelText(t('en', 'invitations.nameLabel')).getAttribute('aria-invalid'),
+  ).toBe('true');
+  expect(api.post).not.toHaveBeenCalled();
 });
