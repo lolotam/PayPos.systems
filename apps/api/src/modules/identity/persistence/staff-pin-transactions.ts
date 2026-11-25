@@ -2,6 +2,7 @@ import type { IdGenerator, TenantWrappers, Tx } from '@pospay/db';
 import { sql } from 'drizzle-orm';
 import { transactionWriters } from '../../../shared/adapters/transaction-writers.ts';
 import { temporaryStaffPinExpiresAt } from '../domain/staff-access-roles.ts';
+import { CLEARED_STAFF_PIN_HASH } from './staff-user-auth.ts';
 import type {
   StaffPinProofRecord,
   StaffPinScope,
@@ -162,7 +163,8 @@ function scope(tx: Tx, companyId: string, ids: IdGenerator): StaffPinScope {
         expires_at_ms: number | null;
       }>(sql`SELECT id,pin_hash AS hash,temporary,
         (extract(epoch from expires_at)*1000)::float8 AS expires_at_ms
-        FROM cashier_pins WHERE company_id=${companyId} AND user_id=${userId}`);
+        FROM cashier_pins WHERE company_id=${companyId} AND user_id=${userId}
+          AND pin_hash <> ${CLEARED_STAFF_PIN_HASH}`);
       if (row === undefined) return null;
       return {
         id: row.id,

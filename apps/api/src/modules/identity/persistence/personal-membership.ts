@@ -19,7 +19,10 @@ export async function personalMemberships(
     );
   // null يقفل الصفوف فقط؛ الحضور يعيد فحص الوقت بعد قفل الموظف والربط والفرع أيضاً.
   const instant = at == null ? sql`clock_timestamp()` : sql`${at.toISOString()}::timestamptz`;
+  // سجل دخول موظفة غير ACTIVE (تغيير هاتف جارٍ أو متوقف) يمنع الأهلية الشخصية فوراً قبل انتهاء العضوية.
+  const staffAccessActive = sql`AND NOT EXISTS (SELECT 1 FROM employee_staff_access a
+    WHERE a.company_id=${companyId} AND a.user_id=${userId} AND a.state <> 'ACTIVE')`;
   return tx.execute<{ scope_type: 'COMPANY' | 'BUSINESS' | 'BRANCH'; scope_id: string }>(sql`
     SELECT scope_type,scope_id FROM memberships WHERE company_id=${companyId} AND user_id=${userId}
-      ${at === null ? sql`` : sql`AND starts_at<=${instant} AND (ends_at IS NULL OR ends_at>${instant})`}`);
+      ${at === null ? sql`` : sql`AND starts_at<=${instant} AND (ends_at IS NULL OR ends_at>${instant}) ${staffAccessActive}`}`);
 }

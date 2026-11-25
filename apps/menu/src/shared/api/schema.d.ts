@@ -3817,6 +3817,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/businesses/{businessId}/employees/{employeeId}/staff-access/phone": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** @description Changes the phone of an ACTIVE (or interrupted PHONE_CHANGING) staff-access employee on her primary branch, clears her PIN, ends her staff sessions and saves a new temporary PIN. Requires manage:staff-access:branch on that branch, read inside the write transaction. A phone owned by any other user is refused. */
+        put: operations["changeEmployeeStaffPhone"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/businesses/{businessId}/employees/{employeeId}/staff-access/pending": {
         parameters: {
             query?: never;
@@ -24022,6 +24039,104 @@ export interface operations {
                 };
             };
             /** @description Bilingual refusal */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Bilingual refusal */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    changeEmployeeStaffPhone: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-company-id": string;
+            };
+            path: {
+                businessId: string;
+                employeeId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    phone: string;
+                    /** @enum {boolean} */
+                    phone_confirmed: true;
+                    pin: string;
+                };
+            };
+        };
+        responses: {
+            /** @description The access state after the phone change */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @enum {string} */
+                        state: "NONE" | "PENDING" | "ACTIVE" | "STOPPED";
+                        /** @enum {string|null} */
+                        role: "staff" | "reception" | null;
+                        /** Format: uuid */
+                        branch_id: string | null;
+                        phone_last3: string | null;
+                        can_manage: boolean;
+                        can_cancel: boolean;
+                    };
+                };
+            };
+            /** @description Bilingual refusal */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Bilingual refusal */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Bilingual refusal */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Bilingual refusal */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Bilingual conflict refusal (STAFF_ACCESS_PHONE_TAKEN or TRANSACTION_RETRY_REQUIRED) */
             409: {
                 headers: {
                     [name: string]: unknown;

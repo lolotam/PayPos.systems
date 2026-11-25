@@ -8,6 +8,7 @@ import { useWorkspace } from '@/workspace/model/workspace-provider';
 import { useCancelPendingStaffAccess } from '../api/use-cancel-pending-staff-access';
 import { useEmployeeStaffAccess } from '../api/use-employee-staff-access';
 import { EmployeeAccessGrantForm } from './employee-access-grant-form';
+import { EmployeeAccessPhoneForm } from './employee-access-phone-form';
 import { EmployeeAccessPinResetForm } from './employee-access-pin-reset-form';
 import { EmployeeAccessReadout } from './employee-access-readout';
 
@@ -58,7 +59,7 @@ export function EmployeeAccessSection({
             </Button>
           ) : null}
           {shown.can_manage && shown.state === 'ACTIVE' ? (
-            <EmployeeAccessPinReset
+            <EmployeeAccessActiveActions
               companyId={companyId}
               businessId={businessId}
               employeeId={employeeId}
@@ -78,6 +79,50 @@ export function EmployeeAccessSection({
         />
       ) : null}
     </section>
+  );
+}
+
+/** أزرار الدخول الفعّال: إعادة ضبط الرقم السري وتغيير الهاتف، وكل واحد بيملك فتح نموذجه. */
+function EmployeeAccessActiveActions(props: {
+  companyId: string;
+  businessId: string;
+  employeeId: string;
+}) {
+  return (
+    <>
+      <EmployeeAccessPinReset {...props} />
+      <EmployeeAccessPhoneChange {...props} />
+    </>
+  );
+}
+
+/** زر تغيير الهاتف ونموذجه: النموذج بيتفتح بقيم فاضية كل مرة فالهاتف والرقم ما بيتخزنوش. */
+function EmployeeAccessPhoneChange({
+  companyId,
+  businessId,
+  employeeId,
+}: {
+  companyId: string;
+  businessId: string;
+  employeeId: string;
+}) {
+  const locale = useLocale();
+  const [open, setOpen] = useState(false);
+  const close = useCallback(() => setOpen(false), []);
+  if (!open) {
+    return (
+      <Button type="button" variant="outline" onClick={() => setOpen(true)}>
+        {t(locale, 'staff.changePhone')}
+      </Button>
+    );
+  }
+  return (
+    <EmployeeAccessPhoneForm
+      companyId={companyId}
+      businessId={businessId}
+      employeeId={employeeId}
+      onClose={close}
+    />
   );
 }
 

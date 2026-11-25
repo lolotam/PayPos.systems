@@ -9,6 +9,7 @@ import type { StaffAccessRole } from '../domain/staff-access-roles.ts';
 import type {
   StaffUserCancelInput,
   StaffUserFacade,
+  StaffUserPhoneChangeInput,
   StaffUserProvisionInput,
   StaffUserProvisioned,
   StaffUserRead,
@@ -27,6 +28,20 @@ export async function provisionStaffUser(
   input: StaffUserProvisionInput,
 ): Promise<StaffUserProvisioned> {
   return auth.provision(input);
+}
+
+/**
+ * الخطوة الثانية من «تغيير الهاتف» (F3-1): تغيير هاتف حساب الموظفة وإنهاء جلساتها على pospay_auth —
+ * identity هو المدخل الوحيد لـ packages/auth، وstaff ينادي هذه الدالة فقط.
+ *
+ * @param auth  واجهة packages/auth على pospay_auth
+ * @param input الحساب والعملية والشركة والهاتف الجديد ومعرّف المحاولة
+ */
+export async function changeStaffUserPhone(
+  auth: StaffUserFacade,
+  input: StaffUserPhoneChangeInput,
+): Promise<void> {
+  return auth.changePhone(input);
 }
 
 /**
@@ -147,4 +162,32 @@ export async function saveTemporaryStaffPin(
     ON CONFLICT(company_id,user_id) DO UPDATE SET id=EXCLUDED.id,pin_hash=EXCLUDED.pin_hash,
       set_by=EXCLUDED.set_by,set_at=EXCLUDED.set_at,temporary=true,expires_at=EXCLUDED.expires_at`,
   );
+}
+
+/**
+ * قيمة بصمة «الرقم الممسوح»: تحقق قيد صيغة `cashier_pins` (`pbkdf2-sha256$%`) لكنها ليست بصمة
+ * حقيقية أبداً، وكل قارئ للرقم السري يستبعدها فيعامل الصف كأنه غير موجود.
+ */
+export const CLEARED_STAFF_PIN_HASH = 'pbkdf2-sha256$cleared';
+
+/**
+ * يمسح الرقم السري لموظفة قبل تغيير هاتفها (F3-1): `pospay_app` لا يملك DELETE على `cashier_pins`
+ * ولا على أدلة تغيير الرقم، فالمسح UPDATE: يقلب `id` (فيبطل أي دليل أو فحص إصدار جارٍ) ويضع بصمة
+ * الرقم الممسوح، ثم يحرق كل أدلة تغيير الرقم غير المستهلكة. الرقم المؤقت الجديد يكتب فوق الصف
+ * بـ `saveTemporaryStaffPin`. الدالة لا تفتح معاملة: تعمل داخل معاملة staff التي استدعتها.
+ *
+ * @param tx    معاملة الشركة التي فتحها use case الموظفين
+ * @param input الشركة وصاحب الرقم والمانح ولحظة المسح ومولّد المعرّفات
+ */
+export async function clearStaffPin(
+  tx: Tx,
+  input: { companyId: string; userId: string; actorUserId: string; at: Date; ids: IdGenerator },
+): Promise<void> {
+  const at = input.at.toISOString();
+  await tx.execute(sql`UPDATE cashier_pins
+    SET id=${input.ids.newId()},pin_hash=${CLEARED_STAFF_PIN_HASH},set_by=${input.actorUserId},
+      set_at=${at}::timestamptz,temporary=true,expires_at=${at}::timestamptz
+    WHERE company_id=${input.companyId} AND user_id=${input.userId}`);
+  await tx.execute(sql`UPDATE staff_pin_change_proofs SET consumed_at=${at}::timestamptz
+    WHERE company_id=${input.companyId} AND user_id=${input.userId} AND consumed_at IS NULL`);
 }

@@ -30,6 +30,20 @@ export const resetEmployeeStaffPinInput = z
   .meta({ id: 'ResetEmployeeStaffPinInput' });
 export type ResetEmployeeStaffPinInput = z.infer<typeof resetEmployeeStaffPinInput>;
 
+/**
+ * تغيير هاتف موظفة لها دخول فعّال (spec 076 F3-1): الهاتف الجديد كانوني ومُقَرّ بالتأكيد، والرقم
+ * السري الجديد مؤقت من أربعة أرقام — الطلب strict ولا يقبل دوراً ولا فرعاً ولا شيئاً غيرهم.
+ */
+export const changeEmployeeStaffPhoneInput = z
+  .object({
+    phone: canonicalStaffPhone,
+    phone_confirmed: z.literal(true),
+    pin: z.string().regex(/^\d{4}$/),
+  })
+  .strict()
+  .meta({ id: 'ChangeEmployeeStaffPhoneInput' });
+export type ChangeEmployeeStaffPhoneInput = z.infer<typeof changeEmployeeStaffPhoneInput>;
+
 /** حالة دخول الموظفة كما تظهر في لوحة الموظفين؛ آخر ثلاثة أرقام فقط ولا هاتف كامل أبداً. */
 export const staffAccessState = responseObject({
   state: z.enum(['NONE', 'PENDING', 'ACTIVE', 'STOPPED']),

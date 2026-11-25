@@ -160,6 +160,8 @@ export {
 } from './events/published.ts';
 export {
   cancelStaffUser,
+  changeStaffUserPhone,
+  clearStaffPin,
   grantStaffMembership,
   hashStaffPin,
   provisionStaffUser,

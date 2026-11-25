@@ -9,6 +9,7 @@ export * from './staff-access-begin.port.ts';
 export * from './staff-access-commit.port.ts';
 export * from './staff-access-cancel.port.ts';
 export * from './staff-access-user-steps.port.ts';
+export * from './staff-access-phone.port.ts';
 
 /** طلب إعادة ضبط الرقم السري بعد التحقق من العقد: الموظفة والرقم السري الجديد. */
 export interface ResetEmployeeStaffPinCommand extends StaffAccessActor {

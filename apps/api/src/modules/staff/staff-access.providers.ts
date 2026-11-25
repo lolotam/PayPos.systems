@@ -19,11 +19,45 @@ import {
   createGrantEmployeeAccessSteps,
   createStaffAccessGrantCache,
 } from './persistence/staff-access.adapter.ts';
+import {
+  createChangeEmployeeStaffPhoneSteps,
+  createStaffAccessPhoneUserSteps,
+} from './persistence/staff-access-phone.adapter.ts';
 import { createStaffAccessGrantAdmission } from './persistence/staff-access-admission.adapter.ts';
 import type { AuthFacadeForStaffAccess } from './ports/staff-access-auth.port.ts';
+import type { StaffAccessGrantCache, StaffAccessUserSteps } from './ports/staff-access.port.ts';
 import { GrantEmployeeAccessUseCase } from './use-cases/grant-employee-access/grant-employee-access.ts';
 import { CancelPendingStaffAccessUseCase } from './use-cases/cancel-pending-staff-access/cancel-pending-staff-access.ts';
 import { ResetEmployeeStaffPinUseCase } from './use-cases/reset-employee-staff-pin/reset-employee-staff-pin.ts';
+import { ChangeEmployeeStaffPhoneUseCase } from './use-cases/change-employee-staff-phone/change-employee-staff-phone.ts';
+
+/**
+ * مزوّد use case تغيير الهاتف: يرجع null لو قاعدة البيانات أو auth أو مفتاح بصمة الهاتف ناقص،
+ * فيرد المسار NOT_READY بدل ما يكتب بصمة بلا مفتاح.
+ */
+function changePhoneProvider(deps: {
+  database: TenantWrappers | undefined;
+  auth: AuthFacadeForStaffAccess | null;
+  users: StaffAccessUserSteps | null;
+  phoneHashSecret: Buffer | string | null;
+  cache: StaffAccessGrantCache;
+  ids: IdGenerator;
+}): Provider {
+  const { database, auth, users, phoneHashSecret, cache, ids } = deps;
+  const steps =
+    database === undefined || phoneHashSecret === null || phoneHashSecret.length === 0
+      ? null
+      : createChangeEmployeeStaffPhoneSteps(database, phoneHashSecret);
+  const phoneUsers =
+    auth === null || users === null ? null : createStaffAccessPhoneUserSteps(auth, users.hash);
+  return {
+    provide: ChangeEmployeeStaffPhoneUseCase,
+    useValue:
+      steps === null || phoneUsers === null
+        ? null
+        : new ChangeEmployeeStaffPhoneUseCase(steps, phoneUsers, cache, systemClock, ids),
+  };
+}
 
 /**
  * ربط قدرة «إعطاء الدخول»: بوابة التفعيل من بيئة التشغيل، وخطوة auth عبر identity لما تكون موجودة،
@@ -93,6 +127,7 @@ export function staffAccessProviders(
           ? null
           : new ResetEmployeeStaffPinUseCase(resetSteps, users, systemClock, ids),
     },
+    changePhoneProvider({ database, auth, users, phoneHashSecret, cache, ids }),
     EmployeeAccessController,
   ];
 }

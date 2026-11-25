@@ -1,5 +1,10 @@
 import { z } from 'zod';
-import { grantStaffAccessInput, resetEmployeeStaffPinInput, staffAccessState } from './staff-access.js';
+import {
+  changeEmployeeStaffPhoneInput,
+  grantStaffAccessInput,
+  resetEmployeeStaffPinInput,
+  staffAccessState,
+} from './staff-access.js';
 
 const errors = {
   description: 'Bilingual refusal',
@@ -109,6 +114,39 @@ export const staffAccessPaths = {
         '403': errors,
         '404': errors,
         '409': errors,
+        default: errors,
+      },
+    },
+  },
+  '/v1/businesses/{businessId}/employees/{employeeId}/staff-access/phone': {
+    put: {
+      operationId: 'changeEmployeeStaffPhone',
+      description:
+        'Changes the phone of an ACTIVE (or interrupted PHONE_CHANGING) staff-access employee on her primary branch, clears her PIN, ends her staff sessions and saves a new temporary PIN. Requires manage:staff-access:branch on that branch, read inside the write transaction. A phone owned by any other user is refused.',
+      parameters: [companyHeader, businessParam, employeeParam],
+      requestBody: {
+        required: true,
+        content: {
+          'application/json': {
+            schema: z.toJSONSchema(changeEmployeeStaffPhoneInput, {
+              target: 'openapi-3.0',
+              io: 'input',
+              metadata: z.registry(),
+            }),
+          },
+        },
+      },
+      responses: {
+        '200': stateResponse('The access state after the phone change'),
+        '400': errors,
+        '401': errors,
+        '403': errors,
+        '404': errors,
+        '409': {
+          ...errors,
+          description:
+            'Bilingual conflict refusal (STAFF_ACCESS_PHONE_TAKEN or TRANSACTION_RETRY_REQUIRED)',
+        },
         default: errors,
       },
     },

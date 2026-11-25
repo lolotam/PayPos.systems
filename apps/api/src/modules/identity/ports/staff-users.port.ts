@@ -36,6 +36,24 @@ export interface StaffUserProvisioned {
   readonly userId: string;
 }
 
+/** مدخل تغيير هاتف حساب موظفة لها دخول فعّال (F3-1): الشركة ومعرّف العملية يثبتان ملكية الحساب. */
+export interface StaffUserPhoneChangeInput {
+  /** معرّف العملية من سجل الدخول — يطابق الماركر المكتوب على الحساب. */
+  readonly operationId: string;
+  /** شركة السجل؛ حساب شركة أخرى لا يُلمس. */
+  readonly companyId: string;
+  /** حساب الموظفة المطلوب تغيير هاتفه. */
+  readonly userId: string;
+  /** الهاتف الكانوني الجديد؛ رقم مملوك لأي مستخدم آخر يُرفض. */
+  readonly phone: string;
+  /** المانح المُؤكِّد للهاتف — بيتسجل في تدقيق المنصة. */
+  readonly actorUserId: string;
+  /** معرّف محاولة التغيير الحالية — تكرار المحاولة نفسها لا يكتب أثراً ثانياً. */
+  readonly attemptId: string;
+  /** مولّد UUID v7 لصفوف المنصة. */
+  readonly ids: IdGenerator;
+}
+
 /** مدخل إلغاء سجل انتظار: حذف مستخدم الموظفة بمعرّف العملية المرتبط بنفس الشركة. */
 export interface StaffUserCancelInput {
   readonly operationId: string;
@@ -64,6 +82,12 @@ export interface StaffUserFacade {
    * @returns معرف المستخدم بعد الإنشاء أو الإيجاد، ورفض الهاتف المملوك غيره
    */
   provision(input: StaffUserProvisionInput): Promise<StaffUserProvisioned>;
+  /**
+   * يغيّر هاتف حساب موظفة لهذه الشركة وينهي كل جلساتها في معاملة auth واحدة (F3-1 الخطوة 2).
+   *
+   * @param input الحساب والعملية والشركة والهاتف الجديد ومعرّف المحاولة
+   */
+  changePhone(input: StaffUserPhoneChangeInput): Promise<void>;
   /**
    * يحذف مستخدم الموظفة بمعرّف العملية (إلغاء سجل انتظار متجاوز للمدة).
    *

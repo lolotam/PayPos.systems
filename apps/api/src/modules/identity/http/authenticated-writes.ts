@@ -285,4 +285,8 @@ export const AUTHENTICATED_WRITES: Readonly<Record<string, AuthenticatedWriteDec
       'RECORD_SCOPED',
       'apps/api/src/modules/staff/persistence/staff-access.adapter.ts#authorityChecker',
     ),
+    'EmployeeAccessController.changePhone': declared(
+      'RECORD_SCOPED',
+      'apps/api/src/modules/staff/persistence/staff-access-auth.adapter.ts#staffAccessAuthority',
+    ),
   });

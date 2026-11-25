@@ -9,16 +9,30 @@ import {
   capturedLogs,
   systemRoleId,
   staffAccessFixture,
+  verifyStaffPin,
   type Fixture,
 } from '../../../../test/staff-access.fixture.ts';
+import { origin, paired } from '../../../../test/staff-otp-harness.ts';
+import { createPersonalEligibility } from '../index.ts';
+import {
+  NEW_PIN,
+  PERMANENT_PIN,
+  phoneChangeHelpers,
+} from './employee-staff-access-phone-change.fixture.ts';
 const ids = systemUuidV7();
 let f: Fixture;
+let gated: Fixture;
+let h: ReturnType<typeof phoneChangeHelpers>;
 beforeAll(async () => {
-  f = await staffAccessFixture({ staffAccessRoutes: true });
+  f = await staffAccessFixture({ staffAccessRoutes: true, staffOrigin: origin });
+  gated = await staffAccessFixture();
+  h = phoneChangeHelpers(f, await paired(f.h, f.ownerCookie, f.company, f.salmiya));
 });
 afterAll(async () => {
   await f?.db.close();
   await f?.h.close();
+  await gated?.db.close();
+  await gated?.h.close();
 });
 it.each(['inside', 'outside'])(
   'P1-11 phone owned %s the company leaves that user PIN and sessions unchanged and logs no secrets',
@@ -62,6 +76,218 @@ it.each(['inside', 'outside'])(
     ).toMatchObject([{ state: 'ACTIVE' }]);
   },
 );
+
+const staffSessionsOf = (userId: string) => f.h.owner`SELECT id FROM session
+  WHERE purpose IN ('STAFF_POS','STAFF_PERSONAL') AND user_id=${userId}`;
+
+it('F3-1 changes the phone, ends both staff sessions and leaves one temporary PIN for the new phone', async () => {
+  const staff = await h.activeStaff();
+  const personal = await h.personalSession(staff.userId);
+  expect(await h.sessionStatus(staff.cookie, PERMANENT_PIN)).toBe(200);
+  const before = await h.pinRow(staff.userId);
+  const newPhone = nextPhone(f);
+
+  const response = await h.changePhone(staff.employee, newPhone);
+  expect(response).toMatchObject({
+    status: 200,
+    body: {
+      state: 'ACTIVE',
+      role: 'staff',
+      branch_id: f.salmiya,
+      phone_last3: newPhone.slice(-3),
+      can_manage: true,
+    },
+  });
+  expect(await h.phoneOf(staff.userId)).toMatchObject({ phone_number: newPhone });
+  expect((await h.phoneOf(staff.userId))?.phone_binding_approved_at).not.toBeNull();
+  // الجلستان وصف نافذة العرض الخاصة بجلسة STAFF_PERSONAL اتمسحوا، والجلسة القديمة بقت مجهولة.
+  expect(await staffSessionsOf(staff.userId)).toHaveLength(0);
+  expect(
+    await f.h.owner`SELECT id FROM verification WHERE identifier LIKE ${`%${personal}%`}`,
+  ).toHaveLength(0);
+  expect(await h.sessionStatus(staff.cookie, PERMANENT_PIN)).toBe(401);
+
+  const after = await h.pinRow(staff.userId);
+  expect(after?.id).not.toBe(before?.id);
+  expect(after?.temporary).toBe(true);
+  expect(after?.set_by).toBe(await h.ownerUserId());
+  expect(Number(after?.expires_at) - Number(after?.set_at)).toBe(24 * 60 * 60 * 1000);
+  expect(await verifyStaffPin(NEW_PIN, after?.pin_hash as string)).toBe(true);
+  expect(await h.recordOf(staff.employee)).toMatchObject({
+    state: 'ACTIVE',
+    phone_hash: h.phoneHash(newPhone),
+  });
+  // القديم: الهاتف القديم والرقم الدائم القديم مرفوضين، والمؤقت الجديد بيطلب تغييراً (F2).
+  expect((await h.signIn(PERMANENT_PIN, staff.phone)).statusCode).toBe(401);
+  expect((await h.signIn(PERMANENT_PIN, newPhone)).statusCode).toBe(401);
+  expect((await h.signIn(NEW_PIN, newPhone)).json().code).toBe('PIN_CHANGE_REQUIRED');
+});
+
+it('F3-1 writes audit and one event without any phone or PIN in them', async () => {
+  const staff = await h.activeStaff();
+  const newPhone = nextPhone(f);
+  expect((await h.changePhone(staff.employee, newPhone)).status).toBe(200);
+  const record = await h.recordOf(staff.employee);
+  const events = await f.h.owner`SELECT payload FROM outbox
+    WHERE event_type='StaffPinSetByOther' AND aggregate_id=${staff.employee}`;
+  expect(events).toHaveLength(1);
+  const audits = await f.h.owner`SELECT action, before, after FROM audit_log
+    WHERE (entity_id=${record?.id as string} OR entity_id=${staff.userId})
+      AND action IN ('phone_change_started','phone_changed','staff.pin_cleared','staff.pin_set_temporary')`;
+  const actions = audits.map((row) => String(row['action']));
+  expect(actions).toEqual(
+    expect.arrayContaining([
+      'phone_change_started',
+      'phone_changed',
+      'staff.pin_cleared',
+      'staff.pin_set_temporary',
+    ]),
+  );
+  // التغيير كتب بداية وإتماماً واحداً بس (الرقم المؤقت الأول من المنح الأصلي).
+  expect(actions.filter((action) => action === 'phone_changed')).toHaveLength(1);
+  expect(actions.filter((action) => action === 'phone_change_started')).toHaveLength(1);
+  const platform = await f.h.owner`SELECT action, details FROM platform_audit_log
+    WHERE details->>'user_id'=${staff.userId} AND action IN ('phone.binding_approved','staff.phone_changed')`;
+  expect(platform.map((row) => row['action'])).toEqual(
+    expect.arrayContaining(['phone.binding_approved', 'staff.phone_changed']),
+  );
+  const written = JSON.stringify([events, audits, platform]);
+  for (const secret of [newPhone, staff.phone, NEW_PIN, PERMANENT_PIN])
+    expect(written.includes(secret), 'secret absent from audit and events').toBe(false);
+  expect(capturedLogs().includes(newPhone), 'Full phone is absent from logs').toBe(false);
+  expect(capturedLogs().includes(`"${NEW_PIN}"`), 'PIN is absent from logs').toBe(false);
+});
+
+it('F3-1 an interruption after step one blocks the old PIN, session and eligibility, and the repeat finishes', async () => {
+  const staff = await h.activeStaff();
+  const newPhone = nextPhone(f);
+  const workspace = { companyId: f.company, businessId: f.business };
+  const eligibility = createPersonalEligibility(f.db);
+  expect(await eligibility.eligible(staff.userId, workspace)).toBe(true);
+  await expect(
+    h.useCase({ beforeAuthStep: true }).execute({
+      companyId: f.company,
+      userId: await h.ownerUserId(),
+      businessId: f.business,
+      employeeId: staff.employee,
+      phone: newPhone,
+      pin: NEW_PIN,
+    }),
+  ).rejects.toThrow('CRASH_BEFORE_AUTH_STEP');
+
+  expect(await h.recordOf(staff.employee)).toMatchObject({ state: 'PHONE_CHANGING' });
+  expect((await h.pinRow(staff.userId))?.pin_hash).toBe('pbkdf2-sha256$cleared');
+  expect(await h.phoneOf(staff.userId)).toMatchObject({ phone_number: staff.phone });
+  expect((await h.signIn(PERMANENT_PIN, staff.phone)).statusCode).toBe(401);
+  expect((await h.signIn('0000', staff.phone)).statusCode).toBe(401);
+  expect(await h.sessionStatus(staff.cookie, PERMANENT_PIN)).toBe(401);
+  expect(await eligibility.eligible(staff.userId, workspace)).toBe(false);
+
+  expect((await h.changePhone(staff.employee, newPhone)).status).toBe(200);
+  expect(await h.recordOf(staff.employee)).toMatchObject({ state: 'ACTIVE' });
+  expect(await h.phoneOf(staff.userId)).toMatchObject({ phone_number: newPhone });
+  expect(await eligibility.eligible(staff.userId, workspace)).toBe(true);
+  expect((await h.signIn(NEW_PIN, newPhone)).json().code).toBe('PIN_CHANGE_REQUIRED');
+});
+
+it('F3-1 an interruption after step two completes cleanly on the repeat with one approval row', async () => {
+  const staff = await h.activeStaff();
+  const newPhone = nextPhone(f);
+  await expect(
+    h.useCase({ afterAuthStep: true }).execute({
+      companyId: f.company,
+      userId: await h.ownerUserId(),
+      businessId: f.business,
+      employeeId: staff.employee,
+      phone: newPhone,
+      pin: NEW_PIN,
+    }),
+  ).rejects.toThrow('CRASH_AFTER_AUTH_STEP');
+  expect(await h.phoneOf(staff.userId)).toMatchObject({ phone_number: newPhone });
+  expect(await h.recordOf(staff.employee)).toMatchObject({ state: 'PHONE_CHANGING' });
+  expect(await staffSessionsOf(staff.userId)).toHaveLength(0);
+
+  expect((await h.changePhone(staff.employee, newPhone)).status).toBe(200);
+  const record = await h.recordOf(staff.employee);
+  expect(record).toMatchObject({ state: 'ACTIVE' });
+  const approvals = await f.h.owner`SELECT id FROM platform_audit_log
+    WHERE action='phone.binding_approved' AND details->>'attempt_id'=${record?.attempt_id as string}`;
+  expect(approvals).toHaveLength(1);
+  expect(
+    await f.h.owner`SELECT id FROM outbox WHERE event_type='StaffPinSetByOther'
+      AND aggregate_id=${staff.employee}`,
+  ).toHaveLength(1);
+  expect((await h.signIn(NEW_PIN, newPhone)).json().code).toBe('PIN_CHANGE_REQUIRED');
+});
+
+it.each(['inside', 'outside'])(
+  'F3-1 a phone owned %s the company is refused with 409 and leaves the other user untouched',
+  async (where) => {
+    const staff = await h.activeStaff();
+    const taken = nextPhone(f);
+    const holder = await phoneHolder(where, taken, '-change');
+    const holderBefore = await holderState(holder);
+    const response = await h.changePhone(staff.employee, taken);
+    expect(response).toMatchObject({ status: 409, body: { code: 'STAFF_ACCESS_PHONE_TAKEN' } });
+    expect(JSON.stringify(response.body)).not.toContain(holder);
+    expect(await holderState(holder)).toEqual(holderBefore);
+    expect(await h.phoneOf(staff.userId)).toMatchObject({ phone_number: staff.phone });
+    expect(capturedLogs().includes(taken), 'Full phone is absent from logs').toBe(false);
+  },
+);
+
+it('F3-1 the gate answers 503 NOT_READY before authentication while the capability is off', async () => {
+  const response = await gated.h.app.inject({
+    method: 'PUT',
+    url: h.path(ids.newId()).replace(f.business, gated.business),
+    payload: { phone: nextPhone(gated), phone_confirmed: true, pin: NEW_PIN },
+  });
+  expect(response.statusCode).toBe(503);
+  expect(response.json().code).toBe('NOT_READY');
+});
+
+it('F3-1 the strict contract refuses an unconfirmed phone, a short PIN and extra fields', async () => {
+  const staff = await h.activeStaff();
+  const phone = nextPhone(f);
+  for (const body of [{ phone_confirmed: false }, { pin: '123' }, { role: 'reception' }])
+    expect((await h.changePhone(staff.employee, phone, f.ownerCookie, body)).status).toBe(400);
+  expect(await h.phoneOf(staff.userId)).toMatchObject({ phone_number: staff.phone });
+  expect(await h.recordOf(staff.employee)).toMatchObject({ state: 'ACTIVE' });
+});
+
+/** موظفة بدخول فعّال ثم تحويل سجلها لحالة بعينها — الرفض لازم يسبق أي كتابة. */
+async function inState(state: 'STOPPED' | 'CANCELLING') {
+  const staff = await h.activeStaff();
+  await f.h.owner`UPDATE employee_staff_access SET state=${state}, membership_id=NULL
+    WHERE employee_id=${staff.employee}`;
+  return { employee: staff.employee, cookie: f.ownerCookie, userId: staff.userId };
+}
+
+it.each([
+  ['the employee herself', async () => {
+    const staff = await h.activeStaff();
+    await f.h.owner`UPDATE employees SET user_id=${f.managerUserId} WHERE id=${staff.employee}`;
+    return { employee: staff.employee, cookie: f.managerCookie, userId: staff.userId };
+  }],
+  ['a user who is not staff', async () => ({
+    employee: await addEmployee(f, 'Plain', f.salmiya, 801),
+    cookie: f.ownerCookie,
+    userId: null,
+  })],
+  ['a STOPPED record', () => inState('STOPPED')],
+  ['a CANCELLING record', () => inState('CANCELLING')],
+  ['a manager of another branch', async () => {
+    const staff = await h.activeStaff();
+    await f.h.owner`UPDATE employees SET primary_branch_id=${f.hawalli} WHERE id=${staff.employee}`;
+    return { employee: staff.employee, cookie: f.managerCookie, userId: staff.userId };
+  }],
+])('F3-1 refuses %s with 403 and writes nothing', async (_name, build) => {
+  const target = await build();
+  const before = target.userId === null ? null : JSON.stringify(await h.pinRow(target.userId));
+  const refused = await h.changePhone(target.employee, nextPhone(f), target.cookie);
+  expect(refused).toMatchObject({ status: 403, body: { code: 'STAFF_ACCESS_NOT_ALLOWED' } });
+  if (target.userId !== null) expect(JSON.stringify(await h.pinRow(target.userId))).toBe(before);
+});
 
 async function phoneHolder(where: string, phone: string, tag = ''): Promise<string> {
   const cookie = await f.h.signedInOperator(`phone-holder-${where}${tag}@example.test`);

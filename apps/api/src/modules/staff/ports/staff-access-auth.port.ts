@@ -43,8 +43,32 @@ export interface StaffAccessCancelInput {
   readonly ids: StaffAccessIds;
 }
 
+/** مدخل تغيير هاتف حساب موظفة (F3-1). */
+export interface StaffAccessPhoneChangeInput {
+  /** معرّف العملية من سجل الدخول. */
+  readonly operationId: string;
+  /** الشركة. */
+  readonly companyId: string;
+  /** حساب الموظفة. */
+  readonly userId: string;
+  /** الهاتف الكانوني الجديد. */
+  readonly phone: string;
+  /** المانح المؤكِّد للهاتف. */
+  readonly actorUserId: string;
+  /** معرّف محاولة التغيير الحالية. */
+  readonly attemptId: string;
+  /** مولّد UUID v7 لصفوف المنصة. */
+  readonly ids: StaffAccessIds;
+}
+
 /** واجهة حساب الموظفة كما يراها staff. */
 export interface AuthFacadeForStaffAccess {
+  /**
+   * يغيّر هاتف حساب الموظفة وينهي جلساتها في معاملة auth واحدة.
+   *
+   * @param input الحساب والعملية والشركة والهاتف الجديد والمحاولة
+   */
+  changePhone(input: StaffAccessPhoneChangeInput): Promise<void>;
   /**
    * ينشئ مستخدم الموظفة أو يجيده بمعرّف العملية.
    *

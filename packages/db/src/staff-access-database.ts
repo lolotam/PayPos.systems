@@ -1,6 +1,7 @@
 import { createHash } from 'node:crypto';
 import { sql } from 'drizzle-orm';
 
+import { changeStaffUserPhone, type StaffPhoneChangeInput } from './staff-access-phone.ts';
 import { createOtpRuntime, type OtpRuntime } from './staff-otp-runtime.ts';
 import type { IdGenerator, Tx } from './with-tenant.ts';
 
@@ -382,6 +383,11 @@ export function createStaffAccessDatabase(options: StaffAccessDatabaseOptions) {
     read: (operationId: string) => readStaffUser(runtime, operationId),
     /** ربط المستخدم بمعرّف العملية — إثبات المنح الوحيد المقبول قبل كتابة عضوية (P1-5). */
     bindingOf: (operationId: string) => readStaffUserBinding(runtime, operationId),
+    /** تغيير هاتف حساب موظفة وإنهاء جلساتها في معاملة واحدة (F3-1). */
+    changePhone: (input: StaffPhoneChangeInput) =>
+      changeStaffUserPhone({ run: (work) => staffAccessRun(runtime, work),
+        lock: (tx, hash) => runtime.lock(tx, hash), translatePhoneRace: translatingPhoneRace,
+        phoneTaken: () => new StaffPhoneTakenError(), notStaff: () => new StaffRecordNotPendingError() }, input),
     close: () => runtime.close(),
   };
 }

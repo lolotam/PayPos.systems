@@ -1,7 +1,9 @@
 import { zodResolver } from '@hookform/resolvers/zod';
 import {
+  changeEmployeeStaffPhoneInput,
   grantStaffAccessInput,
   resetEmployeeStaffPinInput,
+  type ChangeEmployeeStaffPhoneInput,
   type GrantStaffAccessInput,
   type ResetEmployeeStaffPinInput,
 } from '@pospay/contracts';
@@ -22,6 +24,16 @@ export const staffAccessDefaults = {
   role: 'staff',
   pin: '',
 } satisfies GrantStaffAccessInput;
+
+/** نفس عقد السيرفر بالحرف: هاتف كانوني وتأكيد إجباري ورقم سري مؤقت من أربعة أرقام. */
+export const changePhoneResolver = zodResolver(changeEmployeeStaffPhoneInput);
+
+/** قيم بداية تغيير الهاتف: التأكيد غير معلَّم (`false` كنوع `true`) فيرفض resolver الحفظ قبله. */
+export const changePhoneDefaults = {
+  phone: '',
+  phone_confirmed: false as true,
+  pin: '',
+} satisfies ChangeEmployeeStaffPhoneInput;
 
 /** قيمة بداية نموذج إعادة الضبط: رقم سري فاضي لحد ما المدير يكتبه. */
 export const resetStaffPinDefaults = { pin: '' } satisfies ResetEmployeeStaffPinInput;

@@ -445,6 +445,9 @@ sync_writes:
   - staff -> identity.saveTemporaryStaffPin @ apps/api/src/modules/staff/persistence/staff-access-auth.adapter.ts
   - staff -> identity.provisionStaffUser @ apps/api/src/modules/staff/persistence/staff-access-auth.adapter.ts
   - staff -> identity.cancelStaffUser @ apps/api/src/modules/staff/persistence/staff-access-auth.adapter.ts
+  - staff -> identity.changeStaffUserPhone @ apps/api/src/modules/staff/persistence/staff-access-phone.adapter.ts
+  - staff -> identity.clearStaffPin @ apps/api/src/modules/staff/persistence/staff-access-phone.adapter.ts
+  - staff -> identity.saveTemporaryStaffPin @ apps/api/src/modules/staff/persistence/staff-access-phone.adapter.ts
 reads:
   - orders -> staff.readOwnEmployee @ apps/api/src/modules/orders/persistence/own-work-context.adapter.ts
   - orders -> identity.readOwnServiceSessionsAccess @ apps/api/src/modules/orders/persistence/own-work-context.adapter.ts
@@ -635,6 +638,7 @@ reads:
   - catalog -> tenancy.packageSalePlace @ apps/api/src/modules/catalog/persistence/package-sale-place.adapter.ts
   - staff -> identity.staffAccessGrantedEvent @ apps/api/src/modules/staff/persistence/staff-access.adapter.ts
   - staff -> identity.staffPinSetByOtherEvent @ apps/api/src/modules/staff/persistence/staff-access-auth.adapter.ts
+  - staff -> identity.staffPinSetByOtherEvent @ apps/api/src/modules/staff/persistence/staff-access-phone.adapter.ts
   - staff -> identity.readStaffAccessAuthority @ apps/api/src/modules/staff/persistence/staff-access.adapter.ts
   - staff -> identity.createGrantInvalidator @ apps/api/src/modules/staff/persistence/staff-access.adapter.ts
   - staff -> identity.readStaffAccessAuthority @ apps/api/src/modules/staff/persistence/staff-access-auth.adapter.ts

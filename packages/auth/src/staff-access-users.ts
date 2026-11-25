@@ -51,9 +51,33 @@ export interface StaffUserProvisionRequest {
   readonly attemptId?: string;
 }
 
+/** مدخل تغيير هاتف حساب موظفة (F3-1): الحساب والعملية والشركة يثبتان أنه حساب هذه الشركة. */
+export interface StaffUserPhoneChangeRequest {
+  /** معرّف العملية المكتوب على حساب الموظفة. */
+  readonly operationId: string;
+  /** الشركة؛ حساب شركة أخرى أو غير موظفة يُرفض. */
+  readonly companyId: string;
+  /** حساب الموظفة. */
+  readonly userId: string;
+  /** الهاتف الكانوني الجديد؛ رقم مملوك لأي مستخدم آخر يُرفض. */
+  readonly phone: string;
+  /** المانح المؤكِّد للهاتف. */
+  readonly actorUserId: string;
+  /** معرّف المحاولة — بصمة التدقيق الثابتة التي تمنع الأثر الثاني عند التكرار. */
+  readonly attemptId: string;
+  /** مولّد UUID v7. */
+  readonly ids: IdGenerator;
+}
+
 /** الواجهة التي يراها identity: الإنشاء والإيجاد والإلغاء والقراءة بلا أي مسار credential. */
 export interface StaffUserAccess {
   provision(input: StaffUserProvisionRequest): Promise<{ userId: string }>;
+  /**
+   * يغيّر هاتف حساب موظفة لهذه الشركة وينهي جلساتها (STAFF_POS وSTAFF_PERSONAL) في معاملة واحدة.
+   *
+   * @param input الحساب والعملية والشركة والهاتف الجديد والمحاولة
+   */
+  changePhone(input: StaffUserPhoneChangeRequest): Promise<void>;
   cancel(input: {
     operationId: string;
     companyId: string;
@@ -122,6 +146,7 @@ export function createStaffUserAccess(options: {
           actorUserId: input.actorUserId,
         }),
       ),
+    changePhone: (input) => translated(database.changePhone(input)),
     cancel: (input) => translated(database.cancel(input)),
     read: (operationId) => translated(database.read(operationId)),
     isStaffUser: async (userId) => {
