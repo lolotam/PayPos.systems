@@ -1,8 +1,13 @@
 import { t } from '@pospay/i18n';
+import { DirectionProvider } from '@pospay/ui';
 import { onlineManager, QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { act, render, renderHook, screen, waitFor } from '@testing-library/react';
 import type { ReactNode } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+
+import type * as SessionModule from '@/session/api/use-session';
+import type * as WorkspaceModule from '@/workspace/model/workspace-provider';
+import { WorkspaceProvider } from '@/workspace/model/workspace-provider';
 
 import { frameState, selectBusiness } from '../frames/frame-test-support';
 import { ApprovalsInboxHost } from './approvals-inbox-host';
@@ -22,15 +27,31 @@ vi.mock(
   './use-visible-page-ids',
   async () => (await import('../frames/frame-test-support')).visibleMock,
 );
-vi.mock(
-  '@/workspace/model/workspace-provider',
-  async () => (await import('../frames/frame-test-support')).workspaceMock,
-);
+// القارئ الحقيقي لمساحة العمل والهوية بيتستعملوا بس في اختبارات الانقطاع، والباقي بيظل على المحاكي.
+const toggles = vi.hoisted(() => ({ useRealWorkspace: false, useRealIdentity: false }));
+vi.mock('@/workspace/model/workspace-provider', async () => {
+  const actual = await vi.importActual<typeof WorkspaceModule>('@/workspace/model/workspace-provider');
+  const support = await import('../frames/frame-test-support');
+  return {
+    ...actual,
+    useWorkspace: () =>
+      toggles.useRealWorkspace ? actual.useWorkspace() : support.workspaceMock.useWorkspace(),
+  };
+});
 const identity = vi.hoisted(() => ({
   userId: 'user-1' as string | null,
   status: 'settled' as 'pending' | 'failed' | 'settled',
 }));
-vi.mock('@/session/api/use-session', () => ({ useSessionIdentity: () => identity }));
+vi.mock('@/session/api/use-session', async () => {
+  const actual = await vi.importActual<typeof SessionModule>('@/session/api/use-session');
+  return {
+    ...actual,
+    useSessionIdentity: (enabled: boolean) =>
+      toggles.useRealIdentity ? actual.useSessionIdentity(enabled) : identity,
+  };
+});
+const getSession = vi.hoisted(() => vi.fn());
+vi.mock('@/session/api/browser-client', () => ({ browserAuthClient: () => ({ getSession }) }));
 
 const EXCEPTIONS = '/v1/businesses/{businessId}/branches/{branchId}/attendance-exceptions';
 const bodies: Record<string, unknown> = {
@@ -61,7 +82,11 @@ function renderKinds<T = ReturnType<typeof useApprovalKinds>>(
 beforeEach(() => {
   identity.userId = 'user-1';
   identity.status = 'settled';
+  toggles.useRealWorkspace = false;
+  toggles.useRealIdentity = false;
   api.GET.mockReset();
+  getSession.mockReset();
+  getSession.mockResolvedValue({ error: { status: 401 } });
   selectBusiness('restaurant');
   frameState.visible = [
     'dashboard',
@@ -188,6 +213,97 @@ async function ignoresCachedRefusal(): Promise<void> {
   expect(screen.queryAllByRole('link')).toHaveLength(0);
 }
 
+const WORKSPACES = '/v1/me/workspaces';
+const WORKSPACE_COMPANY = {
+  id: '01920000-0000-7000-8000-0000000000c1',
+  name_ar: null,
+  name_en: 'Provider Company',
+  role_code: 'owner',
+  scope: 'COMPANY',
+  businesses: [
+    {
+      id: '01920000-0000-7000-8000-0000000000d1',
+      name_ar: null,
+      name_en: 'Provider Business',
+      business_type: 'retail',
+      country: 'KW',
+      branches: [
+        {
+          id: '01920000-0000-7000-8000-0000000000e1',
+          name_ar: null,
+          name_en: 'Provider Branch',
+          effective_timezone: 'Asia/Kuwait',
+          is_active: true,
+        },
+      ],
+    },
+  ],
+};
+
+/** رد مساحة العمل والقوائم مع بعض، زي ما السيرفر بيجاوب على المسارات دي. */
+function answerWorkspacesAndLists(path: string): { data?: unknown; response: { status: number } } {
+  if (path === WORKSPACES) {
+    return {
+      data: { companies: [WORKSPACE_COMPANY], capabilities: { staff_access: false } },
+      response: { status: 200, ok: true },
+    };
+  }
+  return { data: bodies[path], response: { status: 200 } };
+}
+
+/**
+ * قراءة مساحة العمل موقوفة بالاتصال: الصندوق يقول «تعذّر التحقق» بدل ما يفضل «جارٍ التحميل» للأبد،
+ * ويفحص القوائم من جديد لما يرجع الاتصال.
+ */
+async function failsWhenTheWorkspaceReadIsPaused(): Promise<void> {
+  toggles.useRealWorkspace = true;
+  onlineManager.setOnline(false);
+  api.GET.mockImplementation((path: string) => Promise.resolve(answerWorkspacesAndLists(path)));
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  render(
+    <DirectionProvider dir="ltr">
+      <QueryClientProvider client={client}>
+        <WorkspaceProvider>
+          <ApprovalsInboxHost />
+        </WorkspaceProvider>
+      </QueryClientProvider>
+    </DirectionProvider>,
+  );
+  expect((await screen.findByRole('alert')).textContent).toBe(t('en', 'adminNav.approvalsInboxFailed'));
+  expect(screen.queryByRole('status')).toBeNull();
+  act(() => onlineManager.setOnline(true));
+  await waitFor(() => expect(screen.getAllByRole('link')).toHaveLength(3));
+  expect(screen.queryByRole('alert')).toBeNull();
+}
+
+/**
+ * زائر مجهول محفوظ: إعادة التحقق موقوفة بالاتصال وما فيش معرّف، فالهوية «تعذّر» مش «مستقرة بلا
+ * مستخدم»، والصندوق يقول «تعذّر التحقق» بدل ما يقول «مفيش قوائم».
+ */
+async function failsWhenTheAnonymousIdentityIsPaused(): Promise<void> {
+  toggles.useRealIdentity = true;
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  client.setQueryData(['session', 'user'], null);
+  onlineManager.setOnline(false);
+  renderInbox(client);
+  expect((await screen.findByRole('alert')).textContent).toBe(t('en', 'adminNav.approvalsInboxFailed'));
+  expect(screen.queryByText(t('en', 'adminNav.approvalsInboxEmpty'))).toBeNull();
+}
+
+/**
+ * مستخدم مسجّل محفوظ مع قوائم ما جاوبتش من التركيب: القراءة كلها موقوفة، فالحالة «تعذّر التحقق»
+ * مش «جارٍ التحميل».
+ */
+async function failsWhenNoListAnsweredSinceMount(): Promise<void> {
+  toggles.useRealIdentity = true;
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  client.setQueryData(['session', 'user'], { id: 'user-1', email: 'u@example.test', name: 'U' });
+  onlineManager.setOnline(false);
+  renderInbox(client);
+  expect((await screen.findByRole('alert')).textContent).toBe(t('en', 'adminNav.approvalsInboxFailed'));
+  expect(screen.queryByRole('status')).toBeNull();
+}
+
 describe('the inbox while the connection is down', () => {
   afterEach(() => onlineManager.setOnline(true));
 
@@ -238,4 +354,7 @@ describe('the inbox while the connection is down', () => {
   });
 
   it('does not trust a cached refusal while the re-check is paused offline', ignoresCachedRefusal);
+  it('fails when the workspace read is paused offline, and lists again when it returns', failsWhenTheWorkspaceReadIsPaused);
+  it('fails when the cached identity is anonymous and the re-check is paused offline', failsWhenTheAnonymousIdentityIsPaused);
+  it('fails when no list answered since the mount', failsWhenNoListAnsweredSinceMount);
 });
