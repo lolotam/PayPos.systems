@@ -1,6 +1,6 @@
 import { expect, it, vi } from 'vitest';
 import type { Logger } from '@pospay/observability';
-import { reportRatingTokenCapability } from './rating-token-capability.ts';
+import { createRatingTokenSender, reportRatingTokenCapability } from './rating-token-capability.ts';
 
 const K1 = 'AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8=';
 
@@ -45,4 +45,29 @@ it.each([
   expect(otherMock).not.toHaveBeenCalled();
   expect(JSON.stringify(info.mock.calls)).not.toContain(K1);
   expect(JSON.stringify(warn.mock.calls)).not.toContain(K1);
+});
+
+const K2 = 'ICEiIyQlJicoKSorLC0uLzAxMjM0NTY3ODk6Ozw9Pj8=';
+const IDENTITY = {
+  companyId: '0190a1b2-c3d4-7e5f-8a6b-7c8d9e0f1a2b',
+  ratingRequestId: '0190a1b2-c3d4-7e5f-8a6b-7c8d9e0f1a2c',
+};
+
+it('createRatingTokenSender is null unless the ring is READY', () => {
+  expect(createRatingTokenSender({})).toBeNull();
+  expect(createRatingTokenSender({ RATING_TOKEN_DERIVATION_KEY: K1 })).toBeNull();
+});
+
+it('createRatingTokenSender derives for the current and retired versions only', () => {
+  const sender = createRatingTokenSender({
+    RATING_TOKEN_DERIVATION_KEY: K2,
+    RATING_TOKEN_DERIVATION_KEY_VERSION: '2',
+    RATING_TOKEN_DERIVATION_RETIRED_KEYS: JSON.stringify({ '1': K1 }),
+  });
+  const current = sender?.token(IDENTITY, 2);
+  const retired = sender?.token(IDENTITY, 1);
+  expect(typeof current).toBe('string');
+  expect(typeof retired).toBe('string');
+  expect(current).not.toBe(retired);
+  expect(sender?.token(IDENTITY, 99)).toBeNull();
 });

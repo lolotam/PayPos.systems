@@ -27,3 +27,20 @@ export interface SendConfiguration {
    */
   failure(attempt: Attempt): FailureCode | null;
 }
+
+/** مشتق رابط التقييم في الذاكرة وقت الإرسال فقط؛ الرابط لا يُخزَّن ولا يُسجَّل ولا يدخل outbox. */
+export interface RatingTokenSender {
+  /**
+   * يشتق نص الرابط لطلب تقييم بإصدار المفتاح المحفوظ وقت المطالبة.
+   *
+   * @param identity الشركة وطلب التقييم اللذان يُشتق منهما الرابط
+   * @param identity.companyId الشركة صاحبة الطلب
+   * @param identity.ratingRequestId معرّف طلب التقييم
+   * @param keyVersion إصدار مفتاح الاشتقاق المحفوظ في طلب الجاهزية
+   * @returns نص الرابط، أو null لما الإصدار غير موجود في الحلقة فيفشل الإرسال مغلقاً
+   */
+  token(
+    identity: { readonly companyId: string; readonly ratingRequestId: string },
+    keyVersion: number,
+  ): string | null;
+}

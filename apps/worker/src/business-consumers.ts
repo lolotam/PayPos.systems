@@ -7,6 +7,7 @@ import {
 import {
   createLowRatingNoticeConsumer,
   createRatingSchedulingConsumer,
+  createRatingSentConsumer,
 } from './modules/customers/index.ts';
 import {
   createDiscountApprovalNoticeConsumer,
@@ -56,6 +57,7 @@ export function businessConsumers(deps: BusinessConsumerDeps): readonly OutboxCo
     createDiscountSelfApprovalNoticeConsumer(newIds(), clock),
     createLowRatingNoticeConsumer(newIds(), clock),
     createRatingSchedulingConsumer({ ids: newIds(), clock, daySessions: deps.daySessions }),
+    createRatingSentConsumer(),
     createCommissionInputsConsumer({ ids: newIds(), clock, ...deps.commissions }),
     createCommissionReminderScheduleConsumer(),
   ];
