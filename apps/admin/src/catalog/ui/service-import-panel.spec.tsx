@@ -11,6 +11,7 @@ const state = vi.hoisted(() => ({
   template: {
     isPending: false,
     isError: false,
+    error: null as unknown,
     data: { file_name: 'services.xlsx', content_base64: 'UEsD' },
   },
   preview: {
@@ -98,15 +99,19 @@ function previewWith(errors: { row: number; column: string; code: string }[], ro
 
 beforeEach(() => {
   locale.value = 'en';
+  state.template.isError = false;
+  state.template.error = null;
   state.preview.isSuccess = false;
   state.commit.isSuccess = false;
   state.commit.isPending = false;
+  state.commit.data = undefined;
   state.status.data = undefined;
   state.status.timedOut = false;
   state.request.preview = undefined;
   state.request.rows = [];
   state.request.nextCursor = null;
   state.selection.file = undefined;
+  state.selection.resumedPreviewId = undefined;
 });
 
 it('keeps the commit disabled and names every row error while the preview is dirty', () => {
@@ -222,7 +227,32 @@ it('shows the PCT and FIXED rules with their values next to the defaulted rule',
 it('keeps the commit disabled while a commit request is pending', () => {
   state.request.preview = previewWith([], [cleanRow()]);
   state.request.rows = [cleanRow()];
+  const { rerender } = render(panel());
+  expect(button(t('en', 'catalogServiceImport.commit')).disabled).toBe(false);
   state.commit.isPending = true;
-  render(panel());
+  rerender(panel());
   expect(button(t('en', 'catalogServiceImport.commit')).disabled).toBe(true);
+});
+
+it('shows the template failure message when the template cannot be loaded', () => {
+  state.template.isError = true;
+  state.template.error = {
+    code: 'IMPORT_TEMPLATE_EXCEEDS_LIMITS',
+    message_ar: 'Arabic template failure',
+    message_en: 'Template limit exceeded',
+  };
+  render(panel());
+  expect(button(t('en', 'catalogServiceImport.download')).disabled).toBe(true);
+  expect(screen.getByRole('alert').textContent).toBe('Template limit exceeded');
+});
+
+it('hides the prior committed outcome when a new preview replaces it on the same file', () => {
+  state.commit.isSuccess = true;
+  state.commit.data = { preview_id: 'p-old' };
+  state.status.data = { preview_id: 'p-old', status: 'committed', created_count: 2, error_code: null };
+  state.request.preview = { ...previewWith([], [cleanRow()]), preview_id: 'p-new' };
+  state.request.rows = [cleanRow()];
+  render(panel());
+  expect(screen.queryByText(new RegExp(t('en', 'catalogServiceImport.committed')))).toBeNull();
+  expect(button(t('en', 'catalogServiceImport.commit')).disabled).toBe(false);
 });

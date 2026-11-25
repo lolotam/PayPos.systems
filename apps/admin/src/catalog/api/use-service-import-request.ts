@@ -22,7 +22,7 @@ const INITIAL_STATE: ServiceImportRequestState = {
 type ServiceImportRequestAction =
   | { kind: 'reset' }
   | { kind: 'preview'; preview: ServiceImportPreview }
-  | { kind: 'rows'; page: ServiceImportRowsPage };
+  | { kind: 'rows'; previewId: string; page: ServiceImportRowsPage };
 
 function requestReducer(
   state: ServiceImportRequestState,
@@ -38,6 +38,7 @@ function requestReducer(
         nextCursor: action.preview.next_cursor,
       };
     case 'rows':
+      if (state.preview?.preview_id !== action.previewId) return state;
       return {
         ...state,
         rows: [...state.rows, ...action.page.items],
@@ -48,7 +49,7 @@ function requestReducer(
 
 /**
  * حالة طلب الاستيراد مع حارس سباق: كل محاولة تحمل رمز الجلسة، وأي استجابة تصل بعد
- * تغيير الملف أو إعادة الضبط تُهمل فلا تكتب فوق الحالة الحالية.
+ * تغيير الملف أو إعادة الضبط أو استبدال المعاينة تُهمل فلا تكتب فوق الحالة الحالية.
  */
 export function useServiceImportRequest() {
   const [state, dispatch] = useReducer(requestReducer, INITIAL_STATE);
@@ -62,9 +63,12 @@ export function useServiceImportRequest() {
     if (token !== tokenRef.current) return;
     dispatch({ kind: 'preview', preview });
   }, []);
-  const acceptRows = useCallback((token: number, page: ServiceImportRowsPage) => {
-    if (token !== tokenRef.current) return;
-    dispatch({ kind: 'rows', page });
-  }, []);
+  const acceptRows = useCallback(
+    (token: number, previewId: string, page: ServiceImportRowsPage) => {
+      if (token !== tokenRef.current) return;
+      dispatch({ kind: 'rows', previewId, page });
+    },
+    [],
+  );
   return { ...state, currentToken, restart, acceptPreview, acceptRows };
 }
