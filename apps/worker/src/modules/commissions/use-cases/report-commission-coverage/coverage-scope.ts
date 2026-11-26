@@ -5,6 +5,9 @@ import type {
   CoverageTenantRunner,
 } from '../../ports/commission-coverage.port.ts';
 
+// القاعدة نفسها في domain/، وده تصدير اسمي لها: use-cases/ ما بتاخدش نسخة من القاعدة.
+export { isCommissionCalendarDate as isCommissionCoverageCalendarDate } from '../../domain/commission-calendar.ts';
+
 /** نطاق البقشيش كما طلبه المشغّل: أنشطة الشركة ويوما بداية العمل ونهايته. */
 export interface CommissionCoverageTipScope {
   readonly businessIds: readonly string[];
@@ -25,17 +28,6 @@ export class CommissionCoverageScopeInvalidError extends Error {
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 /**
- * يرفض التواريخ التي يقبلها شكل YYYY-MM-DD ولا وجود لها في التقويم، لأن فحص البقشيش
- * بنطاق محوّل تلقائياً إلى يوم آخر يعطي المشغّل نتيجة تغطية عن نطاق لم يطلبه.
- *
- * @param value التاريخ النصي المطلوب فحصه
- * @returns true فقط لتاريخ تقويمي حقيقي بصيغة YYYY-MM-DD، للسنوات 0001-9999 لأن PostgreSQL لا يحتوي على سنة صفرية
- */
-export function isCommissionCoverageCalendarDate(value: string): boolean {
-  return isCommissionCalendarDate(value);
-}
-
-/**
  * يطبّع نطاق البقشيش قبل أي قراءة: تواريخ تقويمية حقيقية و`from` ليس بعد `to`،
  * وقائمة أنشطة غير فارغة بمعرّفات UUID صغيرة بلا تكرار.
  * قائمة فارغة كانت تُنفّذ صفر قراءات فتُقرأ نتيجتها كتغطية، ولا يوجد افتراض «كل الأنشطة».
@@ -49,8 +41,8 @@ export function normalizeTipScope(
 ): CommissionCoverageTipScope | undefined {
   if (tips === undefined) return undefined;
   const datesValid =
-    isCommissionCoverageCalendarDate(tips.from) &&
-    isCommissionCoverageCalendarDate(tips.to) &&
+    isCommissionCalendarDate(tips.from) &&
+    isCommissionCalendarDate(tips.to) &&
     tips.from <= tips.to;
   const businessIds = [...new Set(tips.businessIds.map((id) => id.trim().toLowerCase()))];
   if (!datesValid || businessIds.length === 0 || !businessIds.every((id) => UUID.test(id)))

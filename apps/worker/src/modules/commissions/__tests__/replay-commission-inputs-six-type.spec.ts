@@ -1,4 +1,5 @@
 import type { ClaimedEvent, DeliveryOutcome } from '@pospay/db';
+import { COMMISSION_INPUT_EVENT_TYPES } from '@pospay/domain';
 import { describe, expect, it, vi } from 'vitest';
 
 import { type CommissionFailureCodes } from '../jobs/replay-commission-inputs.ts';
@@ -7,15 +8,8 @@ import { runCommissionInputReplay } from '../index.ts';
 const COMPANY = '01920000-0000-7000-8000-0000000000a0';
 const eventId = (n: number) => `01970000-0000-7000-8000-${String(n).padStart(12, '0')}`;
 
-// الأنواع الستة التي يسجّلها المستهلك من 50-4؛ بيع الباقة انضم للقائمة في 50-4.
-const HANDLED_SIX = new Set([
-  'ServiceSessionRecorded',
-  'ServiceSessionLinesAdded',
-  'ServiceLineChanged',
-  'SessionTipsChanged',
-  'SalaryChanged',
-  'PackageSaleChanged',
-]);
+// الأنواع الستة التي يسجّلها المستهلك من 50-4؛ من @pospay/domain مباشرةً عشان تفضل قائمة واحدة.
+const HANDLED_SIX: ReadonlySet<string> = new Set<string>(COMMISSION_INPUT_EVENT_TYPES);
 // مجموعة أضيق افتراضية لتدريب حارس الـ runner على نوع غير مسجَّل؛ المستهلك الحقيقي يسجّل الستة كلها.
 const HANDLED_BEFORE_50_4 = new Set([...HANDLED_SIX].filter((type) => type !== 'PackageSaleChanged'));
 
@@ -186,5 +180,64 @@ describe('runCommissionInputReplay: the six-type result line', () => {
     const serialized = JSON.stringify(result);
     expect(serialized).not.toContain('sensitive');
     expect(serialized).not.toContain('payload');
+  });
+});
+
+/** مجموع أعداد التسليم؛ الأعداد لكل نوع لوحدها مش بتقول حجم التشغيل كله. */
+const deliveredCount = (counts: Record<string, number>): number =>
+  Object.values(counts).reduce((sum, value) => sum + value, 0);
+
+/**
+ * نوع الحدث بالموقع، والأنواع الستة بالتناوب؛ الباقي داخل القائمة دايماً لأن طولها ثابت،
+ * والعنصر الأول احتياط لسطح النوع فقط: الفهرسة برقم مش معروف بترجع قيمة من غيرها.
+ */
+const eventTypeAt = (index: number): string =>
+  COMMISSION_INPUT_EVENT_TYPES[index % COMMISSION_INPUT_EVENT_TYPES.length] ??
+  COMMISSION_INPUT_EVENT_TYPES[0];
+
+describe('runCommissionInputReplay: a six-type replay over more than a hundred pages', () => {
+  it('stops at the page limit, resumes from afterId and ends COMPLETE with no unhandled type', async () => {
+    // مئة صفحة كاملة وبعدها خمسون حدث: التشغيل الأول بيقف عند حد الصفحات، والاستئناف بنفس المؤشرين
+    // بيكمل. الأنواع الستة متناوبة في كل الأحداث، فأي نوع غير مسجَّل كان بيظهر في العدّاد.
+    const total = 10_050;
+    const events = Array.from({ length: total }, (_row, index) =>
+      fakeEvent(index + 1, eventTypeAt(index)),
+    );
+    const reader = fakeReader(events);
+    const deliver = vi.fn(delivered);
+
+    const first = await runCommissionInputReplay(
+      {
+        reader,
+        deliver,
+        failures: new Map(),
+        scope: 'SIX_TYPE',
+        handledTypes: HANDLED_SIX,
+      },
+      { companyId: COMPANY, afterId: null, throughId: null },
+    );
+
+    expect(first.status).toBe('PAGE_LIMIT');
+    expect(first.undelivered).toEqual([]);
+    expect(deliveredCount(first.counts)).toBe(10_000);
+    expect(Object.keys(first.counts).sort()).toEqual([...COMMISSION_INPUT_EVENT_TYPES].sort());
+
+    const second = await runCommissionInputReplay(
+      {
+        reader,
+        deliver,
+        failures: new Map(),
+        scope: 'SIX_TYPE',
+        handledTypes: HANDLED_SIX,
+      },
+      { companyId: COMPANY, afterId: first.afterId, throughId: first.throughId },
+    );
+
+    expect(second.status).toBe('COMPLETE');
+    expect(second.undelivered).toEqual([]);
+    expect(deliveredCount(second.counts)).toBe(50);
+    expect(deliver).toHaveBeenCalledTimes(total);
+    expect(second.afterId).toBe(eventId(total));
+    expect(second.throughId).toBe(eventId(total));
   });
 });
