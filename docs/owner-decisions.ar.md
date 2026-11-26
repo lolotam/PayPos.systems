@@ -3647,36 +3647,3 @@ so much beteer to creat this advisore for the project level so you and the manag
 5. إثبات الأداء: اختبار `EXPLAIN ANALYZE` على المدى الأعرض (366 يوم) بيتأكد إن المسح فهرس بشرط الشركة والوقت،
    وإن عدد الصفوف ما بيزيدش عن صفوف النافذة، وإن زمن التنفيذ أقل من 200ms.
 6. ده سؤال تقني، فمش بيتنشر على صفحة القرارات.
-
-## PP-279 — أربع نماذج للتنفيذ ومهمتين شغالين دايمًا، ومراجع GLM 5.4 (2026-11-27)
-
-**قرار وليد.** 2026-11-27، رسالتين في محادثة المدير. التانية زوّدت البندين 3 و4، ودي نصها:
-«Don't forget to delegate code implementation to two models : /clean-code-guard:clean-code-guard /test-guard:test-guard /speckit-implement   always two task is working and try to give the full implement instructions and files and all details to help these models from deviations and put the guard rails and all instructions in the prompt
-1-Agy hydrogen 4 medium  with
-2-opencode minimax 3.1 flash high
-3-opemcode kimi 3.1 pro
-4- opencode GLM 3.1 fast
-use the reviewer with this task :  /waleed_general_reviewer
-1-open code GLM 5.4 high  with the
-2-opus 5.5 medium "fallback"
-then lastly commit and push to the branch and then repeat the cycle save to document pipeline»
-
-**التطبيق.**
-
-1. **التنفيذ على أربع نماذج، وفيه دايمًا مهمتين شغالين في نفس الوقت:**
-   - Antigravity `gemini-4-hydrogen`، `thought_level: medium`.
-   - OpenCode `minimax-coding-plan/MiniMax-M3.1-Flash`. وليد طلب «high»، بس المدخل ده مفيهوش variant، فبيشتغل على الإعداد الافتراضي. المدخل اللي فيه `high` هو `opencode-go/minimax-m3.1-flash`، وحصة opencode-go الأسبوعية خلصت لحد حوالي 2026-11-30.
-   - OpenCode `kimi-code-plan-cn/k3.1-pro`، `variant: high`.
-   - OpenCode `zai-coding-plan/glm-5.3-flash`، `variant: high`. قريناها على إن «GLM 3.1 fast» معناها GLM 5.3 Flash، لأن مفيش GLM 3.1 في الكتالوج.
-   - كل مدير بيوزّع مهماته على النماذج دي. فيه دايمًا مهمتين تنفيذ شغالين، ولو واحدة خلصت بتبدأ اللي بعدها على طول. المهام اللي بتشتغل بالتوازي ملفاتها لازم ما تتداخلش، وفيه migration lane واحد بس في كل وقت (PP-130). Kimi و GLM بيتجربوا الأول على المهام المتوسطة والصغيرة اللي ملفاتها محددة بالظبط.
-2. **الـ brief كامل:** الهدف، والـ spec والـ plan، والملفات اللي هتتعدل بالمسار بالظبط، والملفات الممنوع تتلمس، وحجم التسليم المتوقع (PP-273/274)، وقواعد `CLAUDE.md` و`CLAUDE.architecture.md` اللي ليها علاقة، والاختبارات المطلوبة، والأوامر المحلية اللي لازم تعدّي. وفيه كمان الحواجز دي:
-   - مفيش git (لا commit ولا stash ولا push).
-   - مفيش قراءة لـ `.env*` ولا لأي حاجة بره الـ worktree.
-   - مفيش إعادة تنسيق لملفات مش في المهمة، ومفيش ضغط سطور عشان يهرب من `max-lines`.
-   - مفيش migration من غير ما المدير يدّي دور.
-   - المنفّذ بيشتغل بـ `/speckit-implement`، وبعده بيشغّل `/clean-code-guard` على كود الإنتاج و`/test-guard` على الاختبارات قبل ما يسلّم.
-3. **المراجعة:** `/waleed_general_reviewer` مع ملحق PosPay بتاع PP-277 §5، على OpenCode `zai-coding-plan/glm-5.4`، `variant: high`. البديل لو فشل مرتين على التوافر (PP-112): Claude `claude-opus-5-5`، `effort: medium`. القرار ده بيحل محل نموذج المراجع في PP-277 بس، والـ skill والملحق زي ما هم.
-4. **بعد المراجعة:** جولة تصحيح واحدة بنفس المنفّذ، وبعدين commit وpush على فرع المهمة، وبعدين `ci-gate` على الرأس بالظبط، وطلب «دورك» من المدير، والدمج بـ `--match-head-commit`. بعدها الدورة بتتكرر مع المهمة اللي بعدها.
-5. **البديل لو المنفّذ فشل على التوافر** (حصة، 2056، أو نموذج مش متاح، مرتين): Claude Sonnet 5.5 `medium` (PP-270)، والتقرير بيذكر التحويل.
-6. **اللي ما اتغيرش:** حد الـ 5 PRs مفتوحة (PP-118)، وحجم الشريحة (PP-273/274)، وترتيب الـ migrations، وسنابشوت PP-129، والبوتات الاستشارية، وكل قواعد الكود والأمان. مفيش جلسات Codex جديدة.
-7. ده قرار تقني، فمش بيتنشر على صفحة القرارات.
