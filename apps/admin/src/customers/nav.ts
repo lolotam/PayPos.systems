@@ -40,6 +40,14 @@ const MARKETING_OPS: readonly [NavigationRoleCode, ...NavigationRoleCode[]] = [
   'marketing',
 ];
 
+const CUSTOMER_CREATORS: readonly [NavigationRoleCode, ...NavigationRoleCode[]] = [
+  'owner',
+  'general_manager',
+  'business_manager',
+  'branch_manager',
+  'cashier',
+];
+
 const APPOINTMENT_TYPES: readonly NavigationBusinessType[] = ['salon', 'services', 'clinic'];
 
 /** مداخل قسم العملاء والتسويق (Customers and marketing) في منطقة الإدارة. */
@@ -66,6 +74,7 @@ export const CUSTOMERS_NAV_PAGES: readonly NavigationPageEntry[] = [
     section: 'customers',
     submenu: 'customers',
     businessTypes: [],
+    roles: CUSTOMER_CREATORS,
     appMapEntry: false,
   },
   {

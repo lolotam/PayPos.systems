@@ -239,6 +239,8 @@ it('shows the delayed notice once polling has timed out', () => {
 it('blocks the commit while a commit or a preview is in flight, and the preview while a commit is', () => {
   state.selection.file = new File(['x'], 'customers.xlsx');
   const { rerender } = render(panel());
+  const fileInput = screen.getByLabelText(t('en', 'customerImport.choose')) as HTMLInputElement;
+  expect(fileInput.disabled).toBe(false);
   expect(button(t('en', 'customerImport.preview')).disabled).toBe(false);
   expect(button(t('en', 'customerImport.commit')).disabled).toBe(true);
   state.request.preview = previewWith([], [cleanRow()]);
@@ -248,6 +250,7 @@ it('blocks the commit while a commit or a preview is in flight, and the preview 
   expect(button(t('en', 'customerImport.preview')).disabled).toBe(false);
   state.commit.isPending = true;
   rerender(panel());
+  expect(fileInput.disabled).toBe(true);
   expect(button(t('en', 'customerImport.commit')).disabled).toBe(true);
   expect(button(t('en', 'customerImport.preview')).disabled).toBe(true);
   state.commit.isPending = false;
@@ -260,6 +263,7 @@ it('blocks the commit while a commit or a preview is in flight, and the preview 
     error_code: null,
   };
   rerender(panel());
+  expect(fileInput.disabled).toBe(true);
   expect(button(t('en', 'customerImport.preview')).disabled).toBe(true);
   expect(button(t('en', 'customerImport.commit')).disabled).toBe(true);
   state.status.data = {
@@ -269,6 +273,7 @@ it('blocks the commit while a commit or a preview is in flight, and the preview 
     error_code: null,
   };
   rerender(panel());
+  expect(fileInput.disabled).toBe(false);
   expect(button(t('en', 'customerImport.preview')).disabled).toBe(false);
   state.commit.isSuccess = false;
   state.commit.data = undefined;
@@ -276,6 +281,7 @@ it('blocks the commit while a commit or a preview is in flight, and the preview 
   state.preview.isPending = true;
   rerender(panel());
   expect(button(t('en', 'customerImport.commit')).disabled).toBe(true);
+  expect(screen.getByText(t('en', 'customerImport.checking')).getAttribute('role')).toBe('status');
 });
 
 it.each(LANGUAGES)('shows the template refusal message in %s', (language) => {

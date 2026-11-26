@@ -15,6 +15,7 @@ type CustomerImportOutcomeProps = {
   preview: CustomerImportPreview | undefined;
   rows: readonly CustomerImportRow[];
   nextCursor: string | null;
+  checking?: boolean;
   loadingMore: boolean;
   onLoadMore: () => void;
   accepted: boolean;
@@ -47,6 +48,7 @@ export function CustomerImportOutcome({
   preview,
   rows,
   nextCursor,
+  checking = false,
   loadingMore,
   onLoadMore,
   accepted,
@@ -57,11 +59,16 @@ export function CustomerImportOutcome({
   const locale = useLocale();
   return (
     <>
+      {checking ? (
+        <p role="status" className="text-sm text-muted-foreground">
+          {t(locale, 'customerImport.checking')}
+        </p>
+      ) : null}
       {preview !== undefined ? <CustomerImportSummary preview={preview} /> : null}
       {preview !== undefined ? (
         <CustomerImportErrors errorCount={preview.error_count} errors={preview.errors} />
       ) : null}
-      {preview !== undefined && rows.length > 0 ? (
+      {preview !== undefined && preview.error_count === 0 && rows.length > 0 ? (
         <CustomerImportRowsTable
           rows={rows}
           nextCursor={nextCursor}

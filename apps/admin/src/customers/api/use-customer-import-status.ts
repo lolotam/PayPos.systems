@@ -55,7 +55,7 @@ export function useCustomerImportStatus(scope: CustomerImportTargetScope, previe
     enabled: previewId !== undefined,
     retry: false,
     refetchInterval: (current) => {
-      if (timedOut) return false;
+      if (timedOut || current.state.status === 'error') return false;
       const status = current.state.data?.status;
       return status === undefined || status === 'commit_requested' ? 1000 : false;
     },

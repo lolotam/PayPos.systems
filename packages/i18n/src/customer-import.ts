@@ -78,6 +78,8 @@ export const customerImportEn = {
   delayed:
     'The import is still running. Reopen this page later to see the result. Do not upload the workbook again unless the import shows as failed.',
   failed: 'The import failed. No customers were saved.',
+  chooseBranch: 'Choose a branch before importing customers.',
+  checking: 'Uploading and checking the file…',
 } as const;
 
 export const customerImportAr = {
@@ -156,4 +158,6 @@ export const customerImportAr = {
   delayed:
     'الاستيراد لا يزال قيد التنفيذ. أعد فتح الصفحة لاحقاً لمعرفة النتيجة. لا ترفع المصنف مرة أخرى إلا إذا ظهر أن الاستيراد فشل.',
   failed: 'فشل الاستيراد ولم يُحفظ أي عميل.',
+  chooseBranch: 'اختر فرعاً قبل استيراد العملاء.',
+  checking: 'جارٍ رفع الملف وفحصه…',
 } as const;

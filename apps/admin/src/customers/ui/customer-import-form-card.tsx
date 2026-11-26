@@ -6,6 +6,7 @@ import { useLocale } from '@/shared/locale/locale-context';
 type CustomerImportFormCardProps = {
   templateReady: boolean;
   onDownload: () => void;
+  canChooseFile?: boolean;
   onSelect: (file: File | undefined) => void;
   canPreview: boolean;
   onInspect: () => void;
@@ -17,6 +18,7 @@ type CustomerImportFormCardProps = {
 export function CustomerImportFormCard({
   templateReady,
   onDownload,
+  canChooseFile = true,
   onSelect,
   canPreview,
   onInspect,
@@ -51,6 +53,7 @@ export function CustomerImportFormCard({
               <Input
                 type="file"
                 accept=".xlsx"
+                disabled={!canChooseFile}
                 onChange={(event) => onSelect(event.target.files?.[0])}
               />
             </label>

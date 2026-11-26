@@ -17,7 +17,7 @@ export function CustomerImportRoute() {
   if (workspace.status !== 'ready' || userId === null) return null;
   if (!workspace.business) return <p>{t(locale, 'admin.chooseBusiness')}</p>;
   const branchScoped = workspace.company.scope === 'BRANCH';
-  if (branchScoped && !workspace.branch) return <p>{t(locale, 'serviceSessions.chooseBranch')}</p>;
+  if (branchScoped && !workspace.branch) return <p>{t(locale, 'customerImport.chooseBranch')}</p>;
   const branchId = branchScoped ? workspace.branch?.id : undefined;
   return (
     <CustomerImportPage

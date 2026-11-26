@@ -70,6 +70,8 @@ const SCREEN_LABELS = [
   'pending',
   'delayed',
   'failed',
+  'chooseBranch',
+  'checking',
 ] as const;
 
 const TABLE_HEADERS = [
@@ -100,7 +102,9 @@ describe('customer-import catalog (073 34b)', () => {
 
   it('carries the warning and the three commit refusal codes in both languages', () => {
     expect(customerImportEn.warning_EXISTING_NO_RATING_IGNORED).toMatch(/\S/);
-    expect(customerImportAr.warning_EXISTING_NO_RATING_IGNORED).toMatch(/\S/);
+    expect(customerImportAr.warning_EXISTING_NO_RATING_IGNORED).toBe(
+      'موجودة — رفض التقييم مش هيتسجّل',
+    );
     for (const code of COMMIT_CODES) {
       expect(customerImportEn[`commit_${code}`]).toMatch(/\S/);
       expect(customerImportAr[`commit_${code}`]).toMatch(/\S/);

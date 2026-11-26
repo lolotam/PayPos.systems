@@ -233,16 +233,15 @@ it('sends a branch-scoped user to their branch and asks for one when none is cho
   unmount();
   readyWorkspace('BRANCH', false);
   render(<CustomerImportRoute />);
-  expect(screen.getByText(t('en', 'serviceSessions.chooseBranch'))).toBeTruthy();
+  expect(screen.getByText(t('en', 'customerImport.chooseBranch'))).toBeTruthy();
 });
 
 it('asks for a business first and renders nothing before the workspace is ready', () => {
   state.workspace = { ...(state.workspace as object), business: undefined };
-  const { container, unmount } = render(<CustomerImportRoute />);
+  const { unmount } = render(<CustomerImportRoute />);
   expect(screen.getByText(t('en', 'admin.chooseBusiness'))).toBeTruthy();
   unmount();
   state.workspace = { status: 'loading', companies: [], choose: vi.fn() };
   const empty = render(<CustomerImportRoute />);
   expect(empty.container.textContent).toBe('');
-  expect(container).toBeTruthy();
 });

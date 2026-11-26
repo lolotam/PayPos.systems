@@ -152,7 +152,26 @@ it.each([
   },
 );
 
-it('stops the upload status polling when the page unmounts', async () => {
+it('stops status polling on 404 and clears the stored preview id', async () => {
+  api.GET.mockImplementation(async (path: string) =>
+    path.endsWith('/template')
+      ? replyFor(path, 'committed')
+      : {
+          error: { code: 'IMPORT_PREVIEW_NOT_FOUND' },
+          response: new Response(null, { status: 404 }),
+        },
+  );
+  await startPolling();
+  const settled = statusCalls();
+  expect(settled).toBe(1);
+  expect(
+    sessionStorage.getItem(`customer-import:${company}:${business}:business:${user}`),
+  ).toBeNull();
+  await act(async () => vi.advanceTimersByTimeAsync(10_000));
+  expect(statusCalls()).toBe(settled);
+});
+
+async function startVerifyingUpload() {
   const actual = await vi.importActual<{ uploadCustomerImportFile: UploadFile }>(
     './upload-customer-import-file',
   );
@@ -184,7 +203,20 @@ it('stops the upload status polling when the page unmounts', async () => {
     await act(async () => vi.advanceTimersByTimeAsync(1000));
   }
   expect(fileCalls()).toBeGreaterThanOrEqual(3);
+  return { view, fileCalls };
+}
+
+it('stops the upload status polling when the page unmounts', async () => {
+  const { view, fileCalls } = await startVerifyingUpload();
   view.unmount();
+  const settled = fileCalls();
+  await act(async () => vi.advanceTimersByTimeAsync(30_000));
+  expect(fileCalls()).toBe(settled);
+});
+
+it('stops the upload status polling when another file is chosen', async () => {
+  const { fileCalls } = await startVerifyingUpload();
+  choose('B.xlsx');
   const settled = fileCalls();
   await act(async () => vi.advanceTimersByTimeAsync(30_000));
   expect(fileCalls()).toBe(settled);

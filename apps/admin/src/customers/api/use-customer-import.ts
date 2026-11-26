@@ -101,8 +101,9 @@ async function fetchRows(
 async function postCommit(
   { companyId, businessId, branchId }: CustomerImportTargetScope,
   previewId: string,
+  idempotencyKey: string,
 ) {
-  const header = { 'x-company-id': companyId, 'Idempotency-Key': crypto.randomUUID() };
+  const header = { 'x-company-id': companyId, 'Idempotency-Key': idempotencyKey };
   const body = { preview_id: previewId };
   const result =
     branchId !== undefined
@@ -192,12 +193,19 @@ function useRowsMutation(scope: CustomerImportTargetScope, request: Request) {
   });
 }
 
-/** طلب الحفظ بمفتاح عدم تكرار جديد، وتذكّر المعاينة المقبولة للمتابعة بعد إعادة الفتح. */
+/** طلب الحفظ بمفتاح عدم تكرار ثابت لكل معاينة، وتذكّر المعاينة المقبولة للمتابعة بعد إعادة الفتح. */
 function useCommitMutation(
   scope: CustomerImportTargetScope,
   request: Request,
   selection: Selection,
 ) {
+  const keyRef = useRef<{ previewId: string; key: string } | undefined>(undefined);
+  const keyForPreview = (previewId: string) => {
+    if (keyRef.current?.previewId === previewId) return keyRef.current.key;
+    const next = { previewId, key: crypto.randomUUID() };
+    keyRef.current = next;
+    return next.key;
+  };
   return useMutation({
     mutationKey: [
       'customer-import-commit',
@@ -207,7 +215,8 @@ function useCommitMutation(
       scope.userId,
     ],
     retry: false,
-    mutationFn: ({ previewId }: CommitAttempt) => postCommit(scope, previewId),
+    mutationFn: ({ previewId }: CommitAttempt) =>
+      postCommit(scope, previewId, keyForPreview(previewId)),
     onSuccess: (data, variables) => {
       if (variables.token !== request.currentToken()) return;
       selection.remember(data.preview_id);
@@ -215,7 +224,7 @@ function useCommitMutation(
   });
 }
 
-/** يتابع الحالة بعد الحفظ، ويحرّر الاختيار المحفوظ عند نتيجة نهائية. */
+/** يتابع الحالة بعد الحفظ، ويحرّر الاختيار المحفوظ عند نتيجة نهائية أو انتهاء صلاحية/منع. */
 function useCommitStatus(
   scope: CustomerImportTargetScope,
   selection: Selection,
@@ -223,10 +232,17 @@ function useCommitStatus(
 ) {
   const previewId = acceptedPreviewId ?? selection.resumedPreviewId;
   const status = useCustomerImportStatus(scope, previewId);
+  const errorStatus = (status.error as { status?: number } | null)?.status;
   useEffect(() => {
     const outcome = status.data?.status;
-    if (outcome === 'committed' || outcome === 'failed') selection.release();
-  }, [status.data?.status, selection.release]);
+    if (
+      outcome === 'committed' ||
+      outcome === 'failed' ||
+      errorStatus === 404 ||
+      errorStatus === 403
+    )
+      selection.release();
+  }, [errorStatus, status.data?.status, selection.release]);
   return status;
 }
 
