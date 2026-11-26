@@ -84,6 +84,7 @@ describe('/soon/<page>', () => {
   it.each([
     ['appearance', '/appearance'],
     ['approvals-inbox', '/approvals'],
+    ['pos-devices-and-pins', '/devices'],
   ])('forwards the old address of the built entry %s to %s', (id, address) => {
     renderDashboard(route(id));
     expect(frameState.replace).toHaveBeenCalledWith(address);

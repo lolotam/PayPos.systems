@@ -106,6 +106,7 @@ describe('what a Soon address does', () => {
   it.each([
     ['appearance', '/appearance'],
     ['approvals-inbox', '/approvals'],
+    ['pos-devices-and-pins', '/devices'],
   ])('forwards the old address of the built entry %s to %s', (id, href) => {
     expect(resolveSoonTarget(id, owner)).toEqual({ kind: 'forward', href });
   });

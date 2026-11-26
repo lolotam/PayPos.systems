@@ -129,10 +129,13 @@ export interface DeviceSecrets {
 
 /**
  * أكواد الـ pairing — مرة واحدة، و10 دقايق (قرار Waleed 2026-09-23)، في Redis.
+ * إصدار كود جديد للفرع بيلغي الكود الحي السابق للفرع نفسه في خطوة Redis واحدة (Lua)،
+ * فالكود اللي استُبدل ما ينفعش يُستهلك بعدين.
  */
 export interface PairingCodes {
   /**
-   * كود جديد لفرع — الـ manager بيكتبه على الجهاز.
+   * كود جديد لفرع — الـ manager بيكتبه على الجهاز. الخطوة الواحدة بتلغي الكود السابق
+   * للفرع وتخزّن الجديد، ف-manager شاف كود قديم مش بيشتغل تاني.
    *
    * @param target الشركة والفرع
    * @param target.companyId الشركة المتأكد منها
@@ -143,9 +146,36 @@ export interface PairingCodes {
     branchId: string;
   }): Promise<{ code: string; expiresAt: Date }>;
   /**
-   * بيستهلك الكود مرة واحدة: بيرجّع الشركة والفرع ويمسحه، أو null لو مش موجود أو خلص.
+   * بيحجز الكود لطلب تسجيل واحد: بيتأكد إن الكود موجود وإنه لسه الكود الحي للفرع،
+   * وبيقفله بحمولة داخلية قصيرة (claimId) عشان طلب تاني ما يقدرش يستعمله.
    *
    * @param code الكود زي ما الجهاز بعته
+   * @returns الشركة والفرع ومعرّف الحجز، أو null لو الكود مش موجود أو اتقفل أو اتستبدل
    */
-  consume(code: string): Promise<{ companyId: string; branchId: string } | null>;
+  claim(code: string): Promise<{ companyId: string; branchId: string; claimId: string } | null>;
+  /**
+   * بياكل الكود داخل الـ transaction قبل الـ commit مباشرة: بيتأكد إن الكود لسه موجود، ولسه الكود الحي
+   * للفرع، وإنه لسه محجوز بالـ claimId بتاعه، ويمسح كل المفاتيح. لو اتستبدل أو خلص بين
+   * الحجز والأكل بيرجّع false ويفكّ الحجز بتاعه بس.
+   *
+   * @param input          الكود والشركة والفرع ومعرّف الحجز
+   * @param input.code     الكود زي ما الجهاز بعته
+   * @param input.companyId الشركة المتأكد منها
+   * @param input.branchId  الفرع اللي الجهاز هيتبعه
+   * @param input.claimId  معرّف الحجز
+   */
+  consume(input: {
+    code: string;
+    companyId: string;
+    branchId: string;
+    claimId: string;
+  }): Promise<boolean>;
+  /**
+   * بيفكّ حجز الكود لما الـ transaction اتعمل قبل الأكل (رفض أو خطأ)، فالكود يرجع متاح
+   * بدل ما يفضل مقفول لحد ما ينتهي.
+   *
+   * @param code    الكود
+   * @param claimId معرّف الحجز
+   */
+  release(code: string, claimId: string): Promise<void>;
 }

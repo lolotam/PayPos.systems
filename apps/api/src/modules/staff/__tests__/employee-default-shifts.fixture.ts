@@ -2,6 +2,7 @@ import type { ScheduleShift } from '@pospay/contracts';
 import { salaryFixture, salaryIds } from './salary.fixture.ts';
 import { createEmployeeDefaultShiftsTransactions } from '../persistence/employee-default-shifts.adapter.ts';
 import { SetEmployeeDefaultShiftsUseCase } from '../use-cases/set-employee-default-shifts/set-employee-default-shifts.usecase.ts';
+import { claimPayload } from '../../../../test/device-claim.ts';
 
 export const defaultHoursClock = { now: () => new Date('2026-10-11T10:00:00Z') };
 export const salmiyaDefaults: ScheduleShift[] = [0, 1, 2, 3, 4].map((day) => ({
@@ -49,7 +50,7 @@ export async function hoursDevice(f: DefaultHoursFixture) {
     cookie: f.cookie, company: f.company,
   });
   expectStatus(approved.status, 204);
-  const claimed = await f.h.app.inject({ method: 'POST', url: '/v1/devices/claim', payload: device });
+  const claimed = await f.h.app.inject({ method: 'POST', url: '/v1/devices/claim', payload: claimPayload(device) });
   expectStatus(claimed.statusCode, 200);
   return claimed.json<{ device_token: string }>().device_token;
 }

@@ -8,6 +8,7 @@ import { createRedisAttendanceQrSecrets } from '../persistence/redis-attendance-
 import { createAttendanceBranchReader } from '../persistence/tenancy-attendance-branch.adapter.ts';
 import { createDatabase } from '@pospay/db';
 import { VerifyAttendanceQr } from '../use-cases/verify-attendance-qr/verify-attendance-qr.ts';
+import { claimPayload } from '../../../../test/device-claim.ts';
 
 let h: Harness;
 let owner: string;
@@ -40,7 +41,7 @@ async function pair() {
   const claim = await h.app.inject({
     method: 'POST',
     url: '/v1/devices/claim',
-    payload: registered,
+    payload: claimPayload(registered),
   });
   deviceToken = (claim.json() as { device_token: string }).device_token;
 }

@@ -4,6 +4,7 @@ import {
   attendanceReportAr,
 } from './attendance-actions-catalog.js';
 import { staffDuplicateNameAr } from './staff-duplicate-name-catalog.js';
+import { devicesAr } from './devices-catalog.js';
 import { staffAccessAdminAr } from './staff-access-admin-catalog.js';
 import { attendanceChangeAr } from './attendance-change.js';
 import { inAppAr } from './in-app-catalog.js';
@@ -12,7 +13,8 @@ import { catalogPackageExtensionAr } from './catalog-package-extension.js';
 import { discountApprovalErrorsAr } from './discount-approval-errors.js';
 import { staffErrorsAr } from './staff-errors.js';
 import { attendanceAr } from './attendance-ar.js';
-import { clockCardAdminAr, clockCardPosAr } from './clock-card-catalog.js';
+import { clockCardAdminAr } from './clock-card-catalog.js';
+import { posAr } from './pos-catalog.js';
 import { employeeImportErrorsAr } from './employee-import.js';
 import type { Catalog } from './catalog.js';
 import { arPasskeyAdmin } from './passkey-admin.js';
@@ -351,42 +353,8 @@ export const ar: Catalog = {
   catalogPackageTypes: catalogPackageTypesAr,
   packageExtension: catalogPackageExtensionAr,
   admin: adminAr,
-  pos: {
-    appName: 'PosPay',
-    languageArabic: 'العربية',
-    languageEnglish: 'English',
-    loading: 'جارٍ التحميل',
-    pairingTitle: 'ربط هذا الجهاز',
-    pairingLead: 'أدخل كود الربط واسماً لهذا الجهاز.',
-    pairingCodeLabel: 'كود الربط',
-    deviceLabel: 'اسم الجهاز',
-    pairSubmit: 'ربط',
-    pairingCodeInvalid: 'أدخل الكود المكوّن من 8 أحرف.',
-    labelInvalid: 'أدخل اسم الجهاز.',
-    refused: 'رفض المدير هذا الجهاز. أعد الربط.',
-    removed: 'أُزيل هذا الجهاز. أعد الربط.',
-    waitingTitle: 'في انتظار الموافقة',
-    waitingLead: 'في انتظار موافقة المدير.',
-    startOver: 'البدء من جديد',
-    offlineTitle: 'غير متصل',
-    unsupportedTitle: 'هذا المتصفح غير مدعوم',
-    unsupportedLead:
-      'افتح PosPay على إصدار حديث من Chrome أو Edge أو Safari أو Firefox لربط هذا الجهاز.',
-    offlineLead: 'تعذّر الوصول إلى الخادم. تبقى بيانات الدخول المحفوظة على هذا الجهاز.',
-    retry: 'إعادة المحاولة',
-    attendanceTitle: 'الحضور',
-    attendanceLater: 'شاشة الحضور تأتي لاحقاً.',
-    attendanceQrLabel: 'رمز الحضور',
-    attendanceClockLabel: 'توقيت الفرع',
-    attendanceOffline: 'رمز الحضور يحتاج اتصالاً بالإنترنت. يتم إخفاء الرمز أثناء عدم الاتصال.',
-    attendanceUnavailable: 'تعذر تحديث رمز الحضور. أعد الاتصال وحاول مرة أخرى.',
-    attendanceLoading: 'جارٍ تحميل رمز حضور جديد…',
-    attendanceRefreshLead: 'يتجدد الرمز كل 60 ثانية. امسحه من تطبيق الموظفين.',
-    branchLabel: 'الفرع',
-    ...clockCardPosAr,
-    unexpected: 'حدث خطأ. حاول مرة أخرى.',
-    networkError: 'تعذّر الوصول إلى الخادم. حاول مرة أخرى.',
-  },
+  devices: devicesAr,
+  pos: posAr,
   ...staffScreensAr,
   businessIdentity: businessIdentityAr,
 };

@@ -76,9 +76,9 @@ async function runSubmit(
   locale: Parameters<typeof submitRegistration>[1],
   setScreen: (next: DeviceScreenState) => void,
 ): Promise<string | null> {
-  const message = await submitRegistration(input, locale);
-  if (message === null) setScreen({ kind: 'waiting' });
-  return message;
+  const outcome = await submitRegistration(input, locale);
+  if (outcome.error === null) setScreen({ kind: 'waiting', checkCode: outcome.checkCode });
+  return outcome.error;
 }
 
 async function runStartOver(

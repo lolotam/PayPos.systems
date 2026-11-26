@@ -11,6 +11,7 @@ import { createTenancyTransactions } from '../persistence/tenancy-transactions.t
 import { SetBusinessCountry } from '../use-cases/set-business-country/set-business-country.ts';
 import { businessCountry } from '../queries/business-country.query.ts';
 import type { TenancyTransactions } from '../ports/tenancy-transactions.port.ts';
+import { claimPayload } from '../../../../test/device-claim.ts';
 
 // 34-pre-3 عبر الـ API على Postgres حقيقي: تغيير واحد مُدوَّن، والقيمة المتساوية بلا كتابة ولا تدقيق،
 // والرفض 403 الصريح للنشاط الغائب والأجنبي والجهاز، وصلاحية النشاط وحده، وإرث الإعدادات غير الكائنية،
@@ -194,7 +195,7 @@ describe('a real authenticated Device principal (403)', () => {
     const claimed = await f.h.app.inject({
       method: 'POST',
       url: '/v1/devices/claim',
-      payload: device,
+      payload: claimPayload(device),
     });
     expect(claimed.statusCode).toBe(200);
     const token = claimed.json<{ device_token: string }>().device_token;

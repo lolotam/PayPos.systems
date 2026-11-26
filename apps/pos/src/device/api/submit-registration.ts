@@ -7,16 +7,17 @@ import { failureText } from '@/shared/api/api-error';
 import { saveRegistration } from '../model/credentials';
 import { registerDevice } from './device-calls';
 
+// التسجيل بيرجّع كود المطابقة اللي بتعرضه الشاشة للمدير، والخطأ بيرجع كنص زي ما كان.
 export async function submitRegistration(
   input: RegisterDeviceInput,
   locale: Locale,
-): Promise<string | null> {
+): Promise<{ error: null; checkCode: string } | { error: string }> {
   try {
     const result = await registerDevice(input);
-    if (!result.ok) return failureText(result.failure, locale);
+    if (!result.ok) return { error: failureText(result.failure, locale) };
     await saveRegistration(result.data);
-    return null;
+    return { error: null, checkCode: result.data.check_code };
   } catch {
-    return t(locale, 'pos.networkError');
+    return { error: t(locale, 'pos.networkError') };
   }
 }

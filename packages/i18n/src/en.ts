@@ -4,6 +4,7 @@ import {
   attendanceReportEn,
 } from './attendance-actions-catalog.js';
 import { staffDuplicateNameEn } from './staff-duplicate-name-catalog.js';
+import { devicesEn } from './devices-catalog.js';
 import { staffAccessAdminEn } from './staff-access-admin-catalog.js';
 import { attendanceChangeEn } from './attendance-change.js';
 import { inAppEn } from './in-app-catalog.js';
@@ -13,7 +14,8 @@ import { catalogPackageExtensionEn } from './catalog-package-extension.js';
 import { discountApprovalErrorsEn } from './discount-approval-errors.js';
 import { staffErrorsEn } from './staff-errors.js';
 import { attendanceEn } from './attendance-en.js';
-import { clockCardAdminEn, clockCardPosEn } from './clock-card-catalog.js';
+import { clockCardAdminEn } from './clock-card-catalog.js';
+import { posEn } from './pos-catalog.js';
 import { employeeImportErrorsEn } from './employee-import.js';
 import { leaveEn, leaveErrorsEn } from './leave-catalog.js';
 import { attendanceExceptionErrorsEn } from './attendance-exception-catalog.js';
@@ -359,43 +361,8 @@ export const en = {
   catalogPackageTypes: catalogPackageTypesEn,
   packageExtension: catalogPackageExtensionEn,
   admin: adminEn,
-  pos: {
-    appName: 'PosPay',
-    languageArabic: 'Arabic',
-    languageEnglish: 'English',
-    loading: 'Loading',
-    pairingTitle: 'Pair this device',
-    pairingLead: 'Enter the pairing code and a name for this device.',
-    pairingCodeLabel: 'Pairing code',
-    deviceLabel: 'Device name',
-    pairSubmit: 'Pair',
-    pairingCodeInvalid: 'Enter the 8-character code.',
-    labelInvalid: 'Enter a device name.',
-    refused: 'The manager refused this device. Pair it again.',
-    removed: 'This device was removed. Pair it again.',
-    waitingTitle: 'Waiting for approval',
-    waitingLead: "Waiting for the manager's approval.",
-    startOver: 'Start over',
-    offlineTitle: 'Offline',
-    unsupportedTitle: 'This browser is not supported',
-    unsupportedLead:
-      'Open PosPay in a current version of Chrome, Edge, Safari or Firefox to pair this device.',
-    offlineLead: 'This device could not reach the server. The saved sign-in stays on this device.',
-    retry: 'Retry',
-    attendanceTitle: 'Attendance',
-    attendanceLater: 'The attendance screen comes later.',
-    attendanceQrLabel: 'Attendance QR code',
-    attendanceClockLabel: 'Branch time',
-    attendanceOffline:
-      'Attendance QR needs an internet connection. The code is hidden while offline.',
-    attendanceUnavailable: 'The attendance code could not be refreshed. Reconnect and try again.',
-    attendanceLoading: 'Loading a fresh attendance code…',
-    attendanceRefreshLead: 'This code refreshes every 60 seconds. Scan it from your staff app.',
-    branchLabel: 'Branch',
-    ...clockCardPosEn,
-    unexpected: 'Something went wrong. Try again.',
-    networkError: 'The server could not be reached. Try again.',
-  },
+  devices: devicesEn,
+  pos: posEn,
   ...staffScreensEn,
   businessIdentity: businessIdentityEn,
 } as const;
