@@ -7,7 +7,11 @@ import {
   type VisitBudget,
 } from '../../domain/rating-claim-scheduling.ts';
 import type { Clock, IdGenerator } from '../../ports/clock.port.ts';
-import type { ClaimStateCode } from '../../ports/rating-claim-state.port.ts';
+import type {
+  ClaimStateCode,
+  ClaimStateResult,
+  ClaimStateSnapshot,
+} from '../../ports/rating-claim-state.port.ts';
 import { runForwardLane } from './forward-lane.ts';
 import { runRetryLane } from './retry-lane.ts';
 import type { RatingClaimsPorts } from './rating-claims-ports.ts';
@@ -16,6 +20,10 @@ import { RatingClaimsTurnState } from './rating-claims-turn-state.ts';
 export type {
   RatingClaimsEndReason,
   RatingClaimsTurnSummary,
+} from '../../domain/rating-claim-scheduling.ts';
+export {
+  RATING_CLAIMS_MAX_SCHEDULE_ATTEMPTS,
+  ratingClaimsScheduleRetryDelayMs,
 } from '../../domain/rating-claim-scheduling.ts';
 export type { RatingClaimsClaim, RatingClaimsPorts } from './rating-claims-ports.ts';
 export { RatingClaimsTurnState, type ClaimObservationResult } from './rating-claims-turn-state.ts';
@@ -54,7 +62,7 @@ export class ClaimRatingRequests<Transaction = unknown> {
    */
   async execute(companyId: string): Promise<RatingClaimsTurnSummary> {
     const ownerToken = this.ids.newId();
-    const acquired = await this.ports.state.acquire(companyId, this.ids.newId(), ownerToken);
+    const acquired = await this.acquire(companyId, ownerToken);
     if (acquired.code !== 'OK' || acquired.value === undefined) {
       return this.refused(companyId, acquired.code);
     }
@@ -83,12 +91,31 @@ export class ClaimRatingRequests<Transaction = unknown> {
       await turn.release();
     } catch (releaseError) {
       // خطأ الإفلات ما يغطيش خطأ الدور؛ خطأ الدور هو الأهم للمشغّل.
-      if (failure === undefined) throw releaseError;
+      if (failure === undefined) {
+        this.ports.diagnostics.failed(companyId, releaseError);
+        throw releaseError;
+      }
     }
-    if (failure !== undefined) throw failure.error;
+    if (failure !== undefined) {
+      this.ports.diagnostics.failed(companyId, failure.error);
+      throw failure.error;
+    }
     const summary = turn.summary();
     this.ports.diagnostics.turnSummary(companyId, summary);
     return summary;
+  }
+
+  /** شراء الحالة: أي خطأ هنا بيطلع من الدور، فبيتسجل قبل ما يطلع. */
+  private async acquire(
+    companyId: string,
+    ownerToken: string,
+  ): Promise<ClaimStateResult<ClaimStateSnapshot>> {
+    try {
+      return await this.ports.state.acquire(companyId, this.ids.newId(), ownerToken);
+    } catch (error) {
+      this.ports.diagnostics.failed(companyId, error);
+      throw error;
+    }
   }
 
   /** الدور اللي ما اشترىش الحالة: ما فيش حاجة تتلمس، والسبب بيتسجل. */

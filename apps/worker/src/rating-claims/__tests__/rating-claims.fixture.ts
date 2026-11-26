@@ -113,13 +113,22 @@ interface ClaimsWorld {
   readonly enabled: SwitchFake;
 }
 
-async function claimsWorld(): Promise<ClaimsWorld> {
+/** خيارات العالم: حجم الـ pool قابل للاختيار عشان قياس السعة على pool محدود. */
+interface ClaimsWorldOptions {
+  readonly maxConnections?: number;
+}
+
+async function claimsWorld(options: ClaimsWorldOptions = {}): Promise<ClaimsWorld> {
   const testDb = await createTestDatabase();
   await seedTwoTenants(testDb.ownerUrl);
   const owner = postgres(testDb.ownerUrl, { max: 4, onnotice: () => undefined });
   await seedOrders(owner);
   const ids = systemUuidV7();
-  const db = createDatabase({ url: testDb.appUrl, ids, maxConnections: 6 });
+  const db = createDatabase({
+    url: testDb.appUrl,
+    ids,
+    maxConnections: options.maxConnections ?? 6,
+  });
   const clock = {
     at: new Date('2026-06-01T00:00:00.000Z'),
     now(): Date {
@@ -314,8 +323,8 @@ function requestWriters(owner: postgres.Sql, company: string, ids: IdGenerator) 
   };
 }
 
-export async function ratingClaimsFixture() {
-  const world = await claimsWorld();
+export async function ratingClaimsFixture(options: ClaimsWorldOptions = {}) {
+  const world = await claimsWorld(options);
   const { testDb, owner, db, ids, clock } = world;
   const { deliver } = schedulingTools(world);
   const claim = claimUseCase(world);

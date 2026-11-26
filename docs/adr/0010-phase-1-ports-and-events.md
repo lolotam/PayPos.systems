@@ -335,13 +335,80 @@ page journal of at most F entries, and the retry map.
 ### 9. PP-97: the registration backoff is the outbox's backoff
 
 When a trigger event cannot register the company's scheduler, the processor's `deliver` returns
-`{ delivered: false, error: 'RATING_CLAIMS_SCHEDULE_RETRY', retryInMs: retryDelayMs(event.attempt) }`
-(`apps/worker/src/modules/customers/jobs/rating-claims.processor.ts`), using the same
-`retryDelayMs` the outbox dispatcher uses (`apps/worker/src/outbox/retry-policy.ts`): 5 s, 10 s,
-20 s … capped at one hour, and `null` on the tenth attempt, which parks the event. The stored
-event is not acknowledged on a registration failure, so a newer worker retries it. The
-registration path never touches the claim core: `ensureRegistered` upserts a missing scheduler and
-leaves a running one untouched.
+`{ delivered: false, error: 'RATING_CLAIMS_SCHEDULE_RETRY', retryInMs: <the PP-97 backoff> }`
+(`apps/worker/src/modules/customers/jobs/rating-claims.processor.ts`), using the same backoff the
+outbox dispatcher uses: 5 s, 10 s, 20 s … capped at one hour, and `null` on the tenth attempt,
+which parks the event. The stored event is not acknowledged on a registration failure, so a newer
+worker retries it. The registration path never touches the claim core: `ensureRegistered` upserts a
+missing scheduler and leaves a running one untouched.
+
+#### 9.1 The `outbox/retry-policy` boundary and the reuse decision (2026-11-26)
+
+`apps/worker/src/modules/customers/jobs/rating-claims.processor.ts` used to import `retryDelayMs`
+straight from `apps/worker/src/outbox/retry-policy.ts`. That path is not a module layer and
+`outbox/` has no `index.ts` public surface, so a `jobs/` file was reaching into another area's
+internals — outside what `packages/config/eslint/boundaries.js` allows a `jobs` element
+(`from('jobs', 'jobs', 'use-cases', 'queries')`).
+
+**Decision.** The PP-97 sequence is now owned by the `customers` domain itself, in
+`apps/worker/src/modules/customers/domain/rating-claim-scheduling.ts`:
+`RATING_CLAIMS_MAX_SCHEDULE_ATTEMPTS = 10` and the pure function
+`ratingClaimsScheduleRetryDelayMs(attempt)`, which returns the exact PP-97 sequence
+`[5000, 10000, 20000, 40000, 80000, 160000, 320000, 640000, 1280000, null]`. The `jobs/` file
+imports it from the module's own `use-cases/` surface
+(`use-cases/claim-rating-requests/claim-rating-requests.ts`, which re-exports it), which is the
+arrow the boundaries file allows. `outbox/retry-policy.ts` is untouched and keeps serving the
+dispatcher; `domain/__tests__/rating-claim-scheduling.spec.ts` proves the two stay equal attempt by
+attempt for attempts 1…12, so the sequence cannot drift.
+
+**The composition root keeps the injection seam.** `RatingClaimsProcessorOptions.retryDelayMs` and
+`RatingClaimsRuntimeDeps.retryDelayMs` accept an optional `(attempt: number) => number | null`,
+the same pattern `orders.module.ts` uses for `startPackageImportCommitWorker`. The default is the
+domain function; a test or an operator can inject another policy without the `jobs/` layer
+reaching into `outbox/`.
+
+**Classification.** `outbox/` is not a module in the Screaming Architecture: it is the worker's
+delivery machinery, shared by every module's consumer. A module may not import another area's
+internals, so the reusable piece of a policy that two areas need is a **pure function in the
+owning module's `domain/`**, not a shared internal file. No import arrow is added and no module-map
+decision is needed: the arrow is `customers/jobs → customers/use-cases`, inside one module.
+
+#### 9.2 Operator runbook: a parked rating trigger (2026-11-26)
+
+A registration failure parks its trigger event after ten attempts (`parked_at` is set, the event
+keeps its `attempts = 10`). The parking itself is unchanged by this work; what is new is that it
+is **diagnosed and recovered without touching the PP-97 semantics**.
+
+**Diagnose.** The park is visible in the dispatcher's own log (`outbox event parked`) and in the
+row: `SELECT id, event_type, attempts, parked_at, last_error FROM outbox WHERE company_id = $1
+AND parked_at IS NOT NULL AND event_type IN ('ServiceSessionRecorded','ServiceSessionLinesAdded',
+'ServiceLineChanged')`. The worker's own log line `rating claims schedule failed` carries
+`company_id`, `event_id`, `event_type` and `attempt`, and `rating claims queue error` carries the
+connection-wide failures without guessing a company.
+
+**Re-register.** The scheduler lives in Redis, so a lost Redis means a lost registration. The
+`recover-rating-claims` operator command re-registers the company and replays its stored trigger
+events through `createRatingSchedulingConsumer`; it does not build a claim worker and does not
+rewrite the outbox.
+
+**Recover the parked rows.** Migration `0089` (`recoverKnownOutboxEvents`) resets parked events for
+the staff event types only, so the rating triggers are recovered with the same statement shape
+scoped to the rating trigger types:
+
+```sql
+UPDATE outbox
+SET parked_at = NULL, attempts = 0, next_attempt_at = clock_timestamp(), last_error = NULL
+WHERE published_at IS NULL AND parked_at IS NOT NULL
+  AND event_type IN ('ServiceSessionRecorded','ServiceSessionLinesAdded','ServiceLineChanged');
+```
+
+**Proof.** `apps/worker/src/rating-claims/__tests__/rating-claims-registration-recovery.spec.ts`
+runs the whole path against the isolated Postgres lane and a private Redis: ten registration
+failures produce the PP-97 backoff sequence and park the head event, the head blocks the newer
+`ServiceSessionLinesAdded` event of the same aggregate, no `rating_requests` row is created while
+registration fails, and after the recovery both events deliver **in order** through
+`createRatingSchedulingConsumer` producing exactly one `rating_requests` row — no skipped update
+and no duplicate. A second recovery over the same events is idempotent.
 
 ### 10. Dormancy: the shipped composition is closed
 
@@ -354,6 +421,53 @@ it, and no environment flag opens it. The existing `createRatingSchedulingConsum
 registered: it stores `SCHEDULED` requests and never claims them. Activation is reserved for
 59b-3, whose reviewed change connects the active factory only after the sender, the template and
 the channel are ready (60-1, 60-2, 61-1 and the 2c recovery prerequisites).
+
+#### 10.1 Local capacity and latency measurement — indicative, not an SLA (2026-11-26)
+
+> **These numbers are an indicative local-machine measurement, not an SLA.** They describe one
+> Windows workstation with one Docker Postgres lane and one private Redis, on one afternoon. They
+> are a baseline to compare against, never a promise to a customer and never a release gate.
+
+**Provenance.** CPU `Intel(R) Core(TM) i7-8700 CPU @ 3.20GHz` (6 cores / 12 logical); OS
+`Windows NT 10.0.26100.0`; Docker Postgres 16 (isolated lane `55401`) and private Redis 7
+(`56382`); date `2026-11-26`; base SHA `32b523744499b3367954944d90ae935b338c556e`.
+
+**Settings, unchanged by this work.** `TENANT_TIMEOUT_MS = 1000` (the tenant transaction timeout
+in `rating-claim.transactions.ts`), the tenant pool `maxConnections = 10`, the forward budget
+`FORWARD_VISITS = 75`, the retry budget `RETRY_VISITS = 25`, and the single-owner concurrency of
+the fenced turn. The measurement changes **no** production constant.
+
+**Shape.** `apps/worker/src/rating-claims/__tests__/rating-claims-capacity-latency.spec.ts` runs
+both phases in one test file against the isolated lane: a **baseline** of sequential,
+uncontended single-company turns, and a **contended** phase with two companies turning
+concurrently, an overlapping second turn per company (the fence lets one owner win), and four
+competing queries sharing the same ten-connection pool. The seeded data is representative:
+per company, 240 due `SCHEDULED` requests, 60 historical `SENT` rows and 60 historical
+`CANCELLED` rows (skipped by the `SCHEDULED` sweep), plus the sessions, session lines, employees
+and customers behind them.
+
+**Observed numbers** (`rating_claims_capacity_measurement`, the JSON the test prints):
+
+| metric | baseline | contended | ratio |
+|---|---|---|---|
+| `withRequest` p50 | 24.49 ms | 24.55 ms | — |
+| `withRequest` p95 | 30.94 ms | 39.99 ms | 1.29 |
+| `withRequest` p99 | 34.48 ms | 55.78 ms | 1.62 |
+| `withRequest` samples | 120 | 360 | — |
+| turn duration p50 / p95 / p99 | 1192.36 / 2096.43 / 2096.43 ms | 11.87 / 2481.68 / 2481.68 ms | — |
+| enqueue-to-active p50 / p95 | 7.98 / 58.44 ms | 0 / 53.97 ms | — |
+
+**Functional counters in the same run.** `unknown = 0`, `retry = 0`, `overflow = 0`,
+`pastDeadline = 0`, `duplicates = 0`; backlog `seeded = 480`, `drained = 480`, `remaining = 0`.
+The contended `p50` of the turn duration is small because most contended turns are the losing
+overlap: they are refused at `acquire` with `ACQUIRE_BUSY` and do no work — the fence held.
+
+**How the test asserts (PP-165).** There is **no fixed millisecond threshold** anywhere in the
+file. The assertions are functional (`unknown`, `overflow`, `pastDeadline` and `duplicates` are
+zero; the backlog is fully drained; both companies kept their own fence) plus **relative** sanity
+bounds measured against the baseline of the same run (the contended `p95` ratio must be above zero
+and below 50×). A performance verdict is a ratio to the unchanged baseline measured in the same
+run, never a millisecond limit (CLAUDE.md V3.23, PP-165).
 
 ### 11. What stays with 2c: the Redis-loss boundary
 
@@ -632,13 +746,35 @@ addendum's API read approvals and plan-61-1 §4–§6, as M1 records; it adds no
 
 ### The decision instant (M2)
 
-`decidedAt = clock.now()` is read once inside the consumer transaction, exactly as the orders bells decide their
-recipients. BR-B4's «checked at emission» means checked when the worker emits `LowRatingReceived`, normally seconds
-after the rating: a permission revoked between the rating and the decision is honoured (stricter), one granted in
-between is honoured too, and the check is one statement snapshot — a revoke that commits after it does not retract a
-stored notice. BR-B5 and D-B15 are judged at the same instant: a rule change applies to events emitted after it
-commits, where "emitted" is the worker's emission. The customer's rating is committed earlier and is never rolled
-back by the notice.
+Two reads happen inside the worker consumer transaction, and they answer two different questions.
+
+**The rule snapshot.** `AlertRulePort.rule(companyId, scope, 'LOW_RATING')` is one statement that
+reads the governing rule (the branch rule if there is one, otherwise the business rule) together
+with the business master switch `alerts_enabled` — `settings.persistence/alert-rule.ts` returns
+both in one row. That single read is the **rule snapshot**: it decides whether the notice is
+active at all. A rule or master-switch change that commits **before** that read is part of the
+snapshot; a change that commits **after** it is not, and does not flip the decision even if it
+commits before the recipients or the ledger row are written. The read happens before
+`decidedAt = clock.now()`, so the rule snapshot is not a function of the worker's wall clock.
+
+**The decision instant.** `decidedAt = clock.now()` is read once inside the consumer transaction,
+exactly as the orders bells decide their recipients. It is the timestamp stored on the
+`low_rating_notices` ledger row, and it is the instant that governs the **identity** reads:
+`recipients.managers` and `recipients.commentReaders` resolve membership and permission-override
+expiry against it, so a membership or an override that expires between the rating and the decision
+is honoured (stricter), and one granted in between is honoured too. BR-B4's «checked at emission»
+means checked when the worker emits `LowRatingReceived`, normally seconds after the rating: a
+permission revoked between the rating and the decision is honoured, and a revoke that commits after
+the decision's snapshot does not retract a stored notice.
+
+**The terminal suppressed decision.** If the rule snapshot is off, or has no `IN_APP` channel, the
+worker still records **one** terminal `low_rating_notices` row with `recipient_count = 0`, appends
+**no** `LowRatingReceived` event, and emits no notice. That decision is final: a redelivery or a
+replay of the same event finds the row and changes nothing, so the notice never appears later
+(BR-B5, D-B15).
+
+**Separate transactions.** The customer's rating is committed in the API's own submit transaction
+and is never rolled back by the notice; a worker failure aborts only the worker transaction.
 
 ### Ports and reads declared (no new import arrow)
 

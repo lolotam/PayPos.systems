@@ -35,4 +35,10 @@ export const WORKER_LOG_EVENTS = [
   'commission reminder recovery pass stopped',
   'commission reminder recovery alert',
   'commission reminder recovery published',
+  'rating claims overflow',
+  'rating claims fence lost',
+  'rating claims turn',
+  'rating claims schedule failed',
+  'rating claims queue error',
+  'rating claims job failed',
 ] as const;

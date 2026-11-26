@@ -239,7 +239,7 @@ function workerFactory(
     new ClaimRatingRequests<Tx>(
       {
         state: workerOptions.state ?? state,
-        transactions,
+        transactions: workerOptions.transactions ?? transactions,
         requests: ratingClaimRepository,
         claim,
         diagnostics: workerOptions.diagnostics ?? diagnostics,
@@ -394,7 +394,9 @@ function buildWorld(
 export async function ratingClaimsWorld(
   options: RatingClaimsWorldOptions = {},
 ): Promise<RatingClaimsWorld> {
-  const base = await ratingClaimsFixture();
+  const base = await ratingClaimsFixture(
+    options.maxConnections === undefined ? {} : { maxConnections: options.maxConnections },
+  );
   let redis: Redis | undefined;
   try {
     redis = new Redis(redisUrl);
