@@ -41,10 +41,23 @@ export const ratingsMonth = z.string().regex(/^2[0-9]{3}-(?:0[1-9]|1[0-2])$/, {
   message: 'month must be YYYY-MM, years 2000 to 2999',
 });
 
-/** الثواني الكاملة والكسر العشري كما كُتبا، بدون الاعتماد على دقة الملّي ثانية في `Date`. */
-function instantParts(value: string): { seconds: number; fraction: string } {
+/** الثواني الكاملة والكسر العشري كما كُتبا، بدون الاعتماد على دقة الملّي ثانية في `Date`، وnull لو التاريخ مش صالح. */
+function instantParts(value: string): { seconds: number; fraction: string } | null {
   const fraction = /\.(\d+)/.exec(value)?.[1] ?? '';
-  return { seconds: Date.parse(value.replace(/\.\d+/, '')), fraction };
+  const seconds = Date.parse(value.replace(/\.\d+/, ''));
+  return Number.isFinite(seconds) ? { seconds, fraction } : null;
+}
+
+/**
+ * اللحظة بالميكروثانية بالضبط: `Date.parse` بيدّي ميلي ثانية والكسر العشري بيدّي ميكروثانية، فالضبط بالجمع.
+ * null لو اللحظة مش صالحة (تاريخ مستحيل) أو كسرها أطول من دقة PostgreSQL (الميكروثانية).
+ */
+function instantMicroseconds(value: string): bigint | null {
+  const parts = instantParts(value);
+  if (parts === null || parts.fraction.length > PERIOD_FRACTION_DIGITS) return null;
+  return (
+    BigInt(parts.seconds) * 1_000n + BigInt(parts.fraction.padEnd(PERIOD_FRACTION_DIGITS, '0'))
+  );
 }
 
 /**
@@ -59,7 +72,7 @@ function instantParts(value: string): { seconds: number; fraction: string } {
 export function isPeriodForward(from: string, to: string): boolean {
   const a = instantParts(from);
   const b = instantParts(to);
-  if (Number.isNaN(a.seconds) || Number.isNaN(b.seconds)) return false;
+  if (a === null || b === null) return false;
   if (a.seconds !== b.seconds) return a.seconds < b.seconds;
   const width = Math.max(a.fraction.length, b.fraction.length);
   return a.fraction.padEnd(width, '0') < b.fraction.padEnd(width, '0');
@@ -80,6 +93,40 @@ export function periodIsValid(query: {
   return (
     query.from === undefined || query.to === undefined || isPeriodForward(query.from, query.to)
   );
+}
+
+/**
+ * أقصى مدى لتقرير متوسط التقييمات بالأيام: سنة واحدة (PP-278). المدى الأعرض من كده بيتحمل على كل صف في
+ * جدول التقييمات، فبيرفض بـ 422 `RATING_RANGE_TOO_WIDE` بدل ما الطلب ياخد وقت طويل من غير فايدة.
+ */
+export const MAX_RATING_AVERAGES_RANGE_DAYS = 366;
+
+/** الميكروثانية في اليوم: 24 ساعة × 60 دقيقة × 60 ثانية × 1,000,000. */
+const MICROSECONDS_PER_DAY = 86_400_000_000n;
+
+/** أقصى المدى بالأيام محوّل للميكروثانية، عشان المقارنة تبقى دقيقة من غير فرق ولا تقريب. */
+const MAX_RATING_AVERAGES_RANGE_US = BigInt(MAX_RATING_AVERAGES_RANGE_DAYS) * MICROSECONDS_PER_DAY;
+
+/**
+ * شرط «مدى التقرير» لتقرير متوسط التقييمات: غياب الطرفين معناه الشهر الحالي بتوقيت النشاط، والفترة الصريحة
+ * لازم تبقى من طرفين وتشمل عرض 366 يوم بالميكروثانية على الأكثر. طرف واحد بس (من غير طرف تاني) مدى مفتوح
+ * وعرضه أكبر من الحد، فيترفض.
+ *
+ * @param query الاستعلام بعد تحقق الحقول
+ * @param query.from بداية الفترة أو undefined
+ * @param query.to نهاية الفترة أو undefined
+ * @returns هل المدى داخل الحد؛ false للمدى الأعرض من الحد أو المفتوح أو المعكوس
+ */
+export function isRatingAveragesRangeWithinMax(query: {
+  from?: string | undefined;
+  to?: string | undefined;
+}): boolean {
+  if (query.from === undefined && query.to === undefined) return true;
+  if (query.from === undefined || query.to === undefined) return false;
+  const start = instantMicroseconds(query.from);
+  const end = instantMicroseconds(query.to);
+  if (start === null || end === null) return false;
+  return end > start && end - start <= MAX_RATING_AVERAGES_RANGE_US;
 }
 
 /**

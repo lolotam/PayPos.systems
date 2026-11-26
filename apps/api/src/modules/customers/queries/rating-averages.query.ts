@@ -1,4 +1,8 @@
-import { ratingAverages, ratingAveragesQuery } from '@pospay/contracts';
+import {
+  isRatingAveragesRangeWithinMax,
+  ratingAverages,
+  ratingAveragesQuery,
+} from '@pospay/contracts';
 import type { Tx } from '@pospay/db';
 import { sql } from 'drizzle-orm';
 import { ApiError } from '../../../shared/errors.ts';
@@ -43,6 +47,8 @@ export async function readRatingAverages(
   const parsed = ratingAveragesQuery.safeParse(raw);
   if (!parsed.success) throw new ApiError('VALIDATION_FAILED');
   const q = parsed.data;
+  // مدى التقرير (366 يوم على الأكثر، وطرفان مع بعض) بيتحرس هنا مش في المخطط: فشل التحقق بيرجع 400، والحد ده 422.
+  if (!isRatingAveragesRangeWithinMax(q)) throw new ApiError('RATING_RANGE_TOO_WIDE');
   const wanted = q.branch_id?.toLowerCase();
   const branchIds = wanted === undefined ? allowed : allowed.filter((b) => b === wanted);
   const { period, month } = await resolvePeriod(tx, c, q, now, reads, true);

@@ -1091,6 +1091,11 @@
     "/v1/businesses/{businessId}/ratings": {
       "get": {
         "operationId": "listRatings",
+        "security": [
+          {
+            "AdminSession": []
+          }
+        ],
         "description": "Newest-first keyset page of the ratings of one business. Only a caller whose current role is owner, general manager, business manager or branch manager and who holds read:ratings:branch reads it; rows are limited to the branches inside that scope. from is inclusive and to is exclusive on submitted_at; month (YYYY-MM) instead selects that calendar month in the business time zone, resolved by the server, and cannot be combined with from or to. The comment is the customer text as written. month in the response is the YYYY-MM the server used in the business time zone when the request sent month, and null otherwise. Cache-Control: no-store.",
         "parameters": [
           {
@@ -1349,7 +1354,12 @@
     "/v1/businesses/{businessId}/ratings/averages": {
       "get": {
         "operationId": "listRatingAverages",
-        "description": "Per-employee average stars of one business over a range, for the same callers and branch scope as the ratings list. average is a one-decimal string rounded half up; a rating with two performers counts for both. from is inclusive and to is exclusive on submitted_at; month (YYYY-MM) instead selects that calendar month in the business time zone and cannot be combined with from or to; with none of the three, the range is the current calendar month in the business time zone. month in the response is the YYYY-MM the server used in the business time zone (the requested or the current month), and null when from or to was sent. Cache-Control: no-store.",
+        "security": [
+          {
+            "AdminSession": []
+          }
+        ],
+        "description": "Per-employee average stars of one business over a range, for the same callers and branch scope as the ratings list. average is a one-decimal string rounded half up; a rating with two performers counts for both. from is inclusive and to is exclusive on submitted_at; month (YYYY-MM) instead selects that calendar month in the business time zone and cannot be combined with from or to; with none of the three, the range is the current calendar month in the business time zone. An explicit range needs both from and to and spans at most 366 days; a wider range or a one-sided range is refused with 422 RATING_RANGE_TOO_WIDE. month in the response is the YYYY-MM the server used in the business time zone (the requested or the current month), and null when from or to was sent. Cache-Control: no-store.",
         "parameters": [
           {
             "in": "path",
@@ -1506,6 +1516,16 @@
           },
           "403": {
             "description": "FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "RATING_RANGE_TOO_WIDE",
             "content": {
               "application/json": {
                 "schema": {
@@ -55513,6 +55533,12 @@
       }
     },
     "securitySchemes": {
+      "AdminSession": {
+        "type": "apiKey",
+        "in": "cookie",
+        "name": "pospay.session_token",
+        "description": "Authenticated operator/admin session cookie (local default name; staging and production prefix it as __Secure-<AUTH_COOKIE_PREFIX>.session_token)."
+      },
       "PersonalStaffSession": {
         "type": "apiKey",
         "in": "cookie",

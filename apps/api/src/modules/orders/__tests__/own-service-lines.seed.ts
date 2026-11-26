@@ -138,6 +138,57 @@ export async function bulkVisits(f: TipFixture, s: PerfScope, count: number, per
 
 const uuidArray = (values: readonly string[]) => `{${values.join(',')}}`;
 
+/** عدد زيارات الموظفة قبل شهر العرض: تاريخها الحقيقي بيمتد لشهور أقدم من شهر أكتوبر. */
+export const OLDER_OWN_VISITS = 600;
+
+/**
+ * ينسخ زيارة العينة إلى زيارات شهور أقدم (أبريل..سبتمبر 2026) لنفس الموظفة، فسجلّها الحقيقي بيمتد قبل شهر
+ * العرض. دفعة SQL واحدة بلا إحصاءات، زي دفعة أكتوبر.
+ */
+export async function bulkOlderOwnVisits(
+  f: TipFixture,
+  s: PerfScope,
+  performers: string[],
+  count = OLDER_OWN_VISITS,
+) {
+  await runBulk(
+    f,
+    count > 10_000,
+    `WITH src AS (
+      SELECT n,gen_random_uuid() AS session_id,gen_random_uuid() AS line_id,
+        date '2026-04-01'+((n-1)%183) AS day,(n%4) AS minute FROM generate_series(1,$4::int) n
+    ), sessions AS (
+      INSERT INTO service_sessions(company_id,id,business_id,branch_id,customer_id,customer_name,customer_phone_masked,
+        occurred_at,recorded_at,business_date,business_timezone,recorded_by,recorded_by_membership_id,late)
+      SELECT s.company_id,src.session_id,s.business_id,s.branch_id,s.customer_id,s.customer_name,s.customer_phone_masked,
+        (src.day+time '08:00'+src.minute*interval '1 minute') AT TIME ZONE 'UTC',s.recorded_at,src.day,s.business_timezone,
+        s.recorded_by,s.recorded_by_membership_id,s.late
+      FROM src CROSS JOIN service_sessions s WHERE s.company_id=$1 AND s.id=$2 RETURNING id
+    ), lines AS (
+      INSERT INTO service_lines(${lineColumns})
+      SELECT l.company_id,src.line_id,l.business_id,src.session_id,l.service_id,l.ordinal,l.input_index,l.status,l.revision,
+        l.list_price,l.price,l.discount,l.net,l.effective_discount_bps,l.limit_bps_applied,l.limit_source,l.name_en,l.name_ar,l.catalog_revision,
+        l.rule_kind,l.rule_pct_bps,l.rule_fixed_amount,l.counts_toward_threshold,false,
+        l.recorded_by,l.recorded_by_membership_id,l.recorded_at,l.late
+      FROM src JOIN sessions ON sessions.id=src.session_id
+      CROSS JOIN service_lines l WHERE l.company_id=$1 AND l.id=$3 RETURNING id
+    )
+    INSERT INTO line_performers(company_id,id,business_id,line_id,employee_id,performer_ordinal,share_bps,name_en,name_ar,
+      not_clocked_in_warning,approved_leave_warning)
+    SELECT $1::uuid,gen_random_uuid(),$5::uuid,src.line_id,($6::uuid[])[1+src.n%$7::int],1,10000,'Perf performer',NULL,false,false
+    FROM src JOIN lines ON lines.id=src.line_id`,
+    [
+      s.companyId,
+      s.sampleSessionId,
+      s.sampleLineId,
+      count,
+      s.businessId,
+      uuidArray(performers),
+      performers.length,
+    ],
+  );
+}
+
 // سطر ثانٍ على `count` زيارة من زياراتها: ينقلها من 600 سطر إلى 602 بلا زيارات جديدة.
 export async function secondLines(f: TipFixture, s: PerfScope, employeeId: string, count: number) {
   await f.h.owner.unsafe(

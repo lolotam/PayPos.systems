@@ -160,10 +160,12 @@ it('narrows by branch, employee and the half-open time window', async () => {
 it('never returns a branch outside the scope, with or without the branch filter', async () => {
   access = [A.branch];
   try {
-    await seedRating(db, A, { stars: 4, at: at(9), performers: [sara] });
+    const rated = await seedRating(db, A, { stars: 4, at: at(9), performers: [sara] });
     const all = await page({ limit: 100 });
     expect(all.items.length).toBeGreaterThan(0);
+    expect(idsOf(all)).toContain(rated);
     expect(all.items.every((item) => item.branch.id === A.branch)).toBe(true);
+    expect(all.items.some((item) => item.branch.id === second)).toBe(false);
     expect(await page({ branch_id: second })).toEqual({
       items: [],
       next_cursor: null,
@@ -184,10 +186,10 @@ it('refuses with FORBIDDEN when no branch is readable', async () => {
 });
 
 it('returns nothing of another tenant, even when the business id belongs to it', async () => {
-  await seedRating(db, B, { stars: 1, at: at(12), performers: [B.employees[0]] });
+  const foreign = await seedRating(db, B, { stars: 1, at: at(12), performers: [B.employees[0]] });
   const empty = { items: [], next_cursor: null, month: null };
   expect(await page({}, { ...context, businessId: B.business })).toEqual(empty);
-  expect((await page({ limit: 100 })).items.every((item) => item.stars !== 1)).toBe(true);
+  expect(idsOf(await page({ limit: 100 }))).not.toContain(foreign);
 });
 
 it('rejects a malformed cursor and an unknown key uniformly', async () => {

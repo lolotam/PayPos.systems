@@ -34,8 +34,8 @@ const business: WorkspaceBusinessRead = {
   ],
 };
 const failure = { code: 'X', message_ar: 'x', message_en: 'Synthetic server failure' };
-const ok = (data: unknown) => Promise.resolve({ data, response: { status: 200 } });
-const fail403 = () => Promise.resolve({ error: failure, response: { status: 403 } });
+const ok = (data: unknown) => Promise.resolve({ data, response: { status: 200, ok: true } });
+const fail403 = () => Promise.resolve({ error: failure, response: { status: 403, ok: false } });
 
 const averageRows = (name: string): RatingAverageItem[] => [
   { employee_id: layla, name_ar: null, name_en: name, average: '4.5', count: 6 },

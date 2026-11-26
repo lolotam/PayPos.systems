@@ -126,6 +126,36 @@ it('returns to the PIN step after 60 seconds without input and leaves nothing of
   );
 });
 
+it('closes the private screen on the first input after the deadline, with no touch and nothing logged', async () => {
+  const logged: string[] = [];
+  const spies = (['log', 'info', 'warn', 'error', 'debug'] as const).map((level) =>
+    vi.spyOn(console, level).mockImplementation((...args: unknown[]) => {
+      logged.push(args.map(String).join(' '));
+    }),
+  );
+  try {
+    const fetched = serve();
+    const view = open();
+    await signIn();
+    // ساعة الجهاز اتغيّرت (الجهاز نام): الموعد فات والمؤقت لسه ما اشتغلش.
+    vi.setSystemTime(new Date(Date.now() + 3_600_000));
+    typeInMyWork('a');
+    // القفل بيحصل مع أول تفاعل بعد الموعد، مش مستني فحص الثانية.
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+    expect(fetched.paths('/private-view/close').length).toBe(1);
+    expect(touches(fetched).length).toBe(0);
+    expect(await screen.findByText(label('myWork.pinTitle'))).toBeTruthy();
+    expect(screen.queryByText('Haircut')).toBeNull();
+    expect(myWorkEntries(view.client).length).toBe(0);
+    expect(logged.join('\n')).not.toContain(WINDOW);
+    expect(logged.join('\n')).not.toContain(PIN);
+  } finally {
+    spies.forEach((spy) => spy.mockRestore());
+  }
+});
+
 it('lets input push the 60 second limit back', async () => {
   serve();
   open();
@@ -172,6 +202,25 @@ it('sends the activity touch at most once every 20 seconds and only because of i
   expect(touches(fetched).length).toBe(1);
   await act(() => vi.advanceTimersByTimeAsync(15_000));
   expect(touches(fetched).length).toBe(2);
+});
+
+it('restarts from the first page when the next page cursor expired', async () => {
+  const fetched = serve({
+    lines: (_request, url) =>
+      url.searchParams.get('cursor') === 'next-1'
+        ? json({ code: 'BAD_REQUEST' }, 400)
+        : json(linesPage([fullLine], 'next-1')),
+  });
+  open();
+  await signIn();
+  fireEvent.click(screen.getByText(label('myWork.loadMore')));
+  expect(await screen.findByRole('alert')).toBeTruthy();
+  fireEvent.click(screen.getByText(label('myWork.retry')));
+  expect(await screen.findByText('Haircut')).toBeTruthy();
+  const cursors = fetched
+    .paths('/service-lines')
+    .map((request) => new URL(request.url).searchParams.get('cursor'));
+  expect(cursors).toEqual([null, 'next-1', null]);
 });
 
 it('goes back to the PIN step when a touch says the window expired', async () => {

@@ -47,7 +47,7 @@ function rating(id: string, comment: string): RatingsListItem {
 const averageRows: RatingAverageItem[] = [
   { employee_id: layla, name_ar: null, name_en: 'Layla Synthetic', average: '4.5', count: 6 },
 ];
-const ok = (data: unknown) => Promise.resolve({ data, response: { status: 200 } });
+const ok = (data: unknown) => Promise.resolve({ data, response: { status: 200, ok: true } });
 const monthField = () => screen.getByLabelText(t('en', 'ratings.month')) as HTMLInputElement;
 const callsTo = (path: string) => api.GET.mock.calls.filter(([called]) => called === path);
 
@@ -98,7 +98,7 @@ it('keeps the month field empty and the list unread until the first answer names
   expect(monthField().value).toBe('');
   expect(monthField().disabled).toBe(true);
   expect(callsTo(listPath)).toHaveLength(0);
-  answerAverages({ data: { items: averageRows, month: '2026-12' }, response: { status: 200 } });
+  answerAverages({ data: { items: averageRows, month: '2026-12' }, response: { status: 200, ok: true } });
   expect(await screen.findByText('December comment')).toBeTruthy();
   expect(monthField().value).toBe('2026-12');
   expect(callsTo(listPath)).toHaveLength(1);

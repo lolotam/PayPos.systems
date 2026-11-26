@@ -120,7 +120,7 @@ it('uses the current calendar month of the business time zone when from and to a
   }
 });
 
-it('treats to as exclusive, and leaves the other end open when only one bound is sent', async () => {
+it('treats to as exclusive, and refuses a one-sided or an over-wide range', async () => {
   const day = { from: '2026-06-10T09:00:00Z', to: '2026-06-11T09:00:00Z' };
   expect(summary(await averages(day))).toEqual([
     [sara, '5.0', 1],
@@ -128,8 +128,26 @@ it('treats to as exclusive, and leaves the other end open when only one bound is
   ]);
   const empty = { from: '2026-06-11T09:00:01Z', to: '2026-06-11T09:00:02Z' };
   expect((await averages(empty)).items).toEqual([]);
-  const open = await averages({ from: '2026-06-11T09:00:00Z', employee_id: sara });
-  expect(summary(open)).toEqual([[sara, '4.0', 1]]);
+  // الفحص مربوط بفرع واحد، والفترة من طرفين عشان المدى المفتوح بقى مرفوض.
+  const scoped = await averages({
+    from: '2026-06-11T09:00:00Z',
+    to: '2026-07-01T00:00:00Z',
+    employee_id: sara,
+    branch_id: A.branch,
+  });
+  expect(summary(scoped)).toEqual([[sara, '4.0', 1]]);
+  // مدى سنة بالضبط (366 يوم) مقبول: الحد الأقصى المسموح في PP-278.
+  const year = { from: '2026-06-11T09:00:00Z', to: '2027-06-12T09:00:00Z' };
+  expect(await refusal(averages(year))).toBe('accepted');
+  // طرف واحد بس: مدى مفتوح أعرض من الحد، فيترفض بـ 422.
+  expect(await refusal(averages({ from: '2026-06-11T09:00:00Z' }))).toBe('RATING_RANGE_TOO_WIDE');
+  expect(await refusal(averages({ to: '2027-06-12T09:00:00Z' }))).toBe('RATING_RANGE_TOO_WIDE');
+  // 366 يوم وميكروثانية واحدة زيادة على الحد.
+  expect(
+    await refusal(
+      averages({ from: '2026-06-11T09:00:00Z', to: '2027-06-12T09:00:00.000001Z' }),
+    ),
+  ).toBe('RATING_RANGE_TOO_WIDE');
 });
 
 it('never counts a branch outside the scope, with or without the branch filter', async () => {
@@ -151,6 +169,8 @@ it('refuses with FORBIDDEN when no branch is readable and with VALIDATION_FAILED
   access = [];
   try {
     expect(await refusal(averages(june))).toBe('FORBIDDEN');
+    // FORBIDDEN بيتقدم على رفض المدى: مفيش فرع مقروء يعني مفيش حاجة تتقرأ أصلًا.
+    expect(await refusal(averages({ from: '2026-06-11T09:00:00Z' }))).toBe('FORBIDDEN');
   } finally {
     access = everything;
   }
@@ -183,7 +203,8 @@ interface PlanNode {
   Plans?: PlanNode[];
 }
 const flatten = (node: PlanNode): PlanNode[] => [node, ...(node.Plans ?? []).flatMap(flatten)];
-const explain = (filter: Partial<Parameters<typeof ratingAveragesStatement>[0]>) =>
+type AvgFilter = Partial<Parameters<typeof ratingAveragesStatement>[0]>;
+const explain = (filter: AvgFilter) =>
   db.withTenant(A.company, async (tx) => {
     await tx.execute(sql`SET LOCAL enable_seqscan=off`);
     await tx.execute(sql`SET LOCAL enable_bitmapscan=off`);
@@ -196,10 +217,15 @@ const explain = (filter: Partial<Parameters<typeof ratingAveragesStatement>[0]>)
     });
     const [row] = Array.from(await tx.execute(sql`EXPLAIN (ANALYZE, FORMAT JSON) ${statement}`));
     const plan = row?.['QUERY PLAN'];
-    const parsed = (typeof plan === 'string' ? JSON.parse(plan) : plan) as { Plan: PlanNode }[];
-    return flatten((parsed[0] as { Plan: PlanNode }).Plan).filter(
-      (n) => n['Relation Name'] === 'rating_attributions',
-    );
+    const parsed = (typeof plan === 'string' ? JSON.parse(plan) : plan) as {
+      Plan: PlanNode;
+      'Execution Time': number;
+    }[];
+    const root = parsed[0] as { Plan: PlanNode; 'Execution Time': number };
+    return {
+      scans: flatten(root.Plan).filter((n) => n['Relation Name'] === 'rating_attributions'),
+      executionTimeMs: root['Execution Time'],
+    };
   });
 
 it(
@@ -213,21 +239,44 @@ it(
         [n % 3 === 0 ? hend : sara],
         n % 2 === 0 ? second : A.branch,
       );
+    // صفوف قبل وبعد نافذة الـ366 يوم، عشان المسح على المدى الأعرض يتقاس بعدد صفوف حقيقي مش بيفترض.
+    await rate(3, '2025-06-10T09:00:00Z', [sara]);
+    await rate(3, '2028-05-10T09:00:00Z', [sara]);
     await owner`ANALYZE rating_attributions`;
-    const [counted] = await owner`SELECT count(*)::int AS total FROM rating_attributions
-      WHERE submitted_at >= '2026-01-01' AND submitted_at < '2026-02-01'`;
-    const total = counted?.['total'] as number;
     const january = { from: '2026-01-01T00:00:00Z', to: '2026-02-01T00:00:00Z' };
-    const combos: Record<string, Partial<Parameters<typeof ratingAveragesStatement>[0]>> = {
-      defaultMonth: {},
-      window: { period: { kind: 'range', ...january } },
-      oneBranch: { branchIds: [A.branch], period: { kind: 'range', from: january.from } },
-      employee: { employeeId: hend, period: { kind: 'range', ...january } },
-      monthParam: { period: monthPeriod('Asia/Kuwait', '2026-01', NOW) },
+    const maxRange = { from: '2026-01-01T00:00:00Z', to: '2027-01-02T00:00:00Z' };
+    const june = { from: '2026-05-31T00:00:00Z', to: '2026-07-02T00:00:00Z' };
+    const januaryMonth = { from: '2025-12-31T00:00:00Z', to: '2026-02-02T00:00:00Z' };
+    const rowsIn = async (from: string, to: string) => {
+      const [counted] = await owner`SELECT count(*)::int AS total FROM rating_attributions
+        WHERE company_id = ${A.company} AND submitted_at >= ${from} AND submitted_at < ${to}`;
+      return (counted?.['total'] as number) ?? 0;
     };
-    for (const [name, filter] of Object.entries(combos)) {
-      const scans = await explain(filter);
+    const combos: { name: string; filter: AvgFilter; counted: { from: string; to: string } }[] = [
+      { name: 'defaultMonth', filter: {}, counted: june },
+      { name: 'window', filter: { period: { kind: 'range', ...january } }, counted: january },
+      {
+        name: 'oneBranch',
+        filter: { branchIds: [A.branch], period: { kind: 'range', ...january } },
+        counted: january,
+      },
+      {
+        name: 'employee',
+        filter: { employeeId: hend, period: { kind: 'range', ...january } },
+        counted: january,
+      },
+      {
+        name: 'monthParam',
+        filter: { period: monthPeriod('Asia/Kuwait', '2026-01', NOW) },
+        counted: januaryMonth,
+      },
+      { name: 'maxRange', filter: { period: { kind: 'range', ...maxRange } }, counted: maxRange },
+    ];
+    for (const { name, filter, counted } of combos) {
+      const total = await rowsIn(counted.from, counted.to);
+      const { scans, executionTimeMs } = await explain(filter);
       expect(scans.length, name).toBeGreaterThan(0);
+      expect(executionTimeMs, name).toBeLessThan(200);
       for (const scan of scans) {
         expect(scan['Node Type'], name).toMatch(/^Index (Only )?Scan( Backward)?$/);
         expect(scan['Index Cond'], name).toContain('company_id');

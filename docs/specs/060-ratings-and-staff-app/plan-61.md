@@ -134,7 +134,7 @@ lines and one event row, **flagged as requiring an ADR-0010 addendum (A-2)**:
 | T5 | `rating-summary` answers a discriminated body `{ visibility: 'HIDDEN' }` or `{ visibility: 'VISIBLE', average, count }`, like the own-tips route of 57-2a | The route can ship before 61-3 lifts the column and never leaks whether ratings exist |
 | T6 | `average` is a string with one decimal (`"4.5"`), rounded half up **in SQL**; `null` with `count: 0` | D-B12 fixes «rounded half up to one decimal»; `queries/` may not import `domain/`; no float crosses the wire |
 | T10 | The staff window of D-B12 («the current calendar month in the business timezone») is applied to `rating_attributions.submitted_at` | D-B12 computes the average from `rating_attributions`, whose only timestamp is `submitted_at`, indexed `(company_id, employee_id, submitted_at)` by 60-1 for this read. Not an owner question |
-| T7 | Admin averages are a separate route `GET /v1/businesses/:businessId/ratings/averages` with the list's filters | One use case per PR; the list's keyset page and the aggregate have different plans |
+| T7 | Admin averages are a separate route `GET /v1/businesses/:businessId/ratings/averages` with the filters `branch_id`, `from`, `to`, `employee_id` or `month`; `cursor` and `limit` belong to the paginated ratings list only | One use case per PR; the list's keyset page and the aggregate have different plans |
 | T8 | The two admin routes and the staff route are `@Authenticated()` reads that check access inside their own single transaction | The decision depends on the caller's role and scope (CLAUDE.md §6); one transaction per request (connection budget) |
 | T9 | 61-3 stays one PR and waits for 57-4 | Offering `rating_average` in the columns screen before any screen shows it would be a switch that changes nothing |
 
@@ -383,6 +383,10 @@ closure is needed.
   `rating_attributions` of that employee whose `submitted_at` falls in the current calendar month of the business
   timezone (D-B12, T10); `count = 0` → `average: null`, which the client shows as «لسه مفيش تقييمات». Never a comment, a
   customer, a star list or another employee's number.
+- **Month window (D-B12, T10).** The read narrows the rows first by an indexed UTC candidate window
+  `[local_start - 1 day, local_start + 1 month + 1 day)` and then keeps only the rows whose business-local month is
+  exactly `date_trunc('month', submitted_at AT TIME ZONE tz) = local_start`; the window is an upper bound for the index
+  and the local match is the exact one, so a daylight-saving fallback across midnight cannot split one month into two.
 - **Files:** identity `persistence/own-ratings-access.ts` + index export (mirrors `own-service-sessions-access.ts`)
   ~45; customers `queries/own-rating-summary.query.ts` (one-line Arabic «which screen») ~40;
   `queries/own-rating-context.ts` (employee, access, column, month window; the shape of orders'
@@ -417,15 +421,22 @@ closure is needed.
 
 ### 61-2c — Admin per-employee averages API
 
-- **Behaviour.** `GET /v1/businesses/:businessId/ratings/averages?branch_id&from&to&employee_id` → per employee
+- **Behaviour.** `GET /v1/businesses/:businessId/ratings/averages?branch_id&from&to&employee_id&month` → per employee
   `{ employee_id, name_ar, name_en, average, count }` over the filtered range, same access rule and scope as 61-2b
-  (shared access reader). Default range when `from`/`to` are absent: the current calendar month in the
-  business timezone, by `submitted_at` (D-B12, T10).
+  (shared access reader). Default range when `from`/`to`/`month` are absent: the current calendar month in the
+  business timezone, by `submitted_at` (D-B12, T10). `cursor` and `limit` belong to the paginated ratings list of
+  61-2b only; the averages route takes neither. An explicit range needs **both** `from` and `to` and spans at most
+  **366 days**; a wider range or a one-sided (open-ended) range is refused with `422 RATING_RANGE_TOO_WIDE`
+  (PP-278, owner decision 2026-11-26), enforced in the read so a malformed or inverted range stays
+  `400 VALIDATION_FAILED`. The `month` window, the default current month and the cursor-paginated ratings list
+  (open-ended and long ranges) keep working unchanged.
 - **Files:** `queries/rating-averages.query.ts` ~70; route in `ratings.controller.ts` ~30; contracts ~25 + OpenAPI.
   Employee names through the existing API staff public reader on the same transaction (add a `reads` line if a new
   symbol is used).
-- **Tests:** shape + `EXPLAIN` ~70; integration: RT-24 (both snapshotted performers get the rating; the mean is of
-  attributed ratings), scope filter, 403 paths ~100.
+- **Tests:** shape + `EXPLAIN` ~70, with the `EXPLAIN ANALYZE` assertion covering the **366-day maximum range**
+  (index scan on company and time, rows bounded by the window, execution under 200 ms); integration: RT-24 (both
+  snapshotted performers get the rating; the mean is of attributed ratings), scope filter, 403 paths, the 366-day
+  range accepted and the wider or one-sided range refused with `RATING_RANGE_TOO_WIDE` ~100.
 - **Stop line:** no screen.
 
 ### 61-2d — Admin ratings screen

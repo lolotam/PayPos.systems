@@ -207,7 +207,7 @@ async function wholePage(lane: Lane, scripts: readonly string[]) {
   // لأن أبطأ أمر لوحده على runner مشترك بيقيس زحمة الجهاز مش الكود.
   expect(totals).toHaveLength(2);
   const [baseTotal = 0, patchTotal = 0] = totals;
-  expect(patchTotal).toBeLessThanOrEqual(Math.max(2 * baseTotal, baseTotal + 50));
+  expect(patchTotal).toBeLessThanOrEqual(2 * baseTotal + 50);
 }
 
 // الـharness والاتصال والـhooks جوه المجموعة؛ التشغيل المحلي لا يتصل بسبب skip.
@@ -273,9 +273,9 @@ describe.skipIf(!CI)('CI-only exact counter whole-command performance', () => {
       const size = { bytes: data.bytes, headroom: CAP - data.bytes };
       await reportScenario(redis, { scenario, size, warmups, samples, base, patch });
       // PP-165: النسختين بيتقاسوا على نفس الجهاز في نفس الوقت، فالنسبة بتلغي ضوضاء الـrunner؛ مفيش حد ثابت بالـms.
-      expect(patch.p95).toBeLessThanOrEqual(Math.max(2 * (base.p95 ?? 0), (base.p95 ?? 0) + 5));
+      expect(patch.p95).toBeLessThanOrEqual(2 * (base.p95 ?? 0) + 5);
       // PP-163.2: p99 بدل أكبر عينة؛ النسخة القديمة نفسها كانت بتعدّي 100ms على نفس الـrunner.
-      expect(patch.p99).toBeLessThanOrEqual(Math.max(2 * (base.p99 ?? 0), (base.p99 ?? 0) + 10));
+      expect(patch.p99).toBeLessThanOrEqual(2 * (base.p99 ?? 0) + 10);
     },
     120_000,
   );

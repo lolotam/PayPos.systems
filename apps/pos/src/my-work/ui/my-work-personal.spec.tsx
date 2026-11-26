@@ -166,6 +166,25 @@ it('loads the next page by cursor and then hides the load-more button', async ()
   );
 });
 
+it('restarts from the first page when the next page cursor expired', async () => {
+  const fetched = serve({
+    lines: (url) =>
+      url.searchParams.get('cursor') === 'next-1'
+        ? json({ code: 'BAD_REQUEST' }, 400)
+        : json(linesPage([fullLine], 'next-1')),
+  });
+  open();
+  await screen.findByText('Haircut');
+  fireEvent.click(screen.getByText(label('myWork.loadMore')));
+  expect(await screen.findByRole('alert')).toBeTruthy();
+  fireEvent.click(screen.getByText(label('myWork.retry')));
+  expect(await screen.findByText('Haircut')).toBeTruthy();
+  const cursors = fetched
+    .paths('/service-lines')
+    .map((request) => new URL(request.url).searchParams.get('cursor'));
+  expect(cursors).toEqual([null, 'next-1', null]);
+});
+
 it('requests the next page with the month the first page returned, not the implicit current month', async () => {
   const fetched = serve({
     lines: (url) =>
