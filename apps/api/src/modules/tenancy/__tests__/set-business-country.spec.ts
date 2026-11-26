@@ -1,20 +1,16 @@
 import { errorEnvelope } from '@pospay/contracts';
-import postgres from 'postgres';
-import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 import {
   permissionFixture,
   seedOverride,
   type PermissionFixture,
 } from '../../../../test/permissions-fixture.ts';
-import { createTenancyTransactions } from '../persistence/tenancy-transactions.ts';
-import { SetBusinessCountry } from '../use-cases/set-business-country/set-business-country.ts';
 import { businessCountry } from '../queries/business-country.query.ts';
-import type { TenancyTransactions } from '../ports/tenancy-transactions.port.ts';
 
 // 34-pre-3 عبر الـ API على Postgres حقيقي: تغيير واحد مُدوَّن، والقيمة المتساوية بلا كتابة ولا تدقيق،
 // والرفض 403 الصريح للنشاط الغائب والأجنبي والجهاز، وصلاحية النشاط وحده، وإرث الإعدادات غير الكائنية،
-// وإنشاء نشاط يحجز مفتاح country، وفشل التدقيق يرجع الكتابة، والتزامن يترتب تحت قفل الصف.
+// وإنشاء نشاط يحجز مفتاح country. التزامن تحت قفل الصف وفشل التدقيق في ملف المعاملات نفسه.
 
 let f: PermissionFixture;
 let owner: string;
@@ -229,90 +225,6 @@ describe('the sibling refusal with a business-only holder (OQ-2 scope)', () => {
     expect(await countryAudits(otherBusiness)).toHaveLength(1);
     await f.h
       .owner`DELETE FROM permission_overrides WHERE company_id=${f.company} AND id=${granted}`;
-  });
-});
-
-async function updateCountriesWaitingOnOneRow() {
-  const observer = postgres(f.h.ownerUrl, { max: 1, onnotice: () => undefined });
-  const pending: ReturnType<typeof put>[] = [];
-  try {
-    await f.h.owner.begin(async (holder) => {
-      const [row] = await holder<{ pid: number }[]>`
-        SELECT pg_backend_pid() AS pid FROM businesses
-        WHERE company_id = ${f.company} AND id = ${business} FOR NO KEY UPDATE`;
-      if (!row) throw new Error('Missing synthetic business for contention test');
-
-      pending.push(put({ country: 'KW' }), put({ country: 'QA' }));
-      // بنتحقق من انتظار الاستعلامين قبل فك قفل الصف، لأن بدء الطلبين وحده ما يثبتش تداخل المعاملتين.
-      await vi.waitFor(
-        async () => {
-          const waiting = await observer<{ behindHolder: boolean }[]>`
-            SELECT ${row.pid} = ANY(pg_blocking_pids(pid)) AS "behindHolder"
-            FROM pg_stat_activity
-            WHERE datname = current_database() AND wait_event_type = 'Lock'
-              AND query LIKE '%FROM businesses%FOR NO KEY UPDATE%'`;
-          expect(waiting).toHaveLength(2);
-          expect(waiting.some(({ behindHolder }) => behindHolder)).toBe(true);
-        },
-        { timeout: 8_000, interval: 20 },
-      );
-    });
-    return await Promise.all(pending);
-  } finally {
-    await Promise.allSettled(pending);
-    await observer.end();
-  }
-}
-
-describe('concurrent changes ordering (FOR NO KEY UPDATE)', () => {
-  it('orders two concurrent changes so the later audit continues from the earlier audit value', async () => {
-    const before = await settingsOf();
-    const auditCount = (await countryAudits()).length;
-    const responses = await updateCountriesWaitingOnOneRow();
-    expect(responses.map(({ status }) => status)).toEqual([200, 200]);
-    const stored = (await settingsOf())['country'];
-    expect(['KW', 'QA']).toContain(stored);
-    const earlier = stored === 'KW' ? 'QA' : 'KW';
-    expect((await countryAudits()).slice(auditCount)).toEqual([
-      { before: { country: before['country'] ?? null }, after: { country: earlier } },
-      { before: { country: earlier }, after: { country: stored } },
-    ]);
-  });
-});
-
-describe('audit-failure rollback (BD-05 pattern)', () => {
-  it('rolls the country write back and records no audit row when the audit fails', async () => {
-    const before = await settingsOf();
-    const auditCount = (await countryAudits()).length;
-    const stored = typeof before['country'] === 'string' ? before['country'] : null;
-    // الدولة المطلوبة مضمونة الاختلاف عن المخزّن، فالتغيير فعلي والكتابة والفشل بيحصلوا بالضرورة.
-    const requested = stored === 'KW' ? 'QA' : 'KW';
-    const real = createTenancyTransactions(f.db, f.ids);
-    const transactions: TenancyTransactions = {
-      run: (context, idempotency, work) => real.run(context, idempotency, work),
-      runBusinessCountryChange: (context, work) =>
-        real.runBusinessCountryChange(context, (scope) =>
-          work({
-            ...scope,
-            audit: {
-              record: async () => {
-                throw new Error('Synthetic audit failure');
-              },
-            },
-          }),
-        ),
-    };
-    const useCase = new SetBusinessCountry(transactions);
-    await expect(
-      useCase.execute({
-        companyId: f.company,
-        userId: f.userId,
-        businessId: business,
-        country: requested,
-      }),
-    ).rejects.toThrow('Synthetic audit failure');
-    expect(await settingsOf()).toEqual(before);
-    expect(await countryAudits()).toHaveLength(auditCount);
   });
 });
 

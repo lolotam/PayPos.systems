@@ -87,9 +87,9 @@ describe('workspace business logo reference (079 TQ-1)', () => {
     expect(workspaceBusiness.safeParse({ ...baseBusiness, logo_file_id: uuid }).success).toBe(true);
     expect(workspaceBusiness.safeParse({ ...baseBusiness, logo_file_id: null }).success).toBe(true);
     expect(workspaceBusiness.safeParse(baseBusiness).success).toBe(true);
-    expect(workspaceBusiness.safeParse({ ...baseBusiness, logo_file_id: 'not-a-uuid' }).success).toBe(
-      false,
-    );
+    expect(
+      workspaceBusiness.safeParse({ ...baseBusiness, logo_file_id: 'not-a-uuid' }).success,
+    ).toBe(false);
   });
 
   it('publishes the optional nullable logo reference on WorkspaceBusiness', () => {
@@ -99,6 +99,39 @@ describe('workspace business logo reference (079 TQ-1)', () => {
       type: 'string',
       format: 'uuid',
       nullable: true,
+    });
+  });
+});
+
+describe('workspace per-business scope (1133)', () => {
+  it('accepts every scope on a business, and none at all for an older API', () => {
+    for (const scope of ['COMPANY', 'BUSINESS', 'BRANCH']) {
+      expect(workspaceBusiness.safeParse({ ...baseBusiness, scope }).success).toBe(true);
+    }
+    expect(workspaceBusiness.safeParse(baseBusiness).success).toBe(true);
+  });
+
+  it('rejects a scope that is not one of the three memberships', () => {
+    for (const scope of ['branch', 'business', '', null, 1]) {
+      expect(workspaceBusiness.safeParse({ ...baseBusiness, scope }).success).toBe(false);
+    }
+  });
+
+  it('publishes the optional scope on WorkspaceBusiness', () => {
+    const schema = committedDocument.components.schemas.WorkspaceBusiness;
+    expect(schema.required).not.toContain('scope');
+    expect(schema.properties.scope).toEqual({
+      type: 'string',
+      enum: ['COMPANY', 'BUSINESS', 'BRANCH'],
+    });
+  });
+
+  it('keeps the company scope required and unchanged', () => {
+    const schema = committedDocument.components.schemas.WorkspaceCompany;
+    expect(schema.required).toContain('scope');
+    expect(schema.properties.scope).toEqual({
+      type: 'string',
+      enum: ['COMPANY', 'BUSINESS', 'BRANCH'],
     });
   });
 });

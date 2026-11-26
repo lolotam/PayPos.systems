@@ -39,7 +39,7 @@ function ok(items: unknown[], cursor: string | null = null) {
 }
 
 function renderScreen(
-  scope: 'COMPANY' | 'BRANCH',
+  companyScope: 'COMPANY' | 'BRANCH',
   workspace: WorkspaceBusiness = business([branch(), secondBranch()]),
   onCommit?: () => void,
 ) {
@@ -49,7 +49,7 @@ function renderScreen(
       companyId={companyId}
       business={workspace}
       userId={userId}
-      scope={scope}
+      companyScope={companyScope}
       rememberedBranchId={undefined}
     />
   );

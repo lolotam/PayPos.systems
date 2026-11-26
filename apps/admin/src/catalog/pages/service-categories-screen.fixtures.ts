@@ -42,7 +42,10 @@ export function branchCategory(
   };
 }
 
-export function business(branches: readonly WorkspaceBranch[]): WorkspaceBusiness {
+export function business(
+  branches: readonly WorkspaceBranch[],
+  scope?: WorkspaceBusiness['scope'],
+): WorkspaceBusiness {
   return {
     id: businessId,
     name_en: 'Business',
@@ -50,5 +53,6 @@ export function business(branches: readonly WorkspaceBranch[]): WorkspaceBusines
     business_type: 'salon',
     country: null,
     branches: [...branches],
+    ...(scope === undefined ? {} : { scope }),
   };
 }

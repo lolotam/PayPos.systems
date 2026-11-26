@@ -5,6 +5,7 @@ import { useSessionUser } from '@/session/api/use-session';
 import { useMounted } from '@/shared/browser/use-mounted';
 import { useLocale } from '@/shared/locale/locale-context';
 import { useWorkspace } from '@/workspace/model/workspace-provider';
+import { businessScope } from '@/workspace/model/business-scope';
 
 /**
  * راوت استيراد العملاء: مدير النشاط يستورد على مستوى النشاط، ومدير الفرع والكاشير على فرعهم فقط (CI-Q4، CI-T5).
@@ -16,7 +17,9 @@ export function CustomerImportRoute() {
   const workspace = useWorkspace();
   if (workspace.status !== 'ready' || userId === null) return null;
   if (!workspace.business) return <p>{t(locale, 'admin.chooseBusiness')}</p>;
-  const branchScoped = workspace.company.scope === 'BRANCH';
+  // النطاق على النشاط المختار مش على الشركة: نشاط وصله اليوزر عن طريق فرع بس
+  // استيرادُه على مستوى النشاط بيرد 403.
+  const branchScoped = businessScope(workspace.business, workspace.company.scope) === 'BRANCH';
   if (branchScoped && !workspace.branch) return <p>{t(locale, 'customerImport.chooseBranch')}</p>;
   const branchId = branchScoped ? workspace.branch?.id : undefined;
   return (

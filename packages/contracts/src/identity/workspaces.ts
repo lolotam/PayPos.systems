@@ -22,6 +22,12 @@ export const workspaceBranch = responseObject({
   is_active: z.boolean(),
 }).meta({ id: 'WorkspaceBranch' });
 
+/**
+ * أوسع وصول Membership واحدة: الشركة كلها، أو نشاط واحد، أو فروعه.
+ * بيتقاس على الشركة (أوسع عضوية فيها) وعلى كل نشاط على حدة (أوسع وصول اليوزر عليه).
+ */
+export const workspaceScope = z.enum(['COMPANY', 'BUSINESS', 'BRANCH']);
+
 export const workspaceBusiness = responseObject({
   id,
   name_ar: nameAr.nullable(),
@@ -34,6 +40,12 @@ export const workspaceBusiness = responseObject({
    * القراءة بس للأعضاء اللي بتغطي النشاط؛ الرفع والاستبدال والحذف على manage:business-identity:business.
    */
   logo_file_id: id.nullable().optional(),
+  /**
+   * أوسع وصول اليوزر على النشاط ده: الشركة كلها، أو النشاط نفسه، أو فرع واحد فيه.
+   * عضوية على الشركة مش بتكفي — اليوزر ممكن يكون وصل النشاط عن طريق فرع بس.
+   * غايب في رد API أقدم، والقارئ بيرجع لنطاق الشركة كبديل.
+   */
+  scope: workspaceScope.optional(),
 }).meta({ id: 'WorkspaceBusiness' });
 
 /** Names of one company the caller can reach. Identity adds role_code and scope before the response leaves. */
@@ -49,7 +61,7 @@ const roleCode = z.string().regex(/^[a-z][a-z_]{0,63}$/);
 export const workspaceCompany = workspaceCompanyNames
   .extend({
     role_code: roleCode,
-    scope: z.enum(['COMPANY', 'BUSINESS', 'BRANCH']),
+    scope: workspaceScope,
     /**
      * المالك الأساسي للشركة: اليوزر عنده عضوية المالك العامة على الشركة نفسها، حتى لو
      * أضيق دور فعّال عنده أقدم من دي. الأدمن بيحتاجها عشان يقبل مدخل دعوات الأعضاء

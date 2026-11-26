@@ -52,7 +52,7 @@ function mockBranchList(items: (view: ServiceCategoryBranchView) => unknown[]) {
 
 function renderScreen(
   props: Partial<{
-    scope: 'COMPANY' | 'BUSINESS' | 'BRANCH';
+    companyScope: 'COMPANY' | 'BUSINESS' | 'BRANCH';
     rememberedBranchId: string | undefined;
     business: ReturnType<typeof business>;
   }> = {},
@@ -63,7 +63,7 @@ function renderScreen(
       companyId={companyId}
       business={business([branch(), secondBranch()])}
       userId={userId}
-      scope="BRANCH"
+      companyScope="BRANCH"
       rememberedBranchId={undefined}
       {...props}
     />,
@@ -108,6 +108,25 @@ it.each(['en', 'ar'] as const)(
   },
 );
 
+it('opens a business reached only through a branch on that branch, without offering the whole business', async () => {
+  mockBranchList(() => [branchCategory({ name_en: 'Branch row' })]);
+  renderScreen({
+    companyScope: 'BUSINESS',
+    business: business([branch(), secondBranch()], 'BRANCH'),
+  });
+  const select = screen.getByRole('combobox', {
+    name: t('en', 'catalogServiceCategoryBranches.scopeLabel'),
+  }) as HTMLSelectElement;
+  expect(select.selectedOptions[0]?.textContent).toBe('First branch');
+  expect(
+    screen.queryByRole('option', {
+      name: t('en', 'catalogServiceCategoryBranches.scopeBusiness'),
+    }),
+  ).toBeNull();
+  expect(await screen.findByRole('row', { name: /Branch row/ })).toBeTruthy();
+  expect(get.mock.calls.some(([path]) => path === businessListPath)).toBe(false);
+});
+
 it('opens a business-scoped user on the whole business and switches to a branch', async () => {
   get.mockImplementation((path: string, options?: { params?: { query?: { view?: string } } }) => {
     if (path === businessListPath)
@@ -135,7 +154,7 @@ it('opens a business-scoped user on the whole business and switches to a branch'
     }
     return Promise.resolve(refusal(500));
   });
-  renderScreen({ scope: 'BUSINESS' });
+  renderScreen({ companyScope: 'BUSINESS' });
   expect(await screen.findByRole('row', { name: /Business row/ })).toBeTruthy();
   expect(
     screen.getByRole('option', {
@@ -234,7 +253,7 @@ it('keeps the business page state across a branch round-trip', async () => {
     if (path === branchListPath) return Promise.resolve(okPage([]));
     return Promise.resolve(refusal(500));
   });
-  renderScreen({ scope: 'BUSINESS' });
+  renderScreen({ companyScope: 'BUSINESS' });
   expect(await screen.findByRole('row', { name: /Open row/ })).toBeTruthy();
   fireEvent.click(
     screen.getByRole('button', { name: t('en', 'catalogServiceCategories.tabClosed') }),
@@ -256,7 +275,7 @@ it('keeps the business page state across a branch round-trip', async () => {
 
 it('opens on the remembered branch when it is an active branch', async () => {
   mockBranchList(() => [branchCategory({ name_en: 'Second branch row' })]);
-  renderScreen({ scope: 'BRANCH', rememberedBranchId: secondBranch().id });
+  renderScreen({ companyScope: 'BRANCH', rememberedBranchId: secondBranch().id });
   const select = screen.getByRole('combobox', {
     name: t('en', 'catalogServiceCategoryBranches.scopeLabel'),
   }) as HTMLSelectElement;
@@ -270,7 +289,7 @@ it('opens on the remembered branch when it is an active branch', async () => {
 it('falls back to the first active branch when the remembered branch is unknown', async () => {
   mockBranchList(() => []);
   renderScreen({
-    scope: 'BRANCH',
+    companyScope: 'BRANCH',
     rememberedBranchId: '01920000-0000-7000-8000-0000000000ff',
     business: business([branch({ is_active: false }), secondBranch()]),
   });
@@ -283,7 +302,7 @@ it('falls back to the first active branch when the remembered branch is unknown'
 
 it('shows a no-active-branch empty state without reading the business list', async () => {
   get.mockImplementation(() => Promise.resolve(refusal(403)));
-  renderScreen({ scope: 'BRANCH', business: business([branch({ is_active: false })]) });
+  renderScreen({ companyScope: 'BRANCH', business: business([branch({ is_active: false })]) });
   expect(
     await screen.findByText(t('en', 'catalogServiceCategoryBranches.noActiveBranch')),
   ).toBeTruthy();

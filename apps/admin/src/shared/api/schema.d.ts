@@ -10703,6 +10703,8 @@ export interface components {
             branches: components["schemas"]["WorkspaceBranch"][];
             /** Format: uuid */
             logo_file_id?: string | null;
+            /** @enum {string} */
+            scope?: "COMPANY" | "BUSINESS" | "BRANCH";
         };
         WorkspaceCapabilities: {
             staff_access: boolean;

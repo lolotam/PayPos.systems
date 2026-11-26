@@ -146,6 +146,7 @@ function ownerTree() {
             name_en: 'North Shop',
             business_type: 'retail' as const,
             country: 'KW' as const,
+            scope: 'COMPANY' as const,
             branches: [
               {
                 id: eastId,
@@ -169,6 +170,7 @@ function ownerTree() {
             name_en: 'South Shop',
             business_type: 'salon' as const,
             country: null,
+            scope: 'COMPANY' as const,
             branches: [
               {
                 id: riyadhId,
@@ -330,6 +332,7 @@ describe('GET /v1/me/workspaces for a branch scope', () => {
         name_en: 'South Shop',
         business_type: 'salon',
         country: null,
+        scope: 'BRANCH',
         branches: [
           {
             id: riyadhId,
@@ -340,6 +343,30 @@ describe('GET /v1/me/workspaces for a branch scope', () => {
           },
         ],
       },
+    ]);
+  });
+});
+
+describe('GET /v1/me/workspaces for a user with a business membership and a branch membership', () => {
+  it('tells each business how the user reaches it', async () => {
+    await endMemberships(emptyUserId);
+    await grant({
+      company: companyA,
+      scope: 'BUSINESS',
+      scopeId: northId,
+      role: roleId('business_manager'),
+    });
+    await grant({
+      company: companyA,
+      scope: 'BRANCH',
+      scopeId: riyadhId,
+      role: roleId('branch_manager'),
+    });
+    const [company] = (await list(emptyCookie)).companies;
+    expect(company).toMatchObject({ id: companyA, scope: 'BUSINESS' });
+    expect(company?.businesses.map((business) => [business.id, business.scope])).toEqual([
+      [northId, 'BUSINESS'],
+      [southId, 'BRANCH'],
     ]);
   });
 });
