@@ -19,6 +19,12 @@ export interface RatingClaimsOverflowReport {
   readonly reconcileRequired: boolean;
 }
 
+/** عملية فقد السور: في نص الدور، أو في إفلات الحالة في آخر الدور. */
+export type RatingClaimFenceLostOperation = 'turn' | 'release';
+
+/** رمز الرد اللي بيقول إن السور مش سليم: قديم، مش موجود، تالف، أو مش ours. */
+export type RatingClaimFenceLostCode = 'STALE' | 'BUSY' | 'MISSING' | 'CORRUPT';
+
 /** تشخيص مجدول طلبات التقييم: فشل صف، أو فيضان، أو فقد سور، أو ملخص دور. */
 export interface RatingClaimDiagnostics {
   /**
@@ -38,12 +44,17 @@ export interface RatingClaimDiagnostics {
   overflow(companyId: string, report: RatingClaimsOverflowReport): void;
 
   /**
-   * يسجل فقد السور في نص الدور: رمز الرد بس، من غير تفاصيل تانية.
+   * يسجل فقد السور: رمز الرد بس، من غير تفاصيل تانية.
    *
    * @param companyId الشركة المالكة للدور
    * @param code رمز الرد اللي فقد السور: STALE أو BUSY أو MISSING أو CORRUPT
+   * @param operation العملية اللي فقد السور فيها: في نص الدور، أو في إفلاته
    */
-  fenceLost(companyId: string, code: 'STALE' | 'BUSY' | 'MISSING' | 'CORRUPT'): void;
+  fenceLost(
+    companyId: string,
+    code: RatingClaimFenceLostCode,
+    operation?: RatingClaimFenceLostOperation,
+  ): void;
 
   /**
    * يسجل ملخص الدور: أعداد التسويات وسبب الانتهاء، من غير أي معرّف.

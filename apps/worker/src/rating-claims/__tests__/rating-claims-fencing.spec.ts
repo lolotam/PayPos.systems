@@ -238,7 +238,8 @@ it('a_missing_state_ends_the_turn_and_records_the_fence_loss', async () => {
   const summary = await pending;
   expect(summary.end).toBe('FENCE_LOST');
   // فقد السور اتسجّل بنوعه: من غير كده الشكل ده بيبان كأنه ضياع رد عادي.
-  expect(w.diagnostics.fenceLosses).toEqual(['MISSING']);
+  // اتسجّل مرتين: مرة وقت الدور في نص الشغل، ومرة وقت الإفلات (المفتاح لسه مفقود).
+  expect(w.diagnostics.fenceLosses).toEqual(['MISSING', 'MISSING']);
   // المطالبة كانت اتعملت قبل ما المفتاح يختفي، فالطلب المزروع هو اللي اتجهّز.
   const ready = await w.readyRequestIds();
   expect(ready).toEqual([at(seeded.requestIds, 0)]);
