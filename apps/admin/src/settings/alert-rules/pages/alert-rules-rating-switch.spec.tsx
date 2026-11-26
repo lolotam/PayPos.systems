@@ -16,7 +16,9 @@ vi.mock('@/shared/api/client', () => ({ apiClient: () => api }));
 vi.mock('@/shared/locale/locale-context', () => ({ useLocale: () => 'en' }));
 
 const ratingSwitch = () =>
-  screen.getByRole('switch', { name: t('en', 'alertRules.ratingRequestsLabel') }) as HTMLInputElement;
+  screen.getByRole('switch', {
+    name: t('en', 'alertRules.ratingRequestsLabel'),
+  }) as HTMLInputElement;
 
 beforeEach(() => {
   api.GET.mockReset();

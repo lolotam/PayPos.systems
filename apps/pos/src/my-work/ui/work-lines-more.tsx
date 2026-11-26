@@ -7,7 +7,7 @@ import { invalidCursor } from '../model/work-error';
 /**
  * زر «عرض المزيد» تحت الصفحات المحمّلة. لو تحميل صفحة إضافية فشل (نقل أو سيرفر) الصفحات اللي ظاهرة بتفضل،
  * وبيظهر الخطأ جنب الزر نفسه، والزر بيجرّب نفس المؤشر تاني.
- * المؤشر المرفوض (400) استثناء: تكرار نفس المؤشر مرفوض تاني، فالإعادة بترسم من الصفحة الأولى.
+ * المؤشر المرفوض (400 VALIDATION_FAILED) استثناء: تكرار نفس المؤشر مرفوض تاني، فالإعادة بترسم من الصفحة الأولى.
  *
  * @param props.lines حالة الصفحات
  * @param props.onLoadMore الصفحة التالية بالـ cursor
@@ -29,7 +29,11 @@ export function WorkLinesMore({
   return (
     <div className="grid gap-2">
       {failed ? <p role="alert">{t(locale, 'myWork.failed')}</p> : null}
-      <Button variant="outline" disabled={lines.fetchingMore} onClick={expired ? onRetry : onLoadMore}>
+      <Button
+        variant="outline"
+        disabled={lines.fetchingMore}
+        onClick={expired ? onRetry : onLoadMore}
+      >
         {t(locale, failed ? 'myWork.retry' : 'myWork.loadMore')}
       </Button>
     </div>
