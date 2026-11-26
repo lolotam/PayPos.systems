@@ -1,6 +1,7 @@
 import { DelayedError, UnrecoverableError } from 'bullmq';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { systemUuidV7 } from '@pospay/ids';
+import { FailurePersistedError } from './catalog-job-finalization.ts';
 import { startServiceImportProcessor } from './service-import-commit.processor.ts';
 import type { CommitServiceImport } from '../use-cases/commit-service-import/commit-service-import.ts';
 
@@ -95,16 +96,16 @@ const failingExecute = () =>
   });
 
 describe('final attempt', () => {
-  it('rejects with UnrecoverableError once the failure write succeeds', async () => {
+  it('rejects with FailurePersistedError once the failure write succeeds', async () => {
     const fail = vi.fn(async () => undefined);
     const { handler } = start(failingExecute(), fail);
     const value = lastAttemptJob();
-    await expect(handler(value as never, 'token')).rejects.toBeInstanceOf(UnrecoverableError);
+    await expect(handler(value as never, 'token')).rejects.toBeInstanceOf(FailurePersistedError);
     expect(fail).toHaveBeenCalledTimes(1);
     expect(fail).toHaveBeenCalledWith(value.data.companyId, value.data.previewId);
   });
 
-  it('does not write a second time when the failed listener sees that UnrecoverableError', async () => {
+  it('does not write a second time when the failed listener sees that FailurePersistedError', async () => {
     const fail = vi.fn(async () => undefined);
     const { handler, failedListener } = start(failingExecute(), fail);
     const value = lastAttemptJob();
@@ -120,7 +121,7 @@ describe('final attempt', () => {
     const { failedListener } = start(vi.fn(), fail);
     const value = lastAttemptJob();
     value.finishedOn = 1_700_000_000_000;
-    failedListener(value as never, new Error('job stalled more than allowable limit'));
+    failedListener(value as never, new UnrecoverableError('job stalled more than allowable limit'));
     await new Promise((resolve) => setTimeout(resolve, 0));
     expect(fail).toHaveBeenCalledWith(value.data.companyId, value.data.previewId);
   });
@@ -146,7 +147,7 @@ describe('delayed finalization', () => {
     // DelayedError لا يزيد attemptsMade: التفعيل التالي يرفع attemptsStarted فقط والمؤشر غير مكتوب.
     value.attemptsStarted += 1;
     expect(value.progress).toBe(0);
-    await expect(handler(value as never, 'token')).rejects.toBeInstanceOf(UnrecoverableError);
+    await expect(handler(value as never, 'token')).rejects.toBeInstanceOf(FailurePersistedError);
     expect(execute).toHaveBeenCalledTimes(1);
     expect(fail).toHaveBeenCalledTimes(2);
   });

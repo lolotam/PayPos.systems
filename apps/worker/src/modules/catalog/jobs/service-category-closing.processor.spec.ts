@@ -1,4 +1,5 @@
 import { DelayedError, UnrecoverableError } from 'bullmq';
+import { FailurePersistedError } from './catalog-job-finalization.ts';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { systemUuidV7 } from '@pospay/ids';
 import type { ClaimedEvent } from '@pospay/db';
@@ -225,7 +226,7 @@ describe('finalization', () => {
     const { fail } = start({ execute });
     const value = job();
     await expect(first(state.workers).handler(value as never, 'token')).rejects.toBeInstanceOf(
-      UnrecoverableError,
+      FailurePersistedError,
     );
     expect(value.progress).toEqual({
       stage: 'finalizing-service-category-closing-failure',
@@ -263,7 +264,7 @@ describe('finalization', () => {
       throw new Error('private progress outage');
     });
     await expect(first(state.workers).handler(value as never, 'token')).rejects.toBeInstanceOf(
-      UnrecoverableError,
+      FailurePersistedError,
     );
     expect(fail).toHaveBeenCalledWith(
       value.data.companyId,
@@ -293,7 +294,7 @@ describe('delayed finalization', () => {
 
     value.attemptsStarted += 1;
     await expect(first(state.workers).handler(value as never, 'token')).rejects.toBeInstanceOf(
-      UnrecoverableError,
+      FailurePersistedError,
     );
     expect(execute).toHaveBeenCalledTimes(1);
     expect(value.updateProgress).toHaveBeenCalledTimes(1);
@@ -313,7 +314,7 @@ describe('terminal job failure', () => {
     value.stalledCounter = 2;
     value.finishedOn = 1_700_000_000_000;
     value.failedReason = 'job stalled more than allowable limit';
-    failedListener()(value as never);
+    failedListener()(value as never, new UnrecoverableError('job stalled more than allowable limit'));
     expect(fail).toHaveBeenCalledWith(
       value.data.companyId,
       value.data.closingId,
@@ -336,7 +337,7 @@ describe('terminal job failure', () => {
     const { fail } = start();
     const value = job();
     value.finishedOn = 1_700_000_000_000;
-    failedListener()(value as never, new UnrecoverableError('SERVICE_CATEGORY_CLOSING_FAILED'));
+    failedListener()(value as never, new FailurePersistedError('SERVICE_CATEGORY_CLOSING_FAILED'));
     expect(fail).not.toHaveBeenCalled();
   });
 
