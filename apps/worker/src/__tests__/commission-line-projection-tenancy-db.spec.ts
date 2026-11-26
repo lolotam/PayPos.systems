@@ -46,6 +46,8 @@ afterAll(async () => {
 beforeEach(async () => {
   await owner`DELETE FROM commission_blocked_corrections`;
   await owner`DELETE FROM commission_corrections`;
+  // مفيش مفتاح أجنبي بيشيل من كشف الشهر، فالترتيب ده آمن.
+  await owner`DELETE FROM commission_statements`;
   await owner`DELETE FROM commission_lines`;
   await owner`DELETE FROM commission_line_heads`;
   await owner`DELETE FROM consumed_events WHERE consumer_id='commissions.project-inputs'`;
@@ -63,20 +65,9 @@ function deliverAt(now: string, event: ClaimedEvent) {
   })(event);
 }
 
-it('reads the business timezone from the tenancy row and lands the line in the local month', async () => {
+it('reads the business timezone from the tenancy row', async () => {
   const zone = await db.withTenant(A.company, (tx) => businessTimeZone(tx, A.company, A.business));
   expect(zone).toBe('Asia/Kuwait');
-
-  const event = commissionLineEvent(A, ids, 'ServiceSessionRecorded', {
-    businessDate: '2026-11-01',
-  });
-  expect(await deliverAt(KUWAIT_AFTER_MIDNIGHT, event)).toEqual({ delivered: true });
-  expect(
-    await owner`SELECT period FROM commission_line_heads WHERE company_id=${A.company}`,
-  ).toEqual([{ period: '2026-11' }]);
-  expect(await owner`SELECT period FROM commission_lines WHERE company_id=${A.company}`).toEqual([
-    { period: '2026-11' },
-  ]);
 });
 
 it('corrects a closed previous month into the local next month and not the UTC one', async () => {

@@ -10,6 +10,7 @@ import {
   type CommissionPeriodClassification,
 } from '../commission-periods.ts';
 import type { LockedCommissionPeriod } from '../commission-line-types.ts';
+import { salaryAffectedPeriods } from '../commission-tip-salary-periods.ts';
 import { CommissionCandidateRangeExceededError, CommissionPeriodInvalidError } from '../errors.ts';
 
 it.each([
@@ -256,6 +257,30 @@ describe('the candidate range of a commission statement period', () => {
 
     expect(() => nextCommissionPeriodToLock(['2016-01'], '2030-01', closed)).toThrow(
       CommissionCandidateRangeExceededError,
+    );
+  });
+});
+
+describe('the union of the affected months of a commission statement period', () => {
+  it('counts the union of two affected months, not the months of each one', () => {
+    // الشهران المتأثران جوّه المدى بعض: الاتحاد 120 شهر، والتكرار ما بيعملش رفض.
+    expect(candidateCommissionPeriods(['2016-02', '2016-03'], '2026-01')).toHaveLength(
+      MAX_CANDIDATE_COMMISSION_PERIODS,
+    );
+    expect(commissionPeriodLockPlan(['2016-02', '2016-03'], '2026-01').periodsToLock).toHaveLength(
+      MAX_CANDIDATE_COMMISSION_PERIODS,
+    );
+    expect(() => candidateCommissionPeriods(['2016-01', '2016-02'], '2026-01')).toThrow(
+      CommissionCandidateRangeExceededError,
+    );
+  });
+
+  it('takes the salary months of the same span without refusing the plan', () => {
+    // نفس المدى من ناحية الراتب: الشهور المتأثرة 120، وخطة القفل بتقبلها زي ما هي.
+    const affected = salaryAffectedPeriods('2016-02-01', null, '2026-01', '2016-02');
+    expect(affected).toHaveLength(MAX_CANDIDATE_COMMISSION_PERIODS);
+    expect(commissionPeriodLockPlan(affected, '2026-01').periodsToLock).toHaveLength(
+      MAX_CANDIDATE_COMMISSION_PERIODS,
     );
   });
 });

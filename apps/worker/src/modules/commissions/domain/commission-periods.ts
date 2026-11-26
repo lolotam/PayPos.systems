@@ -58,7 +58,8 @@ export function candidateCommissionPeriods(
     if (!isCommissionPeriod(affected)) throw new CommissionPeriodInvalidError(affected);
     const end = affected > currentPeriod ? affected : currentPeriod;
     for (let period = affected; period <= end; period = nextCommissionPeriod(period)) {
-      if (candidates.size >= MAX_CANDIDATE_COMMISSION_PERIODS) {
+      // الحد على الاتحاد مش على التكرار: شهر متأثر تاني جوّه المدى مش بيضيف شهر جديد.
+      if (!candidates.has(period) && candidates.size >= MAX_CANDIDATE_COMMISSION_PERIODS) {
         throw new CommissionCandidateRangeExceededError(MAX_CANDIDATE_COMMISSION_PERIODS);
       }
       candidates.add(period);

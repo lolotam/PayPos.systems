@@ -67,6 +67,10 @@ describe('an unknown commission write failure', () => {
     ['a plain error', new Error('connection reset')],
     ['a non-error value', 'not an error'],
     ['null', null],
+    [
+      'an unknown commit outcome',
+      Object.assign(new Error('commit outcome unknown'), { name: 'CommitOutcomeUnknownError' }),
+    ],
   ])('%s passes through unchanged', (_label, error) => {
     expect(caughtBy(error)).toBe(error);
   });

@@ -657,12 +657,14 @@ Named tests; each is an integration test against real Postgres (T2 stack, ADR-00
   bootstrap take identity locks, so no writer can deadlock against them.
   - _The candidate range is bounded:_ one affected period widens to **at most 120 candidate statement
     periods** (ten years) — `MAX_CANDIDATE_COMMISSION_PERIODS` in the worker's
-    `domain/commission-periods.ts`. A wider range is refused **before** any `lockStatementPeriods`
-    call, with the typed worker error `CommissionCandidateRangeExceededError`
-    (`COMMISSION_CANDIDATE_RANGE_EXCEEDED`), never with an unbounded lock set. The same bound applies to
-    the salary range (`salaryAffectedPeriods`) and to the month-by-month correction walk
-    (`nextCommissionPeriodToLock`). A month that is not a real `YYYY-MM` month is refused with
-    `CommissionPeriodInvalidError` (`COMMISSION_PERIOD_INVALID`) instead of looping for ever.
+    `domain/commission-periods.ts`. `candidateCommissionPeriods` refuses a wider range **before** any
+    `lockStatementPeriods` call, with the typed worker error `CommissionCandidateRangeExceededError`
+    (`COMMISSION_CANDIDATE_RANGE_EXCEEDED`), never with an unbounded lock set; the salary range
+    (`salaryAffectedPeriods`) is bounded the same way. `nextCommissionPeriodToLock` is different: its
+    month-by-month correction walk locks one month at a time, so it refuses **after** up to 120
+    single-month locks inside the same transaction, which then rolls the event back. A month that is not
+    a real `YYYY-MM` month is refused with `CommissionPeriodInvalidError`
+    (`COMMISSION_PERIOD_INVALID`) instead of looping for ever.
   - _What 50-1 ships of this order:_ service lines only, under the consumer `commissions.project-inputs`. Until 55-1/55-2
     add the correction step, an affected period that is APPROVED or PAID under the lock makes the delivery throw the
     worker's domain error `CommissionPeriodClosedError` before any projection write; the decision is the pure

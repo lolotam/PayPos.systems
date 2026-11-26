@@ -26,7 +26,6 @@ export {
   CommissionReplayConfigurationError,
   CommissionReplayCursorError,
   CommissionReplayEventInvalidError,
-  CommissionReplayScopeInvalidError,
   commissionReplayErrorCode,
   parseCommissionReplayTypes,
   recordCommissionFailureCodes,
@@ -36,7 +35,6 @@ export type {
   CommissionReplayCursor,
   CommissionReplayResult,
   CommissionReplayStatus,
-  ReplayCursorGuard,
 } from './jobs/replay-commission-inputs.ts';
 export {
   COMMISSION_INPUTS_CONSUMER_ID,

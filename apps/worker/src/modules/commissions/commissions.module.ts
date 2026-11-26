@@ -286,14 +286,14 @@ export function assertCommissionReplayCursor(
 }
 
 /**
- * يشغّل استعادة مدخلات العمولة بالحارس المربوط من persistence؛ من غيره بيشتغل الحارس البديل النقي.
+ * يشغّل استعادة مدخلات العمولة بالحارس المربوط من persistence؛ الـ jobs ما بيشتغلش من غيره.
  *
  * @param deps قارئ الصفحات وموصّل الأحداث وخريطة الفشل والنطاق وأنواع المستهلك
  * @param cursor الشركة وحدود النطاق المطلوب استعادته
  * @returns نتيجة الاستعادة
  */
 export function runCommissionInputReplay(
-  deps: CommissionReplayDeps,
+  deps: Omit<CommissionReplayDeps, 'cursor'>,
   cursor: CommissionReplayCursor,
 ): Promise<CommissionReplayResult> {
   return runCommissionInputReplayWithGuard(

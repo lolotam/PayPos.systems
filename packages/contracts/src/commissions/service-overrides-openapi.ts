@@ -65,7 +65,8 @@ export const commissionServiceOverridePaths = {
           content: json('ErrorEnvelope'),
         },
         '409': {
-          description: 'COMMISSION_PERIOD_CLOSED or IDEMPOTENCY_KEY_IN_PROGRESS',
+          description:
+            'COMMISSION_PERIOD_CLOSED or IDEMPOTENCY_KEY_IN_PROGRESS, or TRANSACTION_RETRY_REQUIRED (retry the request)',
           content: json('ErrorEnvelope'),
         },
         '422': {

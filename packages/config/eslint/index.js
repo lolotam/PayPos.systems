@@ -112,18 +112,11 @@ export const allowDatabaseFacade = (allowed, options = {}) => ({
  * The override for a layer that may name @pospay/db as types only: the runtime import of the whole
  * module is refused there, while the credential, operator and restricted-package bans stay.
  *
- * @param {{ facades?: keyof typeof FACADES | (keyof typeof FACADES)[] | null }} [options] the facade the app owns
  * @returns {import('eslint').Linter.Config} the override
  */
-export const banRuntimeDatabaseImport = (options = {}) => ({
+export const banRuntimeDatabaseImport = () => ({
   rules: {
-    'no-restricted-imports': facadeRule(
-      options.facades ?? null,
-      false,
-      RESTRICTED_PACKAGE_PATTERNS,
-      false,
-      true,
-    ),
+    'no-restricted-imports': facadeRule(null, false, RESTRICTED_PACKAGE_PATTERNS, false, true),
   },
 });
 

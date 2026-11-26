@@ -25,9 +25,9 @@ import { createTestCommissionInputsConsumer } from '../../../__tests__/commissio
 import { createDeliverer } from '../../../outbox/deliver.ts';
 import {
   recordCommissionFailureCodes,
-  runCommissionInputReplay,
   type CommissionFailureCodes,
 } from '../jobs/replay-commission-inputs.ts';
+import { runCommissionInputReplay } from '../index.ts';
 import { commissionSalaryEvent } from './commission-tip-salary-events.ts';
 import { asReplicaOwner } from '../../../../../../packages/db/test/owner-cleanup.ts';
 

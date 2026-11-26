@@ -1,10 +1,8 @@
 import type { ClaimedEvent, DeliveryOutcome } from '@pospay/db';
 import { describe, expect, it, vi } from 'vitest';
 
-import {
-  runCommissionInputReplay,
-  type CommissionFailureCodes,
-} from '../jobs/replay-commission-inputs.ts';
+import { type CommissionFailureCodes } from '../jobs/replay-commission-inputs.ts';
+import { runCommissionInputReplay } from '../index.ts';
 
 const COMPANY = '01920000-0000-7000-8000-0000000000a0';
 const eventId = (n: number) => `01970000-0000-7000-8000-${String(n).padStart(12, '0')}`;
