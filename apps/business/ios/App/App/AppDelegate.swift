@@ -65,6 +65,9 @@ private struct PersistedStaffCookie: Codable, Equatable {
     let isSecure: Bool
     let isHTTPOnly: Bool
     let sameSitePolicy: String?
+    // الحقل ده لسه بيتكتب مع كل حفظ في persistedEntry (`version: cookie.version`)،
+    // وإن كان `makeCookie` ما بقاش يقرأه بعد ما تحوّل لبناء الكوكي من ترويسة `Set-Cookie`؛
+    // بنحتفظ بيه للتوافق العكسي عشان ملفات plist القديمة والجديدة تتفك بنفس الشكل.
     let version: Int
 }
 
@@ -81,9 +84,16 @@ private struct PersistedStaffCookie: Codable, Equatable {
 // ده بيتحل لـ capacitor://localhost (سيرفر التطبيق) — فبيطلع كوكي مكسور بنفس الاسم
 // على localhost من غير تاريخ انتهاء (expiresDate == nil)، والكوكي السليم بيفضل
 // متحفظ على دومين الـ API من URLSession الأصلي بالخصائص الصح.
-// احنا بنفلتر الكوكي المكسور وبنمسحه؛ ولو ظهرت نسخة من غير Expires وبنفس التوكين
-// الحالي والجلسة المحفوظة لسه صالحة، بنرجّع الكوكي السليم المحفوظ فوقها بدل ما
-// نعتبرها تسجيل خروج ونمسح الجلسة.
+// احنا بنمسح من HTTPCookieStorage.shared الكوكي المكسور على localhost (ناتج تقسيم
+// الفاصلة)، والكوكي اللي خلص فعلاً أو فاضي أو متقاعد (بصمته في قائمة التقاعد).
+// وأي كوكي على دومين الـ API لسه مش منتهي ومش متقاعد، حتى لو فشل فلتر «الكوكي الحي»
+// (ناقص HttpOnly، أو ناقص Secure، أو من غير تاريخ انتهاء، أو دومين غلط)، بنسيبه
+// مكانه في نص تسجيل الدخول، عشان ما نمسحش كوكي الـ sign-in قبل ما
+// GET /v1/devices/me/staff-session يتبعت.
+//
+// ولو ظهرت نسخة ناقصة (من غير Expires، أو ناقصة HttpOnly) من توكين جلسة نشطة مش
+// متقاعد وعلى دومين مش localhost، والجلسة المحفوظة لسه صالحة، بنرجّع الكوكي السليم
+// المحفوظ في currentCookie فوقها بدل ما نعتبرها تسجيل خروج ونمسح الجلسة.
 //
 // خطر كمان: WKWebView بيعمل copy-back للكوكي من مخزنه لمخزن الـ URLSession
 // (CapacitorWKCookieObserver)، فبعد تسجيل الخروج الكوكي القديم ممكن يرجع تاني.
@@ -205,35 +215,44 @@ private final class StaffSessionCookieVault {
         isSynchronizing = true
         defer { isSynchronizing = false }
 
-        var invalidOrExpired: [HTTPCookie] = []
-        var resurrected: [HTTPCookie] = []
+        var expiredOrEmpty: [HTTPCookie] = []
+        var retiredMatches: [HTTPCookie] = []
         var candidates: [HTTPCookie] = []
-        // هل ظهر كوكي مؤقت (من غير تاريخ انتهاء) بنفس قيمة توكين الجلسة الحالية؟
+        // هل طلع كوكي لنفس قيمة توكين الجلسة الحالية بس ناقص HttpOnly أو من غير تاريخ انتهاء؟
         // لو ده حصل والجلسة المحفوظة لسه صالحة، لازم نرجّع الكوكي السليم
         // بدل ما نعتبرها تسجيل خروج ونمسح الجلسة.
-        var sawCurrentTokenWithoutExpiry = false
+        var sawCurrentTokenDegraded = false
+        // بصمة الجلسة الحالية: بنلتقطها قبل اللوب عشان المقارنة ما تتغيرش في نص الفحص.
+        let currentTokenHash = currentHash
 
         for cookie in Self.staffCookiesInSharedStorage() {
-            guard Self.isLiveStaffCookie(cookie) else {
-                // كوكي مكسور أو منتهي: لو هو نفس توكين الجلسة الحالية بس من غير
-                // تاريخ انتهاء، نعلّمه علشان نرجّع الجلسة السليمة قبل ما نمسحها.
-                if let expectedHash = currentHash,
-                   !cookie.value.isEmpty,
-                   cookie.expiresDate == nil,
-                   Self.sha256Hex(cookie.value) == expectedHash {
-                    sawCurrentTokenWithoutExpiry = true
-                }
-                invalidOrExpired.append(cookie)
+            // الكوكي المكسور على localhost (ناتج تقسيم الفاصلة)، والكوكي الفاضي،
+            // والكوكي اللي خلص فعلاً: دول بيتّمسحوا دايماً من المخزن الأصلي.
+            if cookie.value.isEmpty
+                || cookie.domain == "localhost"
+                || (cookie.expiresDate.map { $0 <= Date() } ?? false) {
+                expiredOrEmpty.append(cookie)
                 continue
             }
+            // فحص البصمة المتقاعدة لازم يبقى قبل فلتر «الكوكي الحي»:
+            // كده النسخة الناقصة من توكين متقاعد بتتمسح دايماً،
+            // وما تقدرش ترفع sawCurrentTokenDegraded وترجّع جلسة قديمة.
             if retiredHashes.contains(Self.sha256Hex(cookie.value)) {
-                resurrected.append(cookie)
+                retiredMatches.append(cookie)
+                continue
+            }
+            guard Self.isLiveStaffCookie(cookie) else {
+                // أي كوكي مش حي على دومين الـ API، توكينه هو توكين الجلسة الحالية، نعلّمه عشان نرجّع الكوكي السليم.
+                if let expectedHash = currentTokenHash,
+                   Self.sha256Hex(cookie.value) == expectedHash {
+                    sawCurrentTokenDegraded = true
+                }
                 continue
             }
             candidates.append(cookie)
         }
 
-        for cookie in invalidOrExpired + resurrected {
+        for cookie in expiredOrEmpty + retiredMatches {
             HTTPCookieStorage.shared.deleteCookie(cookie)
         }
 
@@ -258,7 +277,7 @@ private final class StaffSessionCookieVault {
 
         for cookie in staleCandidates {
             retire(hash: Self.sha256Hex(cookie.value))
-            resurrected.append(cookie)
+            retiredMatches.append(cookie)
             HTTPCookieStorage.shared.deleteCookie(cookie)
         }
 
@@ -274,7 +293,7 @@ private final class StaffSessionCookieVault {
             currentCookie = entry
             currentHash = Self.sha256Hex(entry.value)
             persist(entry)
-            if !resurrected.isEmpty {
+            if !retiredMatches.isEmpty {
                 scheduleWebViewStoreSync()
             }
             return
@@ -286,20 +305,25 @@ private final class StaffSessionCookieVault {
                 currentCookie = entry
                 persist(entry)
             }
-            if !resurrected.isEmpty {
+            if !retiredMatches.isEmpty {
                 scheduleWebViewStoreSync()
             }
             return
         }
 
-        // لو طلع كوكي مؤقت من غير Expires وبنفس التوكين الحالي (بسبب تقسيم الفاصلة أو نسخ من WebView)،
-        // والجلسة الحالية لسه صالحة وما خلصتش: نرجّع الكوكي السليم المحفوظ بدل ما نمسح الجلسة.
-        if sawCurrentTokenWithoutExpiry,
+        // لو طلع كوكي مش حي لنفس التوكين الحالي (نسخة ناقصة من WebView، أو من غير
+        // تاريخ انتهاء، أو ناقصة HttpOnly)، والجلسة الحالية لسه صالحة وما خلصتش:
+        // نرجّع الكوكي السليم المحفوظ في currentCookie فوقها بدل ما نمسح الجلسة.
+        // بنحط الكوكي في المخزن الأصلي بس، ومن غير scheduleWebViewStoreSync():
+        // التطبيق مربوط بين مخزن WKWebView و CapacitorWKCookieObserver، والمزامنة
+        // هنا كانت بتعمل ping-pong لا نهائي بين المخزنين. setCookie جوه
+        // isSynchronizing = true بيرجّع الكوكي السليم في المخزن الأصلي (فيستبدل النسخة
+        // الناقصة)، من غير أي كتابة زيادة على WKWebsiteDataStore.
+        if sawCurrentTokenDegraded,
            let active = currentCookie,
            Self.isValidEntry(active),
            let rebuilt = Self.makeCookie(from: active) {
             HTTPCookieStorage.shared.setCookie(rebuilt)
-            scheduleWebViewStoreSync()
             return
         }
 
@@ -312,7 +336,7 @@ private final class StaffSessionCookieVault {
             lastWrittenData = nil
         }
         try? FileManager.default.removeItem(at: Self.activeCookieFileURL())
-        if wasActive || !resurrected.isEmpty || !invalidOrExpired.isEmpty {
+        if wasActive || !retiredMatches.isEmpty || !expiredOrEmpty.isEmpty {
             scheduleWebViewStoreSync()
         }
     }
@@ -400,25 +424,49 @@ private final class StaffSessionCookieVault {
     // الخصائص بتتبني من الحقول المحفوظة بالظبط، من غير ما نضيف ولا نعدّل ولا نخفي سمة:
     // الـ API بيبعت HttpOnly; Secure; SameSite=Lax; Path=/v1، وأي اختلاف في الخصائص
     // يبقى تعديل على عقد الجلسة (ADR-0055 ملحق (e)).
+    //
+    // بنعيد بناء ترويسة Set-Cookie ونمرّرها لـ HTTPCookie.cookies(withResponseHeaderFields:)،
+    // مش HTTPCookie(properties:): الأخير مفيهوش مفتاح HttpOnly أصلاً، فبيطلع الكوكي
+    // بـ isHTTPOnly == false. الكوكي الناقص ده كان بيفشل التحقق وبيتمسح أول ما
+    // WKWebsiteDataStore يرجعه، فالجلسة كانت بتضيع (ADR-0055 ملحق (f)).
     private static func makeCookie(from entry: PersistedStaffCookie) -> HTTPCookie? {
-        var properties: [HTTPCookiePropertyKey: Any] = [
-            .name: entry.name,
-            .value: entry.value,
-            .domain: entry.domain,
-            .path: entry.path,
-            .expires: entry.expiresDate,
-            .version: String(entry.version)
-        ]
+        guard let url = probeURL(for: entry) else { return nil }
+        let header = setCookieHeader(from: entry)
+        return HTTPCookie.cookies(withResponseHeaderFields: ["Set-Cookie": header], for: url)
+            .first { $0.name == entry.name && $0.value == entry.value }
+    }
+
+    // ترويسة Set-Cookie بنفس سطور الـ API بالظبط.
+    // الـ Domain بيتكتب بس لما يكون مدعوم بنقطة، عشان الكوكي المضيف يفضل host-only
+    // على الدومين نفسه من غير نقطة في أوله.
+    private static func setCookieHeader(from entry: PersistedStaffCookie) -> String {
+        var parts = ["\(entry.name)=\(entry.value)", "Path=\(entry.path)"]
+        parts.append("Expires=\(httpCookieDateString(from: entry.expiresDate))")
+        if entry.domain.hasPrefix(".") {
+            parts.append("Domain=\(entry.domain)")
+        }
         if entry.isSecure {
-            properties[.secure] = "TRUE"
+            parts.append("Secure")
         }
         if entry.isHTTPOnly {
-            properties[HTTPCookiePropertyKey("HttpOnly")] = "TRUE"
+            parts.append("HttpOnly")
         }
         if let sameSite = entry.sameSitePolicy, !sameSite.isEmpty {
-            properties[.sameSitePolicy] = HTTPCookieStringPolicy(rawValue: sameSite)
+            parts.append("SameSite=\(sameSite)")
         }
-        return HTTPCookie(properties: properties)
+        return parts.joined(separator: "; ")
+    }
+
+    // Foundation بيفهم تاريخ الانتهاء في صيغة RFC 1123 بتوقيت GMT بس، فبنكتبه بالشكل ده.
+    // بنعمل الـ DateFormatter جوه الدالة بدل ما يكون ثابت مشترك:
+    // الـ DateFormatter مش thread-safe، والدالة دي بتتنادى من غير خيط محدد
+    // (NotificationCenter بينشر إشعارات الكوكيز على أي خيط).
+    private static func httpCookieDateString(from date: Date) -> String {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.timeZone = TimeZone(secondsFromGMT: 0)
+        formatter.dateFormat = "EEE, dd MMM yyyy HH:mm:ss 'GMT'"
+        return formatter.string(from: date)
     }
 
     private static func persistedEntry(from cookie: HTTPCookie) -> PersistedStaffCookie? {
@@ -487,7 +535,9 @@ private final class StaffSessionCookieVault {
             guard let self = self else { return }
             let desiredCookie = self.activeCookieForWebViewStore()
             for existing in cookies where existing.name == Self.staffCookieName {
-                if desiredCookie?.value != existing.value {
+                // مقارنة الدومين كمان: نسخة localhost اللي CapacitorCookieManager
+                // بيدفعها لمخزن WebKit ليها نفس القيمة بس دومين مختلف، فلازم تتمسح.
+                if desiredCookie?.value != existing.value || desiredCookie?.domain != existing.domain {
                     store.delete(existing, completionHandler: nil)
                 }
             }
