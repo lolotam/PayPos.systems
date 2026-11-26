@@ -8,6 +8,7 @@ export type CustomerImportErrorCode =
   | 'IMPORT_FILE_TYPE_INVALID'
   | 'IMPORT_FILE_SIZE_INVALID'
   | 'IMPORT_FILE_CONTENT_INVALID'
+  | 'IMPORT_TEMPLATE_EXCEEDS_LIMITS'
   | 'STORAGE_UNAVAILABLE'
   | 'IMPORT_HEADER_INVALID'
   | 'IMPORT_ROW_LIMIT_EXCEEDED'
@@ -230,4 +231,14 @@ export function decideCustomerImportCommit(
     throw new CustomerImportError('IMPORT_PREVIEW_EXPIRED');
   if (preview.error_count > 0) throw new CustomerImportError('IMPORT_PREVIEW_HAS_ERRORS');
   return 'request';
+}
+
+/**
+ * يحسب لحظة انتهاء صلاحية معاينة الاستيراد بعد مهلة الأربع وعشرين ساعة (073 D-8).
+ *
+ * @param at لحظة الإنشاء من الساعة المحقونة
+ * @returns لحظة الانتهاء بصيغة ISO
+ */
+export function customerImportExpiresAt(at: Date): string {
+  return new Date(at.getTime() + CUSTOMER_IMPORT_PREVIEW_TTL_MS).toISOString();
 }
