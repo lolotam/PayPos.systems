@@ -655,6 +655,16 @@ Named tests; each is an integration test against real Postgres (T2 stack, ADR-00
   takes the same identity locks in the same order before it compares revisions, so a live delivery and a bootstrap page of
   one identity serialize: the lock order is always identity locks, then statement rows, and only the consumer and the
   bootstrap take identity locks, so no writer can deadlock against them.
+  - _The candidate range is bounded:_ one affected period widens to **at most 120 candidate statement
+    periods** (ten years) — `MAX_CANDIDATE_COMMISSION_PERIODS` in the worker's
+    `domain/commission-periods.ts`. `candidateCommissionPeriods` refuses a wider range **before** any
+    `lockStatementPeriods` call, with the typed worker error `CommissionCandidateRangeExceededError`
+    (`COMMISSION_CANDIDATE_RANGE_EXCEEDED`), never with an unbounded lock set; the salary range
+    (`salaryAffectedPeriods`) is bounded the same way. `nextCommissionPeriodToLock` is different: its
+    month-by-month correction walk locks one month at a time, so it refuses **after** up to 120
+    single-month locks inside the same transaction, which then rolls the event back. A month that is not
+    a real `YYYY-MM` month is refused with `CommissionPeriodInvalidError`
+    (`COMMISSION_PERIOD_INVALID`) instead of looping for ever.
   - _What 50-1 ships of this order:_ service lines only, under the consumer `commissions.project-inputs`. Until 55-1/55-2
     add the correction step, an affected period that is APPROVED or PAID under the lock makes the delivery throw the
     worker's domain error `CommissionPeriodClosedError` before any projection write; the decision is the pure
@@ -702,6 +712,9 @@ Named tests; each is an integration test against real Postgres (T2 stack, ADR-00
   must carry `business_date`**, resolved by orders at the sale in the business timezone (SPEC §5 _Dates_) and never changed
   by later revisions: SPEC §3 lists only `sold_at`, so row 42's contract adds the field (a SPEC §3 amendment in that PR),
   and 50-4 refuses to start without it. The consumer never converts `sold_at` with a timezone read later.
+  A line's `business_date` must be a real calendar date (`YYYY-MM-DD`, years 0001–9999, a day that exists
+  in that month): the event is refused with `CommissionLineEventInvalidError` and the reason
+  `INVALID_BUSINESS_DATE` before any write, because the date is what decides the line's month.
 - **FR-018b** `SalaryChanged` names its business: sub-PR 21-a (owned by `staff`, before 50-2) adds `business_id` to the
   event, taken from the salary row. The field is optional in the contract so legacy events still parse, and every event produced after 21-a carries it.
   An event published before 21-a (the ADR-0012 amendment backfill) has none; the

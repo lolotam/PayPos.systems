@@ -10,9 +10,9 @@ import {
   commissionReplayErrorCode,
   parseCommissionReplayTypes,
   recordCommissionFailureCodes,
-  runCommissionInputReplay,
   type CommissionFailureCodes,
 } from '../jobs/replay-commission-inputs.ts';
+import { runCommissionInputReplay } from '../index.ts';
 
 const COMPANY = '01920000-0000-7000-8000-0000000000a0';
 const OTHER_COMPANY = '01920000-0000-7000-8000-0000000000b0';
@@ -24,6 +24,8 @@ const CONTINUABLE_FAILURE_CODES = [
   'COMMISSION_TIP_SALARY_INPUT_INVALID',
   'COMMISSION_BUSINESS_MISSING',
   'COMMISSION_PERIOD_CLOSED',
+  'COMMISSION_CANDIDATE_RANGE_EXCEEDED',
+  'COMMISSION_PERIOD_INVALID',
 ] as const;
 
 function fakeEvent(n: number, eventType = 'ServiceSessionRecorded', companyId = COMPANY): ClaimedEvent {

@@ -69,7 +69,8 @@ export const commissionStatementPaths = {
         '200': { description: 'The generated view', content: json('CommissionStatementView') },
         '403': forbidden,
         '409': {
-          description: 'COMMISSION_PERIOD_CLOSED or IDEMPOTENCY_KEY_IN_PROGRESS',
+          description:
+            'COMMISSION_PERIOD_CLOSED or IDEMPOTENCY_KEY_IN_PROGRESS, or TRANSACTION_RETRY_REQUIRED (retry the request)',
           content: json('ErrorEnvelope'),
         },
         '422': {
@@ -95,7 +96,7 @@ export const commissionStatementPaths = {
         '403': forbidden,
         '409': {
           description:
-            'COMMISSION_FINGERPRINT_STALE, COMMISSION_PERIOD_NOT_DRAFT, COMMISSION_PERIOD_CLOSED or IDEMPOTENCY_KEY_IN_PROGRESS',
+            'COMMISSION_FINGERPRINT_STALE, COMMISSION_PERIOD_NOT_DRAFT, COMMISSION_PERIOD_CLOSED or IDEMPOTENCY_KEY_IN_PROGRESS, or TRANSACTION_RETRY_REQUIRED (retry the request)',
           content: json('ErrorEnvelope'),
         },
         '422': {
@@ -115,11 +116,14 @@ export const commissionStatementPaths = {
       parameters: [...parameters, idempotencyParameter],
       requestBody: { required: true, content: json('CommissionStatementReturnInput') },
       responses: {
-        '200': { description: 'The returned statement', content: json('CommissionStatementReturnResult') },
+        '200': {
+          description: 'The returned statement',
+          content: json('CommissionStatementReturnResult'),
+        },
         '403': forbidden,
         '409': {
           description:
-            'COMMISSION_STATEMENT_NOT_REVIEWED, COMMISSION_PERIOD_CLOSED or IDEMPOTENCY_KEY_IN_PROGRESS',
+            'COMMISSION_STATEMENT_NOT_REVIEWED, COMMISSION_PERIOD_CLOSED or IDEMPOTENCY_KEY_IN_PROGRESS, or TRANSACTION_RETRY_REQUIRED (retry the request)',
           content: json('ErrorEnvelope'),
         },
         '422': {

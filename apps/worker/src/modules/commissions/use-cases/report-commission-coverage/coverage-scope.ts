@@ -1,3 +1,4 @@
+import { isCommissionCalendarDate } from '../../domain/commission-calendar.ts';
 import type {
   CoverageBusinessReader,
   CoverageCompanyReader,
@@ -21,7 +22,6 @@ export class CommissionCoverageScopeInvalidError extends Error {
   }
 }
 
-const CALENDAR_DATE = /^(\d{4})-(\d{2})-(\d{2})$/;
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 /**
@@ -32,19 +32,7 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
  * @returns true فقط لتاريخ تقويمي حقيقي بصيغة YYYY-MM-DD، للسنوات 0001-9999 لأن PostgreSQL لا يحتوي على سنة صفرية
  */
 export function isCommissionCoverageCalendarDate(value: string): boolean {
-  const match = CALENDAR_DATE.exec(value);
-  if (match === null) return false;
-  const year = Number(match[1]);
-  if (year === 0) return false;
-  const month = Number(match[2]);
-  const day = Number(match[3]);
-  const date = new Date(Date.UTC(2000, 0, 1));
-  date.setUTCFullYear(year, month - 1, day);
-  return (
-    date.getUTCFullYear() === year &&
-    date.getUTCMonth() === month - 1 &&
-    date.getUTCDate() === day
-  );
+  return isCommissionCalendarDate(value);
 }
 
 /**

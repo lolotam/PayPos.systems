@@ -12763,7 +12763,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description COMMISSION_PERIOD_NOT_DRAFT or COMMISSION_PERIOD_CLOSED */
+            /** @description COMMISSION_PERIOD_NOT_DRAFT or COMMISSION_PERIOD_CLOSED, or TRANSACTION_RETRY_REQUIRED (retry the request) */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -12829,13 +12829,13 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description COMMISSION_STATEMENT_NOT_APPROVED when the statement is DRAFT or REVIEWED, or COMMISSION_STATEMENT_ALREADY_PAID when it is PAID and a new Idempotency-Key is sent (CM-41). */
+            /** @description COMMISSION_STATEMENT_NOT_APPROVED when the statement is DRAFT or REVIEWED, or COMMISSION_STATEMENT_ALREADY_PAID when it is PAID and a new Idempotency-Key is sent (CM-41), or TRANSACTION_RETRY_REQUIRED (retry the request). */
             409: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["CommissionStatementNotApprovedError"] | components["schemas"]["CommissionStatementAlreadyPaidError"];
+                    "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
             /** @description COMMISSION_PAID_ON_INVALID when paid_on is after today or before the approval date, COMMISSION_PAYABLE_TOO_LARGE when one employee payable (or its cash rounding) exceeds what a payment row can store, or IDEMPOTENCY_KEY_REUSED when the same Idempotency-Key is sent with another body (CM-41). */
@@ -13044,7 +13044,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description COMMISSION_PERIOD_CLOSED or IDEMPOTENCY_KEY_IN_PROGRESS */
+            /** @description COMMISSION_PERIOD_CLOSED or IDEMPOTENCY_KEY_IN_PROGRESS, or TRANSACTION_RETRY_REQUIRED (retry the request) */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -13571,7 +13571,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description COMMISSION_PERIOD_CLOSED or IDEMPOTENCY_KEY_IN_PROGRESS */
+            /** @description COMMISSION_PERIOD_CLOSED or IDEMPOTENCY_KEY_IN_PROGRESS, or TRANSACTION_RETRY_REQUIRED (retry the request) */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -13637,7 +13637,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description COMMISSION_FINGERPRINT_STALE, COMMISSION_PERIOD_NOT_DRAFT, COMMISSION_PERIOD_CLOSED or IDEMPOTENCY_KEY_IN_PROGRESS */
+            /** @description COMMISSION_FINGERPRINT_STALE, COMMISSION_PERIOD_NOT_DRAFT, COMMISSION_PERIOD_CLOSED or IDEMPOTENCY_KEY_IN_PROGRESS, or TRANSACTION_RETRY_REQUIRED (retry the request) */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -13703,7 +13703,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description COMMISSION_STATEMENT_NOT_REVIEWED, COMMISSION_PERIOD_CLOSED or IDEMPOTENCY_KEY_IN_PROGRESS */
+            /** @description COMMISSION_STATEMENT_NOT_REVIEWED, COMMISSION_PERIOD_CLOSED or IDEMPOTENCY_KEY_IN_PROGRESS, or TRANSACTION_RETRY_REQUIRED (retry the request) */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -13769,7 +13769,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description COMMISSION_PERIOD_CLOSED, COMMISSION_STATEMENT_NOT_REVIEWED, COMMISSION_FINGERPRINT_STALE, COMMISSION_UPDATES_PENDING or IDEMPOTENCY_KEY_IN_PROGRESS */
+            /** @description COMMISSION_PERIOD_CLOSED, COMMISSION_STATEMENT_NOT_REVIEWED, COMMISSION_FINGERPRINT_STALE, COMMISSION_UPDATES_PENDING or IDEMPOTENCY_KEY_IN_PROGRESS, or TRANSACTION_RETRY_REQUIRED (retry the request) */
             409: {
                 headers: {
                     [name: string]: unknown;
