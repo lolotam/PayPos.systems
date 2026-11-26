@@ -239,9 +239,13 @@ export function finalizeCustomerImportRows(
 ): {
   readonly rows: readonly CustomerImportRow[];
   readonly errors: readonly CustomerImportRowIssue[];
+  readonly new_count: number;
+  readonly existing_count: number;
 } {
   const errors: CustomerImportRowIssue[] = [];
   const rows: CustomerImportRow[] = [];
+  let newCount = 0;
+  let existingCount = 0;
   for (const c of candidates) {
     const status: CustomerImportRowStatus =
       c.phone !== null && existingPhones.has(c.phone) ? 'existing' : 'new';
@@ -256,6 +260,8 @@ export function finalizeCustomerImportRows(
       errors.push(...rowErrors);
       continue;
     }
+    if (status === 'new') newCount += 1;
+    else existingCount += 1;
     rows.push({
       row: c.row,
       name: c.name,
@@ -271,5 +277,5 @@ export function finalizeCustomerImportRows(
       warning: status === 'existing' && c.no_rating ? 'EXISTING_NO_RATING_IGNORED' : null,
     });
   }
-  return { rows, errors };
+  return { rows, errors, new_count: newCount, existing_count: existingCount };
 }
