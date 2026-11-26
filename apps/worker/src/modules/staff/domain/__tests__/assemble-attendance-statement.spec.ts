@@ -1,5 +1,6 @@
 import { expect, it } from 'vitest';
 import type {
+  AttendanceOpenSession,
   ReportBranchInputs,
   ReportSession,
   ReportShift,
@@ -318,71 +319,39 @@ it('FR-011a: a session that is still open stays still in', () => {
   expect(statement.days[1]).toMatchObject({ still_in: true, worked_minutes: 0 });
 });
 
-it('issue #687: a closed session with the same instant does not hide a distinct open session', () => {
+/** يوم ٢ أكتوبر لموظفة جلستها المقفولة والمفتوحة بالباتشين دول؛ بيثبت أي الجلستين فاضلة مفتوحة. */
+function dayWithOpenSession(closed: Partial<ReportSession>, open: AttendanceOpenSession) {
   const result = assembleAttendanceStatement(
     inputs({
       request: request({ form: 'EMPLOYEE', employeeId: 'e-1' }),
-      reportRows: [
-        row({
-          branches: [
-            branch({
-              sessions: [
-                session({
-                  session_id: 'session-closed',
-                  working_date: '2026-10-02',
-                  clock_in: '2026-10-02T05:30:00.000Z',
-                  clock_out: at('2026-10-02', '17:00'),
-                }),
-              ],
-            }),
-          ],
-        }),
-      ],
-      openSessions: [
-        {
-          session_id: 'session-open',
-          working_date: '2026-10-02',
-          clock_in: '2026-10-02T05:30:00.000Z',
-        },
-      ],
+      reportRows: [row({ branches: [branch({ sessions: [session(closed)] })] })],
+      openSessions: [open],
     }),
   );
-  const statement = employeeBody(result);
-  expect(statement.days[1]).toMatchObject({ still_in: true });
+  return employeeBody(result).days[1];
+}
+
+const CLOSED_BY_ID = {
+  working_date: '2026-10-02',
+  clock_in: '2026-10-02T05:30:00.000Z',
+  clock_out: at('2026-10-02', '17:00'),
+};
+
+it('issue #687: a closed session with the same instant does not hide a distinct open session', () => {
+  const day = dayWithOpenSession(
+    { ...CLOSED_BY_ID, session_id: 'session-closed' },
+    { session_id: 'session-open', working_date: '2026-10-02', clock_in: CLOSED_BY_ID.clock_in },
+  );
+  expect(day).toMatchObject({ still_in: true });
 });
 
 it('issue #687: the same session id drops the open entry even when its clock-in instant differs', () => {
-  const result = assembleAttendanceStatement(
-    inputs({
-      request: request({ form: 'EMPLOYEE', employeeId: 'e-1' }),
-      reportRows: [
-        row({
-          branches: [
-            branch({
-              sessions: [
-                session({
-                  session_id: 'session-1',
-                  working_date: '2026-10-02',
-                  clock_in: '2026-10-02T05:30:00.000Z',
-                  clock_out: at('2026-10-02', '17:00'),
-                }),
-              ],
-            }),
-          ],
-        }),
-      ],
-      openSessions: [
-        {
-          session_id: 'session-1',
-          working_date: '2026-10-02',
-          clock_in: '2026-10-02T05:31:00.000Z',
-        },
-      ],
-    }),
+  const day = dayWithOpenSession(
+    { ...CLOSED_BY_ID, session_id: 'session-1' },
+    { session_id: 'session-1', working_date: '2026-10-02', clock_in: '2026-10-02T05:31:00.000Z' },
   );
-  const statement = employeeBody(result);
-  expect(statement.days[1]).toMatchObject({ still_in: false });
-  expect(statement.days[1]?.worked_minutes).toBeGreaterThan(0);
+  expect(day).toMatchObject({ still_in: false });
+  expect(day?.worked_minutes).toBeGreaterThan(0);
 });
 
 it('an employee form without coverage is empty', () => {

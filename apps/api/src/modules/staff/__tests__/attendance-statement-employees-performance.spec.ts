@@ -53,8 +53,8 @@ async function seedYear() {
       (date::text||'T14:00:00Z')::timestamptz
     FROM year_days`;
   await f.h.owner`DROP TABLE year_days`;
-  // قاعدة الاختبار المستنسخة كانت فارغة؛ الإحصاءات لازم تصف حمل السنة قبل قياس الخطة.
-  await f.h.owner`ANALYZE employees,employee_branches,employee_default_shifts,staff_schedules,staff_schedule_shifts,attendance_sessions`;
+  // قاعدة الاختبار المستنسخة كانت فارغة؛ VACUUM بيثبّت حالة الصفوف المكتوبة والإحصاءات بتصف حمل السنة قبل قياس الخطة.
+  await f.h.owner`VACUUM (ANALYZE) employees,employee_branches,employee_default_shifts,staff_schedules,staff_schedule_shifts,attendance_sessions`;
 }
 
 beforeAll(async () => {

@@ -29,14 +29,7 @@ export function attendanceStatementEmployeeCoverageStatement(
   const contracts = attendanceReportContractsStatement(companyId, businessId, branchIds, zones, from, to);
   // جلسة وردية واحدة بس لكل موظفة (LATERAL ... LIMIT 1): الفهرس بيقف عند أول تطابق بدل ما نرتب ٣٦٦ يوم لكل موظفة.
   return sql`WITH contracts AS MATERIALIZED (${contracts}),
-    contract_days AS (
-      SELECT c.employee_id FROM contracts c WHERE EXISTS (
-        SELECT 1 FROM generate_series(${from}::date,${to}::date,interval '1 day') day
-          CROSS JOIN jsonb_array_elements(c.entries) entry
-        WHERE day::date>=c.hire_date::date AND (c.contract_end IS NULL OR day::date<=c.contract_end::date)
-          AND (extract(dow FROM day)::int+1)%7=(entry->>'day')::int
-          AND EXISTS(SELECT 1 FROM jsonb_array_elements(c.links) link WHERE day::date>=(link->>'from')::date
-            AND (link->>'to' IS NULL OR day::date<(link->>'to')::date)))),
+    contract_days AS (${contractDays(from, to)}),
     candidates AS MATERIALIZED (
       SELECT e.id AS employee_id,e.name_ar,e.name_en,e.employee_number,co.session,fs.shift
       FROM employees e
@@ -78,4 +71,15 @@ export function attendanceStatementEmployeeCoverageStatement(
     LEFT JOIN contracts c ON c.employee_id=ca.employee_id
     LEFT JOIN approved_employee_leave l ON l.employee_id=ca.employee_id
     ORDER BY ca.employee_number,ca.employee_id`;
+}
+
+/** أيام العقد: موظفات ليهن يوم دوام افتراضي داخل الفترة وارتباط الفرع، بنفس شرط مرشحي تقرير 27b. */
+function contractDays(from: string, to: string) {
+  return sql`SELECT c.employee_id FROM contracts c WHERE EXISTS (
+        SELECT 1 FROM generate_series(${from}::date,${to}::date,interval '1 day') day
+          CROSS JOIN jsonb_array_elements(c.entries) entry
+        WHERE day::date>=c.hire_date::date AND (c.contract_end IS NULL OR day::date<=c.contract_end::date)
+          AND (extract(dow FROM day)::int+1)%7=(entry->>'day')::int
+          AND EXISTS(SELECT 1 FROM jsonb_array_elements(c.links) link WHERE day::date>=(link->>'from')::date
+            AND (link->>'to' IS NULL OR day::date<(link->>'to')::date)))`;
 }
