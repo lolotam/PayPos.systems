@@ -206,7 +206,7 @@ export const catalogPaths = {
     get: {
       operationId: 'listSellablePackageTypes',
       description:
-        'Cursor-paginated package types available for reception sale. Requires sell:packages:branch and the orders feature, never read:package-types:business. Lists only types whose selling is not stopped. Missing permission, a device, or a disabled orders feature is refused.',
+        'Cursor-paginated package types available for reception sale. Requires sell:packages:branch and the orders feature, never read:package-types:business. Lists only types whose selling is not stopped and whose component services are all open (SI-Q28). Missing permission, a device, or a disabled orders feature is refused.',
       parameters: [
         ...parameters,
         branchId,
@@ -265,7 +265,7 @@ export const catalogPaths = {
     get: {
       operationId: 'listPackageServiceOptions',
       description:
-        'Cursor-paginated service options for package components: id, names, KWD price and active only. Requires read:package-types:business and the catalog feature, independently of service permissions. A role that manages package types also needs read:package-types:business, as the list screen does. Services cannot currently be retired, so active is true. A missing, foreign or unauthorized business returns the same FORBIDDEN response. Never writes.',
+        'Cursor-paginated service options for package components: id, names, KWD price and active only. Requires read:package-types:business and the catalog feature, independently of service permissions. A role that manages package types also needs read:package-types:business, as the list screen does. Closed services (closed_at IS NOT NULL) are excluded (SI-Q28), so active is always true. A missing, foreign or unauthorized business returns the same FORBIDDEN response. Never writes.',
       parameters: [
         ...parameters,
         { in: 'query', name: 'cursor', schema: { type: 'string', format: 'uuid' } },
