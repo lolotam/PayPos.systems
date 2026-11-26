@@ -170,7 +170,7 @@ it('restarts from the first page when the next page cursor expired', async () =>
   const fetched = serve({
     lines: (url) =>
       url.searchParams.get('cursor') === 'next-1'
-        ? json({ code: 'BAD_REQUEST' }, 400)
+        ? json({ code: 'VALIDATION_FAILED' }, 400)
         : json(linesPage([fullLine], 'next-1')),
   });
   open();
@@ -183,6 +183,28 @@ it('restarts from the first page when the next page cursor expired', async () =>
     .paths('/service-lines')
     .map((request) => new URL(request.url).searchParams.get('cursor'));
   expect(cursors).toEqual([null, 'next-1', null]);
+});
+
+it('retries the same cursor when the next page failed for a reason other than a rejected cursor', async () => {
+  const fetched = serve({
+    lines: (url) =>
+      url.searchParams.get('cursor') === 'next-1'
+        ? json({ code: 'BAD_REQUEST' }, 400)
+        : json(linesPage([fullLine], 'next-1')),
+  });
+  open();
+  await screen.findByText('Haircut');
+  fireEvent.click(screen.getByText(label('myWork.loadMore')));
+  expect(await screen.findByRole('alert')).toBeTruthy();
+  fireEvent.click(screen.getByText(label('myWork.retry')));
+  await waitFor(() => expect(fetched.paths('/service-lines').length).toBe(3));
+  // نفس المؤشر اتبعت تاني، فالفشل اتكرر: الصفحات اللي ظهرت قبلت فضلت، والخطأ لسه على الشاشة.
+  expect(screen.getByText('Haircut')).toBeTruthy();
+  expect(screen.getByRole('alert')).toBeTruthy();
+  const cursors = fetched
+    .paths('/service-lines')
+    .map((request) => new URL(request.url).searchParams.get('cursor'));
+  expect(cursors).toEqual([null, 'next-1', 'next-1']);
 });
 
 it('requests the next page with the month the first page returned, not the implicit current month', async () => {

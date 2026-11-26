@@ -208,7 +208,7 @@ it('restarts from the first page when the next page cursor expired', async () =>
   const fetched = serve({
     lines: (_request, url) =>
       url.searchParams.get('cursor') === 'next-1'
-        ? json({ code: 'BAD_REQUEST' }, 400)
+        ? json({ code: 'VALIDATION_FAILED' }, 400)
         : json(linesPage([fullLine], 'next-1')),
   });
   open();

@@ -1,5 +1,6 @@
 'use client';
 
+import { useEffect } from 'react';
 import { t } from '@pospay/i18n';
 import { Label } from '@pospay/ui';
 import { useLocale } from '@/shared/locale/locale-context';
@@ -19,6 +20,16 @@ export function RatingRequestsSwitch({
   const locale = useLocale();
   const query = useRatingSettings(companyId, userId, businessId);
   const mutation = useSetRatingRequests(companyId, userId, businessId);
+  const storedEnabled = query.isSuccess ? (query.data?.requests_enabled ?? false) : undefined;
+  // الكتابة ممكن تتحفظ في السيرفر والرد هو اللي يضيع؛ فلو القيمة المخزّنة بعد إعادة القراءة بقت
+  // هي اللي حاولنا نكتبها، يبقى الـ PUT وصل والخطأ ده قديم، فبنخفيه وبنمسحه من المسار.
+  const writeLanded =
+    mutation.isError && mutation.variables !== undefined && storedEnabled === mutation.variables;
+  const { reset } = mutation;
+  // المسح بعد التأكد بس: كده لو حد غيّر القيمة في السيرفر بعد كده مفيش خطأ قديم يرجع يظهر تاني.
+  useEffect(() => {
+    if (writeLanded) reset();
+  }, [writeLanded, reset]);
   // المفتاح ده مستقل عن مفتاح التنبيهات: عميل ما عندوش صلاحيته ما يشوفش الكارت خالص.
   if (query.isError && isAlertRulesRefusal(query.error)) return null;
   if (query.isPending) return null;
@@ -27,9 +38,6 @@ export function RatingRequestsSwitch({
     return <p role="alert">{alertRulesFailureMessage(query.error, locale)}</p>;
   }
   const enabled = query.data?.requests_enabled ?? false;
-  // الكتابة ممكن تتحفظ في السيرفر والرد هو اللي يضيع؛ فلو القيمة المخزّنة بعد إعادة القراءة بقت
-  // هي اللي حاولنا نكتبها، يبقى الـ PUT وصل والخطأ ده قديم، فبنخفيه.
-  const writeLanded = mutation.variables !== undefined && enabled === mutation.variables;
   return (
     <div className="flex flex-col gap-2 rounded-card border border-border p-4">
       <div className="flex items-center gap-3">
