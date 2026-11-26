@@ -425,12 +425,18 @@ closure is needed.
   `{ employee_id, name_ar, name_en, average, count }` over the filtered range, same access rule and scope as 61-2b
   (shared access reader). Default range when `from`/`to`/`month` are absent: the current calendar month in the
   business timezone, by `submitted_at` (D-B12, T10). `cursor` and `limit` belong to the paginated ratings list of
-  61-2b only; the averages route takes neither.
+  61-2b only; the averages route takes neither. An explicit range needs **both** `from` and `to` and spans at most
+  **366 days**; a wider range or a one-sided (open-ended) range is refused with `422 RATING_RANGE_TOO_WIDE`
+  (PP-278, owner decision 2026-11-26), enforced in the read so a malformed or inverted range stays
+  `400 VALIDATION_FAILED`. The `month` window, the default current month and the cursor-paginated ratings list
+  (open-ended and long ranges) keep working unchanged.
 - **Files:** `queries/rating-averages.query.ts` ~70; route in `ratings.controller.ts` ~30; contracts ~25 + OpenAPI.
   Employee names through the existing API staff public reader on the same transaction (add a `reads` line if a new
   symbol is used).
-- **Tests:** shape + `EXPLAIN` ~70; integration: RT-24 (both snapshotted performers get the rating; the mean is of
-  attributed ratings), scope filter, 403 paths ~100.
+- **Tests:** shape + `EXPLAIN` ~70, with the `EXPLAIN ANALYZE` assertion covering the **366-day maximum range**
+  (index scan on company and time, rows bounded by the window, execution under 200 ms); integration: RT-24 (both
+  snapshotted performers get the rating; the mean is of attributed ratings), scope filter, 403 paths, the 366-day
+  range accepted and the wider or one-sided range refused with `RATING_RANGE_TOO_WIDE` ~100.
 - **Stop line:** no screen.
 
 ### 61-2d — Admin ratings screen

@@ -1,7 +1,7 @@
 import { renderHook, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import jsQR from 'jsqr';
-import { useAttendanceCamera } from './use-attendance-camera';
+import { useQrCamera } from './use-qr-camera';
 vi.mock('jsqr', () => ({ default: vi.fn() }));
 const stop = vi.fn(),
   play = vi.fn(async () => undefined),
@@ -33,7 +33,7 @@ it('decodes locally and stops all camera tracks before delivering one QR scan', 
   const scanned = vi.fn(async () => undefined),
     failed = vi.fn();
   vi.mocked(jsQR).mockReturnValue({ data: 'synthetic QR' } as ReturnType<typeof jsQR>);
-  const hook = renderHook(() => useAttendanceCamera(scanned, failed));
+  const hook = renderHook(() => useQrCamera(scanned, failed));
   hook.result.current.current = {
     play,
     readyState: 2,
@@ -61,7 +61,7 @@ it('unmount stops the camera even if permission resolves after the screen closes
   });
   const scanned = vi.fn(async () => undefined),
     failed = vi.fn();
-  const hook = renderHook(() => useAttendanceCamera(scanned, failed));
+  const hook = renderHook(() => useQrCamera(scanned, failed));
   hook.unmount();
   release?.(stream);
   await waitFor(() => expect(stop).toHaveBeenCalledTimes(1));
@@ -71,7 +71,7 @@ it('missing camera capability fails without starting a passkey ceremony', async 
   vi.stubGlobal('navigator', {});
   const scanned = vi.fn(async () => undefined),
     failed = vi.fn();
-  const hook = renderHook(() => useAttendanceCamera(scanned, failed));
+  const hook = renderHook(() => useQrCamera(scanned, failed));
   await waitFor(() => expect(failed).toHaveBeenCalledTimes(1));
   expect(scanned).not.toHaveBeenCalled();
   hook.unmount();

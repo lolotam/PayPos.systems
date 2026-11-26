@@ -17,6 +17,7 @@ import { endPersonalSession } from '@/app/end-sessions';
 import { usePersonalSession } from '@/personal-staff/api/use-personal-session';
 import { LocaleProvider } from '@/shared/locale/locale-context';
 import { readLaunchLink } from '@/shared/platform/launch-links';
+import type * as NativeShellModule from '@/shared/platform/native-shell';
 
 import { NativeEntry } from './native-entry';
 import { START_OVER_SIGN_OUT_WAIT_MS } from './link-rules';
@@ -67,7 +68,8 @@ vi.mock('@/shared/platform/launch-links', () => ({
     return () => undefined;
   }),
 }));
-vi.mock('@/shared/platform/native-shell', () => ({
+vi.mock('@/shared/platform/native-shell', async (importOriginal) => ({
+  ...(await importOriginal<typeof NativeShellModule>()),
   nativePosHost: vi.fn(() => 'pos.staging.pospay.systems'),
 }));
 
