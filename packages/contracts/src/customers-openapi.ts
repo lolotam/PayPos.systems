@@ -1,4 +1,5 @@
 import { RATING_TOKEN_HEADER } from './customers/ratings.js';
+import { customerImportPaths } from './customers/customer-import-openapi.js';
 
 const json = (schema: string) => ({
   'application/json': { schema: { $ref: `#/components/schemas/${schema}` } },
@@ -20,6 +21,7 @@ const pathParameter = (name: string) => ({
 
 // مسار الاستقبال لموديول العملاء؛ منفصل عن openapi.ts عشان كل موديول يملك مساراته.
 export const customerPaths = {
+  ...customerImportPaths,
   '/v1/customers/find-or-create': {
     post: {
       operationId: 'findOrCreateCustomer',
