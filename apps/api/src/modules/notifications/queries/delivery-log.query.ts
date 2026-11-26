@@ -79,7 +79,18 @@ export function deliveryLogStatement(access: LogAccess, scope: LogScope, page: D
     to_json(a.authorized_at) #>> '{}' AS authorized_at, to_json(a.send_deadline) #>> '{}' AS send_deadline,
     to_json(a.sending_at) #>> '{}' AS sending_at, to_json(a.finished_at) #>> '{}' AS finished_at,
     a.provider_message_id, a.failure_code, a.outcome_known, to_json(a.created_at) #>> '{}' AS created_at,
-    to_json(a.updated_at) #>> '{}' AS updated_at
+    to_json(a.updated_at) #>> '{}' AS updated_at,
+    (SELECT CASE fb.event_type
+      WHEN 'email.delivered' THEN 'DELIVERED'
+      WHEN 'email.bounced' THEN 'BOUNCED'
+      WHEN 'email.complained' THEN 'COMPLAINED'
+      WHEN 'email.suppressed' THEN 'SUPPRESSED'
+      WHEN 'email.delivery_delayed' THEN 'DELAYED'
+      WHEN 'email.failed' THEN 'FAILED'
+     END
+     FROM notification_attempt_feedback fb
+     WHERE fb.company_id = a.company_id AND fb.attempt_id = a.id
+     ORDER BY fb.provider_timestamp DESC NULLS LAST, fb.id DESC LIMIT 1) AS provider_receipt
     FROM notification_attempts a WHERE ${filter(access, scope, decode(page.cursor))}
     ORDER BY a.created_at DESC NULLS LAST, a.id DESC NULLS LAST LIMIT ${page.limit + 1}`;
 }

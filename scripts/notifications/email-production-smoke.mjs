@@ -135,7 +135,7 @@ async function smoke(app) {
     assert.ok(ready, `${app}: production health/readiness failed`);
     assert.match(
       output,
-      /"channel":"email","enabled":false,"reason":"EMAIL_FEEDBACK_NOT_IMPLEMENTED"/,
+      /"channel":"email","enabled":false,"reason":"EMAIL_HASH_KEY_MISSING_OR_INVALID"/,
     );
     for (const name of [
       'STAFF_LOGIN',

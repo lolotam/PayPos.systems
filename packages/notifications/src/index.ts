@@ -1,9 +1,16 @@
 export type { Channel, ChannelRequest, ChannelResult, TemplateComponent } from './channel.ts';
 export { ResendChannel } from './adapters/resend.channel.ts';
+export { createResendEmailRetriever } from './adapters/resend-retrieval.ts';
+export type {
+  ResendEmailRetriever,
+  ResendRetrievalOptions,
+  ResendRetrievalResult,
+  RetrievedEmailTags,
+} from './adapters/resend-retrieval.ts';
 export type { EmailRequest } from './email-request.ts';
 export { createEmailIdentity, canonicalEmail } from './email-identity.ts';
 export { readEmailConfiguration } from './email-configuration.ts';
-export type { EmailConfiguration } from './email-configuration.ts';
+export type { EmailConfiguration, EmailDisabledReason } from './email-configuration.ts';
 export { renderOperationalEmail } from './templates/email-operational.ts';
 export type { EmailContent } from './templates/email-operational.ts';
 export {

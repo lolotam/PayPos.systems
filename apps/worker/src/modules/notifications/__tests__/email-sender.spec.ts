@@ -1,11 +1,12 @@
 import { afterAll, beforeAll, beforeEach, expect, it } from 'vitest';
 import { sql } from 'drizzle-orm';
+import { readEmailConfiguration } from '@pospay/notifications';
 import { USER } from '../../../../../../packages/db/test/tenancy-fixtures.ts';
 import { SendNotification } from '../use-cases/send-notification/send-notification.ts';
 import { createAttemptsRepository } from '../persistence/drizzle-attempts.repository.ts';
 import { createInAppNotificationModule } from '../notifications.module.ts';
 import { createDeliverer } from '../../../outbox/deliver.ts';
-import { NOW, notificationHarness, logger, testEmailOptions } from './harness.ts';
+import { EMAIL_ENV, NOW, notificationHarness, logger } from './harness.ts';
 
 const EMAIL = 'synthetic.owner@example.invalid';
 let h: Awaited<ReturnType<typeof notificationHarness>>;
@@ -217,7 +218,10 @@ it('drained cleanup clears email after 24h without restoring a destination or re
 });
 
 it('live-disabled production records an owner-visible failure without authorization or HTTP', async () => {
-  const config = testEmailOptions(h.emailChannel).emailConfiguration;
+  const config = readEmailConfiguration({
+    NOTIFICATION_EMAIL_HASH_KEY: 'synthetic-email-identity'.repeat(3),
+    NOTIFICATION_EMAIL_HASH_KEY_ID: 'email-test-v1',
+  });
   const module = createInAppNotificationModule({
     database: h.db,
     ids: h.module.send.ids,
@@ -240,6 +244,33 @@ it('live-disabled production records an owner-visible failure without authorizat
   expect(
     (await h.events()).filter((e) => e.payload['attempt_id'] === id).map((e) => e.event_type),
   ).toEqual(['NotificationFailed']);
+  expect(h.emailChannel.calls).toBe(before);
+});
+
+it('an unavailable feedback intake closes the channel and refuses the send with CONFIG_INVALID', async () => {
+  const config = readEmailConfiguration(EMAIL_ENV, { feedbackReady: false });
+  const module = createInAppNotificationModule({
+    database: h.db,
+    ids: h.module.send.ids,
+    clock: h.clock,
+    emailConfiguration: config,
+  });
+  expect(module.emailCapability).toMatchObject({
+    enabled: false,
+    reason: 'EMAIL_FEEDBACK_UNAVAILABLE',
+  });
+  const event = await h.request({ channel: 'email', template_key: 'document_expiring' });
+  const deliver = createDeliverer(h.db, [module.consumer], logger, {
+    knownEventTypes: module.eventTypes,
+  });
+  const before = h.emailChannel.calls;
+  await deliver(event);
+  const id = await h.attempt(event);
+  expect(await h.read(id)).toMatchObject({
+    status: 'FAILED',
+    failure_code: 'CONFIG_INVALID',
+    recipient_email: null,
+  });
   expect(h.emailChannel.calls).toBe(before);
 });
 

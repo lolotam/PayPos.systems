@@ -35,15 +35,56 @@ async function record(
   now: Date,
   pending: boolean,
 ): Promise<boolean> {
+  // المعرّف المربوط بالمصالحة ما يتمسحش بنتيجة متأخرة، والنتيجة المتأخرة ما تكتبش فوق معرّف مربوط.
   const rows =
     await tx.execute(sql`UPDATE notification_attempts SET status = ${result.status}, recipient_phone = NULL, recipient_email = NULL,
-    provider_message_id = ${result.providerMessageId}, failure_code = ${result.failureCode}, outcome_known = ${result.outcomeKnown},
+    provider_message_id = COALESCE(notification_attempts.provider_message_id, ${result.providerMessageId}),
+    failure_code = ${result.failureCode}, outcome_known = ${result.outcomeKnown},
     finished_at = ${now.toISOString()}, updated_at = ${now.toISOString()}
     WHERE company_id = app_company_id() AND id = ${attempt.id}
-      AND ${pending ? sql`status = 'PENDING'` : sql`status = 'SENDING' AND execution_id = ${attempt.executionId}`}
+      AND ${
+        pending
+          ? sql`status = 'PENDING'`
+          : sql`status = 'SENDING' AND execution_id = ${attempt.executionId}
+        AND (notification_attempts.provider_message_id IS NULL OR ${result.providerMessageId}::text IS NULL
+          OR notification_attempts.provider_message_id = ${result.providerMessageId})`
+      }
+    RETURNING id`);
+  if (rows.length === 0) return pending ? false : recordConflict(tx, attempt, result, eventId, now);
+  await appendResult(tx, attempt, result, eventId, now);
+  return true;
+}
+
+async function recordConflict(
+  tx: Tx,
+  attempt: Attempt,
+  result: TerminalResult,
+  eventId: string,
+  now: Date,
+): Promise<boolean> {
+  if (result.providerMessageId === null) return false;
+  const conflict: TerminalResult = {
+    status: 'FAILED',
+    failureCode: 'RESPONSE_INVALID',
+    outcomeKnown: false,
+    providerMessageId: null,
+  };
+  const rows = await tx.execute(sql`
+    UPDATE notification_attempts SET status = 'FAILED', recipient_phone = NULL, recipient_email = NULL,
+      failure_code = 'RESPONSE_INVALID', outcome_known = false,
+      finished_at = ${now.toISOString()}, updated_at = ${now.toISOString()}
+    WHERE company_id = app_company_id() AND id = ${attempt.id}
+      AND status = 'SENDING' AND execution_id = ${attempt.executionId}
+      AND provider_message_id IS NOT NULL AND provider_message_id <> ${result.providerMessageId}
     RETURNING id`);
   if (rows.length === 0) return false;
-  await appendResult(tx, attempt, result, eventId, now);
+  await appendAuditLog(tx, eventId, {
+    entity: 'notification_attempt',
+    entityId: attempt.id,
+    action: 'provider_id.conflict',
+    after: { execution_id: attempt.executionId },
+  });
+  await appendResult(tx, attempt, conflict, eventId, now);
   return true;
 }
 

@@ -72,6 +72,7 @@ it('delivery log suffix is NULL for email and required for WhatsApp', () => {
     sending_at: null,
     finished_at: null,
     provider_message_id: null,
+    provider_receipt: null,
     failure_code: 'CONFIG_INVALID',
     outcome_known: true,
     created_at: '2026-10-03T00:00:00Z',
@@ -80,4 +81,38 @@ it('delivery log suffix is NULL for email and required for WhatsApp', () => {
   expect(deliveryLogItem.safeParse(row).success).toBe(true);
   expect(deliveryLogItem.safeParse({ ...row, phone_last3: '001' }).success).toBe(false);
   expect(deliveryLogItem.safeParse({ ...row, channel: 'whatsapp' }).success).toBe(false);
+});
+
+it('the delivery log carries the provider receipt of an email attempt only', () => {
+  const row = {
+    id: ID,
+    company_id: ID,
+    source_event_id: ID,
+    business_id: null,
+    branch_id: null,
+    channel: 'email',
+    template_key: 'document_expiring',
+    template_revision: 1,
+    locale: 'en',
+    phone_last3: null,
+    status: 'SENT',
+    authorized_at: '2026-10-03T00:00:00Z',
+    send_deadline: null,
+    sending_at: null,
+    finished_at: null,
+    provider_message_id: '01920000-0000-7000-8000-000000000004',
+    provider_receipt: 'BOUNCED',
+    failure_code: null,
+    outcome_known: true,
+    created_at: '2026-10-03T00:00:00Z',
+    updated_at: '2026-10-03T00:00:00Z',
+  };
+  for (const receipt of ['DELIVERED', 'BOUNCED', 'COMPLAINED', 'SUPPRESSED', 'DELAYED', 'FAILED'])
+    expect(deliveryLogItem.safeParse({ ...row, provider_receipt: receipt }).success).toBe(true);
+  expect(deliveryLogItem.safeParse({ ...row, provider_receipt: 'OPENED' }).success).toBe(false);
+  expect(deliveryLogItem.safeParse({ ...row, provider_receipt: null }).success).toBe(true);
+  // دليل المزود ملك الإيميل: محاولة واتساب ما عندهاش دليل ردّ.
+  expect(
+    deliveryLogItem.safeParse({ ...row, channel: 'whatsapp', phone_last3: '001' }).success,
+  ).toBe(false);
 });

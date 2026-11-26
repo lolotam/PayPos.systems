@@ -160,3 +160,69 @@ it('projects owner-visible EMAIL failure without address/hash/body or a phone su
   for (const field of ['recipient_email', 'recipient_hash', 'safe_parameters'])
     expect(JSON.stringify(page)).not.toContain(field);
 });
+
+it('shows the latest provider feedback of an email attempt and none for a WhatsApp one', async () => {
+  const attempt = '01920000-0000-7000-8000-00000000ee21';
+  const whatsapp = '01920000-0000-7000-8000-00000000ee22';
+  await db.withTenant(TENANT.A.company, (tx) =>
+    tx.execute(sql`
+    INSERT INTO notification_attempts (company_id,id,source_event_id,channel,template_key,template_revision,
+      locale,recipient_hash,hash_key_id,phone_last3,safe_parameters,status,authorized_at,recipient_email,
+      recipient_phone,created_at,updated_at)
+    VALUES
+      (${TENANT.A.company},${attempt},'01920000-0000-7000-8000-00000000ee23','email','document_expiring',1,
+        'en',decode(repeat('05',32),'hex'),'email-test-v1',NULL,'[]','PENDING',now(),
+        'synthetic.owner@example.invalid',NULL,now(),now()),
+      (${TENANT.A.company},${whatsapp},'01920000-0000-7000-8000-00000000ee25','whatsapp','test_notice',1,
+        'ar',decode(repeat('06',32),'hex'),'test-v1','001','[]','PENDING',now(),NULL,
+        '+96500000001',now(),now())`),
+  );
+  await db.withTenant(TENANT.A.company, (tx) =>
+    tx.execute(sql`
+    UPDATE notification_attempts SET status = 'SENDING', sending_at = now(), execution_id = ${'01920000-0000-7000-8000-00000000ee24'}
+    WHERE id = ${attempt}`),
+  );
+  await db.withTenant(TENANT.A.company, (tx) =>
+    tx.execute(sql`
+    INSERT INTO notification_attempt_feedback (company_id,id,attempt_id,event_type,bounce_class,
+      provider_event_digest,provider_timestamp,recorded_at)
+    VALUES
+      (${TENANT.A.company},'01920000-0000-7000-8000-00000000ee31',${attempt},'email.delivered',NULL,
+        decode(repeat('07',32),'hex'),'2026-10-03T00:00:00Z'::timestamptz,now()),
+      (${TENANT.A.company},'01920000-0000-7000-8000-00000000ee32',${attempt},'email.bounced','PERMANENT',
+        decode(repeat('08',32),'hex'),'2026-10-05T00:00:00Z'::timestamptz,now()),
+      (${TENANT.A.company},'01920000-0000-7000-8000-00000000ee33',${attempt},'email.delivery_delayed',NULL,
+        decode(repeat('09',32),'hex'),'2026-10-04T00:00:00Z'::timestamptz,now())`),
+  );
+  const items = (await deliveryLogQueryResult(db, access, {}, { limit: 10 })).items;
+  const email = items.find((item) => item.id === attempt);
+  const whatsappItem = items.find((item) => item.id === whatsapp);
+  expect(email?.provider_receipt).toBe('BOUNCED');
+  expect(whatsappItem?.provider_receipt).toBeNull();
+  expect(deliveryLogItem.safeParse(email).success).toBe(true);
+  await owner`DELETE FROM notification_attempt_feedback WHERE attempt_id IN (${attempt}, ${whatsapp})`;
+  await owner`DELETE FROM notification_attempts WHERE id IN (${attempt}, ${whatsapp})`;
+});
+
+it('EXPLAIN ANALYZE reads the latest feedback by index without a sequential scan', async () => {
+  const rows = await db.withTenant(TENANT.A.company, (tx) =>
+    tx.execute<Record<string, unknown>>(
+      sql`EXPLAIN (ANALYZE, FORMAT JSON) ${deliveryLogStatement(access, {}, { limit: 20 })}`,
+    ),
+  );
+  const hasSeqScan = (node: unknown): boolean => {
+    if (typeof node !== 'object' || node === null) return false;
+    const record = node as Record<string, unknown>;
+    if (
+      record['Node Type'] === 'Seq Scan' &&
+      (record['Relation Name'] === 'notification_attempts' ||
+        record['Relation Name'] === 'notification_attempt_feedback')
+    )
+      return true;
+    return Object.values(record).some((child) =>
+      Array.isArray(child) ? child.some(hasSeqScan) : hasSeqScan(child),
+    );
+  };
+  expect(JSON.stringify(rows)).toContain('notification_attempt_feedback_attempt_idx');
+  expect(rows.some(hasSeqScan)).toBe(false);
+});

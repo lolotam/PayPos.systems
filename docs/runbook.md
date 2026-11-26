@@ -1331,3 +1331,28 @@ restored with the incident. A fresh environment gets all of it from `pnpm db:mig
 
 Replaying `CompanyCreated` is no longer part of the recovery: a consumer's mark in `consumed_events` makes a replay skip a
 company, so it can never be relied on to rebuild a scheduler.
+
+## 075: Resend email keys and NOTIFICATION_EMAIL_HASH_KEY_ID rotation
+
+### 1. Key separation and freeze rules
+
+- **`RESEND_API_KEY` (worker) and `RESEND_WEBHOOK_SECRET` (API)** can be rotated in place without affecting stored rows. Keep `RESEND_API_KEY` as a `full_access` key (`GET /emails/{id}` needs tag and recipient retrieval; `sending_access` fails reconciliation).
+- **`RESEND_EVENT_DIGEST_KEY` (API, 32+ chars)** derives permanent dedupe digests (`platform_email_feedback_inbox.provider_event_digest` and `notification_attempt_feedback.provider_event_digest`) and is frozen outside a dedicated migration preserving existing dedupe identities.
+- **`NOTIFICATION_EMAIL_HASH_KEY` (worker, 32+ chars) and `NOTIFICATION_EMAIL_HASH_KEY_ID`** bind both stored attempt hashes (`notification_attempts.recipient_hash` / `hash_key_id`) and global email suppressions (`platform_email_suppressions`). Changing `NOTIFICATION_EMAIL_HASH_KEY_ID` (or key material) while earlier email attempts have unsettled webhooks causes `evaluateAttemptBinding` to quarantine those callbacks as `HASH_MISMATCH` (preserving fail-closed tenant isolation), and existing `platform_email_suppressions` entries remain keyed under the previous recipient hash.
+
+### 2. Controlled `NOTIFICATION_EMAIL_HASH_KEY_ID` rotation procedure
+
+Rotate `NOTIFICATION_EMAIL_HASH_KEY` / `NOTIFICATION_EMAIL_HASH_KEY_ID` **only on a confirmed key compromise**, using this sequence:
+
+1. **Drain in-flight email feedback without stopping the feedback processor.** Unset `EMAIL_FROM_ADDRESS` (do **not** unset `RESEND_API_KEY`, `NOTIFICATION_EMAIL_HASH_KEY`, `NOTIFICATION_EMAIL_HASH_KEY_ID`, or `PLATFORM_NOTIFICATIONS_DATABASE_URL`) and restart all workers. `readEmailConfiguration` closes outbound sending (`EMAIL_FROM_MISSING_OR_INVALID`) while `startFeedback` keeps the feedback processor active so existing attempts settle. Confirm no open inbox work remains as `pospay_owner`:
+
+   ```sql
+   SELECT count(*)
+   FROM public.platform_email_feedback_inbox
+   WHERE resolved_at IS NULL AND quarantined_at IS NULL;
+   ```
+
+   Wait until `count` is `0` (and in-flight `SENDING` / unsettled email attempts under the old `hash_key_id` have passed their feedback window).
+2. **Roll key material and new `NOTIFICATION_EMAIL_HASH_KEY_ID` together.** While `EMAIL_FROM_ADDRESS` stays unset, update both the new 32+ character `NOTIFICATION_EMAIL_HASH_KEY` and a distinct new `NOTIFICATION_EMAIL_HASH_KEY_ID` across every worker replica in one release/restart. Never reuse a previous `NOTIFICATION_EMAIL_HASH_KEY_ID` with different key bytes.
+3. **Preserve existing email suppressions before re-opening outbound sends.** Because `platform_email_suppressions` stores only the irreversible 32-byte `recipient_hash` (never raw addresses) and `public.platform_email_is_suppressed` checks only the current key's hash, re-hashing stored rows from the table alone is impossible. Export the active suppressed/bounced/complained addresses from Resend's suppression list, compute their canonical SHA-256 HMAC digests with the new `NOTIFICATION_EMAIL_HASH_KEY`, and upsert them into `public.platform_email_suppressions` with `hash_key_id = '<new_key_id>'` (recording audit entries in `public.platform_email_audit`). Verify `SELECT count(*) FROM public.platform_email_suppressions WHERE hash_key_id = '<new_key_id>';` covers every exported suppression before re-enabling sends.
+4. **Restore `EMAIL_FROM_ADDRESS` and verify post-rotation state.** Restore `EMAIL_FROM_ADDRESS`, restart every worker replica, and confirm the `EMAIL` capability log reports `state: 'READY', enabled: true`. Any late callback arriving for a pre-rotation attempt quarantines with `quarantine_reason = 'HASH_MISMATCH'` (surfaced via `quarantinedCount` in the worker `EMAIL` capability log) rather than mutating tenant state.

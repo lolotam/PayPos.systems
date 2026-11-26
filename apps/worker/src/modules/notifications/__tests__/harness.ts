@@ -19,6 +19,19 @@ export const PHONE = '+96500000001';
 export const NOW = new Date('2026-10-01T10:00:00Z');
 export const logger: Logger = createLogger('silent');
 
+/** بيئة بريد كاملة: القناة بتتفعّل بس لو ردّ المزود جاهز. */
+export const EMAIL_ENV = {
+  NOTIFICATION_EMAIL_HASH_KEY: 'synthetic-email-identity'.repeat(3),
+  NOTIFICATION_EMAIL_HASH_KEY_ID: 'email-test-v1',
+  RESEND_API_KEY: 'synthetic-test-only',
+  EMAIL_FROM_ADDRESS: 'synthetic@send.pospay.systems',
+  EMAIL_FROM_NAME: 'Synthetic sender',
+  EMAIL_REPLY_TO: 'synthetic.replies@example.invalid',
+  EMAIL_ADMIN_ORIGIN: 'https://app.pospay.systems',
+  PLATFORM_NOTIFICATIONS_DATABASE_URL:
+    'postgres://pospay_notifications:synthetic@127.0.0.1:5432/pospay',
+};
+
 export async function notificationHarness() {
   const testDb = await createTestDatabase();
   await seedTwoTenants(testDb.ownerUrl);
@@ -79,10 +92,7 @@ export function testEmailOptions(
   suppressed: () => boolean = () => false,
 ) {
   return {
-    emailConfiguration: readEmailConfiguration({
-      NOTIFICATION_EMAIL_HASH_KEY: 'synthetic-email-identity'.repeat(3),
-      NOTIFICATION_EMAIL_HASH_KEY_ID: 'email-test-v1',
-    }),
+    emailConfiguration: readEmailConfiguration(EMAIL_ENV),
     emailTesting: { channel, suppression: () => ({ isSuppressed: async () => suppressed() }) },
   };
 }
