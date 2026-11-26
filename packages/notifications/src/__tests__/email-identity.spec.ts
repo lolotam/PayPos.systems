@@ -31,13 +31,25 @@ it('has its own stable keyed hash and no phone suffix', () => {
   expect(first.matches('Owner@EXAMPLE.INVALID', identity)).toBe(false);
   expect(first.matches('Owner@example.invalid', { ...identity, hashKeyId: 'other' })).toBe(false);
 });
-it('empty or populated provider settings can never enable live email', () => {
-  for (const env of [
-    { NODE_ENV: 'production' },
-    { NODE_ENV: 'production', EMAIL_ENABLED: 'true', RESEND_API_KEY: 'synthetic-test-only' },
-  ])
-    expect(readEmailConfiguration(env)).toMatchObject({
-      enabled: false,
-      reason: 'EMAIL_FEEDBACK_NOT_IMPLEMENTED',
-    });
+it('the channel opens only with every setting, and closes when the feedback is unavailable', () => {
+  const complete = {
+    NOTIFICATION_EMAIL_HASH_KEY: key,
+    NOTIFICATION_EMAIL_HASH_KEY_ID: 'email-v1',
+    RESEND_API_KEY: 'synthetic-test-only',
+    EMAIL_FROM_ADDRESS: 'synthetic@send.pospay.systems',
+    EMAIL_FROM_NAME: 'Synthetic sender',
+    EMAIL_REPLY_TO: 'synthetic.replies@example.invalid',
+    EMAIL_ADMIN_ORIGIN: 'https://app.pospay.systems',
+    PLATFORM_NOTIFICATIONS_DATABASE_URL:
+      'postgres://pospay_notifications:synthetic@127.0.0.1:5432/pospay',
+  };
+  expect(readEmailConfiguration({ NODE_ENV: 'production' })).toMatchObject({
+    enabled: false,
+    reason: 'EMAIL_HASH_KEY_MISSING_OR_INVALID',
+  });
+  expect(readEmailConfiguration(complete)).toMatchObject({ enabled: true, reason: null });
+  expect(readEmailConfiguration(complete, { feedbackReady: false })).toMatchObject({
+    enabled: false,
+    reason: 'EMAIL_FEEDBACK_UNAVAILABLE',
+  });
 });

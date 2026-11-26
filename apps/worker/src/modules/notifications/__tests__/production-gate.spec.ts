@@ -22,6 +22,35 @@ it('production email factory cannot accept an injected sending channel', () => {
   ).toThrow('EMAIL_TEST_CHANNEL_IN_PRODUCTION');
 });
 
+it('a complete production configuration opens the email channel alone', () => {
+  const env = {
+    NOTIFICATION_EMAIL_HASH_KEY: 'test-secret'.repeat(4),
+    NOTIFICATION_EMAIL_HASH_KEY_ID: 'email-v1',
+    RESEND_API_KEY: 'test-secret',
+    EMAIL_FROM_ADDRESS: 'owner@send.pospay.systems',
+    EMAIL_FROM_NAME: 'PosPay',
+    EMAIL_REPLY_TO: 'replies@example.invalid',
+    EMAIL_ADMIN_ORIGIN: 'https://app.pospay.systems',
+    PLATFORM_NOTIFICATIONS_DATABASE_URL:
+      'postgres://pospay_notifications:test@127.0.0.1:5432/pospay',
+  };
+  const opened = createEmailModule({
+    production: true,
+    ids: systemUuidV7(),
+    clock: { now: () => new Date() },
+    env,
+  });
+  expect(opened.capability).toMatchObject({ enabled: true, reason: null });
+  const closed = createEmailModule({
+    production: true,
+    ids: systemUuidV7(),
+    clock: { now: () => new Date() },
+    env,
+    feedbackReady: false,
+  });
+  expect(closed.capability).toMatchObject({ enabled: false, reason: 'EMAIL_FEEDBACK_UNAVAILABLE' });
+});
+
 let h: Awaited<ReturnType<typeof platformHarness>>;
 beforeAll(async () => {
   h = await platformHarness();

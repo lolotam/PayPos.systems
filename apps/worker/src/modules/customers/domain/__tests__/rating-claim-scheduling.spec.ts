@@ -1,9 +1,11 @@
 import { describe, expect, it } from 'vitest';
 
+import { retryDelayMs } from '../../../../outbox/retry-policy.ts';
 import {
   FORWARD_VISITS,
   LEASE_MS,
   MAX_VISITS_PER_TURN,
+  RATING_CLAIMS_MAX_SCHEDULE_ATTEMPTS,
   RENEWAL_INTERVAL_MS,
   RETRY_CAPACITY,
   RETRY_VISITS,
@@ -11,6 +13,7 @@ import {
   isClaimable,
   leaseRenewalDue,
   oldestEligibleAt,
+  ratingClaimsScheduleRetryDelayMs,
   rereadObservation,
   settleClaim,
   type ClaimableRequest,
@@ -150,5 +153,45 @@ describe('تجديد حجز المالك', () => {
 
   it('a_lease_before_the_interval_is_not_due', () => {
     expect(leaseRenewalDue(now, new Date(now.getTime() - RENEWAL_INTERVAL_MS + 1))).toBe(false);
+  });
+});
+
+// إعادة محاولة تسجيل الجدولة: نفس سلسلة PP-97 بالظبط، بس من غير ما الـ jobs يمد
+// يده جوّه `outbox/retry-policy.ts`.
+describe('إعادة محاولة تسجيل الجدولة', () => {
+  it('the_pp97_backoff_is_preserved', () => {
+    const delays = Array.from({ length: 10 }, (_, index) =>
+      ratingClaimsScheduleRetryDelayMs(index + 1),
+    );
+    expect(delays).toEqual([
+      5_000,
+      10_000,
+      20_000,
+      40_000,
+      80_000,
+      160_000,
+      320_000,
+      640_000,
+      1_280_000,
+      null,
+    ]);
+  });
+
+  it('the_tenth_attempt_parks_the_event', () => {
+    expect(RATING_CLAIMS_MAX_SCHEDULE_ATTEMPTS).toBe(10);
+    expect(ratingClaimsScheduleRetryDelayMs(10)).toBeNull();
+    expect(ratingClaimsScheduleRetryDelayMs(11)).toBeNull();
+  });
+
+  it('it_matches_the_outbox_policy_attempt_by_attempt', () => {
+    for (let attempt = 1; attempt <= 12; attempt += 1) {
+      expect(ratingClaimsScheduleRetryDelayMs(attempt)).toBe(retryDelayMs(attempt));
+    }
+  });
+
+  it('an_attempt_below_one_is_refused', () => {
+    for (const attempt of [0, -1, 1.5]) {
+      expect(() => ratingClaimsScheduleRetryDelayMs(attempt)).toThrow(RangeError);
+    }
   });
 });

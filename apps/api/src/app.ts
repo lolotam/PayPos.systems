@@ -7,11 +7,7 @@ export { buildAdapter, API_MAX_HEADER_BYTES } from './app-http.ts';
 import { SHUTDOWN, ShutdownHook } from './shared/application-shutdown.ts';
 import 'reflect-metadata';
 
-import {
-  Module,
-  type DynamicModule,
-  type Type,
-} from '@nestjs/common';
+import { Module, type DynamicModule, type Provider, type Type } from '@nestjs/common';
 import { APP_GUARD, NestFactory } from '@nestjs/core';
 import type { NestFastifyApplication } from '@nestjs/platform-fastify';
 import { systemUuidV7 } from '@pospay/ids';
@@ -43,6 +39,7 @@ import {
   tenancyProviders,
 } from './modules/tenancy/index.ts';
 import {
+  bindCustomerImportFiles,
   customersProviders,
   readCommissionCustomerNames,
   RATING_ROUTE,
@@ -79,10 +76,7 @@ import {
 import { commissionApprovalBindings } from './commission-approval-bindings.ts';
 import { commissionOwnEstimateBindings } from './commission-own-estimate-bindings.ts';
 import { commissionAlertRules } from './modules/commissions/persistence/commission-alert-rule.adapter.ts';
-import {
-  documentFileFacts,
-  filesProviders,
-} from './modules/files/index.ts';
+import { documentFileFacts, filesProviders } from './modules/files/index.ts';
 import { mountAuthRoutes } from './shared/auth-routes.ts';
 import { DATABASE } from './shared/database.token.ts';
 import { RATE_LIMITER } from './shared/device-authenticator.ts';
@@ -194,6 +188,16 @@ function commissionStatementExportBindings(deps: AppDependencies) {
   );
 }
 
+/** مزوّدات العملاء: الاستيراد مربوط بملفات files الممرّرة من الوحدة بلا سهم استيراد نحوها (073 D-2). */
+const customerProviders = (deps: AppDependencies): Provider[] =>
+  customersProviders(
+    deps.database,
+    deps.ids ?? systemUuidV7(),
+    deps.customersClock,
+    deps.customersTransactionTimeoutMs,
+    bindCustomerImportFiles(deps.files?.storage ?? null, documentFileFacts),
+  );
+
 @Module({})
 class AppModule {
   static forRoot(
@@ -227,12 +231,7 @@ class AppModule {
         { provide: RATE_LIMITER, useValue: limiter },
         { provide: DATABASE, useValue: deps.database ?? null },
         ...tenancyProviders(deps.database, deps.ids ?? systemUuidV7()),
-        ...customersProviders(
-          deps.database,
-          deps.ids ?? systemUuidV7(),
-          deps.customersClock,
-          deps.customersTransactionTimeoutMs,
-        ),
+        ...customerProviders(deps),
         ...catalogProviders(
           deps.database,
           deps.ids ?? systemUuidV7(),

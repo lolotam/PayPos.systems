@@ -1,6 +1,6 @@
 import type { Tx } from '@pospay/db';
 
-import { businessNamesByIds, describeWorkspaces } from '../../tenancy/index.ts';
+import { businessNamesByIds, businessCountry, describeWorkspaces } from '../../tenancy/index.ts';
 
 /** اسم النشاط كما بيجي من موديول tenancy: العربي اختياري والإنجليزي لازم. */
 export interface WorkspaceNames {
@@ -38,3 +38,25 @@ export const branchBusiness: BranchBusinessReader = {
     return business.id;
   },
 };
+
+/**
+ * يحل نطاق الاستيراد إلى نشاطه ودولة النشاط؛ null للنطاق الغائب أو الخارج عن الشركة.
+ *
+ * @param tx معاملة المستأجر الجارية
+ * @param companyId الشركة مالكة النشاط
+ * @param scope النطاق المستهدف: نشاط أو فرع
+ * @returns النشاط ودولته أو null
+ */
+export async function readCustomerImportScope(
+  tx: Tx,
+  companyId: string,
+  scope: { readonly kind: 'business' | 'branch'; readonly id: string },
+): Promise<{ readonly businessId: string; readonly countryCode: string | null } | null> {
+  const workspaces = await describeWorkspaces(tx, [
+    { scope: scope.kind === 'business' ? 'BUSINESS' : 'BRANCH', scopeId: scope.id },
+  ]);
+  const businessId = workspaces?.businesses[0]?.id ?? null;
+  if (businessId === null) return null;
+  const country = await businessCountry(tx, companyId, businessId);
+  return { businessId, countryCode: country?.country ?? null };
+}

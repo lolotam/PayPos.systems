@@ -63,7 +63,8 @@ ADR-0013 Part A: notification persistence alone uses the restricted global messa
 for intake, inbox maintenance and manual additions. API/worker main roots create that facade;
 all other modules/packages are forbidden. Authorization uses the boolean function on its existing Tx.
 ADR-0014 addendum: the email feedback class rides on the same notifications role through its own
-facade (`createPlatformEmailDatabase`), wired only by the API/worker roots and reaching the three
+facade (`createPlatformEmailDatabase`), wired only by the API/worker roots — the worker's email
+capability root opens it for the reconciliation workers (spec 075 C2) — and reaching the three
 global tables — hashes and identifiers only, no company and no tenant RLS. It is a second global
 messaging intake, not a tenant write: no new module arrow, no tenant event and no dispatcher privilege.
 ADR-0019 auth uses createStaffOtpDatabase only inside packages/auth; application code may not import that facade, including alias/namespace/re-export forms. API identity outer Redis/BullMQ adapters implement auth-owned OtpRates/OtpSender, binding id-only transport at the API root. Worker notifications defines OtpExecution and receives the narrow auth execution facade at the worker root; its OTP adapter owns transient rendering/Channel. These auth transport/ledger capabilities are separate from business cross-module writes: no tenant event, new dispatcher privilege or auth-internal import is permitted.
@@ -219,6 +220,8 @@ The consumer owns the interface. The adapter lives in the consumer's `persistenc
 | API `customers` | admin ratings reads (`RatingsListReads.access`, `.branchNames`, `.timeZone`, `.employeeNames`) | API `identity`, API `tenancy`, API `staff` | the branches the caller reads now (`readRatingsReadAccess`: a current manager membership among the four roles that covers the branch and itself carries the `read:ratings:branch` ALLOW, any covering DENY from an active membership removing it, the canonical owner ignoring DENY, customers feature; the same rule as the worker's `ratingCommentReaders`, owner decision 2026-11-22), the business's branch names (`describeWorkspaces`), the business time zone for the default month (`businessTimeZone`) and the names of the employees shown (`readEmployeeDisplayNames`), all on the one read-only snapshot of `GET /v1/businesses/:businessId/ratings` and `/ratings/averages` (ADR-0010 addendum A-2, spec 060 FR-B15, 61-2b, 61-2c) |
 | `customers`                         | `DaySessionsPort`                                                                       | `orders`    | the customer's active lines and performers for a business day — read at claim time, the authoritative boundary for rating attribution (ADR-0010)                     |
 | `customers`                         | `BusinessNamesPort`                                                                     | `tenancy`   | the business's Arabic and English name, shown on the public rating page (spec 060 D-B9, 60-1)                                                                    |
+| API `customers` | `CustomerImportFileFactsPort`, `CustomerImportObjectBytes` | API `files` | the verified upload's facts and its bounded bytes, bound at `app.ts` from the files module's own readers, so `customers` never imports `files` (073 D-2) |
+| API `customers` | `CustomerImportScopeReads` | API `tenancy` | `describeWorkspaces` for the target scope's business and `businessCountry` for the country that fixes the default calling code (CI-Q7, OQ-1) |
 | `staff` | `EmployeeDocumentScope.file` | `files` | a READY file uploaded by the recorder for this employee and business, read in the same tenant transaction; staff keeps the verified key only (ADR-0031) |
 | `staff` | `EmployeeDocumentReadAccess`, document-type authority | `identity`, `tenancy` | locked read/manage files and manage:document-types:company; business timezone for the expiry badge (ADR-0031) |
 | worker `staff` | `DocumentExpiryTransactions.timeZone` | worker `tenancy` | business timezone for the expiry window, reusing ADR-0031's staff-to-tenancy read; discovery stays on outbox delivery (ADR-0032) |
@@ -428,7 +431,7 @@ composition_roots:
   staff-otp-db: [packages/auth/src/staff-otp/api.ts, packages/auth/src/staff-otp/execution.ts, packages/auth/src/config.ts, packages/auth/src/auth-session-primitives.ts, packages/auth/src/personal-sessions.ts, packages/auth/src/approve-phone-binding.ts, packages/auth/src/staff-access-users.ts, packages/auth/src/operator/staging-staff-identity.ts]
   rating-token: [apps/worker/src/rating-token-capability.ts]
   platform-whatsapp-db: [apps/api/src/main.ts, apps/worker/src/start-optional-capabilities.ts]
-  platform-email-db: [apps/api/src/main.ts, apps/worker/src/start-optional-capabilities.ts]
+  platform-email-db: [apps/api/src/main.ts, apps/worker/src/start-optional-capabilities.ts, apps/worker/src/modules/notifications/email-startup.module.ts]
   notifications: [apps/api/src/app.ts, apps/api/src/app-dependencies.ts, apps/api/src/main.ts, apps/api/scripts/bind-phone.ts, apps/api/scripts/staging-staff-user.ts, apps/worker/src/worker.ts, apps/worker/src/start-optional-capabilities.ts]
   documents: [apps/worker/src/main.ts]
 
@@ -548,6 +551,7 @@ reads:
   - customers -> tenancy.businessNames @ apps/api/src/modules/customers/persistence/business-names.adapter.ts
   - customers -> tenancy.businessNamesByIds @ apps/api/src/modules/customers/persistence/workspace-names.adapter.ts
   - customers -> tenancy.describeWorkspaces @ apps/api/src/modules/customers/persistence/workspace-names.adapter.ts
+  - customers -> tenancy.businessCountry @ apps/api/src/modules/customers/persistence/workspace-names.adapter.ts
   - customers -> staff.readOwnEmployee @ apps/api/src/modules/customers/persistence/own-rating-context.adapter.ts
   - customers -> identity.readOwnRatingsAccess @ apps/api/src/modules/customers/persistence/own-rating-context.adapter.ts
   - customers -> tenancy.activeBusinessTimeZone @ apps/api/src/modules/customers/persistence/own-rating-context.adapter.ts

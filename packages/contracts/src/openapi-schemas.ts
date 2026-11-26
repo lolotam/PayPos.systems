@@ -54,6 +54,7 @@ import {
 import { permissionSchemas } from './identity/permissions-openapi.js';
 import { pendingDevicesSchemas } from './identity/devices-openapi.js';
 import { customerSchemas } from './customers.js';
+import { customerImportSchemas } from './customers/customer-import.js';
 import { ratingSettingsSchemas } from './customers/rating-settings-openapi.js';
 import { importedRefundsSchemas } from './settings/imported-refunds-openapi.js';
 import { ratingView, submitRatingInput } from './customers/ratings.js';
@@ -198,6 +199,7 @@ export const openApiSchemas = [
   employeeImportCommitAccepted,
   employeeImportStatus,
   ...customerSchemas,
+  ...customerImportSchemas,
   ratingView,
   submitRatingInput,
   ...catalogSchemas,

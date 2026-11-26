@@ -44,7 +44,7 @@ export const businessSettings = pgTable(
     // أعمدة تطبيق الموظفات اللي المدير اختارها؛ null = افتراضي MY-Q3 (spec 060 D-A6).
     staffColumns: text('staff_columns').array(),
     // كام شهر لورا الموظفة تشوف في «شغلي» و«حضوري»؛ null = الشهر الحالي والشهر اللي قبله (D-A14، MY-Q2، MY-Q9).
-    // الـ CHECK لسه بيسمح حتى 24 في الإصدار ده، والدومين بيقرا أي قيمة فوق 12 على إنها 12 لحد ما يتضيّق (issue #519).
+    // الـ CHECK بقى 1..12 من issue #519، والدومين لسه بيقصّر أي قيمة أعلى من 12 على 12 كطبقة دفاع تانية.
     staffMonthsBack: smallint('staff_months_back'),
     // استرداد الباقات المستوردة: null = مقفول؛ البيع ما بيقراش الإعداد ده (FR-053، RF-08).
     importedRefundsEnabled: boolean('imported_refunds_enabled'),
@@ -85,7 +85,7 @@ export const businessSettings = pgTable(
     ),
     check(
       'business_settings_staff_months_back',
-      sql`${t.staffMonthsBack} IS NULL OR ${t.staffMonthsBack} BETWEEN 1 AND 24`,
+      sql`${t.staffMonthsBack} IS NULL OR ${t.staffMonthsBack} BETWEEN 1 AND 12`,
     ),
     foreignKey({
       name: 'business_settings_logo_file_fk',

@@ -80,8 +80,7 @@ vi.mock('bullmq', async (original) => {
       if (
         (queueName.startsWith('package-') && queueName !== 'package-import-preview') ||
         queueName === 'service-category-closing' ||
-        queueName === 'service-import-commit' ||
-        queueName === 'service-import-recovery'
+        /^(?:service|customer)-import-(?:commit|recovery)$/.test(queueName)
       )
         return { on: vi.fn(), waitUntilReady: async () => undefined, close: async () => undefined };
       if (args[0] === 'package-import-preview')
@@ -275,12 +274,13 @@ it('invalid email identity settings disable email alone without affecting ordina
       capability: {
         channel: 'email',
         enabled: false,
-        reason: 'EMAIL_FEEDBACK_NOT_IMPLEMENTED',
+        reason: 'EMAIL_HASH_KEY_MISSING_OR_INVALID',
         name: 'EMAIL',
-        state: 'UNAVAILABLE',
+        state: 'DISABLED',
+        quarantinedCount: 0,
       },
     },
-    'email disabled',
+    'email capability',
   );
   await ordinaryReadiness();
   const options = resources.workerOptions.mock.calls.at(-1)?.[0];
@@ -289,6 +289,7 @@ it('invalid email identity settings disable email alone without affecting ordina
     'package-previews',
     'package-sale',
     'package-import-commit',
+    'customer-import-commit',
     'leave-history-reports',
     'service-category-closing',
     'dispatcher',

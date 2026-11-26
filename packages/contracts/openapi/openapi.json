@@ -16145,6 +16145,896 @@
         }
       }
     },
+    "/v1/businesses/{businessId}/customers/import/template": {
+      "get": {
+        "operationId": "getCustomerImportTemplate",
+        "description": "Downloads the customer import XLSX template (ten headers with Arabic notes and reference sheet).",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "x-company-id",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "in": "path",
+            "name": "businessId",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Import template workbook",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CustomerImportTemplate"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Bilingual refusal",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Bilingual refusal",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Bilingual refusal",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/businesses/{businessId}/customers/import/previews": {
+      "post": {
+        "operationId": "previewCustomerImport",
+        "description": "Previews a READY XLSX upload outside any DB transaction, requiring business country and returning masked phones and row errors.",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "x-company-id",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "in": "path",
+            "name": "businessId",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PreviewCustomerImportInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Saved preview with errors and first clean rows",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CustomerImportPreview"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Bilingual refusal",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Bilingual refusal",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "Bilingual refusal",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "Bilingual refusal",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Bilingual refusal",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Bilingual refusal",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/businesses/{businessId}/customers/import/commits": {
+      "post": {
+        "operationId": "commitCustomerImport",
+        "description": "Accepts one clean unexpired preview commit idempotently and appends CustomerImportCommitRequested in the same transaction.",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "x-company-id",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "in": "path",
+            "name": "businessId",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 255
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CommitCustomerImportInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "Commit accepted",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CustomerImportCommitAccepted"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bilingual refusal",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Bilingual refusal",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Bilingual refusal",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Bilingual refusal",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Bilingual refusal",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Bilingual refusal",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/businesses/{businessId}/customers/import/previews/{previewId}/rows": {
+      "get": {
+        "operationId": "getCustomerImportRows",
+        "description": "Cursor-paginated clean rows of one preview for its creator, carrying masked phones only.",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "x-company-id",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "in": "path",
+            "name": "businessId",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "in": "path",
+            "name": "previewId",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "in": "query",
+            "name": "cursor",
+            "schema": {
+              "$ref": "#/components/schemas/CustomerImportRowsCursor"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 20
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Clean rows page",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CustomerImportRowsPage"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Bilingual refusal",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Bilingual refusal",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/businesses/{businessId}/customers/import/previews/{previewId}": {
+      "get": {
+        "operationId": "getCustomerImportStatus",
+        "description": "Reads preview status (ready, commit_requested, committed, failed) for its creator only.",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "x-company-id",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "in": "path",
+            "name": "businessId",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "in": "path",
+            "name": "previewId",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Preview status",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CustomerImportStatus"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Bilingual refusal",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Bilingual refusal",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/branches/{branchId}/customers/import/template": {
+      "get": {
+        "operationId": "getBranchCustomerImportTemplate",
+        "description": "Downloads the customer import XLSX template (ten headers with Arabic notes and reference sheet).",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "x-company-id",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "in": "path",
+            "name": "branchId",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Import template workbook",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CustomerImportTemplate"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Bilingual refusal",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Bilingual refusal",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Bilingual refusal",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/branches/{branchId}/customers/import/previews": {
+      "post": {
+        "operationId": "previewBranchCustomerImport",
+        "description": "Previews a READY XLSX upload outside any DB transaction, requiring business country and returning masked phones and row errors.",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "x-company-id",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "in": "path",
+            "name": "branchId",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PreviewCustomerImportInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Saved preview with errors and first clean rows",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CustomerImportPreview"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Bilingual refusal",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Bilingual refusal",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "Bilingual refusal",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "Bilingual refusal",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Bilingual refusal",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Bilingual refusal",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/branches/{branchId}/customers/import/commits": {
+      "post": {
+        "operationId": "commitBranchCustomerImport",
+        "description": "Accepts one clean unexpired preview commit idempotently and appends CustomerImportCommitRequested in the same transaction.",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "x-company-id",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "in": "path",
+            "name": "branchId",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 255
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CommitCustomerImportInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "Commit accepted",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CustomerImportCommitAccepted"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bilingual refusal",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Bilingual refusal",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Bilingual refusal",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Bilingual refusal",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Bilingual refusal",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Bilingual refusal",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/branches/{branchId}/customers/import/previews/{previewId}/rows": {
+      "get": {
+        "operationId": "getBranchCustomerImportRows",
+        "description": "Cursor-paginated clean rows of one preview for its creator, carrying masked phones only.",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "x-company-id",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "in": "path",
+            "name": "branchId",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "in": "path",
+            "name": "previewId",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "in": "query",
+            "name": "cursor",
+            "schema": {
+              "$ref": "#/components/schemas/CustomerImportRowsCursor"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 20
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Clean rows page",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CustomerImportRowsPage"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Bilingual refusal",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Bilingual refusal",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/branches/{branchId}/customers/import/previews/{previewId}": {
+      "get": {
+        "operationId": "getBranchCustomerImportStatus",
+        "description": "Reads preview status (ready, commit_requested, committed, failed) for its creator only.",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "x-company-id",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "in": "path",
+            "name": "branchId",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "in": "path",
+            "name": "previewId",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Preview status",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CustomerImportStatus"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Bilingual refusal",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Bilingual refusal",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/v1/customers/find-or-create": {
       "post": {
         "operationId": "findOrCreateCustomer",
@@ -35307,6 +36197,340 @@
         "additionalProperties": false,
         "description": "Gender may be omitted to look up an existing customer. Creating a new customer requires a supported gender; a missing gender on a miss fails validation without writing anything."
       },
+      "CustomerImportColumn": {
+        "type": "string",
+        "enum": [
+          "name",
+          "phone",
+          "country_code",
+          "locale",
+          "no_rating",
+          "birthday",
+          "year_known",
+          "gender",
+          "email",
+          "notes",
+          "unexpected_column"
+        ]
+      },
+      "CustomerImportErrorCode": {
+        "type": "string",
+        "enum": [
+          "IMPORT_REQUIRED_CELL",
+          "IMPORT_NAME_INVALID",
+          "IMPORT_PHONE_INVALID",
+          "IMPORT_COUNTRY_CODE_INVALID",
+          "IMPORT_LOCALE_INVALID",
+          "IMPORT_BOOLEAN_INVALID",
+          "IMPORT_DATE_INVALID",
+          "IMPORT_YEAR_KNOWN_REQUIRED",
+          "IMPORT_GENDER_INVALID",
+          "IMPORT_EMAIL_INVALID",
+          "IMPORT_NOTE_INVALID",
+          "IMPORT_CELL_INVALID",
+          "IMPORT_COLUMN_UNEXPECTED",
+          "IMPORT_DUPLICATE_IN_FILE"
+        ]
+      },
+      "CustomerImportWarningCode": {
+        "type": "string",
+        "enum": [
+          "EXISTING_NO_RATING_IGNORED"
+        ]
+      },
+      "CustomerImportRowError": {
+        "type": "object",
+        "properties": {
+          "row": {
+            "type": "integer",
+            "minimum": 2,
+            "maximum": 9007199254740991
+          },
+          "column": {
+            "$ref": "#/components/schemas/CustomerImportColumn"
+          },
+          "code": {
+            "$ref": "#/components/schemas/CustomerImportErrorCode"
+          }
+        },
+        "required": [
+          "row",
+          "column",
+          "code"
+        ]
+      },
+      "CustomerImportRowStatus": {
+        "type": "string",
+        "enum": [
+          "new",
+          "existing"
+        ]
+      },
+      "CustomerImportRow": {
+        "type": "object",
+        "properties": {
+          "row": {
+            "type": "integer",
+            "minimum": 2,
+            "maximum": 9007199254740991
+          },
+          "masked_phone": {
+            "type": "string",
+            "pattern": "^\\*\\*\\*[0-9]{2,3}(?![\\s\\S])"
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "locale": {
+            "type": "string",
+            "enum": [
+              "ar",
+              "en"
+            ]
+          },
+          "status": {
+            "$ref": "#/components/schemas/CustomerImportRowStatus"
+          },
+          "warning": {
+            "nullable": true,
+            "enum": [
+              "EXISTING_NO_RATING_IGNORED",
+              null
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "row",
+          "masked_phone",
+          "name",
+          "locale",
+          "status",
+          "warning"
+        ]
+      },
+      "CustomerImportTemplate": {
+        "type": "object",
+        "properties": {
+          "file_name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 255
+          },
+          "content_type": {
+            "type": "string",
+            "enum": [
+              "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+            ]
+          },
+          "content_base64": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": [
+          "file_name",
+          "content_type",
+          "content_base64"
+        ]
+      },
+      "PreviewCustomerImportInput": {
+        "type": "object",
+        "properties": {
+          "file_id": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          }
+        },
+        "required": [
+          "file_id"
+        ],
+        "additionalProperties": false
+      },
+      "CustomerImportRowsCursor": {
+        "type": "string",
+        "pattern": "^(?:[2-9]|[1-9][0-9]{1,5}|10[0-3][0-9]{4}|104[0-7][0-9]{3}|1048[0-4][0-9]{2}|10485[0-6][0-9]|104857[0-6])$",
+        "description": "Original Excel row number from 2 through 1048576."
+      },
+      "CustomerImportRowsQuery": {
+        "type": "object",
+        "properties": {
+          "cursor": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/CustomerImportRowsCursor"
+              }
+            ]
+          },
+          "limit": {
+            "default": 20,
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 100
+          }
+        },
+        "additionalProperties": false
+      },
+      "CustomerImportPreview": {
+        "type": "object",
+        "properties": {
+          "preview_id": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "row_count": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 500
+          },
+          "new_count": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 500
+          },
+          "existing_count": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 500
+          },
+          "error_count": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 5500
+          },
+          "errors": {
+            "maxItems": 5500,
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CustomerImportRowError"
+            }
+          },
+          "rows": {
+            "maxItems": 20,
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CustomerImportRow"
+            }
+          },
+          "next_cursor": {
+            "nullable": true,
+            "type": "string",
+            "pattern": "^(?:[2-9]|[1-9][0-9]{1,5}|10[0-3][0-9]{4}|104[0-7][0-9]{3}|1048[0-4][0-9]{2}|10485[0-6][0-9]|104857[0-6])$",
+            "description": "Original Excel row number from 2 through 1048576."
+          }
+        },
+        "required": [
+          "preview_id",
+          "row_count",
+          "new_count",
+          "existing_count",
+          "error_count",
+          "errors",
+          "rows",
+          "next_cursor"
+        ]
+      },
+      "CustomerImportRowsPage": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "maxItems": 100,
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CustomerImportRow"
+            }
+          },
+          "next_cursor": {
+            "nullable": true,
+            "type": "string",
+            "pattern": "^(?:[2-9]|[1-9][0-9]{1,5}|10[0-3][0-9]{4}|104[0-7][0-9]{3}|1048[0-4][0-9]{2}|10485[0-6][0-9]|104857[0-6])$",
+            "description": "Original Excel row number from 2 through 1048576."
+          }
+        },
+        "required": [
+          "items",
+          "next_cursor"
+        ]
+      },
+      "CustomerImportCommitErrorCode": {
+        "type": "string",
+        "enum": [
+          "IMPORT_PREVIEW_EXPIRED",
+          "IMPORT_PREVIEW_HAS_ERRORS",
+          "IMPORT_COMMIT_FAILED"
+        ]
+      },
+      "CustomerImportStatus": {
+        "type": "object",
+        "properties": {
+          "preview_id": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "ready",
+              "commit_requested",
+              "committed",
+              "failed"
+            ]
+          },
+          "created_count": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 500
+          },
+          "error_code": {
+            "nullable": true,
+            "enum": [
+              "IMPORT_PREVIEW_EXPIRED",
+              "IMPORT_PREVIEW_HAS_ERRORS",
+              "IMPORT_COMMIT_FAILED",
+              null
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "preview_id",
+          "status",
+          "created_count",
+          "error_code"
+        ]
+      },
+      "CommitCustomerImportInput": {
+        "type": "object",
+        "properties": {
+          "preview_id": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          }
+        },
+        "required": [
+          "preview_id"
+        ],
+        "additionalProperties": false
+      },
+      "CustomerImportCommitAccepted": {
+        "type": "object",
+        "properties": {
+          "preview_id": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          }
+        },
+        "required": [
+          "preview_id"
+        ]
+      },
       "RatingView": {
         "type": "object",
         "properties": {
@@ -51928,6 +53152,18 @@
             "nullable": true,
             "type": "string"
           },
+          "provider_receipt": {
+            "nullable": true,
+            "type": "string",
+            "enum": [
+              "DELIVERED",
+              "BOUNCED",
+              "COMPLAINED",
+              "SUPPRESSED",
+              "DELAYED",
+              "FAILED"
+            ]
+          },
           "failure_code": {
             "nullable": true,
             "type": "string",
@@ -51978,6 +53214,7 @@
           "sending_at",
           "finished_at",
           "provider_message_id",
+          "provider_receipt",
           "failure_code",
           "outcome_known",
           "created_at",

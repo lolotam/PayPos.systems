@@ -30,3 +30,4 @@ export {
   attendanceStatementRenderErrors,
 } from './attendance-statement-errors.js';
 export { commissionStatementRenderErrors } from './commission-statement-errors.js';
+export { customerImportAr, customerImportEn } from './customer-import.js';

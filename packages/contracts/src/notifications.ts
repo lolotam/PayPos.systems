@@ -38,6 +38,15 @@ export const pushFailureCode = z.enum([
   'VAPID_REJECTED',
   'PROVIDER_429',
 ]);
+// آخر دليل ردّ عليه المزود لمحاولة إيميل، زي ما سجل التسليم بيعرضه (spec 075 FR-017).
+export const providerReceipt = z.enum([
+  'DELIVERED',
+  'BOUNCED',
+  'COMPLAINED',
+  'SUPPRESSED',
+  'DELAYED',
+  'FAILED',
+]);
 export const notificationParameter = z.strictObject({
   name: z.string().regex(/^[a-z][a-z0-9_]{0,63}$/),
   type: z.enum(['text', 'number']),
@@ -140,6 +149,7 @@ export const deliveryLogItem = z
     sending_at: timestamp.nullable(),
     finished_at: timestamp.nullable(),
     provider_message_id: z.string().nullable(),
+    provider_receipt: providerReceipt.nullable(),
     failure_code: notificationFailureCode.nullable(),
     outcome_known: z.boolean().nullable(),
     created_at: timestamp,
@@ -148,6 +158,8 @@ export const deliveryLogItem = z
   .refine((value) =>
     value.channel === 'email' ? value.phone_last3 === null : value.phone_last3 !== null,
   )
+  // دليل المزود بيحمله الإيميل بس: محاولة واتساب ما عندهاش دليل ردّ.
+  .refine((value) => value.channel !== 'whatsapp' || value.provider_receipt === null)
   .meta({ id: 'DeliveryLogItem' });
 export const deliveryLogQuery = pageQuery.meta({ id: 'DeliveryLogQuery' });
 export const deliveryLogPage = z
@@ -164,3 +176,4 @@ export type PushFailureCode = z.infer<typeof pushFailureCode>;
 export type NotificationResult = z.infer<typeof notificationResult>;
 export type DeliveryLogItem = z.infer<typeof deliveryLogItem>;
 export type DeliveryLogQuery = z.infer<typeof deliveryLogQuery>;
+export type ProviderReceipt = z.infer<typeof providerReceipt>;

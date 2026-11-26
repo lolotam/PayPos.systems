@@ -4,6 +4,7 @@ import type { ChannelPort, SendConfiguration } from '../ports/channel.port.ts';
 
 export function createEmailChannelAdapter(
   channel: Channel<EmailRequest> | undefined,
+  adminOrigin = 'https://app.pospay.systems',
 ): ChannelPort & SendConfiguration {
   const failure: SendConfiguration['failure'] = (attempt) => {
     if (channel === undefined) return 'CONFIG_INVALID';
@@ -12,7 +13,7 @@ export function createEmailChannelAdapter(
       attempt.templateRevision,
       attempt.locale ?? '',
       attempt.safeParameters,
-      'https://app.pospay.systems',
+      adminOrigin,
     ) === null
       ? 'PARAMETERS_INVALID'
       : null;

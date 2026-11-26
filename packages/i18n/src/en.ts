@@ -26,6 +26,7 @@ import { invitationsEn, invitationErrorsEn } from './invitations-catalog.js';
 import { staffLoginEn } from './staff-login-catalog.js';
 import { catalogServicesEn, catalogServiceErrorsEn } from './catalog-services.js';
 import { serviceImportEn } from './service-import.js';
+import { customerImportEn } from './customer-import.js';
 import { catalogServiceCategoriesEn } from './catalog-service-categories.js';
 import { catalogServiceCategoryBranchesEn } from './catalog-service-category-branches.js';
 import { adminEn } from './admin-catalog.js';
@@ -254,6 +255,8 @@ export const en = {
     ...employeeNumberErrorsEn,
     EMPLOYEE_CARD_CODE_UNAVAILABLE: "This card code can't be used. Choose another code.",
     ...employeeImportErrorsEn,
+    IMPORT_BUSINESS_COUNTRY_REQUIRED:
+      'Set the business country in settings before importing customers.',
     ...catalogServiceErrorsEn,
     ALERT_RULE_INVALID:
       'A value is outside what this alert kind allows (minutes, roles or channels).',
@@ -348,6 +351,7 @@ export const en = {
   },
   catalogServices: catalogServicesEn,
   catalogServiceImport: serviceImportEn,
+  customerImport: customerImportEn,
   catalogServiceCategories: catalogServiceCategoriesEn,
   catalogServiceCategoryBranches: catalogServiceCategoryBranchesEn,
   catalogPackageTypes: catalogPackageTypesEn,

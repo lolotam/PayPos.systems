@@ -168,6 +168,15 @@ services:
       WHATSAPP_ACCESS_TOKEN: ${WHATSAPP_ACCESS_TOKEN:-}
       WHATSAPP_PHONE_NUMBER_ID: ${WHATSAPP_PHONE_NUMBER_ID:-}
       WHATSAPP_GRAPH_API_VERSION: v23.0
+      # Sending email (spec 075 C2): worker only; the API never holds a sending key.
+      # Empty values keep the email channel off and the worker sends nothing.
+      RESEND_API_KEY: ${RESEND_API_KEY:-}
+      EMAIL_FROM_ADDRESS: ${EMAIL_FROM_ADDRESS:-}
+      EMAIL_FROM_NAME: ${EMAIL_FROM_NAME:-}
+      EMAIL_REPLY_TO: ${EMAIL_REPLY_TO:-}
+      EMAIL_ADMIN_ORIGIN: ${EMAIL_ADMIN_ORIGIN:-}
+      NOTIFICATION_EMAIL_HASH_KEY: ${NOTIFICATION_EMAIL_HASH_KEY:-}
+      NOTIFICATION_EMAIL_HASH_KEY_ID: ${NOTIFICATION_EMAIL_HASH_KEY_ID:-}
     depends_on:
       migrate:
         condition: service_completed_successfully

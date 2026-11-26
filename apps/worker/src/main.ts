@@ -13,6 +13,7 @@ import { knownEventTypes } from './outbox/known-event-types.ts';
 import {
   createNotificationModule,
   createInAppNotificationModule,
+  createEmailSendModule,
   readNotificationConfiguration,
   startEmailCapability,
   startPushCapability,
@@ -44,7 +45,10 @@ import {
   startPackageSaleWorker,
   startPackageImportCommitWorker,
 } from './modules/orders/index.ts';
-import { closedRatingClaimsLifecycle } from './modules/customers/index.ts';
+import {
+  closedRatingClaimsLifecycle,
+  startCustomersImportWorker,
+} from './modules/customers/index.ts';
 import { closeOptional, optionalWithin } from './shared/optional-capability.ts';
 import {
   beginDocumentRendering,
@@ -54,7 +58,10 @@ import {
 import { DocumentSourceRegistry } from './documents/source-registry.ts';
 import { createAttendanceStatementSource } from './documents/sources/attendance-statement.source.ts';
 import { createCommissionStatementSource } from './documents/sources/commission-statement.source.ts';
-import { createCommissionStatementExportReader, createParkedCommissionAlert } from './modules/commissions/index.ts';
+import {
+  createCommissionStatementExportReader,
+  createParkedCommissionAlert,
+} from './modules/commissions/index.ts';
 import { businessCalendar, businessTimeZone } from './modules/tenancy/index.ts';
 import { startCommissionReminderWiring } from './commission-reminders.ts';
 import { drainDispatchAndDocuments } from './documents/shutdown-drain.ts';
@@ -87,6 +94,11 @@ const imports = startPackageImportCommitWorker(app, systemUuidV7(), {
   retryDelayMs,
 });
 const staff = startStaffWorker(app, systemUuidV7(), config.REDIS_URL, { now: () => new Date() });
+// عامل تثبيت استيراد العملاء: حدث الطلب من الـ outbox إلى الطابور ثم تثبيت ذري (073 D-4).
+const customerImports = startCustomersImportWorker(app, systemUuidV7(), {
+  redisUrl: config.REDIS_URL,
+  clock: { now: () => new Date() },
+});
 // قفل وفتح التصنيفات الكبيرة عملية خلفية واحدة لكل طلب؛ العامل نايم لحد ما يجي المنتج.
 const catalog = startCatalogWorker(app, systemUuidV7(), config.REDIS_URL, {
   now: () => new Date(),
@@ -97,6 +109,8 @@ const email = await startEmailCapability({
   logger,
   ids: systemUuidV7(),
   clock: { now: () => new Date() },
+  appDatabase: app,
+  redisUrl: config.REDIS_URL,
 });
 // ADR-0052 قرار 2: جاهزية الدفع في العامل وحدها بتفعّل كتابة المحاولات؛ من غيرها مفيش دفع.
 // وأحداث الإذن بتقعد في الـ outbox لحد ما الدفع يتفعّل، وبعد آخر محاولة في السياسة بتتوقف زي أي حدث سام.
@@ -148,6 +162,17 @@ if (production)
     { capability: { name: 'TENANT_WHATSAPP', state: 'DISABLED', reason: 'LIVE_NOT_AUTHORIZED' } },
     'staff OTP capability',
   );
+// واتساب مقفولة بالكامل (notifications === null)؛ لو البريد مفعّل ليه مسار إرسال لوحده في طابور notifications-send.
+const emailSend =
+  notifications === null && email.module.capability.enabled
+    ? createEmailSendModule({
+        database: app,
+        ids: systemUuidV7(),
+        clock: { now: () => new Date() },
+        email: email.module,
+        redis,
+      })
+    : undefined;
 let globalDatabase: OptionalCapabilities['database'];
 let inbound: OptionalCapabilities['inbound'];
 let otp: OptionalCapabilities['otp'];
@@ -183,6 +208,7 @@ const businessDeliver = createDeliverer(
       sales,
       imports,
       catalog,
+      customerImports,
     ),
   },
 );
@@ -196,14 +222,16 @@ const deliver: typeof businessDeliver = (event) =>
   previews.deliver(event, (event) =>
     sales.deliver(event, (event) =>
       imports.deliver(event, (event) =>
-        catalog.deliver(event, (event) =>
-          // تسجيل جدولة التذكيرات بيحصل قبل أي علامة استهلاك (ADR-0061 §2).
-          commissionReminders.delivery(event, (claimed) =>
-            deliverFilesEvent(claimed, {
-              register: (claimed) => files.deliver(claimed),
-              staff: (claimed, next) => staff.deliver(claimed, next),
-              core: (claimed) => ratingClaims.deliver(claimed, pushTransport),
-            }),
+        customerImports.deliver(event, (event) =>
+          catalog.deliver(event, (event) =>
+            // تسجيل جدولة التذكيرات بيحصل قبل أي علامة استهلاك (ADR-0061 §2).
+            commissionReminders.delivery(event, (claimed) =>
+              deliverFilesEvent(claimed, {
+                register: (claimed) => files.deliver(claimed),
+                staff: (claimed, next) => staff.deliver(claimed, next),
+                core: (claimed) => ratingClaims.deliver(claimed, pushTransport),
+              }),
+            ),
           ),
         ),
       ),
@@ -243,6 +271,7 @@ const release = async (): Promise<void> => {
   commissionReminders.stop();
   // تثبيت الاستيراد أول عامل يُغلق وبالقوة: الإغلاق القسري لا ينتظر، ويمنعه من بدء تثبيت مالي جديد بينما بقية العمال تُصفّى.
   await imports.close();
+  await customerImports.close();
   // ننتظر فحص الملفات الجاري قبل إغلاق اتصال قاعدة البيانات.
   await previews.close();
   await sales.close();
@@ -281,6 +310,7 @@ function readinessChecks(): readonly ReadinessCheck[] {
     { name: 'package-previews', check: () => previews.ready() },
     { name: 'package-sale', check: () => sales.ready() },
     { name: 'package-import-commit', check: () => imports.ready() },
+    { name: 'customer-import-commit', check: () => customerImports.ready() },
     { name: 'leave-history-reports', check: () => staff.reportsReady() },
     { name: 'service-category-closing', check: () => catalog.ready() },
     // A wrong dispatcher URL or password leaves the worker with nothing to do — it is not ready.
@@ -305,6 +335,7 @@ async function startWorkerCore(): Promise<void> {
     env: process.env,
     logger,
     notifications,
+    emailSend,
     redisUrl: config.REDIS_URL,
     businessDeliver,
     intakeUrl: config.PLATFORM_NOTIFICATIONS_DATABASE_URL,
@@ -323,9 +354,8 @@ async function startWorkerCore(): Promise<void> {
       readiness: readinessChecks(),
       stopPolling: async () => {
         stopping = true;
-        email.stop();
         maintenance?.stop();
-        await closeOptional([() => push.stop()]);
+        await closeOptional([() => email.stop(), () => push.stop()]);
         await drainDispatchAndDocuments({
           stopDispatch: () => loop.stop(),
           stopDocuments: () => documents?.stop(),
