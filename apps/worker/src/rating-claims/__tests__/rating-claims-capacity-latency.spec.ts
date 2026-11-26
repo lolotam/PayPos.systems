@@ -1,7 +1,12 @@
 // قياس السعة وزمن المطالبة على الـ lane المعزول: خط أساس غير متزاحم، ثم حمل متزاحم متعدد الشركات.
+import { cpus, release, type } from 'node:os';
 import { afterAll, beforeAll, expect, it } from 'vitest';
 
 import { TENANT } from '../../../../../packages/db/test/tenancy-fixtures.ts';
+import {
+  FORWARD_VISITS,
+  RETRY_VISITS,
+} from '../../modules/customers/domain/rating-claim-scheduling.ts';
 import { openSecondCompany, secondCompanyTarget } from './rating-claims-recovery.fixture.ts';
 import { seedDueRows, seedPlan } from './rating-claims-rows.fixture.ts';
 import { ratingClaimsWorld, type RatingClaimsWorld } from './rating-claims-world.fixture.ts';
@@ -129,21 +134,19 @@ function buildReport(
   const withRequestBaseline = percentiles(baseline.samples);
   const withRequestContended = percentiles(contended.samples);
   const seeded = BASE_COUNT + CONTENDED_COUNT * 3;
+  const cpuInfo = cpus();
   return {
     generatedAt: new Date().toISOString(),
-    baseSha: '32b523744499b3367954944d90ae935b338c556e',
     environment: {
-      cpu: 'Intel(R) Core(TM) i7-8700 CPU @ 3.20GHz (6 cores / 12 logical)',
-      os: 'Windows NT 10.0.26100.0',
-      postgres: 'Docker Postgres 16 (isolated lane 55401)',
-      redis: 'private Redis 7 (56382)',
-      date: '2026-11-26',
+      cpu: `${cpuInfo[0]?.model ?? 'unknown'} (${cpuInfo.length} logical)`,
+      os: `${type()} ${release()}`,
+      date: new Date().toISOString().slice(0, 10),
     },
     settings: {
       tenantTimeoutMs: 1000,
       databasePoolMax: POOL_MAX,
-      forwardVisits: 75,
-      retryVisits: 25,
+      forwardVisits: FORWARD_VISITS,
+      retryVisits: RETRY_VISITS,
       clock: world.base.clock.at.toISOString(),
     },
     baseline: {
@@ -183,7 +186,7 @@ it('measures the baseline and the contended capacity of the claim scheduler', as
   const report = buildReport(baseline, contended, await countersOf(contended));
   console.info('rating_claims_capacity_measurement', JSON.stringify(report));
 
-  // PP-165: ما فيش حد ثابت بالمللي ثانية؛ الفحوص وظيفية وبحدود نسبية بس.
+  // ما فيش حد ثابت بالمللي ثانية؛ الفحوص وظيفية وبنسب تزاحم داخل نفس التشغيلة.
   expect(report.counters.unknown).toBe(0);
   expect(report.counters.overflow).toBe(0);
   expect(report.counters.pastDeadline).toBe(0);
@@ -193,6 +196,37 @@ it('measures the baseline and the contended capacity of the claim scheduler', as
   expect(report.baseline.withRequest.samples).toBeGreaterThan(0);
   expect(report.contended.withRequest.samples).toBeGreaterThan(0);
   expect(report.ratio.withRequestP95).toBeGreaterThan(0);
-  expect(report.ratio.withRequestP95).toBeLessThan(50);
-  expect(report.ratio.withRequestP99).toBeLessThan(50);
+  expect(report.ratio.withRequestP95).toBeLessThan(5);
+  expect(report.ratio.withRequestP99).toBeLessThan(5);
+  expect(report.contended.perCompany).toEqual([
+    {
+      companyId: world.company,
+      turns: 12,
+      visits: CONTENDED_COUNT,
+      settlements: {
+        TERMINAL: CONTENDED_COUNT,
+        ABSENT: 0,
+        FUTURE_UNATTEMPTED: 0,
+        RETRY: 0,
+        DELEGATED: 0,
+      },
+    },
+    {
+      companyId: world.otherCompany,
+      turns: 6,
+      visits: CONTENDED_COUNT * 2,
+      settlements: {
+        TERMINAL: CONTENDED_COUNT * 2,
+        ABSENT: 0,
+        FUTURE_UNATTEMPTED: 0,
+        RETRY: 0,
+        DELEGATED: 0,
+      },
+    },
+  ]);
+  expect(
+    contended.turns.filter(
+      (run) => run.companyId === world.company && run.summary.end === 'ACQUIRE_BUSY',
+    ).length,
+  ).toBeGreaterThanOrEqual(1);
 }, 900_000);

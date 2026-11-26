@@ -57,6 +57,7 @@ async function consumeAfterRuleRead(input: ClaimedEvent, hook: () => Promise<voi
       input,
     ),
   );
+  expect(fired).toBe(true);
 }
 
 it('a rule change committed before the snapshot decides the notice', async () => {

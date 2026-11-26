@@ -72,6 +72,7 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
+  await processor?.close();
   await dispatcher?.close();
   await queue?.obliterate({ force: true }).catch(() => undefined);
   await queue?.close();

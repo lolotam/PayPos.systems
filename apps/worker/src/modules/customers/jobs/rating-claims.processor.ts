@@ -109,7 +109,7 @@ export async function closeRedisClient(client: Redis): Promise<void> {
  * @param close القفل نفسه
  * @returns لا شيء
  */
-async function closeQuietly(failures: unknown[], close: () => Promise<void>): Promise<void> {
+export async function closeQuietly(failures: unknown[], close: () => Promise<void>): Promise<void> {
   try {
     await close();
   } catch (error) {
@@ -126,7 +126,7 @@ async function closeQuietly(failures: unknown[], close: () => Promise<void>): Pr
  * @param failures الأخطاء اللي اتجمعت
  * @returns لا شيء
  */
-function throwCloseFailures(failures: readonly unknown[]): void {
+export function throwCloseFailures(failures: readonly unknown[]): void {
   if (failures.length === 1) throw failures[0];
   if (failures.length > 1) throw new AggregateError([...failures], 'RATING_CLAIMS_CLOSE_FAILED');
 }

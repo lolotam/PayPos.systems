@@ -14,6 +14,7 @@ import {
   jobHarness,
   next,
   noopTurn,
+  PASSWORD,
   PHONE,
   RAW,
   REDIS_CREDENTIALS,
@@ -47,6 +48,10 @@ it('an escaping upper id failure is reported with the company and no message', a
   await expect(turn.execute(COMPANY)).rejects.toThrow('SYNTHETIC_UPPER_ID_FAILURE');
   const failure = cap.lines().find((line) => line['msg'] === 'error');
   expect(failure).toMatchObject({ company_id: COMPANY, failure: { type: 'PostgresError' } });
+  const logs = cap.logs();
+  for (const secret of [PHONE, TOKEN, PASSWORD, REDIS_CREDENTIALS, RAW]) {
+    expect(logs).not.toContain(secret);
+  }
 });
 
 it('a registration failure is logged with the company, the event and the attempt', async () => {
@@ -121,7 +126,7 @@ it('a failed job with unreadable data is logged without a guessed company', asyn
 
 it('a connection-wide failure is logged without a company', async () => {
   const cap = capture();
-  const harness = jobHarness(cap.logger, noopTurn(), 'redis://127.0.0.1:1');
+  const harness = jobHarness(cap.logger, noopTurn(), `redis://:${PASSWORD}@127.0.0.1:1`);
   try {
     await vi.waitFor(
       () =>
@@ -129,6 +134,7 @@ it('a connection-wide failure is logged without a company', async () => {
       { timeout: 20_000 },
     );
     for (const line of cap.lines()) expect(line['company_id']).toBeUndefined();
+    expect(cap.logs()).not.toContain(PASSWORD);
   } finally {
     await harness.close();
   }
@@ -142,6 +148,7 @@ it('no phone, token, password, redis credential or raw payload reaches the logs'
     },
   });
   try {
+    await harness.queue.add('claim', { companyId: COMPANY }, { attempts: 1 });
     await harness.queue.add(
       'claim',
       { companyId: COMPANY, rating_token: TOKEN, payload: RAW, phone: PHONE },
@@ -149,11 +156,13 @@ it('no phone, token, password, redis credential or raw payload reaches the logs'
     );
     await vi.waitFor(
       () =>
-        expect(cap.lines().some((line) => line['msg'] === 'rating claims job failed')).toBe(true),
+        expect(
+          cap.lines().filter((line) => line['msg'] === 'rating claims job failed').length,
+        ).toBeGreaterThanOrEqual(2),
       { timeout: 20_000 },
     );
     const logs = cap.logs();
-    for (const secret of [PHONE, TOKEN, 'supersecret', REDIS_CREDENTIALS, RAW]) {
+    for (const secret of [PHONE, TOKEN, PASSWORD, REDIS_CREDENTIALS, RAW]) {
       expect(logs).not.toContain(secret);
     }
   } finally {

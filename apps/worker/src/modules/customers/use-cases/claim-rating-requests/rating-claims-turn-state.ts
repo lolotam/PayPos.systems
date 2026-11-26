@@ -170,12 +170,13 @@ export class RatingClaimsTurnState<Transaction = unknown> {
   async release(): Promise<void> {
     const result = await this.ports.state.release(this.fence);
     this.accept(result);
-    if (result.code === 'STALE' || result.code === 'BUSY' || result.code === 'MISSING') {
+    if (
+      result.code === 'STALE' ||
+      result.code === 'BUSY' ||
+      result.code === 'MISSING' ||
+      result.code === 'CORRUPT'
+    ) {
       this.ports.diagnostics.fenceLost(this.companyId, result.code, 'release');
-      return;
-    }
-    if (result.code === 'CORRUPT') {
-      this.ports.diagnostics.fenceLost(this.companyId, 'CORRUPT', 'release');
     }
   }
 

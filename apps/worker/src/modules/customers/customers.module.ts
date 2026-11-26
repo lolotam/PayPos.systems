@@ -13,8 +13,10 @@ import {
 } from './jobs/bootstrap-rating-requests.ts';
 import {
   RATING_CLAIMS_TRIGGERS,
+  closeQuietly,
   closeRedisClient,
   startRatingClaimsProcessor,
+  throwCloseFailures,
 } from './jobs/rating-claims.processor.ts';
 import { branchScheduleHoursAdapter } from './persistence/branch-schedule-hours.adapter.ts';
 import { businessNames } from './persistence/business-names.adapter.ts';
@@ -306,18 +308,9 @@ export function createRatingClaimsRuntime(deps: RatingClaimsRuntimeDeps): Rating
       // العامل بيتصفّى الأول، وبعدين عميل الحالة؛ عميل الحالة اتعمل هنا، فبيتقفل هنا.
       // فشل واحد ما بيمنعش الباقي من القفل، وكل الأخطاء بتترمي في الآخر.
       const failures: unknown[] = [];
-      try {
-        await processor.close();
-      } catch (error) {
-        failures.push(error);
-      }
-      try {
-        await closeRedisClient(redis);
-      } catch (error) {
-        failures.push(error);
-      }
-      if (failures.length === 1) throw failures[0];
-      if (failures.length > 1) throw new AggregateError(failures, 'RATING_CLAIMS_CLOSE_FAILED');
+      await closeQuietly(failures, () => processor.close());
+      await closeQuietly(failures, () => closeRedisClient(redis));
+      throwCloseFailures(failures);
     },
     eventTypes: [...RATING_CLAIMS_TRIGGERS, RATING_CLAIMS_DISCOVERY],
   };

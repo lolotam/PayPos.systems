@@ -450,24 +450,24 @@ and customers behind them.
 
 | metric | baseline | contended | ratio |
 |---|---|---|---|
-| `withRequest` p50 | 24.49 ms | 24.55 ms | — |
-| `withRequest` p95 | 30.94 ms | 39.99 ms | 1.29 |
-| `withRequest` p99 | 34.48 ms | 55.78 ms | 1.62 |
+| `withRequest` p50 | 29.55 ms | 33.21 ms | — |
+| `withRequest` p95 | 40.00 ms | 54.14 ms | 1.35 |
+| `withRequest` p99 | 45.30 ms | 79.47 ms | 1.75 |
 | `withRequest` samples | 120 | 360 | — |
-| turn duration p50 / p95 / p99 | 1192.36 / 2096.43 / 2096.43 ms | 11.87 / 2481.68 / 2481.68 ms | — |
-| enqueue-to-active p50 / p95 | 7.98 / 58.44 ms | 0 / 53.97 ms | — |
+| turn duration p50 / p95 / p99 | 1473.09 / 2502.43 / 2502.43 ms | 11.12 / 3069.71 / 3069.71 ms | — |
+| enqueue-to-active p50 / p95 | 9.40 / 61.56 ms | 0 / 56.14 ms | — |
 
 **Functional counters in the same run.** `unknown = 0`, `retry = 0`, `overflow = 0`,
 `pastDeadline = 0`, `duplicates = 0`; backlog `seeded = 480`, `drained = 480`, `remaining = 0`.
 The contended `p50` of the turn duration is small because most contended turns are the losing
 overlap: they are refused at `acquire` with `ACQUIRE_BUSY` and do no work — the fence held.
 
-**How the test asserts (PP-165).** There is **no fixed millisecond threshold** anywhere in the
-file. The assertions are functional (`unknown`, `overflow`, `pastDeadline` and `duplicates` are
-zero; the backlog is fully drained; both companies kept their own fence) plus **relative** sanity
-bounds measured against the baseline of the same run (the contended `p95` ratio must be above zero
-and below 50×). A performance verdict is a ratio to the unchanged baseline measured in the same
-run, never a millisecond limit (CLAUDE.md V3.23, PP-165).
+**How the test asserts.** There is **no fixed millisecond threshold** anywhere in the file. The assertions
+are functional (`unknown`, `overflow`, `pastDeadline` and `duplicates` are zero; the backlog is fully
+drained; each company hits its exact `perCompany` turn/visit/settlement totals and overlapping turns
+trigger `ACQUIRE_BUSY` under the fence) plus **relative** within-run contention bounds against
+the baseline of the same run (`withRequest` contended p95 and p99 ratios above zero and below 5×,
+following the ratio-over-fixed-millisecond discipline of `CLAUDE.md` V3.23 / PP-165).
 
 ### 11. What stays with 2c: the Redis-loss boundary
 
