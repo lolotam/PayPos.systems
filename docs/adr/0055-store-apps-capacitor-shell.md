@@ -517,3 +517,77 @@ addendum (d). One fix comes before fallback 2:
 Spec 065 acceptance 3 (the session survives an app restart) stays the bar. Accepting a new sign-in after an iOS
 restart would change the product, so it is not part of this decision. It would be a feature question for both owners.
 The fix starts after the 2026-10-25 handover (Waleed, ~13:30).
+
+## Addendum 2026-11-26 (f) — iOS staff cookie persistence mechanism (PP-65)
+
+**Context.** Addendum (e) requires one fix inside `apps/business` before fallback 2 of decision 3: a native fix that
+writes the staff cookie to persistent storage right after sign-in, with no change to the API, `packages/auth` or the
+cookie attributes. The iOS spike (run 40189531765, 2026-10-25) failed exactly at `The staff session should survive the
+restart`: the native cookie store had not flushed to disk before the test killed the process.
+
+**Decision (PP-65).** The mechanism is `StaffSessionCookieVault`, a private class inside
+`apps/business/ios/App/App/AppDelegate.swift`. It lives in that file, so `App.xcodeproj` is not edited, and it adds no
+SPM or CocoaPods dependency (`CryptoKit` and `WebKit` are system frameworks, autolinked).
+
+- **The file on disk is the authority.** `restoreFromDisk()` runs inside
+  `application(_:didFinishLaunchingWithOptions:)`, after `excludeAppStorageFromBackup()` and **before** `SceneDelegate`
+  creates `CAPBridgeViewController`, so the first request already carries the restored cookie. It runs **before** the
+  notification observers are registered, because `HTTPCookieStorage.setCookie` posts
+  `NSHTTPCookieManagerCookiesChanged`, and a sync that ran mid-restore would see an empty store and delete what was
+  just restored.
+- **The accept policy is set first.** `start()` sets `HTTPCookieStorage.shared.cookieAcceptPolicy = .always` before it
+  calls `restoreFromDisk()`, matching the policy `CAPBridgeViewController.prepareWebView` sets later. Without it the
+  cookie jar can refuse a cookie from another domain, and the staff sign-in fails silently.
+- **The save is synchronous.** The observer for `NSHTTPCookieManagerCookiesChanged` is registered with `queue: nil`,
+  so the handler runs inline on the posting thread, with no dispatch to a background queue in app code. The reason is
+  the failure itself: `XCUIApplication.terminate()` kills the process the moment «Staff signed in» renders, and
+  `CFNetwork`'s deferred `CFHTTPCookieStorage` flush never runs. Whether `CFNetwork` actually delivers the
+  notification before `XCUIApplication.terminate()` kills the process is not claimed here: it is verified empirically by
+  the iOS simulator spike on `main`. `UIApplication.willResignActiveNotification` and
+  `UIApplication.didEnterBackgroundNotification` are extra, cheap triggers for the same save.
+- **The filter is strict, and it covers the staff cookie only:** `pospay-staff.session_token` and nothing else —
+  `HttpOnly`, `Secure`, `Path=/v1`, a non-empty value, a non-empty domain that is not `localhost`, and a non-nil
+  `expiresDate` in the future. The personal OTP cookie (`pospay-personal.session_token`) is deliberately **not**
+  persisted: it stays on the web view until M-1c-ii decides the personal session on the first real iPhone. The expiry
+  check is local, against the same 8-hour staff-session cutoff the API enforces.
+- **The attributes are reconstructed faithfully.** The saved fields are re-applied one by one: name, value, the exact
+  domain (a host-only domain stays without a leading dot), path, expiry, version, and `Secure` / `HttpOnly` /
+  `SameSite` only when the saved cookie had them. Nothing is added, removed or changed, because those attributes are
+  the session contract of addendum (e).
+- **Anti-resurrection.** Capacitor's `CapacitorWKCookieObserver` copies cookies back from the `WKWebView` store into
+  the native jar, so a signed-out or rotated token can reappear and look like a fresh sign-in. The vault keeps the last
+  8 SHA-256 digests of retired tokens in `pospay-staff-retired-hashes.plist` (digests only, never a token value) and
+  deletes any candidate whose digest is retired. On sign-out or expiry it clears the persisted file and empties the
+  `WKWebsiteDataStore` copy of the staff cookie. `CapacitorHttp.setCookiesFromResponse` splits the `Set-Cookie` header
+  at its comma and calls `CapacitorCookieManager.setCookie("")` with the empty remainder, which resolves to
+  `config.serverURL` (`capacitor://localhost`); that leaves a broken `expiresDate == nil` copy of the staff cookie on
+  `localhost`, while `URLSession` saves the real cookie on the API host. The same rule filters that copy out. If a
+  session-only (`expiresDate == nil`) copy of the current token ever appears without a valid expiry while the saved
+  `currentCookie` is still unexpired, `StaffSessionCookieVault` restores the saved cookie back into
+  `HTTPCookieStorage.shared` rather than treating it as a sign-out.
+- **The newer expiry wins.** A new, non-retired candidate replaces an active, unexpired session only if its
+  `expiresDate >= currentCookie.expiresDate`. An older, unretired token copied back from the `WKWebView` store (for
+  example beyond the 8-digest cap) therefore cannot displace the current session: its digest is retired and the cookie
+  is deleted instead of becoming the new session.
+- **Concurrency.** A recursive lock plus a re-entrancy flag guard the state machine, because `setCookie` and
+  `deleteCookie` post the notification synchronously. `DispatchQueue.main.sync` is never used.
+
+**Confidentiality and data protection.** The token lives in `Library/Application Support/pospay-staff-cookie.plist`,
+written with `.completeFileProtectionUntilFirstUserAuthentication` (the protection level the iOS cookie store itself
+uses) and marked `isExcludedFromBackup = true`, so it never travels with an iCloud or a device backup. No cookie value,
+partial token or digest is ever logged: the vault contains no logging call at all. The token file is deleted on sign-out
+and on expiry, and the retired-digest file holds digests only.
+
+**Review.** Under owner decisions PP-261 and PP-265 (no new Codex sessions of any kind), the pre-implementation
+read-only design review was performed by `claude-opus-5-5` at medium effort instead of Codex. It found 0 P0 blockers,
+and every P1 and P2 point it raised is built into the mechanism: the synchronous save, the strict filter, the faithful
+attribute reconstruction, the anti-resurrection digests, the re-entrancy guard, and the file protection. A second
+`claude-opus-5-5` review of the implementation code (2026-11-26) raised one P0 and the remaining P1 and P2 points, and
+all of them are fixed in the mechanism recorded above: the restore-before-sign-out guard for a session-only copy of the
+current token (P0-1, P2-3, P2-4) and the newer-expiry rule that stops an older `WKWebView` token from displacing the
+current session (P2-2).
+
+**Consequences.** The fix is accepted only when the iOS simulator spike's restart step passes on `main`. **Fallback 2 of
+decision 3 (a native token in the iOS Keychain) still applies only if that restart step fails on `main`**, and it keeps
+its own conditions: its own ADR-0055 addendum, an ADR-0019 addendum and the web manager's agreement. Nothing in the
+API, `packages/auth` or the cookie attributes changes, and the personal-session cookie stays untouched until M-1c-ii.
