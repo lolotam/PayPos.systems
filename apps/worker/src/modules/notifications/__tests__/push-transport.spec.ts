@@ -22,8 +22,9 @@ function fakeQueue() {
       added.push({ name, data, opts });
       return { id: 'job' };
     },
+    getJob: async () => undefined,
   };
-  return { added, queue: queue as unknown as Pick<Queue, 'add'> };
+  return { added, queue: queue as unknown as Pick<Queue, 'add' | 'getJob'> };
 }
 
 function claimed(over: Partial<ClaimedEvent> = {}): ClaimedEvent {
@@ -109,7 +110,7 @@ it('a queue that refuses the job is retried', async () => {
     add: async () => {
       throw new Error('redis connection refused');
     },
-  } as unknown as Pick<Queue, 'add'>;
+  } as unknown as Pick<Queue, 'add' | 'getJob'>;
   const transport = createPushTransport(refusing, delivered, logger);
   const result = await transport(claimed());
   expect(result.delivered).toBe(false);

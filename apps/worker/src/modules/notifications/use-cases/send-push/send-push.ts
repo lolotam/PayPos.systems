@@ -28,7 +28,7 @@ export interface PushSendOutcome {
   readonly vapidRejected: boolean;
 }
 
-/** ينفّذ محاولة الدفع المرخّصة: فحص محلي، ثم حيازة، ثم طلب واحد، ثم تسجيل النتيجة. */
+/** ينفّذ محاولة الدفع المرخّصة: فحص محلي، ثم حجز سعة القبول، ثم حيازة، ثم طلب واحد، ثم تسجيل النتيجة. */
 export class SendPush {
   constructor(
     readonly deliveries: PushDeliveryRepository,
@@ -47,6 +47,11 @@ export class SendPush {
     if (refusal !== null) return this.refuse(delivery, refusal);
     const built = this.builder.build(delivery, this.clock.now());
     if (built.kind === 'refused') return this.refuse(delivery, built.decision);
+    // الحجز قبل الحيازة: انقطاع Redis بيرمي والمحاولة بتفضل PENDING فمهمة BullMQ بتتعاد، لأن الحارس
+    // ما بيسمحش بـ SENDING -> PENDING؛ الرفض الحقيقي (السعة خلصت) بس هو اللي بيتسجل.
+    // التنفيذان المتوازيان لنفس المحاولة ممكن ياخدوا سعتين، لكن الحيازة لسه بتضمن طلب واحد.
+    if (!(await this.admission.reserve(delivery.attempt.subscriptionId)))
+      return this.refuse(delivery, refusedDecision('ADMISSION_REFUSED'));
     const executionId = this.ids.newId();
     const now = this.clock.now();
     if (!(await this.deliveries.claim(delivery, executionId, now)))
@@ -55,26 +60,9 @@ export class SendPush {
       ...delivery,
       attempt: { ...delivery.attempt, status: 'SENDING', executionId, sendingAt: now },
     };
-    // الحجز بعد الحيازة: كذا التنفيذين المتوازيين لنفس المحاولة ما ياخدوش سعة واحدة.
-    const refused = await this.reserve(delivery);
-    if (refused !== null) {
-      await this.record(claimed, refused);
-      return this.outcome(delivery, refused);
-    }
     const submission = await this.channel.send(built.request);
     const decision = pushDecisionFromSubmission(submission);
-    await this.record(claimed, decision);
-    return this.outcome(delivery, decision);
-  }
-
-  // الحجز بيرجع رفضًا محليًا لما السعة تخلص أو لما Redis يفشل؛ نص الخطأ ما بيتحفظش.
-  private async reserve(delivery: PushDelivery): Promise<PushDecision | null> {
-    try {
-      const allowed = await this.admission.reserve(delivery.attempt.subscriptionId);
-      return allowed ? null : refusedDecision('ADMISSION_REFUSED');
-    } catch {
-      return refusedDecision('ADMISSION_REFUSED');
-    }
+    return (await this.record(claimed, decision)) ? this.outcome(delivery, decision) : null;
   }
 
   // حيازة ضايعة: المحاولة بتتفتح تاني، فلو السبب محلي بيتسجل فورًا بدل ما تفضل معلّقة.
@@ -86,22 +74,31 @@ export class SendPush {
     return this.refuse(current, refusal);
   }
 
-  private async refuse(delivery: PushDelivery, decision: PushDecision): Promise<PushSendOutcome> {
-    await this.deliveries.finishPending(delivery, decision, this.ids.newId(), this.clock.now());
-    return this.outcome(delivery, decision);
+  // السياج رجّع false: تنفيذ تاني أو انتقال سبق وقفل المحاولة، فما نرجّعش نتيجة ما اتخزنتش.
+  private async refuse(
+    delivery: PushDelivery,
+    decision: PushDecision,
+  ): Promise<PushSendOutcome | null> {
+    const stored = await this.deliveries.finishPending(
+      delivery,
+      decision,
+      this.ids.newId(),
+      this.clock.now(),
+    );
+    return stored ? this.outcome(delivery, decision) : null;
   }
 
   // النتيجة بتتسجل تلات محاولات بحد أقصى وبنفس معرّف الحدث؛ الفشل في الكتابة ما بيعيدش الطلب.
-  private async record(delivery: PushDelivery, decision: PushDecision): Promise<void> {
+  private async record(delivery: PushDelivery, decision: PushDecision): Promise<boolean> {
     const eventId = this.ids.newId();
     const now = this.clock.now();
     try {
-      await this.deliveries.finish(delivery, decision, eventId, now);
+      return await this.deliveries.finish(delivery, decision, eventId, now);
     } catch {
       try {
-        await this.deliveries.finish(delivery, decision, eventId, now);
+        return await this.deliveries.finish(delivery, decision, eventId, now);
       } catch {
-        await this.deliveries.finish(delivery, decision, eventId, now);
+        return this.deliveries.finish(delivery, decision, eventId, now);
       }
     }
   }

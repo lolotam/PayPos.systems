@@ -10,6 +10,14 @@ export const pairingCode = z
   .object({ code: z.string().regex(/^[A-Z0-9]{8}$/), expires_at: timestamp })
   .meta({ id: 'PairingCode' });
 
+/** أبجدية كود الربط من غير الحروف المتشابهة (0/O و1/I/L) — 31 حرف، فالكود المقروء ما بيختلفش. */
+export const PAIRING_CODE_ALPHABET = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
+
+/** كود المطابقة: 4 حروف من نفس أبجدية كود الربط، عشان المدير يطابقه مع الجهاز. */
+export const deviceCheckCode = z.string().regex(new RegExp(`^[${PAIRING_CODE_ALPHABET}]{4}$`));
+
+export type DeviceCheckCode = z.infer<typeof deviceCheckCode>;
+
 export const registerDeviceInput = z
   .object({
     pairing_code: z
@@ -26,7 +34,12 @@ export const registerDeviceInput = z
 
 // الرد على التسجيل: الجهاز بيحفظ السر ده عشان ياخد التوكن بعد موافقة الـ manager.
 export const deviceRegistration = z
-  .object({ company_id: id, device_id: id, claim_secret: z.string() })
+  .object({
+    company_id: id,
+    device_id: id,
+    claim_secret: z.string(),
+    check_code: deviceCheckCode,
+  })
   .meta({ id: 'DeviceRegistration' });
 
 export const claimDeviceInput = z
