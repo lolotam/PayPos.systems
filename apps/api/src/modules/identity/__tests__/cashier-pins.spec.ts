@@ -10,6 +10,7 @@ import { CASHIER_PIN_USE_CASES, type CashierPinUseCases } from '../http/cashier-
 import { createRedisPinAttempts } from '../persistence/redis-pin-attempts.ts';
 import type { PinAttempts } from '../ports/cashier-pins.port.ts';
 import { CashierPinMalformedError } from '../use-cases/set-cashier-pin/set-cashier-pin.ts';
+import { claimPayload } from '../../../../test/device-claim.ts';
 
 // T9b-3 through the API with real Postgres and Redis: a manager sets an employee's PIN (only its hash is stored), an
 // approved device verifies it, the fifth wrong PIN locks it for 15 minutes (D-08), and the PIN never reaches a log.
@@ -60,7 +61,7 @@ async function approvedDevice(companyId: string, branch: string): Promise<string
   const claimed = await h.app.inject({
     method: 'POST',
     url: '/v1/devices/claim',
-    payload: registered,
+    payload: claimPayload(registered),
   });
   return (claimed.json() as { device_token: string }).device_token;
 }

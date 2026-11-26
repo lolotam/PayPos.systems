@@ -11,7 +11,10 @@ export async function bootDevice(queryClient: QueryClient): Promise<DeviceScreen
   if (globalThis.navigator?.locks === undefined) return { kind: 'unsupported' };
   const row = await deviceDb.credentials.get(CURRENT_DEVICE);
   if (row?.device_token) return identityScreen(queryClient, row.device_token);
-  if (row?.claim_secret) return { kind: 'waiting' };
+  if (row?.claim_secret) {
+    // التسجيل القديم مالوش كود محفوظ، فالشاشة بتتعرض من غير كود بدل ما الـ POS يحسبه لوحده.
+    return { kind: 'waiting', ...(row.check_code ? { checkCode: row.check_code } : {}) };
+  }
   return { kind: 'pairing', notice: null };
 }
 

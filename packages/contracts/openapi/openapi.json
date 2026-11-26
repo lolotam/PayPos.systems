@@ -16060,7 +16060,7 @@
     "/v1/branches/{branchId}/devices": {
       "get": {
         "operationId": "listPendingDevices",
-        "description": "The branch devices whose status is PENDING, newest first, one page of at most a hundred. Requires manage:devices:branch at the branch.",
+        "description": "The branch devices of one status — PENDING (newest first) or ACTIVE — one page of at most a hundred. Requires manage:devices:branch at the branch.",
         "parameters": [
           {
             "in": "header",
@@ -16087,7 +16087,8 @@
             "schema": {
               "type": "string",
               "enum": [
-                "pending"
+                "pending",
+                "active"
               ]
             }
           },
@@ -16116,7 +16117,7 @@
         ],
         "responses": {
           "200": {
-            "description": "The branch devices waiting for approval",
+            "description": "The branch devices of the requested status",
             "content": {
               "application/json": {
                 "schema": {
@@ -16126,7 +16127,7 @@
             }
           },
           "400": {
-            "description": "The status query is missing or not pending",
+            "description": "The status query is missing, or it is neither pending nor active",
             "content": {
               "application/json": {
                 "schema": {
@@ -16136,6 +16137,204 @@
             }
           },
           "403": {
+            "description": "The bilingual error envelope; a foreign branch and a missing permission share the same 403.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "The bilingual error envelope; a foreign branch and a missing permission share the same 403.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/branches/{branchId}/devices/pairing-code": {
+      "post": {
+        "operationId": "issuePairingCode",
+        "description": "A single-use pairing code for one branch, valid ten minutes. Issuing a code cancels the branch’s previous live code.",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "x-company-id",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "in": "path",
+            "name": "branchId",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "The pairing code and when it expires",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PairingCode"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The bilingual error envelope; a foreign branch and a missing permission share the same 403.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "The bilingual error envelope; a foreign branch and a missing permission share the same 403.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/branches/{branchId}/devices/{deviceId}/approve": {
+      "post": {
+        "operationId": "approveDevice",
+        "description": "The manager approves a pending device of their branch.",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "x-company-id",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "in": "path",
+            "name": "branchId",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "in": "path",
+            "name": "deviceId",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "The device is active"
+          },
+          "403": {
+            "description": "The bilingual error envelope; a foreign branch and a missing permission share the same 403.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The bilingual error envelope; a foreign branch and a missing permission share the same 403.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "The bilingual error envelope; a foreign branch and a missing permission share the same 403.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/branches/{branchId}/devices/{deviceId}/revoke": {
+      "post": {
+        "operationId": "revokeDevice",
+        "description": "The manager refuses a pending device or removes an active one; the device loses its access at once.",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "x-company-id",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "in": "path",
+            "name": "branchId",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "in": "path",
+            "name": "deviceId",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "The device is revoked"
+          },
+          "403": {
+            "description": "The bilingual error envelope; a foreign branch and a missing permission share the same 403.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
             "description": "The bilingual error envelope; a foreign branch and a missing permission share the same 403.",
             "content": {
               "application/json": {
@@ -35127,7 +35326,8 @@
           "status": {
             "type": "string",
             "enum": [
-              "pending"
+              "pending",
+              "active"
             ]
           }
         },
@@ -35157,12 +35357,25 @@
                   "type": "string",
                   "format": "date-time",
                   "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+                },
+                "check_code": {
+                  "nullable": true,
+                  "type": "string",
+                  "pattern": "^[ABCDEFGHJKMNPQRSTUVWXYZ23456789]{4}$"
+                },
+                "last_seen_at": {
+                  "nullable": true,
+                  "type": "string",
+                  "format": "date-time",
+                  "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
                 }
               },
               "required": [
                 "id",
                 "label",
-                "created_at"
+                "created_at",
+                "check_code",
+                "last_seen_at"
               ]
             }
           },
@@ -54085,12 +54298,17 @@
           },
           "claim_secret": {
             "type": "string"
+          },
+          "check_code": {
+            "type": "string",
+            "pattern": "^[ABCDEFGHJKMNPQRSTUVWXYZ23456789]{4}$"
           }
         },
         "required": [
           "company_id",
           "device_id",
-          "claim_secret"
+          "claim_secret",
+          "check_code"
         ]
       },
       "ClaimDeviceInput": {

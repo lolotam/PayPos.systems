@@ -51,6 +51,7 @@ const LIVE_ROUTES: readonly (readonly [string, string, { a: string; b: string; c
   ['/orders/service-sessions', 'sessions-day-list', FRONT],
   ['/orders/package-sales/new', 'sell-package', FRONT],
   ['/orders/customers/c-1/packages', 'sessions-day-list', FRONT],
+  ['/devices', 'pos-devices-and-pins', FRONT],
   ['/catalog', 'services', STOCK],
   ['/catalog/create', 'services', STOCK],
   ['/catalog/categories', 'categories', STOCK],

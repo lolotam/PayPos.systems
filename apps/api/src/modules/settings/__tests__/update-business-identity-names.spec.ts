@@ -17,6 +17,7 @@ import { OfficialNameRejected } from '../domain/official-name.ts';
 import { createSettingsTransactions } from '../persistence/settings-transactions.ts';
 import type { SettingsTransactions } from '../ports/settings.port.ts';
 import { UpdateBusinessIdentityNames } from '../use-cases/update-business-identity-names/update-business-identity-names.ts';
+import { claimPayload } from '../../../../test/device-claim.ts';
 
 let f: PermissionFixture;
 
@@ -167,7 +168,7 @@ it('a device token is refused', async () => {
     company: f.company,
   });
   expect(approved.status).toBe(204);
-  const claimed = await f.h.app.inject({ method: 'POST', url: '/v1/devices/claim', payload: device });
+  const claimed = await f.h.app.inject({ method: 'POST', url: '/v1/devices/claim', payload: claimPayload(device) });
   expect(claimed.statusCode).toBe(200);
   const token = claimed.json<{ device_token: string }>().device_token;
   const res = await f.h.app.inject({

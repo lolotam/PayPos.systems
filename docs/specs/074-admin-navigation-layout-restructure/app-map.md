@@ -54,7 +54,7 @@ owner chose each grouping on 2026-11-21 from three options per section (`owner-q
 | Cash | Cash shifts | 2 | Soon | every business type | Owner, General manager, Accountant, Business manager, Branch manager |
 | Cash | Paid in and paid out | 2 | Soon | every business type | Owner, General manager, Accountant, Business manager, Branch manager |
 | POS | Open reception / cashier | 1 | Soon | every business type | Owner, General manager, Business manager, Branch manager |
-| POS | POS devices and PINs | 2 | Soon | every business type | Owner, General manager, Business manager, Branch manager |
+| POS | POS devices and PINs | 2 | Live | every business type | Owner, General manager, Business manager, Branch manager |
 | POS | Receipts and printing | 2 | Soon | every business type | Owner, General manager, Business manager, Branch manager |
 | Restaurant | Tables and floor map | 3 | Soon | Restaurant, café | Owner, General manager, Business manager, Branch manager |
 | Restaurant | Kitchen screens and stations | 3 | Soon | Restaurant, café | Owner, General manager, Business manager, Branch manager |
@@ -177,7 +177,7 @@ owner chose each grouping on 2026-11-21 from three options per section (`owner-q
 | Business | Working hours and order rules | 2 | Soon | every business type | Owner, General manager, Business manager |
 | Business | Payment methods and gateways | 2 | Soon | every business type | Owner, General manager, Accountant |
 | Access | Permissions | 1 | Live | every business type | By page permission |
-| Access | Invitations | - | Live | every business type | Owner |
+| Access | Invitations | — | Live | every business type | Owner |
 | Access | Sign-in security (authenticator) | 1 | Live | every business type | Every signed-in admin user (NAV-Q1) |
 | Access | Approval limits | 2 | Soon | every business type | Owner, General manager, Business manager |
 | Access | Activity log (who did what, and when) | — | Soon | every business type | Owner, General manager |
@@ -276,7 +276,7 @@ own there.
 
 ## Counts
 
-- Management area: 128 mapped pages. In this project: 34 Live, 0 New, 94 Soon.
+- Management area: 128 mapped pages. In this project: 36 Live, 0 New, 92 Soon.
 - Other areas: 24 menu pages. In this project: 0 Live, 0 Soon, 24 not mapped here (the cashier app has its own spec).
 - Child pages such as customer package details have no menu entry of their own. Only the pages listed in the map are counted.
 

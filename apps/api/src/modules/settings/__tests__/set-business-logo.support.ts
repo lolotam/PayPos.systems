@@ -2,6 +2,7 @@ import { errorEnvelope } from '@pospay/contracts';
 import { expect } from 'vitest';
 
 import type { PermissionFixture } from '../../../../test/permissions-fixture.ts';
+import { claimPayload } from '../../../../test/device-claim.ts';
 
 export interface LogoFilePatch {
   readonly companyId?: string;
@@ -95,7 +96,7 @@ export async function deviceToken(f: PermissionFixture): Promise<string> {
   const claimed = await f.h.app.inject({
     method: 'POST',
     url: '/v1/devices/claim',
-    payload: device,
+    payload: claimPayload(device),
   });
   expect(claimed.statusCode).toBe(200);
   return claimed.json<{ device_token: string }>().device_token;

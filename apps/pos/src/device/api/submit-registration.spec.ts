@@ -15,26 +15,34 @@ vi.mock('../model/credentials', () => ({
   saveRegistration: (...args: unknown[]) => mockSaveRegistration(...args),
 }));
 
+const registered = {
+  company_id: '01923f66-3d2b-7c00-8000-000000000001',
+  device_id: '01923f66-3d2b-7c00-8000-000000000002',
+  claim_secret: 'test-claim-secret',
+  check_code: 'K7QP',
+};
+
 function testSuccess(): void {
-  it('saves { company_id, device_id, claim_secret } and returns null on success', async () => {
-    mockRegisterDevice.mockResolvedValue({
-      ok: true,
-      data: {
-        company_id: '01923f66-3d2b-7c00-8000-000000000001',
-        device_id: '01923f66-3d2b-7c00-8000-000000000002',
-        claim_secret: 'test-claim-secret',
-      },
-    });
+  it('saves { company_id, device_id, claim_secret, check_code } and returns null on success', async () => {
+    mockRegisterDevice.mockResolvedValue({ ok: true, data: registered });
 
     const input = { pairing_code: 'ABCD1234', label: 'Main Register' };
     const result = await submitRegistration(input, 'ar');
 
-    expect(result).toBeNull();
-    expect(mockSaveRegistration).toHaveBeenCalledWith({
-      company_id: '01923f66-3d2b-7c00-8000-000000000001',
-      device_id: '01923f66-3d2b-7c00-8000-000000000002',
-      claim_secret: 'test-claim-secret',
-    });
+    expect(result.error).toBeNull();
+    expect(mockSaveRegistration).toHaveBeenCalledWith(registered);
+  });
+
+  it('returns the check code the manager compares', async () => {
+    mockRegisterDevice.mockResolvedValue({ ok: true, data: registered });
+
+    const outcome = await submitRegistration(
+      { pairing_code: 'ABCD1234', label: 'Main Register' },
+      'ar',
+    );
+
+    expect(outcome).toEqual({ error: null, checkCode: 'K7QP' });
+    expect(mockSaveRegistration).toHaveBeenCalledWith(registered);
   });
 }
 
@@ -54,24 +62,17 @@ function testInvalidCode(): void {
     const input = { pairing_code: 'ABCD1234', label: 'Main Register' };
 
     const resultAr = await submitRegistration(input, 'ar');
-    expect(resultAr).toBe(t('ar', 'errors.PAIRING_CODE_INVALID'));
+    expect(resultAr).toEqual({ error: t('ar', 'errors.PAIRING_CODE_INVALID') });
     expect(mockSaveRegistration).not.toHaveBeenCalled();
 
     const resultEn = await submitRegistration(input, 'en');
-    expect(resultEn).toBe(t('en', 'errors.PAIRING_CODE_INVALID'));
+    expect(resultEn).toEqual({ error: t('en', 'errors.PAIRING_CODE_INVALID') });
   });
 }
 
 function testSchemaNormalization(): void {
   it('normalizes the pairing code by trimming and upper-casing through the contract schema', async () => {
-    mockRegisterDevice.mockResolvedValue({
-      ok: true,
-      data: {
-        company_id: '01923f66-3d2b-7c00-8000-000000000001',
-        device_id: '01923f66-3d2b-7c00-8000-000000000002',
-        claim_secret: 'test-claim-secret',
-      },
-    });
+    mockRegisterDevice.mockResolvedValue({ ok: true, data: registered });
 
     const parsed = registerDeviceInput.parse({
       pairing_code: '  ab12cd34  ',
@@ -95,10 +96,21 @@ function testNetworkError(): void {
     const input = { pairing_code: 'ABCD1234', label: 'Main Register' };
 
     const resultAr = await submitRegistration(input, 'ar');
-    expect(resultAr).toBe(t('ar', 'pos.networkError'));
+    expect(resultAr).toEqual({ error: t('ar', 'pos.networkError') });
 
     const resultEn = await submitRegistration(input, 'en');
-    expect(resultEn).toBe(t('en', 'pos.networkError'));
+    expect(resultEn).toEqual({ error: t('en', 'pos.networkError') });
+  });
+
+  it('reports the network error without a check code', async () => {
+    mockRegisterDevice.mockRejectedValue(new Error('Network down'));
+
+    const outcome = await submitRegistration(
+      { pairing_code: 'ABCD1234', label: 'Main Register' },
+      'en',
+    );
+
+    expect(outcome).toEqual({ error: t('en', 'pos.networkError') });
   });
 }
 
