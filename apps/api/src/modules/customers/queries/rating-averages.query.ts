@@ -31,8 +31,6 @@ export function ratingAveragesStatement(f: RatingAveragesFilter) {
     GROUP BY a.employee_id ORDER BY a.employee_id`;
 }
 
-// TODO(spec): حد أقصى لمدى التاريخ (#1247 بند 4) متوقف لحد ما `060-ratings-and-staff-app` يحدّد
-// الحد وكود الخطأ صراحةً؛ العقد الحالي (D-B12، FR-B15، 61-2c) يسمح بفترة مفتوحة من طرف واحد.
 export async function readRatingAverages(
   tx: Tx,
   c: RatingsListScope,
