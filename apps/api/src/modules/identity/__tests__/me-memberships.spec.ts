@@ -8,6 +8,7 @@ import { randomUUID } from 'node:crypto';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 import { startHarness, type Harness } from '../../../../test/harness.ts';
+import { claimPayload } from '../../../../test/device-claim.ts';
 
 let h: Harness;
 let ownerCookie: string;
@@ -113,7 +114,7 @@ async function deviceToken(): Promise<string> {
       })
     ).status,
   ).toBe(204);
-  const claimed = await json('POST', '/v1/devices/claim', device);
+  const claimed = await json('POST', '/v1/devices/claim', claimPayload(device));
   expect(claimed.statusCode).toBe(200);
   return (claimed.json() as { device_token: string }).device_token;
 }

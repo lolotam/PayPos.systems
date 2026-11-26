@@ -160,14 +160,20 @@ export function createPushDeliveryRepository(
       }),
     claim: (delivery, executionId, now) =>
       run(delivery.attempt.companyId, async (tx) => {
-        // الحارس: الاشتراك لازم يكون حيًّا بنفس العدّاد وقت التفويض؛ تغيّره بين القراءة والحيازة يرفض الطلب.
+        // الحارس: الاشتراك لازم يكون حيًّا بنفس العدّاد وقت التفويض. FOR SHARE بيستنى أي تسجيل أو سحب
+        // لسه ما اتثبتش (UPDATE بياخد FOR NO KEY UPDATE وده بيتعارض معاه) وبيعيد الفحص على النسخة
+        // المثبتة، وبيفضل ماسك لحد COMMIT الحيازة؛ فأي تغيير بعدها بيستنى الحيازة.
+        const locked = await tx.execute(sql`SELECT 1 FROM push_subscriptions
+          WHERE company_id = app_company_id() AND id = ${delivery.attempt.subscriptionId}
+            AND revoked_at IS NULL AND generation = ${delivery.attempt.subscriptionGeneration}
+          FOR SHARE`);
+        if (locked.length === 0) return false;
         const rows = await tx.execute(sql`UPDATE push_attempts SET status = 'SENDING',
           execution_id = ${executionId}, sending_at = ${now.toISOString()}, updated_at = ${now.toISOString()}
           WHERE company_id = app_company_id() AND id = ${delivery.attempt.id} AND status = 'PENDING'
-            AND (send_deadline IS NULL OR send_deadline > ${now.toISOString()})
-            AND EXISTS (SELECT 1 FROM push_subscriptions s WHERE s.company_id = push_attempts.company_id
-              AND s.id = push_attempts.subscription_id AND s.revoked_at IS NULL
-              AND s.generation = push_attempts.subscription_generation) RETURNING id`);
+            AND subscription_id = ${delivery.attempt.subscriptionId}
+            AND subscription_generation = ${delivery.attempt.subscriptionGeneration}
+            AND (send_deadline IS NULL OR send_deadline > ${now.toISOString()}) RETURNING id`);
         return rows.length === 1;
       }),
     finishPending: (delivery, decision, eventId, now) =>

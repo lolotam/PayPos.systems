@@ -64,7 +64,7 @@ const START_OVER_CASES = [
   },
   {
     name: 'waiting',
-    screen: { kind: 'waiting' },
+    screen: { kind: 'waiting', checkCode: 'ABCD' },
     submitting: false,
     visible: false,
   },
@@ -94,8 +94,9 @@ describe('DeviceBody', () => {
   });
 
   it('renders waiting screen when screen state is waiting', () => {
-    renderBody(makeSession({ kind: 'waiting' }));
+    renderBody(makeSession({ kind: 'waiting', checkCode: 'ABCD' }));
     expect(screen.getByRole('heading', { name: t('ar', 'pos.waitingTitle') })).not.toBeNull();
+    expect(screen.getByTestId('device-check-code').textContent).toBe('ABCD');
   });
 
   it('renders offline notice when screen state is offline', () => {

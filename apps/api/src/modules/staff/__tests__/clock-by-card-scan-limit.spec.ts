@@ -14,6 +14,7 @@ import {
   CARD_SCAN_FAILURES_PER_WINDOW,
   CARD_SCAN_WINDOW_SECONDS,
 } from '../persistence/card-scan-attempts.ts';
+import { claimPayload } from '../../../../test/device-claim.ts';
 
 const STAFF_ORIGIN = 'http://localhost:5173';
 const CARD = 'CARD-LIMIT-1';
@@ -125,7 +126,7 @@ async function pair(branch: string, label: string) {
   const claim = await h.app.inject({
     method: 'POST',
     url: '/v1/devices/claim',
-    payload: registered,
+    payload: claimPayload(registered),
   });
   return {
     deviceId: registered.device_id,

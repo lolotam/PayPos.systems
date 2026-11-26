@@ -9,6 +9,7 @@ import { CASHIER_PIN_USE_CASES, type CashierPinUseCases } from '../http/cashier-
 import { createAccessReader, readAccessTransaction } from '../persistence/access-reader.ts';
 import { readFeatureEnabled } from '../persistence/feature-reader.ts';
 import { AuthorizeRequest } from '../use-cases/authorize-request/authorize-request.ts';
+import { claimPayload } from '../../../../test/device-claim.ts';
 
 const EMAIL = 'deleted-guard@example.test';
 const PIN = '7391';
@@ -76,7 +77,7 @@ async function approvedDevice(branch: string): Promise<string> {
     { cookie, company: deletedCompany },
   );
   expect(approved.status).toBe(204);
-  const claimed = await h.app.inject({ method: 'POST', url: '/v1/devices/claim', payload: device });
+  const claimed = await h.app.inject({ method: 'POST', url: '/v1/devices/claim', payload: claimPayload(device) });
   expect(claimed.statusCode).toBe(200);
   return (claimed.json() as { device_token: string }).device_token;
 }
@@ -113,7 +114,7 @@ async function claimedOn(company: string, branch: string, label: string) {
     { cookie, company },
   );
   expect(approved.status).toBe(204);
-  const claimed = await h.app.inject({ method: 'POST', url: '/v1/devices/claim', payload: device });
+  const claimed = await h.app.inject({ method: 'POST', url: '/v1/devices/claim', payload: claimPayload(device) });
   expect(claimed.statusCode).toBe(200);
   return {
     id: device.device_id,
@@ -280,7 +281,7 @@ it('refuses a new device registration, an unclaimed token and a cashier PIN on t
   const claimed = await h.app.inject({
     method: 'POST',
     url: '/v1/devices/claim',
-    payload: pendingClaim,
+    payload: claimPayload(pendingClaim),
   });
   await h.redis.del(
     `pin:${deletedCompany}:${EMPLOYEE}:failures`,

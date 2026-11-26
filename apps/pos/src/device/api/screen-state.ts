@@ -3,7 +3,7 @@ export type PairingNotice = 'refused' | 'removed';
 export type DeviceScreenState =
   | { kind: 'loading' }
   | { kind: 'pairing'; notice: PairingNotice | null }
-  | { kind: 'waiting' }
+  | { kind: 'waiting'; checkCode?: string }
   | { kind: 'offline' }
   | { kind: 'unsupported' }
   | { kind: 'ready'; branchId: string; deviceId?: string };

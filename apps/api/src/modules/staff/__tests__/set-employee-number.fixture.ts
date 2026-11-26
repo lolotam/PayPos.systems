@@ -5,6 +5,7 @@ import {
   grantEmployeeCreation,
   type EmployeeFixture,
 } from './employee-number-assign.fixture.ts';
+import { claimPayload } from '../../../../test/device-claim.ts';
 
 export { executeCreate };
 export async function numberFixture() {
@@ -82,7 +83,7 @@ export async function numberDevice(f: EmployeeFixture) {
     company: f.company,
   });
   expectStatus(approved.status, 204);
-  const claimed = await f.h.app.inject({ method: 'POST', url: '/v1/devices/claim', payload: device });
+  const claimed = await f.h.app.inject({ method: 'POST', url: '/v1/devices/claim', payload: claimPayload(device) });
   expectStatus(claimed.statusCode, 200);
   return claimed.json<{ device_token: string }>().device_token;
 }
