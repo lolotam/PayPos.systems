@@ -43,7 +43,6 @@ export interface EmailStartupOptions {
   readonly logger: Logger;
   readonly ids: IdGenerator;
   readonly clock: Clock;
-  /** قاعدة بيانات الشركة: بتلزم لعمّال المصالحة الحقيقيين في العامل. */
   readonly appDatabase?: Pick<TenantWrappers, 'withTenant'>;
   readonly redisUrl?: string;
 }
@@ -51,11 +50,11 @@ export interface EmailStartupOptions {
 /** تهيئة قناة البريد: الموديول وموارد ردّ المزود وعدد الصفوف المعطّلة. */
 export interface EmailActivation {
   readonly module: EmailModule;
+  readonly stop?: () => Promise<void>;
   readonly close: () => Promise<void>;
   readonly quarantinedCount: number;
 }
 
-/** حالة القدرة: الموديول الحالي والسبب وحالة الإقلاع وقفل التوقف. */
 interface EmailCapabilityState {
   module: EmailModule;
   reason: EmailDisabledReason | null;
@@ -63,15 +62,7 @@ interface EmailCapabilityState {
   closed: boolean;
 }
 
-/**
- * يشغّل قناة البريد في العامل.
- * القاعدة: التفعيل بيحتاج ردّ المزود شغّال؛ فشل التهيئة بيقفل القناة عند CONFIG_INVALID
- * والجاهزية الأساسية مش بتتأثر خالص.
- *
- * @param options إعدادات البدء
- * @param activate دالة التهيئة، بتُحقن في الاختبار
- * @returns قدرة البريد وحالتها
- */
+/** يشغّل قناة البريد ومصالحة ردّ المزود؛ أي تعثّر يقفلها عند CONFIG_INVALID بدون أثر على readiness. */
 export async function startEmailCapability(
   options: EmailStartupOptions,
   activate: () => Promise<EmailActivation> = () => activateEmail(options),
@@ -82,12 +73,9 @@ export async function startEmailCapability(
     ids: options.ids,
     configuration: readEmailConfiguration(options.env, { feedbackReady: false }),
   });
-  // تهيئة البريد مستقلة: لا تدخل جاهزية العامل الأساسية ولا تفتح الإرسال قبل ردّ المزود.
   const attempt = Promise.resolve().then(activate);
   const activation = await optionalWithin(() => attempt).catch(() => undefined);
-  if (activation === undefined)
-    // النتيجة المتأخرة ما بتعملش حاجة، بس مواردها بتتقفل عشان ما تفضلش شغّالة.
-    void attempt.then((late) => late.close()).catch(() => undefined);
+  if (activation === undefined) void attempt.then((late) => late.close()).catch(() => undefined);
   const state: EmailCapabilityState = {
     module: activation?.module ?? fallback,
     reason:
@@ -100,21 +88,19 @@ export async function startEmailCapability(
           : 'DISABLED',
     closed: false,
   };
-  options.logger.info(
-    capabilityLog(state, activation?.quarantinedCount ?? 0),
-    'email capability',
-  );
-  const stop = () => {
+  options.logger.info(capabilityLog(state, activation?.quarantinedCount ?? 0), 'email capability');
+  const stop = async () => {
     state.closed = true;
     state.module = fallback;
     state.reason = fallback.capability.reason;
     state.status = 'DISABLED';
+    await closeOptional([() => activation?.stop?.()]);
   };
   return {
     module: capabilityView(state),
     stop,
     close: async () => {
-      stop();
+      await stop();
       await closeOptional([() => activation?.close()]);
     },
   };
@@ -152,7 +138,6 @@ function capabilityView(state: EmailCapabilityState) {
   };
 }
 
-/** التهيئة الكاملة: قراءة الإعداد، ثم ردّ المزود، ثم موديول البريد. */
 async function activateEmail(options: EmailStartupOptions): Promise<EmailActivation> {
   const feedback = await startFeedback(options);
   const module = createEmailModule({
@@ -161,38 +146,60 @@ async function activateEmail(options: EmailStartupOptions): Promise<EmailActivat
     ids: options.ids,
     configuration: readEmailConfiguration(options.env, { feedbackReady: feedback.ready }),
   });
-  return { module, close: feedback.close, quarantinedCount: feedback.quarantinedCount };
+  return {
+    module,
+    stop: feedback.stop,
+    close: feedback.close,
+    quarantinedCount: feedback.quarantinedCount,
+  };
 }
 
-/** ردّ المزود: قاعدة المنصة والطابوران؛ بدونه القناة بتقفل وما فيش إرسال. */
 interface EmailFeedback {
   readonly ready: boolean;
   readonly quarantinedCount: number;
+  readonly stop: () => Promise<void>;
   readonly close: () => Promise<void>;
 }
 
 async function startFeedback(options: EmailStartupOptions): Promise<EmailFeedback> {
   const url = options.env['PLATFORM_NOTIFICATIONS_DATABASE_URL'] ?? '';
-  if (url === '') return { ready: false, quarantinedCount: 0, close: async () => undefined };
+  if (!/^postgres(ql)?:\/\//i.test(url))
+    return {
+      ready: false,
+      quarantinedCount: 0,
+      stop: async () => undefined,
+      close: async () => undefined,
+    };
   const redisUrl = options.redisUrl ?? options.env['REDIS_URL'] ?? '';
   const appDatabase = options.appDatabase;
   const keys = feedbackKeys(options.env);
   if (redisUrl === '' || appDatabase === undefined)
     throw new Error('EMAIL_FEEDBACK_DEPENDENCIES_MISSING');
-  if (keys === null) return { ready: false, quarantinedCount: 0, close: async () => undefined };
+  if (keys === null)
+    return {
+      ready: false,
+      quarantinedCount: 0,
+      stop: async () => undefined,
+      close: async () => undefined,
+    };
   const runtime = openFeedbackRuntime(options, url, redisUrl, appDatabase, keys);
   try {
     const quarantinedCount = await optionalWithin(() => runtime.ready());
-    return { ready: true, quarantinedCount, close: () => runtime.close() };
+    return {
+      ready: true,
+      quarantinedCount,
+      stop: () => runtime.stop(),
+      close: () => runtime.close(),
+    };
   } catch (error) {
     await runtime.close(true);
     throw error;
   }
 }
 
-/** موارد ردّ المزود: قاعدة المنصة والعاملان والطابوران. */
 interface FeedbackRuntime {
   ready(): Promise<number>;
+  stop(): Promise<void>;
   close(force?: boolean): Promise<void>;
 }
 
@@ -242,6 +249,9 @@ function openFeedbackRuntime(
       await scheduleMaintenance(maintenanceResource.queue);
       return quarantinedCount;
     },
+    stop: async () => {
+      await Promise.allSettled([worker.close(), maintenanceWorker.close()]);
+    },
     close: async (force = false) => {
       await Promise.allSettled([
         worker.close(force),
@@ -254,10 +264,7 @@ function openFeedbackRuntime(
   };
 }
 
-/** مفتاح المزود ومفتاح البصمة: من غيرهما مفيش استرجاع ولا مصالحة. */
-function feedbackKeys(
-  env: NodeJS.ProcessEnv,
-): { apiKey: string; identify: (canonical: string) => { hash: Uint8Array; keyId: string } } | null {
+function feedbackKeys(env: NodeJS.ProcessEnv) {
   const apiKey = env['RESEND_API_KEY'] ?? '';
   if (apiKey === '' || /[\r\n]/.test(apiKey)) return null;
   try {
@@ -267,7 +274,7 @@ function feedbackKeys(
     );
     return {
       apiKey,
-      identify: (canonical) => {
+      identify: (canonical: string) => {
         const computed = identity.identify(canonical);
         return { hash: computed.hash, keyId: computed.hashKeyId };
       },
@@ -277,7 +284,6 @@ function feedbackKeys(
   }
 }
 
-/** المصالحة: استرجاع من المزود، ثم دليل الشركة، ثم الحظر والتسوية. */
 function reconcile(
   options: EmailStartupOptions,
   inbox: ReturnType<typeof createEmailFeedbackInboxRepository>,
@@ -294,7 +300,6 @@ function reconcile(
   );
 }
 
-/** الاسترداد: الصفوف اللي ما اتسلمتش للطابور، والصفوف المفتوحة اللي موعدها جه. */
 function recover(
   options: EmailStartupOptions,
   inbox: ReturnType<typeof createEmailFeedbackInboxRepository>,
@@ -312,7 +317,6 @@ function recover(
   );
 }
 
-/** عدد الصفوف المعطّلة: بيتسجل في سجل القدرة عشان الفيضان يبان. */
 async function countQuarantined(database: PlatformEmailDatabase): Promise<number> {
   const [row] = await database.withGlobal(
     (tx) =>
@@ -324,24 +328,16 @@ async function countQuarantined(database: PlatformEmailDatabase): Promise<number
   return row?.count ?? 0;
 }
 
-/** جدولة المسح الدوري: استرداد الصفوف المعلّقة، وإنهاء احتفاظ الحمولة. */
 async function scheduleMaintenance(queue: Queue): Promise<void> {
-  await queue.upsertJobScheduler(
-    RECOVER_JOB,
-    { every: 30_000 },
-    {
-      name: RECOVER_JOB,
-      data: {},
-      opts: { attempts: 1, removeOnComplete: true, removeOnFail: true },
-    },
-  );
-  await queue.upsertJobScheduler(
-    CLEAR_JOB,
-    { every: 60 * 60 * 1000 },
-    {
-      name: CLEAR_JOB,
-      data: {},
-      opts: { attempts: 1, removeOnComplete: true, removeOnFail: true },
-    },
-  );
+  const jobs: readonly [string, number][] = [
+    [RECOVER_JOB, 30_000],
+    [CLEAR_JOB, 60 * 60 * 1000],
+  ];
+  for (const [name, every] of jobs) {
+    await queue.upsertJobScheduler(
+      name,
+      { every },
+      { name, data: {}, opts: { attempts: 1, removeOnComplete: true, removeOnFail: true } },
+    );
+  }
 }

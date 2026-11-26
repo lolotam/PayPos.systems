@@ -9,17 +9,14 @@ const DEFAULT_TIMEOUT_MS = 5_000;
 const MAX_TIMEOUT_MS = 10_000;
 const HASH_BYTES = 32;
 
-/** The three correlation tags the send adapter stamps on every email (spec 075 FR-010). */
+/** الوسوم الثلاثة التي يربطها محوّل الإرسال بكل إيميل (spec 075 FR-010). */
 export interface RetrievedEmailTags {
-  /** the company that owns the attempt */
   readonly companyId: string;
-  /** the attempt the sent email belongs to */
   readonly attemptId: string;
-  /** the execution fence of that attempt */
   readonly executionId: string;
 }
 
-/** The outcome of one retrieval: the tags and the hash, a refusal, or a retryable failure. */
+/** نتيجة استرجاع إيميل واحد: وسوم وبصمة، أو رفض، أو فشل قابل لإعادة المحاولة. */
 export type ResendRetrievalResult =
   | {
       readonly kind: 'found';
@@ -31,34 +28,20 @@ export type ResendRetrievalResult =
   | { readonly kind: 'invalid_tags'; readonly reason: 'RECIPIENT_INVALID' | 'TAGS_INVALID' }
   | { readonly kind: 'transient'; readonly code: string };
 
-/** Retrieves a sent email from the provider by its opaque id, outside any database transaction. */
+/** مسترجع الإيميل المرسل من المزود خارج أي معاملة قاعدة بيانات. */
 export interface ResendEmailRetriever {
-  /**
-   * Retrieves the sent email and its correlation tags.
-   *
-   * @param providerEmailId the provider id of the sent email
-   * @returns the tags and the recipient hash, a refusal, or a retryable failure
-   */
   retrieve(providerEmailId: string): Promise<ResendRetrievalResult>;
 }
 
-/** The configuration of the retrieval: the sending key and the hash function of the recipient. */
+/** خيارات المسترجع: مفتاح العامل ودالة بصمة الوجهة وحدود الطلب. */
 export interface ResendRetrievalOptions {
-  /** the worker-only full_access key; the API never holds it */
   readonly apiKey: string;
-  /** hashes the canonical address; the address itself never leaves the adapter */
   readonly identify: (canonical: string) => { readonly hash: Uint8Array; readonly keyId: string };
   readonly timeoutMs?: number;
   readonly request?: typeof httpsRequest;
 }
 
-/**
- * Creates the retriever of a sent email. The fixed origin, the bounded timeout and the bounded
- * response keep the reconciliation predictable; nothing is retried inside the adapter.
- *
- * @param options the key, the hash function and the bounded request options
- * @returns the retriever
- */
+/** يبني مسترجعًا بأصل ثابت ومهلة وحجم استجابة محدودين دون إعادة محاولة داخلية. */
 export function createResendEmailRetriever(options: ResendRetrievalOptions): ResendEmailRetriever {
   if (!options.apiKey || /[\r\n]/.test(options.apiKey))
     throw new Error('EMAIL_RETRIEVAL_KEY_INVALID');
@@ -141,38 +124,41 @@ class Retriever implements ResendEmailRetriever {
         finish({ kind: 'transient', code: 'RESPONSE_INVALID' });
         return;
       }
-      finish(this.#readPayload(payload, providerEmailId));
+      finish(decodePayload(payload, providerEmailId, this.#identify));
     });
   }
+}
 
-  #readPayload(payload: unknown, providerEmailId: string): ResendRetrievalResult {
-    if (typeof payload !== 'object' || payload === null)
-      return { kind: 'transient', code: 'RESPONSE_INVALID' };
-    const body = payload as { id?: unknown; to?: unknown; tags?: unknown };
-    if (body.id !== providerEmailId) return { kind: 'invalid_tags', reason: 'TAGS_INVALID' };
-    const recipient = singleRecipient(body.to);
-    if (recipient === null) return { kind: 'invalid_tags', reason: 'RECIPIENT_INVALID' };
-    const canonical = canonicalEmail(recipient);
-    if (canonical === null) return { kind: 'invalid_tags', reason: 'RECIPIENT_INVALID' };
-    // The address becomes a hash here and never travels further: nothing downstream can read it.
-    let identity: { hash: Uint8Array; keyId: string };
-    try {
-      identity = this.#identify(canonical);
-    } catch {
-      return { kind: 'transient', code: 'IDENTITY_UNAVAILABLE' };
-    }
-    if (identity.hash.length !== HASH_BYTES || identity.keyId.length === 0)
-      return { kind: 'invalid_tags', reason: 'RECIPIENT_INVALID' };
-    const tags = readTags(body.tags);
-    if (tags === null) return { kind: 'invalid_tags', reason: 'TAGS_INVALID' };
-    return {
-      kind: 'found',
-      id: providerEmailId,
-      tags,
-      recipientHash: identity.hash,
-      hashKeyId: identity.keyId,
-    };
+/** فك ترميز وثيقة رد المزود: يثبت الهوية والوسوم ويرفض أي بريد خام من الخروج. */
+function decodePayload(
+  payload: unknown,
+  providerEmailId: string,
+  identify: ResendRetrievalOptions['identify'],
+): ResendRetrievalResult {
+  if (typeof payload !== 'object' || payload === null)
+    return { kind: 'transient', code: 'RESPONSE_INVALID' };
+  const body = payload as { id?: unknown; to?: unknown; tags?: unknown };
+  if (body.id !== providerEmailId) return { kind: 'invalid_tags', reason: 'TAGS_INVALID' };
+  const recipient = singleRecipient(body.to);
+  const canonical = recipient === null ? null : canonicalEmail(recipient);
+  if (canonical === null) return { kind: 'invalid_tags', reason: 'RECIPIENT_INVALID' };
+  let identity: { hash: Uint8Array; keyId: string };
+  try {
+    identity = identify(canonical);
+  } catch {
+    return { kind: 'transient', code: 'IDENTITY_UNAVAILABLE' };
   }
+  if (identity.hash.length !== HASH_BYTES || identity.keyId.length === 0)
+    return { kind: 'invalid_tags', reason: 'RECIPIENT_INVALID' };
+  const tags = readTags(body.tags);
+  if (tags === null) return { kind: 'invalid_tags', reason: 'TAGS_INVALID' };
+  return {
+    kind: 'found',
+    id: providerEmailId,
+    tags,
+    recipientHash: identity.hash,
+    hashKeyId: identity.keyId,
+  };
 }
 
 function singleRecipient(value: unknown): string | null {

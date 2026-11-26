@@ -271,7 +271,7 @@ export function createInAppNotificationModule(
 
 /**
  * مسار إرسال البريد وحده: الإنتاج وواتساب مقفولة بالكامل، والبريد مفعّل.
- * القاعدة: الإذن بيتكتب في معاملة المصدر، والعامل بيبعت المحاولة المUTHORدة بس.
+ * القاعدة: الإذن بيتكتب في معاملة المصدر، والعامل بيبعت المحاولة المصرّح لها بس.
  */
 export function createEmailSendModule(options: {
   readonly database: Pick<TenantWrappers, 'withTenant'>;

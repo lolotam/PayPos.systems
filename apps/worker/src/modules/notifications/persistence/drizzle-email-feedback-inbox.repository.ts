@@ -97,13 +97,13 @@ async function readPending(tx: Tx, id: string): Promise<EmailFeedbackRow | null>
   const [row] = await tx.execute<{
     id: string;
     providerEmailId: string;
-    eventType: string;
+    feedbackType: string;
     bounceClass: string | null;
     providerTimestamp: Date;
     providerEventDigest: Buffer;
     attempts: number;
   }>(sql`
-    SELECT id, provider_email_id AS "providerEmailId", event_type AS "eventType",
+    SELECT id, provider_email_id AS "providerEmailId", event_type AS "feedbackType",
       bounce_class AS "bounceClass", provider_timestamp AS "providerTimestamp",
       provider_event_digest AS "providerEventDigest", attempts
     FROM public.platform_email_feedback_inbox
@@ -112,7 +112,7 @@ async function readPending(tx: Tx, id: string): Promise<EmailFeedbackRow | null>
   return {
     id: row.id,
     providerEmailId: row.providerEmailId,
-    eventType: eventTypeOf(row.eventType),
+    feedbackType: feedbackTypeOf(row.feedbackType),
     bounceClass: row.bounceClass === null ? null : (row.bounceClass as 'PERMANENT' | 'TRANSIENT'),
     providerTimestamp: new Date(row.providerTimestamp),
     providerEventDigest: row.providerEventDigest,
@@ -150,35 +150,13 @@ async function reconcile(
   tx: Tx,
   input: EmailFeedbackTenantInput,
 ): Promise<EmailFeedbackTenantOutcome> {
-  const [row] = await tx.execute<{
-    companyId: string;
-    channel: string;
-    executionId: string | null;
-    status: string;
-    outcomeKnown: boolean | null;
-    providerMessageId: string | null;
-    recipientHash: Buffer;
-    hashKeyId: string;
-  }>(sql`
+  const [snapshot] = await tx.execute<AttemptBindingSnapshot>(sql`
     SELECT company_id AS "companyId", channel, execution_id AS "executionId", status,
       outcome_known AS "outcomeKnown", provider_message_id AS "providerMessageId",
       recipient_hash AS "recipientHash", hash_key_id AS "hashKeyId"
     FROM notification_attempts
     WHERE company_id = app_company_id() AND id = ${input.attemptId}::uuid FOR UPDATE`);
-  const snapshot: AttemptBindingSnapshot | null =
-    row === undefined
-      ? null
-      : {
-          companyId: row.companyId,
-          channel: row.channel,
-          executionId: row.executionId,
-          status: row.status,
-          outcomeKnown: row.outcomeKnown,
-          providerMessageId: row.providerMessageId,
-          recipientHash: row.recipientHash,
-          hashKeyId: row.hashKeyId,
-        };
-  const decision = evaluateAttemptBinding(snapshot, {
+  const decision = evaluateAttemptBinding(snapshot ?? null, {
     companyId: input.companyId,
     executionId: input.executionId,
     providerEmailId: input.providerEmailId,
@@ -207,7 +185,7 @@ async function recordEvidence(tx: Tx, input: EmailFeedbackTenantInput): Promise<
     INSERT INTO notification_attempt_feedback
       (company_id, id, attempt_id, event_type, bounce_class, provider_event_digest, provider_timestamp, recorded_at)
     VALUES (${input.companyId}::uuid, ${input.feedbackId}::uuid, ${input.attemptId}::uuid,
-      ${input.eventType}, ${input.bounceClass}, ${Buffer.from(input.providerEventDigest)},
+      ${input.feedbackType}, ${input.bounceClass}, ${Buffer.from(input.providerEventDigest)},
       ${input.providerTimestamp.toISOString()}::timestamptz, ${input.recordedAt.toISOString()}::timestamptz)
     ON CONFLICT (company_id, provider_event_digest) DO NOTHING RETURNING id`);
   return rows.length === 1;
@@ -231,7 +209,7 @@ async function drainPayloads(database: PlatformEmailDatabase, cutoff: Date): Pro
   return cleared;
 }
 
-function eventTypeOf(value: string): EmailFeedbackEventType {
+function feedbackTypeOf(value: string): EmailFeedbackEventType {
   const found = EVENT_TYPES.find((type) => type === value);
   if (found === undefined) throw new Error('EMAIL_FEEDBACK_EVENT_INVALID');
   return found;

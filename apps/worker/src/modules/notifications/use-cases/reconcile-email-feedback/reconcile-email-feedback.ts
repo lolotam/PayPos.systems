@@ -44,7 +44,7 @@ export class ReconcileEmailFeedback {
       recipientHash: retrieved.recipientHash,
       hashKeyId: retrieved.hashKeyId,
       feedbackId: this.ids.newId(),
-      eventType: row.eventType,
+      feedbackType: row.feedbackType,
       bounceClass: row.bounceClass,
       providerEventDigest: row.providerEventDigest,
       providerTimestamp: row.providerTimestamp,
@@ -72,7 +72,7 @@ export class ReconcileEmailFeedback {
     retrieved: Extract<ResendRetrievalResult, { kind: 'found' }>,
     now: Date,
   ): Promise<void> {
-    const decision = emailFeedbackDecision(row.eventType, row.bounceClass);
+    const decision = emailFeedbackDecision(row.feedbackType, row.bounceClass);
     await this.inbox.settle({
       inboxId: row.id,
       at: now,

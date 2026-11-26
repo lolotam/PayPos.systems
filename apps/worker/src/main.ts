@@ -55,7 +55,10 @@ import {
 import { DocumentSourceRegistry } from './documents/source-registry.ts';
 import { createAttendanceStatementSource } from './documents/sources/attendance-statement.source.ts';
 import { createCommissionStatementSource } from './documents/sources/commission-statement.source.ts';
-import { createCommissionStatementExportReader, createParkedCommissionAlert } from './modules/commissions/index.ts';
+import {
+  createCommissionStatementExportReader,
+  createParkedCommissionAlert,
+} from './modules/commissions/index.ts';
 import { businessCalendar, businessTimeZone } from './modules/tenancy/index.ts';
 import { startCommissionReminderWiring } from './commission-reminders.ts';
 import { drainDispatchAndDocuments } from './documents/shutdown-drain.ts';
@@ -337,9 +340,8 @@ async function startWorkerCore(): Promise<void> {
       readiness: readinessChecks(),
       stopPolling: async () => {
         stopping = true;
-        email.stop();
         maintenance?.stop();
-        await closeOptional([() => push.stop()]);
+        await closeOptional([() => email.stop(), () => push.stop()]);
         await drainDispatchAndDocuments({
           stopDispatch: () => loop.stop(),
           stopDocuments: () => documents?.stop(),

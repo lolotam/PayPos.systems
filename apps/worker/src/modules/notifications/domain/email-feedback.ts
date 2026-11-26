@@ -2,7 +2,6 @@
 export const MAX_FEEDBACK_ATTEMPTS = 8;
 /** أقصى مسافة بين محاولتين؛ المباعدة أسية بتتضاعف لحد السقف ده. */
 export const MAX_FEEDBACK_BACKOFF_MS = 6 * 60 * 60 * 1000;
-/** أول مسافة بعد الفشل الأول؛ doubling بيوصلها للسقف في المحاولة السابعة. */
 const BASE_FEEDBACK_BACKOFF_MS = 10 * 60 * 1000;
 
 /** نوع الحدث المسموح به من المزود؛ القائمة مغلقة على الستة بس. */
@@ -36,35 +35,22 @@ export type EmailQuarantineReason =
 
 /** لقطة المحاولة وقت الربط: القيم اللي القاعدة بتسمح نقراها ونقارنها. */
 export interface AttemptBindingSnapshot {
-  /** الشركة اللي المحاولة بتاعتها. */
   readonly companyId: string;
-  /** قناة المحاولة؛ الإيميل بس هو اللي بيقبل ردّ المزود. */
   readonly channel: string;
-  /** سياج التنفيذ؛ من غيره ما فيش دليل بيتثبت. */
   readonly executionId: string | null;
-  /** حالة المحاولة وقت الردّ. */
   readonly status: string;
-  /** هل نتيجة المحاولة معروفة؛ failed بدون نتيجة معروفة لسه قابلة للربط. */
   readonly outcomeKnown: boolean | null;
-  /** معرّف المزود المربوط بالفعل، لو اتربط. */
   readonly providerMessageId: string | null;
-  /** بصمة الوجهة المحفوظة على المحاولة. */
   readonly recipientHash: Uint8Array;
-  /** معرّف مفتاح البصمة. */
   readonly hashKeyId: string;
 }
 
 /** الهدف اللي رجع من استرجاع المزود: الوسوم والبصمة. */
 export interface RetrievedBindingTarget {
-  /** الشركة اللي في وسم المزود. */
   readonly companyId: string;
-  /** سياج التنفيذ اللي في وسم المزود. */
   readonly executionId: string;
-  /** معرّف الإيميل عند المزود. */
   readonly providerEmailId: string;
-  /** بصمة الوجهة المسترجعة من المزود. */
   readonly recipientHash: Uint8Array;
-  /** معرّف مفتاح البصمة. */
   readonly hashKeyId: string;
 }
 
@@ -82,36 +68,21 @@ export type EmailFeedbackDecision =
       readonly reason: EmailSuppressionReason;
     };
 
-/**
- * يقرر هل الحدث ده يمنع العنوان من جديد.
- * الشكوى والارتداد الدائم ومنع المزود بيحظروا؛ الارتداد المؤقت والتأخير والتسليم
- * والفشل دليل بس، لأن العنوان ممكن يوصل بعد كده.
- *
- * @param eventType نوع الحدث عند المزود
- * @param bounceClass تصنيف الارتداد لو الحدث ارتداد
- * @returns قرار الحظر مع مصدره وسببه
- */
+/** يقرر هل الحدث يمنع العنوان (شكوى، منع مزود، ارتداد دائم) أم دليل فقط. */
 export function emailFeedbackDecision(
-  eventType: EmailFeedbackEventType,
+  feedbackType: EmailFeedbackEventType,
   bounceClass: EmailBounceClass | null,
 ): EmailFeedbackDecision {
-  if (eventType === 'email.complained')
+  if (feedbackType === 'email.complained')
     return { suppress: true, source: 'COMPLAINT', reason: 'COMPLAINT' };
-  if (eventType === 'email.suppressed')
+  if (feedbackType === 'email.suppressed')
     return { suppress: true, source: 'PROVIDER', reason: 'PROVIDER_SUPPRESSION' };
-  if (eventType === 'email.bounced' && bounceClass === 'PERMANENT')
+  if (feedbackType === 'email.bounced' && bounceClass === 'PERMANENT')
     return { suppress: true, source: 'BOUNCE', reason: 'PERMANENT_BOUNCE' };
   return { suppress: false };
 }
 
-/**
- * يقيّم لو ردّ المزود ينتمي لمحاولتنا، ويقول هل منفع نربط معرّف المزود.
- * الترتيب مقصود: كل رفض بيرجع سبب تعطيل واحد، وأول اختلاف هو اللي بيتكتب.
- *
- * @param attempt لقطة المحاولة المقفولة، أو null لو مفيش محاولة
- * @param target الهدف المسترجع من المزود
- * @returns قرار الربط مع سبب الرفض
- */
+/** يقيّم انتماء ردّ المزود لمحاولتنا ويرجع هل نربط معرّف المزود أم نعطّل الصف. */
 export function evaluateAttemptBinding(
   attempt: AttemptBindingSnapshot | null,
   target: RetrievedBindingTarget,
@@ -131,14 +102,7 @@ export function evaluateAttemptBinding(
   return bindingState(attempt);
 }
 
-/**
- * يقرر موعد المحاولة الجاية بعد فشل مؤقت، أو يعطّل الصف لو العدّان خلص.
- * المسافة بتتضاعف من عشر دقايق لحد ست ساعات؛ الاسترجاع بس بيتعاد، والإرسال لأ.
- *
- * @param attemptsAfterFailure عدد المحاولات الفاشلة بعد الفشل ده
- * @param now وقت الفشل
- * @returns موعد المحاولة الجاية أو سبب التعطيل
- */
+/** يقرر موعد المحاولة الجاية بعد فشل مؤقت، أو يعطّل الصف بعد استنفاد المحاولات. */
 export function nextFeedbackRetry(
   attemptsAfterFailure: number,
   now: Date,

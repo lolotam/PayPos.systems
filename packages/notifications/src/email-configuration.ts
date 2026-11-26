@@ -30,13 +30,8 @@ const MINIMUM_HASH_KEY_LENGTH = 32;
 const SENDING_DOMAIN = '@send.pospay.systems';
 
 /**
- * يقرأ إعداد قناة البريد من البيئة ويحدد أول مجموعة ناقصة.
- * القاعدة: التفعيل بيحتاج كل الإعدادات صح؛ وأي نقص بيسمّي_group من غير ما يطبع ولا سرّ.
- * مفتاح البصمة بيفضل متاح وهو مقفول عشان التحقق من الهوية يفضل شغّال.
- *
- * @param env environment of the process
- * @param options readiness of the feedback intake; false closes the channel
- * @returns the configuration and the reason it is closed
+ * يقرأ إعداد قناة البريد من البيئة ويحدد أول مجموعة ناقصة بدون تسريب أي سرّ،
+ * مع إبقاء مفتاح البصمة متاحًا للتحقق من الهوية حتى أثناء تعطيل الإرسال.
  */
 export function readEmailConfiguration(
   env: NodeJS.ProcessEnv,
