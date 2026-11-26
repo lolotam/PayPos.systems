@@ -4,6 +4,7 @@ import {
   lockServiceSessionEditAccess,
   lockServiceSessionPerformersAccess,
   readPackageExtensionAccess,
+  readPackageRefundAccess,
   readServiceSessionCancelAccess,
   readServiceSessionEditAccess,
   readServiceSessionPerformersAccess,
@@ -66,6 +67,19 @@ export async function packageExtendCapability(
   at: Date,
 ): Promise<boolean> {
   const access = await readPackageExtensionAccess(tx, companyId, userId, businessId, branchId, at);
+  return !access.denied && access.feature && access.eligible.length > 0;
+}
+
+// قدرة الاسترداد لزرار شاشة الباقة: نفس قرار RefundPackageUseCase بس من غير قفل الشركة.
+export async function packageRefundCapability(
+  tx: Tx,
+  companyId: string,
+  userId: string,
+  businessId: string,
+  branchId: string,
+  at: Date,
+): Promise<boolean> {
+  const access = await readPackageRefundAccess(tx, companyId, userId, businessId, branchId, at);
   return !access.denied && access.feature && access.eligible.length > 0;
 }
 

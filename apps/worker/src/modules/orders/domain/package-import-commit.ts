@@ -1,18 +1,23 @@
 import { allocatePackagePrice, parseMoney } from '@pospay/domain';
 import type { PackageImportCandidate } from './package-import.ts';
 
+/** أكواد رفض تثبيت استيراد الباقات؛ مصدر واحد للخطأ وللمعالج فالتكرير ما يتسرّبش. */
+export const PACKAGE_COMMIT_FAILURE_CODES = [
+  'IMPORT_PREVIEW_EXPIRED',
+  'IMPORT_PREVIEW_HAS_ERRORS',
+  'IMPORT_COMMIT_FAILED',
+  'IMPORT_SERVICE_NOT_FOUND',
+] as const;
+
+/** نوع رمز رفض تثبيت استيراد الباقات. */
+export type PackageCommitFailureCode = (typeof PACKAGE_COMMIT_FAILURE_CODES)[number];
+
 /** رفض دائم وآمن يسمح للعامل بإنهاء الطلب بعد التراجع عن المعاملة. */
 export class PackageCommitError extends Error {
   /** يحتفظ برمز الرفض فقط دون بيانات المصدر أو تفاصيل قاعدة البيانات.
    *
    * @param code رمز رفض آمن دون تفاصيل المصدر */
-  constructor(
-    readonly code:
-      | 'IMPORT_PREVIEW_EXPIRED'
-      | 'IMPORT_PREVIEW_HAS_ERRORS'
-      | 'IMPORT_COMMIT_FAILED'
-      | 'IMPORT_SERVICE_NOT_FOUND',
-  ) {
+  constructor(readonly code: PackageCommitFailureCode) {
     super(code);
   }
 }

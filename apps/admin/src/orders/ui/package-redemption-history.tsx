@@ -5,6 +5,7 @@ import { useLocale } from '@/shared/locale/locale-context';
 import { useCustomerPackageDetail } from '../api/use-customer-package-detail';
 import type { SessionServiceScope } from '../api/use-session-services';
 import { CustomerPackageExtensionControls } from './customer-package-extension-controls';
+import { CustomerPackageRefundControls } from './customer-package-refund-controls';
 import { readAccessProof } from '@/shared/api/read-access-proof';
 import { PackageRedemptionHistoryBody } from './package-redemption-history-body';
 
@@ -43,6 +44,16 @@ export function PackageRedemptionHistory({
           expiresOn={data.expires_on}
           onSaved={() => void detail.refetch()}
           buttonLabel={t(locale, 'packageExtension.extend')}
+        />
+      ) : null}
+      {data?.can_refund ? (
+        <CustomerPackageRefundControls
+          scope={scope}
+          customerId={customerId}
+          entitlementId={entitlementId}
+          detail={data}
+          onSaved={() => void detail.refetch()}
+          buttonLabel={t(locale, 'packageRefund.refund')}
         />
       ) : null}
     </details>

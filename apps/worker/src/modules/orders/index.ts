@@ -14,6 +14,8 @@ export {
   createDiscountSelfApprovalNoticeConsumer,
 } from './orders.module.ts';
 
+export { createPackageRefundNoticeConsumer } from './package-refund-notice.consumer.ts';
+
 export const daySessionsReader = {
   activeLines: listActiveLinesOfCustomer,
   sessionsSince: listSessionsSince,

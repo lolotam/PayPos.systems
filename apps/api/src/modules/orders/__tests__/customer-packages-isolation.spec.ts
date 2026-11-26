@@ -22,7 +22,15 @@ beforeAll(async () => {
   f = fixture.f;
   const reads = { place: async () => 'Asia/Kuwait' };
   listHandler = new CustomerPackagesQueryHandler(f.db, reads, f.clock);
-  detailHandler = new CustomerPackageDetailQueryHandler(f.db, { place: async () => 'Asia/Kuwait', canExtend: async () => false }, f.clock);
+  detailHandler = new CustomerPackageDetailQueryHandler(
+    f.db,
+    {
+      place: async () => 'Asia/Kuwait',
+      canExtend: async () => false,
+      canRefund: async () => false,
+    },
+    f.clock,
+  );
 });
 
 afterAll(async () => {
@@ -48,7 +56,10 @@ it('isolates packages between businesses for the same customer over HTTP', async
 
 it('returns 404 PACKAGE_NOT_FOUND with empty data when requesting other-business package in detail', async () => {
   const mismatchedDetailPath = `/v1/businesses/${f.business}/branches/${f.branch}/customers/${f.customer}/packages/${fixture.pkgBusiness2}`;
-  const res = await f.h.send('GET', mismatchedDetailPath, { cookie: f.ownerCookie, company: f.company });
+  const res = await f.h.send('GET', mismatchedDetailPath, {
+    cookie: f.ownerCookie,
+    company: f.company,
+  });
   expect(res.status).toBe(404);
   expect(res.body['code']).toBe('PACKAGE_NOT_FOUND');
   expect(res.body).not.toHaveProperty('components');

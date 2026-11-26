@@ -9,6 +9,11 @@ import type {
   PackageCommitTransactions,
 } from '../../ports/package-import-commit.port.ts';
 
+export {
+  PACKAGE_COMMIT_FAILURE_CODES,
+  type PackageCommitFailureCode,
+} from '../../domain/package-import-commit.ts';
+
 /** إعادة محاولة آمنة لا تحمل نص SQL أو معاملاته، وتحفظ سبب الرفض عند تعذر تثبيته. */
 export class PackageCommitRetryError extends Error {
   /**

@@ -7,7 +7,10 @@ import {
   type TenantWrappers,
   type Tx,
 } from '@pospay/db';
-import { packageSaleChanged } from '@pospay/contracts';
+import {
+  packageRefundRecorded as packageRefundRecordedContract,
+  packageSaleChanged,
+} from '@pospay/contracts';
 import { lockPackageRefundAccess, readPackageRefundAccess } from '../../identity/index.ts';
 import { readImportedRefundsEnabled } from '../../settings/index.ts';
 import { packageSalePlace } from '../../tenancy/index.ts';
@@ -88,6 +91,15 @@ function packageRefundTransaction(
         aggregateType: 'package_entitlement',
         aggregateId: parsed.sale_id,
         eventType: 'PackageSaleChanged',
+        payload: parsed,
+      });
+    },
+    emitRefundRecorded: async (payload) => {
+      const parsed = packageRefundRecordedContract.parse(payload);
+      await appendOutboxEvent(tx, ids.newId(), {
+        aggregateType: 'package_entitlement',
+        aggregateId: parsed.entitlement_id,
+        eventType: 'PackageRefundRecorded',
         payload: parsed,
       });
     },

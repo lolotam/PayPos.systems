@@ -252,6 +252,7 @@ export function startPackagePreviewWorker(
   redisUrl: string,
   clock: PackagePreviewClock,
   prefix?: string,
+  retryDelayMs?: (attempt: number) => number | null,
 ) {
   const processor = startPackagePreviewProcessor(
     new ExecutePackagePreview(
@@ -261,6 +262,7 @@ export function startPackagePreviewWorker(
     ),
     redisUrl,
     prefix,
+    retryDelayMs,
   );
   return {
     eventTypes: ['PackageImportPreviewRequested'],
@@ -279,16 +281,19 @@ export function startPackageSaleWorker(
     redisUrl: string;
     clock: PackageSaleClock;
     transactionTimeoutMs: number;
+    retryDelayMs?: (attempt: number) => number | null;
     prefix?: string;
   },
 ) {
-  const { redisUrl, clock, transactionTimeoutMs, prefix } = options;
+  const { redisUrl, clock, transactionTimeoutMs, retryDelayMs, prefix } = options;
+  // null من السياسة يعني الإيقاف عند آخر محاولة؛ لا يتحول إلى إعادة بعد ثانيتين.
+  const retryDelay = retryDelayMs ?? (() => 2000);
   const sale = new ExecutePackageSale(
     packageSaleTransactions(database, ids, { timeoutMs: transactionTimeoutMs }),
     ids,
     clock,
   );
-  const processor = startPackageSaleProcessor(sale, redisUrl, prefix);
+  const processor = startPackageSaleProcessor(sale, redisUrl, prefix, retryDelayMs);
   const recoveryUseCase = new RecoverPackageSales(
     packageSaleRecoveryTransactions(database, { timeoutMs: transactionTimeoutMs }),
     clock,
@@ -304,7 +309,11 @@ export function startPackageSaleWorker(
       try {
         await recovery.register(event.companyId);
       } catch {
-        return { delivered: false, error: 'PACKAGE_SALE_RECOVERY_SCHEDULE_RETRY', retryInMs: 2000 };
+        return {
+          delivered: false,
+          error: 'PACKAGE_SALE_RECOVERY_SCHEDULE_RETRY',
+          retryInMs: retryDelay(event.attempt),
+        };
       }
       return processor.deliver(event);
     },

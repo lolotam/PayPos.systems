@@ -54,6 +54,7 @@ function detail(
     refunded_amount: '0.000',
     revision: 1,
     can_extend,
+    can_refund: false,
     components: [
       {
         id: componentId,
@@ -73,6 +74,7 @@ function detail(
     business_timezone,
     redemptions,
     extensions,
+    refunds: [],
   };
 }
 
@@ -277,12 +279,7 @@ it('shows the load failure inside the opened section when the connection drops b
   ];
   client.setQueryData(
     key,
-    detail(
-      [redemption('01920000-0000-7000-8000-000000000041', 2, null)],
-      [],
-      'Asia/Kuwait',
-      false,
-    ),
+    detail([redemption('01920000-0000-7000-8000-000000000041', 2, null)], [], 'Asia/Kuwait', false),
   );
   onlineManager.setOnline(false);
   renderHistory(client);

@@ -1,12 +1,13 @@
-import { Queue, Worker, DelayedError, type Job } from 'bullmq';
-import { Redis } from 'ioredis';
+import { DelayedError, type Job, type Queue } from 'bullmq';
 import { z } from 'zod';
 import { packageImportCommitJob, packageImportCommitRequested } from '@pospay/contracts';
 import type { ClaimedEvent, DeliveryOutcome } from '@pospay/db';
 import {
   PackageCommitRetryError,
+  PACKAGE_COMMIT_FAILURE_CODES,
   type CommitPackageImport,
 } from '../use-cases/commit-package-import/commit-package-import.ts';
+import { createBullQueueWorker } from './bullmq-queue-worker.ts';
 
 export const PACKAGE_IMPORT_COMMIT_QUEUE = 'package-import-commit';
 // حد العالق جزء من عقد التشغيل لا إعداد حر: إعادة واحدة بعد العالق تكفي، وأمان المال من حارس الحالة لا من كثرة المحاولات.
@@ -14,12 +15,7 @@ const PACKAGE_IMPORT_COMMIT_MAX_STALLED = 1;
 // القفل بيتجدد طول ما الهاندلر منتظر قاعدة البيانات؛ قفل أطول يعدي زحزة Redis قصيرة على اتصال بلا offline queue.
 const PACKAGE_IMPORT_COMMIT_LOCK_MS = 60_000;
 const FINALIZING_FAILURE = 'finalizing-commit-failure';
-const commitFailureCode = z.enum([
-  'IMPORT_PREVIEW_EXPIRED',
-  'IMPORT_PREVIEW_HAS_ERRORS',
-  'IMPORT_COMMIT_FAILED',
-  'IMPORT_SERVICE_NOT_FOUND',
-]);
+const commitFailureCode = z.enum(PACKAGE_COMMIT_FAILURE_CODES);
 const failureProgress = z.strictObject({
   stage: z.literal(FINALIZING_FAILURE),
   code: commitFailureCode,
@@ -132,35 +128,21 @@ export function startPackageImportCommitProcessor(
     // الحساب لحظي عند كل نقطة قرار؛ النتيجة المحفوظة تتقادم قبل انتهاء انتظار قاعدة البيانات.
     pastWindow: (job) => useCase.windowClosed(job.timestamp, now()),
   };
-  const connection = new Redis(redisUrl, { maxRetriesPerRequest: null, enableOfflineQueue: false });
-  connection.on('error', () => undefined);
-  const producer = connection.duplicate({ maxRetriesPerRequest: 1, commandTimeout: 5000 });
-  producer.on('error', () => undefined);
-  const queue = new Queue(PACKAGE_IMPORT_COMMIT_QUEUE, {
-    connection: producer,
+  const bull = createBullQueueWorker({
+    name: PACKAGE_IMPORT_COMMIT_QUEUE,
+    redisUrl,
     prefix,
-  });
-  queue.on('error', () => undefined);
-  const worker = new Worker(PACKAGE_IMPORT_COMMIT_QUEUE, commitHandler(useCase, clock), {
-    connection,
-    concurrency: 1,
-    prefix,
-    lockDuration: options.lockDurationMs ?? PACKAGE_IMPORT_COMMIT_LOCK_MS,
+    handler: commitHandler(useCase, clock),
+    lockDurationMs: options.lockDurationMs ?? PACKAGE_IMPORT_COMMIT_LOCK_MS,
     maxStalledCount: PACKAGE_IMPORT_COMMIT_MAX_STALLED,
     ...(options.stalledIntervalMs === undefined
       ? {}
-      : { stalledInterval: options.stalledIntervalMs }),
+      : { stalledIntervalMs: options.stalledIntervalMs }),
   });
-  worker.on('error', () => undefined);
   return {
-    deliver: (event: ClaimedEvent) => deliverCommit(queue, event, retryDelay),
-    ready: () => worker.waitUntilReady().then(() => undefined),
-    close: (force = false) =>
-      worker.close(force).then(async () => {
-        await queue.close();
-        producer.disconnect();
-        connection.disconnect();
-      }),
+    deliver: (event: ClaimedEvent) => deliverCommit(bull.queue, event, retryDelay),
+    ready: bull.ready,
+    close: bull.close,
   };
 }
 

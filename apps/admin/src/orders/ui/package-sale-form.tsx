@@ -25,6 +25,34 @@ import { PackageSaleTypeField } from './package-sale-type-field';
 import { usePackageSaleTypeOptions } from './package-sale-type-option';
 import { usePackageSaleSubmit } from './use-package-sale-submit';
 
+/** اختيار الزبونة ما بينتقلش بين النطاقات، ورفض القراءة يرجّع الاختيار ويطلب قراءة جديدة. */
+function usePackageSaleCustomerSelection(
+  scope: SessionServiceScope,
+  entryScope: string | null | undefined,
+  refreshContext: () => void,
+) {
+  const [selection, setSelection] = useState<{
+    customer: SessionCustomerSelection;
+    scopeKey: string;
+  } | null>(null);
+  const scopeKey = [
+    scope.companyId,
+    scope.userId,
+    scope.businessId,
+    scope.branchId,
+    entryScope ?? '',
+  ].join('|');
+  const customer = selection?.scopeKey === scopeKey ? selection.customer : null;
+  if (selection !== null && customer === null) setSelection(null);
+  const selectCustomer = (next: SessionCustomerSelection | null) =>
+    setSelection(next === null ? null : { customer: next, scopeKey });
+  const onProfileAccessDenied = useCallback(() => {
+    setSelection(null);
+    refreshContext();
+  }, [refreshContext]);
+  return { customer, selectCustomer, onProfileAccessDenied };
+}
+
 function saleBody(
   values: PackageSaleFieldValues,
   customer: SessionCustomerSelection,
@@ -112,66 +140,106 @@ const saleDefaults: PackageSaleFieldValues = {
   seller_employee_id: '',
 };
 
-function usePackageSaleFormState(scope: SessionServiceScope, locale: 'ar' | 'en') {
-  const [selection, setSelection] = useState<{
-    customer: SessionCustomerSelection;
-    scopeKey: string;
-  } | null>(null);
-  const [type, setType] = useState<SellablePackageType | null>(null);
+/**
+ * السعر اللي لسه تلقائي بيتحدّث مع العرض الجديد؛ سعر كتبته الموظفة بيفضل زي ما هو لأن العرض الجديد مش بيلغي اختياره.
+ *
+ * @param form فورم البيع
+ * @param previous الباقة المختارة قبل التحديث
+ * @param refreshed الباقة بالعرض الجديد
+ */
+function refreshTypePrice(
+  form: UseFormReturn<PackageSaleFieldValues>,
+  previous: SellablePackageType | null,
+  refreshed: SellablePackageType,
+): void {
+  const current = form.getValues('price_paid');
+  if (previous === null) return;
+  if (current === previous.price || normalizeKwdInput(current) === previous.price)
+    form.setValue('price_paid', refreshed.price, { shouldDirty: true });
+}
+
+function usePackageSaleStatusAndLock(scope: SessionServiceScope) {
   const [saleRequestId, setSaleRequestId] = useState<string | null>(null);
-  const { data: context, error: contextError, isPending: contextPending, refetch: refreshContext } = usePackageSaleContext(scope);
-  const form = useForm<PackageSaleFieldValues>({ defaultValues: saleDefaults });
   const mutation = useSellPackage(scope);
   const knownSaleId = saleRequestId ?? mutation.restoredSaleId;
   const [failure, setFailure] = useState<PackageSaleStatus>();
-  const statusQuery = usePackageSaleStatus(scope, knownSaleId, (failed) => { setFailure(failed); setSaleRequestId(null); mutation.releaseFailed(knownSaleId); });
+  const statusQuery = usePackageSaleStatus(scope, knownSaleId, (failed) => {
+    setFailure(failed);
+    setSaleRequestId(null);
+    mutation.releaseFailed(knownSaleId);
+  });
   const status = { ...statusQuery, data: statusQuery.data ?? failure };
-  const pending = mutation.isPending || (knownSaleId !== null && status.data?.status !== 'completed' && status.data?.status !== 'failed');
-  const locked = pending || mutation.recoveryRequired || mutation.restoring;
-  const { recorder, recorderField } = usePackageSaleRecorderField(context?.recorders ?? [], locale, locked);
-  const submitSale = packageSaleSubmission(form, locale, mutation, setSaleRequestId);
-  const entryScope = serviceSessionAccessRevoked(contextError) ? null : context?.customer_entry_scope;
-  const scopeKey = [scope.companyId, scope.userId, scope.businessId, scope.branchId, entryScope ?? ''].join('|');
-  // اختيار قديم من نطاق تاني ما يتعرضش ولا يبدأ قراءة تحت النطاق الجديد.
-  const customer = selection?.scopeKey === scopeKey ? selection.customer : null;
-  if (selection !== null && customer === null) setSelection(null);
-  const selectCustomer = (next: SessionCustomerSelection | null) => {
-    setSelection(next === null ? null : { customer: next, scopeKey });
-  };
-  const onProfileAccessDenied = useCallback(() => {
-    setSelection(null);
-    void refreshContext();
-  }, [refreshContext]);
-  const selectType = (selected: SellablePackageType) => { setType(selected); form.setValue('price_paid', selected.price, { shouldDirty: true }); };
-  const picker = usePackageSaleTypeOptions(scope, type, selectType, locked);
-  // استرجاع البيع الأصلي بيبعت الطلب المحفوظ، فالعرض المحدّث ما بيمنعهوش
-  const quoteStale = picker.quoteChanged && !mutation.recoveryRequired;
-  const submit = form.handleSubmit((values) => submitSale(values, entryScope ? customer : null, type, recorder));
-  const { onSubmit } = usePackageSaleSubmit({
+  const pending =
+    mutation.isPending ||
+    (knownSaleId !== null &&
+      status.data?.status !== 'completed' &&
+      status.data?.status !== 'failed');
+  return {
+    saleRequestId: knownSaleId,
+    setSaleRequestId,
     mutation,
+    status,
     pending,
-    quoteStale,
+    locked: pending || mutation.recoveryRequired || mutation.restoring,
     clearFailure: () => setFailure(undefined),
-    recordSaleRequestId: setSaleRequestId,
+  };
+}
+
+function usePackageSaleFormState(scope: SessionServiceScope, locale: 'ar' | 'en') {
+  const [type, setType] = useState<SellablePackageType | null>(null);
+  const {
+    data: context,
+    error: contextError,
+    isPending: contextPending,
+    refetch,
+  } = usePackageSaleContext(scope);
+  const form = useForm<PackageSaleFieldValues>({ defaultValues: saleDefaults });
+  const sale = usePackageSaleStatusAndLock(scope);
+  const { recorder, recorderField } = usePackageSaleRecorderField(
+    context?.recorders ?? [],
+    locale,
+    sale.locked,
+  );
+  const submitSale = packageSaleSubmission(form, locale, sale.mutation, sale.setSaleRequestId);
+  const entryScope = serviceSessionAccessRevoked(contextError)
+    ? null
+    : context?.customer_entry_scope;
+  const customerState = usePackageSaleCustomerSelection(scope, entryScope, refetch);
+  const selectType = (selected: SellablePackageType) => {
+    setType(selected);
+    form.setValue('price_paid', selected.price, { shouldDirty: true });
+  };
+  // إعادة تأكيد العرض الجديد بتحدّث السعر بس لو السعر لسه زي السعر القديم التلقائي؛
+  // سعر عدّله المستخدم بيفضل زي ما هو لأن العرض الجديد مش بيلغي اختياره.
+  const reconfirmType = (refreshed: SellablePackageType) => {
+    setType(refreshed);
+    refreshTypePrice(form, type, refreshed);
+  };
+  const picker = usePackageSaleTypeOptions(scope, type, selectType, sale.locked);
+  // استرجاع البيع الأصلي بيبعت الطلب المحفوظ، فالعرض المحدّث ما بيمنعهوش
+  const quoteStale = picker.quoteChanged && !sale.mutation.recoveryRequired;
+  const submit = form.handleSubmit((values) =>
+    submitSale(values, entryScope ? customerState.customer : null, type, recorder),
+  );
+  const { onSubmit } = usePackageSaleSubmit({
+    mutation: sale.mutation,
+    pending: sale.pending,
+    quoteStale,
+    clearFailure: sale.clearFailure,
+    recordSaleRequestId: sale.setSaleRequestId,
     submit,
   });
   return {
     entryScope,
     contextPending,
-    customer,
+    customerState,
     recorderField,
-    saleRequestId: knownSaleId,
     form,
-    mutation,
-    status,
-    pending,
-    locked,
+    ...sale,
     picker,
     quoteStale,
     onSubmit,
-    selectCustomer,
-    setType,
-    onProfileAccessDenied,
+    reconfirmType,
   };
 }
 
@@ -206,53 +274,90 @@ function packageSaleResult(
 const FULL_CELL = 'col-span-12 min-w-0';
 const HALF_CELL = 'col-span-12 flex min-w-0 flex-col gap-3 md:col-span-6';
 
+function PackageSaleCustomerCell({
+  scope,
+  entryScope,
+  contextPending,
+  locked,
+  customerState,
+  locale,
+}: {
+  scope: SessionServiceScope;
+  entryScope: ReturnType<typeof usePackageSaleFormState>['entryScope'];
+  contextPending: boolean;
+  locked: boolean;
+  customerState: ReturnType<typeof usePackageSaleCustomerSelection>;
+  locale: 'ar' | 'en';
+}) {
+  if (contextPending) return null;
+  if (entryScope == null) return <p role="alert">{t(locale, 'packageSale.customerUnavailable')}</p>;
+  return (
+    <SessionCustomerField
+      {...scope}
+      packagesScope={scope}
+      entryScope={entryScope}
+      value={customerState.customer}
+      onChange={customerState.selectCustomer}
+      onAccessDenied={customerState.onProfileAccessDenied}
+      disabled={locked}
+    />
+  );
+}
+
 export function PackageSaleForm({ scope }: { scope: SessionServiceScope }) {
   const locale = useLocale();
-  const { entryScope, contextPending, customer, selectCustomer, recorderField, saleRequestId, form, mutation, status, pending, locked, picker, quoteStale, onSubmit, setType, onProfileAccessDenied } = usePackageSaleFormState(scope, locale);
+  const s = usePackageSaleFormState(scope, locale);
+  const submitDisabled =
+    s.pending ||
+    s.mutation.restoring ||
+    s.mutation.verificationRequired ||
+    s.quoteStale ||
+    s.saleRequestId !== null ||
+    (!s.entryScope && !s.mutation.recoveryRequired) ||
+    s.status.data?.status === 'completed';
   return (
-    <form noValidate onSubmit={onSubmit} className="grid gap-4 text-start">
+    <form noValidate onSubmit={s.onSubmit} className="grid gap-4 text-start">
       <Card>
         <CardContent className="grid gap-6">
           <section className="grid gap-4">
             <h2 className="text-lg font-semibold">{t(locale, 'serviceSessions.packagePicker')}</h2>
             <div className="grid grid-cols-12 gap-4">
-              {recorderField ? <div className={HALF_CELL}>{recorderField}</div> : null}
+              {s.recorderField ? <div className={HALF_CELL}>{s.recorderField}</div> : null}
               <div className={FULL_CELL}>
-                {contextPending ? null : entryScope == null ? (
-                  <p role="alert">{t(locale, 'packageSale.customerUnavailable')}</p>
-                ) : (
-                  <SessionCustomerField
-                    {...scope}
-                    packagesScope={scope}
-                    entryScope={entryScope}
-                    value={customer}
-                    onChange={selectCustomer}
-                    onAccessDenied={onProfileAccessDenied}
-                    disabled={locked}
-                  />
-                )}
+                <PackageSaleCustomerCell
+                  scope={scope}
+                  entryScope={s.entryScope}
+                  contextPending={s.contextPending}
+                  locked={s.locked}
+                  customerState={s.customerState}
+                  locale={locale}
+                />
               </div>
               <div className={FULL_CELL}>
-                <PackageSaleTypeField picker={picker} disabled={locked} onReconfirm={setType} />
+                <PackageSaleTypeField
+                  picker={s.picker}
+                  disabled={s.locked}
+                  onReconfirm={s.reconfirmType}
+                />
               </div>
             </div>
           </section>
           <section className="grid gap-4">
             <h2 className="text-lg font-semibold">{t(locale, 'packageSale.sectionPayment')}</h2>
-            <PackageSaleFields scope={scope} form={form} disabled={locked} />
+            <PackageSaleFields scope={scope} form={s.form} disabled={s.locked} />
           </section>
-          {form.formState.errors.root ? (
-            <p role="alert">{form.formState.errors.root.message}</p>
+          {s.form.formState.errors.root ? (
+            <p role="alert">{s.form.formState.errors.root.message}</p>
           ) : null}
-          <PackageSaleRecoveryNotice mutation={mutation} status={status.data?.status} />
+          <PackageSaleRecoveryNotice mutation={s.mutation} status={s.status.data?.status} />
         </CardContent>
         <CardFooter>
-          <Button className="ms-auto" type="submit" disabled={pending || mutation.restoring || mutation.verificationRequired || quoteStale || saleRequestId !== null || (!entryScope && !mutation.recoveryRequired) || status.data?.status === 'completed'}>
-            {packageSaleSubmitLabel(locale, pending, mutation.recoveryRequired)}
+          <Button className="ms-auto" type="submit" disabled={submitDisabled}>
+            {packageSaleSubmitLabel(locale, s.pending, s.mutation.recoveryRequired)}
           </Button>
         </CardFooter>
       </Card>
-      {packageSaleResult(status, saleRequestId)}
+      {packageSaleResult(s.status, s.saleRequestId)}
     </form>
   );
 }

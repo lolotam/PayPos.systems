@@ -1,10 +1,12 @@
 import { afterAll, beforeAll, expect, it } from 'vitest';
+import { packageRefundRecorded } from '@pospay/contracts';
 import {
   clearImportedRefunds,
   packageRefundFixture,
   postRefund,
   readRefundAudits,
   readRefunds,
+  readRefundRecordedEvents,
   readSaleEvents,
   refundBody,
   seedSoldPackage,
@@ -44,6 +46,15 @@ it('RF-08 refuses an imported package while the switch is off and refunds it onc
   expect(await readRefunds(f, imported.entitlement)).toHaveLength(1);
   expect(await readRefundAudits(f, imported.entitlement)).toHaveLength(1);
   expect(await readSaleEvents(f, imported.entitlement)).toHaveLength(0);
+  // جرس الاسترداد بيتبعت للاستيراد كمان؛ حدث البيع ما بيتبعتش للباقة المستوردة.
+  const bells = await readRefundRecordedEvents(f, imported.entitlement);
+  expect(bells).toHaveLength(1);
+  expect(packageRefundRecorded.parse(bells[0]?.['payload'])).toMatchObject({
+    entitlement_id: imported.entitlement,
+    component_id: imported.component,
+    sessions: 1,
+    amount: '2.250',
+  });
 });
 
 it('RF-08 leaves a sold refund untouched by the imported switch', async () => {

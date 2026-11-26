@@ -197,6 +197,7 @@ it('shows no phone and no field the detail does not own', async () => {
       'components',
       'redemptions',
       'extensions',
+      'refunds',
     ].sort(),
   );
   const component = must(detail.components[0]);
@@ -251,7 +252,11 @@ it('plans the detail read on the package indexes', async () => {
         expect(scans.length).toBeGreaterThan(0);
         expect(scans.every((node) => node['Node Type'] !== 'Seq Scan')).toBe(true);
         expect(
-          plan.some((node) => (SUPPORTING_INDEXES[table] ?? []).includes(node['Index Name'] ?? '') || (JOINED_TABLES.has(table) && (node['Index Name'] ?? '').startsWith(table + '_'))),
+          plan.some(
+            (node) =>
+              (SUPPORTING_INDEXES[table] ?? []).includes(node['Index Name'] ?? '') ||
+              (JOINED_TABLES.has(table) && (node['Index Name'] ?? '').startsWith(table + '_')),
+          ),
         ).toBe(true);
       }
       expect(actualRows(plan, 'package_entitlements')).toBe(1);

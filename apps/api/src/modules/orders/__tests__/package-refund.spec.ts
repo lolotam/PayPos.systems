@@ -1,4 +1,8 @@
-import { packageRefundResponse, packageSaleChanged } from '@pospay/contracts';
+import {
+  packageRefundRecorded,
+  packageRefundResponse,
+  packageSaleChanged,
+} from '@pospay/contracts';
 import { afterAll, beforeAll, expect, it } from 'vitest';
 import { ids, must, type SessionFixture } from './session.fixture.ts';
 import {
@@ -7,6 +11,7 @@ import {
   postRefund,
   readRefundAudits,
   readRefunds,
+  readRefundRecordedEvents,
   readRefundSlots,
   readSaleEvents,
   refundBody,
@@ -91,6 +96,34 @@ async function expectSaleChangedEvent(
   });
 }
 
+/** حدث الجرس: payload واحد مطابق بالكامل، والسبب ولا اسم العميل ولا التليفون مش جوّاه. */
+async function expectRefundRecordedEvent(
+  f: SessionFixture,
+  entitlementId: string,
+  componentId: string,
+  refundId: string,
+  reason: string,
+): Promise<void> {
+  const events = await readRefundRecordedEvents(f, entitlementId);
+  expect(events).toHaveLength(1);
+  const payload = JSON.stringify(events[0]?.['payload']);
+  expect(payload).not.toContain(reason.trim());
+  expect(payload).not.toMatch(/phone|customer/i);
+  expect(packageRefundRecorded.parse(events[0]?.['payload'])).toEqual({
+    schema_version: 1,
+    refund_id: refundId,
+    entitlement_id: entitlementId,
+    component_id: componentId,
+    business_id: f.business,
+    branch_id: f.branch,
+    sessions: 8,
+    amount: '18.000',
+    business_date: '2026-10-15',
+    refunded_at: '2026-10-15T08:00:00.000Z',
+    entitlement_revision: 2,
+  });
+}
+
 it('RF-01 refunds the highest free sessions and records the refund, the audit and one sale event', async () => {
   const { f, sold } = fx;
   const key = ids.newId();
@@ -116,14 +149,16 @@ it('RF-01 refunds the highest free sessions and records the refund, the audit an
   expect(slots.map((row) => row['ordinal'])).toEqual([3, 4, 5, 6, 7, 8, 9, 10]);
   expect(slots.map((row) => row['state'])).toEqual(Array(8).fill('REFUNDED'));
   expect(
-    await f.h.owner`SELECT refunded_amount::text AS refunded_amount, revision FROM package_entitlements
+    await f.h
+      .owner`SELECT refunded_amount::text AS refunded_amount, revision FROM package_entitlements
       WHERE id=${sold.entitlement}`,
   ).toEqual([{ refunded_amount: '18.000', revision: 2 }]);
   await expectRefundAudit(f, sold.entitlement, body.id, reason);
   await expectSaleChangedEvent(f, sold.entitlement, reason);
-  const [stored] = await f.h.owner`SELECT response_body::text AS body FROM idempotency_keys WHERE key=${key}`;
+  const [stored] = await f.h
+    .owner`SELECT response_body::text AS body FROM idempotency_keys WHERE key=${key}`;
   expect(stored?.['body']).not.toContain(reason.trim());
-  // جرس الاسترداد (PackageRefundRecorded) مع 46-3؛ الشريحة دي بتطلع SoldChanged بس.
+  await expectRefundRecordedEvent(f, sold.entitlement, sold.component, body.id, reason);
 });
 
 it('RF-01 refunds the highest five free ordinals when five sessions are asked for', async () => {
@@ -172,7 +207,8 @@ it('RF-02 refuses more sessions than the package has free and writes nothing', a
   expect(await readRefundAudits(f, fresh.entitlement)).toHaveLength(0);
   expect(await readSaleEvents(f, fresh.entitlement)).toHaveLength(0);
   expect(
-    await f.h.owner`SELECT refunded_amount::text AS refunded_amount, revision FROM package_entitlements
+    await f.h
+      .owner`SELECT refunded_amount::text AS refunded_amount, revision FROM package_entitlements
       WHERE id=${fresh.entitlement}`,
   ).toEqual([{ refunded_amount: '0.000', revision: 1 }]);
 });
@@ -259,10 +295,12 @@ it('feature switched off with an invalid reason answers 403 FEATURE_DISABLED and
     });
     expect(response).toMatchObject({ status: 403, body: { code: 'FEATURE_DISABLED' } });
   } finally {
-    await f.h.owner`DELETE FROM company_feature_overrides WHERE company_id=${f.company} AND flag='orders'`;
+    await f.h
+      .owner`DELETE FROM company_feature_overrides WHERE company_id=${f.company} AND flag='orders'`;
   }
   expect(await readRefunds(f, fresh.entitlement)).toHaveLength(0);
   expect(
-    await f.h.owner`SELECT id FROM outbox WHERE company_id=${f.company} AND aggregate_id=${fresh.entitlement}`,
+    await f.h
+      .owner`SELECT id FROM outbox WHERE company_id=${f.company} AND aggregate_id=${fresh.entitlement}`,
   ).toHaveLength(0);
 });

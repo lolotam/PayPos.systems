@@ -6,12 +6,14 @@ import { useLocale } from '@/shared/locale/locale-context';
 import type { SessionServiceScope } from '../api/use-session-services';
 import { CustomerPackageComponents } from './customer-package-components';
 import { CustomerPackageExtensionControls } from './customer-package-extension-controls';
+import { CustomerPackageRefundControls } from './customer-package-refund-controls';
 import { DetailHeader } from './detail-header';
 import { DetailSaleFacts } from './detail-sale-facts';
 import { PackageExtensionHistory } from './package-extension-history';
 import { PackageRedemptionList } from './package-redemption-list';
+import { PackageRefundHistory } from './package-refund-history';
 
-/** جسم التفصيل بعد الإثبات: الحقول والمكوّنات والسجلات وحوار التمديد على can_extend الحي. */
+/** جسم التفصيل بعد الإثبات: الحقول والمكوّنات والسجلات وحوار التمديد والاسترداد على can_extend وcan_refund الحيّين. */
 export function CustomerPackageDetailContent({
   scope,
   customerId,
@@ -44,12 +46,22 @@ export function CustomerPackageDetailContent({
         <PackageRedemptionList redemptions={data.redemptions} components={data.components} />
       </section>
       <PackageExtensionHistory extensions={data.extensions} timeZone={data.business_timezone} />
+      <PackageRefundHistory refunds={data.refunds} timeZone={data.business_timezone} />
       {data.can_extend ? (
         <CustomerPackageExtensionControls
           scope={scope}
           customerId={customerId}
           entitlementId={entitlementId}
           expiresOn={data.expires_on}
+          onSaved={onSaved}
+        />
+      ) : null}
+      {data.can_refund ? (
+        <CustomerPackageRefundControls
+          scope={scope}
+          customerId={customerId}
+          entitlementId={entitlementId}
+          detail={data}
           onSaved={onSaved}
         />
       ) : null}

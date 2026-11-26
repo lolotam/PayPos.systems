@@ -23,3 +23,5 @@ export type { DiscountApprovedByPerformer } from '@pospay/contracts';
 export type { PackageImportPreviewRequested } from '@pospay/contracts';
 /** يُكتب في معاملة طلب التثبيت نفسها التي تنقل المعاينة الجاهزة إلى commit_requested، وبعد COMMIT فقط؛ يحمل هوية المعاينة فقط، ويستهلكه عامل orders لا الـ API. */
 export type { PackageImportCommitRequested } from '@pospay/contracts';
+/** يصدر مع كل استرداد باقة (مباعة أو مستوردة) داخل معاملة الاسترداد، بلا سبب أو بيانات العميلة أو هوية المنفّذ. */
+export type { PackageRefundRecorded } from '@pospay/contracts';

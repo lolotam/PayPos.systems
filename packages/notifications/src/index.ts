@@ -30,6 +30,7 @@ export { genericNotice, validInAppTemplate } from './templates/generic-notice.ts
 export { lateServiceSession } from './templates/late-service-session.ts';
 export { serviceLinePriceEdited } from './templates/service-line-price-edited.ts';
 export { serviceLineCancelled } from './templates/service-line-cancelled.ts';
+export { packageRefundRecorded } from './templates/package-refund-recorded.ts';
 export { serviceLinePerformersChanged } from './templates/service-line-performers-changed.ts';
 export { discountApprovalRequested } from './templates/discount-approval-requested.ts';
 export { discountSelfApproved } from './templates/discount-self-approved.ts';

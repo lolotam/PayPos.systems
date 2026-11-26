@@ -10,6 +10,7 @@ import { inAppEn } from './in-app-catalog.js';
 import { permissionCodesEn } from './permission-codes-catalog.js';
 import { catalogPackageTypesEn, packageTypeErrorsEn } from './catalog-package-types.js';
 import { catalogPackageExtensionEn } from './catalog-package-extension.js';
+import { catalogPackageRefundEn } from './catalog-package-refund.js';
 import { discountApprovalErrorsEn } from './discount-approval-errors.js';
 import { staffErrorsEn } from './staff-errors.js';
 import { attendanceEn } from './attendance-en.js';
@@ -356,6 +357,7 @@ export const en = {
   catalogServiceCategoryBranches: catalogServiceCategoryBranchesEn,
   catalogPackageTypes: catalogPackageTypesEn,
   packageExtension: catalogPackageExtensionEn,
+  packageRefund: catalogPackageRefundEn,
   admin: adminEn,
   pos: {
     appName: 'PosPay',

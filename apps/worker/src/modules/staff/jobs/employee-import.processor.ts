@@ -11,7 +11,9 @@ export function startEmployeeImportProcessor(
   useCase: CommitEmployeeImport,
   redisUrl: string,
   prefix = 'bull',
+  retryDelayMs?: (attempt: number) => number | null,
 ) {
+  const retryDelay = retryDelayMs ?? (() => 2000);
   const connection = new Redis(redisUrl, { maxRetriesPerRequest: null, enableOfflineQueue: false });
   connection.on('error', () => undefined);
   const producer = connection.duplicate({ maxRetriesPerRequest: 1, commandTimeout: 5000 });
@@ -36,24 +38,7 @@ export function startEmployeeImportProcessor(
   );
   worker.on('error', () => undefined);
   return {
-    deliver: async (event: ClaimedEvent): Promise<DeliveryOutcome> => {
-      try {
-        const data = employeeImportCommitJob.parse({
-          companyId: event.companyId,
-          previewId: (event.payload as { preview_id?: string }).preview_id,
-        });
-        await queue.add('commit', data, {
-          jobId: event.id,
-          attempts: 3,
-          backoff: { type: 'exponential', delay: 2000 },
-          removeOnComplete: true,
-          removeOnFail: 100,
-        });
-        return { delivered: true };
-      } catch {
-        return { delivered: false, error: 'EMPLOYEE_IMPORT_QUEUE_RETRY', retryInMs: 2000 };
-      }
-    },
+    deliver: (event: ClaimedEvent) => deliverEmployeeImport(queue, event, retryDelay),
     ready: () => worker.waitUntilReady().then(() => undefined),
     close: async () => {
       await worker.close();
@@ -62,4 +47,31 @@ export function startEmployeeImportProcessor(
       connection.disconnect();
     },
   };
+}
+
+async function deliverEmployeeImport(
+  queue: Queue,
+  event: ClaimedEvent,
+  retryDelay: (attempt: number) => number | null,
+): Promise<DeliveryOutcome> {
+  try {
+    const data = employeeImportCommitJob.parse({
+      companyId: event.companyId,
+      previewId: (event.payload as { preview_id?: string }).preview_id,
+    });
+    await queue.add('commit', data, {
+      jobId: event.id,
+      attempts: 3,
+      backoff: { type: 'exponential', delay: 2000 },
+      removeOnComplete: true,
+      removeOnFail: 100,
+    });
+    return { delivered: true };
+  } catch {
+    return {
+      delivered: false,
+      error: 'EMPLOYEE_IMPORT_QUEUE_RETRY',
+      retryInMs: retryDelay(event.attempt),
+    };
+  }
 }

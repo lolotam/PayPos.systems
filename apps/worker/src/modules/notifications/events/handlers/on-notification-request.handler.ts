@@ -61,6 +61,7 @@ export const NOTIFICATION_SOURCE_EVENTS = [
   'ServiceLineEditNoticeRequested',
   'ServiceLineCancelNoticeRequested',
   'ServiceLinePerformersNoticeRequested',
+  'PackageRefundNoticeRequested',
   'DiscountApprovalNoticeRequested',
   'DiscountSelfApprovalNoticeRequested',
   'AttendanceChangeRequested',

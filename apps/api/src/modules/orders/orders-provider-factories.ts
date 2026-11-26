@@ -37,6 +37,7 @@ import { CustomerPackagesQueryHandler } from './queries/customer-packages.query.
 import { CustomerPackageDetailQueryHandler } from './queries/package-entitlement-detail.query.ts';
 import type { sessionPlace } from './persistence/session-place.adapter.ts';
 import type { packageExtendCapability } from './persistence/session-edit-access.adapter.ts';
+import type { packageRefundCapability } from './persistence/session-edit-access.adapter.ts';
 
 export function valueProvider(provide: InjectionToken, useValue: unknown): Provider {
   return { provide, useValue };
@@ -75,11 +76,14 @@ export function customerPackageReaders(adapters: {
 export function customerPackageDetailReaders(adapters: {
   place: typeof sessionPlace;
   canExtend: typeof packageExtendCapability;
+  canRefund: typeof packageRefundCapability;
 }): ConstructorParameters<typeof CustomerPackageDetailQueryHandler>[1] {
   return {
     ...customerPackageReaders(adapters),
     canExtend: (tx, scope, at) =>
       adapters.canExtend(tx, scope.companyId, scope.userId, scope.businessId, scope.branchId, at),
+    canRefund: (tx, scope, at) =>
+      adapters.canRefund(tx, scope.companyId, scope.userId, scope.businessId, scope.branchId, at),
   };
 }
 
@@ -193,10 +197,11 @@ export function customerPackageDetailValue(
   clock: Clock,
   place: typeof sessionPlace,
   canExtend: typeof packageExtendCapability,
+  canRefund: typeof packageRefundCapability,
 ) {
   return new CustomerPackageDetailQueryHandler(
     database,
-    customerPackageDetailReaders({ place, canExtend }),
+    customerPackageDetailReaders({ place, canExtend, canRefund }),
     clock,
   );
 }
