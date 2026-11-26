@@ -53,4 +53,11 @@
     <uses-permission android:name="android.permission.INTERNET" />
     <!-- من غير صلاحية حالة الشبكة، الـ WebView بيقول إنه متصل حتى وهو واقع. -->
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+
+    <!-- مسح كود الصالون بالكاميرا (FR-014): الصلاحية متعلنة دايماً في الـ manifest،
+         وعتاد الكاميرا اختياري (required="false")، لكن إذن المستخدم وقت التشغيل
+         بيتطلب بس لما ميزة الكاميرا تكون مفعّلة في البناء وبتستخدمها. -->
+    <uses-permission android:name="android.permission.CAMERA" />
+    <uses-feature android:name="android.hardware.camera" android:required="false" />
+    <uses-feature android:name="android.hardware.camera.autofocus" android:required="false" />
 </manifest>
