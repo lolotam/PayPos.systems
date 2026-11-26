@@ -8,6 +8,8 @@ export const PACKAGE_TABLE_GRANTS = [
   'package_extensions:SELECT',
   'package_redemptions:INSERT',
   'package_redemptions:SELECT',
+  'package_refund_notices:INSERT',
+  'package_refund_notices:SELECT',
   'package_refund_slots:INSERT',
   'package_refund_slots:SELECT',
   'package_refunds:INSERT',

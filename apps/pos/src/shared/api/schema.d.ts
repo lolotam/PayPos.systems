@@ -3037,7 +3037,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** @description Cursor-paginated package types available for reception sale. Requires sell:packages:branch and the orders feature, never read:package-types:business. Lists only types whose selling is not stopped. Missing permission, a device, or a disabled orders feature is refused. */
+        /** @description Cursor-paginated package types available for reception sale. Requires sell:packages:branch and the orders feature, never read:package-types:business. Lists only types whose selling is not stopped and whose component services are all open (SI-Q28). Missing permission, a device, or a disabled orders feature is refused. */
         get: operations["listSellablePackageTypes"];
         put?: never;
         post?: never;
@@ -3072,7 +3072,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** @description Cursor-paginated service options for package components: id, names, KWD price and active only. Requires read:package-types:business and the catalog feature, independently of service permissions. A role that manages package types also needs read:package-types:business, as the list screen does. Services cannot currently be retired, so active is true. A missing, foreign or unauthorized business returns the same FORBIDDEN response. Never writes. */
+        /** @description Cursor-paginated service options for package components: id, names, KWD price and active only. Requires read:package-types:business and the catalog feature, independently of service permissions. A role that manages package types also needs read:package-types:business, as the list screen does. Closed services (closed_at IS NOT NULL) are excluded (SI-Q28), so active is always true. A missing, foreign or unauthorized business returns the same FORBIDDEN response. Never writes. */
         get: operations["listPackageServiceOptions"];
         put?: never;
         post?: never;
@@ -8386,6 +8386,18 @@ export interface components {
             extended_at: string;
             reason?: string;
         };
+        CustomerPackageRefund: {
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            component_id: string;
+            sessions: number;
+            amount: components["schemas"]["SessionMoney"];
+            method: components["schemas"]["PackagePaidMethod"];
+            reason: string;
+            /** Format: date-time */
+            refunded_at: string;
+        };
         CustomerPackageDetail: {
             /** Format: uuid */
             id: string;
@@ -8420,10 +8432,14 @@ export interface components {
             revision: number;
             /** @default false */
             can_extend: boolean;
+            /** @default false */
+            can_refund: boolean;
             components: components["schemas"]["CustomerPackageDetailComponent"][];
             redemptions: components["schemas"]["CustomerPackageRedemption"][];
             /** @default [] */
             extensions: components["schemas"]["CustomerPackageExtension"][];
+            /** @default [] */
+            refunds: components["schemas"]["CustomerPackageRefund"][];
         };
         ServiceSessionDayQuery: {
             cursor?: string;
@@ -9481,6 +9497,71 @@ export interface components {
                 name: "cancelled_net";
                 /** @enum {string} */
                 type: "text";
+                value: string;
+            })[];
+        } | {
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            company_id: string;
+            /** Format: uuid */
+            business_id: string | null;
+            /** Format: uuid */
+            branch_id: string | null;
+            /** Format: uuid */
+            source_event_id: string;
+            /** @enum {number} */
+            template_revision: 1;
+            /** @enum {string} */
+            locale: "ar" | "en";
+            /** Format: date-time */
+            created_at: string;
+            /** Format: date-time */
+            read_at: string | null;
+            /** @enum {string} */
+            template_key: "package_refund_recorded";
+            safe_parameters: ({
+                /** @enum {string} */
+                name: "package_name_ar";
+                /** @enum {string} */
+                type: "text";
+                value: string;
+            } | {
+                /** @enum {string} */
+                name: "package_name_en";
+                /** @enum {string} */
+                type: "text";
+                value: string;
+            } | {
+                /** @enum {string} */
+                name: "branch_name_ar";
+                /** @enum {string} */
+                type: "text";
+                value: string;
+            } | {
+                /** @enum {string} */
+                name: "branch_name_en";
+                /** @enum {string} */
+                type: "text";
+                value: string;
+            } | {
+                /** @enum {string} */
+                name: "sessions";
+                /** @enum {string} */
+                type: "text";
+                value: string;
+            } | {
+                /** @enum {string} */
+                name: "amount";
+                /** @enum {string} */
+                type: "text";
+                value: string;
+            } | {
+                /** @enum {string} */
+                name: "business_date";
+                /** @enum {string} */
+                type: "text";
+                /** Format: date */
                 value: string;
             })[];
         } | {
@@ -10675,6 +10756,10 @@ export interface components {
             /** @enum {string|null} */
             country: "KW" | "SA" | "AE" | "BH" | "QA" | "OM" | null;
             branches: components["schemas"]["WorkspaceBranch"][];
+            /** Format: uuid */
+            logo_file_id?: string | null;
+            /** @enum {string} */
+            scope?: "COMPANY" | "BUSINESS" | "BRANCH";
         };
         WorkspaceCapabilities: {
             staff_access: boolean;
@@ -12816,7 +12901,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description COMMISSION_PERIOD_NOT_DRAFT or COMMISSION_PERIOD_CLOSED */
+            /** @description COMMISSION_PERIOD_NOT_DRAFT or COMMISSION_PERIOD_CLOSED, or TRANSACTION_RETRY_REQUIRED (retry the request) */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -12882,13 +12967,13 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description COMMISSION_STATEMENT_NOT_APPROVED when the statement is DRAFT or REVIEWED, or COMMISSION_STATEMENT_ALREADY_PAID when it is PAID and a new Idempotency-Key is sent (CM-41). */
+            /** @description COMMISSION_STATEMENT_NOT_APPROVED when the statement is DRAFT or REVIEWED, or COMMISSION_STATEMENT_ALREADY_PAID when it is PAID and a new Idempotency-Key is sent (CM-41), or TRANSACTION_RETRY_REQUIRED (retry the request). */
             409: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["CommissionStatementNotApprovedError"] | components["schemas"]["CommissionStatementAlreadyPaidError"];
+                    "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
             /** @description COMMISSION_PAID_ON_INVALID when paid_on is after today or before the approval date, COMMISSION_PAYABLE_TOO_LARGE when one employee payable (or its cash rounding) exceeds what a payment row can store, or IDEMPOTENCY_KEY_REUSED when the same Idempotency-Key is sent with another body (CM-41). */
@@ -13097,7 +13182,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description COMMISSION_PERIOD_CLOSED or IDEMPOTENCY_KEY_IN_PROGRESS */
+            /** @description COMMISSION_PERIOD_CLOSED or IDEMPOTENCY_KEY_IN_PROGRESS, or TRANSACTION_RETRY_REQUIRED (retry the request) */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -13624,7 +13709,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description COMMISSION_PERIOD_CLOSED or IDEMPOTENCY_KEY_IN_PROGRESS */
+            /** @description COMMISSION_PERIOD_CLOSED or IDEMPOTENCY_KEY_IN_PROGRESS, or TRANSACTION_RETRY_REQUIRED (retry the request) */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -13690,7 +13775,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description COMMISSION_FINGERPRINT_STALE, COMMISSION_PERIOD_NOT_DRAFT, COMMISSION_PERIOD_CLOSED or IDEMPOTENCY_KEY_IN_PROGRESS */
+            /** @description COMMISSION_FINGERPRINT_STALE, COMMISSION_PERIOD_NOT_DRAFT, COMMISSION_PERIOD_CLOSED or IDEMPOTENCY_KEY_IN_PROGRESS, or TRANSACTION_RETRY_REQUIRED (retry the request) */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -13756,7 +13841,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description COMMISSION_STATEMENT_NOT_REVIEWED, COMMISSION_PERIOD_CLOSED or IDEMPOTENCY_KEY_IN_PROGRESS */
+            /** @description COMMISSION_STATEMENT_NOT_REVIEWED, COMMISSION_PERIOD_CLOSED or IDEMPOTENCY_KEY_IN_PROGRESS, or TRANSACTION_RETRY_REQUIRED (retry the request) */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -13822,7 +13907,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description COMMISSION_PERIOD_CLOSED, COMMISSION_STATEMENT_NOT_REVIEWED, COMMISSION_FINGERPRINT_STALE, COMMISSION_UPDATES_PENDING or IDEMPOTENCY_KEY_IN_PROGRESS */
+            /** @description COMMISSION_PERIOD_CLOSED, COMMISSION_STATEMENT_NOT_REVIEWED, COMMISSION_FINGERPRINT_STALE, COMMISSION_UPDATES_PENDING or IDEMPOTENCY_KEY_IN_PROGRESS, or TRANSACTION_RETRY_REQUIRED (retry the request) */
             409: {
                 headers: {
                     [name: string]: unknown;

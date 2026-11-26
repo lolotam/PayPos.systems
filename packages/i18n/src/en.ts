@@ -11,6 +11,7 @@ import { inAppEn } from './in-app-catalog.js';
 import { permissionCodesEn } from './permission-codes-catalog.js';
 import { catalogPackageTypesEn, packageTypeErrorsEn } from './catalog-package-types.js';
 import { catalogPackageExtensionEn } from './catalog-package-extension.js';
+import { catalogPackageRefundEn } from './catalog-package-refund.js';
 import { discountApprovalErrorsEn } from './discount-approval-errors.js';
 import { staffErrorsEn } from './staff-errors.js';
 import { attendanceEn } from './attendance-en.js';
@@ -95,13 +96,6 @@ export const en = {
     schedule_next: 'Next page',
     schedule_save: 'Save schedule',
     schedule_close: 'Close',
-    schedule_sat: 'Saturday',
-    schedule_sun: 'Sunday',
-    schedule_mon: 'Monday',
-    schedule_tue: 'Tuesday',
-    schedule_wed: 'Wednesday',
-    schedule_thu: 'Thursday',
-    schedule_fri: 'Friday',
     navigation: 'Workspace navigation',
     openNavigation: 'Open navigation',
     closeNavigation: 'Close navigation',
@@ -360,6 +354,7 @@ export const en = {
   catalogServiceCategoryBranches: catalogServiceCategoryBranchesEn,
   catalogPackageTypes: catalogPackageTypesEn,
   packageExtension: catalogPackageExtensionEn,
+  packageRefund: catalogPackageRefundEn,
   admin: adminEn,
   devices: devicesEn,
   pos: posEn,

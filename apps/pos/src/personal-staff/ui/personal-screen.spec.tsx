@@ -243,3 +243,34 @@ it.each([
     else expect(back).toBeNull();
   },
 );
+
+it('offers the work and attendance screens to an employee with a live private session', () => {
+  vi.mocked(usePersonalSession).mockReturnValue({
+    epoch: 0,
+    online: true,
+    loading: false,
+    confirmedNoSession: false,
+    privateReady: true,
+    session,
+    changed: vi.fn(),
+    signOut: vi.fn(),
+  });
+  mount();
+  expect(screen.getByRole('button', { name: t('en', 'myWork.title') })).toBeTruthy();
+  expect(screen.getByRole('button', { name: t('en', 'myAttendance.title') })).toBeTruthy();
+});
+
+it('keeps the work and attendance screens away without a live private session', () => {
+  vi.mocked(usePersonalSession).mockReturnValue({
+    epoch: 0,
+    online: true,
+    loading: false,
+    confirmedNoSession: false,
+    session,
+    changed: vi.fn(),
+    signOut: vi.fn(),
+  });
+  mount();
+  expect(screen.queryByRole('button', { name: t('en', 'myWork.title') })).toBeNull();
+  expect(screen.queryByRole('button', { name: t('en', 'myAttendance.title') })).toBeNull();
+});

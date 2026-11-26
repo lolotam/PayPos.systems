@@ -86,6 +86,25 @@ export class AuthorizeRequest implements BranchRequestAccess {
     };
   }
 
+  /**
+   * يفحص إن العضوية السارية للمستخدم بتغطي النشاط، من غير أي صلاحية قراءة أو كتابة.
+   * دي طريق القراءة الوحيد للشعار المربوط: أي عضو ساري بيغطي النشاط يقدر ينزل الشعار (TQ-1).
+   *
+   * @param input المستخدم والشركة المطلوبة والنشاط المطلوب
+   * @returns true لما العضوية السارية بتغطي النشاط
+   */
+  async coversBusiness(input: {
+    userId: string;
+    requestedCompany: unknown;
+    businessParam: unknown;
+  }): Promise<boolean> {
+    const companyId = asUuid(input.requestedCompany);
+    const businessId = asUuid(input.businessParam);
+    if (companyId === null || businessId === null) return false;
+    if (!(await this.#reader.companiesOf(input.userId)).includes(companyId)) return false;
+    return this.#reader.coversBusiness(companyId, input.userId, businessId);
+  }
+
   /** يفوّض فروع الصفحة بنفس تقييم الطلب المفرد بعد تأكيد الشركة مرة واحدة وقراءة المنح مرة واحدة. */
   async executeBranches(
     input: Parameters<BranchRequestAccess['executeBranches']>[0],

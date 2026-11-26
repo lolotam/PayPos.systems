@@ -295,3 +295,63 @@ it(
     expect(stopResponse.body['selling_stopped_at']).not.toBeNull();
   },
 );
+
+async function closedServicePackage(name: string) {
+  const service = await f.create.execute({
+    companyId: f.company,
+    userId: f.userId,
+    businessId: f.business,
+    input: { name_en: `${name} service`, price: '8.000', commission_rule: { kind: 'ZERO' } },
+  });
+  const created = (
+    await post({ ...packageTerms(f, name), components: [{ service_id: service.id, sessions: 2 }] })
+  ).body;
+  return { id: created['id'] as string, serviceId: service.id };
+}
+
+it('ST-05 refuses resume for a closed component with no write, but stop, detail and list still work (SI-Q28)', async () => {
+  const { id, serviceId } = await closedServicePackage('ST-05 Package');
+  const stopped = (await stop(id, { expected_revision: 1 })).body;
+  await f.h
+    .owner`UPDATE services SET closed_at=now() WHERE company_id=${f.company} AND id=${serviceId}`;
+  const auditBefore = await f.h.owner`SELECT count(*) FROM audit_log`;
+  const refused = await resume(id, { expected_revision: stopped['revision'] });
+  expect(refused.status).toBe(400);
+  expect(refused.body['code']).toBe('PACKAGE_TYPE_SERVICE_NOT_FOUND');
+  expect(await f.h.owner`SELECT count(*) FROM audit_log`).toEqual(auditBefore);
+  const [row] = await f.h
+    .owner`SELECT revision, selling_stopped_at FROM package_types WHERE id=${id}`;
+  expect(row?.['revision']).toBe(stopped['revision']);
+  expect(row?.['selling_stopped_at']).not.toBeNull();
+  expect((await get(id)).status).toBe(200);
+  expect(((await list()).body['items'] as { id: string }[]).some((item) => item.id === id)).toBe(
+    true,
+  );
+});
+
+it('ST-06 still stops a package on sale after its component service is closed (SI-Q28)', async () => {
+  const { id, serviceId } = await closedServicePackage('ST-06 Package');
+  await f.h
+    .owner`UPDATE services SET closed_at=now() WHERE company_id=${f.company} AND id=${serviceId}`;
+  const response = await stop(id, { expected_revision: 1 });
+  expect(response.status).toBe(200);
+  expect(response.body['selling_stopped_at']).not.toBeNull();
+});
+
+it('ST-07 refuses create and update that pick a closed service, and resumes once it is reopened (SI-Q28)', async () => {
+  const { id, serviceId } = await closedServicePackage('ST-07 Package');
+  const stopped = (await stop(id, { expected_revision: 1 })).body;
+  await f.h
+    .owner`UPDATE services SET closed_at=now() WHERE company_id=${f.company} AND id=${serviceId}`;
+  const closedTerms = {
+    ...packageTerms(f, 'ST-07 New'),
+    components: [{ service_id: serviceId, sessions: 1 }],
+  };
+  const created = await post(closedTerms);
+  expect([created.status, created.body['code']]).toEqual([400, 'PACKAGE_TYPE_SERVICE_NOT_FOUND']);
+  const edited = await patch(id, { ...closedTerms, expected_revision: stopped['revision'] });
+  expect([edited.status, edited.body['code']]).toEqual([400, 'PACKAGE_TYPE_SERVICE_NOT_FOUND']);
+  await f.h
+    .owner`UPDATE services SET closed_at=NULL WHERE company_id=${f.company} AND id=${serviceId}`;
+  expect((await resume(id, { expected_revision: stopped['revision'] })).status).toBe(200);
+});

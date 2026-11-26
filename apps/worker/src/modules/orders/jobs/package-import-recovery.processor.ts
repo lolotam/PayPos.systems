@@ -1,7 +1,7 @@
-import { Queue, Worker } from 'bullmq';
-import { Redis } from 'ioredis';
+import { type Job } from 'bullmq';
 import { z } from 'zod';
 import type { RecoverPackageImports } from '../use-cases/recover-package-imports/recover-package-imports.ts';
+import { createBullQueueWorker } from './bullmq-queue-worker.ts';
 
 export const PACKAGE_IMPORT_RECOVERY_QUEUE = 'package-import-recovery';
 const recoveryJob = z.strictObject({ companyId: z.uuid() });
@@ -13,26 +13,20 @@ export function startPackageImportRecoveryProcessor(
   redisUrl: string,
   prefix = 'bull',
 ) {
-  const connection = new Redis(redisUrl, { maxRetriesPerRequest: null, enableOfflineQueue: false });
-  connection.on('error', () => undefined);
-  const producer = connection.duplicate({ maxRetriesPerRequest: 1, commandTimeout: 5000 });
-  producer.on('error', () => undefined);
-  const queue = new Queue(PACKAGE_IMPORT_RECOVERY_QUEUE, { connection: producer, prefix });
-  queue.on('error', () => undefined);
-  const worker = new Worker(
-    PACKAGE_IMPORT_RECOVERY_QUEUE,
-    async (job) => {
+  const bull = createBullQueueWorker({
+    name: PACKAGE_IMPORT_RECOVERY_QUEUE,
+    redisUrl,
+    prefix,
+    handler: async (job: Job) => {
       const { companyId } = recoveryJob.parse(job.data);
       await useCase.execute(companyId).catch(() => {
         throw new Error(RETRY_MESSAGE);
       });
     },
-    { connection, concurrency: 1, prefix },
-  );
-  worker.on('error', () => undefined);
+  });
   return {
     register: async (companyId: string): Promise<void> => {
-      await queue.upsertJobScheduler(
+      await bull.queue.upsertJobScheduler(
         `${PACKAGE_IMPORT_RECOVERY_QUEUE}-${companyId}`,
         { every: 60 * 1000 },
         {
@@ -47,12 +41,7 @@ export function startPackageImportRecoveryProcessor(
         },
       );
     },
-    ready: () => worker.waitUntilReady().then(() => undefined),
-    close: async () => {
-      await worker.close();
-      await queue.close();
-      producer.disconnect();
-      connection.disconnect();
-    },
+    ready: bull.ready,
+    close: bull.close,
   };
 }

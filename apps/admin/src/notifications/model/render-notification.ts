@@ -10,7 +10,7 @@ import {
 // معاملات الجرس القديمة كلها نصوص؛ جرسا التقييم المنخفض معاملهما كائن details وبيتعرضوا في ملفهم.
 type ScalarParameters = ScalarNotification['safe_parameters'];
 
-/** نص الجرس. generic_notice يبقى على locale الصف؛ تنبيهات الحضور والجلسات وتعديل السعر والإلغاء وتغيير المنفّذين وطلب موافقة الخصم وموافقة المنفّذ وتوقف تصحيح العمولة تتبع لغة الواجهة، والعربي الغائب يرجع للإنجليزي. */
+/** نص الجرس. generic_notice يبقى على locale الصف؛ تنبيهات الحضور والجلسات وتعديل السعر والإلغاء وتغيير المنفّذين وطلب موافقة الخصم وموافقة المنفّذ وجرس استرداد الباقة وتوقف تصحيح العمولة تتبع لغة الواجهة، والعربي الغائب يرجع للإنجليزي. */
 export function renderNotification(
   item: InAppNotification,
   viewerLocale?: Locale,
@@ -20,6 +20,7 @@ export function renderNotification(
   const serviceLine = renderServiceLineNotice(item, viewerLocale);
   if (serviceLine !== null) return serviceLine;
   if (
+    item.template_key === 'package_refund_recorded' ||
     item.template_key === 'discount_approval_requested' ||
     item.template_key === 'discount_self_approved'
   ) {
@@ -232,8 +233,10 @@ function discountApprovalValues(parameters: ScalarParameters): Record<string, st
   const values: Record<string, string> = Object.fromEntries(
     parameters.map((parameter) => [parameter.name, parameter.value]),
   );
-  for (const name of ['branch_name', 'service_name', 'approver_name']) {
-    values[`${name}_ar`] = arabic(`${name}_ar`, read(`${name}_en`));
+  for (const name of ['branch_name', 'service_name', 'package_name', 'approver_name']) {
+    if (read(`${name}_en`) || read(`${name}_ar`)) {
+      values[`${name}_ar`] = arabic(`${name}_ar`, read(`${name}_en`));
+    }
   }
   return values;
 }

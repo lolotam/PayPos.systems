@@ -1,9 +1,10 @@
 import type { StaffSessionContext } from '@pospay/contracts';
+import { ReceptionAttendanceEntry } from '@/personal-staff/ui/reception-attendance-entry';
 import { ReceptionWorkEntry } from '@/personal-staff/ui/reception-work-entry';
 import { OwnLeaveEntry } from './own-leave-entry';
 
 /**
- * «إجازاتي» و«شغلي» تحت جلسة المشغّلة على جهاز الاستقبال؛ من غير ما الجلسة تطابق الجهاز مفيش حاجة.
+ * «إجازاتي» و«شغلي» و«حضوري» تحت جلسة المشغّلة على جهاز الاستقبال؛ من غير ما الجلسة تطابق الجهاز مفيش حاجة.
  *
  * @param props.session جلسة المشغّلة
  * @param props.epoch دورة جلستها
@@ -37,6 +38,7 @@ export function ReceptionOwnEntries({
         }}
       />
       <ReceptionWorkEntry session={session} epoch={epoch} />
+      <ReceptionAttendanceEntry session={session} epoch={epoch} timeZone={timezone} />
     </>
   );
 }

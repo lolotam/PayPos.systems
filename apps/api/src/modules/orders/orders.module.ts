@@ -77,6 +77,7 @@ import {
 } from './persistence/session-record-access.adapter.ts';
 import {
   packageExtendCapability,
+  packageRefundCapability,
   sessionCancelCapability,
   sessionPerformersCapability,
 } from './persistence/session-edit-access.adapter.ts';
@@ -358,6 +359,7 @@ function ordersDiscountAndPackageProviders(
       clock,
       sessionPlace,
       packageExtendCapability,
+      packageRefundCapability,
     ),
     fromDb(
       AcceptPackageSaleUseCase,

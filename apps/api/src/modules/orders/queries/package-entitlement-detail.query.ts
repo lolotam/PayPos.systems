@@ -80,6 +80,23 @@ function extensionProjection(): SQL {
   ), '[]'::jsonb)`;
 }
 
+function refundProjection(): SQL {
+  return sql`COALESCE((
+    SELECT jsonb_agg(jsonb_build_object(
+      'id', f.id,
+      'component_id', f.component_id,
+      'sessions', f.sessions,
+      'amount', f.amount::text,
+      'method', f.method,
+      'reason', f.reason,
+      'refunded_at', to_char(f.refunded_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"')
+    ) ORDER BY f.refunded_at DESC, f.id)
+    FROM package_refunds f
+    WHERE f.company_id=e.company_id AND f.business_id=e.business_id
+      AND f.entitlement_id=e.id
+  ), '[]'::jsonb)`;
+}
+
 /**
  * استعلام تفاصيل الباقة: الاستحقاق ومكوّناته وجلساته وسجل استرداداته وتمديداته في statement واحد.
  * الشاشة اللي بتستهلكه: «تفاصيل باقة عميلة» وسجل الاستخدام في الاستقبال (FR-071، شرائح 42-4 و43-3 و45).
@@ -116,7 +133,8 @@ export function packageEntitlementDetailStatement(
     'revision', e.revision,
     'components', ${componentProjection()},
     'redemptions', ${redemptionProjection()},
-    'extensions', ${extensionProjection()}
+    'extensions', ${extensionProjection()},
+    'refunds', ${refundProjection()}
   ) AS detail
   FROM package_entitlements e
   WHERE e.company_id=${companyId} AND e.company_id=app_company_id()
@@ -150,6 +168,8 @@ export async function readPackageEntitlementDetail(
 export interface CustomerPackageDetailReads extends CustomerPackageReads {
   /** هل المستخدم يقدر يمدد باقات على الفرع ده دلوقتي؛ قراءة من غير أقفال عشان الزرار بس. */
   canExtend(tx: Tx, scope: CustomerPackageScope, at: Date): Promise<boolean>;
+  /** هل المستخدم يقدر يسترد جلسات على الفرع ده دلوقتي؛ قراءة من غير أقفال عشان الزرار بس. */
+  canRefund(tx: Tx, scope: CustomerPackageScope, at: Date): Promise<boolean>;
 }
 
 // بيضيف المنطقة الزمنية الفعلية للفرع من قراءة الصلاحية نفسها لتفاصيل الباقة.
@@ -160,17 +180,37 @@ export class CustomerPackageDetailQueryHandler {
     private readonly clock: { now(): Date },
   ) {}
 
-  async execute(scope: CustomerPackageScope, entitlementId: string, individual: boolean): Promise<CustomerPackageDetail> {
-    return this.db.withTenant(scope.companyId, async (tx) => {
-      const timezone = await this.reads.place(tx, scope);
-      if (timezone === null) throw new CustomerPackageReadError('FORBIDDEN');
-      const detail = await readPackageEntitlementDetail(tx, scope.companyId, scope.businessId, entitlementId);
-      if (detail === null || detail.customer_id !== scope.customerId) {
-        throw new CustomerPackageReadError('PACKAGE_NOT_FOUND');
-      }
-      // علم الزرار مش بيرمي رفض يوقف شاشة التفاصيل؛ و403 بتاع POST هو القرار النهائي.
-      const canExtend = individual && await this.reads.canExtend(tx, scope, this.clock.now());
-      return customerPackageDetail.parse({ ...detail, business_timezone: timezone, can_extend: canExtend });
-    }, { userId: scope.userId });
+  async execute(
+    scope: CustomerPackageScope,
+    entitlementId: string,
+    individual: boolean,
+  ): Promise<CustomerPackageDetail> {
+    return this.db.withTenant(
+      scope.companyId,
+      async (tx) => {
+        const timezone = await this.reads.place(tx, scope);
+        if (timezone === null) throw new CustomerPackageReadError('FORBIDDEN');
+        const detail = await readPackageEntitlementDetail(
+          tx,
+          scope.companyId,
+          scope.businessId,
+          entitlementId,
+        );
+        if (detail === null || detail.customer_id !== scope.customerId) {
+          throw new CustomerPackageReadError('PACKAGE_NOT_FOUND');
+        }
+        // علم الزرار مش بيرمي رفض يوقف شاشة التفاصيل؛ و403 بتاع POST هو القرار النهائي.
+        const now = this.clock.now();
+        const canExtend = individual && (await this.reads.canExtend(tx, scope, now));
+        const canRefund = individual && (await this.reads.canRefund(tx, scope, now));
+        return customerPackageDetail.parse({
+          ...detail,
+          business_timezone: timezone,
+          can_extend: canExtend,
+          can_refund: canRefund,
+        });
+      },
+      { userId: scope.userId },
+    );
   }
 }

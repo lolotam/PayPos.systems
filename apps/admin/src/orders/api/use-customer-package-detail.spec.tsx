@@ -38,6 +38,7 @@ const sampleDetail = {
   refunded_amount: '0.000',
   revision: 1,
   can_extend: false,
+  can_refund: false,
   components: [
     {
       id: '01920000-0000-7000-8000-000000000020',
@@ -60,6 +61,7 @@ const sampleDetail = {
   ],
   redemptions: [],
   extensions: [],
+  refunds: [],
 };
 
 function setup(targetId: string | null) {
@@ -153,9 +155,15 @@ it('exposes redemptions in the order returned by the server', async () => {
       reversed_at: '2026-10-21T09:00:00.000Z',
     },
   ];
-  state.get.mockResolvedValueOnce({ data: { ...sampleDetail, redemptions }, response: { status: 200 } });
+  state.get.mockResolvedValueOnce({
+    data: { ...sampleDetail, redemptions },
+    response: { status: 200 },
+  });
   const hook = setup(entitlementId);
   await waitFor(() => expect(hook.result.current.isSuccess).toBe(true));
   expect(hook.result.current.data?.redemptions).toEqual(redemptions);
-  expect(hook.result.current.data?.redemptions.map((row) => row.id)).toEqual([redemptions[0]?.id, redemptions[1]?.id]);
+  expect(hook.result.current.data?.redemptions.map((row) => row.id)).toEqual([
+    redemptions[0]?.id,
+    redemptions[1]?.id,
+  ]);
 });

@@ -37,13 +37,15 @@ export class ResumeSellingPackageTypeUseCase {
       );
       const selling = resolvePackageTypeSelling(decision);
       const after = { ...current, ...selling, updated_at: now.toISOString() };
-      await scope.saveSelling(current, selling, now);
-      await scope.auditSelling(current, selling);
       const services = await scope.services(
         command.businessId,
         current.components.map((component) => component.service_id),
       );
-      return packageTypeView(after, services);
+      // الخدمة المقفولة ترفض الاستئناف قبل أي كتابة (SI-Q28)، فلا نترك سجلاً ولا تدقيقاً.
+      const view = packageTypeView(after, services);
+      await scope.saveSelling(current, selling, now);
+      await scope.auditSelling(current, selling);
+      return view;
     });
   }
 }

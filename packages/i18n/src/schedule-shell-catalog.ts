@@ -20,6 +20,13 @@ export const scheduleShellEn = {
   schedule_settings_source_default: 'Default number',
   schedule_settings_branches: 'Active branches',
   schedule_dayLimitDetail: 'Limit {limit} shifts per day: {dates}',
+  schedule_sat: 'Saturday',
+  schedule_sun: 'Sunday',
+  schedule_mon: 'Monday',
+  schedule_tue: 'Tuesday',
+  schedule_wed: 'Wednesday',
+  schedule_thu: 'Thursday',
+  schedule_fri: 'Friday',
 };
 
 export const scheduleShellAr: Record<keyof typeof scheduleShellEn, string> = {
@@ -43,4 +50,11 @@ export const scheduleShellAr: Record<keyof typeof scheduleShellEn, string> = {
   schedule_settings_source_default: 'الرقم الافتراضي',
   schedule_settings_branches: 'الفروع النشطة',
   schedule_dayLimitDetail: 'الحد {limit} ورديات في اليوم: {dates}',
+  schedule_sat: 'السبت',
+  schedule_sun: 'الأحد',
+  schedule_mon: 'الاثنين',
+  schedule_tue: 'الثلاثاء',
+  schedule_wed: 'الأربعاء',
+  schedule_thu: 'الخميس',
+  schedule_fri: 'الجمعة',
 };

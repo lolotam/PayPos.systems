@@ -10,6 +10,7 @@ import { attendanceChangeAr } from './attendance-change.js';
 import { inAppAr } from './in-app-catalog.js';
 import { catalogPackageTypesAr, packageTypeErrorsAr } from './catalog-package-types.js';
 import { catalogPackageExtensionAr } from './catalog-package-extension.js';
+import { catalogPackageRefundAr } from './catalog-package-refund.js';
 import { discountApprovalErrorsAr } from './discount-approval-errors.js';
 import { staffErrorsAr } from './staff-errors.js';
 import { attendanceAr } from './attendance-ar.js';
@@ -100,13 +101,6 @@ export const ar: Catalog = {
     schedule_next: 'الصفحة التالية',
     schedule_save: 'حفظ الجدول',
     schedule_close: 'إغلاق',
-    schedule_sat: 'السبت',
-    schedule_sun: 'الأحد',
-    schedule_mon: 'الاثنين',
-    schedule_tue: 'الثلاثاء',
-    schedule_wed: 'الأربعاء',
-    schedule_thu: 'الخميس',
-    schedule_fri: 'الجمعة',
     navigation: 'التنقل في مساحة العمل',
     openNavigation: 'فتح قائمة التنقل',
     closeNavigation: 'إغلاق قائمة التنقل',
@@ -352,6 +346,7 @@ export const ar: Catalog = {
   catalogServiceCategoryBranches: catalogServiceCategoryBranchesAr,
   catalogPackageTypes: catalogPackageTypesAr,
   packageExtension: catalogPackageExtensionAr,
+  packageRefund: catalogPackageRefundAr,
   admin: adminAr,
   devices: devicesAr,
   pos: posAr,

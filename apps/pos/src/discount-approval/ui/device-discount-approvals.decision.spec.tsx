@@ -106,6 +106,14 @@ async function submitApproval(phone = '+96550000001', pin = '1234') {
   fireEvent.click(screen.getByRole('button', { name: t('ar', 'deviceDiscountApproval.approve') }));
 }
 
+function chooseButton(): HTMLElement {
+  return screen.getByRole('button', { name: t('ar', 'deviceDiscountApproval.choose') });
+}
+
+function decidingButtons(): HTMLElement[] {
+  return screen.getAllByRole('button', { name: t('ar', 'deviceDiscountApproval.deciding') });
+}
+
 export function decideFailure(
   status: number,
   code: string,
@@ -137,7 +145,8 @@ function deferredDecide() {
   return { promise, resolve };
 }
 
-// يسجّل حالة الـ DOM داخل useLayoutEffect — قبل الـ passive effects — عشان يبص على أول commit فعلي للمشغّل الجديد.
+// يسجّل حالة الـ DOM وقت كل commit سببه رندر الأب — الـ commits اللي سببها تغيير حالة
+// داخلي (زي نتيجة طلب متأخرة) مش بتعدّي من هنا، فبتتأكد منها بـ assertion صريح على الدوم.
 type CommitNotice = { approved: boolean; alert: boolean };
 
 function CommitProbe({ log }: { log: CommitNotice[] }) {
@@ -219,6 +228,9 @@ describe('prior-operator feedback during replacement (#1063)', () => {
     const before = commits.length;
     setOperator('1:op-b');
 
+    // أول commit بعد التبديل — الدوم نفسه نضيف، مش بس الـ commits اللي بعده.
+    expect(screen.queryByText(t('ar', 'deviceDiscountApproval.approved'))).toBeNull();
+    expect(screen.queryByRole('alert')).toBeNull();
     expect(commits.length).toBeGreaterThan(before);
     expect(commits.slice(before).every((commit) => !commit.approved && !commit.alert)).toBe(true);
   });
@@ -235,6 +247,8 @@ describe('prior-operator feedback during replacement (#1063)', () => {
     const before = commits.length;
     setOperator('1:op-b');
 
+    // أول commit بعد التبديل — الدوم نفسه نضيف، مش بس الـ commits اللي بعده.
+    expect(screen.queryByRole('alert')).toBeNull();
     expect(commits.length).toBeGreaterThan(before);
     expect(commits.slice(before).every((commit) => !commit.approved && !commit.alert)).toBe(true);
   });
@@ -253,5 +267,46 @@ describe('prior-operator feedback during replacement (#1063)', () => {
     await waitFor(() => {
       expect(calls.read.mock.calls.length).toBeGreaterThan(readsBefore);
     });
+  });
+});
+
+describe('operator replacement while the previous request hangs (#1129)', () => {
+  it('keeps the new operator enabled, lets it decide, and ignores the old request result', async () => {
+    const oldRequest = deferredDecide();
+    const newRequest = deferredDecide();
+    const { setOperator } = display();
+    await submitApproval();
+    // طلب المشغّل الأول شغّال فعلاً — الشاشة بتقول "جاري تنفيذ القرار" وأزراره مقفولة.
+    await waitFor(() => {
+      expect(decidingButtons()).toHaveLength(2);
+    });
+    expect(chooseButton().matches(':disabled')).toBe(true);
+
+    setOperator('1:op-b');
+
+    // أزرار المشغّل التاني مفتوحة على طول — الطلب المعلّق ما بيقفلهاش.
+    expect(chooseButton().matches(':disabled')).toBe(false);
+
+    // والمشغّل التاني يقرر من غير ما يستنى الطلب المعلّق.
+    await chooseAndFill('+96550000002', '4321');
+    fireEvent.click(screen.getByRole('button', { name: t('ar', 'deviceDiscountApproval.approve') }));
+    await waitFor(() => {
+      expect(decidingButtons()).toHaveLength(2);
+    });
+    expect(calls.decide).toHaveBeenCalledTimes(2);
+
+    // نتيجة المشغّل الأول المتأخرة ما بتمسحش حالة المشغّل التاني ولا بتظهرله.
+    await act(async () => {
+      oldRequest.resolve({ ok: true, data: { proposals: [] } });
+    });
+    expect(decidingButtons()).toHaveLength(2);
+    expect(screen.queryByText(t('ar', 'deviceDiscountApproval.approved'))).toBeNull();
+    expect(screen.queryByRole('alert')).toBeNull();
+
+    // ولما طلب المشغّل التاني يخلص، النتيجة بتظهر ليه هو.
+    await act(async () => {
+      newRequest.resolve({ ok: true, data: { proposals: [] } });
+    });
+    expect(await screen.findByText(t('ar', 'deviceDiscountApproval.approved'))).not.toBeNull();
   });
 });

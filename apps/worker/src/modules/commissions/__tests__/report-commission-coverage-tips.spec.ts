@@ -1,6 +1,7 @@
 import type { ClaimedEvent } from '@pospay/db';
 import { describe, expect, it, vi } from 'vitest';
 
+import { isCommissionCalendarDate } from '../domain/commission-calendar.ts';
 import type {
   CoverageTenantRunner,
   CoverageTx,
@@ -355,27 +356,7 @@ describe('runCommissionCoverageReport: calendar dates in the tip scope', () => {
 });
 
 describe('isCommissionCoverageCalendarDate', () => {
-  it.each(['2024-02-29', '2026-02-28', '0001-01-01', '9999-12-31'])(
-    'accepts the real calendar date %s',
-    (value) => {
-      expect(isCommissionCoverageCalendarDate(value)).toBe(true);
-    },
-  );
-
-  it.each([
-    '0000-02-29',
-    '0000-01-01',
-    '2026-02-29',
-    '2026-02-30',
-    '2026-13-01',
-    '2026-04-31',
-    '2026-00-01',
-    '2026-01-00',
-    '26-01-01',
-    '2026-1-01',
-    '2026-01-1',
-    'not-a-date',
-  ])('refuses the invalid calendar date %s', (value) => {
-    expect(isCommissionCoverageCalendarDate(value)).toBe(false);
+  it('re-exports the domain calendar-date check without a second copy', () => {
+    expect(isCommissionCoverageCalendarDate).toBe(isCommissionCalendarDate);
   });
 });

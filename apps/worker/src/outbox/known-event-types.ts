@@ -6,6 +6,8 @@ export const KNOWN_EVENT_TYPES = [
   'SessionTipsChanged',
   // spec 058 TD-7: يُسجَّل قبل المنتج (42-3) والمستهلك (50-4) حتى لا يُعاد محاولة حدث نُشر قبل صف 50.
   'PackageSaleChanged',
+  // spec 058 FR-056: جرس استرداد الباقة؛ يُسجَّل قبل المنتج (46-3) والمستهلك معاه.
+  'PackageRefundRecorded',
   // spec 057: يُسجَّل قبل مستهلك الجرس (057-3) ومنتج الطلب (057-4b) حتى لا يُعاد محاولة حدث نُشر قبل المستهلك.
   'DiscountApprovalRequested',
   'DiscountApprovedByPerformer',

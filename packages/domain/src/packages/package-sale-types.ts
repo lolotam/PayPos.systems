@@ -20,6 +20,8 @@ export interface SalePackageService {
   readonly name_ar: string | null;
   readonly price: bigint;
   readonly revision: number;
+  /** وقت قفل الخدمة تحت قفل البيع؛ أي قيمة غير null بترفض بيع الباقة كلها (SI-Q28)، وغيابها يعني مفتوحة. */
+  readonly closed_at?: string | null;
 }
 
 /** الخدمة هي لقطة سعر القائمة والأسماء والنسخة وقاعدة العمولة والعدّادات بعد قفلها، عشان أوزان التوزيع ما تيجيش من سعر خسر السباق (FR-018c). */

@@ -89,6 +89,35 @@ it.each(invalidEvents)('rejects %s with the named error and line id', (reason, l
   expect(caught).toMatchObject({ code: 'COMMISSION_LINE_EVENT_INVALID', reason, lineId });
 });
 
+const invalidBusinessDates = [
+  ['0000-01-01', 'the year zero does not exist'],
+  ['2025-13-01', 'the month is above twelve'],
+  ['2025-00-01', 'the month is below one'],
+  ['2025-02-29', 'the day does not exist in a common year'],
+  ['2025-04-31', 'the day does not exist in April'],
+  ['2025-1-01', 'the month is not padded'],
+  ['2025-01-01T00:00:00Z', 'the value is an instant and not a calendar date'],
+  ['not-a-date', 'the value is not a date at all'],
+] as const;
+
+it.each(invalidBusinessDates)('rejects the business date %s (%s)', (businessDate) => {
+  const work = () => validateCommissionLineEvent(input([line({ businessDate })]));
+  expect(work).toThrow(CommissionLineEventInvalidError);
+  expect(work).toThrow(
+    expect.objectContaining({ reason: 'INVALID_BUSINESS_DATE', lineId: 'line-a' }),
+  );
+});
+
+it('accepts the first calendar year and a leap day', () => {
+  // السنة 0001 موجودة في التقويم وPostgreSQL بيحوّلها، والـ 29 فبراير بيحصل بسنة كبيسة.
+  expect(() =>
+    validateCommissionLineEvent(input([line({ businessDate: '0001-01-01' })])),
+  ).not.toThrow();
+  expect(() =>
+    validateCommissionLineEvent(input([line({ businessDate: '2024-02-29' })])),
+  ).not.toThrow();
+});
+
 it('selects only revisions newer than the held head, including lines without a head', () => {
   const lines = [
     line({ lineId: 'older', revision: 1 }),

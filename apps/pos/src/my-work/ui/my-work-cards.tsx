@@ -1,9 +1,11 @@
 import type { OwnCommissionEstimate, OwnRatingSummary, OwnTips } from '@pospay/contracts';
+import { t } from '@pospay/i18n';
+import { MonthStepper } from '@/shared/month/month-stepper';
+import { nextMonth, previousMonth } from '@/shared/month/month';
+import { useLocale } from '@/shared/locale/locale-context';
 import type { LinesView } from '../model/private-window-state';
 import { monthOutOfRange } from '../model/work-error';
-import { nextMonth, previousMonth } from '../model/work-month';
 import { EstimateCard } from './estimate-card';
-import { MonthStepper } from './month-stepper';
 import { RatingSummaryCard } from './rating-summary-card';
 import { TipsBlock } from './tips-block';
 import { WorkLines } from './work-lines';
@@ -43,6 +45,7 @@ export type MyWorkCardsProps = {
  */
 export function MyWorkCards(props: MyWorkCardsProps) {
   const { month, home, lines, estimate } = props;
+  const locale = useLocale();
   const lineCommissions =
     estimate?.status === 'ESTIMATE'
       ? new Map(estimate.per_line.map((line) => [line.line_id, line.amount]))
@@ -57,6 +60,10 @@ export function MyWorkCards(props: MyWorkCardsProps) {
           !(lines.status === 'error' && monthOutOfRange(lines.error))
         }
         canGoForward={month !== undefined && home !== undefined && month !== home}
+        labels={{
+          previous: t(locale, 'myWork.previousMonth'),
+          next: t(locale, 'myWork.nextMonth'),
+        }}
         onPrevious={() => month && props.onMonth(previousMonth(month))}
         onNext={() => month && props.onMonth(forward(month, home))}
       />

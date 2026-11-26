@@ -14,6 +14,7 @@ import {
   createDiscountSelfApprovalNoticeConsumer,
   createLateServiceSessionNoticeConsumer,
   createLineCancelNoticeConsumer,
+  createPackageRefundNoticeConsumer,
   createPerformersChangeNoticeConsumer,
   createPriceEditNoticeConsumer,
 } from './modules/orders/index.ts';
@@ -55,6 +56,7 @@ export function businessConsumers(deps: BusinessConsumerDeps): readonly OutboxCo
     createPerformersChangeNoticeConsumer(newIds(), clock),
     createDiscountApprovalNoticeConsumer(newIds(), clock),
     createDiscountSelfApprovalNoticeConsumer(newIds(), clock),
+    createPackageRefundNoticeConsumer(newIds(), clock),
     createLowRatingNoticeConsumer(newIds(), clock),
     createRatingSchedulingConsumer({ ids: newIds(), clock, daySessions: deps.daySessions }),
     createRatingSentConsumer(),

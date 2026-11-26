@@ -8,6 +8,20 @@
 > **PP-186 — 2026-11-12 (owner-decisions.ar.md item 108).** Owner override of the lane assignments in §§0, 5 and 7 (PP-125 Codex sol, PP-55.1, the Q3 Kimi-only fixer / PP-10.1, the Claude Sonnet fallback rung) while PP-186 is in force: the implementers for initial builds, migrations, tests and correction rounds are the three CLIs (Grok `grok-4.7-build-fast`, Kimi K3.1 Pro on its CLI, MiniMax-M3.1-Flash via opencode), and Agy is preferred for tests. Claude (the manager and the task sessions) writes no code, tests or migrations. All gates, fences, round caps and reviews are unchanged; the lane tables are not rewritten.
 > **PP-194 — 2026-11-19 (owner-decisions.ar.md item 114).** Owner override of PP-186's implementer lanes and PP-73.3's planner lane while PP-194 is in force: all implementers (initial builds, migrations, tests and correction rounds) run on OpenCode `zai-coding-plan/glm-5.3-flash` (`variant: high`), monitored and evaluated by the manager for an end-of-tasks assessment for Waleed; local review (`/review` skill / written manager review under PP-182) stays active while review bots are down; and the current manager session (Antigravity) authors specs and plans. All technical rules, fences, `ci-gate`, round caps and independent deploy/HOLD gates remain unchanged.
 
+> **PP-279 — 2026-11-27 (owner-decisions.ar.md, PP-279).** Current lanes, overriding PP-194, PP-270 and the reviewer model of PP-277:
+>
+> - **Implementers.** Two implementation tasks always run in parallel, spread over four implementers:
+>   - Antigravity `gemini-4-hydrogen`, `thought_level: medium`.
+>   - OpenCode `minimax-coding-plan/MiniMax-M3.1-Flash`. This entry has no variant, so it runs at its default. The `high`-capable `opencode-go` entry stays unused while its weekly quota is exhausted.
+>   - OpenCode `kimi-code-plan-cn/k3.1-pro`, `variant: high`.
+>   - OpenCode `zai-coding-plan/glm-5.3-flash`, `variant: high`. This is Waleed's «GLM 3.1 fast»; the catalog has no GLM 3.1.
+> - **Briefs.** Every brief carries the full instructions: exact files to touch and not touch, the expected size, the governing rules, the tests, and the guard rails (no git, no `.env*`, no out-of-worktree reads, no unrelated reformatting, no migration without the manager's lane).
+> - **Implementer skills.** The implementer works with `/speckit-implement`, then runs `/clean-code-guard` and `/test-guard` before delivery.
+> - **Reviewer.** `/waleed_general_reviewer` with the PP-277 §5 addendum, on OpenCode `zai-coding-plan/glm-5.4`, `variant: high`. Its fallback is Claude `claude-opus-5-5` at `effort: medium`.
+> - **The cycle.** After review: one fix round, then commit and push to the task branch, then exact-head `ci-gate`, «دورك» and the merge. Then the cycle repeats.
+> - **Implementer fallback.** On a twice-failed availability, Claude Sonnet 5.5 `medium`.
+> - **Unchanged.** All gates, caps and rules.
+
 > **Confirmed by the owner (Waleed) on 2026-10-26 (Asia/Kuwait)**, and saved in the repository so that every agent starting a task here reads it locally. **Revised on 2026-10-27/28 (PP-69, `docs/owner-decisions.ar.md` item 31):** the lanes, the single internal reviewer, Fable's advisory role, three parallel tasks with per-worktree databases, the five GitHub reviewers and the split-on-exhaustion rule. **Revised on 2026-10-28 (PP-73, `docs/owner-decisions.ar.md` items 35–38):** the Opus 5.5 high planner lane for the spec, the plan and the `grill-me` questions; the deployment wording corrected against the PR #701 evidence; the PR #701 completion record.
 >
 > **Revised on 2026-10-30 (PP-84.1 to PP-84.3, `docs/owner-decisions.ar.md` item 39):** T3 Code routes every model. Kimi runs through T3's OpenCode provider, MiniMax through T3's MiniMax Code provider (for its `thinking` variant), and Claude Code is the fallback for every delegated role. Only a shell-run `opencode` or `codex` is forbidden.

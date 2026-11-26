@@ -2,6 +2,7 @@ import { expect, it } from 'vitest';
 import type { OwnServiceLine } from '@pospay/contracts';
 import {
   WorkHttpError,
+  invalidCursor,
   monthOutOfRange,
   sessionEnded,
   windowExpired,
@@ -15,7 +16,7 @@ import {
   hasService,
   serviceName,
 } from './work-format';
-import { monthLabel, nextMonth, previousMonth } from './work-month';
+import { monthLabel, nextMonth, previousMonth } from '@/shared/month/month';
 
 const line = (extra: Partial<OwnServiceLine>): OwnServiceLine => ({
   line_id: '00000000-0000-4000-8000-000000000001',
@@ -77,6 +78,13 @@ it('tells an expired window, a dead session, a forbidden page and an out-of-rang
   expect([workForbidden(forbidden), workForbidden(expired)]).toEqual([true, false]);
   expect([monthOutOfRange(range), monthOutOfRange(dead)]).toEqual([true, false]);
   expect(windowExpired(new Error('network'))).toBe(false);
+});
+
+it('tells a rejected cursor apart from any other bad request', () => {
+  expect(invalidCursor(new WorkHttpError('VALIDATION_FAILED', 400))).toBe(true);
+  expect(invalidCursor(new WorkHttpError('BAD_REQUEST', 400))).toBe(false);
+  expect(invalidCursor(new WorkHttpError('VALIDATION_FAILED', 422))).toBe(false);
+  expect(invalidCursor(new Error('network'))).toBe(false);
 });
 
 it('AC-57-4-9 shows a line time and a cancellation date in the business zone, never the process zone', () => {

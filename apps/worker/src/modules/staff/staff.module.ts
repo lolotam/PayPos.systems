@@ -211,6 +211,7 @@ export function startStaffWorker(
   redisUrl: string,
   clock: Clock,
   prefix?: string,
+  retryDelayMs?: (attempt: number) => number | null,
 ) {
   const { processor, expiry } = createAttendanceJobs(database, ids, redisUrl, clock, prefix);
   const notClockedIn = startNotClockedInProcessor(
@@ -222,11 +223,13 @@ export function startStaffWorker(
     new CommitEmployeeImport(employeeImportTransactions(database, ids), ids, clock),
     redisUrl,
     prefix,
+    retryDelayMs,
   );
   const recovery = startEmployeeImportRecoveryProcessor(
     new RecoverEmployeeImports(employeeImportRecoveryTransactions(database), clock),
     redisUrl,
     prefix,
+    retryDelayMs,
   );
   const reportWorkers = startLeaveHistoryReportWorkers(database, redisUrl, prefix);
   return {

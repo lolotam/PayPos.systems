@@ -37,10 +37,7 @@ function gate() {
   return { opened, open: () => open() };
 }
 
-async function shutdown(
-  processor: { close: () => Promise<void> },
-  queue: Queue,
-): Promise<void> {
+async function shutdown(processor: { close: () => Promise<void> }, queue: Queue): Promise<void> {
   await processor.close();
   await queue.obliterate({ force: true });
   await queue.close();
@@ -254,3 +251,39 @@ it('keeps the close for a later attempt when the first one fails', async () => {
     await shutdown(processor, queue);
   }
 }, 30000);
+
+it('uses the injected retryDelayMs policy when the queue refuses the job', async () => {
+  const ids = systemUuidV7();
+  const prefix = `package-sale-policy-${ids.newId()}`;
+  const retryDelayMs = vi.fn((attempt: number) => (attempt >= 10 ? null : 5000));
+  const processor = startPackageSaleProcessor(
+    {
+      execute: async () => undefined,
+      fail: async () => undefined,
+    } as unknown as ExecutePackageSale,
+    redisUrl,
+    prefix,
+    retryDelayMs,
+  );
+  const queue = new Queue(PACKAGE_SALE_QUEUE, { connection: { url: redisUrl }, prefix });
+  try {
+    await processor.ready();
+    const reject = vi
+      .spyOn(Queue.prototype, 'add')
+      .mockRejectedValue(new Error('Synthetic queue outage'));
+    expect(await processor.deliver(saleEvent(ids, { attempt: 1 }))).toEqual({
+      delivered: false,
+      error: 'PACKAGE_SALE_QUEUE_RETRY',
+      retryInMs: 5000,
+    });
+    expect(await processor.deliver(saleEvent(ids, { attempt: 10 }))).toEqual({
+      delivered: false,
+      error: 'PACKAGE_SALE_QUEUE_RETRY',
+      retryInMs: null,
+    });
+    expect(retryDelayMs.mock.calls).toEqual([[1], [10]]);
+    reject.mockRestore();
+  } finally {
+    await shutdown(processor, queue);
+  }
+});

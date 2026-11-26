@@ -42,7 +42,8 @@ export const commissionPlanVersionPaths = {
         '201': { description: 'Stored plan version', content: json('CommissionPlanVersion') },
         '403': forbidden,
         '409': {
-          description: 'COMMISSION_PERIOD_NOT_DRAFT or COMMISSION_PERIOD_CLOSED',
+          description:
+            'COMMISSION_PERIOD_NOT_DRAFT or COMMISSION_PERIOD_CLOSED, or TRANSACTION_RETRY_REQUIRED (retry the request)',
           content: json('ErrorEnvelope'),
         },
         '422': {

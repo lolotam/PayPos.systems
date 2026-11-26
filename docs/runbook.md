@@ -254,7 +254,7 @@ land, approval stays closed. Never reset or delete `published_at`, `attempts`, `
 3. **Statuses.**
    - `COMPLETE`: the range up to `throughId` is applied; do not check the inventory from a single printed line, because the printed
      `counts` are per invocation. Use the 50-3c coverage report, or a direct inventory of the consumer's marks for the range up to
-     `throughId`; if the printed counts are used instead, add up the counts of every line of the whole run.
+     `throughId`.
    - `PAGE_LIMIT` or `ABORTED`: resume with `--through <throughId>` from the printed line, adding `--after <afterId>` only when the printed
      `afterId` is not null; when `afterId` is null leave `--after` out and resume with `--through <throughId>` alone. `afterId` is the safe resume
      cursor and never moves past the first undelivered event. `ABORTED` means a failure that is not a known business outcome (a database or

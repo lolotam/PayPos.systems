@@ -96,7 +96,7 @@ export function PersonalWork({ context, onLeave }: { context: WorkContext; onLea
           void lines.refetch();
           return;
         }
-        // المؤشر مرفوض (400): الصفحات بتترسم من الأول، فالمؤشر القديم ما يتبعتش تاني.
+        // المؤشر مرفوض (400 VALIDATION_FAILED): الصفحات بتترسم من الأول، فالمؤشر القديم ما يتبعتش تاني.
         void cache.resetQueries({ queryKey: [...scope, 'lines', month ?? 'current'], exact: true });
       }}
       onLoadMore={() => void lines.fetchNextPage()}

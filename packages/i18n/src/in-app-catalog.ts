@@ -14,6 +14,7 @@ export const inAppEn = {
   generic_notice: 'Update for {{subject}}',
   generic_employee: 'Employee',
   generic_branch: 'Branch',
+  generic_package: 'Package',
   generic_document: 'Document',
   late_service_session:
     'A late service session dated {{business_date}} was recorded at {{branch_name_en}}.',
@@ -21,6 +22,8 @@ export const inAppEn = {
     '{{editor_name_en}} edited {{service_name_en}} at {{branch_name_en}} dated {{business_date}}: the net was {{previous_net}} KWD and is now {{new_net}} KWD.',
   service_line_cancelled:
     '{{service_name_en}} was cancelled at {{branch_name_en}} dated {{business_date}}: the line net was {{cancelled_net}} KWD.',
+  package_refund_recorded:
+    '{{sessions}} session(s) refunded from {{package_name_en}} at {{branch_name_en}} dated {{business_date}}: amount {{amount}} KWD.',
   service_line_performers_changed:
     'The performers of {{service_name_en}} at {{branch_name_en}} dated {{business_date}} were changed: the line net is {{line_net}} KWD.',
   discount_self_approved:
@@ -74,12 +77,15 @@ export const inAppAr = {
   generic_notice: 'تحديث بخصوص {{subject}}',
   generic_employee: 'موظف',
   generic_branch: 'فرع',
+  generic_package: 'باقة',
   generic_document: 'مستند',
   late_service_session: 'سُجّلت جلسة متأخرة بتاريخ {{business_date}} في فرع {{branch_name_ar}}.',
   service_line_price_edited:
     'عدّل {{editor_name_ar}} خدمة {{service_name_ar}} في فرع {{branch_name_ar}} بتاريخ {{business_date}}: كان الصافي {{previous_net}} دينار وأصبح {{new_net}} دينار.',
   service_line_cancelled:
     'أُلغيت خدمة {{service_name_ar}} في فرع {{branch_name_ar}} بتاريخ {{business_date}}: كان صافي السطر {{cancelled_net}} دينار.',
+  package_refund_recorded:
+    'استُردت {{sessions}} جلسة من باقة {{package_name_ar}} في فرع {{branch_name_ar}} بتاريخ {{business_date}}: المبلغ {{amount}} دينار.',
   service_line_performers_changed:
     'تغيّر منفّذو خدمة {{service_name_ar}} في فرع {{branch_name_ar}} بتاريخ {{business_date}}: صافي السطر {{line_net}} دينار.',
   discount_self_approved:

@@ -1,5 +1,5 @@
+import { usePrivateViewData } from '@/private-view/use-private-view';
 import type { PrivateWindowController } from '../api/private-window-controller';
-import { usePrivateWindowData } from '../api/use-private-window';
 import { shownMonth } from '../model/private-window-state';
 import { MyWorkCards } from './my-work-cards';
 
@@ -26,7 +26,7 @@ export function ReceptionOpenWork({
   onRetryTips: () => void;
   onLoadMore: () => void;
 }) {
-  const data = usePrivateWindowData(controller);
+  const data = usePrivateViewData(controller);
   if (data === null) return null;
   return (
     <MyWorkCards

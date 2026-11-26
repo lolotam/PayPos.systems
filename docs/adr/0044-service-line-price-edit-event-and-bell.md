@@ -138,3 +138,36 @@ four scoped manager roles, and the changer is not excluded. The bell (`service_l
 shows the service, the branch, the business date and the line net. It never carries the reason, a performer's name,
 or the changer's identity; identity is readable only through the guarded history read (spec 055 FR-016). No new
 import arrow. `notifications` only stores the in-app row and does not consume `ServiceLineChanged`.
+
+## Addendum (row 46-3, refund bell)
+
+A package refund is a new event, `PackageRefundRecorded`, written by `orders` inside the refund transaction for
+**every** refund — a sold package and an imported one alike. The import publishes no sale event (TD-7), but the
+refund bell is about the money leaving the till, so it does not follow that rule. The payload carries the refund
+id, the entitlement, the component, the business, the branch, the sessions, the amount, the branch-local business
+date, the refund instant and the entitlement revision. It never carries the refund reason, the customer's name or
+phone, or the refunder's identity: the reason stays in the guarded refund row and the identity is readable only
+through that row.
+
+A sibling worker `orders` consumer `orders.package-refund-notice-v1` handles only `PackageRefundRecorded`. The bell
+is a separate event, `PackageRefundNoticeRequested`, with a separate insert-only ledger keyed
+`(company_id, refund_id)`: one notice per refund, in groups of at most 100. Recipients are the four scoped manager
+roles — `owner`, `general_manager`, `business_manager`, `branch_manager` — read at the decision instant, and the
+refunder is **not** excluded (FR-056, PK-Q5). The alert rules are not consulted: this bell follows the fixed
+four-role rule, so `alert_rules` stays untouched.
+
+Zero recipients is a durable decision, not a missing one: the ledger row is written with `recipient_count = 0` and
+no notice leaves the worker, so a redelivery can never ring the bell twice. The consumer proves the refund row
+inside the tenant before ringing — the company, the business, the branch, the entitlement, the component, the
+session count, the amount, the revision, the refund instant and the branch-local calendar date all have to match
+the event, and the entitlement has to exist.
+
+The bell (`package_refund_recorded`, ar/en) shows the package name, the branch name, the sessions, the amount and
+the business date. The package name comes from the entitlement snapshot and falls back to the catalogue label; the
+branch name comes from the branch. It never carries the refund reason, the customer's name or phone, or the
+refunder's identity. No new import arrow: `notifications` only stores the in-app row and does not consume
+`PackageRefundRecorded`.
+
+The refund history is read, not pushed: the customer package detail gains a `refunds` projection over
+`package_refunds` (newest first) and a `can_refund` hint that mirrors `RefundPackageUseCase`'s authority decision
+on the acting branch without locking it. The POST stays authoritative; the hint is a display flag only. The refund history carries `reason` (alongside `id`, `component_id`, `sessions`, `amount`, `method` and `refunded_at` per `FR-071`) for staff holding `record:service-sessions:branch` or `read:service-sessions:branch` who can open the package detail (`PK-Q17`, `PP-16.6`), while keeping `refunded_by` and `refunded_by_membership_id` internal to `package_refunds` and omitting `reason`, customer PII and actor identity from the broadcast bell notice.

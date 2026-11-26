@@ -1,6 +1,17 @@
+import { type PinFormTexts, PrivateViewPinForm } from '@/private-view/pin-form';
 import { usePrivateWindow } from '../api/use-private-window';
-import { PrivateViewPinForm } from './private-view-pin-form';
 import { ReceptionOpenWork } from './reception-open-work';
+
+/** نصوص خطوة الـ PIN من كتالوج «شغلي». */
+const WORK_PIN_TEXTS = {
+  title: 'myWork.pinTitle',
+  label: 'myWork.pinLabel',
+  submit: 'myWork.pinSubmit',
+  invalid: 'myWork.pinInvalid',
+  failed: 'myWork.pinFailed',
+  refused: 'myWork.refused',
+  waiting: 'myWork.pinWaiting',
+} as const satisfies PinFormTexts;
 
 /**
  * «شغلي» على جهاز الاستقبال: خطوة الـ PIN، وبعدها البيانات من متحكم النافذة بس (من غير كاش react-query).
@@ -19,6 +30,7 @@ export function ReceptionWork({ onLeave }: { onLeave: () => void }) {
     return (
       <PrivateViewPinForm
         key={state.epoch}
+        texts={WORK_PIN_TEXTS}
         problem={state.phase === 'pin' ? state.problem : null}
         pending={state.phase === 'opening'}
         waiting={state.phase === 'pin' && state.waiting}

@@ -65,6 +65,7 @@ export const TENANT_TABLES = [
   'package_session_slots',
   'package_refunds',
   'package_refund_slots',
+  'package_refund_notices',
   'employees',
   'employee_branches',
   'employee_cards',

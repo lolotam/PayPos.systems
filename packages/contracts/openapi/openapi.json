@@ -4379,7 +4379,7 @@
             }
           },
           "409": {
-            "description": "COMMISSION_PERIOD_NOT_DRAFT or COMMISSION_PERIOD_CLOSED",
+            "description": "COMMISSION_PERIOD_NOT_DRAFT or COMMISSION_PERIOD_CLOSED, or TRANSACTION_RETRY_REQUIRED (retry the request)",
             "content": {
               "application/json": {
                 "schema": {
@@ -4590,18 +4590,11 @@
             }
           },
           "409": {
-            "description": "COMMISSION_STATEMENT_NOT_APPROVED when the statement is DRAFT or REVIEWED, or COMMISSION_STATEMENT_ALREADY_PAID when it is PAID and a new Idempotency-Key is sent (CM-41).",
+            "description": "COMMISSION_STATEMENT_NOT_APPROVED when the statement is DRAFT or REVIEWED, or COMMISSION_STATEMENT_ALREADY_PAID when it is PAID and a new Idempotency-Key is sent (CM-41), or TRANSACTION_RETRY_REQUIRED (retry the request).",
             "content": {
               "application/json": {
                 "schema": {
-                  "oneOf": [
-                    {
-                      "$ref": "#/components/schemas/CommissionStatementNotApprovedError"
-                    },
-                    {
-                      "$ref": "#/components/schemas/CommissionStatementAlreadyPaidError"
-                    }
-                  ]
+                  "$ref": "#/components/schemas/ErrorEnvelope"
                 }
               }
             }
@@ -4851,7 +4844,7 @@
             }
           },
           "409": {
-            "description": "COMMISSION_PERIOD_CLOSED or IDEMPOTENCY_KEY_IN_PROGRESS",
+            "description": "COMMISSION_PERIOD_CLOSED or IDEMPOTENCY_KEY_IN_PROGRESS, or TRANSACTION_RETRY_REQUIRED (retry the request)",
             "content": {
               "application/json": {
                 "schema": {
@@ -6043,7 +6036,7 @@
             }
           },
           "409": {
-            "description": "COMMISSION_PERIOD_CLOSED or IDEMPOTENCY_KEY_IN_PROGRESS",
+            "description": "COMMISSION_PERIOD_CLOSED or IDEMPOTENCY_KEY_IN_PROGRESS, or TRANSACTION_RETRY_REQUIRED (retry the request)",
             "content": {
               "application/json": {
                 "schema": {
@@ -6150,7 +6143,7 @@
             }
           },
           "409": {
-            "description": "COMMISSION_FINGERPRINT_STALE, COMMISSION_PERIOD_NOT_DRAFT, COMMISSION_PERIOD_CLOSED or IDEMPOTENCY_KEY_IN_PROGRESS",
+            "description": "COMMISSION_FINGERPRINT_STALE, COMMISSION_PERIOD_NOT_DRAFT, COMMISSION_PERIOD_CLOSED or IDEMPOTENCY_KEY_IN_PROGRESS, or TRANSACTION_RETRY_REQUIRED (retry the request)",
             "content": {
               "application/json": {
                 "schema": {
@@ -6257,7 +6250,7 @@
             }
           },
           "409": {
-            "description": "COMMISSION_STATEMENT_NOT_REVIEWED, COMMISSION_PERIOD_CLOSED or IDEMPOTENCY_KEY_IN_PROGRESS",
+            "description": "COMMISSION_STATEMENT_NOT_REVIEWED, COMMISSION_PERIOD_CLOSED or IDEMPOTENCY_KEY_IN_PROGRESS, or TRANSACTION_RETRY_REQUIRED (retry the request)",
             "content": {
               "application/json": {
                 "schema": {
@@ -6364,7 +6357,7 @@
             }
           },
           "409": {
-            "description": "COMMISSION_PERIOD_CLOSED, COMMISSION_STATEMENT_NOT_REVIEWED, COMMISSION_FINGERPRINT_STALE, COMMISSION_UPDATES_PENDING or IDEMPOTENCY_KEY_IN_PROGRESS",
+            "description": "COMMISSION_PERIOD_CLOSED, COMMISSION_STATEMENT_NOT_REVIEWED, COMMISSION_FINGERPRINT_STALE, COMMISSION_UPDATES_PENDING or IDEMPOTENCY_KEY_IN_PROGRESS, or TRANSACTION_RETRY_REQUIRED (retry the request)",
             "content": {
               "application/json": {
                 "schema": {
@@ -19723,7 +19716,7 @@
     "/v1/businesses/{businessId}/branches/{branchId}/sellable-package-types": {
       "get": {
         "operationId": "listSellablePackageTypes",
-        "description": "Cursor-paginated package types available for reception sale. Requires sell:packages:branch and the orders feature, never read:package-types:business. Lists only types whose selling is not stopped. Missing permission, a device, or a disabled orders feature is refused.",
+        "description": "Cursor-paginated package types available for reception sale. Requires sell:packages:branch and the orders feature, never read:package-types:business. Lists only types whose selling is not stopped and whose component services are all open (SI-Q28). Missing permission, a device, or a disabled orders feature is refused.",
         "parameters": [
           {
             "in": "header",
@@ -19960,7 +19953,7 @@
     "/v1/businesses/{businessId}/package-types/service-options": {
       "get": {
         "operationId": "listPackageServiceOptions",
-        "description": "Cursor-paginated service options for package components: id, names, KWD price and active only. Requires read:package-types:business and the catalog feature, independently of service permissions. A role that manages package types also needs read:package-types:business, as the list screen does. Services cannot currently be retired, so active is true. A missing, foreign or unauthorized business returns the same FORBIDDEN response. Never writes.",
+        "description": "Cursor-paginated service options for package components: id, names, KWD price and active only. Requires read:package-types:business and the catalog feature, independently of service permissions. A role that manages package types also needs read:package-types:business, as the list screen does. Closed services (closed_at IS NOT NULL) are excluded (SI-Q28), so active is always true. A missing, foreign or unauthorized business returns the same FORBIDDEN response. Never writes.",
         "parameters": [
           {
             "in": "header",
@@ -44588,6 +44581,49 @@
           "extended_at"
         ]
       },
+      "CustomerPackageRefund": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "component_id": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "sessions": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 365
+          },
+          "amount": {
+            "$ref": "#/components/schemas/SessionMoney"
+          },
+          "method": {
+            "$ref": "#/components/schemas/PackagePaidMethod"
+          },
+          "reason": {
+            "type": "string"
+          },
+          "refunded_at": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+          }
+        },
+        "required": [
+          "id",
+          "component_id",
+          "sessions",
+          "amount",
+          "method",
+          "reason",
+          "refunded_at"
+        ]
+      },
       "CustomerPackageDetail": {
         "type": "object",
         "properties": {
@@ -44713,6 +44749,10 @@
             "default": false,
             "type": "boolean"
           },
+          "can_refund": {
+            "default": false,
+            "type": "boolean"
+          },
           "components": {
             "type": "array",
             "items": {
@@ -44730,6 +44770,13 @@
             "type": "array",
             "items": {
               "$ref": "#/components/schemas/CustomerPackageExtension"
+            }
+          },
+          "refunds": {
+            "default": [],
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CustomerPackageRefund"
             }
           }
         },
@@ -49212,6 +49259,284 @@
                 },
                 "minItems": 6,
                 "maxItems": 6
+              }
+            },
+            "required": [
+              "id",
+              "company_id",
+              "business_id",
+              "branch_id",
+              "source_event_id",
+              "template_revision",
+              "locale",
+              "created_at",
+              "read_at",
+              "template_key",
+              "safe_parameters"
+            ]
+          },
+          {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+              },
+              "company_id": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+              },
+              "business_id": {
+                "nullable": true,
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+              },
+              "branch_id": {
+                "nullable": true,
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+              },
+              "source_event_id": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+              },
+              "template_revision": {
+                "type": "number",
+                "enum": [
+                  1
+                ]
+              },
+              "locale": {
+                "type": "string",
+                "enum": [
+                  "ar",
+                  "en"
+                ]
+              },
+              "created_at": {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+              },
+              "read_at": {
+                "nullable": true,
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+              },
+              "template_key": {
+                "type": "string",
+                "enum": [
+                  "package_refund_recorded"
+                ]
+              },
+              "safe_parameters": {
+                "type": "array",
+                "items": {
+                  "anyOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "name": {
+                          "type": "string",
+                          "enum": [
+                            "package_name_ar"
+                          ]
+                        },
+                        "type": {
+                          "type": "string",
+                          "enum": [
+                            "text"
+                          ]
+                        },
+                        "value": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 255
+                        }
+                      },
+                      "required": [
+                        "name",
+                        "type",
+                        "value"
+                      ],
+                      "additionalProperties": false
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "name": {
+                          "type": "string",
+                          "enum": [
+                            "package_name_en"
+                          ]
+                        },
+                        "type": {
+                          "type": "string",
+                          "enum": [
+                            "text"
+                          ]
+                        },
+                        "value": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 255
+                        }
+                      },
+                      "required": [
+                        "name",
+                        "type",
+                        "value"
+                      ],
+                      "additionalProperties": false
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "name": {
+                          "type": "string",
+                          "enum": [
+                            "branch_name_ar"
+                          ]
+                        },
+                        "type": {
+                          "type": "string",
+                          "enum": [
+                            "text"
+                          ]
+                        },
+                        "value": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 255
+                        }
+                      },
+                      "required": [
+                        "name",
+                        "type",
+                        "value"
+                      ],
+                      "additionalProperties": false
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "name": {
+                          "type": "string",
+                          "enum": [
+                            "branch_name_en"
+                          ]
+                        },
+                        "type": {
+                          "type": "string",
+                          "enum": [
+                            "text"
+                          ]
+                        },
+                        "value": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 255
+                        }
+                      },
+                      "required": [
+                        "name",
+                        "type",
+                        "value"
+                      ],
+                      "additionalProperties": false
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "name": {
+                          "type": "string",
+                          "enum": [
+                            "sessions"
+                          ]
+                        },
+                        "type": {
+                          "type": "string",
+                          "enum": [
+                            "text"
+                          ]
+                        },
+                        "value": {
+                          "type": "string",
+                          "pattern": "^(?:[1-9]\\d?|1\\d\\d|2\\d\\d|3[0-5]\\d|36[0-5])$"
+                        }
+                      },
+                      "required": [
+                        "name",
+                        "type",
+                        "value"
+                      ],
+                      "additionalProperties": false
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "name": {
+                          "type": "string",
+                          "enum": [
+                            "amount"
+                          ]
+                        },
+                        "type": {
+                          "type": "string",
+                          "enum": [
+                            "text"
+                          ]
+                        },
+                        "value": {
+                          "type": "string",
+                          "pattern": "^\\d{1,11}\\.\\d{3}$"
+                        }
+                      },
+                      "required": [
+                        "name",
+                        "type",
+                        "value"
+                      ],
+                      "additionalProperties": false
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "name": {
+                          "type": "string",
+                          "enum": [
+                            "business_date"
+                          ]
+                        },
+                        "type": {
+                          "type": "string",
+                          "enum": [
+                            "text"
+                          ]
+                        },
+                        "value": {
+                          "type": "string",
+                          "format": "date",
+                          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))$"
+                        }
+                      },
+                      "required": [
+                        "name",
+                        "type",
+                        "value"
+                      ],
+                      "additionalProperties": false
+                    }
+                  ]
+                },
+                "minItems": 7,
+                "maxItems": 7
               }
             },
             "required": [
@@ -54249,6 +54574,20 @@
             "items": {
               "$ref": "#/components/schemas/WorkspaceBranch"
             }
+          },
+          "logo_file_id": {
+            "nullable": true,
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "scope": {
+            "type": "string",
+            "enum": [
+              "COMPANY",
+              "BUSINESS",
+              "BRANCH"
+            ]
           }
         },
         "required": [

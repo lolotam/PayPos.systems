@@ -5,6 +5,9 @@ import { myWorkspacesReadResponse, type MyWorkspacesReadResponse } from '@pospay
 
 import { apiClient } from '@/shared/api/client';
 
+/** مفتاح كاش مساحات العمل؛ بتشاركه شاشة الهوية عشان تحدّث الشعار في الكاش. */
+export const workspacesQueryKey = ['me', 'workspaces'] as const;
+
 export async function fetchWorkspaces(): Promise<MyWorkspacesReadResponse> {
   const { data, error, response } = await apiClient().GET('/v1/me/workspaces');
   // القراءة بتحكم على response.ok مش على وجود جسم خطأ: رفض وصول بجسم فاضي (401/403 من غير
@@ -18,7 +21,7 @@ export async function fetchWorkspaces(): Promise<MyWorkspacesReadResponse> {
 
 export function useWorkspaces(enabled: boolean) {
   return useQuery({
-    queryKey: ['me', 'workspaces'],
+    queryKey: workspacesQueryKey,
     queryFn: fetchWorkspaces,
     enabled,
   });

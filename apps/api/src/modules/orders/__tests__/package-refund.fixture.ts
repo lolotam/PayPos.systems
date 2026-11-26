@@ -58,7 +58,8 @@ export async function packageRefundFixture(): Promise<PackageRefundFixture> {
       VALUES(${f.company},${ids.newId()},${f.membership},'refund:packages:branch','ALLOW','BRANCH',${f.branch},
         NULL,'Synthetic refund grant',${f.ownerId})`;
     const outsiderCookie = await f.h.signedInOperator('no-package-refund@example.test');
-    const [outsider] = await f.h.owner`SELECT id FROM "user" WHERE email='no-package-refund@example.test'`;
+    const [outsider] = await f.h
+      .owner`SELECT id FROM "user" WHERE email='no-package-refund@example.test'`;
     const cashier = must(SYSTEM_ROLES.find((role) => role.code === 'cashier')).id;
     await f.h.owner`INSERT INTO memberships
       (company_id,id,user_id,role_id,role_owner_key,scope_type,scope_id,starts_at)
@@ -123,7 +124,13 @@ export async function approvedDeviceToken(f: SessionFixture): Promise<string> {
 /** باقة بمكوّنين افتراضياً، وبمكوّن واحد لاختبار البيع المخفّض؛ قيم الجلسات من المدفوع مش من القائمة. */
 export async function seedTwoComponentPackage(
   f: SessionFixture,
-  options: { sessions?: number; unit?: string; expiresOn?: string; discount?: string; components?: number } = {},
+  options: {
+    sessions?: number;
+    unit?: string;
+    expiresOn?: string;
+    discount?: string;
+    components?: number;
+  } = {},
 ): Promise<{ entitlement: string; components: string[] }> {
   await renameSyntheticPackageTypes(f);
   const sessions = options.sessions ?? 2;
@@ -244,7 +251,8 @@ export async function postRefund(
 }
 
 export async function readRefunds(f: SessionFixture, entitlementId: string) {
-  return f.h.owner`SELECT id,component_id,sessions,amount::text AS amount,method,reason,entitlement_revision,
+  return f.h
+    .owner`SELECT id,component_id,sessions,amount::text AS amount,method,reason,entitlement_revision,
     refunded_by,refunded_by_membership_id,branch_id FROM package_refunds WHERE entitlement_id=${entitlementId}
     ORDER BY refunded_at,id`;
 }
@@ -267,14 +275,26 @@ export async function readSaleEvents(f: SessionFixture, entitlementId: string) {
     ORDER BY id`;
 }
 
+/** حدث جرس الاسترداد: صف واحد لكل استرداد، في نفس معاملة الاسترداد. */
+export async function readRefundRecordedEvents(f: SessionFixture, entitlementId: string) {
+  return f.h.owner`SELECT event_type,payload FROM outbox
+    WHERE company_id=${f.company} AND aggregate_id=${entitlementId} AND event_type='PackageRefundRecorded'
+    ORDER BY id`;
+}
+
 /** مفتاح استرداد الباقات المستوردة: null يعني مقفول. */
-export async function setImportedRefunds(f: SessionFixture, enabled: boolean | null): Promise<void> {
-  await f.h.owner`INSERT INTO business_settings(company_id,business_id,imported_refunds_enabled,updated_by,updated_at)
+export async function setImportedRefunds(
+  f: SessionFixture,
+  enabled: boolean | null,
+): Promise<void> {
+  await f.h
+    .owner`INSERT INTO business_settings(company_id,business_id,imported_refunds_enabled,updated_by,updated_at)
     VALUES(${f.company},${f.business},${enabled},${f.ownerId},now())
     ON CONFLICT (company_id,business_id) DO UPDATE
       SET imported_refunds_enabled=${enabled},updated_by=${f.ownerId},updated_at=now()`;
 }
 
 export async function clearImportedRefunds(f: SessionFixture): Promise<void> {
-  await f.h.owner`DELETE FROM business_settings WHERE company_id=${f.company} AND business_id=${f.business}`;
+  await f.h
+    .owner`DELETE FROM business_settings WHERE company_id=${f.company} AND business_id=${f.business}`;
 }

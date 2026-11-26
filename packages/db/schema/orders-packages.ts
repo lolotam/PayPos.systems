@@ -17,6 +17,7 @@ import {
   unique,
   uniqueIndex,
   uuid,
+  type AnyPgColumn,
 } from 'drizzle-orm/pg-core';
 
 import { packageTypes, services } from './catalog.ts';
@@ -422,6 +423,23 @@ export const packageExtensions = pgTable(
   ],
 );
 
+// أعمدة المفتاح الأجنبي للاستحقاق والمكوّن بتتشارك بين الجداول، فتتقرأ مرة واحدة هنا.
+// الدالة بتحفظ الأعمدة كـ tuple عشان foreignKey يقبل الطول بالظبط؛ قائمة عادية مش بتتقبل.
+function foreignKeyColumns<T extends AnyPgColumn[]>(...columns: T): T {
+  return columns;
+}
+const entitlementForeignColumns = foreignKeyColumns(
+  packageEntitlements.companyId,
+  packageEntitlements.businessId,
+  packageEntitlements.id,
+);
+const componentForeignColumns = foreignKeyColumns(
+  packageComponents.companyId,
+  packageComponents.businessId,
+  packageComponents.entitlementId,
+  packageComponents.id,
+);
+
 // سطر الاسترداد: صف واحد لكل استرداد جلسات من مكوّن واحد. السطر ثابت مالوش تعديل ولا حذف، والعكس سطر جديد.
 export const packageRefunds = pgTable(
   'package_refunds',
@@ -462,21 +480,12 @@ export const packageRefunds = pgTable(
     foreignKey({
       name: 'package_refunds_entitlement_fk',
       columns: [t.companyId, t.businessId, t.entitlementId],
-      foreignColumns: [
-        packageEntitlements.companyId,
-        packageEntitlements.businessId,
-        packageEntitlements.id,
-      ],
+      foreignColumns: entitlementForeignColumns,
     }),
     foreignKey({
       name: 'package_refunds_component_fk',
       columns: [t.companyId, t.businessId, t.entitlementId, t.componentId],
-      foreignColumns: [
-        packageComponents.companyId,
-        packageComponents.businessId,
-        packageComponents.entitlementId,
-        packageComponents.id,
-      ],
+      foreignColumns: componentForeignColumns,
     }),
     foreignKey({
       name: 'package_refunds_branch_fk',
@@ -502,6 +511,9 @@ export const packageRefunds = pgTable(
       t.refundedBy,
       t.refundedByMembershipId,
     ),
+    index('package_refunds_history_idx')
+      .on(t.companyId, t.businessId, t.entitlementId, t.refundedAt)
+      .concurrently(),
     check('package_refunds_sessions_check', sql`${t.sessions} BETWEEN 1 AND 365`),
     check('package_refunds_amount_check', sql`${t.amount} BETWEEN 0 AND 99999999999.999`),
     check('package_refunds_method_check', sql`${t.method} IN ('CASH','CARD')`),
@@ -572,5 +584,36 @@ export const packageRefundSlots = pgTable(
       'package_refund_slots_unit_value_check',
       sql`${t.unitValue} BETWEEN 0 AND 99999999999.999`,
     ),
+  ],
+);
+
+// دفتر جرس استرداد الباقة: صف واحد لكل استرداد باقة، صفّ ثابت لا يتعدّل ولا يتكرر.
+export const packageRefundNotices = pgTable(
+  'package_refund_notices',
+  {
+    companyId: uuid('company_id')
+      .notNull()
+      .references(() => companies.id),
+    id: uuid('id').notNull(),
+    businessId: uuid('business_id').notNull(),
+    /** سطر الاسترداد اللي اتخّذ قرار الجرس عليه؛ واحد بس لكل استرداد. */
+    refundId: uuid('refund_id').notNull(),
+    /** الحدث اللي سبب القرار؛ يثبت مصدر الجرس. */
+    sourceEventId: uuid('source_event_id').notNull(),
+    /** لحظة القرار؛ صفر مستلمين قرار دائم مش مؤجل. */
+    decidedAt: timestamp('decided_at', { withTimezone: true }).notNull(),
+    /** عدد المستلمين بلا تكرار؛ صفر يعني قرار بلا جرس. */
+    recipientCount: integer('recipient_count').notNull(),
+  },
+  (t) => [
+    primaryKey({ name: 'package_refund_notices_pkey', columns: [t.companyId, t.id] }),
+    unique('package_refund_notices_refund_key').on(t.companyId, t.refundId),
+    foreignKey({
+      name: 'package_refund_notices_refund_fk',
+      columns: [t.companyId, t.businessId, t.refundId],
+      foreignColumns: [packageRefunds.companyId, packageRefunds.businessId, packageRefunds.id],
+    }),
+    index('package_refund_notices_refund_fk_idx').on(t.companyId, t.businessId, t.refundId),
+    check('package_refund_notices_recipient_count', sql`${t.recipientCount} >= 0`),
   ],
 );

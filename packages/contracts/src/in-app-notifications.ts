@@ -21,6 +21,11 @@ import {
   lowRatingRecipient,
 } from './low-rating-notifications.js';
 import { inAppBase, inAppNotificationBase } from './in-app-base.js';
+import { displayParameter, moneyParameter, safeText } from './in-app-parameters.js';
+import {
+  packageRefundRecordedParameters,
+  packageRefundRecordedRecipient,
+} from './package-refund-notification.js';
 import {
   commissionEventParkedParameters,
   commissionEventParkedRecipient,
@@ -30,32 +35,11 @@ import {
   commissionCorrectionBlockedRecipient,
   statementAwaitingApprovalParameters,
   statementAwaitingApprovalRecipient,
-  statementAwaitingReviewParameters, statementAwaitingReviewRecipient,
+  statementAwaitingReviewParameters,
+  statementAwaitingReviewRecipient,
 } from './statement-notifications.js';
 
-const safeText = z
-  .string()
-  .min(1)
-  .max(255)
-  .refine(
-    (value) =>
-      !/(?:https?:|\+[1-9]\d{7,14}|\b(?:bearer|token|otp|code)\b|\b\d{4,8}\b)/i.test(value),
-  );
-// Display names reject a URL, a phone and a bare 4–8 digit code, and allow a year inside a name.
-const displayName = z
-  .string()
-  .min(1)
-  .max(255)
-  .refine(
-    (value) =>
-      value.trim().length > 0 &&
-      !/(?:https?:|[a-z][a-z\d+.-]*:\/\/|\b[a-z\d-]+\.[a-z]{2,}\b|\p{Nd}(?:[\s().+-]*\p{Nd}){6,}|\b(?:bearer|token|otp|code)\b|^\p{Nd}{4,8}$)/iu.test(
-        value.trim(),
-      ),
-  );
 const shiftStart = z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/);
-const displayParameter = <Name extends string>(name: Name) =>
-  z.strictObject({ name: z.literal(name), type: z.literal('text'), value: displayName });
 export const inAppParameters = z.tuple([
   z.strictObject({ name: z.literal('subject'), type: z.literal('text'), value: safeText }),
 ]);
@@ -93,10 +77,6 @@ export const lateServiceSessionRecipient = z.strictObject({
   template_key: z.literal('late_service_session'),
   safe_parameters: lateServiceSessionParameters,
 });
-/** فلتر أمان للجرس أوسع من sessionMoney الذي يمنع الصفر البادئ، لأن منتج 35d-2 يمرّر قيمًا متحققة بـ sessionMoney أصلًا. */
-const bellMoney = z.string().regex(/^\d{1,11}\.\d{3}$/);
-const moneyParameter = <Name extends string>(name: Name) =>
-  z.strictObject({ name: z.literal(name), type: z.literal('text'), value: bellMoney });
 /** ترتيب ED-Q11 ثابت مع نص القالب؛ المبلغ ليس displayName لأن 1250.000 يُرفض كاسم. */
 export const serviceLinePriceEditedParameters = z.tuple([
   displayParameter('service_name_ar'),
@@ -233,6 +213,7 @@ export const inAppRecipient = z.discriminatedUnion('template_key', [
   lateServiceSessionRecipient,
   serviceLinePriceEditedRecipient,
   serviceLineCancelledRecipient,
+  packageRefundRecordedRecipient,
   serviceLinePerformersChangedRecipient,
   discountApprovalRequestedRecipient,
   discountSelfApprovedRecipient,
@@ -296,6 +277,11 @@ export const inAppNotification = z
     }),
     responseObject({
       ...inAppNotificationBase,
+      template_key: z.literal('package_refund_recorded'),
+      safe_parameters: packageRefundRecordedParameters,
+    }),
+    responseObject({
+      ...inAppNotificationBase,
       template_key: z.literal('service_line_performers_changed'),
       safe_parameters: serviceLinePerformersChangedParameters,
     }),
@@ -319,7 +305,11 @@ export const inAppNotification = z
       template_key: z.literal('statement_awaiting_approval'),
       safe_parameters: statementAwaitingApprovalParameters,
     }),
-    responseObject({ ...inAppNotificationBase, template_key: z.literal('statement_awaiting_review'), safe_parameters: statementAwaitingReviewParameters }),
+    responseObject({
+      ...inAppNotificationBase,
+      template_key: z.literal('statement_awaiting_review'),
+      safe_parameters: statementAwaitingReviewParameters,
+    }),
     responseObject({
       ...inAppNotificationBase,
       template_key: z.literal('commission_event_parked'),

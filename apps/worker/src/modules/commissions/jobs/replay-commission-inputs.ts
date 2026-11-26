@@ -1,5 +1,4 @@
 import type { ClaimedEvent, DeliveryOutcome, OutboxDispatcherDatabase } from '@pospay/db';
-import { assertReplayBounds, ReplayCursorError } from '@pospay/db';
 import type { OutboxConsumer } from '../../../outbox/consumer.ts';
 
 const PAGE_SIZE = 100;
@@ -26,6 +25,9 @@ const CONTINUABLE_FAILURE_CODES = new Set([
   'COMMISSION_BUSINESS_MISSING',
   'COMMISSION_PERIOD_CLOSED',
   'COMMISSION_EVENT_TYPE_NOT_HANDLED',
+  // نطاق المرشحين أطول من الحد والشهر مش تقويمي: رفض عمل معروف، فالاستعادة بتكمّل وبتبلّغ عنه.
+  'COMMISSION_CANDIDATE_RANGE_EXCEEDED',
+  'COMMISSION_PERIOD_INVALID',
 ]);
 // نوع لا يسجّله المستهلك: رمز ثابت يفرق بين "بانتظار المعالج" و"فجوة حقيقية"؛ والأنواع الستة كلها مسجّلة من 50-4.
 const EVENT_TYPE_NOT_HANDLED = 'COMMISSION_EVENT_TYPE_NOT_HANDLED';
@@ -61,6 +63,20 @@ export class CommissionReplayConfigurationError extends Error {
 }
 
 /**
+ * حارس حدود الاستعادة: التحقق من المؤشرين قبل أي قراءة. النوع بنيوي عشان `jobs/` يقدر
+ * يستقبل الحارس المربوط من `persistence/` من غير ما يستورد وقت التشغيل.
+ */
+export interface ReplayCursorGuard {
+  readonly assertBounds: (afterId: string | null, throughId: string | null) => void;
+}
+
+/** خطأ نطاق مش صالح: نفس رمز مخزن البيانات، سواء من فحص الحدود أو من قارئ الصفحات. */
+function isReplayScopeInvalid(error: unknown): boolean {
+  if (error instanceof TypeError && error.message === 'REPLAY_SCOPE_INVALID') return true;
+  return error instanceof Error && 'code' in error && error.code === 'REPLAY_SCOPE_INVALID';
+}
+
+/**
  * يحوّل أخطاء الاستعادة المعروفة إلى رموزها الثابتة حتى لا يخرج نص خام للمشغّل.
  *
  * @param error الخطأ الملتقط من التشغيل أو قراءة الأحداث
@@ -68,13 +84,13 @@ export class CommissionReplayConfigurationError extends Error {
  */
 export function commissionReplayErrorCode(error: unknown): string {
   if (
-    error instanceof ReplayCursorError ||
     error instanceof CommissionReplayCursorError ||
     error instanceof CommissionReplayEventInvalidError ||
     error instanceof CommissionReplayConfigurationError
   ) {
     return error.code;
   }
+  if (isReplayScopeInvalid(error)) return 'REPLAY_SCOPE_INVALID';
   return 'COMMISSION_REPLAY_FAILED';
 }
 
@@ -93,12 +109,17 @@ export function parseCommissionReplayTypes(value: string | undefined): 'four' | 
 /**
  * يثبت صحة الحدود ويمنع الاستئناف دون حد أعلى حتى يبقى نطاق الاستعادة ثابتًا.
  *
+ * @param guard حارس الحدود المربوط من persistence
  * @param afterId الحد الأدنى المستأنف، أو null في أول تشغيل
  * @param throughId الحد الأعلى الثابت، إلزامي عند وجود afterId
  * @returns لا قيمة؛ يكمل فقط عند صحة المؤشرين
  */
-export function assertCommissionReplayCursor(afterId: string | null, throughId: string | null): void {
-  assertReplayBounds(afterId, throughId);
+export function assertReplayCursorWithGuard(
+  guard: ReplayCursorGuard,
+  afterId: string | null,
+  throughId: string | null,
+): void {
+  guard.assertBounds(afterId, throughId);
   if (afterId !== null && throughId === null) throw new CommissionReplayCursorError();
 }
 
@@ -148,6 +169,8 @@ export interface CommissionReplayDeps {
   readonly failures: CommissionFailureCodes;
   readonly scope?: CommissionReplayScope;
   readonly handledTypes?: ReadonlySet<string>;
+  /** حارس الحدود المربوط من persistence؛ الـ jobs ما بيشتغلش من غيره. */
+  readonly cursor: ReplayCursorGuard;
 }
 
 /** حالة التشغيل المشتركة بين دوال الاستعادة: النطاق والواجهة والأعداد والجداول. */
@@ -204,7 +227,7 @@ export async function runCommissionInputReplay(
   deps: CommissionReplayDeps,
   cursor: CommissionReplayCursor,
 ): Promise<CommissionReplayResult> {
-  assertCommissionReplayCursor(cursor.afterId, cursor.throughId);
+  assertReplayCursorWithGuard(deps.cursor, cursor.afterId, cursor.throughId);
   const run = createRun(deps, cursor);
   const finished = (): CommissionReplayStatus =>
     run.undelivered.length === 0 ? 'COMPLETE' : 'UNDELIVERED';
@@ -225,11 +248,7 @@ export async function runCommissionInputReplay(
             PAGE_SIZE,
           ));
     } catch (error) {
-      if (
-        error instanceof ReplayCursorError ||
-        (error instanceof TypeError && error.message === 'REPLAY_SCOPE_INVALID')
-      )
-        throw error;
+      if (isReplayScopeInvalid(error)) throw error;
       return replayResult(run, 'ABORTED');
     }
     if (page === 0) run.throughId = batch.throughId;

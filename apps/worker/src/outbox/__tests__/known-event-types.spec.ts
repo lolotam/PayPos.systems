@@ -301,10 +301,13 @@ function startupMockFactories(registered: RegisteredStartup[]): readonly [string
     ['../../worker.ts', () => ({ createWorker: async () => ({ listen: noop, enableShutdownHooks: noop }) })],
     ['../dispatch-loop.ts', () => ({ createDispatchLoop: () => ({ start: noop, stop: noop }) })],
     ['../deliver.ts', () => ({
-      createDeliverer: (...args: unknown[]) => {
-        const consumers = args[1] as { id: string; eventTypes: readonly string[] }[];
-        const opts = args[3] as { knownEventTypes: readonly string[] };
-        registered.push({ consumers: [...consumers], known: opts.knownEventTypes });
+      createDeliverer: (
+        _app: unknown,
+        consumers: { id: string; eventTypes: readonly string[] }[],
+        _logger: unknown,
+        { knownEventTypes }: { knownEventTypes: readonly string[] },
+      ) => {
+        registered.push({ consumers: [...consumers], known: knownEventTypes });
         return async () => ({ delivered: true });
       },
     })],

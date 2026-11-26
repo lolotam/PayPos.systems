@@ -28,17 +28,40 @@ const saved = {
 
 function detail(expires_on = OLD): CustomerPackageDetail {
   return {
-    id: entitlementId, customer_id: customerId, package_type_id: null, provenance: 'IMPORTED',
-    name_en: 'Synthetic package', name_ar: null, validity_days: null, list_price: null,
-    price_paid: '0.000', discount: null, discount_bps: null, paid_method: null,
-    seller_employee_id: null, seller_linked_user_id: null, sold_branch_id: null,
-    sold_at: null, sold_business_date: null, expires_on, refunded_amount: '0.000', revision: 1, can_extend: false,
-    components: [], redemptions: [], extensions: [],
+    id: entitlementId,
+    customer_id: customerId,
+    package_type_id: null,
+    provenance: 'IMPORTED',
+    name_en: 'Synthetic package',
+    name_ar: null,
+    validity_days: null,
+    list_price: null,
+    price_paid: '0.000',
+    discount: null,
+    discount_bps: null,
+    paid_method: null,
+    seller_employee_id: null,
+    seller_linked_user_id: null,
+    sold_branch_id: null,
+    sold_at: null,
+    sold_business_date: null,
+    expires_on,
+    refunded_amount: '0.000',
+    revision: 1,
+    can_extend: false,
+    can_refund: false,
+    components: [],
+    redemptions: [],
+    extensions: [],
+    refunds: [],
   };
 }
 
 function refused(status: number, code: string) {
-  return { error: { code, message_ar: 'Synthetic AR', message_en: 'Synthetic EN' }, response: { status } };
+  return {
+    error: { code, message_ar: 'Synthetic AR', message_en: 'Synthetic EN' },
+    response: { status },
+  };
 }
 
 function shown() {
@@ -47,22 +70,37 @@ function shown() {
   function Host() {
     const [open, setOpen] = useState(true);
     if (!open) return null;
-    return <ExtendPackageDialog
-      scope={scope} customerId={customerId} entitlementId={entitlementId} currentExpiresOn={OLD}
-      onSaved={handlers.onSaved}
-      onClose={() => { handlers.onClose(); setOpen(false); }}
-    />;
+    return (
+      <ExtendPackageDialog
+        scope={scope}
+        customerId={customerId}
+        entitlementId={entitlementId}
+        currentExpiresOn={OLD}
+        onSaved={handlers.onSaved}
+        onClose={() => {
+          handlers.onClose();
+          setOpen(false);
+        }}
+      />
+    );
   }
-  render(<QueryClientProvider client={client}><Host /></QueryClientProvider>);
+  render(
+    <QueryClientProvider client={client}>
+      <Host />
+    </QueryClientProvider>,
+  );
   return { ...handlers, client };
 }
 
-const dateInput = () => screen.getByLabelText(t('en', 'packageExtension.newDate')) as HTMLInputElement;
+const dateInput = () =>
+  screen.getByLabelText(t('en', 'packageExtension.newDate')) as HTMLInputElement;
 const reasonInput = () => screen.getByLabelText(t('en', 'packageExtension.reason'));
-const submitButton = () => screen.getByRole('button', { name: t('en', 'packageExtension.submit') }) as HTMLButtonElement;
+const submitButton = () =>
+  screen.getByRole('button', { name: t('en', 'packageExtension.submit') }) as HTMLButtonElement;
 const submit = () => fireEvent.click(submitButton());
 const bodyOf = (index: number) => state.post.mock.calls[index]?.[1].body as Record<string, string>;
-const keyOf = (index: number) => state.post.mock.calls[index]?.[1].params.header['Idempotency-Key'] as string;
+const keyOf = (index: number) =>
+  state.post.mock.calls[index]?.[1].params.header['Idempotency-Key'] as string;
 
 function fillValid() {
   fireEvent.change(dateInput(), { target: { value: NEW } });
@@ -72,7 +110,9 @@ function fillValid() {
 beforeEach(() => {
   state.post.mockReset();
   state.get.mockReset();
-  state.get.mockImplementation(() => Promise.resolve({ data: detail(), response: { status: 200 } }));
+  state.get.mockImplementation(() =>
+    Promise.resolve({ data: detail(), response: { status: 200 } }),
+  );
   HTMLDialogElement.prototype.showModal = vi.fn(function (this: HTMLDialogElement) {
     this.setAttribute('open', '');
   });
@@ -117,7 +157,11 @@ it('posts one trimmed request with the opening expiry, then closes and saves', a
   await waitFor(() => expect(view.onClose).toHaveBeenCalledTimes(1));
   expect(view.onSaved).toHaveBeenCalledTimes(1);
   expect(state.post).toHaveBeenCalledTimes(1);
-  expect(bodyOf(0)).toEqual({ new_expires_on: NEW, expected_expires_on: OLD, reason: 'Synthetic reason' });
+  expect(bodyOf(0)).toEqual({
+    new_expires_on: NEW,
+    expected_expires_on: OLD,
+    reason: 'Synthetic reason',
+  });
   expect(screen.queryByRole('dialog')).toBeNull();
 });
 
@@ -128,19 +172,33 @@ it('saves the extension without submitting a surrounding visit form', async () =
     const [open, setOpen] = useState(true);
     const [outerStatus, setOuterStatus] = useState('Synthetic visit draft');
     return (
-      <form onSubmit={(event) => { event.preventDefault(); setOuterStatus('Synthetic visit submitted'); }}>
+      <form
+        onSubmit={(event) => {
+          event.preventDefault();
+          setOuterStatus('Synthetic visit submitted');
+        }}
+      >
         <span>{outerStatus}</span>
         {open ? (
           <ExtendPackageDialog
-            scope={scope} customerId={customerId} entitlementId={entitlementId} currentExpiresOn={OLD}
+            scope={scope}
+            customerId={customerId}
+            entitlementId={entitlementId}
+            currentExpiresOn={OLD}
             onSaved={() => undefined}
-            onClose={() => { setOpen(false); }}
+            onClose={() => {
+              setOpen(false);
+            }}
           />
         ) : null}
       </form>
     );
   }
-  render(<QueryClientProvider client={client}><Host /></QueryClientProvider>);
+  render(
+    <QueryClientProvider client={client}>
+      <Host />
+    </QueryClientProvider>,
+  );
   fillValid();
   submit();
   await waitFor(() => expect(state.post).toHaveBeenCalledTimes(1));
@@ -151,7 +209,11 @@ it('saves the extension without submitting a surrounding visit form', async () =
 
 it('sends one request for two clicks in one tick and disables submit while pending', async () => {
   let finish: (value: typeof saved) => void = () => undefined;
-  state.post.mockReturnValueOnce(new Promise((resolve) => { finish = resolve; }));
+  state.post.mockReturnValueOnce(
+    new Promise((resolve) => {
+      finish = resolve;
+    }),
+  );
   shown();
   fillValid();
   submit();
@@ -159,19 +221,28 @@ it('sends one request for two clicks in one tick and disables submit while pendi
   await waitFor(() => expect(state.post).toHaveBeenCalledTimes(1));
   const pending = screen.getByRole('button', { name: t('en', 'packageExtension.saving') });
   expect((pending as HTMLButtonElement).disabled).toBe(true);
-  await act(async () => { finish(saved); });
+  await act(async () => {
+    finish(saved);
+  });
 });
 
 it('refetches a stale expiry, resets min and resubmits with a new key', async () => {
-  state.get.mockResolvedValueOnce({ data: detail(), response: { status: 200 } })
+  state.get
+    .mockResolvedValueOnce({ data: detail(), response: { status: 200 } })
     .mockResolvedValueOnce({ data: detail(NEW), response: { status: 200 } });
-  state.post.mockResolvedValueOnce(refused(409, 'PACKAGE_EXPIRY_STALE')).mockResolvedValueOnce(saved);
+  state.post
+    .mockResolvedValueOnce(refused(409, 'PACKAGE_EXPIRY_STALE'))
+    .mockResolvedValueOnce(saved);
   shown();
-  await act(async () => { await Promise.resolve(); });
+  await act(async () => {
+    await Promise.resolve();
+  });
   fillValid();
   submit();
   await waitFor(() => expect(state.get).toHaveBeenCalledTimes(2));
-  expect(await screen.findByText(t('en', 'packageExtension.errorStale').replace('{date}', NEW))).toBeTruthy();
+  expect(
+    await screen.findByText(t('en', 'packageExtension.errorStale').replace('{date}', NEW)),
+  ).toBeTruthy();
   expect(dateInput().min).toBe('2027-02-01');
   fireEvent.change(dateInput(), { target: { value: '2027-02-28' } });
   submit();
@@ -181,25 +252,31 @@ it('refetches a stale expiry, resets min and resubmits with a new key', async ()
 });
 
 it('keeps submit disabled when the stale detail refetch fails', async () => {
-  state.get.mockResolvedValueOnce({ data: detail(), response: { status: 200 } })
+  state.get
+    .mockResolvedValueOnce({ data: detail(), response: { status: 200 } })
     .mockResolvedValueOnce(refused(500, 'INTERNAL'));
   state.post.mockResolvedValueOnce(refused(409, 'PACKAGE_EXPIRY_STALE'));
   shown();
-  await act(async () => { await Promise.resolve(); });
+  await act(async () => {
+    await Promise.resolve();
+  });
   fillValid();
   submit();
   expect(await screen.findByText(t('en', 'packageExtension.errorLoad'))).toBeTruthy();
   expect(submitButton().disabled).toBe(true);
 });
 
-it.each(['PACKAGE_EXTENSION_NOT_LATER', 'PACKAGE_EXTENSION_TOO_LONG'] as const)('shows %s', async (code) => {
-  state.post.mockResolvedValueOnce(refused(422, code));
-  shown();
-  fillValid();
-  submit();
-  const key = code === 'PACKAGE_EXTENSION_NOT_LATER' ? 'errorNotLater' : 'errorTooLong';
-  expect(await screen.findByText(t('en', `packageExtension.${key}`))).toBeTruthy();
-});
+it.each(['PACKAGE_EXTENSION_NOT_LATER', 'PACKAGE_EXTENSION_TOO_LONG'] as const)(
+  'shows %s',
+  async (code) => {
+    state.post.mockResolvedValueOnce(refused(422, code));
+    shown();
+    fillValid();
+    submit();
+    const key = code === 'PACKAGE_EXTENSION_NOT_LATER' ? 'errorNotLater' : 'errorTooLong';
+    expect(await screen.findByText(t('en', `packageExtension.${key}`))).toBeTruthy();
+  },
+);
 
 it('shows forbidden and disables submit on 403', async () => {
   state.post.mockResolvedValueOnce(refused(403, 'FORBIDDEN'));
@@ -211,7 +288,9 @@ it('shows forbidden and disables submit on 403', async () => {
 });
 
 it('reuses a key after network errors and changes it with the reason', async () => {
-  state.post.mockRejectedValueOnce(new Error('offline')).mockRejectedValueOnce(new Error('offline'))
+  state.post
+    .mockRejectedValueOnce(new Error('offline'))
+    .mockRejectedValueOnce(new Error('offline'))
     .mockResolvedValueOnce(saved);
   shown();
   fillValid();
@@ -227,11 +306,14 @@ it('reuses a key after network errors and changes it with the reason', async () 
 });
 
 it('keeps the opening expected expiry after a background detail refetch', async () => {
-  state.get.mockResolvedValueOnce({ data: detail(), response: { status: 200 } })
+  state.get
+    .mockResolvedValueOnce({ data: detail(), response: { status: 200 } })
     .mockResolvedValueOnce({ data: detail(NEW), response: { status: 200 } });
   state.post.mockResolvedValueOnce(saved);
   const view = shown();
-  await act(async () => { await Promise.resolve(); });
+  await act(async () => {
+    await Promise.resolve();
+  });
   fillValid();
   await act(() => view.client.invalidateQueries({ queryKey: ['customer-package-detail'] }));
   await waitFor(() => expect(state.get).toHaveBeenCalledTimes(2));

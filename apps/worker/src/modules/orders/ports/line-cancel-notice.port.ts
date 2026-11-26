@@ -41,7 +41,7 @@ export interface LineCancelNoticeRecipients {
    * @returns معرفات المستخدمين المؤهلين
    */
   branchManagerRecipients(
-    line: LineCancelNoticeLine,
+    line: Pick<LineCancelNoticeLine, 'companyId' | 'businessId' | 'branchId'>,
     at: Date,
     roles: readonly string[],
   ): Promise<readonly string[]>;
@@ -54,7 +54,7 @@ export interface LineCancelNoticePlace {
    * @returns أسماء الفرع إن وجد
    */
   branchPlace(
-    line: LineCancelNoticeLine,
+    line: Pick<LineCancelNoticeLine, 'companyId' | 'businessId' | 'branchId'>,
   ): Promise<{ nameAr: string | null; nameEn: string } | null>;
 }
 /** دفتر الإلغاء وقراءة التاريخ مقيدان بمعاملة المستهلك. */

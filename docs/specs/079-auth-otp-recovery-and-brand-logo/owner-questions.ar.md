@@ -119,7 +119,10 @@
 - ~09:20: `«خانة «إيميل الاستعادة» اختيارية (المقترح)»`: عمود `recovery_email` اختياري، و`user.email` الاصطناعي يفضل معزول. ده بيانات شخصية: مايتطبعش في أي log، وبيتقنّع في التقارير.
 - ~09:30 (استكمالاً في `PR-Q6`): يبقى عمود `recovery_email` على `employees` هو نفسه إيميل العامل — عمود واحد اختياري فقط للتواصل وإيميل الترحيب والاستعادة دون عمود ثانٍ.
 
-**قرار التصميم المعماري (اعتماد المدير 2026-11-26، الخيار (أ)):** يظل عمود `recovery_email` على `employees` فقط دون أي تعديل على جدول `"user"` أو منح `pospay_auth` في `PR-c1`؛ ويقرؤه الـ auth والـ worker عبر منفذ/دالة قراءة ضيقة تحت `withTenant(companyId)` مع التحقق من `ACTIVE employee_staff_access` ومطابقة `HMAC(recovery_email) == recipient_hash`.
+**قرار التصميم المعماري (اعتماد المدير 2026-11-26، الخيار (أ) وشرطا التنفيذ 14:21 الكويت):**
+- يظل عمود `recovery_email` على `employees` فقط دون أي تعديل على جدول `"user"` أو منح `pospay_auth` في `PR-c1`؛ ويقرؤه الـ auth والـ worker عبر منفذ/دالة قراءة ضيقة تحت `withTenant(companyId)` مع التحقق من `ACTIVE employee_staff_access` ومطابقة `HMAC(recovery_email) == recipient_hash`.
+- **شرط 1 (فهرس فريد لكل شركة وإخفاق مغلق للتكرار):** يُنشأ فهرس جزئي فريد `employees_company_recovery_email_uidx ON public.employees (company_id, lower(recovery_email)) WHERE recovery_email IS NOT NULL AND deleted_at IS NULL` في migration `PR-c1` بحيث يرفض الحفظ المكرر داخل نفس الشركة برمز خطأ مصنّف (`EMPLOYEE_RECOVERY_EMAIL_TAKEN`)، وإذا صادف بحث OTP أكثر من صف يعيد `202` الموحّد ولا يرسل شيئاً.
+- **شرط 2 (منع كشف الحساب تماماً في نسيت الـ PIN):** يرجع طلب OTP الـ `202` والتوقيت التقريبي نفسه (~200ms) سواء وُجد الإيميل أو لم يوجد أو كانت الموظفة موقوفة/غير نشطة/محذوفة.
 
 **نوع القرار:** تقني وبيانات شخصية — معتمد وجاهز لتنفيذ `PR-c1` (`1` migration واحدة تشمل `employees.recovery_email` فقط مع الحفاظ على RLS واختبار العزل السلبي لـ `employees` والتحقق من صيغة الإيميل في العقد).
 
