@@ -28,53 +28,42 @@ const EVENT_TYPES: readonly EmailFeedbackEventType[] = [
   'email.delivery_delayed',
 ];
 
-/**
- * صندوق ردّ المزود على مستوى المنصة: صفوف عامة، hashes وخلاص، ومن غير عنوان ولا شركة.
- * كل عملية هنا في معاملة واحدة على دور الاستقبال.
- */
 export function createEmailFeedbackInboxRepository(
   database: PlatformEmailDatabase,
 ): EmailFeedbackInboxRepository {
+  const run = <T>(work: (tx: Tx) => Promise<T>) => database.withGlobal(work, PLATFORM_TIMEOUT_MS);
+  const ids = async (query: ReturnType<typeof sql>) =>
+    run(async (tx) => (await tx.execute<{ id: string }>(query)).map((row) => row.id));
   return {
-    pending: (id) => database.withGlobal((tx) => readPending(tx, id), PLATFORM_TIMEOUT_MS),
+    pending: (id) => run((tx) => readPending(tx, id)),
     quarantine: (id, reason, at) =>
-      database.withGlobal(async (tx) => {
-        await tx.execute(sql`
-          UPDATE public.platform_email_feedback_inbox
+      run(async (tx) => {
+        await tx.execute(sql`UPDATE public.platform_email_feedback_inbox
           SET quarantined_at = ${at.toISOString()}::timestamptz, quarantine_reason = ${reason}
           WHERE id = ${id}::uuid AND resolved_at IS NULL AND quarantined_at IS NULL`);
-      }, PLATFORM_TIMEOUT_MS),
+      }),
     scheduleRetry: (id, attempts, nextAttemptAt) =>
-      database.withGlobal(async (tx) => {
-        await tx.execute(sql`
-          UPDATE public.platform_email_feedback_inbox
+      run(async (tx) => {
+        await tx.execute(sql`UPDATE public.platform_email_feedback_inbox
           SET attempts = ${attempts}, next_attempt_at = ${nextAttemptAt.toISOString()}::timestamptz
           WHERE id = ${id}::uuid AND resolved_at IS NULL AND quarantined_at IS NULL`);
-      }, PLATFORM_TIMEOUT_MS),
+      }),
     unconfirmed: () =>
-      database.withGlobal(async (tx) => {
-        const rows = await tx.execute<{ id: string }>(sql`
-          SELECT id FROM public.platform_email_feedback_inbox
-          WHERE enqueue_confirmed_at IS NULL ORDER BY received_at, id LIMIT ${CLEAR_BATCH_SIZE}`);
-        return rows.map((row) => row.id);
-      }, PLATFORM_TIMEOUT_MS),
+      ids(sql`SELECT id FROM public.platform_email_feedback_inbox
+        WHERE enqueue_confirmed_at IS NULL ORDER BY received_at, id LIMIT ${CLEAR_BATCH_SIZE}`),
     due: (now) =>
-      database.withGlobal(async (tx) => {
-        const rows = await tx.execute<{ id: string }>(sql`
-          SELECT id FROM public.platform_email_feedback_inbox
-          WHERE resolved_at IS NULL AND quarantined_at IS NULL AND next_attempt_at IS NOT NULL
-            AND next_attempt_at <= ${now.toISOString()}::timestamptz
-          ORDER BY next_attempt_at, id LIMIT ${CLEAR_BATCH_SIZE}`);
-        return rows.map((row) => row.id);
-      }, PLATFORM_TIMEOUT_MS),
+      ids(sql`SELECT id FROM public.platform_email_feedback_inbox
+        WHERE resolved_at IS NULL AND quarantined_at IS NULL AND next_attempt_at IS NOT NULL
+          AND next_attempt_at <= ${now.toISOString()}::timestamptz
+        ORDER BY next_attempt_at, id LIMIT ${CLEAR_BATCH_SIZE}`),
     confirmEnqueue: (id, at) =>
-      database.withGlobal(async (tx) => {
-        await tx.execute(sql`
-          UPDATE public.platform_email_feedback_inbox SET enqueue_confirmed_at = ${at.toISOString()}::timestamptz
+      run(async (tx) => {
+        await tx.execute(sql`UPDATE public.platform_email_feedback_inbox
+          SET enqueue_confirmed_at = ${at.toISOString()}::timestamptz
           WHERE id = ${id}::uuid AND enqueue_confirmed_at IS NULL`);
-      }, PLATFORM_TIMEOUT_MS),
+      }),
     clearPayloads: (cutoff) => drainPayloads(database, cutoff),
-    settle: (input) => database.withGlobal((tx) => settle(tx, input), PLATFORM_TIMEOUT_MS),
+    settle: (input) => run((tx) => settle(tx, input)),
   };
 }
 
@@ -150,7 +139,7 @@ async function reconcile(
   tx: Tx,
   input: EmailFeedbackTenantInput,
 ): Promise<EmailFeedbackTenantOutcome> {
-  const [snapshot] = await tx.execute<AttemptBindingSnapshot>(sql`
+  const [snapshot] = await tx.execute<AttemptBindingSnapshot & Record<string, unknown>>(sql`
     SELECT company_id AS "companyId", channel, execution_id AS "executionId", status,
       outcome_known AS "outcomeKnown", provider_message_id AS "providerMessageId",
       recipient_hash AS "recipientHash", hash_key_id AS "hashKeyId"

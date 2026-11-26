@@ -68,7 +68,13 @@ export type EmailFeedbackDecision =
       readonly reason: EmailSuppressionReason;
     };
 
-/** يقرر هل الحدث يمنع العنوان (شكوى، منع مزود، ارتداد دائم) أم دليل فقط. */
+/**
+ * يقرر هل الحدث يمنع العنوان (شكوى، منع مزود، ارتداد دائم) أم دليل فقط.
+ *
+ * @param feedbackType نوع الحدث
+ * @param bounceClass تصنيف الارتداد
+ * @returns قرار الحظر
+ */
 export function emailFeedbackDecision(
   feedbackType: EmailFeedbackEventType,
   bounceClass: EmailBounceClass | null,
@@ -82,7 +88,13 @@ export function emailFeedbackDecision(
   return { suppress: false };
 }
 
-/** يقيّم انتماء ردّ المزود لمحاولتنا ويرجع هل نربط معرّف المزود أم نعطّل الصف. */
+/**
+ * يقيّم انتماء ردّ المزود لمحاولتنا ويرجع هل نربط معرّف المزود أم نعطّل الصف.
+ *
+ * @param attempt لقطة المحاولة المقفولة
+ * @param target الهدف المسترجع
+ * @returns قرار الربط
+ */
 export function evaluateAttemptBinding(
   attempt: AttemptBindingSnapshot | null,
   target: RetrievedBindingTarget,
@@ -102,7 +114,13 @@ export function evaluateAttemptBinding(
   return bindingState(attempt);
 }
 
-/** يقرر موعد المحاولة الجاية بعد فشل مؤقت، أو يعطّل الصف بعد استنفاد المحاولات. */
+/**
+ * يقرر موعد المحاولة الجاية بعد فشل مؤقت، أو يعطّل الصف بعد استنفاد المحاولات.
+ *
+ * @param attemptsAfterFailure عدد المحاولات الفاشلة
+ * @param now الوقت الحالي
+ * @returns موعد المحاولة أو التعطيل
+ */
 export function nextFeedbackRetry(
   attemptsAfterFailure: number,
   now: Date,

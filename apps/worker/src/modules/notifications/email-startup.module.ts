@@ -212,25 +212,21 @@ function openFeedbackRuntime(
 ): FeedbackRuntime {
   const database = createPlatformEmailDatabase({ url });
   const connection = notificationRedisOptions(redisUrl);
-  const error = () => options.logger.warn({}, 'email feedback queue error');
-  const resource = notificationQueue(EMAIL_FEEDBACK_QUEUE, connection, error);
-  const maintenanceResource = notificationQueue(MAINTENANCE_QUEUE, connection, error);
-  const inbox = createEmailFeedbackInboxRepository(database);
-  const worker = new Worker(
-    EMAIL_FEEDBACK_QUEUE,
-    emailFeedbackProcessor(reconcile(options, inbox, appDatabase, keys)),
-    { connection, concurrency: 4 },
+  const logError = (failure?: unknown) =>
+    options.logger.warn(
+      failure === undefined ? {} : { err: failure },
+      'email feedback queue error',
+    );
+  const resource = notificationQueue(EMAIL_FEEDBACK_QUEUE, connection, () => logError());
+  const maintenanceResource = notificationQueue(MAINTENANCE_QUEUE, connection, () => logError());
+  const { worker, maintenanceWorker } = createFeedbackWorkers(
+    options,
+    createEmailFeedbackInboxRepository(database),
+    appDatabase,
+    keys,
+    resource.queue,
+    connection,
   );
-  const maintenanceWorker = new Worker(
-    MAINTENANCE_QUEUE,
-    emailMaintenanceProcessor(
-      recover(options, inbox, resource.queue),
-      new ClearEmailFeedbackPayloads(inbox, options.clock),
-    ),
-    { connection, concurrency: 1 },
-  );
-  const logError = (failure: unknown) =>
-    options.logger.warn({ err: failure }, 'email feedback job failed');
   resource.queue.on('error', logError);
   worker.on('error', logError);
   worker.on('failed', (job, failure) =>
@@ -264,19 +260,60 @@ function openFeedbackRuntime(
   };
 }
 
+function createFeedbackWorkers(
+  options: EmailStartupOptions,
+  inbox: ReturnType<typeof createEmailFeedbackInboxRepository>,
+  appDatabase: Pick<TenantWrappers, 'withTenant'>,
+  keys: NonNullable<ReturnType<typeof feedbackKeys>>,
+  queue: Pick<Queue, 'add'>,
+  connection: ReturnType<typeof notificationRedisOptions>,
+) {
+  const worker = new Worker(
+    EMAIL_FEEDBACK_QUEUE,
+    emailFeedbackProcessor(
+      new ReconcileEmailFeedback(
+        inbox,
+        createEmailFeedbackTenantRepository(appDatabase),
+        createResendEmailRetriever({ apiKey: keys.apiKey, identify: keys.identify }),
+        options.clock,
+        options.ids,
+      ),
+    ),
+    { connection, concurrency: 4 },
+  );
+  const maintenanceWorker = new Worker(
+    MAINTENANCE_QUEUE,
+    emailMaintenanceProcessor(
+      new RecoverEmailFeedback(
+        inbox,
+        {
+          enqueue: async (id) => {
+            const job = emailFeedbackJob(id);
+            await queue.add(job.name, job.data, job.options);
+          },
+        },
+        options.clock,
+      ),
+      new ClearEmailFeedbackPayloads(inbox, options.clock),
+    ),
+    { connection, concurrency: 1 },
+  );
+  return { worker, maintenanceWorker };
+}
+
 function feedbackKeys(env: NodeJS.ProcessEnv) {
   const apiKey = env['RESEND_API_KEY'] ?? '';
   if (apiKey === '' || /[\r\n]/.test(apiKey)) return null;
   try {
-    const identity = createEmailIdentity(
+    const id = createEmailIdentity(
       env['NOTIFICATION_EMAIL_HASH_KEY'] ?? '',
       env['NOTIFICATION_EMAIL_HASH_KEY_ID'] ?? '',
     );
     return {
       apiKey,
-      identify: (canonical: string) => {
-        const computed = identity.identify(canonical);
-        return { hash: computed.hash, keyId: computed.hashKeyId };
+      identify: (c: string) => {
+        const h = id.identify(c);
+        return { hash: h.hash, keyId: h.hashKeyId };
       },
     };
   } catch {
@@ -284,45 +321,12 @@ function feedbackKeys(env: NodeJS.ProcessEnv) {
   }
 }
 
-function reconcile(
-  options: EmailStartupOptions,
-  inbox: ReturnType<typeof createEmailFeedbackInboxRepository>,
-  appDatabase: Pick<TenantWrappers, 'withTenant'>,
-  keys: NonNullable<ReturnType<typeof feedbackKeys>>,
-): ReconcileEmailFeedback {
-  const retrieval = createResendEmailRetriever({ apiKey: keys.apiKey, identify: keys.identify });
-  return new ReconcileEmailFeedback(
-    inbox,
-    createEmailFeedbackTenantRepository(appDatabase),
-    retrieval,
-    options.clock,
-    options.ids,
-  );
-}
-
-function recover(
-  options: EmailStartupOptions,
-  inbox: ReturnType<typeof createEmailFeedbackInboxRepository>,
-  queue: Pick<Queue, 'add'>,
-): RecoverEmailFeedback {
-  return new RecoverEmailFeedback(
-    inbox,
-    {
-      enqueue: async (id) => {
-        const job = emailFeedbackJob(id);
-        await queue.add(job.name, job.data, job.options);
-      },
-    },
-    options.clock,
-  );
-}
-
 async function countQuarantined(database: PlatformEmailDatabase): Promise<number> {
   const [row] = await database.withGlobal(
     (tx) =>
-      tx.execute<{ count: number }>(sql`
-        SELECT count(*)::int AS count FROM public.platform_email_feedback_inbox
-        WHERE quarantined_at IS NOT NULL`),
+      tx.execute<{ count: number }>(
+        sql`SELECT count(*)::int AS count FROM public.platform_email_feedback_inbox WHERE quarantined_at IS NOT NULL`,
+      ),
     5_000,
   );
   return row?.count ?? 0;
