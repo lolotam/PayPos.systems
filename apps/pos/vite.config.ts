@@ -44,6 +44,28 @@ const appIcons = [192, 512].flatMap((size) => [
 
 const testing = process.env.VITEST === 'true';
 
+/**
+ * الثوابت بتاعة نسخة التطبيق الأصلي: الـ host والـ flavour وقدرات الكاميرا (M-1d).
+ *
+ * قدرات الكاميرا كل واحدة في متغير بناء لوحدها، والافتراضي مقفول لأن التطبيق لازم
+ * يبقى خفيف من غير ما نطلب إذن الكاميرا من غير سبب.
+ *
+ * @param flavour نوع النسخة: staging أو production
+ * @param posHost الـ host المضمون في النسخة
+ * @returns خريطة التعريفات بتاعة البناء
+ */
+function nativeDefines(flavour: string, posHost: string) {
+  const qrScan = process.env.VITE_NATIVE_QR_SCAN === '1' ? '1' : '0';
+  const attendanceCamera = process.env.VITE_NATIVE_ATTENDANCE_CAMERA === '1' ? '1' : '0';
+  return {
+    'import.meta.env.VITE_NATIVE': JSON.stringify('1'),
+    'import.meta.env.VITE_POS_HOST': JSON.stringify(posHost),
+    'import.meta.env.VITE_NATIVE_FLAVOUR': JSON.stringify(flavour),
+    'import.meta.env.VITE_NATIVE_QR_SCAN': JSON.stringify(qrScan),
+    'import.meta.env.VITE_NATIVE_ATTENDANCE_CAMERA': JSON.stringify(attendanceCamera),
+  };
+}
+
 export default defineConfig(({ mode }) => {
   // نسخة التطبيق الأصلي: الأصول بتاعته جوّه التطبيق نفسه، فمفيش service worker ولا manifest
   // (ADR-0055 قرار 3)، والبناء بيطلع في مجلد مستقل عشان build الويب ما يتغيرش.
@@ -58,15 +80,7 @@ export default defineConfig(({ mode }) => {
   return {
     envDir: fileURLToPath(new URL('../..', import.meta.url)),
     ...(native ? { build: { outDir: 'dist-native' } } : {}),
-    ...(native
-      ? {
-          define: {
-            'import.meta.env.VITE_NATIVE': JSON.stringify('1'),
-            'import.meta.env.VITE_POS_HOST': JSON.stringify(posHost),
-            'import.meta.env.VITE_NATIVE_FLAVOUR': JSON.stringify(flavour),
-          },
-        }
-      : {}),
+    ...(native ? { define: nativeDefines(flavour, posHost) } : {}),
     plugins: [
       themeBootPlugin,
       react(),
