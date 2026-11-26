@@ -13,6 +13,25 @@ function knownScopes(scopes: readonly WorkspaceScope[]): WorkspaceScope[] {
   return scopes.filter((scope) => SCOPE_NAMES.has(scope.scope));
 }
 
+/**
+ * Screen: admin › tenant selector. أوسع وصول اليوزر على النشاط المختار: عضوية على الشركة
+ * بتغطيه، وعضوية على النشاط نفسه بتغطيه، وإلّا وصله عن طريق فرع بس.
+ *
+ * @param scopes     عضويات اليوزر الفعّالة في الشركة
+ * @param businessId معرّف النشاط
+ * @returns أوسع وصول اليوزر على النشاط ده
+ */
+function businessScope(
+  scopes: readonly WorkspaceScope[],
+  businessId: string,
+): WorkspaceScope['scope'] {
+  if (scopes.some((scope) => scope.scope === 'COMPANY')) return 'COMPANY';
+  if (scopes.some((scope) => scope.scope === 'BUSINESS' && scope.scopeId === businessId)) {
+    return 'BUSINESS';
+  }
+  return 'BRANCH';
+}
+
 function branchRows(companyId: string, reached: SQL) {
   return sql`
     SELECT b.business_id, b.id, b.name_ar, b.name_en,
@@ -127,5 +146,13 @@ export async function describeWorkspaces(
     known.map((scope) => ({ scope: scope.scope, scope_id: scope.scopeId })),
   );
   const [row] = Array.from(await tx.execute<TreeRow>(treeQuery(companyId, payload)));
-  return row === undefined ? null : treeOf(row);
+  if (row === undefined) return null;
+  const tree = treeOf(row);
+  return {
+    ...tree,
+    businesses: tree.businesses.map((business) => ({
+      ...business,
+      scope: businessScope(known, business.id),
+    })),
+  };
 }

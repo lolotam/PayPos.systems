@@ -1,16 +1,10 @@
-import { myWorkspacesResponse } from '@pospay/contracts';
-import {
-  createDatabase,
-  OWNER_ROLE_ID,
-  SYSTEM_ROLES,
-  type Database,
-  type TenantWrappers,
-  type Tx,
-} from '@pospay/db';
-import { sql, type SQL } from 'drizzle-orm';
+import { myWorkspacesResponse, type WorkspaceCompanyNames } from '@pospay/contracts';
+import { createDatabase, OWNER_ROLE_ID, SYSTEM_ROLES, type Database } from '@pospay/db';
+import { sql } from 'drizzle-orm';
 import postgres from 'postgres';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 
+import { explaining } from '../../../../../test/explaining.ts';
 import { seedTwoTenants, TENANT } from '../../../../../../../packages/db/test/tenancy-fixtures.ts';
 import {
   createTestDatabase,
@@ -37,6 +31,7 @@ const U = {
 const seen: { companyId: string; scopes: WorkspaceScope[] }[] = [];
 const omitted = new Set<string>();
 const labels = new Map<string, string>();
+let businessRows: WorkspaceCompanyNames['businesses'] = [];
 const plans: string[] = [];
 
 function roleId(code: string): string {
@@ -53,36 +48,17 @@ const names: WorkspaceNames = {
     if (row?.id == null) throw new Error('workspace names were read outside withTenant');
     seen.push({ companyId: row.id, scopes: scopes.map((scope) => ({ ...scope })) });
     if (omitted.has(row.id)) return null;
-    return { id: row.id, name_ar: null, name_en: labels.get(row.id) ?? 'Company', businesses: [] };
+    return {
+      id: row.id,
+      name_ar: null,
+      name_en: labels.get(row.id) ?? 'Company',
+      businesses: businessRows,
+    };
   },
 };
 
 let testDb: TestDatabase;
 let db: Database;
-
-function explaining(database: Database): TenantWrappers {
-  const explain = (tx: Tx): Tx =>
-    new Proxy(tx, {
-      get: (target, property, receiver) =>
-        property === 'execute'
-          ? async (query: SQL) => {
-              const [row] = await target.execute<{ plan: unknown }>(
-                sql`EXPLAIN (ANALYZE, FORMAT JSON) ${query}`,
-              );
-              plans.push(JSON.stringify(Object.values(row ?? {})[0]));
-              return target.execute(query);
-            }
-          : Reflect.get(target, property, receiver),
-    });
-  return {
-    withUser: (userId, fn) => database.withUser(userId, (tx) => fn(explain(tx))),
-    withNewTenant: (userId, fn) => database.withNewTenant(userId, (tx, id) => fn(explain(tx), id)),
-    withMember: (userId, companyId, fn) =>
-      database.withMember(userId, companyId, (tx) => fn(explain(tx))),
-    withTenant: (companyId, fn, options) =>
-      database.withTenant(companyId, (tx) => fn(explain(tx)), options),
-  };
-}
 
 function load(userId: string) {
   return myWorkspaces(db, names, userId);
@@ -347,6 +323,7 @@ beforeEach(() => {
   seen.length = 0;
   omitted.clear();
   labels.clear();
+  businessRows = [];
 });
 
 describe('myWorkspaces', () => {
@@ -357,7 +334,9 @@ describe('myWorkspaces', () => {
 
   it('drops an ended membership and one that has not started', async () => {
     const body = await load(U.window);
-    expect(myWorkspacesResponse.parse({ ...body, capabilities: { staff_access: false } }).companies).toEqual(body.companies);
+    expect(
+      myWorkspacesResponse.parse({ ...body, capabilities: { staff_access: false } }).companies,
+    ).toEqual(body.companies);
     expect(body.companies).toEqual([
       expect.objectContaining({
         id: A.company,
@@ -403,9 +382,30 @@ describe('myWorkspaces', () => {
     labels.set(A.company, 'Zulu');
     labels.set(B.company, 'Alpha');
     const both = await load(U.two);
-    expect(myWorkspacesResponse.parse({ ...both, capabilities: { staff_access: false } }).companies).toEqual(both.companies);
+    expect(
+      myWorkspacesResponse.parse({ ...both, capabilities: { staff_access: false } }).companies,
+    ).toEqual(both.companies);
     expect(both.companies.map((company) => company.id)).toEqual([B.company, A.company]);
     expect(both.companies.map((company) => company.name_en)).toEqual(['Alpha', 'Zulu']);
+  });
+});
+
+describe('myWorkspaces business reach', () => {
+  it('keeps the reach of every business beside the widest scope of the company', async () => {
+    businessRows = [
+      {
+        id: A.business,
+        name_ar: null,
+        name_en: 'Zed',
+        business_type: 'salon',
+        country: null,
+        branches: [],
+        scope: 'BRANCH',
+      },
+    ];
+    const body = await load(U.wide);
+    expect(body.companies[0]).toMatchObject({ scope: 'COMPANY' });
+    expect(body.companies[0]?.businesses.map((business) => business.scope)).toEqual(['BRANCH']);
   });
 });
 
@@ -419,7 +419,7 @@ describe('myWorkspaces omissions and plan', () => {
 
   it('EXPLAIN ANALYZE looks up memberships by user id and never scans them sequentially', async () => {
     plans.length = 0;
-    await myWorkspaces(explaining(db), names, U.explain);
+    await myWorkspaces(explaining(db, plans), names, U.explain);
     const plan = plans.find((entry) => entry.includes('memberships')) ?? '';
     expect(plan).toContain('memberships_user_id_idx');
     expect(plan).not.toContain('Seq Scan');

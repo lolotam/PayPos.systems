@@ -1,5 +1,9 @@
 'use client';
-import type { WorkspaceBranch, WorkspaceBusinessRead, WorkspaceCompanyRead } from '@pospay/contracts';
+import type {
+  WorkspaceBranch,
+  WorkspaceBusinessRead,
+  WorkspaceCompanyRead,
+} from '@pospay/contracts';
 import { t } from '@pospay/i18n';
 import { EmptyState, PageShell, Store } from '@pospay/ui';
 import { useState } from 'react';
@@ -9,12 +13,14 @@ import { ServiceCategoriesPage } from './service-categories-page';
 import { ServiceCategoriesHeader } from '../ui/service-categories-header';
 import { ServiceCategoryScopeSelect } from '../ui/service-category-scope-select';
 import { useLocale } from '@/shared/locale/locale-context';
+import { businessScope } from '@/workspace/model/business-scope';
 
 type ServiceCategoriesScreenProps = {
   companyId: string;
   business: WorkspaceBusinessRead;
   userId: string;
-  scope: WorkspaceCompanyRead['scope'];
+  /** أوسع عضوية اليوزر في الشركة؛ أوسع وصوله على النشاط المختار هو نطاق النشاط نفسه. */
+  companyScope: WorkspaceCompanyRead['scope'];
   rememberedBranchId: string | undefined;
 };
 
@@ -27,7 +33,7 @@ function activeBranchesOf(business: WorkspaceBusinessRead): readonly WorkspaceBr
  * عضوية الفرع مش بتغطي صلاحيات `:business`، ففتح «كل النشاط» معاها يبقى 403 مضمون
  * على كل استعلام — علشان كده الفرع بيفتح على فرعه بدل قائمة النشاط.
  *
- * @param scope              أوسع عضوية ليها اليوزر في الشركة
+ * @param scope              أوسع وصول اليوزر على النشاط المختار
  * @param activeBranches     الفروع النشطة للنشاط المختار بفروعه
  * @param rememberedBranchId الفرع المتذكر من مساحة العمل، لو موجود
  * @returns فرع البداية من الفروع النشطة: المتذكر، وإلا أول فرع نشط، و«كل النشاط» لما النطاق أوسع من فرع
@@ -42,17 +48,18 @@ function openingBranch(
   return remembered?.id ?? activeBranches[0]?.id ?? null;
 }
 
-// عضوية الفرع أوسع من فرع واحد بس، فمفيش طريقة تعرف منها إذن الوصول لمستوى النشاط
-// على نشاط مختار — القرار ده مؤجل لقرار المالك (issue #1133) والسلوك الحالي بيفضل زي ما هو.
+// أوسع وصول اليوزر على النشاط المختار بييجي مع مساحة العمل، فالعضوية على الشركة لوحدها
+// مش بتكفي: نشاط وصله اليوزر عن طريق فرع بس بيفتح على الفرع، مش على «كل النشاط».
 export function ServiceCategoriesScreen({
   companyId,
   business,
   userId,
-  scope,
+  companyScope,
   rememberedBranchId,
 }: ServiceCategoriesScreenProps) {
   const locale = useLocale();
   const activeBranches = activeBranchesOf(business);
+  const scope = businessScope(business, companyScope);
   const [branchId, setBranchId] = useState<string | null>(() =>
     openingBranch(scope, activeBranches, rememberedBranchId),
   );

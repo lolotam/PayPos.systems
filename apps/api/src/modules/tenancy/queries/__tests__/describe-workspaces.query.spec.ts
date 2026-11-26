@@ -1,15 +1,9 @@
-import { workspaceCompanyNames } from '@pospay/contracts';
-import {
-  createDatabase,
-  PROVISIONAL_PLAN_ID,
-  type Database,
-  type TenantWrappers,
-  type Tx,
-} from '@pospay/db';
-import { sql, type SQL } from 'drizzle-orm';
+import { workspaceCompanyNames, type WorkspaceCompanyNames } from '@pospay/contracts';
+import { createDatabase, PROVISIONAL_PLAN_ID, type Database } from '@pospay/db';
 import postgres from 'postgres';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
+import { explaining } from '../../../../../test/explaining.ts';
 import {
   seedTwoTenants,
   TENANT,
@@ -60,57 +54,43 @@ const emptyBusiness = {
   country: null,
   branches: [],
 };
+const east = {
+  id: EAST,
+  name_ar: null,
+  name_en: 'East',
+  effective_timezone: 'Asia/Qatar',
+  is_active: true,
+};
+const west = {
+  id: A.branch,
+  name_ar: null,
+  name_en: 'West',
+  effective_timezone: 'Asia/Qatar',
+  is_active: true,
+};
 const zed = {
   id: A.business,
   name_ar: 'زيد',
   name_en: 'Zed',
   business_type: 'salon' as const,
   country: null,
-  branches: [
-    { id: EAST, name_ar: null, name_en: 'East', effective_timezone: 'Asia/Qatar', is_active: true },
-    {
-      id: A.branch,
-      name_ar: null,
-      name_en: 'West',
-      effective_timezone: 'Asia/Qatar',
-      is_active: true,
-    },
-  ],
+  branches: [east, west],
 };
+// كل نشاط بيرجع أوسع وصول اليوزر عليه: عضوية على الشركة، أو على النشاط نفسه، أو عن طريق فرع.
+const scoped = (
+  businesses: WorkspaceCompanyNames['businesses'],
+  scope: WorkspaceScope['scope'],
+): WorkspaceCompanyNames['businesses'] => businesses.map((business) => ({ ...business, scope }));
 const companyA = {
   id: A.company,
   name_ar: 'شركة أ',
   name_en: 'Company A',
-  businesses: [alpha, emptyBusiness, zed],
+  businesses: scoped([alpha, emptyBusiness, zed], 'COMPANY'),
 };
 
 let testDb: TestDatabase;
 let db: Database;
 const plans: string[] = [];
-
-function explaining(database: Database): TenantWrappers {
-  const explain = (tx: Tx): Tx =>
-    new Proxy(tx, {
-      get: (target, property, receiver) =>
-        property === 'execute'
-          ? async (query: SQL) => {
-              const [row] = await target.execute<{ plan: unknown }>(
-                sql`EXPLAIN (ANALYZE, FORMAT JSON) ${query}`,
-              );
-              plans.push(JSON.stringify(Object.values(row ?? {})[0]));
-              return target.execute(query);
-            }
-          : Reflect.get(target, property, receiver),
-    });
-  return {
-    withUser: (userId, fn) => database.withUser(userId, (tx) => fn(explain(tx))),
-    withNewTenant: (userId, fn) => database.withNewTenant(userId, (tx, id) => fn(explain(tx), id)),
-    withMember: (userId, companyId, fn) =>
-      database.withMember(userId, companyId, (tx) => fn(explain(tx))),
-    withTenant: (companyId, fn, options) =>
-      database.withTenant(companyId, (tx) => fn(explain(tx)), options),
-  };
-}
 
 function read(companyId: string, scopes: readonly WorkspaceScope[]) {
   return db.withTenant(companyId, (tx) => describeWorkspaces(tx, scopes), { userId: USER });
@@ -190,17 +170,31 @@ describe('describeWorkspaces', () => {
 
   it('a BUSINESS scope sees that business and only its branches', async () => {
     const tree = await read(A.company, [{ scope: 'BUSINESS', scopeId: A.business }]);
-    expect(tree).toEqual({ ...companyA, businesses: [zed] });
+    expect(tree).toEqual({ ...companyA, businesses: scoped([zed], 'BUSINESS') });
   });
 
   it('a BUSINESS scope with no branches still returns the business', async () => {
     const tree = await read(A.company, [{ scope: 'BUSINESS', scopeId: EMPTY }]);
-    expect(tree).toEqual({ ...companyA, businesses: [emptyBusiness] });
+    expect(tree).toEqual({ ...companyA, businesses: scoped([emptyBusiness], 'BUSINESS') });
   });
 
   it('a BRANCH scope sees that branch and its parent business, not siblings', async () => {
     const tree = await read(A.company, [{ scope: 'BRANCH', scopeId: A.branch }]);
-    expect(tree).toEqual({ ...companyA, businesses: [{ ...zed, branches: [zed.branches[1]] }] });
+    expect(tree).toEqual({
+      ...companyA,
+      businesses: scoped([{ ...zed, branches: [west] }], 'BRANCH'),
+    });
+  });
+
+  it('tells each business how the user reaches it: a business membership is BUSINESS, a branch-only business is BRANCH', async () => {
+    const tree = await read(A.company, [
+      { scope: 'BUSINESS', scopeId: A.business },
+      { scope: 'BRANCH', scopeId: NORTH },
+    ]);
+    expect(tree?.businesses.map((business) => [business.id, business.scope])).toEqual([
+      [ALPHA, 'BRANCH'],
+      [A.business, 'BUSINESS'],
+    ]);
   });
 
   it('overlapping scopes do not duplicate a business or a branch', async () => {
@@ -250,7 +244,7 @@ describe('describeWorkspaces legacy country normalization', () => {
         WHERE company_id = ${A.company} AND id = ${EMPTY}`;
       const tree = await read(A.company, [{ scope: 'BUSINESS', scopeId: EMPTY }]);
       expect(workspaceCompanyNames.parse(tree)).toEqual(tree);
-      expect(tree).toEqual({ ...companyA, businesses: [emptyBusiness] });
+      expect(tree).toEqual({ ...companyA, businesses: scoped([emptyBusiness], 'BUSINESS') });
     } finally {
       await owner`
         UPDATE businesses SET settings = '{}'::jsonb
@@ -263,7 +257,7 @@ describe('describeWorkspaces legacy country normalization', () => {
 describe('describeWorkspaces plan', () => {
   it('EXPLAIN ANALYZE uses the tenant indexes, never scans sequentially, and stays at two statements', async () => {
     plans.length = 0;
-    await explaining(db).withTenant(A.company, (tx) => describeWorkspaces(tx, company), {
+    await explaining(db, plans).withTenant(A.company, (tx) => describeWorkspaces(tx, company), {
       userId: USER,
     });
     expect(plans).toHaveLength(2);
