@@ -43,7 +43,7 @@ export class StopSellingPackageTypeUseCase {
         command.businessId,
         current.components.map((component) => component.service_id),
       );
-      return packageTypeView(after, services);
+      return packageTypeView(after, services, { allowClosedServices: true });
     });
   }
 }

@@ -196,3 +196,11 @@ it('refuses a package type with no components by name instead of retrying it', a
   expect(state.finished_at).not.toBeNull();
   expect(await f.counts()).toEqual(before);
 });
+
+// القفل يرفع نسخة الخدمة، والهدف إثبات أن رفض الخدمة المقفولة يسبق عرض السعر القديم (SI-Q28).
+it('refuses with PACKAGE_TYPE_NOT_SELLABLE, not a stale quote, after a component service is closed', async () => {
+  const type = await blowDry();
+  const requestId = await f.request({ type });
+  await f.owner`UPDATE services SET closed_at=now(), revision=revision+1 WHERE id=${f.serviceId(type, 0)}`;
+  await expectRefusedAndUntouched(requestId, 'PACKAGE_TYPE_NOT_SELLABLE');
+});

@@ -6,7 +6,7 @@ import {
 import type { Tx } from '@pospay/db';
 import { sql } from 'drizzle-orm';
 
-// شاشة مكوّنات الباقة تحتاج الأسماء والسعر فقط؛ الخدمات لا تدعم الإيقاف حالياً فكل خيار نشط.
+// شاشة مكوّنات الباقة تحتاج الأسماء والسعر فقط؛ الخدمة المقفولة تختفي منها (SI-Q28) فكل خيار ظاهر نشط.
 export function packageServiceOptionsStatement(
   companyId: string,
   businessId: string,
@@ -14,6 +14,7 @@ export function packageServiceOptionsStatement(
 ) {
   return sql`SELECT id,name_ar,name_en,price,true AS active
     FROM services WHERE company_id=${companyId} AND business_id=${businessId}
+    AND closed_at IS NULL
     ${query.cursor === undefined ? sql`` : sql`AND id > ${query.cursor}`}
     ORDER BY id LIMIT ${query.limit + 1}`;
 }

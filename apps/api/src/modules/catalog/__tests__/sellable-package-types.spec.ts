@@ -162,3 +162,19 @@ it('uses tenant/component indexes for first and subsequent pages', async () => {
     expect(JSON.stringify(plan)).toMatch(/package_type_components_type_(idx|position_key)/);
   }
 });
+
+it('hides a package type whose component service is closed and restores it when reopened (SI-Q28)', async () => {
+  const target = active[0];
+  const serviceId = f.services[1]?.id ?? '';
+  await f.h
+    .owner`UPDATE services SET closed_at=now() WHERE company_id=${f.company} AND id=${serviceId}`;
+  try {
+    const ids = (await list(20)).items.map((entry) => entry.id);
+    expect(ids).not.toContain(target?.id);
+    expect(ids).toEqual(expect.arrayContaining(active.slice(1).map((entry) => entry.id)));
+  } finally {
+    await f.h
+      .owner`UPDATE services SET closed_at=NULL WHERE company_id=${f.company} AND id=${serviceId}`;
+  }
+  expect((await list(20)).items.map((entry) => entry.id)).toContain(target?.id);
+});

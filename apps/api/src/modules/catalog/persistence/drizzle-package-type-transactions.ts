@@ -163,7 +163,7 @@ export function createPackageTypeTransactions(
               services: async (businessId, serviceIds) =>
                 Array.from(
                   await tx.execute<PackageService & Record<string, unknown>>(sql`
-            SELECT id AS service_id,name_en,name_ar,price FROM services WHERE company_id=${companyId}
+            SELECT id AS service_id,name_en,name_ar,price,closed_at FROM services WHERE company_id=${companyId}
             AND business_id=${businessId} AND id IN (${sql.join(
               serviceIds.map((id) => sql`${id}::uuid`),
               sql`,`,

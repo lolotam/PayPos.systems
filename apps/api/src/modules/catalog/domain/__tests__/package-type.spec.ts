@@ -125,3 +125,21 @@ it('serializes money exactly, accepts free services and rejects missing service 
   ).toBe('0.000');
   expect(() => packageTypeView(record, [])).toThrow('PACKAGE_TYPE_SERVICE_NOT_FOUND');
 });
+it('rejects a closed component service unless the caller allows it (SI-Q28)', () => {
+  const record = newPackageType(base, 'id', 'business', at);
+  const closedService = {
+    service_id: 'a',
+    name_en: 'Closed',
+    name_ar: null,
+    price: '1.000',
+    closed_at: at.toISOString(),
+  };
+  const closed = [closedService];
+  expect(() => packageTypeView(record, closed)).toThrow('PACKAGE_TYPE_SERVICE_NOT_FOUND');
+  expect(
+    packageTypeView(record, closed, { allowClosedServices: true }).components[0]?.name_en,
+  ).toBe('Closed');
+  expect(packageTypeView(record, [{ ...closedService, closed_at: null }]).components).toHaveLength(
+    1,
+  );
+});

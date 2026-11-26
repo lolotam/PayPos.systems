@@ -21,6 +21,8 @@ export interface PackageService {
   readonly name_en: string;
   readonly name_ar: string | null;
   readonly price: string;
+  /** وقت قفل الخدمة؛ null أو غيابه يعني أنها مفتوحة (SI-Q28). */
+  readonly closed_at?: string | null;
 }
 /** سجل النوع بنسخة تفاؤلية؛ لا يغيّر أي استحقاق بيع سابق. */
 export interface PackageTypeRecord extends PackageTypeTerms {
@@ -188,15 +190,25 @@ export function packageTypeSnapshot(record: PackageTypeRecord) {
 /**
  * يتحقق أن كل خدمة قُرئت من نفس النشاط، ثم يضم أسماءها وأسعارها الحالية للعرض فقط.
  * العرض يحمل selling_stopped_at من اللقطة ليبقى واضحاً بعد الإنشاء والتعديل.
+ * الخدمة المقفولة ترفض التعريف كأنها غير موجودة (SI-Q28) إلا عند allowClosedServices،
+ * وهو ما يستخدمه إيقاف البيع ليقدر المشغّل يوقف نوعاً قائماً قُفلت إحدى خدماته.
  *
  * @param record سجل النوع
  * @param services الخدمات المقروءة ضمن النشاط والشركة
- * @returns تفاصيل النوع وحالة بيعه على السلك؛ الخدمة غير المعروفة ترفض التعريف كله
+ * @param options خيارات العرض
+ * @param options.allowClosedServices يسمح بخدمة مقفولة؛ الافتراضي الرفض
+ * @returns تفاصيل النوع وحالة بيعه على السلك؛ الخدمة غير المعروفة أو المقفولة ترفض التعريف كله
  */
-export function packageTypeView(record: PackageTypeRecord, services: readonly PackageService[]) {
+export function packageTypeView(
+  record: PackageTypeRecord,
+  services: readonly PackageService[],
+  options?: { readonly allowClosedServices?: boolean },
+) {
   const components = record.components.map((component) => {
     const service = services.find((s) => s.service_id === component.service_id);
     if (service === undefined) throw new PackageTypeError('PACKAGE_TYPE_SERVICE_NOT_FOUND');
+    if (options?.allowClosedServices !== true && (service.closed_at ?? null) !== null)
+      throw new PackageTypeError('PACKAGE_TYPE_SERVICE_NOT_FOUND');
     return {
       ...component,
       name_en: service.name_en,
