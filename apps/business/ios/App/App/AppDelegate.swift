@@ -156,7 +156,7 @@ private final class StaffSessionCookieVault {
 
         // التوكين المنتهي (أو غير الصالح) لازم بصمته تتقاعد قبل التنظيف:
         // وإلا رجع تاني من المخزن الأصلي بعد التشغيل كأنه جلسة جديدة.
-        guard Self.isValidEntry(entry) else {
+        guard Self.isValidEntry(entry), !retiredHashes.contains(Self.sha256Hex(entry.value)) else {
             retireHashIfPresent(for: entry)
             clearPersistedStateAndStores()
             return
@@ -191,9 +191,7 @@ private final class StaffSessionCookieVault {
         lastWrittenData = rawData
 
         // نخلّي نسخة WKWebView بنفس الكوكي بالظبط.
-        DispatchQueue.main.async {
-            Self.replaceWebViewStoreCookie(with: restoredCookie)
-        }
+        scheduleWebViewStoreSync()
     }
 
     // بتتنفّذ متزامن جوه نوتيفكيشن CookiesChanged، وده المطلوب:
@@ -211,7 +209,7 @@ private final class StaffSessionCookieVault {
         var resurrected: [HTTPCookie] = []
         var candidates: [HTTPCookie] = []
         // هل ظهر كوكي مؤقت (من غير تاريخ انتهاء) بنفس قيمة توكين الجلسة الحالية؟
-        // لو ده happened والجلسة المحفوظة لسه صالحة، لازم نرجّع الكوكي السليم
+        // لو ده حصل والجلسة المحفوظة لسه صالحة، لازم نرجّع الكوكي السليم
         // بدل ما نعتبرها تسجيل خروج ونمسح الجلسة.
         var sawCurrentTokenWithoutExpiry = false
 
@@ -277,23 +275,19 @@ private final class StaffSessionCookieVault {
             currentHash = Self.sha256Hex(entry.value)
             persist(entry)
             if !resurrected.isEmpty {
-                DispatchQueue.main.async {
-                    Self.replaceWebViewStoreCookie(with: chosen)
-                }
+                scheduleWebViewStoreSync()
             }
             return
         }
 
         // 2 — الجلسة لسه شغالة: نفس الكوكي لسه موجود في المخزن الأصلي.
         if let live = candidates.first(where: { Self.sha256Hex($0.value) == currentHash }) {
-            if let entry = Self.persistedEntry(from: live), entry != currentCookie {
+            if let entry = Self.persistedEntry(from: live) {
                 currentCookie = entry
                 persist(entry)
             }
             if !resurrected.isEmpty {
-                DispatchQueue.main.async {
-                    Self.replaceWebViewStoreCookie(with: live)
-                }
+                scheduleWebViewStoreSync()
             }
             return
         }
@@ -305,9 +299,7 @@ private final class StaffSessionCookieVault {
            Self.isValidEntry(active),
            let rebuilt = Self.makeCookie(from: active) {
             HTTPCookieStorage.shared.setCookie(rebuilt)
-            DispatchQueue.main.async {
-                Self.replaceWebViewStoreCookie(with: rebuilt)
-            }
+            scheduleWebViewStoreSync()
             return
         }
 
@@ -321,9 +313,7 @@ private final class StaffSessionCookieVault {
         }
         try? FileManager.default.removeItem(at: Self.activeCookieFileURL())
         if wasActive || !resurrected.isEmpty || !invalidOrExpired.isEmpty {
-            DispatchQueue.main.async {
-                Self.deleteStaffCookiesFromWebViewStore()
-            }
+            scheduleWebViewStoreSync()
         }
     }
 
@@ -336,9 +326,7 @@ private final class StaffSessionCookieVault {
         for cookie in Self.staffCookiesInSharedStorage() {
             HTTPCookieStorage.shared.deleteCookie(cookie)
         }
-        DispatchQueue.main.async {
-            Self.deleteStaffCookiesFromWebViewStore()
-        }
+        scheduleWebViewStoreSync()
     }
 
     private func persist(_ entry: PersistedStaffCookie) {
@@ -485,24 +473,46 @@ private final class StaffSessionCookieVault {
         SHA256.hash(data: Data(value.utf8)).map { String(format: "%02x", $0) }.joined()
     }
 
-    private static func deleteStaffCookiesFromWebViewStore() {
+    // مزامنة مخزن WKWebView مع الحالة الحالية للخزنة (تحت القفل) داخل نفس callback بتاع getAllCookies
+    // وبعد setCookie، عشان نمنع سباق الخروج لو اتلغت الجلسة أثناء استرجاع معلّق.
+    private func scheduleWebViewStoreSync() {
+        DispatchQueue.main.async { [weak self] in
+            self?.reconcileWebViewStoreOnMain()
+        }
+    }
+
+    private func reconcileWebViewStoreOnMain() {
         let store = WKWebsiteDataStore.default().httpCookieStore
-        store.getAllCookies { cookies in
-            for cookie in cookies where cookie.name == staffCookieName {
-                store.delete(cookie, completionHandler: nil)
+        store.getAllCookies { [weak self] cookies in
+            guard let self = self else { return }
+            let desiredCookie = self.activeCookieForWebViewStore()
+            for existing in cookies where existing.name == Self.staffCookieName {
+                if desiredCookie?.value != existing.value {
+                    store.delete(existing, completionHandler: nil)
+                }
+            }
+            guard let target = desiredCookie else { return }
+            store.setCookie(target) { [weak self] in
+                guard let self = self else { return }
+                let latest = self.activeCookieForWebViewStore()
+                if latest == nil {
+                    store.delete(target, completionHandler: nil)
+                } else if let replacement = latest, replacement.value != target.value {
+                    store.setCookie(replacement, completionHandler: nil)
+                }
             }
         }
     }
 
-    // نخلي مخزن WKWebView فيه الكوكي الحي بس، ونمسح أي نسخة قديمة منه.
-    private static func replaceWebViewStoreCookie(with cookie: HTTPCookie) {
-        let store = WKWebsiteDataStore.default().httpCookieStore
-        store.getAllCookies { cookies in
-            for existing in cookies where existing.name == staffCookieName && existing.value != cookie.value {
-                store.delete(existing, completionHandler: nil)
-            }
-            store.setCookie(cookie, completionHandler: nil)
+    private func activeCookieForWebViewStore() -> HTTPCookie? {
+        lock.lock()
+        defer { lock.unlock() }
+        guard let entry = currentCookie,
+              Self.isValidEntry(entry),
+              !retiredHashes.contains(Self.sha256Hex(entry.value)) else {
+            return nil
         }
+        return Self.makeCookie(from: entry)
     }
 }
 

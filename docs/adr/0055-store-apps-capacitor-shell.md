@@ -581,11 +581,13 @@ and on expiry, and the retired-digest file holds digests only.
 **Review.** Under owner decisions PP-261 and PP-265 (no new Codex sessions of any kind), the pre-implementation
 read-only design review was performed by `claude-opus-5-5` at medium effort instead of Codex. It found 0 P0 blockers,
 and every P1 and P2 point it raised is built into the mechanism: the synchronous save, the strict filter, the faithful
-attribute reconstruction, the anti-resurrection digests, the re-entrancy guard, and the file protection. A second
-`claude-opus-5-5` review of the implementation code (2026-11-26) raised one P0 and the remaining P1 and P2 points, and
-all of them are fixed in the mechanism recorded above: the restore-before-sign-out guard for a session-only copy of the
-current token (P0-1, P2-3, P2-4) and the newer-expiry rule that stops an older `WKWebView` token from displacing the
-current session (P2-2).
+attribute reconstruction, the anti-resurrection digests, the re-entrancy guard, and the file protection. A subsequent
+`claude-opus-5-5` review of the implementation code (2026-11-26) raised one P0 and three P2 points, and all are fixed:
+the restore-before-sign-out guard for a session-only copy of the current token (P0-1), the newer-expiry rule stopping an
+older `WKWebView` token from displacing the current session (P2-2), the ADR accept-policy/date updates (P2-3), and
+comment wording fixes (P2-4). A follow-up `CodeRabbit` pass raised three edge-case findings (retired-digest check during
+restore, retrying `persist` on live cookie updates, and re-reading the current vault state under the lock in each WebKit callback),
+also incorporated into the vault.
 
 **Consequences.** The fix is accepted only when the iOS simulator spike's restart step passes on `main`. **Fallback 2 of
 decision 3 (a native token in the iOS Keychain) still applies only if that restart step fails on `main`**, and it keeps
