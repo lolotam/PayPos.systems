@@ -3,11 +3,13 @@ import { RATINGS_READ_PERMISSION } from './ratings-read-eligibility.ts';
 
 /**
  * ❌ لا يقبل ALLOW حتى لو المدير يملك الإذن؛ الأدوار المخصصة تحتفظ بسياسة PR 7.
- * وقراءة التقييمات ما تتجاوزش نطاق العضوية نفسها، لأن القارئ بيطبّق نطاق الاستثناء المحفوظ زي ما هو.
+ * لإذن قراءة التقييمات (`read:ratings:branch`)، الرفض العام بنقص الخانة (`PERMISSION_ROLE_FORBIDDEN`) يخص دور
+ * الجهاز فقط، بينما الأدوار البشرية يُفحص أولًا نطاقها مقابل نطاق العضوية (`PERMISSION_SCOPE_OUTSIDE_REACH`)
+ * ثم تقرر القاعدة المسماة (`PERMISSION_ROLE_NOT_ELIGIBLE`). وقراءة التقييمات لا تتجاوز نطاق العضوية نفسها.
  *
  * @param terms قرار السماح الجديد
  * @param context هوية الدور وأهلية المرجع ونطاق العضوية المؤكد بعد القفل
- * @returns رفض الخانة أو النطاق، أو null للخانة الافتراضية أو الاختيارية أو الدور المخصص
+ * @returns رفض الخانة أو النطاق، أو null للخانة الافتراضية أو الاختيارية أو الدور المخصص أو قراءة التقييمات لدور بشري
  */
 export function personalAllowFailure(terms: OverrideTerms, context: PermissionEditContext) {
   const member = context.membership;

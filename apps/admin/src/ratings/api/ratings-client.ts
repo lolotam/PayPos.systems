@@ -75,11 +75,16 @@ export async function readRatingsAccess(
   businessId: string,
   signal: AbortSignal,
 ): Promise<{ readonly allowed: true }> {
-  await readRatingsPage(
-    companyId,
-    businessId,
-    { from: '2000-01-01T00:00:00Z', to: '2000-01-01T00:00:00.000001Z', limit: 1 },
+  const response = await apiClient().GET(listPath, {
+    params: {
+      header: { 'x-company-id': companyId },
+      path: { businessId },
+      query: { from: '2000-01-01T00:00:00Z', to: '2000-01-01T00:00:00.000001Z', limit: 1 },
+    },
     signal,
-  );
+  });
+  if (!response.response.ok || response.error !== undefined)
+    throw ratingsFailure(response.error, response.response.status);
+  ratingsListPage.parse(response.data);
   return { allowed: true };
 }

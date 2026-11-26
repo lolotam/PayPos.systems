@@ -133,24 +133,27 @@ it('closes the private screen on the first input after the deadline, with no tou
       logged.push(args.map(String).join(' '));
     }),
   );
-  const fetched = serve();
-  const view = open();
-  await signIn();
-  // ساعة الجهاز اتغيّرت (الجهاز نام): الموعد فات والمؤقت لسه ما اشتغلش.
-  vi.setSystemTime(new Date(Date.now() + 3_600_000));
-  typeInMyWork('a');
-  // القفل بيحصل مع أول تفاعل بعد الموعد، مش مستني فحص الثانية.
-  await act(async () => {
-    await new Promise((resolve) => setTimeout(resolve, 0));
-  });
-  expect(fetched.paths('/private-view/close').length).toBe(1);
-  expect(touches(fetched).length).toBe(0);
-  expect(await screen.findByText(label('myWork.pinTitle'))).toBeTruthy();
-  expect(screen.queryByText('Haircut')).toBeNull();
-  expect(myWorkEntries(view.client).length).toBe(0);
-  expect(logged.join('\n')).not.toContain(WINDOW);
-  expect(logged.join('\n')).not.toContain(PIN);
-  spies.forEach((spy) => spy.mockRestore());
+  try {
+    const fetched = serve();
+    const view = open();
+    await signIn();
+    // ساعة الجهاز اتغيّرت (الجهاز نام): الموعد فات والمؤقت لسه ما اشتغلش.
+    vi.setSystemTime(new Date(Date.now() + 3_600_000));
+    typeInMyWork('a');
+    // القفل بيحصل مع أول تفاعل بعد الموعد، مش مستني فحص الثانية.
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+    expect(fetched.paths('/private-view/close').length).toBe(1);
+    expect(touches(fetched).length).toBe(0);
+    expect(await screen.findByText(label('myWork.pinTitle'))).toBeTruthy();
+    expect(screen.queryByText('Haircut')).toBeNull();
+    expect(myWorkEntries(view.client).length).toBe(0);
+    expect(logged.join('\n')).not.toContain(WINDOW);
+    expect(logged.join('\n')).not.toContain(PIN);
+  } finally {
+    spies.forEach((spy) => spy.mockRestore());
+  }
 });
 
 it('lets input push the 60 second limit back', async () => {

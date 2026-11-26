@@ -135,6 +135,9 @@ describe('the ratings-read ALLOW stays inside the membership own scope (FR-B15)'
     expect(
       permissionEditFailure({ ...branchTerms, scope_id: 'branch-2' }, branchMembership('branch_manager')),
     ).toBe('PERMISSION_SCOPE_OUTSIDE_REACH');
+    expect(
+      permissionEditFailure({ ...terms, scope_type: 'COMPANY', scope_id: company }, branchMembership('cashier')),
+    ).toBe('PERMISSION_SCOPE_OUTSIDE_REACH');
     expect(permissionEditFailure(branchTerms, branchMembership('branch_manager'))).toBeNull();
   });
 
