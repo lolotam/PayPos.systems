@@ -116,6 +116,10 @@ describe('salaryAffectedPeriods - the candidate range and the month format', () 
     );
   });
 
+  it('preserves an empty salary range over a long span without refusing on the cap', () => {
+    expect(salaryAffectedPeriods('2015-06-15', '2015-06-30', '2026-06', '2015-06')).toEqual([]);
+  });
+
   it('refuses a current period that is not a calendar month', () => {
     expect(() => salaryAffectedPeriods('2026-01-01', null, '2026-13', '2026-01')).toThrow(
       CommissionPeriodInvalidError,

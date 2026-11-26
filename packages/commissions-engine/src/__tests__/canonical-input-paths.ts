@@ -54,7 +54,15 @@ export function labelledLeaves(
     const baseList = Array.isArray(base) ? base : [];
     const identity = IDENTITY[name];
     const labels = new Set<string>();
+    const seen = new Set<string>();
     value.forEach((item, index) => {
+      if (identity !== undefined) {
+        const own = identity(item as Row);
+        if (seen.has(own)) {
+          throw new Error(`Duplicate row identity "${own}" in ${path === '' ? name : path}`);
+        }
+        seen.add(own);
+      }
       const source = (baseList[index] ?? item) as Row;
       const label = identity === undefined ? String(index) : identity(source);
       if (labels.has(label)) {

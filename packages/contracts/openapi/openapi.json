@@ -4594,14 +4594,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "oneOf": [
-                    {
-                      "$ref": "#/components/schemas/CommissionStatementNotApprovedError"
-                    },
-                    {
-                      "$ref": "#/components/schemas/CommissionStatementAlreadyPaidError"
-                    }
-                  ]
+                  "$ref": "#/components/schemas/ErrorEnvelope"
                 }
               }
             }

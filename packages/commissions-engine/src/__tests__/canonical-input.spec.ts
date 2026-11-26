@@ -125,6 +125,7 @@ describe('the path comparison refuses a duplicated row identity', () => {
     lines,
   });
   const ONE = employee([{ line_id: 'a', revision: '1' }]);
+  const TWO = employee([{ line_id: 'a', revision: '1' }, { line_id: 'b', revision: '2' }]);
   const TWO_SAME = employee([
     { line_id: 'a', revision: '1' },
     { line_id: 'a', revision: '2' },
@@ -133,6 +134,7 @@ describe('the path comparison refuses a duplicated row identity', () => {
   it.each([
     ['the base carries the row twice', { employees: [TWO_SAME] }, { employees: [ONE] }],
     ['the compared value emits the row twice', { employees: [ONE] }, { employees: [TWO_SAME] }],
+    ['an equal-length replacement duplicates a row identity', { employees: [TWO] }, { employees: [TWO_SAME] }],
   ])('fails loudly when %s', (_label, before, after) => {
     // صفّين بنفس الهوية بيتكتبوا على نفس المسار، والـ Map كان بيبتلع ورقة من غير ما يبلّغ.
     expect(() => changedPaths(before, after)).toThrow(/Duplicate row identity "a"/);

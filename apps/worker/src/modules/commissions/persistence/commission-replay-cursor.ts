@@ -6,5 +6,8 @@ import { assertReplayBounds } from '@pospay/db';
  * والمركّب هو اللي بيربطه.
  */
 export const commissionReplayCursorGuard = {
-  assertBounds: assertReplayBounds,
+  // التمرير جوه دالة بيمنع قراءة assertReplayBounds وقت استيراد الملف مع mock جزئي في Vitest.
+  assertBounds: (afterId: string | null, throughId: string | null): void => {
+    assertReplayBounds(afterId, throughId);
+  },
 };

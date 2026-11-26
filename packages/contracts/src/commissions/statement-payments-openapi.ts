@@ -50,10 +50,7 @@ export const commissionStatementPaymentPaths = {
         '409': {
           description:
             'COMMISSION_STATEMENT_NOT_APPROVED when the statement is DRAFT or REVIEWED, or COMMISSION_STATEMENT_ALREADY_PAID when it is PAID and a new Idempotency-Key is sent (CM-41), or TRANSACTION_RETRY_REQUIRED (retry the request).',
-          content: oneOfJson(
-            'CommissionStatementNotApprovedError',
-            'CommissionStatementAlreadyPaidError',
-          ),
+          content: json('ErrorEnvelope'),
         },
         '422': {
           description:

@@ -41,6 +41,14 @@ export function salaryAffectedPeriods(
   const firstPeriod = effectivePeriod > startPeriod ? effectivePeriod : startPeriod;
   if (!isCommissionPeriod(currentPeriod)) throw new CommissionPeriodInvalidError(currentPeriod);
   if (!isCommissionPeriod(firstPeriod)) throw new CommissionPeriodInvalidError(firstPeriod);
+  const firstLastDay = lastCalendarDay(firstPeriod);
+  if (
+    firstPeriod > currentPeriod ||
+    firstLastDay < effectiveFrom ||
+    (nextFrom !== null && firstLastDay >= nextFrom)
+  ) {
+    return [];
+  }
   const span = commissionMonthIndex(currentPeriod) - commissionMonthIndex(firstPeriod) + 1;
   if (span > MAX_CANDIDATE_COMMISSION_PERIODS) {
     throw new CommissionCandidateRangeExceededError(MAX_CANDIDATE_COMMISSION_PERIODS);
