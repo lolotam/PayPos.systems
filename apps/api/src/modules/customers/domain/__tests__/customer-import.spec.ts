@@ -92,11 +92,14 @@ it.each([
 ])('maps %s to %s', (country, callingCode) => {
   expect(customerImportCallingCode(country)).toBe(callingCode);
 });
-it.each([[null], ['ZZ'], ['']])('refuses %s until the business country is set', (country) => {
-  expect(() => customerImportCallingCode(country)).toThrow(
-    new CustomerImportError('IMPORT_BUSINESS_COUNTRY_REQUIRED'),
-  );
-});
+it.each([[null], ['ZZ'], [''], ['constructor']])(
+  'refuses %s until the business country is set',
+  (country) => {
+    expect(() => customerImportCallingCode(country)).toThrow(
+      new CustomerImportError('IMPORT_BUSINESS_COUNTRY_REQUIRED'),
+    );
+  },
+);
 
 it('reads a clean row and masks the phone', () => {
   const result = validateCustomerImportSheet(
@@ -283,6 +286,19 @@ it('accepts a new customer with a gender', () => {
   const result = finalizeCustomerImportRows(candidates(), new Set());
   expect(result.errors).toEqual([]);
   expect(result.rows[0]).toMatchObject({ status: 'new', warning: null, no_rating: true });
+});
+it('keeps candidate errors pure across repeated finalization with different existing phones', () => {
+  const repeated = validateCustomerImportSheet(
+    cells(['أحمد', '98765432', '', '', '', '', '', '', '', '']),
+    '965',
+    VALUES,
+  ).candidates;
+  const asNew = finalizeCustomerImportRows(repeated, new Set());
+  expect(asNew.rows).toEqual([]);
+  expect(asNew.errors).toEqual([{ row: 2, column: 'gender', code: 'IMPORT_REQUIRED_CELL' }]);
+  const asExisting = finalizeCustomerImportRows(repeated, new Set(['+96598765432']));
+  expect(asExisting.errors).toEqual([]);
+  expect(asExisting.rows[0]).toMatchObject({ status: 'existing', phone: '+96598765432' });
 });
 it('accepts an existing customer without a gender and warns about the rating opt-out', () => {
   const existing = validateCustomerImportSheet(

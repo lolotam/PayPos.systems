@@ -2396,6 +2396,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/businesses/{businessId}/customers/import/commits": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @description Accepts one clean unexpired preview commit idempotently and appends CustomerImportCommitRequested in the same transaction. */
+        post: operations["commitCustomerImport"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/businesses/{businessId}/customers/import/previews/{previewId}/rows": {
         parameters: {
             query?: never;
@@ -2424,23 +2441,6 @@ export interface paths {
         get: operations["getCustomerImportStatus"];
         put?: never;
         post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/v1/businesses/{businessId}/customers/import/commits": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** @description Accepts one clean unexpired preview commit idempotently and appends CustomerImportCommitRequested in the same transaction. */
-        post: operations["commitCustomerImport"];
         delete?: never;
         options?: never;
         head?: never;
@@ -2481,6 +2481,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/branches/{branchId}/customers/import/commits": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @description Accepts one clean unexpired preview commit idempotently and appends CustomerImportCommitRequested in the same transaction. */
+        post: operations["commitBranchCustomerImport"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/branches/{branchId}/customers/import/previews/{previewId}/rows": {
         parameters: {
             query?: never;
@@ -2509,23 +2526,6 @@ export interface paths {
         get: operations["getBranchCustomerImportStatus"];
         put?: never;
         post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/v1/branches/{branchId}/customers/import/commits": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** @description Accepts one clean unexpired preview commit idempotently and appends CustomerImportCommitRequested in the same transaction. */
-        post: operations["commitBranchCustomerImport"];
         delete?: never;
         options?: never;
         head?: never;
@@ -6484,7 +6484,8 @@ export interface components {
             /** @enum {string} */
             locale: "ar" | "en";
             status: components["schemas"]["CustomerImportRowStatus"];
-            warning: components["schemas"]["CustomerImportWarningCode"] | null;
+            /** @enum {string|null} */
+            warning: "EXISTING_NO_RATING_IGNORED" | null;
         };
         CustomerImportTemplate: {
             file_name: string;
@@ -6496,6 +6497,7 @@ export interface components {
             /** Format: uuid */
             file_id: string;
         };
+        /** @description Original Excel row number from 2 through 1048576. */
         CustomerImportRowsCursor: string;
         CustomerImportRowsQuery: {
             cursor?: components["schemas"]["CustomerImportRowsCursor"];
@@ -6511,11 +6513,13 @@ export interface components {
             error_count: number;
             errors: components["schemas"]["CustomerImportRowError"][];
             rows: components["schemas"]["CustomerImportRow"][];
-            next_cursor: components["schemas"]["CustomerImportRowsCursor"] | null;
+            /** @description Original Excel row number from 2 through 1048576. */
+            next_cursor: string | null;
         };
         CustomerImportRowsPage: {
             items: components["schemas"]["CustomerImportRow"][];
-            next_cursor: components["schemas"]["CustomerImportRowsCursor"] | null;
+            /** @description Original Excel row number from 2 through 1048576. */
+            next_cursor: string | null;
         };
         /** @enum {string} */
         CustomerImportCommitErrorCode: "IMPORT_PREVIEW_EXPIRED" | "IMPORT_PREVIEW_HAS_ERRORS" | "IMPORT_COMMIT_FAILED";
@@ -6525,7 +6529,8 @@ export interface components {
             /** @enum {string} */
             status: "ready" | "commit_requested" | "committed" | "failed";
             created_count: number;
-            error_code: components["schemas"]["CustomerImportCommitErrorCode"] | null;
+            /** @enum {string|null} */
+            error_code: "IMPORT_PREVIEW_EXPIRED" | "IMPORT_PREVIEW_HAS_ERRORS" | "IMPORT_COMMIT_FAILED" | null;
         };
         CommitCustomerImportInput: {
             /** Format: uuid */
@@ -19315,6 +19320,89 @@ export interface operations {
             };
         };
     };
+    commitCustomerImport: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-company-id": string;
+                "Idempotency-Key": string;
+            };
+            path: {
+                businessId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CommitCustomerImportInput"];
+            };
+        };
+        responses: {
+            /** @description Commit accepted */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CustomerImportCommitAccepted"];
+                };
+            };
+            /** @description Bilingual refusal */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Bilingual refusal */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Bilingual refusal */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Bilingual refusal */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Bilingual refusal */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Bilingual refusal */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
     getCustomerImportRows: {
         parameters: {
             query?: {
@@ -19386,89 +19474,6 @@ export interface operations {
             };
             /** @description Bilingual refusal */
             404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description Bilingual refusal */
-            default: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-        };
-    };
-    commitCustomerImport: {
-        parameters: {
-            query?: never;
-            header: {
-                "x-company-id": string;
-                "Idempotency-Key": string;
-            };
-            path: {
-                businessId: string;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["CommitCustomerImportInput"];
-            };
-        };
-        responses: {
-            /** @description Commit accepted */
-            202: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["CustomerImportCommitAccepted"];
-                };
-            };
-            /** @description Bilingual refusal */
-            400: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description Bilingual refusal */
-            403: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description Bilingual refusal */
-            404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description Bilingual refusal */
-            409: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description Bilingual refusal */
-            422: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -19620,6 +19625,89 @@ export interface operations {
             };
         };
     };
+    commitBranchCustomerImport: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-company-id": string;
+                "Idempotency-Key": string;
+            };
+            path: {
+                branchId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CommitCustomerImportInput"];
+            };
+        };
+        responses: {
+            /** @description Commit accepted */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CustomerImportCommitAccepted"];
+                };
+            };
+            /** @description Bilingual refusal */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Bilingual refusal */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Bilingual refusal */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Bilingual refusal */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Bilingual refusal */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Bilingual refusal */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
     getBranchCustomerImportRows: {
         parameters: {
             query?: {
@@ -19691,89 +19779,6 @@ export interface operations {
             };
             /** @description Bilingual refusal */
             404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description Bilingual refusal */
-            default: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-        };
-    };
-    commitBranchCustomerImport: {
-        parameters: {
-            query?: never;
-            header: {
-                "x-company-id": string;
-                "Idempotency-Key": string;
-            };
-            path: {
-                branchId: string;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["CommitCustomerImportInput"];
-            };
-        };
-        responses: {
-            /** @description Commit accepted */
-            202: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["CustomerImportCommitAccepted"];
-                };
-            };
-            /** @description Bilingual refusal */
-            400: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description Bilingual refusal */
-            403: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description Bilingual refusal */
-            404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description Bilingual refusal */
-            409: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description Bilingual refusal */
-            422: {
                 headers: {
                     [name: string]: unknown;
                 };

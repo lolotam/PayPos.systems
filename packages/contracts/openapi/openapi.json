@@ -16321,6 +16321,124 @@
         }
       }
     },
+    "/v1/businesses/{businessId}/customers/import/commits": {
+      "post": {
+        "operationId": "commitCustomerImport",
+        "description": "Accepts one clean unexpired preview commit idempotently and appends CustomerImportCommitRequested in the same transaction.",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "x-company-id",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "in": "path",
+            "name": "businessId",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 255
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CommitCustomerImportInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "Commit accepted",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CustomerImportCommitAccepted"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bilingual refusal",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Bilingual refusal",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Bilingual refusal",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Bilingual refusal",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Bilingual refusal",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Bilingual refusal",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/v1/businesses/{businessId}/customers/import/previews/{previewId}/rows": {
       "get": {
         "operationId": "getCustomerImportRows",
@@ -16450,124 +16568,6 @@
             }
           },
           "404": {
-            "description": "Bilingual refusal",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorEnvelope"
-                }
-              }
-            }
-          },
-          "default": {
-            "description": "Bilingual refusal",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorEnvelope"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/v1/businesses/{businessId}/customers/import/commits": {
-      "post": {
-        "operationId": "commitCustomerImport",
-        "description": "Accepts one clean unexpired preview commit idempotently and appends CustomerImportCommitRequested in the same transaction.",
-        "parameters": [
-          {
-            "in": "header",
-            "name": "x-company-id",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "uuid"
-            }
-          },
-          {
-            "in": "path",
-            "name": "businessId",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "uuid"
-            }
-          },
-          {
-            "in": "header",
-            "name": "Idempotency-Key",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "minLength": 1,
-              "maxLength": 255
-            }
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/CommitCustomerImportInput"
-              }
-            }
-          }
-        },
-        "responses": {
-          "202": {
-            "description": "Commit accepted",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/CustomerImportCommitAccepted"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Bilingual refusal",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorEnvelope"
-                }
-              }
-            }
-          },
-          "403": {
-            "description": "Bilingual refusal",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorEnvelope"
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "Bilingual refusal",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorEnvelope"
-                }
-              }
-            }
-          },
-          "409": {
-            "description": "Bilingual refusal",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorEnvelope"
-                }
-              }
-            }
-          },
-          "422": {
             "description": "Bilingual refusal",
             "content": {
               "application/json": {
@@ -16766,6 +16766,124 @@
         }
       }
     },
+    "/v1/branches/{branchId}/customers/import/commits": {
+      "post": {
+        "operationId": "commitBranchCustomerImport",
+        "description": "Accepts one clean unexpired preview commit idempotently and appends CustomerImportCommitRequested in the same transaction.",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "x-company-id",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "in": "path",
+            "name": "branchId",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 255
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CommitCustomerImportInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "Commit accepted",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CustomerImportCommitAccepted"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bilingual refusal",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Bilingual refusal",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Bilingual refusal",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Bilingual refusal",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Bilingual refusal",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Bilingual refusal",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/v1/branches/{branchId}/customers/import/previews/{previewId}/rows": {
       "get": {
         "operationId": "getBranchCustomerImportRows",
@@ -16895,124 +17013,6 @@
             }
           },
           "404": {
-            "description": "Bilingual refusal",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorEnvelope"
-                }
-              }
-            }
-          },
-          "default": {
-            "description": "Bilingual refusal",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorEnvelope"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/v1/branches/{branchId}/customers/import/commits": {
-      "post": {
-        "operationId": "commitBranchCustomerImport",
-        "description": "Accepts one clean unexpired preview commit idempotently and appends CustomerImportCommitRequested in the same transaction.",
-        "parameters": [
-          {
-            "in": "header",
-            "name": "x-company-id",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "uuid"
-            }
-          },
-          {
-            "in": "path",
-            "name": "branchId",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "uuid"
-            }
-          },
-          {
-            "in": "header",
-            "name": "Idempotency-Key",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "minLength": 1,
-              "maxLength": 255
-            }
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/CommitCustomerImportInput"
-              }
-            }
-          }
-        },
-        "responses": {
-          "202": {
-            "description": "Commit accepted",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/CustomerImportCommitAccepted"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Bilingual refusal",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorEnvelope"
-                }
-              }
-            }
-          },
-          "403": {
-            "description": "Bilingual refusal",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorEnvelope"
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "Bilingual refusal",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorEnvelope"
-                }
-              }
-            }
-          },
-          "409": {
-            "description": "Bilingual refusal",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorEnvelope"
-                }
-              }
-            }
-          },
-          "422": {
             "description": "Bilingual refusal",
             "content": {
               "application/json": {
@@ -36272,7 +36272,7 @@
           "row": {
             "type": "integer",
             "minimum": 2,
-            "maximum": 501
+            "maximum": 9007199254740991
           },
           "masked_phone": {
             "type": "string",
@@ -36295,11 +36295,11 @@
           },
           "warning": {
             "nullable": true,
-            "allOf": [
-              {
-                "$ref": "#/components/schemas/CustomerImportWarningCode"
-              }
-            ]
+            "enum": [
+              "EXISTING_NO_RATING_IGNORED",
+              null
+            ],
+            "type": "string"
           }
         },
         "required": [
@@ -36352,7 +36352,8 @@
       },
       "CustomerImportRowsCursor": {
         "type": "string",
-        "pattern": "^[1-9][0-9]{0,2}(?![\\s\\S])"
+        "pattern": "^(?:[2-9]|[1-9][0-9]{1,5}|10[0-3][0-9]{4}|104[0-7][0-9]{3}|1048[0-4][0-9]{2}|10485[0-6][0-9]|104857[0-6])$",
+        "description": "Original Excel row number from 2 through 1048576."
       },
       "CustomerImportRowsQuery": {
         "type": "object",
@@ -36417,11 +36418,9 @@
           },
           "next_cursor": {
             "nullable": true,
-            "allOf": [
-              {
-                "$ref": "#/components/schemas/CustomerImportRowsCursor"
-              }
-            ]
+            "type": "string",
+            "pattern": "^(?:[2-9]|[1-9][0-9]{1,5}|10[0-3][0-9]{4}|104[0-7][0-9]{3}|1048[0-4][0-9]{2}|10485[0-6][0-9]|104857[0-6])$",
+            "description": "Original Excel row number from 2 through 1048576."
           }
         },
         "required": [
@@ -36447,11 +36446,9 @@
           },
           "next_cursor": {
             "nullable": true,
-            "allOf": [
-              {
-                "$ref": "#/components/schemas/CustomerImportRowsCursor"
-              }
-            ]
+            "type": "string",
+            "pattern": "^(?:[2-9]|[1-9][0-9]{1,5}|10[0-3][0-9]{4}|104[0-7][0-9]{3}|1048[0-4][0-9]{2}|10485[0-6][0-9]|104857[0-6])$",
+            "description": "Original Excel row number from 2 through 1048576."
           }
         },
         "required": [
@@ -36491,11 +36488,13 @@
           },
           "error_code": {
             "nullable": true,
-            "allOf": [
-              {
-                "$ref": "#/components/schemas/CustomerImportCommitErrorCode"
-              }
-            ]
+            "enum": [
+              "IMPORT_PREVIEW_EXPIRED",
+              "IMPORT_PREVIEW_HAS_ERRORS",
+              "IMPORT_COMMIT_FAILED",
+              null
+            ],
+            "type": "string"
           }
         },
         "required": [

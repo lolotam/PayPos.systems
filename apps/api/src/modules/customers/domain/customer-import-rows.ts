@@ -42,7 +42,9 @@ function birthdayIso(cell: CustomerImportCell): Choice<string | null> {
   if (match === null) return { code: 'IMPORT_DATE_INVALID' };
   const [, y, m, d] = match;
   const date = new Date(Date.UTC(Number(y), Number(m) - 1, Number(d)));
-  return date.toISOString().slice(0, 10) === text ? { value: text } : { code: 'IMPORT_DATE_INVALID' };
+  return date.toISOString().slice(0, 10) === text
+    ? { value: text }
+    : { code: 'IMPORT_DATE_INVALID' };
 }
 
 function readName(cell: CustomerImportCell): Choice<string> {
@@ -57,7 +59,9 @@ function readCallingCode(cell: CustomerImportCell, defaultCode: string): Choice<
   const text = cellText(cell);
   if (text === '') return { value: defaultCode };
   const code = text.replace(/^\+/, '');
-  return /^[1-9][0-9]{0,2}(?![\s\S])/.test(code) ? { value: code } : { code: 'IMPORT_COUNTRY_CODE_INVALID' };
+  return /^[1-9][0-9]{0,2}(?![\s\S])/.test(code)
+    ? { value: code }
+    : { code: 'IMPORT_COUNTRY_CODE_INVALID' };
 }
 
 function readLocale(cell: CustomerImportCell): Choice<'ar' | 'en'> {
@@ -66,7 +70,10 @@ function readLocale(cell: CustomerImportCell): Choice<'ar' | 'en'> {
   return text === 'ar' || text === 'en' ? { value: text } : { code: 'IMPORT_LOCALE_INVALID' };
 }
 
-function readGender(cell: CustomerImportCell, v: CustomerImportCellValues): Choice<'male' | 'female' | null> {
+function readGender(
+  cell: CustomerImportCell,
+  v: CustomerImportCellValues,
+): Choice<'male' | 'female' | null> {
   const text = cellText(cell);
   if (text === '') return { value: null };
   if (text === v.male) return { value: 'male' };
@@ -78,13 +85,17 @@ function readBirthday(
   birthdayCell: CustomerImportCell,
   yearKnownCell: CustomerImportCell,
   v: CustomerImportCellValues,
-): { readonly birthday: CustomerImportBirthday | null; readonly code?: CustomerImportRowErrorCode } {
+): {
+  readonly birthday: CustomerImportBirthday | null;
+  readonly code?: CustomerImportRowErrorCode;
+} {
   const cell = birthdayIso(birthdayCell);
   if ('code' in cell) return { birthday: null, code: cell.code };
   if (cell.value === null) return { birthday: null };
   const flagText = cellText(yearKnownCell);
   if (flagText === '') return { birthday: null, code: 'IMPORT_YEAR_KNOWN_REQUIRED' };
-  if (flagText !== v.yes && flagText !== v.no) return { birthday: null, code: 'IMPORT_BOOLEAN_INVALID' };
+  if (flagText !== v.yes && flagText !== v.no)
+    return { birthday: null, code: 'IMPORT_BOOLEAN_INVALID' };
   const [year, month, day] = cell.value.split('-').map(Number) as [number, number, number];
   const known = flagText === v.yes;
   try {
@@ -197,12 +208,20 @@ export function validateCustomerImportSheet(
   rows: readonly CustomerImportSheetRow[],
   defaultCallingCode: string,
   values: CustomerImportCellValues,
-): { readonly candidates: readonly CustomerImportCandidate[]; readonly errors: readonly CustomerImportRowIssue[] } {
+): {
+  readonly candidates: readonly CustomerImportCandidate[];
+  readonly errors: readonly CustomerImportRowIssue[];
+} {
   const candidates = rows.map((row) => readRow(row.row, row.cells, defaultCallingCode, values));
   const counts = new Map<string, number>();
-  for (const c of candidates) if (c.phone !== null) counts.set(c.phone, (counts.get(c.phone) ?? 0) + 1);
   for (const c of candidates)
-    if (c.phone !== null && (counts.get(c.phone) ?? 0) > 1 && !c.errors.some((e) => e.column === 'phone'))
+    if (c.phone !== null) counts.set(c.phone, (counts.get(c.phone) ?? 0) + 1);
+  for (const c of candidates)
+    if (
+      c.phone !== null &&
+      (counts.get(c.phone) ?? 0) > 1 &&
+      !c.errors.some((e) => e.column === 'phone')
+    )
       c.errors.push({ row: c.row, column: 'phone', code: 'IMPORT_DUPLICATE_IN_FILE' });
   return { candidates, errors: candidates.flatMap((c) => c.errors) };
 }
@@ -217,16 +236,24 @@ export function validateCustomerImportSheet(
 export function finalizeCustomerImportRows(
   candidates: readonly CustomerImportCandidate[],
   existingPhones: ReadonlySet<string>,
-): { readonly rows: readonly CustomerImportRow[]; readonly errors: readonly CustomerImportRowIssue[] } {
+): {
+  readonly rows: readonly CustomerImportRow[];
+  readonly errors: readonly CustomerImportRowIssue[];
+} {
   const errors: CustomerImportRowIssue[] = [];
   const rows: CustomerImportRow[] = [];
   for (const c of candidates) {
     const status: CustomerImportRowStatus =
       c.phone !== null && existingPhones.has(c.phone) ? 'existing' : 'new';
-    if (status === 'new' && c.gender === null && !c.errors.some((e) => e.column === 'gender'))
-      c.errors.push({ row: c.row, column: 'gender', code: 'IMPORT_REQUIRED_CELL' });
-    if (c.errors.length > 0) {
-      errors.push(...c.errors);
+    const rowErrors =
+      status === 'new' && c.gender === null && !c.errors.some((e) => e.column === 'gender')
+        ? [
+            ...c.errors,
+            { row: c.row, column: 'gender' as const, code: 'IMPORT_REQUIRED_CELL' as const },
+          ]
+        : c.errors;
+    if (rowErrors.length > 0) {
+      errors.push(...rowErrors);
       continue;
     }
     rows.push({

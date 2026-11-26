@@ -42,7 +42,8 @@ export const CUSTOMER_IMPORT_COLUMNS = [
   'notes',
 ] as const;
 
-export type CustomerImportRowColumn = (typeof CUSTOMER_IMPORT_COLUMNS)[number] | 'unexpected_column';
+export type CustomerImportRowColumn =
+  (typeof CUSTOMER_IMPORT_COLUMNS)[number] | 'unexpected_column';
 export type CustomerImportRowErrorCode =
   | 'IMPORT_REQUIRED_CELL'
   | 'IMPORT_NAME_INVALID'
@@ -169,7 +170,11 @@ export function validateCustomerImportFile(
   if (facts.status !== 'READY') throw new CustomerImportError('IMPORT_FILE_NOT_READY');
   if (facts.content_type !== CUSTOMER_IMPORT_CONTENT_TYPE)
     throw new CustomerImportError('IMPORT_FILE_TYPE_INVALID');
-  if (!Number.isSafeInteger(facts.size_bytes) || facts.size_bytes <= 0 || facts.size_bytes > CUSTOMER_IMPORT_MAX_BYTES)
+  if (
+    !Number.isSafeInteger(facts.size_bytes) ||
+    facts.size_bytes <= 0 ||
+    facts.size_bytes > CUSTOMER_IMPORT_MAX_BYTES
+  )
     throw new CustomerImportError('IMPORT_FILE_SIZE_INVALID');
   if (facts.storage_key === null) throw new CustomerImportError('IMPORT_FILE_NOT_FOUND');
   return facts.storage_key;
@@ -191,7 +196,10 @@ const CALLING_CODES: Readonly<Record<string, string>> = {
  * @returns كود الاتصال الدولي
  */
 export function customerImportCallingCode(countryCode: string | null): string {
-  const callingCode = countryCode === null ? undefined : CALLING_CODES[countryCode];
+  const callingCode =
+    countryCode !== null && Object.hasOwn(CALLING_CODES, countryCode)
+      ? CALLING_CODES[countryCode]
+      : undefined;
   if (callingCode === undefined) throw new CustomerImportError('IMPORT_BUSINESS_COUNTRY_REQUIRED');
   return callingCode;
 }
@@ -216,7 +224,8 @@ export function decideCustomerImportCommit(
     preview.created_by.toLowerCase() !== userId.toLowerCase()
   )
     throw new CustomerImportError('IMPORT_PREVIEW_NOT_FOUND');
-  if (preview.status === 'commit_requested' || preview.status === 'committed') return 'already_accepted';
+  if (preview.status === 'commit_requested' || preview.status === 'committed')
+    return 'already_accepted';
   if (preview.status === 'failed' || now.getTime() >= new Date(preview.expires_at).getTime())
     throw new CustomerImportError('IMPORT_PREVIEW_EXPIRED');
   if (preview.error_count > 0) throw new CustomerImportError('IMPORT_PREVIEW_HAS_ERRORS');

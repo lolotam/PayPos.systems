@@ -39,8 +39,10 @@ export const customerImportErrorCode = z
   ])
   .meta({ id: 'CustomerImportErrorCode' });
 
+const customerImportWarningCodes = ['EXISTING_NO_RATING_IGNORED'] as const;
+
 export const customerImportWarningCode = z
-  .enum(['EXISTING_NO_RATING_IGNORED'])
+  .enum(customerImportWarningCodes)
   .meta({ id: 'CustomerImportWarningCode' });
 
 export const customerImportRowError = responseObject({
@@ -55,12 +57,15 @@ export const customerImportRowStatus = z
 
 /** الصف المعروض: الهاتف المقنّع والبيانات العامة بس دون تاريخ ميلاد أو نوع أو بريد أو ملاحظة (CIM-06). */
 export const customerImportRow = responseObject({
-  row: z.number().int().min(2).max(501),
+  row: z.number().int().min(2),
   masked_phone: z.string().regex(/^\*\*\*[0-9]{2,3}(?![\s\S])/),
   name: z.string().min(1).max(200),
   locale: z.enum(['ar', 'en']),
   status: customerImportRowStatus,
-  warning: customerImportWarningCode.nullable(),
+  warning: z
+    .enum(customerImportWarningCodes)
+    .nullable()
+    .meta({ enum: [...customerImportWarningCodes, null] }),
 }).meta({ id: 'CustomerImportRow' });
 
 export const customerImportTemplate = responseObject({
@@ -73,11 +78,21 @@ export const previewCustomerImportInput = z
   .strictObject({ file_id: id })
   .meta({ id: 'PreviewCustomerImportInput' });
 
-export const customerImportRowsCursor = z
+const excelRowNumberPattern = new RegExp(
+  '^(?:' +
+    '[2-9]|[1-9][0-9]{1,5}|' +
+    '10[0-3][0-9]{4}|104[0-7][0-9]{3}|' +
+    '1048[0-4][0-9]{2}|10485[0-6][0-9]|104857[0-6]' +
+    ')$',
+);
+const customerImportRowsCursorValue = z
   .string()
-  .regex(/^[1-9][0-9]{0,2}(?![\s\S])/)
-  .refine((value) => Number(value) >= 2 && Number(value) <= 501)
-  .meta({ id: 'CustomerImportRowsCursor' });
+  .regex(excelRowNumberPattern)
+  .describe('Original Excel row number from 2 through 1048576.');
+export const customerImportRowsCursor = customerImportRowsCursorValue.meta({
+  id: 'CustomerImportRowsCursor',
+});
+const nextCustomerImportRowsCursor = customerImportRowsCursorValue.nullable();
 
 export const customerImportRowsQuery = z
   .strictObject({
@@ -94,23 +109,32 @@ export const customerImportPreview = responseObject({
   error_count: z.number().int().min(0).max(5500),
   errors: z.array(customerImportRowError).max(5500),
   rows: z.array(customerImportRow).max(20),
-  next_cursor: customerImportRowsCursor.nullable(),
+  next_cursor: nextCustomerImportRowsCursor,
 }).meta({ id: 'CustomerImportPreview' });
 
 export const customerImportRowsPage = responseObject({
   items: z.array(customerImportRow).max(100),
-  next_cursor: customerImportRowsCursor.nullable(),
+  next_cursor: nextCustomerImportRowsCursor,
 }).meta({ id: 'CustomerImportRowsPage' });
 
+const customerImportCommitErrorCodes = [
+  'IMPORT_PREVIEW_EXPIRED',
+  'IMPORT_PREVIEW_HAS_ERRORS',
+  'IMPORT_COMMIT_FAILED',
+] as const;
+
 export const customerImportCommitErrorCode = z
-  .enum(['IMPORT_PREVIEW_EXPIRED', 'IMPORT_PREVIEW_HAS_ERRORS', 'IMPORT_COMMIT_FAILED'])
+  .enum(customerImportCommitErrorCodes)
   .meta({ id: 'CustomerImportCommitErrorCode' });
 
 export const customerImportStatus = responseObject({
   preview_id: id,
   status: z.enum(['ready', 'commit_requested', 'committed', 'failed']),
   created_count: z.number().int().min(0).max(500),
-  error_code: customerImportCommitErrorCode.nullable(),
+  error_code: z
+    .enum(customerImportCommitErrorCodes)
+    .nullable()
+    .meta({ enum: [...customerImportCommitErrorCodes, null] }),
 }).meta({ id: 'CustomerImportStatus' });
 
 export const commitCustomerImportInput = z

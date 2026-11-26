@@ -65,8 +65,8 @@ async function seedPreview(
   const previewId = systemUuidV7().newId();
   await owner`INSERT INTO import_previews
     (company_id,id,business_id,entity,file_id,created_by,created_at,expires_at,requested_at,status,row_count,error_count,rows,errors)
-    VALUES(${TENANT.A.company},${previewId},${TENANT.A.business},'customers',${FILE_ID},${USER},now(),
-      now() + interval '1 day',${options.requestedAt ?? '2026-11-26T09:59:00Z'},'commit_requested',${rows.length},
+    VALUES(${TENANT.A.company},${previewId},${TENANT.A.business},'customers',${FILE_ID},${USER},'2026-11-26T09:50:00Z',
+      '2026-11-27T09:50:00Z',${options.requestedAt ?? '2026-11-26T09:59:00Z'},'commit_requested',${rows.length},
       ${options.errorCount ?? 0},${owner.json(rows as unknown as Parameters<typeof owner.json>[0])},${owner.json([] as unknown as Parameters<typeof owner.json>[0])})`;
   return previewId;
 }
