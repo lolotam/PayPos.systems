@@ -47,13 +47,7 @@ export function formatShare(bps: number): string {
   return rest === 0 ? `${whole}%` : `${whole}.${String(rest).padStart(2, '0').replace(/0$/, '')}%`;
 }
 
-/**
- * تاريخ يوم العمل المحفوظ؛ UTC حامل للتنسيق بس عشان المتصفح ما يعيد تفسير اليوم.
- *
- * @param date يوم بصيغة YYYY-MM-DD
- * @param locale لغة العرض
- * @returns التاريخ للعرض
- */
+/** تاريخ يوم العمل المحفوظ؛ الدالة نفسها في `shared/datetime/business-time` وبتتصدّر هنا لشاشات «شغلي». */
 export { formatBusinessDate };
 
 /**

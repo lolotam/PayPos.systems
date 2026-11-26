@@ -5,7 +5,7 @@ import { formatDate, type Locale } from '@pospay/i18n';
  * بدل ما الشاشة كلها تقع بنرجع لـ UTC ومعاه اسمه ظاهر في النص، وعمره ما بنرجع لتوقيت الجهاز (AC-57-4-9).
  *
  * @param locale لغة العرض
- * @param timeZone اسم IANA لتوقيت النشاط، أو undefined لو مش معروف
+ * @param timeZone اسم IANA لتوقيت النشاط
  * @param options حقول التنسيق بتوقيت النشاط
  * @param fallback حقول التنسيق لو التوقيت مش معروف؛ فيها الساعة عشان اسم UTC يتكتب جنب لحظة واضحة (dateStyle لوحده ما بيقبلش اسم التوقيت)
  * @returns المنسّق

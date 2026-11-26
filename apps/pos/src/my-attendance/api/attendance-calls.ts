@@ -1,6 +1,6 @@
 import type { OwnAttendance, PersonalBranches } from '@pospay/contracts';
 import { personalApiClient, staffApiClient } from '@/shared/api/client';
-import { PrivateViewHttpError } from '@/shared/private-view/errors';
+import { PrivateViewHttpError } from '@/private-view/errors';
 import type { AttendanceContext } from '../model/attendance-context';
 
 const HEADER = 'x-private-view-window-id';

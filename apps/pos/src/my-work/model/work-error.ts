@@ -1,4 +1,4 @@
-import { PrivateViewHttpError } from '@/shared/private-view/errors';
+import { PrivateViewHttpError } from '@/private-view/errors';
 
 export {
   monthOutOfRange,
@@ -6,8 +6,8 @@ export {
   viewForbidden as workForbidden,
   windowExpired,
   windowRefusal,
-} from '@/shared/private-view/errors';
-export { PrivateViewHttpError as WorkHttpError } from '@/shared/private-view/errors';
+} from '@/private-view/errors';
+export { PrivateViewHttpError as WorkHttpError } from '@/private-view/errors';
 
 /** المؤشر مرفوض (400 VALIDATION_FAILED): الصفحة التالية ما تتقريش بنفس المؤشر، فالإعادة لازم تبدأ من الصفحة الأولى. */
 export function invalidCursor(error: unknown): boolean {

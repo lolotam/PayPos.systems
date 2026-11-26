@@ -1,5 +1,5 @@
-import { monthOutOfRange } from '@/shared/private-view/errors';
-import { usePrivateViewData } from '@/shared/private-view/use-private-view';
+import { monthOutOfRange } from '@/private-view/errors';
+import { usePrivateViewData } from '@/private-view/use-private-view';
 import type { AttendanceWindowController } from '../api/attendance-window-controller';
 import { AttendanceMonth } from './attendance-month';
 

@@ -1,4 +1,4 @@
-import { usePrivateViewData } from '@/shared/private-view/use-private-view';
+import { usePrivateViewData } from '@/private-view/use-private-view';
 import type { PrivateWindowController } from '../api/private-window-controller';
 import { shownMonth } from '../model/private-window-state';
 import { MyWorkCards } from './my-work-cards';

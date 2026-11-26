@@ -1,6 +1,6 @@
 import { useCallback, useRef, useState } from 'react';
-import { defaultCalls, defaultEnv } from '@/shared/private-view/env';
-import { usePrivateView } from '@/shared/private-view/use-private-view';
+import { defaultCalls, defaultEnv } from '@/private-view/env';
+import { usePrivateView } from '@/private-view/use-private-view';
 import { AttendanceWindowController } from './attendance-window-controller';
 
 /**

@@ -1,6 +1,17 @@
-import { PrivateViewPinForm } from '@/shared/private-view/pin-form';
+import { type PinFormTexts, PrivateViewPinForm } from '@/private-view/pin-form';
 import { useAttendanceWindow } from '../api/use-attendance-window';
 import { ReceptionOpenAttendance } from './reception-open-attendance';
+
+/** نصوص خطوة الـ PIN من كتالوج «حضوري». */
+const ATTENDANCE_PIN_TEXTS = {
+  title: 'myAttendance.pinTitle',
+  label: 'myAttendance.pinLabel',
+  submit: 'myAttendance.pinSubmit',
+  invalid: 'myAttendance.pinInvalid',
+  failed: 'myAttendance.pinFailed',
+  refused: 'myAttendance.refused',
+  waiting: 'myAttendance.pinWaiting',
+} as const satisfies PinFormTexts;
 
 /**
  * «حضوري» على جهاز الاستقبال: خطوة الـ PIN، وبعدها البيانات من متحكم النافذة بس (من غير كاش react-query).
@@ -23,7 +34,7 @@ export function ReceptionAttendance({
     return (
       <PrivateViewPinForm
         key={state.epoch}
-        section="myAttendance"
+        texts={ATTENDANCE_PIN_TEXTS}
         problem={state.phase === 'pin' ? state.problem : null}
         pending={state.phase === 'opening'}
         waiting={state.phase === 'pin' && state.waiting}

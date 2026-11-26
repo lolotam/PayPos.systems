@@ -16,12 +16,16 @@ import { WindowTimers } from './timers';
 import { TouchScheduler } from './touch';
 import { PrivateViewHttpError, sessionEnded, windowRefusal } from './errors';
 
-/** بيانات الشاشة الخاصة: شكلها بيختلف من شاشة لأخرى، فصاحب الشاشة بیدّيها للمتحكم. */
+/** بيانات الشاشة الخاصة: شكلها بيختلف من شاشة لأخرى، فصاحب الشاشة بيدّيها للمتحكم. */
 export type PrivateViewData<TData, TAction> = {
   /** البيانات الأولى لما تفتح النافذة. */
   empty: TData;
   /** يقلّص بيانات الشاشة بالفعل. */
   reduce: (data: TData, action: TAction) => TData;
+  /** فعل تغيير الشهر (الشهر الفاضي = الحالي)، عشان المتحكم يوفّر `stepMonth` لكل الشاشات. */
+  monthAction: (month: string | undefined) => TAction;
+  /** فعل إعادة المحاولة، عشان المتحكم يوفّر `retry` لكل الشاشات. */
+  retryAction: TAction;
   /** الشهر المعروض بالبيانات (السيرفر بيسمّيه)، عشان القراءات تطلب بيه. */
   month: (data: TData) => string | undefined;
   /** يقرأ الشاشة بعد الفتح أو بعد تغيير الشهر. */
@@ -93,7 +97,7 @@ export class PrivateViewController<TData, TAction> implements WindowHost<TAction
     this.root = element;
   };
 
-  /** بيانات الشاشة المفتوحة، أو undefined لو النافذة مش مفتوحة (أو موعدها فات). */
+  /** بيانات الشاشة اللي في حالة النافذة المخزّنة، أو undefined لو الحالة مش «مفتوحة»؛ بتقرا الحالة الخام وما بتفحصش الموعد (الحاجة اللي بتفحصه `getState`/`scope`). */
   getData = (): TData | undefined => {
     const state = this.state;
     return state.phase === 'open' ? state.data : undefined;
@@ -147,8 +151,18 @@ export class PrivateViewController<TData, TAction> implements WindowHost<TAction
     }
   }
 
+  /** بيطلب شهراً تاني، والشاشة بتتقري من الأول (الشهر الفاضي = الحالي). */
+  stepMonth(month: string | undefined): void {
+    this.restartReads(this.data.monthAction(month));
+  }
+
+  /** بيعيد قراءة الشهر المعروض بعد فشل. */
+  retry(): void {
+    this.restartReads(this.data.retryAction);
+  }
+
   /** رقم قراءة جديد بيبطل أي رد متأخر لشهر قبله، وبعدين الشاشة بتتقري من الأول. */
-  restartReads(action: TAction): void {
+  private restartReads(action: TAction): void {
     if (this.scope(false) === undefined) return;
     this.readSeq += 1;
     this.dispatchData(action);

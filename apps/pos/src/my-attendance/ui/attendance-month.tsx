@@ -3,7 +3,13 @@ import { formatBusinessDate } from '@/shared/datetime/business-time';
 import { useLocale } from '@/shared/locale/locale-context';
 import { MonthStepper } from '@/shared/month/month-stepper';
 import { nextMonth, previousMonth } from '@/shared/month/month';
-import { type AttendanceSession, groupByWorkingDate } from '../model/attendance-view';
+import {
+  type AttendanceBranch,
+  type AttendanceDay,
+  type AttendanceSession,
+  groupByWorkingDate,
+  resolveSessionTimeZone,
+} from '../model/attendance-view';
 import { AttendanceSessionRow } from './attendance-session';
 import { AttendanceState } from './attendance-state';
 
@@ -16,7 +22,8 @@ import { AttendanceState } from './attendance-state';
  * @param props.sessions جلسات الشهر
  * @param props.status حالة القراءة
  * @param props.error آخر خطأ في القراءة
- * @param props.timeZone توقيت النشاط
+ * @param props.branches فروع الموظفة (الموبايل الشخصي) لتوقيت كل جلسة بفرعها
+ * @param props.timeZone توقيت بديل لما الفروع ما تحسمش (توقيت فرع جهاز الاستقبال)
  * @param props.canGoBack هل زر «الشهر السابق» متاح
  * @param props.canGoForward هل زر «الشهر التالي» متاح
  * @param props.onMonth تغيير الشهر
@@ -28,6 +35,7 @@ export function AttendanceMonth({
   sessions,
   status,
   error,
+  branches,
   timeZone,
   canGoBack,
   canGoForward,
@@ -39,6 +47,7 @@ export function AttendanceMonth({
   sessions: readonly AttendanceSession[];
   status: 'pending' | 'ready' | 'error';
   error: unknown;
+  branches?: readonly AttendanceBranch[] | undefined;
   timeZone: string | undefined;
   canGoBack: boolean;
   canGoForward: boolean;
@@ -66,16 +75,42 @@ export function AttendanceMonth({
       {status === 'ready' && days.length === 0 ? (
         <p role="status">{t(locale, 'myAttendance.empty')}</p>
       ) : null}
+      <AttendanceDays
+        days={days}
+        branches={branches}
+        timeZone={timeZone}
+      />
+    </div>
+  );
+}
+
+/** أيام الشهر وجلساتها؛ كل جلسة بتتعرض بساعة فرعها (أو بالتوقيت البديل لو الفروع ما حسمتش). */
+function AttendanceDays({
+  days,
+  branches,
+  timeZone,
+}: {
+  days: readonly AttendanceDay[];
+  branches: readonly AttendanceBranch[] | undefined;
+  timeZone: string | undefined;
+}) {
+  const locale = useLocale();
+  return (
+    <>
       {days.map((day) => (
         <section key={day.workingDate} className="grid gap-2">
           <h3 className="tabular-nums">{formatBusinessDate(day.workingDate, locale)}</h3>
           <ul className="grid gap-2">
             {day.sessions.map((session) => (
-              <AttendanceSessionRow key={session.id} session={session} timeZone={timeZone} />
+              <AttendanceSessionRow
+                key={session.id}
+                session={session}
+                timeZone={resolveSessionTimeZone(session, branches, timeZone)}
+              />
             ))}
           </ul>
         </section>
       ))}
-    </div>
+    </>
   );
 }

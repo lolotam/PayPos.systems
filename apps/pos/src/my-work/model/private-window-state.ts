@@ -4,7 +4,7 @@ import {
   type PrivateViewState,
   type PrivateViewWindowAction,
   reducePrivateView,
-} from '@/shared/private-view/state';
+} from '@/private-view/state';
 
 export type { PinProblem };
 
@@ -75,7 +75,7 @@ export function shownMonth(data: WorkData): string | undefined {
 }
 
 /**
- * تقصير بيانات «شغلي» بالفعل: كل فعل بيقرّر شكل البيانات بعده (شهر جديد، إعادة محاولة، صفحةLoaded).
+ * تقصير بيانات «شغلي» بالفعل: كل فعل بيقرّر شكل البيانات بعده (شهر جديد، إعادة محاولة، صفحة اتحمّلت).
  *
  * @param data البيانات الحالية
  * @param action فعل البيانات

@@ -1,7 +1,7 @@
 import { t } from '@pospay/i18n';
 import { Button } from '@pospay/ui';
 import { useLocale } from '@/shared/locale/locale-context';
-import { monthOutOfRange, viewForbidden } from '@/shared/private-view/errors';
+import { monthOutOfRange, viewForbidden } from '@/private-view/errors';
 
 /**
  * حالة القراءة في «حضوري»: التحميل، أو الشهر خارج حد المنشأة (422)، أو رفض الصلاحية (403)، أو فشل عام

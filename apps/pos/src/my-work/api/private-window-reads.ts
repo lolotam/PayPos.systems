@@ -1,5 +1,5 @@
 import type { OwnCommissionEstimate, OwnServiceLines } from '@pospay/contracts';
-import type { Scope, WindowHost } from '@/shared/private-view/host';
+import type { Scope, WindowHost } from '@/private-view/host';
 import { type LinesView, type WorkAction, type WorkData, shownMonth } from '../model/private-window-state';
 import { monthOutOfRange, workForbidden } from '../model/work-error';
 import type { PrivateWindowCalls } from './private-window-env';

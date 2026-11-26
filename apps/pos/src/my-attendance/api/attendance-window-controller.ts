@@ -1,6 +1,6 @@
-import { type PrivateViewData, PrivateViewController } from '@/shared/private-view/controller';
-import type { PrivateViewDeps } from '@/shared/private-view/env';
-import type { Scope, WindowHost } from '@/shared/private-view/host';
+import { type PrivateViewData, PrivateViewController } from '@/private-view/controller';
+import type { PrivateViewDeps } from '@/private-view/env';
+import type { Scope, WindowHost } from '@/private-view/host';
 import { attendanceCalls } from './attendance-calls';
 import {
   type AttendanceAction,
@@ -41,14 +41,6 @@ export class AttendanceWindowController extends PrivateViewController<Attendance
   constructor(deps: PrivateViewDeps, onLeave: () => void) {
     super(deps, onLeave, attendanceData());
   }
-
-  stepMonth(month: string | undefined): void {
-    this.restartReads({ type: 'month', month });
-  }
-
-  retry(): void {
-    this.restartReads({ type: 'retry' });
-  }
 }
 
 /** بيانات «حضوري» الخاصة بالنافذة: الشكل والمطالعة بيخصّوا «حضوري» نفسه. */
@@ -56,6 +48,8 @@ function attendanceData(): PrivateViewData<AttendanceData, AttendanceAction> {
   return {
     empty: EMPTY_ATTENDANCE,
     reduce: reduceAttendanceData,
+    monthAction: (month) => ({ type: 'month', month }),
+    retryAction: { type: 'retry' },
     month: (data) => data.month,
     load: (host, scope) => loadAttendance(host, scope),
   };

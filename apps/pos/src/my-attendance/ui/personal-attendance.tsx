@@ -2,7 +2,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useMountScope } from '@/shared/query/use-mount-scope';
 import { useReadThisVisit } from '@/shared/query/use-read-this-visit';
-import { monthOutOfRange, sessionEnded } from '@/shared/private-view/errors';
+import { monthOutOfRange, sessionEnded } from '@/private-view/errors';
 import { useAttendanceBranches, useOwnAttendance } from '../api/use-attendance';
 import type { AttendanceContext } from '../model/attendance-context';
 import { AttendanceMonth } from './attendance-month';
@@ -59,7 +59,8 @@ export function PersonalAttendance({
       sessions={sessions}
       status={attendance.isError ? 'error' : proven ? 'ready' : 'pending'}
       error={attendance.error}
-      timeZone={branches.data?.items[0]?.timezone}
+      branches={branches.data?.items}
+      timeZone={undefined}
       canGoBack={shown !== undefined && !attendance.isPending && !outOfRange}
       canGoForward={shown !== undefined && home !== undefined && shown !== home}
       onMonth={(next) => setMonth(next)}

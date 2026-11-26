@@ -1,4 +1,4 @@
-import { type PrivateViewData, PrivateViewController } from '@/shared/private-view/controller';
+import { type PrivateViewData, PrivateViewController } from '@/private-view/controller';
 import {
   type WorkAction,
   type WorkData,
@@ -13,6 +13,8 @@ function workData(calls: PrivateWindowCalls): PrivateViewData<WorkData, WorkActi
   return {
     empty: EMPTY_DATA,
     reduce: reduceWorkData,
+    monthAction: (month) => ({ type: 'month', month }),
+    retryAction: { type: 'retry' },
     month: (data) => data.month,
     load: (host, scope) => loadMonth(host, calls, scope),
   };
@@ -28,14 +30,6 @@ export class PrivateWindowController extends PrivateViewController<WorkData, Wor
   constructor(deps: PrivateWindowDeps, onLeave: () => void) {
     super(deps, onLeave, workData(deps.calls));
     this.calls = deps.calls;
-  }
-
-  stepMonth(month: string | undefined): void {
-    this.restartReads({ type: 'month', month });
-  }
-
-  retry(): void {
-    this.restartReads({ type: 'retry' });
   }
 
   /** إعادة قراءة الإكراميات بس بعد فشلها. */

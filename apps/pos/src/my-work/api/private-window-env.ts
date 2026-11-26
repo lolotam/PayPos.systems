@@ -3,7 +3,7 @@ import {
   type PrivateViewEnv,
   defaultCalls as sharedCalls,
   defaultEnv as sharedEnv,
-} from '@/shared/private-view/env';
+} from '@/private-view/env';
 import { workCalls } from './my-work-calls';
 
 export {
@@ -12,8 +12,8 @@ export {
   OPEN_TIMEOUT_MS,
   TICK_MS,
   TOUCH_INTERVAL_MS,
-} from '@/shared/private-view/env';
-export { openWithin } from '@/shared/private-view/env';
+} from '@/private-view/env';
+export { openWithin } from '@/private-view/env';
 
 export type PrivateWindowEnv = PrivateViewEnv;
 

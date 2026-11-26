@@ -1,5 +1,5 @@
 import { useCallback, useRef, useState } from 'react';
-import { usePrivateView, windowShell } from '@/shared/private-view/use-private-view';
+import { usePrivateView, windowShell } from '@/private-view/use-private-view';
 import { PrivateWindowController } from './private-window-controller';
 import { defaultCalls, defaultEnv, type PrivateWindowDeps } from './private-window-env';
 

@@ -46,7 +46,7 @@ export function usePrivateViewData<TData, TAction>(
  * ومفيش كاش ولا تخزين؛ ولقطة المتجر نفسها بتبقى خطوة PIN بعد موعد القفل حتى لو المؤقت لسه ما اشتغلش.
  *
  * @param controller متحكم النافذة (لكل شاشة الشكل بتاعها)
- * @returns هيكل الحالة من غير بيانات، والمتحكم للمكوّن اللي بيعرض البيانات، وحاوية العرض الخاص (attachRoot)، وأفعال الفتح وإعادة القراءة
+ * @returns هيكل الحالة من غير بيانات، والمتحكم للمكوّن اللي بيعرض البيانات، وحاوية العرض الخاص (attachRoot)، وفعل الفتح
  */
 export function usePrivateView<TData, TAction>(controller: PrivateViewController<TData, TAction>) {
   useEffect(() => controller.start(), [controller]);
@@ -60,6 +60,5 @@ export function usePrivateView<TData, TAction>(controller: PrivateViewController
       (pin: string, epoch: number) => controller.submitPin(pin, epoch),
       [controller],
     ),
-    restartReads: useCallback((action: TAction) => controller.restartReads(action), [controller]),
   };
 }

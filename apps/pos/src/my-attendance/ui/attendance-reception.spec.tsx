@@ -1,6 +1,8 @@
 import { act, fireEvent, screen, waitFor } from '@testing-library/react';
+import { useState } from 'react';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { t } from '@pospay/i18n';
+import { ReceptionAttendanceEntry } from '@/personal-staff/ui/reception-attendance-entry';
 import { AttendanceScreen } from './attendance-screen';
 import {
   isConcealed,
@@ -78,16 +80,39 @@ it('MY-13b goes back to the PIN step after sixty idle seconds', async () => {
   expect(screen.queryByText('Kuwait branch')).toBeNull();
 });
 
-it('MY-13b leaves the screen and wipes the state when the session ended', async () => {
-  const onLeave = vi.fn();
-  serve({ attendance: () => json({ code: 'UNAUTHENTICATED' }, 401) });
-  renderWithProviders(
-    <AttendanceScreen context={context} onLeave={onLeave} timeZone="Asia/Kuwait" />,
-    'en',
+/** يحاكي الشاشة الأم: onLeave بتقفل اللوحة كلها، فنشوف إن الصفوف اختفت واللوحة اتقفلت فعلاً. */
+function Panel({ onLeave }: { onLeave: () => void }) {
+  const [open, setOpen] = useState(true);
+  if (!open) return <p>panel closed</p>;
+  return (
+    <AttendanceScreen
+      context={context}
+      timeZone="Asia/Kuwait"
+      onLeave={() => {
+        onLeave();
+        setOpen(false);
+      }}
+    />
   );
+}
+
+it('MY-13b leaves the screen and wipes the sessions when the session ended mid-view', async () => {
+  const onLeave = vi.fn();
+  let reads = 0;
+  serve({
+    attendance: () => {
+      reads += 1;
+      return reads === 1 ? json(month([session()])) : json({ code: 'UNAUTHENTICATED' }, 401);
+    },
+  });
+  renderWithProviders(<Panel onLeave={onLeave} />, 'en');
   await signIn();
-  await waitFor(() => expect(onLeave).toHaveBeenCalledTimes(1));
+  expect(await screen.findByText('Kuwait branch')).toBeTruthy();
+  fireEvent.click(screen.getByRole('button', { name: label('myAttendance.previousMonth') }));
+  expect(await screen.findByText('panel closed')).toBeTruthy();
+  expect(onLeave).toHaveBeenCalledTimes(1);
   expect(screen.queryByText('Kuwait branch')).toBeNull();
+  expect(screen.queryByLabelText(label('myAttendance.title'))).toBeNull();
 });
 
 it('MY-13b keeps nothing in the query cache in reception mode', async () => {
@@ -134,15 +159,91 @@ it('MY-13b opens the window with the PIN and closes it again on the way out', as
   window.dispatchEvent(new Event('blur'));
   expect(await screen.findByText(label('myAttendance.pinTitle'))).toBeTruthy();
   expect(screen.queryByText('Kuwait branch')).toBeNull();
+  await waitFor(() => expect(server.paths('/private-view/close').length).toBe(1));
+  const closed = server.paths('/private-view/close')[0];
+  expect(closed?.method).toBe('POST');
 });
 
-it('MY-13b opens the window with the remaining time the server sent', async () => {
-  const server = serve({
+it('MY-13b closes the window when the remaining time the server sent runs out', async () => {
+  serve({
     open: () => json(opened('window-xyz', 45_000, 120_000)),
     attendance: () => json(month([session()])),
   });
   mount();
   await signIn();
+  expect(await screen.findByText('Kuwait branch')).toBeTruthy();
+  await advance(44_000);
+  expect(screen.getByText('Kuwait branch')).toBeTruthy();
+  await advance(2_000);
+  expect(await screen.findByText(label('myAttendance.pinTitle'))).toBeTruthy();
+  expect(screen.queryByText('Kuwait branch')).toBeNull();
+});
+
+it('D-A14 steps to the previous month inside the window with the same window id', async () => {
+  const monthOf = (request: Request) => new URL(request.url).searchParams.get('month');
+  const server = serve({
+    attendance: (request) =>
+      monthOf(request) === '2026-10'
+        ? json(month([session({ branch_name_en: 'October branch', branch_name_ar: null })], '2026-10'))
+        : json(month([session()], '2026-11')),
+  });
+  mount();
+  await signIn();
   await screen.findByText('Kuwait branch');
-  expect(server.paths('/private-view').length).toBe(1);
+  fireEvent.click(screen.getByRole('button', { name: label('myAttendance.previousMonth') }));
+  expect(await screen.findByText('October branch')).toBeTruthy();
+  expect(screen.queryByText('Kuwait branch')).toBeNull();
+  const reads = server.paths('/staff/me/attendance');
+  expect(reads.map(monthOf)).toEqual([null, '2026-10']);
+  expect(reads[1]?.headers.get('x-private-view-window-id')).toBe('window-abc');
+});
+
+it('MY-13 says the older months are not available inside the window and stops going back', async () => {
+  const server = serve({
+    attendance: (request) =>
+      new URL(request.url).searchParams.get('month') === '2026-10'
+        ? json({ code: 'MY_PERIOD_OUT_OF_RANGE' }, 422)
+        : json(month([session()], '2026-11')),
+  });
+  mount();
+  await signIn();
+  await screen.findByText('Kuwait branch');
+  fireEvent.click(screen.getByRole('button', { name: label('myAttendance.previousMonth') }));
+  expect(await screen.findByText(label('myAttendance.outOfRange'))).toBeTruthy();
+  expect(
+    screen
+      .getByRole('button', { name: label('myAttendance.previousMonth') })
+      .hasAttribute('disabled'),
+  ).toBe(true);
+  expect(screen.queryByText(label('myAttendance.pinTitle'))).toBeNull();
+  expect(server.paths('/staff/me/attendance').length).toBe(2);
+});
+
+it('MY-13b goes back to the closed step with the old sessions gone when the operator changes', async () => {
+  serve({ attendance: () => json(month([session()])) });
+  const operator = (userId: string) => ({
+    user_id: userId,
+    company_id: '00000000-0000-4000-8000-000000000002',
+    business_id: '00000000-0000-4000-8000-000000000003',
+    branch_id: '00000000-0000-4000-8000-000000000005',
+    device_id: '00000000-0000-4000-8000-000000000006',
+    expires_at: '2026-12-01T10:00:00.000Z',
+  });
+  const entry = (userId: string) => (
+    <ReceptionAttendanceEntry
+      session={operator(userId)}
+      epoch={0}
+      timeZone="Asia/Kuwait"
+    />
+  );
+  const view = renderWithProviders(entry('00000000-0000-4000-8000-000000000001'), 'en');
+  fireEvent.click(screen.getByRole('button', { name: label('myAttendance.title') }));
+  await signIn();
+  expect(await screen.findByText('Kuwait branch')).toBeTruthy();
+  view.rerenderWithProviders(entry('00000000-0000-4000-8000-000000000009'));
+  expect(screen.queryByText('Kuwait branch')).toBeNull();
+  expect(screen.queryByLabelText(label('myAttendance.pinLabel'))).toBeNull();
+  fireEvent.click(screen.getByRole('button', { name: label('myAttendance.title') }));
+  expect(await screen.findByLabelText(label('myAttendance.pinLabel'))).toBeTruthy();
+  expect(screen.queryByText('Kuwait branch')).toBeNull();
 });

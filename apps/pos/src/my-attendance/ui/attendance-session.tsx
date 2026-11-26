@@ -25,7 +25,7 @@ const EXCEPTION_KEYS = {
  * وقت قديم ولا سبب ولا اسم مين عدّل.
  *
  * @param props.session الجلسة من رد السيرفر
- * @param props.timeZone توقيت النشاط؛ لو مش معروف بتتعرض الساعات بـ UTC مكتوب جنبها
+ * @param props.timeZone توقيت فرع الجلسة؛ لو مش معروف بتتعرض الساعات بـ UTC مكتوب جنبها
  */
 export function AttendanceSessionRow({
   session,

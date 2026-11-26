@@ -1,5 +1,5 @@
 import { screen, waitFor } from '@testing-library/react';
-import { expect, it } from 'vitest';
+import { expect, it, vi } from 'vitest';
 import { t } from '@pospay/i18n';
 import { AttendanceScreen } from './attendance-screen';
 import { json, month, renderWithProviders, serve, session } from './attendance-test-kit';
@@ -122,4 +122,89 @@ it('a failed read shows the failure with a retry that reads again', async () => 
   expect(await screen.findByText(t('en', 'myAttendance.failed'))).toBeTruthy();
   screen.getByRole('button', { name: t('en', 'myAttendance.retry') }).click();
   await waitFor(() => expect(screen.getByText('Kuwait branch')).toBeTruthy());
+});
+
+const items = (list: { id: number; en: string; ar: string; timezone: string }[]) => ({
+  items: list.map((branch) => ({
+    id: `00000000-0000-4000-8000-00000000010${branch.id}`,
+    name_en: branch.en,
+    name_ar: branch.ar,
+    timezone: branch.timezone,
+  })),
+});
+
+it('MY-15 formats each session in the clock of its own branch', async () => {
+  serve({
+    branches: () =>
+      json(
+        items([
+          { id: 1, en: 'Kuwait branch', ar: 'Kuwait branch AR', timezone: 'Asia/Kuwait' },
+          { id: 2, en: 'Dubai branch', ar: 'Dubai branch AR', timezone: 'Asia/Dubai' },
+        ]),
+      ),
+    attendance: () =>
+      json(
+        month([
+          session(),
+          session({
+            id: '00000000-0000-4000-8000-000000000002',
+            branch_name_en: 'Dubai branch',
+            branch_name_ar: 'Dubai branch AR',
+          }),
+        ]),
+      ),
+  });
+  mount('en');
+  expect(await screen.findByText('Clock-in: 08:00')).toBeTruthy();
+  expect(screen.getByText('Clock-in: 09:00')).toBeTruthy();
+  expect(screen.getByText('Clock-out: 16:00')).toBeTruthy();
+  expect(screen.getByText('Clock-out: 17:00')).toBeTruthy();
+});
+
+it('MY-15 shows the clock in UTC with its name when the branches could not be read', async () => {
+  serve({
+    branches: () => json({ code: 'NOT_READY' }, 503),
+    attendance: () => json(month([session()])),
+  });
+  mount('en');
+  expect(await screen.findByText('Clock-in: 05:00 UTC')).toBeTruthy();
+  expect(screen.getByText('Clock-out: 13:00 UTC')).toBeTruthy();
+});
+
+it('MY-15 shows the clock in UTC with its name when the employee has no branches', async () => {
+  serve({ branches: () => json({ items: [] }), attendance: () => json(month([session()])) });
+  mount('en');
+  expect(await screen.findByText('Clock-in: 05:00 UTC')).toBeTruthy();
+});
+
+it('MY-15 shows the clock in UTC with its name for a time zone this browser does not know', async () => {
+  serve({
+    branches: () =>
+      json(items([{ id: 1, en: 'Kuwait branch', ar: 'Kuwait branch AR', timezone: 'Mars/Olympus' }])),
+    attendance: () => json(month([session()])),
+  });
+  mount('en');
+  expect(await screen.findByText('Clock-in: 05:00 UTC')).toBeTruthy();
+});
+
+it('MY-13b leaves the screen and clears the identity cache when the session ended', async () => {
+  const onLeave = vi.fn();
+  serve({ attendance: () => json({ code: 'UNAUTHENTICATED' }, 401) });
+  const view = renderWithProviders(
+    <AttendanceScreen context={context} onLeave={onLeave} timeZone={undefined} />,
+    'en',
+  );
+  await waitFor(() => expect(onLeave).toHaveBeenCalledTimes(1));
+  expect(screen.queryByText('Kuwait branch')).toBeNull();
+  expect(view.client.getQueryCache().findAll({ queryKey: ['my-attendance', context.identity] })).toEqual([]);
+});
+
+it('FR-A09 removes the identity cache when the screen is closed', async () => {
+  serve({ attendance: () => json(month([session()])) });
+  const view = mount('en');
+  await screen.findByText('Kuwait branch');
+  const cached = () => view.client.getQueryCache().findAll({ queryKey: ['my-attendance', context.identity] });
+  expect(cached().length).toBeGreaterThan(0);
+  view.unmount();
+  expect(cached()).toEqual([]);
 });
