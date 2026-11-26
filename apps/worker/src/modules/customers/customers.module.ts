@@ -1,6 +1,6 @@
 import type { ClaimedEvent, DeliveryOutcome, TenantWrappers, Tx } from '@pospay/db';
 import { ratingBusinessName, ratingNamesLabel, ratingTeamLabel } from '@pospay/i18n';
-import type { Logger } from '@pospay/observability';
+import { errorDiagnostic, type Logger } from '@pospay/observability';
 import { RATING_CLAIMS_DISCOVERY } from '@pospay/contracts';
 import { Redis } from 'ioredis';
 import type { OutboxConsumer } from '../../outbox/consumer.ts';
@@ -13,8 +13,10 @@ import {
 } from './jobs/bootstrap-rating-requests.ts';
 import {
   RATING_CLAIMS_TRIGGERS,
+  closeQuietly,
   closeRedisClient,
   startRatingClaimsProcessor,
+  throwCloseFailures,
 } from './jobs/rating-claims.processor.ts';
 import { branchScheduleHoursAdapter } from './persistence/branch-schedule-hours.adapter.ts';
 import { businessNames } from './persistence/business-names.adapter.ts';
@@ -242,6 +244,11 @@ export interface RatingClaimsRuntimeDeps extends RatingClaimDeps {
   readonly queuePrefix?: string;
   /** سجل العامل. */
   readonly logger: Logger;
+  /**
+   * وقت إعادة المحاولة بين تسجيلات الجدولة؛ بيتحقن عشان الاختبار يثبّت السلسلة
+   * من غير ما يلمس سياسة `outbox`.
+   */
+  readonly retryDelayMs?: (attempt: number) => number | null;
 }
 
 /**
@@ -268,7 +275,13 @@ export function createRatingClaimsRuntime(deps: RatingClaimsRuntimeDeps): Rating
     // اسم الاتصال بيميّز عميل الحالة عن عملاء BullMQ في قائمة اتصالات Redis.
     connectionName: 'pospay-rating-claims-state',
   });
-  redis.on('error', () => undefined);
+  redis.on('error', (error: unknown) => {
+    // فشل الاتصال عام على البنية كلها، فمفيش شركة تتنسب له.
+    deps.logger.warn(
+      { err: errorDiagnostic(error), component: 'state' },
+      'rating claims queue error',
+    );
+  });
   const state = redisRatingClaimState({ prefix: deps.statePrefix, redis });
   const turn = new ClaimRatingRequests<Tx>(
     {
@@ -286,14 +299,18 @@ export function createRatingClaimsRuntime(deps: RatingClaimsRuntimeDeps): Rating
     turn,
     logger: deps.logger,
     ...(deps.queuePrefix === undefined ? {} : { prefix: deps.queuePrefix }),
+    ...(deps.retryDelayMs === undefined ? {} : { retryDelayMs: deps.retryDelayMs }),
   });
   return {
     deliver: (event, next) => processor.deliver(event, next),
     ready: () => processor.ready(),
     close: async () => {
       // العامل بيتصفّى الأول، وبعدين عميل الحالة؛ عميل الحالة اتعمل هنا، فبيتقفل هنا.
-      await processor.close();
-      await closeRedisClient(redis);
+      // فشل واحد ما بيمنعش الباقي من القفل، وكل الأخطاء بتترمي في الآخر.
+      const failures: unknown[] = [];
+      await closeQuietly(failures, () => processor.close());
+      await closeQuietly(failures, () => closeRedisClient(redis));
+      throwCloseFailures(failures);
     },
     eventTypes: [...RATING_CLAIMS_TRIGGERS, RATING_CLAIMS_DISCOVERY],
   };

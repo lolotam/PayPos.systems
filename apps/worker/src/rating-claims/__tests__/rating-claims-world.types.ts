@@ -51,6 +51,8 @@ export interface RatingClaimsWorldOptions {
   /** حالة البصمة في البداية: غير متاحة هي الوضع الافتراضي لاختبارات إعادة المحاولة. */
   readonly tokens?: boolean;
   readonly state?: Partial<RatingClaimStateLimits>;
+  /** حجم pool المستأجر؛ قياس السعة بيشتغل على pool محدود. */
+  readonly maxConnections?: number;
 }
 
 /** حدود تقنية للحالة: كل القيم موجودة، عشان ما فيش undefined في خيار اختياري. */
@@ -68,6 +70,8 @@ export interface WorkerOptions {
   state?: RatingClaimState;
   budget?: VisitBudget;
   diagnostics?: RatingClaimDiagnostics;
+  /** معاملات تانية بدل معاملات العالم؛ قياس السعة بيقيس زمن الـ withRequest. */
+  transactions?: RatingClaimTransactions<Tx>;
 }
 
 /** عالم القبول: القاعدة والـ Redis والمهايات، وعلماء يقدرون يشتغلوا بالتوازي. */

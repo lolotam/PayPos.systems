@@ -159,9 +159,25 @@ export class RatingClaimsTurnState<Transaction = unknown> {
     });
   }
 
-  /** يسيب ملكية الحالة في آخر الدور، حتى لو الدور وقف في نص الشغل. */
+  /**
+   * يسيب ملكية الحالة في آخر الدور، حتى لو الدور وقف في نص الشغل.
+   *
+   * رد الإفلات غير OK يعني السور مش ours تاني (STALE أو BUSY أو MISSING أو
+   * CORRUPT)، فبينتسجل عملية الإفلات. الرد ده ما بيغيّرش سبب انتهاء الدور
+   * وما بيوقفش الدور: الإفلات تنظيف، والعامل اللي ماسك الحالة هو اللي بيقرر.
+   * LIMIT وOVERFLOW مش فقد سور: الإفلات حصل، والحالة بس كبرت أو الخريطة امتلأت.
+   */
   async release(): Promise<void> {
-    await this.ports.state.release(this.fence);
+    const result = await this.ports.state.release(this.fence);
+    this.accept(result);
+    if (
+      result.code === 'STALE' ||
+      result.code === 'BUSY' ||
+      result.code === 'MISSING' ||
+      result.code === 'CORRUPT'
+    ) {
+      this.ports.diagnostics.fenceLost(this.companyId, result.code, 'release');
+    }
   }
 
   /** ملخص الدور المنقّى: أعداد التسويات وزيارات المسارين وسبب الانتهاء. */
