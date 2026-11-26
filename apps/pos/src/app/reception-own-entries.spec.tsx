@@ -34,9 +34,16 @@ it('shows both the own-leave and the own-work buttons under the operator of the 
   expect(screen.getByRole('button', { name: t('en', 'myWork.title') })).toBeTruthy();
 });
 
+it('offers the attendance screen to the operator of the paired device', () => {
+  installFetch(() => undefined);
+  renderWork(entries(id(6)));
+  expect(screen.getByRole('button', { name: t('en', 'myAttendance.title') })).toBeTruthy();
+});
+
 it('shows neither when the operator session does not match the device', () => {
   installFetch(() => undefined);
   renderWork(entries(id(7)));
   expect(screen.queryByRole('button', { name: t('en', 'myWork.title') })).toBeNull();
   expect(screen.queryByRole('button', { name: t('en', 'myLeave.title') })).toBeNull();
+  expect(screen.queryByRole('button', { name: t('en', 'myAttendance.title') })).toBeNull();
 });

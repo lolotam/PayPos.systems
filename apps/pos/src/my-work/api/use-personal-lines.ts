@@ -4,7 +4,7 @@ import type { WorkContext } from '../model/work-context';
 import { workForbidden } from '../model/work-error';
 import { type OnRefused, useWorkLines } from './use-my-work';
 import type { MountScope } from './use-mount-scope';
-import { useReadThisVisit } from './use-read-this-visit';
+import { useReadThisVisit } from '@/shared/query/use-read-this-visit';
 
 /**
  * خدمات موبايلها الشخصي ومعاها رفض الصلاحية (403) على أي صفحة، الأولى أو اللي بعدها: بيتسجّل في الحالة،

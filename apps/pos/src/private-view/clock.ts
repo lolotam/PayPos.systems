@@ -1,4 +1,4 @@
-import { CLOCK_DRIFT_MS, type PrivateWindowEnv } from './private-window-env';
+import { CLOCK_DRIFT_MS, type PrivateViewEnv } from './env';
 
 /**
  * الساعتين الرتيبة والجدارية مقيستين مع بعض لحظة إرسال الـ PIN. لو الفرق بين تقدّمهما عدّى الحد
@@ -8,7 +8,7 @@ import { CLOCK_DRIFT_MS, type PrivateWindowEnv } from './private-window-env';
 export class PairedClock {
   private base = { mono: 0, wall: 0 };
 
-  constructor(private readonly env: PrivateWindowEnv) {}
+  constructor(private readonly env: PrivateViewEnv) {}
 
   /** @returns اللحظة الرتيبة اللي اتلقط عندها الزوج، وهي نفسها لحظة إرسال الطلب */
   capture(): number {

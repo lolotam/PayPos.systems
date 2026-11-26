@@ -1,5 +1,5 @@
 import { expect, it } from 'vitest';
-import { closeAt, openedDeadlines, touchedDeadlines } from './private-view-deadline';
+import { closeAt, openedDeadlines, touchedDeadlines } from './deadline';
 
 const remaining = (idle: number, cap: number) => ({
   idle_remaining_ms: idle,
