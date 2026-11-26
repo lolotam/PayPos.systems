@@ -29,6 +29,11 @@ export const workspaceBusiness = responseObject({
   business_type: verticalType,
   country: workspaceCountry,
   branches: z.array(workspaceBranch),
+  /**
+   * معرّف ملف الشعار المربوط بالنشاط (TQ-1). غايب لما النشاط مالوش شعار أو لسه ما اتقراش.
+   * القراءة بس للأعضاء اللي بتغطي النشاط؛ الرفع والاستبدال والحذف على manage:business-identity:business.
+   */
+  logo_file_id: id.nullable().optional(),
 }).meta({ id: 'WorkspaceBusiness' });
 
 /** Names of one company the caller can reach. Identity adds role_code and scope before the response leaves. */

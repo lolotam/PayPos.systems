@@ -57,6 +57,15 @@ export interface FileRepository {
    * @returns نتيجة العملية المطلوبة
    */
   audit(actor: Actor, fileId: string, outcome: 'ALLOW' | 'DENY', at: Date): Promise<void>;
+  /**
+   * هل الملف ده هو الشعار المربوط حالياً بالنشاط؟ القراءة بتتأكد من الربط نفسه مش من اسم الملف.
+   *
+   * @param actor هوية المستدعي الموثقة
+   * @param businessId النشاط المالك
+   * @param fileId هوية الملف
+   * @returns true لما الملف هو الشعار المربوط حالياً
+   */
+  isBoundBusinessLogo(actor: Actor, businessId: string, fileId: string): Promise<boolean>;
 }
 /** حد إصدار قدرات التخزين الخاصة دون كشف تفاصيل المزود. */
 export interface FileStorage {
@@ -103,6 +112,14 @@ export interface FilePermissions {
     businessId: string,
     branchId: string | null,
   ): Promise<boolean>;
+  /**
+   * هل العضوية السارية للمستدعي بتغطي النشاط المالك للملف؟ التحقق من التغطية مش صلاحية.
+   *
+   * @param actor هوية المستدعي الموثقة
+   * @param businessId النشاط المالك
+   * @returns true لما العضوية السارية بتغطي النشاط
+   */
+  coversBusiness(actor: Actor, businessId: string): Promise<boolean>;
 }
 /** حد إرسال هويات الملفات فقط للعامل. */
 export interface FileQueue {

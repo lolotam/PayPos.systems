@@ -76,7 +76,49 @@ export function createAccessReader(db: TenantWrappers): AccessReader {
 
     isFeatureEnabled: (companyId, flag) =>
       db.withTenant(companyId, (tx) => readFeatureEnabled(tx, companyId, flag)),
+
+    coversBusiness: (companyId, userId, businessId) =>
+      db.withTenant(
+        companyId,
+        async (tx) => {
+          if (!(await companyIsActive(tx, companyId))) return false;
+          return coversBusinessScope(tx, companyId, userId, businessId);
+        },
+        { userId },
+      ),
   };
+}
+
+/**
+ * هل فيه عضوية سارية للمستخدم بتغطي النشاط: نطاق الشركة، أو النشاط نفسه، أو فرع تابع له.
+ * الفحص بيقرأ من غير قفل، وفروع النشاط بتتجمّع من جدول واحد، فما فيش استعلام لكل فرع (TQ-1).
+ *
+ * @param tx         معاملة withTenant للشركة
+ * @param companyId  الشركة
+ * @param userId     المستخدم
+ * @param businessId النشاط المطلوب
+ * @returns true لما فيه عضوية سارية بتغطي النشاط
+ */
+async function coversBusinessScope(
+  tx: Tx,
+  companyId: string,
+  userId: string,
+  businessId: string,
+): Promise<boolean> {
+  const businesses = await tx.execute<{ id: string }>(sql`
+    SELECT id FROM businesses WHERE company_id = ${companyId} AND id = ${businessId}`);
+  if (businesses.length !== 1) return false;
+  const memberships = await tx.execute<{ id: string }>(sql`
+    SELECT m.id FROM memberships m
+    WHERE m.company_id = ${companyId} AND m.user_id = ${userId} AND ${ACTIVE}
+      AND (
+        (m.scope_type = 'COMPANY' AND m.scope_id = ${companyId})
+        OR (m.scope_type = 'BUSINESS' AND m.scope_id = ${businessId})
+        OR (m.scope_type = 'BRANCH' AND m.scope_id IN (
+          SELECT b.id FROM branches b WHERE b.company_id = ${companyId} AND b.business_id = ${businessId}))
+      )
+    LIMIT 1`);
+  return memberships.length === 1;
 }
 
 async function readBranchBusinesses(

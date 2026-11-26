@@ -5,6 +5,7 @@ import { useMemo, useRef, type ReactNode } from 'react';
 
 import { useMenuContext } from '../menu/use-menu-context';
 import { buildStyleCView } from '../menu/style-views';
+import { DashboardBrandLogo } from './dashboard-brand-logo';
 import { FrameChrome } from './frame-chrome';
 import { FrameTopBar } from './frame-top-bar';
 import { PanelToolbar } from './panel-toolbar';
@@ -35,15 +36,18 @@ export function StyleCFrame({ children }: { children: ReactNode }) {
         <div className="flex min-w-0 flex-1 flex-col pb-16 min-[600px]:pb-0">
           <FrameTopBar
             start={
-              <PanelToolbar
-                view={view}
-                visibleIds={ctx.visibleIds}
-                panelOpen={panel.open}
-                routeKey={navigationKey}
-                onShow={panel.show}
-                onHide={panel.hide}
-                toggleRef={returnFocusRef}
-              />
+              <>
+                <DashboardBrandLogo variant="mark" />
+                <PanelToolbar
+                  view={view}
+                  visibleIds={ctx.visibleIds}
+                  panelOpen={panel.open}
+                  routeKey={navigationKey}
+                  onShow={panel.show}
+                  onHide={panel.hide}
+                  toggleRef={returnFocusRef}
+                />
+              </>
             }
           />
           <main className="min-w-0 flex-1 px-4 py-6 min-[768px]:px-6">{children}</main>

@@ -61,3 +61,28 @@ and `identity` today. ADR-0031 already solved "a module stores a file reference"
 - Keeping replaced files forever: contradicts the owner decision of 2026-10-03 ("until replacement").
 - A cap by content type in the generic upload policy: it would also shrink employee-document images.
 - A generic internal "read any file" export for the renderer: bypasses private-document permissions.
+
+## Addendum (2026-11-26, spec 079 TQ-1)
+
+**Decision TQ-1 (owner, 2026-11-26, «أي عضو في النشاط (المقترح)»):** any active member whose membership covers
+a business may **read** the bound logo reference and **download** the logo file that is bound right now; the write
+side of the logo and the identity screen stay on `manage:business-identity:business`.
+
+1. **Read of the reference.** `GET /v1/me/workspaces` carries `logo_file_id` on every business the caller covers.
+   The value is read in one batch per company (`readBusinessLogoIds` in `@pospay/db`, one `SELECT` over
+   `business_settings` keyed by the `(company_id, business_id)` primary key), so a tenant with many businesses does
+   not turn the workspace read into N+1 queries. A business with no logo omits the field entirely.
+2. **Download of the bound file.** `POST /v1/files/:id/download` and `POST /v1/files/download` still refuse a
+   `settings`-owned file by default, because its stored permission is `manage:business-identity:business`. It opens
+   exactly one exception: a `settings` file that **is** the current `business_settings.logo_file_id` of the file's
+   business, for a caller whose active membership covers that business (`COMPANY`, `BUSINESS`, or a `BRANCH` inside
+   it). Coverage is checked by `AuthorizeRequest.coversBusiness` over the membership scope, not over any permission,
+   and the binding is re-read through `readBusinessIdentity` inside the caller's tenant transaction.
+3. **What stays restricted.** Uploading a logo, replacing it, removing it, reading `/business-identity`, and every
+   `settings` file that is **not** the currently bound logo stay on `manage:business-identity:business`. An unbound
+   `settings` file is denied with `FILE_NOT_FOUND` and a `DENY` row in `file_access_audit`.
+
+**Consequences.** No new table, column, grant, RLS policy, or import arrow: the coverage check lives in the
+`identity` module and is reached by `files` through the existing `RequestAuthorizer` port, and the binding check is
+a read of `business_settings` through `@pospay/db`. A member of another business or another company is refused by
+the same path that refuses the permission, so the response does not reveal whether the file exists.
