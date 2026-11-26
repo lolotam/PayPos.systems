@@ -44,7 +44,10 @@ import {
   startPackageSaleWorker,
   startPackageImportCommitWorker,
 } from './modules/orders/index.ts';
-import { closedRatingClaimsLifecycle } from './modules/customers/index.ts';
+import {
+  closedRatingClaimsLifecycle,
+  startCustomersImportWorker,
+} from './modules/customers/index.ts';
 import { closeOptional, optionalWithin } from './shared/optional-capability.ts';
 import {
   beginDocumentRendering,
@@ -87,6 +90,11 @@ const imports = startPackageImportCommitWorker(app, systemUuidV7(), {
   retryDelayMs,
 });
 const staff = startStaffWorker(app, systemUuidV7(), config.REDIS_URL, { now: () => new Date() });
+// عامل تثبيت استيراد العملاء: حدث الطلب من الـ outbox إلى الطابور ثم تثبيت ذري (073 D-4).
+const customerImports = startCustomersImportWorker(app, systemUuidV7(), {
+  redisUrl: config.REDIS_URL,
+  clock: { now: () => new Date() },
+});
 // قفل وفتح التصنيفات الكبيرة عملية خلفية واحدة لكل طلب؛ العامل نايم لحد ما يجي المنتج.
 const catalog = startCatalogWorker(app, systemUuidV7(), config.REDIS_URL, {
   now: () => new Date(),
@@ -183,6 +191,7 @@ const businessDeliver = createDeliverer(
       sales,
       imports,
       catalog,
+      customerImports,
     ),
   },
 );
@@ -196,14 +205,16 @@ const deliver: typeof businessDeliver = (event) =>
   previews.deliver(event, (event) =>
     sales.deliver(event, (event) =>
       imports.deliver(event, (event) =>
-        catalog.deliver(event, (event) =>
-          // تسجيل جدولة التذكيرات بيحصل قبل أي علامة استهلاك (ADR-0061 §2).
-          commissionReminders.delivery(event, (claimed) =>
-            deliverFilesEvent(claimed, {
-              register: (claimed) => files.deliver(claimed),
-              staff: (claimed, next) => staff.deliver(claimed, next),
-              core: (claimed) => ratingClaims.deliver(claimed, pushTransport),
-            }),
+        customerImports.deliver(event, (event) =>
+          catalog.deliver(event, (event) =>
+            // تسجيل جدولة التذكيرات بيحصل قبل أي علامة استهلاك (ADR-0061 §2).
+            commissionReminders.delivery(event, (claimed) =>
+              deliverFilesEvent(claimed, {
+                register: (claimed) => files.deliver(claimed),
+                staff: (claimed, next) => staff.deliver(claimed, next),
+                core: (claimed) => ratingClaims.deliver(claimed, pushTransport),
+              }),
+            ),
           ),
         ),
       ),
@@ -243,6 +254,7 @@ const release = async (): Promise<void> => {
   commissionReminders.stop();
   // تثبيت الاستيراد أول عامل يُغلق وبالقوة: الإغلاق القسري لا ينتظر، ويمنعه من بدء تثبيت مالي جديد بينما بقية العمال تُصفّى.
   await imports.close();
+  await customerImports.close();
   // ننتظر فحص الملفات الجاري قبل إغلاق اتصال قاعدة البيانات.
   await previews.close();
   await sales.close();
@@ -281,6 +293,7 @@ function readinessChecks(): readonly ReadinessCheck[] {
     { name: 'package-previews', check: () => previews.ready() },
     { name: 'package-sale', check: () => sales.ready() },
     { name: 'package-import-commit', check: () => imports.ready() },
+    { name: 'customer-import-commit', check: () => customerImports.ready() },
     { name: 'leave-history-reports', check: () => staff.reportsReady() },
     { name: 'service-category-closing', check: () => catalog.ready() },
     // A wrong dispatcher URL or password leaves the worker with nothing to do — it is not ready.

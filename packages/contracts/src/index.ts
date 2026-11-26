@@ -19,6 +19,7 @@ export {
   type FindOrCreateCustomerInput,
   type FindOrCreateScopedCustomerInput,
 } from './customers.js';
+export * from './customers/customer-import.js';
 export {
   createServiceInput,
   updateServiceInput,

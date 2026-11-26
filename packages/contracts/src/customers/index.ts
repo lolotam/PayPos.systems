@@ -6,3 +6,4 @@ export * from './own-rating-summary.js';
 export * from './ratings-list.js';
 export * from './ratings-averages.js';
 export * from './low-rating-submitted.js';
+export * from './customer-import.js';

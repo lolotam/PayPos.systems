@@ -47,6 +47,13 @@ vi.mock('../../modules/catalog/jobs/service-import-recovery.processor.ts', () =>
     register: async () => undefined,
   }),
 }));
+vi.mock('../../modules/customers/jobs/customer-import.processor.ts', () => ({
+  startCustomerImportProcessor: () => ({
+    ready: async () => undefined,
+    close: async () => undefined,
+    deliver: async () => ({ delivered: true }),
+  }),
+}));
 import { startCatalogWorker } from '../../modules/catalog/index.ts';
 import {
   startPackagePreviewWorker,
@@ -62,6 +69,7 @@ import {
   createInAppNotificationModule,
 } from '../../modules/notifications/index.ts';
 import { startStaffWorker } from '../../modules/staff/index.ts';
+import { startCustomersImportWorker } from '../../modules/customers/index.ts';
 import { businessConsumers } from '../../business-consumers.ts';
 import { businessPermissionHolders } from '../../modules/identity/index.ts';
 import { daySessionsReader } from '../../modules/orders/index.ts';
@@ -115,6 +123,10 @@ const imports = startPackageImportCommitWorker(database, ids, {
   transactionTimeoutMs: 5000,
 });
 const catalog = startCatalogWorker(database, ids, 'synthetic', clock);
+const customerImports = startCustomersImportWorker(database, ids, {
+  redisUrl: 'synthetic',
+  clock,
+});
 const productionConsumers = () =>
   businessConsumers({
     files: { id: 'files.upload', eventTypes: [], handle: async () => undefined },
@@ -150,10 +162,11 @@ it('recognizes every event emitted by API and worker, including finite template 
     }),
   );
   const supported = new Set([
-    ...knownEventTypes(staff, notifications, null, previews, sales, imports, catalog),
+    ...knownEventTypes(staff, notifications, null, previews, sales, imports, catalog, customerImports),
     ...consumers.flatMap((consumer) => consumer.eventTypes),
   ]);
   expect(catalog.eventTypes).toContain('ServiceCategoryClosingRequested');
+  expect(customerImports.eventTypes).toContain('CustomerImportCommitRequested');
   expect([...emitted.keys()]).toEqual(
     expect.arrayContaining([
       'LeaveRequested',
@@ -234,7 +247,7 @@ it('contributes LeaveHistoryReportRequested from the staff module', () => {
 
 it('recognizes the package import commit transport before its producer exists', () => {
   expect(imports.eventTypes).toEqual(['PackageImportCommitRequested']);
-  expect(knownEventTypes(staff, notifications, null, previews, sales, imports, catalog)).toContain(
+  expect(knownEventTypes(staff, notifications, null, previews, sales, imports, catalog, customerImports)).toContain(
     'PackageImportCommitRequested',
   );
 });

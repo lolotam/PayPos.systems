@@ -80,8 +80,7 @@ vi.mock('bullmq', async (original) => {
       if (
         (queueName.startsWith('package-') && queueName !== 'package-import-preview') ||
         queueName === 'service-category-closing' ||
-        queueName === 'service-import-commit' ||
-        queueName === 'service-import-recovery'
+        /^(?:service|customer)-import-(?:commit|recovery)$/.test(queueName)
       )
         return { on: vi.fn(), waitUntilReady: async () => undefined, close: async () => undefined };
       if (args[0] === 'package-import-preview')
@@ -289,6 +288,7 @@ it('invalid email identity settings disable email alone without affecting ordina
     'package-previews',
     'package-sale',
     'package-import-commit',
+    'customer-import-commit',
     'leave-history-reports',
     'service-category-closing',
     'dispatcher',
