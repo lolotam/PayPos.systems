@@ -10,11 +10,13 @@ import { record } from './own-service-lines.dbtime.ts';
 import { isStatisticsDependentFailure } from './own-service-lines.retry.ts';
 import { measureDiagnostics, measureJudged } from './own-service-lines.phases.ts';
 import {
+  bulkOlderOwnVisits,
   bulkVisits,
   cancelColleagueLines,
   cancelPerfLines,
   homePerfScope,
   newPerfScope,
+  OLDER_OWN_VISITS,
   secondLines,
   type PerfScope,
 } from './own-service-lines.seed.ts';
@@ -82,7 +84,7 @@ async function oracle(f: TipFixture, s: PerfScope, her: string, config: PerfConf
   const own = lineIds.filter((id) => dayOf.has(must(sessionOf.get(id))));
   expect(visits.length).toBe(600);
   expect(counts[0]?.['colleagues']).toBe(config.colleagues);
-  expect(counts[0]?.['lines']).toBe(config.colleagues + 602);
+  expect(counts[0]?.['lines']).toBe(config.colleagues + 602 + OLDER_OWN_VISITS);
   expect(own.length).toBe(602);
   const key = (id: string) => `${dayOf.get(must(sessionOf.get(id)))}|${id}`;
   record(
@@ -111,6 +113,8 @@ async function seedTarget(f: TipFixture, attempt: number, config: PerfConfig): P
   await bulkVisits(f, scope, colleagueBulk - EARLY_COLLEAGUES, others);
   await bulkVisits(f, scope, home ? 599 : 600, [her]);
   await secondLines(f, scope, her, 2);
+  // تاريخ الموظفة قبل شهر العرض: لازم تتزرع بعد سطور أكتوبر عشان سطرَي ما قبل الاختيار يفضلا في أكتوبر.
+  await bulkOlderOwnVisits(f, scope, [her]);
   const ordered = await oracle(f, scope, her, config);
   const cancelled = CANCELLED_AT.map((index) => must(ordered[index]));
   await cancelPerfLines(f, scope, cancelled);

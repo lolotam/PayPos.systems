@@ -53,8 +53,8 @@ it('the fresh seed gives the ratings read to the four manager roles only', async
   ]);
 });
 
-it.each(['synthetic_viewer'])(
-  'the %s custom role is refused with 422 PERMISSION_ROLE_NOT_ELIGIBLE and nothing is written',
+it.each(['cashier', 'synthetic_viewer'])(
+  'the %s role is refused with 422 PERMISSION_ROLE_NOT_ELIGIBLE and nothing is written',
   async (roleCode) => {
     const member = await memberWithRole(roleCode);
     const before = await state();

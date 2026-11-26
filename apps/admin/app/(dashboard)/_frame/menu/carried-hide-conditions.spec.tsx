@@ -343,17 +343,24 @@ describe('staff app columns (was staff-app-columns-nav-item.spec)', () => {
 
 describe('ratings and reviews (was ratings-nav-item.spec, added by #1228)', () => {
   const ID = { label: 'ratings.title', href: '/ratings' } as const;
-  const listAnswer = { data: { items: [], next_cursor: null }, response: { status: 200 } };
-  const readsOneRatingsRow = () =>
+  const listAnswer = { data: { items: [], next_cursor: null }, response: { status: 200, ok: true } };
+  // فحص الصلاحية بيبعت فترة فارغة في سنة 2000 عشان ما يقراش ولا سطر تقييم ولا تعليق عميل.
+  const readsTheEmptyProbe = () =>
     carriedApi.GET.mock.calls.some(
-      ([, options]) => JSON.stringify(options?.params?.query) === JSON.stringify({ limit: 1 }),
+      ([, options]) =>
+        JSON.stringify(options?.params?.query) ===
+        JSON.stringify({
+          from: '2000-01-01T00:00:00Z',
+          to: '2000-01-01T00:00:00.000001Z',
+          limit: 1,
+        }),
     );
 
-  it('shows the link to the ratings page once the list read succeeds, reading one row', async () => {
+  it('shows the link to the ratings page once the access read succeeds, reading the empty probe', async () => {
     carriedApi.GET.mockResolvedValue(listAnswer);
     renderVisible();
     await expectListed(ID);
-    expect(readsOneRatingsRow()).toBe(true);
+    expect(readsTheEmptyProbe()).toBe(true);
   });
 
   it('keeps the link hidden while the read is pending', () => {

@@ -67,6 +67,20 @@ it('turns the snapshot into the PIN step when the wall clock jumped, before any 
   expect(t.controller.getState()).toMatchObject({ phase: 'pin', problem: 'expired' });
 });
 
+it('closes the window from scope() once the deadline passed, and the queued touch never goes out', async () => {
+  const t = make();
+  await submit(t);
+  await t.flush();
+  keydown();
+  t.advance(61_000, true);
+  const watcher = watch(t.controller);
+  expect(t.controller.scope(false)).toBeUndefined();
+  expect(t.controller.getState()).toMatchObject({ phase: 'pin', problem: 'expired' });
+  expect(watcher.seen).toEqual(['pin']);
+  expect(t.calls.touch).not.toHaveBeenCalled();
+  expect(t.calls.close).toHaveBeenCalledWith('w1');
+});
+
 it('closes without ever publishing the open state when a touch answers with nothing left', async () => {
   const t = make();
   await submit(t);

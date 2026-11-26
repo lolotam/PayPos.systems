@@ -128,7 +128,12 @@ it('treats to as exclusive, and leaves the other end open when only one bound is
   ]);
   const empty = { from: '2026-06-11T09:00:01Z', to: '2026-06-11T09:00:02Z' };
   expect((await averages(empty)).items).toEqual([]);
-  const open = await averages({ from: '2026-06-11T09:00:00Z', employee_id: sara });
+  // الفترة مفتوحة، فالتقييمات اللي في فروع تانية بتدخل العد لو مافيش فلتر فرع؛ فالفحص مربوط بفرع واحد.
+  const open = await averages({
+    from: '2026-06-11T09:00:00Z',
+    employee_id: sara,
+    branch_id: A.branch,
+  });
   expect(summary(open)).toEqual([[sara, '4.0', 1]]);
 });
 

@@ -70,6 +70,7 @@ import {
 } from '../../modules/notifications/index.ts';
 import { startStaffWorker } from '../../modules/staff/index.ts';
 import { startCustomersImportWorker } from '../../modules/customers/index.ts';
+import type * as CustomersModule from '../../modules/customers/index.ts';
 import { businessConsumers } from '../../business-consumers.ts';
 import { businessPermissionHolders } from '../../modules/identity/index.ts';
 import { daySessionsReader } from '../../modules/orders/index.ts';
@@ -83,6 +84,9 @@ import { retryDelayMs } from '../retry-policy.ts';
 // نعزل اتصالات الطوابير فقط؛ قوائم الأنواع والمستهلكون تأتي من تركيب الوحدات الحقيقي.
 vi.mock('../../modules/staff/jobs/missed-out.processor.ts', () => ({
   startMissedOutProcessor: () => ({}),
+}));
+vi.mock('../../modules/staff/jobs/not-clocked-in.processor.ts', () => ({
+  startNotClockedInProcessor: () => ({}),
 }));
 vi.mock('../../modules/staff/jobs/employee-import.processor.ts', () => ({
   startEmployeeImportProcessor: () => ({}),
@@ -250,4 +254,118 @@ it('recognizes the package import commit transport before its producer exists', 
   expect(knownEventTypes(staff, notifications, null, previews, sales, imports, catalog, customerImports)).toContain(
     'PackageImportCommitRequested',
   );
+});
+
+type RegisteredStartup = {
+  consumers: { id: string; eventTypes: readonly string[] }[];
+  known: readonly string[];
+};
+const noop = () => undefined;
+const asyncNoop = async () => undefined;
+class StubRedis {
+  duplicate = () => new StubRedis();
+  on = noop;
+  quit = noop;
+  disconnect = noop;
+  ping = noop;
+  set = noop;
+  del = noop;
+  get = noop;
+  evalsha = noop;
+}
+class StubBull {
+  on = noop;
+  waitUntilReady = asyncNoop;
+  close = asyncNoop;
+}
+
+function startupMockFactories(registered: RegisteredStartup[]): readonly [string, () => Record<string, unknown>][] {
+  const closed = () => ({ readiness: noop, stop: noop, close: noop });
+  const delivery = (event: unknown, next: (event: unknown) => Promise<unknown>) => next(event);
+  return [
+    ['@pospay/db', () => ({
+      createDatabase: () => ({ close: asyncNoop, ping: asyncNoop, withTenant: vi.fn() }),
+      createOutboxDispatcherDatabase: () => ({ close: asyncNoop, ping: asyncNoop, commissionParkedEventPage: async () => [] }),
+      createPlatformWhatsappDatabase: () => ({ close: asyncNoop, ping: asyncNoop }),
+    })],
+    ['@pospay/auth', () => ({
+      createStaffOtpExecution: () => ({ readiness: noop, close: noop }),
+      createStaffOtpMaintenance: closed,
+      readStaffOtpConfiguration: () => ({ state: 'DISABLED', fingerprint: 'synthetic-worker' }),
+    })],
+    ['@pospay/observability', () => ({
+      createLogger: () => ({ info: noop, warn: noop, fatal: noop, error: noop, debug: noop }),
+    })],
+    ['ioredis', () => ({ Redis: StubRedis })],
+    ['bullmq', () => ({ Queue: StubBull, Worker: StubBull })],
+    ['../../worker.ts', () => ({ createWorker: async () => ({ listen: noop, enableShutdownHooks: noop }) })],
+    ['../dispatch-loop.ts', () => ({ createDispatchLoop: () => ({ start: noop, stop: noop }) })],
+    ['../deliver.ts', () => ({
+      createDeliverer: (...args: unknown[]) => {
+        const consumers = args[1] as { id: string; eventTypes: readonly string[] }[];
+        const opts = args[3] as { knownEventTypes: readonly string[] };
+        registered.push({ consumers: [...consumers], known: opts.knownEventTypes });
+        return async () => ({ delivered: true });
+      },
+    })],
+    ['../../modules/files/index.ts', () => ({
+      startFilesWorker: () => ({ consumer: { id: 'files.business-logo-retired', eventTypes: ['BusinessLogoChanged'] }, deliver: noop, close: noop }),
+    })],
+    ['../../commission-reminders.ts', () => ({ startCommissionReminderWiring: () => ({ delivery, ...closed() }) })],
+    ['../../documents/start-documents.ts', () => ({
+      startCoreBeforeDocuments: async (input: { startCore: () => Promise<void> }) => {
+        await input.startCore();
+        return { started: Promise.resolve(), close: asyncNoop, stop: asyncNoop };
+      },
+    })],
+    ['../../shared/config.ts', () => ({
+      readConfig: () => ({
+        DATABASE_URL: 'synthetic', DISPATCHER_DATABASE_URL: 'synthetic', REDIS_URL: 'synthetic',
+        PLATFORM_NOTIFICATIONS_DATABASE_URL: 'synthetic', LOG_LEVEL: 'silent', WORKER_HOST: '127.0.0.1',
+        WORKER_PORT: 3001, PACKAGE_SALE_TRANSACTION_TIMEOUT_MS: 30_000, PACKAGE_IMPORT_COMMIT_TRANSACTION_TIMEOUT_MS: 600_000,
+      }),
+    })],
+  ];
+}
+
+it('registers the startup consumers and the known event types with the deliverer', async () => {
+  const registered: RegisteredStartup[] = [];
+  const mocks = startupMockFactories(registered);
+  vi.resetModules();
+  for (const [specifier, factory] of mocks) vi.doMock(specifier, factory);
+  vi.doMock('../../modules/customers/index.ts', async (original) => ({
+    ...(await original<typeof CustomersModule>()),
+    closedRatingClaimsLifecycle: () => ({ deliver: noop, close: noop }),
+  }));
+  vi.stubEnv('NODE_ENV', 'production');
+  try {
+    await import('../../main.ts');
+    const startup = registered[0];
+    expect(registered).toHaveLength(1);
+    if (startup === undefined) throw new Error('SYNTHETIC_STARTUP_MISSING');
+    const expectedConsumers = businessConsumers({
+      files: { id: 'files.business-logo-retired', eventTypes: ['BusinessLogoChanged'], handle: asyncNoop },
+      notifications: null,
+      inApp: inApp.consumer,
+      newIds: () => ids,
+      clock,
+      daySessions: daySessionsReader,
+      commissions: { businessTimeZone, employeeBusiness: readEmployeeBusiness, businessCalendar, permissionHolders: businessPermissionHolders },
+    });
+    expect(startup.consumers.map((c) => ({ id: c.id, eventTypes: c.eventTypes }))).toEqual(
+      expectedConsumers.map((c) => ({ id: c.id, eventTypes: c.eventTypes })),
+    );
+    expect(startup.known).toEqual(knownEventTypes(staff, null, inApp, previews, sales, imports, catalog, customerImports));
+    expect(startup.known).toEqual(
+      expect.arrayContaining([
+        ...staff.eventTypes, ...inApp.eventTypes, ...previews.eventTypes, ...sales.eventTypes,
+        ...imports.eventTypes, ...catalog.eventTypes, ...customerImports.eventTypes,
+      ]),
+    );
+  } finally {
+    vi.unstubAllEnvs();
+    for (const [specifier] of mocks) vi.doUnmock(specifier);
+    vi.doUnmock('../../modules/customers/index.ts');
+    vi.resetModules();
+  }
 });
