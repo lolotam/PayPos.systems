@@ -16,4 +16,11 @@ export interface PackageSaleRecoveryTransactions {
    * @param at لحظة تثبيت الفشل من الساعة المحقونة
    */
   failStale(companyId: string, requestId: string, before: Date, at: string): Promise<void>;
+  /**
+   * يفحص وجود طلب بيع معلق واحد على الأقل لشركة، ليعرف مسح الاكتشاف إن كانت تحتاج جدولة استعادة.
+   *
+   * @param companyId الشركة المفحوصة
+   * @returns true لو في طلب معلق
+   */
+  hasPending(companyId: string): Promise<boolean>;
 }

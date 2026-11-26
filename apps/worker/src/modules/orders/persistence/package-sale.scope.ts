@@ -38,7 +38,7 @@ export function packageSaleScope(
     request,
     lockType: () => lockSaleType(context),
     lockSeller: (employeeId) =>
-      lockPackageSeller(tx, companyId, request.business_id, employeeId),
+      lockPackageSeller(tx, companyId, request.business_id, request.branch_id, employeeId),
     readPlace: async () => {
       const timezone = await packageSalePlace(
         tx,

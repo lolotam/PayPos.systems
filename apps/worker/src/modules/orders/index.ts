@@ -25,6 +25,7 @@ export const daySessionsReader = {
 export { startPackagePreviewWorker } from './orders.module.ts';
 export { startPackageSaleWorker } from './orders.module.ts';
 export { startPackageImportCommitWorker } from './orders.module.ts';
+export type { PackageRecoveryTarget } from './package-recovery.wiring.ts';
 export { readCurrentSessionTips } from './queries/current-session-tips.reader.ts';
 export { createSessionTipsAfterBoundReader } from './queries/session-tips-after-bound.reader.ts';
 export {
