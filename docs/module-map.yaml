@@ -143,6 +143,7 @@ reads:
   - { from: customers, to: tenancy, symbol: businessNames, file: apps/api/src/modules/customers/persistence/business-names.adapter.ts }
   - { from: customers, to: tenancy, symbol: businessNamesByIds, file: apps/api/src/modules/customers/persistence/workspace-names.adapter.ts }
   - { from: customers, to: tenancy, symbol: describeWorkspaces, file: apps/api/src/modules/customers/persistence/workspace-names.adapter.ts }
+  - { from: customers, to: tenancy, symbol: businessCountry, file: apps/api/src/modules/customers/persistence/workspace-names.adapter.ts }
   - { from: customers, to: staff, symbol: readOwnEmployee, file: apps/api/src/modules/customers/persistence/own-rating-context.adapter.ts }
   - { from: customers, to: identity, symbol: readOwnRatingsAccess, file: apps/api/src/modules/customers/persistence/own-rating-context.adapter.ts }
   - { from: customers, to: tenancy, symbol: activeBusinessTimeZone, file: apps/api/src/modules/customers/persistence/own-rating-context.adapter.ts }
