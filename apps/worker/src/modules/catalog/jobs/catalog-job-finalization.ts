@@ -1,11 +1,12 @@
-import { UnrecoverableError, type Job } from 'bullmq';
+import type { Job } from 'bullmq';
 
 /**
  * فشل كتبناه نحن على صف الطلب قبل ما نرميه لـ BullMQ.
- * بيرث UnrecoverableError وبنثبّت الـ name على 'UnrecoverableError' (كونستركتور BullMQ بيكتبه من constructor.name) عشان BullMQ يحط الصف في مجموعة الفاشل بلا إعادة محاولة،
- * وبيفضل مميَّزًا عن UnrecoverableError اللي BullMQ نفسه بيرميها عند تجاوز حد التوقف (وساعتها الكتابة لسه مطلوبة).
+ * بيرث Error وبنثبّت الـ name على 'UnrecoverableError' (اللي بيفحصه Job.moveToFailed في BullMQ عبر err.name == 'UnrecoverableError')
+ * عشان BullMQ يحط الصف في مجموعة الفاشل بلا إعادة محاولة ومن غير استيراد UnrecoverableError وقت التشغيل فيكسر module mocks لـ bullmq،
+ * وبيفضل مميَّزًا بـ instanceof FailurePersistedError عن UnrecoverableError اللي BullMQ نفسه بيرميها عند تجاوز حد التوقف (وساعتها الكتابة لسه مطلوبة).
  */
-export class FailurePersistedError extends UnrecoverableError {
+export class FailurePersistedError extends Error {
   constructor(message?: string) {
     super(message);
     this.name = 'UnrecoverableError';
