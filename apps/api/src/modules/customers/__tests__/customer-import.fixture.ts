@@ -1,5 +1,8 @@
-import { createDatabase } from '@pospay/db';
+import type { AuthService } from '@pospay/auth';
+import { createDatabase, type Tx } from '@pospay/db';
 import { systemUuidV7 } from '@pospay/ids';
+import { createLogger } from '@pospay/observability';
+import { FILE_UPLOAD_POLICY } from '@pospay/storage';
 import { sql } from 'drizzle-orm';
 import ExcelJS from 'exceljs';
 import { createHash } from 'node:crypto';
@@ -11,7 +14,12 @@ import {
   USER,
 } from '../../../../../../packages/db/test/tenancy-fixtures.ts';
 import { createTestDatabase } from '../../../../../../packages/db/test/test-database.ts';
-import { CUSTOMER_IMPORT_COLUMNS } from '../domain/customer-import.ts';
+import { refusingStaffSessions } from '../../../../test/refusing-staff-sessions.ts';
+import { createApp } from '../../../app.ts';
+import {
+  CUSTOMER_IMPORT_COLUMNS,
+  type CustomerImportFileFacts,
+} from '../domain/customer-import.ts';
 import { createCustomerImportTemplateBuilder } from '../persistence/customer-import-template.ts';
 import {
   bindCustomerImportFiles,
@@ -27,10 +35,13 @@ import {
 export type ImportRow = readonly (string | number | null)[];
 
 /** يبني مصنف عملاء بعناوينه العشرة وصفوفه، زي الملف الذي يرفعه المستخدم. */
-export async function customerWorkbook(rows: readonly ImportRow[]): Promise<Uint8Array> {
+export async function customerWorkbook(
+  rows: readonly ImportRow[],
+  headers: readonly string[] = CUSTOMER_IMPORT_COLUMNS,
+): Promise<Uint8Array> {
   const workbook = new ExcelJS.Workbook();
   const sheet = workbook.addWorksheet('customers');
-  CUSTOMER_IMPORT_COLUMNS.forEach((header, index) => {
+  headers.forEach((header, index) => {
     sheet.getCell(1, index + 1).value = header;
   });
   rows.forEach((row, rowIndex) =>
@@ -88,36 +99,52 @@ export async function seedImportWorkspace(
   return { company, otherCompany, business, otherBusiness, branch, userId, ownerUserId, memberId };
 }
 
-type FileFacts = {
-  business_id: string;
-  created_by: string;
-  owner_module: string;
-  content_type: string;
-  size_bytes: number;
-  status: 'PENDING' | 'VERIFYING' | 'READY' | 'REJECTED';
-  storage_key: string | null;
-  purged: boolean;
-  purge_started: boolean;
-};
-
-/** قارئ حقائق الملف في الاختبار: يقرأ file_objects على معاملة الشركة نفسها. */
-async function readFileFacts(
-  db: ReturnType<typeof createDatabase>,
+/** يبني مصادقة اختبارية تحوّل sid=manager وsid=member إلى مستخدمي مساحة الاختبار. */
+function makeFakeAuth(
+  ids: ReturnType<typeof systemUuidV7>,
   userId: string,
-  companyId: string,
-  fileId: string,
-): Promise<FileFacts | null> {
-  const [row] = await db.withTenant(
-    companyId,
-    async (tx) =>
-      tx.execute<FileFacts>(sql`SELECT business_id,created_by,owner_module,content_type,
-        size_bytes::int AS size_bytes,status,
-        CASE WHEN status='READY' THEN storage_key END AS storage_key,
-        purged_at IS NOT NULL AS purged, purge_started_at IS NOT NULL AS purge_started
-        FROM file_objects WHERE company_id=${companyId} AND id=${fileId}`),
-    { userId },
-  );
-  return row ?? null;
+  memberId: string,
+): AuthService {
+  const users: Record<string, string> = { manager: userId, member: memberId };
+  return {
+    preferences: {} as AuthService['preferences'],
+    members: {} as AuthService['members'],
+    personal: {} as AuthService['personal'],
+    passkeys: {} as AuthService['passkeys'],
+    privateView: {} as AuthService['privateView'],
+    staffUsers: {
+      provision: async () => ({ userId: '' }),
+      changePhone: async () => undefined,
+      deleteSessions: async () => undefined,
+      cancel: async () => undefined,
+      read: async () => null,
+      isStaffUser: async () => false,
+      staffCompanyOf: async () => null,
+      bindingOf: async () => null,
+      userIdForResetToken: async () => null,
+      close: async () => undefined,
+    },
+    staff: refusingStaffSessions,
+    handler: async () => new Response(null, { status: 404 }),
+    getSession: async (headers) => {
+      const uid = users[/sid=([\w-]+)/.exec(headers.get('cookie') ?? '')?.[1] ?? ''];
+      return uid === undefined
+        ? null
+        : {
+            userId: uid,
+            sessionId: ids.newId(),
+            activeCompanyId: null,
+            platformPermissions: [],
+            setCookies: [],
+          };
+    },
+    provisionUser: async () => userId,
+    issuePasswordSetLink: async () => 'http://api.test/unused',
+    recordPlatformAction: async () => undefined,
+    discardUser: async () => undefined,
+    ping: async () => undefined,
+    close: async () => undefined,
+  };
 }
 
 /** يرفع ملفاً موثّقاً لوحدة files ويخزن بايتاته في الذاكرة. */
@@ -142,34 +169,75 @@ async function uploadFile(
   return fileId;
 }
 
-function buildFixture(
-  testDb: Awaited<ReturnType<typeof createTestDatabase>>,
-  owner: postgres.Sql,
-  db: ReturnType<typeof createDatabase>,
-  ids: ReturnType<typeof systemUuidV7>,
-  workspace: Awaited<ReturnType<typeof seedImportWorkspace>>,
-) {
-  const storage = new Map<string, Uint8Array>();
-  const clock = { value: new Date('2026-11-26T10:00:00Z') };
-  const clockPort = { now: () => clock.value };
-  const bytes = {
+function memoryObjectStorage(storage: Map<string, Uint8Array>) {
+  return {
+    presignUpload: async () => '',
+    presignDownload: async () => '',
     read: (key: string, maxBytes: number): Promise<Uint8Array> => {
       const found = storage.get(key);
-      if (found === undefined) throw new Error('STORAGE_UNAVAILABLE');
-      return Promise.resolve(found.subarray(0, maxBytes));
+      return found === undefined
+        ? Promise.reject(new Error('STORAGE_UNAVAILABLE'))
+        : Promise.resolve(found.subarray(0, maxBytes));
     },
+    put: async (key: string, bytes: Uint8Array) => void storage.set(key, bytes),
+    remove: async (key: string) => void storage.delete(key),
+    close: () => undefined,
   };
-  const binding = bindCustomerImportFiles(bytes, (_tx, companyId, fileId) =>
-    readFileFacts(db, workspace.userId, companyId, fileId),
-  );
+}
+
+function appBoot(
+  db: ReturnType<typeof createDatabase>,
+  ids: ReturnType<typeof systemUuidV7>,
+  auth: AuthService,
+  clockPort: { now: () => Date },
+  objectStorage: ReturnType<typeof memoryObjectStorage>,
+) {
+  return (withFiles = true) =>
+    createApp(
+      {
+        readiness: [],
+        auth: { service: auth, baseURL: 'http://api.test' },
+        database: db,
+        ids,
+        customersClock: clockPort,
+        ...(withFiles
+          ? {
+              files: {
+                storage: objectStorage,
+                policy: FILE_UPLOAD_POLICY,
+                queue: { enqueue: async () => undefined },
+              },
+            }
+          : {}),
+      },
+      { logger: createLogger('silent') },
+    );
+}
+
+type FactsRow = { [K in keyof CustomerImportFileFacts]: CustomerImportFileFacts[K] };
+
+async function testFileFacts(
+  tx: Tx,
+  companyId: string,
+  fileId: string,
+): Promise<CustomerImportFileFacts | null> {
+  const [row] = await tx.execute<FactsRow>(sql`
+    SELECT business_id,created_by,owner_module,content_type,size_bytes::int AS size_bytes,status,
+      CASE WHEN status='READY' THEN storage_key END AS storage_key,
+      purged_at IS NOT NULL AS purged, purge_started_at IS NOT NULL AS purge_started
+    FROM file_objects WHERE company_id=${companyId} AND id=${fileId}`);
+  return row ?? null;
+}
+
+function importUseCases(
+  db: ReturnType<typeof createDatabase>,
+  binding: ReturnType<typeof bindCustomerImportFiles>,
+  ids: ReturnType<typeof systemUuidV7>,
+  clockPort: { now: () => Date },
+) {
   if (binding.bytes === null) throw new Error('STORAGE_UNAVAILABLE');
   const transactions = createCustomerImportTransactions(db, binding, ids);
   return {
-    owner,
-    db,
-    ...workspace,
-    clock,
-    storage,
     template: new GetCustomerImportTemplateUseCase(
       transactions,
       createCustomerImportTemplateBuilder(),
@@ -182,6 +250,39 @@ function buildFixture(
       clockPort,
     ),
     commit: new CommitCustomerImportUseCase(transactions, clockPort),
+  };
+}
+
+async function buildFixture(
+  testDb: Awaited<ReturnType<typeof createTestDatabase>>,
+  owner: postgres.Sql,
+  db: ReturnType<typeof createDatabase>,
+  ids: ReturnType<typeof systemUuidV7>,
+  workspace: Awaited<ReturnType<typeof seedImportWorkspace>>,
+) {
+  const storage = new Map<string, Uint8Array>();
+  const clock = { value: new Date('2026-11-26T10:00:00Z') };
+  const clockPort = { now: () => clock.value };
+  const objectStorage = memoryObjectStorage(storage);
+  const binding = bindCustomerImportFiles(objectStorage, testFileFacts);
+  const startHttpApp = appBoot(
+    db,
+    ids,
+    makeFakeAuth(ids, workspace.userId, workspace.ownerUserId),
+    clockPort,
+    objectStorage,
+  );
+  const app = await startHttpApp(true);
+  const useCases = importUseCases(db, binding, ids, clockPort);
+  return {
+    owner,
+    db,
+    app,
+    startHttpApp,
+    ...workspace,
+    clock,
+    storage,
+    ...useCases,
     upload: (content: Uint8Array, options: { businessId?: string; createdBy?: string } = {}) =>
       uploadFile(
         owner,
@@ -194,6 +295,7 @@ function buildFixture(
         options,
       ),
     close: async () => {
+      await app.close();
       await db.close();
       await owner.end();
       await testDb.drop();
@@ -210,7 +312,7 @@ export async function customerImportFixture() {
     await seedTwoTenants(testDb.ownerUrl);
     const workspace = await seedImportWorkspace(owner, ids);
     db = createDatabase({ url: testDb.appUrl, ids });
-    return buildFixture(testDb, owner, db, ids, workspace);
+    return await buildFixture(testDb, owner, db, ids, workspace);
   } catch (error) {
     await db?.close().catch(() => undefined);
     await owner.end().catch(() => undefined);

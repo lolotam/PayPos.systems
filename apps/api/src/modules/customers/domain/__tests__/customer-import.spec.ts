@@ -4,6 +4,7 @@ import {
   CUSTOMER_IMPORT_INVALID_CELL,
   CustomerImportError,
   customerImportCallingCode,
+  customerImportExpiresAt,
   decideCustomerImportCommit,
   validateCustomerImportFile,
   type CustomerImportCellValues,
@@ -298,7 +299,14 @@ it('keeps candidate errors pure across repeated finalization with different exis
   expect(asNew.errors).toEqual([{ row: 2, column: 'gender', code: 'IMPORT_REQUIRED_CELL' }]);
   const asExisting = finalizeCustomerImportRows(repeated, new Set(['+96598765432']));
   expect(asExisting.errors).toEqual([]);
+  expect(asExisting.new_count).toBe(0);
+  expect(asExisting.existing_count).toBe(1);
   expect(asExisting.rows[0]).toMatchObject({ status: 'existing', phone: '+96598765432' });
+});
+it('computes the 24-hour preview expiry timestamp in ISO format', () => {
+  expect(customerImportExpiresAt(new Date('2026-11-26T10:00:00.000Z'))).toBe(
+    '2026-11-27T10:00:00.000Z',
+  );
 });
 it('accepts an existing customer without a gender and warns about the rating opt-out', () => {
   const existing = validateCustomerImportSheet(

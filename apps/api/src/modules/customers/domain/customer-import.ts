@@ -232,3 +232,13 @@ export function decideCustomerImportCommit(
   if (preview.error_count > 0) throw new CustomerImportError('IMPORT_PREVIEW_HAS_ERRORS');
   return 'request';
 }
+
+/**
+ * يحسب لحظة انتهاء صلاحية معاينة الاستيراد بعد مهلة الأربع وعشرين ساعة (073 D-8).
+ *
+ * @param at لحظة الإنشاء من الساعة المحقونة
+ * @returns لحظة الانتهاء بصيغة ISO
+ */
+export function customerImportExpiresAt(at: Date): string {
+  return new Date(at.getTime() + CUSTOMER_IMPORT_PREVIEW_TTL_MS).toISOString();
+}

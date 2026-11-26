@@ -23,7 +23,7 @@ const HEADER_NOTES: Record<(typeof CUSTOMER_IMPORT_COLUMNS)[number], MessageKey>
   notes: 'customerImport.column_notes',
 };
 
-/** يمرّر القالب على القارئ المحمي نفسه قبل التنزيل: العناوين العشرة بترتيبها المرجعي، */
+/** يمرّر القالب على القارئ المحمي نفسه قبل التنزيل: العناوين العشرة بترتيبها المرجعي، وحدود الحجم والورقتين (073 D-8). */
 async function verifyTemplate(bytes: Uint8Array): Promise<void> {
   try {
     const roundTrip = await readWorkbookSheet(bytes, CUSTOMER_IMPORT_READER_BOUNDS);
@@ -43,6 +43,24 @@ async function verifyTemplate(bytes: Uint8Array): Promise<void> {
   }
 }
 
+async function buildVerifiedTemplateBase64(): Promise<string> {
+  const workbook = new ExcelJS.Workbook();
+  workbook.created = new Date(0);
+  const sheet = workbook.addWorksheet('customers', { views: [{ rightToLeft: true }] });
+  CUSTOMER_IMPORT_COLUMNS.forEach((header, position) => {
+    const cell = sheet.getCell(1, position + 1);
+    cell.value = header;
+    cell.font = { bold: true };
+    cell.note = { texts: [{ text: t('ar', HEADER_NOTES[header]) }] };
+  });
+  const reference = workbook.addWorksheet('reference', { views: [{ rightToLeft: true }] });
+  for (const header of CUSTOMER_IMPORT_COLUMNS)
+    reference.addRow([header, t('ar', HEADER_NOTES[header])]);
+  const bytes = new Uint8Array(await workbook.xlsx.writeBuffer());
+  await verifyTemplate(bytes);
+  return Buffer.from(bytes).toString('base64');
+}
+
 /**
  * يبني قالب استيراد العملاء: ورقة بيانات بعناوينها العشرة وتعليقاتها العربية، وورقة مرجعية
  * بتشرح كل عمود بنفس التعليق، والحماية المحمية بتتحقق من الناتج قبل التنزيل (073 D-8).
@@ -50,23 +68,16 @@ async function verifyTemplate(bytes: Uint8Array): Promise<void> {
  * @returns المصنف مشفّراً بـ base64
  */
 export function createCustomerImportTemplateBuilder(): CustomerImportTemplateBuilder {
+  let cached: Promise<string> | null = null;
   return {
-    build: async () => {
-      const workbook = new ExcelJS.Workbook();
-      workbook.created = new Date(0);
-      const sheet = workbook.addWorksheet('customers', { views: [{ rightToLeft: true }] });
-      CUSTOMER_IMPORT_COLUMNS.forEach((header, position) => {
-        const cell = sheet.getCell(1, position + 1);
-        cell.value = header;
-        cell.font = { bold: true };
-        cell.note = { texts: [{ text: t('ar', HEADER_NOTES[header]) }] };
-      });
-      const reference = workbook.addWorksheet('reference', { views: [{ rightToLeft: true }] });
-      for (const header of CUSTOMER_IMPORT_COLUMNS)
-        reference.addRow([header, t('ar', HEADER_NOTES[header])]);
-      const bytes = new Uint8Array(await workbook.xlsx.writeBuffer());
-      await verifyTemplate(bytes);
-      return Buffer.from(bytes).toString('base64');
+    build: () => {
+      if (cached === null) {
+        cached = buildVerifiedTemplateBase64().catch((error: unknown) => {
+          cached = null;
+          throw error;
+        });
+      }
+      return cached;
     },
   };
 }

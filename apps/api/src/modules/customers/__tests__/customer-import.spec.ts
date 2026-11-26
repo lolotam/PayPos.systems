@@ -1,10 +1,18 @@
+import { systemUuidV7 } from '@pospay/ids';
+import { sql } from 'drizzle-orm';
 import { afterAll, beforeAll, expect, it } from 'vitest';
 
 import { CustomerImportError } from '../domain/customer-import.ts';
-import { customerImportScopeReads } from '../persistence/drizzle-customer-import.ts';
 import {
+  cleanCustomerImportError,
+  customerImportScopeReads,
+} from '../persistence/drizzle-customer-import.ts';
+import {
+  CUSTOMER_IMPORT_SCOPE_READS,
   customerImportRowsPage,
+  customerImportRowsPageStatement,
   customerImportStatusQuery,
+  customerImportStatusStatement,
 } from '../queries/customer-import-reads.query.ts';
 import {
   commitCommand,
@@ -139,13 +147,15 @@ it('counts all parsed rows including invalid ones in row_count and blocks commit
   );
 });
 
-it('requests one commit and replays it without a second event', async () => {
+it('requests one commit and replays it with the same or a new key without a second event', async () => {
   const fileId = await f.upload(await customerWorkbook([VALID[0]]));
   const preview = await f.preview.execute(previewCommand(f, fileId));
   const accepted = await f.commit.execute(commitCommand(f, preview.preview_id, 'key-one'));
   expect(accepted.preview_id).toBe(preview.preview_id);
   const replay = await f.commit.execute(commitCommand(f, preview.preview_id, 'key-one'));
   expect(replay.preview_id).toBe(preview.preview_id);
+  const newKey = await f.commit.execute(commitCommand(f, preview.preview_id, 'key-one-new'));
+  expect(newKey.preview_id).toBe(preview.preview_id);
   const [events] = await f.owner`SELECT count(*)::int AS n FROM outbox
     WHERE aggregate_id=${preview.preview_id} AND event_type='CustomerImportCommitRequested'`;
   expect(events?.['n']).toBe(1);
@@ -159,7 +169,7 @@ it('records the file access in the audit log', async () => {
   expect(entry?.['action']).toBe('import_previewed');
 });
 
-it('refuses a commit for a preview of another creator', async () => {
+it('refuses commits for another creator or wrong business scope without storing idempotency keys', async () => {
   const fileId = await f.upload(await customerWorkbook([VALID[0]]));
   const preview = await f.preview.execute(previewCommand(f, fileId));
   await expect(
@@ -168,4 +178,185 @@ it('refuses a commit for a preview of another creator', async () => {
       userId: f.ownerUserId,
     }),
   ).rejects.toThrow(new CustomerImportError('IMPORT_PREVIEW_NOT_FOUND'));
+  const secondBiz = systemUuidV7().newId();
+  await f.owner`INSERT INTO businesses(company_id,id,name_en,vertical_type,settings)
+    VALUES (${f.company},${secondBiz},'Synthetic second biz','salon','{"country":"KW"}')`;
+  await expect(
+    f.commit.execute({
+      ...commitCommand(f, preview.preview_id, 'key-scope'),
+      scope: { kind: 'business', id: secondBiz },
+    }),
+  ).rejects.toThrow(new CustomerImportError('IMPORT_PREVIEW_NOT_FOUND'));
+  const [keys] = await f.owner`SELECT count(*)::int AS n FROM idempotency_keys
+    WHERE company_id=${f.company} AND key IN ('key-two', 'key-scope')`;
+  expect(keys?.['n']).toBe(0);
+});
+
+it('handles existing phones, bad headers, missing storage, expired commits, and PG retry errors', async () => {
+  const existingCustomer = systemUuidV7().newId();
+  await f.owner`INSERT INTO customers(company_id,id,name,phone,locale,gender,created_at,updated_at)
+    VALUES (${f.company},${existingCustomer},'أحمد القائم','+96598765432','ar','male',now(),now())`;
+  try {
+    const fileId = await f.upload(await customerWorkbook(VALID));
+    const mixed = await f.preview.execute(previewCommand(f, fileId));
+    expect(mixed).toMatchObject({ new_count: 1, existing_count: 1, error_count: 0 });
+    const badHeader = await f.upload(await customerWorkbook([VALID[0]], ['wrong']));
+    await expect(f.preview.execute(previewCommand(f, badHeader))).rejects.toThrow(
+      new CustomerImportError('IMPORT_HEADER_INVALID'),
+    );
+    const missingFile = await f.upload(await customerWorkbook([VALID[0]]));
+    const [row] = await f.owner`SELECT storage_key FROM file_objects WHERE id=${missingFile}`;
+    f.storage.delete(String(row?.['storage_key']));
+    await expect(f.preview.execute(previewCommand(f, missingFile))).rejects.toThrow(
+      new CustomerImportError('STORAGE_UNAVAILABLE'),
+    );
+    f.clock.value = new Date('2026-11-28T00:00:00Z');
+    await expect(
+      f.commit.execute(commitCommand(f, mixed.preview_id, 'key-expired')),
+    ).rejects.toThrow(new CustomerImportError('IMPORT_PREVIEW_EXPIRED'));
+  } finally {
+    f.clock.value = new Date('2026-11-26T10:00:00Z');
+    await f.owner`DELETE FROM customers WHERE id=${existingCustomer}`;
+  }
+  expect(() => cleanCustomerImportError({ code: '40001' })).toThrow(
+    new CustomerImportError('TRANSACTION_RETRY_REQUIRED'),
+  );
+  expect(typeof CUSTOMER_IMPORT_SCOPE_READS).toBe('symbol');
+});
+
+it('EXPLAIN ANALYZE uses import_previews_pkey without Seq Scan on rows and status queries', async () => {
+  const fileId = await f.upload(await customerWorkbook([VALID[0]]));
+  const preview = await f.preview.execute(previewCommand(f, fileId));
+  const ids = systemUuidV7();
+  const bulk = Array.from({ length: 500 }, () => ids.newId());
+  await f.owner`INSERT INTO import_previews
+    (company_id,id,business_id,entity,file_id,created_by,created_at,expires_at,row_count,error_count,rows,errors,status)
+    SELECT p.company_id,k.id,p.business_id,p.entity,p.file_id,p.created_by,p.created_at,p.expires_at,
+      p.row_count,p.error_count,p.rows,p.errors,p.status
+    FROM (SELECT company_id,business_id,entity,file_id,created_by,created_at,expires_at,row_count,error_count,rows,errors,status
+      FROM import_previews WHERE id=${preview.preview_id} LIMIT 1) p CROSS JOIN unnest(${bulk}::uuid[]) k(id)`;
+  await f.owner`ANALYZE import_previews`;
+  const [rowsPlan, statusPlan] = await f.db.withTenant(
+    f.company,
+    async (tx) => [
+      await tx.execute(
+        sql`EXPLAIN (ANALYZE, FORMAT JSON) ${customerImportRowsPageStatement({
+          companyId: f.company,
+          businessId: f.business,
+          userId: f.userId,
+          previewId: preview.preview_id,
+          after: 1,
+          limit: 20,
+        })}`,
+      ),
+      await tx.execute(
+        sql`EXPLAIN (ANALYZE, FORMAT JSON) ${customerImportStatusStatement({
+          companyId: f.company,
+          businessId: f.business,
+          userId: f.userId,
+          previewId: preview.preview_id,
+        })}`,
+      ),
+    ],
+    { userId: f.userId },
+  );
+  for (const plan of [JSON.stringify(rowsPlan), JSON.stringify(statusPlan)]) {
+    expect(plan).toContain('import_previews_pkey');
+    expect(plan).not.toContain('"Node Type":"Seq Scan"');
+  }
+});
+
+const sendHttp = (
+  method: 'GET' | 'POST',
+  url: string,
+  headers: Record<string, string>,
+  payload?: object,
+) => f.app.inject({ method, url, headers, ...(payload === undefined ? {} : { payload }) });
+
+const managerHeaders = (extra: Record<string, string> = {}) => ({
+  cookie: 'sid=manager',
+  'x-company-id': f.company,
+  ...extra,
+});
+
+it('serves template, preview, rows, status, and commit over real HTTP routes', async () => {
+  const base = `/v1/branches/${f.branch}/customers/import`;
+  const tpl = await sendHttp(
+    'GET',
+    `/v1/businesses/${f.business}/customers/import/template`,
+    managerHeaders(),
+  );
+  expect(tpl.statusCode).toBe(200);
+  expect(tpl.json()['file_name']).toBe('customers-import-template.xlsx');
+  const fileId = await f.upload(await customerWorkbook([VALID[0]]));
+  const created = await sendHttp('POST', `${base}/previews`, managerHeaders(), { file_id: fileId });
+  expect(created.statusCode).toBe(201);
+  const previewId = String(created.json()['preview_id']);
+  expect(
+    (await sendHttp('GET', `${base}/previews/${previewId}/rows`, managerHeaders())).statusCode,
+  ).toBe(200);
+  expect(
+    (await sendHttp('GET', `${base}/previews/${previewId}`, managerHeaders())).json(),
+  ).toMatchObject({
+    status: 'ready',
+  });
+  const committed = await sendHttp(
+    'POST',
+    `${base}/commits`,
+    managerHeaders({ 'idempotency-key': 'http-branch-1' }),
+    { preview_id: previewId },
+  );
+  expect(committed.statusCode).toBe(202);
+});
+
+it('enforces HTTP auth, permissions, feature flag, idempotency header, and storage readiness', async () => {
+  const base = `/v1/branches/${f.branch}/customers/import`;
+  expect(
+    (
+      await sendHttp('GET', `/v1/businesses/${f.business}/customers/import/template`, {
+        'x-company-id': f.company,
+      })
+    ).statusCode,
+  ).toBe(401);
+  expect(
+    (
+      await sendHttp('GET', `/v1/businesses/${f.business}/customers/import/template`, {
+        cookie: 'sid=member',
+        'x-company-id': f.company,
+      })
+    ).json(),
+  ).toMatchObject({ code: 'FORBIDDEN' });
+  expect(
+    (await sendHttp('GET', `${base}/template`, { cookie: 'sid=member', 'x-company-id': f.company }))
+      .statusCode,
+  ).toBe(403);
+  const fileId = await f.upload(await customerWorkbook([VALID[0]]));
+  const created = await sendHttp('POST', `${base}/previews`, managerHeaders(), { file_id: fileId });
+  const previewId = String(created.json()['preview_id']);
+  expect(
+    (await sendHttp('POST', `${base}/commits`, managerHeaders(), { preview_id: previewId }))
+      .statusCode,
+  ).toBe(400);
+  await f.owner`INSERT INTO company_feature_overrides(company_id,flag,enabled,reason,set_by)
+    VALUES (${f.company},'customers',false,'HTTP test',${f.userId})`;
+  try {
+    expect((await sendHttp('GET', `${base}/template`, managerHeaders())).json()).toMatchObject({
+      code: 'FEATURE_DISABLED',
+    });
+  } finally {
+    await f.owner`DELETE FROM company_feature_overrides WHERE company_id=${f.company} AND flag='customers'`;
+  }
+  const bare = await f.startHttpApp(false);
+  try {
+    const noStorage = await bare.inject({
+      method: 'POST',
+      url: `/v1/businesses/${f.business}/customers/import/previews`,
+      headers: managerHeaders(),
+      payload: { file_id: fileId },
+    });
+    expect(noStorage.statusCode).toBe(503);
+    expect(noStorage.json()['code']).toBe('STORAGE_NOT_CONFIGURED');
+  } finally {
+    await bare.close();
+  }
 });

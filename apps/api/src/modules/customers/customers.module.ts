@@ -39,6 +39,7 @@ import {
 import { OWN_RATING_READS } from './queries/own-rating-context.ts';
 import { RATINGS_LIST_READS } from './queries/ratings-list-reads.ts';
 import { CUSTOMER_IMPORT_SCOPE_READS } from './queries/customer-import-reads.query.ts';
+import type { CustomerImportFilesBinding } from './ports/customer-import.port.ts';
 import { RatingsController, RATINGS_LIST_CLOCK } from './http/ratings.controller.ts';
 import {
   OwnRatingSummaryController,
@@ -50,7 +51,6 @@ import {
   GetCustomerImportTemplateUseCase,
   PreviewCustomerImportUseCase,
 } from './use-cases/customer-import/customer-import.usecases.ts';
-import type { CustomerImportFilesBinding } from './ports/customer-import.port.ts';
 import { OptOutOfRatingsUseCase } from './use-cases/opt-out-of-ratings/opt-out-of-ratings.usecase.ts';
 import { SetRatingRequests } from './use-cases/set-rating-requests/set-rating-requests.usecase.ts';
 import { SubmitRatingUseCase } from './use-cases/submit-rating/submit-rating.usecase.ts';

@@ -1,3 +1,5 @@
+import type { Tx } from '@pospay/db';
+
 import type {
   CustomerImportCommitPreview,
   CustomerImportFileFacts,
@@ -125,7 +127,7 @@ export interface CustomerImportFileFactsPort {
    * @param companyId الشركة
    * @param fileId    الملف
    */
-  facts(tx: unknown, companyId: string, fileId: string): Promise<CustomerImportFileFacts | null>;
+  facts(tx: Tx, companyId: string, fileId: string): Promise<CustomerImportFileFacts | null>;
 }
 
 /** قارئ بايتات الكائن الموثّق من التخزين الممرّر عبر app.ts. */

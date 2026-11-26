@@ -70,13 +70,12 @@ export function createCustomerImportSheetReader(): CustomerImportSheetReader {
 export function bindCustomerImportFiles(
   storage: { read(key: string, maxBytes: number): Promise<Uint8Array> } | null,
   facts:
-    | ((tx: never, companyId: string, fileId: string) => Promise<CustomerImportFileFacts | null>)
-    | null,
+    ((tx: Tx, companyId: string, fileId: string) => Promise<CustomerImportFileFacts | null>) | null,
 ): CustomerImportFilesBinding {
   return {
     fileFacts: {
       facts: (tx, companyId, fileId) =>
-        facts === null ? Promise.resolve(null) : facts(tx as never, companyId, fileId),
+        facts === null ? Promise.resolve(null) : facts(tx, companyId, fileId),
     },
     bytes:
       storage === null

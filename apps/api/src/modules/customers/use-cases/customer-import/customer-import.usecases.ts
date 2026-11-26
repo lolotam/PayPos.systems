@@ -11,9 +11,9 @@ import type { IdGenerator } from '../../../../shared/ports/id-generator.port.ts'
 import {
   CUSTOMER_IMPORT_CONTENT_TYPE,
   CUSTOMER_IMPORT_MAX_BYTES,
-  CUSTOMER_IMPORT_PREVIEW_TTL_MS,
   CustomerImportError,
   customerImportCallingCode,
+  customerImportExpiresAt,
   decideCustomerImportCommit,
   validateCustomerImportFile,
   type CustomerImportCellValues,
@@ -105,15 +105,16 @@ export class PreviewCustomerImportUseCase {
     );
     const previewId = this.ids.newId();
     const at = this.clock.now();
-    const expiresAt = new Date(at.getTime() + CUSTOMER_IMPORT_PREVIEW_TTL_MS).toISOString();
+    const expiresAt = customerImportExpiresAt(at);
     return this.transactions.runSave({ ...command, fileId: command.fileId }, async (scope) => {
       const phones = validated.candidates
         .map((c) => c.phone)
         .filter((p): p is string => p !== null);
-      const { rows, errors } = finalizeCustomerImportRows(
+      const finalized = finalizeCustomerImportRows(
         validated.candidates,
         await scope.existingPhones(phones),
       );
+      const { rows, errors } = finalized;
       const rowCount = validated.candidates.length;
       await scope.save({
         id: previewId,
@@ -131,8 +132,8 @@ export class PreviewCustomerImportUseCase {
       return {
         preview_id: previewId,
         row_count: rowCount,
-        new_count: rows.filter((r) => r.status === 'new').length,
-        existing_count: rows.filter((r) => r.status === 'existing').length,
+        new_count: finalized.new_count,
+        existing_count: finalized.existing_count,
         error_count: errors.length,
         errors: [...errors],
         rows: page.map(publicRow),
