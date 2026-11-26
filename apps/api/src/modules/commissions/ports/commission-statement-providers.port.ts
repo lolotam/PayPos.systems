@@ -9,6 +9,10 @@ import type {
 /** موظفة النشاط ببطاقتها، وهل مدة عملها بتغطي الشهر (قاعدة «في النطاق» FR-033). */
 export interface CommissionStatementEmployeeName extends CommissionEstimateEmployeeName {
   readonly employedDuringPeriod: boolean;
+  /** آخر يوم في العقد YYYY-MM-DD أو null؛ غايب في التجهيزات البسيطة فبيتعامل معاه كـ null (CM-50). */
+  readonly contractEnd?: string | null;
+  /** يوم الحذف بتوقيت النشاط YYYY-MM-DD أو null؛ غايب في التجهيزات البسيطة فبيتعامل معاه كـ null (CM-50). */
+  readonly deletedOn?: string | null;
 }
 
 /**

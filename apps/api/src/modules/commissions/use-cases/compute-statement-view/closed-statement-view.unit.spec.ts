@@ -102,6 +102,12 @@ it('retains all payment metadata and totals for a business reader', () => {
   });
 });
 
+it('flags a departed employee from the live set and defaults to not departed', () => {
+  expect(closedStatementView(context).employees[0]?.departed).toBe(false);
+  const flagged = closedStatementView({ ...context, departed: new Set([EMPLOYEE]) });
+  expect(flagged.employees[0]?.departed).toBe(true);
+});
+
 it('emits an explicit null payment for a newly approved statement', () => {
   expect(closedStatementView({ ...context, status: 'APPROVED', payment: null }).payment).toBeNull();
 });

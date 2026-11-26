@@ -104,6 +104,39 @@ it('CS-Q9: shows previous-month corrections in their own section with one row pe
   expect(screen.getByText(S('correctionsTotal')).parentElement?.textContent).toContain('-10.000');
 });
 
+it('CM-50: marks a departed employee and labels a negative corrections total as owed by her', async () => {
+  const rows = [correctionRow('correction:1', '-6.000', '20.000', '14.000')];
+  current.answer = ok(businessView({ employees: [statementEmployee({ rows, departed: true })] }));
+  renderStatementPage();
+  const card = await screen.findByLabelText('Sara');
+  expect(within(card).getByText(S('departedBadge'))).toBeTruthy();
+  const section = within(card).getByRole('heading', { name: S('sectionCorrections') });
+  expect(section).toBeTruthy();
+  const total = within(card).getByText(S('correctionsTotalOwedByHer'));
+  expect(total.parentElement?.textContent).toBe(`${S('correctionsTotalOwedByHer')}-6.000`);
+  expect(within(card).queryByText(S('correctionsTotal'))).toBeNull();
+});
+
+it('CM-50: labels a positive corrections total of a departed employee as owed to her', async () => {
+  const rows = [correctionRow('correction:1', '5.000', '10.000', '15.000')];
+  current.answer = ok(businessView({ employees: [statementEmployee({ rows, departed: true })] }));
+  renderStatementPage();
+  const card = await screen.findByLabelText('Sara');
+  expect(within(card).getByText(S('departedBadge'))).toBeTruthy();
+  expect(within(card).getByRole('heading', { name: S('sectionCorrections') })).toBeTruthy();
+  const total = within(card).getByText(S('correctionsTotalOwedToHer'));
+  expect(total.parentElement?.textContent).toBe(`${S('correctionsTotalOwedToHer')}5.000`);
+});
+
+it('CM-50: shows no departed badge and keeps the plain total label for an employee who stayed', async () => {
+  const rows = [correctionRow('correction:1', '-6.000', '20.000', '14.000')];
+  current.answer = ok(businessView({ employees: [statementEmployee({ rows })] }));
+  renderStatementPage();
+  const card = await screen.findByLabelText('Sara');
+  expect(within(card).queryByText(S('departedBadge'))).toBeNull();
+  expect(within(card).getByText(S('correctionsTotal'))).toBeTruthy();
+});
+
 it('keeps cash-tip corrections out of the corrections total', async () => {
   const rows = [
     correctionRow('correction:1', '-6.000', '20.000', '14.000'),

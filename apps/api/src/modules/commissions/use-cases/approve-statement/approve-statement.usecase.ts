@@ -31,6 +31,7 @@ import type {
 import type { FingerprintHasher } from '../../ports/fingerprint-hasher.port.ts';
 import { employeeCarryBalances } from './carry-balances.ts';
 import { closedStatementView } from '../compute-statement-view/closed-statement-view.ts';
+import { departedEmployeeIds } from '../compute-statement-view/statement-view-contract.ts';
 import { computeStatement } from '../compute-statement-view/compute-statement-view.ts';
 
 const BUSINESS_WIDE = { businessWide: true, branchIds: [] as string[] } as const;
@@ -132,7 +133,15 @@ export async function approveStatement(
 
   return freezeApproval(
     scope,
-    { businessId, period, statementId: statement.statementId, computed, carries, target },
+    {
+      businessId,
+      period,
+      statementId: statement.statementId,
+      computed,
+      carries,
+      target,
+      departed: departedEmployeeIds(source),
+    },
     hasher,
   );
 }
@@ -144,6 +153,8 @@ interface FreezeInput {
   readonly computed: ReturnType<typeof computeStatement>;
   readonly carries: readonly PlannedCarry[];
   readonly target: { readonly period: string; readonly statementId: string } | null;
+  /** من سابت الشغل قبل الشهر، من المصادر الحية، لعلامة الرد فقط (CM-50). */
+  readonly departed: ReadonlySet<string>;
 }
 
 /**
@@ -199,6 +210,7 @@ async function freezeApproval(
     rows: frozen.rows,
     payment: null,
     scope: BUSINESS_WIDE,
+    departed: input.departed,
   });
 }
 

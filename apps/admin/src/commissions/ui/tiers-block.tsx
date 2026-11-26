@@ -4,7 +4,7 @@ import { t } from '@pospay/i18n';
 import { Button, Label, NativeSelect } from '@pospay/ui';
 import { useFieldArray, useFormContext } from 'react-hook-form';
 import { useLocale } from '@/shared/locale/locale-context';
-import type { PlanDraft, StepDraft } from '../model/plan-draft';
+import type { RepairPlanDraft, StepDraft } from '../model/plan-draft';
 import { PlanSwitchBlock } from './plan-switch-block';
 import { TiersStepFields } from './tiers-step-fields';
 
@@ -22,7 +22,7 @@ export function TiersBlock({
   onUserEdit(): void;
 }) {
   const locale = useLocale();
-  const { control, register, setValue, trigger } = useFormContext<PlanDraft>();
+  const { control, register, setValue, trigger } = useFormContext<RepairPlanDraft>();
   const { append, fields, remove } = useFieldArray({ control, name: 'tiers.steps' });
   const markTouched = () => setValue('tiers.touched', true, { shouldValidate: true });
   // إضافة وحذف الشرائح من useFieldArray بتطلّع values من غير type، فمراقب watch بيوصله فعلاً،

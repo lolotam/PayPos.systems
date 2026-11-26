@@ -82,6 +82,7 @@ describe('employee totals in a closed statement', () => {
     name_ar: null,
     name_en: 'Total',
     partial: false,
+    departed: false,
     commission_subtotal: commission,
     tip_side: tip,
     payable,

@@ -185,3 +185,22 @@ describe('the blocking issues of the view (FR-027)', () => {
     expect(ids).toEqual([RANA, SARA]);
   });
 });
+
+describe('the departed flag of the statement view (CM-50)', () => {
+  it('marks a departed employee, listed or unlisted, and leaves the rest not departed', () => {
+    const LEFT = '01920000-0000-7000-8000-0000000000e9';
+    const unlisted = [{ employeeId: LEFT, employeeNumber: 9, nameAr: null, nameEn: 'Lina' }];
+    const view = project(ALL_BUSINESS, { unlisted, departed: new Set([RANA, LEFT]) });
+    const flags = Object.fromEntries(view.map((employee) => [employee.employeeId, employee.departed]));
+    expect(flags).toEqual({ [RANA]: true, [SARA]: false, [LEFT]: true });
+    expect(project(ALL_BUSINESS).every((employee) => !employee.departed)).toBe(true);
+  });
+
+  it('marks an unlisted employee from her own label flag when no set is given', () => {
+    const LEFT = '01920000-0000-7000-8000-0000000000e9';
+    const unlisted = [
+      { employeeId: LEFT, employeeNumber: 9, nameAr: null, nameEn: 'Lina', departed: true },
+    ];
+    expect(project(ALL_BUSINESS, { unlisted }).find((e) => e.employeeId === LEFT)?.departed).toBe(true);
+  });
+});

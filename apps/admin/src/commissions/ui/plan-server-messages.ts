@@ -5,6 +5,7 @@ import { envelopeMessage } from '@/shared/api/api-error';
 /** أكواد السيرفر اللي ليها رسالة جاهزة في كتالوج errors (مصدرها commissionPlanErrors في packages/i18n). */
 const PLAN_SERVER_CODE_KEYS: Record<string, MessageKey> = {
   EMPLOYEE_NOT_FOUND: 'errors.EMPLOYEE_NOT_FOUND',
+  COMMISSION_REPAIR_NOT_ALLOWED: 'errors.COMMISSION_REPAIR_NOT_ALLOWED',
   COMMISSION_PLAN_EMPLOYEE_CURSOR_UNAVAILABLE: 'errors.COMMISSION_PLAN_EMPLOYEE_CURSOR_UNAVAILABLE',
 };
 

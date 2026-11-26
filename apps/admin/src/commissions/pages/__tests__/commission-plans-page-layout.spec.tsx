@@ -4,6 +4,8 @@ import { QueryClientProvider } from '@tanstack/react-query';
 import { beforeEach, expect, it, vi } from 'vitest';
 import { createQueryClient } from '@/shared/api/query-client';
 import {
+  blockedCorrectionPage,
+  blockedCorrectionsPath,
   BUSINESS,
   COMPANY,
   EMP_A,
@@ -37,7 +39,9 @@ function renderPage() {
         ? ok(employeePage([employeeItem(EMP_A, 7, null, 'Sara')], null))
         : path === versionsPath
           ? ok(versionPage([versionItem(EMP_A, 2), versionItem(EMP_A, 1)], 1))
-          : ok({}),
+          : path === blockedCorrectionsPath
+            ? ok(blockedCorrectionPage([], null))
+            : ok({}),
     ),
   );
   render(<CommissionPlansPage companyId={COMPANY} userId={USER} businessId={BUSINESS} />, {

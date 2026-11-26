@@ -4643,6 +4643,8 @@ export interface components {
             name_ar: string | null;
             name_en: string;
             partial: boolean;
+            /** @default false */
+            departed: boolean;
             commission_subtotal: components["schemas"]["CommissionStatementTotalMoney"];
             tip_side: components["schemas"]["CommissionStatementTotalMoney"];
             payable: components["schemas"]["CommissionStatementTotalMoney"];

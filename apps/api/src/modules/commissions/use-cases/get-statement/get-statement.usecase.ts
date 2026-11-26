@@ -13,6 +13,7 @@ import { computeStatement } from '../compute-statement-view/compute-statement-vi
 import {
   branchViewContract,
   businessViewContract,
+  departedEmployeeIds,
 } from '../compute-statement-view/statement-view-contract.ts';
 
 /** طلب عرض الكشف: النشاط والشهر، والشركة والمستخدم من الجلسة. */
@@ -60,6 +61,7 @@ export class GetCommissionStatementUseCase {
         status,
         ...closed,
         scope: { businessWide, branchIds },
+        departed: departedEmployeeIds(source),
       });
     }
     const context = {
