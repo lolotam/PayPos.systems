@@ -24,6 +24,7 @@ import {
   COMMISSIONS_POSTING_SUBPATH_SYNTAX,
   COMMISSIONS_POSTING_SYNTAX,
   COMMISSIONS_UNANALYSABLE_SYNTAX,
+  DATABASE_RUNTIME_SYNTAX,
   USE_CASES_INFRASTRUCTURE_PATTERN,
 } from './boundaries.js';
 import {
@@ -112,11 +113,15 @@ export const allowDatabaseFacade = (allowed, options = {}) => ({
  * The override for a layer that may name @pospay/db as types only: the runtime import of the whole
  * module is refused there, while the credential, operator and restricted-package bans stay.
  *
+ * @param {{ userText?: boolean }} [options] userText lifts the Arabic-text ban for a test file
  * @returns {import('eslint').Linter.Config} the override
  */
-export const banRuntimeDatabaseImport = () => ({
+export const banRuntimeDatabaseImport = ({ userText = false } = {}) => ({
   rules: {
     'no-restricted-imports': facadeRule(null, false, RESTRICTED_PACKAGE_PATTERNS, false, true),
+    // #1334 — the runtime of @pospay/db is refused in every dynamic form too: import(), require() and
+    // `import x = require()`. The import type stays, because it names no runtime.
+    'no-restricted-syntax': restrictedSyntax({ userText, extra: DATABASE_RUNTIME_SYNTAX }),
   },
 });
 
@@ -160,10 +165,12 @@ const restrictedSyntax = ({
   userText,
   engine = [...COMMISSIONS_ENGINE_SYNTAX, ...COMMISSIONS_POSTING_SYNTAX],
   operator = true,
+  extra = [],
 }) => [
   'error',
   ...CREDENTIAL_SYNTAX,
   ...engine,
+  ...extra,
   ...LOG_SYNTAX,
   ...(operator ? OPERATOR_SYNTAX : []),
   ...(userText ? [] : USER_TEXT_SYNTAX),
