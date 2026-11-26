@@ -1,4 +1,4 @@
-import { DelayedError } from 'bullmq';
+import { DelayedError, UnrecoverableError } from 'bullmq';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { systemUuidV7 } from '@pospay/ids';
 import type { ClaimedEvent } from '@pospay/db';
@@ -17,7 +17,7 @@ const state = vi.hoisted(() => ({
     waitUntilReady: ReturnType<typeof vi.fn>;
     close: ReturnType<typeof vi.fn>;
   }[],
-  failed: [] as ((job: never) => void)[],
+  failed: [] as ((job: never, error?: Error) => void)[],
 }));
 
 vi.mock('bullmq', () => ({
@@ -32,7 +32,7 @@ vi.mock('bullmq', () => ({
   Worker: class {
     waitUntilReady = vi.fn(async () => undefined);
     close = vi.fn(async () => undefined);
-    on = vi.fn((event: string, listener: (job: never) => void) => {
+    on = vi.fn((event: string, listener: (job: never, error?: Error) => void) => {
       if (event === 'failed') state.failed.push(listener);
     });
     constructor(
@@ -43,6 +43,7 @@ vi.mock('bullmq', () => ({
     }
   },
   DelayedError: class DelayedError extends Error {},
+  UnrecoverableError: class UnrecoverableError extends Error {},
 }));
 
 vi.mock('ioredis', () => ({
@@ -185,7 +186,7 @@ function job(): TestJob {
   return value;
 }
 
-function failedListener(): (job: never) => void {
+function failedListener(): (job: never, error?: Error) => void {
   const listener = state.failed[0];
   if (listener === undefined) throw new Error('EXPECTED_CLOSING_PROCESSOR_FAILED_LISTENER');
   return listener;
@@ -223,7 +224,9 @@ describe('finalization', () => {
     });
     const { fail } = start({ execute });
     const value = job();
-    await first(state.workers).handler(value as never, 'token');
+    await expect(first(state.workers).handler(value as never, 'token')).rejects.toBeInstanceOf(
+      UnrecoverableError,
+    );
     expect(value.progress).toEqual({
       stage: 'finalizing-service-category-closing-failure',
       code: 'SERVICE_CATEGORY_CLOSING_FAILED',
@@ -259,7 +262,9 @@ describe('finalization', () => {
     value.updateProgress.mockImplementation(async () => {
       throw new Error('private progress outage');
     });
-    await first(state.workers).handler(value as never, 'token');
+    await expect(first(state.workers).handler(value as never, 'token')).rejects.toBeInstanceOf(
+      UnrecoverableError,
+    );
     expect(fail).toHaveBeenCalledWith(
       value.data.companyId,
       value.data.closingId,
@@ -287,7 +292,9 @@ describe('delayed finalization', () => {
     );
 
     value.attemptsStarted += 1;
-    await expect(first(state.workers).handler(value as never, 'token')).resolves.toBeUndefined();
+    await expect(first(state.workers).handler(value as never, 'token')).rejects.toBeInstanceOf(
+      UnrecoverableError,
+    );
     expect(execute).toHaveBeenCalledTimes(1);
     expect(value.updateProgress).toHaveBeenCalledTimes(1);
     expect(fail).toHaveBeenLastCalledWith(
@@ -322,6 +329,14 @@ describe('terminal job failure', () => {
     value.finishedOn = undefined;
     value.failedReason = 'private processing failure';
     failedListener()(value as never);
+    expect(fail).not.toHaveBeenCalled();
+  });
+
+  it('does not write again for the UnrecoverableError raised after our own failure write', () => {
+    const { fail } = start();
+    const value = job();
+    value.finishedOn = 1_700_000_000_000;
+    failedListener()(value as never, new UnrecoverableError('SERVICE_CATEGORY_CLOSING_FAILED'));
     expect(fail).not.toHaveBeenCalled();
   });
 

@@ -1,4 +1,4 @@
-import { Queue, Worker, DelayedError, type Job } from 'bullmq';
+import { Queue, Worker, DelayedError, UnrecoverableError, type Job } from 'bullmq';
 import { Redis } from 'ioredis';
 import { z } from 'zod';
 import {
@@ -62,19 +62,24 @@ async function markFailureProgress(job: Job, failure: Failure): Promise<void> {
   }
 }
 
-/** يكتب رمز الفشل على صف الطلب؛ لو الكتابة نفسها فشلت، المهمة بتتأجل بدل ما تضيع. */
+/**
+ * يكتب رمز الفشل على صف الطلب؛ لو الكتابة نفسها فشلت، المهمة بتتأجل بدل ما تضيع.
+ * بعد نجاح الكتابة بيرمي UnrecoverableError عشان الصف يدخل مجموعة الفاشل في BullMQ
+ * (مقاييس الفشل وremoveOnFail) بدل ما يتسجل «مكتمل» ويتمسح؛ ومستمع failed بيتجاهله.
+ */
 async function persistFailure(
   useCase: RunServiceCategoryClosing,
   job: Job,
   token: string | undefined,
   failure: Failure & { companyId: string; closingId: string },
-) {
+): Promise<never> {
   try {
     await useCase.fail(failure.companyId, failure.closingId, failure.code);
   } catch {
     await job.moveToDelayed(Date.now() + 2000, token);
     throw new DelayedError();
   }
+  throw new UnrecoverableError(failure.code);
 }
 
 /**
@@ -128,8 +133,8 @@ export function startServiceCategoryClosingProcessor(
     prefix,
   });
   worker.on('error', () => undefined);
-  worker.on('failed', (job) => {
-    if (job == null || !isTerminalFailure(job)) return;
+  worker.on('failed', (job, error) => {
+    if (job == null || error instanceof UnrecoverableError || !isTerminalFailure(job)) return;
     void persistTerminalFailure(useCase, job).catch(() => undefined);
   });
   return {
