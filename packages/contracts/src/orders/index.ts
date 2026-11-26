@@ -4,6 +4,7 @@ export * from './package-sale.js';
 export * from './package-sale-context.js';
 export * from './package-sale-refusal.js';
 export * from './customer-packages.js';
+export * from './package-refund-notice.js';
 export * from './recording-context.js';
 export * from './service-session-options.js';
 export * from './service-session-day.js';

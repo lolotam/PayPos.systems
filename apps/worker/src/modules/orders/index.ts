@@ -8,6 +8,7 @@ import {
 export {
   createLateServiceSessionNoticeConsumer,
   createLineCancelNoticeConsumer,
+  createPackageRefundNoticeConsumer,
   createPerformersChangeNoticeConsumer,
   createPriceEditNoticeConsumer,
   createDiscountApprovalNoticeConsumer,

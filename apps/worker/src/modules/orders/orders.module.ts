@@ -50,6 +50,13 @@ import {
 import { RequestLineCancelNotice } from './use-cases/request-line-cancel-notice/request-line-cancel-notice.ts';
 import { onLineCancelled } from './events/handlers/on-line-cancelled.handler.ts';
 import type { PerformersChangeNameFallback } from './domain/performers-change-notice.ts';
+import type { PackageRefundNameFallback } from './domain/package-refund-notice.ts';
+import { onPackageRefundRecorded } from './events/handlers/on-package-refund-recorded.handler.ts';
+import {
+  packageRefundOutbox,
+  packageRefundRepository,
+} from './persistence/package-refund-notice.repository.ts';
+import { RequestPackageRefundNotice } from './use-cases/request-package-refund-notice/request-package-refund-notice.ts';
 import { performersChangeRecipients } from './persistence/performers-change-recipients.adapter.ts';
 import { performersChangePlace } from './persistence/performers-change-place.adapter.ts';
 import {
@@ -207,41 +214,58 @@ export function createDiscountSelfApprovalNoticeConsumer(
     handle: (tx, event) => onDiscountApprovedByPerformer(bind(tx), event),
   };
 }
-function priceEditFallback(): PriceEditNameFallback {
+/** مستهلك جرس استرداد الباقة: يربط منافذ المستأجر في جذر الوحدة ويحجز الدفتر مرة لكل استرداد. */
+export function createPackageRefundNoticeConsumer(ids: IdGenerator, clock: Clock): OutboxConsumer {
+  const bind = (tx: Tx) =>
+    new RequestPackageRefundNotice(
+      {
+        recipients: lineCancelRecipients(tx),
+        place: lineCancelPlace(tx),
+        repository: packageRefundRepository(tx),
+        outbox: packageRefundOutbox(tx),
+      },
+      ids,
+      clock,
+      packageRefundFallback(),
+    );
   return {
-    service: { ar: t('ar', 'serviceSessions.service'), en: t('en', 'serviceSessions.service') },
+    id: 'orders.package-refund-notice-v1',
+    eventTypes: ['PackageRefundRecorded'],
+    handle: (tx, event) => onPackageRefundRecorded(bind(tx), event),
+  };
+}
+function baseFallback() {
+  return {
     branch: { ar: t('ar', 'inApp.generic_branch'), en: t('en', 'inApp.generic_branch') },
     safeName: safeDisplayName,
-    editorText: editorLabel,
   };
+}
+function serviceName() {
+  return { ar: t('ar', 'serviceSessions.service'), en: t('en', 'serviceSessions.service') };
+}
+function priceEditFallback(): PriceEditNameFallback {
+  return { service: serviceName(), ...baseFallback(), editorText: editorLabel };
 }
 function lineCancelFallback(): LineCancelNameFallback {
-  return {
-    service: { ar: t('ar', 'serviceSessions.service'), en: t('en', 'serviceSessions.service') },
-    branch: { ar: t('ar', 'inApp.generic_branch'), en: t('en', 'inApp.generic_branch') },
-    safeName: safeDisplayName,
-  };
+  return { service: serviceName(), ...baseFallback() };
 }
 function performersChangeFallback(): PerformersChangeNameFallback {
-  return {
-    service: { ar: t('ar', 'serviceSessions.service'), en: t('en', 'serviceSessions.service') },
-    branch: { ar: t('ar', 'inApp.generic_branch'), en: t('en', 'inApp.generic_branch') },
-    safeName: safeDisplayName,
-  };
+  return { service: serviceName(), ...baseFallback() };
 }
 function discountApprovalFallback(): DiscountApprovalNoticeNameFallback {
-  return {
-    service: { ar: t('ar', 'serviceSessions.service'), en: t('en', 'serviceSessions.service') },
-    branch: { ar: t('ar', 'inApp.generic_branch'), en: t('en', 'inApp.generic_branch') },
-    safeName: safeDisplayName,
-  };
+  return { service: serviceName(), ...baseFallback() };
 }
 function discountSelfApprovalFallback(): DiscountSelfApprovalNoticeNameFallback {
   return {
-    service: { ar: t('ar', 'serviceSessions.service'), en: t('en', 'serviceSessions.service') },
-    branch: { ar: t('ar', 'inApp.generic_branch'), en: t('en', 'inApp.generic_branch') },
+    service: serviceName(),
+    ...baseFallback(),
     approver: { ar: t('ar', 'inApp.editor_generic'), en: t('en', 'inApp.editor_generic') },
-    safeName: safeDisplayName,
+  };
+}
+function packageRefundFallback(): PackageRefundNameFallback {
+  return {
+    packageName: { ar: t('ar', 'inApp.generic_package'), en: t('en', 'inApp.generic_package') },
+    ...baseFallback(),
   };
 }
 
@@ -252,6 +276,7 @@ export function startPackagePreviewWorker(
   redisUrl: string,
   clock: PackagePreviewClock,
   prefix?: string,
+  retryDelayMs?: (attempt: number) => number | null,
 ) {
   const processor = startPackagePreviewProcessor(
     new ExecutePackagePreview(
@@ -261,6 +286,7 @@ export function startPackagePreviewWorker(
     ),
     redisUrl,
     prefix,
+    retryDelayMs,
   );
   return {
     eventTypes: ['PackageImportPreviewRequested'],
@@ -279,16 +305,19 @@ export function startPackageSaleWorker(
     redisUrl: string;
     clock: PackageSaleClock;
     transactionTimeoutMs: number;
+    retryDelayMs?: (attempt: number) => number | null;
     prefix?: string;
   },
 ) {
-  const { redisUrl, clock, transactionTimeoutMs, prefix } = options;
+  const { redisUrl, clock, transactionTimeoutMs, retryDelayMs, prefix } = options;
+  // null من السياسة يعني الإيقاف عند آخر محاولة؛ لا يتحول إلى إعادة بعد ثانيتين.
+  const retryDelay = retryDelayMs ?? (() => 2000);
   const sale = new ExecutePackageSale(
     packageSaleTransactions(database, ids, { timeoutMs: transactionTimeoutMs }),
     ids,
     clock,
   );
-  const processor = startPackageSaleProcessor(sale, redisUrl, prefix);
+  const processor = startPackageSaleProcessor(sale, redisUrl, prefix, retryDelayMs);
   const recoveryUseCase = new RecoverPackageSales(
     packageSaleRecoveryTransactions(database, { timeoutMs: transactionTimeoutMs }),
     clock,
@@ -304,7 +333,11 @@ export function startPackageSaleWorker(
       try {
         await recovery.register(event.companyId);
       } catch {
-        return { delivered: false, error: 'PACKAGE_SALE_RECOVERY_SCHEDULE_RETRY', retryInMs: 2000 };
+        return {
+          delivered: false,
+          error: 'PACKAGE_SALE_RECOVERY_SCHEDULE_RETRY',
+          retryInMs: retryDelay(event.attempt),
+        };
       }
       return processor.deliver(event);
     },

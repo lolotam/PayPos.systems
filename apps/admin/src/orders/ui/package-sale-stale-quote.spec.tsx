@@ -134,6 +134,32 @@ async function keepsTheSaleSubmittableOnTheSameQuote(locale: 'ar' | 'en') {
 
 const storageKey = `pospay:package-sale:${JSON.stringify(Object.values(packageSaleScope))}`;
 
+/** حقل السعر المعروض؛ بيتعبّى مرة واحدة قبل كل اختبار. */
+function priceInput(locale: 'ar' | 'en'): HTMLInputElement {
+  return screen.getByLabelText(t(locale, 'packageSale.pricePaid')) as HTMLInputElement;
+}
+
+/** السعر اللي لسه تلقائي بيتحدّث مع العرض الجديد؛ سعر كتبته الموظفة بيفضل زي ما هو. */
+async function movesTheAutoFilledPriceToTheRefreshedQuote(locale: 'ar' | 'en') {
+  await renderWithReloadedTypes([refreshedType]);
+  await waitFor(() => expect(priceInput(locale).value).toBe(packageSaleType.price));
+  fireEvent.click(
+    await screen.findByRole('button', { name: t(locale, 'packageSale.confirmRefreshedQuote') }),
+  );
+  await waitFor(() => expect(priceInput(locale).value).toBe(refreshedType.price));
+}
+
+/** سعر عدّته الموظفة ما بيتلمسش بتأكيد العرض الجديد. */
+async function keepsTheTypedPriceOnTheRefreshedQuote(locale: 'ar' | 'en') {
+  await renderWithReloadedTypes([refreshedType]);
+  await waitFor(() => expect(priceInput(locale).value).toBe(packageSaleType.price));
+  fireEvent.change(priceInput(locale), { target: { value: '27.500' } });
+  fireEvent.click(
+    await screen.findByRole('button', { name: t(locale, 'packageSale.confirmRefreshedQuote') }),
+  );
+  await waitFor(() => expect(priceInput(locale).value).toBe('27.500'));
+}
+
 // محاولة أصلية سجّلها تبويب تاني بالعرض القديم، والفورم ده شايف العرض اتغيّر
 function unresolvedAttemptFromAnotherTab() {
   return {
@@ -192,4 +218,8 @@ describe.each(['ar', 'en'] as const)('package sale stale quote (%s)', (locale) =
     keepsTheSaleSubmittableOnTheSameQuote(locale));
   it('keeps the original sale retry available while that sale is unresolved', () =>
     keepsTheOriginalRetryAvailable(locale));
+  it('moves the auto-filled price to the refreshed quote', () =>
+    movesTheAutoFilledPriceToTheRefreshedQuote(locale));
+  it('keeps a price the operator typed when the quote is refreshed', () =>
+    keepsTheTypedPriceOnTheRefreshedQuote(locale));
 });

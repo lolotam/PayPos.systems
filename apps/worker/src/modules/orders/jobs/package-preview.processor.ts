@@ -1,5 +1,4 @@
-import { Queue, Worker, DelayedError, type Job } from 'bullmq';
-import { Redis } from 'ioredis';
+import { DelayedError, type Job, type Queue } from 'bullmq';
 import { z } from 'zod';
 import {
   packageImportPreviewJob,
@@ -11,6 +10,7 @@ import {
   PackagePreviewRetryError,
   type ExecutePackagePreview,
 } from '../use-cases/execute-package-preview/execute-package-preview.ts';
+import { createBullQueueWorker } from './bullmq-queue-worker.ts';
 
 export const PACKAGE_PREVIEW_QUEUE = 'package-import-preview';
 const FINALIZING_FAILURE = 'finalizing-preview-failure';
@@ -71,28 +71,19 @@ export function startPackagePreviewProcessor(
   useCase: ExecutePackagePreview,
   redisUrl: string,
   prefix = 'bull',
+  retryDelayMs?: (attempt: number) => number | null,
 ) {
-  const connection = new Redis(redisUrl, { maxRetriesPerRequest: null, enableOfflineQueue: false });
-  connection.on('error', () => undefined);
-  const producer = connection.duplicate({ maxRetriesPerRequest: 1, commandTimeout: 5000 });
-  producer.on('error', () => undefined);
-  const queue = new Queue(PACKAGE_PREVIEW_QUEUE, { connection: producer, prefix });
-  queue.on('error', () => undefined);
-  const worker = new Worker(PACKAGE_PREVIEW_QUEUE, previewHandler(useCase), {
-    connection,
-    concurrency: 1,
+  const retryDelay = retryDelayMs ?? (() => 2000);
+  const bull = createBullQueueWorker({
+    name: PACKAGE_PREVIEW_QUEUE,
+    redisUrl,
     prefix,
+    handler: previewHandler(useCase),
   });
-  worker.on('error', () => undefined);
   return {
-    deliver: (event: ClaimedEvent) => deliverPreview(queue, useCase, event),
-    ready: () => worker.waitUntilReady().then(() => undefined),
-    close: async () => {
-      await worker.close();
-      await queue.close();
-      producer.disconnect();
-      connection.disconnect();
-    },
+    deliver: (event: ClaimedEvent) => deliverPreview(bull.queue, useCase, event, retryDelay),
+    ready: bull.ready,
+    close: bull.close,
   };
 }
 
@@ -100,6 +91,7 @@ async function deliverPreview(
   queue: Queue,
   useCase: ExecutePackagePreview,
   event: ClaimedEvent,
+  retryDelay: (attempt: number) => number | null,
 ): Promise<DeliveryOutcome> {
   const data = packageImportPreviewJob.safeParse({
     companyId: event.companyId,
@@ -118,7 +110,7 @@ async function deliverPreview(
         return {
           delivered: false,
           error: 'PACKAGE_PREVIEW_FAILURE_PERSIST_RETRY',
-          retryInMs: 2000,
+          retryInMs: retryDelay(event.attempt),
         };
       }
     }
@@ -134,6 +126,10 @@ async function deliverPreview(
     });
     return { delivered: true };
   } catch {
-    return { delivered: false, error: 'PACKAGE_PREVIEW_QUEUE_RETRY', retryInMs: 2000 };
+    return {
+      delivered: false,
+      error: 'PACKAGE_PREVIEW_QUEUE_RETRY',
+      retryInMs: retryDelay(event.attempt),
+    };
   }
 }

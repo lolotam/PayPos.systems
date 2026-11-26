@@ -78,13 +78,21 @@ redis.on('error', (error: unknown) => logger.warn({ err: error }, 'redis connect
 // ADR-0019: استقبال STOP وin-app مستقلان؛ تفعيل OTP لا يفتح إرسال الشركات.
 const production = process.env['NODE_ENV'] === 'production';
 const files = startFilesWorker(app, systemUuidV7(), config.REDIS_URL, process.env);
-const previews = startPackagePreviewWorker(app, files.readImportBytes, config.REDIS_URL, {
-  now: () => new Date(),
-});
+const previews = startPackagePreviewWorker(
+  app,
+  files.readImportBytes,
+  config.REDIS_URL,
+  {
+    now: () => new Date(),
+  },
+  undefined,
+  retryDelayMs,
+);
 const sales = startPackageSaleWorker(app, systemUuidV7(), {
   redisUrl: config.REDIS_URL,
   clock: { now: () => new Date() },
   transactionTimeoutMs: config.PACKAGE_SALE_TRANSACTION_TIMEOUT_MS,
+  retryDelayMs,
 });
 // المستهلك مسجّل قبل المنتج (47-2d)؛ لا شيء يصدر PackageImportCommitRequested بعد في الإنتاج.
 const imports = startPackageImportCommitWorker(app, systemUuidV7(), {
@@ -93,7 +101,14 @@ const imports = startPackageImportCommitWorker(app, systemUuidV7(), {
   transactionTimeoutMs: config.PACKAGE_IMPORT_COMMIT_TRANSACTION_TIMEOUT_MS,
   retryDelayMs,
 });
-const staff = startStaffWorker(app, systemUuidV7(), config.REDIS_URL, { now: () => new Date() });
+const staff = startStaffWorker(
+  app,
+  systemUuidV7(),
+  config.REDIS_URL,
+  { now: () => new Date() },
+  undefined,
+  retryDelayMs,
+);
 // عامل تثبيت استيراد العملاء: حدث الطلب من الـ outbox إلى الطابور ثم تثبيت ذري (073 D-4).
 const customerImports = startCustomersImportWorker(app, systemUuidV7(), {
   redisUrl: config.REDIS_URL,

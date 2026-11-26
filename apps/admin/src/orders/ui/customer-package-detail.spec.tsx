@@ -6,7 +6,7 @@ import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import type { SessionServiceScope } from '../api/use-session-services';
 import { CustomerPackageDetail } from './customer-package-detail';
 
-const api = vi.hoisted(() => ({ GET: vi.fn() }));
+const api = vi.hoisted(() => ({ GET: vi.fn(), POST: vi.fn() }));
 vi.mock('@/shared/api/client', () => ({ apiClient: () => api }));
 vi.mock('@/shared/locale/locale-context', () => ({ useLocale: () => 'en' }));
 
@@ -43,7 +43,7 @@ function soldComponents() {
   ];
 }
 
-function soldDetail(canExtend: boolean) {
+function soldDetail(canExtend: boolean, canRefund = false) {
   return {
     id: entitlementId,
     customer_id: customerId,
@@ -67,10 +67,26 @@ function soldDetail(canExtend: boolean) {
     refunded_amount: '5.000',
     revision: 1,
     can_extend: canExtend,
+    can_refund: canRefund,
     components: soldComponents(),
     redemptions: soldRedemptions(),
     extensions: soldExtensions(),
+    refunds: soldRefunds(),
   };
+}
+
+function soldRefunds() {
+  return [
+    {
+      id: '01920000-0000-7000-8000-0000000000e4',
+      component_id: '01920000-0000-7000-8000-0000000000e1',
+      sessions: 1,
+      amount: '5.000',
+      method: 'CARD',
+      reason: 'Schedule conflict',
+      refunded_at: '2026-11-21T09:00:00Z',
+    },
+  ];
 }
 
 function soldRedemptions() {
@@ -120,6 +136,13 @@ function renderDetail(
 
 beforeEach(() => {
   api.GET.mockReset();
+  api.POST.mockReset();
+  HTMLDialogElement.prototype.showModal = vi.fn(function (this: HTMLDialogElement) {
+    this.setAttribute('open', '');
+  });
+  HTMLDialogElement.prototype.close = vi.fn(function (this: HTMLDialogElement) {
+    this.removeAttribute('open');
+  });
 });
 
 afterEach(() => onlineManager.setOnline(true));
@@ -147,6 +170,7 @@ it('a sold package shows its sale facts, the sessions one by one, the visits and
   ).toBeTruthy();
   expect(screen.getByText('2026-11-02')).toBeTruthy();
   expect(screen.getByText('Client abroad')).toBeTruthy();
+  expect(screen.getByText('Schedule conflict')).toBeTruthy();
   expect(api.GET).toHaveBeenCalledWith(
     detailPath,
     expect.objectContaining({

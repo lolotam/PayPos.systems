@@ -11,7 +11,9 @@ export function startEmployeeImportRecoveryProcessor(
   useCase: RecoverEmployeeImports,
   redisUrl: string,
   prefix = 'bull',
+  retryDelayMs?: (attempt: number) => number | null,
 ) {
+  const retryDelay = retryDelayMs ?? (() => 2000);
   const connection = new Redis(redisUrl, { maxRetriesPerRequest: null, enableOfflineQueue: false });
   connection.on('error', () => undefined);
   const producer = connection.duplicate({ maxRetriesPerRequest: 1, commandTimeout: 5000 });
@@ -49,7 +51,7 @@ export function startEmployeeImportRecoveryProcessor(
         return {
           delivered: false,
           error: 'EMPLOYEE_IMPORT_RECOVERY_SCHEDULE_RETRY',
-          retryInMs: 2000,
+          retryInMs: retryDelay(event.attempt),
         };
       }
       return next();

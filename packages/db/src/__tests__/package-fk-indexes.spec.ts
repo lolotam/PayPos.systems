@@ -12,6 +12,7 @@ export const PACKAGE_STORAGE_TABLES = [
   'package_extensions',
   'package_refunds',
   'package_refund_slots',
+  'package_refund_notices',
 ] as const;
 
 interface ExpectedForeignKey {
@@ -55,7 +56,10 @@ const EXPECTED_FOREIGN_KEYS: Record<string, ExpectedForeignKey[]> = {
     },
   ],
   package_session_slots: [
-    { name: 'package_session_slots_redemption_fk', columns: ['company_id','business_id','current_redemption_id'] },
+    {
+      name: 'package_session_slots_redemption_fk',
+      columns: ['company_id', 'business_id', 'current_redemption_id'],
+    },
     { name: 'package_session_slots_company_id_companies_id_fk', columns: ['company_id'] },
     {
       name: 'package_session_slots_component_fk',
@@ -65,11 +69,20 @@ const EXPECTED_FOREIGN_KEYS: Record<string, ExpectedForeignKey[]> = {
   package_redemptions: [
     { name: 'package_redemptions_company_id_companies_id_fk', columns: ['company_id'] },
     { name: 'package_redemptions_recorded_by_user_id_fk', columns: ['recorded_by'] },
-    { name: 'package_redemptions_component_fk', columns: ['company_id','business_id','entitlement_id','component_id'] },
-    { name: 'package_redemptions_slot_fk', columns: ['company_id','business_id','slot_id'] },
-    { name: 'package_redemptions_line_fk', columns: ['company_id','business_id','line_id'] },
-    { name: 'package_redemptions_membership_fk', columns: ['company_id','recorded_by','recorded_by_membership_id'] },
-    { name: 'package_redemptions_cancellation_fk', columns: ['company_id','reversal_cancellation_id'] },
+    {
+      name: 'package_redemptions_component_fk',
+      columns: ['company_id', 'business_id', 'entitlement_id', 'component_id'],
+    },
+    { name: 'package_redemptions_slot_fk', columns: ['company_id', 'business_id', 'slot_id'] },
+    { name: 'package_redemptions_line_fk', columns: ['company_id', 'business_id', 'line_id'] },
+    {
+      name: 'package_redemptions_membership_fk',
+      columns: ['company_id', 'recorded_by', 'recorded_by_membership_id'],
+    },
+    {
+      name: 'package_redemptions_cancellation_fk',
+      columns: ['company_id', 'reversal_cancellation_id'],
+    },
   ],
   package_extensions: [
     { name: 'package_extensions_company_id_companies_id_fk', columns: ['company_id'] },
@@ -120,6 +133,13 @@ const EXPECTED_FOREIGN_KEYS: Record<string, ExpectedForeignKey[]> = {
     {
       name: 'package_refund_slots_slot_fk',
       columns: ['company_id', 'business_id', 'slot_id'],
+    },
+  ],
+  package_refund_notices: [
+    { name: 'package_refund_notices_company_id_companies_id_fk', columns: ['company_id'] },
+    {
+      name: 'package_refund_notices_refund_fk',
+      columns: ['company_id', 'business_id', 'refund_id'],
     },
   ],
 };
@@ -225,47 +245,103 @@ it('every foreign key of the package storage has a supporting index', async () =
   }
 });
 
+// المفاتيح الدائرية بين الاستخدامات والجلسات: كل مفتاح له أبوه وأعمدته وتوقيته المؤجل.
+const EXPECTED_CIRCULAR_FOREIGN_KEYS = [
+  [
+    'package_redemptions_cancellation_fk',
+    'service_line_cancellations',
+    ['company_id', 'reversal_cancellation_id'],
+    ['company_id', 'id'],
+    true,
+    true,
+  ],
+  [
+    'package_redemptions_line_fk',
+    'service_lines',
+    ['company_id', 'business_id', 'line_id'],
+    ['company_id', 'business_id', 'id'],
+    true,
+    true,
+  ],
+  [
+    'package_redemptions_slot_fk',
+    'package_session_slots',
+    ['company_id', 'business_id', 'slot_id'],
+    ['company_id', 'business_id', 'id'],
+    true,
+    true,
+  ],
+  [
+    'package_session_slots_redemption_fk',
+    'package_redemptions',
+    ['company_id', 'business_id', 'current_redemption_id'],
+    ['company_id', 'business_id', 'id'],
+    true,
+    true,
+  ],
+  [
+    'service_lines_redemption_fk',
+    'package_redemptions',
+    ['company_id', 'business_id', 'redemption_id'],
+    ['company_id', 'business_id', 'id'],
+    true,
+    true,
+  ],
+];
+
 it('circular redemption FKs have exact parents, columns and deferred timing', async () => {
-  const rows = await owner`SELECT conname, confrelid::regclass::text AS parent, condeferrable, condeferred,
+  const rows =
+    await owner`SELECT conname, confrelid::regclass::text AS parent, condeferrable, condeferred,
     ARRAY(SELECT a.attname FROM unnest(c.conkey) WITH ORDINALITY k(n,o)
       JOIN pg_attribute a ON a.attrelid=c.conrelid AND a.attnum=k.n ORDER BY k.o) AS columns,
     ARRAY(SELECT a.attname FROM unnest(c.confkey) WITH ORDINALITY k(n,o)
       JOIN pg_attribute a ON a.attrelid=c.confrelid AND a.attnum=k.n ORDER BY k.o) AS parent_columns
     FROM pg_constraint c WHERE conname IN ('package_redemptions_slot_fk','package_redemptions_line_fk',
       'package_redemptions_cancellation_fk','service_lines_redemption_fk','package_session_slots_redemption_fk') ORDER BY conname`;
-  expect(rows.map((r) => [r.conname,r.parent,r.columns,r.parent_columns,r.condeferrable,r.condeferred])).toEqual([
-    ['package_redemptions_cancellation_fk','service_line_cancellations',['company_id','reversal_cancellation_id'],['company_id','id'],true,true],
-    ['package_redemptions_line_fk','service_lines',['company_id','business_id','line_id'],['company_id','business_id','id'],true,true],
-    ['package_redemptions_slot_fk','package_session_slots',['company_id','business_id','slot_id'],['company_id','business_id','id'],true,true],
-    ['package_session_slots_redemption_fk','package_redemptions',['company_id','business_id','current_redemption_id'],['company_id','business_id','id'],true,true],
-    ['service_lines_redemption_fk','package_redemptions',['company_id','business_id','redemption_id'],['company_id','business_id','id'],true,true],
-  ]);
+  expect(
+    rows.map((r) => [
+      r.conname,
+      r.parent,
+      r.columns,
+      r.parent_columns,
+      r.condeferrable,
+      r.condeferred,
+    ]),
+  ).toEqual(EXPECTED_CIRCULAR_FOREIGN_KEYS);
 });
 
 it('the online migration finishes with validated redemption FKs', async () => {
-  const rows=await owner`SELECT conname,convalidated FROM pg_constraint
+  const rows = await owner`SELECT conname,convalidated FROM pg_constraint
     WHERE conname IN ('service_lines_redemption_fk','package_session_slots_redemption_fk') ORDER BY conname`;
   expect(rows).toEqual([
-    { conname:'package_session_slots_redemption_fk',convalidated:true },
-    { conname:'service_lines_redemption_fk',convalidated:true },
+    { conname: 'package_session_slots_redemption_fk', convalidated: true },
+    { conname: 'service_lines_redemption_fk', convalidated: true },
   ]);
 });
 
 it('slot validation queues only changed state or redemption updates, never bulk slot inserts', async () => {
-  const [trigger]=await owner`SELECT tgtype::int AS events,tgdeferrable,tginitdeferred,
+  const [trigger] = await owner`SELECT tgtype::int AS events,tgdeferrable,tginitdeferred,
     ARRAY(SELECT a.attname FROM unnest(t.tgattr::smallint[]) WITH ORDINALITY k(n,o)
       JOIN pg_attribute a ON a.attrelid=t.tgrelid AND a.attnum=k.n ORDER BY k.o) AS columns,
     pg_get_triggerdef(t.oid) AS definition FROM pg_trigger t
     WHERE tgrelid='package_session_slots'::regclass AND tgname='package_session_slots_redemption_complete'`;
-  expect(trigger).toMatchObject({ events:17,tgdeferrable:true,tginitdeferred:true,columns:['state','current_redemption_id'] });
+  expect(trigger).toMatchObject({
+    events: 17,
+    tgdeferrable: true,
+    tginitdeferred: true,
+    columns: ['state', 'current_redemption_id'],
+  });
   expect(trigger?.definition).toContain('old.state IS DISTINCT FROM new.state');
-  expect(trigger?.definition).toContain('old.current_redemption_id IS DISTINCT FROM new.current_redemption_id');
+  expect(trigger?.definition).toContain(
+    'old.current_redemption_id IS DISTINCT FROM new.current_redemption_id',
+  );
 });
 
 it('paid line writes do not queue deferred redemption validation', async () => {
-  const [trigger]=await owner`SELECT pg_get_triggerdef(oid) AS definition,tgdeferrable,tginitdeferred
+  const [trigger] =
+    await owner`SELECT pg_get_triggerdef(oid) AS definition,tgdeferrable,tginitdeferred
     FROM pg_trigger WHERE tgrelid='service_lines'::regclass AND tgname='service_lines_redemption_complete'`;
-  expect(trigger).toMatchObject({ tgdeferrable:true,tginitdeferred:true });
+  expect(trigger).toMatchObject({ tgdeferrable: true, tginitdeferred: true });
   expect(trigger?.definition).toContain('new.redemption_id IS NOT NULL');
 });
 

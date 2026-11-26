@@ -1,4 +1,5 @@
 import type { Money } from '@pospay/domain';
+import type { PackageRefundRecordedPayload } from '../domain/package-refund-recorded.ts';
 import type { PackageSlot } from '../domain/package-slots.ts';
 import type { PackageSaleChangedPayload } from '../domain/package-sale-changed.ts';
 import type { SessionWriteContext } from './service-session-transactions.port.ts';
@@ -194,6 +195,13 @@ export interface PackageRefundTransaction {
    * @returns يكتمل إدخال الحدث في الـ outbox
    */
   emit(payload: PackageSaleChangedPayload): Promise<void>;
+  /**
+   * يكتب حدث PackageRefundRecorded في نفس معاملة الاسترداد؛ هو ده المصدر الوحيد لجرس الاسترداد.
+   *
+   * @param payload الحمولة المبنية من سطر الاسترداد المحروس
+   * @returns يكتمل إدخال الحدث في الـ outbox
+   */
+  emitRefundRecorded(payload: PackageRefundRecordedPayload): Promise<void>;
 }
 
 /** حد معاملة الاسترداد؛ الساعة ومولد الهويات يبقيان عند حالة الاستخدام. */

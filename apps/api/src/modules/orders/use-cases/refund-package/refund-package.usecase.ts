@@ -1,6 +1,7 @@
 import type { PackageRefundResponse, RefundPackageInput } from '@pospay/contracts';
 import { moneyToString } from '@pospay/domain';
 import { PackageRefundError } from '../../domain/package-refund-error.ts';
+import { packageRefundRecorded } from '../../domain/package-refund-recorded.ts';
 import { planPackageRefund, type PackageRefundPlan } from '../../domain/package-refund-plan.ts';
 import { normalizeRefundReason } from '../../domain/package-refund-reason.ts';
 import { packageSaleChanged } from '../../domain/package-sale-changed.ts';
@@ -30,6 +31,7 @@ type RefundWrite = {
   readonly entitlement: LockedRefundEntitlement;
   readonly plan: AcceptedRefundPlan;
   readonly membershipId: string;
+  readonly today: string;
   readonly at: Date;
   readonly id: string;
   readonly reason: string;
@@ -66,10 +68,12 @@ export class RefundPackageUseCase {
     const timezone = await tx.place.timezone();
     if (timezone === null) throw new PackageRefundError('FORBIDDEN');
     const entitlement = await this.lockEntitlement(tx, context);
-    const plan = await this.planRefund(tx, context, entitlement, sessionBusinessDate(at, timezone));
+    const today = sessionBusinessDate(at, timezone);
+    const plan = await this.planRefund(tx, context, entitlement, today);
     const id = this.ids.newId();
-    await this.writeRefund(tx, context, { entitlement, plan, membershipId, at, id, reason });
-    await this.publish(tx, context, entitlement, plan);
+    const write: RefundWrite = { entitlement, plan, membershipId, today, at, id, reason };
+    await this.writeRefund(tx, context, write);
+    await this.publish(tx, context, write);
     return this.response(context, plan, at, id);
   }
 
@@ -166,9 +170,24 @@ export class RefundPackageUseCase {
   private async publish(
     tx: PackageRefundTransaction,
     context: RefundPackageContext,
-    entitlement: LockedRefundEntitlement,
-    plan: AcceptedRefundPlan,
+    write: RefundWrite,
   ): Promise<void> {
+    const { id: refundId, today, at, plan, entitlement } = write;
+    // جرس الاسترداد بيتبعت لكل استرداد، مباع أو مستورد؛ حدث البيع بيتبعت للمباع بس.
+    await tx.emitRefundRecorded(
+      packageRefundRecorded({
+        refundId,
+        entitlementId: context.entitlementId,
+        componentId: context.input.component_id,
+        businessId: context.businessId,
+        branchId: context.branchId,
+        sessions: context.input.sessions,
+        amount: plan.amount,
+        businessDate: today,
+        refundedAt: at,
+        entitlementRevision: plan.newRevision,
+      }),
+    );
     // الخطة بتقرر هل الحدث واجب، والمصدر هو اللي يحمل لقطة البيع اللي الحدث محتاجها.
     if (!plan.publicationRequired || entitlement.provenance !== 'SOLD') return;
     await tx.emit(

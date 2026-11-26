@@ -12,6 +12,8 @@ export type { DiscountApprovalNoticeRequested } from '@pospay/contracts';
 export type { DiscountSelfApprovalNoticeRequested } from '@pospay/contracts';
 /** يصدره عامل orders داخل معاملة البيع نفسها مع قيد التدقيق، بعد إدخال الاستحقاق ومكوّناته وجلساته وقبل تعليم الطلب كمكتمل؛ aggregateType 'package_entitlement' وaggregateId هو معرّف الاستحقاق. */
 export type { PackageSaleChanged } from '@pospay/contracts';
+/** يلحقه عامل orders مرة لكل مجموعة مستلمين بحد أقصى 100 داخل معاملة المستهلك التي تحجز صف دفتر الجرس (company_id, refund_id)، بلا سبب أو اسم عميلة أو هاتف. */
+export type { PackageRefundNoticeRequested } from '@pospay/contracts';
 
 /** خلاصة استيراد الباقات داخل معاملة التثبيت؛ لا تحمل بيانات العملاء أو حدث بيع. */
 export interface PackageImportCommitted {

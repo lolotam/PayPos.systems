@@ -8,12 +8,18 @@ import { sessionMoney } from './service-session.js';
 const id = sharedId.toLowerCase();
 const businessDate = z.iso.date();
 const count = z.number().int().nonnegative();
-const cursor = z.string().min(1).max(4096).regex(/^[A-Za-z0-9_-]+$/);
+const cursor = z
+  .string()
+  .min(1)
+  .max(4096)
+  .regex(/^[A-Za-z0-9_-]+$/);
 
-export const customerPackagesQuery = z.strictObject({
-  cursor: cursor.optional(),
-  limit: z.coerce.number().int().min(1).max(50).default(20),
-}).meta({ id: 'CustomerPackagesQuery' });
+export const customerPackagesQuery = z
+  .strictObject({
+    cursor: cursor.optional(),
+    limit: z.coerce.number().int().min(1).max(50).default(20),
+  })
+  .meta({ id: 'CustomerPackagesQuery' });
 
 export const customerPackageSlotValue = responseObject({
   unit_value: sessionMoney,
@@ -92,6 +98,16 @@ export const customerPackageExtension = responseObject({
   reason: z.string().optional(),
 }).meta({ id: 'CustomerPackageExtension' });
 
+export const customerPackageRefund = responseObject({
+  id,
+  component_id: id,
+  sessions: z.number().int().min(1).max(365),
+  amount: sessionMoney,
+  method: packagePaidMethod,
+  reason: z.string(),
+  refunded_at: timestamp,
+}).meta({ id: 'CustomerPackageRefund' });
+
 export const customerPackageDetail = responseObject({
   id,
   customer_id: id,
@@ -115,9 +131,11 @@ export const customerPackageDetail = responseObject({
   refunded_amount: sessionMoney,
   revision: z.number().int().positive(),
   can_extend: z.boolean().default(false),
+  can_refund: z.boolean().default(false),
   components: z.array(customerPackageDetailComponent),
   redemptions: z.array(customerPackageRedemption),
   extensions: z.array(customerPackageExtension).default([]),
+  refunds: z.array(customerPackageRefund).default([]),
 }).meta({ id: 'CustomerPackageDetail' });
 
 export const customerPackagesCursorData = z.strictObject({
@@ -139,6 +157,7 @@ export type CustomerPackageDetailSlot = z.infer<typeof customerPackageDetailSlot
 export type CustomerPackageDetailComponent = z.infer<typeof customerPackageDetailComponent>;
 export type CustomerPackageRedemption = z.infer<typeof customerPackageRedemption>;
 export type CustomerPackageExtension = z.infer<typeof customerPackageExtension>;
+export type CustomerPackageRefund = z.infer<typeof customerPackageRefund>;
 export type CustomerPackageDetail = z.infer<typeof customerPackageDetail>;
 export type CustomerPackagesCursorData = z.infer<typeof customerPackagesCursorData>;
 
@@ -152,5 +171,6 @@ export const customerPackageSchemas = [
   customerPackageDetailComponent,
   customerPackageRedemption,
   customerPackageExtension,
+  customerPackageRefund,
   customerPackageDetail,
 ];

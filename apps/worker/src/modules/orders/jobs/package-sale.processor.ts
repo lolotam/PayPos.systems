@@ -1,11 +1,11 @@
-import { Queue, Worker, DelayedError, type Job } from 'bullmq';
-import { Redis } from 'ioredis';
+import { DelayedError, type Job, type Queue } from 'bullmq';
 import { z } from 'zod';
 import type { ClaimedEvent, DeliveryOutcome } from '@pospay/db';
 import {
   PackageSaleRetryError,
   type ExecutePackageSale,
 } from '../use-cases/execute-package-sale/execute-package-sale.ts';
+import { createBullQueueWorker } from './bullmq-queue-worker.ts';
 
 export const PACKAGE_SALE_QUEUE = 'package-sale';
 const FINALIZING_FAILURE = 'finalizing-sale-failure';
@@ -52,12 +52,7 @@ async function persistFailure(
   failure: Failure & { companyId: string; saleRequestId: string },
 ) {
   try {
-    await useCase.fail(
-      failure.companyId,
-      failure.saleRequestId,
-      failure.code,
-      failure.details,
-    );
+    await useCase.fail(failure.companyId, failure.saleRequestId, failure.code, failure.details);
   } catch {
     // الطلب المقبول يفضل قابلاً للإعادة حتى تعود قاعدة البيانات دون استهلاك محاولة جديدة.
     await job.moveToDelayed(Date.now() + 2000, token);
@@ -70,32 +65,27 @@ export function startPackageSaleProcessor(
   useCase: ExecutePackageSale,
   redisUrl: string,
   prefix = 'bull',
+  retryDelayMs?: (attempt: number) => number | null,
 ) {
-  const connection = new Redis(redisUrl, { maxRetriesPerRequest: null, enableOfflineQueue: false });
-  connection.on('error', () => undefined);
-  const producer = connection.duplicate({ maxRetriesPerRequest: 1, commandTimeout: 5000 });
-  producer.on('error', () => undefined);
-  const queue = new Queue(PACKAGE_SALE_QUEUE, { connection: producer, prefix });
-  queue.on('error', () => undefined);
-  const worker = new Worker(PACKAGE_SALE_QUEUE, saleHandler(useCase), {
-    connection,
-    concurrency: 1,
+  const retryDelay = retryDelayMs ?? (() => 2000);
+  const bull = createBullQueueWorker({
+    name: PACKAGE_SALE_QUEUE,
+    redisUrl,
     prefix,
+    handler: saleHandler(useCase),
   });
-  worker.on('error', () => undefined);
   return {
-    deliver: (event: ClaimedEvent) => deliverSale(queue, event),
-    ready: () => worker.waitUntilReady().then(() => undefined),
-    close: async () => {
-      await worker.close();
-      await queue.close();
-      producer.disconnect();
-      connection.disconnect();
-    },
+    deliver: (event: ClaimedEvent) => deliverSale(bull.queue, event, retryDelay),
+    ready: bull.ready,
+    close: bull.close,
   };
 }
 
-async function deliverSale(queue: Queue, event: ClaimedEvent): Promise<DeliveryOutcome> {
+async function deliverSale(
+  queue: Queue,
+  event: ClaimedEvent,
+  retryDelay: (attempt: number) => number | null,
+): Promise<DeliveryOutcome> {
   const data = saleJob.safeParse({ companyId: event.companyId, saleRequestId: event.aggregateId });
   const payload = saleRequested.safeParse(event.payload);
   if (
@@ -116,6 +106,10 @@ async function deliverSale(queue: Queue, event: ClaimedEvent): Promise<DeliveryO
     });
     return { delivered: true };
   } catch {
-    return { delivered: false, error: 'PACKAGE_SALE_QUEUE_RETRY', retryInMs: 2000 };
+    return {
+      delivered: false,
+      error: 'PACKAGE_SALE_QUEUE_RETRY',
+      retryInMs: retryDelay(event.attempt),
+    };
   }
 }

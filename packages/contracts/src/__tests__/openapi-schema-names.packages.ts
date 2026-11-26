@@ -11,6 +11,7 @@ export const packageSchemaNames = [
   'CustomerPackageListItem',
   'CustomerPackagePage',
   'CustomerPackageRedemption',
+  'CustomerPackageRefund',
   'CustomerPackageSlotValue',
   'CustomerPackagesQuery',
   'ExtendPackageInput',

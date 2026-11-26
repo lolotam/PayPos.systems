@@ -58,6 +58,36 @@ it('rejects invalid query parameters: limit=0, limit=51, unknown key and malform
   }
 });
 
+const detailKeys = [
+  'id',
+  'customer_id',
+  'package_type_id',
+  'provenance',
+  'name_en',
+  'name_ar',
+  'validity_days',
+  'list_price',
+  'price_paid',
+  'discount',
+  'discount_bps',
+  'paid_method',
+  'seller_employee_id',
+  'seller_linked_user_id',
+  'sold_branch_id',
+  'sold_at',
+  'sold_business_date',
+  'expires_on',
+  'business_timezone',
+  'refunded_amount',
+  'revision',
+  'can_extend',
+  'can_refund',
+  'components',
+  'redemptions',
+  'extensions',
+  'refunds',
+].sort();
+
 it('returns package detail with 200 and snake_case keys', async () => {
   const res = await getDetail(fixture.packages.a);
   expect(res.status).toBe(200);
@@ -68,35 +98,7 @@ it('returns package detail with 200 and snake_case keys', async () => {
   expect(detail.list_price).toBe('32.500');
   expect(detail.business_timezone).toBe('Asia/Kuwait');
 
-  expect(Object.keys(res.body).sort()).toEqual(
-    [
-      'id',
-      'customer_id',
-      'package_type_id',
-      'provenance',
-      'name_en',
-      'name_ar',
-      'validity_days',
-      'list_price',
-      'price_paid',
-      'discount',
-      'discount_bps',
-      'paid_method',
-      'seller_employee_id',
-      'seller_linked_user_id',
-      'sold_branch_id',
-      'sold_at',
-      'sold_business_date',
-      'expires_on',
-      'business_timezone',
-      'refunded_amount',
-      'revision',
-      'can_extend',
-      'components',
-      'redemptions',
-      'extensions',
-    ].sort(),
-  );
+  expect(Object.keys(res.body).sort()).toEqual(detailKeys);
 
   const comp = must(detail.components[0]);
   expect(comp.component_value).toBe('32.500');
