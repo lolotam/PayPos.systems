@@ -9,10 +9,12 @@ import {
   type BusinessIdentityNames,
   type BusinessLogo,
   type BusinessSettings,
+  type MyWorkspacesReadResponse,
   type UpdateBusinessIdentityNamesInput,
 } from '@pospay/contracts';
 import type { QueryClient } from '@tanstack/react-query';
 import { apiClient } from '@/shared/api/client';
+import { workspacesQueryKey } from '@/workspace/api/use-workspaces';
 
 export function businessSettingsKey(companyId: string, userId: string, businessId: string) {
   return ['business-settings', companyId, userId, businessId] as const;
@@ -138,6 +140,34 @@ type IdentityPatch = Partial<
 >;
 
 /**
+ * يحدّث معرّف الشعار في كاش مساحات العمل، عشان رأس اللوحة يتغيّر على طول من غير إعادة تحميل.
+ * النشاط اللي مالوش دخول في الكاش ما بيتلمسش، والكاش الفاضي ما يتلمسش خالص.
+ */
+function mergeWorkspaceLogo(
+  client: QueryClient,
+  companyId: string,
+  businessId: string,
+  logoFileId: string | null,
+) {
+  client.setQueryData<MyWorkspacesReadResponse>(workspacesQueryKey, (current) => {
+    if (!current) return current;
+    return {
+      ...current,
+      companies: current.companies.map((company) =>
+        company.id !== companyId
+          ? company
+          : {
+              ...company,
+              businesses: company.businesses.map((business) =>
+                business.id === businessId ? { ...business, logo_file_id: logoFileId } : business,
+              ),
+            },
+      ),
+    };
+  });
+}
+
+/**
  * بيلغي قراءة الهوية وقراءة الإعدادات اللي لسه في الطريق قبل كتابة الحفظ.
  * الرد القديم لو وصل بعد كده ما يحقّلوش يغطّي الأسماء أو الشعار، وبعدين القراءة تتطلب من جديد.
  */
@@ -158,6 +188,10 @@ export async function refreshBusinessIdentity(
     current ? { ...current, ...patch } : current,
   );
   mergeBusinessSettings(client, companyId, userId, businessId, patch);
+  if ('logo_file_id' in patch) {
+    mergeWorkspaceLogo(client, companyId, businessId, patch.logo_file_id ?? null);
+    await client.invalidateQueries({ queryKey: workspacesQueryKey });
+  }
   await Promise.all([
     client.invalidateQueries({ queryKey: identityKey }),
     client.invalidateQueries({ queryKey: settingsKey }),

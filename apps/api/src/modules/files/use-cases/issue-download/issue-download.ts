@@ -34,7 +34,7 @@ export class IssueDownload {
       file.businessId,
       file.branchId,
     );
-    if (!allowed) {
+    if (!allowed && !(await this.boundLogoAllowed(actor, file))) {
       await this.repository.audit(actor, file.id, 'DENY', this.clock.now());
       throw new FileError('FILE_NOT_FOUND');
     }
@@ -42,5 +42,14 @@ export class IssueDownload {
     const url = await this.storage.download(key, file.contentType);
     await this.repository.audit(actor, file.id, 'ALLOW', this.clock.now());
     return { download_url: url, expires_in: 60 as const };
+  }
+  /**
+   * الشعار المربوط حالياً بينزل لأي عضو ساري بيغطي النشاط (TQ-1).
+   * الملف لازم يكون هو الشعار المربوط نفسه؛ أي ملف إعدادات تاني يفضل مرفوض.
+   */
+  private async boundLogoAllowed(actor: Actor, file: FileRecord): Promise<boolean> {
+    if (file.ownerModule !== 'settings') return false;
+    if (!(await this.permissions.coversBusiness(actor, file.businessId))) return false;
+    return this.repository.isBoundBusinessLogo(actor, file.businessId, file.id);
   }
 }

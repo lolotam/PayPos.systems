@@ -1,6 +1,7 @@
 import {
   appendAuditLog,
   appendOutboxEvent,
+  readBusinessIdentity,
   type TenantWrappers,
   type IdGenerator,
   type Tx,
@@ -95,6 +96,11 @@ export function createFileRepository(db: TenantWrappers, ids: IdGenerator): File
           action: 'access',
           after: { outcome },
         });
+      }),
+    isBoundBusinessLogo: (actor, businessId, fileId) =>
+      run(actor, async (tx) => {
+        const identity = await readBusinessIdentity(tx, actor.companyId, businessId);
+        return identity.logo_file_id === fileId;
       }),
   };
 }
