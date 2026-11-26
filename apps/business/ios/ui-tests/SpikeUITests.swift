@@ -13,11 +13,6 @@ final class SpikeUITests: XCTestCase {
     continueAfterFailure = false
   }
 
-  override func tearDown() {
-    removeSyntheticStaffCookies()
-    super.tearDown()
-  }
-
   private func launchApp() -> XCUIApplication {
     let app = XCUIApplication(bundleIdentifier: bundleId)
     app.launchArguments = ["-AppleLanguages", "(en)", "-AppleLocale", "en_US"]
@@ -93,6 +88,10 @@ final class SpikeUITests: XCTestCase {
   func testStaffCookieHttpOnlyPreservedAfterStorageAndWebKitSync() {
     // من غير .always ممكن المتصفح يقبل كوكي من دومين تاني واللوجن ما يبقاش شغال.
     HTTPCookieStorage.shared.cookieAcceptPolicy = .always
+    // التنظيف بيتنقل من tearDown() جوه الدالة دي: tearDown كان بيستنى 20 ثانية على
+    // WKWebsiteDataStore لكل اختبار — حتى للاختبارات اللي مش بتعمل كوكي صناعي —
+    // وكان بيفشل في CI. الـ defer بيشتغل في كل الأحوال (حتى لو الاختبار فشل).
+    defer { removeSyntheticStaffCookies() }
     let cases: [(domainAttribute: String?, expectedDomain: String)] = [
       (nil, "api.staging.pospay.systems"),
       (".staging.pospay.systems", ".staging.pospay.systems")
@@ -104,7 +103,7 @@ final class SpikeUITests: XCTestCase {
         continue
       }
       assertStaffCookieInSharedStorage(cookie, domain: testCase.expectedDomain)
-      assertStaffCookieSurvivesWebKitSync(cookie)
+      assertStaffCookieSurvivesWebKitSync(cookie, domain: testCase.expectedDomain)
     }
   }
 
@@ -153,7 +152,7 @@ final class SpikeUITests: XCTestCase {
 
   // جولة WebKit: بنحط الكوكي في مخزن WebKit، بنقراه من هناك، وبنرجّعه للمخزن الأصلي.
   // لو HttpOnly ضاع في الرحلة دي، الخزنة هتفشل التحقق وتمسح الجلسة.
-  private func assertStaffCookieSurvivesWebKitSync(_ cookie: HTTPCookie) {
+  private func assertStaffCookieSurvivesWebKitSync(_ cookie: HTTPCookie, domain: String) {
     let store = WKWebsiteDataStore.default().httpCookieStore
     let synced = expectation(description: "the staff cookie round-trips through the WebKit store")
     store.setCookie(cookie) {
@@ -167,6 +166,10 @@ final class SpikeUITests: XCTestCase {
         }
         XCTAssertTrue(webKitCookie.isHTTPOnly, "The staff cookie should stay HttpOnly in the WebKit store")
         XCTAssertNotNil(webKitCookie.expiresDate, "The staff cookie should keep its expiry in the WebKit store")
+        // ملاحظة Opus N-4: المرور من WebKit ممكن يغيّر الدومين أو المسار، ولازم
+        // نتأكد إن الكوكي رجع بنفس الدومين المتوقّع ونفس المسار /v1.
+        XCTAssertEqual(webKitCookie.domain, domain, "The staff cookie should keep its domain in the WebKit store")
+        XCTAssertEqual(webKitCookie.path, "/v1", "The staff cookie should keep its path in the WebKit store")
         HTTPCookieStorage.shared.setCookie(webKitCookie)
         let restored = self.staffCookieInSharedStorage()
         XCTAssertNotNil(restored, "The staff cookie should be readable after the WebKit sync")
@@ -178,6 +181,8 @@ final class SpikeUITests: XCTestCase {
           restored?.expiresDate,
           "The staff cookie should keep its expiry after the WebKit sync"
         )
+        XCTAssertEqual(restored?.domain, domain, "The staff cookie should keep its domain after the WebKit sync")
+        XCTAssertEqual(restored?.path, "/v1", "The staff cookie should keep its path after the WebKit sync")
         synced.fulfill()
       }
     }
