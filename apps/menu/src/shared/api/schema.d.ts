@@ -10620,6 +10620,8 @@ export interface components {
             /** @enum {string|null} */
             country: "KW" | "SA" | "AE" | "BH" | "QA" | "OM" | null;
             branches: components["schemas"]["WorkspaceBranch"][];
+            /** Format: uuid */
+            logo_file_id?: string | null;
         };
         WorkspaceCapabilities: {
             staff_access: boolean;

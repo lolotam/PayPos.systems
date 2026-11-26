@@ -27,8 +27,8 @@ vi.mock('../model/session-change', () => ({
 }));
 vi.mock('../push/push-control', () => ({ PushControl: () => null }));
 vi.mock('../push/push-disable', () => ({ disablePushOnSignOut: vi.fn(async () => undefined) }));
-vi.mock('./attendance-camera', () => ({
-  AttendanceCamera: ({ scanned }: { scanned(value: string): Promise<void> }) => (
+vi.mock('@/shared/qr/qr-camera', () => ({
+  QrCamera: ({ scanned }: { scanned(value: string): Promise<void> }) => (
     <button
       onClick={() =>
         void scanned(

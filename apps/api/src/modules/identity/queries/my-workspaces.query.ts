@@ -2,7 +2,7 @@ import type {
   WorkspaceCompany,
   WorkspaceCompanyNames,
 } from '@pospay/contracts';
-import { OWNER_ROLE_ID, type TenantWrappers, type Tx } from '@pospay/db';
+import { OWNER_ROLE_ID, readBusinessLogoIds, type TenantWrappers, type Tx } from '@pospay/db';
 import { sql } from 'drizzle-orm';
 
 export interface WorkspaceScope {
@@ -103,6 +103,20 @@ async function roleCode(tx: Tx, roleId: string, ownerKey: string): Promise<strin
   return row.code;
 }
 
+/**
+ * يضيف معرّف الشعار لكل نشاط مربوط، بقراءة واحدة للشركة كلها.
+ * النشاط بلا شعار ما بيزوّدش الحقل خالص، فردود الأنشطة تفضل زي ما هي.
+ */
+function withLogos(
+  businesses: WorkspaceCompanyNames['businesses'],
+  logos: ReadonlyMap<string, string>,
+): WorkspaceCompanyNames['businesses'] {
+  return businesses.map((business) => {
+    const logoFileId = logos.get(business.id);
+    return logoFileId === undefined ? business : { ...business, logo_file_id: logoFileId };
+  });
+}
+
 async function oneCompany(
   db: TenantWrappers,
   names: WorkspaceNames,
@@ -118,6 +132,12 @@ async function oneCompany(
         rows.map((row) => ({ scope: row.scope_type, scopeId: row.scope_id })),
       );
       if (described === null) return null;
+      // قراءة واحدة للشعار لكل أنشطة الشركة المعروضة، مش استعلام لكل نشاط.
+      const logos = await readBusinessLogoIds(
+        tx,
+        winner.company_id,
+        described.businesses.map((business) => business.id),
+      );
       const code = await roleCode(tx, winner.role_id, winner.role_owner_key);
       // العضوية الأساسية للمالك: دور المالك العام على نطاق الشركة نفسها. وجودها معناه إن
       // اليوزر مالك الشركة، حتى لو أضيق دور فعّال عنده أقدم وماربحش الدور الأوسع.
@@ -130,6 +150,7 @@ async function oneCompany(
       );
       return {
         ...described,
+        businesses: withLogos(described.businesses, logos),
         role_code: code,
         scope: winner.scope_type,
         ...(code !== 'owner' && hasCompanyOwner ? { is_owner: true } : {}),

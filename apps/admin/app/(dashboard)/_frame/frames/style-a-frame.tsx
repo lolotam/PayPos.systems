@@ -1,13 +1,11 @@
 'use client';
 
-import { t } from '@pospay/i18n';
-import { BrandLockup, BrandMark, CollapsibleSidebar, NavTabs, Pills } from '@pospay/ui';
+import { CollapsibleSidebar, NavTabs, Pills } from '@pospay/ui';
 import { useMemo, useRef, type ReactNode } from 'react';
-
-import { useLocale } from '@/shared/locale/locale-context';
 
 import { useMenuContext } from '../menu/use-menu-context';
 import { buildStyleAView } from '../menu/style-views';
+import { DashboardBrandLogo } from './dashboard-brand-logo';
 import { FrameChrome } from './frame-chrome';
 import { FrameTopBar } from './frame-top-bar';
 import { PhoneBar } from './phone-bar';
@@ -25,7 +23,6 @@ const PAGE_COLUMN_CLASS =
  * في الشريط العلوي فتبقى ظاهرة بكل عرض. على الهاتف الشريط السفلي أربعة أقسام و«المزيد».
  */
 export function StyleAFrame({ children }: { children: ReactNode }) {
-  const locale = useLocale();
   const labels = useFrameLabels();
   const ctx = useMenuContext();
   const navigationKey = useNavigationKey();
@@ -44,21 +41,12 @@ export function StyleAFrame({ children }: { children: ReactNode }) {
             groups={view.groups}
             currentGroupId={view.currentGroupId}
             currentPageId={view.currentPageId}
-            header={
-              <BrandLockup
-                tone="sidebar"
-                title={t(locale, 'brand.title')}
-                latinName={t(locale, 'brand.latinName')}
-                arabicName={t(locale, 'brand.arabicName')}
-              />
-            }
+            header={<DashboardBrandLogo variant="lockup" tone="sidebar" />}
           />
         </FrameChrome>
         <div className={PAGE_COLUMN_CLASS}>
           <FrameTopBar
-            start={
-              <BrandMark title={t(locale, 'brand.title')} className="size-9 min-[600px]:hidden" />
-            }
+            start={<DashboardBrandLogo variant="mark" className="min-[600px]:hidden" />}
           />
           {showTabs ? (
             <FrameChrome>

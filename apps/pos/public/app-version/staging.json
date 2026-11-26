@@ -1,0 +1,12 @@
+{
+  "ios": {
+    "minimum": "1.0.0",
+    "latest": "1.0.0",
+    "store_url": "https://testflight.apple.com/"
+  },
+  "android": {
+    "minimum": "1.0.0",
+    "latest": "1.0.0",
+    "store_url": "https://play.google.com/store/apps/details?id=systems.pospay.business.staging"
+  }
+}

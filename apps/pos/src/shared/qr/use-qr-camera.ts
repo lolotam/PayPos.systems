@@ -1,7 +1,17 @@
 import { useEffect, useRef } from 'react';
 import jsQR from 'jsqr';
 
-export function useAttendanceCamera(scanned: (value: string) => Promise<void>, failed: () => void) {
+/**
+ * كاميرا بتقرا كود QR من الفيديو وتسلّم الكود المقروء مرة واحدة.
+ *
+ * الـ hook ده مشترك: شاشة الحضور وشاشة الاتصال (كود الصالون) بتستخدماه بنفس
+ * الإعداد بالظبط، عشان مفيش نسختين من منطق الكاميرا (FR-012 / FR-014).
+ *
+ * @param scanned بيتنادى بالقيمة المقروءة
+ * @param failed بيتنادى لما الكاميرا تفشل أو الإذن يُرفض
+ * @returns الـ element بتاع الفيديو، عشان الـ hook يحط فيه الـ stream
+ */
+export function useQrCamera(scanned: (value: string) => Promise<void>, failed: () => void) {
   const video = useRef<HTMLVideoElement>(null);
   const onScan = useRef(scanned);
   onScan.current = scanned;

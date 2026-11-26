@@ -11,5 +11,11 @@ export function filePermissions(authorizer: RequestAuthorizer): FilePermissions 
         businessParam: businessId,
         ...(branchId === null ? {} : { branchParam: branchId }),
       })) !== null,
+    coversBusiness: (actor, businessId) =>
+      authorizer.coversBusiness({
+        userId: actor.userId,
+        requestedCompany: actor.companyId,
+        businessParam: businessId,
+      }),
   };
 }
