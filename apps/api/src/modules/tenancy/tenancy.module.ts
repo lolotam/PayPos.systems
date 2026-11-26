@@ -7,6 +7,7 @@ import { createTenancyTransactions } from './persistence/tenancy-transactions.ts
 import { jsonVerticalTemplates } from './persistence/vertical-templates.ts';
 import { CreateBranch } from './use-cases/create-branch/create-branch.ts';
 import { CreateBusiness } from './use-cases/create-business/create-business.ts';
+import { SetBranchOpeningHours } from './use-cases/set-branch-opening-hours/set-branch-opening-hours.ts';
 import { SetBusinessCountry } from './use-cases/set-business-country/set-business-country.ts';
 
 /** The controllers tenancy mounts. */
@@ -38,6 +39,10 @@ export function tenancyProviders(
     {
       provide: SetBusinessCountry,
       useValue: transactions === null ? null : new SetBusinessCountry(transactions),
+    },
+    {
+      provide: SetBranchOpeningHours,
+      useValue: transactions === null ? null : new SetBranchOpeningHours(transactions),
     },
   ];
 }

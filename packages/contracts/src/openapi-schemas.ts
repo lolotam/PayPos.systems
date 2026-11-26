@@ -132,7 +132,7 @@ import {
   setBusinessCountryResult,
   verticalType,
 } from './tenancy/business.js';
-import { branch, createBranchInput, geo } from './tenancy/branch.js';
+import { branch, createBranchInput, geo, setBranchOpeningHoursInput } from './tenancy/branch.js';
 import { company, createCompanyInput } from './tenancy/company.js';
 import { openingHours } from './tenancy/opening-hours.js';
 import { plan } from './tenancy/plan.js';
@@ -251,6 +251,7 @@ export const openApiSchemas = [
   setBusinessCountryResult,
   branch,
   createBranchInput,
+  setBranchOpeningHoursInput,
   pairingCode,
   registerDeviceInput,
   deviceRegistration,

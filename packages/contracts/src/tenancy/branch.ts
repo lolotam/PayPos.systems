@@ -50,5 +50,11 @@ export const createBranchInput = z
   .strict()
   .meta({ id: 'CreateBranchInput' });
 
+// تعديل مواعيد عمل الفرع بعد إنشائه (PENDING-T3): القيمة كاملة بتستبدل المخزّنة، و null بيرجّع الفرع «من غير مواعيد».
+export const setBranchOpeningHoursInput = z
+  .strictObject({ opening_hours: openingHours.nullable() })
+  .meta({ id: 'SetBranchOpeningHoursInput' });
+
 export type Branch = z.infer<typeof branch>;
+export type SetBranchOpeningHoursInput = z.infer<typeof setBranchOpeningHoursInput>;
 export type CreateBranchInput = z.input<typeof createBranchInput>;

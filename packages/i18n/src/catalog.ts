@@ -22,6 +22,7 @@ import { nativeShellAr, nativeShellEn } from './native-shell-catalog.js';
 import { packageImportAr, packageImportEn } from './package-import-catalog.js';
 import { packageSaleAr, packageSaleEn } from './package-sale-catalog.js';
 import { customerPackagesAr, customerPackagesEn } from './customer-packages-catalog.js';
+import { branchHoursAr, branchHoursEn } from './branch-hours-catalog.js';
 import { importedRefundsAr, importedRefundsEn } from './imported-refunds-catalog.js';
 import { ratingRequestAr, ratingRequestEn } from './rating-catalog.js';
 import { ratingsAr, ratingsEn } from './ratings-catalog.js';
@@ -75,6 +76,7 @@ type RegisteredCatalog = Catalog & {
   readonly ratings: Record<keyof typeof ratingsEn, string>;
   readonly customerPackages: Record<keyof typeof customerPackagesEn, string>;
   readonly importedRefunds: Record<keyof typeof importedRefundsEn, string>;
+  readonly branchHours: Record<keyof typeof branchHoursEn, string>;
   readonly schedules: Record<keyof typeof schedulesEn, string>;
   readonly adminNav: Record<keyof typeof adminNavEn, string>;
   readonly adminNavPages: Record<keyof typeof adminNavPagesEn, string>;
@@ -117,6 +119,7 @@ const CATALOGS: Record<Locale, RegisteredCatalog> = {
     ratings: ratingsAr,
     customerPackages: customerPackagesAr,
     importedRefunds: importedRefundsAr,
+    branchHours: branchHoursAr,
     schedules: schedulesAr,
     adminNav: adminNavAr,
     adminNavPages: adminNavPagesAr,
@@ -149,6 +152,7 @@ const CATALOGS: Record<Locale, RegisteredCatalog> = {
     ratings: ratingsEn,
     customerPackages: customerPackagesEn,
     importedRefunds: importedRefundsEn,
+    branchHours: branchHoursEn,
     schedules: schedulesEn,
     adminNav: adminNavEn,
     adminNavPages: adminNavPagesEn,
