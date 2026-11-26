@@ -29,9 +29,14 @@ export function ratingClaimDiagnostics(logger: Logger): RatingClaimDiagnostics {
         },
         'rating claims overflow',
       ),
-    fenceLost: (companyId, code) =>
+    fenceLost: (companyId, code, operation = 'turn') =>
       logger.warn(
-        { company_id: companyId, code: 'RATING_CLAIMS_FENCE_LOST', state_code: code },
+        {
+          company_id: companyId,
+          code: 'RATING_CLAIMS_FENCE_LOST',
+          state_code: code,
+          operation,
+        },
         'rating claims fence lost',
       ),
     turnSummary: (companyId, summary) =>

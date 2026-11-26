@@ -321,9 +321,13 @@ closure is needed.
 - **Behaviour.** On `LowRatingSubmitted`:
   1. the stored rating must match the event's company, request, business, branch and stars; a mismatch throws
      (`LOW_RATING_EVENT_INVALID`, retried then parked), and `stars > 2` returns silently;
-  2. company not open → return; rule = `LOW_RATING` for the branch; off, or no `IN_APP` channel → a recorded
-     zero-recipient decision, no notice (RT-22, BR-B5);
-  3. `decidedAt = clock.now()`; candidates = managers of the rule's roles in the branch scope, deduplicated and sorted;
+  2. company not open → return; the **rule snapshot** = one statement reading the `LOW_RATING` rule for the branch
+     and the master switch `alerts_enabled`; off, or no `IN_APP` channel in that snapshot → a recorded
+     zero-recipient decision, no notice (RT-22, BR-B5). A rule or master-switch change committed after the snapshot
+     does not flip that decision;
+  3. `decidedAt = clock.now()` — it timestamps the recorded `low_rating_notices` row and governs the identity reads
+     (membership and permission-override expiry); candidates = managers of the rule's roles in the branch scope,
+     deduplicated and sorted;
   4. claim `low_rating_notices` for the rating; a lost claim returns (redelivery, RT-16-style idempotency);
   5. no candidates or missing branch → the claim stands with `recipient_count = 0`, no notice;
   6. comment `null` → every candidate gets `low_rating` and `commentReaders` is not called; otherwise readers get

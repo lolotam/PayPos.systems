@@ -35,6 +35,32 @@ export const MAX_TURN_MS = 180_000;
 /** أقل مدة بين تجديد حجز المالك: ربع مدة الحجز. */
 export const RENEWAL_INTERVAL_MS = LEASE_MS / 4;
 
+/** أقصى عدد محاولات لتسجيل جدولة الشركة قبل ما الحدث يتوقف (PP-97). */
+export const RATING_CLAIMS_MAX_SCHEDULE_ATTEMPTS = 10;
+
+/** أول مدة انتظار بين محاولات تسجيل جدولة الشركة: خمس ثواني (PP-97). */
+const SCHEDULE_RETRY_BASE_MS = 5_000;
+
+/** أقصى مدة انتظار بين محاولات تسجيل جدولة الشركة: ساعة واحدة (PP-97). */
+const SCHEDULE_RETRY_MAX_MS = 60 * 60 * 1000;
+
+/**
+ * وقت الانتظار قبل محاولة تسجيل جدولة الشركة الجاية.
+ *
+ * القاعدة هي PP-97 زي ما هي: خمس ثواني، عشر، عشرين … حتى ساعة، والقيمة null
+ * في المحاولة العاشرة لأن الحدث ده يتوقف (parked) وما بيتعادش. السلسلة دي
+ * بتتكرر هنا بالظبط عشان الـ jobs ما يمدش يده جوّه `outbox/retry-policy.ts`.
+ *
+ * @param attempt رقم المحاولة اللي فشلت، بيبدأ من 1
+ * @returns مدة الانتظار بالمللي ثانية، أو null لما المحاولة دي الأخيرة
+ */
+export function ratingClaimsScheduleRetryDelayMs(attempt: number): number | null {
+  if (!Number.isInteger(attempt) || attempt < 1)
+    throw new RangeError('RATING_CLAIMS_RETRY_ATTEMPT_INVALID');
+  if (attempt >= RATING_CLAIMS_MAX_SCHEDULE_ATTEMPTS) return null;
+  return Math.min(SCHEDULE_RETRY_BASE_MS * 2 ** (attempt - 1), SCHEDULE_RETRY_MAX_MS);
+}
+
 /** ميزانية الدور: مسار أمامي للزيارات ومسار مستقل لإعادة المحاولة. */
 export interface VisitBudget {
   /** عدد الصفوف الأمامية اللي الدور يقدر يزورها. */
