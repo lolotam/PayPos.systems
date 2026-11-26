@@ -96,6 +96,10 @@ const failingExecute = () =>
   });
 
 describe('final attempt', () => {
+  it('keeps the name BullMQ matches for unrecoverable errors', () => {
+    expect(new FailurePersistedError('X').name).toBe('UnrecoverableError');
+  });
+
   it('rejects with FailurePersistedError once the failure write succeeds', async () => {
     const fail = vi.fn(async () => undefined);
     const { handler } = start(failingExecute(), fail);
@@ -154,7 +158,10 @@ describe('delayed finalization', () => {
 
   it('does not treat a stalled reactivation as our delay', async () => {
     const execute = vi.fn(async () => undefined);
-    const { handler } = start(execute, vi.fn(async () => undefined));
+    const { handler } = start(
+      execute,
+      vi.fn(async () => undefined),
+    );
     const value = lastAttemptJob();
     value.attemptsMade = 1;
     value.attemptsStarted = 3;

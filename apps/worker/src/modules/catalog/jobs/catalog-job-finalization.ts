@@ -2,10 +2,15 @@ import { UnrecoverableError, type Job } from 'bullmq';
 
 /**
  * فشل كتبناه نحن على صف الطلب قبل ما نرميه لـ BullMQ.
- * بيرث UnrecoverableError (وبنسيب الـ name الافتراضي) عشان BullMQ يحط الصف في مجموعة الفاشل بلا إعادة محاولة،
+ * بيرث UnrecoverableError وبنثبّت الـ name على 'UnrecoverableError' (كونستركتور BullMQ بيكتبه من constructor.name) عشان BullMQ يحط الصف في مجموعة الفاشل بلا إعادة محاولة،
  * وبيفضل مميَّزًا عن UnrecoverableError اللي BullMQ نفسه بيرميها عند تجاوز حد التوقف (وساعتها الكتابة لسه مطلوبة).
  */
-export class FailurePersistedError extends UnrecoverableError {}
+export class FailurePersistedError extends UnrecoverableError {
+  constructor(message?: string) {
+    super(message);
+    this.name = 'UnrecoverableError';
+  }
+}
 
 /**
  * بيكشف إن المهمة اتفعّلت تاني بعد تأخير أجّلناه إحنا: BullMQ بيزوّد attemptsStarted مع كل تفعيل
