@@ -210,8 +210,19 @@ it('EXPLAIN ANALYZE reads the latest feedback by index without a sequential scan
       sql`EXPLAIN (ANALYZE, FORMAT JSON) ${deliveryLogStatement(access, {}, { limit: 20 })}`,
     ),
   );
-  const plan = JSON.stringify(rows);
-  expect(plan).toContain('notification_attempt_feedback_attempt_idx');
-  expect(plan).not.toMatch(/Seq Scan on notification_attempts/);
-  expect(plan).not.toMatch(/Seq Scan on notification_attempt_feedback/);
+  const hasSeqScan = (node: unknown): boolean => {
+    if (typeof node !== 'object' || node === null) return false;
+    const record = node as Record<string, unknown>;
+    if (
+      record['Node Type'] === 'Seq Scan' &&
+      (record['Relation Name'] === 'notification_attempts' ||
+        record['Relation Name'] === 'notification_attempt_feedback')
+    )
+      return true;
+    return Object.values(record).some((child) =>
+      Array.isArray(child) ? child.some(hasSeqScan) : hasSeqScan(child),
+    );
+  };
+  expect(JSON.stringify(rows)).toContain('notification_attempt_feedback_attempt_idx');
+  expect(rows.some(hasSeqScan)).toBe(false);
 });

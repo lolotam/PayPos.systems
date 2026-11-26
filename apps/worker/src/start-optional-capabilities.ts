@@ -20,6 +20,7 @@ import {
   startStaffOtpWorker,
   startWhatsappInbound,
 } from './modules/notifications/index.ts';
+import { retryDelayMs } from './outbox/retry-policy.ts';
 import { closeOptional, optionalWithin } from './shared/optional-capability.ts';
 
 type Maintenance = ReturnType<typeof createStaffOtpMaintenance>;
@@ -149,7 +150,7 @@ async function startTenantNotificationQueue(
 async function startEmailNotificationQueue(
   module: NotificationSendModule,
   input: Pick<CapabilityInput, 'redisUrl' | 'businessDeliver' | 'logger'>,
-) {
+): Promise<NotificationQueue> {
   let queue: NotificationQueue | undefined;
   try {
     const transport = startNotificationQueue(
@@ -167,7 +168,19 @@ async function startEmailNotificationQueue(
       'email capability',
     );
     await closeOptional([() => queue?.close(true)]);
-    return undefined;
+    return {
+      deliver: async (event) =>
+        event.eventType === 'NotificationSendAuthorized'
+          ? {
+              delivered: false,
+              error: 'NOTIFICATION_QUEUE_UNAVAILABLE',
+              retryInMs: retryDelayMs(event.attempt),
+            }
+          : input.businessDeliver(event),
+      ready: async () => undefined,
+      stop: async () => undefined,
+      close: async () => undefined,
+    };
   }
 }
 

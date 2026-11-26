@@ -1,9 +1,8 @@
-import type { ResendRetrievalResult } from '@pospay/notifications';
-
 import type {
   EmailBounceClass,
   EmailFeedbackEventType,
   EmailQuarantineReason,
+  EmailRetrievalResult,
   EmailSuppressionReason,
   EmailSuppressionSource,
 } from '../domain/email-feedback.ts';
@@ -136,7 +135,7 @@ export interface EmailRetrievalPort {
    * @param providerEmailId معرّف المزود
    * @returns النتيجة
    */
-  retrieve(providerEmailId: string): Promise<ResendRetrievalResult>;
+  retrieve(providerEmailId: string): Promise<EmailRetrievalResult>;
 }
 
 /** طابور ردّ المزود: يقبل معرّف صف الصندوق فقط. */

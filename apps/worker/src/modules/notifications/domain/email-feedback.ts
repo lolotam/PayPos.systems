@@ -59,6 +59,25 @@ export type AttemptBindingDecision =
   | { readonly ok: true; readonly bindProviderMessageId: boolean }
   | { readonly ok: false; readonly reason: EmailQuarantineReason };
 
+/** وسوم الارتباط المسترجعة من المزود: الشركة والمحاولة والتنفيذ. */
+export interface EmailRetrievedTags {
+  readonly companyId: string;
+  readonly attemptId: string;
+  readonly executionId: string;
+}
+
+/** نتيجة استرجاع الإيميل المرسل: وُجد، أو وسوم غير صالحة، أو فشل مؤقت. */
+export type EmailRetrievalResult =
+  | {
+      readonly kind: 'found';
+      readonly id: string;
+      readonly tags: EmailRetrievedTags;
+      readonly recipientHash: Uint8Array;
+      readonly hashKeyId: string;
+    }
+  | { readonly kind: 'invalid_tags'; readonly reason: 'TAGS_INVALID' | 'RECIPIENT_INVALID' }
+  | { readonly kind: 'transient'; readonly code: string };
+
 /** قرار الحظر: هتتكتب حالة حظر وسجل تدقيق، ولا الدليل بس. */
 export type EmailFeedbackDecision =
   | { readonly suppress: false }

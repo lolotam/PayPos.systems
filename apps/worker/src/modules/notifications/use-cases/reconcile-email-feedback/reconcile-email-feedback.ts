@@ -1,4 +1,8 @@
-import { emailFeedbackDecision, nextFeedbackRetry } from '../../domain/email-feedback.ts';
+import {
+  emailFeedbackDecision,
+  nextFeedbackRetry,
+  type EmailRetrievalResult,
+} from '../../domain/email-feedback.ts';
 import type { Clock } from '../../ports/clock.port.ts';
 import type {
   EmailFeedbackInboxRepository,
@@ -7,7 +11,6 @@ import type {
   EmailRetrievalPort,
 } from '../../ports/email-feedback.port.ts';
 import type { IdGenerator } from '../../ports/id-generator.port.ts';
-import type { ResendRetrievalResult } from '@pospay/notifications';
 
 /**
  * يظبط ردّ المزود على محاولة: استرجاع من المزود، ثم دليل الشركة، ثم الحظر والتسوية.
@@ -74,7 +77,7 @@ export class ReconcileEmailFeedback {
 
   private async settle(
     row: EmailFeedbackRow,
-    retrieved: Extract<ResendRetrievalResult, { kind: 'found' }>,
+    retrieved: Extract<EmailRetrievalResult, { kind: 'found' }>,
     now: Date,
   ): Promise<void> {
     const decision = emailFeedbackDecision(row.feedbackType, row.bounceClass);
