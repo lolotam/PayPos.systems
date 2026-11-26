@@ -164,7 +164,7 @@ function unlistedEmployee(
     payable: computeStatementPayable([]),
     partial: false,
     issues: issuesOf(label.employeeId, input),
-    departed: label.departed === true || (input.departed?.has(label.employeeId) ?? false),
+    departed: input.departed?.has(label.employeeId) ?? false,
   };
 }
 

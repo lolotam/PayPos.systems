@@ -125,7 +125,9 @@ export function CommissionBlockedCorrectionsSection({
   const employeeLabel = useCallback(
     (employeeId: string) => {
       const found = employees.find((employee) => employee.id === employeeId);
-      return found === undefined ? employeeId : commissionPlanEmployeeLabel(found, locale);
+      return found === undefined
+        ? `${t(locale, 'commissionPlanBuilder.blockedUnlistedEmployee')} (${employeeId})`
+        : commissionPlanEmployeeLabel(found, locale);
     },
     [employees, locale],
   );

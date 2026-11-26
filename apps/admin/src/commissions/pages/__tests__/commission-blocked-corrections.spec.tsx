@@ -140,7 +140,7 @@ it('lists the open blocked corrections by default, with employee name, month, re
   expect(planCells[2]?.textContent).toBe(P('blockedCodeNoPlan'));
   expect(within(planRow as HTMLElement).getByRole('button', { name: P('blockedRepair') })).toBeTruthy();
   const salaryCells = within(salaryRow as HTMLElement).getAllByRole('cell');
-  expect(salaryCells[0]?.textContent).toBe(EMP_B);
+  expect(salaryCells[0]?.textContent).toBe(`${P('blockedUnlistedEmployee')} (${EMP_B})`);
   expect(salaryCells[2]?.textContent).toBe(P('blockedCodeNoSalary'));
   expect(within(salaryRow as HTMLElement).queryByRole('button')).toBeNull();
   expect(within(salaryRow as HTMLElement).getByText(P('blockedSalaryNote'))).toBeTruthy();

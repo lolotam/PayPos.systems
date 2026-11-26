@@ -25,7 +25,7 @@ interface PeriodRepairFormProps {
 
 /**
  * نموذج خطة إصلاح شهر مقفول: نفس البلوكات التلاتة بتاعة منشئ الخطة من غير تاريخ سريان ولا كامل الفترة، لأن
- * الإصلاح بيسري في شهره بس. الحفظ متعطل طول ما النموذج غير صالح أو الطلب شغال، ورفض السيرفر بيظهر في بلوكه
+ * الإصلاح بيسري في شهره بس. الحفظ متعطل طول ما النموذج غير صالح أو الطلب شغال، أو كل البلوكات مقفولة من غير تأكيد صريح لخطة بصفر عمولة، ورفض السيرفر بيظهر في بلوكه
  * أو على النموذج وأي تعديل بيخفيه.
  */
 export function PeriodRepairForm({ pending, serverError, onSubmit, onClose }: PeriodRepairFormProps) {
@@ -36,6 +36,9 @@ export function PeriodRepairForm({ pending, serverError, onSubmit, onClose }: Pe
     defaultValues: emptyRepairPlanDraft(),
   });
   const { dismissed, dismiss } = useServerErrorDismissal(form, serverError);
+  const [baseOn, tiersOn, packageOn] = form.watch(['base.enabled', 'tiers.enabled', 'packageSale.enabled']);
+  const allOff = !baseOn && !tiersOn && !packageOn;
+  const [confirmZero, setConfirmZero] = useState(false);
   const [submitted, setSubmitted] = useState<CommissionPlanWire | null>(null);
   const alerts = dismissed ? null : planServerAlerts(serverError, submitted, locale);
   // رفض «مفيش تصحيح موقوف للإصلاح» له رسالته في كتالوج الأخطاء، وغيره بيعرض رسالة planServerAlerts.
@@ -52,8 +55,21 @@ export function PeriodRepairForm({ pending, serverError, onSubmit, onClose }: Pe
       <form onSubmit={submit} className="flex flex-col gap-3 text-start">
         <fieldset disabled={pending} className="flex flex-col gap-3">
           <PlanBlocks alerts={alerts} onUserEdit={dismiss} />
+          {allOff ? (
+            <label className="flex items-center gap-2">
+              <input
+                type="checkbox"
+                checked={confirmZero}
+                onChange={(event) => setConfirmZero(event.target.checked)}
+              />
+              {t(locale, 'commissionPlanBuilder.repairConfirmZero')}
+            </label>
+          ) : null}
           <div className="flex flex-wrap gap-2">
-            <Button type="submit" disabled={!form.formState.isValid || pending}>
+            <Button
+              type="submit"
+              disabled={!form.formState.isValid || pending || (allOff && !confirmZero)}
+            >
               {t(locale, pending ? 'commissionPlanBuilder.repairSubmitting' : 'commissionPlanBuilder.repairSubmit')}
             </Button>
             <Button type="button" variant="outline" onClick={onClose}>

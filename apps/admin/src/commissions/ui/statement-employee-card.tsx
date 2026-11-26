@@ -48,7 +48,10 @@ export function StatementEmployeeCard({ employee }: { employee: CommissionStatem
         <StatementCorrectionsSection rows={groups.corrections} departed={employee.departed} />
       ) : null}
       {groups.carries.length > 0 ? (
-        <StatementRowsTable title={t(locale, `${NS}.sectionCarries`)} rows={groups.carries} />
+        <StatementRowsTable
+          title={t(locale, `${NS}.${employee.departed ? 'sectionCarriesOwedByHer' : 'sectionCarries'}`)}
+          rows={groups.carries}
+        />
       ) : null}
     </Card>
   );

@@ -15,6 +15,23 @@ function assertDate(value: string): void {
   if (!DATE.test(value)) throw new RangeError(`Invalid employment date: ${value}`);
 }
 
+/**
+ * يفكّ الشهر YYYY-MM لسنة ورقم شهر، ويرفض الصيغة أو الشهر غير الصالح، عشان القاعدتين يشتركوا في نفس التحقق.
+ *
+ * @param period الشهر بصيغة YYYY-MM
+ * @returns السنة ورقم الشهر (1 إلى 12)
+ * @throws RangeError لشهر بصيغة غير صالحة
+ */
+function parsePeriod(period: string): { year: number; month: number } {
+  const match = MONTH.exec(period);
+  const year = Number(match?.[1]);
+  const month = Number(match?.[2]);
+  if (match === null || year === 0 || month < 1 || month > 12) {
+    throw new RangeError(`Invalid commission period: ${period}`);
+  }
+  return { year, month };
+}
+
 function lastDayOfMonth(year: number, month: number): number {
   return new Date(Date.UTC(year, month, 0)).getUTCDate();
 }
@@ -32,11 +49,7 @@ export function employeeLeftBeforeMonth(
   dates: Pick<EmploymentDates, 'contractEnd' | 'deletedOn'>,
   period: string,
 ): boolean {
-  const match = MONTH.exec(period);
-  const month = Number(match?.[2]);
-  if (match === null || Number(match[1]) === 0 || month < 1 || month > 12) {
-    throw new RangeError(`Invalid commission period: ${period}`);
-  }
+  parsePeriod(period);
   if (dates.contractEnd !== null) assertDate(dates.contractEnd);
   if (dates.deletedOn !== null) assertDate(dates.deletedOn);
   const firstDay = `${period}-01`;
@@ -57,12 +70,7 @@ export function employeeLeftBeforeMonth(
  * @throws RangeError لشهر أو تاريخ بصيغة غير صالحة
  */
 export function employmentOverlapsMonth(dates: EmploymentDates, period: string): boolean {
-  const match = MONTH.exec(period);
-  const year = Number(match?.[1]);
-  const month = Number(match?.[2]);
-  if (match === null || year === 0 || month < 1 || month > 12) {
-    throw new RangeError(`Invalid commission period: ${period}`);
-  }
+  const { year, month } = parsePeriod(period);
   assertDate(dates.hireDate);
   if (dates.contractEnd !== null) assertDate(dates.contractEnd);
   if (dates.deletedOn !== null) assertDate(dates.deletedOn);

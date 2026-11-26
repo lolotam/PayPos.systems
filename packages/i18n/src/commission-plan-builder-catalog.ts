@@ -93,7 +93,8 @@ export const commissionPlanBuilderEn = {
   repairResolved: 'The month was repaired and its held corrections were released.',
   repairNoSalary:
     'The repair plan was saved, but the month still needs this employee’s salary. The block now waits for a salary entry.',
-  repairFailed: 'The repair failed. Try again.',
+  repairConfirmZero: 'Confirm saving a zero-commission plan for this month',
+  blockedUnlistedEmployee: 'Employee not in current list',
 };
 
 /** نفس مفاتيح منشئ خطة العمولة بالعربي. */
@@ -186,5 +187,6 @@ export const commissionPlanBuilderAr: Record<keyof typeof commissionPlanBuilderE
   repairResolved: 'الشهر اتصلح والتصحيحات المحجوزة اتحرّرت.',
   repairNoSalary:
     'خطة الإصلاح اتحفظت، بس الشهر لسه محتاج مرتب الموظفة. التصحيح الموقوف بقى مستني تسجيل المرتب.',
-  repairFailed: 'الإصلاح ما كملش، جرّب تاني.',
+  repairConfirmZero: 'تأكيد حفظ خطة بصفر عمولة للشهر ده',
+  blockedUnlistedEmployee: 'موظفة غير معروضة في القائمة',
 };

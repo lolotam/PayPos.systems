@@ -137,6 +137,34 @@ it('CM-50: shows no departed badge and keeps the plain total label for an employ
   expect(within(card).getByText(S('correctionsTotal'))).toBeTruthy();
 });
 
+it('CM-50: labels the carries section of a departed employee as owed by her, and keeps the plain heading otherwise', async () => {
+  const carry = statementRow('carry:1', 'CARRY_COMMISSION', '-4.000');
+  current.answer = ok(businessView({ employees: [statementEmployee({ rows: [carry], departed: true })] }));
+  const { unmount } = renderStatementPage();
+  const card = await screen.findByLabelText('Sara');
+  expect(within(card).getByRole('heading', { name: S('sectionCarriesOwedByHer') })).toBeTruthy();
+  expect(within(card).queryByRole('heading', { name: S('sectionCarries') })).toBeNull();
+  unmount();
+  current.answer = ok(businessView({ employees: [statementEmployee({ rows: [carry] })] }));
+  renderStatementPage();
+  const stayed = await screen.findByLabelText('Sara');
+  expect(within(stayed).getByRole('heading', { name: S('sectionCarries') })).toBeTruthy();
+});
+
+it('CM-50: keeps the plain corrections label for a departed employee whose corrections net to zero', async () => {
+  const rows = [
+    correctionRow('correction:1', '5.000', '10.000', '15.000'),
+    correctionRow('correction:2', '-5.000', '15.000', '10.000'),
+  ];
+  current.answer = ok(businessView({ employees: [statementEmployee({ rows, departed: true })] }));
+  renderStatementPage();
+  const card = await screen.findByLabelText('Sara');
+  const total = within(card).getByText(S('correctionsTotal'));
+  expect(total.parentElement?.textContent).toBe(`${S('correctionsTotal')}0.000`);
+  expect(within(card).queryByText(S('correctionsTotalOwedByHer'))).toBeNull();
+  expect(within(card).queryByText(S('correctionsTotalOwedToHer'))).toBeNull();
+});
+
 it('keeps cash-tip corrections out of the corrections total', async () => {
   const rows = [
     correctionRow('correction:1', '-6.000', '20.000', '14.000'),

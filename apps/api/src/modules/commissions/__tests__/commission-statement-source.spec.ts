@@ -20,6 +20,7 @@ type View = {
   current_fingerprint: string;
   employees: {
     employee_id: string;
+    departed: boolean;
     rows: { kind: string; customer_name: string | null; service_name_en: string | null }[];
     issues: { kind: string; code: string; source_period: string | null }[];
   }[];
@@ -167,6 +168,7 @@ describe('who is in scope of the statement (FR-033)', () => {
     const listed = view.employees.map((entry) => entry.employee_id);
 
     expect(listed).toContain(present);
+    expect(view.employees.find((entry) => entry.employee_id === present)?.departed).toBe(false);
     expect(listed).not.toContain(left);
     expect(listed).not.toContain(later);
   });
@@ -185,6 +187,7 @@ describe('who is in scope of the statement (FR-033)', () => {
     const view = (await readStatement(f, f.cookie)).body as unknown as View;
 
     expect(view.employees.map((entry) => entry.employee_id)).toContain(leaver);
+    expect(view.employees.find((entry) => entry.employee_id === leaver)?.departed).toBe(true);
   });
 });
 

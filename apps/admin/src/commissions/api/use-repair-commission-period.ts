@@ -64,6 +64,12 @@ export function useRepairCommissionPeriod(scope: PlanScope, memory: PlanAttemptM
           await denyPlanAccess(client, scope);
         } else if (planGeneration(client, scope) === started && isPlanNotFound(error)) {
           memory.current.delete(memoryKey);
+        } else if (
+          (error as { code?: unknown } | null)?.code === 'COMMISSION_REPAIR_NOT_ALLOWED' &&
+          planGeneration(client, scope) === started
+        ) {
+          // الصف المفتوح اتحل أو اتغيّر من مكان تاني، فالقايمة بتتحدّث لوحدها.
+          void client.invalidateQueries({ queryKey: planBlockedCorrectionsKey(scope) });
         }
         throw error;
       }

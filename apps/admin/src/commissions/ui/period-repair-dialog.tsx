@@ -10,12 +10,11 @@ import { useRepairCommissionPeriod } from '../api/use-repair-commission-period';
 import type { PlanAttemptMemory } from '../api/use-save-commission-plan';
 import { PeriodRepairForm } from './period-repair-form';
 
-/** نص نتيجة الإصلاح: محلول، أو الخطة اتحفظت والكود بقى NO_SALARY (CM-52b)، وغير كده فشل. */
+/** نص نتيجة الإصلاح: محلول، أو الخطة اتحفظت والتصحيح بقى مستني مرتب (NO_SALARY، CM-52b). */
 function outcomeMessage(result: CommissionPeriodRepair, locale: Locale): string {
-  const block = result.blocked_correction;
-  if (block.resolved) return t(locale, 'commissionPlanBuilder.repairResolved');
-  if (block.code === 'NO_SALARY') return t(locale, 'commissionPlanBuilder.repairNoSalary');
-  return t(locale, 'commissionPlanBuilder.repairFailed');
+  return result.blocked_correction.resolved
+    ? t(locale, 'commissionPlanBuilder.repairResolved')
+    : t(locale, 'commissionPlanBuilder.repairNoSalary');
 }
 
 /**

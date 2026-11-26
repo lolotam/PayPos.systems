@@ -196,11 +196,13 @@ describe('the departed flag of the statement view (CM-50)', () => {
     expect(project(ALL_BUSINESS).every((employee) => !employee.departed)).toBe(true);
   });
 
-  it('marks an unlisted employee from her own label flag when no set is given', () => {
+  it('reads the departed flag from the single input set, never from the label', () => {
     const LEFT = '01920000-0000-7000-8000-0000000000e9';
     const unlisted = [
       { employeeId: LEFT, employeeNumber: 9, nameAr: null, nameEn: 'Lina', departed: true },
     ];
-    expect(project(ALL_BUSINESS, { unlisted }).find((e) => e.employeeId === LEFT)?.departed).toBe(true);
+    expect(project(ALL_BUSINESS, { unlisted }).find((e) => e.employeeId === LEFT)?.departed).toBe(false);
+    const withSet = project(ALL_BUSINESS, { unlisted, departed: new Set([LEFT]) });
+    expect(withSet.find((e) => e.employeeId === LEFT)?.departed).toBe(true);
   });
 });

@@ -225,8 +225,8 @@ function inScopeLabels(
 }
 
 /**
- * يبني بطاقة الموظفة ومعاها علامة «سابت الشغل» (CM-50). التاريخ الخام لو موجود بيقرر القاعدة في المجال؛ ولو
- * الاتنين غايبين (تجهيز بسيط من غير تواريخ) بنرجع لقاعدة «في النطاق» المحسوبة سلفاً.
+ * يبني بطاقة الموظفة ومعاها علامة «سابت الشغل» (CM-50). القاعدة دايماً من التاريخ الخام عبر المجال، عشان
+ * العلامة وقاعدة «في النطاق» يقرأوا نفس اليوم المحلي.
  *
  * @param employee موظفة النشاط
  * @param period الشهر بصيغة YYYY-MM
@@ -236,13 +236,10 @@ function statementLabel(
   employee: CommissionStatementEmployeeName,
   period: string,
 ): StatementEmployeeLabel {
-  const noDates = employee.contractEnd === undefined && employee.deletedOn === undefined;
-  const departed = noDates
-    ? !employee.employedDuringPeriod
-    : employeeLeftBeforeMonth(
-        { contractEnd: employee.contractEnd ?? null, deletedOn: employee.deletedOn ?? null },
-        period,
-      );
+  const departed = employeeLeftBeforeMonth(
+    { contractEnd: employee.contractEnd, deletedOn: employee.deletedOn },
+    period,
+  );
   return {
     employeeId: employee.employeeId,
     employeeNumber: employee.employeeNumber,

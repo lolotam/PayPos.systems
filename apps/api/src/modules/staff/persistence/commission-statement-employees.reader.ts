@@ -44,7 +44,7 @@ export async function readCommissionStatementEmployees(
       e.employee_number AS "employeeNumber",
       (e.hire_date <= (date_trunc('month', (${period} || '-01')::date) + interval '1 month - 1 day')::date
         AND (e.contract_end IS NULL OR e.contract_end >= (${period} || '-01')::date)
-        AND (e.deleted_at IS NULL OR e.deleted_at::date >= (${period} || '-01')::date)) AS "employed",
+        AND (e.deleted_at IS NULL OR (e.deleted_at AT TIME ZONE b.timezone)::date >= (${period} || '-01')::date)) AS "employed",
       e.contract_end::text AS "contractEnd",
       (e.deleted_at AT TIME ZONE b.timezone)::date::text AS "deletedOn"
     FROM employees e JOIN businesses b ON b.company_id = e.company_id AND b.id = e.business_id
