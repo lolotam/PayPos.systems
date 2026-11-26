@@ -127,7 +127,7 @@ function candidateIds(
 ): readonly string[] {
   const ids = new Set<string>();
   // نفس شرط المجمّع المشترك: البند أو البيع الملغي أو اللي بره الشهر ما بيتسعّرش،
-  // فما ينفعش يخلّي صاحبته مرشحة بصفر.
+  // فما ينفعش يخلّي صاحبته مرشحة بصفر. والبقشيش والتصحيح بياخدوا نفس الشرط.
   for (const line of month.lines) {
     if (countsInPeriod(line, period)) ids.add(line.employeeId);
   }
@@ -135,8 +135,12 @@ function candidateIds(
     if (sale.sellerEmployeeId === null) continue;
     if (countsInPeriod(sale, period)) ids.add(sale.sellerEmployeeId);
   }
-  for (const tip of month.tips) ids.add(tip.employeeId);
-  for (const correction of month.corrections) ids.add(correction.employeeId);
+  for (const tip of month.tips) {
+    if (tip.businessDate.slice(0, 7) === period) ids.add(tip.employeeId);
+  }
+  for (const correction of month.corrections) {
+    if (correction.targetPeriod === period) ids.add(correction.employeeId);
+  }
   // المرحّل مالوش فرع (D-22): بيخلّي الموظفة مرشحة للقارئ على مستوى النشاط بس.
   if (scope === null) {
     for (const carry of month.carries ?? []) {

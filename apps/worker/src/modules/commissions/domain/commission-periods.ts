@@ -1,9 +1,17 @@
+import { isCommissionPeriod, nextCommissionPeriod } from './commission-calendar.ts';
 import type { LockedCommissionPeriod } from './commission-line-types.ts';
+import { CommissionCandidateRangeExceededError, CommissionPeriodInvalidError } from './errors.ts';
 
 export interface CommissionPeriodLockPlan {
   readonly affectedPeriods: readonly string[];
   readonly periodsToLock: readonly string[];
 }
+
+/**
+ * أقصى عدد شهور مرشحة لخصم واحد: عشر سنوات. النطاق الأطول بيرفض بنوع خطأ معروف
+ * بدل ما ياخد أقفال على عدد شهور ما بيخلصش (FR-015).
+ */
+export const MAX_CANDIDATE_COMMISSION_PERIODS = 120;
 
 /** نتيجة تصنيف الشهور المقفولة: المغلق منها والمراجع منها، والشهور المرشحة غير مصنّفة. */
 export interface CommissionPeriodClassification {
@@ -33,19 +41,26 @@ export function currentBusinessPeriod(now: Date, timeZone: string): string {
 /**
  * يوسّع كل شهر متأثر إلى كل مرشحي التصحيح من ذلك الشهر حتى الشهر الحالي،
  * مع إبقاء الشهر المصدر مرشحاً وعدم توليد شهور مستقبلية عندما يكون أحدث من الحالي.
+ * النطاق بيقف عند `MAX_CANDIDATE_COMMISSION_PERIODS` شهر، فيترفض قبل أي قفل.
  *
  * @param affectedPeriods شهور الحذف أو الإضافة للبنود الأحدث
  * @param currentPeriod شهر اليوم المحلي للنشاط
  * @returns كل الشهور المرشحة، فريدة ومرتبة تصاعدياً
+ * @throws CommissionCandidateRangeExceededError لما النطاق يطول عن الحد
  */
 export function candidateCommissionPeriods(
   affectedPeriods: readonly string[],
   currentPeriod: string,
 ): string[] {
+  if (!isCommissionPeriod(currentPeriod)) throw new CommissionPeriodInvalidError(currentPeriod);
   const candidates = new Set<string>();
   for (const affected of affectedPeriods) {
+    if (!isCommissionPeriod(affected)) throw new CommissionPeriodInvalidError(affected);
     const end = affected > currentPeriod ? affected : currentPeriod;
-    for (let period = affected; period <= end; period = nextPeriod(period)) {
+    for (let period = affected; period <= end; period = nextCommissionPeriod(period)) {
+      if (candidates.size >= MAX_CANDIDATE_COMMISSION_PERIODS) {
+        throw new CommissionCandidateRangeExceededError(MAX_CANDIDATE_COMMISSION_PERIODS);
+      }
       candidates.add(period);
       if (period === end) break;
     }
@@ -78,11 +93,13 @@ export function commissionPeriodLockPlan(
  * الأقفال المحقونة مش على مدى كامل: شهر متأثر مقفول لسه بلا هدف DRAFT بيحتاج شهر
  * مفتوح بعده، فيُقفل الشهر اللي بعده شهر شهر؛ غير كده ينتقل القفل لأقرب شهر متأثر
  * تالٍ فوراً. القفل بيفضل صاعد عشان ما يحصلش deadlock مع كاتب تاني (CM-02).
+ * المشي شهر شهر بيتقف عند `MAX_CANDIDATE_COMMISSION_PERIODS` قفل، فيترفض بنوع خطأ معروف.
  *
  * @param affectedPeriods شهور الحذف أو الإضافة، مرتبة تصاعدياً بعد إزالة التكرار
  * @param currentPeriod شهر اليوم المحلي للنشاط
  * @param locked الشهور المقفولة بحالاتها بعد كل نداءات القفل السابقة
  * @returns الشهر التالي المراد قفله، أو null لما ما فيهش شهر تاني مطلوب
+ * @throws CommissionCandidateRangeExceededError لما المشي شهر شهر يطول عن الحد
  */
 export function nextCommissionPeriodToLock(
   affectedPeriods: readonly string[],
@@ -91,12 +108,19 @@ export function nextCommissionPeriodToLock(
 ): string | null {
   const affected = [...new Set(affectedPeriods)].sort();
   if (affected.length === 0) return null;
+  if (!isCommissionPeriod(currentPeriod)) throw new CommissionPeriodInvalidError(currentPeriod);
+  for (const period of affected) {
+    if (!isCommissionPeriod(period)) throw new CommissionPeriodInvalidError(period);
+  }
   const lastLocked = locked.at(-1)?.period ?? null;
   if (needsCorrectionTarget(affected, currentPeriod, locked)) {
     // الشهر المقفول بلا هدف مفتوح لازم ياخد هدفه من شهر بعده داخل الشهر الحالي، فلو وصلنا
     // للشهر الحالي من غير هدف فالقفل بيقف والاختيار بيرفض العملية بنفسه.
     if (lastLocked === null || lastLocked >= currentPeriod) return null;
-    return nextPeriod(lastLocked);
+    if (locked.length >= MAX_CANDIDATE_COMMISSION_PERIODS) {
+      throw new CommissionCandidateRangeExceededError(MAX_CANDIDATE_COMMISSION_PERIODS);
+    }
+    return nextCommissionPeriod(lastLocked);
   }
   const next = affected.find((period) => lastLocked === null || period > lastLocked);
   return next ?? null;
@@ -128,14 +152,6 @@ function needsCorrectionTarget(
           candidate.period <= currentPeriod,
       ),
   );
-}
-
-function nextPeriod(period: string): string {
-  const year = Number(period.slice(0, 4));
-  const month = Number(period.slice(5, 7));
-  const nextYear = month === 12 ? year + 1 : year;
-  const nextMonth = month === 12 ? 1 : month + 1;
-  return `${String(nextYear).padStart(4, '0')}-${String(nextMonth).padStart(2, '0')}`;
 }
 
 /**

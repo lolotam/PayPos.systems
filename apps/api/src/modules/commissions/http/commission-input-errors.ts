@@ -10,7 +10,8 @@ import { CommissionStatementPayError } from '../use-cases/mark-statement-paid/ma
 
 /**
  * يرفض الكتابة بالخطأ المعروف: خطأ الـ domain يبقى كوده، والاستخدام المتكرر للمفتاح خطأ 422،
- * والمفتاح الشغال خطأ 409. أي خطأ تاني بيروح زي ما هو عشان يبقى 500 مش رفض متخفّي.
+ * والمفتاح الشغال خطأ 409. ومهلة المعاملة المقفولة خطأ قابل لإعادة المحاولة 409 لأن المعاملة
+ * اتلغت وما اتكتبتش، وأي خطأ تاني بيروح زي ما هو عشان يبقى 500 مش رفض متخفّي.
  *
  * @param error الخطأ اللي خرج من حالة الاستخدام
  * @returns عمره ما بيرجع: بيرمي الخطأ المعروف أو بيرمي الأصلي
@@ -27,5 +28,9 @@ export function mapCommissionWriteError(error: unknown): never {
   }
   if (error instanceof IdempotencyKeyReusedError) throw new ApiError('IDEMPOTENCY_KEY_REUSED');
   if (error instanceof IdempotencyKeyBusyError) throw new ApiError('IDEMPOTENCY_KEY_IN_PROGRESS');
+  // المهلة تيجي من ميزانية المعاملة نفسها، مش من رفض عمل، فالمعيد لازم ياخد نفس المفتاح تاني.
+  if (error instanceof Error && error.name === 'TimeoutError') {
+    throw new ApiError('TRANSACTION_RETRY_REQUIRED');
+  }
   throw error;
 }

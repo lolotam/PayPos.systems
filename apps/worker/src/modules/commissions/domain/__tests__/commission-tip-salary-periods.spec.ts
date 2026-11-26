@@ -12,7 +12,11 @@ import {
   salaryAffectedPeriods,
   tipAffectedPeriods,
 } from '../commission-tip-salary-periods.ts';
-import { CommissionTipSalaryInputInvalidError } from '../errors.ts';
+import {
+  CommissionCandidateRangeExceededError,
+  CommissionPeriodInvalidError,
+  CommissionTipSalaryInputInvalidError,
+} from '../errors.ts';
 
 const businessLower = '01920000-0000-7000-8000-000000000aa1';
 const businessUpper = '01920000-0000-7000-8000-000000000AA1';
@@ -98,6 +102,24 @@ describe('salaryAffectedPeriods - calendar rules and ranges', () => {
     ]);
     const sortedUnique = [...new Set(affected)].sort();
     expect(affected).toEqual(sortedUnique);
+  });
+});
+
+describe('salaryAffectedPeriods - the candidate range and the month format', () => {
+  it('refuses a range longer than the maximum number of candidate periods', () => {
+    // المدى من شهر إنشاء النشاط للشهر الحالي بيقف عند الحد، فيترفض بدل أقفال بلا نهاية.
+    expect(() => salaryAffectedPeriods('2015-06-01', null, '2036-02', '2015-06')).toThrow(
+      CommissionCandidateRangeExceededError,
+    );
+    expect(() => salaryAffectedPeriods('2015-06-01', null, '2036-02', '2015-06')).toThrow(
+      expect.objectContaining({ code: 'COMMISSION_CANDIDATE_RANGE_EXCEEDED' }),
+    );
+  });
+
+  it('refuses a current period that is not a calendar month', () => {
+    expect(() => salaryAffectedPeriods('2026-01-01', null, '2026-13', '2026-01')).toThrow(
+      CommissionPeriodInvalidError,
+    );
   });
 });
 

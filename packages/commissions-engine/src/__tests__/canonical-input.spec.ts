@@ -119,6 +119,26 @@ describe('the path comparison keeps the identity of the changed row', () => {
   });
 });
 
+describe('the path comparison refuses a duplicated row identity', () => {
+  const employee = (lines: readonly { line_id: string; revision: string }[]) => ({
+    employee_id: 'e1',
+    lines,
+  });
+  const ONE = employee([{ line_id: 'a', revision: '1' }]);
+  const TWO_SAME = employee([
+    { line_id: 'a', revision: '1' },
+    { line_id: 'a', revision: '2' },
+  ]);
+
+  it.each([
+    ['the base carries the row twice', { employees: [TWO_SAME] }, { employees: [ONE] }],
+    ['the compared value emits the row twice', { employees: [ONE] }, { employees: [TWO_SAME] }],
+  ])('fails loudly when %s', (_label, before, after) => {
+    // صفّين بنفس الهوية بيتكتبوا على نفس المسار، والـ Map كان بيبتلع ورقة من غير ما يبلّغ.
+    expect(() => changedPaths(before, after)).toThrow(/Duplicate row identity "a"/);
+  });
+});
+
 describe('rules without a value', () => {
   it('writes ZERO and FOLLOW_PLAN as an object holding only the kind', () => {
     const [noor, sara] = (

@@ -1,14 +1,16 @@
-import { expect, it } from 'vitest';
+import { describe, expect, it } from 'vitest';
 
 import {
   candidateCommissionPeriods,
   classifyCommissionPeriods,
   commissionPeriodLockPlan,
   currentBusinessPeriod,
+  MAX_CANDIDATE_COMMISSION_PERIODS,
   nextCommissionPeriodToLock,
   type CommissionPeriodClassification,
 } from '../commission-periods.ts';
 import type { LockedCommissionPeriod } from '../commission-line-types.ts';
+import { CommissionCandidateRangeExceededError, CommissionPeriodInvalidError } from '../errors.ts';
 
 it.each([
   ['2026-10-31T20:59:59.999Z', '2026-10'],
@@ -199,4 +201,61 @@ it('stops at the current month when no open target is left for the closed month'
 it('locks only the affected month when it is newer than the current month', () => {
   const run = lockRun(['2027-01'], '2026-12', { '2027-01': 'APPROVED' });
   expect(run.requested).toEqual(['2027-01']);
+});
+
+describe('the candidate range of a commission statement period', () => {
+  it('takes a hundred and twenty months and refuses a hundred and twenty one', () => {
+    // الحد الأقصى عشر سنوات: النطاق الأطول بيرفض قبل أي قفل، مش بعد ما ياخد أقفال بلا نهاية.
+    const first = '2016-02';
+    const hundred = '2026-01';
+    const hundredAndOne = '2026-02';
+
+    expect(candidateCommissionPeriods([first], hundred)).toHaveLength(
+      MAX_CANDIDATE_COMMISSION_PERIODS,
+    );
+    expect(() => candidateCommissionPeriods([first], hundredAndOne)).toThrow(
+      CommissionCandidateRangeExceededError,
+    );
+    expect(() => candidateCommissionPeriods([first], hundredAndOne)).toThrow(
+      expect.objectContaining({ code: 'COMMISSION_CANDIDATE_RANGE_EXCEEDED' }),
+    );
+  });
+
+  it('refuses the range before the lock plan is built', () => {
+    expect(() => commissionPeriodLockPlan(['2016-01'], '2026-02')).toThrow(
+      CommissionCandidateRangeExceededError,
+    );
+  });
+
+  it('refuses a month that is not a calendar month instead of looping for ever', () => {
+    expect(() => candidateCommissionPeriods(['2026-13'], '2026-12')).toThrow(
+      CommissionPeriodInvalidError,
+    );
+    expect(() => candidateCommissionPeriods(['2026-01'], '2026-13')).toThrow(
+      CommissionPeriodInvalidError,
+    );
+    expect(() => nextCommissionPeriodToLock(['2026-13'], '2026-12', [])).toThrow(
+      CommissionPeriodInvalidError,
+    );
+  });
+
+  it('stops the month-by-month correction walk at the maximum', () => {
+    // الشهر المقفول بلا هدف مفتوح بيمشي شهر شهر، فلو وصل الحد بيرفض قبل قفل تاني.
+    const closed: LockedCommissionPeriod[] = Array.from(
+      { length: MAX_CANDIDATE_COMMISSION_PERIODS },
+      (_row, index) => {
+        const year = 2016 + Math.floor(index / 12);
+        const month = (index % 12) + 1;
+        return {
+          period: `${String(year).padStart(4, '0')}-${String(month).padStart(2, '0')}`,
+          statementId: `statement-${index}`,
+          status: 'APPROVED' as const,
+        };
+      },
+    );
+
+    expect(() => nextCommissionPeriodToLock(['2016-01'], '2030-01', closed)).toThrow(
+      CommissionCandidateRangeExceededError,
+    );
+  });
 });

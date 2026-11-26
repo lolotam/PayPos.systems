@@ -60,6 +60,10 @@ it.each([
   ['reordered keys', JSON.stringify({ v: 1, c, b, i: employeeId, k: 'sara' })],
   ['an extra key', JSON.stringify({ v: 1, c, b, k: 'sara', i: employeeId, x: 1 })],
   ['a duplicated key', `{"v":1,"c":"${c}","b":"${b}","k":"sara","i":"${employeeId}","i":"${c}"}`],
+  [
+    'a duplicated version key',
+    `{"v":0,"v":1,"c":"${c}","b":"${b}","k":"sara","i":"${employeeId}"}`,
+  ],
   ['an escaped key', `{"v":1,"c":"${c}","b":"${b}","k":"\\u0073ara","i":"${employeeId}"}`],
   ['another business', JSON.stringify({ v: 1, c, b: employeeId, k: 'sara', i: employeeId })],
   ['another version', JSON.stringify({ v: 2, c, b, k: 'sara', i: employeeId })],

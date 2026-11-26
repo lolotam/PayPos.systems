@@ -1,137 +1,23 @@
 import { describe, expect, it } from 'vitest';
 
 import { projectCommissionEstimate } from '../estimate-projection.ts';
-import type {
-  CommissionEstimateAttachment,
-  CommissionEstimateCorrection,
-  CommissionEstimateLine,
-  CommissionEstimateTip,
-  CommissionEstimateMonthRows,
-  CommissionEstimateProjectionInput,
-} from '../estimate-projection-types.ts';
+import type { CommissionEstimateMonthRows } from '../estimate-projection-types.ts';
 import type { CommissionPlanVersion } from '../plan-types.ts';
-
-const EMPLOYEE = '01920000-0000-7000-8000-0000000000e1';
-const OTHER = '01920000-0000-7000-8000-0000000000e2';
-const BRANCH_A = '01920000-0000-7000-8000-0000000000c1';
-const BRANCH_B = '01920000-0000-7000-8000-0000000000c2';
-const PERIOD = '2026-11';
-
-/** بند بنسبة ثابتة: بيتسعّر من غير خطة، ففشله مش من نوع غياب الخطة. */
-function fixedLine(patch: Partial<CommissionEstimateLine> = {}): CommissionEstimateLine {
-  return {
-    employeeId: EMPLOYEE,
-    serviceId: 'service-a',
-    lineId: 'line-a',
-    occurredAt: 1n,
-    recordedAt: 1n,
-    businessDate: '2026-11-05',
-    netShare: 100000n,
-    shareBps: 10000n,
-    counts: true,
-    ruleSnapshot: { kind: 'PCT', value: 1000n },
-    status: 'ACTIVE',
-    branchId: BRANCH_A,
-    ...patch,
-  };
-}
-
-/** بند بيتبع الخطة: من غير خطة سارية بيفشل تسعيره بـ NO_PLAN. */
-function planLine(patch: Partial<CommissionEstimateLine> = {}): CommissionEstimateLine {
-  return fixedLine({ lineId: 'line-plan', ruleSnapshot: { kind: 'FOLLOW_PLAN' }, ...patch });
-}
-
-/** خطة بنسبة عشرة بالمئة بلا شرائح ولا بيع باقة. */
-function plan(employeeId = EMPLOYEE): CommissionPlanVersion {
-  return {
-    employeeId,
-    effectiveFrom: '2026-11-01',
-    wholePeriod: false,
-    repairPeriod: null,
-    createdAt: 1n,
-    version: 1n,
-    base: { enabled: false },
-    tiers: { enabled: false },
-    packageSale: { enabled: false },
-  };
-}
-
-function attachment(
-  patch: Partial<CommissionEstimateAttachment> = {},
-): CommissionEstimateAttachment {
-  return {
-    employeeId: EMPLOYEE,
-    branchId: BRANCH_A,
-    from: '2026-11-01',
-    to: null,
-    ...patch,
-  };
-}
-
-/** ارتباطات الموظفة: أول نصف الشهر في الفرع الأول وباقيته في الفرع التاني. */
-function transferredAttachments(): readonly CommissionEstimateAttachment[] {
-  return [attachment({ to: '2026-11-15' }), attachment({ branchId: BRANCH_B, from: '2026-11-15' })];
-}
-
-/** بقشيش كارت في الفرع الأول أول الشهر. */
-function tip(patch: Partial<CommissionEstimateTip> = {}): CommissionEstimateTip {
-  return {
-    sessionId: 'tip-a',
-    employeeId: EMPLOYEE,
-    businessDate: '2026-11-05',
-    method: 'CARD',
-    amount: 2500n,
-    branchId: BRANCH_A,
-    ...patch,
-  };
-}
-
-/** تصحيح مستلم في الشهر عن مصدر من شهر مقفول، مربوط بالفرع الأول. */
-function correction(
-  patch: Partial<CommissionEstimateCorrection> = {},
-): CommissionEstimateCorrection {
-  return {
-    employeeId: EMPLOYEE,
-    sourcePeriod: '2026-10',
-    targetPeriod: PERIOD,
-    sourceRef: 'line:old-a',
-    kind: 'COMMISSION',
-    amount: 5000n,
-    previousAmount: 0n,
-    newAmount: 5000n,
-    generation: 1n,
-    sourceBranchId: BRANCH_A,
-    sourceBusinessDate: '2026-10-05',
-    attachedBranchIds: [BRANCH_A],
-    ...patch,
-  };
-}
-
-function month(patch: Partial<CommissionEstimateMonthRows> = {}): CommissionEstimateMonthRows {
-  return {
-    lines: [],
-    sales: [],
-    tips: [],
-    salaries: [],
-    versions: [],
-    overrides: [],
-    corrections: [],
-    ...patch,
-  };
-}
-
-function projection(
-  patch: Partial<CommissionEstimateProjectionInput> = {},
-): CommissionEstimateProjectionInput {
-  return {
-    scope: { businessWide: false, branchIds: [BRANCH_A] },
-    period: PERIOD,
-    employeeIds: [EMPLOYEE],
-    month: month(),
-    attachments: [],
-    ...patch,
-  };
-}
+import {
+  attachment,
+  BRANCH_A,
+  BRANCH_B,
+  correction,
+  EMPLOYEE,
+  fixedLine,
+  month,
+  OTHER,
+  plan,
+  planLine,
+  projection,
+  tip,
+  transferredAttachments,
+} from './estimate-projection-fixtures.ts';
 
 describe('the visible rows of the estimate', () => {
   it('shows the visible source to a branch-scoped reader and marks the aggregate partial', () => {
@@ -326,6 +212,34 @@ describe('the configuration rows of the estimate', () => {
         scope: { businessWide: true, branchIds: [] },
         employeeIds: [OTHER],
         month: month(rows),
+      }),
+    );
+
+    expect(result.employees).toEqual([]);
+  });
+});
+
+describe('an out-of-month row of an unattached employee', () => {
+  it('does not make a business-wide reader see a tip of another month', () => {
+    // البقشاش بيعدّ من غير تسعير (D-1)، فلو صف شهر تاني كان بيعمل مرشحة كانت
+    // هتظهر للقارئ على مستوى النشاط بصفر.
+    const result = projectCommissionEstimate(
+      projection({
+        scope: { businessWide: true, branchIds: [] },
+        employeeIds: [OTHER],
+        month: month({ tips: [tip({ employeeId: OTHER, businessDate: '2026-10-05' })] }),
+      }),
+    );
+
+    expect(result.employees).toEqual([]);
+  });
+
+  it('does not make a business-wide reader see a correction of another month', () => {
+    const result = projectCommissionEstimate(
+      projection({
+        scope: { businessWide: true, branchIds: [] },
+        employeeIds: [OTHER],
+        month: month({ corrections: [correction({ employeeId: OTHER, targetPeriod: '2026-10' })] }),
       }),
     );
 

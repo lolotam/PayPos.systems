@@ -1,5 +1,4 @@
 import type { ClaimedEvent, DeliveryOutcome, OutboxDispatcherDatabase } from '@pospay/db';
-import { assertReplayBounds, ReplayCursorError } from '@pospay/db';
 import type { OutboxConsumer } from '../../../outbox/consumer.ts';
 
 const PAGE_SIZE = 100;
@@ -60,6 +59,56 @@ export class CommissionReplayConfigurationError extends Error {
   }
 }
 
+/** نطاق استعادة غير صالح؛ نفس الرمز الثابت بتاع مخزن البيانات من غير استيراد وقت التشغيل. */
+export class CommissionReplayScopeInvalidError extends Error {
+  readonly code = 'REPLAY_SCOPE_INVALID';
+
+  constructor() {
+    super('REPLAY_SCOPE_INVALID');
+    this.name = 'CommissionReplayScopeInvalidError';
+  }
+}
+
+/**
+ * حارس حدود الاستعادة: التحقق من المؤشرين والتعرّف على خطأ المؤشر. النوع بنيوي عشان
+ * `jobs/` يقدر يستقبل الحارس المربوط من `persistence/` من غير ما يستورد وقت التشغيل.
+ */
+export interface ReplayCursorGuard {
+  readonly assertBounds: (afterId: string | null, throughId: string | null) => void;
+  readonly isCursorError: (error: unknown) => error is Error & { readonly code: string };
+}
+
+const UUID = /^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i;
+
+/**
+ * الحارس البديل: نفس فحص حدود `@pospay/db` مكتوب هنا لأن `jobs/` ما بيقدرش يستورد
+ * وقت التشغيل. بينفع لما التبعيات ما ت-bindش حارس، والحدود الغلط بترمي الرمز الثابت نفسه.
+ *
+ * @param afterId الحد الأدنى المستأنف، أو null
+ * @param throughId الحد الأعلى الثابت، أو null
+ * @returns لا قيمة؛ بيرمي CommissionReplayScopeInvalidError عند حدود مش سليمة
+ */
+function assertFallbackBounds(afterId: string | null, throughId: string | null): void {
+  const malformed =
+    (afterId !== null && !UUID.test(afterId)) ||
+    (throughId !== null && !UUID.test(throughId)) ||
+    (afterId !== null && throughId !== null && afterId.toLowerCase() > throughId.toLowerCase());
+  if (malformed) throw new CommissionReplayScopeInvalidError();
+}
+
+/** الحارس البديل المستعمل لما التبعيات ما بتحدّدش حارس: فحص UUID نقي والتعرّف على الرمز الثابت. */
+const FALLBACK_CURSOR_GUARD: ReplayCursorGuard = {
+  assertBounds: assertFallbackBounds,
+  isCursorError: (error): error is Error & { readonly code: string } =>
+    error instanceof Error && 'code' in error && error.code === 'REPLAY_SCOPE_INVALID',
+};
+
+/** خطأ نطاق مش صالح: نفس رمز مخزن البيانات، سواء من فحص الحدود أو من قارئ الصفحات. */
+function isReplayScopeInvalid(error: unknown): boolean {
+  if (error instanceof TypeError && error.message === 'REPLAY_SCOPE_INVALID') return true;
+  return error instanceof Error && 'code' in error && error.code === 'REPLAY_SCOPE_INVALID';
+}
+
 /**
  * يحوّل أخطاء الاستعادة المعروفة إلى رموزها الثابتة حتى لا يخرج نص خام للمشغّل.
  *
@@ -68,13 +117,13 @@ export class CommissionReplayConfigurationError extends Error {
  */
 export function commissionReplayErrorCode(error: unknown): string {
   if (
-    error instanceof ReplayCursorError ||
     error instanceof CommissionReplayCursorError ||
     error instanceof CommissionReplayEventInvalidError ||
     error instanceof CommissionReplayConfigurationError
   ) {
     return error.code;
   }
+  if (isReplayScopeInvalid(error)) return 'REPLAY_SCOPE_INVALID';
   return 'COMMISSION_REPLAY_FAILED';
 }
 
@@ -93,12 +142,17 @@ export function parseCommissionReplayTypes(value: string | undefined): 'four' | 
 /**
  * يثبت صحة الحدود ويمنع الاستئناف دون حد أعلى حتى يبقى نطاق الاستعادة ثابتًا.
  *
+ * @param guard حارس الحدود المربوط، أو الحارس البديل النقي
  * @param afterId الحد الأدنى المستأنف، أو null في أول تشغيل
  * @param throughId الحد الأعلى الثابت، إلزامي عند وجود afterId
  * @returns لا قيمة؛ يكمل فقط عند صحة المؤشرين
  */
-export function assertCommissionReplayCursor(afterId: string | null, throughId: string | null): void {
-  assertReplayBounds(afterId, throughId);
+export function assertReplayCursorWithGuard(
+  guard: ReplayCursorGuard,
+  afterId: string | null,
+  throughId: string | null,
+): void {
+  guard.assertBounds(afterId, throughId);
   if (afterId !== null && throughId === null) throw new CommissionReplayCursorError();
 }
 
@@ -148,6 +202,8 @@ export interface CommissionReplayDeps {
   readonly failures: CommissionFailureCodes;
   readonly scope?: CommissionReplayScope;
   readonly handledTypes?: ReadonlySet<string>;
+  /** حارس الحدود المربوط من persistence؛ من غيره بينفّذ الحارس البديل النقي. */
+  readonly cursor?: ReplayCursorGuard;
 }
 
 /** حالة التشغيل المشتركة بين دوال الاستعادة: النطاق والواجهة والأعداد والجداول. */
@@ -204,7 +260,8 @@ export async function runCommissionInputReplay(
   deps: CommissionReplayDeps,
   cursor: CommissionReplayCursor,
 ): Promise<CommissionReplayResult> {
-  assertCommissionReplayCursor(cursor.afterId, cursor.throughId);
+  const guard = deps.cursor ?? FALLBACK_CURSOR_GUARD;
+  assertReplayCursorWithGuard(guard, cursor.afterId, cursor.throughId);
   const run = createRun(deps, cursor);
   const finished = (): CommissionReplayStatus =>
     run.undelivered.length === 0 ? 'COMPLETE' : 'UNDELIVERED';
@@ -225,11 +282,7 @@ export async function runCommissionInputReplay(
             PAGE_SIZE,
           ));
     } catch (error) {
-      if (
-        error instanceof ReplayCursorError ||
-        (error instanceof TypeError && error.message === 'REPLAY_SCOPE_INVALID')
-      )
-        throw error;
+      if (guard.isCursorError(error) || isReplayScopeInvalid(error)) throw error;
       return replayResult(run, 'ABORTED');
     }
     if (page === 0) run.throughId = batch.throughId;

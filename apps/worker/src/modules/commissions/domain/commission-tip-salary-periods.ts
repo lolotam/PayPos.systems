@@ -1,4 +1,10 @@
 import type { CommissionPeriodEmployee } from './commission-line-types.ts';
+import {
+  commissionMonthIndex,
+  isCommissionPeriod,
+  nextCommissionPeriod,
+} from './commission-calendar.ts';
+import { MAX_CANDIDATE_COMMISSION_PERIODS } from './commission-periods.ts';
 import type {
   CommissionSalaryInputEvent,
   CommissionSalaryProjectionRow,
@@ -6,18 +12,24 @@ import type {
   CommissionTipProjectionRow,
   CommissionTipProjectionSession,
 } from './commission-tip-salary-inputs.ts';
-import { CommissionTipSalaryInputInvalidError } from './errors.ts';
+import {
+  CommissionCandidateRangeExceededError,
+  CommissionPeriodInvalidError,
+  CommissionTipSalaryInputInvalidError,
+} from './errors.ts';
 
 /**
  * يحسب كل شهر يكون الراتب فيه هو المختار في آخر يوم تقويمي، داخل فترة السريان
  * وحدود الشهر الحالي وشهر إنشاء النشاط؛ البداية من شهر السريان أو شهر الإنشاء
- * تمنع المرور على سنوات قديمة لا يمكن أن تتأثر.
+ * تمنع المرور على سنوات قديمة لا يمكن أن تتأثر. المدى بيقف عند
+ * `MAX_CANDIDATE_COMMISSION_PERIODS` شهر، فيترفض بنوع خطأ معروف بدل ما ياخد أقفال بلا نهاية.
  *
  * @param effectiveFrom تاريخ بدء سريان الراتب بصيغة YYYY-MM-DD
  * @param nextFrom تاريخ السريان التالي، أو null عندما لا يوجد
  * @param currentPeriod الشهر الحالي للنشاط بصيغة YYYY-MM
  * @param startPeriod شهر إنشاء النشاط بصيغة YYYY-MM
  * @returns الشهور المتأثرة فريدة ومرتبة تصاعدياً، وقد تكون فارغة
+ * @throws CommissionCandidateRangeExceededError لما المدى يطول عن الحد
  */
 export function salaryAffectedPeriods(
   effectiveFrom: string,
@@ -27,8 +39,14 @@ export function salaryAffectedPeriods(
 ): string[] {
   const effectivePeriod = effectiveFrom.slice(0, 7);
   const firstPeriod = effectivePeriod > startPeriod ? effectivePeriod : startPeriod;
+  if (!isCommissionPeriod(currentPeriod)) throw new CommissionPeriodInvalidError(currentPeriod);
+  if (!isCommissionPeriod(firstPeriod)) throw new CommissionPeriodInvalidError(firstPeriod);
+  const span = commissionMonthIndex(currentPeriod) - commissionMonthIndex(firstPeriod) + 1;
+  if (span > MAX_CANDIDATE_COMMISSION_PERIODS) {
+    throw new CommissionCandidateRangeExceededError(MAX_CANDIDATE_COMMISSION_PERIODS);
+  }
   const affected: string[] = [];
-  for (let period = firstPeriod; period <= currentPeriod; period = nextPeriod(period)) {
+  for (let period = firstPeriod; period <= currentPeriod; period = nextCommissionPeriod(period)) {
     const lastDay = lastCalendarDay(period);
     if (lastDay < effectiveFrom) continue;
     if (nextFrom !== null && lastDay >= nextFrom) break;
@@ -112,14 +130,6 @@ export function assertSalaryIdentityUnchanged(
   if (held !== null && held.businessId.toLowerCase() !== event.businessId.toLowerCase()) {
     throw new CommissionTipSalaryInputInvalidError('SALARY_IDENTITY_CHANGED');
   }
-}
-
-function nextPeriod(period: string): string {
-  const year = Number(period.slice(0, 4));
-  const month = Number(period.slice(5, 7));
-  const nextYear = month === 12 ? year + 1 : year;
-  const nextMonth = month === 12 ? 1 : month + 1;
-  return `${String(nextYear).padStart(4, '0')}-${String(nextMonth).padStart(2, '0')}`;
 }
 
 function lastCalendarDay(period: string): string {

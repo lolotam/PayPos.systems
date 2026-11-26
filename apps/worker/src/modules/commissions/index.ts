@@ -21,21 +21,22 @@ export type {
   CommissionStatementFrozenRow,
   CommissionStatementPaidCash,
 } from './ports/commission-statement-export.port.ts';
+export { assertCommissionReplayCursor, runCommissionInputReplay } from './commissions.module.ts';
 export {
-  assertCommissionReplayCursor,
   CommissionReplayConfigurationError,
   CommissionReplayCursorError,
   CommissionReplayEventInvalidError,
+  CommissionReplayScopeInvalidError,
   commissionReplayErrorCode,
   parseCommissionReplayTypes,
   recordCommissionFailureCodes,
-  runCommissionInputReplay,
 } from './jobs/replay-commission-inputs.ts';
 export type {
   CommissionFailureCodes,
   CommissionReplayCursor,
   CommissionReplayResult,
   CommissionReplayStatus,
+  ReplayCursorGuard,
 } from './jobs/replay-commission-inputs.ts';
 export {
   COMMISSION_INPUTS_CONSUMER_ID,
