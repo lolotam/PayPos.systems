@@ -75,7 +75,16 @@ it('keeps scanning after a company check or a registration fails and logs only t
   expect(result).toEqual({ companies: 3, registered: 1, failures: 2 });
   expect(registered).toEqual([ids[2]]);
   expect(warn).toHaveBeenCalledTimes(2);
-  expect(warn).toHaveBeenCalledWith({ target: 'sale' }, 'package recovery discovery failed');
+  expect(warn).toHaveBeenNthCalledWith(
+    1,
+    { company_id: ids[0], target: 'sale' },
+    'package recovery discovery failed',
+  );
+  expect(warn).toHaveBeenNthCalledWith(
+    2,
+    { company_id: ids[1], target: 'sale' },
+    'package recovery discovery failed',
+  );
 });
 
 it('stops scanning between companies once stopped', async () => {

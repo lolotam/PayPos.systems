@@ -47,8 +47,11 @@ export async function discoverPackageRecoveries(
           registered += 1;
         } catch {
           failures += 1;
-          // الخطأ الخام قد يحمل نص الاستعلام ومعاملاته؛ يُسجَّل الهدف فقط، والمسح التالي يعيد المحاولة.
-          options.logger.warn({ target: target.name }, 'package recovery discovery failed');
+          // الخطأ الخام قد يحمل نص الاستعلام ومعاملاته؛ يُسجَّل معرّف الشركة والهدف فقط، والمسح التالي يعيد المحاولة.
+          options.logger.warn(
+            { company_id: companyId, target: target.name },
+            'package recovery discovery failed',
+          );
         }
       }
     }

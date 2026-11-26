@@ -8,8 +8,8 @@ import { RecoverPackageImports } from './use-cases/recover-package-imports/recov
 import type { PackageSaleClock } from './ports/package-sale.port.ts';
 import type { PackageCommitClock } from './ports/package-import-commit.port.ts';
 
-// بيانات المسح قصيرة ومفهرسة على (company,status,requested_at)؛ لا تستخدم ميزانية المعاملة المالية أبدًا.
-const PACKAGE_IMPORT_RECOVERY_TIMEOUT_MS = 5_000;
+// بيانات المسح قصيرة ومفهرسة؛ لا تستخدم ميزانية المعاملة المالية أبدًا.
+const PACKAGE_RECOVERY_SCAN_TIMEOUT_MS = 5_000;
 
 /** هدف الاستعادة كما يراه مسح الاكتشاف الدوري: فحص الطلب المعلق وتسجيل الجدولة على Redis (#1035). */
 export interface PackageRecoveryTarget {
@@ -25,6 +25,9 @@ export function packageSaleRecovery(
   options: { redisUrl: string; timeoutMs: number; prefix?: string },
 ) {
   const transactions = packageSaleRecoveryTransactions(database, { timeoutMs: options.timeoutMs });
+  const scanTransactions = packageSaleRecoveryTransactions(database, {
+    timeoutMs: PACKAGE_RECOVERY_SCAN_TIMEOUT_MS,
+  });
   const processor = startPackageSaleRecoveryProcessor(
     new RecoverPackageSales(transactions, clock),
     options.redisUrl,
@@ -32,7 +35,7 @@ export function packageSaleRecovery(
   );
   const target: PackageRecoveryTarget = {
     name: 'package-sale',
-    hasPending: transactions.hasPending,
+    hasPending: scanTransactions.hasPending,
     register: processor.register,
   };
   return { processor, target };
@@ -45,7 +48,7 @@ export function packageImportRecovery(
   options: { redisUrl: string; prefix?: string },
 ) {
   const transactions = packageImportRecoveryTransactions(database, {
-    timeoutMs: PACKAGE_IMPORT_RECOVERY_TIMEOUT_MS,
+    timeoutMs: PACKAGE_RECOVERY_SCAN_TIMEOUT_MS,
   });
   const processor = startPackageImportRecoveryProcessor(
     new RecoverPackageImports(transactions, clock),
