@@ -170,6 +170,7 @@ const emailSend =
         ids: systemUuidV7(),
         clock: { now: () => new Date() },
         email: email.module,
+        redis,
       })
     : undefined;
 let globalDatabase: OptionalCapabilities['database'];

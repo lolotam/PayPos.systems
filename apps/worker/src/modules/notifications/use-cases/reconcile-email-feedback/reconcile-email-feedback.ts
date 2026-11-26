@@ -25,36 +25,41 @@ export class ReconcileEmailFeedback {
   async execute(inboxId: string): Promise<void> {
     const row = await this.inbox.pending(inboxId);
     if (row === null) return;
-    // الاسترجاع بره أي معاملة: مزود خارجي مينفعش يكون جوه transaction.
-    const retrieved = await this.retrieval.retrieve(row.providerEmailId);
-    const now = this.clock.now();
-    if (retrieved.kind === 'invalid_tags') {
-      await this.inbox.quarantine(row.id, 'TAGS_INVALID', now);
-      return;
+    try {
+      // الاسترجاع بره أي معاملة: مزود خارجي مينفعش يكون جوه transaction.
+      const retrieved = await this.retrieval.retrieve(row.providerEmailId);
+      const now = this.clock.now();
+      if (retrieved.kind === 'invalid_tags') {
+        await this.inbox.quarantine(row.id, 'TAGS_INVALID', now);
+        return;
+      }
+      if (retrieved.kind === 'transient') {
+        await this.retry(row, now);
+        return;
+      }
+      const outcome = await this.tenant.reconcile({
+        companyId: retrieved.tags.companyId,
+        attemptId: retrieved.tags.attemptId,
+        executionId: retrieved.tags.executionId,
+        providerEmailId: retrieved.id,
+        recipientHash: retrieved.recipientHash,
+        hashKeyId: retrieved.hashKeyId,
+        feedbackId: this.ids.newId(),
+        feedbackType: row.feedbackType,
+        bounceClass: row.bounceClass,
+        providerEventDigest: row.providerEventDigest,
+        providerTimestamp: row.providerTimestamp,
+        recordedAt: now,
+      });
+      if (!outcome.ok) {
+        await this.inbox.quarantine(row.id, outcome.reason, now);
+        return;
+      }
+      await this.settle(row, retrieved, now);
+    } catch (error) {
+      await this.retry(row, this.clock.now());
+      throw error;
     }
-    if (retrieved.kind === 'transient') {
-      await this.retry(row, now);
-      return;
-    }
-    const outcome = await this.tenant.reconcile({
-      companyId: retrieved.tags.companyId,
-      attemptId: retrieved.tags.attemptId,
-      executionId: retrieved.tags.executionId,
-      providerEmailId: retrieved.id,
-      recipientHash: retrieved.recipientHash,
-      hashKeyId: retrieved.hashKeyId,
-      feedbackId: this.ids.newId(),
-      feedbackType: row.feedbackType,
-      bounceClass: row.bounceClass,
-      providerEventDigest: row.providerEventDigest,
-      providerTimestamp: row.providerTimestamp,
-      recordedAt: now,
-    });
-    if (!outcome.ok) {
-      await this.inbox.quarantine(row.id, outcome.reason, now);
-      return;
-    }
-    await this.settle(row, retrieved, now);
   }
 
   private async retry(row: EmailFeedbackRow, now: Date): Promise<void> {

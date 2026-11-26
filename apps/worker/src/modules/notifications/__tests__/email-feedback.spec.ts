@@ -111,6 +111,10 @@ it('suppresses a permanent bounce and writes exactly one audit row after a crash
   await expect(
     harness.useCase(harness.found(seed), harness.tenant, crashing).execute(row),
   ).rejects.toThrow('TEST_CRASH_BEFORE_PLATFORM_COMMIT');
+  const afterCrash = await harness.inboxRow(row);
+  expect(afterCrash?.['attempts']).toBe(1);
+  expect(afterCrash?.['next_attempt_at']).not.toBeNull();
+  expect(await harness.inbox.due(new Date(NOW.getTime() + 10 * 60_000))).toContain(row);
   expect(await harness.evidence()).toHaveLength(1);
   expect(await harness.audits()).toEqual([]);
   await harness.useCase(harness.found(seed)).execute(row);
@@ -119,6 +123,17 @@ it('suppresses a permanent bounce and writes exactly one audit row after a crash
   expect(await harness.audits()).toEqual([
     { source: 'BOUNCE', reason: 'PERMANENT_BOUNCE', action: 'SUPPRESS' },
   ]);
+});
+
+it('stamps a recovery lease on pending so a hard crash without retry stays due', async () => {
+  const row = await harness.acceptInbox('email.delivered', null);
+  expect((await harness.inboxRow(row))?.['next_attempt_at']).toBeNull();
+  const pending = await harness.inbox.pending(row);
+  expect(pending?.id).toBe(row);
+  const stamped = (await harness.inboxRow(row))?.['next_attempt_at'];
+  expect(stamped).toBeInstanceOf(Date);
+  if (!(stamped instanceof Date)) throw new Error('TEST_STAMPED_MISSING');
+  expect(await harness.inbox.due(new Date(stamped.getTime() + 1_000))).toContain(row);
 });
 
 it('suppresses a complaint and a provider suppression', async () => {

@@ -22,6 +22,7 @@ import {
 } from '@pospay/notifications';
 import type { Logger } from '@pospay/observability';
 import { Worker, type Job, type Queue } from 'bullmq';
+import type { Redis } from 'ioredis';
 
 import type { Clock } from './ports/clock.port.ts';
 import type { IdGenerator } from './ports/id-generator.port.ts';
@@ -29,6 +30,7 @@ import type { RatingTokenSender } from './ports/channel.port.ts';
 import { resolveRatingPageOrigin } from './domain/rating-page-origin.ts';
 import type { SendAdmission } from './ports/send-admission.port.ts';
 import type { SuppressionGate } from './ports/suppression-gate.port.ts';
+import { redisSendAdmission } from './persistence/redis-send-admission.ts';
 import { createAttemptsRepository } from './persistence/drizzle-attempts.repository.ts';
 import { createAuthorizationRepository } from './persistence/drizzle-authorization.repository.ts';
 import { createInAppRepository } from './persistence/drizzle-in-app.repository.ts';
@@ -278,14 +280,28 @@ export function createEmailSendModule(options: {
   readonly ids: IdGenerator;
   readonly clock: Clock;
   readonly email: ReturnType<typeof createEmailModule>;
+  readonly admission?: SendAdmission;
+  readonly redis?: Redis;
 }) {
   const attempts = createAttemptsRepository(options.database);
+  const admission =
+    options.admission ??
+    (options.redis === undefined
+      ? { reserve: async () => true }
+      : redisSendAdmission(options.redis, 1000));
+  // قراءة المحوّل وقت التنفيذ عشان غلق القدرة ينعكس فوراً على التصريف.
+  const adapter = {
+    send: (attempt: Parameters<typeof options.email.adapter.send>[0]) =>
+      options.email.adapter.send(attempt),
+    failure: (attempt: Parameters<typeof options.email.adapter.failure>[0]) =>
+      options.email.adapter.failure(attempt),
+  };
   const send = new SendNotification(
     attempts,
-    options.email.adapter,
-    { reserve: async () => true },
+    adapter,
+    admission,
     { matches: (value, stored) => options.email.matches(value, stored) },
-    options.email.adapter,
+    adapter,
     options.clock,
     options.ids,
   );

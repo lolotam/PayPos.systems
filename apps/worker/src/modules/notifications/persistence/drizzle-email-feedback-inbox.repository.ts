@@ -92,11 +92,12 @@ async function readPending(tx: Tx, id: string): Promise<EmailFeedbackRow | null>
     providerEventDigest: Buffer;
     attempts: number;
   }>(sql`
-    SELECT id, provider_email_id AS "providerEmailId", event_type AS "feedbackType",
+    UPDATE public.platform_email_feedback_inbox
+    SET next_attempt_at = COALESCE(next_attempt_at, now() + interval '5 minutes')
+    WHERE id = ${id}::uuid AND resolved_at IS NULL AND quarantined_at IS NULL
+    RETURNING id, provider_email_id AS "providerEmailId", event_type AS "feedbackType",
       bounce_class AS "bounceClass", provider_timestamp AS "providerTimestamp",
-      provider_event_digest AS "providerEventDigest", attempts
-    FROM public.platform_email_feedback_inbox
-    WHERE id = ${id}::uuid AND resolved_at IS NULL AND quarantined_at IS NULL`);
+      provider_event_digest AS "providerEventDigest", attempts`);
   if (row === undefined) return null;
   return {
     id: row.id,
