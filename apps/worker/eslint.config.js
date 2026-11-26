@@ -9,8 +9,9 @@ export default [
   allowDatabaseFacade('createOutboxDispatcherDatabase'),
   ...allowCommissionsEngineBackend({ facades: 'createOutboxDispatcherDatabase' }),
   {
-    // #1000, #1334 — the commissions jobs reach the database through persistence/ only: every runtime
-    // form of @pospay/db is refused here, and the types stay.
+    // #1000, #1334 — the commissions jobs reach the database through persistence/ only: the static import
+    // (module and subpaths), import(), require() and import-equals of @pospay/db are refused here, while
+    // type imports and type references stay.
     files: ['src/modules/commissions/jobs/**/*.ts'],
     ...banRuntimeDatabaseImport(),
   },
@@ -19,6 +20,8 @@ export default [
     files: [
       'src/modules/commissions/jobs/**/__tests__/**/*.ts',
       'src/modules/commissions/jobs/**/*.spec.ts',
+      'src/modules/commissions/jobs/**/test/**',
+      'src/modules/commissions/jobs/test/**',
     ],
     ...banRuntimeDatabaseImport({ userText: true }),
   },

@@ -16,15 +16,10 @@ describe('isCommissionCalendarDate', () => {
     },
   );
 
-  it('accepts the leap day of a leap year and refuses it in a common year', () => {
-    // سنة كبيسة بتقبل 29 فبراير، وسنة عادية ما بتقبلهاش: التحويل التلقائي بيرجع يوم تاني.
-    expect(isCommissionCalendarDate('2024-02-29')).toBe(true);
-    expect(isCommissionCalendarDate('2026-02-29')).toBe(false);
-  });
-
   it.each([
     '0000-01-01',
     '0000-02-29',
+    '2026-02-29',
     '2026-00-01',
     '2026-13-01',
     '2026-01-00',

@@ -1,7 +1,7 @@
 // node --test "scripts/module-map/*.test.mjs" — #1000 and #1334: the commissions jobs reach the database
-// through persistence/ only, so a runtime import of @pospay/db inside jobs/ is refused in every form —
-// the static import, import(), require() and `import x = require()` — while the types of the same module
-// stay importable.
+// through persistence/ only, so a runtime import of @pospay/db inside jobs/ is refused in these forms —
+// static import (module and subpaths), import(), require() and `import x = require()` — while type imports
+// and type references of the same module stay importable.
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 import { fileURLToPath } from 'node:url';
@@ -34,6 +34,24 @@ describe('the runtime database import ban of the commissions jobs (#1000)', () =
   it('allows the types of @pospay/db inside a commissions job', async () => {
     const found = await restricted(
       "import type { Tx } from '@pospay/db';\nexport type Probe = Tx;\n",
+      'no-restricted-imports',
+    );
+
+    assert.deepEqual(found, []);
+  });
+
+  it('refuses a runtime subpath import of @pospay/db inside a commissions job', async () => {
+    const found = await restricted(
+      "import { x } from '@pospay/db/schema';\nexport const probe = x;\n",
+      'no-restricted-imports',
+    );
+
+    assert.ok(found.length > 0, JSON.stringify(found));
+  });
+
+  it('allows the types of a @pospay/db subpath inside a commissions job', async () => {
+    const found = await restricted(
+      "import type { x } from '@pospay/db/schema';\nexport type Probe = x;\n",
       'no-restricted-imports',
     );
 

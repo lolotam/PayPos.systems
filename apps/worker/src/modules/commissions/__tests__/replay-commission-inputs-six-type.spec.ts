@@ -8,17 +8,8 @@ import { runCommissionInputReplay } from '../index.ts';
 const COMPANY = '01920000-0000-7000-8000-0000000000a0';
 const eventId = (n: number) => `01970000-0000-7000-8000-${String(n).padStart(12, '0')}`;
 
-// الأنواع الستة التي يسجّلها المستهلك من 50-4؛ بيع الباقة انضم للقائمة في 50-4.
-const HANDLED_SIX = new Set([
-  'ServiceSessionRecorded',
-  'ServiceSessionLinesAdded',
-  'ServiceLineChanged',
-  'SessionTipsChanged',
-  'SalaryChanged',
-  'PackageSaleChanged',
-]);
-// نفس القائمة من @pospay/domain: الستة المسجَّلة هي قائمة واحدة مش اتنين.
-const HANDLED_FROM_DOMAIN = new Set<string>(COMMISSION_INPUT_EVENT_TYPES);
+// الأنواع الستة التي يسجّلها المستهلك من 50-4؛ من @pospay/domain مباشرةً عشان تفضل قائمة واحدة.
+const HANDLED_SIX: ReadonlySet<string> = new Set<string>(COMMISSION_INPUT_EVENT_TYPES);
 // مجموعة أضيق افتراضية لتدريب حارس الـ runner على نوع غير مسجَّل؛ المستهلك الحقيقي يسجّل الستة كلها.
 const HANDLED_BEFORE_50_4 = new Set([...HANDLED_SIX].filter((type) => type !== 'PackageSaleChanged'));
 
@@ -221,7 +212,7 @@ describe('runCommissionInputReplay: a six-type replay over more than a hundred p
         deliver,
         failures: new Map(),
         scope: 'SIX_TYPE',
-        handledTypes: HANDLED_FROM_DOMAIN,
+        handledTypes: HANDLED_SIX,
       },
       { companyId: COMPANY, afterId: null, throughId: null },
     );
@@ -237,16 +228,13 @@ describe('runCommissionInputReplay: a six-type replay over more than a hundred p
         deliver,
         failures: new Map(),
         scope: 'SIX_TYPE',
-        handledTypes: HANDLED_FROM_DOMAIN,
+        handledTypes: HANDLED_SIX,
       },
       { companyId: COMPANY, afterId: first.afterId, throughId: first.throughId },
     );
 
     expect(second.status).toBe('COMPLETE');
     expect(second.undelivered).toEqual([]);
-    expect(
-      second.undelivered.filter((entry) => entry.code === 'COMMISSION_EVENT_TYPE_NOT_HANDLED'),
-    ).toEqual([]);
     expect(deliveredCount(second.counts)).toBe(50);
     expect(deliver).toHaveBeenCalledTimes(total);
     expect(second.afterId).toBe(eventId(total));

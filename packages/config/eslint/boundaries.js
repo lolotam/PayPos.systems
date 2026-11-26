@@ -69,13 +69,20 @@ export const COMMISSIONS_POSTING_PATTERNS = [
   COMMISSIONS_POSTING_PATH_BAN,
 ];
 
-// A layer that may name @pospay/db as types only refuses its runtime in every dynamic form too. The static
-// form is no-restricted-imports' business; these selectors close the dynamic ones: the import expression,
-// the require call and the import-equals form. The import-type selector is left out on purpose — a type
-// reference names no runtime, so the type import and the type reference of @pospay/db stay allowed.
+// A layer that may name @pospay/db as types only refuses its runtime in dynamic forms too. The static
+// forms are no-restricted-imports' business; these selectors close import(), require() and import-equals
+// forms (all import-equals forms are refused, matching the house selector shape below). Both
+// `import type` and `typeof import('@pospay/db')` stay allowed.
 const DATABASE_RUNTIME = '/^@pospay\\/db(\\/.*)?$/';
 const DATABASE_RUNTIME_MESSAGE =
   'The runtime of @pospay/db is reached through persistence/ only; this layer may name its types but not load its runtime (#1000, #1334).';
+
+/** Static subpath ban when a layer may reference @pospay/db types only (#1334). */
+export const DATABASE_RUNTIME_SUBPATH_BAN = {
+  regex: '^@pospay/db/.+$',
+  allowTypeImports: true,
+  message: DATABASE_RUNTIME_MESSAGE,
+};
 
 /** The dynamic-import, require() and import-equals selectors of a runtime @pospay/db import. */
 export const DATABASE_RUNTIME_SYNTAX = [
