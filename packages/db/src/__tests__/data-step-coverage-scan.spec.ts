@@ -33,6 +33,7 @@ const REGISTRY_FILE: Record<string, string> = {
   'employee-numbers': 'employee-numbers.ts',
   'statement-alert-roles': 'statement-alert-roles.ts',
   'employee-name-keys': 'employee-name-keys.ts',
+  'staff-months-back': 'staff-months-back.ts',
 };
 
 const stepsDir = new URL('../data-steps/', import.meta.url);

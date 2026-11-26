@@ -90,10 +90,11 @@ API only, no screen yet. Nothing in the staff app reads this setting yet.
   `STAFF_MONTHS_BACK_INVALID` 422 · `VALIDATION_FAILED` 400 (a fraction or a non-array) · `FORBIDDEN` 403 · `IDEMPOTENCY_KEY_REQUIRED` 400 · `IDEMPOTENCY_KEY_REUSED` 422 ·
   `NOT_READY` 503.
 - **Assertions:** `business_settings.staff_columns` / `staff_months_back`, `NULL` = default; audit actions
-  `settings.staff_columns_changed` and `settings.staff_months_back_changed` with before/after; the database `CHECK` is
-  still `BETWEEN 1 AND 24` until issue #519 narrows it; the codes `customer_phone` and `rating_comments` do not exist;
-  the four `StaffColumnsPort` adapters (orders, commissions, customers, staff) return the effective set with
-  `rating_average` stripped and months clamped to 12, but no use case or query calls them yet.
+  `settings.staff_columns_changed` and `settings.staff_months_back_changed` with before/after; issue #519 narrowed the
+  database `CHECK` to `BETWEEN 1 AND 12` (migrations `0264`/`0265` with the `staff-months-back` data step); the codes
+  `customer_phone` and `rating_comments` do not exist; the domain and the four `StaffColumnsPort` adapters (orders,
+  commissions, customers, staff) return the effective set with `rating_average` stripped and still clamp any stored
+  value above 12 to 12 as defence in depth, though no use case or query calls them yet.
 - **Sources:** `docs/specs/060-ratings-and-staff-app/spec.md` (Story A4, §A.5 rows 57c-1, 57c-2),
   `apps/api/src/modules/settings/http/staff-columns.controller.ts`, `apps/api/src/modules/settings/domain/staff-columns.ts`,
   `packages/contracts/src/settings/staff-columns.ts`, `packages/i18n/src/staff-columns-errors.ts`.

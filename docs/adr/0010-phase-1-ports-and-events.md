@@ -127,7 +127,8 @@ that list (D-A1). Its port has the same two reads as the other consumers (FR-A08
   track ships (D-A7; RT-Q1, PP-18.9 postponed it), and sub-PR 61-3 lifts that filter.
 - `monthsBack(tx, companyId, businessId)` → `staff_months_back`, where `NULL` means 2 (the current month and the one
   before) and the stored value is 1–12 (D-A14; MY-Q2 and MY-Q9, Abu Salem 2026-10-22, replacing PP-18.2 and PP-21.1
-  «شهر، ولحد 24»; issue #497; a stored value above 12 is read as 12 until issue #519 narrows the CHECK).
+  «شهر، ولحد 24»; issue #497; narrowed at the database `CHECK` to 1–12 by issue #519 / migrations `0264`–`0265`, with
+  domain-side clamping of any stored value above 12 to 12 kept as defence in depth).
 
 `settings` stays the owner of both values; they are edited under `manage:staff-app-columns:business` (MY-Q5, Abu
 Salem's binding pick, replacing PP-18.5's `manage:settings:business`; built by issue #496, migration 0168) and nobody else writes them. `orders` already imports `settings` (§2, ADR-0041's `DiscountLimitPort`).

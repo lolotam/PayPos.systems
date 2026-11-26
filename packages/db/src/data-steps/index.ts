@@ -19,6 +19,16 @@ import {
   discoverRatingClaims,
   RatingDiscoveryRoleRefusedError,
 } from './rating-claims-discovery.ts';
+import {
+  clampStaffMonthsBack,
+  StaffMonthsBackRoleRefusedError,
+} from './staff-months-back.ts';
+
+export {
+  clampStaffMonthsBack,
+  StaffMonthsBackRoleRefusedError,
+  type StaffMonthsBackResult,
+} from './staff-months-back.ts';
 
 // قاعدة لمؤلفي خطوات البيانات (ADR-0038 + ADR-0054 §5): اتصال المالك لغرضه الوحيد فقط — فحص
 // الدور وقراءة companies.id؛ كل قراءة tenant وكل كتابة تعيش داخل withTenant على الكائن الضيق
@@ -50,7 +60,8 @@ export function sanitizedStepError(step: string, error: unknown): Error {
     error instanceof RatingDiscoveryRoleRefusedError ||
     error instanceof EmployeeNumbersRoleRefusedError ||
     error instanceof EmployeeNumbersExhaustedError ||
-    error instanceof StatementAlertRolesRoleRefusedError
+    error instanceof StatementAlertRolesRoleRefusedError ||
+    error instanceof StaffMonthsBackRoleRefusedError
   )
     return error;
   const codeOf = (value: unknown): unknown =>
@@ -85,7 +96,7 @@ function stepAppDatabase(ownerUrl: string, appPassword: string, coverage: DataSt
  * الخطوات المراجَعة: كل قيد مكتوب بإعلانه صراحةً، وجسمه يستلم واجهة التطبيق الجاهزة ولا يبني واحدة
  * بنفسه — قيمة الإعلان هي مصدر الحقيقة الوحيد للاغلاف (ADR-0054 §5).
  */
-const REVIEWED_DATA_STEPS: Readonly<Record<string, DataStepEntry>> = {
+export const REVIEWED_DATA_STEPS: Readonly<Record<string, DataStepEntry>> = {
   'rating-claims-discovery': {
     coverage: 'NONE',
     run: async (owner, app, context) => {
@@ -142,6 +153,21 @@ const REVIEWED_DATA_STEPS: Readonly<Record<string, DataStepEntry>> = {
         console.log(`companies=${companies} read=${read} updated=${updated}`);
       } catch (error) {
         throw sanitizedStepError('employee-name-keys', error);
+      } finally {
+        await app.close();
+      }
+    },
+  },
+  'staff-months-back': {
+    coverage: 'NONE',
+    run: async (owner, app) => {
+      try {
+        const { companies, read, clamped } = await clampStaffMonthsBack(owner, app);
+        console.log(
+          `[data-step:staff-months-back] companies=${companies} read=${read} clamped=${clamped}`,
+        );
+      } catch (error) {
+        throw sanitizedStepError('staff-months-back', error);
       } finally {
         await app.close();
       }
