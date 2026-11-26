@@ -178,3 +178,9 @@ function pairingSuite(label: string, create: () => Redis): void {
 
 pairingSuite('without a key prefix', () => new Redis(redisUrl()));
 pairingSuite('with the harness key prefix', () => testRedis());
+
+describe('with a minimal Redis stub', () => {
+  it('constructs without reading options at boot time', () => {
+    expect(() => createRedisPairingCodes({} as unknown as Redis, clock)).not.toThrow();
+  });
+});

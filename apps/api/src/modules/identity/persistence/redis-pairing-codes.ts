@@ -24,9 +24,10 @@ const inflightKey = (code: string): string => `pairing_inflight:${code}`;
 // Issue: the new code becomes the branch's live code and the old live code dies in the same atomic step.
 const ISSUE_SCRIPT = `
   if redis.call('EXISTS', KEYS[1]) == 1 then return 'COLLISION' end
+  local prefix = string.sub(KEYS[1], 1, #KEYS[1] - #('pairing:' .. ARGV[1]))
   local oldCode = redis.call('GET', KEYS[2])
   if oldCode and oldCode ~= ARGV[1] then
-    redis.call('DEL', ARGV[4] .. 'pairing:' .. oldCode)
+    redis.call('DEL', prefix .. 'pairing:' .. oldCode)
   end
   redis.call('SET', KEYS[1], ARGV[2], 'EX', ARGV[3])
   redis.call('SET', KEYS[2], ARGV[1], 'EX', ARGV[3])
@@ -38,7 +39,8 @@ const CLAIM_SCRIPT = `
   if not raw then return nil end
   local companyId, branchId = string.match(raw, '^([^|]+)|([^|]+)$')
   if not companyId or not branchId then return nil end
-  if redis.call('GET', ARGV[4] .. 'pairing_branch:' .. companyId .. ':' .. branchId) ~= ARGV[1] then
+  local prefix = string.sub(KEYS[1], 1, #KEYS[1] - #('pairing:' .. ARGV[1]))
+  if redis.call('GET', prefix .. 'pairing_branch:' .. companyId .. ':' .. branchId) ~= ARGV[1] then
     redis.call('DEL', KEYS[1])
     return nil
   end
@@ -76,12 +78,9 @@ function randomCode(): string {
  *          registration, and consuming deletes the code only for the reservation that owns it
  */
 export function createRedisPairingCodes(redis: Redis, clock: Clock): PairingCodes {
-  // The client's own key prefix: the keys ioredis sends are prefixed with it, and the keys a script builds
-  // at runtime carry it too, so both sides name the same key.
-  const prefix = typeof redis.options.keyPrefix === 'string' ? redis.options.keyPrefix : '';
   return {
-    issue: async (target) => issueCode(redis, prefix, target, clock),
-    claim: async (code) => claimCode(redis, prefix, code),
+    issue: async (target) => issueCode(redis, target, clock),
+    claim: async (code) => claimCode(redis, code),
     consume: async (input) => consumeCode(redis, input),
     release: async (code, claimId) => {
       await redis.eval(RELEASE_SCRIPT, 1, inflightKey(code), claimId);
@@ -91,7 +90,6 @@ export function createRedisPairingCodes(redis: Redis, clock: Clock): PairingCode
 
 async function issueCode(
   redis: Redis,
-  prefix: string,
   target: { companyId: string; branchId: string },
   clock: Clock,
 ): Promise<{ code: string; expiresAt: Date }> {
@@ -105,7 +103,6 @@ async function issueCode(
       code,
       `${target.companyId.toLowerCase()}|${target.branchId.toLowerCase()}`,
       String(PAIRING_CODE_TTL_SECONDS),
-      prefix,
     );
     if (answer === 'OK') {
       return {
@@ -118,7 +115,6 @@ async function issueCode(
 
 async function claimCode(
   redis: Redis,
-  prefix: string,
   code: string,
 ): Promise<{ companyId: string; branchId: string; claimId: string } | null> {
   if (!CODE_SHAPE.test(code)) return null;
@@ -131,7 +127,6 @@ async function claimCode(
     code,
     claimId,
     String(CLAIM_TTL_SECONDS),
-    prefix,
   );
   if (typeof raw !== 'string') return null;
   const separator = raw.indexOf('|');
