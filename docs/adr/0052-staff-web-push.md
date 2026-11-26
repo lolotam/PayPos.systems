@@ -202,14 +202,14 @@ Unique `(company_id, source_event_id, subscription_id, template_key)`; indexes `
 `push_subscriptions`. No runtime DELETE grant. Retention follows the attempts table's.
 
 **Transport and send.** The outbox transport publisher (ADR-0018 §1.3, outside any database-effect consumer) routes
-`PushSendAuthorized` to a new BullMQ queue `push-send` (id-only job, stable id `companyId-attemptId`, `attempts=3` with exponential backoff: a retry before the claim is the only retry that can happen, because the claim is fenced on `PENDING` and a retry after it finds nothing to send). The
+`PushSendAuthorized` to a new BullMQ queue `push-send` (id-only job, stable id `companyId-attemptId`, `attempts=3` with exponential backoff: a retry before the claim is the only retry that can lead to a send, because the claim is fenced on `PENDING` and a retry after it finds nothing to send). The
 processor runs as `pospay_app`: load the attempt and its subscription; if the subscription is revoked, **its generation
 differs from the attempt's** (`SUBSCRIPTION_CHANGED`), the key id is not current or the deadline passed, record `FAILED` /
 `EXPIRED` with **zero HTTP calls**; otherwise commit
 `PENDING → SENDING` with an execution id, **leave the transaction**, then make **one** `web-push` request, and record the
 result in a second `withTenant` transaction fenced by execution id and `SENDING`. This is ADR-0018 §1.4–§1.5 unchanged,
 including: at-most-once, no retry after uncertainty, a crashed `SENDING` stays visible. A per-subscription Redis admission
-(10 per minute) bounds a runaway producer.
+(10 per minute) bounds a runaway producer. It is reserved before the claim: a spent budget records `FAILED / ADMISSION_REFUSED`, while a Redis admission outage or timeout throws `PUSH_ADMISSION_UNAVAILABLE` and leaves the attempt `PENDING` across BullMQ's 3 attempts (exponential backoff, `5s` base delay) without consuming a VAPID send attempt (the guard never allows `SENDING → PENDING`). If all 3 attempts fail while Redis admission stays unavailable, the failed job is retained in `push-send` (`removeOnFail` 7 days) and the attempt stays `PENDING` until an operator retries the failed `push-send` jobs or replays `PushSendAuthorized`; any attempt past `send_deadline` is then recorded by `pushPreflight` as `EXPIRED / DEADLINE_EXPIRED` with zero HTTP calls.
 
 Request shape: `TTL` = seconds left to `send_deadline` (default 1 hour, never more), `Urgency: high` for attendance
 notices, `Topic` = 32 characters of base64url SHA-256 of `source_event_id` so a duplicate still queued at the push service

@@ -26,7 +26,7 @@ import { SendPush } from './use-cases/send-push/send-push.ts';
 
 /** طابور الدفع: الطابور نفسه وجاهزيته وإيقافه وإغلاقه. */
 export interface PushQueue {
-  readonly queue: Pick<Queue, 'add'>;
+  readonly queue: Pick<Queue, 'add' | 'getJob'>;
   ready(): Promise<void>;
   stop(): Promise<void>;
   close(force?: boolean): Promise<void>;
