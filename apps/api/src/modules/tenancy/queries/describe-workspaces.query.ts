@@ -14,7 +14,7 @@ function knownScopes(scopes: readonly WorkspaceScope[]): WorkspaceScope[] {
 }
 
 /**
- * Screen: admin › tenant selector. أوسع وصول اليوزر على النشاط المختار: عضوية على الشركة
+ * أوسع وصول اليوزر على النشاط المختار: عضوية على الشركة
  * بتغطيه، وعضوية على النشاط نفسه بتغطيه، وإلّا وصله عن طريق فرع بس.
  *
  * @param scopes     عضويات اليوزر الفعّالة في الشركة

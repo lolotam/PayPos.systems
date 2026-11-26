@@ -73,11 +73,13 @@ it('imports on the branch when the business is reached only through one', () => 
   if (state.workspace?.status !== 'ready') throw new Error('Missing fixture');
   state.workspace = { ...state.workspace, branch };
   render(<CustomerImportRoute />);
+  expect(screen.getByText(branch.id)).toBeTruthy();
   expect(state.props.mock.calls.at(-1)?.[0].branchId).toBe(branch.id);
 });
 
 it('imports on the whole business when the user reaches it', () => {
   state.workspace = workspaceWith('BUSINESS', 'BUSINESS');
   render(<CustomerImportRoute />);
+  expect(screen.getByText('business')).toBeTruthy();
   expect(state.props.mock.calls.at(-1)?.[0].branchId).toBeUndefined();
 });

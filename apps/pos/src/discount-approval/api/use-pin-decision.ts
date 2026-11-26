@@ -68,7 +68,7 @@ async function sendDecision(
   if (retry && outcome.kind === 'pickMembership') {
     outcome = { kind: 'failure', failure: outcome.failure };
   }
-  // النتيجة بتتعلّق بجيل المشغّل اللي بدأ الطلب — نصليحة متأخرة لا تحتفظ ببياناته
+  // النتيجة بتتعلّق بجيل المشغّل اللي بدأ الطلب — نتيجة متأخرة لا تحتفظ ببياناته
   // ولا تظهر للمشغّل الجديد بعد تبديله.
   if (isCurrentGeneration(runtime, input.generation)) {
     if (!retry && outcome.kind === 'pickMembership') runtime.held.current = input;
