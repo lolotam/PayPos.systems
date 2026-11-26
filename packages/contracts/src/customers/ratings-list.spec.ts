@@ -1,4 +1,6 @@
 import { expect, it } from 'vitest';
+import { buildOpenApiDocument } from '../openapi.js';
+import { ratingsListPaths } from './ratings-list-openapi.js';
 import {
   ratingsCursorKey,
   ratingsListItem,
@@ -77,4 +79,14 @@ it('carries the resolved month as YYYY-MM or null, and stays valid without it fo
   expect(ratingsListPage.parse({ ...base, month: null }).month).toBeNull();
   expect(ratingsListPage.parse(base).month).toBeUndefined();
   expect(ratingsListPage.safeParse({ ...base, month: '2026-6' }).success).toBe(false);
+});
+
+it('requires the admin session cookie on the ratings list, in the exported and the generated operation', () => {
+  const path = '/v1/businesses/{businessId}/ratings';
+  expect(ratingsListPaths[path].get.security).toEqual([{ AdminSession: [] }]);
+  const paths = buildOpenApiDocument()['paths'] as Record<
+    string,
+    { get?: { security?: unknown } }
+  >;
+  expect(paths[path]?.get?.security).toEqual([{ AdminSession: [] }]);
 });

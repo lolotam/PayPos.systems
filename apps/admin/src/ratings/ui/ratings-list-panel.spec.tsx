@@ -17,8 +17,8 @@ const branchId = '01920000-0000-7000-8000-0000000000b1';
 const layla = '01920000-0000-7000-8000-0000000000e1';
 const scope = ratingsKey(companyId, 'user', companyId);
 const failure = { code: 'X', message_ar: 'x', message_en: 'Synthetic server failure' };
-const ok = (data: unknown) => Promise.resolve({ data, response: { status: 200 } });
-const fail = (status: number) => Promise.resolve({ error: failure, response: { status } });
+const ok = (data: unknown) => Promise.resolve({ data, response: { status: 200, ok: true } });
+const fail = (status: number) => Promise.resolve({ error: failure, response: { status, ok: false } });
 
 function rating(id: string, comment: string): RatingsListItem {
   return {

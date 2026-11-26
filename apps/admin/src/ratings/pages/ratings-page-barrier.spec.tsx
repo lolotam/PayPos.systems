@@ -34,8 +34,8 @@ const business: WorkspaceBusinessRead = {
   ],
 };
 const failure = { code: 'X', message_ar: 'x', message_en: 'Synthetic server failure' };
-const ok = (data: unknown) => Promise.resolve({ data, response: { status: 200 } });
-const fail = (status: number) => Promise.resolve({ error: failure, response: { status } });
+const ok = (data: unknown) => Promise.resolve({ data, response: { status: 200, ok: true } });
+const fail = (status: number) => Promise.resolve({ error: failure, response: { status, ok: false } });
 const wait = (pending: Pending) => new Promise((resolve) => pending.push(resolve));
 
 const averageRows = (name: string): RatingAverageItem[] => [
@@ -70,7 +70,7 @@ const refetch = (client: QueryClient, key: readonly unknown[]) =>
   act(() => client.refetchQueries({ queryKey: key, type: 'active' }));
 const startRefetch = (client: QueryClient, key: readonly unknown[]) =>
   act(() => void client.refetchQueries({ queryKey: key, type: 'active' }));
-/** يسيب إشعارات React Query تتوزع على الشاشة قبل ما الاختبار يكمل. */
+/** إشعارات React Query المعلّقة بتستقر قبل ما الشاشة تعرض حاجة؛ دي بتنتظر وعود الاختبار المعلّقة. */
 const settle = () =>
   act(async () => {
     await new Promise((resolve) => setTimeout(resolve, 0));

@@ -149,6 +149,12 @@ export class PrivateWindowController implements WindowHost {
 
   scope = (forRead: boolean): Scope | undefined => {
     if (this.state.phase !== 'open') return undefined;
+    // الموعد فات قبل ما المؤقت يشتغل (التبويب متسحب والرجوع بعدين): النافذة بتتقفل هنا بدل ما
+    // تفضل مفتوحة لحد ما المؤقت يمرّ، فمفيش لمسة ولا قراءة بتطلع بعد انتهاء الموعد.
+    if (this.dueAt(this.state.deadlines)) {
+      this.close('expired');
+      return undefined;
+    }
     return {
       gen: this.gen,
       readSeq: forRead ? this.readSeq : undefined,

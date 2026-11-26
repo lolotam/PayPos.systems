@@ -30,6 +30,11 @@ export function workForbidden(error: unknown): boolean {
   return error instanceof WorkHttpError && error.status === 403 && !windowExpired(error);
 }
 
+/** المؤشر مرفوض (400): الصفحة التالية ما تتقريش بنفس المؤشر، فالإعادة لازم تبدأ من الصفحة الأولى. */
+export function invalidCursor(error: unknown): boolean {
+  return error instanceof WorkHttpError && error.status === 400;
+}
+
 /** ما يعمله جهاز الاستقبال لما قراءة أو لمسة على النافذة الخاصة بتترفض بصلاحية. */
 export type WindowRefusal = 'leave' | 'expired' | 'refused';
 

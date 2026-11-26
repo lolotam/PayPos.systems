@@ -12,6 +12,7 @@ export const ratingAveragesPaths = {
   '/v1/businesses/{businessId}/ratings/averages': {
     get: {
       operationId: 'listRatingAverages',
+      security: [{ AdminSession: [] }],
       description:
         'Per-employee average stars of one business over a range, for the same callers and branch scope as the ratings list. average is a one-decimal string rounded half up; a rating with two performers counts for both. from is inclusive and to is exclusive on submitted_at; month (YYYY-MM) instead selects that calendar month in the business time zone and cannot be combined with from or to; with none of the three, the range is the current calendar month in the business time zone. month in the response is the YYYY-MM the server used in the business time zone (the requested or the current month), and null when from or to was sent. Cache-Control: no-store.',
       parameters: [
