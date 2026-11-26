@@ -10,12 +10,14 @@ import {
 } from './device-discount-calls';
 
 export type PinDecision = 'approve' | 'reject';
-type DecisionState = { outcome: PinDecisionOutcome; decision: PinDecision };
+type DecisionState = { outcome: PinDecisionOutcome; decision: PinDecision; generation: string };
 type HeldDecision = { body: DeviceDecisionInput; decision: PinDecision; generation: string };
 
 function useDecisionRuntime(operatorKey: string) {
   const mounted = useRef(true);
-  const busy = useRef(false);
+  // الإشغال بيتسجّل باسم جيل المشغّل اللي بدأ الطلب — طلب معلّق من مشغّل سابق
+  // ما بيقفلش أزرار المشغّل الجديد ولا بيمنعه من إنه يقرر بنفسه.
+  const busy = useRef<string | null>(null);
   const generation = useRef(operatorKey);
   const held = useRef<HeldDecision | null>(null);
   const [pending, setPending] = useState(false);
@@ -26,6 +28,7 @@ function useDecisionRuntime(operatorKey: string) {
   if (stateOperator !== operatorKey) {
     setStateOperator(operatorKey);
     setCurrent(null);
+    setPending(false);
   }
   useLayoutEffect(() => {
     generation.current = operatorKey;
@@ -43,6 +46,12 @@ function useDecisionRuntime(operatorKey: string) {
 
 type DecisionRuntime = ReturnType<typeof useDecisionRuntime>;
 
+// الطلب بيتم بس في جيل المشغّل نفسه — طلب بدأه مشغّل اتبدّل من بعده
+// ما بيلمسش حالة الشاشة بتاعت المشغّل الحالي.
+function isCurrentGeneration(runtime: DecisionRuntime, generation: string): boolean {
+  return runtime.mounted.current && runtime.generation.current === generation;
+}
+
 async function sendDecision(
   runtime: DecisionRuntime,
   client: QueryClient,
@@ -50,35 +59,47 @@ async function sendDecision(
   input: HeldDecision,
 ) {
   const retry = input.body.approver_membership_id !== undefined;
-  runtime.busy.current = true;
-  runtime.setPending(true);
-  runtime.setCurrent(null);
+  runtime.busy.current = input.generation;
+  if (isCurrentGeneration(runtime, input.generation)) {
+    runtime.setPending(true);
+    runtime.setCurrent(null);
+  }
   let outcome = pinDecisionOutcome(await decideDeviceDiscountProposal(input.decision, input.body));
   if (retry && outcome.kind === 'pickMembership') {
     outcome = { kind: 'failure', failure: outcome.failure };
   }
-  // نتيجة طلب قديم لا تحتفظ ببياناته ولا تظهر للمشغّل الجديد بعد تبديله.
-  if (runtime.mounted.current && runtime.generation.current === input.generation) {
+  // النتيجة بتتعلّق بجيل المشغّل اللي بدأ الطلب — نصليحة متأخرة لا تحتفظ ببياناته
+  // ولا تظهر للمشغّل الجديد بعد تبديله.
+  if (isCurrentGeneration(runtime, input.generation)) {
     if (!retry && outcome.kind === 'pickMembership') runtime.held.current = input;
-    runtime.setCurrent({ outcome, decision: input.decision });
+    runtime.setCurrent({ outcome, decision: input.decision, generation: input.generation });
   }
   if (outcome.kind === 'done' || outcome.kind === 'stale') {
     void client.invalidateQueries({ queryKey: ['device-discount-proposals', branchId] });
   }
-  runtime.busy.current = false;
-  if (runtime.mounted.current) runtime.setPending(false);
+  // الإشغال بيتقفل بتاع جيل الطلب ده بس — طلب المشغّل التاني يفضل شغّال.
+  if (runtime.busy.current === input.generation) runtime.busy.current = null;
+  // مؤشر الانتظار بتاع جيل الطلب ده بس — نتيجة متأخرة من مشغّل تاني
+  // ما بتمسحش حالة الانتظار بتاع المشغّل الحالي.
+  if (isCurrentGeneration(runtime, input.generation)) {
+    runtime.setPending(false);
+  }
 }
 
 export function usePinDecision(branchId: string, operatorKey: string) {
   const client = useQueryClient();
   const runtime = useDecisionRuntime(operatorKey);
+  // القرار الظاهر لازم يكون من جيل المشغّل نفسه — نتيجة متأخرة من المشغّل السابق
+  // ما بتتسربش للمشغّل الجديد حتى لو وصلت في نص رندر متزامن.
+  const visible =
+    runtime.current !== null && runtime.current.generation === operatorKey ? runtime.current : null;
   const decide = async (
     proposal: DeviceProposal,
     decision: PinDecision,
     { phone, pin }: StaffPinInput,
     reason = '',
   ) => {
-    if (!navigator.onLine || runtime.busy.current) return;
+    if (!navigator.onLine || runtime.busy.current === runtime.generation.current) return;
     runtime.held.current = null;
     const body: DeviceDecisionInput = {
       proposal_ids: [proposal.id],
@@ -93,13 +114,13 @@ export function usePinDecision(branchId: string, operatorKey: string) {
   const chooseMembership = async (membershipId: string) => {
     if (
       !navigator.onLine ||
-      runtime.busy.current ||
-      runtime.current?.outcome.kind !== 'pickMembership'
+      runtime.busy.current === runtime.generation.current ||
+      visible?.outcome.kind !== 'pickMembership'
     ) {
       return;
     }
     const input = runtime.held.current;
-    if (input === null) return;
+    if (input === null || input.generation !== operatorKey) return;
     runtime.held.current = null;
     const body = { ...input.body, approver_membership_id: membershipId };
     await sendDecision(runtime, client, branchId, { ...input, body });
@@ -110,8 +131,8 @@ export function usePinDecision(branchId: string, operatorKey: string) {
   };
   return {
     pending: runtime.pending,
-    outcome: runtime.current?.outcome ?? null,
-    decision: runtime.current?.decision ?? null,
+    outcome: visible?.outcome ?? null,
+    decision: visible?.decision ?? null,
     decide,
     chooseMembership,
     clear,
