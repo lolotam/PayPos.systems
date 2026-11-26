@@ -30,9 +30,11 @@ export function workForbidden(error: unknown): boolean {
   return error instanceof WorkHttpError && error.status === 403 && !windowExpired(error);
 }
 
-/** المؤشر مرفوض (400): الصفحة التالية ما تتقريش بنفس المؤشر، فالإعادة لازم تبدأ من الصفحة الأولى. */
+/** المؤشر مرفوض (400 VALIDATION_FAILED): الصفحة التالية ما تتقريش بنفس المؤشر، فالإعادة لازم تبدأ من الصفحة الأولى. */
 export function invalidCursor(error: unknown): boolean {
-  return error instanceof WorkHttpError && error.status === 400;
+  return (
+    error instanceof WorkHttpError && error.status === 400 && error.code === 'VALIDATION_FAILED'
+  );
 }
 
 /** ما يعمله جهاز الاستقبال لما قراءة أو لمسة على النافذة الخاصة بتترفض بصلاحية. */
