@@ -1,4 +1,4 @@
-import { createDatabase, type Database, type PlatformEmailDatabase, type Tx } from '@pospay/db';
+import { createDatabase, createPlatformEmailDatabase, type Database, type PlatformEmailDatabase } from '@pospay/db';
 import { systemUuidV7 } from '@pospay/ids';
 import {
   createEmailIdentity,
@@ -6,8 +6,6 @@ import {
   EMAIL_FEEDBACK_QUEUE,
 } from '@pospay/notifications';
 import { Queue } from 'bullmq';
-import { sql } from 'drizzle-orm';
-import { drizzle } from 'drizzle-orm/postgres-js';
 import postgres from 'postgres';
 
 import { TENANT, seedTwoTenants } from '../../../../../../packages/db/test/tenancy-fixtures.ts';
@@ -31,28 +29,12 @@ export const identity = createEmailIdentity('synthetic-feedback-identity'.repeat
 export const HASH = identity.identify(EMAIL).hash;
 const digest = createResendEventDigest(Buffer.from('synthetic-feedback-digest'.repeat(2), 'utf8'));
 export const ids = systemUuidV7();
-const redisUrl = process.env['REDIS_URL'] ?? 'redis://127.0.0.1:6379';
+// The compose Redis (T2): REDIS_URL when set, otherwise built from REDIS_PASSWORD as CI writes it.
+const redisUrl =
+  process.env['REDIS_URL'] ??
+  `redis://:${encodeURIComponent(process.env['REDIS_PASSWORD'] ?? '')}@127.0.0.1:6379`;
 
 export type Seed = { id: string; executionId: string; sourceEventId: string };
-
-// The platform facade itself is wired by the worker root in the activation step; the test needs the
-// same connection, isolation and deadline, so it builds the same facade shape here.
-function platformDatabase(url: string): PlatformEmailDatabase {
-  const client = postgres(url, { max: 2, onnotice: () => undefined, connect_timeout: 2 });
-  const database = drizzle(client);
-  return {
-    withGlobal: (work, timeoutMs = 200) =>
-      database.transaction(async (tx) => {
-        await tx.execute(sql`SET TRANSACTION ISOLATION LEVEL READ COMMITTED`);
-        await tx.execute(sql`SELECT set_config('statement_timeout', ${`${timeoutMs}ms`}, true)`);
-        return work(tx as Tx);
-      }),
-    ping: async () => {
-      await database.execute(sql`SELECT 1`);
-    },
-    close: async (force = false) => client.end({ timeout: force ? 0 : 5 }),
-  };
-}
 
 function attemptSeeder(owner: postgres.Sql) {
   return async (options: { sent?: boolean; providerId?: string } = {}): Promise<Seed> => {
@@ -160,7 +142,7 @@ export async function emailFeedbackHarness(): Promise<EmailFeedbackHarness> {
   await seedTwoTenants(testDb.ownerUrl);
   const db = createDatabase({ url: testDb.appUrl, ids });
   const owner = postgres(testDb.ownerUrl, { max: 2, onnotice: () => undefined });
-  const platform = platformDatabase(testDb.notificationsUrl);
+  const platform = createPlatformEmailDatabase({ url: testDb.notificationsUrl });
   const inbox = createEmailFeedbackInboxRepository(platform);
   const tenant = createEmailFeedbackTenantRepository(db);
   const attempts = createAttemptsRepository(db);

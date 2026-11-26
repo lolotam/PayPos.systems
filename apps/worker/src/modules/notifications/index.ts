@@ -10,6 +10,7 @@ export type {
   NotificationFailed,
 } from './events/published.ts';
 export { createInAppNotificationModule, startWhatsappInbound } from './notifications.module.ts';
+export { createEmailSendModule } from './notifications.module.ts';
 export { startStaffOtpWorker } from './otp.module.ts';
 export { startEmailCapability } from './email-startup.module.ts';
 export { startPushCapability } from './push-startup.module.ts';

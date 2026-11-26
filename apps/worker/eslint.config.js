@@ -9,7 +9,19 @@ export default [
     ...allowDatabaseFacade(['createOutboxDispatcherDatabase', 'createPlatformWhatsappDatabase']),
   },
   {
+    files: ['src/**/__tests__/email-feedback-harness.ts'],
+    ...allowDatabaseFacade(['createOutboxDispatcherDatabase', 'createPlatformEmailDatabase']),
+  },
+  {
+    files: ['src/modules/notifications/email-startup.module.ts'],
+    ...allowDatabaseFacade(['createOutboxDispatcherDatabase', 'createPlatformEmailDatabase']),
+  },
+  {
     files: ['src/start-optional-capabilities.ts'],
-    ...allowDatabaseFacade(['createOutboxDispatcherDatabase', 'createPlatformWhatsappDatabase']),
+    ...allowDatabaseFacade([
+      'createOutboxDispatcherDatabase',
+      'createPlatformWhatsappDatabase',
+      'createPlatformEmailDatabase',
+    ]),
   },
 ];

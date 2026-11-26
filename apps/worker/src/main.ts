@@ -13,6 +13,7 @@ import { knownEventTypes } from './outbox/known-event-types.ts';
 import {
   createNotificationModule,
   createInAppNotificationModule,
+  createEmailSendModule,
   readNotificationConfiguration,
   startEmailCapability,
   startPushCapability,
@@ -97,6 +98,8 @@ const email = await startEmailCapability({
   logger,
   ids: systemUuidV7(),
   clock: { now: () => new Date() },
+  appDatabase: app,
+  redisUrl: config.REDIS_URL,
 });
 // ADR-0052 قرار 2: جاهزية الدفع في العامل وحدها بتفعّل كتابة المحاولات؛ من غيرها مفيش دفع.
 // وأحداث الإذن بتقعد في الـ outbox لحد ما الدفع يتفعّل، وبعد آخر محاولة في السياسة بتتوقف زي أي حدث سام.
@@ -148,6 +151,16 @@ if (production)
     { capability: { name: 'TENANT_WHATSAPP', state: 'DISABLED', reason: 'LIVE_NOT_AUTHORIZED' } },
     'staff OTP capability',
   );
+// واتساب مقفولة بالكامل (notifications === null)؛ لو البريد مفعّل ليه مسار إرسال لوحده في طابور notifications-send.
+const emailSend =
+  notifications === null && email.module.capability.enabled
+    ? createEmailSendModule({
+        database: app,
+        ids: systemUuidV7(),
+        clock: { now: () => new Date() },
+        email: email.module,
+      })
+    : undefined;
 let globalDatabase: OptionalCapabilities['database'];
 let inbound: OptionalCapabilities['inbound'];
 let otp: OptionalCapabilities['otp'];
@@ -305,6 +318,7 @@ async function startWorkerCore(): Promise<void> {
     env: process.env,
     logger,
     notifications,
+    emailSend,
     redisUrl: config.REDIS_URL,
     businessDeliver,
     intakeUrl: config.PLATFORM_NOTIFICATIONS_DATABASE_URL,

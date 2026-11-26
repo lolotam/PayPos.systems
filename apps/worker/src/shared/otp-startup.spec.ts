@@ -275,12 +275,13 @@ it('invalid email identity settings disable email alone without affecting ordina
       capability: {
         channel: 'email',
         enabled: false,
-        reason: 'EMAIL_FEEDBACK_NOT_IMPLEMENTED',
+        reason: 'EMAIL_HASH_KEY_MISSING_OR_INVALID',
         name: 'EMAIL',
-        state: 'UNAVAILABLE',
+        state: 'DISABLED',
+        quarantinedCount: 0,
       },
     },
-    'email disabled',
+    'email capability',
   );
   await ordinaryReadiness();
   const options = resources.workerOptions.mock.calls.at(-1)?.[0];

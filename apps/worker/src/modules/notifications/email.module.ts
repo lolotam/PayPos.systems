@@ -4,7 +4,9 @@ import {
   createEmailIdentity,
   readEmailConfiguration,
   renderOperationalEmail,
+  ResendChannel,
   type Channel,
+  type EmailConfiguration,
   type EmailRequest,
 } from '@pospay/notifications';
 import type { Clock } from './ports/clock.port.ts';
@@ -12,13 +14,18 @@ import type { IdGenerator } from './ports/id-generator.port.ts';
 import type { SuppressionGate } from './ports/suppression-gate.port.ts';
 import { createEmailChannelAdapter } from './persistence/email-channel.adapter.ts';
 import { createAuthorizationRepository } from './persistence/drizzle-authorization.repository.ts';
+import { createEmailSuppressionGate } from './persistence/drizzle-email-suppression.gate.ts';
 import { AuthorizeNotification } from './use-cases/authorize-notification/authorize-notification.ts';
 
 export interface EmailModuleOptions {
   readonly production: boolean;
   readonly clock: Clock;
   readonly ids: IdGenerator;
-  readonly configuration?: ReturnType<typeof readEmailConfiguration>;
+  readonly configuration?: EmailConfiguration;
+  /** جاهزية استقبال ردّ المزود: false يقفل القناة حتى لو باقي الإعدادات صح. */
+  readonly feedbackReady?: boolean;
+  /** بيئة العملية؛ بتقرأ منها الإعداد لما مفيش configuration جوّالة. */
+  readonly env?: NodeJS.ProcessEnv;
   readonly testing?: {
     readonly channel: Channel<EmailRequest>;
     readonly suppression?: (tx: Tx) => SuppressionGate;
@@ -36,26 +43,55 @@ export function createEmailModule(options: EmailModuleOptions) {
     options.testing !== undefined
   )
     throw new Error('EMAIL_TEST_CHANNEL_IN_PRODUCTION');
-  const config = options.configuration ?? readEmailConfiguration({});
+  const config =
+    options.configuration ??
+    readEmailConfiguration(
+      options.env ?? {},
+      options.feedbackReady === undefined ? {} : { feedbackReady: options.feedbackReady },
+    );
   const identity =
     config.hashKey && config.hashKeyId
       ? createEmailIdentity(config.hashKey, config.hashKeyId)
       : null;
-  const adapter = createEmailChannelAdapter(options.testing?.channel);
+  const adminOrigin = config.adminOrigin ?? 'https://app.pospay.systems';
+  const adapter = createEmailChannelAdapter(
+    options.testing?.channel ?? liveChannel(options, config),
+    adminOrigin,
+  );
   return {
-    capability: { enabled: false, reason: config.reason } as const,
+    capability: { enabled: config.enabled, reason: config.reason } as const,
     adapter,
     matches: (
       destination: string,
       stored: Parameters<NonNullable<typeof identity>['matches']>[1],
     ) => identity?.matches(destination, stored) ?? false,
-    authorize: emailAuthorizer(options, identity),
+    authorize: emailAuthorizer(options, config, identity, adminOrigin),
   };
+}
+
+/** القناة الحقيقية بتتبني بس لما كل الإعدادات صح؛ غير كده مفيش قناة ومفيش إرسال. */
+function liveChannel(
+  options: EmailModuleOptions,
+  config: EmailConfiguration,
+): Channel<EmailRequest> | undefined {
+  if (!config.enabled || options.testing !== undefined) return undefined;
+  return new ResendChannel({
+    now: () => options.clock.now(),
+    env: {
+      RESEND_API_KEY: config.apiKey ?? '',
+      EMAIL_FROM_ADDRESS: config.fromAddress ?? '',
+      EMAIL_FROM_NAME: config.fromName ?? '',
+      EMAIL_REPLY_TO: config.replyTo ?? '',
+      EMAIL_ADMIN_ORIGIN: config.adminOrigin ?? '',
+    },
+  });
 }
 
 function emailAuthorizer(
   options: EmailModuleOptions,
+  config: EmailConfiguration,
   identity: ReturnType<typeof createEmailIdentity> | null,
+  adminOrigin: string,
 ) {
   return async (tx: Tx, event: ClaimedEvent, recipient: EmailRecipient, scope: EmailScope) => {
     if (identity === null) throw new Error('EMAIL_DISABLED_HASH_UNAVAILABLE');
@@ -64,11 +100,11 @@ function emailAuthorizer(
       recipient.template_revision,
       recipient.locale ?? '',
       recipient.safe_parameters,
-      'https://app.pospay.systems',
+      adminOrigin,
     );
     const authorizer = new AuthorizeNotification(
       createAuthorizationRepository(tx),
-      options.testing?.suppression?.(tx) ?? { isSuppressed: async () => false },
+      options.testing?.suppression?.(tx) ?? createEmailSuppressionGate(tx),
       options.clock,
       options.ids,
     );
@@ -88,7 +124,7 @@ function emailAuthorizer(
       safeParameters: [],
       deadline: recipient.send_deadline == null ? null : new Date(recipient.send_deadline),
       configurationFailure:
-        options.testing === undefined
+        !config.enabled && options.testing === undefined
           ? 'CONFIG_INVALID'
           : prepared === null
             ? 'PARAMETERS_INVALID'

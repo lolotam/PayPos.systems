@@ -24,6 +24,7 @@ import { closeOptional, optionalWithin } from './shared/optional-capability.ts';
 
 type Maintenance = ReturnType<typeof createStaffOtpMaintenance>;
 type NotificationQueue = ReturnType<typeof startNotificationQueue>;
+type NotificationSendModule = Parameters<typeof startNotificationQueue>[0];
 type Inbound = ReturnType<typeof startWhatsappInbound>;
 type PlatformDatabase = ReturnType<typeof createPlatformWhatsappDatabase>;
 type OtpWorker = ReturnType<typeof startStaffOtpWorker>;
@@ -51,6 +52,8 @@ interface CapabilityInput {
   env: NodeJS.ProcessEnv;
   logger: Logger;
   notifications: NotificationModule | null;
+  /** مسار إرسال البريد وحده: الإنتاج وواتساب مقفولة والبريد مفعّل. */
+  emailSend?: NotificationSendModule | undefined;
   redisUrl: string;
   businessDeliver: BusinessDeliver;
   intakeUrl: string | undefined;
@@ -63,9 +66,11 @@ export async function startOptionalCapabilities(
 ): Promise<OptionalCapabilities> {
   const maintenance = await startStaffMaintenance(input.env, input.logger);
   const queue =
-    input.notifications === null
-      ? undefined
-      : await startTenantNotificationQueue(input.notifications, input);
+    input.notifications !== null
+      ? await startTenantNotificationQueue(input.notifications, input)
+      : input.emailSend === undefined
+        ? undefined
+        : await startEmailNotificationQueue(input.emailSend, input);
   const intake = await startWhatsappIntake(input);
   const login = await startStaffLogin(input, intake.inbound);
   return {
@@ -135,6 +140,31 @@ async function startTenantNotificationQueue(
     input.logger.warn(
       { capability: { name: 'TENANT_WHATSAPP', state: 'UNAVAILABLE', reason: 'SETUP_FAILED' } },
       'staff OTP capability',
+    );
+    await closeOptional([() => queue?.close(true)]);
+    return undefined;
+  }
+}
+
+async function startEmailNotificationQueue(
+  module: NotificationSendModule,
+  input: Pick<CapabilityInput, 'redisUrl' | 'businessDeliver' | 'logger'>,
+) {
+  let queue: NotificationQueue | undefined;
+  try {
+    const transport = startNotificationQueue(
+      module,
+      input.redisUrl,
+      input.businessDeliver,
+      input.logger,
+    );
+    queue = transport;
+    await optionalWithin(() => transport.ready());
+    return transport;
+  } catch {
+    input.logger.warn(
+      { capability: { name: 'EMAIL_SEND', state: 'UNAVAILABLE', reason: 'SETUP_FAILED' } },
+      'email capability',
     );
     await closeOptional([() => queue?.close(true)]);
     return undefined;

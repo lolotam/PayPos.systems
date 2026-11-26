@@ -10,7 +10,7 @@ export type {
 export type { EmailRequest } from './email-request.ts';
 export { createEmailIdentity, canonicalEmail } from './email-identity.ts';
 export { readEmailConfiguration } from './email-configuration.ts';
-export type { EmailConfiguration } from './email-configuration.ts';
+export type { EmailConfiguration, EmailDisabledReason } from './email-configuration.ts';
 export { renderOperationalEmail } from './templates/email-operational.ts';
 export type { EmailContent } from './templates/email-operational.ts';
 export {

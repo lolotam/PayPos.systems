@@ -21,7 +21,7 @@ import {
   type NotificationConfiguration,
 } from '@pospay/notifications';
 import type { Logger } from '@pospay/observability';
-import { Worker, type Queue } from 'bullmq';
+import { Worker, type Job, type Queue } from 'bullmq';
 
 import type { Clock } from './ports/clock.port.ts';
 import type { IdGenerator } from './ports/id-generator.port.ts';
@@ -185,7 +185,7 @@ function bindChannel(config: NotificationConfiguration, clock: Clock): Channel {
 }
 
 export function startNotificationQueue(
-  module: ReturnType<typeof createNotificationModule>,
+  module: { readonly process: (job: Pick<Job, 'data'>) => Promise<void> },
   redisUrl: string,
   businessDeliver: (event: ClaimedEvent) => Promise<DeliveryOutcome>,
   logger: Logger,
@@ -263,8 +263,33 @@ export function createInAppNotificationModule(
       'NotificationFailed',
       // حدث إذن الدفع بيتكتب مع كل محاولة معلّقة، والـ worker بيوجّهه لطابور push-send لما الدفع يكون جاهز.
       'PushSendAuthorized',
+      // البريد المفعّل في الإنتاج بيفوّض من غير واتساب، فحدث الإذن لازم يكون معروف للـ dispatcher.
+      ...(email.capability.enabled ? (['NotificationSendAuthorized'] as const) : []),
     ],
   };
+}
+
+/**
+ * مسار إرسال البريد وحده: الإنتاج وواتساب مقفولة بالكامل، والبريد مفعّل.
+ * القاعدة: الإذن بيتكتب في معاملة المصدر، والعامل بيبعت المحاولة المUTHORدة بس.
+ */
+export function createEmailSendModule(options: {
+  readonly database: Pick<TenantWrappers, 'withTenant'>;
+  readonly ids: IdGenerator;
+  readonly clock: Clock;
+  readonly email: ReturnType<typeof createEmailModule>;
+}) {
+  const attempts = createAttemptsRepository(options.database);
+  const send = new SendNotification(
+    attempts,
+    options.email.adapter,
+    { reserve: async () => true },
+    { matches: (value, stored) => options.email.matches(value, stored) },
+    options.email.adapter,
+    options.clock,
+    options.ids,
+  );
+  return { process: notificationProcessor(send) };
 }
 
 export function startWhatsappInbound(
