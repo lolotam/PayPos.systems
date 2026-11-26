@@ -31,7 +31,8 @@ export function packageSaleTime(soldAt: Date | undefined, recordedAt: Date, time
 }
 
 /**
- * النوع المتوقف بيعه يُرفض أولاً، ثم نسخة النوع، ثم نسخ الخدمات؛ لأن الإيقاف نفسه يرفع النسخة.
+ * النوع المتوقف بيعه أو اللي فيه خدمة مقفولة يُرفض أولاً بـ PACKAGE_TYPE_NOT_SELLABLE، ثم نسخة النوع،
+ * ثم نسخ الخدمات؛ لأن الإيقاف والقفل نفسهما يرفعان النسخة فلا يظهران كعرض قديم (SI-Q28).
  * المجموعة لازم تطابق العرض كله حتى لو الأسعار متساوية.
  *
  * @param type النوع وخدماته بعد أقفال الكتالوج
@@ -44,7 +45,10 @@ export function assertPackageSaleQuote(
   expectedTypeRevision: number,
   expectedServices: readonly { service_id: string; revision: number }[],
 ): void {
-  if (type.selling_stopped_at !== null) {
+  if (
+    type.selling_stopped_at !== null ||
+    type.components.some(({ service }) => (service.closed_at ?? null) !== null)
+  ) {
     throw new PackageSaleError('PACKAGE_TYPE_NOT_SELLABLE');
   }
   if (type.revision !== expectedTypeRevision) {

@@ -111,6 +111,7 @@ async function lockSaleType(context: SaleContext): Promise<SalePackageType | nul
           name_ar: service.name_ar,
           price: parseMoney(service.price),
           revision: service.revision,
+          closed_at: service.closed_at,
         },
       };
     }),

@@ -188,3 +188,48 @@ describe('package sale calendar/window (FR-016, TD-4)', () => {
     },
   );
 });
+
+describe('closed component service quote refusal (SI-Q28)', () => {
+  const closedType: SalePackageType = {
+    ...type,
+    components: type.components.map((component, index) => ({
+      ...component,
+      service: {
+        ...component.service,
+        revision: 5,
+        ...(index === 0 ? { closed_at: '2026-11-26T08:00:00.000Z' } : {}),
+      },
+    })),
+  };
+
+  it.each([
+    ['matching revisions', 2],
+    ['stale type revision', 1],
+  ])(
+    'refuses a type with a closed service on %s with PACKAGE_TYPE_NOT_SELLABLE, never a stale quote',
+    (_label, expectedRevision) => {
+      expect(() =>
+        assertPackageSaleQuote(closedType, expectedRevision, [
+          { service_id: 'a', revision: 4 },
+          { service_id: 'b', revision: 4 },
+        ]),
+      ).toThrow(new PackageSaleError('PACKAGE_TYPE_NOT_SELLABLE'));
+    },
+  );
+
+  it('accepts a type whose services carry closed_at null', () => {
+    const open = {
+      ...type,
+      components: type.components.map((c) => ({
+        ...c,
+        service: { ...c.service, closed_at: null },
+      })),
+    };
+    expect(() =>
+      assertPackageSaleQuote(open, 2, [
+        { service_id: 'a', revision: 4 },
+        { service_id: 'b', revision: 4 },
+      ]),
+    ).not.toThrow();
+  });
+});

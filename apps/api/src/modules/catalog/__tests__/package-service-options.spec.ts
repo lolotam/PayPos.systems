@@ -95,3 +95,18 @@ it('uses the existing company/business/id index for the first and subsequent pag
     expect(JSON.stringify(plan)).toContain('services_company_business_id_key');
   }
 });
+
+it('hides a closed service from the picker and shows it again when reopened (SI-Q28)', async () => {
+  const target = records[1]?.id ?? '';
+  await f.h
+    .owner`UPDATE services SET closed_at=now() WHERE company_id=${f.company} AND id=${target}`;
+  try {
+    const names = (await list(20)).items.map((item) => item.name_en);
+    expect(names).not.toContain('Bravo');
+    expect(names).toEqual(expect.arrayContaining(['Alpha', 'Charlie']));
+  } finally {
+    await f.h
+      .owner`UPDATE services SET closed_at=NULL WHERE company_id=${f.company} AND id=${target}`;
+  }
+  expect((await list(20)).items.map((item) => item.name_en)).toContain('Bravo');
+});
