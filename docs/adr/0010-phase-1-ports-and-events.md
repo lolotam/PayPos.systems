@@ -817,8 +817,8 @@ writes it. The orders-worker rows are the template.
 - Module map: §3 replaces the three A-1 API rows with the worker rows; §4 gains `LowRatingSubmitted` and
   `LowRatingReceived`'s emitter moves to worker `customers`; the §6 machine block deletes the five `# Planned E:`
   comments and adds `# Planned` comments for the worker reads. Those comments leave generated
-  `docs/module-map.yaml` unchanged. Spec 060's D-B9, FR-B13, FR-B14, FR-B15, BR-B4 and the 61-x sub-PR rows are updated by the same docs PR (61-1a); its gates
-  are `pnpm format:check`, `pnpm lint:docs` and `pnpm module-map:check`, with no source file change.
+  `docs/module-map.yaml` unchanged. Spec 060's D-B9, FR-B13, FR-B14, FR-B15, BR-B4 and the 61-x sub-PR rows are updated by the same docs PR (61-1a); its primary
+  local gates are `pnpm lint:docs` and `pnpm module-map:check`, with the scoped formatting check `pnpm format:check` as supplemental, and no source file change.
 
 ## Addendum 2026-11-21 — 61-2a: the staff rating summary's own-read authority
 

@@ -57,7 +57,7 @@ const averageRows: RatingAverageItem[] = [
 function answer(items: RatingsListItem[], next: string | null = null) {
   return Promise.resolve({
     data: { items, next_cursor: next, month: '2026-11' },
-    response: { status: 200 },
+    response: { status: 200, ok: true },
   });
 }
 
@@ -71,7 +71,7 @@ function serve(handlers: {
       : Promise.resolve(
           handlers.averages ?? {
             data: { items: averageRows, month: init.params.query.month ?? '2026-11' },
-            response: { status: 200 },
+            response: { status: 200, ok: true },
           },
         ),
   );
@@ -189,7 +189,7 @@ it('loads the next page with the cursor and hides the button on the last page', 
 it('shows the empty texts when the period has no ratings', async () => {
   serve({
     list: () => answer([]),
-    averages: { data: { items: [], month: '2026-11' }, response: { status: 200 } },
+    averages: { data: { items: [], month: '2026-11' }, response: { status: 200, ok: true } },
   });
   renderPage();
   expect(await screen.findByText(t('en', 'ratings.emptyList'))).toBeTruthy();
@@ -198,7 +198,7 @@ it('shows the empty texts when the period has no ratings', async () => {
 
 it('shows the error state when the list fails', async () => {
   const failure = { code: 'FAILED', message_ar: 'x', message_en: 'Synthetic server failure' };
-  serve({ list: () => Promise.resolve({ error: failure, response: { status: 500 } }) });
+  serve({ list: () => Promise.resolve({ error: failure, response: { status: 500, ok: false } }) });
   renderPage();
   expect(await screen.findByText('Synthetic server failure')).toBeTruthy();
   expect(screen.getAllByRole('table')).toHaveLength(1);
@@ -208,11 +208,22 @@ it('shows the refusal text on 403 and never reads the list without a known month
   const failure = { code: 'FORBIDDEN', message_ar: 'x', message_en: 'Synthetic refusal' };
   serve({
     list: () => answer([rating('01')]),
-    averages: { error: failure, response: { status: 403 } },
+    averages: { error: failure, response: { status: 403, ok: false } },
   });
   renderPage();
   expect(await screen.findByText(t('en', 'ratings.notAllowed'))).toBeTruthy();
   expect(screen.getAllByRole('alert')).toHaveLength(1);
   expect(api.GET.mock.calls.some(([path]) => path === listPath)).toBe(false);
   expect((screen.getByLabelText(t('en', 'ratings.month')) as HTMLInputElement).disabled).toBe(true);
+});
+
+it('shows the refusal text on a bodyless 403 and never an unexpected error banner', async () => {
+  serve({
+    list: () => answer([rating('01')]),
+    averages: { data: undefined, error: undefined, response: { status: 403, ok: false } },
+  });
+  renderPage();
+  expect(await screen.findByText(t('en', 'ratings.notAllowed'))).toBeTruthy();
+  expect(screen.getAllByRole('alert')).toHaveLength(1);
+  expect(screen.queryByRole('button', { name: t('en', 'ratings.retry') })).toBeNull();
 });

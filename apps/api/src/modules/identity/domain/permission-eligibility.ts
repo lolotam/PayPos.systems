@@ -12,7 +12,13 @@ import { RATINGS_READ_PERMISSION } from './ratings-read-eligibility.ts';
 export function personalAllowFailure(terms: OverrideTerms, context: PermissionEditContext) {
   const member = context.membership;
   if (member === null || terms.effect !== 'ALLOW') return null;
+  // الخانة الناقصة ترفض المنح عموماً، بس كود قراءة التقييمات ليه قاعدة مسماة بتقرر بنفسها (FR-B15)،
+  // فالدور غير المدير بيترفض بالقاعدة المسماة مش بالكود العام؛ والجهاز يفضل مرفوضاً بالكود العام
+  // لأنه ما بيقراش تقييمات النشاط أصلاً.
+  const ratingsRuleDecides =
+    terms.permission_code === RATINGS_READ_PERMISSION && member.systemRoleCode !== 'device';
   if (
+    !ratingsRuleDecides &&
     member.allowedPermissions !== null &&
     !member.allowedPermissions.includes(terms.permission_code)
   )

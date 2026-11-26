@@ -70,6 +70,7 @@ import {
 } from '../../modules/notifications/index.ts';
 import { startStaffWorker } from '../../modules/staff/index.ts';
 import { startCustomersImportWorker } from '../../modules/customers/index.ts';
+import type * as CustomersModule from '../../modules/customers/index.ts';
 import { businessConsumers } from '../../business-consumers.ts';
 import { businessPermissionHolders } from '../../modules/identity/index.ts';
 import { daySessionsReader } from '../../modules/orders/index.ts';
@@ -83,6 +84,9 @@ import { retryDelayMs } from '../retry-policy.ts';
 // نعزل اتصالات الطوابير فقط؛ قوائم الأنواع والمستهلكون تأتي من تركيب الوحدات الحقيقي.
 vi.mock('../../modules/staff/jobs/missed-out.processor.ts', () => ({
   startMissedOutProcessor: () => ({}),
+}));
+vi.mock('../../modules/staff/jobs/not-clocked-in.processor.ts', () => ({
+  startNotClockedInProcessor: () => ({}),
 }));
 vi.mock('../../modules/staff/jobs/employee-import.processor.ts', () => ({
   startEmployeeImportProcessor: () => ({}),
@@ -250,4 +254,140 @@ it('recognizes the package import commit transport before its producer exists', 
   expect(knownEventTypes(staff, notifications, null, previews, sales, imports, catalog, customerImports)).toContain(
     'PackageImportCommitRequested',
   );
+});
+
+type Registered = {
+  consumers: { id: string; eventTypes: readonly string[] }[];
+  known: readonly string[];
+};
+const registered: Registered[] = [];
+
+function mockStartupDataAndAuth(): void {
+  vi.doMock('@pospay/db', () => ({
+    createDatabase: () => ({ close: async () => undefined, ping: async () => undefined, withTenant: vi.fn() }),
+    createOutboxDispatcherDatabase: () => ({
+      close: async () => undefined,
+      ping: async () => undefined,
+      commissionParkedEventPage: async () => [],
+    }),
+    createPlatformWhatsappDatabase: () => ({
+      close: async () => undefined,
+      ping: async () => undefined,
+    }),
+  }));
+  vi.doMock('@pospay/auth', () => ({
+    createStaffOtpExecution: () => ({ readiness: vi.fn(), close: vi.fn() }),
+    createStaffOtpMaintenance: () => ({ readiness: vi.fn(), stop: vi.fn(), close: vi.fn() }),
+    readStaffOtpConfiguration: () => ({ state: 'DISABLED', fingerprint: 'synthetic-worker' }),
+  }));
+  vi.doMock('@pospay/observability', () => ({
+    createLogger: () => ({ info: vi.fn(), warn: vi.fn(), fatal: vi.fn(), error: vi.fn(), debug: vi.fn() }),
+  }));
+}
+
+function mockStartupQueues(): void {
+  vi.doMock('ioredis', () => ({
+    Redis: class Redis {
+      duplicate = () => new Redis();
+      on() {}
+      quit = vi.fn();
+      disconnect = vi.fn();
+      ping = vi.fn();
+      set = vi.fn();
+      del = vi.fn();
+      get = vi.fn();
+      evalsha = vi.fn();
+    },
+  }));
+  vi.doMock('bullmq', () => ({
+    Queue: class {
+      on = vi.fn();
+      waitUntilReady = async () => undefined;
+      close = async () => undefined;
+    },
+    Worker: class {
+      on = vi.fn();
+      waitUntilReady = async () => undefined;
+      close = async () => undefined;
+    },
+  }));
+  vi.doMock('../../worker.ts', () => ({
+    createWorker: async () => ({ listen: vi.fn(), enableShutdownHooks: vi.fn() }),
+  }));
+  vi.doMock('../dispatch-loop.ts', () => ({
+    createDispatchLoop: () => ({ start: vi.fn(), stop: vi.fn() }),
+  }));
+}
+
+function mockStartupModules(): void {
+  vi.doMock('../deliver.ts', () => ({
+    createDeliverer: (...args: unknown[]) => {
+      const consumers = args[1] as { id: string; eventTypes: readonly string[] }[];
+      const options = args[3] as { knownEventTypes: readonly string[] };
+      registered.push({ consumers: [...consumers], known: options.knownEventTypes });
+      return async () => ({ delivered: true });
+    },
+  }));
+  vi.doMock('../../modules/files/index.ts', () => ({
+    startFilesWorker: () => ({
+      consumer: { id: 'files.upload', eventTypes: [] },
+      deliver: vi.fn(),
+      close: vi.fn(),
+    }),
+  }));
+  vi.doMock('../../modules/customers/index.ts', async (original) => ({
+    ...(await original<typeof CustomersModule>()),
+    closedRatingClaimsLifecycle: () => ({ deliver: vi.fn(), close: vi.fn() }),
+  }));
+  vi.doMock('../../commission-reminders.ts', () => ({
+    startCommissionReminderWiring: () => ({
+      delivery: (event: unknown, next: (event: unknown) => Promise<unknown>) => next(event),
+      readiness: vi.fn(),
+      stop: vi.fn(),
+      close: vi.fn(),
+    }),
+  }));
+  vi.doMock('../../documents/start-documents.ts', () => ({
+    startCoreBeforeDocuments: async (input: { startCore: () => Promise<void> }) => {
+      await input.startCore();
+      return { started: Promise.resolve(), close: async () => undefined, stop: async () => undefined };
+    },
+  }));
+}
+
+function mockStartupConfig(): void {
+  vi.doMock('../../shared/config.ts', () => ({
+    readConfig: () => ({
+      DATABASE_URL: 'synthetic',
+      DISPATCHER_DATABASE_URL: 'synthetic',
+      REDIS_URL: 'synthetic',
+      PLATFORM_NOTIFICATIONS_DATABASE_URL: 'synthetic',
+      LOG_LEVEL: 'silent',
+      WORKER_HOST: '127.0.0.1',
+      WORKER_PORT: 3001,
+      PACKAGE_SALE_TRANSACTION_TIMEOUT_MS: 30_000,
+      PACKAGE_IMPORT_COMMIT_TRANSACTION_TIMEOUT_MS: 600_000,
+    }),
+  }));
+}
+
+it('registers the startup consumers and the known event types with the deliverer', async () => {
+  vi.resetModules();
+  mockStartupDataAndAuth();
+  mockStartupQueues();
+  mockStartupModules();
+  mockStartupConfig();
+  vi.stubEnv('NODE_ENV', 'production');
+  await import('../../main.ts');
+  expect(registered).toHaveLength(1);
+  const startup = registered[0];
+  if (startup === undefined) throw new Error('SYNTHETIC_STARTUP_MISSING');
+  const covered = startup.consumers.flatMap((consumer) => consumer.eventTypes);
+  expect(covered).toContain('LowRatingSubmitted');
+  expect(covered).toContain('StaffAccessGranted');
+  expect(covered).toContain('StaffPinSetByOther');
+  expect(startup.consumers).toContainEqual(
+    expect.objectContaining({ id: 'commissions.reminder-schedule' }),
+  );
+  expect(startup.known.length).toBeGreaterThan(0);
 });

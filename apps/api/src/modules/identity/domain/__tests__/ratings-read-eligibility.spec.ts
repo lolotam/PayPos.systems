@@ -138,12 +138,18 @@ describe('the ratings-read ALLOW stays inside the membership own scope (FR-B15)'
     expect(permissionEditFailure(branchTerms, branchMembership('branch_manager'))).toBeNull();
   });
 
-  it('keeps the slot refusal ahead of the named rule for a role without the slot', () => {
+  it('lets the named rule decide the ratings code, whatever the role slot list holds', () => {
     expect(permissionEditFailure(branchTerms, context('cashier', ['read:branches:branch']))).toBe(
-      'PERMISSION_ROLE_FORBIDDEN',
+      'PERMISSION_ROLE_NOT_ELIGIBLE',
     );
     expect(permissionEditFailure(branchTerms, context('cashier', [RATINGS_READ_PERMISSION]))).toBe(
       'PERMISSION_ROLE_NOT_ELIGIBLE',
+    );
+  });
+
+  it('keeps the slot refusal ahead of the named rule for the device', () => {
+    expect(permissionEditFailure(branchTerms, context('device', []))).toBe(
+      'PERMISSION_ROLE_FORBIDDEN',
     );
   });
 });

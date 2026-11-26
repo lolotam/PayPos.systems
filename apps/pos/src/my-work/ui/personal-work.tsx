@@ -10,7 +10,7 @@ import {
 } from '../api/use-personal-reads';
 import { type LinesView, PENDING_LINES } from '../model/private-window-state';
 import type { WorkContext } from '../model/work-context';
-import { monthOutOfRange, sessionEnded } from '../model/work-error';
+import { invalidCursor, monthOutOfRange, sessionEnded } from '../model/work-error';
 import { MyWorkCards } from './my-work-cards';
 
 type LinesQuery = UseInfiniteQueryResult<{ pages: OwnServiceLines[] }, Error>;
@@ -76,11 +76,12 @@ export function PersonalWork({ context, onLeave }: { context: WorkContext; onLea
   const estimate = usePersonalCommissionEstimate(context, scope, shown, onRefused);
   if (month === undefined && serverMonth !== undefined && home !== serverMonth)
     setHome(serverMonth);
+  const linesView = toLinesView(lines, deniedError, proven);
   return (
     <MyWorkCards
       month={shown}
       home={home}
-      lines={toLinesView(lines, deniedError, proven)}
+      lines={linesView}
       tips={tips.data?.month === shown ? tips.data : undefined}
       tipsFailed={tips.query.isError && !monthOutOfRange(tips.query.error)}
       onRetryTips={() => void tips.query.refetch()}
@@ -90,7 +91,14 @@ export function PersonalWork({ context, onLeave }: { context: WorkContext; onLea
         resetDenied();
         setMonth(next);
       }}
-      onRetry={() => void lines.refetch()}
+      onRetry={() => {
+        if (!invalidCursor(linesView.moreError)) {
+          void lines.refetch();
+          return;
+        }
+        // المؤشر مرفوض (400): الصفحات بتترسم من الأول، فالمؤشر القديم ما يتبعتش تاني.
+        void cache.resetQueries({ queryKey: [...scope, 'lines', month ?? 'current'], exact: true });
+      }}
       onLoadMore={() => void lines.fetchNextPage()}
     />
   );

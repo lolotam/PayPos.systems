@@ -193,7 +193,7 @@ export function permissionEditFailure(
     return 'PERMISSION_OWNER_ONLY';
   const eligibility = operation === 'SAVE' ? personalAllowFailure(terms, context) : null;
   if (eligibility !== null) return eligibility;
-  // فحص دور قراءة التقييمات بيجي بعد فحص الخانات والنطاق عشان رفض الجهاز أو الخانة الناقصة يفضل بالكود العام الثابت.
+  // فحص دور قراءة التقييمات بيجي بعد فحص خانة الجهاز والنطاق عشان رفض الجهاز أو النطاق الأوسع يفضل بالكود العام الثابت.
   const ratingsGrant =
     operation === 'SAVE'
       ? ratingsReadGrantFailure(terms.permission_code, terms.effect, membership.systemRoleCode)

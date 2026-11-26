@@ -19,9 +19,9 @@ type Defined<T> = { [K in keyof T]?: Exclude<T[K], undefined> };
  */
 export type RatingsPeriodQuery = Defined<Pick<RatingAveragesQuery, 'branch_id' | 'month'>>;
 
-/** طلب صفحة القائمة: نفس مفاتيح العقد، لكن من غير `from`/`to` عشان الشاشة ما تحسبهمش (D-B12). */
+/** طلب صفحة القائمة: مفاتيح العقد، والشاشة نفسها ما تحسبش `from`/`to` (D-B12)؛ الفحص بس بيبعتهما. */
 export type RatingsPageQuery = Defined<
-  Pick<RatingsListQuery, 'branch_id' | 'month' | 'employee_id' | 'cursor'>
+  Pick<RatingsListQuery, 'branch_id' | 'month' | 'employee_id' | 'cursor' | 'from' | 'to'>
 > &
   Pick<RatingsListQuery, 'limit'>;
 

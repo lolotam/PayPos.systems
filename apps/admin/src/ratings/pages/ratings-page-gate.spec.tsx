@@ -36,8 +36,8 @@ const averageRows: RatingAverageItem[] = [
   { employee_id: layla, name_ar: null, name_en: 'Layla Synthetic', average: '4.5', count: 6 },
 ];
 const failure = { code: 'X', message_ar: 'x', message_en: 'Synthetic server failure' };
-const ok = (data: unknown) => Promise.resolve({ data, response: { status: 200 } });
-const fail = (status: number) => Promise.resolve({ error: failure, response: { status } });
+const ok = (data: unknown) => Promise.resolve({ data, response: { status: 200, ok: true } });
+const fail = (status: number) => Promise.resolve({ error: failure, response: { status, ok: false } });
 const averagesOk = (month = '2026-11') => ok({ items: averageRows, month });
 
 function rating(id: string, comment: string): RatingsListItem {

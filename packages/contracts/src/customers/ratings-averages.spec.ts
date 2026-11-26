@@ -1,5 +1,7 @@
 import { expect, it } from 'vitest';
+import { buildOpenApiDocument } from '../openapi.js';
 import { ratingAverageItem, ratingAverages, ratingAveragesQuery } from './ratings-averages.js';
+import { ratingAveragesPaths } from './ratings-averages-openapi.js';
 
 const uuid = '018f0000-0000-7000-8000-000000000001';
 const item = { employee_id: uuid, name_ar: null, name_en: 'Sara', average: '4.5', count: 2 };
@@ -45,4 +47,14 @@ it('carries the resolved month as YYYY-MM or null, and stays valid without it fo
   expect(ratingAverages.parse({ items: [], month: null }).month).toBeNull();
   expect(ratingAverages.parse({ items: [] }).month).toBeUndefined();
   expect(ratingAverages.safeParse({ items: [], month: '2026-13' }).success).toBe(false);
+});
+
+it('requires the admin session cookie on the averages read, in the exported and the generated operation', () => {
+  const path = '/v1/businesses/{businessId}/ratings/averages';
+  expect(ratingAveragesPaths[path].get.security).toEqual([{ AdminSession: [] }]);
+  const paths = buildOpenApiDocument()['paths'] as Record<
+    string,
+    { get?: { security?: unknown } }
+  >;
+  expect(paths[path]?.get?.security).toEqual([{ AdminSession: [] }]);
 });
