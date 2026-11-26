@@ -247,6 +247,13 @@ export function buildOpenApiDocument(): Record<string, unknown> {
     components: {
       schemas: components,
       securitySchemes: {
+        AdminSession: {
+          type: 'apiKey',
+          in: 'cookie',
+          name: 'pospay.session_token',
+          description:
+            'Authenticated operator/admin session cookie (local default name; staging and production prefix it as __Secure-<AUTH_COOKIE_PREFIX>.session_token).',
+        },
         PersonalStaffSession: {
           type: 'apiKey',
           in: 'cookie',

@@ -62,7 +62,7 @@ export function WorkLines({
           />
         ))}
       </ul>
-      <WorkLinesMore lines={lines} onLoadMore={onLoadMore} />
+      <WorkLinesMore lines={lines} onLoadMore={onLoadMore} onRetry={onRetry} />
     </>
   );
 }

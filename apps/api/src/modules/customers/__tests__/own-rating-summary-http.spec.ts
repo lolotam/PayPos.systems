@@ -125,6 +125,47 @@ it('RS-08 refuses a DENY, the customers feature off, and eligibility lost after 
   }
 });
 
+it('RS-08b refuses once the membership ends, even with its own ALLOW override still stored', async () => {
+  const [tick] = await f.h.owner`SELECT clock_timestamp()::timestamptz AS at`;
+  const serverNow = new Date(tick?.['at'] as string);
+  const [roleRow] = await f.h
+    .owner`SELECT role_id, role_owner_key FROM memberships WHERE company_id=${f.company} AND id=${f.membershipId}`;
+  const roleId = roleRow?.['role_id'] as string;
+  const roleOwnerKey = roleRow?.['role_owner_key'] as string;
+  // بنشيل الافتراضي بتاع الدور مؤقتًا عشان نثبت إن منحة ALLOW المحفوظة هي اللي بتسمح، وإن انتهاء العضوية بيمنع رغم بقائها.
+  await f.h
+    .owner`DELETE FROM role_permissions WHERE role_id=${roleId} AND role_owner_key=${roleOwnerKey} AND permission_code='read:ratings:own'`;
+  try {
+    const withoutDefault = await read();
+    expect(withoutDefault.statusCode).toBe(403);
+    expect(withoutDefault.json().code).toBe('FORBIDDEN');
+    await f.h
+      .owner`INSERT INTO permission_overrides(company_id,id,membership_id,permission_code,effect,scope_type,scope_id,reason,granted_by)
+      VALUES(${f.company},gen_random_uuid(),${f.membershipId},'read:ratings:own','ALLOW','BUSINESS',${f.business},'Synthetic own allow',${f.userId})`;
+    const allowed = await read();
+    expect(allowed.statusCode).toBe(200);
+    expect(allowed.json()).toEqual({ visibility: 'VISIBLE', average: '4.5', count: 2 });
+    // العضوية بتخلص بعد دقيقة من ساعة السيرفر (فالحارس شايفها سارية)، والقراءة بتتم بساعة بعدين
+    // (فقارئ الأهلية شايفها منتهية): سطر المنح بيفضل موجود والطلب بيترفض.
+    await f.h
+      .owner`UPDATE memberships SET ends_at=${new Date(serverNow.getTime() + 60_000).toISOString()}
+      WHERE company_id=${f.company} AND id=${f.membershipId}`;
+    f.setNow(new Date(serverNow.getTime() + 3_600_000));
+    const ended = await read();
+    expect(ended.statusCode).toBe(403);
+    expect(ended.json().code).toBe('FORBIDDEN');
+    expect(ended.json()).not.toHaveProperty('average');
+  } finally {
+    f.setNow(at(10));
+    await f.h
+      .owner`DELETE FROM permission_overrides WHERE company_id=${f.company} AND membership_id=${f.membershipId} AND permission_code='read:ratings:own'`;
+    await f.h
+      .owner`UPDATE memberships SET ends_at=NULL WHERE company_id=${f.company} AND id=${f.membershipId}`;
+    await f.h
+      .owner`INSERT INTO role_permissions(role_id,role_owner_key,permission_code) VALUES(${roleId},${roleOwnerKey},'read:ratings:own') ON CONFLICT DO NOTHING`;
+  }
+});
+
 it('RS-08a answers from one snapshot: a column setting committed after the read began is not seen by it', async () => {
   await saveColumns(['date', 'tip']);
   const reads = f.h.app.get<OwnRatingReads>(OWN_RATING_READS);
