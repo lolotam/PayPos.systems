@@ -11,10 +11,20 @@ import {
   resolvedRatingsMonth,
 } from './ratings-period.js';
 
+export {
+  MAX_RATING_AVERAGES_RANGE_DAYS,
+  isRatingAveragesRangeWithinMax,
+} from './ratings-period.js';
+
 /**
  * فلاتر متوسطات التقييم في الأدمن: نفس فلاتر القائمة بدون المؤشر والحد. `from` شاملة و`to` حصرية على `submitted_at`،
  * ولو الاتنين غايبين الفترة هي الشهر الميلادي الحالي بتوقيت النشاط (D-B12)، ولو واحد منهم موجود الفترة مفتوحة من الناحية التانية.
  * `month` (`YYYY-MM`) بديل عن الاتنين: الشهر الميلادي ده بتوقيت النشاط، ومش بيتجمع مع `from`/`to` (D-B12).
+ *
+ * القراءة نفسها (`readRatingAverages`) بتقبل غياب الطرفين (الشهر الحالي) أو فترة مغلقة من طرفين عرضها 366 يوم
+ * على الأكثر (PP-278)، واللي يتعدى الحد أو يبقى من طرف واحد بيرجع 422 `RATING_RANGE_TOO_WIDE`. القاعدة دي مش
+ * `.refine()` هنا على المخطط: فشل التحقق بيرجع 400 `VALIDATION_FAILED`، والحد ده محتاج 422، فبيتحرس في طبقة
+ * القراءة مش في المخطط.
  */
 export const ratingAveragesQuery = z
   .strictObject({

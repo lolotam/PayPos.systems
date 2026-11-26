@@ -2,6 +2,8 @@ import { expect, it } from 'vitest';
 import { ratingAveragesQuery } from './ratings-averages.js';
 import {
   isPeriodForward,
+  isRatingAveragesRangeWithinMax,
+  MAX_RATING_AVERAGES_RANGE_DAYS,
   monthExcludesRange,
   periodIsValid,
   PERIOD_FRACTION_DIGITS,
@@ -153,4 +155,34 @@ it('lets the month ride with the other filters and the cursor', () => {
   expect(monthExcludesRange({})).toBe(true);
   expect(monthExcludesRange({ month: '2026-06' })).toBe(true);
   expect(monthExcludesRange({ month: '2026-06', to: `${base}Z` })).toBe(false);
+});
+
+it('caps the rating averages range at 366 days', () => {
+  expect(MAX_RATING_AVERAGES_RANGE_DAYS).toBe(366);
+});
+
+it('accepts the rating averages range with no bounds, which is the current month window', () => {
+  expect(isRatingAveragesRangeWithinMax({})).toBe(true);
+});
+
+it.each([
+  // 366 يوم بالضبط: سنة عادية (2026) من 1 يناير لـ 2 يناير 2027، وسنة كبيسة (2028) من 1 يناير لـ 1 يناير 2029.
+  ['2026-01-01T00:00:00Z', '2027-01-02T00:00:00Z'],
+  ['2028-01-01T00:00:00.123456Z', '2029-01-01T00:00:00.123456Z'],
+  ['2026-01-01T00:00:00.000001Z', '2027-01-02T00:00:00.000001Z'],
+])('accepts the exact 366-day range %s -> %s', (from, to) => {
+  expect(isRatingAveragesRangeWithinMax({ from, to })).toBe(true);
+});
+
+it.each([
+  // 366 يوم وميكروثانية واحدة زيادة: أقصى مسموح زائد، فلو اتقبل كانت القاعدة بتبقى بالتقريب مش بالضبط.
+  ['2026-01-01T00:00:00.000000Z', '2027-01-02T00:00:00.000001Z'],
+  ['2028-01-01T00:00:00.123456Z', '2029-01-01T00:00:00.123457Z'],
+])('refuses the range %s -> %s, one microsecond over 366 days', (from, to) => {
+  expect(isRatingAveragesRangeWithinMax({ from, to })).toBe(false);
+});
+
+it('refuses a one-sided rating averages range, an open window wider than the cap', () => {
+  expect(isRatingAveragesRangeWithinMax({ from: `${base}Z` })).toBe(false);
+  expect(isRatingAveragesRangeWithinMax({ to: `${base}Z` })).toBe(false);
 });
