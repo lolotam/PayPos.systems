@@ -237,7 +237,6 @@ it('MY13 applies default, configured and legacy-clamped month windows through th
     [null, '2026-09', '2026-08'],
     [3, '2026-08', '2026-07'],
     [12, '2025-11', '2025-10'],
-    [24, '2025-11', '2025-10'],
   ] as const) {
     await f.h.owner`INSERT INTO business_settings(company_id,business_id,staff_months_back)
       VALUES(${f.company},${f.business},${stored})
@@ -246,6 +245,27 @@ it('MY13 applies default, configured and legacy-clamped month windows through th
     await expect(read({ month: refused })).rejects.toMatchObject({
       code: 'MY_PERIOD_OUT_OF_RANGE',
     });
+  }
+  // القيمة 24 اتحفظت تحت المدى القديم: القيد المضيّق (issue #519) بيمنعها، فنبدّله مؤقتاً ونحاكي
+  // بيانات قبل التضييق، والقراية بتقصّرها على 12 في الدومين، وبعدين القيد بيرجع متحقَّق.
+  await f.h.owner`ALTER TABLE business_settings
+    DROP CONSTRAINT IF EXISTS business_settings_staff_months_back`;
+  try {
+    await f.h.owner`INSERT INTO business_settings(company_id,business_id,staff_months_back)
+      VALUES(${f.company},${f.business},24)
+      ON CONFLICT(company_id,business_id) DO UPDATE SET staff_months_back=EXCLUDED.staff_months_back`;
+    expect((await read({ month: '2025-11' })).month).toBe('2025-11');
+    await expect(read({ month: '2025-10' })).rejects.toMatchObject({
+      code: 'MY_PERIOD_OUT_OF_RANGE',
+    });
+  } finally {
+    await f.h.owner`UPDATE business_settings SET staff_months_back=12
+      WHERE company_id=${f.company} AND business_id=${f.business} AND staff_months_back>12`;
+    await f.h.owner`ALTER TABLE business_settings
+      ADD CONSTRAINT business_settings_staff_months_back
+      CHECK (staff_months_back IS NULL OR staff_months_back BETWEEN 1 AND 12) NOT VALID`;
+    await f.h.owner`ALTER TABLE business_settings
+      VALIDATE CONSTRAINT business_settings_staff_months_back`;
   }
   await f.h
     .owner`UPDATE business_settings SET staff_months_back=NULL WHERE company_id=${f.company} AND business_id=${f.business}`;
