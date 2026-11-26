@@ -1,4 +1,4 @@
-import { type PrivateWindowEnv, TICK_MS } from './private-window-env';
+import { type PrivateViewEnv, TICK_MS } from './env';
 
 /**
  * مؤقتين للنافذة المفتوحة: مؤقت الموعد نفسه (بيقفل في لحظته بالظبط)، وفحص كل ثانية بيمسك أي موعد فات أو نوم
@@ -14,7 +14,7 @@ export class WindowTimers {
    * @param onDue بتتنده لما المؤقت أو الفحص يلاقي إن النافذة لازم تتقفل
    */
   constructor(
-    private readonly env: PrivateWindowEnv,
+    private readonly env: PrivateViewEnv,
     private readonly isDue: () => boolean,
     private readonly onDue: () => void,
   ) {}

@@ -1,59 +1,27 @@
-import { fireEvent, render, screen } from '@testing-library/react';
-import { onlineManager, QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { fireEvent, screen } from '@testing-library/react';
+import { QueryClient } from '@tanstack/react-query';
 import type { ReactNode } from 'react';
-import { vi } from 'vitest';
-import type { Locale } from '@pospay/i18n';
 import { t } from '@pospay/i18n';
-import { LocaleProvider } from '@/shared/locale/locale-context';
+import {
+  installFetch,
+  json,
+  renderWithProviders,
+  replaceFetch,
+  type Locale,
+  type Route,
+} from '@/shared/testing/query-kit';
 
-export type Route = (request: Request, url: URL) => Response | undefined;
+export { installFetch, json, replaceFetch };
+export type { Route };
 
-// العميل المشترك لجهاز الاستقبال بيمسك الـ fetch وقت إنشائه، فنفس الدالة لازم تفضل مركّبة بين الاختبارات.
-let current: (request: Request) => Promise<Response> = async () => Response.error();
-const stable = (request: Request) => current(request);
-
-/** يحط fetch مزيف: الطلبات بتتسجل والرد بييجي من الـ route، وغير كده 404. */
-export function installFetch(route: Route) {
-  const requests: Request[] = [];
-  onlineManager.setOnline(true);
-  Object.defineProperty(navigator, 'onLine', { configurable: true, value: true });
-  current = async (request) => {
-    requests.push(request);
-    return (
-      route(request, new URL(request.url)) ?? Response.json({ code: 'NOT_FOUND' }, { status: 404 })
-    );
-  };
-  vi.stubGlobal('fetch', stable);
-  return {
-    requests,
-    paths: (suffix: string) =>
-      requests.filter((request) => new URL(request.url).pathname.endsWith(suffix)),
-  };
-}
-
-/** يستبدل رد الـ fetch الحالي بدالة async، لاختبارات الرد المتأخر. */
-export function replaceFetch(handler: (request: Request) => Promise<Response>) {
-  current = handler;
-  vi.stubGlobal('fetch', stable);
-}
-
-export const json = (body: unknown, status = 200) => Response.json(body, { status });
-
-/** يرندر شاشة جوّا client جديد (أو client جاهز بكاش متحط فيه بيانات) ولغة محددة، ويرجّع الـ client عشان نفحص الكاش. */
+/** يرندر شاشة جوّا client جديد ولغة محددة، ويرجّع الـ client عشان نفحص الكاش. */
 export function renderWork(
   ui: ReactNode,
   locale: Locale = 'en',
   client: QueryClient = new QueryClient(),
 ) {
-  const view = (node: ReactNode) => (
-    <QueryClientProvider client={client}>
-      <LocaleProvider locale={locale} setLocale={() => undefined}>
-        {node}
-      </LocaleProvider>
-    </QueryClientProvider>
-  );
-  const result = render(view(ui));
-  return { client, ...result, rerenderWork: (node: ReactNode) => result.rerender(view(node)) };
+  const view = renderWithProviders(ui, locale, client);
+  return { ...view, rerenderWork: view.rerenderWithProviders };
 }
 
 export const myWorkEntries = (client: QueryClient) =>

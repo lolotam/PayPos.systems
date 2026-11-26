@@ -1,5 +1,6 @@
 import type { OwnServiceLine } from '@pospay/contracts';
-import { formatDate, type Locale } from '@pospay/i18n';
+import type { Locale } from '@pospay/i18n';
+import { formatBusinessDate, formatBusinessDateTime, formatBusinessTime } from '@/shared/datetime/business-time';
 
 /**
  * هل عمود الخدمة جاي في الصف؟ العمود الممنوع غايب من الرد مش null (MY-02).
@@ -53,48 +54,7 @@ export function formatShare(bps: number): string {
  * @param locale لغة العرض
  * @returns التاريخ للعرض
  */
-export function formatBusinessDate(date: string, locale: Locale): string {
-  return formatDate(new Date(`${date}T12:00:00Z`), {
-    locale,
-    calendar: 'gregorian',
-    timeZone: 'UTC',
-  });
-}
-
-/**
- * منسّق بتوقيت النشاط. التوقيت جاي من السيرفر وممكن يبقى اسم IANA جديد على متصفح أو WebView قديم، فالمنسّق بيرمي RangeError.
- * بدل ما القائمة كلها تقع بنرجع لـ UTC ومعاه اسمه ظاهر في النص، وعمره ما بنرجع لتوقيت الجهاز (AC-57-4-9).
- *
- * @param locale لغة العرض
- * @param timeZone اسم IANA لتوقيت النشاط من الرد
- * @param options حقول التنسيق بتوقيت النشاط
- * @param fallback حقول التنسيق لو التوقيت مش معروف؛ فيها الساعة عشان اسم UTC يتكتب جنب لحظة واضحة (dateStyle لوحده ما بيقبلش اسم التوقيت)
- * @returns المنسّق
- */
-function businessFormatter(
-  locale: Locale,
-  timeZone: string,
-  options: Intl.DateTimeFormatOptions,
-  fallback: Intl.DateTimeFormatOptions,
-): Intl.DateTimeFormat {
-  try {
-    return new Intl.DateTimeFormat(locale, { timeZone, numberingSystem: 'latn', ...options });
-  } catch (error) {
-    if (!(error instanceof RangeError)) throw error;
-    return new Intl.DateTimeFormat(locale, {
-      timeZone: 'UTC',
-      timeZoneName: 'short',
-      numberingSystem: 'latn',
-      ...fallback,
-    });
-  }
-}
-
-const TIME_FIELDS: Intl.DateTimeFormatOptions = {
-  hour: '2-digit',
-  minute: '2-digit',
-  hourCycle: 'h23',
-};
+export { formatBusinessDate };
 
 /**
  * ساعة الخدمة بالدقيقة بتوقيت النشاط دايماً، على الموبايل الشخصي وعلى جهاز الاستقبال، ومن غير
@@ -106,7 +66,7 @@ const TIME_FIELDS: Intl.DateTimeFormatOptions = {
  * @returns الساعة للعرض
  */
 export function formatLineTime(instant: string, locale: Locale, timeZone: string): string {
-  return businessFormatter(locale, timeZone, TIME_FIELDS, TIME_FIELDS).format(new Date(instant));
+  return formatBusinessTime(instant, locale, timeZone);
 }
 
 /**
@@ -118,10 +78,5 @@ export function formatLineTime(instant: string, locale: Locale, timeZone: string
  * @returns التاريخ للعرض
  */
 export function formatCancelledOn(instant: string, locale: Locale, timeZone: string): string {
-  return businessFormatter(
-    locale,
-    timeZone,
-    { dateStyle: 'long' },
-    { year: 'numeric', month: 'long', day: 'numeric', ...TIME_FIELDS },
-  ).format(new Date(instant));
+  return formatBusinessDateTime(instant, locale, timeZone);
 }

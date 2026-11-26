@@ -6,7 +6,7 @@ import {
   useWorkCommissionEstimate,
   useWorkTips,
 } from './use-my-work';
-import { useReadThisVisit } from './use-read-this-visit';
+import { useReadThisVisit } from '@/shared/query/use-read-this-visit';
 
 /**
  * إكراميات موبايلها الشخصي، والبيانات ما بترجعش من الكاش إلا بعد ما السيرفر يرد بنجاح على قراءة الشهر ده في الزيارة دي،

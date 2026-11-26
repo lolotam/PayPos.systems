@@ -1,5 +1,5 @@
-import { IDLE_LIMIT_MS, TOUCH_INTERVAL_MS } from './private-window-env';
-import type { WindowHost } from './private-window-host';
+import { IDLE_LIMIT_MS, TOUCH_INTERVAL_MS } from './env';
+import type { WindowTouchHost } from './host';
 
 /**
  * لمس السيرفر بعد إدخال المستخدمة: لمسة واحدة كل 20 ثانية على الأكتر مع لمسة لاحقة واحدة.
@@ -16,7 +16,7 @@ export class TouchScheduler {
   private lastInput = 0;
 
   constructor(
-    private readonly host: WindowHost,
+    private readonly host: WindowTouchHost,
     private readonly onDeadlineChange: () => void,
   ) {}
 
@@ -77,7 +77,7 @@ export class TouchScheduler {
       this.host.refused(scope, error);
       return undefined;
     });
-    if (remaining && this.host.commit(scope, { type: 'touched', sentAt, remaining }))
+    if (remaining && this.host.commitWindow(scope, { type: 'touched', sentAt, remaining }))
       this.onDeadlineChange();
     if (this.host.scope(false)?.gen !== scope.gen) return;
     this.inFlight = false;

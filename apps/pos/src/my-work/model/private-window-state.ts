@@ -1,12 +1,12 @@
 import type { OwnCommissionEstimate, OwnServiceLines, OwnTips } from '@pospay/contracts';
 import {
-  type PrivateViewDeadlines,
-  type PrivateViewRemaining,
-  touchedDeadlines,
-} from './private-view-deadline';
+  type PinProblem,
+  type PrivateViewState,
+  type PrivateViewWindowAction,
+  reducePrivateView,
+} from '@/shared/private-view/state';
 
-/** سبب الرجوع لخطوة الـ PIN: PIN غلط، فشل الفتح، خروج من الواجهة أو انتهاء، أو رفض صلاحية من السيرفر. */
-export type PinProblem = 'invalid' | 'failed' | 'expired' | 'refused' | null;
+export type { PinProblem };
 
 /** خدمات الشهر زي ما الشاشة بتعرضها، لوضع الموبايل الشخصي (react-query) وجهاز الاستقبال (المتحكم). */
 export type LinesView = {
@@ -32,23 +32,10 @@ export type WorkData = {
   estimate: OwnCommissionEstimate | undefined;
 };
 
-export type PrivateWindowState =
-  /**
-   * `epoch` بيتغيّر مع كل خروج من الواجهة، والنموذج بيتركّب بيه فبيتفرّغ، والمتحكم بيرفض أي إرسال من epoch قديم.
-   * `waiting` = طلب فتح لسه ما رجعش، فمفيش إرسال جديد لحد ما يرجع.
-   */
-  | { phase: 'pin'; problem: PinProblem; epoch: number; waiting: boolean }
-  | { phase: 'opening'; epoch: number }
-  | { phase: 'open'; windowId: string; deadlines: PrivateViewDeadlines; data: WorkData }
-  | { phase: 'leave' };
+export type PrivateWindowState = PrivateViewState<WorkData>;
 
-export type PrivateWindowAction =
-  | { type: 'opening' }
-  | { type: 'opened'; windowId: string; deadlines: PrivateViewDeadlines }
-  | { type: 'closed'; problem: PinProblem; epoch: number; waiting: boolean }
-  | { type: 'settled' }
-  | { type: 'left' }
-  | { type: 'touched'; sentAt: number; remaining: PrivateViewRemaining }
+/** أفعال بيانات «شغلي» (مش أفعال النافذة نفسها). */
+export type WorkAction =
   | { type: 'month'; month: string | undefined }
   | { type: 'retry' }
   | { type: 'linesMore' }
@@ -59,6 +46,8 @@ export type PrivateWindowAction =
   | { type: 'tipsRetry' }
   | { type: 'estimateLoaded'; month: string | undefined; estimate: OwnCommissionEstimate };
 
+export type PrivateWindowAction = PrivateViewWindowAction | WorkAction;
+
 export const PENDING_LINES: LinesView = {
   status: 'pending',
   pages: [],
@@ -66,7 +55,7 @@ export const PENDING_LINES: LinesView = {
   fetchingMore: false,
   moreError: undefined,
 };
-const EMPTY_DATA: WorkData = {
+export const EMPTY_DATA: WorkData = {
   month: undefined,
   home: undefined,
   lines: PENDING_LINES,
@@ -85,7 +74,14 @@ export function shownMonth(data: WorkData): string | undefined {
   return data.month ?? data.lines.pages[0]?.month;
 }
 
-function reduceData(data: WorkData, action: PrivateWindowAction): WorkData {
+/**
+ * تقصير بيانات «شغلي» بالفعل: كل فعل بيقرّر شكل البيانات بعده (شهر جديد، إعادة محاولة، صفحةLoaded).
+ *
+ * @param data البيانات الحالية
+ * @param action فعل البيانات
+ * @returns البيانات الجديدة
+ */
+export function reduceWorkData(data: WorkData, action: WorkAction): WorkData {
   switch (action.type) {
     case 'month':
       return {
@@ -136,8 +132,6 @@ function reduceData(data: WorkData, action: PrivateWindowAction): WorkData {
       return { ...data, tips: undefined, tipsFailed: true };
     case 'tipsRetry':
       return { ...data, tips: undefined, tipsFailed: false };
-    default:
-      return data;
   }
 }
 
@@ -154,32 +148,14 @@ export function reducePrivateWindow(
 ): PrivateWindowState {
   switch (action.type) {
     case 'opening':
-      return { phase: 'opening', epoch: state.phase === 'pin' ? state.epoch : 0 };
     case 'opened':
-      return {
-        phase: 'open',
-        windowId: action.windowId,
-        deadlines: action.deadlines,
-        data: EMPTY_DATA,
-      };
     case 'closed':
-      return {
-        phase: 'pin',
-        problem: action.problem,
-        epoch: action.epoch,
-        waiting: action.waiting,
-      };
     case 'settled':
-      return state.phase === 'pin' && state.waiting ? { ...state, waiting: false } : state;
     case 'left':
-      return { phase: 'leave' };
+    case 'touched':
+      return reducePrivateView(state, action, EMPTY_DATA);
     default:
       if (state.phase !== 'open') return state;
-      if (action.type === 'touched')
-        return {
-          ...state,
-          deadlines: touchedDeadlines(state.deadlines, action.sentAt, action.remaining),
-        };
-      return { ...state, data: reduceData(state.data, action) };
+      return { ...state, data: reduceWorkData(state.data, action) };
   }
 }

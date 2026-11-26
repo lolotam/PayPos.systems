@@ -1,12 +1,12 @@
 import type { PrivateViewTouch, PrivateViewWindow } from '@pospay/contracts';
 import { staffApiClient } from '@/shared/api/client';
-import { WorkHttpError } from '../model/work-error';
+import { PrivateViewHttpError } from './errors';
 
 const HEADER = 'x-private-view-window-id';
 
-function refused(result: { error?: unknown; response: Response }): WorkHttpError {
+function refused(result: { error?: unknown; response: Response }): PrivateViewHttpError {
   const body = result.error as { code?: unknown } | undefined;
-  return new WorkHttpError(
+  return new PrivateViewHttpError(
     typeof body?.code === 'string' ? body.code : 'NOT_READY',
     result.response.status,
   );
@@ -19,7 +19,7 @@ export const privateViewCalls = {
    *
    * @param pin الأربع أرقام
    * @param signal بيلغي الطلب لو الرد اتأخر عن المهلة
-   * @returns النافذة المفتوحة، وغير كده بيرمي WorkHttpError بالكود
+   * @returns النافذة المفتوحة، وغير كده بيرمي PrivateViewHttpError بالكود
    */
   open: async (pin: string, signal?: AbortSignal): Promise<PrivateViewWindow> => {
     const result = await staffApiClient().POST('/v1/staff/me/private-view', {
@@ -35,7 +35,7 @@ export const privateViewCalls = {
    *
    * @param windowId رقم النافذة المفتوحة
    * @param signal بيلغي الطلب لما الواجهة تتقفل
-   * @returns الوقت المتبقي على الخمول وعلى السقف، وغير كده بيرمي WorkHttpError بالكود
+   * @returns الوقت المتبقي على الخمول وعلى السقف، وغير كده بيرمي PrivateViewHttpError بالكود
    */
   touch: async (windowId: string, signal?: AbortSignal): Promise<PrivateViewTouch> => {
     const result = await staffApiClient().POST('/v1/staff/me/private-view/touch', {

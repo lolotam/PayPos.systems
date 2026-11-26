@@ -9,6 +9,7 @@ import { usePersonalSession } from '../api/use-personal-session';
 import { PersonalSignIn } from './personal-sign-in';
 import { EnrolPasskeyScreen } from './enrol-passkey-screen';
 import { PersonalWorkEntry } from './own-work-entry';
+import { PersonalAttendanceEntry } from './own-attendance-entry';
 
 interface PersonalScreenProps {
   workspace?: Pick<PersonalOtpRequestInput, 'company_id' | 'business_id'>;
@@ -62,8 +63,9 @@ export function PersonalScreen({
                 onSignOut={state.signOut}
               />
               {state.privateReady ? ownLeave?.(state.session, state.epoch) : null}
+              {state.privateReady ? <PersonalWorkEntry session={state.session} epoch={state.epoch} /> : null}
               {state.privateReady ? (
-                <PersonalWorkEntry session={state.session} epoch={state.epoch} />
+                <PersonalAttendanceEntry session={state.session} epoch={state.epoch} />
               ) : null}
             </>
           ))

@@ -1,5 +1,5 @@
+import { PrivateViewPinForm } from '@/shared/private-view/pin-form';
 import { usePrivateWindow } from '../api/use-private-window';
-import { PrivateViewPinForm } from './private-view-pin-form';
 import { ReceptionOpenWork } from './reception-open-work';
 
 /**
@@ -19,6 +19,7 @@ export function ReceptionWork({ onLeave }: { onLeave: () => void }) {
     return (
       <PrivateViewPinForm
         key={state.epoch}
+        section="myWork"
         problem={state.phase === 'pin' ? state.problem : null}
         pending={state.phase === 'opening'}
         waiting={state.phase === 'pin' && state.waiting}
