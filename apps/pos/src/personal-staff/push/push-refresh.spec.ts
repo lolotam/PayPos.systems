@@ -2,7 +2,7 @@ import { beforeEach, expect, it, vi } from 'vitest';
 import type { PushConfig } from '@pospay/contracts';
 
 import { pushCalls } from './push-calls';
-import type { PushRecord, PushWriteOptions } from './push-record';
+import { PushRecordAbortedError, type PushRecord, type PushWriteOptions } from './push-record';
 import { refreshPush } from './push-refresh';
 
 const INSTALLATION = '12345678-1234-4234-8234-123456789abc';
@@ -14,6 +14,7 @@ const fakes = vi.hoisted(() => {
     writes: [] as PushRecord[],
     writeFails: false,
     writeIfGenerationFails: false,
+    writeIfGenerationAborts: false,
     generation: 0,
     removed: 0,
     subscribed: false,
@@ -38,6 +39,28 @@ const CONFIG: PushConfig = {
   subscriber_ref: 'subscriber-ref',
   company_id: 'company',
 };
+
+async function writeIfGeneration(
+  record: PushRecord,
+  expected: number,
+  options?: PushWriteOptions,
+): Promise<boolean> {
+  if (fakes.state.writeIfGenerationFails) throw new Error('PUSH_STORE_UNAVAILABLE');
+  if (fakes.state.writeIfGenerationAborts) throw new PushRecordAbortedError();
+  if (fakes.state.generation !== expected) return false;
+  const stored = fakes.state.record;
+  if (options?.expectRevision !== undefined && (stored?.revision ?? 0) !== options.expectRevision) {
+    return false;
+  }
+  if (options?.expectToken !== undefined && (stored?.token ?? null) !== options.expectToken) {
+    return false;
+  }
+  const clear = options?.clearSuspension === true;
+  const suspended = stored?.suspended === true && !clear;
+  fakes.state.record = suspended ? { ...record, suspended: true } : record;
+  fakes.state.writes.push(fakes.state.record);
+  return true;
+}
 
 vi.mock('./push-record-idb', () => ({
   pushRecordStore: {
@@ -78,25 +101,7 @@ vi.mock('./push-record-idb', () => ({
       fakes.state.generation += 1;
       return fakes.state.generation;
     },
-    writeIfGeneration: async (record: PushRecord, expected: number, options?: PushWriteOptions) => {
-      if (fakes.state.writeIfGenerationFails) throw new Error('PUSH_STORE_UNAVAILABLE');
-      if (fakes.state.generation !== expected) return false;
-      const stored = fakes.state.record;
-      if (
-        options?.expectRevision !== undefined &&
-        (stored?.revision ?? 0) !== options.expectRevision
-      ) {
-        return false;
-      }
-      if (options?.expectToken !== undefined && (stored?.token ?? null) !== options.expectToken) {
-        return false;
-      }
-      const clear = options?.clearSuspension === true;
-      const suspended = stored?.suspended === true && !clear;
-      fakes.state.record = suspended ? { ...record, suspended: true } : record;
-      fakes.state.writes.push(fakes.state.record);
-      return true;
-    },
+    writeIfGeneration,
   },
 }));
 
@@ -166,6 +171,7 @@ beforeEach(() => {
   fakes.state.writes = [];
   fakes.state.writeFails = false;
   fakes.state.writeIfGenerationFails = false;
+  fakes.state.writeIfGenerationAborts = false;
   fakes.state.generation = 0;
   fakes.state.removed = 0;
   fakes.state.subscribed = true;
@@ -311,4 +317,72 @@ it('drops the rotation registration when another tab took the record', async () 
   // تسجيلنا ما بقى مطلوبش من حد: الاشتراك بيتشال والسطر بتاعنا بيراجع.
   expect(fakes.state.unsubscribed).toBe(2);
   expect(pushCalls.revoke).toHaveBeenCalledWith(INSTALLATION, expect.any(AbortSignal));
+});
+
+it('tears the rotation registration down when the store reports a known aborted write', async () => {
+  fakes.state.record = { ...RECORD, vapid_key_id: 'oldkey0000000000' };
+  fakes.state.writeIfGenerationAborts = true;
+
+  const outcome = await refreshPush(input());
+
+  expect(outcome).toEqual({ kind: 'none' });
+  expect(fakes.state.record?.token).toBe(RECORD.token);
+  expect(fakes.state.removed).toBe(0);
+  // اشتراك التبديل واشتراك التدوير اللي ما اتسجلش عنده سجل: الاتنين بيتشالوا والسطر بيراجع.
+  expect(fakes.state.unsubscribed).toBe(2);
+  expect(pushCalls.revoke).toHaveBeenCalledWith(INSTALLATION, expect.any(AbortSignal));
+});
+
+it('leaves the subscription alone when a known aborted write meets a record another tab replaced', async () => {
+  fakes.state.record = { ...RECORD, vapid_key_id: 'oldkey0000000000' };
+  fakes.state.writeIfGenerationAborts = true;
+  vi.mocked(pushCalls.register).mockImplementation(async () => {
+    fakes.state.record = { ...RECORD, token: WINNER };
+  });
+
+  const outcome = await refreshPush(input());
+
+  expect(outcome).toEqual({ kind: 'none' });
+  expect(fakes.state.record?.token).toBe(WINNER);
+  expect(fakes.state.unsubscribed).toBe(1);
+  expect(pushCalls.revoke).not.toHaveBeenCalled();
+});
+
+it('sends the subscriber reference and suspends the record when the server refuses the refresh as another session', async () => {
+  vi.mocked(pushCalls.register).mockRejectedValue(
+    Object.assign(new Error('PUSH_SESSION_MISMATCH'), { code: 'PUSH_SESSION_MISMATCH' }),
+  );
+  vi.mocked(pushCalls.config)
+    .mockResolvedValueOnce({ kind: 'ready', config: CONFIG })
+    .mockResolvedValueOnce({ kind: 'ready', config: CONFIG })
+    .mockResolvedValue({ kind: 'ready', config: { ...CONFIG, subscriber_ref: 'someone-else' } });
+
+  const outcome = await refreshPush(input());
+
+  expect(outcome).toEqual({ kind: 'session-changed' });
+  expect(pushCalls.register).toHaveBeenCalledWith(
+    expect.objectContaining({ subscriber_ref: CONFIG.subscriber_ref }),
+    expect.anything(),
+  );
+  expect(fakes.state.record?.suspended).toBe(true);
+  expect(fakes.state.removed).toBe(0);
+});
+
+it('suspends instead of deleting the record when the rotation PUT is refused as another session', async () => {
+  fakes.state.record = { ...RECORD, vapid_key_id: 'oldkey0000000000' };
+  vi.mocked(pushCalls.register).mockRejectedValue(
+    Object.assign(new Error('PUSH_SESSION_MISMATCH'), { code: 'PUSH_SESSION_MISMATCH' }),
+  );
+  vi.mocked(pushCalls.config)
+    .mockResolvedValueOnce({ kind: 'ready', config: CONFIG })
+    .mockResolvedValueOnce({ kind: 'ready', config: CONFIG })
+    .mockResolvedValueOnce({ kind: 'ready', config: CONFIG })
+    .mockResolvedValue({ kind: 'ready', config: { ...CONFIG, subscriber_ref: 'someone-else' } });
+
+  const outcome = await refreshPush(input());
+
+  expect(outcome).toEqual({ kind: 'session-changed' });
+  expect(fakes.state.record?.suspended).toBe(true);
+  expect(fakes.state.removed).toBe(0);
+  expect(fakes.state.unsubscribed).toBe(2);
 });

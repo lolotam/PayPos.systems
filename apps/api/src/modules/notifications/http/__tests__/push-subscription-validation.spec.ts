@@ -1,5 +1,6 @@
 import { randomBytes } from 'node:crypto';
 
+import { subscriberRef } from '@pospay/notifications';
 import { afterAll, beforeAll, expect, it } from 'vitest';
 
 import { pushFixture, type PushFixture } from './push-subscription.fixture.ts';
@@ -15,6 +16,7 @@ const shortAuth = randomBytes(15).toString('base64url');
 
 const body = (keys: { p256dh: string; auth: string }) => ({
   installation_id: nextId(),
+  subscriber_ref: subscriberRef(f.userId),
   vapid_key_id: f.config.keyId,
   delivery_token: nextId(),
   subscription: { endpoint: `https://fcm.googleapis.com/fcm/send/${nextId()}`, keys },

@@ -21,6 +21,14 @@ export class PushKeyStaleError extends PushApiError {
   }
 }
 
+/** الجلسة اتبدّلت لشخص تاني بعد ما التطبيق أكّد صاحبها: السيرفر رفض التسجيل قبل أي كتابة. */
+export class PushSessionMismatchError extends PushApiError {
+  constructor() {
+    super('PUSH_SESSION_MISMATCH');
+    this.name = 'PushSessionMismatchError';
+  }
+}
+
 /** جواب المسار: جاهز بالمفتاح، أو مش جاهز (الخدمة مش مهيأة). */
 export type PushConfigResult = { kind: 'ready'; config: PushConfig } | { kind: 'not-ready' };
 
@@ -109,6 +117,7 @@ export const pushCalls = {
     if (result.response.ok) return;
     const code = errorCode(result.error);
     if (code === 'PUSH_KEY_STALE') throw new PushKeyStaleError();
+    if (code === 'PUSH_SESSION_MISMATCH') throw new PushSessionMismatchError();
     throw new PushApiError(code ?? 'PUSH_SUBSCRIPTION_REFUSED');
   },
   revoke: async (installationId: string, signal?: AbortSignal): Promise<void> => {

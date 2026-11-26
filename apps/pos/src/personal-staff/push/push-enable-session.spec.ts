@@ -57,6 +57,13 @@ vi.mock('./push-record-idb', () => ({
       fakes.record = record;
       return true;
     },
+    removeIfMatches: async (expected: { token: string | null; revision: number }) => {
+      const stored = fakes.record;
+      if (stored === null || stored.token !== expected.token) return false;
+      if (stored.revision !== expected.revision) return false;
+      fakes.record = null;
+      return true;
+    },
   },
 }));
 
@@ -189,7 +196,7 @@ it('leaves the record of the person who owns the session untouched when the sess
   expect(notifyPushRecordChanged).not.toHaveBeenCalled();
 });
 
-it('leaves the record of the session owner untouched when the session flips back before the PUT', async () => {
+it('removes the orphaned record of the session owner when the session flips back before the PUT', async () => {
   const recordB: PushRecord = { ...RECORD, subscriber_ref: 'person-b' };
   fakes.record = { ...recordB };
   vi.mocked(pushCalls.config)
@@ -200,7 +207,10 @@ it('leaves the record of the session owner untouched when the session flips back
   const outcome = await enablePush(input);
 
   expect(outcome).toEqual({ kind: 'failed' });
-  expect(fakes.record).toEqual(recordB);
+  // اشتراك B اتشال وقت التبديل واشتراك التبويب ده اتشال بعده: سجل B ما يفضلش بيقول «شغال»
+  // على اشتراك مش موجود، وباقي التبويبات بتتبلّغ.
+  expect(fakes.record).toBeNull();
+  expect(notifyPushRecordChanged).toHaveBeenCalled();
   expect(pushCalls.register).not.toHaveBeenCalled();
   // واحد لتبديل الاشتراك القديم وواحد للاشتراك الجديد بتاع التبويب ده بس.
   expect(unsubscribePush).toHaveBeenCalledTimes(2);
@@ -225,4 +235,64 @@ it('suspends the old record and drops the new subscription when the session chan
   expect(notifyPushRecordChanged).toHaveBeenCalled();
   // واحد لتبديل الاشتراك القديم وواحد للاشتراك الجديد اللي اتعمل في المتصفح.
   expect(unsubscribePush).toHaveBeenCalledTimes(2);
+});
+
+it('suspends the old record and reports the session change when the server refuses the PUT as another session', async () => {
+  fakes.record = { ...RECORD };
+  vi.mocked(pushCalls.register).mockRejectedValue(
+    Object.assign(new Error('PUSH_SESSION_MISMATCH'), { code: 'PUSH_SESSION_MISMATCH' }),
+  );
+  vi.mocked(pushCalls.config)
+    .mockResolvedValueOnce({ kind: 'ready', config: CONFIG })
+    .mockResolvedValueOnce({ kind: 'ready', config: CONFIG })
+    .mockResolvedValueOnce({ kind: 'ready', config: CONFIG })
+    .mockResolvedValue({ kind: 'ready', config: { ...CONFIG, subscriber_ref: 'person-s' } });
+
+  const outcome = await enablePush(input);
+
+  expect(outcome).toEqual({ kind: 'session-changed' });
+  expect(pushCalls.register).toHaveBeenCalledWith(
+    expect.objectContaining({ subscriber_ref: PERSON }),
+    expect.anything(),
+  );
+  expect(fakes.record?.suspended).toBe(true);
+  expect(unsubscribePush).toHaveBeenCalledTimes(2);
+});
+
+it('removes the orphaned record of the new session owner when the server refuses the PUT as another session', async () => {
+  // سجل شخص S على التليفون، والجلسة بقت لـ S وقت الـ PUT: اشتراكه اتبدّل وقت التفعيل فسجله يتيم.
+  fakes.record = { ...RECORD, subscriber_ref: 'person-s' };
+  vi.mocked(pushCalls.register).mockRejectedValue(
+    Object.assign(new Error('PUSH_SESSION_MISMATCH'), { code: 'PUSH_SESSION_MISMATCH' }),
+  );
+  vi.mocked(pushCalls.config)
+    .mockResolvedValueOnce({ kind: 'ready', config: CONFIG })
+    .mockResolvedValueOnce({ kind: 'ready', config: CONFIG })
+    .mockResolvedValueOnce({ kind: 'ready', config: CONFIG })
+    .mockResolvedValue({ kind: 'ready', config: { ...CONFIG, subscriber_ref: 'person-s' } });
+
+  const outcome = await enablePush(input);
+
+  expect(outcome).toEqual({ kind: 'session-changed' });
+  expect(fakes.record).toBeNull();
+  expect(notifyPushRecordChanged).toHaveBeenCalled();
+  expect(unsubscribePush).toHaveBeenCalledTimes(2);
+});
+
+it('keeps a record of another person suspended when the server refuses the PUT as another session', async () => {
+  fakes.record = { ...RECORD, subscriber_ref: 'person-b' };
+  vi.mocked(pushCalls.register).mockRejectedValue(
+    Object.assign(new Error('PUSH_SESSION_MISMATCH'), { code: 'PUSH_SESSION_MISMATCH' }),
+  );
+  vi.mocked(pushCalls.config)
+    .mockResolvedValueOnce({ kind: 'ready', config: CONFIG })
+    .mockResolvedValueOnce({ kind: 'ready', config: CONFIG })
+    .mockResolvedValueOnce({ kind: 'ready', config: CONFIG })
+    .mockResolvedValue({ kind: 'ready', config: { ...CONFIG, subscriber_ref: 'person-s' } });
+
+  const outcome = await enablePush(input);
+
+  expect(outcome).toEqual({ kind: 'session-changed' });
+  expect(fakes.record?.subscriber_ref).toBe('person-b');
+  expect(fakes.record?.suspended).toBe(true);
 });

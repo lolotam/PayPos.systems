@@ -41,6 +41,21 @@ export async function fetchSessionConfig(): Promise<PushConfig | null> {
 }
 
 /**
+ * هل الخطأ رفض السيرفر للتسجيل لأن الجلسة بقت لشخص تاني؟ بنقارن الكود مش الكلاس عشان
+ * الفحص يشتغل مع أي نسخة من خطأ الـ API.
+ *
+ * @param cause الخطأ اللي رماه طلب التسجيل
+ * @returns true لما السيرفر رد PUSH_SESSION_MISMATCH
+ */
+export function isSessionMismatch(cause: unknown): boolean {
+  return (
+    typeof cause === 'object' &&
+    cause !== null &&
+    (cause as { code?: unknown }).code === 'PUSH_SESSION_MISMATCH'
+  );
+}
+
+/**
  * بيستخرج هوية الجلسة من الإعدادات، لأن مرجع الشخص لوحده بيسمح بخلط شركتين لنفس الموظفة.
  *
  * @param config إعدادات الجلسة اللي رجعت من الـ API

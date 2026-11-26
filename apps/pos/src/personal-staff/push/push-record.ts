@@ -13,6 +13,17 @@ export interface PushRecord {
   revision: number;
 }
 
+/**
+ * المتصفح لغى الـ transaction قبل الـ commit (الحصة مثلاً): الكتابة معروف إنها ما اتحفظتش.
+ * ده غير فشل الفتح أو القراءة، اللي حالة المخزن فيه مجهولة (ADR-0052 §7).
+ */
+export class PushRecordAbortedError extends Error {
+  constructor(cause?: unknown) {
+    super('PUSH_STORE_ABORTED', cause === undefined ? undefined : { cause });
+    this.name = 'PushRecordAbortedError';
+  }
+}
+
 /** لقطة التعليق: السجل المعلق والجيل اللي اتشاف في نفس عملية التعليق. */
 export interface PushSuspension {
   record: PushRecord;

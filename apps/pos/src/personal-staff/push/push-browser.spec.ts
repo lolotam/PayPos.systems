@@ -1,6 +1,6 @@
 import { afterEach, expect, it, vi } from 'vitest';
 
-import { canEnablePush, subscribeWithDeadline, supportsPush } from './push-browser';
+import { canEnablePush, isIosDevice, subscribeWithDeadline, supportsPush } from './push-browser';
 
 afterEach(() => {
   vi.unstubAllGlobals();
@@ -168,4 +168,38 @@ it('returns null when the subscribe fails before the deadline', async () => {
   stubSubscribe(() => Promise.reject(new Error('SYNTHETIC_SUBSCRIBE_FAILURE')));
 
   expect(await subscribeWithDeadline(new Uint8Array([1]), 100)).toBeNull();
+});
+
+const IPAD_DESKTOP_AGENT =
+  'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Safari/605.1.15';
+
+it('detects an iPad in Safari desktop mode by platform and touch points', () => {
+  vi.stubGlobal('navigator', {
+    userAgent: IPAD_DESKTOP_AGENT,
+    platform: 'MacIntel',
+    maxTouchPoints: 5,
+  });
+  expect(isIosDevice()).toBe(true);
+});
+
+it('detects an iPad in desktop mode from the Macintosh user agent alone', () => {
+  vi.stubGlobal('navigator', { userAgent: IPAD_DESKTOP_AGENT, maxTouchPoints: 5 });
+  expect(isIosDevice()).toBe(true);
+});
+
+it('does not treat a touchless Mac desktop as iOS', () => {
+  vi.stubGlobal('navigator', {
+    userAgent: IPAD_DESKTOP_AGENT,
+    platform: 'MacIntel',
+    maxTouchPoints: 0,
+  });
+  expect(isIosDevice()).toBe(false);
+});
+
+it('detects an iPhone by its user agent', () => {
+  vi.stubGlobal('navigator', {
+    userAgent: 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X)',
+    maxTouchPoints: 5,
+  });
+  expect(isIosDevice()).toBe(true);
 });

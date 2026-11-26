@@ -260,12 +260,16 @@ mounted authenticated writes; the route coverage guard classes every `POST` as a
   `subscriber_ref` = SHA-256 hex of `pospay.push.subscriber.v1` and the caller's global user id: equal across companies,
   never another person's. `company_id` is the caller's current session company, distinguishing company A from company B
   for the same person.
-- `PUT /v1/staff/push/subscription` · body `pushSubscriptionInput` `{ installation_id, vapid_key_id, delivery_token, subscription:
+- `PUT /v1/staff/push/subscription` · body `pushSubscriptionInput` `{ installation_id, subscriber_ref, vapid_key_id, delivery_token, subscription:
   { endpoint, keys: { p256dh, auth } }, locale }` · naturally idempotent, no `Idempotency-Key` · response `204`.
+  `subscriber_ref` is required. Rollout note: an already-installed older POS bundle whose service worker has not yet
+  updated sends the `PUT` without it and gets `400 VALIDATION_FAILED` until the PWA update loads; operators must not
+  rotate VAPID keys during the client rollout window, because that client's rotation catch path (`push-refresh.ts`)
+  would unsubscribe and clear its local record.
 - `POST /v1/staff/push/subscription/revoke` · body `{ installation_id }` · response `204`, identical for own, foreign and
   absent ids; available even when push is not configured, so an employee can always remove her subscription. The raw installation id travels only in bodies, never in a URL (FR-016).
 - Zod schemas in `packages/contracts/src/push-subscription.ts`; registered in `notifications-openapi.ts`, OpenAPI regenerated (`pnpm contracts:openapi`).
-- Errors: `VALIDATION_FAILED` (bad endpoint, bad key length, bad locale), `NOT_READY`, `PUSH_KEY_STALE` (409), `PUSH_REGISTRATION_BUSY` (409), `RATE_LIMITED` (20 `PUT` per user
+- Errors: `VALIDATION_FAILED` (bad endpoint, bad key length, bad locale), `NOT_READY`, `PUSH_KEY_STALE` (409), `PUSH_SESSION_MISMATCH` (409, `subscriber_ref` in the body is not the session's), `PUSH_REGISTRATION_BUSY` (409), `RATE_LIMITED` (20 `PUT` per user
   per hour), `UNAUTHENTICATED`/`FORBIDDEN` for a non-personal principal. `message_ar` / `message_en` as the other staff routes.
 
 ### Permissions

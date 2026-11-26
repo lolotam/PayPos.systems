@@ -14,10 +14,25 @@ import { pushCalls, withAbortTimeout } from './push-calls';
 import { hasCrossTabLock, runPushExclusive } from './push-lock';
 import { notifyPushRecordChanged } from './push-record-events';
 import { pushRecordStore } from './push-record-idb';
-import type { PushRecord } from './push-record';
-import { dropSubscription, removeRecord, resumeRecord, revoke } from './push-refresh-record';
-import { checkBeforeMutation, suspendChangedSession } from './push-refresh-session';
-import { checkSession, fetchSessionConfig, identityOf } from './push-session-binding';
+import { PushRecordAbortedError, type PushRecord } from './push-record';
+import {
+  dropSubscription,
+  removeRecord,
+  resumeRecord,
+  revoke,
+  teardownUnrecordedRegistration,
+} from './push-refresh-record';
+import {
+  checkBeforeMutation,
+  suspendAfterServerMismatch,
+  suspendChangedSession,
+} from './push-refresh-session';
+import {
+  checkSession,
+  fetchSessionConfig,
+  identityOf,
+  isSessionMismatch,
+} from './push-session-binding';
 
 const API_TIMEOUT_MS = 10_000;
 const SUBSCRIBE_TIMEOUT_MS = 15_000;
@@ -152,20 +167,27 @@ async function refreshPlain(
   const session = await checkSession(identityOf(input.config));
   if (session.kind === 'mismatch') return suspendChangedSession(session.current.subscriber_ref);
   if (session.kind !== 'match') return { kind: 'none' };
-  await withAbortTimeout(
-    (signal) =>
-      pushCalls.register(
-        {
-          installation_id: installationId,
-          vapid_key_id: input.config.vapid_key_id,
-          delivery_token: record.token,
-          subscription: pushSubscriptionBody(subscription),
-          locale: input.locale,
-        },
-        signal,
-      ),
-    API_TIMEOUT_MS,
-  );
+  try {
+    await withAbortTimeout(
+      (signal) =>
+        pushCalls.register(
+          {
+            installation_id: installationId,
+            subscriber_ref: input.config.subscriber_ref,
+            vapid_key_id: input.config.vapid_key_id,
+            delivery_token: record.token,
+            subscription: pushSubscriptionBody(subscription),
+            locale: input.locale,
+          },
+          signal,
+        ),
+      API_TIMEOUT_MS,
+    );
+  } catch (cause) {
+    // الجلسة اتبدّلت بين التأكيد والـ PUT: السيرفر رفض قبل أي كتابة، فالسجل القديم بيتعلّق.
+    if (isSessionMismatch(cause)) return suspendAfterServerMismatch();
+    throw cause;
+  }
   return { kind: 'refreshed' };
 }
 
@@ -210,14 +232,25 @@ async function rotate(
   }
   try {
     await registerRotated(input, subscription, installationId, token);
-  } catch {
+  } catch (cause) {
     await dropSubscription();
+    // الجلسة اتبدّلت بين التأكيد والـ PUT: السجل بيتعلّق مش بيتمسح، لأن صاحبه ممكن يرجع.
+    if (isSessionMismatch(cause)) return suspendAfterServerMismatch();
     await removeRecord();
     return { kind: 'cleared' };
   }
   const outcome = await writeRotatedRecord(record, input, token, generation);
   if (outcome === 'failed') {
     // حالة المخزن مجهولة: السجل بيفضل بمفتاحه القديم، والتحديث الجاي يدور تاني.
+    return { kind: 'none' };
+  }
+  if (outcome === 'aborted') {
+    // المتصفح أكد إن الكتابة ما اتحفظتش: السجل لسه بمفتاحه القديم وتسجيلنا الجديد مالوش
+    // سجل، فبيتشال لو السجل لسه زي ما كان، والتحديث الجاي يدور تاني (ADR-0052 §7).
+    await teardownUnrecordedRegistration(installationId, {
+      token: record.token,
+      revision: record.revision,
+    });
     return { kind: 'none' };
   }
   if (outcome === 'stale') {
@@ -242,6 +275,7 @@ async function registerRotated(
       pushCalls.register(
         {
           installation_id: installationId,
+          subscriber_ref: input.config.subscriber_ref,
           vapid_key_id: input.config.vapid_key_id,
           delivery_token: token,
           subscription: pushSubscriptionBody(subscription),
@@ -253,8 +287,8 @@ async function registerRotated(
   );
 }
 
-/** نتيجة كتابة سجل التدوير: اتكتب، أو اتغير الجيل، أو فشل. */
-type RotationWrite = 'written' | 'stale' | 'failed';
+/** نتيجة كتابة سجل التدوير: اتكتب، أو اتغير الجيل، أو المتصفح لغاها وهو متأكد، أو فشل. */
+type RotationWrite = 'written' | 'stale' | 'aborted' | 'failed';
 
 /** كتابة السجل الجديد بعد التدوير؛ النتيجة بتقول السجل اتكتب، ولا الجيل اتغير، ولا الكتابة فشلت. */
 async function writeRotatedRecord(
@@ -277,8 +311,8 @@ async function writeRotatedRecord(
       { expectRevision: record.revision, expectToken: record.token },
     );
     return written ? 'written' : 'stale';
-  } catch {
-    return 'failed';
+  } catch (cause) {
+    return cause instanceof PushRecordAbortedError ? 'aborted' : 'failed';
   }
 }
 

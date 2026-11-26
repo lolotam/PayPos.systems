@@ -92,9 +92,15 @@ export const pushEndpoint = z
   .refine(isAllowedPushEndpoint, { message: 'push endpoint is not an allowed push service' })
   .meta({ id: 'PushEndpoint' });
 
+// مرجع المشترك: 64 حرف hex غير قابل للعكس، بيطلع من GET config ويُرجع مع كل تسجيل (ADR-0052 §7).
+const pushSubscriberRef = z.string().regex(/^[0-9a-f]{64}$/);
+
 export const pushSubscriptionInput = z
   .strictObject({
     installation_id: attendanceInstallationSignal.shape.installation_id,
+    // مرجع المشترك اللي التطبيق أكّد إنه صاحب الجلسة: السيرفر بيرفض التسجيل لو الجلسة بقت
+    // لشخص تاني، فجلسة اتبدّلت بين التأكيد والـ PUT ما تسجّلش الاشتراك على الشخص الغلط.
+    subscriber_ref: pushSubscriberRef,
     vapid_key_id: z.string().regex(/^[0-9a-f]{16}$/),
     delivery_token: z.uuid({ version: 'v4' }).toLowerCase(),
     subscription: z.strictObject({
@@ -118,7 +124,7 @@ export const pushConfig = z
   .strictObject({
     vapid_public_key: z.string().min(1).max(256),
     vapid_key_id: z.string().regex(/^[0-9a-f]{16}$/),
-    subscriber_ref: z.string().regex(/^[0-9a-f]{64}$/),
+    subscriber_ref: pushSubscriberRef,
     company_id: z.string().uuid(),
   })
   .meta({ id: 'PushConfig' });

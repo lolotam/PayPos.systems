@@ -10527,6 +10527,7 @@ export interface components {
         PushSubscriptionInput: {
             /** Format: uuid */
             installation_id: string;
+            subscriber_ref: string;
             vapid_key_id: string;
             /** Format: uuid */
             delivery_token: string;
@@ -25289,7 +25290,7 @@ export interface operations {
             };
         };
         responses: {
-            /** @description Registers or refreshes the caller subscription, answered no-store. VALIDATION_FAILED 400 for a refused endpoint or key; PUSH_KEY_STALE 409 when the key id is not the current one; PUSH_REGISTRATION_BUSY 409 when another registration for the same device is in progress; RATE_LIMITED 429 after twenty registrations an hour per user; NOT_READY 503 when push is not configured. */
+            /** @description Registers or refreshes the caller subscription, answered no-store. VALIDATION_FAILED 400 for a refused endpoint or key; PUSH_KEY_STALE 409 when the key id is not the current one; PUSH_SESSION_MISMATCH 409 when the subscriber_ref sent is not the signed-in caller, checked before any limit or write; PUSH_REGISTRATION_BUSY 409 when another registration for the same device is in progress; RATE_LIMITED 429 after twenty registrations an hour per user; NOT_READY 503 when push is not configured. */
             204: {
                 headers: {
                     [name: string]: unknown;
