@@ -138,3 +138,5 @@ range), merged by `employee_id`; no API change; gap: an employee whose only cove
 (ب) reuse `/attendance-employees`: a pure reader cannot pick anyone, rejected; (ج) a new read
 `attendance-statement-employees?from&to` with the statement guard and the FR-003 candidate set, as a new API sub-PR
 before 27g-5 (scope change).
+
+**Status note:** issue #703 later closed the scheduled-only gap with option (ج), `GET .../attendance-statement-employees?from&to` (spec FR-001b); the PP-74.2 decision above stays as the record of what was decided on 2026-10-28.

@@ -52,6 +52,8 @@ export interface StatementShiftOptions {
   end: string;
   endsOn?: string;
   branchId?: string;
+  companyId?: string;
+  businessId?: string;
 }
 
 /** وردية مجدولة لموظفة؛ الموظفة الواحدة ليها جدول واحد في الأسبوع. */
@@ -62,13 +64,15 @@ export async function seedStatementShift(
 ) {
   const schedule = salaryIds.newId();
   const weekStart = statementWeekStart(options.workingDate);
+  const companyId = options.companyId ?? f.company;
+  const businessId = options.businessId ?? f.business;
   await f.h
     .owner`INSERT INTO staff_schedules(company_id,id,business_id,branch_id,employee_id,week_start,timezone,revision)
-    VALUES(${f.company},${schedule},${f.business},${options.branchId ?? f.branch},${employeeId},${weekStart},'Asia/Kuwait',1)`;
+    VALUES(${companyId},${schedule},${businessId},${options.branchId ?? f.branch},${employeeId},${weekStart},'Asia/Kuwait',1)`;
   await f.h
     .owner`INSERT INTO staff_schedule_shifts(company_id,id,schedule_id,employee_id,working_date,day,start,"end",
     starts_at,ends_at,break_start,break_end,break_starts_at,break_ends_at)
-    VALUES(${f.company},${salaryIds.newId()},${schedule},${employeeId},${options.workingDate},
+    VALUES(${companyId},${salaryIds.newId()},${schedule},${employeeId},${options.workingDate},
       ${statementWeekday(options.workingDate)},${options.start},${options.end},
       ${at(options.workingDate, options.start)},${at(options.endsOn ?? options.workingDate, options.end)},
       null,null,null,null)`;

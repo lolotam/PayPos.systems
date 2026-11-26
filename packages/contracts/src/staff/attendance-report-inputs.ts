@@ -6,6 +6,7 @@ import { scheduleShift } from './schedules.js';
 export const attendanceReportBranchInputs = z.object({
   timezone: z.string(),
   sessions: z.array(z.object({
+    session_id: id.optional(),
     working_date: z.string(), clock_in: z.string(), clock_out: z.string().nullable(),
     status: z.enum(['OPEN', 'CLOSED', 'MISSED_OUT']), source: z.enum(['QR', 'BARCODE', 'MANUAL']),
     late_minutes: z.number().int(), scheduled_end: z.string().nullable(),

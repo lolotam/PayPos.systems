@@ -37,6 +37,7 @@ const PUBLIC_EXPORTS = [
   'assignEmployeeNumber',
   'attendanceMonthlyInputsStatement',
   'attendanceReportContractsStatement',
+  'attendanceStatementEmployeeCoverageStatement',
   'attendanceStatementScheduledEmployeesStatement',
   'branchToday',
   'businessIdentityReadStatement',

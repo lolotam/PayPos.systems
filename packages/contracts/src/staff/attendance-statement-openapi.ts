@@ -5,6 +5,7 @@ import {
   attendanceStatementRequest,
   attendanceStatementStatus,
 } from './attendance-statement.js';
+import { attendanceStatementEmployeeOptions } from './attendance-statement-employees.js';
 import { attendanceStatementShiftOptions } from './attendance-statement-shifts.js';
 
 const uuid = { type: 'string', format: 'uuid' };
@@ -91,6 +92,30 @@ export const attendanceStatementPaths = {
         '200': {
           description: 'Distinct branch-local shift pairs',
           content: json(attendanceStatementShiftOptions),
+        },
+        default: errors,
+      },
+    },
+  },
+  [`${base}/attendance-statement-employees`]: {
+    get: {
+      operationId: 'attendanceStatementEmployees',
+      description:
+        description +
+        'Lists the employees with coverage in the period, sorted by employee number. Returns 404 for a branch outside the business and 422 for a period that is inverted, longer than 366 days, or past the current month in the branch time zone.',
+      parameters: [
+        ...parameters,
+        ...['from', 'to'].map((name) => ({
+          in: 'query',
+          name,
+          required: true,
+          schema: { type: 'string', format: 'date' },
+        })),
+      ],
+      responses: {
+        '200': {
+          description: 'Employees with attendance coverage in the period',
+          content: json(attendanceStatementEmployeeOptions),
         },
         default: errors,
       },

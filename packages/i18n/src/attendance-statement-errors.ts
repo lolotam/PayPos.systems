@@ -13,15 +13,15 @@ export const attendanceStatementErrorsEn = {
 };
 
 export const attendanceStatementErrorsAr = {
-  ATTENDANCE_STATEMENT_PERIOD_INVALID: 'اختاري فترة صحيحة لحد 366 يوم وتنتهي جوّه الشهر الحالي.',
+  ATTENDANCE_STATEMENT_PERIOD_INVALID: 'اختر فترة صحيحة لحد 366 يوم وتنتهي جوّه الشهر الحالي.',
   ATTENDANCE_STATEMENT_EMPLOYEE_NOT_FOUND:
     'الموظفة مش موجودة أو مفيش ليها بيانات حضور في الفترة دي.',
   ATTENDANCE_STATEMENT_BRANCH_NOT_FOUND: 'الفرع ده مش موجود.',
-  ATTENDANCE_STATEMENT_RATE_LIMITED: 'طلبات كشوف كتير، جرّبي بعد شوية.',
+  ATTENDANCE_STATEMENT_RATE_LIMITED: 'طلبات كشوف كتير، جرّب بعد شوية.',
   ATTENDANCE_STATEMENT_SHIFT_FILTER_INVALID: 'فلتر الشيفت متاح لكشف الفرع بس.',
-  RENDERER_UNAVAILABLE: 'تجهيز المستندات مش متاح دلوقتي، جرّبي بعد شوية.',
+  RENDERER_UNAVAILABLE: 'تجهيز المستندات مش متاح دلوقتي، جرّب بعد شوية.',
   DOCUMENT_NOT_READY: 'المستند لسه مش جاهز.',
-  DOCUMENT_EXPIRED: 'المستند ده مش متاح دلوقتي، اطلبي واحد جديد.',
+  DOCUMENT_EXPIRED: 'المستند ده مش متاح دلوقتي، اطلب واحد جديد.',
 };
 
 export const attendanceStatementRenderErrors: Record<

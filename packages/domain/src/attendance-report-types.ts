@@ -2,6 +2,8 @@ import type { WeekdayDefaultShift } from './default-shifts.js';
 
 /** مدخلات الجلسة المثبتة؛ لا تُستنتج ساعات من إغلاق العامل الآلي وفق AB-Q6. */
 export interface ReportSession {
+  /** معرّف الجلسة في قاعدة البيانات؛ يفرّق بين جلستين بنفس يوم العمل ولحظة الدخول (issue #687). */
+  session_id?: string | undefined;
   working_date: string;
   clock_in: string;
   clock_out: string | null;
@@ -58,6 +60,8 @@ export interface AttendanceShiftPair {
 }
 /** جلسة لسه مفتوحة: يوم العمل ودخول البصمة بس؛ ما بتتحسبش في أي إجمالي. */
 export interface AttendanceOpenSession {
+  /** معرّف الجلسة في قاعدة البيانات؛ يربط القراءة المفتوحة بصفوف 27b لنفس الجلسة (issue #687). */
+  session_id?: string | undefined;
   working_date: string;
   clock_in: string;
 }

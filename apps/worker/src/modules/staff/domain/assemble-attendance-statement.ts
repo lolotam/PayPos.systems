@@ -9,6 +9,7 @@ import {
   type AttendancePeriod,
   type AttendanceShiftPair,
   type ReportBranchInputs,
+  type ReportSession,
   type StatementLanguage,
 } from '@pospay/domain';
 import type {
@@ -145,11 +146,9 @@ function employeeStatement(
 /**
  * الجلسات المفتوحة اللي اتقفلت بين القراءتين: الجملة الأولى شافتها مفتوحة والتانية شافتها
  * مقفولة، فالمفتوحة دي بتتشال عشان اليوم ما يطبعش «لسه جوّه» والجلسة المقفولة بتتحسب
- * كأنها مقفولة (FR-011a). المقارنة بيوم العمل ولحظة الدخول (مش بنص النص) لأن صفوف 27b مالهاش
- * معرّف جلسة، والموظفة ليها جلسة مفتوحة واحدة على الأكثر (الفهرس الجزئي
- * attendance_sessions_one_open). جلسة مقفولة بنفس لحظة الدخول بالظبط ما نقدرش نفرّقها عن
- * المفتوحة، وده مقبول لأن اليوم ده بيطبع ساعات الجلسة المقفولة على أي حال؛ ومتتبع في issue #687
- * لحمل معرّف الجلسة في جملة المدخلات المشتركة.
+ * كأنها مقفولة (FR-011a). المطابقة بمعرّف الجلسة: نفس الجلسة اللي اتقفلت، مش أي جلسة
+ * في نفس اليوم بنفس لحظة الدخول — جلسة تانية بنفس اللحظة تفضل مفتوحة وتطبع «لسه جوّه»
+ * (issue #687). من غير معرّف في المدخلات الاصطناعية بنرجع للمقارنة بيوم العمل ولحظة الدخول.
  *
  * @param branch مدخلات الموظفة في الفرع
  * @param openSessions الجلسات المفتوحة كما قراها القارئ
@@ -160,12 +159,25 @@ function stillOpen(
   openSessions: readonly AttendanceOpenSession[],
 ): AttendanceOpenSession[] {
   return openSessions.filter(
-    (open) =>
-      !branch.sessions.some(
-        (session) =>
-          session.working_date === open.working_date &&
-          Date.parse(session.clock_in) === Date.parse(open.clock_in),
-      ),
+    (open) => !branch.sessions.some((session) => sameSession(session, open)),
+  );
+}
+
+/**
+ * هل الجلسة في صفوف 27b هي نفس الجلسة المفتوحة؟ المعرّف هو الحكم؛ وفي مدخلات اصطناعية
+ * من غير معرّف بنرجع ليوم العمل ولحظة الدخول زي ما كان.
+ *
+ * @param session الجلسة المقروءة من صفوف 27b
+ * @param open الجلسة المفتوحة المقروءة من جملة الجلسات المفتوحة
+ * @returns true لما الجلستين نفس الجلسة
+ */
+function sameSession(session: ReportSession, open: AttendanceOpenSession): boolean {
+  if (session.session_id !== undefined && open.session_id !== undefined) {
+    return session.session_id === open.session_id;
+  }
+  return (
+    session.working_date === open.working_date &&
+    Date.parse(session.clock_in) === Date.parse(open.clock_in)
   );
 }
 
