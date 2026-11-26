@@ -19,17 +19,17 @@
 - [x] Success criteria are technology-agnostic (in Success Criteria section)
 - [x] All acceptance scenarios are defined
 - [x] Edge cases are identified
-- [x] Scope is clearly bounded across `PR-a`, `PR-b`, and `PR-c` (≤1,500 prod lines/PR, ≤1 migration/PR)
+- [x] Scope is clearly bounded across `PR-a`, `PR-b`, `PR-c1`, and `PR-c2` (≤1,500 prod lines/PR, ≤1 migration/PR; `PR-Q9` separated into `spec 080` after `PR-a` merges)
 - [x] Dependencies and assumptions identified (`ADR-0003`, `ADR-0014`, `ADR-0019`, `ADR-0046`, `ADR-0059`, `ADR-0063`, `PP-277`)
-- [x] **Slice design** complete: schema changes, API contract, permissions, events, and test plan filled (`TQ-1`, `TQ-2`, `TQ-3` settled)
+- [x] **Slice design** complete: schema changes, API contract, permissions, events, and test plan filled (`TQ-1`, `TQ-2`, `TQ-3`, `PR-Q6..PR-Q9` settled)
 
 ## Feature Readiness
 
 - [x] All functional requirements have clear acceptance criteria
-- [x] User scenarios cover primary flows (`PR-a`, `PR-b`, `PR-c`)
-- [x] Owner decisions recorded verbatim in [`owner-questions.ar.md`](./owner-questions.ar.md) (including batch items flagged for Abu Salem: `PR-Q2`, `PR-Q5`, `TQ-1`)
-- [x] `PP-277` (`6487c6ec0`) review gate (`/waleed_general_reviewer` + PosPay Addendum, `effort: high` + auto security lens on auth/OTP PRs, no `/waleed-ui-restructure`) documented for every PR in [`plan.md`](./plan.md)
+- [x] User scenarios cover primary flows (`PR-a`, `PR-b`, `PR-c1`, `PR-c2`)
+- [x] Owner decisions recorded verbatim in [`owner-questions.ar.md`](./owner-questions.ar.md) (including batch items flagged for Abu Salem: `PR-Q2`, `PR-Q5`, `TQ-1`, `PR-Q6..PR-Q9`)
+- [x] `PP-277` (`6487c6ec0`) review gate (`/waleed_general_reviewer` + PosPay Addendum, `effort: high` + auto security lens on auth/OTP/PIN-email PRs, no `/waleed-ui-restructure`) documented for every PR in [`plan.md`](./plan.md)
 
 ## Notes
 
-- Approved by Project Manager on 2026-11-26 09:21 Kuwait; docs pushed to `main` before dispatching `PR-a` (`079-a`).
+- Approved by Project Manager on 2026-11-26 09:21 & 14:00 Kuwait; docs updated with `PR-Q6..PR-Q9` & `PR-c1`/`PR-c2` split and pushed directly to `main`.

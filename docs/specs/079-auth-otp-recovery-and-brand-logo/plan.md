@@ -3,13 +3,19 @@
 **Date**: 2026-11-26  
 **Spec**: [`spec.md`](./spec.md) · **Owner Decisions**: [`owner-questions.ar.md`](./owner-questions.ar.md)  
 **Baseline**: `origin/main@6487c6ec0` (includes `PP-277` review gate and `075-C1b+C2` email activation `#1321`)  
-**Status**: Approved by Project Manager (2026-11-26 09:21 Kuwait) — `PR-a` active (`PR-b` and `PR-c` start sequentially after `PR-a` merges).
+**Status**: Approved by Project Manager (2026-11-26 09:21 & 14:00 Kuwait) — `PR-a` active (`PR-b`, `PR-c1`, `PR-c2` follow sequentially after `PR-a` merges). `PR-Q9` moves to dedicated **`spec 080`** after `PR-a` merges.
 
 ---
 
 ## Summary
 
-Deliver three small, well-bounded pull requests (`≤1,500` production lines each, at most `1` database migration per PR) building the unified email HTML/text layout with Lovable's Sadu `P` mark, displaying the active business's uploaded logo dynamically in the Admin dashboard header (with PosPay fallback), enabling self-service 6-digit Email OTP password recovery for back-office credential accounts (owners/managers, excluding staff accounts), and adding self-service Email/WhatsApp OTP PIN recovery for employees on paired branch POS devices by reusing the `ADR-0019` / `ADR-0003 §2.1` auth OTP ledger.
+Deliver four small, well-bounded pull requests (`≤1,500` production lines each under `PP-273`, at most `1` database migration per PR) building:
+1. **`PR-a`**: unified email HTML/text layout with Lovable's Sadu `P` mark + dynamic active-business logo in the Admin dashboard header (`TQ-1`),
+2. **`PR-b`**: self-service 6-digit Email OTP password recovery for back-office credential accounts (owners/managers, excluding staff accounts) + Resend webhook reconciliation,
+3. **`PR-c1`**: single optional `recovery_email` column on `employees` (and `"user".recovery_email`, synced without touching synthetic `user.email`) + employee create/edit/grant-access field + self-service Email/WhatsApp OTP PIN recovery on paired branch POS devices, and
+4. **`PR-c2`**: `076-F1` first-login welcome emails carrying the 24h forced-change temporary PIN (`PR-Q7`, `PR-Q8`) via encrypted/tokenized dispatch + `076-G1` member invitation setup-link emails to both invitee and inviting owner.
+
+*(Multi-branch/multi-business/extra-roles/permission-exception user creation from **`PR-Q9`** is scoped to **`spec 080`**, to be authored after `PR-a` merges.)*
 
 ---
 
@@ -27,7 +33,7 @@ Deliver three small, well-bounded pull requests (`≤1,500` production lines eac
 
 Per Waleed's decision **`PP-277`** (`docs/owner-decisions.ar.md`, 2026-11-26 ~09:10 Kuwait, `CLAUDE.md` PP-273/PP-274):
 
-1. **Implementer Local Guards (`PP-198`) — every PR (`PR-a`, `PR-b`, `PR-c`):**
+1. **Implementer Local Guards (`PP-198`) — every PR (`PR-a`, `PR-b`, `PR-c1`, `PR-c2`):**
    - Run `clean-code-guard` and `test-guard` after tests pass.
    - `/waleed-ui-restructure` is **removed** from the review gate across all PRs (`PP-277` item 2 — UI is reviewed through the PosPay Addendum instead).
 2. **Independent Reviewer (`claudeAgent / claude-opus-5-5`) — every PR:**
@@ -43,7 +49,8 @@ Per Waleed's decision **`PP-277`** (`docs/owner-decisions.ar.md`, 2026-11-26 ~09
 3. **Per-PR Reviewer Effort & Lenses:**
    - **`PR-a` (Logo & Email Layout):** `claude-opus-5-5`, **`effort: "medium"`** + `/waleed_general_reviewer` + PosPay Addendum (including the **الواجهة** UI lens; no `/waleed-ui-restructure`).
    - **`PR-b` (Forgot Password Email OTP + migration):** `claude-opus-5-5`, **`effort: "high"`** (auth/OTP + migration) + `/waleed_general_reviewer` + PosPay Addendum — the **Security lens runs Focused automatically** (no separate `waleed-security-reviewer` call needed per `PP-277` item 1) + DB/RLS & `الواجهة` lenses.
-   - **`PR-c` (Employee Forgot PIN Email/WhatsApp OTP):** `claude-opus-5-5`, **`effort: "high"`** (auth/OTP) + `/waleed_general_reviewer` + PosPay Addendum — **Focused Security lens automatic** + `الواجهة` lens.
+   - **`PR-c1` (Employee Optional `recovery_email` + Forgot PIN Email/WhatsApp OTP):** `claude-opus-5-5`, **`effort: "high"`** (auth/OTP + migration) + `/waleed_general_reviewer` + PosPay Addendum — **Focused Security lens automatic** + DB/RLS & `الواجهة` lenses.
+   - **`PR-c2` (F1 Temporary PIN Welcome Email + G1 Invitation Email):** `claude-opus-5-5`, **`effort: "high"`** (encrypted/token temporary PIN envelope + email delivery) + `/waleed_general_reviewer` + PosPay Addendum — **Focused Security lens automatic**.
 4. **Severity & CI Gate:** Blocker (`P0`/`P1`) blocks merge; `Should fix` (`P2`) resolved in consolidated batch; exact-head `ci-gate` 31/31 green; CodeRabbit optional/advisory (`PP-208`).
 
 ---
@@ -54,7 +61,8 @@ Per Waleed's decision **`PP-277`** (`docs/owner-decisions.ar.md`, 2026-11-26 ~09
 |---|---|---|---|---|---|---|---|---|
 | **PR-a** | 1 | Unified Email HTML/Text Layout (`renderEmailLayout` + update `document_expiring`), Lovable `logo-mark-simple-tile.png` asset in `apps/admin/public/brand/` & `apps/pos/public/brand/`, updated `BrandMark` on auth screens + POS, dynamic `DashboardBrandLogo` across Admin Styles A/B/C (with PosPay fallback) | **0** | ~340 | ~280 | ~620 | 680 prod (`≤1,500`) | `clean-code-guard` + `test-guard`; Opus `effort: "medium"` `/waleed_general_reviewer` + PosPay Addendum (no `/waleed-ui-restructure`) |
 | **PR-b** | 2 | Forgot Password via 6-Digit Email OTP (Owners/Managers): expand `auth_otp_challenges` & `auth_notification_attempts` (`ADR-0003`/`ADR-0019` addendum) + `platform_email_is_suppressed` grant; `POST /v1/auth/password-reset/otp/request` & `/reset`; Redis rate limits (`5/20`, cooldown `60s`, `25/100`); `password_reset_otp` template + worker send via `ResendChannel` + auth-tag support in `resend-retrieval.ts` & `ReconcileEmailFeedback`; `platform_audit_log`; Admin 3-step Forgot Password UI | **1** | ~680 | ~540 | ~1,220 | 1,360 prod (`≤1,500`) | `clean-code-guard` + `test-guard`; Opus **`effort: "high"`** `/waleed_general_reviewer` + PosPay Addendum (automatic Focused Security lens) |
-| **PR-c** | 3 | Employee Self-Service Forgot PIN via Email or WhatsApp OTP: `1` expand migration adding optional `recovery_email` (`TQ-2`, negative RLS test + contract email format check; synthetic `user.email` stays isolated, PII never logged/masked in reports); `POST /v1/devices/me/staff-pin/otp/request` & `/reset` reusing `ADR-0019` challenge/ledger + Redis rate caps; independent Email vs WhatsApp readiness gating; `staff_pin_reset_otp` Email & WhatsApp templates; permanent PIN rotation (`temporary = false`, `076 AC-ACT-9`) + owner in-app bell notice without PIN (`TQ-3` / `076 AC-F2-3`) + audit; POS channel-selector UI | **1** (`recovery_email`) | ~640 | ~510 | ~1,150 | 1,280 prod (`≤1,500`) | `clean-code-guard` + `test-guard`; Opus **`effort: "high"`** `/waleed_general_reviewer` + PosPay Addendum (automatic Focused Security lens) |
+| **PR-c1** | 3 | Single optional `recovery_email` column on `employees` (+ synced `"user".recovery_email`, negative RLS test + contract email format check; synthetic `user.email` stays isolated, PII never logged/masked in reports) + Admin employee create/edit/grant-access screen field (`PR-Q6`) + Employee Self-Service Forgot PIN via Email or WhatsApp OTP (`POST /v1/devices/me/staff-pin/otp/request` & `/reset`, `staff_pin_reset_otp`, permanent PIN `temporary = false`, owner bell notice without PIN `TQ-3` + audit, POS channel-selector UI) | **1** (`recovery_email`) | ~660 | ~520 | ~1,180 | 1,320 prod (`≤1,500`) | `clean-code-guard` + `test-guard`; Opus **`effort: "high"`** `/waleed_general_reviewer` + PosPay Addendum (automatic Focused Security lens) |
+| **PR-c2** | 4 (after `PR-b` & `PR-c1`) | `076-F1` Staff Welcome Email carrying the 24h forced-change temporary PIN to both employee (`recovery_email` if set) and creator manager (`PR-Q7`, `PR-Q8`) using an encrypted/tokenized outbox envelope (zero plaintext PIN in outbox/notifications/logs) + `076-G1` Member Invitation Email sending the setup link to both invitee and inviting owner via unified `PR-b` layout | **0** | ~520 | ~420 | ~940 | 1,040 prod (`≤1,500`) | `clean-code-guard` + `test-guard`; Opus **`effort: "high"`** `/waleed_general_reviewer` + PosPay Addendum (automatic Focused Security lens) |
 
 ---
 
@@ -121,24 +129,44 @@ Per Waleed's decision **`PP-277`** (`docs/owner-decisions.ar.md`, 2026-11-26 ~09
 
 ---
 
-### PR-c — Employee Self-Service "Forgot PIN" via Email or WhatsApp OTP (`1` migration, ~640 prod lines)
+### PR-c1 — Single Optional Employee `recovery_email` & Self-Service "Forgot PIN" via Email or WhatsApp OTP (`1` migration, ~660 prod lines)
 
-1. **Optional `recovery_email` Field (`TQ-2` Option A — approved 2026-11-26, 1 expand migration):**
-   - Add nullable `recovery_email` on `"user"` (`pospay_auth`, isolated under `076 D8` — can never log into Better Auth admin or receive password resets) and optional `recovery_email` on tenant `employees` (email format CHECK + contract validation in `@pospay/contracts` + negative RLS isolation test covering the new column on `employees` + zero logging, masked in reports).
-   - Sync optional `recovery_email` from employee create/edit/grant-access via `identity` -> `packages/auth` so `packages/auth` looks up staff Email OTP targets via `recovery_email` (falling back to non-synthetic `user.email` where applicable).
+1. **Single Optional `recovery_email` Field (`TQ-2` + `PR-Q6` — 1 expand migration):**
+   - Add nullable `recovery_email` directly on tenant `employees` (single employee email column used for communication, welcome email & recovery — no second column) and synced nullable `recovery_email` on `"user"` (`pospay_auth`, isolated under `076 D8` — can never log into Better Auth admin or receive password resets). Include email format CHECK + contract validation in `@pospay/contracts` + negative RLS isolation test covering `employees.recovery_email` + zero logging, masked in reports.
+   - Expose optional recommended `recovery_email` on Admin employee create/edit/grant-access screens (`PR-Q6`), syncing to `"user".recovery_email` via `identity` -> `packages/auth` when staff access is linked.
 2. **Backend Endpoints & Reuse of `ADR-0019` Infrastructure (`packages/contracts`, `packages/auth`, `apps/api`):**
    - `POST /v1/devices/me/staff-pin/otp/request` and `POST /v1/devices/me/staff-pin/otp/reset` in `StaffPinController` / `StaffOtpController` (paired branch device auth, `STAFF_POS_ORIGIN`, behind `STAFF_ACCESS_ROUTES` gate).
    - Channel selection: `{ channel: 'EMAIL' | 'WHATSAPP', identifier, locale }`:
      - **`WHATSAPP`**: checks existing WhatsApp OTP capability readiness (`STAFF_OTP_ENABLED=true`, `NOTIFICATIONS_MODE=live`, approved `staff_pin_reset_otp` WhatsApp template); returns `503 OTP_UNAVAILABLE` while WhatsApp is unconfigured/disabled on staging.
      - **`EMAIL`**: checks `EMAIL` capability readiness independently — works immediately even while `TENANT_WHATSAPP = LIVE_NOT_AUTHORIZED` and `STAFF_LOGIN = DISABLED`!
-   - Eligibility under device tenant (`withTenant(device.companyId)`): employee has `ACTIVE` `employee_staff_access`, active branch-covering membership with `login:staff:branch`, and matching bound phone (for `WHATSAPP`) or bound recovery email (for `EMAIL`). Same `202` anti-enumeration response & 200ms window regardless of outcome.
+   - Eligibility under device tenant (`withTenant(device.companyId)`): employee has `ACTIVE` `employee_staff_access`, active branch-covering membership with `login:staff:branch`, and matching bound phone (for `WHATSAPP`) or bound `recovery_email` (for `EMAIL`). Same `202` anti-enumeration response & 200ms window regardless of outcome.
    - Uses `auth_otp_challenges` (`purpose: 'STAFF_PIN_RESET'`, `expires_at = created_at + 600s`) and `auth_notification_attempts` (`template_key: 'staff_pin_reset_otp'`), plus `redisOtpRates` (`5/20` + `60s` cooldown on request, `25/100` on reset).
    - Atomic PIN reset on verified OTP: verifies `isWellFormedCashierPin(pin)`, hashes PIN via `PinHasher`, rotates `cashier_pins` under user lock (`temporary = false`, `expires_at = NULL`, `set_by = NULL`, new `id` revoking any old `staff_pin_change_proofs`, respecting `076 AC-ACT-9`), clears Redis PIN lockout counters, writes `audit_log` + `platform_audit_log`, and (`TQ-3` Option A) emits owner in-app bell notice (`StaffPinRecovered` / `076 AC-F2-3`, without the PIN or email).
 3. **Templates & Worker (`packages/notifications`, `apps/worker`):**
    - Add `staff_pin_reset_otp` (`revision: 1`, `ar`/`en`, bilingual email via `renderEmailLayout` + WhatsApp preparation stub awaiting Meta template approval).
 4. **POS UI (`apps/pos/src/staff-login/`):**
    - Add «نسيت الرقم السري؟» in `PinForm` leading to channel selection (`Email` / `WhatsApp`) -> identifier input -> 6-digit OTP input -> new 4-digit PIN + confirmation -> return to PIN sign-in with confirmation alert.
-5. **Tests (~510 lines):** Channel independence tests (Email works while WhatsApp returns 503), negative RLS isolation test covering `employees.recovery_email`, anti-enumeration, rate limits, permanent PIN (`temporary = false`) + stale-proof invalidation (`076 AC-ACT-9`), owner bell notice without PIN (`076 AC-F2-3`), zero PII logging, and POS UI interaction tests.
+5. **Tests (~520 lines):** Channel independence tests (Email works while WhatsApp returns 503), negative RLS isolation test covering `employees.recovery_email`, Admin optional `recovery_email` field tests, anti-enumeration, rate limits, permanent PIN (`temporary = false`) + stale-proof invalidation (`076 AC-ACT-9`), owner bell notice without PIN (`076 AC-F2-3`), zero PII logging, and POS UI interaction tests.
+
+---
+
+### PR-c2 — First-Login Staff Welcome Email (`F1` 24h Temporary PIN) & Member Invitation Link Email (`G1`) (`0` migrations, ~520 prod lines, after `PR-b` & `PR-c1`)
+
+1. **Secure F1 Welcome Email (`076-F1` / `PR-Q7` & `PR-Q8`):**
+   - Triggered alongside `076-F1` staff access grant (24h forced-change temporary PIN).
+   - Sends via the unified `PR-b` email layout (`renderEmailLayout` + `ResendChannel`) to **both** the creating manager's email and the employee's `recovery_email` (when present).
+   - **Confidentiality boundary (reviewed by Opus at `effort: "high"`):** The temporary PIN is **never** written in plaintext to `outbox`, `notification_recipients` / `notification` tables, or logs. Outbox/worker payload passes an encrypted envelope (AEAD / authenticated cipher bound to `company_id` & `operation_id` with dedicated env key or short-lived Redis ephemeral secret consumed once by worker) decoded strictly inside worker memory during Resend dispatch and cleared immediately.
+2. **G1 Member Invitation Email (`076-G1`):**
+   - Extends `076-G1` member invitation flow to send the password-setup link by email (via unified `PR-b` layout) to **both** the invitee and the inviting owner (instead of screen-only display), keeping raw setup tokens out of logs and masking email addresses in audit/reports.
+3. **Templates & Worker (`packages/notifications`, `apps/worker`):**
+   - Add `staff_welcome_pin` and `member_invitation` (`revision: 1`, `ar`/`en`, rendered through `renderEmailLayout`).
+4. **Tests (~420 lines):** Verify both recipients receive F1 email (and creator-only when employee `recovery_email` is null), assert outbox/notification DB rows & logs contain zero plaintext PIN / token, test encrypted/token handoff expiry/tamper refusal, and test G1 emails sent to both invitee and inviting owner.
+
+---
+
+### Deferred Scope Boundary: `spec 080` (`PR-Q9`)
+
+- **`PR-Q9`** (selecting multiple branches/businesses/roles during employee/user creation and exposing inline «استثناء صلاحية» overrides reusing existing permission-override mechanics) moves to its own new specification **`docs/specs/080-...`** authored after `PR-a` merges. **No code for `PR-Q9` in `spec 079`.**
 
 ---
 
@@ -148,15 +176,18 @@ Per Waleed's decision **`PP-277`** (`docs/owner-decisions.ar.md`, 2026-11-26 ~09
 |---|---|---|
 | **Auth-ledger OTP emails hitting `TAGS_INVALID` quarantine in `ReconcileEmailFeedback`** | High — every Password Reset email webhook (`email.delivered` / `email.bounced`) would quarantine instead of resolving/suppressing (`spec 075`) | Explicitly extend `resend-retrieval.ts` and `ReconcileEmailFeedback` in `PR-b` to accept `{ auth_challenge_id, attempt_id, execution_id }` tags alongside tenant tags and settle against `auth_notification_attempts` on `pospay_auth` + `platform_email_suppressions` on `pospay_notifications`. |
 | **Bypass of `two_factor` or leaked session on Forgot Password** | Critical (`P0`) | Follow Waleed decision PR-Q2: `PASSWORD_RESET` never creates a session; it atomically deletes all `session` rows and `reset-password:*` tokens for `user_id`. Normal sign-in + `two_factor` TOTP remains mandatory afterward. |
-| **Crossing the `076 D8` / `AC-F1-7` boundary (staff user gaining password or admin session)** | Critical (`P0`) | Enforce `user.staffAccessOperationId === null && !isStaffSyntheticEmail(email)` on lookup **and** again under `user FOR UPDATE` before consuming `PASSWORD_RESET`, keeping Better Auth `staffUserD8Hooks` intact. Keep optional `recovery_email` (`TQ-2`) strictly separate from credential login, validated in contract, never logged, and masked in reports. |
-| **`PR-b` approaching the 1,500-line production cap** | Medium (`PP-273` size gate) | Reuse existing `auth_otp_challenges`, `auth_notification_attempts`, `createOtpCrypto`, `redisOtpRates`, and `BullmqOtpSender` rather than duplicating infra; estimated ~680 prod lines (~45% of cap). Split Admin Forgot Password UI cleanly to its own small PR only if needed during implementation. |
+| **Crossing the `076 D8` / `AC-F1-7` boundary (staff user gaining password or admin session)** | Critical (`P0`) | Enforce `user.staffAccessOperationId === null && !isStaffSyntheticEmail(email)` on lookup **and** again under `user FOR UPDATE` before consuming `PASSWORD_RESET`, keeping Better Auth `staffUserD8Hooks` intact. Keep optional `recovery_email` (`TQ-2`/`PR-Q6`) strictly separate from credential login, validated in contract, never logged, and masked in reports. |
+| **Temporary PIN exposure in DB / outbox / logs on `F1` welcome email (`PR-Q8`)** | Critical (`P0`) | Encrypt/tokenize temporary PIN handoff so zero plaintext PIN enters `outbox`, notification tables, or logs; short-lived secret cleared after send; 24h forced-change expiry preserved; mandatory Opus `effort: "high"` security review on `PR-c2`. |
+| **Any PR approaching the 1,500-line production cap (`PP-273`)** | Medium (`PP-273` size gate) | Split `PR-c` cleanly into `PR-c1` (~660 prod) and `PR-c2` (~520 prod), and reuse `auth_otp_challenges`, `auth_notification_attempts`, `createOtpCrypto`, `redisOtpRates`, and `BullmqOtpSender`. |
 | **Broken image / missing asset or relative logo URL in emails** | Medium | Require `EMAIL_ADMIN_ORIGIN` (`https://app.staging.pospay.systems` or `https://app.pospay.systems`), verify the file exists at `apps/admin/public/brand/logo-mark-simple-tile.png` (copied into runner image by `Dockerfile.admin:24`), and test full HTTPS URL generation + HTTP 200 reachability on staging. |
 | **Exposing unbound settings files when opening logo reads to business members (`TQ-1`)** | Medium (Security) | In `IssueDownload`, grant active business-covering member access **only** when `file.ownerModule === 'settings'` AND `file.id === business_settings.logo_file_id` for `file.businessId`. Any unbound/retired `settings` file still requires `manage:business-identity:business`. |
 
 ---
 
-## Settled Technical Decisions (Waleed, 2026-11-26 ~09:20 Kuwait)
+## Settled Technical & Product Decisions (Waleed, 2026-11-26 ~09:20 & ~09:30 Kuwait)
 
-1. **`TQ-1` (`PR-a`):** **Option A (`«أي عضو في النشاط (المقترح)»`)** — Any active member whose membership covers the business reads `logo_file_id` and downloads the bound business logo file, while upload/replacement/deletion stay restricted to `manage:business-identity:business`. Flagged alongside `PR-Q2` and `PR-Q5` for the next decisions-page batch for Abu Salem (`PENDING`).
-2. **`TQ-2` (`PR-c`):** **Option A (`«خانة «إيميل الاستعادة» اختيارية (المقترح)»`)** — Single expand migration adding optional `recovery_email` (on `"user"` + `employees` with tenant RLS & negative isolation test and contract format validation), keeping synthetic `user.email` isolated under `076 D8`, never printed in any log, and masked in reports.
-3. **`TQ-3` (`PR-c`):** **Option A (`«إشعار جرس + سجل (المقترح)»`)** — Permanent PIN (`temporary = false`), in-app owner bell notice without the PIN, and audit.
+1. **`TQ-1` (`PR-a`):** **Option A (`«أي عضو في النشاط (المقترح)»`)** — Any active member whose membership covers the business reads `logo_file_id` and downloads the bound business logo file, while upload/replacement/deletion stay restricted to `manage:business-identity:business`. Queued with `PR-Q2`, `PR-Q5`, `PR-Q6..PR-Q9` for the next decisions-page batch for Abu Salem (`PENDING`).
+2. **`TQ-2` & `PR-Q6` (`PR-c1`):** **Option A (`«خانة «إيميل الاستعادة» اختيارية»` / `«اختياري ومستحسن (المقترح)»`)** — Single optional `recovery_email` column on `employees` (synced to `"user".recovery_email`, synthetic `user.email` isolated under `076 D8`), used for communication, F1 welcome email, and Forgot PIN recovery. 1 migration, negative RLS test on `employees`, contract email format check, never logged, masked in reports.
+3. **`TQ-3` (`PR-c1`):** **Option A (`«إشعار جرس + سجل (المقترح)»`)** — Permanent PIN (`temporary = false`), in-app owner bell notice without the PIN, and audit.
+4. **`PR-Q7` & `PR-Q8` (`PR-c2` + `G1`):** F1 24h forced-change temporary PIN emailed via unified `PR-b` layout to both creator manager and employee (`recovery_email` if present) using an encrypted/tokenized envelope (never plaintext in outbox/notifications/logs; Opus `effort: "high"` review); G1 setup link emailed to both invitee and owner.
+5. **`PR-Q9` (`spec 080`):** All 4 multi-scope/extra-roles/inline-permission-override options approved by Waleed, deferred to **`spec 080`** after `PR-a` merges.
