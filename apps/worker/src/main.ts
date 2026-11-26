@@ -13,6 +13,7 @@ import { knownEventTypes } from './outbox/known-event-types.ts';
 import {
   createNotificationModule,
   createInAppNotificationModule,
+  createEmailSendModule,
   readNotificationConfiguration,
   startEmailCapability,
   startPushCapability,
@@ -57,7 +58,10 @@ import {
 import { DocumentSourceRegistry } from './documents/source-registry.ts';
 import { createAttendanceStatementSource } from './documents/sources/attendance-statement.source.ts';
 import { createCommissionStatementSource } from './documents/sources/commission-statement.source.ts';
-import { createCommissionStatementExportReader, createParkedCommissionAlert } from './modules/commissions/index.ts';
+import {
+  createCommissionStatementExportReader,
+  createParkedCommissionAlert,
+} from './modules/commissions/index.ts';
 import { businessCalendar, businessTimeZone } from './modules/tenancy/index.ts';
 import { startCommissionReminderWiring } from './commission-reminders.ts';
 import { drainDispatchAndDocuments } from './documents/shutdown-drain.ts';
@@ -105,6 +109,8 @@ const email = await startEmailCapability({
   logger,
   ids: systemUuidV7(),
   clock: { now: () => new Date() },
+  appDatabase: app,
+  redisUrl: config.REDIS_URL,
 });
 // ADR-0052 قرار 2: جاهزية الدفع في العامل وحدها بتفعّل كتابة المحاولات؛ من غيرها مفيش دفع.
 // وأحداث الإذن بتقعد في الـ outbox لحد ما الدفع يتفعّل، وبعد آخر محاولة في السياسة بتتوقف زي أي حدث سام.
@@ -156,6 +162,17 @@ if (production)
     { capability: { name: 'TENANT_WHATSAPP', state: 'DISABLED', reason: 'LIVE_NOT_AUTHORIZED' } },
     'staff OTP capability',
   );
+// واتساب مقفولة بالكامل (notifications === null)؛ لو البريد مفعّل ليه مسار إرسال لوحده في طابور notifications-send.
+const emailSend =
+  notifications === null && email.module.capability.enabled
+    ? createEmailSendModule({
+        database: app,
+        ids: systemUuidV7(),
+        clock: { now: () => new Date() },
+        email: email.module,
+        redis,
+      })
+    : undefined;
 let globalDatabase: OptionalCapabilities['database'];
 let inbound: OptionalCapabilities['inbound'];
 let otp: OptionalCapabilities['otp'];
@@ -318,6 +335,7 @@ async function startWorkerCore(): Promise<void> {
     env: process.env,
     logger,
     notifications,
+    emailSend,
     redisUrl: config.REDIS_URL,
     businessDeliver,
     intakeUrl: config.PLATFORM_NOTIFICATIONS_DATABASE_URL,
@@ -336,9 +354,8 @@ async function startWorkerCore(): Promise<void> {
       readiness: readinessChecks(),
       stopPolling: async () => {
         stopping = true;
-        email.stop();
         maintenance?.stop();
-        await closeOptional([() => push.stop()]);
+        await closeOptional([() => email.stop(), () => push.stop()]);
         await drainDispatchAndDocuments({
           stopDispatch: () => loop.stop(),
           stopDocuments: () => documents?.stop(),

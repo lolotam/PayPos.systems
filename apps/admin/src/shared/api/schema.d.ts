@@ -10417,6 +10417,8 @@ export interface components {
             finished_at: string | null;
             provider_message_id: string | null;
             /** @enum {string|null} */
+            provider_receipt: "DELIVERED" | "BOUNCED" | "COMPLAINED" | "SUPPRESSED" | "DELAYED" | "FAILED" | null;
+            /** @enum {string|null} */
             failure_code: "LOCALE_MISSING" | "LOCALE_UNSUPPORTED" | "DESTINATION_INVALID" | "CONFIG_INVALID" | "PARAMETERS_INVALID" | "ADMISSION_REFUSED" | "DEADLINE_EXPIRED" | "SUPPRESSED" | "PROVIDER_4XX" | "PROVIDER_5XX" | "NETWORK_UNKNOWN" | "RESPONSE_INVALID" | null;
             outcome_known: boolean | null;
             /** Format: date-time */
