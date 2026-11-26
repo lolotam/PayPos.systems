@@ -551,9 +551,15 @@ SPM or CocoaPods dependency (`CryptoKit` and `WebKit` are system frameworks, aut
   persisted: it stays on the web view until M-1c-ii decides the personal session on the first real iPhone. The expiry
   check is local, against the same 8-hour staff-session cutoff the API enforces.
 - **The attributes are reconstructed faithfully.** The saved fields are re-applied one by one: name, value, the exact
-  domain (a host-only domain stays without a leading dot), path, expiry, version, and `Secure` / `HttpOnly` /
-  `SameSite` only when the saved cookie had them. Nothing is added, removed or changed, because those attributes are
-  the session contract of addendum (e).
+  domain (a host-only domain stays without a leading dot), path, expiry, and `Secure` / `HttpOnly` / `SameSite` only
+  when the saved cookie had them (the API sends no cookie version, so the reconstructed one is version 0). Nothing is
+  added, removed or changed, because those attributes are the session contract of addendum (e). The reconstruction
+  goes through `HTTPCookie.cookies(withResponseHeaderFields:for:)` on a rebuilt `Set-Cookie` header, **not**
+  `HTTPCookie(properties:)`: Apple Foundation has no `HttpOnly` key for the latter, so it silently produced a cookie
+  with `isHTTPOnly == false`. Such a cookie failed the vault's own filter, so every copy that came back through
+  `WKWebsiteDataStore` / `CapacitorWKCookieObserver` was deleted as invalid and the session was lost. The rebuilt
+  header writes `Expires` as RFC 1123 GMT and adds `Domain=` only for a dot-prefixed domain, so a host-only domain
+  stays host-only.
 - **Anti-resurrection.** Capacitor's `CapacitorWKCookieObserver` copies cookies back from the `WKWebView` store into
   the native jar, so a signed-out or rotated token can reappear and look like a fresh sign-in. The vault keeps the last
   8 SHA-256 digests of retired tokens in `pospay-staff-retired-hashes.plist` (digests only, never a token value) and
@@ -561,10 +567,21 @@ SPM or CocoaPods dependency (`CryptoKit` and `WebKit` are system frameworks, aut
   `WKWebsiteDataStore` copy of the staff cookie. `CapacitorHttp.setCookiesFromResponse` splits the `Set-Cookie` header
   at its comma and calls `CapacitorCookieManager.setCookie("")` with the empty remainder, which resolves to
   `config.serverURL` (`capacitor://localhost`); that leaves a broken `expiresDate == nil` copy of the staff cookie on
-  `localhost`, while `URLSession` saves the real cookie on the API host. The same rule filters that copy out. If a
-  session-only (`expiresDate == nil`) copy of the current token ever appears without a valid expiry while the saved
+  `localhost`, while `URLSession` saves the real cookie on the API host. The sync deletes that `localhost` comma-split
+  copy from `HTTPCookieStorage.shared`, and the WebKit reconciliation deletes it from `WKWebsiteDataStore` as well,
+  because a copy whose domain differs from the wanted one is removed. The same delete path removes cookies that are
+  expired or empty, and retired tokens: the retired-digest check runs before the live filter, so even a degraded copy
+  of a retired token is deleted and can never be mistaken for the current session. If any
+  non-live, non-expired copy of the current token appears (for example session-only with `expiresDate == nil`,
+  missing `HttpOnly` or `Secure`, or on a mismatched path or domain) while the saved
   `currentCookie` is still unexpired, `StaffSessionCookieVault` restores the saved cookie back into
-  `HTTPCookieStorage.shared` rather than treating it as a sign-out.
+  `HTTPCookieStorage.shared` rather than treating it as a sign-out. This guard applies only to a non-empty,
+  non-retired current token on a non-`localhost` domain, so a real sign-out still clears the session.
+- **The sync only deletes what is really dead.** `syncFromSharedStorage()` removes a cookie from
+  `HTTPCookieStorage.shared` only when it is expired, empty, a `localhost` comma-split copy, retired, or superseded
+  by a newer session. A non-expired, non-retired cookie on the API host that fails the live filter (no `HttpOnly`, no
+  `Secure`, a session-only copy, or another domain) is left untouched during sign-in: deleting it in the middle of a
+  notification could wipe the sign-in cookie before `GET /v1/devices/me/staff-session` ran.
 - **The newer expiry wins.** A new, non-retired candidate replaces an active, unexpired session only if its
   `expiresDate >= currentCookie.expiresDate`. An older, unretired token copied back from the `WKWebView` store (for
   example beyond the 8-digest cap) therefore cannot displace the current session: its digest is retired and the cookie
@@ -587,7 +604,16 @@ the restore-before-sign-out guard for a session-only copy of the current token (
 older `WKWebView` token from displacing the current session (P2-2), the ADR accept-policy/date updates (P2-3), and
 comment wording fixes (P2-4). A follow-up `CodeRabbit` pass raised three edge-case findings (retired-digest check during
 restore, retrying `persist` on live cookie updates, and re-reading the current vault state under the lock in each WebKit callback),
-also incorporated into the vault.
+also incorporated into the vault. The post-merge `spike` of PR #1319 then failed at `Staff sign-in should succeed`,
+where the run before it had reached `The staff session should survive the restart`; the two defects above explain that
+regression, and both are fixed — the reconstruction keeps `HttpOnly`, and the sync no longer deletes a live sign-in
+cookie. `SpikeUITests.testStaffCookieHttpOnlyPreservedAfterStorageAndWebKitSync` verifies the simulator Foundation
+(`HTTPCookie.cookies(withResponseHeaderFields:for:)`) and `WKWebsiteDataStore` round-trip behaviour that
+`StaffSessionCookieVault.makeCookie` relies on: a synthetic `pospay-staff.session_token` cookie is written to
+`HTTPCookieStorage.shared`, round-tripped through `WKWebsiteDataStore.default().httpCookieStore`, and must keep
+`isHTTPOnly` and its expiry after both hops. That test does not exercise `StaffSessionCookieVault` end to end:
+acceptance of the fix itself stays the `CounterAuthUITests` restart step (`The staff session should survive the
+restart`) and sign-out step (`Sign-out should show staff sign-in`) on `main`.
 
 **Consequences.** The fix is accepted only when the iOS simulator spike's restart step passes on `main`. **Fallback 2 of
 decision 3 (a native token in the iOS Keychain) still applies only if that restart step fails on `main`**, and it keeps
