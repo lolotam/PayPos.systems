@@ -99,6 +99,41 @@ it('keeps the provider id bound when a late sender timeout lands after the recon
   expect(after?.['status']).toBe('FAILED');
 });
 
+it('records RESPONSE_INVALID and an audit entry when a late sender result reports a different provider id', async () => {
+  const seed = await harness.seedAttempt();
+  const row = await harness.acceptInbox('email.delivered', null);
+  await harness.useCase(harness.found(seed)).execute(row);
+  const attempt: Attempt = {
+    ...attemptBase,
+    id: seed.id,
+    sourceEventId: seed.sourceEventId,
+    executionId: seed.executionId,
+  };
+  await harness.attempts.finish(
+    attempt,
+    {
+      status: 'SENT',
+      failureCode: null,
+      outcomeKnown: true,
+      providerMessageId: OTHER_ID,
+    },
+    '01920000-0000-7000-8000-0000000000ab',
+    NOW,
+  );
+  const [after] = await harness.owner`
+    SELECT provider_message_id, status, failure_code, outcome_known, recipient_email
+    FROM notification_attempts WHERE id = ${seed.id}`;
+  expect(after?.['provider_message_id']).toBe(PROVIDER_ID);
+  expect(after?.['status']).toBe('FAILED');
+  expect(after?.['failure_code']).toBe('RESPONSE_INVALID');
+  expect(after?.['outcome_known']).toBe(false);
+  expect(after?.['recipient_email']).toBeNull();
+  const auditRows = await harness.owner`
+    SELECT entity, action FROM audit_log
+    WHERE company_id = ${COMPANY} AND entity_id = ${seed.id} AND action = 'provider_id.conflict'`;
+  expect(auditRows).toEqual([{ entity: 'notification_attempt', action: 'provider_id.conflict' }]);
+});
+
 it('suppresses a permanent bounce and writes exactly one audit row after a crash and a retry', async () => {
   const seed = await harness.seedAttempt();
   const row = await harness.acceptInbox('email.bounced', 'PERMANENT');
