@@ -30,7 +30,14 @@ async function postRefund(
   body: RefundPackageInput,
   held: { current: HeldAttempt | null },
 ): Promise<PackageRefundResponse> {
-  const fingerprint = JSON.stringify({ entitlementId, body });
+  const fingerprint = JSON.stringify({
+    companyId: scope.companyId,
+    businessId: scope.businessId,
+    branchId: scope.branchId,
+    userId: scope.userId,
+    entitlementId,
+    body,
+  });
   const attempt =
     held.current?.fingerprint === fingerprint
       ? held.current

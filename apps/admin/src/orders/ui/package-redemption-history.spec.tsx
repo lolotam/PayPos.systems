@@ -18,7 +18,8 @@ function deferred<T>() {
 }
 
 const get = vi.hoisted(() => vi.fn());
-vi.mock('@/shared/api/client', () => ({ apiClient: () => ({ GET: get }) }));
+const post = vi.hoisted(() => vi.fn());
+vi.mock('@/shared/api/client', () => ({ apiClient: () => ({ GET: get, POST: post }) }));
 vi.mock('@/shared/locale/locale-context', () => ({ useLocale: () => 'en' }));
 
 const scope = { companyId: 'company', businessId: 'business', branchId: 'branch', userId: 'actor' };
@@ -117,6 +118,7 @@ function openHistory() {
 
 beforeEach(() => {
   get.mockReset();
+  post.mockReset();
   HTMLDialogElement.prototype.showModal = vi.fn(function (this: HTMLDialogElement) {
     this.setAttribute('open', '');
   });
@@ -287,4 +289,56 @@ it('shows the load failure inside the opened section when the connection drops b
   const alert = await screen.findByRole('alert');
   expect(alert.textContent).toBe(t('en', 'serviceSessions.packageHistoryLoadFailed'));
   expect(screen.queryByText('Session 2 Synthetic service')).toBeNull();
+});
+
+it('keeps the held refund Idempotency-Key across collapsing and reopening the history section', async () => {
+  const base = detail([], [], 'Asia/Kuwait', false);
+  const refundable = {
+    ...base,
+    can_refund: true,
+    components: base.components.map((entry) => ({
+      ...entry,
+      remaining: 2,
+      slots: [{ ordinal: 1, state: 'FREE' as const, unit_value: '10.000' }],
+    })),
+  };
+  mockDetail(refundable);
+  post.mockRejectedValueOnce(new Error('offline')).mockResolvedValueOnce({
+    data: {
+      id: '01920000-0000-7000-8000-000000000099',
+      entitlement_id: entitlementId,
+      component_id: componentId,
+      sessions: 1,
+      amount: '10.000',
+      method: 'CASH',
+      refunded_amount: '10.000',
+      revision: 2,
+      refunded_at: '2026-11-26T05:00:00.000Z',
+    },
+    response: { status: 201 },
+  });
+  const submitRefund = () => {
+    fireEvent.click(screen.getByRole('button', { name: t('en', 'packageRefund.refund') }));
+    fireEvent.change(screen.getByLabelText(t('en', 'packageRefund.component')), {
+      target: { value: componentId },
+    });
+    fireEvent.change(screen.getByLabelText(t('en', 'packageRefund.reason')), {
+      target: { value: 'Synthetic reason' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: t('en', 'packageRefund.submit') }));
+  };
+  renderHistory();
+  openHistory();
+  await screen.findByRole('button', { name: t('en', 'packageRefund.refund') });
+  submitRefund();
+  expect(await screen.findByText(t('en', 'packageRefund.errorNetwork'))).toBeTruthy();
+  fireEvent.click(screen.getByRole('button', { name: t('en', 'packageRefund.cancel') }));
+  openHistory();
+  openHistory();
+  await screen.findByRole('button', { name: t('en', 'packageRefund.refund') });
+  submitRefund();
+  await waitFor(() => expect(post).toHaveBeenCalledTimes(2));
+  expect(post.mock.calls[1]?.[1].params.header['Idempotency-Key']).toBe(
+    post.mock.calls[0]?.[1].params.header['Idempotency-Key'],
+  );
 });

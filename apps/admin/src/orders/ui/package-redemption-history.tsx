@@ -1,8 +1,9 @@
 'use client';
 import { t } from '@pospay/i18n';
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { useLocale } from '@/shared/locale/locale-context';
 import { useCustomerPackageDetail } from '../api/use-customer-package-detail';
+import type { HeldAttempt } from '../api/use-refund-package';
 import type { SessionServiceScope } from '../api/use-session-services';
 import { CustomerPackageExtensionControls } from './customer-package-extension-controls';
 import { CustomerPackageRefundControls } from './customer-package-refund-controls';
@@ -20,6 +21,7 @@ export function PackageRedemptionHistory({
 }) {
   const locale = useLocale();
   const [open, setOpen] = useState(false);
+  const heldRefundAttemptRef = useRef<HeldAttempt | null>(null);
   const detail = useCustomerPackageDetail(scope, customerId, open ? entitlementId : null, true);
   const proof = readAccessProof(detail);
   const data = open && proof === 'granted' ? detail.data : undefined;
@@ -52,6 +54,7 @@ export function PackageRedemptionHistory({
           customerId={customerId}
           entitlementId={entitlementId}
           detail={data}
+          heldAttemptRef={heldRefundAttemptRef}
           onSaved={() => void detail.refetch()}
           buttonLabel={t(locale, 'packageRefund.refund')}
         />

@@ -1,8 +1,10 @@
 'use client';
 import { t } from '@pospay/i18n';
+import { useRef } from 'react';
 import { useLocale } from '@/shared/locale/locale-context';
 import { readAccessProof } from '@/shared/api/read-access-proof';
 import { useCustomerPackageDetail } from '../api/use-customer-package-detail';
+import type { HeldAttempt } from '../api/use-refund-package';
 import type { SessionServiceScope } from '../api/use-session-services';
 import { CustomerPackageDetailContent } from './customer-package-detail-content';
 import { DetailFailure } from './detail-failure';
@@ -24,6 +26,7 @@ export function CustomerPackageDetail({
   onClose: () => void;
 }) {
   const locale = useLocale();
+  const heldRefundAttemptRef = useRef<HeldAttempt | null>(null);
   const detail = useCustomerPackageDetail(scope, customerId, entitlementId, true);
   const proof = readAccessProof(detail);
   if (detail.isLoading || proof === 'pending')
@@ -48,6 +51,7 @@ export function CustomerPackageDetail({
       customerId={customerId}
       entitlementId={entitlementId}
       data={data}
+      heldRefundAttemptRef={heldRefundAttemptRef}
       onSaved={() => void detail.refetch()}
       onClose={onClose}
     />

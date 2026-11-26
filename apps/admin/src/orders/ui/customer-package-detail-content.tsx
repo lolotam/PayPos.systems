@@ -3,6 +3,7 @@
 import type { customerPackageDetail } from '@pospay/contracts';
 import { t } from '@pospay/i18n';
 import { useLocale } from '@/shared/locale/locale-context';
+import type { HeldAttempt } from '../api/use-refund-package';
 import type { SessionServiceScope } from '../api/use-session-services';
 import { CustomerPackageComponents } from './customer-package-components';
 import { CustomerPackageExtensionControls } from './customer-package-extension-controls';
@@ -19,6 +20,7 @@ export function CustomerPackageDetailContent({
   customerId,
   entitlementId,
   data,
+  heldRefundAttemptRef,
   onSaved,
   onClose,
 }: {
@@ -26,6 +28,7 @@ export function CustomerPackageDetailContent({
   customerId: string;
   entitlementId: string;
   data: ReturnType<typeof customerPackageDetail.parse>;
+  heldRefundAttemptRef?: { current: HeldAttempt | null } | undefined;
   onSaved: () => void;
   onClose: () => void;
 }) {
@@ -62,6 +65,7 @@ export function CustomerPackageDetailContent({
           customerId={customerId}
           entitlementId={entitlementId}
           detail={data}
+          heldAttemptRef={heldRefundAttemptRef}
           onSaved={onSaved}
         />
       ) : null}

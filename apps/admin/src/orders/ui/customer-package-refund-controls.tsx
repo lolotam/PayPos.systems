@@ -17,6 +17,7 @@ export function CustomerPackageRefundControls({
   detail,
   onSaved,
   buttonLabel,
+  heldAttemptRef,
 }: {
   scope: SessionServiceScope;
   customerId: string;
@@ -24,10 +25,11 @@ export function CustomerPackageRefundControls({
   detail: CustomerPackageDetail;
   onSaved: () => void;
   buttonLabel?: string;
+  heldAttemptRef?: { current: HeldAttempt | null } | undefined;
 }) {
   const locale = useLocale();
   const [open, setOpen] = useState(false);
-  const heldAttemptRef = useRef<HeldAttempt | null>(null);
+  const internalHeldAttemptRef = useRef<HeldAttempt | null>(null);
   return (
     <>
       <Button type="button" onClick={() => setOpen(true)}>
@@ -39,7 +41,7 @@ export function CustomerPackageRefundControls({
           customerId={customerId}
           entitlementId={entitlementId}
           components={detail.components}
-          heldAttemptRef={heldAttemptRef}
+          heldAttemptRef={heldAttemptRef ?? internalHeldAttemptRef}
           onSaved={() => {
             setOpen(false);
             onSaved();

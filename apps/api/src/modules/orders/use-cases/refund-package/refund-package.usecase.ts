@@ -31,6 +31,7 @@ type RefundWrite = {
   readonly entitlement: LockedRefundEntitlement;
   readonly plan: AcceptedRefundPlan;
   readonly membershipId: string;
+  readonly today: string;
   readonly at: Date;
   readonly id: string;
   readonly reason: string;
@@ -70,8 +71,9 @@ export class RefundPackageUseCase {
     const today = sessionBusinessDate(at, timezone);
     const plan = await this.planRefund(tx, context, entitlement, today);
     const id = this.ids.newId();
-    await this.writeRefund(tx, context, { entitlement, plan, membershipId, at, id, reason });
-    await this.publish(tx, id, context, today, at, plan, entitlement);
+    const write: RefundWrite = { entitlement, plan, membershipId, today, at, id, reason };
+    await this.writeRefund(tx, context, write);
+    await this.publish(tx, context, write);
     return this.response(context, plan, at, id);
   }
 
@@ -167,13 +169,10 @@ export class RefundPackageUseCase {
 
   private async publish(
     tx: PackageRefundTransaction,
-    refundId: string,
     context: RefundPackageContext,
-    today: string,
-    at: Date,
-    plan: AcceptedRefundPlan,
-    entitlement: LockedRefundEntitlement,
+    write: RefundWrite,
   ): Promise<void> {
+    const { id: refundId, today, at, plan, entitlement } = write;
     // جرس الاسترداد بيتبعت لكل استرداد، مباع أو مستورد؛ حدث البيع بيتبعت للمباع بس.
     await tx.emitRefundRecorded(
       packageRefundRecorded({
