@@ -3600,3 +3600,26 @@ so much beteer to creat this advisore for the project level so you and the manag
 3. بعد الدمج يتعمل spike على main (`workflow_dispatch`، `spike`). لو إعادة التشغيل أو تسجيل الخروج فشلوا، مفيش fallback 2 (token أصلي)، لأنه محتاج ADR وقرار منفصلين. ويتبلّغ المدير.
 4. لو التصميم زوّد النطاق في PRs جاية، التقدير يتحدّث قبل الـ dispatch.
 5. ده سؤال تقني، فمش بيتنشر على صفحة القرارات.
+
+## PP-277 — skill المراجِع: `/waleed_general_reviewer` مع ملحق PosPay (2026-11-26)
+
+**قرار وليد.** 2026-11-26 ~09:10 الكويت، كارت في محادثة المدير بعد مقارنة `/waleed_general_reviewer` بالمراجعة الحالية. السؤال: «نعتمد /waleed_general_reviewer للمراجع Opus إزاي؟». الإجابة: «نعتمده من دلوقتي». وبعدها رد على قائمة الاقتراحات بالنص: «accepted».
+
+**السبب.** `/engineering:code-review` checklist عامة: مش بتطلب دليل، ومفيهاش عمق في RLS وقاعدة البيانات، ومالهاش حكم موحد. `/waleed_general_reviewer` بيطلب لكل ملاحظة ملف وسطر واقتباس، وبيحاول ينفي الملاحظة قبل ما يحتفظ بيها. وفيه lens لقاعدة البيانات وRLS، وsecurity lens بيشتغل لوحده على حدود الثقة، وحكم واحد (`BLOCK` / `CONDITIONAL` / `NO CONFIRMED BLOCKER`)، وقسم Coverage. ناقصه lens للأداء ولقواعد PosPay، وده اللي الملحق بيكمّله. `/waleed-ui-restructure` بيعمل prototypes لترتيب القوائم، ومش أداة مراجعة.
+
+**التطبيق.**
+
+1. المراجِع Opus 5.5 يشغّل `/waleed_general_reviewer` على كل PR فيه كود، مكان `/engineering:code-review`. الـ effort high على الفلوس وmigrations وRLS والـ auth (القاعدة الحالية). الـ security lens بيشتغل Focused تلقائي على الـ PRs دي، فمفيش security-review منفصل عليها.
+2. `/waleed-ui-restructure` يتشال من بوابة المراجعة، ويُستخدم بس لما وليد يطلب إعادة ترتيب شاشات.
+3. المنفّذ يفضل يشغّل `clean-code-guard` و`test-guard` (PP-198). المراجِع بيعيد نفس الفحص بشكل مستقل.
+4. الترتيب: Blocker = P0/P1 ويمنع الدمج. Should fix = P2 ويتصلح في دفعة التصحيح (القاعدة الحالية). Note = P3.
+5. **ملحق PosPay** بيتحط في brief كل مراجِع، ويتراجع زي أي lens:
+   - **الأداء:** مفيش N+1. كل query جديدة ليها index في نفس الـ migration. كل ملف `queries/` ليه اختبار شكل النتيجة واختبار `EXPLAIN ANALYZE`. أي حاجة متوقع تعدي 200ms تبقى job في الـ worker. اختبارات الأداء نسبة للكود القديم بس، ≤2× (PP-165).
+   - **الفلوس:** `bigint` mills أو `Money`، ومفيش `number`. الحسابات في `domain/` بس.
+   - **الـ tenant:** كل وصول من خلال `withTenant`، ومفيش raw Drizzle client. كل جدول جديد ليه policy واختبار عزل سلبي. المفتاح `(company_id, id)`.
+   - **الـ use case:** مفيش `drizzle` ولا `sql` ولا `fetch` ولا حسابات. `Clock` و`IdGenerator` بيتحقنوا.
+   - **الـ events:** الـ outbox جوه نفس الـ transaction. `Idempotency-Key` على أي endpoint فيه أثر فلوس أو مخزون.
+   - **التوثيق:** JSDoc عربي على `domain/**` و`ports/**` و`events/published.ts`. مفيش `FIXME`/`HACK` ولا كود متعلّق.
+   - **الواجهة:** النصوص من `packages/i18n`. CSS منطقي (RTL)، ومفيش left/right. المكونات من `packages/ui`. اختبار الواجهة بيتأكد من اللي المستخدم بيشوفه (PP-7.2).
+6. `CLAUDE.md` (سطر PP-273) اتعدّل في نفس الكوميت.
+7. ده سؤال تقني، فمش بيتنشر على صفحة القرارات.
