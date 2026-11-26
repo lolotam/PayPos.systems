@@ -6,6 +6,8 @@ import { DeviceScreen } from './device-screen';
 import { EmployeeFlow } from './employee-flow';
 import { FLOW_ALERT_KEYS } from './link-rules';
 import { LoadingNotice } from './loading-notice';
+import { MustUpdateScreen } from './min-version/must-update-screen';
+import { useMinAppVersion } from './min-version/use-min-app-version';
 import { PasteLinkForm } from './paste-link-form';
 import { StartScreen } from './start-screen';
 import { StartOverButton } from './start-over-button';
@@ -20,8 +22,14 @@ export function NativeEntry() {
   const locale = useLocale();
   const { state, busy, onStart, onLink, choose, startOver, confirm, cancel } = useNativeFlow();
   useNativeLink(onStart, onLink);
+  const minVersion = useMinAppVersion();
   const back = <StartOverButton onStartOver={startOver} busy={busy} />;
 
+  // فحص النسخة الدنيا بيغطي كل التدفقات: شاشة البداية، الكاونتر، والموظفة (FR-006).
+  if (minVersion.checking) return <LoadingNotice />;
+  if (minVersion.blocked) {
+    return <MustUpdateScreen storeUrl={minVersion.storeUrl ?? ''} />;
+  }
   if (state.kind === 'loading') return <LoadingNotice />;
   if (state.kind === 'flow') {
     const alertText = state.alert ? t(locale, FLOW_ALERT_KEYS[state.alert]) : null;

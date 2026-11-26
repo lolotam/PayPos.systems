@@ -170,7 +170,7 @@ it('restarts from the first page when the next page cursor expired', async () =>
   const fetched = serve({
     lines: (url) =>
       url.searchParams.get('cursor') === 'next-1'
-        ? json({ code: 'BAD_REQUEST' }, 400)
+        ? json({ code: 'VALIDATION_FAILED' }, 400)
         : json(linesPage([fullLine], 'next-1')),
   });
   open();
@@ -183,6 +183,33 @@ it('restarts from the first page when the next page cursor expired', async () =>
     .paths('/service-lines')
     .map((request) => new URL(request.url).searchParams.get('cursor'));
   expect(cursors).toEqual([null, 'next-1', null]);
+});
+
+it('retries the same cursor when the next page failed for a reason other than a rejected cursor', async () => {
+  let nextAttempts = 0;
+  const fetched = serve({
+    lines: (url) => {
+      if (url.searchParams.get('cursor') !== 'next-1') {
+        return json(linesPage([fullLine], 'next-1'));
+      }
+      nextAttempts += 1;
+      return nextAttempts === 1
+        ? json({ code: 'BAD_REQUEST' }, 400)
+        : json(linesPage([cancelledLine]));
+    },
+  });
+  open();
+  await screen.findByText('Haircut');
+  fireEvent.click(screen.getByText(label('myWork.loadMore')));
+  expect(await screen.findByRole('alert')).toBeTruthy();
+  fireEvent.click(screen.getByText(label('myWork.retry')));
+  expect(await screen.findByText('Colour')).toBeTruthy();
+  expect(screen.getByText('Haircut')).toBeTruthy();
+  expect(screen.queryByRole('alert')).toBeNull();
+  const cursors = fetched
+    .paths('/service-lines')
+    .map((request) => new URL(request.url).searchParams.get('cursor'));
+  expect(cursors).toEqual([null, 'next-1', 'next-1']);
 });
 
 it('requests the next page with the month the first page returned, not the implicit current month', async () => {

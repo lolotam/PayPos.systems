@@ -14,7 +14,7 @@ export type Scope = {
 /** اللي القراءات واللمس بتشوفه من المتحكم: النطاق، والتطبيق المحروس، ومعالجة الرفض. */
 export type WindowHost = {
   deps: PrivateWindowDeps;
-  /** نطاق الجيل الحالي لو النافذة مفتوحة، وغير كده undefined. */
+  /** نطاق الجيل الحالي لو النافذة مفتوحة والموعد ما فاتش؛ وغير كده undefined (وبيقفل بـ expired لو الموعد فات). */
   scope: (forRead: boolean) => Scope | undefined;
   /** بيطبّق الفعل بس لو الجيل متطابق والنافذة مفتوحة والموعد ما فاتش؛ وإلا بيرمي الرد (وبيقفل لو الموعد فات). */
   commit: (scope: Scope, action: PrivateWindowAction) => boolean;

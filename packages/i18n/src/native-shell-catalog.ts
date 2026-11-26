@@ -19,6 +19,16 @@ export const nativeShellEn = {
   cancel: 'Cancel',
   stagingStrip: 'Test version',
   startOver: 'Back to choosing the device type',
+  webOnlyNotice: 'This feature is only on the web app. Open the web app to use it.',
+  openWebApp: 'Open the web app',
+  scanSalonQr: 'Scan the salon QR code',
+  scanSalonLead: 'Point your camera at the salon code your manager sent you.',
+  scanSalonCameraLabel: 'Salon code camera',
+  scanCameraDenied: 'We could not open the camera. Allow it in the settings and try again.',
+  mustUpdateTitle: 'Update needed',
+  mustUpdateLead: 'This version of the app is too old. Update it to keep working.',
+  mustUpdateButton: 'Update from the store',
+  mustUpdateFallback: 'Please update the app from the store to keep working.',
 } as const;
 
 /** نفس مفاتيح شاشة النسخة الأصلية بالعربي. */
@@ -42,4 +52,14 @@ export const nativeShellAr: Record<keyof typeof nativeShellEn, string> = {
   cancel: 'إلغاء',
   stagingStrip: 'نسخة تجربة',
   startOver: 'رجوع لاختيار نوع الجهاز',
+  webOnlyNotice: 'الحاجة دي موجودة على نسخة الويب بس. افتحي نسخة الويب عشان تستخدميها.',
+  openWebApp: 'افتحي نسخة الويب',
+  scanSalonQr: 'امسحي كود الصالون',
+  scanSalonLead: 'وجّهي الكاميرا على كود الصالون اللي بعتهولك المدير.',
+  scanSalonCameraLabel: 'كاميرا كود الصالون',
+  scanCameraDenied: 'مقدرناش نفتح الكاميرا. اسمحي للكاميرا من الإعدادات وحاولي تاني.',
+  mustUpdateTitle: 'لازم تحدّث',
+  mustUpdateLead: 'النسخة دي من التطبيق قديمة. حدّثيها عشان تشتغل.',
+  mustUpdateButton: 'حدّثي من المتجر',
+  mustUpdateFallback: 'من فضلك حدّثي التطبيق من المتجر عشان يشتغل.',
 };
