@@ -125,7 +125,7 @@ it('refuses the claim when the subscription generation changed', async () => {
   expect((await h.attempt(attemptId))[0]?.['status']).toBe('PENDING');
 });
 
-it('records a failed admission instead of leaving the attempt pending', async () => {
+it('leaves the attempt pending and throws when the admission store is unavailable', async () => {
   const { attemptId } = await h.authorizeAttempt('ar');
   const before = h.channel.calls;
   const failing = send({
@@ -135,13 +135,35 @@ it('records a failed admission instead of leaving the attempt pending', async ()
       },
     },
   });
-  const result = await failing.execute(TENANT.A.company, attemptId);
-  expect(result).toMatchObject({ status: 'FAILED', failureCode: 'ADMISSION_REFUSED' });
+  await expect(failing.execute(TENANT.A.company, attemptId)).rejects.toThrow(
+    'PUSH_ADMISSION_UNAVAILABLE',
+  );
   expect(h.channel.calls).toBe(before);
   const [row] = await h.attempt(attemptId);
-  expect(row).toMatchObject({ status: 'FAILED', failure_code: 'ADMISSION_REFUSED' });
-  // المحاولة اتحجزت قبل رفض الحجز، فالسجل بيحمل سياج التنفيذ.
-  expect(row?.['execution_id']).not.toBeNull();
-  expect(row?.['sending_at']).not.toBeNull();
-  expect(await h.events(attemptId)).toHaveLength(1);
+  expect(row).toMatchObject({ status: 'PENDING', failure_code: null, execution_id: null });
+  expect(await h.events(attemptId)).toHaveLength(0);
+  // المحاولة لسه معلّقة، فإعادة مهمة BullMQ بعد رجوع Redis بتبعت مرة واحدة.
+  const retried = await h.send.execute(TENANT.A.company, attemptId);
+  expect(retried).toMatchObject({ status: 'SENT' });
+  expect(h.channel.calls).toBe(before + 1);
+});
+
+it('returns no outcome when the fence stored nothing for a local refusal', async () => {
+  const { attemptId } = await h.authorizeAttempt('ar');
+  const before = h.channel.calls;
+  const lost = send({
+    admission: { reserve: async () => false },
+    deliveries: { ...h.send.deliveries, finishPending: async () => false },
+  });
+  expect(await lost.execute(TENANT.A.company, attemptId)).toBeNull();
+  expect(h.channel.calls).toBe(before);
+  expect((await h.attempt(attemptId))[0]?.['status']).toBe('PENDING');
+});
+
+it('returns no outcome when the fence stored nothing for the provider result', async () => {
+  const { attemptId } = await h.authorizeAttempt('ar');
+  const before = h.channel.calls;
+  const lost = send({ deliveries: { ...h.send.deliveries, finish: async () => false } });
+  expect(await lost.execute(TENANT.A.company, attemptId)).toBeNull();
+  expect(h.channel.calls).toBe(before + 1);
 });

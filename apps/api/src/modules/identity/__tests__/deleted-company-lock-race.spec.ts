@@ -12,6 +12,7 @@ import {
   lockEmployeeNumberAccess,
   readEmployeeNumberAccess,
 } from '../persistence/employee-number-access.ts';
+import { claimPayload } from '../../../../test/device-claim.ts';
 
 const EMAIL = 'deleted-lock-race@example.test';
 const PIN = '7391';
@@ -138,7 +139,7 @@ beforeAll(async () => {
   });
   const approved = await registered('Open till');
   await approve(approved.device_id);
-  const claimed = await h.app.inject({ method: 'POST', url: '/v1/devices/claim', payload: approved });
+  const claimed = await h.app.inject({ method: 'POST', url: '/v1/devices/claim', payload: claimPayload(approved) });
   expect(claimed.statusCode).toBe(200);
   deviceToken = (claimed.json() as { device_token: string }).device_token;
   pendingClaim = await registered('Unclaimed till');
@@ -213,7 +214,7 @@ it('waits on token claim and then refuses without clearing the claim secret', as
   const [before] = await h.owner<{ claim_hash: string }[]>`
     SELECT claim_hash FROM devices WHERE company_id=${company} AND id=${pendingClaim.device_id}`;
   const claimed = await duringOpenUpdate(
-    () => h.app.inject({ method: 'POST', url: '/v1/devices/claim', payload: pendingClaim }),
+    () => h.app.inject({ method: 'POST', url: '/v1/devices/claim', payload: claimPayload(pendingClaim) }),
     untilShareWait,
   );
   const [after] = await h.owner<{ claim_hash: string; token_hash: string | null }[]>`

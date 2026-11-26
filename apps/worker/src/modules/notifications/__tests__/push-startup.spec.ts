@@ -53,7 +53,10 @@ const options = (env: NodeJS.ProcessEnv, production = false): PushStartupOptions
 });
 
 const queue = (over: Partial<PushQueue> = {}): PushQueue => ({
-  queue: { add: async () => ({ id: 'job' }) } as unknown as Pick<Queue, 'add'>,
+  queue: { add: async () => ({ id: 'job' }), getJob: async () => undefined } as unknown as Pick<
+    Queue,
+    'add' | 'getJob'
+  >,
   ready: async () => undefined,
   stop: async () => undefined,
   close: async () => undefined,

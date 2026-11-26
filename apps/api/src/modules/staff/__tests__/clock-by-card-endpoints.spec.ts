@@ -9,6 +9,7 @@ import { systemClock } from '../../../shared/adapters/system-clock.ts';
 import { createEmployeeCardHash } from '../persistence/employee-card-hash.ts';
 import { startHarness, type Harness } from '../../../../test/harness.ts';
 import { takeTestEmployeeNumber } from '../../../../test/test-employee-number.ts';
+import { claimPayload } from '../../../../test/device-claim.ts';
 
 const STAFF_ORIGIN = 'http://localhost:5173';
 const authTime = { at: new Date() };
@@ -53,7 +54,7 @@ async function pair(label: string) {
   const claim = await h.app.inject({
     method: 'POST',
     url: '/v1/devices/claim',
-    payload: registered,
+    payload: claimPayload(registered),
   });
   return {
     deviceId: registered.device_id,

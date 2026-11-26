@@ -11,6 +11,7 @@ import {
   type StaffOtpDatabase,
 } from '../../../packages/db/src/staff-otp-database.ts';
 import { startHarness, type Harness } from './harness.ts';
+import { claimPayload } from './device-claim.ts';
 
 export const origin = 'http://pos.synthetic.invalid';
 export const phone = '+99900000001';
@@ -152,7 +153,7 @@ export async function paired(h: Harness, cookie: string, company: string, branch
     company,
   });
   const claimed = (
-    await h.app.inject({ method: 'POST', url: '/v1/devices/claim', payload: registered })
+    await h.app.inject({ method: 'POST', url: '/v1/devices/claim', payload: claimPayload(registered) })
   ).json();
   return { id: registered.device_id as string, token: claimed.device_token as string };
 }

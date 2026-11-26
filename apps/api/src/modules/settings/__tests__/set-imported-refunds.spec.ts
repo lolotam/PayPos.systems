@@ -10,6 +10,7 @@ import {
 import { createSettingsTransactions } from '../persistence/settings-transactions.ts';
 import { readImportedRefundsEnabled } from '../index.ts';
 import { SetImportedRefunds } from '../use-cases/set-imported-refunds/set-imported-refunds.ts';
+import { claimPayload } from '../../../../test/device-claim.ts';
 
 let f: PermissionFixture;
 let foreignBusiness: string;
@@ -264,7 +265,7 @@ it('IRS-04 device refusal: a device principal is refused on both routes', async 
   const claimed = await f.h.app.inject({
     method: 'POST',
     url: '/v1/devices/claim',
-    payload: device,
+    payload: claimPayload(device),
   });
   const token = claimed.json<{ device_token: string }>().device_token;
   const deviceHeaders = {

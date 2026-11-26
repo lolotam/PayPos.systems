@@ -105,12 +105,15 @@ export {
 export { plan, type Plan } from './tenancy/plan.js';
 export {
   claimDeviceInput,
+  deviceCheckCode,
   deviceRegistration,
   deviceIdentity,
   deviceToken,
   pairingCode,
+  PAIRING_CODE_ALPHABET,
   registerDeviceInput,
   type ClaimDeviceInput,
+  type DeviceCheckCode,
   type DeviceRegistration,
   type DeviceIdentity,
   type DeviceToken,

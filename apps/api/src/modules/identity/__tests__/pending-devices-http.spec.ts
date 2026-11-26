@@ -6,6 +6,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { startHarness, type Harness } from '../../../../test/harness.ts';
 
 // The manager lists the devices waiting for approval, so the M-1c iOS check can find the device it just paired.
+// spec 071 adds the active devices of the branch and the check code of every pending device.
 let h: Harness;
 let owner: string;
 let company: string;
@@ -104,13 +105,21 @@ describe('GET /v1/branches/{branch}/devices', () => {
     expect(Object.keys(res.body)).toEqual(['items', 'next_cursor']);
     expect(body.items).toHaveLength(1);
     expect(body.items[0]).toMatchObject({ id: deviceId, label: 'Waiting till' });
-    expect(Object.keys(body.items[0] ?? {}).sort()).toEqual(['created_at', 'id', 'label']);
+    expect(Object.keys(body.items[0] ?? {}).sort()).toEqual([
+      'check_code',
+      'created_at',
+      'id',
+      'label',
+      'last_seen_at',
+    ]);
+    expect(body.items[0]?.check_code).toMatch(/^[ABCDEFGHJKMNPQRSTUVWXYZ23456789]{4}$/);
+    expect(body.items[0]?.last_seen_at).toBeNull();
     expect(body.next_cursor).toBeNull();
     expect(JSON.stringify(res.body)).not.toContain('claim_hash');
   });
 
-  it('refuses a missing status and a status other than pending', async () => {
-    for (const query of ['', '?status=active']) {
+  it('refuses a missing status and a status other than pending or active', async () => {
+    for (const query of ['', '?status=revoked']) {
       const res = await list(query);
       expect([res.status, errorEnvelope.parse(res.body).code]).toEqual([400, 'VALIDATION_FAILED']);
     }
@@ -120,16 +129,39 @@ describe('GET /v1/branches/{branch}/devices', () => {
     const res = await list('?status=pending&cursor=not-a-real-cursor');
     expect([res.status, errorEnvelope.parse(res.body).code]).toEqual([400, 'VALIDATION_FAILED']);
   });
+});
+
+describe('GET /v1/branches/{branch}/devices?status=active', () => {
+  it('lists the active devices of the branch, with no check code', async () => {
+    const deviceId = await register('Approved till');
+    const approved = await h.send('POST', `/v1/branches/${branch}/devices/${deviceId}/approve`, {
+      cookie: owner,
+      company,
+    });
+    expect(approved.status).toBe(204);
+    const res = await list('?status=active');
+    expect(res.status).toBe(200);
+    const body = pendingDevicesResponse.parse(res.body);
+    const row = body.items.find((item) => item.id === deviceId);
+    expect(row).toBeDefined();
+    expect(row?.check_code).toBeNull();
+    expect(row?.last_seen_at).toBeNull();
+    expect(body.items.map((item) => item.id)).toEqual([deviceId]);
+  });
 
   it('refuses a caller without manage:devices:branch', async () => {
-    const res = await list('?status=pending', cashier);
-    expect([res.status, errorEnvelope.parse(res.body).code]).toEqual([403, 'FORBIDDEN']);
+    for (const query of ['?status=pending', '?status=active']) {
+      const res = await list(query, cashier);
+      expect([res.status, errorEnvelope.parse(res.body).code]).toEqual([403, 'FORBIDDEN']);
+    }
   });
 
   it('refuses a manager of another branch of the same company', async () => {
     const deviceId = await register('Hidden till');
-    const res = await list('?status=pending', branchManager);
-    expect([res.status, errorEnvelope.parse(res.body).code]).toEqual([403, 'FORBIDDEN']);
-    expect(JSON.stringify(res.body)).not.toContain(deviceId);
+    for (const query of ['?status=pending', '?status=active']) {
+      const res = await list(query, branchManager);
+      expect([res.status, errorEnvelope.parse(res.body).code]).toEqual([403, 'FORBIDDEN']);
+      expect(JSON.stringify(res.body)).not.toContain(deviceId);
+    }
   });
 });

@@ -44,16 +44,24 @@ the staff OTP sign-in (PP-58.1), and the employee's own PIN change, except the s
   the branch's previous live code**, so a code the manager replaced, for example because someone saw it, stops
   working at once. This needs a pointer keyed by `(company_id, branch_id)` in the pairing-code store. Issuing a code, replacing the
   pointer, deleting the old key, and checking and consuming at register time each run as **one atomic Redis step** (a
-  Lua script), so a replaced code can never be consumed. Register first **claims** the code for a client
-  nonce, and only a committed registration consumes it, so a database retry with the same nonce succeeds while any
-  other claimant is refused. The code's stored value also keeps the **issuing user's id**, which is the actor of an
-  automatic approval (071-1). The open protocol details (replacement during an in-flight registration, nonce
+  Lua script), so a replaced code can never be consumed. Register first **claims** the code with a
+  server-generated 128-bit `claimId`, and consumes it inside the Postgres transaction right before commit, so a
+  replaced code rolls the transaction back and a claimant that lost the claim is refused. The code's stored value is
+  `${company_id}|${branch_id}`. Persisted client-nonce retries (`#679` item 3) and storing the issuing user's id
+  for an automatic approval (`#679` item 4, moot under PP-63.2 manual approval) are deferred. The open protocol details (replacement during an in-flight registration, nonce
   strength, commit-unknown retries, the issuer recheck, concurrent check-code clashes) are settled in the 071-1
-  sub-spec: https://github.com/lolotam/PayPos.systems/issues/679.
+  sub-spec: https://github.com/lolotam/PayPos.systems/issues/679. Status of its items: items 1 and 2 are implemented in
+  `071-1`; item 4 is moot under PP-63.2 (approval stays a separate step); items 3 and 5 (a schema migration adding a
+  persisted `register_nonce` and a `check_code` partial unique index) are deferred past Phase 1, so `071-1 + 071-2`
+  keeps `0 migrations` and a stable check code derived from the device id.
 - **FR-002** The same screen lists the branch's pending devices, with «موافقة» and «رفض»; refuse uses revoke. Each row
   shows the device's name, its time, and a **check code**: four symbols of the pairing-code alphabet (no look-alike characters), taken from a hash of the
-  whole device id (the id is UUID v7, so its time-ordered prefix must never be used). The server keeps it unique among
-  the branch's current pending devices: on a clash it rehashes with a counter until the code is free. The
+  whole device id (the id is UUID v7, so its time-ordered prefix must never be used). In `071-1 + 071-2` the code is a
+  pure, stable function of the device id alone (`computeDeviceCheckCode` in `packages/domain`, no salt, no list), so
+  the register response, the manager's list and the device's waiting screen always show the same code with `0 migrations`;
+  two pending devices of one branch can in theory share a code (about 1 in 923,000 per pair), and the manager still
+  sees the label and the time to tell them apart. A uniqueness guarantee needs the persisted `check_code` column
+  and its partial unique index, deferred past Phase 1 (see the `#679` note under FR-001). The
   counter app's waiting screen shows the same check code. The manager approves only when the two match, because a
   label can be typed by anyone holding the code.
   - While a code is live, the list refreshes every 5 seconds, and it has a «تحديث» button, so a device that registers
@@ -133,11 +141,14 @@ the staff OTP sign-in (PP-58.1), and the employee's own PIN change, except the s
 - **071-1:**
   - a replaced code is refused at register, including in a race test against the atomic step;
   - a pointer of company A never affects company B;
-  - the check code matches between the admin row and the device, and two devices registered in the same millisecond
-    get different codes, and a forced hash clash among pending devices is resolved by the rehash;
+  - the check code matches between the admin row and the device, and the check code is a stable function of the full
+    device id (equal on the device and in the manager's list); same-millisecond UUID v7 diversity is unit-tested on
+    `computeDeviceCheckCode` (FR-001 / FR-002), while persisted `check_code` uniqueness is deferred (#679 item 5),
+    leaving a theoretical collision probability of about 1 in 923,000 among the pending devices of a branch;
   - a device that registers after the screen opened appears within one refresh;
   - pending devices past the first page are reachable;
-  - DV-Q2 «the code is enough»: an auto-approved device has its approval audit row.
+  - DV-Q2 «the code is enough»: an auto-approved device has its approval audit row. Moot for 071-1 (superseded under
+    PP-63.2): approval remains a separate manual step, so no device is auto-approved in this sub-PR.
 - **071-2:** active devices page through, and «إزالة» revokes and audits.
 - **071-3:**
   - the eligibility read refuses a caller without the guard permission and returns no phone;

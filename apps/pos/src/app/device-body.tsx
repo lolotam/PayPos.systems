@@ -41,7 +41,14 @@ export function DeviceBody({
       </>
     );
   }
-  if (screen.kind === 'waiting') return <WaitingScreen onStartOver={session.startOver} />;
+  if (screen.kind === 'waiting') {
+    return (
+      <WaitingScreen
+        {...(screen.checkCode ? { checkCode: screen.checkCode } : {})}
+        onStartOver={session.startOver}
+      />
+    );
+  }
   if (screen.kind === 'offline') return <OfflineNotice onRetry={session.retry} />;
   if (screen.kind === 'unsupported') return <UnsupportedNotice />;
   return (
