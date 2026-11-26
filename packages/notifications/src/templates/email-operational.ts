@@ -1,3 +1,5 @@
+import { renderEmailLayout } from './email-layout.ts';
+
 export interface EmailContent {
   readonly subject: string;
   readonly text: string;
@@ -18,6 +20,23 @@ const COPY = {
   },
 } as const;
 
+/** أصول لوحة الإدارة المسموح إرسال روابط عليها؛ أي أصل تاني يُرفض قبل الإرسال. */
+const ADMIN_ORIGINS: readonly string[] = [
+  'https://app.pospay.systems',
+  'https://app.staging.pospay.systems',
+];
+
+/**
+ * يرسم بريد تشغيلي واحد بالتخطيط الموحّد: نفس الجدول وال header والتذييل لكل رسالة.
+ * الأصل بيتفحص قبل أي بناء، فلو مش من الأصول المسموحة ما بتبعتش رسالة أصلاً.
+ *
+ * @param key مفتاح القالب
+ * @param revision مراجعة القالب
+ * @param locale لغة الرسالة
+ * @param parameters معاملات القالب الآمنة
+ * @param adminOrigin أصل لوحة الإدارة
+ * @returns البريد بصيغتيه، أو null لما القالب أو الأصل مش على-spec
+ */
 export function renderOperationalEmail(
   key: string,
   revision: number,
@@ -32,13 +51,16 @@ export function renderOperationalEmail(
     parameters.length !== 0
   )
     return null;
-  if (!['https://app.pospay.systems', 'https://app.staging.pospay.systems'].includes(adminOrigin))
-    return null;
+  if (!ADMIN_ORIGINS.includes(adminOrigin)) return null;
   const copy = COPY[locale as 'ar' | 'en'];
   const link = `${adminOrigin}/`;
-  return {
-    subject: copy.subject,
-    text: `${copy.body}\n${copy.action}\n${link}`,
-    html: `<html lang="${locale}" dir="${locale === 'ar' ? 'rtl' : 'ltr'}"><body><p>${copy.body}</p><a href="${link}">${copy.action}</a></body></html>`,
-  };
+  const layout = renderEmailLayout({
+    locale: locale as 'ar' | 'en',
+    adminOrigin,
+    title: copy.subject,
+    bodyHtml: `<p style="margin:0;">${copy.body}</p>`,
+    bodyText: copy.body,
+    action: { label: copy.action, url: link },
+  });
+  return { subject: copy.subject, text: layout.text, html: layout.html };
 }

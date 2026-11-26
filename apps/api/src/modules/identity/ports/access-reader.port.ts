@@ -95,6 +95,15 @@ export interface AccessReader {
    * @param flag      اسم الـ feature flag
    */
   isFeatureEnabled(companyId: string, flag: string): Promise<boolean>;
+  /**
+   * هل العضوية السارية للمستخدم بتغطي النشاط ده: نطاق الشركة، أو النشاط نفسه، أو فرع تابع له.
+   * الفحص بيقرأ العضويات والفروع من غير قفل، وما بيطلبش أي صلاحية (TQ-1).
+   *
+   * @param companyId  الشركة المتأكد منها
+   * @param userId     المستخدم الموثق
+   * @param businessId النشاط المطلوب
+   */
+  coversBusiness(companyId: string, userId: string, businessId: string): Promise<boolean>;
 }
 
 /** قراءة إذن واحد لفروع كثيرة عبر نفس تفويض الطلب المفرد؛ يحتاجها عرض إجراءات الصفحة. */

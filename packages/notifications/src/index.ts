@@ -13,6 +13,8 @@ export { readEmailConfiguration } from './email-configuration.ts';
 export type { EmailConfiguration, EmailDisabledReason } from './email-configuration.ts';
 export { renderOperationalEmail } from './templates/email-operational.ts';
 export type { EmailContent } from './templates/email-operational.ts';
+export { renderEmailLayout, EmailLayoutError } from './templates/email-layout.ts';
+export type { EmailLayout, EmailLayoutInput } from './templates/email-layout.ts';
 export {
   GRAPH_API_VERSION,
   readNotificationConfiguration,

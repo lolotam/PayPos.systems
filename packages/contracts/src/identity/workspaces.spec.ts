@@ -81,6 +81,28 @@ it('accepts an older workspace response without guessing its business type or co
   ).toBe(false);
 });
 
+describe('workspace business logo reference (079 TQ-1)', () => {
+  it('accepts a uuid logo reference, an explicit null, and none at all', () => {
+    const uuid = '01920000-0000-7000-8000-0000000000b1';
+    expect(workspaceBusiness.safeParse({ ...baseBusiness, logo_file_id: uuid }).success).toBe(true);
+    expect(workspaceBusiness.safeParse({ ...baseBusiness, logo_file_id: null }).success).toBe(true);
+    expect(workspaceBusiness.safeParse(baseBusiness).success).toBe(true);
+    expect(workspaceBusiness.safeParse({ ...baseBusiness, logo_file_id: 'not-a-uuid' }).success).toBe(
+      false,
+    );
+  });
+
+  it('publishes the optional nullable logo reference on WorkspaceBusiness', () => {
+    const schema = committedDocument.components.schemas.WorkspaceBusiness;
+    expect(schema.required).not.toContain('logo_file_id');
+    expect(schema.properties.logo_file_id).toMatchObject({
+      type: 'string',
+      format: 'uuid',
+      nullable: true,
+    });
+  });
+});
+
 describe('workspace staff-access capability contract (076 A1)', () => {
   it('carries the staff-access flag on a workspace read', () => {
     const body = { companies: [], capabilities: { staff_access: false } };

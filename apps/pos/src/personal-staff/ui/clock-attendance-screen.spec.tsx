@@ -1,9 +1,19 @@
 import { fireEvent, render, screen } from '@testing-library/react';
-import { beforeEach, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { t, type Locale } from '@pospay/i18n';
 import { LocaleProvider } from '@/shared/locale/locale-context';
+import type * as NativeShellModule from '@/shared/platform/native-shell';
 import { useClockAttendance } from '../api/use-clock-attendance';
 import { ClockAttendanceScreen } from './clock-attendance-screen';
+
+const capabilities = vi.hoisted(() => ({
+  value: { webPush: true, passkeys: true, qrScan: true, attendanceCamera: true },
+}));
+
+vi.mock('@/shared/platform/native-shell', async (importOriginal) => ({
+  ...(await importOriginal<typeof NativeShellModule>()),
+  capabilities: vi.fn(() => capabilities.value),
+}));
 vi.mock('../api/use-clock-attendance', () => ({ useClockAttendance: vi.fn() }));
 const start = vi.fn();
 function mount(locale: Locale) {
@@ -15,6 +25,7 @@ function mount(locale: Locale) {
 }
 beforeEach(() => {
   vi.clearAllMocks();
+  capabilities.value = { webPush: true, passkeys: true, qrScan: true, attendanceCamera: true };
   vi.mocked(useClockAttendance).mockReturnValue({
     scanning: false,
     pending: false,
@@ -26,6 +37,9 @@ beforeEach(() => {
     stop: () => undefined,
     start,
   });
+});
+afterEach(() => {
+  vi.unstubAllEnvs();
 });
 it.each(['ar', 'en'] as const)(
   'shows an accepted result and exceptions plainly in %s',
@@ -50,6 +64,30 @@ it.each(['ar', 'en'] as const)(
     view.unmount();
   },
 );
+it('shows the scan button when the build has the attendance camera (MOB-T07)', () => {
+  const view = mount('ar');
+
+  expect(screen.getByRole('button', { name: t('ar', 'personalAttendance.scan') })).toBeDefined();
+  expect(screen.queryByText(t('ar', 'nativeShell.webOnlyNotice'))).toBeNull();
+  view.unmount();
+});
+
+it('shows the heading and the web app notice but no scan button without the camera (MOB-T05)', () => {
+  capabilities.value = { webPush: true, passkeys: true, qrScan: true, attendanceCamera: false };
+  vi.stubEnv('VITE_NATIVE', '1');
+  vi.stubEnv('VITE_POS_HOST', 'pos.staging.pospay.systems');
+
+  const view = mount('ar');
+
+  expect(screen.getByRole('heading', { name: t('ar', 'personalAttendance.title') })).toBeDefined();
+  expect(screen.queryByRole('button', { name: t('ar', 'personalAttendance.scan') })).toBeNull();
+  expect(screen.getByText(t('ar', 'nativeShell.webOnlyNotice'))).toBeDefined();
+  const link = screen.getByRole('link', { name: t('ar', 'nativeShell.openWebApp') });
+  expect(link.getAttribute('href')).toBe('https://pos.staging.pospay.systems/personal');
+  expect(start).not.toHaveBeenCalled();
+  view.unmount();
+});
+
 it('pending blocks duplicate camera starts; cancellation is a translated retryable failure', () => {
   vi.mocked(useClockAttendance).mockReturnValue({
     ...useClockAttendance(),

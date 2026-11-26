@@ -303,6 +303,8 @@ export const ar: Catalog = {
     NOT_READY: 'الخدمة غير جاهزة حالياً',
     RATING_LINK_UNAVAILABLE: 'الرابط ده مش متاح.',
     RATING_INPUT_INVALID: 'التقييم مش مظبوط. راجعي النجوم والملاحظة.',
+    RATING_RANGE_TOO_WIDE:
+      'المدى الزمني لتقرير متوسط التقييمات لازم يكون ببداية ونهاية وما يزيدش عن 366 يوم.',
     SESSION_RECOVERY_UNAVAILABLE: 'الحفظ غير متاح مؤقتاً. أعد نفس المحاولة.',
     INTERNAL_ERROR: 'حدث خطأ غير متوقع',
   },

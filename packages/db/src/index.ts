@@ -48,7 +48,12 @@ export {
   attendanceStatementScheduledEmployeesStatement,
   type AttendanceStatementBranch,
 } from './attendance-statement-scheduled-employees.ts';
-export { businessIdentityReadStatement, readBusinessIdentity } from './business-identity-read.ts';
+export {
+  businessIdentityReadStatement,
+  businessLogoIdsReadStatement,
+  readBusinessIdentity,
+  readBusinessLogoIds,
+} from './business-identity-read.ts';
 export { canonicalJson } from './canonical-json.ts';
 export { createDatabase, type Database, type DatabaseOptions } from './client.ts';
 export { createCoverageIssuer, CoverageIssuanceError, coverageIssuanceFailure } from './commission-coverage-issuer.ts';

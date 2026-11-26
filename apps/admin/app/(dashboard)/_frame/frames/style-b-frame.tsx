@@ -5,6 +5,7 @@ import { useMemo, type ReactNode } from 'react';
 
 import { useMenuContext } from '../menu/use-menu-context';
 import { buildStyleBView } from '../menu/style-views';
+import { DashboardBrandLogo } from './dashboard-brand-logo';
 import { FrameBarEnd } from './frame-bar-end';
 import { FrameChrome } from './frame-chrome';
 import { useFrameLabels } from './use-frame-labels';
@@ -27,6 +28,9 @@ export function StyleBFrame({ children }: { children: ReactNode }) {
     <div className="flex min-h-dvh flex-col">
       <FrameChrome>
         <div className="flex items-center border-b border-sidebar-border bg-sidebar text-sidebar-foreground">
+          <div className="shrink-0 ps-3 pe-2">
+            <DashboardBrandLogo variant="mark" />
+          </div>
           <div className="min-w-[3.75rem] flex-1">
             <TopNav
               modules={view.modules}

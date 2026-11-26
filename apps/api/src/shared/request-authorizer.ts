@@ -9,4 +9,16 @@ export interface RequestAuthorizer {
     branchParam?: unknown;
     featureFlag?: string;
   }): Promise<{ feature?: { enabled: boolean } } | null>;
+  /**
+   * هل عضوية المستخدم السارية بتغطي النشاط ده؟
+   * التحقق من التغطية لا يطلب صلاحية، وهو طريق القراءة الوحيد للشعار المربوط (TQ-1).
+   *
+   * @param input المستخدم والشركة المطلوبة والنشاط المطلوب
+   * @returns true لما العضوية السارية بتغطي النشاط
+   */
+  coversBusiness(input: {
+    userId: string;
+    requestedCompany: unknown;
+    businessParam: unknown;
+  }): Promise<boolean>;
 }

@@ -1,6 +1,8 @@
 import { t } from '@pospay/i18n';
 import { Button } from '@pospay/ui';
 import { useLocale } from '@/shared/locale/locale-context';
+import { capabilities } from '@/shared/platform/native-shell';
+import { WebOnlyNotice } from '@/shared/platform/web-only-notice';
 import { useEnrolPasskey } from '../api/use-enrol-passkey';
 import { PushControl } from '../push/push-control';
 import { ClockAttendanceScreen } from './clock-attendance-screen';
@@ -19,16 +21,21 @@ export function EnrolPasskeyScreen({
   const message = enrolRefusal(state.errorCode);
   const locked =
     message === 'errors.PASSKEY_DEVICE_TAKEN' || message === 'errors.PASSKEY_OTHER_DEVICE';
+  // مفاتيح المرور مفيش منصة WebAuthn ليها في الـ web view بتاع نسخة التطبيق الأصلي،
+  // فالتسجيل بيتعمل من نسخة الويب (MOB-T05).
+  const passkeys = capabilities().passkeys;
+  const unbound = state.binding?.bound === false;
   return (
     <div className="grid gap-6">
       {state.binding ? (
         <p>{t(locale, state.binding.bound ? 'personalStaff.bound' : 'personalStaff.unbound')}</p>
       ) : null}
-      {state.binding?.bound === false ? (
+      {unbound && passkeys ? (
         <Button size="touch" disabled={state.pending || locked} onClick={() => void state.enrol()}>
           {t(locale, 'personalStaff.enrol')}
         </Button>
       ) : null}
+      {unbound && !passkeys ? <WebOnlyNotice path="/personal" /> : null}
       {state.binding?.bound === true ? <ClockAttendanceScreen /> : null}
       <PushControl companyId={companyId} />
       {state.loading ? <p role="status">{t(locale, 'personalStaff.loading')}</p> : null}

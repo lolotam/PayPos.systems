@@ -5,6 +5,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { readDeviceRole, rememberBusiness } from '@/app/device-role';
 import { LocaleProvider } from '@/shared/locale/locale-context';
+import type * as NativeShellModule from '@/shared/platform/native-shell';
 
 import { NativeEntry } from './native-entry';
 
@@ -19,7 +20,8 @@ vi.mock('@/shared/platform/launch-links', () => ({
   readLaunchLink: vi.fn(async () => null),
   onLinkOpened: vi.fn(() => () => undefined),
 }));
-vi.mock('@/shared/platform/native-shell', () => ({
+vi.mock('@/shared/platform/native-shell', async (importOriginal) => ({
+  ...(await importOriginal<typeof NativeShellModule>()),
   nativePosHost: vi.fn(() => 'pos.staging.pospay.systems'),
 }));
 vi.mock('@/personal-staff/api/use-personal-session', () => ({

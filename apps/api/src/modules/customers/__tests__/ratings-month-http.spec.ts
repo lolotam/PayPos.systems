@@ -141,3 +141,31 @@ it('refuses month together with from or to, and a malformed month, with 400 on b
     expect([query, listed.status, averaged.status]).toEqual([query, 400, 400]);
   }
 });
+
+it('accepts an explicit range of exactly 366 days on the averages, and refuses a wider or a one-sided one with 422', async () => {
+  // مدى سنة بالضبط (366 يوم) مقبول على تقرير المتوسطات (PP-278).
+  const accepted = await get(averagesUrl('?from=2026-06-11T09:00:00Z&to=2027-06-12T09:00:00Z'));
+  expect([accepted.status, accepted.body['month']]).toEqual([200, null]);
+  const tooWide = 'from=2026-06-11T09:00:00Z&to=2027-06-12T09:00:00.000001Z';
+  const fromOnly = 'from=2026-06-11T09:00:00Z';
+  const toOnly = 'to=2027-06-12T09:00:00Z';
+  for (const query of [tooWide, fromOnly, toOnly]) {
+    const refused = await get(averagesUrl(`?${query}`));
+    expect([query, refused.status, refused.body['code']]).toEqual([
+      query,
+      422,
+      'RATING_RANGE_TOO_WIDE',
+    ]);
+    expect(refused.body['message_ar']).toEqual(expect.any(String));
+    expect(refused.body['message_en']).toEqual(expect.any(String));
+    expect(String(refused.body['message_ar']).length).toBeGreaterThan(0);
+    expect(String(refused.body['message_en']).length).toBeGreaterThan(0);
+  }
+});
+
+it('keeps the cursor-paginated ratings list open to a wider and to a one-sided range', async () => {
+  const wide = 'from=2026-01-01T00:00:00Z&to=2028-01-01T00:00:00Z';
+  expect((await get(url(`?${wide}`))).status).toBe(200);
+  expect((await get(url('?from=2026-01-01T00:00:00Z'))).status).toBe(200);
+  expect((await get(url('?to=2028-01-01T00:00:00Z'))).status).toBe(200);
+});

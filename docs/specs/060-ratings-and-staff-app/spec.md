@@ -767,7 +767,10 @@ remain unsent, or whether a separately specified recovery policy is needed insid
   → the ratings list (stars, date, branch, performers, comment) as a keyset page; per-employee averages are their own route
   `GET /v1/businesses/:businessId/ratings/averages` filtered by `branch_id`, `from`, `to`, `employee_id` or `month`
   (T7, 61-2c) — `cursor` and `limit` belong to the paginated ratings list only and the averages route takes neither;
-  `queries/` with `EXPLAIN`.
+  `queries/` with `EXPLAIN`. An explicit range on the averages route needs **both** `from` and `to` and spans at most
+  **366 days**; a wider range or a one-sided (open-ended) range is refused with `422 RATING_RANGE_TOO_WIDE` (PP-278,
+  owner decision 2026-11-26). The `month` window and the default current calendar month keep working unchanged, and the
+  cursor-paginated ratings list keeps its open-ended and long ranges.
 - **FR-B16** Alert rules (row 62): `GET/PUT /v1/businesses/:businessId/alert-rules` (business rules),
   `GET/PUT/DELETE /v1/businesses/:businessId/branches/:branchId/alert-rules` (a branch's overrides; `DELETE` of a kind
   returns the branch to the business rule, AL-Q2) and `PUT /v1/businesses/:businessId/alert-rules/master`; idempotent,
@@ -874,6 +877,9 @@ Adapter edges are added to module-map §2/§3 when first used.
 - `RATING_LINK_UNAVAILABLE` 404 — «الرابط ده مش متاح.» / "This link is not available." — one answer for malformed,
   unknown, tampered, expired, consumed (on submit) and cross-tenant (ADR-0011 §1). Final copy per RT-Q2.
 - `RATING_INPUT_INVALID` 422 — stars or comment invalid; the token stays unconsumed.
+- `RATING_RANGE_TOO_WIDE` 422 — an explicit range on `GET /v1/businesses/:businessId/ratings/averages` wider than 366
+  days, or one-sided (only `from`, or only `to`); the range rule is enforced in the read, so a malformed or inverted
+  range stays `400 VALIDATION_FAILED` (PP-278).
 - A body that is not valid JSON never reaches the rating route and answers the API-wide 400 `BAD_REQUEST`; the token stays unconsumed (PP-90.1).
 - `ALERT_RULE_INVALID` 422 — a value outside the kind's allowed range, role or channel.
 - Reused: `TOO_MANY_REQUESTS` (429), `FORBIDDEN`, `FEATURE_DISABLED` (feature `customers`), `NOT_READY`.
