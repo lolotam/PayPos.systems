@@ -34,6 +34,7 @@ const IDENTITY: Record<string, (row: Row) => string> = {
 /**
  * كل ورقة بمسارها الكامل وهوية صفها: الصف في الموضع i بياخد هوية الصف الأساسي في نفس الموضع، فتعديل
  * في هوية صف (line_id مثلاً) بيظهر كتغيّر في الورقة دي بس، وصف اتحرّك من مكانه بيبيّن أوراق غيره.
+ * هوية مكررة في نفس القايمة معناها صفّين ورا بعض بنفس المسار، فالمقارنة بترمي بدل ما تبلع أول ورقة.
  *
  * @param value القيمة القياسية
  * @param base القيمة الأساسية اللي بتدّي الهويات
@@ -52,9 +53,22 @@ export function labelledLeaves(
   if (Array.isArray(value)) {
     const baseList = Array.isArray(base) ? base : [];
     const identity = IDENTITY[name];
+    const labels = new Set<string>();
+    const seen = new Set<string>();
     value.forEach((item, index) => {
+      if (identity !== undefined) {
+        const own = identity(item as Row);
+        if (seen.has(own)) {
+          throw new Error(`Duplicate row identity "${own}" in ${path === '' ? name : path}`);
+        }
+        seen.add(own);
+      }
       const source = (baseList[index] ?? item) as Row;
       const label = identity === undefined ? String(index) : identity(source);
+      if (labels.has(label)) {
+        throw new Error(`Duplicate row identity "${label}" in ${path === '' ? name : path}`);
+      }
+      labels.add(label);
       labelledLeaves(item, baseList[index], `${path}[${label}]`, name, out);
     });
   } else if (value !== null && typeof value === 'object') {
@@ -62,7 +76,12 @@ export function labelledLeaves(
     for (const [key, item] of Object.entries(value)) {
       labelledLeaves(item, baseObject[key], path === '' ? key : `${path}.${key}`, key, out);
     }
-  } else out.set(path, value);
+  } else {
+    if (out.has(path)) {
+      throw new Error(`Duplicate leaf path "${path}" in the compared values`);
+    }
+    out.set(path, value);
+  }
   return out;
 }
 

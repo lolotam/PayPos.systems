@@ -58,6 +58,14 @@ import {
   type EmployeeBusinessReader,
 } from './persistence/commission-tip-salary-projection.scope.ts';
 import { createCommissionSaleProjectionScope } from './persistence/commission-sale-projection.scope.ts';
+import { commissionReplayCursorGuard } from './persistence/commission-replay-cursor.ts';
+import {
+  assertReplayCursorWithGuard,
+  runCommissionInputReplay as runCommissionInputReplayWithGuard,
+  type CommissionReplayCursor,
+  type CommissionReplayDeps,
+  type CommissionReplayResult,
+} from './jobs/replay-commission-inputs.ts';
 import type { Clock, IdGenerator } from './ports/commission-line-projection.port.ts';
 import type { CurrentTipSessionsReader } from './ports/commission-tip-bootstrap.port.ts';
 import { ProjectSalary } from './use-cases/project-salary/project-salary.ts';
@@ -261,4 +269,35 @@ export function createCommissionReminderScheduleConsumer(): OutboxConsumer {
     eventTypes: ['CompanyCreated'],
     handle: async () => undefined,
   };
+}
+
+/**
+ * يثبت صحة حدود الاستعادة بالحارس المربوط من persistence، فالمشغّل مالوش استيراد قاعدة بيانات.
+ *
+ * @param afterId الحد الأدنى المستأنف، أو null في أول تشغيل
+ * @param throughId الحد الأعلى الثابت، إلزامي عند وجود afterId
+ * @returns لا قيمة؛ يكمل فقط عند صحة المؤشرين
+ */
+export function assertCommissionReplayCursor(
+  afterId: string | null,
+  throughId: string | null,
+): void {
+  assertReplayCursorWithGuard(commissionReplayCursorGuard, afterId, throughId);
+}
+
+/**
+ * يشغّل استعادة مدخلات العمولة بالحارس المربوط من persistence؛ الـ jobs ما بيشتغلش من غيره.
+ *
+ * @param deps قارئ الصفحات وموصّل الأحداث وخريطة الفشل والنطاق وأنواع المستهلك
+ * @param cursor الشركة وحدود النطاق المطلوب استعادته
+ * @returns نتيجة الاستعادة
+ */
+export function runCommissionInputReplay(
+  deps: Omit<CommissionReplayDeps, 'cursor'>,
+  cursor: CommissionReplayCursor,
+): Promise<CommissionReplayResult> {
+  return runCommissionInputReplayWithGuard(
+    { ...deps, cursor: commissionReplayCursorGuard },
+    cursor,
+  );
 }

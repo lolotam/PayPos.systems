@@ -125,3 +125,40 @@ export class CommissionBlockNoticeGroupSizeError extends Error {
     this.size = size;
   }
 }
+
+/** شهر غير صالح؛ شهر غلط كان بيخلي حلقة الأشهر ما تخلصش أبداً. */
+export class CommissionPeriodInvalidError extends Error {
+  readonly code = 'COMMISSION_PERIOD_INVALID';
+  readonly period: string;
+
+  /**
+   * يحتفظ بالقيمة المرفوضة حتى يظهر سبب الرفض بوضوح.
+   *
+   * @param period الشهر المرفوض
+   */
+  constructor(period: string) {
+    super(`Invalid commission period: ${period}`);
+    this.name = 'CommissionPeriodInvalidError';
+    this.period = period;
+  }
+}
+
+/**
+ * نطاق شهور المرشحين تجاوز الحد الأقصى؛ القفل بيبقى على عدد شهور محدود، فالفحص بيرفض
+ * النطاق الأطول بدل ما ياخد أقفال بلا نهاية.
+ */
+export class CommissionCandidateRangeExceededError extends Error {
+  readonly code = 'COMMISSION_CANDIDATE_RANGE_EXCEEDED';
+  readonly maxPeriods: number;
+
+  /**
+   * يحتفظ بالحد الأقصى المرفوض حتى يظهر سبب الرفض بوضوح.
+   *
+   * @param maxPeriods الحد الأقصى المسموح من الشهور
+   */
+  constructor(maxPeriods: number) {
+    super(`Commission candidate range exceeds ${maxPeriods} periods`);
+    this.name = 'CommissionCandidateRangeExceededError';
+    this.maxPeriods = maxPeriods;
+  }
+}

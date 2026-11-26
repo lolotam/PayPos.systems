@@ -17,7 +17,12 @@ const parameters = [
     schema: { type: 'string', format: 'uuid' },
   },
   { in: 'path', name: 'businessId', required: true, schema: { type: 'string', format: 'uuid' } },
-  { in: 'path', name: 'period', required: true, schema: { $ref: '#/components/schemas/CommissionStatementPeriod' } },
+  {
+    in: 'path',
+    name: 'period',
+    required: true,
+    schema: { $ref: '#/components/schemas/CommissionStatementPeriod' },
+  },
 ];
 
 const idempotencyKey = {
@@ -44,11 +49,8 @@ export const commissionStatementPaymentPaths = {
         '403': forbidden,
         '409': {
           description:
-            'COMMISSION_STATEMENT_NOT_APPROVED when the statement is DRAFT or REVIEWED, or COMMISSION_STATEMENT_ALREADY_PAID when it is PAID and a new Idempotency-Key is sent (CM-41).',
-          content: oneOfJson(
-            'CommissionStatementNotApprovedError',
-            'CommissionStatementAlreadyPaidError',
-          ),
+            'COMMISSION_STATEMENT_NOT_APPROVED when the statement is DRAFT or REVIEWED, or COMMISSION_STATEMENT_ALREADY_PAID when it is PAID and a new Idempotency-Key is sent (CM-41), or TRANSACTION_RETRY_REQUIRED (retry the request).',
+          content: json('ErrorEnvelope'),
         },
         '422': {
           description:

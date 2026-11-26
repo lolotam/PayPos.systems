@@ -40,13 +40,6 @@ function employeeFilter(alias: string, column: string, employeeId: string | null
  * يقرأ صفوف شهر النشاط من إسقاط العمولة نفسه، كلها في نفس المعاملة عشان الأرقام
  * تيجي من لقطة واحدة. الصفوف بتشيل كمان نسخة الرأس والجلسة والعميل ومعرّف التصحيح اللي الكشف
  * وبصمته محتاجينهم؛ التقدير بيتجاهلهم.
- *
- * @param tx معاملة القراءة الحالية
- * @param companyId الشركة المؤكدة
- * @param businessId النشاط المطلوب
- * @param period الشهر المطلوب بصيغة YYYY-MM
- * @param employeeId موظفة واحدة اختيارية
- * @returns صفوف الشهر
  */
 export async function readEstimateMonth(
   tx: Tx,

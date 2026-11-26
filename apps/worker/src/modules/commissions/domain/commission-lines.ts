@@ -1,3 +1,4 @@
+import { isCommissionCalendarDate } from './commission-calendar.ts';
 import { CommissionLineEventInvalidError } from './errors.ts';
 import type {
   CommissionLineEventInput,
@@ -11,7 +12,8 @@ import type {
 /**
  * يفحص هويات البنود والمنفّذين قبل أي قفل أو حساب؛ حدث واحد لا يكرر بنداً أو موظفة
  * ولا يخلط نشاطين، ولا يخلط بنوداً من جلسات مختلفة، وحصص كل بند تساوي 10000 bps
- * حتى لا يضيع أو يتضاعف صافي.
+ * حتى لا يضيع أو يتضاعف صافي. تاريخ العمل لازم يكون تاريخاً تقويمياً حقيقياً،
+ * لأنه بيفصل شهر البند، فتاريخ مش موجود كان بيقفل شهر غلط.
  *
  * @param input الحدث الموحّد بكل لقطات بنوده
  * @returns لا شيء عند صحة الحدث، ويرمي CommissionLineEventInvalidError عند أول مخالفة
@@ -28,6 +30,9 @@ export function validateCommissionLineEvent(input: CommissionLineEventInput): vo
     }
     if (line.sessionId !== input.sessionId) {
       throw new CommissionLineEventInvalidError('LINE_SESSION_MISMATCH', line.lineId);
+    }
+    if (!isCommissionCalendarDate(line.businessDate)) {
+      throw new CommissionLineEventInvalidError('INVALID_BUSINESS_DATE', line.lineId);
     }
     validatePerformers(line);
   }

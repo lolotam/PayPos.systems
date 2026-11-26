@@ -66,10 +66,13 @@ const facadeRule = (
   credentials = false,
   engine = RESTRICTED_PACKAGE_PATTERNS,
   operator = false,
+  runtimeDatabase = false,
 ) => [
   'error',
   {
     paths: [
+      // A layer that may not touch the database runtime refuses runtime imports while types stay allowed.
+      ...(runtimeDatabase ? [{ name: '@pospay/db', allowTypeImports: true }] : []),
       ...Object.entries(FACADES)
         .filter(([name]) => !(Array.isArray(allowed) ? allowed : [allowed]).includes(name))
         .map(([name, message]) => ({ name: '@pospay/db', importNames: [name], message })),
@@ -102,6 +105,18 @@ export const allowDatabaseFacade = (allowed, options = {}) => ({
     ...(options.operator === true
       ? { 'no-restricted-syntax': restrictedSyntax({ userText: false, operator: false }) }
       : {}),
+  },
+});
+
+/**
+ * The override for a layer that may name @pospay/db as types only: the runtime import of the whole
+ * module is refused there, while the credential, operator and restricted-package bans stay.
+ *
+ * @returns {import('eslint').Linter.Config} the override
+ */
+export const banRuntimeDatabaseImport = () => ({
+  rules: {
+    'no-restricted-imports': facadeRule(null, false, RESTRICTED_PACKAGE_PATTERNS, false, true),
   },
 });
 
