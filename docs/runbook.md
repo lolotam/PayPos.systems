@@ -1125,8 +1125,8 @@ node scripts/test-db/lane.mjs status               # lane containers, and which 
   running. When the owner file cannot be moved back (a persistent Windows `EPERM`/`EBUSY`), it is copied
   into the new lock directory instead, so a live owner keeps its lock; only if the copy fails too is the empty
   lock directory it just made removed (only if it is still the same directory: inode and creation time), and
-  the parked folder left as such an orphan, so an ownerless lock never blocks later starts. Only the owner's token releases the lock. The code is `scripts/test-db/lane-lock.mjs` and
-  `lane-process.mjs`, tested by `lane-lock.test.mjs`.
+  the parked folder left as such an orphan, so an ownerless lock never blocks later starts. Only the owner's token releases the lock. The code is `scripts/test-db/lane-lock.mjs` (with the lock-restore half in
+  `lane-lock-restore.mjs`) and `lane-process.mjs`, tested by `lane-lock.test.mjs` and `lane-lock-restore.test.mjs`.
 - `up` on a running lane waits for readiness, rewrites the override and reprints the port. A lane container
   that exists but is not plainly running (created, exited, paused, restarting) is removed and started fresh.
 - `up` writes `.env.test.local` at the worktree root (git-ignored by `.env.*`) with only
