@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { createOtpCrypto } from './crypto.ts';
 import { createStaffOtpExecution } from './execution.ts';
 import type { EmailOtpConfiguration } from '../password-reset-otp/configuration.ts';
 import type { OtpConfiguration } from './configuration.ts';
@@ -27,8 +28,12 @@ const keys = {
 const emailReady: EmailOtpConfiguration = { state: 'READY', keys, fingerprint: 'synthetic' };
 const whatsappOff: OtpConfiguration = { state: 'DISABLED', reason: 'x' } as OtpConfiguration;
 
-function build(probe: () => Promise<boolean>) {
+function build(
+  probe: () => Promise<boolean>,
+  readRecoveryEmail?: (companyId: string, userId: string) => Promise<string | null>,
+) {
   return createStaffOtpExecution({
+    ...(readRecoveryEmail === undefined ? {} : { readRecoveryEmail }),
     databaseUrl: 'synthetic',
     configuration: () => whatsappOff,
     emailConfiguration: () => emailReady,
@@ -96,5 +101,62 @@ describe('materializing an attempt', () => {
     db.materialize.mockResolvedValue(found);
     expect(await execution.materialize('c', 'a', 'e')).toBeNull();
     expect(probes).toBe(2);
+  });
+});
+
+describe('materializing a staff PIN recovery email', () => {
+  const challenge = {
+    id: 'c',
+    userId: 'user',
+    hashKeyId: 'h',
+    recipientHash: Buffer.alloc(32, 7),
+    derivationKeyId: 'd',
+    verificationKeyId: 'v',
+    deviceContext: {
+      purpose: 'STAFF_PIN_RESET',
+      companyId: 'company',
+      businessId: 'business',
+      branchId: 'branch',
+      deviceId: 'device',
+      channel: 'EMAIL',
+    },
+    codeMac: null,
+  };
+  const crypto = createOtpCrypto(keys);
+  const sealed = {
+    ...challenge,
+    codeMac: crypto.mac(challenge as never, crypto.derive(challenge as never)),
+  };
+  const found = { channel: 'EMAIL' as const, destination: null, challenge: sealed };
+
+  it('takes the address from the tenant reader, only for the matching hash', async () => {
+    const read = vi.fn(async () => 'sara@example.invalid');
+    const execution = build(async () => true, read);
+    db.materialize.mockResolvedValue(found);
+    const material = await execution.materialize('c', 'a', 'e');
+    expect(read).toHaveBeenCalledWith('company', 'user');
+    expect(material?.destination).toBe('sara@example.invalid');
+    expect(material?.code).toMatch(/^[0-9]{6}$/);
+  });
+
+  it('sends nothing when the address no longer matches the hash that opened the challenge', async () => {
+    const execution = build(
+      async () => true,
+      async () => 'someone-else@example.invalid',
+    );
+    const different = { ...found, challenge: { ...sealed, recipientHash: Buffer.alloc(32, 9) } };
+    db.materialize.mockResolvedValue(different);
+    expect(await execution.materialize('c', 'a', 'e')).toBeNull();
+  });
+
+  it('sends nothing when no reader is bound or the reader finds no address', async () => {
+    db.materialize.mockResolvedValue(found);
+    expect(await build(async () => true).materialize('c', 'a', 'e')).toBeNull();
+    expect(
+      await build(
+        async () => true,
+        async () => null,
+      ).materialize('c', 'a', 'e'),
+    ).toBeNull();
   });
 });

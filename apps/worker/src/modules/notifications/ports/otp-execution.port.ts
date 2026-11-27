@@ -6,6 +6,8 @@ export interface OtpPending {
   readonly locale: 'ar' | 'en';
   /** قناة المحاولة: واتساب أو إيميل — بتحدد القالب ودالة الحظر. */
   readonly channel: 'EMAIL' | 'WHATSAPP';
+  /** مفتاح القالب: اعتماد كلمة المرور أو اعتماد الرقم السري أو دخول الموظفة. */
+  readonly templateKey: string;
   readonly providerTemplateName: string | null;
   readonly status: string;
   readonly sendDeadline: Date;

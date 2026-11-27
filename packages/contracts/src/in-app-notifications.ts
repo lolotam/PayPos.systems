@@ -11,6 +11,8 @@ import {
 import {
   staffAccessGrantedNotification,
   staffAccessGrantedRecipient,
+  staffPinRecoveredNotification,
+  staffPinRecoveredRecipient,
   staffPinSetByOtherNotification,
   staffPinSetByOtherRecipient,
 } from './staff-access-notifications.js';
@@ -255,6 +257,7 @@ export const inAppRecipient = z.discriminatedUnion('template_key', [
   documentExpiringRecipient,
   staffAccessGrantedRecipient,
   staffPinSetByOtherRecipient,
+  staffPinRecoveredRecipient,
   lowRatingRecipient,
   lowRatingCommentRecipient,
 ]);
@@ -357,6 +360,7 @@ export const inAppNotification = z
     }),
     staffAccessGrantedNotification,
     staffPinSetByOtherNotification,
+    staffPinRecoveredNotification,
     responseObject({
       ...inAppNotificationBase,
       template_key: z.literal('low_rating'),

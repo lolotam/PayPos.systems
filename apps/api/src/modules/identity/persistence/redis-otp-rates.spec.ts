@@ -160,3 +160,23 @@ describe('verification limits do not trust a client phone or refund uncertain re
     expect(results.filter((x) => x === 0)).toHaveLength(100);
   });
 });
+
+describe('namespace isolation across OTP purposes', () => {
+  it('isolates cooldown and hourly quotas across distinct namespaces', async () => {
+    const passwordReset = redisOtpRates(
+      redis,
+      syntheticKey,
+      { newId: randomUUID },
+      'password-reset-otp',
+    );
+    const staffPinReset = redisOtpRates(
+      redis,
+      syntheticKey,
+      { newId: randomUUID },
+      'staff-pin-reset-otp',
+    );
+    expect(await passwordReset.request(hash, ip, randomUUID())).toBe(0);
+    expect(await passwordReset.request(hash, ip, randomUUID())).toBeGreaterThan(0);
+    expect(await staffPinReset.request(hash, ip, randomUUID())).toBe(0);
+  });
+});

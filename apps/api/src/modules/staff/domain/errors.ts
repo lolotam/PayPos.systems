@@ -48,6 +48,7 @@ export class StaffAccessError extends Error {
       | 'STAFF_ACCESS_NOT_ALLOWED'
       | 'STAFF_ACCESS_ALREADY_GRANTED'
       | 'STAFF_ACCESS_PHONE_TAKEN'
+      | 'EMPLOYEE_RECOVERY_EMAIL_TAKEN'
       | 'TRANSACTION_RETRY_REQUIRED',
   ) {
     super(code);

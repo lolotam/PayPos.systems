@@ -1,3 +1,4 @@
+import { normalizeRecoveryEmail } from '../../domain/create-employee.ts';
 import { StaffAccessError } from '../../domain/errors.ts';
 import type {
   GrantBeginOutcome,
@@ -103,6 +104,8 @@ export class GrantEmployeeAccessUseCase {
           throw new StaffAccessError('STAFF_ACCESS_NOT_ALLOWED');
         if (employee.userId === actor.userId)
           throw new StaffAccessError('STAFF_ACCESS_NOT_ALLOWED');
+        const recoveryEmail = normalizeRecoveryEmail(command.recoveryEmail);
+        if (recoveryEmail !== null) await scope.setRecoveryEmail(recoveryEmail);
         const record = await scope.findRecord();
         if (employee.userId !== null && (record === null || record.userId !== employee.userId))
           throw new StaffAccessError('STAFF_ACCESS_NOT_ALLOWED');
@@ -221,7 +224,8 @@ export class GrantEmployeeAccessUseCase {
     } catch (error) {
       if (!(error instanceof StaffAccessError) || error.code !== 'STAFF_ACCESS_PHONE_TAKEN')
         throw error;
-      if (await this.#noAccountWritten(record)) await scope.releaseAttempt(record.id, record.attemptId);
+      if (await this.#noAccountWritten(record))
+        await scope.releaseAttempt(record.id, record.attemptId);
       return null;
     }
   }
@@ -259,7 +263,12 @@ export class GrantEmployeeAccessUseCase {
 
   async #commitWork(
     scope: GrantCommitScope,
-    input: { command: GrantEmployeeAccessCommand; begin: GrantBeginOutcome; userId: string; pinHash: string },
+    input: {
+      command: GrantEmployeeAccessCommand;
+      begin: GrantBeginOutcome;
+      userId: string;
+      pinHash: string;
+    },
   ): Promise<GrantCommitOutcome> {
     const { command, begin, userId, pinHash } = input;
     if (!(await scope.lockCompany())) throw new StaffAccessError('EMPLOYEE_NOT_FOUND');
@@ -313,7 +322,6 @@ export class GrantEmployeeAccessUseCase {
       branchId: record.branchId,
     };
   }
-
 }
 
 /** أنواع نطاق الخطوة الأولى كما تعود من الـ port — اختصار داخلي للملف. */

@@ -53,7 +53,7 @@ it('coordinates one transaction and injected ids/time with null optionals', asyn
     employee_number: 4,
   });
   expect(scope.insert).toHaveBeenCalledWith(
-    { ...result, name_en_key: 'synthetic', name_ar_key: null },
+    { ...result, name_en_key: 'synthetic', name_ar_key: null, recovery_email: null },
     'injected-id',
   );
   expect(scope.audit).toHaveBeenCalledWith(result);

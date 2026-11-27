@@ -1,5 +1,6 @@
 import { PersonalOtpController } from './http/personal-otp.controller.ts';
 import { PasswordResetOtpController } from './http/password-reset-otp.controller.ts';
+import { StaffPinResetController } from './http/staff-pin-reset.controller.ts';
 import type { Provider } from '@nestjs/common';
 import { REQUEST_AUTHORIZER } from '../../shared/request-authorizer.ts';
 import { APP_GUARD } from '@nestjs/core';
@@ -106,6 +107,7 @@ export const identityControllers = [
   StaffOtpController,
   PersonalOtpController,
   PasswordResetOtpController,
+  StaffPinResetController,
   StaffPinController,
   PrivateViewController,
   MemberInvitationsController,

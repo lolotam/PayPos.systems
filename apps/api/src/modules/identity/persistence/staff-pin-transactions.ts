@@ -144,9 +144,41 @@ async function rotatePin(
   return rows.length !== 0;
 }
 
+/** إيميل الاستعادة للموظفة صاحبة الدخول السارية، مقفول FOR SHARE؛ أي عدد صفوف غير واحد = null. */
+async function readRecoveryEmail(tx: Tx, companyId: string, userId: string) {
+  const rows = await tx.execute<{ recovery_email: string | null }>(sql`SELECT e.recovery_email
+    FROM employees e JOIN employee_staff_access a ON a.company_id=e.company_id AND a.employee_id=e.id
+    WHERE e.company_id=${companyId} AND a.user_id=${userId} AND a.state='ACTIVE' AND e.deleted_at IS NULL
+    LIMIT 2 FOR SHARE OF e`);
+  return rows.length === 1 ? (rows[0]?.recovery_email ?? null) : null;
+}
+
+/** رقم دائم بمعرّف جديد لموظفة دخولها ACTIVE؛ بيرجّع معرّف الموظفة أو null لو مفيش تغيير. */
+async function recoverPin(
+  tx: Tx,
+  companyId: string,
+  ids: IdGenerator,
+  pin: { readonly userId: string; readonly hash: string; readonly at: Date },
+): Promise<string | null> {
+  const [access] = await tx.execute<{ employee_id: string }>(sql`SELECT a.employee_id
+    FROM employee_staff_access a
+    JOIN employees e ON e.company_id=a.company_id AND e.id=a.employee_id AND e.deleted_at IS NULL
+    WHERE a.company_id=${companyId} AND a.user_id=${pin.userId} AND a.state='ACTIVE'`);
+  if (access === undefined) return null;
+  const rows =
+    await tx.execute(sql`INSERT INTO cashier_pins(company_id,id,user_id,pin_hash,set_by,set_at,temporary,expires_at)
+    VALUES(${companyId},${ids.newId()},${pin.userId},${pin.hash},NULL,${pin.at.toISOString()}::timestamptz,false,NULL)
+    ON CONFLICT(company_id,user_id) DO UPDATE SET id=EXCLUDED.id,pin_hash=EXCLUDED.pin_hash,set_by=NULL,
+      set_at=EXCLUDED.set_at,temporary=false,expires_at=NULL
+    RETURNING id`);
+  return rows.length === 1 ? access.employee_id : null;
+}
+
 function scope(tx: Tx, companyId: string, ids: IdGenerator): StaffPinScope {
+  const writers = transactionWriters(tx, ids);
   return {
-    audit: transactionWriters(tx, ids).audit,
+    audit: writers.audit,
+    outbox: writers.outbox,
     member: async (userId) => {
       const rows = await tx.execute(sql`SELECT 1 FROM memberships WHERE company_id=${companyId}
         AND user_id=${userId} AND starts_at<=clock_timestamp()
@@ -188,6 +220,8 @@ function scope(tx: Tx, companyId: string, ids: IdGenerator): StaffPinScope {
     findProof: async (deviceId, proofHash) => readProof(tx, companyId, deviceId, proofHash),
     consumeProof: async (proof) => burnProof(tx, companyId, proof),
     rotatePin: async (pin) => rotatePin(tx, companyId, ids, pin),
+    recoveryEmail: (userId) => readRecoveryEmail(tx, companyId, userId),
+    recoverPin: (pin) => recoverPin(tx, companyId, ids, pin),
   };
 }
 

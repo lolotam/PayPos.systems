@@ -40,6 +40,8 @@ export interface OtpDeliveryInput {
   readonly redis: Redis;
   readonly redisUrl: string;
   readonly stopping: () => boolean;
+  /** قراءة إيميل استعادة الموظفة تحت withTenant — مربوطة في الجذر عشان الهوية ما تفتحش جدول الشركة. */
+  readonly readRecoveryEmail?: (companyId: string, userId: string) => Promise<string | null>;
 }
 
 /**
@@ -93,6 +95,9 @@ export function createOtpDelivery(input: OtpDeliveryInput): OtpDelivery {
       capability: channels.whatsapp,
       emailCapability: channels.email,
       strategies: otpStrategies(input.env),
+      ...(input.readRecoveryEmail === undefined
+        ? {}
+        : { readRecoveryEmail: input.readRecoveryEmail }),
     }));
   return {
     reconciler: authReconciler(state),

@@ -11,6 +11,7 @@ const before: EditableEmployee = {
   primary_branch_id: 'A',
   name_en: 'Synthetic',
   name_ar: null,
+  recovery_email: null,
   role_code: 'staff',
   hire_date: '2026-01-01',
   contract_end: null,

@@ -78,10 +78,22 @@ export const employees = pgTable(
     revision: integer('revision').notNull().default(1),
     // الرقم الوظيفي فريد داخل الشركة كلها ويشمل المحذوفين (قرارا المالك EN-Q1 وEN-Q4)؛ مرحلة الإحكام 8c-11 ترفض الغياب.
     employeeNumber: integer('employee_number').notNull(),
+    // إيميل الموظف الاختياري الوحيد: للتواصل والترحيب واستعادة الرقم السري. بيانات شخصية: ما بتتسجلش ولا بتتطبع.
+    recoveryEmail: text('recovery_email'),
   },
   (t) => [
     primaryKey({ name: 'employees_pkey', columns: [t.companyId, t.id] }),
     check('employees_revision_positive', sql`${t.revision} > 0`),
+    check(
+      'employees_recovery_email_format',
+      sql`${t.recoveryEmail} IS NULL OR (char_length(${t.recoveryEmail}) <= 254
+        AND ${t.recoveryEmail} = lower(btrim(${t.recoveryEmail}))
+        AND ${t.recoveryEmail} ~ '^[^@[:space:]]+@[^@[:space:]]+[.][^@[:space:]]+$')`,
+    ),
+    // فريد داخل الشركة بين غير المحذوفين: التكرار يرفض الحفظ، وبحث الـ OTP يفشل مغلقاً لو لقي أكتر من صف.
+    uniqueIndex('employees_company_recovery_email_uidx')
+      .on(t.companyId, sql`lower(${t.recoveryEmail})`)
+      .where(sql`${t.recoveryEmail} IS NOT NULL AND ${t.deletedAt} IS NULL`),
     check(
       'employees_employee_number_range',
       sql`${t.employeeNumber} IS NULL OR ${t.employeeNumber} BETWEEN 1 AND 999999`,

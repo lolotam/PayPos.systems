@@ -13,6 +13,7 @@ import { assertOtpInventory } from './staff-otp-inventory.ts';
 import { deleteStaffPrivateViewRows } from './staff-private-view.ts';
 import { passwordResetOtpQueries, type CredentialAccountRule } from './password-reset-otp.ts';
 import { authAttemptFeedbackQueries } from './auth-attempt-feedback.ts';
+import { staffPinResetOtpQueries } from './staff-pin-reset-otp.ts';
 
 /** الأهلية الافتراضية لاسترجاع كلمة المرور: أي حساب مش حساب موظف. */
 const nonStaffAccount: CredentialAccountRule = (_email, staffAccessOperationId) =>
@@ -31,6 +32,7 @@ export function createStaffOtpDatabase(options: {
     ...otpAttempts(runtime),
     ...passwordResetOtpQueries(runtime, options.credentialAccount ?? nonStaffAccount),
     ...authAttemptFeedbackQueries(runtime),
+    ...staffPinResetOtpQueries(runtime),
     ping: () => otpPing(runtime),
     warm: () => runtime.warm(),
     // الاتصالات مملوكة للعملية المحدودة نفسها، فتغلق في finally قبل عودة نتيجتها.

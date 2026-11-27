@@ -96,3 +96,16 @@ export const staffPinSetByOther: TemplateDefinition = {
     en: '{{actor_name_en}} reset the PIN for {{employee_name_en}} at {{branch_name_en}} on {{occurred_date}} at {{occurred_time}}.',
   },
 };
+
+/** جرس استعادة الموظفة رقمها السري بنفسها عبر رمز التحقق: مين استعاده ومتى وفي أي فرع (079-c1). */
+export const staffPinRecovered: TemplateDefinition = {
+  key: 'staff_pin_recovered',
+  revision: 1,
+  locales: ['ar', 'en'],
+  category: 'UTILITY',
+  parameters: staffAccessParameters,
+  copy: {
+    ar: 'استعادت {{employee_name_ar}} رقمها السري بنفسها في فرع {{branch_name_ar}} يوم {{occurred_date}} الساعة {{occurred_time}}.',
+    en: '{{employee_name_en}} recovered their own PIN at {{branch_name_en}} on {{occurred_date}} at {{occurred_time}}.',
+  },
+};

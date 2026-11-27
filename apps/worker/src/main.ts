@@ -51,6 +51,7 @@ import {
 } from './modules/customers/index.ts';
 import { closeOptional, optionalWithin } from './shared/optional-capability.ts';
 import { createOtpDelivery } from './otp-delivery.ts';
+import { recoveryEmailReader } from './recovery-email.ts';
 import {
   beginDocumentRendering,
   startCoreBeforeDocuments,
@@ -124,6 +125,7 @@ const otpDelivery = createOtpDelivery({
   redis,
   redisUrl: config.REDIS_URL,
   stopping: () => stopping,
+  readRecoveryEmail: recoveryEmailReader(app),
 });
 const email = await startEmailCapability({
   env: process.env,

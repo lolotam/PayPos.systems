@@ -15,7 +15,10 @@ export function createOtpChannel(
 ): OtpChannel {
   return {
     channel: 'WHATSAPP',
-    valid: (attempt: OtpPending) => attempt.providerTemplateName === approval.names[attempt.locale],
+    // قالب الواتساب المعتمد هو قالب دخول الموظفة بس: اعتماد الرقم السري ما يخرجش بقالب الدخول لحد اعتماد قالبه.
+    valid: (attempt: OtpPending) =>
+      attempt.templateKey === 'staff_otp' &&
+      attempt.providerTemplateName === approval.names[attempt.locale],
     send: async (attempt, material) => {
       if (attempt.providerTemplateName === null)
         return { status: 'FAILED', failureCode: 'CONFIG_INVALID', outcomeKnown: true };

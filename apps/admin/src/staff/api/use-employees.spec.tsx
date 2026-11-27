@@ -23,6 +23,7 @@ const record = {
   branch_ids: [id],
   revision: 3,
   employee_number: 4,
+  recovery_email: null,
 };
 const terms = {
   primary_branch_id: id,

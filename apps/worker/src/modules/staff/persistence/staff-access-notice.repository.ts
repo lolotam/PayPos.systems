@@ -1,4 +1,8 @@
-import { staffAccessGrantedNoticeRequested, staffPinSetByOtherNoticeRequested } from '@pospay/contracts';
+import {
+  staffAccessGrantedNoticeRequested,
+  staffPinRecoveredNoticeRequested,
+  staffPinSetByOtherNoticeRequested,
+} from '@pospay/contracts';
 import { appendOutboxEvent, markEventConsumed, type Tx } from '@pospay/db';
 import type { EditorLabelSnapshot } from '@pospay/i18n';
 import { sql } from 'drizzle-orm';
@@ -61,12 +65,13 @@ export async function readStaffAccessActorRecord(
     return { actorUserId: row.granted_by, occurredAt: new Date(row.updated_at) };
   }
   const pin = await readTemporaryStaffPinSet(tx, event.companyId, event.userId);
-  if (pin !== null && pin.setBy !== null)
-    return { actorUserId: pin.setBy, occurredAt: pin.setAt };
+  if (pin !== null && pin.setBy !== null) return { actorUserId: pin.setBy, occurredAt: pin.setAt };
+  const auditAction =
+    event.kind === 'staff_pin_recovered' ? 'staff.pin_recovered' : 'staff.pin_reset_temporary';
   const rows = await tx.execute<{ actor_user_id: string | null; at: Date }>(sql`
     SELECT actor_user_id, at FROM audit_log
     WHERE company_id = ${event.companyId} AND entity = 'cashier_pin'
-      AND entity_id = ${event.userId} AND action = 'staff.pin_reset_temporary'
+      AND entity_id = ${event.userId} AND action = ${auditAction}
     ORDER BY at DESC, id DESC LIMIT 1`);
   const row = rows[0];
   if (row === undefined || row.actor_user_id === null) return null;
@@ -126,6 +131,12 @@ export function claimStaffAccessNotice(tx: Tx, sourceEventId: string): Promise<b
  * @param payload المجموعة والمعاملات الآمنة
  * @returns اكتمال الكتابة
  */
+const NOTICE_EVENT_TYPES = {
+  staff_access_granted: 'StaffAccessGrantedNoticeRequested',
+  staff_pin_set_by_other: 'StaffPinSetByOtherNoticeRequested',
+  staff_pin_recovered: 'StaffPinRecoveredNoticeRequested',
+} as const;
+
 export async function appendStaffAccessNotice(
   tx: Tx,
   eventId: string,
@@ -133,16 +144,16 @@ export async function appendStaffAccessNotice(
   kind: StaffAccessNoticeEvent['kind'],
   payload: StaffAccessNoticePayload,
 ): Promise<void> {
+  const payloadParser =
+    kind === 'staff_access_granted'
+      ? staffAccessGrantedNoticeRequested
+      : kind === 'staff_pin_set_by_other'
+        ? staffPinSetByOtherNoticeRequested
+        : staffPinRecoveredNoticeRequested;
   await appendOutboxEvent(tx, eventId, {
     aggregateType: 'staff_access_notice',
     aggregateId: employeeId,
-    eventType:
-      kind === 'staff_access_granted'
-        ? 'StaffAccessGrantedNoticeRequested'
-        : 'StaffPinSetByOtherNoticeRequested',
-    payload:
-      kind === 'staff_access_granted'
-        ? staffAccessGrantedNoticeRequested.parse(payload)
-        : staffPinSetByOtherNoticeRequested.parse(payload),
+    eventType: NOTICE_EVENT_TYPES[kind],
+    payload: payloadParser.parse(payload),
   });
 }

@@ -64,6 +64,7 @@ function detail() {
     employee_number: state.number,
     revision: 3,
     branch_ids: [id],
+    recovery_email: null,
   };
 }
 function listItem() {
@@ -89,7 +90,13 @@ function ProfileAndList() {
         onSearch={() => undefined}
         onPage={() => undefined}
       />
-      <EmployeeDetailPage companyId={id} business={business} userId={id} employeeId={id} tab="data" />
+      <EmployeeDetailPage
+        companyId={id}
+        business={business}
+        userId={id}
+        employeeId={id}
+        tab="data"
+      />
     </>
   );
 }

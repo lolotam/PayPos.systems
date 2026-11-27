@@ -11,7 +11,10 @@ import { systemUuidV7 } from '@pospay/ids';
 import { createLogger } from '@pospay/observability';
 import postgres from 'postgres';
 
-import { createTestDatabase, type TestDatabase } from '../../../../../../packages/db/test/test-database.ts';
+import {
+  createTestDatabase,
+  type TestDatabase,
+} from '../../../../../../packages/db/test/test-database.ts';
 import { seedTwoTenants, TENANT } from '../../../../../../packages/db/test/tenancy-fixtures.ts';
 import { createDeliverer } from '../../../outbox/deliver.ts';
 import { createStaffAccessNoticeConsumer } from '../index.ts';
@@ -67,7 +70,7 @@ export async function staffAccessNoticeFixture() {
     resetAudit: (input: ResetAuditInput) => addResetAudit(owner, ids, input),
     notices: (companyId: string) =>
       owner`SELECT * FROM outbox WHERE company_id=${companyId}
-        AND event_type IN ('StaffAccessGrantedNoticeRequested', 'StaffPinSetByOtherNoticeRequested')
+        AND event_type IN ('StaffAccessGrantedNoticeRequested', 'StaffPinSetByOtherNoticeRequested', 'StaffPinRecoveredNoticeRequested')
         ORDER BY seq`,
     consumed: (consumerId: string, eventId: string) =>
       owner`SELECT event_id FROM consumed_events WHERE consumer_id=${consumerId} AND event_id=${eventId}`,
@@ -193,12 +196,16 @@ const stampPayload = (stamp: EventStamp | undefined) =>
     : { actor_user_id: stamp.actorUserId, occurred_at: stamp.occurredAt.toISOString() };
 
 /** حدث وصول الدخول كما لو نشرته الـ API في نفس معاملة المنح. */
-export function grantedEvent(ids: IdGenerator, scope: Scope, input: {
-  readonly employeeId: string;
-  readonly userId: string;
-  readonly membershipId: string;
-  readonly stamp?: EventStamp;
-}): ClaimedEvent {
+export function grantedEvent(
+  ids: IdGenerator,
+  scope: Scope,
+  input: {
+    readonly employeeId: string;
+    readonly userId: string;
+    readonly membershipId: string;
+    readonly stamp?: EventStamp;
+  },
+): ClaimedEvent {
   return {
     companyId: scope.company,
     id: ids.newId(),
@@ -218,17 +225,22 @@ export function grantedEvent(ids: IdGenerator, scope: Scope, input: {
 }
 
 /** حدث إعادة الضبط كما لو نشرته الـ API في نفس معاملة إعادة الضبط. */
-export function pinEvent(ids: IdGenerator, scope: Scope, input: {
-  readonly employeeId: string;
-  readonly userId: string;
-  readonly stamp?: EventStamp;
-}): ClaimedEvent {
+export function pinEvent(
+  ids: IdGenerator,
+  scope: Scope,
+  input: {
+    readonly employeeId: string;
+    readonly userId: string;
+    readonly eventType?: 'StaffPinSetByOther' | 'StaffPinRecovered';
+    readonly stamp?: EventStamp;
+  },
+): ClaimedEvent {
   return {
     companyId: scope.company,
     id: ids.newId(),
     aggregateType: 'employee',
     aggregateId: input.employeeId,
-    eventType: 'StaffPinSetByOther',
+    eventType: input.eventType ?? 'StaffPinSetByOther',
     payload: {
       employee_id: input.employeeId,
       user_id: input.userId,

@@ -193,5 +193,10 @@ export type {
   PasswordResetConsumption,
   PasswordResetOutcome,
 } from './password-reset-otp.ts';
+export type {
+  StaffPinResetConsumed,
+  StaffPinResetConsumption,
+  StaffPinResetContext,
+} from './staff-pin-reset-otp.ts';
 export { assertReplayBounds, ReplayCursorError } from './replay-cursor.ts';
 export { AuthUserNotFoundError } from './auth-user-not-found.ts';

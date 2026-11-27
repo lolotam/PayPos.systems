@@ -38,7 +38,12 @@ if usePhone then
 end
 return 0`;
 
-export function redisOtpRates(redis: Redis, hashKey: string, ids: { newId(): string }): OtpRates {
+export function redisOtpRates(
+  redis: Redis,
+  hashKey: string,
+  ids: { newId(): string },
+  namespace = 'staff-otp',
+): OtpRates {
   const reserve = async (input: {
     operation: 'request' | 'verify';
     phone: string;
@@ -54,10 +59,10 @@ export function redisOtpRates(redis: Redis, hashKey: string, ids: { newId(): str
       await redis.eval(
         ADMIT,
         4,
-        `staff-otp:${operation}:phone:${phone}`,
-        `staff-otp:${operation}:ip:${network}`,
-        `staff-otp:cooldown:${phone}`,
-        `staff-otp:proof:${challengeId?.toLowerCase() ?? ''}`,
+        `${namespace}:${operation}:phone:${phone}`,
+        `${namespace}:${operation}:ip:${network}`,
+        `${namespace}:cooldown:${phone}`,
+        `${namespace}:proof:${challengeId?.toLowerCase() ?? ''}`,
         operation === 'request' ? OTP_RETRY_MS : 0,
         operation === 'request' ? 5 : 25,
         operation === 'request' ? 20 : 100,
@@ -72,7 +77,7 @@ export function redisOtpRates(redis: Redis, hashKey: string, ids: { newId(): str
       reserve({ operation: 'request', phone: Buffer.from(hash).toString('hex'), ip, challengeId }),
     verify: async (challengeId, ip) => {
       const proof = challengeId.toLowerCase();
-      const bound = await redis.get(`staff-otp:proof:${proof}`);
+      const bound = await redis.get(`${namespace}:proof:${proof}`);
       const phone =
         bound ??
         createHmac('sha256', hashKey)

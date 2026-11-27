@@ -20,7 +20,12 @@ export const updateEmployeeInput = createEmployeeInput
   })
   .meta({ id: 'UpdateEmployeeInput' });
 export const employeeDetailRecord = employee
-  .extend({ revision: z.number().int().positive(), branch_ids: branches })
+  .extend({
+    revision: z.number().int().positive(),
+    branch_ids: branches,
+    // بيرجع من قراءة التفاصيل بس (شاشة التعديل)، مش من القوائم ولا التصدير: بيانات شخصية.
+    recovery_email: z.email().nullable(),
+  })
   .meta({ id: 'EmployeeDetail' });
 export const employeeListItem = employee
   .pick({
@@ -39,9 +44,21 @@ export const employeeListQuery = z
     cursor: id.optional(),
     limit: z.coerce.number().int().min(1).max(100).default(20),
     // أرقام فقط قبل التحويل حتى لا يُقبل 0x7 أو 1e3 أو مسافة؛ الأصفار البادئة تُشال (TD-3).
-    employee_number: z.string().max(50).regex(/^[0-9]+$/).transform(Number).pipe(z.number().int().min(1).max(999999)).optional(),
+    employee_number: z
+      .string()
+      .max(50)
+      .regex(/^[0-9]+$/)
+      .transform(Number)
+      .pipe(z.number().int().min(1).max(999999))
+      .optional(),
     // خانة واحدة: القص يمنع فراغاً، والطول سقف خانة القائمة (EN-Q16). المحرف الفارغ يرفضه Postgres كنص.
-    q: z.string().trim().min(1).max(100).refine((value) => !value.includes('\u0000')).optional(),
+    q: z
+      .string()
+      .trim()
+      .min(1)
+      .max(100)
+      .refine((value) => !value.includes('\u0000'))
+      .optional(),
   })
   .meta({ id: 'EmployeeListQuery' });
 export type UpdateEmployeeInput = z.infer<typeof updateEmployeeInput>;

@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { canonicalStaffPhone } from '../identity/staff-otp.js';
+import { recoveryEmail } from '../identity/staff-pin-reset.js';
 import { responseObject } from '../response-object.js';
 import { id } from '../scalars/id.js';
 
@@ -13,6 +14,8 @@ export const grantStaffAccessInput = z
     phone_confirmed: z.literal(true),
     role: z.enum(['staff', 'reception']),
     pin: z.string().regex(/^\d{4}$/),
+    // إيميل الاستعادة الاختياري: لو اتبعت بيتسجل على الموظفة في نفس العملية (spec 079 PR-c1).
+    recovery_email: recoveryEmail,
   })
   .strict()
   .meta({ id: 'GrantStaffAccessInput' });

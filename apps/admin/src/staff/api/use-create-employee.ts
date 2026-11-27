@@ -5,7 +5,7 @@ import { apiClient } from '@/shared/api/client';
 import { isEmployeeNumberForbidden } from '../model/typed-employee-number';
 
 async function create(companyId: string, businessId: string, body: CreateEmployeeInput) {
-  const { employee_number: employeeNumber, ...terms } = body;
+  const { employee_number: employeeNumber, recovery_email: recoveryEmail, ...terms } = body;
   const response = await apiClient().POST('/v1/businesses/{businessId}/employees', {
     params: { header: { 'x-company-id': companyId }, path: { businessId } },
     body: {
@@ -14,6 +14,7 @@ async function create(companyId: string, businessId: string, body: CreateEmploye
       contract_end: terms.contract_end ?? null,
       user_id: terms.user_id ?? null,
       ...(employeeNumber === undefined ? {} : { employee_number: employeeNumber }),
+      ...(recoveryEmail === undefined ? {} : { recovery_email: recoveryEmail }),
     },
   });
   if (response.error) throw response.error;

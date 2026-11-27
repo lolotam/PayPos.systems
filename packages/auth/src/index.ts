@@ -56,6 +56,18 @@ export {
   type EmailOtpConfiguration,
 } from './password-reset-otp/configuration.ts';
 export { readStaffOtpConfiguration, type OtpConfiguration } from './staff-otp/configuration.ts';
+export {
+  createStaffPinResetApi,
+  STAFF_PIN_RESET_LIFETIME_MS,
+  STAFF_PIN_RESET_RETRY_MS,
+  type StaffPinResetApi,
+  type StaffPinResetApiOptions,
+  type StaffPinResetChannel,
+  type StaffPinResetRequestResult,
+  type StaffPinResetResult,
+  type StaffPinWriter,
+  type StaffRecoveryReader,
+} from './staff-pin-reset/api.ts';
 export type {
   OtpCapability,
   OtpRates,

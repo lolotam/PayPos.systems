@@ -16,7 +16,11 @@ import { attendanceChangeRequested } from './attendance-change-requested.ts';
 import { attendanceChangeDecided } from './attendance-change-decided.ts';
 import { attendanceExceptionRaised } from './attendance-exception-raised.ts';
 import { documentExpiring } from './document-expiring.ts';
-import { staffAccessGranted, staffPinSetByOther } from './staff-access-notice.ts';
+import {
+  staffAccessGranted,
+  staffPinRecovered,
+  staffPinSetByOther,
+} from './staff-access-notice.ts';
 
 export const genericNotice: TemplateDefinition = {
   key: 'generic_notice',
@@ -68,6 +72,7 @@ export function validInAppTemplate(
       documentExpiring,
       staffAccessGranted,
       staffPinSetByOther,
+      staffPinRecovered,
     ].find((item) => item.key === key) ?? null;
   return (
     definition !== null &&

@@ -38,8 +38,20 @@ async function world(label: string): Promise<World> {
   const secondOwnerUserId = await f.user(`Second owner ${label}`);
   const managerUserId = await f.user(`Manager ${label}`);
   const employeeUserId = await f.user(`Staff ${label}`);
-  await f.member({ scope, userId: ownerUserId, roleId: ROLE.owner, scopeType: 'COMPANY', scopeId: scope.company });
-  await f.member({ scope, userId: secondOwnerUserId, roleId: ROLE.owner, scopeType: 'COMPANY', scopeId: scope.company });
+  await f.member({
+    scope,
+    userId: ownerUserId,
+    roleId: ROLE.owner,
+    scopeType: 'COMPANY',
+    scopeId: scope.company,
+  });
+  await f.member({
+    scope,
+    userId: secondOwnerUserId,
+    roleId: ROLE.owner,
+    scopeType: 'COMPANY',
+    scopeId: scope.company,
+  });
   await f.member({
     scope,
     userId: managerUserId,
@@ -69,8 +81,8 @@ async function addFormerOwner(scope: Scope): Promise<string> {
 }
 
 const parametersOf = (payload: unknown): readonly SafeParameter[] =>
-  ((payload as { notification_recipients: { safe_parameters: readonly SafeParameter[] }[] })
-    .notification_recipients[0]?.safe_parameters ?? []);
+  (payload as { notification_recipients: { safe_parameters: readonly SafeParameter[] }[] })
+    .notification_recipients[0]?.safe_parameters ?? [];
 
 it('notifies every active canonical owner once about a granted staff access', async () => {
   const w = await world('granted');
@@ -334,10 +346,33 @@ it('keeps the actor and time stamped on a PIN event after another manager resets
 
 it('still resolves a legacy event that omits the actor and time', async () => {
   const w = await world('legacy pin');
-  await f.pin({ scope: w.scope, userId: w.employeeUserId, setBy: w.managerUserId, setAt: OCCURRED_AT });
+  await f.pin({
+    scope: w.scope,
+    userId: w.employeeUserId,
+    setBy: w.managerUserId,
+    setAt: OCCURRED_AT,
+  });
   const event = pinEvent(f.ids, w.scope, { employeeId: w.employeeId, userId: w.employeeUserId });
   expect(await f.deliver(event)).toEqual({ delivered: true });
   const parameters = parametersOf((await f.notices(w.scope.company))[0]?.['payload']);
   expect(parameters[2]?.value).toBe('المدير');
   expect(parameters[7]?.value).toBe('09:30');
+}, 60_000);
+
+it('notifies the owners when an employee recovers her own PIN on StaffPinRecovered', async () => {
+  const w = await world('recovered pin');
+  const event = pinEvent(f.ids, w.scope, {
+    employeeId: w.employeeId,
+    userId: w.employeeUserId,
+    eventType: 'StaffPinRecovered',
+    stamp: { actorUserId: w.employeeUserId, occurredAt: OCCURRED_AT },
+  });
+  expect(await f.deliver(event)).toEqual({ delivered: true });
+  const notices = await f.notices(w.scope.company);
+  expect(notices).toHaveLength(1);
+  expect(notices[0]?.['event_type']).toBe('StaffPinRecoveredNoticeRequested');
+  const parameters = parametersOf(notices[0]?.['payload']);
+  expect(parameters[0]?.value).toBe('سارة');
+  expect(validInAppTemplate('staff_pin_recovered', 1, 'ar', parameters)).toBe(true);
+  expect(validInAppTemplate('staff_pin_recovered', 1, 'en', parameters)).toBe(true);
 }, 60_000);

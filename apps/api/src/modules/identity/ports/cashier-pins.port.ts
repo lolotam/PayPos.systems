@@ -114,4 +114,11 @@ export interface PinAttempts {
    * @param reservation الحجز اللي reserve رجّعه
    */
   release(target: PinTarget, reservation: string): Promise<void>;
+  /**
+   * يمسح الغلطات والقفل بعد استعادة الرقم بإثبات ملكية القناة: الموظفة المقفولة تقدر تدخل بالرقم الجديد.
+   * الحجوزات الجارية تفضل لأنها بتنتهي بنفسها ومبتعدّش غلطة.
+   *
+   * @param target الشركة والموظف
+   */
+  clear(target: PinTarget): Promise<void>;
 }

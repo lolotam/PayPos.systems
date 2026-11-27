@@ -273,6 +273,14 @@ export const AUTHENTICATED_WRITES: Readonly<Record<string, AuthenticatedWriteDec
       'DEVICE_ONLY',
       'apps/api/src/modules/identity/http/staff-pin.controller.ts#change',
     ),
+    'StaffPinResetController.request': declared(
+      'DEVICE_ONLY',
+      'apps/api/src/shared/session.guard.ts##staff',
+    ),
+    'StaffPinResetController.reset': declared(
+      'DEVICE_ONLY',
+      'apps/api/src/shared/session.guard.ts##staff',
+    ),
     'EmployeeAccessController.grant': declared(
       'RECORD_SCOPED',
       'apps/api/src/modules/staff/persistence/staff-access.adapter.ts#authorityChecker',

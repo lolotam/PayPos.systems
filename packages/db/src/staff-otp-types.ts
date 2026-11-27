@@ -42,6 +42,8 @@ export interface OtpAttemptRecord {
   readonly locale: 'ar' | 'en';
   /** قناة المحاولة: واتساب أو إيميل — بتحدد دالة الحظر والقالب. */
   readonly channel: 'EMAIL' | 'WHATSAPP';
+  /** مفتاح القالب: يفرّق اعتماد كلمة المرور عن اعتماد الرقم السري. */
+  readonly templateKey: string;
   readonly providerTemplateName: string | null;
   readonly status: string;
   readonly executionId: string | null;

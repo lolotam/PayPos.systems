@@ -33,6 +33,11 @@ export {
   renderPasswordResetEmail,
   type PasswordResetEmail,
 } from './templates/password-reset-otp.ts';
+export {
+  renderStaffPinResetEmail,
+  STAFF_PIN_RESET_OTP_KEY,
+  STAFF_PIN_RESET_OTP_REVISION,
+} from './templates/staff-pin-reset-otp.ts';
 export { ratingRequest } from './templates/rating-request.ts';
 export { genericNotice, validInAppTemplate } from './templates/generic-notice.ts';
 export { lateServiceSession } from './templates/late-service-session.ts';
@@ -49,7 +54,11 @@ export { statementAwaitingReview } from './templates/statement-awaiting-review.t
 export { shiftNotClockedIn } from './templates/shift-not-clocked-in.ts';
 export { attendanceExceptionRaised } from './templates/attendance-exception-raised.ts';
 export { documentExpiring } from './templates/document-expiring.ts';
-export { staffAccessGranted, staffPinSetByOther } from './templates/staff-access-notice.ts';
+export {
+  staffAccessGranted,
+  staffPinRecovered,
+  staffPinSetByOther,
+} from './templates/staff-access-notice.ts';
 export { breakNotReturned } from './templates/break-not-returned.ts';
 export {
   lowRating,

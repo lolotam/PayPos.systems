@@ -36,7 +36,10 @@ import {
   readGrantedEmployeeStaffAccess,
   type EmployeeAccessStateReads,
 } from '../queries/employee-staff-access.query.ts';
-import { StaffAccessError, GrantEmployeeAccessUseCase } from '../use-cases/grant-employee-access/grant-employee-access.ts';
+import {
+  StaffAccessError,
+  GrantEmployeeAccessUseCase,
+} from '../use-cases/grant-employee-access/grant-employee-access.ts';
 import {
   CancelPendingStaffAccessUseCase,
   type CancelPendingStaffAccessOutcome,
@@ -95,6 +98,7 @@ export class EmployeeAccessController {
         role: input.role,
         phone: input.phone,
         pin: input.pin,
+        recoveryEmail: input.recovery_email,
       });
       // الرد من نتيجة المعاملة الملتزمة نفسها: لا قراءة تالية (معاملة جديدة ومكالمة auth) قد تفشل
       // فتحوّل منحاً ملتزماً إلى 500. الحالة بعد المنح ACTIVE دائماً.
@@ -160,7 +164,8 @@ export class EmployeeAccessController {
   async changePhone(
     @Param('businessId', new ZodValidationPipe(id)) businessId: string,
     @Param('employeeId', new ZodValidationPipe(id)) employeeId: string,
-    @Body(new ZodValidationPipe(changeEmployeeStaffPhoneInput)) input: ChangeEmployeeStaffPhoneInput,
+    @Body(new ZodValidationPipe(changeEmployeeStaffPhoneInput))
+    input: ChangeEmployeeStaffPhoneInput,
     @Req() request: FastifyRequest,
   ): Promise<unknown> {
     const actor = actorOf(request);
@@ -312,12 +317,7 @@ export class EmployeeAccessController {
     try {
       const state = await database.withTenant(
         companyId,
-        (tx) =>
-          query(
-            tx,
-            { companyId, businessId, employeeId, actorUserId: userId },
-            reads,
-          ),
+        (tx) => query(tx, { companyId, businessId, employeeId, actorUserId: userId }, reads),
         { userId },
       );
       if (state === null) throw new ApiError('EMPLOYEE_NOT_FOUND');

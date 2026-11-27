@@ -50,6 +50,43 @@ export const staffSignInPaths = {
       },
     },
   },
+  '/v1/devices/me/staff-pin/otp/request': {
+    post: {
+      operationId: 'requestStaffPinResetOtp',
+      requestBody: { required: true, content: json('StaffPinResetRequestInput') },
+      responses: {
+        '202': {
+          description: 'Indistinguishable acknowledgment',
+          content: json('StaffPinResetAcknowledgement'),
+        },
+        '429': {
+          description: 'TOO_MANY_REQUESTS with Retry-After',
+          content: json('ErrorEnvelope'),
+        },
+        '503': {
+          description: 'OTP_UNAVAILABLE for the chosen channel',
+          content: json('ErrorEnvelope'),
+        },
+        default: { description: 'The API error envelope', content: json('ErrorEnvelope') },
+      },
+    },
+  },
+  '/v1/devices/me/staff-pin/otp/reset': {
+    post: {
+      operationId: 'resetStaffPinWithOtp',
+      requestBody: { required: true, content: json('StaffPinResetOtpInput') },
+      responses: {
+        '204': { description: 'The PIN is now permanent; no session issued' },
+        '401': { description: 'OTP_INVALID', content: json('ErrorEnvelope') },
+        '429': {
+          description: 'TOO_MANY_REQUESTS with Retry-After',
+          content: json('ErrorEnvelope'),
+        },
+        '503': { description: 'OTP_UNAVAILABLE', content: json('ErrorEnvelope') },
+        default: { description: 'The API error envelope', content: json('ErrorEnvelope') },
+      },
+    },
+  },
   '/v1/staff-pins/reset': {
     post: {
       operationId: 'resetStaffPin',

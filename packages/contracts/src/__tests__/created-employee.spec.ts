@@ -41,6 +41,7 @@ describe('createdEmployee', () => {
         employee_number: 7,
         revision: 1,
         branch_ids: [body.id],
+        recovery_email: null,
       }).employee_number,
     ).toBe(7);
     expect(
@@ -49,6 +50,7 @@ describe('createdEmployee', () => {
         employee_number: null,
         revision: 1,
         branch_ids: [body.id],
+        recovery_email: null,
       }).success,
     ).toBe(false);
   });

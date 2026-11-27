@@ -43,6 +43,8 @@ export interface GrantEmployeeAccessCommand extends StaffAccessActor {
   readonly phone: string;
   /** الرقم السري المؤقت كما كتبه المانح. */
   readonly pin: string;
+  /** إيميل الاستعادة الاختياري: لو اتبعت بيتسجل على الموظفة في نفس معاملة الخطوة الأولى. */
+  readonly recoveryEmail?: string | null | undefined;
 }
 
 /** ناتج الخطوة الأولى: السجل المُعاد استخدامه أو المُنشأ، واسم الموظفة وفرعها الأساسي. */
@@ -93,6 +95,12 @@ export interface GrantBeginScope {
   authority(businessId: string, branchId: string): Promise<boolean>;
   /** يقرأ سجل الدخول للموظفة إن وُجد بلا قفل إضافي. */
   findRecord(): Promise<StaffAccessRecordRow | null>;
+  /**
+   * يسجّل إيميل الاستعادة المطبّع على الموظفة المقفولة؛ التكرار داخل الشركة يرفع EMPLOYEE_RECOVERY_EMAIL_TAKEN.
+   *
+   * @param email الإيميل المطبّع
+   */
+  setRecoveryEmail(email: string): Promise<void>;
   /** يثبت الهاتف والدور والفرع عند إعادة منح سجل متوقف قبل إنشاء أي أثر هوية، ويبدأ محاولة جديدة
    * بمعرّف محاولة جديد ولحظة بداية جديدة (P1-1/P1-3).
    *

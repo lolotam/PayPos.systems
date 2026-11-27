@@ -17,6 +17,7 @@ import {
   employeeContext,
   employeeBranchAccess,
 } from './employee-context.adapter.ts';
+import { canManageStaffAccess } from './employee-access-reads.adapter.ts';
 import {
   refuseTypedEmployeeNumber,
   typedEmployeeNumberTaken,
@@ -25,11 +26,22 @@ import {
 async function insertEmployee(
   tx: Tx,
   companyId: string,
+  userId: string,
   r: EmployeeInsertRecord,
   attachmentId: string,
 ) {
-  await tx.execute(sql`INSERT INTO employees (company_id,id,business_id,primary_branch_id,user_id,name_ar,name_en,name_ar_key,name_en_key,role_code,hire_date,contract_end,created_at,employee_number)
-    VALUES (${companyId},${r.id},${r.business_id},${r.primary_branch_id},${r.user_id},${r.name_ar},${r.name_en},${r.name_ar_key},${r.name_en_key},${r.role_code},${r.hire_date},${r.contract_end},${r.created_at},${r.employee_number})`);
+  if (
+    r.recovery_email !== null &&
+    !(await canManageStaffAccess(tx, {
+      companyId,
+      actorUserId: userId,
+      businessId: r.business_id,
+      branchId: r.primary_branch_id,
+    }))
+  )
+    throw new EmployeeCreationError('FORBIDDEN');
+  await tx.execute(sql`INSERT INTO employees (company_id,id,business_id,primary_branch_id,user_id,name_ar,name_en,name_ar_key,name_en_key,role_code,hire_date,contract_end,created_at,employee_number,recovery_email)
+    VALUES (${companyId},${r.id},${r.business_id},${r.primary_branch_id},${r.user_id},${r.name_ar},${r.name_en},${r.name_ar_key},${r.name_en_key},${r.role_code},${r.hire_date},${r.contract_end},${r.created_at},${r.employee_number},${r.recovery_email})`);
   await tx.execute(sql`INSERT INTO employee_branches (company_id,id,business_id,employee_id,branch_id,"from")
     VALUES (${companyId},${attachmentId},${r.business_id},${r.id},${r.primary_branch_id},${r.hire_date})`);
 }
@@ -52,11 +64,12 @@ function numberKeyViolation(error: unknown): boolean {
 async function insertTypedEmployee(
   tx: Tx,
   companyId: string,
+  userId: string,
   record: EmployeeInsertRecord,
   attachmentId: string,
 ) {
   try {
-    await insertEmployee(tx, companyId, record, attachmentId);
+    await insertEmployee(tx, companyId, userId, record, attachmentId);
   } catch (error) {
     if (numberKeyViolation(error)) throw new EmployeeCreationError('EMPLOYEE_NUMBER_TAKEN');
     throw error;
@@ -78,6 +91,13 @@ function cleanEmployeeError(error: unknown): never {
   ) {
     throw new EmployeeCreationError('EMPLOYEE_USER_ALREADY_LINKED');
   }
+  if (
+    typeof cause === 'object' &&
+    cause !== null &&
+    'constraint_name' in cause &&
+    cause.constraint_name === 'employees_company_recovery_email_uidx'
+  )
+    throw new EmployeeCreationError('EMPLOYEE_RECOVERY_EMAIL_TAKEN');
   if (
     typeof cause === 'object' &&
     cause !== null &&
@@ -115,8 +135,9 @@ export function createEmployeeTransactions(
       try {
         return await database.withTenant(
           companyId,
-          (tx) =>
-            work({
+          (tx) => {
+            let hasRecoveryEmail = false;
+            return work({
               authorize: async (businessId, branchId) => {
                 if (!(await authorizeEmployeeCreation(tx, companyId, userId, businessId, branchId)))
                   return false;
@@ -138,17 +159,23 @@ export function createEmployeeTransactions(
               },
               typedNumberTaken: (employeeNumber) =>
                 typedEmployeeNumberTaken(tx, companyId, employeeNumber),
-              insert: (record, attachmentId) => insertEmployee(tx, companyId, record, attachmentId),
-              insertTyped: (record, attachmentId) =>
-                insertTypedEmployee(tx, companyId, record, attachmentId),
+              insert: (record, attachmentId) => {
+                hasRecoveryEmail = record.recovery_email !== null;
+                return insertEmployee(tx, companyId, userId, record, attachmentId);
+              },
+              insertTyped: (record, attachmentId) => {
+                hasRecoveryEmail = record.recovery_email !== null;
+                return insertTypedEmployee(tx, companyId, userId, record, attachmentId);
+              },
               audit: (record) =>
                 appendAuditLog(tx, ids.newId(), {
                   entity: 'employee',
                   entityId: record.id,
                   action: 'created',
-                  after: record,
+                  after: hasRecoveryEmail ? { ...record, recovery_email: 'SET' } : record,
                 }),
-            }),
+            });
+          },
           { userId },
         );
       } catch (error) {
