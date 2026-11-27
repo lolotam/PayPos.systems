@@ -92,6 +92,8 @@ function untilAborted(signal: AbortSignal): AbortRace {
     // ممكن تكون الإشارة اتلغت قبل ما المستمع يتسجل، فبنرفض على طول.
     if (signal.aborted) onAbort();
   });
+  // لو الإشارة اتلغت قبل تعليق Promise.race، نمنع unhandledRejection.
+  void rejected.catch(() => undefined);
   return {
     rejected,
     release: (): void => {
@@ -110,7 +112,9 @@ async function sendFencedNativeRequest(
   signal: AbortSignal,
   aborted: AbortRace,
 ): Promise<NativeHttpResponse> {
-  await waitForPendingAbortedCalls(aborted);
+  while (pendingAbortedNativeCall !== null) {
+    await waitForPendingAbortedCalls(aborted);
+  }
   throwIfAborted(signal);
   const requestPromise = client.request(options);
   const settled = requestPromise.then(
@@ -118,18 +122,25 @@ async function sendFencedNativeRequest(
     () => undefined,
   );
   let finished = false;
+  let fenced = false;
+  const enterFence = (): void => {
+    if (fenced || finished || !signal.aborted) return;
+    fenced = true;
+    const next = (pendingAbortedNativeCall ?? Promise.resolve()).then(() => settled);
+    pendingAbortedNativeCall = next;
+    void next.finally(() => {
+      if (pendingAbortedNativeCall === next) pendingAbortedNativeCall = null;
+    });
+  };
+  // تسجيل السياج فور الإلغاء يمنع أي طلب يتفتح في نفس الـ microtask من تفادي الانتظار.
+  signal.addEventListener('abort', enterFence, { once: true });
   try {
     const response = await Promise.race([requestPromise, aborted.rejected]);
     finished = true;
     return response;
   } finally {
-    if (!finished && signal.aborted) {
-      const next = (pendingAbortedNativeCall ?? Promise.resolve()).then(() => settled);
-      pendingAbortedNativeCall = next;
-      void next.finally(() => {
-        if (pendingAbortedNativeCall === next) pendingAbortedNativeCall = null;
-      });
-    }
+    signal.removeEventListener('abort', enterFence);
+    enterFence();
   }
 }
 

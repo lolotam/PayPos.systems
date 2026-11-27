@@ -14,6 +14,7 @@ interface CapacitorAppModule {
 let capacitorAppModule: Promise<CapacitorAppModule> | null = null;
 // آخر لينك افتتاحي اتقرى ولسه ما اتقفلش: بنحتاجه لو تبديل اتأكد أو لينك تاني نجح من غير ما يمرّره.
 let pendingLaunchUrl: string | null = null;
+let latestLaunchReadId = 0;
 
 /** بيحمّل إضافة Capacitor مرة واحدة عند أول طلب عشان الاستدعاءات المتزامنة في StrictMode تشترك في نفس الوعد. */
 function loadCapacitorApp(): Promise<CapacitorAppModule> {
@@ -36,11 +37,13 @@ function loadCapacitorApp(): Promise<CapacitorAppModule> {
  * @returns اللينك، أو null لو مفيش لينك أو القراءة فشلت أو بصمة اللينك ده اتسجلت قبل كده
  */
 export async function readLaunchLink(): Promise<string | null> {
+  const readId = ++latestLaunchReadId;
   try {
     const { App } = await loadCapacitorApp();
     const launch = await App.getLaunchUrl();
     // نسخة الويب بترجع نص فاضي، فالنص الفاضي معناه مفيش لينك.
     const url = launch?.url ? launch.url : null;
+    if (readId !== latestLaunchReadId) return null;
     if (url === null) {
       pendingLaunchUrl = null;
       return null;
@@ -52,7 +55,7 @@ export async function readLaunchLink(): Promise<string | null> {
     pendingLaunchUrl = url;
     return url;
   } catch {
-    pendingLaunchUrl = null;
+    if (readId === latestLaunchReadId) pendingLaunchUrl = null;
     return null;
   }
 }

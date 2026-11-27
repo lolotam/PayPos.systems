@@ -38,6 +38,14 @@ vi.mock('@/app/device-role', () => ({
 vi.mock('@/app/end-sessions', () => ({
   endPersonalSession: vi.fn(async () => 'done' as const),
 }));
+vi.mock('@/app/device-screen', () => ({
+  DeviceScreen: ({ notice }: { notice?: ReactNode }) => (
+    <>
+      <h2>device screen</h2>
+      {notice}
+    </>
+  ),
+}));
 vi.mock('@/personal-staff/api/use-personal-session', () => ({
   usePersonalSession: () => ({
     epoch: 0,
@@ -273,5 +281,63 @@ describe('useNativeLink deferred cold link retirement', () => {
 
     expect(await screen.findByText(`${COMPANY} ${BUSINESS}`)).not.toBeNull();
     expect(window.sessionStorage.getItem('pospay.native.launchUrl')).not.toBeNull();
+  });
+
+  it('retires a late cold link when a warm business switch is confirmed before getLaunchUrl resolves', async () => {
+    vi.mocked(readDeviceRole).mockResolvedValue('employee');
+    vi.mocked(readRememberedBusiness).mockResolvedValue({
+      company_id: COMPANY,
+      business_id: BUSINESS,
+    });
+    let releaseLaunch!: (value: { url?: string }) => void;
+    app.getLaunchUrl.mockImplementation(
+      () =>
+        new Promise<{ url?: string }>((resolve) => {
+          releaseLaunch = resolve;
+        }),
+    );
+    mountStrict();
+    await vi.waitFor(() => expect(app.opened).not.toBeNull());
+
+    await act(async () => {
+      app.opened?.({ url: OTHER_LAUNCH_URL });
+    });
+    fireEvent.click(await screen.findByRole('button', { name: t('ar', 'nativeShell.confirm') }));
+    expect(await screen.findByText(`${COMPANY} ${OTHER_BUSINESS}`)).not.toBeNull();
+
+    await act(async () => {
+      releaseLaunch({ url: LAUNCH_URL });
+      await Promise.resolve();
+    });
+
+    expect(window.sessionStorage.getItem('pospay.native.launchUrl')).not.toBeNull();
+  });
+});
+
+describe('useNativeLink late cold link after counter refusal', () => {
+  it('does not retire a late cold link when a warm link is refused on a counter device', async () => {
+    vi.mocked(readDeviceRole).mockResolvedValue('counter');
+    let releaseLaunch!: (value: { url?: string }) => void;
+    app.getLaunchUrl.mockImplementation(
+      () =>
+        new Promise<{ url?: string }>((resolve) => {
+          releaseLaunch = resolve;
+        }),
+    );
+    mountStrict();
+    await vi.waitFor(() => expect(app.opened).not.toBeNull());
+
+    await act(async () => {
+      app.opened?.({ url: OTHER_LAUNCH_URL });
+    });
+    const alert = await screen.findByRole('alert');
+    expect(alert.textContent).toContain(t('ar', 'nativeShell.counterDevice'));
+
+    await act(async () => {
+      releaseLaunch({ url: LAUNCH_URL });
+      await Promise.resolve();
+    });
+
+    expect(window.sessionStorage.getItem('pospay.native.launchUrl')).toBeNull();
   });
 });

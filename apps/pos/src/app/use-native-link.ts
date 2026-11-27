@@ -41,6 +41,22 @@ interface WarmLinkState {
   deferredColdLink: string | null;
 }
 
+let retireSupersededColdLink: (() => void) | null = null;
+
+/** يعلّم أي لينك تشغيل بارد متأخر إنه اتقفل بعد نجاح لينك دافي أو حسم لوحة التبديل. */
+export function notifyColdLinkSupersededAndRetired(): void {
+  retireSupersededColdLink?.();
+}
+
+function retireDeferredColdLink(warmState: WarmLinkState): void {
+  if (!warmState.superseded) return;
+  warmState.handled = true;
+  if (warmState.deferredColdLink !== null) {
+    markLaunchLinkHandled(warmState.deferredColdLink);
+    warmState.deferredColdLink = null;
+  }
+}
+
 function handleLateColdLink(link: string, warmState: WarmLinkState): void {
   if (warmState.handled) markLaunchLinkHandled(link);
   else warmState.deferredColdLink = link;
@@ -100,20 +116,19 @@ export function useNativeLink(
     };
   }, [onStart, onLink]);
 
-  useEffect(
-    () =>
-      onLinkOpened((raw) => {
-        const parsed = readManagerLink(raw);
-        if (parsed !== null) warmState.current.superseded = true;
-        void onLink(parsed).then((handled) => {
-          if (parsed === null || !handled) return;
-          warmState.current.handled = true;
-          if (warmState.current.deferredColdLink !== null) {
-            markLaunchLinkHandled(warmState.current.deferredColdLink);
-            warmState.current.deferredColdLink = null;
-          }
-        });
-      }),
-    [onLink],
-  );
+  useEffect(() => {
+    const retire = () => retireDeferredColdLink(warmState.current);
+    retireSupersededColdLink = retire;
+    const stop = onLinkOpened((raw) => {
+      const parsed = readManagerLink(raw);
+      if (parsed !== null) warmState.current.superseded = true;
+      void onLink(parsed).then((handled) => {
+        if (parsed !== null && handled) retire();
+      });
+    });
+    return () => {
+      if (retireSupersededColdLink === retire) retireSupersededColdLink = null;
+      stop();
+    };
+  }, [onLink]);
 }

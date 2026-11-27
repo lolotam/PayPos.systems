@@ -19,7 +19,13 @@ import {
   type NativeState,
 } from './link-rules';
 import type { PersonalWorkspace } from './manager-link';
+import { notifyColdLinkSupersededAndRetired } from './use-native-link';
 import { useStepQueue } from './use-step-queue';
+
+function retireLaunchLink(): void {
+  markLaunchLinkHandled();
+  notifyColdLinkSupersededAndRetired();
+}
 
 /** حالة شاشة النسخة الأصلية وخطواتها. */
 export interface NativeFlow {
@@ -105,7 +111,7 @@ export function useNativeFlow(): NativeFlow {
         if (outcome === null) return;
         apply((current: NativeState) => stateAfterSwitch(current, outcome, pending));
         // اللينك الافتتاحي المعلّق ما بيتقفلش غير لما التبديل يكمل فعلًا، ولو فشل بيفضل قابل للإعادة.
-        if (outcome === 'switched') markLaunchLinkHandled();
+        if (outcome === 'switched') retireLaunchLink();
       });
     },
     [apply, queue],
@@ -114,7 +120,7 @@ export function useNativeFlow(): NativeFlow {
   const cancel = useCallback(() => {
     apply(stateWithoutPending(latest.current));
     // رفض التبديل بيقفل اللينك الافتتاحي عشان إعادة التحميل ما تفتحش نفس اللوحة تاني.
-    markLaunchLinkHandled();
+    retireLaunchLink();
   }, [apply]);
 
   return { state, busy, onStart, onLink, choose, startOver, confirm, cancel };
@@ -188,8 +194,8 @@ function runQueuedLink(
           settledState.kind === 'flow' &&
           settledState.role === 'employee' &&
           settledState.alert === undefined;
-        if (applied) markLaunchLinkHandled();
-        if (settled) handled = true;
+        if (applied) retireLaunchLink();
+        handled = fallback === undefined ? applied : settled;
       } finally {
         resolve(handled);
       }
