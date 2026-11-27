@@ -3658,5 +3658,5 @@ so much beteer to creat this advisore for the project level so you and the manag
 
 2. **قرار المدير التقني (2026-11-27):**
    - `PENDING-T2`: شاشة ربط الأجهزة في الإدارة (`071-1 + 071-2`, spec `071-mob-admin-devices-pin`، صفحة `/devices`) **محلول بـ `PR #1341`** (`2880cee91`)، فمش هتتبني شاشة جديدة وتم تعليمه محلولًا في الـ runbook.
-   - `PENDING-T3`: إضافة طريقة لتعديل `opening_hours` للفرع بعد الإنشاء، في PR واحد بعد `#1197` بدون migration.
+   - `PENDING-T3`: إضافة طريقة لتعديل `opening_hours` للفرع بعد الإنشاء، في PR واحد بعد `#1197` بدون migration — **تم والدمج بـ `PR #1346 (P1-T12.1)`** (`c314ae465`، شاشة `/branches` ومسار `PUT /v1/businesses/{businessId}/branches/{branchId}/opening-hours`).
    - `PENDING-T1` وT2/T3 أسئلة تقنية لا تُنشر على صفحة القرارات (`CLAUDE.md` §1 5b).
