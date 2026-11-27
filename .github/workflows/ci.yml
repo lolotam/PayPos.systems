@@ -476,6 +476,10 @@ jobs:
           for file in .env .env.production apps/api/.env apps/api/.env.production apps/admin/.env apps/pos/.env packages/db/.env.local deploy/backup/backup.env; do
             echo "DECOY=never-in-an-image" > "$file"
           done
+          # The native shell stays out of every image, signing material included.
+          mkdir -p apps/business/.secrets
+          echo "DECOY=never-in-an-image" > apps/business/.secrets/decoy.p12
+          echo "DECOY=never-in-an-image" > apps/business/.secrets/decoy.jks
 
       # Build the shared stage alone, then cap target builds at two processes to contain runner memory use.
       - name: build api · migrate · ops · worker · backup · postgres · admin · pos (and the build stage)
@@ -513,7 +517,7 @@ jobs:
           done
           [ "$failed" -eq 0 ]
 
-      - name: no env file in any image or build stage
+      - name: no secret file or native shell in any image or build stage
         run: |
           set -euo pipefail
           leaked=0
@@ -525,12 +529,18 @@ jobs:
             images="$images $REGISTRY_LC/pospay-admin-staging:$SHA $REGISTRY_LC/pospay-pos-staging:$SHA"
             images="$images $REGISTRY_LC/pospay-admin-prod:$SHA $REGISTRY_LC/pospay-pos-prod:$SHA"
           fi
-          search='find / \( -name ".env" -o -name ".env.*" -o -name "*.env" \) ! -name "*.env.example" ! -name ".env.example" -not -path "/proc/*" 2>/dev/null; true'
+          # The signing extensions are listed by name; `*.pem` and `*.key` are left out on purpose, because the OS images
+          # carry their own certificates under /etc/ssl.
+          search='find / \( -name ".env" -o -name ".env.*" -o -name "*.env" -o -name "*.p12" -o -name "*.jks" -o -name "*.keystore" -o -name "*.p8" -o -name "*.pfx" -o -path "*/apps/business/.secrets*" \) ! -name "*.env.example" ! -name ".env.example" -not -path "/proc/*" 2>/dev/null; true'
           for image in $images; do
             # A failed inspection fails the step (set -e); it never counts as "nothing found".
             found="$(docker run --rm --entrypoint sh "$image" -c "$search")"
             if [ -n "$found" ]; then echo "::error::$image contains: $found"; leaked=1; fi
           done
+          # The build stage is the only image carrying the source tree, so the native shell is checked there.
+          if docker run --rm --entrypoint sh pospay-build-stage:check -c 'test -d /repo/apps/business'; then
+            echo "::error::pospay-build-stage:check contains /repo/apps/business"; leaked=1
+          fi
           [ "$leaked" -eq 0 ]
 
       - name: push (main only)

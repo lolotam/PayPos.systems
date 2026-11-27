@@ -1,6 +1,7 @@
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { t } from '@pospay/i18n';
 import { DirectionProvider } from '@pospay/ui';
+import type { ReactNode } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import {
@@ -29,16 +30,28 @@ vi.mock('@/app/device-role', () => ({
   connectEmployee: vi.fn(),
 }));
 vi.mock('@/app/device-screen', () => ({
-  DeviceScreen: () => <h2>device screen</h2>,
+  DeviceScreen: ({ notice }: { notice?: ReactNode }) => (
+    <>
+      <h2>device screen</h2>
+      {notice}
+    </>
+  ),
 }));
 vi.mock('@/personal-staff/api/use-personal-session', () => ({
   usePersonalSession: vi.fn(),
 }));
 vi.mock('@/personal-staff/ui/personal-screen', () => ({
-  PersonalScreen: ({ workspace }: { workspace?: { company_id: string; business_id: string } }) => (
+  PersonalScreen: ({
+    workspace,
+    notice,
+  }: {
+    workspace?: { company_id: string; business_id: string };
+    notice?: ReactNode;
+  }) => (
     <>
       <h2>personal screen</h2>
       {workspace ? <p>{`${workspace.company_id} ${workspace.business_id}`}</p> : null}
+      {notice}
     </>
   ),
 }));
@@ -286,6 +299,66 @@ describe('NativeEntry failed reads', () => {
     const alert = await screen.findByRole('alert');
     expect(alert.textContent).toContain(t('ar', 'nativeShell.saveFailed'));
     expect(screen.getByRole('heading', { name: 'personal screen' })).not.toBeNull();
+  });
+});
+
+describe('NativeEntry a cold read that fails on its own', () => {
+  beforeEach(prepare);
+
+  it('keeps the employee flow and warns when the business cannot be read', async () => {
+    vi.mocked(readDeviceRole).mockResolvedValue('employee');
+    vi.mocked(readRememberedBusiness).mockRejectedValue(new Error('SYNTHETIC_READ_FAILURE'));
+    vi.mocked(readLaunchLink).mockResolvedValue(null);
+    mount();
+
+    const alert = await screen.findByRole('alert');
+    expect(alert.textContent).toContain(t('ar', 'nativeShell.saveFailed'));
+    expect(screen.getByRole('heading', { name: 'personal screen' })).not.toBeNull();
+    expect(screen.queryByRole('heading', { name: t('ar', 'nativeShell.title') })).toBeNull();
+  });
+
+  it('changes nothing when a launch link arrives over a business that cannot be read', async () => {
+    vi.mocked(readDeviceRole).mockResolvedValue('employee');
+    vi.mocked(readRememberedBusiness).mockRejectedValue(new Error('SYNTHETIC_READ_FAILURE'));
+    vi.mocked(readLaunchLink).mockResolvedValue(link());
+    mount();
+
+    const alert = await screen.findByRole('alert');
+    expect(alert.textContent).toContain(t('ar', 'nativeShell.saveFailed'));
+    expect(screen.getByRole('heading', { name: 'personal screen' })).not.toBeNull();
+    expect(rememberBusiness).not.toHaveBeenCalled();
+    expect(connectEmployee).not.toHaveBeenCalled();
+  });
+
+  it('shows the start screen and warns when the role cannot be read', async () => {
+    vi.mocked(readDeviceRole).mockRejectedValue(new Error('SYNTHETIC_READ_FAILURE'));
+    vi.mocked(readRememberedBusiness).mockResolvedValue({
+      company_id: COMPANY,
+      business_id: BUSINESS,
+    });
+    vi.mocked(readLaunchLink).mockResolvedValue(null);
+    mount();
+
+    const alert = await screen.findByRole('alert');
+    expect(alert.textContent).toContain(t('ar', 'nativeShell.saveFailed'));
+    expect(screen.getByRole('heading', { name: t('ar', 'nativeShell.title') })).not.toBeNull();
+  });
+});
+
+describe('NativeEntry a second read that fails', () => {
+  beforeEach(prepare);
+
+  it('keeps the counter screen and warns when the role read fails under a launch link', async () => {
+    vi.mocked(readDeviceRole)
+      .mockResolvedValueOnce('counter')
+      .mockRejectedValue(new Error('SYNTHETIC_READ_FAILURE'));
+    vi.mocked(readLaunchLink).mockResolvedValue(link());
+    mount();
+
+    const alert = await screen.findByRole('alert');
+    expect(alert.textContent).toContain(t('ar', 'nativeShell.saveFailed'));
+    expect(screen.getByRole('heading', { name: 'device screen' })).not.toBeNull();
+    expect(screen.queryByRole('heading', { name: t('ar', 'nativeShell.title') })).toBeNull();
   });
 });
 

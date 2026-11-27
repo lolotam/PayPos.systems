@@ -52,10 +52,10 @@ function sessionState(session: typeof SESSION | null) {
   };
 }
 
-function flow() {
+function flow(business: PersonalWorkspace | null = REMEMBERED) {
   return (
     <EmployeeFlow
-      business={REMEMBERED}
+      business={business}
       pending={null}
       busy={false}
       connect={<p>connect</p>}
@@ -65,10 +65,10 @@ function flow() {
   );
 }
 
-function mount() {
+function mount(business: PersonalWorkspace | null = REMEMBERED) {
   return render(
     <LocaleProvider locale="ar" setLocale={() => undefined}>
-      {flow()}
+      {flow(business)}
     </LocaleProvider>,
   );
 }
@@ -198,5 +198,25 @@ describe('EmployeeFlow with a session of the remembered business or none', () =>
 
     expect(await screen.findByText(`sign-in ${COMPANY} ${BUSINESS}`)).not.toBeNull();
     expect(endPersonalSession).not.toHaveBeenCalled();
+  });
+});
+
+describe('EmployeeFlow without a remembered business', () => {
+  it('signs the live personal session out before showing the personal screen', async () => {
+    mount(null);
+
+    expect(await screen.findByRole('status')).not.toBeNull();
+    expect(screen.queryByText(`session screen ${SESSION.employee_id}`)).toBeNull();
+    expect(endPersonalSession).toHaveBeenCalledTimes(1);
+  });
+
+  it('shows the failure and the retry instead of the old screens when the sign-out is refused', async () => {
+    vi.mocked(endPersonalSession).mockResolvedValue('failed');
+    mount(null);
+
+    const alert = await screen.findByRole('alert');
+    expect(alert.textContent).toContain(t('ar', 'nativeShell.roleChangeFailed'));
+    expect(screen.getByRole('button', { name: t('ar', 'nativeShell.retry') })).not.toBeNull();
+    expect(screen.queryByText(`session screen ${SESSION.employee_id}`)).toBeNull();
   });
 });

@@ -18,6 +18,8 @@ export interface EmployeeFlowProps {
   pending: PersonalWorkspace | null;
   busy: boolean;
   connect: ReactNode;
+  /** تنبيه الشاشة: بينزل جوه إطار الشاشة الشخصية مش فوق الشاشة كلها. */
+  notice?: ReactNode;
   startOver?: ReactNode;
   onConfirm: (pending: PersonalWorkspace) => void;
   onCancel: () => void;
@@ -29,12 +31,16 @@ export interface EmployeeFlowProps {
  *
  * الشاشة الشخصية هي اللي بتقرا الجلسة، فالبوابة بتتبعت ليها: لو الجلسة فاضلة من
  * نشاط تاني بتعرض تنبيه بيخلّصها بدل شاشات الصالون القديم (FR-012).
+ *
+ * من غير نشاط متذكر الجهاز مش قادر يقارن الجلسة بيه، فأي جلسة شخصية حية بتعتبر
+ * غريبة: بتتخلّص مرة واحدة، والشاشة الشخصية بتعرض تنبيه الخروج بدل شاشاتها (FR-012).
  */
 export function EmployeeFlow({
   business,
   pending,
   busy,
   connect,
+  notice,
   startOver,
   onConfirm,
   onCancel,
@@ -49,13 +55,7 @@ export function EmployeeFlow({
   }, []);
   const sessionGate = useCallback(
     (session: ForeignSession): ReactNode | null => {
-      if (business === null) return null;
-      if (
-        session.company_id === business.company_id &&
-        session.business_id === business.business_id
-      ) {
-        return null;
-      }
+      if (sameBusiness(business, session)) return null;
       const key = foreignSessionKey(session);
       return (
         <ForeignSessionNotice
@@ -73,6 +73,7 @@ export function EmployeeFlow({
     sessionGate,
     locked: busy,
     ...(startOver === undefined ? {} : { startOver }),
+    ...(notice === undefined ? {} : { notice }),
   };
   return (
     <>
@@ -90,6 +91,16 @@ export function EmployeeFlow({
         <PersonalScreen ownLeave={personalLeave} {...screenProps} />
       )}
     </>
+  );
+}
+
+/** هل الجلسة الحالية تابعة لنفس النشاط المتذكر على الجهاز؟ (FR-012) */
+function sameBusiness(business: PersonalWorkspace | null, session: ForeignSession): boolean {
+  // من غير نشاط متذكر مفيش مقارنة، فأي جلسة حية بتعتبر غريبة.
+  return (
+    business !== null &&
+    session.company_id === business.company_id &&
+    session.business_id === business.business_id
   );
 }
 

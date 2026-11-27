@@ -18,6 +18,7 @@ vi.mock('@/personal-staff/ui/personal-screen', () => ({
 }));
 vi.mock('@/app/device-role', () => ({
   readDeviceRole: vi.fn(() => Promise.resolve(null)),
+  readRememberedBusiness: vi.fn(() => Promise.resolve(null)),
   saveDeviceRole: vi.fn(() => Promise.resolve()),
 }));
 

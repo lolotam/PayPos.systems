@@ -200,8 +200,11 @@ start screen again.
   `packages/contracts`, ignores every other parameter, and then: with no role or the employee role, it sets the employee
   role and remembers the business (when a different business may have a session, it first asks its own short
   confirmation «تبدّلي لصالون تاني؟», not the role-change text (#554 item 1); cancelling keeps the current business and
-  session; then it signs out the personal session as FR-008 does, and with no network the link is refused with the
-  same message, changing nothing). The business switch does not wait on the session fence of #581: the device keeps
+  session; then it signs the personal session out first, and **only after that sign-out succeeds** does it remember the
+  new business — with no network the switch is refused with the same role-change message and the previous remembered
+  business stays, and a refused sign-out keeps the previous remembered business and shows that message too, exactly as
+  MOB-T16 and `apps/pos/src/app/business-switch.ts` do). The business switch does not wait on the session fence of #581:
+  the device keeps
   the employee role, so a racing sign-in can only leave the personal session its own fresh OTP just created (spec 067
   D-6), never a counter or another person's session left behind by the switch, and the server still decides
   eligibility on every request (BR-002); orchestrator, 2026-10-23. A sign-in racing the switch can still leave a

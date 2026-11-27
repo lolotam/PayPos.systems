@@ -2,9 +2,9 @@ import { useCallback, useRef, useState } from 'react';
 
 import { switchBusiness, type SwitchOutcome } from './business-switch';
 import { rememberBusiness, type DeviceRole } from './device-role';
-import { endPersonalSession } from './end-sessions';
 import {
   endEmployeeSessionFirst,
+  endPersonalSessionWithTimeout,
   resolveChoice,
   resolveLink,
   resolveStartOver,
@@ -13,6 +13,7 @@ import {
   stateForRole,
   stateFromLink,
   stateWithoutPending,
+  type KnownShellState,
   type NativeState,
 } from './link-rules';
 import type { PersonalWorkspace } from './manager-link';
@@ -22,8 +23,8 @@ import { useStepQueue } from './use-step-queue';
 export interface NativeFlow {
   state: NativeState;
   busy: boolean;
-  onStart: (role: DeviceRole | null, saved: PersonalWorkspace | null) => void;
-  onLink: (workspace: PersonalWorkspace | null) => Promise<void>;
+  onStart: (role: DeviceRole | null, saved: PersonalWorkspace | null, readFailed?: boolean) => void;
+  onLink: (workspace: PersonalWorkspace | null, fallback?: KnownShellState) => Promise<void>;
   choose: (role: DeviceRole) => void;
   /** بيرجع لاختيار نوع الجهاز لما مفيش اقتران ولا جلسة (FR-001). */
   startOver: () => void;
@@ -56,18 +57,16 @@ export function useNativeFlow(): NativeFlow {
   const { busy, queue } = useStepQueue(onError);
 
   const onStart = useCallback(
-    (role: DeviceRole | null, saved: PersonalWorkspace | null) => {
-      apply((current: NativeState) =>
-        current.kind === 'loading' ? stateForRole(role, saved) : current,
-      );
+    (role: DeviceRole | null, saved: PersonalWorkspace | null, readFailed?: boolean) => {
+      apply((current) => startState(current, role, saved, readFailed));
     },
     [apply],
   );
 
   const onLink = useCallback(
-    async (workspace: PersonalWorkspace | null) => {
+    async (workspace: PersonalWorkspace | null, fallback?: KnownShellState) => {
       queue(async () => {
-        const outcome = await resolveLink(workspace);
+        const outcome = await resolveLink(workspace, fallback);
         apply((current: NativeState) => stateFromLink(current, outcome));
       });
     },
@@ -125,9 +124,23 @@ async function switchStep(
   if (!sameBusiness(current.pending, pending)) return null;
   return switchBusiness(pending, {
     isOnline: () => navigator.onLine,
-    endPersonalSession,
+    // الخروج ليه مهلة: طلب واقف ما يبقاش بيحجز الشاشة على شاشتها القديمة للأبد.
+    endPersonalSession: endPersonalSessionWithTimeout,
     rememberBusiness,
   });
+}
+
+/** حالة البداية بعد قراءة التخزين: بتتطبق بس لو الشاشة لسه في مرحلة التحميل. */
+function startState(
+  current: NativeState,
+  role: DeviceRole | null,
+  saved: PersonalWorkspace | null,
+  readFailed?: boolean,
+): NativeState {
+  if (current.kind !== 'loading') return current;
+  // قراءة فاشلة: الشاشة بتفضل على اللي معروف، والتنبيه بيقول إن القراءة فشلت.
+  if (readFailed === true) return stateAfterFailure(current, role, saved);
+  return stateForRole(role, saved);
 }
 
 /** نفس النشاط بالمعرّفين بتوعه. */

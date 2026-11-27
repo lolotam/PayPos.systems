@@ -45,6 +45,16 @@ export type LinkOutcome =
   | { kind: 'state'; state: NativeState }
   | { kind: 'failed'; role: DeviceRole | null; business: PersonalWorkspace | null };
 
+/**
+ * حالة الجهاز المعروفة: الدور والنشاط اللي اتقروا قبل.
+ *
+ * بتتدخل كبديل لو القراءة التالية فشلت، عشان الشاشة ما تفقدش اللي عارفه أصلاً.
+ */
+export interface KnownShellState {
+  role: DeviceRole | null;
+  business: PersonalWorkspace | null;
+}
+
 export const FLOW_ALERT_KEYS = {
   linkRequired: 'personalStaff.linkRequired',
   counterDevice: 'nativeShell.counterDevice',
@@ -127,6 +137,8 @@ export async function stateAfterLink(
 /**
  * الحفظ فشل: الجهاز اللي دوره محفوظ يفضل على شاشته، واللي من غير دور يرجع لشاشة البداية.
  *
+ * النشاط المتذكر بيتحفظ مع الشاشة، حتى لو القراءة التانية هي اللي فشلت (FR-012).
+ *
  * @param current  حالة الشاشة الحالية
  * @param role     الدور المحفوظ على الجهاز
  * @param business النشاط المتذكر على الجهاز
@@ -138,18 +150,33 @@ export function stateAfterFailure(
   business: PersonalWorkspace | null,
 ): NativeState {
   if (current.kind === 'flow') return { ...current, alert: 'saveFailed' };
-  if (role === null) return { kind: 'start', business: null, alert: 'saveFailed' };
+  if (role === null) return { kind: 'start', business, alert: 'saveFailed' };
   return { kind: 'flow', role, business, alert: 'saveFailed' };
 }
 
 /**
  * حالة الشاشة بعد تطبيق لينك: بتقرا الدور والنشاط من التخزين وبتقرر.
  *
+ * القراءة الفاشلة بتوقف التطبيق: مفيش حفظ ولا صلاحية بتتغيّر على أساس قراءة ناقصة.
+ *
  * @param workspace النشاط اللي جاي في اللينك، أو null لو اللينك مش مقبول
+ * @param fallback الحالة المعروفة من قراءة سابقة، بتتستخدم لو القراءة دي فشلت
  * @returns الشاشة بعد اللينك، أو فشل الحفظ مع الدور والنشاط اللي اتقروا
  */
-export async function resolveLink(workspace: PersonalWorkspace | null): Promise<LinkOutcome> {
-  const [role, business] = await Promise.all([readDeviceRole(), readRememberedBusiness()]);
+export async function resolveLink(
+  workspace: PersonalWorkspace | null,
+  fallback?: KnownShellState,
+): Promise<LinkOutcome> {
+  const [roleResult, businessResult] = await Promise.allSettled([
+    readDeviceRole(),
+    readRememberedBusiness(),
+  ]);
+  const role = roleResult.status === 'fulfilled' ? roleResult.value : (fallback?.role ?? null);
+  const business =
+    businessResult.status === 'fulfilled' ? businessResult.value : (fallback?.business ?? null);
+  if (roleResult.status === 'rejected' || businessResult.status === 'rejected') {
+    return { kind: 'failed', role, business };
+  }
   try {
     return {
       kind: 'state',
@@ -256,7 +283,15 @@ export async function endEmployeeSessionFirst(current: NativeState): Promise<Nat
   return null;
 }
 
-async function endPersonalSessionWithTimeout(): Promise<'done' | 'failed'> {
+/**
+ * بيخلّص الجلسة الشخصية بمهلة: طلب Sign-out لسه واقف بعد المهلة بيتلغي.
+ *
+ * جواب متأخر بعد انتهاء المهلة بيعمل Set-Cookie بيمسح جلسة أحدث، فبنلغي الطلب بدل ما
+ * نستناه، والشاشة بتعتبر ده فشل.
+ *
+ * @returns «done» لما السيرفر أكّد، و«failed» لما رفض أو الشبكة وقعت أو المهلة عدّت
+ */
+export async function endPersonalSessionWithTimeout(): Promise<'done' | 'failed'> {
   const controller = new AbortController();
   let timer: ReturnType<typeof setTimeout> | undefined;
   const timeout = new Promise<'failed'>((resolve) => {

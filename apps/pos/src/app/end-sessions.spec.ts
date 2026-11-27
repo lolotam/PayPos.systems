@@ -56,6 +56,18 @@ describe('endPersonalSession', () => {
     expect(announcePersonalChange).not.toHaveBeenCalled();
   });
 
+  it('gives up on a stalled push cleanup when the sign-out is aborted', async () => {
+    const controller = new AbortController();
+    vi.mocked(disablePushOnSignOut).mockReturnValue(new Promise<void>(() => undefined));
+
+    const ending = endPersonalSession(controller.signal);
+    controller.abort();
+
+    await expect(ending).resolves.toBe('failed');
+    expect(personalCalls.signOut).not.toHaveBeenCalled();
+    expect(announcePersonalChange).not.toHaveBeenCalled();
+  });
+
   it.each(['PERSONAL_SIGN_OUT_REFUSED', 'PERSONAL_SIGN_OUT_UNCLEAR', 'TypeError'])(
     'fails without announcing when the sign-out ends with %s',
     async (code) => {

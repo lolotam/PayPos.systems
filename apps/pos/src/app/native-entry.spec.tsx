@@ -36,9 +36,10 @@ vi.mock('@/app/end-sessions', () => ({
   endPersonalSession: vi.fn(),
 }));
 vi.mock('@/app/device-screen', () => ({
-  DeviceScreen: ({ startOver }: { startOver?: ReactNode }) => (
+  DeviceScreen: ({ startOver, notice }: { startOver?: ReactNode; notice?: ReactNode }) => (
     <>
       <h2>device screen</h2>
+      {notice}
       {startOver}
     </>
   ),
@@ -50,13 +51,16 @@ vi.mock('@/personal-staff/ui/personal-screen', () => ({
   PersonalScreen: ({
     workspace,
     startOver,
+    notice,
   }: {
     workspace?: { company_id: string; business_id: string };
     startOver?: ReactNode;
+    notice?: ReactNode;
   }) => (
     <>
       <h2>personal screen</h2>
       {workspace ? <p>{`${workspace.company_id} ${workspace.business_id}`}</p> : null}
+      {notice}
       {startOver}
     </>
   ),

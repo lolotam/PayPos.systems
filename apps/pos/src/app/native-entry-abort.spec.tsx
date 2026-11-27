@@ -25,15 +25,21 @@ vi.mock('@/app/end-sessions', () => ({
   endPersonalSession: vi.fn(),
 }));
 vi.mock('@/app/device-screen', () => ({
-  DeviceScreen: ({ startOver }: { startOver?: ReactNode }) => <>{startOver}</>,
+  DeviceScreen: ({ startOver, notice }: { startOver?: ReactNode; notice?: ReactNode }) => (
+    <>
+      {notice}
+      {startOver}
+    </>
+  ),
 }));
 vi.mock('@/personal-staff/api/use-personal-session', () => ({
   usePersonalSession: vi.fn(),
 }));
 vi.mock('@/personal-staff/ui/personal-screen', () => ({
-  PersonalScreen: ({ startOver }: { startOver?: ReactNode }) => (
+  PersonalScreen: ({ startOver, notice }: { startOver?: ReactNode; notice?: ReactNode }) => (
     <>
       <h2>personal screen</h2>
+      {notice}
       {startOver}
     </>
   ),

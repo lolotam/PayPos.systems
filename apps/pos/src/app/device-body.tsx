@@ -50,7 +50,15 @@ export function DeviceBody({
     );
   }
   if (screen.kind === 'offline') return <OfflineNotice onRetry={session.retry} />;
-  if (screen.kind === 'unsupported') return <UnsupportedNotice />;
+  if (screen.kind === 'unsupported') {
+    // الجهاز المقترن ما يقدرش يرجع: الاقتران لسه شغال، والرجوع بيمسحه.
+    return (
+      <>
+        <UnsupportedNotice />
+        {screen.canStartOver ? startOver : null}
+      </>
+    );
+  }
   return (
     <ReceptionBody
       key={`${screen.branchId}:${screen.deviceId}`}
