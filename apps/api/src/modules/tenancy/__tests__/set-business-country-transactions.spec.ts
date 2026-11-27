@@ -215,6 +215,8 @@ describe('audit-failure rollback (BD-05 pattern)', () => {
     const real = createTenancyTransactions(db, ids);
     const transactions: TenancyTransactions = {
       run: (context, idempotency, work) => real.run(context, idempotency, work),
+      runBranchOpeningHoursChange: (context, work) =>
+        real.runBranchOpeningHoursChange(context, work),
       runBusinessCountryChange: (context, work) =>
         real.runBusinessCountryChange(context, (scope) =>
           work({

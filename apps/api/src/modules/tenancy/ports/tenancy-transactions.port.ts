@@ -1,3 +1,5 @@
+import type { Branch } from '@pospay/contracts';
+
 import type { AuditTrail } from '../../../shared/ports/audit-trail.port.ts';
 import type { OutboxWriter } from '../../../shared/ports/outbox-writer.port.ts';
 
@@ -85,6 +87,41 @@ export interface BusinessCountryScope {
 }
 
 /**
+ * نطاق تعديل مواعيد عمل الفرع: القراءة تحت القفل والكتابة الاختيارية وقراءة الفرع بعد التعديل مربوطين بنفس
+ * transaction الشركة المتأكد منها، والتدقيق بيكتب جواها.
+ */
+export interface BranchOpeningHoursScope {
+  readonly companyId: string;
+  readonly audit: AuditTrail;
+  /**
+   * بيقرأ مواعيد الفرع تحت قفل `FOR NO KEY UPDATE` على صف الفرع نفسه، وبيشترط إن الفرع تبع النشاط ده، عشان
+   * تعديلين متزامنين يترتبوا ورا بعض وفرع نشاط تاني في نفس الشركة يبان غايب.
+   *
+   * @param businessId النشاط اللي الصلاحية اتقيّمت عنده
+   * @param branchId الفرع المطلوب تعديل مواعيده
+   * @returns المواعيد المخزّنة كما هي (`null` لو مفيش)، أو `null` لو الفرع مش مرئي تحت النشاط ده
+   */
+  lockBranchOpeningHours(
+    businessId: string,
+    branchId: string,
+  ): Promise<{ readonly openingHours: unknown } | null>;
+  /**
+   * بيستبدل عمود المواعيد وحده بالقيمة الجديدة؛ `null` بيمسحها.
+   *
+   * @param branchId الفرع المقفول
+   * @param openingHours المواعيد الجديدة المتحقق منها من العقد، أو `null`
+   */
+  saveBranchOpeningHours(branchId: string, openingHours: unknown): Promise<void>;
+  /**
+   * بيقرأ الفرع كاملاً بشكل عقد `Branch` جوه نفس الـ transaction، فالرد هو اللي اتخزّن فعلاً.
+   *
+   * @param branchId الفرع المقفول
+   * @returns الفرع بعد التعديل
+   */
+  readBranch(branchId: string): Promise<Branch>;
+}
+
+/**
  * بيفتح withTenant للشركة المتأكد منها ويعمل claim للمفتاح في نطاق COMPANY قبل أي كتابة (plan v4 T7).
  */
 export interface TenancyTransactions {
@@ -117,6 +154,19 @@ export interface TenancyTransactions {
   runBusinessCountryChange(
     context: { companyId: string; userId: string },
     work: (scope: BusinessCountryScope) => Promise<StoredResult | null>,
+  ): Promise<StoredResult | null>;
+  /**
+   * بيفتح withTenant واحدة لتعديل مواعيد عمل الفرع من غير idempotency — الكتابة استبدال ومفيش أثر مال أو مخزون —
+   * فالقراءة تحت القفل والكتابة الاختيارية والتدقيق والقراءة الأخيرة كلها جوه transaction واحدة.
+   *
+   * @param context           الشركة والمستخدم اللي بيعمل التغيير
+   * @param context.companyId الشركة اللي الـ guard اتأكد منها
+   * @param context.userId    المستخدم صاحب صلاحية `create:branches:business`
+   * @param work              القرار والكتابة جوه نفس الـ transaction؛ `null` يعني الفرع مش مرئي
+   */
+  runBranchOpeningHoursChange(
+    context: { companyId: string; userId: string },
+    work: (scope: BranchOpeningHoursScope) => Promise<StoredResult | null>,
   ): Promise<StoredResult | null>;
 }
 

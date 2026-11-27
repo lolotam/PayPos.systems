@@ -30,9 +30,12 @@ const FINANCE_BUSINESS: readonly [NavigationRoleCode, ...NavigationRoleCode[]] =
 export const SETTINGS_NAV_PAGES: readonly NavigationPageEntry[] = [
   {
     id: 'branches',
+    route: '/branches',
+    formerSoonId: 'branches',
     labelKey: 'adminNavPages.branches',
     icon: 'MapPin',
-    state: 'soon',
+    visible: 'always',
+    state: 'live',
     section: 'setup',
     submenu: 'business',
     businessTypes: [],
