@@ -1,5 +1,6 @@
 'use client';
 
+import type { CommissionBlockedCorrectionStatus } from '@pospay/contracts';
 import { useQuery, type QueryClient } from '@tanstack/react-query';
 
 /** نطاق هوية واحدة: كل مفاتيح الشاشة بتبدأ بيه عشان البيانات والوصول يفضلوا لكل هوية على حدة. */
@@ -48,6 +49,14 @@ export function planOverrideHistoryKey(scope: PlanScope, employeeId: string, ser
   return [...scope, 'override-history', employeeId, serviceId] as const;
 }
 
+/**
+ * مفتاح قائمة التصحيحات الموقوفة: بيعيش تحت النطاق فقفل الوصول بيمسحه، والفلتر جزء منه عشان كل حالة تاخد كاشها؛
+ * من غير حالة بيطابق كل الفلاتر (للإبطال بعد الإصلاح).
+ */
+export function planBlockedCorrectionsKey(scope: PlanScope, status?: CommissionBlockedCorrectionStatus) {
+  return [...scope, 'blocked-corrections', ...(status === undefined ? [] : [status])] as const;
+}
+
 function planAccessKey(scope: PlanScope) {
   return [...scope, 'access'] as const;
 }
@@ -74,6 +83,7 @@ export async function denyPlanAccess(client: QueryClient, scope: PlanScope): Pro
   client.removeQueries({ queryKey: [...scope, 'seed-version'] });
   client.removeQueries({ queryKey: [...scope, 'override-services'] });
   client.removeQueries({ queryKey: [...scope, 'override-history'] });
+  client.removeQueries({ queryKey: planBlockedCorrectionsKey(scope) });
 }
 
 /** بيرجّع الوصول بجيل جديد من غير أي بيانات: أول صفحة موظفين ناجحة في الجيل الجديد بس هي اللي بتظهر. */

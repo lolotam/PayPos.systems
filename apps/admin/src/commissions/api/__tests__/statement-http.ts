@@ -78,6 +78,7 @@ export function statementEmployee(
     name_ar: 'سارة',
     name_en: 'Sara',
     partial: false,
+    departed: false,
     commission_subtotal: '12.500',
     tip_side: '3.000',
     payable: '15.500',

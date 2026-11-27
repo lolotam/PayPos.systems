@@ -7,6 +7,8 @@ import { t } from '@pospay/i18n';
 import { createQueryClient } from '@/shared/api/query-client';
 import { planEmployeesKey, planScope, planVersionsKey } from '../../api/plan-access';
 import {
+  blockedCorrectionPage,
+  blockedCorrectionsPath,
   deferredAnswer,
   EMP_A as EMP_A_ID,
   EMP_B as EMP_B_ID,
@@ -83,6 +85,9 @@ function makeRouter() {
   >();
   routeGet(api.GET, async (path, options) => {
     const handler = routes.get(path);
+    // قائمة التصحيحات الموقوفة جزء من الشاشة، فبتفضل فاضية إلا لو الاختبار حدّد غير كده.
+    if (handler === undefined && path === blockedCorrectionsPath)
+      return ok(blockedCorrectionPage([], null));
     if (handler === undefined) return deferredAnswer().promise;
     return handler(options);
   });

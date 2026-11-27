@@ -33,7 +33,7 @@ export function usePlanAttemptMemory(): PlanAttemptMemory {
  * النسخة الجديدة هي الأحدث دايمًا، فالإضافة في أول صفحة التاريخ بتحفظ ترتيب الكيرسور
  * بدون ما نعمل refetch: إعادة جلب الصفحات بمفاتيحها القديمة بعد الإدراج بقدر يطلع صف رسم من النص.
  */
-function prependVersion(
+export function prependVersion(
   client: ReturnType<typeof useQueryClient>,
   scope: PlanScope,
   employeeId: string,

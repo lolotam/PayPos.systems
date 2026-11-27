@@ -184,6 +184,26 @@ export function correctionsTotal(rows: readonly CommissionStatementRow[]): strin
   return formatAmount(sumAmounts(counted.map((row) => row.amount)));
 }
 
+/**
+ * عنوان مجموع التصحيحات: للموظفة اللي سابت الشغل بيوضّح الاتجاه، «مستحق عليها» لو المجموع سالب و«مستحق
+ * ليها» لو موجب (CM-50، CS-Q28)؛ لغيرها ولمجموع صفر بيفضل العنوان العادي. الاتجاه من علامة المجموع المعروض بس،
+ * من غير أي حساب مبالغ.
+ *
+ * @param rows صفوف قسم التصحيحات
+ * @param departed هل الموظفة سابت الشغل
+ * @returns مفتاح نص العنوان
+ */
+export function correctionsTotalKey(
+  rows: readonly CommissionStatementRow[],
+  departed: boolean,
+): MessageKey {
+  if (!departed) return 'commissionStatementScreen.correctionsTotal';
+  const total = correctionsTotal(rows);
+  if (total.startsWith('-')) return 'commissionStatementScreen.correctionsTotalOwedByHer';
+  if (total === '0.000') return 'commissionStatementScreen.correctionsTotal';
+  return 'commissionStatementScreen.correctionsTotalOwedToHer';
+}
+
 /** تاريخ صف التصحيح: يوم البند الأصلي لو معروف، وإلا يوم عمل التصحيح. */
 export function correctionDate(row: CommissionStatementRow): string | null {
   return row.business_date ?? row.source_business_date;

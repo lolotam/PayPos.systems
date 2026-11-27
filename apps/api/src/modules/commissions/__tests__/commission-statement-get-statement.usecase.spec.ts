@@ -249,6 +249,36 @@ describe('a closed month is read from its frozen rows (FR-025, FR-033)', () => {
   });
 });
 
+describe('the departed flag (CM-50)', () => {
+  const withDeparted = (source: ReturnType<typeof statementSource>) =>
+    source.employees.map((label) => ({ ...label, departed: true }));
+
+  it('flags a departed employee in an open month and not otherwise', async () => {
+    const stay = (await view(readerOf(ok(true)))) as { employees: { departed: boolean }[] };
+    expect(stay.employees.map((employee) => employee.departed)).toEqual([false]);
+
+    const source = statementSource();
+    const read = { businessWide: true, branchIds: [SALMIYA], closed: null };
+    const left = await view(
+      readerOf({ kind: 'ok', read: { ...read, source: { ...source, employees: withDeparted(source) } } }),
+    );
+    expect((left as { employees: { departed: boolean }[] }).employees.map((e) => e.departed)).toEqual([true]);
+  });
+
+  it('flags a departed employee in a closed month from the live source, since frozen rows do not carry it', async () => {
+    const closed = closedRead(true, 'APPROVED');
+    if (closed.kind !== 'ok') throw new Error('fixture');
+    const source = closed.read.source;
+    const left = await view(
+      readerOf({
+        kind: 'ok',
+        read: { ...closed.read, source: { ...source, employees: withDeparted(source) } },
+      }),
+    );
+    expect((left as { employees: { departed: boolean }[] }).employees.map((e) => e.departed)).toEqual([true]);
+  });
+});
+
 describe('refusals', () => {
   it('maps the reader refusals to the uniform codes', async () => {
     await expect(view(readerOf({ kind: 'forbidden' }))).rejects.toBeInstanceOf(

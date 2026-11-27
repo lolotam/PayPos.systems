@@ -1,12 +1,15 @@
 import {
+  commissionRepairPlan,
   createCommissionPlanVersionInput,
+  type CreateCommissionPeriodRepairInput,
   type CreateCommissionPlanVersionInput,
 } from '@pospay/contracts';
+import type { CommissionPlanWire } from '@pospay/commissions-engine/validation';
 import { t, type Locale } from '@pospay/i18n';
 import type { FieldErrors, Resolver } from 'react-hook-form';
 import { checkPlanBlocks } from './plan-check';
-import type { DraftBlock, PlanDraft } from './plan-draft';
-import { toWireCandidate } from './plan-draft';
+import type { DraftBlock, PlanDraft, RepairPlanDraft, WireCandidateResult } from './plan-draft';
+import { toRepairWireCandidate, toWireCandidate } from './plan-draft';
 import { DRAFT_ERROR_KEYS, PLAN_ERROR_KEYS } from './plan-messages';
 
 const BLOCK_PATHS: Record<string, DraftBlock> = {
@@ -16,28 +19,51 @@ const BLOCK_PATHS: Record<string, DraftBlock> = {
   package_sale: 'packageSale',
 };
 
+/** جسم الخطة المقبول من العقد، وبه البلوكات الثلاثة اللي بيفحصها المحرك. */
+type PlanBody = CommissionPlanWire;
+
+/** السكيما اللي بيحتاجها المقرر: `safeParse` وبس، فأي سكيما عقد بتركّب من غير ما الشاشة تعتمد على مكتبة السكيما. */
+interface PlanSchema<TBody> {
+  safeParse(
+    input: unknown,
+  ):
+    | { success: true; data: TBody }
+    | { success: false; error: { issues: readonly { path: readonly PropertyKey[] }[] } };
+}
+
 function fieldError(message: string) {
   return { type: 'validation' as const, message };
 }
 
-function setMessage(errors: FieldErrors<PlanDraft>, block: DraftBlock, message: string): void {
+function setMessage(errors: object, block: DraftBlock, message: string): void {
   Object.assign(errors, { [block]: fieldError(message) });
 }
 
-function hasMessage(errors: FieldErrors<PlanDraft>, block: DraftBlock): boolean {
+function hasMessage(errors: object, block: DraftBlock): boolean {
   const error = (errors as Record<string, { message?: unknown }>)[block];
   return typeof error?.message === 'string';
 }
 
-export function createPlanResolver(
+/**
+ * مقرر النموذج المشترك: أخطاء قراءة الحقول أولاً، ثم سكيما العقد، ثم قواعد المحرك لكل بلوك؛ الرسالة بتتحط
+ * على بلوكها والأولى هي اللي بتفضل. الاختلاف الوحيد بين الخطة العادية وخطة الإصلاح هو الجسم والسكيما.
+ *
+ * @param locale لغة الرسائل
+ * @param toCandidate يبني الجسم المرشّح من المسودة
+ * @param schema سكيما العقد اللي بتقرر شكل الجسم
+ * @returns مقرر react-hook-form
+ */
+function createResolver<TDraft extends RepairPlanDraft, TBody extends PlanBody>(
   locale: Locale,
-): Resolver<PlanDraft, unknown, CreateCommissionPlanVersionInput> {
+  toCandidate: (draft: TDraft) => WireCandidateResult,
+  schema: PlanSchema<TBody>,
+): Resolver<TDraft, unknown, TBody> {
   return (values) => {
-    const built = toWireCandidate(values);
-    const errors: FieldErrors<PlanDraft> = {};
+    const built = toCandidate(values);
+    const errors: FieldErrors<TDraft> = {};
     for (const error of built.errors)
       setMessage(errors, error.block, t(locale, DRAFT_ERROR_KEYS[error.code]));
-    const parsed = createCommissionPlanVersionInput.safeParse(built.candidate);
+    const parsed = schema.safeParse(built.candidate);
     if (!parsed.success) {
       for (const issue of parsed.error.issues) {
         const block = BLOCK_PATHS[String(issue.path[0] ?? '')];
@@ -69,4 +95,18 @@ export function createPlanResolver(
       ? { values: {}, errors }
       : { values: parsed.data, errors: {} };
   };
+}
+
+/** مقرر نموذج الخطة العادية: الجسم الكامل بتاريخ السريان وكامل الفترة. */
+export function createPlanResolver(
+  locale: Locale,
+): Resolver<PlanDraft, unknown, CreateCommissionPlanVersionInput> {
+  return createResolver(locale, toWireCandidate, createCommissionPlanVersionInput);
+}
+
+/** مقرر نموذج خطة الإصلاح: البلوكات الثلاثة بس، بسكيما `commissionRepairPlan` اللي بترفض أي مفتاح زيادة. */
+export function createRepairPlanResolver(
+  locale: Locale,
+): Resolver<RepairPlanDraft, unknown, CreateCommissionPeriodRepairInput['plan']> {
+  return createResolver(locale, toRepairWireCandidate, commissionRepairPlan);
 }

@@ -7,6 +7,7 @@ import { useLocale } from '@/shared/locale/locale-context';
 import {
   correctionDate,
   correctionsTotal,
+  correctionsTotalKey,
   formatAmount,
   kindKey,
   serviceName,
@@ -18,7 +19,13 @@ const COL = 'commissionStatementScreen';
  * قسم «تصحيحات شهور سابقة» (CS-Q9): سطر لكل خدمة اتأثرت بالتاريخ والخدمة والشهر الأصلي وكان كام وبقى كام
  * والفرق، وتحتها مجموع القسم. الموظفة بتشوفه زي المدير، واسم العميلة مش بيتعرض هنا.
  */
-export function StatementCorrectionsSection({ rows }: { rows: readonly CommissionStatementRow[] }) {
+export function StatementCorrectionsSection({
+  rows,
+  departed,
+}: {
+  rows: readonly CommissionStatementRow[];
+  departed?: boolean;
+}) {
   const locale = useLocale();
   return (
     <DataTableFrame
@@ -26,7 +33,7 @@ export function StatementCorrectionsSection({ rows }: { rows: readonly Commissio
       stacked
       footer={
         <p className="flex justify-between gap-2 font-semibold">
-          <span>{t(locale, `${COL}.correctionsTotal`)}</span>
+          <span>{t(locale, correctionsTotalKey(rows, departed === true))}</span>
           <span dir="ltr">{correctionsTotal(rows)}</span>
         </p>
       }

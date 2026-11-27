@@ -5,13 +5,13 @@ import { Input, Label, NativeSelect } from '@pospay/ui';
 import type { ChangeEvent } from 'react';
 import { useFormContext } from 'react-hook-form';
 import { useLocale } from '@/shared/locale/locale-context';
-import type { PlanDraft } from '../model/plan-draft';
+import type { RepairPlanDraft } from '../model/plan-draft';
 import type { StepPath } from './plan-form-types';
 
 /** حقلا حد الشريحة وقيمته لنص واحد؛ تطبيع مبلغ الحد على blur فقط كي لا تتقاطع الكتابة مع القيمة. */
 export function ThresholdFields({ id, path }: { id: string; path: StepPath }) {
   const locale = useLocale();
-  const { register, setValue, watch } = useFormContext<PlanDraft>();
+  const { register, setValue, watch } = useFormContext<RepairPlanDraft>();
   const kind = watch(`${path}.fromKind`);
   const valueField = register(`${path}.fromValue`);
   const normalizeOnBlur = (event: ChangeEvent<HTMLInputElement>) => {

@@ -23,7 +23,7 @@ export function StatementEmployeeCard({ employee }: { employee: CommissionStatem
           {t(locale, `${NS}.employeeNumber`)} <bdi>{employee.employee_number}</bdi>
         </span>
         {employee.partial ? <Badge variant="warning">{t(locale, `${NS}.partialBadge`)}</Badge> : null}
-        {/* TODO(spec): علامة «سابت الشغل» (CM-50، CS-Q28) محتاجة حقل موظفة سابت الشغل على موظفة الكشف، ومش موجود في العقد لسه. */}
+        {employee.departed ? <Badge variant="neutral">{t(locale, `${NS}.departedBadge`)}</Badge> : null}
       </div>
       {employee.partial ? <p className="text-sm text-muted-foreground">{t(locale, `${NS}.partialNote`)}</p> : null}
       <dl className="grid grid-cols-3 gap-3">
@@ -44,9 +44,14 @@ export function StatementEmployeeCard({ employee }: { employee: CommissionStatem
       {employee.rows.length === 0 ? <p>{t(locale, `${NS}.noRows`)}</p> : null}
       {groups.work.length > 0 ? <StatementRowsTable title={t(locale, `${NS}.sectionWork`)} rows={groups.work} /> : null}
       {groups.tips.length > 0 ? <StatementRowsTable title={t(locale, `${NS}.tipSide`)} rows={groups.tips} /> : null}
-      {groups.corrections.length > 0 ? <StatementCorrectionsSection rows={groups.corrections} /> : null}
+      {groups.corrections.length > 0 ? (
+        <StatementCorrectionsSection rows={groups.corrections} departed={employee.departed} />
+      ) : null}
       {groups.carries.length > 0 ? (
-        <StatementRowsTable title={t(locale, `${NS}.sectionCarries`)} rows={groups.carries} />
+        <StatementRowsTable
+          title={t(locale, `${NS}.${employee.departed ? 'sectionCarriesOwedByHer' : 'sectionCarries'}`)}
+          rows={groups.carries}
+        />
       ) : null}
     </Card>
   );
