@@ -20,8 +20,9 @@ export function PermissionMembershipBrowser({
   const [cursor, setCursor] = useState<string>();
   const [membershipId, setMembershipId] = useState('');
   const list = usePermissionMemberships(companyId, userId, cursor, businessId);
-  const blocked = list.isPending || list.isFetching || list.isError || list.failureCount > 0;
+  const blocked = list.isPending || list.isError || list.failureCount > 0;
   const selected = list.data?.items.some((item) => item.id === membershipId);
+  if (membershipId && list.data && !blocked && !selected) setMembershipId('');
   return (
     <>
       <PermissionMembershipList

@@ -24,12 +24,13 @@ export function PermissionMembershipList({
   onCursor: (next: string | undefined) => void;
 }) {
   const locale = useLocale();
-  const loaded = !list.isPending && !list.isFetching && !list.isError && !list.failureCount;
+  const failed = list.isError || list.failureCount > 0;
+  const loaded = !list.isPending && !failed;
   return (
     <>
       <PermissionListFeedback
-        pending={list.isPending || list.isFetching}
-        failed={list.isError || list.failureCount > 0}
+        pending={list.isPending}
+        failed={failed}
         error={list.error ?? list.failureReason}
       />
       {loaded && list.data ? (
