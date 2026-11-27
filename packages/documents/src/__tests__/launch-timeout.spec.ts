@@ -43,12 +43,17 @@ async function untilAvailable(renderer: PlaywrightDocumentRenderer): Promise<voi
   }
 }
 
-it('relaunches after a launch that never settles', async () => {
+it('waits for a timed-out launch attempt to settle before starting the replacement', async () => {
   let launches = 0;
+  let releaseFirst: (() => void) | undefined;
   const factory: PdfBrowserFactory = {
     launch: async () => {
       launches += 1;
-      if (launches === 1) return new Promise<PdfBrowser>(() => undefined);
+      if (launches === 1) {
+        return new Promise<PdfBrowser>((_, reject) => {
+          releaseFirst = () => reject(new Error('late launch failure'));
+        });
+      }
       return browser(async () => Uint8Array.from([1]));
     },
   };
@@ -61,8 +66,13 @@ it('relaunches after a launch that never settles', async () => {
     onLaunchError: (error) => errors.push(error),
   });
   await renderer.start();
-  await untilAvailable(renderer);
   expect(errors).toHaveLength(1);
+  expect(launches).toBe(1);
+  await new Promise((resolve) => setTimeout(resolve, 30));
+  expect(launches).toBe(1);
+  expect(renderer.isAvailable()).toBe(false);
+  releaseFirst?.();
+  await untilAvailable(renderer);
   expect(renderer.isAvailable()).toBe(true);
   expect(launches).toBe(2);
   await renderer.close();
@@ -134,6 +144,24 @@ it('cancels a launch when the signal aborts', async () => {
   const outcome = await launching;
   expect(outcome.kind).toBe('cancelled');
   expect(vi.getTimerCount()).toBe(0);
+});
+
+it('closes the browser when abort runs in the same microtask turn as launch fulfillment', async () => {
+  const controller = new AbortController();
+  let closed = false;
+  const resolved = Promise.resolve(
+    browser(async () => Uint8Array.from([1]), {
+      onClose: () => {
+        closed = true;
+      },
+    }),
+  );
+  const outcomePromise = launchWithinTimeout(resolved, 30_000, 1_000, controller.signal);
+  void resolved.then(() => controller.abort());
+  const outcome = await outcomePromise;
+  expect(outcome.kind).toBe('cancelled');
+  if (outcome.kind === 'cancelled') await outcome.settled;
+  expect(closed).toBe(true);
 });
 
 async function lateBrowserKills(close: PdfBrowser['close']): Promise<number> {

@@ -334,7 +334,11 @@ async function bringUp(
  */
 export function beginDocumentRendering(input: StartDocumentsInput): DocumentRendering {
   const registry = input.registry ?? new DocumentSourceRegistry();
-  const startup: RendererStartup = { starting: false, deadlineAt: 0 };
+  const startup: RendererStartup = {
+    starting: false,
+    deadlineAt: 0,
+    jobDeadlines: new Map(),
+  };
   if (input.renderer !== undefined) bindAvailableLog(input.logger, input.renderer);
   const runtime = trackDocumentStartup({
     startupMs: input.startupMs ?? STARTUP_MS,

@@ -1,5 +1,7 @@
+import { EventEmitter } from 'node:events';
 import { expect, it } from 'vitest';
 
+import { killAndWait } from '../playwright/factory.ts';
 import { PlaywrightDocumentRenderer } from '../playwright/renderer.ts';
 import { dropRetiredBrowser } from '../playwright/retire.ts';
 
@@ -65,4 +67,54 @@ it('waits past the 500 ms kill grace until process exit is confirmed before rela
   }
   expect(launches).toBe(2);
   await renderer.close();
+});
+
+it('keeps killAndWait unresolved past 500 ms until the child process emits exit', async () => {
+  const proc = new EventEmitter() as EventEmitter & {
+    kill: () => boolean;
+    exitCode: number | null;
+    signalCode: string | null;
+  };
+  proc.exitCode = null;
+  proc.signalCode = null;
+  proc.kill = () => true;
+
+  let done = false;
+  const waiting = Promise.resolve(killAndWait(proc)).then(() => {
+    done = true;
+  });
+  await new Promise((resolve) => setTimeout(resolve, 600));
+  expect(done).toBe(false);
+  proc.exitCode = 0;
+  proc.emit('exit');
+  await waiting;
+  expect(done).toBe(true);
+});
+
+it('does not treat a failed or rejecting kill as confirmed process exit', async () => {
+  const outcome = await dropRetiredBrowser(
+    {
+      newContext: () => new Promise(() => undefined),
+      close: () => new Promise(() => undefined),
+      kill: () => Promise.reject(new Error('EPERM')),
+      on: () => undefined,
+    },
+    10,
+    (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
+  );
+  expect(outcome.confirmed).toBe(false);
+
+  const syncThrowOutcome = await dropRetiredBrowser(
+    {
+      newContext: () => new Promise(() => undefined),
+      close: () => new Promise(() => undefined),
+      kill: () => {
+        throw new Error('EPERM');
+      },
+      on: () => undefined,
+    },
+    10,
+    (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
+  );
+  expect(syncThrowOutcome.confirmed).toBe(false);
 });

@@ -9,6 +9,7 @@ export interface RenderOptions {
   onAbortedRequest?: (url: string) => void;
 }
 
+/** خيارات إقلاع المتصفح: تسمح بإلغاء محاولة الإقلاع الجارية عبر إشارة إيقاف. */
 export interface StartOptions {
   /** إشارة لإلغاء محاولة الإقلاع لما مهلتها تخلص قبل ما نبدأ محاولة تانية. */
   readonly signal?: AbortSignal;

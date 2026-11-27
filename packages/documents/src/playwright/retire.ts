@@ -70,25 +70,20 @@ export async function dropRetiredBrowser(
   }
   if (finished) return { confirmed: true, exit: Promise.resolve() };
   let killCall: unknown;
+  let killFailed = false;
   try {
     killCall = browser.kill?.();
   } catch {
-    // إشارة القتل مش بتوقف إعادة الإطلاق؛ المتصفح القديم مش هو الحالي.
-    return { confirmed: true, exit: Promise.resolve() };
+    killFailed = true;
   }
-  if (killCall === undefined) return { confirmed: true, exit: Promise.resolve() };
-  // رفض close ما يثبتش خروج العملية، فانتظار الخروج يعتمد على حل close أو kill بس.
-  const cleanClose = closing.then(
-    () => undefined,
-    () => new Promise<void>(() => undefined),
-  );
-  const exit = Promise.race([
-    cleanClose,
-    Promise.resolve(killCall).then(
-      () => undefined,
-      () => undefined,
-    ),
-  ]);
+  if (!killFailed && killCall === undefined) return { confirmed: true, exit: Promise.resolve() };
+  // رفض close أو فشل القتل ما يثبتش خروج العملية، فانتظار الخروج يعتمد على حل close أو kill بس.
+  const never = (): Promise<void> => new Promise<void>(() => undefined);
+  const cleanClose = closing.then(() => undefined, never);
+  const killExit = killFailed
+    ? never()
+    : Promise.resolve(killCall).then(() => undefined, never);
+  const exit = Promise.race([cleanClose, killExit]);
   let settled = false;
   const confirmed = exit.then(() => {
     settled = true;

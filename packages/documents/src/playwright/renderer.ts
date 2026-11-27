@@ -186,18 +186,17 @@ export class PlaywrightDocumentRenderer implements DocumentRenderer {
         this.#closeGraceMs,
         controller.signal,
       );
-      if (outcome.kind === 'cancelled') {
+      if (outcome.kind === 'cancelled' || outcome.kind === 'timeout') {
         if (!this.#closing) {
           const settling = outcome.settled.finally(() => {
             if (this.#pendingCancel === settling) this.#pendingCancel = null;
           });
           this.#pendingCancel = settling;
         }
-        return;
-      }
-      if (outcome.kind === 'timeout') {
-        this.#onLaunchError?.(new Error('DOCUMENT_LAUNCH_TIMEOUT'));
-        this.#markUnavailable();
+        if (outcome.kind === 'timeout') {
+          this.#onLaunchError?.(new Error('DOCUMENT_LAUNCH_TIMEOUT'));
+          this.#markUnavailable();
+        }
         return;
       }
       if (outcome.kind === 'error') throw outcome.error;

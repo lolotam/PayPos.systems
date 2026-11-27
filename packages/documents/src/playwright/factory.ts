@@ -70,15 +70,13 @@ function wrapContext(context: BrowserContext): PdfContext {
   };
 }
 
-type KillableProcess = {
+export type KillableProcess = {
   kill(signal: NodeJS.Signals): boolean;
   readonly exitCode?: number | null;
   readonly signalCode?: string | null;
   once?(event: 'exit', listener: () => void): unknown;
   off?(event: 'exit', listener: () => void): unknown;
 };
-
-const PROCESS_EXIT_WAIT_MS = 500;
 
 /**
  * Playwright 1.63 شال Browser.process() من الواجهة العامة.
@@ -101,44 +99,81 @@ function chromiumProcess(browser: Browser): KillableProcess | null {
   }
 }
 
-function killAndWait(proc: KillableProcess | null): Promise<void> | void {
-  if (proc === null) return;
-  const once = proc.once;
-  if (
-    typeof once !== 'function' ||
+function hasExited(proc: KillableProcess): boolean {
+  return (
     (proc.exitCode !== undefined && proc.exitCode !== null) ||
     (proc.signalCode !== undefined && proc.signalCode !== null)
-  ) {
-    proc.kill('SIGKILL');
-    return;
+  );
+}
+
+/**
+ * يقتل عملية Chromium ويستنّى تأكيد الخروج الحقيقي (`exit` أو `ESRCH`) من غير مهلة مزيفة.
+ * التقاعد والإغلاق هما اللي بيحدّدوا سقف الانتظار، عشان إعادة الإطلاق ما تفتحش متصفحين مع بعض.
+ */
+export function killAndWait(proc: KillableProcess | null): Promise<void> | void {
+  if (proc === null) return Promise.reject(new Error('CHROMIUM_PROCESS_UNAVAILABLE'));
+  if (hasExited(proc)) return Promise.resolve();
+  const once = proc.once;
+  if (typeof once !== 'function') {
+    const signaled = proc.kill('SIGKILL');
+    if (signaled || hasExited(proc)) return;
+    throw new Error('SIGKILL_REJECTED');
   }
-  return new Promise<void>((resolve) => {
+  return new Promise<void>((resolve, reject) => {
     let settled = false;
     const finish = (): void => {
       if (settled) return;
       settled = true;
-      clearTimeout(timer);
       proc.off?.('exit', finish);
       resolve();
     };
-    const timer = setTimeout(finish, PROCESS_EXIT_WAIT_MS);
+    const fail = (error: unknown): void => {
+      if (settled) return;
+      settled = true;
+      proc.off?.('exit', finish);
+      reject(error instanceof Error ? error : new Error('SIGKILL_FAILED'));
+    };
     once.call(proc, 'exit', finish);
+    if (hasExited(proc)) {
+      finish();
+      return;
+    }
     try {
       const signaled = proc.kill('SIGKILL');
-      if (!signaled && ((proc.exitCode ?? null) !== null || (proc.signalCode ?? null) !== null)) {
+      if (hasExited(proc)) {
         finish();
+      } else if (!signaled) {
+        fail(new Error('SIGKILL_REJECTED'));
       }
-    } catch {
-      finish();
+    } catch (error) {
+      const code = (error as NodeJS.ErrnoException | null)?.code;
+      if (code === 'ESRCH' || hasExited(proc)) {
+        finish();
+      } else {
+        fail(error);
+      }
     }
   });
 }
 
 function wrapBrowser(browser: Browser): PdfBrowser {
+  let disconnected = false;
+  const waiters: Array<() => void> = [];
+  browser.on('disconnected', () => {
+    disconnected = true;
+    while (waiters.length > 0) waiters.shift()?.();
+  });
   return {
     newContext: async (options) => wrapContext(await browser.newContext(options)),
     close: () => browser.close(),
-    kill: () => killAndWait(chromiumProcess(browser)),
+    kill: () => {
+      const proc = chromiumProcess(browser);
+      if (proc !== null) return killAndWait(proc);
+      if (disconnected) return Promise.resolve();
+      return new Promise<void>((resolve) => {
+        waiters.push(resolve);
+      });
+    },
     on: (event, listener) => {
       browser.on(event, listener);
     },

@@ -95,13 +95,17 @@ function shouldDeleteAliveKey(state: PublishState): boolean {
 }
 
 /**
- * SET خلص بعد ما الوقت عدّى؛ المفتاح اتكتب متأخر فبنمسحه لو epoch اتغيّر أو المتصفح واقع
- * ومفيش ناشر حيّ تاني ماسك نفس العميل. المسح بيتبعت بعد ما الأمر يخلّص.
+ * SET خلص بعد ما الوقت عدّى؛ لو الناشر لسه حيّ ما نمسحش المفتاح ونحدّثه لو فاتت جولة،
+ * وإلا بنمسح لو المتصفح وقع ومفيش ناشر حيّ تاني ماسك نفس العميل.
  */
 function watchSet(state: PublishState, set: Promise<unknown>, token: number): void {
   void settled(set).finally(() => {
     state.busy = false;
-    if ((token === state.epoch && isLive(state)) || !shouldDeleteAliveKey(state)) return;
+    if (isLive(state)) {
+      if (token !== state.epoch) void publishOnce(state);
+      return;
+    }
+    if (!shouldDeleteAliveKey(state)) return;
     try {
       void boundCommand(state.redis.del(DOCUMENT_RENDERER_ALIVE_KEY), state.commandTimeoutMs);
     } catch {
@@ -121,7 +125,7 @@ async function publishOnce(state: PublishState): Promise<void> {
   const set = state.redis.set(DOCUMENT_RENDERER_ALIVE_KEY, '1', 'EX', state.ttlSeconds);
   watchSet(state, set, token);
   await boundCommand(set, state.commandTimeoutMs);
-  if ((token !== state.epoch || !isLive(state)) && shouldDeleteAliveKey(state)) {
+  if (!isLive(state) && shouldDeleteAliveKey(state)) {
     await boundCommand(state.redis.del(DOCUMENT_RENDERER_ALIVE_KEY), state.commandTimeoutMs);
   }
 }

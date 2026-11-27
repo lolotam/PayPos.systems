@@ -124,6 +124,10 @@ async function releaseQueue(
 ): Promise<void> {
   if (live !== undefined) {
     await live.liveness?.stop().catch(() => undefined);
+    // BullMQ بيخزّن promise أول close()، فبنوقف السحب ونفرّغ بـ pause قبل close عشان close(true) عند انتهاء المهلة يشتغل بجد.
+    if (typeof live.worker.pause === 'function') {
+      await live.worker.pause(false).catch(() => undefined);
+    }
     await closeHeld(live.worker, live.connection, false);
     return;
   }

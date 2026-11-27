@@ -167,3 +167,28 @@ it('re-arms bounded PDF deferral after a runtime renderer disconnect until recov
     await closeRender(opened);
   }
 }, 30_000);
+
+it('enforces a job-level deferral deadline even when disconnects reset startup.deadlineAt', async () => {
+  const registry = new DocumentSourceRegistry();
+  registry.register('fixture', { load: async () => '<p>ok</p>' });
+  const delayed = vi.fn();
+  const pdfJob = {
+    id: 'job-flap-1',
+    data: job(renderId(), renderId(), 'fixture'),
+    moveToDelayed: delayed,
+  } as unknown as Job;
+  const startup = {
+    starting: true,
+    deadlineAt: Date.now() + 40,
+    jobDeadlines: new Map<string, number>(),
+  };
+  await expect(deferPdfWhileStarting(pdfJob, 'token', startup, registry)).rejects.toThrow(
+    DelayedError,
+  );
+  expect(delayed).toHaveBeenCalledTimes(1);
+  startup.deadlineAt = Date.now() + 60_000;
+  await new Promise((resolve) => setTimeout(resolve, 60));
+  await deferPdfWhileStarting(pdfJob, 'token', startup, registry);
+  expect(delayed).toHaveBeenCalledTimes(1);
+  expect(startup.jobDeadlines.has('job-flap-1')).toBe(false);
+});

@@ -144,3 +144,41 @@ it('keeps launch guard until a cancelled attempt closes its late browser', async
   expect(events).toEqual(['launch-1', 'late-closed', 'launch-2']);
   await renderer.close();
 });
+
+it('holds the launch guard until a timed-out launch closes its late browser', async () => {
+  const events: string[] = [];
+  let releaseFirst: ((b: PdfBrowser) => void) | undefined;
+  const spy = delayedLaunchFactory((attempt) => {
+    events.push(`launch-${attempt}`);
+    if (attempt === 1) {
+      return new Promise<PdfBrowser>((resolve) => {
+        releaseFirst = resolve;
+      });
+    }
+    return Promise.resolve(okBrowser());
+  });
+  const renderer = new PlaywrightDocumentRenderer({
+    factory: spy.factory,
+    launchTimeoutMs: 20,
+    closeGraceMs: 80,
+    backoffMs: [0],
+    sleep: async () => undefined,
+  });
+  await renderer.start();
+  expect(events).toEqual(['launch-1']);
+  setTimeout(() => {
+    releaseFirst?.({
+      newContext: () => new Promise(() => undefined),
+      close: async () => {
+        await new Promise((resolve) => setTimeout(resolve, 35));
+        events.push('late-timeout-closed');
+      },
+      on: () => undefined,
+    });
+  }, 10);
+  for (let i = 0; i < 40 && !renderer.isAvailable(); i += 1) {
+    await new Promise((resolve) => setTimeout(resolve, 10));
+  }
+  expect(events).toEqual(['launch-1', 'late-timeout-closed', 'launch-2']);
+  await renderer.close();
+});
