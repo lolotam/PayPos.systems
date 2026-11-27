@@ -44,6 +44,7 @@ export type {
   LeaveHistoryReportOptions,
 } from './leave-history/types.ts';
 export { attendanceReportContractsStatement } from './attendance-report-contracts.ts';
+export { attendanceStatementEmployeeCoverageStatement } from './attendance-statement-employee-coverage.ts';
 export {
   attendanceStatementScheduledEmployeesStatement,
   type AttendanceStatementBranch,

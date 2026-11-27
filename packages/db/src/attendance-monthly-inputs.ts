@@ -20,7 +20,7 @@ export function attendanceMonthlyInputsStatement(companyId: string, scope: Atten
     sessions AS MATERIALIZED (
       SELECT s.employee_id,s.branch_id,json_agg(row_to_json(v) ORDER BY s.clock_in,s.id) AS sessions,
         bool_or(s.working_date BETWEEN ${from}::date AND ${to}::date) AS in_month
-      FROM attendance_sessions s CROSS JOIN LATERAL (SELECT s.working_date,s.clock_in,s.clock_out,s.status,
+      FROM attendance_sessions s CROSS JOIN LATERAL (SELECT s.id AS session_id,s.working_date,s.clock_in,s.clock_out,s.status,
         s.source,s.late_minutes,s.scheduled_end,false AS voided,
         s.status='MISSED_OUT' AND EXISTS(SELECT 1 FROM attendance_corrections ac
           WHERE ac.company_id=s.company_id AND ac.session_id=s.id AND ac.field='CLOCK_OUT') AS clock_out_corrected) v

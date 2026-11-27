@@ -207,6 +207,18 @@ session never appears (ACR-Q20); no phone, salary or IBAN on any export (AB-Q9e)
   same guard as FR-002) lists the distinct start–end pairs of the branch's schedule shifts in the period, ordered by
   start then end, for the screen's shift picker (BR-11). A pair not in that list is still accepted by FR-001 and simply
   matches no day.
+- **FR-001b** `GET /v1/businesses/:businessId/branches/:branchId/attendance-statement-employees?from&to` (a read, same
+  guard as FR-002: `@Require('read:attendance:branch', { branch: 'branchId' })` and `@RequiresFeature('staff')`) lists the
+  employees who have coverage at the branch in the period (FR-013a), ordered by employee number, for the screen's
+  employee picker (issue #703). A malformed query is `400`; a branch outside the route's business is
+  `404 ATTENDANCE_STATEMENT_BRANCH_NOT_FOUND`; a period outside FR-003's shape or month ceiling is
+  `422 ATTENDANCE_STATEMENT_PERIOD_INVALID`. The candidates are the same set the render reads (a counted session, a
+  contract day or a scheduled shift) and the list keeps only those that pass the shared `hasAttendanceStatementCoverage`
+  rule, so the picker and the statement cannot disagree. The reader sits in
+  `persistence/attendance-statement-employees.read.ts`, beside `persistence/attendance-monthly-report.read.ts`, and not
+  in `queries/`, because it applies `@pospay/domain` coverage rules inside a `READ ONLY` `withTenant` transaction
+  (a `queries/` file may not import `domain/`, `CLAUDE.md` §6). It reads one counted session and one shift per
+  candidate, not every session of the period, so a 366-day period stays under the 200 ms rule (§6).
 - **FR-002** The route is guarded by `@Require('read:attendance:branch', { branch: 'branchId' })` and
   `@RequiresFeature('staff')`, like `attendance-monthly-report.controller.ts` (BR-08).
 - **FR-003** The use case checks the renderer liveness key and the per-user rate limit, then in **one**

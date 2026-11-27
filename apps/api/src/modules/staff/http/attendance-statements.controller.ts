@@ -12,9 +12,11 @@ import {
   UseFilters,
 } from '@nestjs/common';
 import {
+  attendanceStatementEmployeesQuery,
   attendanceStatementRequest,
   attendanceStatementShiftsQuery,
   id,
+  type AttendanceStatementEmployeesQuery,
   type AttendanceStatementRequest,
   type AttendanceStatementShiftsQuery,
 } from '@pospay/contracts';
@@ -24,6 +26,10 @@ import { Require, RequiresFeature } from '../../../shared/access.decorators.ts';
 import { actorOf } from '../../../shared/actor.ts';
 import { ApiError } from '../../../shared/errors.ts';
 import { ZodValidationPipe } from '../../../shared/zod-validation.pipe.ts';
+import {
+  ATTENDANCE_STATEMENT_EMPLOYEES_READ,
+  type AttendanceStatementEmployeesRead,
+} from './attendance-statement-employees.tokens.ts';
 import {
   ATTENDANCE_STATEMENT_SHIFTS_QUERY,
   type AttendanceStatementShiftsQuery as ShiftsQuery,
@@ -52,6 +58,8 @@ export class AttendanceStatementsController {
     @Inject(ATTENDANCE_STATEMENT_STATUS_QUERY)
     private readonly statusRead: AttendanceStatementStatusQuery | null,
     @Inject(ATTENDANCE_STATEMENT_SHIFTS_QUERY) private readonly shiftsRead: ShiftsQuery | null,
+    @Inject(ATTENDANCE_STATEMENT_EMPLOYEES_READ)
+    private readonly employeesRead: AttendanceStatementEmployeesRead | null,
   ) {}
 
   @Post('branches/:branchId/attendance-statements')
@@ -147,5 +155,29 @@ export class AttendanceStatementsController {
       branchId: branchId.toLowerCase(),
     };
     return shiftsRead(scope, query);
+  }
+
+  @Get('branches/:branchId/attendance-statement-employees')
+  @Require('read:attendance:branch', { branch: 'branchId' })
+  @RequiresFeature('staff')
+  async statementEmployees(
+    @Param('businessId', new ZodValidationPipe(id)) businessId: string,
+    @Param('branchId', new ZodValidationPipe(id)) branchId: string,
+    @Query(new ZodValidationPipe(attendanceStatementEmployeesQuery))
+    query: AttendanceStatementEmployeesQuery,
+    @Req() request: FastifyRequest,
+  ) {
+    const employeesRead = this.employeesRead;
+    if (employeesRead === null) throw new ApiError('NOT_READY');
+    const actor = actorOf(request);
+    return employeesRead(
+      {
+        companyId: actor.companyId,
+        userId: actor.userId,
+        businessId: businessId.toLowerCase(),
+        branchId: branchId.toLowerCase(),
+      },
+      query,
+    );
   }
 }

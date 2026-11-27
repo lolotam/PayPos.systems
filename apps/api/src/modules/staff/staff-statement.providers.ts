@@ -5,8 +5,13 @@ import type { Redis } from 'ioredis';
 import { createRedisRateLimiter } from '../../shared/adapters/redis-rate-limiter.ts';
 import { systemClock } from '../../shared/adapters/system-clock.ts';
 import type { Clock } from '../../shared/ports/clock.port.ts';
+import {
+  ATTENDANCE_STATEMENT_EMPLOYEES_READ,
+  type AttendanceStatementEmployeesRead,
+} from './http/attendance-statement-employees.tokens.ts';
 import { readStatementBranch } from './persistence/attendance-statement-branch.ts';
 import { createAttendanceStatementCollectTransactions } from './persistence/attendance-statement-collect-transactions.ts';
+import { createAttendanceStatementEmployeesReader } from './persistence/attendance-statement-employees.read.ts';
 import { createAttendanceStatementTransactions } from './persistence/attendance-statement-transactions.ts';
 import { createDocumentRenderTransport } from './persistence/bullmq-document-render-transport.ts';
 import { createRedisDocumentBytesStore } from './persistence/redis-document-bytes-store.ts';
@@ -78,5 +83,15 @@ export function attendanceStatementProviders(
           ? null
           : createAttendanceStatementShiftsQuery(database, readStatementBranch),
     },
+    employeesReadProvider(database),
   ];
+}
+
+function employeesReadProvider(database: TenantWrappers | undefined): Provider {
+  return {
+    provide: ATTENDANCE_STATEMENT_EMPLOYEES_READ,
+    useFactory: (clock: Clock): AttendanceStatementEmployeesRead | null =>
+      database === undefined ? null : createAttendanceStatementEmployeesReader(database, clock),
+    inject: [ATTENDANCE_STATEMENT_CLOCK],
+  };
 }

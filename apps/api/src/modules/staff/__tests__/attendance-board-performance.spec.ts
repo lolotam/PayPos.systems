@@ -62,12 +62,18 @@ it('the unbounded-date refusals page uses the branch/time keyset index and proje
     const page = await attendanceDeviceRefusals(tx, query);
     expect(page.items).toHaveLength(50);
     expect(JSON.stringify(page)).not.toContain('hash');
+    // القياس الحقيقي بإعدادات المخطط العادية؛ الميزانية دي على التنفيذ نفسه مش على خطة مفروضة.
+    const [timed] = await tx.execute(
+      sql`EXPLAIN (ANALYZE,FORMAT JSON) ${attendanceDeviceRefusalsStatement(query)}`,
+    );
+    expect(
+      (timed?.['QUERY PLAN'] as { 'Execution Time': number }[])[0]?.['Execution Time'],
+    ).toBeLessThan(200);
+    // إثبات الفهرس: الفحص المتسلسل مطفي جوه نفس المعاملة بعد القياس، فالمخطط لازم يختار الفهرس.
+    await tx.execute(sql`SET LOCAL enable_seqscan = off`);
     const [plan] = await tx.execute(
       sql`EXPLAIN (ANALYZE,FORMAT JSON) ${attendanceDeviceRefusalsStatement(query)}`,
     );
     expect(JSON.stringify(plan)).toContain('attendance_device_refusals_branch_time_idx');
-    expect(
-      (plan?.['QUERY PLAN'] as { 'Execution Time': number }[])[0]?.['Execution Time'],
-    ).toBeLessThan(200);
   });
 });

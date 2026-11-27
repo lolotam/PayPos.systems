@@ -2,7 +2,11 @@ import { attendanceStatementErrorsEn, t } from '@pospay/i18n';
 import { act, fireEvent, screen, waitFor, within } from '@testing-library/react';
 import { expect, it, vi } from 'vitest';
 import { boardId } from '../api/attendance-board.fixture';
-import { statementRenderId, statementReport } from '../api/attendance-statement.fixture';
+import {
+  statementEmployees,
+  statementRenderId,
+  statementScheduleOnlyEmployee,
+} from '../api/attendance-statement.fixture';
 import { STATEMENT_POLL_DEADLINE_MS } from '../api/use-attendance-statement-status';
 import {
   api,
@@ -13,7 +17,7 @@ import {
   expectNewRequestOnly,
   expectRecoveryActions,
   expectStatementNoAccess,
-  mockEmployeeReport,
+  mockStatementEmployees,
   newRequestButton,
   openStatement,
   openStatementWithEmployee,
@@ -62,16 +66,34 @@ it('hides the shift filter and blocks the request until an employee is chosen', 
   const employee = await screen.findByLabelText(
     t('en', 'attendanceStatementScreen.employeeRequired'),
   );
-  await waitFor(() => expect(within(employee).getAllByRole('option')).toHaveLength(3));
+  await waitFor(() => expect(within(employee).getAllByRole('option')).toHaveLength(4));
   expect(submitButton().disabled).toBe(true);
   fireEvent.change(employee, { target: { value: boardId } });
   await waitFor(() => expect(submitButton().disabled).toBe(false));
   view.close();
 });
 
+it('lists a schedule-only employee with her number and lets the user pick her', async () => {
+  const view = setup();
+  const employee = await screen.findByLabelText(
+    t('en', 'attendanceStatementScreen.employeeOptional'),
+  );
+  const option = await within(employee).findByRole('option', {
+    name: `${statementScheduleOnlyEmployee.employee_number} — Schedule only employee`,
+  });
+  fireEvent.change(employee, {
+    target: { value: statementScheduleOnlyEmployee.employee_id },
+  });
+  await waitFor(() =>
+    expect((employee as HTMLSelectElement).value).toBe(statementScheduleOnlyEmployee.employee_id),
+  );
+  expect(option.textContent).toBe('17 — Schedule only employee');
+  view.close();
+});
+
 it('clears an employee who has no coverage in the new period', async () => {
   const { view, employee } = await openStatementWithEmployee(boardId);
-  mockEmployeeReport({ ...statementReport, rows: statementReport.rows.slice(1) }, '2026-09');
+  mockStatementEmployees(statementEmployees.employees.slice(1), '2026-09');
   expect(submitButton().disabled).toBe(true);
   await waitFor(() => expect(submitButton().disabled).toBe(false));
   expect(employee.value).toBe('');
@@ -88,10 +110,7 @@ it('clears an employee who has no coverage in the new period', async () => {
 
 it('keeps an employee who still has coverage in the new period', async () => {
   const { view, employee } = await openStatementWithEmployee(boardId);
-  mockEmployeeReport({
-    ...statementReport,
-    rows: [{ ...reportRow(0), name_en: 'September employee' }, reportRow(1)],
-  });
+  mockStatementEmployees([{ ...reportRow(0), name_en: 'September employee' }, reportRow(1)]);
   changeStatementMonth('2026-09');
   await screen.findByRole('option', { name: /September employee/ });
   expect(employee.value).toBe(boardId);

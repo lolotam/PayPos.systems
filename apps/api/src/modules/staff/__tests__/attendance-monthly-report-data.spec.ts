@@ -60,8 +60,14 @@ it('result-shape projects internal branch inputs, excludes private fields and ha
   expect(Object.keys(rows[0] ?? {}).sort()).toEqual(['branches','employee_id','employee_number','name_ar','name_en']);
   expect(attendanceReportBranchInputs.safeParse(rows[0]?.branches[0]).success).toBe(true);
   expect(rows[0]?.branches[0]?.sessions).toHaveLength(5);
+  expect(rows[0]?.branches[0]?.sessions.every((entry) => typeof entry.session_id === 'string')).toBe(true);
   const foreign = await f.db.withTenant(f.otherCompany,(tx) => attendanceMonthlyInputs(tx,f.company,scope(),'2026-10-01','2026-10-31'));
   expect(foreign).toEqual([]);
+});
+it('the monthly report HTTP output carries no session id', async () => {
+  const response = await f.h.app.inject({method:'GET',url:reportUrl(f),headers:reportHeaders(f)});
+  expect(response.statusCode).toBe(200);
+  expect(JSON.stringify(response.json())).not.toContain('session_id');
 });
 it('EXPLAIN ANALYZE proves existing board, correction, schedule, default and leave indexes without a migration', async () => {
   await reportLeave(f);

@@ -23,12 +23,12 @@ const CLOCK_OUT = new Date('2026-10-01T14:00:00.000Z');
 it('the statement returns the open sessions of the employee in the period only', async () => {
   const tenant = await f.tenant();
   const employee = await f.employee(tenant, { nameEn: 'Sara' });
-  await f.session(tenant, employee, {
+  const closed = await f.session(tenant, employee, {
     workingDate: WORKING,
     clockIn: CLOCK_IN,
     clockOut: CLOCK_OUT,
   });
-  await f.session(tenant, employee, { workingDate: WORKING_TWO, clockIn: OPEN_IN });
+  const open = await f.session(tenant, employee, { workingDate: WORKING_TWO, clockIn: OPEN_IN });
   const rows = await f.db.withTenant(tenant.company, (tx) =>
     tx.execute(
       attendanceStatementOpenSessionsStatement(
@@ -41,7 +41,8 @@ it('the statement returns the open sessions of the employee in the period only',
     ),
   );
   expect(rows).toHaveLength(1);
-  expect(rows[0]).toMatchObject({ working_date: WORKING_TWO });
+  expect(rows[0]).toMatchObject({ working_date: WORKING_TWO, session_id: open });
+  expect(rows[0]?.['session_id']).not.toBe(closed);
   expect(new Date(String(rows[0]?.['clock_in'])).toISOString()).toBe(OPEN_IN.toISOString());
 });
 

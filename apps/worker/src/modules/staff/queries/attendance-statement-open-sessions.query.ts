@@ -3,8 +3,9 @@ import type { AttendanceOpenSession } from '@pospay/domain';
 import { sql } from 'drizzle-orm';
 
 /**
- * جلسات الموظفة المفتوحة في الفترة: يوم العمل ودخول البصمة بس.
+ * جلسات الموظفة المفتوحة في الفترة: معرّف الجلسة ويوم العمل ودخول البصمة.
  * جملة تقرير 27b بتسيب الجلسات المفتوحة بره (AB-Q9g)، وبيان الموظفة بيقراها بنفسه (FR-011a).
+ * معرّف الجلسة بيفرّق بين جلستين في نفس اليوم بنفس اللحظة، فالجلسة المقفولة ما بتبلبطش المفتوحة (issue #687).
  */
 export function attendanceStatementOpenSessionsStatement(
   companyId: string,
@@ -13,7 +14,7 @@ export function attendanceStatementOpenSessionsStatement(
   from: string,
   to: string,
 ) {
-  return sql`SELECT working_date::text AS working_date, clock_in
+  return sql`SELECT id AS session_id, working_date::text AS working_date, clock_in
     FROM attendance_sessions
     WHERE company_id = ${companyId} AND company_id = app_company_id()
       AND branch_id = ${branchId}::uuid AND employee_id = ${employeeId}::uuid
@@ -24,7 +25,7 @@ export function attendanceStatementOpenSessionsStatement(
 
 /**
  * يقرأ الجلسات المفتوحة غير الملغاة للموظفة في الفرع والفترة، ويرجّعها بالشكل اللي
- * بيحتاجه حساب أيام البيان: يوم العمل ودخول البصمة بلغة ISO.
+ * بيحتاجه حساب أيام البيان: معرّف الجلسة ويوم العمل ودخول البصمة بلغة ISO.
  *
  * @param tx معاملة الشركة المفتوحة
  * @param companyId الشركة
@@ -42,10 +43,13 @@ export async function attendanceStatementOpenSessions(
   from: string,
   to: string,
 ): Promise<AttendanceOpenSession[]> {
-  const rows = await tx.execute<{ working_date: string; clock_in: Date | string }>(
-    attendanceStatementOpenSessionsStatement(companyId, branchId, employeeId, from, to),
-  );
+  const rows = await tx.execute<{
+    session_id: string;
+    working_date: string;
+    clock_in: Date | string;
+  }>(attendanceStatementOpenSessionsStatement(companyId, branchId, employeeId, from, to));
   return rows.map((row) => ({
+    session_id: row.session_id,
     working_date: row.working_date,
     clock_in: new Date(row.clock_in).toISOString(),
   }));

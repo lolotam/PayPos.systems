@@ -15,8 +15,8 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { boardBranches } from '../api/attendance-board.fixture';
 import {
+  statementEmployees,
   statementRenderId,
-  statementReport,
   statementScope,
   statementShifts,
 } from '../api/attendance-statement.fixture';
@@ -55,18 +55,21 @@ function employeesResponse() {
       response: { status: state.employeesError.status },
     };
   }
-  return { data: statementReport };
+  return { data: statementEmployees };
 }
 
 function defaultGet(path: string) {
   if (path.includes('attendance-statement-shifts')) return shiftsResponse();
-  if (path.includes('attendance-report')) return employeesResponse();
+  if (path.includes('attendance-statement-employees')) return employeesResponse();
   return statusResponse();
 }
 
-export function mockEmployeeReport(report: typeof statementReport, month?: string) {
+export function mockStatementEmployees(
+  employees: typeof statementEmployees.employees,
+  month?: string,
+) {
   api.GET.mockImplementation((path: string) =>
-    path.includes('attendance-report') ? { data: report } : defaultGet(path),
+    path.includes('attendance-statement-employees') ? { data: { employees } } : defaultGet(path),
   );
   if (month) changeStatementMonth(month);
 }
@@ -252,7 +255,7 @@ export function statusChecks() {
 }
 
 export function reportRow(index: number) {
-  const row = statementReport.rows[index];
-  if (!row) throw new Error(`the statement report fixture has no row ${index}`);
+  const row = statementEmployees.employees[index];
+  if (!row) throw new Error(`the statement employees fixture has no row ${index}`);
   return row;
 }

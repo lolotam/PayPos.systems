@@ -11,7 +11,6 @@ import {
   statementFileName,
   statementInitialDraft,
   statementMonthRange,
-  statementMonthsInPeriod,
   statementPeriodIsValid,
   statementRenderAccessLost,
   statementRenderCodeMessage,
@@ -104,18 +103,6 @@ describe('period validity', () => {
 
   it('refuses an empty custom period', () => {
     expect(statementPeriodIsValid({ from: '', to: '' }, 'Asia/Kuwait')).toBe(false);
-  });
-});
-
-describe('months', () => {
-  it('lists every month the period touches', () => {
-    expect(statementMonthsInPeriod({ from: '2026-10-01', to: '2026-10-31' })).toEqual(['2026-10']);
-    expect(statementMonthsInPeriod({ from: '2026-09-15', to: '2026-11-03' })).toEqual([
-      '2026-09',
-      '2026-10',
-      '2026-11',
-    ]);
-    expect(statementMonthsInPeriod({ from: '2026-11-03', to: '2026-09-15' })).toEqual([]);
   });
 });
 

@@ -1,30 +1,14 @@
 'use client';
-import { attendanceMonthlyReport } from '@pospay/contracts';
+import { attendanceStatementEmployeeOptions } from '@pospay/contracts';
 import { useQuery } from '@tanstack/react-query';
 import { apiClient } from '@/shared/api/client';
-import {
-  statementMonthsInPeriod,
-  type StatementEmployee,
-  type StatementPeriod,
-} from '../model/attendance-statement-display';
+import type { StatementPeriod } from '../model/attendance-statement-display';
 import type { AttendanceStatementScope } from './use-attendance-statement-request';
 
-function mergeEmployees(rows: StatementEmployee[]): StatementEmployee[] {
-  const merged = new Map<string, StatementEmployee>();
-  for (const row of rows) {
-    const existing = merged.get(row.employee_id);
-    if (!existing) {
-      merged.set(row.employee_id, row);
-      continue;
-    }
-    merged.set(row.employee_id, { ...existing, name_ar: existing.name_ar ?? row.name_ar });
-  }
-  return [...merged.values()].sort((a, b) => a.employee_number - b.employee_number);
-}
-
 /**
- * قائمة الموظفات للفترة (PP-74.2): صفوف التقرير الشهري لكل شهر في الفترة، مدموجة بمعرف الموظفة.
- * مالها read بديل بصلاحية أخف، ف employee's report هو المصدر الوحيد المتاح للمدير (قرار 2026-10-28).
+ * قائمة الموظفات للفترة (issue #703): قراءة واحدة من مسار كشف الحضور نفسه.
+ * المسار بيرجّع الموظفات اللي ليها تغطية بس — حتى الموظفة اللي تغطيتها وردية جدولة
+ * من غير بصمة — فالمنتقي ما بيعتمدش على قراءة التقرير الشهري لوحدها تاني.
  */
 export function useAttendanceStatementEmployees(
   scope: AttendanceStatementScope,
@@ -46,25 +30,19 @@ export function useAttendanceStatementEmployees(
     retry: false,
     refetchOnWindowFocus: false,
     queryFn: async ({ signal }) => {
-      const months = statementMonthsInPeriod(period);
-      const reports = await Promise.all(
-        months.map(async (month) => {
-          const result = await apiClient().GET(
-            '/v1/businesses/{businessId}/branches/{branchId}/attendance-report',
-            {
-              params: {
-                header: { 'x-company-id': companyId },
-                path: { businessId, branchId },
-                query: { month },
-              },
-              signal,
-            },
-          );
-          if (result.error) throw { ...result.error, status: result.response.status };
-          return attendanceMonthlyReport.parse(result.data);
-        }),
+      const result = await apiClient().GET(
+        '/v1/businesses/{businessId}/branches/{branchId}/attendance-statement-employees',
+        {
+          params: {
+            header: { 'x-company-id': companyId },
+            path: { businessId, branchId },
+            query: { from: period.from, to: period.to },
+          },
+          signal,
+        },
       );
-      return mergeEmployees(reports.flatMap((report) => report.rows));
+      if (result.error) throw { ...result.error, status: result.response.status };
+      return attendanceStatementEmployeeOptions.parse(result.data).employees;
     },
   });
 }
