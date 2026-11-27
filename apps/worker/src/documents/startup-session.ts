@@ -128,11 +128,11 @@ async function releaseQueue(
 ): Promise<void> {
   if (live !== undefined) {
     await live.liveness?.stop().catch(() => undefined);
-    // BullMQ بيخزّن promise أول close()، فبنوقف السحب ونفرّغ بـ pause قبل close عشان close(true) عند انتهاء المهلة يشتغل بجد.
+    // BullMQ بيخزّن promise أول close()، فبنوقف السحب ونفرّغ بـ pause قبل close عشان close(true) يفضل هو أول close في كل الحالات.
     if (typeof live.worker.pause === 'function') {
       await live.worker.pause(false).catch(() => undefined);
     }
-    await closeHeld(live.worker, live.connection, false);
+    await closeHeld(live.worker, live.connection, true);
     return;
   }
   if (queue !== undefined) {
@@ -335,7 +335,7 @@ async function stopSession(
     if (typeof live.worker.pause === 'function') {
       await live.worker.pause(false).catch(() => undefined);
     }
-    await live.worker.close(false).catch(() => undefined);
+    await live.worker.close(true).catch(() => undefined);
     completed = true;
   })();
   const grace = waitForGrace(drainGraceMs);

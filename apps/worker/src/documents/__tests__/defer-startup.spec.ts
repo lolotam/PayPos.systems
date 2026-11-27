@@ -228,21 +228,68 @@ it('retains recently expired deadlines across 256+ jobs and prunes stale entries
   expect(jobDeadlines.has('stale-expired')).toBe(false);
 });
 
-it('enforces enqueue timestamp deferral ceiling across worker restarts with fresh startup maps', async () => {
+it('does not count queue wait before first outage and reuses persisted deadline across restarts', async () => {
   const registry = new DocumentSourceRegistry();
   registry.register('fixture', { load: async () => '<p>ok</p>' });
+  const now = Date.now();
   const delayed = vi.fn();
-  const pdfJob = {
-    id: 'job-restarted-1',
-    timestamp: Date.now() - PDF_DEFER_WINDOW_MS - 1,
+  const updateProgress = vi.fn(async () => undefined);
+  const queuedLongBeforeOutage = {
+    id: 'job-queued-earlier-1',
+    timestamp: now - PDF_DEFER_WINDOW_MS - 10_000,
     data: job(renderId(), renderId(), 'fixture'),
+    updateProgress,
     moveToDelayed: delayed,
+  } as unknown as Job;
+  const startup = {
+    starting: true,
+    deadlineAt: now + PDF_DEFER_WINDOW_MS,
+    jobDeadlines: new Map<string, number>(),
+  };
+  await expect(
+    deferPdfWhileStarting(queuedLongBeforeOutage, 'token', startup, registry),
+  ).rejects.toThrow(DelayedError);
+  expect(delayed).toHaveBeenCalledTimes(1);
+  expect(updateProgress).toHaveBeenCalledWith({
+    deferDeadlineAt: expect.any(Number),
+  });
+
+  const restartedDelayed = vi.fn();
+  const restartedExpiredJob = {
+    id: 'job-queued-earlier-1',
+    progress: { deferDeadlineAt: now - 1 },
+    data: job(renderId(), renderId(), 'fixture'),
+    updateProgress: vi.fn(),
+    moveToDelayed: restartedDelayed,
   } as unknown as Job;
   const freshStartup = {
     starting: true,
     deadlineAt: Date.now() + 60_000,
     jobDeadlines: new Map<string, number>(),
   };
-  await deferPdfWhileStarting(pdfJob, 'token', freshStartup, registry);
-  expect(delayed).not.toHaveBeenCalled();
+  await deferPdfWhileStarting(restartedExpiredJob, 'token', freshStartup, registry);
+  expect(restartedDelayed).not.toHaveBeenCalled();
+});
+
+it('clamps the next delayed timestamp to the earliest remaining deadline', async () => {
+  const registry = new DocumentSourceRegistry();
+  registry.register('fixture', { load: async () => '<p>ok</p>' });
+  const delayed = vi.fn();
+  const deadlineAt = Date.now() + 250;
+  const pdfJob = {
+    id: 'job-clamp-1',
+    data: job(renderId(), renderId(), 'fixture'),
+    updateProgress: vi.fn(),
+    moveToDelayed: delayed,
+  } as unknown as Job;
+  await expect(
+    deferPdfWhileStarting(
+      pdfJob,
+      'token',
+      { starting: true, deadlineAt, jobDeadlines: new Map<string, number>() },
+      registry,
+    ),
+  ).rejects.toThrow(DelayedError);
+  expect(delayed).toHaveBeenCalledTimes(1);
+  expect(delayed).toHaveBeenCalledWith(deadlineAt, 'token');
 });

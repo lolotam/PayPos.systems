@@ -2,7 +2,7 @@ import type { DocumentRenderer } from '@pospay/documents';
 import { systemUuidV7 } from '@pospay/ids';
 import { Queue, Worker } from 'bullmq';
 import { Redis } from 'ioredis';
-import { expect, it } from 'vitest';
+import { expect, it, vi } from 'vitest';
 
 import { DRAIN_GRACE_MS, trackDocumentStartup } from '../startup-session.ts';
 import { redisUrl } from './render-harness.ts';
@@ -10,6 +10,20 @@ import { redisUrl } from './render-harness.ts';
 function wait(ms: number): Promise<void> {
   return new Promise((resolve) => {
     setTimeout(resolve, ms);
+  });
+}
+
+function waitForWorkerClosed(worker: Worker, timeoutMs = 1_500): Promise<boolean> {
+  return new Promise((resolve) => {
+    const onClosed = (): void => {
+      clearTimeout(timer);
+      resolve(true);
+    };
+    const timer = setTimeout(() => {
+      worker.off('closed', onClosed);
+      resolve(false);
+    }, timeoutMs);
+    worker.once('closed', onClosed);
   });
 }
 
@@ -74,10 +88,8 @@ it('escalates a real BullMQ worker via close(true) when close grace expires duri
   const events: string[] = [];
   const { queue, worker, session, pickedUp, releaseJob, queueConnection, workerConnection } =
     createStuckWorkerSession(events);
-  let closedEvent = false;
-  worker.on('closed', () => {
-    closedEvent = true;
-  });
+  const closeSpy = vi.spyOn(worker, 'close');
+  const closed = waitForWorkerClosed(worker);
   try {
     await session.started;
     await queue.add('stuck', {});
@@ -86,8 +98,9 @@ it('escalates a real BullMQ worker via close(true) when close grace expires duri
     await session.close();
     expect(Date.now() - startedAt).toBeLessThan(2_000);
     expect(events).toEqual(['renderer-close', 'renderer-kill']);
-    await expect(worker.close(true)).resolves.toBeUndefined();
-    expect(closedEvent).toBe(true);
+    await expect(closed).resolves.toBe(true);
+    expect(closeSpy).toHaveBeenCalledWith(true);
+    expect(closeSpy).not.toHaveBeenCalledWith(false);
     expect(worker.isPaused()).toBe(true);
   } finally {
     releaseJob();
@@ -147,10 +160,8 @@ it('escalates a real BullMQ worker via close(true) across the production stop-th
   const events: string[] = [];
   const { queue, worker, session, pickedUp, releaseJob, queueConnection, workerConnection } =
     createStuckWorkerSession(events);
-  let closedEvent = false;
-  worker.on('closed', () => {
-    closedEvent = true;
-  });
+  const closeSpy = vi.spyOn(worker, 'close');
+  const closed = waitForWorkerClosed(worker);
   try {
     await session.started;
     await queue.add('stuck-stop', {});
@@ -158,8 +169,9 @@ it('escalates a real BullMQ worker via close(true) across the production stop-th
     await session.stop();
     await session.close();
     expect(events).toEqual(['renderer-close', 'renderer-kill']);
-    await expect(worker.close(true)).resolves.toBeUndefined();
-    expect(closedEvent).toBe(true);
+    await expect(closed).resolves.toBe(true);
+    expect(closeSpy).toHaveBeenCalledWith(true);
+    expect(closeSpy).not.toHaveBeenCalledWith(false);
     expect(worker.isPaused()).toBe(true);
   } finally {
     releaseJob();

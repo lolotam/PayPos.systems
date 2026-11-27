@@ -33,6 +33,26 @@ function pruneExpired(deadlines: Map<string, number>, now: number): void {
   }
 }
 
+function persistedDeadlineOf(job: Job): number | undefined {
+  const progress = (job as { readonly progress?: unknown }).progress;
+  if (typeof progress === 'number' && Number.isFinite(progress) && progress > 0) {
+    return progress;
+  }
+  if (typeof progress === 'object' && progress !== null && 'deferDeadlineAt' in progress) {
+    const value = (progress as { readonly deferDeadlineAt?: unknown }).deferDeadlineAt;
+    if (typeof value === 'number' && Number.isFinite(value) && value > 0) return value;
+  }
+  return undefined;
+}
+
+async function persistJobDeadline(job: Job, deadlineAt: number): Promise<void> {
+  const payload = { deferDeadlineAt: deadlineAt };
+  (job as { progress?: unknown }).progress = payload;
+  if (typeof job.updateProgress === 'function') {
+    await job.updateProgress(payload);
+  }
+}
+
 /** يمسح سجل سقف التأجيل لو انتهت الوظيفة بالنجاح أو الفشل النهائي. */
 export function clearJobDeferralDeadline(job: Job, startup: RendererStartup): void {
   if (startup.jobDeadlines === undefined) return;
@@ -58,25 +78,27 @@ export async function deferPdfWhileStarting(
   if (!parsed.success) return;
   const source = registry.get(parsed.data.kind);
   if (source === undefined || source.output === 'bytes') return;
-  const enqueueCap =
-    typeof job.timestamp === 'number' && Number.isFinite(job.timestamp) && job.timestamp > 0
-      ? job.timestamp + PDF_DEFER_WINDOW_MS
-      : Number.POSITIVE_INFINITY;
-  if (jobKey !== undefined && startup.jobDeadlines !== undefined) {
-    let jobDeadline = startup.jobDeadlines.get(jobKey);
-    if (jobDeadline === undefined) {
-      pruneExpired(startup.jobDeadlines, now);
-      jobDeadline = Math.min(startup.deadlineAt, now + PDF_DEFER_WINDOW_MS, enqueueCap);
-      startup.jobDeadlines.set(jobKey, jobDeadline);
-    }
-    if (now >= jobDeadline || now >= startup.deadlineAt || now >= enqueueCap) {
+  const persisted = persistedDeadlineOf(job);
+  const inMemory = jobKey !== undefined ? startup.jobDeadlines?.get(jobKey) : undefined;
+  const existing = Math.min(inMemory ?? Number.POSITIVE_INFINITY, persisted ?? Number.POSITIVE_INFINITY);
+  const jobDeadline = Number.isFinite(existing)
+    ? existing
+    : Math.min(startup.deadlineAt, now + PDF_DEFER_WINDOW_MS);
+  const effectiveDeadline = Math.min(jobDeadline, startup.deadlineAt);
+  if (now >= effectiveDeadline) {
+    if (jobKey !== undefined && startup.jobDeadlines !== undefined) {
       startup.jobDeadlines.set(jobKey, Math.min(jobDeadline, now));
-      return;
     }
-  } else if (now >= startup.deadlineAt || now >= enqueueCap) {
     return;
   }
-  await job.moveToDelayed(now + PDF_DEFER_MS, token);
+  if (jobKey !== undefined && startup.jobDeadlines !== undefined) {
+    if (inMemory === undefined) pruneExpired(startup.jobDeadlines, now);
+    startup.jobDeadlines.set(jobKey, jobDeadline);
+  }
+  if (persisted === undefined || jobDeadline < persisted) {
+    await persistJobDeadline(job, jobDeadline);
+  }
+  await job.moveToDelayed(Math.min(now + PDF_DEFER_MS, effectiveDeadline), token);
   throw new DelayedError();
 }
 
