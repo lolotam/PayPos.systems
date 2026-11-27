@@ -123,7 +123,6 @@ async function publishOnce(state: PublishState): Promise<void> {
 
 async function haltPublish(state: PublishState): Promise<void> {
   state.epoch += 1;
-  if (activePublishers.get(state.redis) === state) activePublishers.delete(state.redis);
   if (state.timer !== undefined) clearInterval(state.timer);
   state.timer = undefined;
   if (!shouldDeleteAliveKey(state)) return;
@@ -132,6 +131,7 @@ async function haltPublish(state: PublishState): Promise<void> {
 
 function armInterval(state: PublishState): void {
   if (!isLive(state) || state.timer !== undefined) return;
+  if (activePublishers.get(state.redis) === undefined) activePublishers.set(state.redis, state);
   void publishOnce(state);
   state.timer = setInterval(() => {
     void publishOnce(state);
@@ -166,6 +166,7 @@ function stopLiveness(state: PublishState): Promise<void> {
   const hook = hooks.get(state.renderer);
   if (hook !== undefined && hook.target === state) hook.target = undefined;
   state.stopped = true;
+  if (activePublishers.get(state.redis) === state) activePublishers.delete(state.redis);
   return haltPublish(state);
 }
 

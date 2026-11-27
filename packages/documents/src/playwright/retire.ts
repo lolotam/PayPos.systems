@@ -1,6 +1,8 @@
 import type { PdfBrowser, PdfContext } from './browser.ts';
 import { closeHungContext, openWithinGrace } from './context-guards.ts';
 
+const KILL_WAIT_MS = 500;
+
 function armGrace(ms: number): { done: Promise<void>; stop: () => void } {
   if (!(ms > 0)) return { done: Promise.resolve(), stop: () => undefined };
   let timer: ReturnType<typeof setTimeout> | undefined;
@@ -59,10 +61,14 @@ export async function dropRetiredBrowser(
     grace.stop();
   }
   if (finished) return;
+  const killGrace = armGrace(KILL_WAIT_MS);
   try {
-    await browser.kill?.();
+    const killed = Promise.resolve(browser.kill?.()).catch(() => undefined);
+    await Promise.race([killed, killGrace.done]);
   } catch {
     // إشارة القتل مش بتوقف إعادة الإطلاق؛ المتصفح القديم مش هو الحالي.
+  } finally {
+    killGrace.stop();
   }
 }
 

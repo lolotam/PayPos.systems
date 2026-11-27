@@ -335,3 +335,44 @@ it('keeps the alive key intact when an older publisher SET settles after a repla
   await liveNew.stop();
   expect(stored).toBeNull();
 });
+
+it('retains heartbeat ownership across transient disconnects so a superseded publisher cannot delete a recovered key', async () => {
+  let stored: string | null = null;
+  const redis = redisStub('ready');
+  redis.set = async (_key: string, value: string) => {
+    stored = value;
+    return 'OK';
+  };
+  redis.del = async () => {
+    stored = null;
+    return 1;
+  };
+  const oldRenderer = new CountingRenderer();
+  oldRenderer.available = true;
+  const newRenderer = new CountingRenderer();
+  newRenderer.available = true;
+  const liveOld = await startRendererLiveness({
+    redis,
+    renderer: oldRenderer,
+    intervalMs: 60_000,
+    readyTimeoutMs: 1_000,
+  });
+  const liveNew = await startRendererLiveness({
+    redis,
+    renderer: newRenderer,
+    intervalMs: 60_000,
+    readyTimeoutMs: 1_000,
+  });
+  expect(stored).toBe('1');
+  await newRenderer.close();
+  await yieldNow();
+  expect(stored).toBeNull();
+  newRenderer.available = true;
+  await newRenderer.start();
+  await yieldNow();
+  expect(stored).toBe('1');
+  await liveOld.stop();
+  expect(stored).toBe('1');
+  await liveNew.stop();
+  expect(stored).toBeNull();
+});

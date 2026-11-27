@@ -4,6 +4,8 @@ import type { DocumentRenderer } from '@pospay/documents';
 export type RendererStart = {
   readonly state: 'started' | 'failed' | 'pending';
   readonly error?: unknown;
+  /** وعد الإقلاع الجاري لما المهلة تسبق؛ عشان ما نفتحش متصفح تاني فوقه. */
+  readonly pending?: Promise<RendererStart>;
 };
 
 /**
@@ -36,6 +38,7 @@ export async function startWithin(
   const outcome = await Promise.race([guarded, expiry]);
   if (timer !== undefined) clearTimeout(timer);
   if (onAbort !== undefined) signal.removeEventListener('abort', onAbort);
+  if (outcome.state === 'pending') return { state: 'pending', pending: guarded };
   return outcome;
 }
 

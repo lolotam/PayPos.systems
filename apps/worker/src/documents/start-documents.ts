@@ -13,7 +13,7 @@ import { startRendererLiveness } from './liveness.ts';
 import type { EpochClock } from './process-job.ts';
 import { DocumentSourceRegistry } from './source-registry.ts';
 import { trackDocumentStartup, type AttemptBinder, type HeldQueue } from './startup-session.ts';
-import { startWithin, waitOrAbort } from './startup-wait.ts';
+import { startWithin, waitOrAbort, type RendererStart } from './startup-wait.ts';
 
 const LOCK_MS = 45_000;
 const STARTUP_MS = 30_000;
@@ -168,20 +168,47 @@ function halted(input: StartDocumentsInput, attempt: AttemptBinder): boolean {
   return attempt.cancelled() || input.isStopping?.() === true;
 }
 
+async function waitPendingStart(
+  pending: Promise<RendererStart>,
+  signal: AbortSignal,
+): Promise<RendererStart> {
+  if (signal.aborted) return { state: 'pending' };
+  let onAbort: (() => void) | undefined;
+  const aborted = new Promise<RendererStart>((resolve) => {
+    onAbort = () => resolve({ state: 'pending' });
+    signal.addEventListener('abort', onAbort, { once: true });
+  });
+  try {
+    return await Promise.race([pending, aborted]);
+  } finally {
+    if (onAbort !== undefined) signal.removeEventListener('abort', onAbort);
+  }
+}
+
 async function retryRendererStart(
   input: StartDocumentsInput,
   renderer: DocumentRenderer,
   attempt: AttemptBinder,
+  initialPending?: Promise<RendererStart>,
 ): Promise<void> {
+  if (initialPending !== undefined) {
+    const settled = await waitPendingStart(initialPending, attempt.signal);
+    if (halted(input, attempt) || settled.state === 'started') return;
+    if (settled.state !== 'failed') return;
+    logUnavailable(input.logger, 'SETUP_FAILED', settled.error);
+  }
   const delays = input.retryDelaysMs ?? RETRY_DELAYS_MS;
   for (let attemptNo = 0; !halted(input, attempt); attemptNo += 1) {
     const delayMs = delays[Math.min(attemptNo, delays.length - 1)] ?? 60_000;
     await waitOrAbort(delayMs, attempt.signal, input.sleep);
     if (halted(input, attempt)) return;
     try {
-      const start = await startWithin(renderer, input.startupMs ?? STARTUP_MS, attempt.signal);
-      if (start.state === 'started') return;
-      logUnavailable(input.logger, 'SETUP_FAILED', start.error);
+      let outcome = await startWithin(renderer, input.startupMs ?? STARTUP_MS, attempt.signal);
+      if (outcome.state === 'pending' && outcome.pending !== undefined) {
+        outcome = await waitPendingStart(outcome.pending, attempt.signal);
+      }
+      if (halted(input, attempt) || outcome.state === 'started') return;
+      logUnavailable(input.logger, 'SETUP_FAILED', outcome.error);
     } catch (error) {
       logUnavailable(input.logger, 'SETUP_FAILED', error);
     }
@@ -216,9 +243,13 @@ async function startRenderer(
 ): Promise<void> {
   try {
     const start = await startWithin(renderer, input.startupMs ?? STARTUP_MS, attempt.signal);
-    if (start.state !== 'started') {
+    if (halted(input, attempt)) return;
+    if (start.state === 'failed') {
       logUnavailable(input.logger, 'SETUP_FAILED', start.error);
       void retryRendererStart(input, renderer, attempt);
+    } else if (start.state === 'pending') {
+      logUnavailable(input.logger, 'SETUP_FAILED', start.error);
+      void retryRendererStart(input, renderer, attempt, start.pending);
     }
     await publishLiveness(input, renderer, attempt);
   } catch (error) {

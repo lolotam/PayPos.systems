@@ -250,3 +250,99 @@ it('kills a hanging renderer within grace even when a held queue close hangs in 
     await session.close();
   }
 });
+
+it('drains the live worker before closing Chromium on normal close', async () => {
+  const events: string[] = [];
+  let releaseWorkerClose: (() => void) | undefined;
+  const session = trackDocumentStartup({
+    startupMs: 500,
+    closeGraceMs: GRACE_MS,
+    retryDelaysMs: [0],
+    sleep: wait,
+    stopped: () => false,
+    onFailed: () => undefined,
+    run: async (attempt) => {
+      attempt.setLive({
+        worker: {
+          close: () => {
+            events.push('worker-close-start');
+            return new Promise<void>((resolve) => {
+              releaseWorkerClose = () => {
+                events.push('worker-close-done');
+                resolve();
+              };
+            });
+          },
+        } as never,
+        connection: {
+          disconnect: () => {
+            events.push('redis-disconnect');
+          },
+        } as never,
+      });
+      attempt.setRenderer({
+        async start() {
+          return undefined;
+        },
+        async close() {
+          events.push('renderer-close');
+        },
+        isAvailable: () => true,
+        onUnavailable: () => undefined,
+        onAvailable: () => undefined,
+        async render() {
+          return new Uint8Array();
+        },
+      });
+      return true;
+    },
+  });
+  await session.started;
+  const closing = session.close();
+  await wait(30);
+  expect(events).toEqual(['worker-close-start']);
+  releaseWorkerClose?.();
+  await closing;
+  expect(events).toEqual([
+    'worker-close-start',
+    'worker-close-done',
+    'redis-disconnect',
+    'renderer-close',
+  ]);
+});
+
+it('bounds cleanup wait when renderer.kill returns a never-settling promise', async () => {
+  let kills = 0;
+  const session = trackDocumentStartup({
+    startupMs: 500,
+    closeGraceMs: 20,
+    retryDelaysMs: [0],
+    sleep: wait,
+    stopped: () => false,
+    onFailed: () => undefined,
+    run: async (attempt) => {
+      attempt.setRenderer({
+        async start() {
+          return undefined;
+        },
+        close: () => new Promise<void>(() => undefined),
+        kill: () => {
+          kills += 1;
+          return new Promise<void>(() => undefined);
+        },
+        isAvailable: () => false,
+        onUnavailable: () => undefined,
+        onAvailable: () => undefined,
+        async render() {
+          return new Uint8Array();
+        },
+      });
+      return true;
+    },
+  });
+  await session.started;
+  const startedAt = Date.now();
+  await session.close();
+  expect(kills).toBe(1);
+  expect(Date.now() - startedAt).toBeLessThan(1_500);
+});

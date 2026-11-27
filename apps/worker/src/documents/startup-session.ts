@@ -77,6 +77,16 @@ async function closeHeld(worker: Worker, connection: Redis, force: boolean): Pro
   connection.disconnect();
 }
 
+const KILL_WAIT_MS = 500;
+
+async function waitForKill(killResult: void | Promise<void>): Promise<void> {
+  if (killResult === undefined) return;
+  const done = Promise.resolve(killResult).catch(() => undefined);
+  const grace = waitForGrace(KILL_WAIT_MS);
+  await Promise.race([done, grace.done]);
+  grace.stop();
+}
+
 /**
  * بيقفل المتصفح جوّه مهلة السماح، وبيقتله إلا لو close خلّص.
  * القفل المعلّق ما بيأجلش المحاولة الجاية، والقتل هو اللي يفك Chromium المعلّق.
@@ -102,7 +112,7 @@ async function closeRendererWithinGrace(renderer: DocumentRenderer, graceMs: num
   await Promise.resolve();
   if (finished) return;
   try {
-    await renderer.kill?.();
+    await waitForKill(renderer.kill?.());
   } catch {
     // القتل اختياري؛ المحاولة الجاية ليها متصفح جديد.
   }
@@ -141,10 +151,17 @@ async function release(slot: Slot, graceMs: number, boundQueue = false): Promise
   slot.live = undefined;
   slot.queue = undefined;
   slot.renderer = undefined;
-  await Promise.all([
-    boundQueue ? boundedQueueRelease(live, queue, graceMs) : releaseQueue(live, queue),
-    renderer === undefined ? Promise.resolve() : closeRendererWithinGrace(renderer, graceMs),
-  ]);
+  if (boundQueue) {
+    // تنظيف المحاولة الفاشلة بالتوازي وبحدّ مهلة عشان الإعادة الجاية ما تتأخرش.
+    await Promise.all([
+      boundedQueueRelease(live, queue, graceMs),
+      renderer === undefined ? Promise.resolve() : closeRendererWithinGrace(renderer, graceMs),
+    ]);
+    return;
+  }
+  // الإغلاق الطبيعي يقفل الطابور الأول عشان أي رسم شغّال يخلّص قبل قفل Chromium.
+  await releaseQueue(live, queue);
+  if (renderer !== undefined) await closeRendererWithinGrace(renderer, graceMs);
 }
 
 function waitForGrace(ms: number): { done: Promise<void>; stop: () => void } {

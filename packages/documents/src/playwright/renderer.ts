@@ -47,6 +47,7 @@ export class PlaywrightDocumentRenderer implements DocumentRenderer {
   #closing = false;
   #launchFailures = 0;
   #stableTimer: ReturnType<typeof setTimeout> | undefined;
+  #starting: Promise<void> | null = null;
   #relaunching: Promise<void> | null = null;
   #retiring: Promise<void> | null = null;
   #unavailable: Array<() => void> = [];
@@ -87,9 +88,18 @@ export class PlaywrightDocumentRenderer implements DocumentRenderer {
     this.#availableListeners.push(listener);
   }
 
-  async start(): Promise<void> {
-    await this.#launchOnce();
-    if (!this.#available) this.#scheduleRelaunch();
+  start(): Promise<void> {
+    // الإقلاع المكرّر لو المتصفح شغّال أو لسه بيقلع أو بيعيد الإطلاق أو اتقفل ما يفتحش متصفح تاني.
+    if (this.#available || this.#closing || this.#relaunching !== null) return Promise.resolve();
+    if (this.#starting !== null) return this.#starting;
+    const starting = (async () => {
+      await this.#launchOnce();
+      if (!this.#available && !this.#closing) this.#scheduleRelaunch();
+    })().finally(() => {
+      if (this.#starting === starting) this.#starting = null;
+    });
+    this.#starting = starting;
+    return starting;
   }
 
   async close(): Promise<void> {
