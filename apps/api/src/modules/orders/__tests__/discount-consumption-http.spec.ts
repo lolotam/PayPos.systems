@@ -58,3 +58,19 @@ it('the refused line alone fails the request with the refusal inside the error d
   expect(details.rejected_lines[0]?.discount_proposal_id).toBe(proposalId);
   expect((await proposalRow(f, proposalId))?.['status']).toBe('PENDING');
 });
+
+it('a pending proposal with changed terms refuses the line with TERMS_MISMATCH over HTTP', async () => {
+  const sessionId = await savedVisit();
+  const proposalId = await pendingProposal(f, { session_id: sessionId });
+  const reply = await append(sessionId, [
+    { ...f.draft(0, '26.000', '5.000', 1), discount_proposal_id: proposalId },
+    f.line(),
+  ]);
+  expect(reply.status).toBe(201);
+  const parsed = appendServiceSessionLinesResponse.parse(reply.body);
+  expect(parsed.outcome).toBe('PARTIAL');
+  const rejected = rejectedServiceLine.parse(must(parsed.rejected_lines[0]));
+  expect(rejected.approval_refusal).toBe('TERMS_MISMATCH');
+  expect(rejected.discount_proposal_id).toBe(proposalId);
+  expect((await proposalRow(f, proposalId))?.['status']).toBe('PENDING');
+});

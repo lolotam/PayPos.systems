@@ -52,6 +52,8 @@ export interface PreparedSessionLine {
 export interface SessionLine extends PreparedSessionLine {
   id: string; session_id: string; ordinal: number; status: 'ACTIVE' | 'CANCELLED'; revision: number; limit: SessionLimit;
   recorded_by: string; recorded_by_membership_id: string; recorded_at: Date; late: boolean; performer_ids: readonly string[];
+  /** علامة تعديل السعر لهذا السطر إن وُجد صف في سجل تعديلات الأسعار؛ تُترك فارغة عند عدم التعديل. */
+  edited?: true | undefined;
   /** الموافقة التي استهلكها السطر كما حُفظت، وغيابها يعني أنه حُفظ على حدّ المسجّلة نفسه. */
   discount_proposal_id?: string | undefined;
 }

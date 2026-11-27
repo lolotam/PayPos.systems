@@ -33,7 +33,10 @@ export class RecordServiceSessionUseCase {
       if (place === null) throw new SessionError('FORBIDDEN');
       resolveSessionRecorder(await tx.access.read(this.clock.now()), context.input.recorder_membership_id, undefined, context.userId);
       const response = await tx.idempotent('record-service-session', () => this.record(tx, context));
-      if (response.replayed) resolveSessionRecorder(await tx.access.read(this.clock.now()), context.input.recorder_membership_id, undefined, context.userId);
+      if (response.replayed) {
+        await tx.access.lock();
+        resolveSessionRecorder(await tx.access.read(this.clock.now()), context.input.recorder_membership_id, undefined, context.userId);
+      }
       return response.body;
     });
   }

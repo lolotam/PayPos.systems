@@ -44,7 +44,7 @@ export class ServiceSessionsController {
   @Get()
   @Require('read:service-sessions:branch', { branch: 'branchId' })
   @RequiresFeature('orders')
-  @UseGuards(SelectedCompanyGuard, SessionAdminGuard)
+  @UseGuards(SessionAdminGuard)
   async list(@Param('businessId', new ZodValidationPipe(pathId)) businessId: string,
     @Param('branchId', new ZodValidationPipe(pathId)) branchId: string,
     @Query(new ZodValidationPipe(serviceSessionDayQuery)) query: ServiceSessionDayQuery,
@@ -59,7 +59,7 @@ export class ServiceSessionsController {
   @Get('capabilities')
   @Require('read:service-sessions:branch', { branch: 'branchId' })
   @RequiresFeature('orders')
-  @UseGuards(SelectedCompanyGuard, SessionAdminGuard)
+  @UseGuards(SessionAdminGuard)
   async capabilities(@Param('businessId', new ZodValidationPipe(pathId)) businessId: string,
     @Param('branchId', new ZodValidationPipe(pathId)) branchId: string,
     @Req() request: FastifyRequest) {
@@ -73,7 +73,7 @@ export class ServiceSessionsController {
   @Get(':sessionId/lines/:lineId/edits')
   @Require('read:service-sessions:branch', { branch: 'branchId' })
   @RequiresFeature('orders')
-  @UseGuards(SelectedCompanyGuard, SessionAdminGuard)
+  @UseGuards(SessionAdminGuard)
   async edits(@Param('businessId', new ZodValidationPipe(pathId)) businessId: string,
     @Param('branchId', new ZodValidationPipe(pathId)) branchId: string,
     @Param('sessionId', new ZodValidationPipe(pathId)) sessionId: string,
@@ -107,7 +107,7 @@ export class ServiceSessionsController {
   @Get(':sessionId/lines/:lineId/cancellation')
   @Require('read:service-sessions:branch', { branch: 'branchId' })
   @RequiresFeature('orders')
-  @UseGuards(SelectedCompanyGuard, SessionAdminGuard)
+  @UseGuards(SessionAdminGuard)
   async cancellation(@Param('businessId', new ZodValidationPipe(pathId)) businessId: string,
     @Param('branchId', new ZodValidationPipe(pathId)) branchId: string,
     @Param('sessionId', new ZodValidationPipe(pathId)) sessionId: string,

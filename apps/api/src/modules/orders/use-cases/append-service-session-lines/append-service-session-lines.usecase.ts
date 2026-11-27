@@ -31,16 +31,11 @@ export class AppendServiceSessionLinesUseCase {
       if (record === null) throw new SessionError('FORBIDDEN');
       resolveSessionRecorder(await tx.access.read(this.clock.now()), context.input.recorder_membership_id, record.recorded_by, context.userId);
       const response = await tx.idempotent('append-service-session-lines', () => this.append(tx, context));
-      if (response.replayed) resolveSessionRecorder(await tx.access.read(this.clock.now()), context.input.recorder_membership_id, record.recorded_by, context.userId);
+      if (response.replayed) {
+        await tx.access.lock();
+        resolveSessionRecorder(await tx.access.read(this.clock.now()), context.input.recorder_membership_id, record.recorded_by, context.userId);
+      }
       return response.body;
-    });
-  }
-  authorize(context: SessionWriteContext & { sessionId: string; membershipId?: string }): Promise<void> {
-    return this.transactions.run(context, async (tx) => {
-      if (await tx.place.read() === null) throw new SessionError('FORBIDDEN');
-      const record = await tx.repository.load(context.sessionId);
-      if (record === null) throw new SessionError('FORBIDDEN');
-      resolveSessionRecorder(await tx.access.read(this.clock.now()), context.membershipId, record.recorded_by, context.userId);
     });
   }
   private async append(tx: SessionTransaction, context: AppendContext): Promise<AppendServiceSessionLinesResponse> {

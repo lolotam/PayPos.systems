@@ -40,6 +40,12 @@ it('LE-14/LE-16 a reader gets the line and visit total, never history, and recor
   const recordReplay = await f.h.send('POST', f.base, { cookie: f.ownerCookie, company: f.company, key: recordKey, body: { customer_id: f.customer, lines: [f.line()] } });
   expect(recordReplay.body).toEqual(recorded.body);
   expect(JSON.stringify(recordReplay.body)).not.toContain(reason);
+  const afterEditAppend = appendServiceSessionLinesResponse.parse(
+    (await f.h.send('POST', `${f.base}/${session.id}/lines`, { cookie: f.ownerCookie, company: f.company, key: ids.newId(), body: { lines: [f.line(must(f.services[3]), '15.000')] } })).body,
+  );
+  expect(afterEditAppend.session.lines.find((item) => item.id === line.id)?.edited).toBe(true);
+  expect(afterEditAppend.session.lines.find((item) => item.id === must(appended.added_lines[0]).id)?.edited === true).toBe(false);
+  expect(afterEditAppend.added_lines.every((item) => item.edited !== true)).toBe(true);
 });
 
 it('LE-14 a caller with edit and without branch read gets only saved and edited, including the replay', async () => {

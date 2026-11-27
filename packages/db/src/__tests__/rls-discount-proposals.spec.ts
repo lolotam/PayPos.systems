@@ -145,12 +145,25 @@ it('refuses a consumption whose line does not name the proposal back, at commit'
 
 it('refuses a deciding device of another branch', async () => {
   const id = ids.newId();
+  const otherBranch = ids.newId();
+  const otherDevice = ids.newId();
+  const ownDevice = ids.newId();
+  await owner`INSERT INTO branches (id, company_id, business_id, name_en)
+    VALUES (${otherBranch}, ${A.company}, ${A.business}, 'Other branch')`;
+  await owner`INSERT INTO devices (company_id, id, branch_id, label, status, approved_by, approved_at)
+    VALUES (${A.company}, ${otherDevice}, ${otherBranch}, 'Other branch device', 'ACTIVE', ${USER}, clock_timestamp()),
+           (${A.company}, ${ownDevice}, ${A.branch}, 'Own branch device', 'ACTIVE', ${USER}, clock_timestamp())`;
   await as(A.company, proposal(A.company, A.business, A.branch, id));
   await refused(
     as(A.company, sql`UPDATE discount_proposals SET status='REJECTED',decided_by=${USER},decided_by_membership_id=${ORDER_IDS.membership},
-      decided_via='PIN',decided_device_id=${ids.newId()},decider_role='owner',decider_role_is_system=true,
+      decided_via='PIN',decided_device_id=${otherDevice},decider_role='owner',decider_role_is_system=true,
       decider_role_name_en='Owner',decided_at=clock_timestamp() WHERE id=${id}`),
     '23503',
     'dp_decided_device_fk',
   );
+  await as(A.company, sql`UPDATE discount_proposals SET status='REJECTED',decided_by=${USER},decided_by_membership_id=${ORDER_IDS.membership},
+    decided_via='PIN',decided_device_id=${ownDevice},decider_role='owner',decider_role_is_system=true,
+    decider_role_name_en='Owner',decided_at=clock_timestamp() WHERE id=${id}`);
+  const [decided] = await as(A.company, sql`SELECT status, decided_device_id FROM discount_proposals WHERE id=${id}`);
+  expect(decided).toEqual({ status: 'REJECTED', decided_device_id: ownDevice });
 });
