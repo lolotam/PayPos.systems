@@ -131,9 +131,9 @@ export function approverIsPerformer(
  * يقرر هل يستهلك السطر هذا الطلب، ويذكر سبب الرفض إن رفض.
  * القاعدة: أول مطابقة في الترتيب التالي هي النتيجة، وما بعدها لا يُنظر فيه:
  * (أ) طلب غير موجود، أو من فرع آخر، أو من طلبه شخص غير مَن يستهلك — كلها `NOT_FOUND` بلا كاشف وجود (D-5، D-13).
- * (ب) حالة الطلب: معلّق أو مرفوض `NOT_APPROVED`، منتهي `EXPIRED` (وقت الانتهاء نفسه منتهي)، مستهلَك `CONSUMED` (D-7).
- * (ج) موافَق عليه وبصمة الشروط مختلفة `TERMS_MISMATCH` — تطابق بالظبط بلا تسامح (D-4).
- * (د) غير ذلك `null`: السطر يستهلك الموافقة.
+ * (ب) حالة الطلب: مرفوض `NOT_APPROVED`، منتهي `EXPIRED` (وقت الانتهاء نفسه منتهي)، مستهلَك `CONSUMED` (D-7).
+ * (ج) بصمة الشروط مختلفة `TERMS_MISMATCH` — تطابق بالظبط بلا تسامح (D-4)؛ والمعلّق يُقارَن ببصمته قبل حكمه، فشروطه اللي اتغيّرت `TERMS_MISMATCH` مش `NOT_APPROVED`.
+ * (د) غير ذلك `null`: السطر يستهلك الموافقة؛ والمعلّق اللي بشروطه ما اتغيّرتش `NOT_APPROVED` لأنه لسه ما اتوافقش عليه.
  * مقارنة المعرّفات لا تفرّق بين الأحرف الكبيرة والصغيرة، وبصمة الشروط تُقارن صغيرة.
  * وقت الانتهاء (`expires_at`) مُدخَل يكتبه المستدعي، ويحسبه `proposalExpiry` من وقت الطلب.
  *
@@ -142,7 +142,7 @@ export function approverIsPerformer(
  * @param actor الفرع والمستخدم والعضوية التي تحاول الاستهلاك
  * @param now اللحظة الحالية المحقونة
  * @param sha256Hex دالة التجزئة التي تحسب بصمة الشروط
- * @returns سبب الرفض، أو `null` إن جاز استهلاك الطلب
+ * @returns سبب الرفض (`NOT_FOUND` أو `NOT_APPROVED` أو `EXPIRED` أو `CONSUMED` أو `TERMS_MISMATCH`)، أو `null` إن جاز استهلاك الطلب
  */
 export function consumptionRefusal(
   proposal: ConsumableProposal | null,
@@ -156,11 +156,12 @@ export function consumptionRefusal(
   if (!sameId(proposal.requested_by, actor.user_id)) return 'NOT_FOUND';
   if (!sameId(proposal.requested_by_membership_id, actor.membership_id)) return 'NOT_FOUND';
   const state = proposalState(proposal.status, proposal.expires_at, now);
-  if (state === 'PENDING' || state === 'REJECTED') return 'NOT_APPROVED';
+  if (state === 'REJECTED') return 'NOT_APPROVED';
   if (state === 'EXPIRED') return 'EXPIRED';
   if (state === 'CONSUMED') return 'CONSUMED';
   const hash = discountTermsHash(lineTerms, sha256Hex).toLowerCase();
-  return hash === proposal.terms_hash.toLowerCase() ? null : 'TERMS_MISMATCH';
+  if (hash !== proposal.terms_hash.toLowerCase()) return 'TERMS_MISMATCH';
+  return state === 'PENDING' ? 'NOT_APPROVED' : null;
 }
 
 /**

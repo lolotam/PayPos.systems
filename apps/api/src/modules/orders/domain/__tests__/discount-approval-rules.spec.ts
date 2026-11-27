@@ -223,9 +223,23 @@ describe('whether a line may consume an approval', () => {
     expect(consumptionRefusal(upper, TERMS, ACTOR, NOW, identityHasher)).toBeNull();
   });
 
-  it('refuses a request that is still pending or that was rejected', () => {
-    expect(consumptionRefusal(proposal({ status: 'PENDING' }), TERMS, ACTOR, NOW, identityHasher)).toBe('NOT_APPROVED');
+  it('refuses a rejected request as not approved', () => {
     expect(consumptionRefusal(proposal({ status: 'REJECTED' }), TERMS, ACTOR, NOW, identityHasher)).toBe('NOT_APPROVED');
+  });
+
+  it('refuses a pending request whose terms match as not approved', () => {
+    expect(consumptionRefusal(proposal({ status: 'PENDING' }), TERMS, ACTOR, NOW, identityHasher)).toBe('NOT_APPROVED');
+  });
+
+  it('refuses a pending request whose terms changed as a terms mismatch', () => {
+    const changed = { ...TERMS, price: '24.000' };
+    expect(consumptionRefusal(proposal({ status: 'PENDING' }), changed, ACTOR, NOW, identityHasher)).toBe('TERMS_MISMATCH');
+  });
+
+  it('reads the expiry of a pending request before its terms', () => {
+    const changed = { ...TERMS, price: '24.000' };
+    expect(consumptionRefusal(proposal({ status: 'PENDING' }), changed, ACTOR, EXPIRY, identityHasher)).toBe('EXPIRED');
+    expect(consumptionRefusal(proposal({ status: 'PENDING' }), changed, ACTOR, AFTER, identityHasher)).toBe('EXPIRED');
   });
 
   it('refuses a request at or past its expiry, pending or approved', () => {

@@ -35,9 +35,10 @@ export function discountApprovalView(
     let covered = latest !== null && items === undefined;
     // PENDING يفضل مغطى إلا مع TERMS_MISMATCH حتى لا يتكرر الطلب لرفض لا يغيّر شروطه.
     if (proposal?.status === 'PENDING') covered = !(refusedThis && row.error.approval_refusal === 'TERMS_MISMATCH');
-    if (proposal?.status === 'APPROVED') {
-      covered = !refusedThis;
-      if (!refusedThis) attach.push({ localId: row.localId, proposalId: proposal.id });
+    if (proposal?.status === 'APPROVED') covered = !refusedThis;
+    // المعلّق والموافَق عليه بيتركّبوا مع السطر، فالخادم يقارن شروطه ويرجّع سبب الرفض بالظبط.
+    if ((proposal?.status === 'PENDING' || proposal?.status === 'APPROVED') && covered) {
+      attach.push({ localId: row.localId, proposalId: proposal.id });
     }
     lines[row.localId] = { proposal, covered };
     if (!covered) requestable.push(row.localId);

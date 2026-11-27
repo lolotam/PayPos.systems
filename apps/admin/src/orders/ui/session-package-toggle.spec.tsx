@@ -7,6 +7,7 @@ import { FormProvider, useForm, type UseFormReturn } from 'react-hook-form';
 import { beforeEach, expect, it, vi } from 'vitest';
 import { createSessionDraft, type SessionDraftForm, type SessionDraftLine } from '../model/session-drafts';
 import type { PackageList } from '../model/session-package-options';
+import { SessionDraftLines } from './session-draft-lines';
 import { SessionPackageToggle } from './session-package-toggle';
 
 const state = vi.hoisted(() => ({ locale: 'en' as 'ar' | 'en', get: vi.fn() }));
@@ -42,6 +43,40 @@ function packageItem(id: string, expiresOn: string, patch: Partial<CustomerPacka
 
 function packageList(items: CustomerPackageListItem[], patch: Partial<PackageList> = {}): PackageList {
   return { items, complete: true, truncated: false, error: false, loading: false, retry: vi.fn(), ...patch };
+}
+
+// The recovered pick and the package list around it travel through the real read, so both carry contract ids.
+const recoveredServiceId = '01920000-0000-7000-8000-0000000000b2';
+const recoveredPackageId = '01920000-0000-7000-8000-0000000000b1';
+const recoveredPackage = {
+  id: recoveredPackageId, provenance: 'SOLD' as const, name_en: 'Package saved', name_ar: null,
+  expires_on: '2026-12-01', expired: false, used_up: false, price_paid: '20.000', refunded_amount: '0.000',
+  components: [{ id: '01920000-0000-7000-8000-0000000000b3', service_id: recoveredServiceId, position: 1,
+    name_en: 'Synthetic service', name_ar: null, sessions_total: 2, remaining: 2, used: 0, refunded: 0,
+    next_unit_value: '10.000', slot_values: [{ unit_value: '10.000', free: 2, used: 0, refunded: 0 }] }],
+};
+const recordingContext = { generated_at: '2026-10-13T08:00:00.000Z', business_timezone: 'Asia/Kuwait',
+  recorder_membership_ids: ['01920000-0000-7000-8000-000000000008'],
+  recorder_membership_id: '01920000-0000-7000-8000-000000000008', discount_limit: { source: 'OWNER', bps: null } };
+
+function installDraftReads(packagesFail: boolean) {
+  state.get.mockImplementation((path: string) => {
+    const target = String(path);
+    if (target.endsWith('/packages')) {
+      return packagesFail
+        ? Promise.resolve({ error: { code: 'CUSTOMER_PACKAGES_FAILED', message_ar: 'failed', message_en: 'failed' }, response: { status: 500 } })
+        : Promise.resolve({ data: { items: [recoveredPackage], next_cursor: null } });
+    }
+    if (target.endsWith('/recording-context')) return Promise.resolve({ data: recordingContext });
+    return Promise.resolve({ data: { items: [], next_cursor: null } });
+  });
+}
+
+function DraftLinesHarness() {
+  const form = useForm<SessionDraftForm>({ defaultValues: { lines: [{ ...createSessionDraft('recovered'),
+    service_id: recoveredServiceId, from_package: true, package_entitlement_id: recoveredPackageId }] } });
+  useEffect(() => { formRef = form; }, [form]);
+  return <FormProvider {...form}><SessionDraftLines scope={scope} customerId={customerId} visitDate="2026-06-15" /></FormProvider>;
 }
 
 type HarnessProps = {
@@ -162,12 +197,14 @@ it('hides the only package and shows the none-usable message after its expiry', 
   expect(screen.queryByRole('radio', { name: /Package old/ })).toBeNull();
 });
 
-it('shows a package when the visit is on its expiry day', async () => {
+it.each(['en', 'ar'] as const)('shows a package when the visit is on its expiry day in %s', async (locale) => {
+  state.locale = locale;
   const expired = packageItem('old', '2026-10-01', { expired: true });
   renderToggle({ packages: packageList([expired]), visitDate: '2026-10-01' });
   fireEvent.click(toggleButton());
 
   expect(await screen.findByRole('radio', { name: /Package old/ })).toBeTruthy();
+  expect(screen.getByText(t(locale, 'serviceSessions.packageExpired'))).toBeTruthy();
 });
 
 it('renders loading, retryable failure and no-usable-package states', async () => {
@@ -240,4 +277,20 @@ it('keeps a recovered pick while the package list is loading', async () => {
   view.rerender(view.ui({ packages: packageList([packageItem('saved', '2026-12-01')]), lines }));
   const option = await screen.findByRole('radio', { name: /Package saved/ });
   expect((option as HTMLInputElement).checked).toBe(true);
+});
+
+it('keeps a recovered pick when the package list read fails and recovers it on retry', async () => {
+  installDraftReads(true);
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  render(<QueryClientProvider client={client}><DraftLinesHarness /></QueryClientProvider>);
+
+  expect(await screen.findByText(t('en', 'serviceSessions.packageLoadFailed'))).toBeTruthy();
+  expect(screen.getByRole('button', { name: t('en', 'serviceSessions.packageRetry') })).toBeTruthy();
+  expect(formRef?.getValues('lines.0.package_entitlement_id')).toBe(recoveredPackageId);
+
+  installDraftReads(false);
+  fireEvent.click(screen.getByRole('button', { name: t('en', 'serviceSessions.packageRetry') }));
+  const option = await screen.findByRole('radio', { name: /Package saved/ });
+  expect((option as HTMLInputElement).checked).toBe(true);
+  expect(formRef?.getValues('lines.0.package_entitlement_id')).toBe(recoveredPackageId);
 });

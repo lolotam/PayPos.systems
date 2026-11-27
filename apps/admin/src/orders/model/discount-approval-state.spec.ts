@@ -40,11 +40,11 @@ it('loaded items without a matching proposal leave the row requestable', () => {
   expect(view.requestable).toEqual([A]);
 });
 
-it('PENDING covers the row without attaching it', () => {
+it('PENDING covers and attaches the row', () => {
   const pending = item(id(60), 0, 'PENDING');
   const view = discountApprovalView([row(A)], [tracked(first, { 0: A })], { [first]: [pending] });
   expect(view.lines[A]).toEqual({ proposal: pending, covered: true });
-  expect(view.attach).toEqual([]);
+  expect(view.attach).toEqual([{ localId: A, proposalId: id(60) }]);
 });
 
 it('PENDING refused by this proposal becomes requestable without attach', () => {
@@ -55,12 +55,12 @@ it('PENDING refused by this proposal becomes requestable without attach', () => 
   expect(view.attach).toEqual([]);
 });
 
-it.each(['NOT_FOUND', 'NOT_APPROVED', 'EXPIRED', 'CONSUMED'] as const)('PENDING refused with %s stays covered without attach', (code) => {
+it.each(['NOT_FOUND', 'NOT_APPROVED', 'EXPIRED', 'CONSUMED'] as const)('PENDING refused with %s stays covered and attaches the row', (code) => {
   const pending = item(id(60), 0, 'PENDING');
   const view = discountApprovalView([row(A, code, id(60))], [tracked(first, { 0: A })], { [first]: [pending] });
   expect(view.lines[A]?.covered).toBe(true);
   expect(view.requestable).toEqual([]);
-  expect(view.attach).toEqual([]);
+  expect(view.attach).toEqual([{ localId: A, proposalId: id(60) }]);
 });
 
 it('APPROVED covers and attaches the row', () => {
@@ -106,7 +106,7 @@ it('two requests follow the newest request per row', () => {
   const view = discountApprovalView([row(A), row(B)], requests, { [first]: [oldA, oldB], [second]: [newA] });
   expect(view.lines[A]?.proposal).toBe(newA);
   expect(view.lines[B]?.proposal).toBe(oldB);
-  expect(view.attach).toEqual([{ localId: B, proposalId: id(61) }]);
+  expect(view.attach).toEqual([{ localId: A, proposalId: id(62) }, { localId: B, proposalId: id(61) }]);
 });
 
 it('a request with no remaining rejected line drops out of queried', () => {
