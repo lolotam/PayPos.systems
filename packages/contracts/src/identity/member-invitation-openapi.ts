@@ -1,6 +1,7 @@
 import {
   endMembershipResult,
   inviteMemberInput,
+  invitationRoleAssignment,
   memberInvitation,
   memberInvitationPage,
   memberInvitationResult,
@@ -9,6 +10,7 @@ import {
 export const memberInvitationSchemas = [
   endMembershipResult,
   inviteMemberInput,
+  invitationRoleAssignment,
   memberInvitation,
   memberInvitationPage,
   memberInvitationResult,

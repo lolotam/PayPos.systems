@@ -97,15 +97,57 @@ export async function scopeBelongs(
   return rows.length === 1;
 }
 
-/** العضوية المرتبطة بالدعوة لسه سارية؛ لو انتهت بـ EndMembership مفيش إصدار رابط عليها. */
+/** النطاقات كلها بتتبع الشركة: استعلامين مجموعين مش استعلام لكل نطاق. */
+export async function scopesBelong(
+  tx: Tx,
+  companyId: string,
+  scopes: readonly InvitationScope[],
+): Promise<boolean> {
+  if (scopes.some((scope) => scope.type === 'COMPANY' && scope.id !== companyId)) return false;
+  const businessIds = scopeIds(scopes, 'BUSINESS');
+  const branchIds = scopeIds(scopes, 'BRANCH');
+  if (businessIds.length > 0) {
+    const rows = await tx.execute(sql`
+      SELECT id FROM businesses WHERE company_id = ${companyId}
+        AND id = ANY(ARRAY[${sql.join(
+          businessIds.map((id) => sql`${id}::uuid`),
+          sql`,`,
+        )}]::uuid[])`);
+    if (rows.length !== businessIds.length) return false;
+  }
+  if (branchIds.length > 0) {
+    const rows = await tx.execute(sql`
+      SELECT id FROM branches WHERE company_id = ${companyId}
+        AND id = ANY(ARRAY[${sql.join(
+          branchIds.map((id) => sql`${id}::uuid`),
+          sql`,`,
+        )}]::uuid[])`);
+    if (rows.length !== branchIds.length) return false;
+  }
+  return true;
+}
+
+/** معرّفات النطاقات من نوع واحد، من غير تكرار. */
+function scopeIds(scopes: readonly InvitationScope[], type: InvitationScope['type']): string[] {
+  return [...new Set(scopes.filter((scope) => scope.type === type).map((scope) => scope.id))];
+}
+
+/** صف الشركة مقفول: القفل بيتاخد قبل صف الدعوة عشان ترتيب القفل يبقى واحد مع مسار الصلاحيات. */
+export async function lockCompany(tx: Tx, companyId: string): Promise<void> {
+  await tx.execute(sql`
+    SELECT id FROM companies WHERE id = ${companyId} AND deleted_at IS NULL FOR NO KEY UPDATE`);
+}
+
+/** واحدة على الأقل من عضويات المدعوّ المرتبطة بالدعوة لسه سارية؛ لو انتهت كلها بـ EndMembership مفيش إصدار رابط عليها. */
 export async function activeMembership(
   tx: Tx,
   companyId: string,
   membershipId: string,
+  userId: string,
 ): Promise<boolean> {
   const rows = await tx.execute(sql`
     SELECT 1 FROM memberships
-    WHERE company_id = ${companyId} AND id = ${membershipId}
+    WHERE company_id = ${companyId} AND (id = ${membershipId} OR user_id = ${userId})
       AND (ends_at IS NULL OR ends_at > now())`);
-  return rows.length === 1;
+  return rows.length > 0;
 }

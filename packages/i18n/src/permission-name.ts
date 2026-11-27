@@ -90,3 +90,8 @@ export function permissionName(locale: Locale, code: string): string {
   const key = keys[code];
   return key === undefined ? code : t(locale, key);
 }
+
+/** أكواد صلاحيات الكتالوج: كل اللي شاشة الصلاحيات بتعرضه، بدون صلاحيات المنصة. */
+export const PERMISSION_CATALOG_CODES: readonly string[] = Object.keys(keys).filter(
+  (code) => !code.endsWith(':platform'),
+);

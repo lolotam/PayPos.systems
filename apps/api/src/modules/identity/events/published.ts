@@ -31,8 +31,8 @@ export const DEVICE_REGISTERED = 'DeviceRegistered';
 export const DEVICE_REVOKED = 'DeviceRevoked';
 
 /**
- * بيتبعت مرة واحدة لما مالك الشركة يدعو عضو جديد، في نفس الـ transaction اللي كاتب العضوية
- * (invite-member). مفيش إيميل ولا رابط ولا token في الـ payload.
+ * بيتبعت لكل عضوية جديدة بتتكتب لما مالك الشركة يدعو عضو جديد (عضوية واحدة أو أكتر في دعوة متعددة النطاقات 080)،
+ * في نفس الـ transaction اللي كاتب العضويات (invite-member). مفيش إيميل ولا رابط ولا token في الـ payload.
  */
 export interface MemberInvited {
   readonly invitation_id: string;

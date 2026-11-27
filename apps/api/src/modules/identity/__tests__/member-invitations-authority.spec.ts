@@ -157,6 +157,7 @@ describe('P1-a — completion re-checks authority after an interrupted request',
       emailHash,
       roleCode: 'accountant',
       scope: { type: 'COMPANY', id: company },
+      additionalAssignments: [],
       now: systemClock.now(),
     });
     if (!('invitationId' in opened)) throw new Error('open should have succeeded');
@@ -180,6 +181,9 @@ describe('P1-a — completion re-checks authority after an interrupted request',
       invitationId: opened.invitationId,
       membershipId: ids.newId(),
       userId: String(userRow?.['id']),
+      additionalAssignments: [],
+      additionalMembershipIds: [],
+      permissionOverrides: [],
       buildEvent: () => {
         throw new Error('event must not be built on refusal');
       },

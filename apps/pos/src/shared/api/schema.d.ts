@@ -11275,6 +11275,18 @@ export interface components {
             };
             /** @enum {boolean} */
             email_confirmed: true;
+            additional_roles?: components["schemas"]["InvitationRoleAssignment"][];
+            permission_overrides?: components["schemas"]["PermissionOverrideInput"][];
+        };
+        InvitationRoleAssignment: {
+            /** @enum {string} */
+            role: "general_manager" | "business_manager" | "branch_manager" | "accountant";
+            scope: {
+                /** @enum {string} */
+                type: "COMPANY" | "BUSINESS" | "BRANCH";
+                /** Format: uuid */
+                id: string;
+            };
         };
         MemberInvitation: {
             /** Format: uuid */

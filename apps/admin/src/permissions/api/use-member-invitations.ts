@@ -4,8 +4,29 @@ import { useInfiniteQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { memberInvitationPage, type InviteMemberInput } from '@pospay/contracts';
 import { apiClient } from '@/shared/api/client';
+import type { components } from '@/shared/api/schema';
 
 const header = (companyId: string) => ({ 'x-company-id': companyId });
+
+type InvitationBody = components['schemas']['InviteMemberInput'];
+
+/**
+ * جسم الطلب بالشكل اللي العميل المولّد بيقبله: الخانة الاختيارية بتتشال لما تكون مش موجودة،
+ * لأن جسم JSON بيمثل الغياب بحذف الخانة مش بـ undefined.
+ */
+function invitationBody(input: InviteMemberInput): InvitationBody {
+  return {
+    email: input.email,
+    name: input.name,
+    role: input.role,
+    scope: input.scope,
+    email_confirmed: input.email_confirmed,
+    ...(input.additional_roles === undefined ? {} : { additional_roles: input.additional_roles }),
+    ...(input.permission_overrides === undefined
+      ? {}
+      : { permission_overrides: input.permission_overrides }),
+  } as InvitationBody;
+}
 
 async function fetchInvitations(
   companyId: string,
@@ -23,7 +44,7 @@ async function fetchInvitations(
 async function postInvitation(companyId: string, body: InviteMemberInput) {
   const response = await apiClient().POST('/v1/memberships/invitations', {
     params: { header: header(companyId) },
-    body,
+    body: invitationBody(body),
   });
   if (response.error) throw response.error;
   return response.data;

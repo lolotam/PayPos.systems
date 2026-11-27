@@ -46,6 +46,7 @@ async function crashAfter(step: 'open' | 'account' | 'complete' | 'claim', email
     emailHash: h.auth.members.hashEmail(email),
     roleCode: 'accountant',
     scope: { type: 'COMPANY', id: company },
+    additionalAssignments: [],
     now: systemClock.now(),
   });
   if (!('invitationId' in opened)) throw new Error('open refused');
@@ -64,11 +65,14 @@ async function crashAfter(step: 'open' | 'account' | 'complete' | 'claim', email
     invitationId,
     membershipId: ids.newId(),
     userId: account.userId,
-    buildEvent: (row, membershipId, userId) => ({
+    additionalAssignments: [],
+    additionalMembershipIds: [],
+    permissionOverrides: [],
+    buildEvent: (row, membership, userId) => ({
       aggregateType: 'member_invitation',
       aggregateId: row.id,
       eventType: 'MemberInvited',
-      payload: { invitation_id: row.id, user_id: userId, membership_id: membershipId },
+      payload: { invitation_id: row.id, user_id: userId, membership_id: membership.membershipId },
     }),
     buildAudit: () => [],
     now: systemClock.now(),

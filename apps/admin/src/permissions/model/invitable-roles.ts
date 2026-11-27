@@ -1,4 +1,4 @@
-import type { InvitableRole, InvitationScopeType } from '@pospay/contracts';
+import type { InviteMemberInput, InvitableRole, InvitationScopeType } from '@pospay/contracts';
 
 /** خيارات النطاق المعروضة: أسماء الأنشطة والفروع من الـ workspace. */
 export interface ScopeOption {
@@ -44,4 +44,57 @@ export function scopeForRole(
   const option = INVITABLE_ROLE_OPTIONS.find((candidate) => candidate.role === role);
   const type = option?.scopeType ?? 'COMPANY';
   return { type, id: type === 'COMPANY' ? companyId : '' };
+}
+
+/** خيارات النطاق لدور معيّن: الأنشطة لدور النشاط، والفروع لدور الفرع، ومفيش للشركوي. */
+export function scopeOptionsForRole(
+  role: string,
+  choices: InvitationScopeChoices,
+): readonly ScopeOption[] {
+  const option = INVITABLE_ROLE_OPTIONS.find((candidate) => candidate.role === role);
+  if (option?.scopeType === 'BUSINESS') return choices.businesses;
+  if (option?.scopeType === 'BRANCH') return choices.branches;
+  return [];
+}
+
+/** التوزيع نفسه (نفس الدور ونفس النطاق) — عشان ما يتكررش ولا يتشال غلط. */
+export function isSameAssignment(
+  assignment: { role: string; scope: { type: string; id: string } },
+  role: string,
+  scopeType: string,
+  scopeId: string,
+): boolean {
+  return (
+    assignment.role === role &&
+    assignment.scope.type === scopeType &&
+    assignment.scope.id === scopeId
+  );
+}
+
+/** اسم النطاق معروض في سطر الدور: اسم النشاط أو الفرع؛ نطاق الشركة مالوش اسم من القائمة. */
+export function scopeName(
+  scope: { type: InvitationScopeType; id: string },
+  choices: InvitationScopeChoices,
+): string | null {
+  if (scope.type === 'COMPANY') return null;
+  const options = scope.type === 'BUSINESS' ? choices.businesses : choices.branches;
+  return options.find((option) => option.id === scope.id)?.name ?? null;
+}
+
+/**
+ * الطلب اللي بيتبعت: الحقول الأساسية بس. القوائم الفاضية بتتشال عشان الطلب القديم بدور واحد
+ * يفضل زي ما هو، والقوائم غير الفاضية بتتبعت زي ما هي.
+ */
+export function invitationPayload(values: InviteMemberInput): InviteMemberInput {
+  const additionalRoles = values.additional_roles ?? [];
+  const permissionOverrides = values.permission_overrides ?? [];
+  return {
+    email: values.email,
+    name: values.name,
+    role: values.role,
+    scope: values.scope,
+    email_confirmed: values.email_confirmed,
+    ...(additionalRoles.length === 0 ? {} : { additional_roles: additionalRoles }),
+    ...(permissionOverrides.length === 0 ? {} : { permission_overrides: permissionOverrides }),
+  };
 }

@@ -57648,6 +57648,20 @@
             "enum": [
               true
             ]
+          },
+          "additional_roles": {
+            "maxItems": 50,
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/InvitationRoleAssignment"
+            }
+          },
+          "permission_overrides": {
+            "maxItems": 100,
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PermissionOverrideInput"
+            }
           }
         },
         "required": [
@@ -57656,6 +57670,48 @@
           "role",
           "scope",
           "email_confirmed"
+        ],
+        "additionalProperties": false
+      },
+      "InvitationRoleAssignment": {
+        "type": "object",
+        "properties": {
+          "role": {
+            "type": "string",
+            "enum": [
+              "general_manager",
+              "business_manager",
+              "branch_manager",
+              "accountant"
+            ]
+          },
+          "scope": {
+            "type": "object",
+            "properties": {
+              "type": {
+                "type": "string",
+                "enum": [
+                  "COMPANY",
+                  "BUSINESS",
+                  "BRANCH"
+                ]
+              },
+              "id": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+              }
+            },
+            "required": [
+              "type",
+              "id"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "role",
+          "scope"
         ],
         "additionalProperties": false
       },

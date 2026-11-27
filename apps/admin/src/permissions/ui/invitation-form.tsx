@@ -5,7 +5,7 @@ import { inviteMemberInput, type InviteMemberInput } from '@pospay/contracts';
 import { t } from '@pospay/i18n';
 import { FormProvider, useForm } from 'react-hook-form';
 import { useLocale } from '@/shared/locale/locale-context';
-import { INVITABLE_ROLE_OPTIONS } from '../model/invitable-roles';
+import { INVITABLE_ROLE_OPTIONS, invitationPayload } from '../model/invitable-roles';
 import { InvitationFields } from './invitation-fields';
 import type { InvitationScopeChoices } from '../model/invitable-roles';
 
@@ -32,6 +32,8 @@ export function InvitationForm({ companyId, choices, disabled, pending, onSave }
       role: 'accountant',
       scope: { type: 'COMPANY', id: companyId },
       email_confirmed: false as unknown as true,
+      additional_roles: [],
+      permission_overrides: [],
     },
   });
   const confirmed = form.watch('email_confirmed') as unknown as boolean;
@@ -42,7 +44,7 @@ export function InvitationForm({ companyId, choices, disabled, pending, onSave }
   return (
     <FormProvider {...form}>
       <form
-        onSubmit={form.handleSubmit((values) => onSave(values))}
+        onSubmit={form.handleSubmit((values) => onSave(invitationPayload(values)))}
         className="flex flex-col gap-3 rounded-card border border-border bg-secondary/30 p-4 text-start"
         aria-label={t(locale, 'invitations.title')}
       >
