@@ -1461,4 +1461,8 @@ Rotate `NOTIFICATION_EMAIL_HASH_KEY` / `NOTIFICATION_EMAIL_HASH_KEY_ID` **only o
 
 ### 3. Controlled `ONBOARDING_EMAIL_ENVELOPE_KEY` rotation (`079-c2`)
 
-`ONBOARDING_EMAIL_ENVELOPE_KEY` (32+ chars) seals `staff_welcome_pin` and `member_invitation` payloads in `apps/api` and unseals them in `apps/worker`. Rotating this key invalidates in-flight onboarding envelopes sealed under the old key (`PARAMETERS_INVALID`): rotate it in lockstep across every API and worker replica after pending onboarding attempts finish (or during a maintenance window, after temporarily draining onboarding queues). Never fall back to `NOTIFICATION_EMAIL_HASH_KEY` or `BETTER_AUTH_SECRET`.
+`ONBOARDING_EMAIL_ENVELOPE_KEY` (32+ chars) seals `staff_welcome_pin` and `member_invitation` payloads in `apps/api` and unseals them in `apps/worker`. Rotating this key invalidates in-flight onboarding envelopes sealed under the old key (`PARAMETERS_INVALID`):
+
+1. **Quiesce onboarding producers first** (or run inside a maintenance window with staff-access / member-invitation writes halted across API replicas) so no new old-key notices enter `outbox`.
+2. **Confirm both unpublished outbox events and worker attempts have drained** (`count = 0` for `outbox` rows where `published_at IS NULL AND event_type IN ('StaffWelcomePinNoticeRequested', 'MemberInvitationNoticeRequested')`, and `count = 0` for `notification_attempts` where `template_key IN ('staff_welcome_pin', 'member_invitation') AND status IN ('PENDING', 'SENDING')`).
+3. **Rotate `ONBOARDING_EMAIL_ENVELOPE_KEY` in lockstep across every API and worker replica.** Never fall back to `NOTIFICATION_EMAIL_HASH_KEY` or `BETTER_AUTH_SECRET`.

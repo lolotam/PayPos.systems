@@ -369,9 +369,12 @@ async function stampIssuedLink(
   },
   sealer: OnboardingEmailSealer | undefined,
 ): Promise<void> {
-  await tx.execute(sql`
+  const stamped = await tx.execute<{ id: string }>(sql`
     UPDATE member_invitations SET link_issued_at = ${input.at.toISOString()}::timestamptz
-    WHERE company_id = ${input.companyId} AND id = ${input.invitationId}`);
+    WHERE company_id = ${input.companyId} AND id = ${input.invitationId}
+      AND (link_issued_at IS NULL OR link_issued_at <= ${input.at.toISOString()}::timestamptz)
+    RETURNING id`);
+  if (stamped.length === 0) return;
   await transactionWriters(tx, ids).audit.record({
     entity: 'member_invitation',
     entityId: input.invitationId,

@@ -1,5 +1,9 @@
 import { expect, it } from 'vitest';
-import { pendingStaffAccessCancellable, staffAccessCancelAllowed } from '../staff-access.ts';
+import {
+  pendingStaffAccessCancellable,
+  planStaffWelcomePinNotice,
+  staffAccessCancelAllowed,
+} from '../staff-access.ts';
 
 const started = (iso: string) => new Date(iso);
 const now = new Date('2026-11-24T12:00:00Z');
@@ -44,9 +48,61 @@ it('FR-F1-6 only a PENDING record is cancellable, whatever its age', () => {
 
 it('P1-2 cancelling resumes after interruption; only original granter or owner may cancel', () => {
   expect(
-    pendingStaffAccessCancellable({ state: 'CANCELLING', attemptStartedAt: new Date('2026-11-01') }, now),
+    pendingStaffAccessCancellable(
+      { state: 'CANCELLING', attemptStartedAt: new Date('2026-11-01') },
+      now,
+    ),
   ).toBe(true);
   expect(staffAccessCancelAllowed({ grantedBy: 'original' }, 'original', false)).toBe(true);
   expect(staffAccessCancelAllowed({ grantedBy: 'original' }, 'other', true)).toBe(true);
   expect(staffAccessCancelAllowed({ grantedBy: 'original' }, 'other', false)).toBe(false);
+});
+
+it('plans welcome email recipients with masking only on manager and case-insensitive dedup', () => {
+  const expiresAt = new Date('2026-11-28T12:00:00Z');
+  const mask = (email: string) => `masked(${email})`;
+  expect(
+    planStaffWelcomePinNotice({
+      expiresAt,
+      managerEmail: 'mgr@example.test',
+      recoveryEmail: 'staff@example.test',
+      mask,
+    }),
+  ).toEqual({
+    expiresAt,
+    recipients: [
+      {
+        email: 'mgr@example.test',
+        recipient: 'manager',
+        targetMaskedEmail: 'masked(staff@example.test)',
+      },
+      { email: 'staff@example.test', recipient: 'employee', targetMaskedEmail: null },
+    ],
+  });
+  expect(
+    planStaffWelcomePinNotice({
+      expiresAt,
+      managerEmail: 'Mgr@Example.test',
+      recoveryEmail: ' mgr@example.test ',
+      mask,
+    }).recipients,
+  ).toEqual([
+    {
+      email: 'Mgr@Example.test',
+      recipient: 'manager',
+      targetMaskedEmail: 'masked( mgr@example.test )',
+    },
+  ]);
+  expect(
+    planStaffWelcomePinNotice({ expiresAt, managerEmail: 'mgr@e.test', recoveryEmail: null, mask })
+      .recipients,
+  ).toEqual([{ email: 'mgr@e.test', recipient: 'manager', targetMaskedEmail: null }]);
+  expect(
+    planStaffWelcomePinNotice({ expiresAt, managerEmail: null, recoveryEmail: 's@e.test', mask })
+      .recipients,
+  ).toEqual([{ email: 's@e.test', recipient: 'employee', targetMaskedEmail: null }]);
+  expect(
+    planStaffWelcomePinNotice({ expiresAt, managerEmail: null, recoveryEmail: null, mask })
+      .recipients,
+  ).toEqual([]);
 });

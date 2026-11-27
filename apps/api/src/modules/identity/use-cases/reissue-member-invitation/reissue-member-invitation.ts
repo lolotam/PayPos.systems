@@ -31,6 +31,7 @@ export class ReissueMemberInvitation {
   readonly #clock: Clock;
   readonly #redirectTo: string;
   readonly #linkLifetimeMs: number;
+  readonly #inFlight = new Map<string, Promise<unknown>>();
 
   constructor(options: {
     transactions: MemberInvitationTransactions;
@@ -49,6 +50,18 @@ export class ReissueMemberInvitation {
     this.#linkLifetimeMs = options.linkLifetimeMs;
   }
 
+  /** يسلسل إعادة الإصدار لنفس الدعوة حتى لا يسبق ختمٌ أقدم إصدارَ توكنٍ أحدث. */
+  async #serialize<T>(key: string, work: () => Promise<T>): Promise<T> {
+    const previous = this.#inFlight.get(key) ?? Promise.resolve();
+    const current = previous.catch(() => undefined).then(work);
+    this.#inFlight.set(key, current);
+    try {
+      return await current;
+    } finally {
+      if (this.#inFlight.get(key) === current) this.#inFlight.delete(key);
+    }
+  }
+
   /**
    * @param command الفاعل ومعرف الدعوة
    * @returns الرابط الجديد
@@ -56,32 +69,34 @@ export class ReissueMemberInvitation {
   async execute(command: ReissueMemberInvitationCommand): Promise<ReissueMemberInvitationResult> {
     const { actor, invitationId } = command;
     if (!(await this.#limiter.allow(actor.userId))) throw new ApiError('TOO_MANY_REQUESTS');
-    const now = this.#clock.now();
-    const who = { companyId: actor.companyId, actorUserId: actor.userId };
-    const claimed = await this.#transactions.claimReissue({ ...who, invitationId });
-    if ('refusal' in claimed) throw new ApiError(claimed.refusal);
-    let link: string;
-    try {
-      link = await this.#accounts.issueLink({
-        userId: claimed.userId,
-        companyId: actor.companyId,
-        redirectTo: this.#redirectTo,
-        lifetimeMs: this.#linkLifetimeMs,
-        now,
-      });
-    } catch (error) {
-      if (error instanceof MemberLinkRefusedError) {
-        throw new ApiError('MEMBER_INVITATION_NOT_REISSUEABLE');
+    return this.#serialize(`${actor.companyId}:${invitationId}`, async () => {
+      const now = this.#clock.now();
+      const who = { companyId: actor.companyId, actorUserId: actor.userId };
+      const claimed = await this.#transactions.claimReissue({ ...who, invitationId });
+      if ('refusal' in claimed) throw new ApiError(claimed.refusal);
+      let link: string;
+      try {
+        link = await this.#accounts.issueLink({
+          userId: claimed.userId,
+          companyId: actor.companyId,
+          redirectTo: this.#redirectTo,
+          lifetimeMs: this.#linkLifetimeMs,
+          now,
+        });
+      } catch (error) {
+        if (error instanceof MemberLinkRefusedError) {
+          throw new ApiError('MEMBER_INVITATION_NOT_REISSUEABLE');
+        }
+        throw error;
       }
-      throw error;
-    }
-    await this.#transactions.stampLink({
-      ...who,
-      invitationId,
-      at: now,
-      userId: claimed.userId,
-      link,
+      await this.#transactions.stampLink({
+        ...who,
+        invitationId,
+        at: now,
+        userId: claimed.userId,
+        link,
+      });
+      return { invitation_id: invitationId, set_password_link: link };
     });
-    return { invitation_id: invitationId, set_password_link: link };
   }
 }

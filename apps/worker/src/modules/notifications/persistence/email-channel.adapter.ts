@@ -35,6 +35,11 @@ export function createEmailChannelAdapter(
   };
   return {
     failure,
+    verify: async (attempt) => {
+      const onboarding = onboardingOf(attempt);
+      if (onboarding === null || verifyOnboarding === undefined) return true;
+      return verifyOnboarding(attempt, onboarding.payload);
+    },
     send: async (attempt) => {
       const code = failure(attempt);
       if (code !== null) return refusedResult(code);
@@ -48,12 +53,6 @@ export function createEmailChannelAdapter(
       const isOnboarding = isOnboardingTemplate(attempt.templateKey);
       const onboarding = onboardingOf(attempt);
       if (isOnboarding && onboarding === null) return refusedResult('PARAMETERS_INVALID');
-      if (
-        onboarding !== null &&
-        verifyOnboarding !== undefined &&
-        !(await verifyOnboarding(attempt, onboarding.payload))
-      )
-        return refusedResult('DESTINATION_INVALID');
       const result = await channel.send({
         email: onboarding?.email ?? attempt.email,
         locale: attempt.locale,

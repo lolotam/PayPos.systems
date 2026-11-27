@@ -180,7 +180,7 @@ function wrapGrantCommit(innerSteps: GrantEmployeeAccessSteps): GrantEmployeeAcc
             ...scope,
             recheck: async () => {
               const rechecked = await scope.recheck();
-              commitState.operationId = rechecked.record?.operationId ?? null;
+              commitState.operationId = rechecked.record?.attemptId ?? null;
               return rechecked;
             },
             appendEvent: async (payload) => {

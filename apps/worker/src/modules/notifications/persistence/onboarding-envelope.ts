@@ -71,15 +71,69 @@ export function unsealAttempt(
   );
 }
 
+/** يتحقق من سريان بريد ترحيب الموظفة: وجود الموظفة، تطابق بريد الاستعادة عند اللزوم، ومطابقة محاولة المنح السارية. */
+async function verifyStaffWelcomeFresh(
+  database: Pick<TenantWrappers, 'withTenant'>,
+  companyId: string,
+  payload: Extract<OnboardingEmailPayload, { kind: 'staff_welcome_pin' }>,
+  operationId: string,
+): Promise<boolean> {
+  if (payload.employeeId === undefined || payload.operationId !== operationId) return false;
+  const employeeId = payload.employeeId;
+  return database.withTenant(companyId, async (tx) => {
+    if (payload.recipient === 'employee') {
+      const [emp] = await tx.execute<{ recovery_email: string | null; deleted_at: unknown }>(sql`
+        SELECT recovery_email, deleted_at FROM employees
+        WHERE company_id = ${companyId}::uuid AND id = ${employeeId}::uuid`);
+      if (
+        emp === undefined ||
+        emp.deleted_at !== null ||
+        emp.recovery_email === null ||
+        emp.recovery_email.trim().toLowerCase() !== payload.email.trim().toLowerCase()
+      )
+        return false;
+    }
+    const [access] = await tx.execute<{ state: string; attempt_id: string }>(sql`
+      SELECT state, attempt_id::text AS attempt_id FROM employee_staff_access
+      WHERE company_id = ${companyId}::uuid AND employee_id = ${employeeId}::uuid`);
+    return access !== undefined && access.state === 'ACTIVE' && access.attempt_id === operationId;
+  });
+}
+
+/** يتحقق من سريان رابط دعوة العضو: الدعوة ما زالت معلقة وتاريخ إصدارها يطابق المظروف. */
+async function verifyMemberInvitationFresh(
+  database: Pick<TenantWrappers, 'withTenant'>,
+  companyId: string,
+  payload: Extract<OnboardingEmailPayload, { kind: 'member_invitation' }>,
+  operationId: string,
+): Promise<boolean> {
+  if (
+    payload.invitationId === undefined ||
+    payload.issuedAt === undefined ||
+    payload.invitationId !== operationId
+  )
+    return false;
+  const invitationId = payload.invitationId;
+  const issuedAt = payload.issuedAt;
+  return database.withTenant(companyId, async (tx) => {
+    const [inv] = await tx.execute<{ state: string; issued_match: boolean | null }>(sql`
+      SELECT state,
+        date_trunc('milliseconds', link_issued_at) = date_trunc('milliseconds', ${issuedAt}::timestamptz) AS issued_match
+      FROM member_invitations
+      WHERE company_id = ${companyId}::uuid AND id = ${invitationId}::uuid`);
+    return inv !== undefined && inv.state === 'PENDING' && inv.issued_match === true;
+  });
+}
+
 /**
- * يتأكد قبل الإرسال من حداثة الوجهة وحالة العملية: لا يُرسل PIN لعنوان استرجاع تم تعديله أو حذفه
- * ولا رابط دعوة أُبطِل بإعادة الإصدار.
+ * يتأكد قبل الإرسال من حداثة الوجهة وحالة العملية بإغلاق افتراضي: لا يُرسل PIN لعنوان استرجاع
+ * تم تعديله أو لمحاولة منح سابقة، ولا رابط دعوة أُبطِل بإعادة الإصدار أو بلا سجل سارٍ.
  *
  * @param database غلافات الشركة لقراءة الجداول تحت RLS
  * @param attempt المحاولة الجارية
  * @param payload الحمولة بعد فك التشفير
- * @param operationId هوية العملية المربوطة بالمظروف
- * @returns true لو الوجهة والعملية ما زالتا ساريتين
+ * @param operationId هوية المحاولة أو الدعوة المربوطة بالمظروف
+ * @returns true لو قاعدة البيانات والبيانات المرجعية موجودة وسارية
  */
 export async function verifyOnboardingRecipientFresh(
   database: Pick<TenantWrappers, 'withTenant'> | undefined,
@@ -87,49 +141,10 @@ export async function verifyOnboardingRecipientFresh(
   payload: OnboardingEmailPayload,
   operationId: string | null,
 ): Promise<boolean> {
-  if (database === undefined) return true;
-  if (payload.kind === 'staff_welcome_pin') {
-    if (payload.employeeId === undefined) return true;
-    const employeeId = payload.employeeId;
-    return database.withTenant(attempt.companyId, async (tx) => {
-      if (payload.recipient === 'employee') {
-        const [emp] = await tx.execute<{ recovery_email: string | null; deleted_at: unknown }>(sql`
-          SELECT recovery_email, deleted_at FROM employees
-          WHERE company_id = ${attempt.companyId}::uuid AND id = ${employeeId}::uuid`);
-        if (emp !== undefined) {
-          if (
-            emp.deleted_at !== null ||
-            emp.recovery_email === null ||
-            emp.recovery_email.trim().toLowerCase() !== payload.email.trim().toLowerCase()
-          )
-            return false;
-        }
-      }
-      if (operationId !== null) {
-        const [access] = await tx.execute<{ state: string; operation_id: string }>(sql`
-          SELECT state, operation_id::text AS operation_id FROM employee_staff_access
-          WHERE company_id = ${attempt.companyId}::uuid AND employee_id = ${employeeId}::uuid`);
-        if (
-          access !== undefined &&
-          (access.state !== 'ACTIVE' || access.operation_id !== operationId)
-        )
-          return false;
-      }
-      return true;
-    });
-  }
-  if (payload.invitationId === undefined || payload.issuedAt === undefined) return true;
-  const invitationId = payload.invitationId;
-  const issuedAt = payload.issuedAt;
-  return database.withTenant(attempt.companyId, async (tx) => {
-    const [inv] = await tx.execute<{ state: string; issued_match: boolean | null }>(sql`
-      SELECT state,
-        date_trunc('milliseconds', link_issued_at) = date_trunc('milliseconds', ${issuedAt}::timestamptz) AS issued_match
-      FROM member_invitations
-      WHERE company_id = ${attempt.companyId}::uuid AND id = ${invitationId}::uuid`);
-    if (inv === undefined) return true;
-    return inv.state === 'PENDING' && inv.issued_match === true;
-  });
+  if (database === undefined || operationId === null) return false;
+  return payload.kind === 'staff_welcome_pin'
+    ? verifyStaffWelcomeFresh(database, attempt.companyId, payload, operationId)
+    : verifyMemberInvitationFresh(database, attempt.companyId, payload, operationId);
 }
 
 /**

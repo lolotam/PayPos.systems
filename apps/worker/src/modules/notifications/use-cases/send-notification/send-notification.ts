@@ -30,6 +30,10 @@ export class SendNotification {
       await this.reject(attempt, refusal);
       return;
     }
+    if (this.configuration.verify !== undefined && !(await this.configuration.verify(attempt))) {
+      await this.reject(attempt, refusedResult('DESTINATION_INVALID'));
+      return;
+    }
     if (!(await this.admission.reserve(attempt.identity.hash, attempt.deadline))) {
       await this.reject(
         attempt,
