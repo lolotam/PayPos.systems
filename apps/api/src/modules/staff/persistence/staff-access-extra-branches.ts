@@ -233,16 +233,22 @@ async function attachEmployeeBranch(
   audit: AuditTrail,
 ): Promise<void> {
   const grantDate = await grantDateInBranchTimeZone(tx, context, branchId);
-  const existing = await tx.execute(sql`SELECT 1 FROM employee_branches
+  const covering = await tx.execute(sql`SELECT 1 FROM employee_branches
     WHERE company_id=${context.companyId} AND employee_id=${context.employeeId} AND branch_id=${branchId}
-      AND daterange("from","to",'[)') && daterange(${grantDate}::date, NULL, '[)')
+      AND "from"<=${grantDate}::date AND ("to" IS NULL OR "to">${grantDate}::date)
     LIMIT 1 FOR UPDATE`);
-  if (existing.length !== 0) return;
+  if (covering.length !== 0) return;
+  const [future] = await tx.execute<{ next_from: string }>(sql`
+    SELECT to_char("from",'YYYY-MM-DD') AS next_from FROM employee_branches
+    WHERE company_id=${context.companyId} AND employee_id=${context.employeeId} AND branch_id=${branchId}
+      AND "from">${grantDate}::date
+    ORDER BY "from" ASC LIMIT 1 FOR UPDATE`);
+  const toDate = future?.next_from ?? null;
   const attachmentId = context.ids.newId();
   await tx.execute(sql`INSERT INTO employee_branches
-    (company_id,id,business_id,employee_id,branch_id,"from")
+    (company_id,id,business_id,employee_id,branch_id,"from","to")
     VALUES (${context.companyId},${attachmentId},${context.businessId},${context.employeeId},${branchId},
-      ${grantDate}::date)`);
+      ${grantDate}::date,${toDate}::date)`);
   await audit.record({
     entity: 'employee_branch',
     entityId: attachmentId,
@@ -251,6 +257,7 @@ async function attachEmployeeBranch(
       employee_id: context.employeeId,
       branch_id: branchId,
       from: grantDate,
+      ...(toDate === null ? {} : { to: toDate }),
       source: 'staff_access_grant',
     },
   });

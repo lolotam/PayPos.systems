@@ -15,7 +15,7 @@ import { systemRoleId } from './staff-user-auth.ts';
  * ولا تُنسخ أبداً (AC-F3-3). عضوية قديمة غير فعّالة تفشل الدالة فتتراجع معاملة تعديل الموظفة كلها.
  *
  * @param tx    معاملة الشركة التي فتحها use case تعديل الموظفة
- * @param input الشركة والعضوية القديمة وصاحبها والفرع الجديد ودور الدخول ومولّد المعرّفات ولحظة اختيارية
+ * @param input الشركة والعضوية القديمة وصاحبها والفرع الجديد ودور الدخول ومولّد المعرّفات ولحظة اختيارية وعضوية الفرع المدمج
  * @returns معرّف العضوية الجديدة
  */
 export async function moveStaffMembershipToBranch(
@@ -28,6 +28,8 @@ export async function moveStaffMembershipToBranch(
     role: StaffAccessRole;
     ids: IdGenerator;
     at?: Date;
+    /** عضوية الفرع الإضافي المدمج عند نقله للأساسي — تنقل استثناءاتها للعضوية الجديدة (080-b). */
+    mergedMembershipId?: string | undefined;
   },
 ): Promise<{ membershipId: string }> {
   const at =
@@ -43,6 +45,9 @@ export async function moveStaffMembershipToBranch(
     (company_id,id,user_id,employee_id,role_id,role_owner_key,scope_type,scope_id,ends_at)
     VALUES (${input.companyId},${membershipId},${input.userId},NULL,
       ${systemRoleId(staffAccessSystemRole(input.role))}::uuid,'global','BRANCH',${input.branchId},NULL)`);
+  if (input.mergedMembershipId !== undefined)
+    await tx.execute(sql`UPDATE permission_overrides SET membership_id=${membershipId}
+      WHERE company_id=${input.companyId} AND membership_id=${input.mergedMembershipId}`);
   const { audit } = transactionWriters(tx, input.ids);
   await audit.record({
     entity: 'membership',

@@ -7,7 +7,7 @@ import {
 } from '../domain/permission-edit.ts';
 import { overrideLifecycleFailure } from '../domain/permission-override-lifecycle.ts';
 import { StaffUserRefused } from '../domain/staff-access-errors.ts';
-import { permissionEditorContext } from './permission-editor-context.ts';
+import { permissionEditorBatch } from './permission-editor-context.ts';
 import { currentOverrides, writeOverride } from './permission-override-writer.ts';
 
 /** عضوية موظفة على فرع، مع دورها — مرشحة لكتابة استثناء الصلاحية عليها. */
@@ -43,8 +43,12 @@ export async function applyStaffAccessOverrides(
     readonly overrides: readonly OverrideTerms[];
   },
 ): Promise<void> {
+  if (input.overrides.length === 0) return;
+  const seed = input.memberships[0];
+  if (seed === undefined) throw new StaffUserRefused('STAFF_ACCESS_OVERRIDE_REFUSED');
+  const batch = await permissionEditorBatch(tx, input.companyId, input.actorUserId, seed.membershipId);
   for (const terms of input.overrides) {
-    await applyOverride(tx, ids, input, terms);
+    await applyOverride(tx, ids, input, batch, terms);
   }
 }
 
@@ -83,16 +87,11 @@ async function applyOverride(
     readonly actorUserId: string;
     readonly memberships: readonly StaffAccessMembershipCandidate[];
   },
+  batch: Awaited<ReturnType<typeof permissionEditorBatch>>,
   terms: OverrideTerms,
 ): Promise<void> {
   for (const candidate of orderedCandidates(input.memberships, terms)) {
-    const context = await permissionEditorContext(
-      tx,
-      input.companyId,
-      input.actorUserId,
-      candidate.membershipId,
-      terms,
-    );
+    const context = await batch.forCandidate(candidate.membershipId, terms);
     const failure = permissionEditFailure(terms, context, 'SAVE');
     if (failure !== null) continue;
     const previous = await currentOverrides(

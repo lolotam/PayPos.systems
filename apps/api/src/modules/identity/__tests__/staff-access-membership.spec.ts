@@ -9,8 +9,11 @@ import {
   grant,
   nextPhone,
 } from '../../../../test/staff-access.fixture.ts';
+import { evaluateAccess } from '../domain/access.ts';
+import { readAccessTransaction } from '../persistence/access-reader.ts';
 import { createOnboardingTransactions } from '../persistence/onboarding-transactions.ts';
-import { grantStaffMembership } from '../persistence/staff-user-auth.ts';
+import { moveStaffMembershipToBranch } from '../persistence/staff-membership-move.ts';
+import { endExtraStaffMembership, grantStaffMembership } from '../persistence/staff-user-auth.ts';
 import { OnboardCompany } from '../use-cases/onboard-company/onboard-company.ts';
 import { tenancyCompanyRegistry } from '../persistence/tenancy-company-registry.adapter.ts';
 import { staffAccessRecordQuery } from '../persistence/staff-access.ts';
@@ -104,4 +107,62 @@ it('P2-1 state query uses its employee index on representative rows and returns 
     const plan = explained[0]?.['QUERY PLAN'] as { 'Execution Time': number }[];
     expect(plan[0]?.['Execution Time']).toBeLessThan(200);
   });
+});
+
+it('080-b moving primary branch onto an extra branch preserves active DENY overrides in evaluation', async () => {
+  const employee = await addEmployee(f, 'Move keep deny', f.salmiya, 504);
+  expect(
+    (
+      await grant(f, employee, nextPhone(f), f.ownerCookie, {
+        role: 'reception',
+        additional_branches: [{ branch_id: f.hawalli, role: 'reception' }],
+        permission_overrides: [
+          {
+            permission_code: 'create:customers:branch',
+            effect: 'DENY',
+            scope_type: 'BRANCH',
+            scope_id: f.hawalli,
+            reason: 'block customer creation on hawalli across primary transfer',
+            expires_at: null,
+          },
+        ],
+      })
+    ).status,
+  ).toBe(200);
+  const [record] = await f.h
+    .owner`SELECT id, user_id, membership_id FROM employee_staff_access WHERE employee_id=${employee}`;
+  const [extra] = await f.h
+    .owner`SELECT membership_id FROM employee_staff_access_branches WHERE access_id=${record?.id}`;
+  const userId = record?.user_id as string;
+  const oldPrimary = record?.membership_id as string;
+  const mergedExtra = extra?.membership_id as string;
+  const canCreate = (branchId: string) =>
+    f.db.withTenant(f.company, async (tx) => {
+      const access = await readAccessTransaction(tx, f.company, userId);
+      return evaluateAccess(access.grants, 'create:customers:branch', {
+        companyId: f.company,
+        businessId: f.business,
+        branchId,
+      });
+    });
+  expect(await canCreate(f.salmiya)).toBe(true);
+  expect(await canCreate(f.hawalli)).toBe(false);
+  await f.db.withTenant(f.company, async (tx) => {
+    await endExtraStaffMembership(tx, {
+      companyId: f.company,
+      membershipId: mergedExtra,
+      userId,
+      ids,
+    });
+    await moveStaffMembershipToBranch(tx, {
+      companyId: f.company,
+      oldMembershipId: oldPrimary,
+      userId,
+      branchId: f.hawalli,
+      role: 'reception',
+      ids,
+      mergedMembershipId: mergedExtra,
+    });
+  });
+  expect(await canCreate(f.hawalli)).toBe(false);
 });

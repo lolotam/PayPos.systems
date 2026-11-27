@@ -58,6 +58,7 @@ export async function followPrimaryBranch(
     branchId: input.branchId,
     role: access.role_code,
     ids: input.ids,
+    ...(dropped?.membershipId === undefined ? {} : { mergedMembershipId: dropped.membershipId }),
   });
   await tx.execute(sql`UPDATE employee_staff_access
     SET branch_id=${input.branchId},membership_id=${moved.membershipId},updated_at=now()

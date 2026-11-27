@@ -14,7 +14,7 @@ import type {
   MemberInvitationRefusal,
 } from '../ports/member-invitations.port.ts';
 import { toRow, type InvitationRecord } from './member-invitation-records.ts';
-import { permissionEditorContext } from './permission-editor-context.ts';
+import { permissionEditorBatch } from './permission-editor-context.ts';
 import {
   currentOverrides,
   writeOverride,
@@ -96,8 +96,17 @@ export async function applyInvitationOverrides(
   input: CompleteInvitationInput,
   memberships: readonly InvitedMembership[],
 ): Promise<void> {
+  if (input.permissionOverrides.length === 0) return;
+  const primary = memberships[0];
+  if (primary === undefined) throw new InvitationRefusedError('PERMISSION_NOT_HELD');
+  const batch = await permissionEditorBatch(
+    tx,
+    input.companyId,
+    input.actorUserId,
+    primary.membershipId,
+  );
   for (const terms of input.permissionOverrides) {
-    await applyOverride(tx, ids, input, memberships, terms);
+    await applyOverride(tx, ids, input, memberships, batch, terms);
   }
 }
 
@@ -125,18 +134,13 @@ async function applyOverride(
   ids: IdGenerator,
   input: CompleteInvitationInput,
   memberships: readonly InvitedMembership[],
+  batch: Awaited<ReturnType<typeof permissionEditorBatch>>,
   terms: OverrideTerms,
 ): Promise<void> {
   const primary = memberships[0];
   let primaryRefusal: MemberInvitationRefusal | null = null;
   for (const candidate of orderedCandidates(memberships, terms)) {
-    const context = await permissionEditorContext(
-      tx,
-      input.companyId,
-      input.actorUserId,
-      candidate.membershipId,
-      terms,
-    );
+    const context = await batch.forCandidate(candidate.membershipId, terms);
     const failure = permissionEditFailure(terms, context, 'SAVE');
     if (failure === null) {
       const previous = await currentOverrides(
