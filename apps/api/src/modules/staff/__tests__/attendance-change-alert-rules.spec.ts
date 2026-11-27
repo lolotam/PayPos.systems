@@ -41,9 +41,14 @@ const recipients = async (id: string, eventType: string) =>
     .flatMap((event) =>
       (event['payload'].notification_recipients ?? []).map((r: { user_id: string }) => r.user_id),
     );
-const saveRule = async (kind: string, enabled: boolean, branchId: string | null = null) => {
+const saveRule = async (
+  kind: string,
+  enabled: boolean,
+  branchId: string | null = null,
+  withChannel = true,
+) => {
   await f.h.owner`INSERT INTO alert_rules (company_id,id,business_id,branch_id,kind,enabled,recipient_roles,channels,delay_minutes,lead_minutes,updated_by,revision)
-    VALUES (${f.company},${leaveIds.newId()},${f.business},${branchId},${kind},${enabled},ARRAY[]::text[],ARRAY['IN_APP']::text[],NULL,NULL,${f.owner},1)`;
+    VALUES (${f.company},${leaveIds.newId()},${f.business},${branchId},${kind},${enabled},ARRAY[]::text[],${withChannel ? ['IN_APP'] : ([] as string[])},NULL,NULL,${f.owner},1)`;
 };
 const clearRules = () =>
   f.h.owner`DELETE FROM alert_rules WHERE company_id=${f.company} AND business_id=${f.business}`;
@@ -95,6 +100,19 @@ it('62-2b: a switched-off kind writes no outbox row at all (#457)', async () => 
   try {
     const request = await file();
     expect(await outbox(request.id)).toEqual([]);
+  } finally {
+    await clearRules();
+  }
+});
+
+it('62-2b: an enabled kind with no channels keeps the fact event without notification_recipients', async () => {
+  await saveRule('ATTENDANCE_CHANGE_REQUESTED', true, null, false);
+  try {
+    const request = await file();
+    const rows = await outbox(request.id);
+    expect(rows).toMatchObject([{ event_type: 'AttendanceChangeRequested' }]);
+    expect(rows[0]?.['payload']).toMatchObject({ request_id: request.id, kind: 'ADD_SESSION' });
+    expect(rows[0]?.['payload']).not.toHaveProperty('notification_recipients');
   } finally {
     await clearRules();
   }

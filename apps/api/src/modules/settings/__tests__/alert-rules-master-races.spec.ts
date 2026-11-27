@@ -2,6 +2,8 @@ import { businessSettings } from '@pospay/contracts';
 import { afterAll, beforeAll, expect, it } from 'vitest';
 
 import { permissionFixture, type PermissionFixture } from '../../../../test/permissions-fixture.ts';
+import { createAlertRulesTransactions } from '../persistence/alert-rules-store.ts';
+import { SetAlertsMaster } from '../use-cases/set-alerts-master/set-alerts-master.ts';
 
 let f: PermissionFixture;
 beforeAll(async () => {
@@ -110,5 +112,27 @@ it('issue #480: switching the master off creates the row once, invalidates the c
   expect(again.status).toBe(200);
   const [same] = await settingsRow(business);
   expect(same?.['updated_at']).toEqual(stamped);
+  expect(await masterAudits(business)).toHaveLength(1);
+});
+
+it('issue #480: invalidates the settings cache again on a same-value retry when the first cache write throws', async () => {
+  const business = await freshBusiness();
+  let calls = 0;
+  const useCase = new SetAlertsMaster(createAlertRulesTransactions(f.db, f.ids), {
+    invalidate: async () => {
+      calls += 1;
+      if (calls === 1) throw new Error('redis down');
+    },
+  });
+  const actor = { companyId: f.company, userId: f.userId };
+  await expect(useCase.execute(actor, business, false)).rejects.toThrow('redis down');
+  const [created] = await settingsRow(business);
+  expect(created?.['updated_at']).not.toBeNull();
+  expect(await masterAudits(business)).toHaveLength(1);
+
+  await useCase.execute(actor, business, false);
+  expect(calls).toBe(2);
+  const [same] = await settingsRow(business);
+  expect(same?.['updated_at']).toEqual(created?.['updated_at']);
   expect(await masterAudits(business)).toHaveLength(1);
 });

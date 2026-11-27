@@ -35,8 +35,8 @@ export class SetAlertsMaster {
       }
       return alertRulesView(target, await scope.snapshot(target));
     });
-    // الإبطال بعد الـ commit بس لما المفتاح اتغيّر فعلاً: القراءة المخزنة لازم تشوف القيمة الجديدة.
-    if (changed) await this.cache?.invalidate(actor.companyId, businessId);
+    // الإبطال بعد كل طلب نجح حتى لو القيمة ما تغيّرتش: إعادة المحاولة بعد سقوط Redis لازم تمسح الجيل القديم.
+    await this.cache?.invalidate(actor.companyId, businessId);
     return view;
   }
 }

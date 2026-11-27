@@ -21,15 +21,28 @@ const settings = (change: Partial<AlertRuleSettings> = {}): AlertRuleSettings =>
   ...change,
 });
 
-const NOTHING: AttendanceChangeAlertPlan = { fixed: false, channels: [], roles: [] };
-const FIXED: AttendanceChangeAlertPlan = { fixed: true, channels: ['IN_APP'], roles: [] };
-const NO_FIXED: AttendanceChangeAlertPlan = { fixed: false, channels: ['IN_APP'], roles: [] };
+const CLOSED: AttendanceChangeAlertPlan = { enabled: false, fixed: false, channels: [], roles: [] };
+const QUIET: AttendanceChangeAlertPlan = { enabled: true, fixed: false, channels: [], roles: [] };
+const FIXED: AttendanceChangeAlertPlan = {
+  enabled: true,
+  fixed: true,
+  channels: ['IN_APP'],
+  roles: [],
+};
+const NO_FIXED: AttendanceChangeAlertPlan = {
+  enabled: true,
+  fixed: false,
+  channels: ['IN_APP'],
+  roles: [],
+};
 const FIXED_WITH_ROLE: AttendanceChangeAlertPlan = {
+  enabled: true,
   fixed: true,
   channels: ['IN_APP'],
   roles: ['owner'],
 };
 const ROLES_ONLY: AttendanceChangeAlertPlan = {
+  enabled: true,
   fixed: false,
   channels: ['IN_APP'],
   roles: ['branch_manager'],
@@ -46,37 +59,37 @@ const cases: [string, EffectiveAlertRule, AttendanceChangeAlertKind, AttendanceC
     'a switched-off kind',
     effectiveAlertRule('ATTENDANCE_CHANGE_REQUESTED', settings({ enabled: false }), null, null),
     'ATTENDANCE_CHANGE_REQUESTED',
-    NOTHING,
+    CLOSED,
   ],
   [
     'the master switch off',
     effectiveAlertRule('ATTENDANCE_CHANGE_REQUESTED', null, null, false),
     'ATTENDANCE_CHANGE_REQUESTED',
-    NOTHING,
+    CLOSED,
   ],
   [
     'the master switch off on the decision kind',
     effectiveAlertRule('ATTENDANCE_CHANGE_DECIDED', null, null, false),
     'ATTENDANCE_CHANGE_DECIDED',
-    NOTHING,
+    CLOSED,
   ],
   [
     'a kind with no channel',
     effectiveAlertRule('ATTENDANCE_CHANGE_REQUESTED', settings({ channels: [] }), null, null),
     'ATTENDANCE_CHANGE_REQUESTED',
-    NOTHING,
+    QUIET,
   ],
   [
     'a kind with no channel on the decision kind',
     effectiveAlertRule('ATTENDANCE_CHANGE_DECIDED', settings({ channels: [] }), null, null),
     'ATTENDANCE_CHANGE_DECIDED',
-    NOTHING,
+    QUIET,
   ],
   [
     'an email-only rule keeps the fixed recipient (62b-1)',
     effectiveAlertRule('ATTENDANCE_CHANGE_REQUESTED', settings({ channels: ['EMAIL'] }), null, null),
     'ATTENDANCE_CHANGE_REQUESTED',
-    { fixed: true, channels: ['EMAIL'], roles: [] },
+    { enabled: true, fixed: true, channels: ['EMAIL'], roles: [] },
   ],
   [
     'a WhatsApp rule on the decision kind keeps the requester recipient (62b-1)',
@@ -87,7 +100,7 @@ const cases: [string, EffectiveAlertRule, AttendanceChangeAlertKind, AttendanceC
       null,
     ),
     'ATTENDANCE_CHANGE_DECIDED',
-    { fixed: true, channels: ['IN_APP', 'WHATSAPP'], roles: [] },
+    { enabled: true, fixed: true, channels: ['IN_APP', 'WHATSAPP'], roles: [] },
   ],
   [
     'a rule without the selector the request kind needs',
@@ -127,7 +140,7 @@ const cases: [string, EffectiveAlertRule, AttendanceChangeAlertKind, AttendanceC
       null,
     ),
     'ATTENDANCE_CHANGE_REQUESTED',
-    NOTHING,
+    CLOSED,
   ],
   [
     'roles on a kind with no channel',
@@ -138,7 +151,7 @@ const cases: [string, EffectiveAlertRule, AttendanceChangeAlertKind, AttendanceC
       null,
     ),
     'ATTENDANCE_CHANGE_REQUESTED',
-    NOTHING,
+    QUIET,
   ],
 ];
 
@@ -155,7 +168,7 @@ it('a closed rule carries no fixed recipients and no channel', () => {
     channels: [],
     fixedRecipients: [],
   });
-  expect(attendanceChangeAlertPlan(closed, 'ATTENDANCE_CHANGE_REQUESTED')).toEqual(NOTHING);
+  expect(attendanceChangeAlertPlan(closed, 'ATTENDANCE_CHANGE_REQUESTED')).toEqual(CLOSED);
 });
 
 it('the default rules of both kinds read no roles', () => {
