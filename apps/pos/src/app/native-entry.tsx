@@ -50,7 +50,6 @@ export function NativeEntry() {
       <EmployeeFlow
         business={state.business}
         businessUnreadable={state.businessUnreadable === true}
-        mustClearLeftoverSession={state.mustClearLeftoverSession === true}
         pending={state.pending ?? null}
         busy={busy}
         connect={connect}

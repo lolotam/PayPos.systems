@@ -38,8 +38,6 @@ export type NativeState =
       business: PersonalWorkspace | null;
       /** قراءة النشاط المتذكر فشلت: ما نعرفش النشاط ولا نمسح الجلسة الحية. */
       businessUnreadable?: boolean;
-      /** أول ربط على جهاز من غير نشاط متذكر: يمنع تبنّي جلسة قديمة لنفس النشاط قبل تسجيل دخول جديد. */
-      mustClearLeftoverSession?: boolean;
       pending?: PersonalWorkspace;
       alert?: FlowAlert;
     };
@@ -126,16 +124,24 @@ export async function stateAfterLink(
   if (role === null) {
     // من غير نت مفيش حاجة تتحفظ: اللينك بيرفض زي باقي أول تشغيل (FR-012).
     if (!navigator.onLine) return { kind: 'start', business: null, alert: 'needsInternet' };
+    // أي جلسة شخصية فاضلة لازم تخلص بتأكيد السيرفر قبل ما نحفظ الدور والنشاط لأول ربط (FR-012).
+    if ((await endPersonalSessionWithTimeout()) === 'failed') {
+      return { kind: 'start', business: null, alert: 'saveFailed' };
+    }
     await connectEmployee(workspace);
-    return { kind: 'flow', role: 'employee', business: workspace, mustClearLeftoverSession: true };
+    return { kind: 'flow', role: 'employee', business: workspace };
   }
   if (business === null) {
     // من غير نت مفيش حاجة تتحفظ: الموظفة ما بتتربطش بنشاط من غير نت (FR-012).
     if (!navigator.onLine) {
       return { kind: 'flow', role: 'employee', business: null, alert: 'needsInternet' };
     }
+    // من غير نشاط متذكر، أي جلسة فاضلة بتتخرج قبل حفظ النشاط الجديد عشان ما تتورثش (FR-012).
+    if ((await endPersonalSessionWithTimeout()) === 'failed') {
+      return { kind: 'flow', role: 'employee', business: null, alert: 'roleChangeFailed' };
+    }
     await rememberBusiness(workspace);
-    return { kind: 'flow', role: 'employee', business: workspace, mustClearLeftoverSession: true };
+    return { kind: 'flow', role: 'employee', business: workspace };
   }
   const same =
     business.company_id === workspace.company_id && business.business_id === workspace.business_id;
@@ -160,15 +166,11 @@ export function stateAfterFailure(
   current: NativeState,
   role: DeviceRole | null,
   business: PersonalWorkspace | null,
-  businessUnreadable?: boolean,
+  businessUnreadable = false,
 ): NativeState {
   if (current.kind === 'flow') {
-    const nextBusiness =
-      businessUnreadable === true ? current.business : (business ?? current.business);
-    const stillUnreadable =
-      nextBusiness === null &&
-      (businessUnreadable === true ||
-        (businessUnreadable === undefined && current.businessUnreadable === true));
+    const nextBusiness = businessUnreadable ? (current.business ?? business) : business;
+    const stillUnreadable = businessUnreadable && nextBusiness === null;
     const rest = { ...current };
     delete rest.businessUnreadable;
     return {
@@ -217,7 +219,7 @@ export async function resolveLink(
       kind: 'failed',
       role,
       business,
-      ...(businessUnreadable ? { businessUnreadable: true } : {}),
+      businessUnreadable,
     };
   }
   try {
@@ -229,7 +231,7 @@ export async function resolveLink(
           : await stateAfterLink(role, business, workspace),
     };
   } catch {
-    return { kind: 'failed', role, business };
+    return { kind: 'failed', role, business, businessUnreadable: false };
   }
 }
 
@@ -241,21 +243,7 @@ export async function resolveLink(
  * @returns حالة الشاشة بعد اللينك
  */
 export function stateFromLink(current: NativeState, outcome: LinkOutcome): NativeState {
-  if (outcome.kind === 'state') {
-    if (
-      current.kind === 'flow' &&
-      current.mustClearLeftoverSession === true &&
-      outcome.state.kind === 'flow' &&
-      outcome.state.role === 'employee' &&
-      current.business !== null &&
-      outcome.state.business !== null &&
-      current.business.company_id === outcome.state.business.company_id &&
-      current.business.business_id === outcome.state.business.business_id
-    ) {
-      return { ...outcome.state, mustClearLeftoverSession: true };
-    }
-    return outcome.state;
-  }
+  if (outcome.kind === 'state') return outcome.state;
   return stateAfterFailure(current, outcome.role, outcome.business, outcome.businessUnreadable);
 }
 

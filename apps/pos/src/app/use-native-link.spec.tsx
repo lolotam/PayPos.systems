@@ -239,3 +239,39 @@ describe('useNativeLink rejected warm links and late launch reads', () => {
     expect(window.sessionStorage.getItem('pospay.native.launchUrl')).not.toBeNull();
   });
 });
+
+describe('useNativeLink deferred cold link retirement', () => {
+  it('keeps a superseded late launch link unconsumed when the warm link fails offline', async () => {
+    let online = false;
+    vi.spyOn(window.navigator, 'onLine', 'get').mockImplementation(() => online);
+    let releaseLaunch!: (value: { url?: string }) => void;
+    app.getLaunchUrl.mockImplementation(
+      () =>
+        new Promise<{ url?: string }>((resolve) => {
+          releaseLaunch = resolve;
+        }),
+    );
+    const firstMount = mountStrict();
+    await vi.waitFor(() => expect(app.opened).not.toBeNull());
+
+    await act(async () => {
+      app.opened?.({ url: OTHER_LAUNCH_URL });
+    });
+    const alert = await screen.findByRole('alert');
+    expect(alert.textContent).toContain(t('ar', 'nativeShell.needsInternet'));
+
+    await act(async () => {
+      releaseLaunch({ url: LAUNCH_URL });
+      await Promise.resolve();
+    });
+    expect(window.sessionStorage.getItem('pospay.native.launchUrl')).toBeNull();
+
+    firstMount.unmount();
+    online = true;
+    app.getLaunchUrl.mockResolvedValue({ url: LAUNCH_URL });
+    mountStrict();
+
+    expect(await screen.findByText(`${COMPANY} ${BUSINESS}`)).not.toBeNull();
+    expect(window.sessionStorage.getItem('pospay.native.launchUrl')).not.toBeNull();
+  });
+});

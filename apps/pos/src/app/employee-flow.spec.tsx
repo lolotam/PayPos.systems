@@ -41,9 +41,9 @@ const SESSION = {
   expires_at: '2026-10-24T10:00:00.000Z',
 };
 
-function sessionState(session: typeof SESSION | null, epoch = 0) {
+function sessionState(session: typeof SESSION | null) {
   return {
-    epoch,
+    epoch: 0,
     online: true,
     loading: false,
     confirmedNoSession: session === null,
@@ -53,16 +53,11 @@ function sessionState(session: typeof SESSION | null, epoch = 0) {
   };
 }
 
-function flow(
-  business: PersonalWorkspace | null = REMEMBERED,
-  businessUnreadable = false,
-  mustClearLeftoverSession = false,
-) {
+function flow(business: PersonalWorkspace | null = REMEMBERED, businessUnreadable = false) {
   return (
     <EmployeeFlow
       business={business}
       businessUnreadable={businessUnreadable}
-      mustClearLeftoverSession={mustClearLeftoverSession}
       pending={null}
       busy={false}
       connect={<p>connect</p>}
@@ -72,14 +67,10 @@ function flow(
   );
 }
 
-function mount(
-  business: PersonalWorkspace | null = REMEMBERED,
-  businessUnreadable = false,
-  mustClearLeftoverSession = false,
-) {
+function mount(business: PersonalWorkspace | null = REMEMBERED, businessUnreadable = false) {
   return render(
     <LocaleProvider locale="ar" setLocale={() => undefined}>
-      {flow(business, businessUnreadable, mustClearLeftoverSession)}
+      {flow(business, businessUnreadable)}
     </LocaleProvider>,
   );
 }
@@ -244,29 +235,7 @@ describe('EmployeeFlow without a remembered business', () => {
   });
 });
 
-describe('EmployeeFlow first link and foreign sign-out abort', () => {
-  it('signs out a leftover same-business session after connecting without a remembered business, then opens after fresh sign-in', async () => {
-    vi.mocked(usePersonalSession).mockReturnValue(
-      sessionState({ ...SESSION, business_id: BUSINESS }, 0),
-    );
-    const view = mount(REMEMBERED, false, true);
-
-    expect(await screen.findByRole('status')).not.toBeNull();
-    expect(screen.queryByText(`session screen ${SESSION.employee_id}`)).toBeNull();
-    expect(endPersonalSession).toHaveBeenCalledTimes(1);
-
-    vi.mocked(usePersonalSession).mockReturnValue(
-      sessionState({ ...SESSION, business_id: BUSINESS }, 1),
-    );
-    view.rerender(
-      <LocaleProvider locale="ar" setLocale={() => undefined}>
-        {flow(REMEMBERED, false, true)}
-      </LocaleProvider>,
-    );
-
-    expect(await screen.findByText(`session screen ${SESSION.employee_id}`)).not.toBeNull();
-  });
-
+describe('EmployeeFlow foreign sign-out abort', () => {
   it('aborts an in-flight foreign sign-out request when the wait timer expires', () => {
     vi.useFakeTimers();
     let received: AbortSignal | undefined;

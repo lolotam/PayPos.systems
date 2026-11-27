@@ -24,7 +24,6 @@ interface PersonalScreenProps {
   locked?: boolean;
   sessionGate?: (
     session: NonNullable<ReturnType<typeof usePersonalSession>['session']>,
-    epoch: number,
   ) => ReactNode | null;
 }
 
@@ -53,7 +52,7 @@ export function PersonalScreen({
         ) : state.loading ? (
           <p role="status">{t(locale, 'personalStaff.loading')}</p>
         ) : state.session ? (
-          (sessionGate?.(state.session, state.epoch) ?? (
+          (sessionGate?.(state.session) ?? (
             <>
               <EnrolPasskeyScreen
                 key={`${state.epoch}:${state.session.employee_id}`}

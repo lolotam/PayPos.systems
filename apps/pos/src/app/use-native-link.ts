@@ -35,6 +35,17 @@ async function readStartupShell() {
   };
 }
 
+interface WarmLinkState {
+  superseded: boolean;
+  handled: boolean;
+  deferredColdLink: string | null;
+}
+
+function handleLateColdLink(link: string, warmState: WarmLinkState): void {
+  if (warmState.handled) markLaunchLinkHandled(link);
+  else warmState.deferredColdLink = link;
+}
+
 /**
  * بيقرا حالة الجهاز أول ما التطبيق يفتح، وبيسمع للينكات اللي بتتفتح والتطبيق شغال.
  *
@@ -55,16 +66,20 @@ export function useNativeLink(
   ) => void,
   onLink: (workspace: PersonalWorkspace | null, fallback?: KnownShellState) => Promise<boolean>,
 ): void {
-  // لو لينك دافي صالح وصل وقراءة التشغيل البارد لسه ما خلصتش، اللينك البارد المتأخر ما يغلبش الأحدث.
-  const supersededLaunch = useRef(false);
+  // لو لينك دافي صالح وصل وقراءة التشغيل البارد لسه ما خلصتش، بنمنع اللينك البارد المتأخر من غير ما نقفله لو الدافي فشل.
+  const warmState = useRef<WarmLinkState>({
+    superseded: false,
+    handled: false,
+    deferredColdLink: null,
+  });
 
   useEffect(() => {
     let cancelled = false;
     const start = async () => {
       const { role, business, businessUnreadable, storageFailed, link } = await readStartupShell();
       if (cancelled) return;
-      if (link !== null && supersededLaunch.current) {
-        markLaunchLinkHandled(link);
+      if (link !== null && warmState.current.superseded) {
+        handleLateColdLink(link, warmState.current);
         return;
       }
       if (link === null) {
@@ -89,8 +104,15 @@ export function useNativeLink(
     () =>
       onLinkOpened((raw) => {
         const parsed = readManagerLink(raw);
-        if (parsed !== null) supersededLaunch.current = true;
-        void onLink(parsed);
+        if (parsed !== null) warmState.current.superseded = true;
+        void onLink(parsed).then((handled) => {
+          if (parsed === null || !handled) return;
+          warmState.current.handled = true;
+          if (warmState.current.deferredColdLink !== null) {
+            markLaunchLinkHandled(warmState.current.deferredColdLink);
+            warmState.current.deferredColdLink = null;
+          }
+        });
       }),
     [onLink],
   );

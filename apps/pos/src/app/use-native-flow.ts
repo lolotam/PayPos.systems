@@ -59,7 +59,7 @@ export function useNativeFlow(): NativeFlow {
     setState(value);
   }, []);
   const onError = useCallback(() => {
-    apply(stateAfterFailure(latest.current, null, null));
+    apply(stateAfterFailure(latest.current, null, null, true));
   }, [apply]);
   const { busy, queue } = useStepQueue(onError);
 
@@ -173,19 +173,21 @@ function runQueuedLink(
           outcome.kind === 'state' &&
           outcome.state.kind === 'flow' &&
           outcome.state.pending !== undefined;
-        // الفشل المؤقت زي انقطاع النت أو انتظار تأكيد التبديل ما بيقفلش اللينك.
-        const settled =
-          outcome.kind === 'state' &&
-          outcome.state.kind !== 'loading' &&
-          outcome.state.alert !== 'needsInternet' &&
-          !hasPendingSwitch;
+        // الفشل المؤقت زي انقطاع النت أو فشل إنهاء الجلسة أو انتظار تأكيد التبديل ما بيقفلش اللينك.
+        const settledState =
+          outcome.kind === 'state' && outcome.state.kind !== 'loading' ? outcome.state : null;
+        const transientFailure =
+          settledState?.alert === 'needsInternet' ||
+          settledState?.alert === 'saveFailed' ||
+          settledState?.alert === 'roleChangeFailed';
+        const settled = settledState !== null && !transientFailure && !hasPendingSwitch;
         // اللينك الدافي المرفوض أو على جهاز كاونتر ما يستهلكش لينك افتتاحي قديم قابل للإعادة.
         const applied =
           workspace !== null &&
           settled &&
-          outcome.state.kind === 'flow' &&
-          outcome.state.role === 'employee' &&
-          outcome.state.alert === undefined;
+          settledState.kind === 'flow' &&
+          settledState.role === 'employee' &&
+          settledState.alert === undefined;
         if (applied) markLaunchLinkHandled();
         if (settled) handled = true;
       } finally {

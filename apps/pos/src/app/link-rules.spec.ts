@@ -6,6 +6,7 @@ import {
   readRememberedBusiness,
   rememberBusiness,
 } from './device-role';
+import { endPersonalSession } from './end-sessions';
 import { resolveLink, stateAfterFailure, stateAfterLink, stateFromLink } from './link-rules';
 
 vi.mock('./device-role', () => ({
@@ -16,35 +17,64 @@ vi.mock('./device-role', () => ({
   rememberBusiness: vi.fn(async () => undefined),
   saveDeviceRole: vi.fn(),
 }));
+vi.mock('./end-sessions', () => ({
+  endPersonalSession: vi.fn(async () => 'done' as const),
+}));
 
 const COMPANY = '00000000-0000-4000-8000-000000000001';
 const BUSINESS = '00000000-0000-4000-8000-000000000002';
 const SAVED = { company_id: COMPANY, business_id: BUSINESS };
 
-describe('link-rules leftover session and partial recovery', () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-    vi.spyOn(window.navigator, 'onLine', 'get').mockReturnValue(true);
-  });
+beforeEach(() => {
+  vi.clearAllMocks();
+  vi.mocked(endPersonalSession).mockResolvedValue('done');
+  vi.spyOn(window.navigator, 'onLine', 'get').mockReturnValue(true);
+});
 
-  it('marks newly connected flows to clear any leftover same-business session first', async () => {
-    await expect(stateAfterLink(null, null, SAVED)).resolves.toMatchObject({
-      kind: 'flow',
-      role: 'employee',
-      business: SAVED,
-      mustClearLeftoverSession: true,
+describe('link-rules leftover session clearance', () => {
+  it('signs out any leftover session before saving on first link and aborts persistence if sign-out fails', async () => {
+    const order: string[] = [];
+    vi.mocked(endPersonalSession).mockImplementationOnce(async () => {
+      order.push('end');
+      return 'done';
     });
-    expect(connectEmployee).toHaveBeenCalledWith(SAVED);
-
-    await expect(stateAfterLink('employee', null, SAVED)).resolves.toMatchObject({
+    vi.mocked(connectEmployee).mockImplementationOnce(async () => {
+      order.push('connect');
+    });
+    await expect(stateAfterLink(null, null, SAVED)).resolves.toEqual({
       kind: 'flow',
       role: 'employee',
       business: SAVED,
-      mustClearLeftoverSession: true,
+    });
+    expect(order).toEqual(['end', 'connect']);
+
+    vi.mocked(endPersonalSession).mockResolvedValueOnce('failed');
+    await expect(stateAfterLink(null, null, SAVED)).resolves.toEqual({
+      kind: 'start',
+      business: null,
+      alert: 'saveFailed',
+    });
+    expect(connectEmployee).toHaveBeenCalledTimes(1);
+
+    vi.mocked(endPersonalSession).mockResolvedValueOnce('failed');
+    await expect(stateAfterLink('employee', null, SAVED)).resolves.toEqual({
+      kind: 'flow',
+      role: 'employee',
+      business: null,
+      alert: 'roleChangeFailed',
+    });
+    expect(rememberBusiness).not.toHaveBeenCalled();
+
+    await expect(stateAfterLink('employee', null, SAVED)).resolves.toEqual({
+      kind: 'flow',
+      role: 'employee',
+      business: SAVED,
     });
     expect(rememberBusiness).toHaveBeenCalledWith(SAVED);
   });
+});
 
+describe('link-rules partial recovery', () => {
   it('retains a recovered business and clears businessUnreadable when a retry partially succeeds', async () => {
     vi.mocked(readDeviceRole).mockRejectedValue(new Error('ROLE_READ_FAILED'));
     vi.mocked(readRememberedBusiness).mockResolvedValue(SAVED);
@@ -71,6 +101,30 @@ describe('link-rules leftover session and partial recovery', () => {
       kind: 'flow',
       role: 'employee',
       business: SAVED,
+      alert: 'saveFailed',
+    });
+  });
+
+  it('clears a stale business and unreadable flag when partial recovery confirms no business is saved', async () => {
+    vi.mocked(readDeviceRole).mockRejectedValue(new Error('ROLE_READ_FAILED'));
+    vi.mocked(readRememberedBusiness).mockResolvedValue(null);
+
+    const outcome = await resolveLink(SAVED);
+    expect(stateFromLink({ kind: 'flow', role: 'employee', business: SAVED }, outcome)).toEqual({
+      kind: 'flow',
+      role: 'employee',
+      business: null,
+      alert: 'saveFailed',
+    });
+    expect(
+      stateFromLink(
+        { kind: 'flow', role: 'employee', business: null, businessUnreadable: true },
+        outcome,
+      ),
+    ).toEqual({
+      kind: 'flow',
+      role: 'employee',
+      business: null,
       alert: 'saveFailed',
     });
   });

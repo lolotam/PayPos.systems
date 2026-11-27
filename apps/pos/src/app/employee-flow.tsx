@@ -17,8 +17,6 @@ export interface EmployeeFlowProps {
   business: PersonalWorkspace | null;
   /** قراءة النشاط المتذكر فشلت: الشاشات الخاصة بتفضل مخفية والجلسة الحية ما بتتخرجش. */
   businessUnreadable?: boolean;
-  /** أول ربط على جهاز من غير نشاط متذكر: أي جلسة حية على أول قراءة لازم تتخرج الأول. */
-  mustClearLeftoverSession?: boolean;
   pending: PersonalWorkspace | null;
   busy: boolean;
   connect: ReactNode;
@@ -43,7 +41,6 @@ export interface EmployeeFlowProps {
 export function EmployeeFlow({
   business,
   businessUnreadable = false,
-  mustClearLeftoverSession = false,
   pending,
   busy,
   connect,
@@ -61,12 +58,10 @@ export function EmployeeFlow({
     redraw((value) => value + 1);
   }, []);
   const sessionGate = useCallback(
-    (session: ForeignSession, epoch = 0): ReactNode | null => {
+    (session: ForeignSession): ReactNode | null => {
       // قراءة النشاط فشلت: نخفي الشاشات الخاصة بس من غير ما نخرج جلسة ممكن تكون صح.
       if (businessUnreadable) return <>{connect}</>;
-      // لو الجهاز ربط لأول مرة من غير نشاط متذكر، أي جلسة فاضلة وقت الفتح (epoch 0) لازم تتخرج الأول.
-      const leftoverBlocked = mustClearLeftoverSession && epoch === 0;
-      if (!leftoverBlocked && sameBusiness(business, session)) return null;
+      if (sameBusiness(business, session)) return null;
       const key = foreignSessionKey(session);
       return (
         <ForeignSessionNotice
@@ -77,7 +72,7 @@ export function EmployeeFlow({
         />
       );
     },
-    [business, businessUnreadable, connect, mustClearLeftoverSession, report],
+    [business, businessUnreadable, connect, report],
   );
   const screenProps = {
     connect,
