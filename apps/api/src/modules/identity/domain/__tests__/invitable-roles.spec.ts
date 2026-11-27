@@ -7,6 +7,8 @@ import {
   invitationScopeFailure,
   invitableScopeType,
   isInvitableRole,
+  memberInvitationLinkExpiresAt,
+  selectMemberInvitationNoticeRecipients,
 } from '../invitable-roles.ts';
 
 // قائمة الدعوة بيانات (IM-Q2، BR-5): الاختبارات دي بثبّت العقد الحالي — الأدوار الأربعة
@@ -85,9 +87,7 @@ describe('collecting the invitation assignments', () => {
   const branch = { type: 'BRANCH', id: 'branch-1' } as const;
 
   it('keeps the primary assignment alone when there are no extra roles', () => {
-    expect(
-      collectInvitationAssignments({ role: 'branch_manager', scope: branch }),
-    ).toEqual({
+    expect(collectInvitationAssignments({ role: 'branch_manager', scope: branch })).toEqual({
       ok: true,
       assignments: [{ role: 'branch_manager', scope: { type: 'BRANCH', id: 'branch-1' } }],
     });
@@ -124,5 +124,50 @@ describe('collecting the invitation assignments', () => {
         additional_roles: [{ role: 'accountant', scope: { type: 'BRANCH', id: 'branch-2' } }],
       }),
     ).toEqual({ ok: false, refusal: 'MEMBER_ROLE_NOT_INVITABLE' });
+  });
+});
+
+describe('member invitation notice domain rules', () => {
+  const mask = (email: string) => `masked(${email})`;
+
+  it('calculates the link expiry deterministically from issuedAt and ttlMs', () => {
+    const issuedAt = new Date('2026-11-27T10:00:00.000Z');
+    expect(memberInvitationLinkExpiresAt(issuedAt, 48 * 60 * 60 * 1000).toISOString()).toBe(
+      '2026-11-29T10:00:00.000Z',
+    );
+    expect(memberInvitationLinkExpiresAt(issuedAt, 1).getTime()).toBe(issuedAt.getTime() + 1);
+  });
+
+  it('targets invitee without mask and owner with masked invitee email', () => {
+    expect(
+      selectMemberInvitationNoticeRecipients({
+        inviteeEmail: 'invitee@example.test',
+        ownerEmail: 'owner@example.test',
+        mask,
+      }),
+    ).toEqual([
+      { email: 'invitee@example.test', recipient: 'invitee', targetMaskedEmail: null },
+      {
+        email: 'owner@example.test',
+        recipient: 'owner',
+        targetMaskedEmail: 'masked(invitee@example.test)',
+      },
+    ]);
+  });
+
+  it('deduplicates case-variants and handles missing contacts', () => {
+    expect(
+      selectMemberInvitationNoticeRecipients({
+        inviteeEmail: 'User@Example.test',
+        ownerEmail: ' user@example.test ',
+        mask,
+      }),
+    ).toEqual([{ email: 'User@Example.test', recipient: 'invitee', targetMaskedEmail: null }]);
+    expect(
+      selectMemberInvitationNoticeRecipients({ inviteeEmail: null, ownerEmail: 'o@e.test', mask }),
+    ).toEqual([{ email: 'o@e.test', recipient: 'owner', targetMaskedEmail: null }]);
+    expect(
+      selectMemberInvitationNoticeRecipients({ inviteeEmail: null, ownerEmail: null, mask }),
+    ).toEqual([]);
   });
 });

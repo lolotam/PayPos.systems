@@ -55,6 +55,8 @@ export interface HarnessOptions {
   personalOrigin?: string;
   /** بادئة اسم cookies الجلسة — للاختبار اللي بي证明了 إن cookie بيئة تانية ما بتتقراش. */
   cookiePrefix?: string;
+  /** مفتاح ختم إيميلات الترحيب — من غيره مفيش بريد ترحيب ولا بريد دعوة. */
+  onboardingEmailKey?: string;
 }
 
 export function optionalWiring(options: HarnessOptions) {
@@ -78,6 +80,9 @@ export function optionalWiring(options: HarnessOptions) {
       ...(options.clock === undefined ? {} : { clock: options.clock }),
     },
     ...(options.staffAccessRoutes === true ? { staffAccessRoutes: true } : {}),
+    ...(options.onboardingEmailKey === undefined
+      ? {}
+      : { onboardingEmailKey: options.onboardingEmailKey }),
   };
 }
 

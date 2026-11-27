@@ -248,7 +248,12 @@ The API holds the webhook signing secret and **one managed dedupe key** (`RESEND
 worker. The intake holds no recipient-hash key and cannot resolve a recipient. Since spec 079-b (PR #1360,
 2026-11-27) the API process does receive the email hash key `NOTIFICATION_EMAIL_HASH_KEY` and its key id,
 but only for the password-reset OTP (`PASSWORD_RESET_OTP`, `apps/api/src/password-reset-startup.ts`),
-which hashes an address the requester typed; the feedback intake never reads that key. The dedupe
+which hashes an address the requester typed; the feedback intake never reads that key. Onboarding welcome
+and invitation emails (spec 079 `PR-c2`, `staff_welcome_pin` and `member_invitation`) use a dedicated optional
+symmetric key `ONBOARDING_EMAIL_ENVELOPE_KEY` (32+ characters, HKDF-SHA256 deriving AES-256-GCM bound to
+`company_id`, `operation_id`, `template_key`, `template_revision`, and the redacted placeholder address)
+shared only between the API envelope sealer and the worker sender; omitting it disables those notices cleanly
+while keeping `NOTIFICATION_EMAIL_HASH_KEY` reserved strictly for password-reset OTP and email identity/suppression. The dedupe
 digest is keyed by the managed key, not by the signing secret, so a provider secret rotation cannot
 re-materialise an old event as new. The intake verifies the signature over the raw body with native
 `node:crypto` before the body is parsed, keeps a strict allowlist (`type`, `created_at`,

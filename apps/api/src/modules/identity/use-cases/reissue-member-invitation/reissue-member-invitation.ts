@@ -2,6 +2,7 @@ import { ApiError } from '../../../../shared/errors.ts';
 import type { Clock } from '../../../../shared/ports/clock.port.ts';
 import {
   MemberLinkRefusedError,
+  type InvitationLinkCoordinator,
   type InvitationRateLimiter,
   type MemberAccounts,
   type MemberInvitationTransactions,
@@ -31,6 +32,8 @@ export class ReissueMemberInvitation {
   readonly #clock: Clock;
   readonly #redirectTo: string;
   readonly #linkLifetimeMs: number;
+  readonly #coordinator: InvitationLinkCoordinator | undefined;
+  readonly #inFlight = new Map<string, Promise<unknown>>();
 
   constructor(options: {
     transactions: MemberInvitationTransactions;
@@ -40,6 +43,7 @@ export class ReissueMemberInvitation {
     redirectTo: string;
     /** عمر رابط الدعوة بالمللي ثانية (IM-Q3: 48 ساعة) — من التركيب. */
     linkLifetimeMs: number;
+    coordinator?: InvitationLinkCoordinator;
   }) {
     this.#transactions = options.transactions;
     this.#accounts = options.accounts;
@@ -47,6 +51,26 @@ export class ReissueMemberInvitation {
     this.#clock = options.clock;
     this.#redirectTo = options.redirectTo;
     this.#linkLifetimeMs = options.linkLifetimeMs;
+    this.#coordinator = options.coordinator;
+  }
+
+  /** يسلسل إعادة الإصدار محلياً أو عبر المنسّق الموزع لنفس الدعوة. */
+  async #coordinate<T>(
+    companyId: string,
+    invitationId: string,
+    work: () => Promise<T>,
+  ): Promise<T> {
+    if (this.#coordinator !== undefined)
+      return this.#coordinator.run(companyId, invitationId, work);
+    const key = `${companyId}:${invitationId}`;
+    const previous = this.#inFlight.get(key) ?? Promise.resolve();
+    const current = previous.catch(() => undefined).then(work);
+    this.#inFlight.set(key, current);
+    try {
+      return await current;
+    } finally {
+      if (this.#inFlight.get(key) === current) this.#inFlight.delete(key);
+    }
   }
 
   /**
@@ -56,26 +80,34 @@ export class ReissueMemberInvitation {
   async execute(command: ReissueMemberInvitationCommand): Promise<ReissueMemberInvitationResult> {
     const { actor, invitationId } = command;
     if (!(await this.#limiter.allow(actor.userId))) throw new ApiError('TOO_MANY_REQUESTS');
-    const now = this.#clock.now();
-    const who = { companyId: actor.companyId, actorUserId: actor.userId };
-    const claimed = await this.#transactions.claimReissue({ ...who, invitationId });
-    if ('refusal' in claimed) throw new ApiError(claimed.refusal);
-    let link: string;
-    try {
-      link = await this.#accounts.issueLink({
-        userId: claimed.userId,
-        companyId: actor.companyId,
-        redirectTo: this.#redirectTo,
-        lifetimeMs: this.#linkLifetimeMs,
-        now,
-      });
-    } catch (error) {
-      if (error instanceof MemberLinkRefusedError) {
-        throw new ApiError('MEMBER_INVITATION_NOT_REISSUEABLE');
+    return this.#coordinate(actor.companyId, invitationId, async () => {
+      const now = this.#clock.now();
+      const who = { companyId: actor.companyId, actorUserId: actor.userId };
+      const claimed = await this.#transactions.claimReissue({ ...who, invitationId });
+      if ('refusal' in claimed) throw new ApiError(claimed.refusal);
+      let issued: { readonly link: string; readonly issuedAt: Date };
+      try {
+        issued = await this.#accounts.issueLink({
+          userId: claimed.userId,
+          companyId: actor.companyId,
+          redirectTo: this.#redirectTo,
+          lifetimeMs: this.#linkLifetimeMs,
+          now,
+        });
+      } catch (error) {
+        if (error instanceof MemberLinkRefusedError) {
+          throw new ApiError('MEMBER_INVITATION_NOT_REISSUEABLE');
+        }
+        throw error;
       }
-      throw error;
-    }
-    await this.#transactions.stampLink({ ...who, invitationId, at: now });
-    return { invitation_id: invitationId, set_password_link: link };
+      await this.#transactions.stampLink({
+        ...who,
+        invitationId,
+        at: issued.issuedAt,
+        userId: claimed.userId,
+        link: issued.link,
+      });
+      return { invitation_id: invitationId, set_password_link: issued.link };
+    });
   }
 }

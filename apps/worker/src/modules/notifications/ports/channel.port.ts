@@ -17,8 +17,9 @@ export interface DestinationIdentity {
    *
    * @param phone الوجهة المؤقتة للهاتف أو البريد
    * @param identity الهوية المخزنة
+   * @param attempt لقطة المحاولة؛ قوالب الترحيب بتفك المظروف منها قبل المطابقة
    */
-  matches(phone: string, identity: PhoneIdentity): boolean;
+  matches(phone: string, identity: PhoneIdentity, attempt?: Attempt): boolean;
 }
 export interface SendConfiguration {
   /** يرفض أي قالب غير معتمد أو معاملات حساسة قبل الإرسال.
@@ -26,6 +27,17 @@ export interface SendConfiguration {
    * @param attempt لقطة القالب الثابتة
    */
   failure(attempt: Attempt): FailureCode | null;
+  /** فحص اختياري داخل معاملة الحيازة للتحقق من سريان الوجهة أو المرجع في قاعدة البيانات.
+   *
+   * @param attempt لقطة المحاولة قبل التحويل إلى SENDING
+   * @param scope   نطاق المعاملة الحالية لتشغيل القراءة تحت نفس القفل، إن وُجد
+   */
+  verify?(attempt: Attempt, scope?: unknown): Promise<boolean>;
+  /** يحدد إن كانت المحاولة تحتاج فحص حداثة تحت قفل الصف قبل الحيازة.
+   *
+   * @param attempt لقطة المحاولة قبل المطالبة
+   */
+  shouldVerify?(attempt: Attempt): boolean;
 }
 
 /** مشتق رابط التقييم في الذاكرة وقت الإرسال فقط؛ الرابط لا يُخزَّن ولا يُسجَّل ولا يدخل outbox. */

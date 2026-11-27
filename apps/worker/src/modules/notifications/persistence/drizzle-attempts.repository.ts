@@ -1,9 +1,13 @@
 import { appendAuditLog, type TenantWrappers, type Tx } from '@pospay/db';
 import { sql } from 'drizzle-orm';
 
-import type { Attempt, TerminalResult } from '../domain/attempt-status.ts';
-import { mayClearDestination } from '../domain/send-deadline.ts';
-import type { AttemptsRepository, CleanupInput } from '../ports/attempts.repository.ts';
+import { refusedResult, type Attempt, type TerminalResult } from '../domain/attempt-status.ts';
+import { mayClearDestination, mayStart } from '../domain/send-deadline.ts';
+import type {
+  AttemptsRepository,
+  ClaimVerification,
+  CleanupInput,
+} from '../ports/attempts.repository.ts';
 import { appendResult, safePersistenceError } from './notification-records.ts';
 
 async function readAttempt(tx: Tx, id: string): Promise<Attempt | null> {
@@ -88,6 +92,100 @@ async function recordConflict(
   return true;
 }
 
+async function lockPendingAttempt(tx: Tx, id: string, now: Date): Promise<boolean> {
+  const rows = await tx.execute<{ id: string }>(sql`
+    SELECT id FROM notification_attempts
+    WHERE company_id = app_company_id() AND id = ${id}
+      AND status = 'PENDING' AND (send_deadline IS NULL OR send_deadline > ${now.toISOString()})
+    FOR UPDATE`);
+  return rows.length === 1;
+}
+
+async function claimRow(
+  tx: Tx,
+  attempt: Attempt,
+  executionId: string,
+  now: Date,
+): Promise<boolean> {
+  const rows =
+    await tx.execute(sql`UPDATE notification_attempts SET status = 'SENDING', execution_id = ${executionId},
+      sending_at = ${now.toISOString()}, updated_at = ${now.toISOString()} WHERE company_id = app_company_id() AND id = ${attempt.id}
+      AND status = 'PENDING' AND (send_deadline IS NULL OR send_deadline > ${now.toISOString()}) RETURNING id`);
+  return rows.length === 1;
+}
+
+async function claimWithVerification(
+  tx: Tx,
+  attempt: Attempt,
+  executionId: string,
+  now: Date,
+  verification: ClaimVerification,
+  onVerified: () => void,
+): Promise<boolean> {
+  if (!(await lockPendingAttempt(tx, attempt.id, now))) {
+    onVerified();
+    return false;
+  }
+  const txScope: Pick<TenantWrappers, 'withTenant'> = {
+    withTenant: <R>(_companyId: string, fn: (innerTx: Tx) => Promise<R>) => fn(tx),
+  };
+  const fresh = await verification.verify(txScope);
+  const claimNow = verification.decisionTime?.() ?? now;
+  if (
+    fresh &&
+    mayStart(attempt.deadline, claimNow) &&
+    verification.reservationValid !== undefined &&
+    !verification.reservationValid(claimNow)
+  ) {
+    throw new Error('NOTIFICATION_ADMISSION_EXPIRED_DURING_VERIFY');
+  }
+  onVerified();
+  if (!mayStart(attempt.deadline, claimNow)) {
+    await record(
+      tx,
+      attempt,
+      refusedResult('DEADLINE_EXPIRED'),
+      verification.rejectEventId,
+      claimNow,
+      true,
+    );
+    return false;
+  }
+  if (!fresh) {
+    await record(
+      tx,
+      attempt,
+      refusedResult('DESTINATION_INVALID'),
+      verification.rejectEventId,
+      claimNow,
+      true,
+    );
+    return false;
+  }
+  return claimRow(tx, attempt, executionId, claimNow);
+}
+
+async function runClaimWithPreClaimRetry(
+  database: Pick<TenantWrappers, 'withTenant'>,
+  companyId: string,
+  fn: (markClaimStarted: () => void) => (tx: Tx) => Promise<boolean>,
+): Promise<boolean> {
+  let preClaim = true;
+  try {
+    return await database.withTenant(
+      companyId,
+      fn(() => {
+        preClaim = false;
+      }),
+      { timeoutMs: 10_000 },
+    );
+  } catch (error) {
+    const safe = safePersistenceError(error);
+    if (preClaim) Object.assign(safe, { preClaimVerifyFailed: true });
+    throw safe;
+  }
+}
+
 export function createAttemptsRepository(
   database: Pick<TenantWrappers, 'withTenant'>,
 ): AttemptsRepository {
@@ -111,13 +209,13 @@ export function createAttemptsRepository(
         const attempt = await readAttempt(tx, id);
         return attempt?.status === 'PENDING' ? attempt : null;
       }),
-    claim: (attempt, executionId, now) =>
-      run(attempt.companyId, async (tx) => {
-        const rows =
-          await tx.execute(sql`UPDATE notification_attempts SET status = 'SENDING', execution_id = ${executionId},
-        sending_at = ${now.toISOString()}, updated_at = ${now.toISOString()} WHERE company_id = app_company_id() AND id = ${attempt.id}
-        AND status = 'PENDING' AND (send_deadline IS NULL OR send_deadline > ${now.toISOString()}) RETURNING id`);
-        return rows.length === 1;
+    claim: (attempt, executionId, now, verification) =>
+      runClaimWithPreClaimRetry(database, attempt.companyId, (onStarted) => (tx) => {
+        if (verification === undefined) {
+          onStarted();
+          return claimRow(tx, attempt, executionId, now);
+        }
+        return claimWithVerification(tx, attempt, executionId, now, verification, onStarted);
       }),
     finishPending: (attempt, result, eventId, now) =>
       run(attempt.companyId, (tx) => record(tx, attempt, result, eventId, now, true)),

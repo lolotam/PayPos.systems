@@ -1,10 +1,5 @@
 import { notificationRedisOptions } from '@pospay/notifications';
-import type {
-  ClaimedEvent,
-  DeliveryOutcome,
-  TenantWrappers,
-  Tx,
-} from '@pospay/db';
+import type { ClaimedEvent, DeliveryOutcome, TenantWrappers, Tx } from '@pospay/db';
 import {
   createPhoneIdentity,
   createTemplateRegistry,
@@ -19,6 +14,7 @@ import { Worker, type Job } from 'bullmq';
 import type { Redis } from 'ioredis';
 
 import type { Clock } from './ports/clock.port.ts';
+import type { Attempt, PhoneIdentity } from './domain/attempt-status.ts';
 import type { IdGenerator } from './ports/id-generator.port.ts';
 import type { RatingTokenSender } from './ports/channel.port.ts';
 import { resolveRatingPageOrigin } from './domain/rating-page-origin.ts';
@@ -65,6 +61,7 @@ export interface NotificationModuleOptions {
   readonly admission?: SendAdmission;
   readonly emailConfiguration?: EmailModuleOptions['configuration'];
   readonly emailTesting?: EmailModuleOptions['testing'];
+  readonly emailEnvelopeKey?: string | null;
   readonly email?: ReturnType<typeof createEmailModule>;
   /** جاهزية الدفع في العامل: هي اللي بتفعّل كتابة محاولات الدفع (ADR-0052 قرار 2). */
   readonly push?: { readonly enabled: boolean };
@@ -87,12 +84,14 @@ export function createNotificationModule(options: NotificationModuleOptions) {
   const email =
     options.email ??
     createEmailModule({
+      database: options.database,
       production: options.production || configuration.mode === 'live',
       clock,
       ids,
       ...(options.emailConfiguration === undefined
         ? {}
         : { configuration: options.emailConfiguration }),
+      ...(options.emailEnvelopeKey === undefined ? {} : { envelopeKey: options.emailEnvelopeKey }),
       ...(options.emailTesting === undefined ? {} : { testing: options.emailTesting }),
     });
   const { routed, destinations } = routeChannels(adapter, identity, email);
@@ -166,10 +165,16 @@ function routeChannels(
         (attempt.channel === 'email' ? email.adapter : adapter).send(attempt),
       failure: (attempt: Parameters<typeof adapter.failure>[0]) =>
         (attempt.channel === 'email' ? email.adapter : adapter).failure(attempt),
+      verify: (attempt: Parameters<typeof adapter.failure>[0], scope?: unknown) =>
+        attempt.channel === 'email'
+          ? (email.adapter.verify?.(attempt, scope) ?? Promise.resolve(true))
+          : Promise.resolve(true),
+      shouldVerify: (attempt: Parameters<typeof adapter.failure>[0]) =>
+        attempt.channel === 'email' && (email.adapter.shouldVerify?.(attempt) ?? false),
     },
     destinations: {
-      matches: (value: string, stored: Parameters<typeof identity.matches>[1]) =>
-        (stored.last3 === '' ? email : identity).matches(value, stored),
+      matches: (value: string, stored: PhoneIdentity, attempt?: Attempt) =>
+        (stored.last3 === '' ? email : identity).matches(value, stored, attempt),
     },
   };
 }
@@ -229,6 +234,7 @@ export function createInAppNotificationModule(
   const email =
     options.email ??
     createEmailModule({
+      database: options.database,
       production: true,
       ids: options.ids,
       clock: options.clock,
@@ -295,12 +301,16 @@ export function createEmailSendModule(options: {
       options.email.adapter.send(attempt),
     failure: (attempt: Parameters<typeof options.email.adapter.failure>[0]) =>
       options.email.adapter.failure(attempt),
+    verify: (attempt: Parameters<typeof options.email.adapter.failure>[0], scope?: unknown) =>
+      options.email.adapter.verify?.(attempt, scope) ?? Promise.resolve(true),
+    shouldVerify: (attempt: Parameters<typeof options.email.adapter.failure>[0]) =>
+      options.email.adapter.shouldVerify?.(attempt) ?? false,
   };
   const send = new SendNotification(
     attempts,
     adapter,
     admission,
-    { matches: (value, stored) => options.email.matches(value, stored) },
+    { matches: (value, stored, attempt) => options.email.matches(value, stored, attempt) },
     adapter,
     options.clock,
     options.ids,

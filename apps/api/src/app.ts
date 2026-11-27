@@ -30,9 +30,11 @@ import {
   readCommissionReturnAccess,
   readCommissionScope,
   readCommissionRequesterMembership,
+  temporaryStaffPinExpiresAt,
 } from './modules/identity/index.ts';
 import { settingsProviders } from './modules/settings/index.ts';
 import { notificationsProviders } from './modules/notifications/index.ts';
+import { createOnboardingEmailSealer } from './modules/notifications/index.ts';
 import { mountResendSecurity, mountWhatsappSecurity } from './modules/notifications/index.ts';
 import {
   businessCalendar,
@@ -202,6 +204,38 @@ const customerProviders = (deps: AppDependencies): Provider[] =>
     bindCustomerImportFiles(deps.files?.storage ?? null, documentFileFacts),
   );
 
+function onboardingProviders(
+  deps: AppDependencies,
+  logger: Logger,
+  sealer: ReturnType<typeof createOnboardingEmailSealer>,
+): Provider[] {
+  return [
+    ...identityProviders(
+      deps.database,
+      deps.ids ?? systemUuidV7(),
+      deps.redis,
+      deps.staff,
+      deps.auth?.service.staffUsers.staffCompanyOf,
+      deps.memberInvitations,
+      deps.staffAccessRoutes === true,
+      deps.staffPinClock,
+      sealer,
+    ),
+    ...staffProviders(
+      deps.database,
+      deps.redis,
+      deps.auth?.service.passkeys ?? null,
+      deps.files?.storage ?? null,
+      deps.employeeCardKey ?? null,
+      logger,
+      deps.auth?.service.staffUsers ?? null,
+      deps.staffAccessRoutes === true,
+      sealer,
+      temporaryStaffPinExpiresAt,
+    ),
+  ];
+}
+
 @Module({})
 class AppModule {
   static forRoot(
@@ -210,6 +244,13 @@ class AppModule {
     logger: Logger,
     limiter: RateLimiter | null,
   ): DynamicModule {
+    const onboardingSealer = createOnboardingEmailSealer(deps.onboardingEmailKey ?? null);
+    if (onboardingSealer === undefined) {
+      logger.info(
+        { capability: { name: 'ONBOARDING_EMAIL', state: 'DISABLED' } },
+        'onboarding email disabled',
+      );
+    }
     return {
       module: AppModule,
       controllers: [...controllers],
@@ -222,16 +263,7 @@ class AppModule {
         // Global guards run in this order (ADR-0003 §4): a verified session unless @Public(); then the company
         // membership and the permission at the target unless @Authenticated(); then the feature flag.
         { provide: APP_GUARD, useClass: SessionGuard },
-        ...identityProviders(
-          deps.database,
-          deps.ids ?? systemUuidV7(),
-          deps.redis,
-          deps.staff,
-          deps.auth?.service.staffUsers.staffCompanyOf,
-          deps.memberInvitations,
-          deps.staffAccessRoutes === true,
-          deps.staffPinClock,
-        ),
+        ...onboardingProviders(deps, logger, onboardingSealer),
         ...passwordResetProviders(deps.passwordReset ?? null, deps.corsOrigins ?? [], {
           api: deps.staffPinReset ?? null,
           enabled: deps.staffAccessRoutes === true,
@@ -251,16 +283,6 @@ class AppModule {
         ...commissionOwnEstimateBindings(deps.commissionsClock),
         ...settingsProviders(deps.database, deps.ids ?? systemUuidV7(), deps.redis),
         ...notificationsProviders(deps.database, deps.whatsapp, deps.resend, deps.push),
-        ...staffProviders(
-          deps.database,
-          deps.redis,
-          deps.auth?.service.passkeys ?? null,
-          deps.files?.storage ?? null,
-          deps.employeeCardKey ?? null,
-          logger,
-          deps.auth?.service.staffUsers ?? null,
-          deps.staffAccessRoutes === true,
-        ),
         ...filesProviders(deps.database, deps.ids ?? systemUuidV7(), deps.files),
       ],
     };
