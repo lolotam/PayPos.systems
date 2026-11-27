@@ -262,3 +262,46 @@ describe('endPersonalSession late text/plain JSON sign-out parity', () => {
     await vi.waitFor(() => expect(announcePersonalChange).toHaveBeenCalledTimes(1));
   });
 });
+
+describe('endPersonalSession late UTF-8 BOM JSON sign-out parity', () => {
+  beforeEach(() => {
+    vi.stubEnv('VITE_API_URL', 'http://127.0.0.1:3000');
+    requestMock.mockReset();
+  });
+
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
+  it('announces personal change when a late JSON sign-out text response starts with a UTF-8 BOM', async () => {
+    let settleBom!: (value: {
+      status: number;
+      data: unknown;
+      headers: Record<string, string>;
+    }) => void;
+    requestMock.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          settleBom = resolve;
+        }),
+    );
+    const controller = new AbortController();
+    const pending = nativeStaffFetch(
+      new Request('http://127.0.0.1:3000/v1/staff/personal-session/sign-out', {
+        method: 'POST',
+        signal: controller.signal,
+      }),
+    );
+    await vi.waitFor(() => expect(requestMock).toHaveBeenCalledTimes(1));
+
+    controller.abort();
+    await expect(pending).rejects.toMatchObject({ name: 'AbortError' });
+
+    settleBom({
+      status: 200,
+      data: `\uFEFF${JSON.stringify({ status: 'SIGNED_OUT' })}`,
+      headers: { 'Content-Type': 'text/plain' },
+    });
+    await vi.waitFor(() => expect(announcePersonalChange).toHaveBeenCalledTimes(1));
+  });
+});

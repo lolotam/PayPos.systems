@@ -37,6 +37,8 @@ function toWebResponse(method: string, nativeResponse: NativeHttpResponse): Resp
   return new Response(responseBody, { status: nativeResponse.status, headers: responseHeaders });
 }
 
+const UTF8_BOM = String.fromCharCode(0xfeff);
+
 /** يفك حمولة رد أصلي مرة واحدة بنفس مسار Fetch وopenapi-fetch دون فحص MIME منفصل. */
 export function parseNativeResponseJson(response: LateAbortedNativeResponse): unknown {
   if (response.method === 'HEAD' || [204, 205, 304].includes(response.status)) return undefined;
@@ -46,7 +48,8 @@ export function parseNativeResponseJson(response: LateAbortedNativeResponse): un
   ) {
     return undefined;
   }
-  const text = responseBodyText(response.data, response.headers.get('content-type') ?? '');
+  const raw = responseBodyText(response.data, response.headers.get('content-type') ?? '');
+  const text = raw?.startsWith(UTF8_BOM) ? raw.slice(1) : raw;
   if (text === undefined || text === '') return undefined;
   try {
     return JSON.parse(text);
