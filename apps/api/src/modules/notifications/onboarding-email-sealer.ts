@@ -76,17 +76,24 @@ export function createOnboardingEmailSealer(
     if (payload.kind === 'member_invitation' && !isSafeOnboardingLink(payload.link)) return null;
     const placeholderEmail = onboardingPlaceholderEmail(input.email, key);
     if (placeholderEmail === null) return null;
-    return {
-      template: { key: templateKey, revision: templateRevision },
-      placeholderEmail,
-      parameters: sealOnboardingEmailEnvelope(key, payload, {
-        companyId: input.companyId,
-        operationId: input.operationId,
-        templateKey,
-        templateRevision,
+    try {
+      return {
+        template: { key: templateKey, revision: templateRevision },
         placeholderEmail,
-      }),
-    };
+        parameters: sealOnboardingEmailEnvelope(key, payload, {
+          companyId: input.companyId,
+          operationId: input.operationId,
+          templateKey,
+          templateRevision,
+          placeholderEmail,
+        }),
+      };
+    } catch (error) {
+      if (error instanceof Error && error.message === 'ONBOARDING_EMAIL_ENVELOPE_TOO_LARGE') {
+        return null;
+      }
+      throw error;
+    }
   };
   return {
     mask: (email) => maskOnboardingEmail(email),

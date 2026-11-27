@@ -5,11 +5,20 @@ import type {
   StaffAccessRole,
 } from './staff-access-begin.port.ts';
 
+/**
+ * أمر تمرير الرقم السري المؤقت لبريد الترحيب عند نجاح «إعطاء الدخول»؛
+ * يميّز بين `userId` (المدير المانح للدخول ومستلِم نسخة المدير) و`employeeId` (الموظفة المستلِمة).
+ */
 export interface StaffWelcomePinCommand {
+  /** معرّف الشركة. */
   readonly companyId: string;
+  /** معرّف النشاط التجاري. */
   readonly businessId: string;
+  /** معرّف الموظفة الممنوحة للدخول والمستلِمة لنسختها من الرقم السري. */
   readonly employeeId: string;
+  /** معرّف المدير المانح للدخول ومستلِم نسخة المدير من الرقم السري. */
   readonly userId: string;
+  /** الرقم السري المؤقت في الذاكرة فقط قبل الختم. */
   readonly pin: string;
 }
 

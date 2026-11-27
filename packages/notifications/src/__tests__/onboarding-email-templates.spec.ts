@@ -10,6 +10,7 @@ import {
   unsealOnboardingEmailEnvelope,
   MEMBER_INVITATION_KEY,
   ONBOARDING_EMAIL_CHUNK_SIZE,
+  ONBOARDING_EMAIL_MAX_CHUNKS,
   ONBOARDING_EMAIL_OPERATION_PARAM,
   ONBOARDING_EMAIL_PARAM_PREFIX,
   ONBOARDING_PLACEHOLDER_DOMAIN,
@@ -179,6 +180,18 @@ describe('the sealed onboarding envelope', () => {
         placeholderEmail: 'sealed-000000000000000000000000@redacted.invalid',
       }),
     ).toThrow('ONBOARDING_EMAIL_ENVELOPE_AAD_MISMATCH');
+  });
+});
+
+describe('onboarding envelope chunk cap', () => {
+  it('refuses envelopes exceeding the contract parameter chunk limit', () => {
+    const oversizedRole = 'r'.repeat(
+      (ONBOARDING_EMAIL_MAX_CHUNKS + 1) * ONBOARDING_EMAIL_CHUNK_SIZE,
+    );
+    const payload = { ...staffPayload, role: oversizedRole };
+    expect(() =>
+      sealOnboardingEmailEnvelope(key ?? Buffer.alloc(0), payload, aadFor(staffPayload)),
+    ).toThrow('ONBOARDING_EMAIL_ENVELOPE_TOO_LARGE');
   });
 });
 
@@ -383,6 +396,8 @@ describe('the member invitation email', () => {
     expect(isSafeOnboardingLink('http://evil.example/reset-password/token')).toBe(false);
     expect(isSafeOnboardingLink('http://localhost:3000/reset-password/token')).toBe(true);
     expect(isSafeOnboardingLink(`https://example.test/${'a'.repeat(1600)}`)).toBe(false);
+    expect(isSafeOnboardingLink('https://example.test/reset?q="abc"')).toBe(false);
+    expect(isSafeOnboardingLink('https://example.test/reset?q=a\\b')).toBe(false);
     expect(render('http://api.pospay.systems/reset-password/token')).toBeNull();
     expect(render('https://user:pass@example.test/x')).toBeNull();
     expect(render('javascript:alert(1)')).toBeNull();

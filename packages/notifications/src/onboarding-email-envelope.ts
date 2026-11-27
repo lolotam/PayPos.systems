@@ -8,6 +8,8 @@ export const ONBOARDING_EMAIL_PARAM_PREFIX = 'env_';
 export const ONBOARDING_EMAIL_OPERATION_PARAM = 'operation_id';
 /** أقصى طول لمقطع المظروف الواحد؛ العقد بيسمح بـ 255 محرف لكل معامل. */
 export const ONBOARDING_EMAIL_CHUNK_SIZE = 200;
+/** أقصى عدد لمقاطع المظروف بعد خصم معامل `operation_id` من حد العشرين معاملاً في العقد. */
+export const ONBOARDING_EMAIL_MAX_CHUNKS = 19;
 /** النطاق البديل للعنصر الموقّع: نطاق لا يقبل بريداً حقيقياً. */
 export const ONBOARDING_PLACEHOLDER_DOMAIN = 'redacted.invalid';
 
@@ -170,9 +172,12 @@ export function sealOnboardingEmailEnvelope(
     cipher.getAuthTag(),
     ciphertext,
   ]);
+  const chunks = chunkEnvelope(envelope.toString('base64url'));
+  if (chunks.length > ONBOARDING_EMAIL_MAX_CHUNKS)
+    throw new Error('ONBOARDING_EMAIL_ENVELOPE_TOO_LARGE');
   return [
     { name: ONBOARDING_EMAIL_OPERATION_PARAM, type: 'text', value: aad.operationId },
-    ...chunkEnvelope(envelope.toString('base64url')),
+    ...chunks,
   ];
 }
 
@@ -437,7 +442,7 @@ const ONBOARDING_LINK_MAX_BYTES = 1600;
  * @returns true لما الرابط سليم
  */
 export function isSafeOnboardingLink(link: string): boolean {
-  if (/[\p{Cc}\s]/u.test(link) || Buffer.byteLength(link, 'utf8') > ONBOARDING_LINK_MAX_BYTES)
+  if (/[\p{Cc}\s"\\]/u.test(link) || Buffer.byteLength(link, 'utf8') > ONBOARDING_LINK_MAX_BYTES)
     return false;
   let url: URL;
   try {

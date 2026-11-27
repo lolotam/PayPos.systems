@@ -95,7 +95,7 @@ export function sealInvitationPayload(
   };
   const operationId = extra.invitationId ?? OP_INVITE;
   const placeholder =
-    onboardingPlaceholderEmail(INVITEE_EMAIL, envelopeKey ?? Buffer.alloc(0)) ?? '';
+    onboardingPlaceholderEmail(payload.email, envelopeKey ?? Buffer.alloc(0)) ?? '';
   return {
     payload,
     placeholder,
@@ -119,6 +119,41 @@ export async function requestOnboarding(
   return { id: await h.attempt(event), event };
 }
 
+/** يهيئ طلبي بريد ترحيب أو دعوة مرسَلين مسبقاً إلى محاولة معلقة لتقليل تكرار الاختبارات. */
+export async function queueStaffWelcomeNotice(
+  h: OnboardingHarness,
+  expiresAtMs: number,
+  extra: Partial<Extract<OnboardingEmailPayload, { kind: 'staff_welcome_pin' }>>,
+) {
+  const { placeholder, parameters } = sealStaffPayload(expiresAtMs, extra);
+  return requestOnboarding(h, 'StaffWelcomePinNoticeRequested', {
+    channel: 'email',
+    email: placeholder,
+    locale: 'ar',
+    template_key: STAFF_WELCOME_PIN_KEY,
+    template_revision: 1,
+    safe_parameters: parameters,
+    send_deadline: new Date(expiresAtMs).toISOString(),
+  });
+}
+
+export async function queueInvitationNotice(
+  h: OnboardingHarness,
+  expiresAtMs: number,
+  extra: Partial<Extract<OnboardingEmailPayload, { kind: 'member_invitation' }>>,
+) {
+  const { placeholder, parameters } = sealInvitationPayload(expiresAtMs, extra);
+  return requestOnboarding(h, 'MemberInvitationNoticeRequested', {
+    channel: 'email',
+    email: placeholder,
+    locale: 'ar',
+    template_key: MEMBER_INVITATION_KEY,
+    template_revision: 1,
+    safe_parameters: parameters,
+    send_deadline: new Date(expiresAtMs).toISOString(),
+  });
+}
+
 async function ensureSeedUser(
   h: OnboardingHarness,
   userId: string = USER,
@@ -128,9 +163,38 @@ async function ensureSeedUser(
     INSERT INTO "user" (id, name, email, email_verified)
     VALUES (${userId}, 'Seed User', ${email}, true)
     ON CONFLICT (id) DO NOTHING`;
+  if (userId === USER) {
+    await h.owner`
+      INSERT INTO memberships (company_id, id, user_id, role_id, role_owner_key, scope_type, scope_id)
+      SELECT ${TENANT.A.company}, ${USER}, ${USER}, id, 'global', 'COMPANY', ${TENANT.A.company}
+      FROM roles WHERE company_id IS NULL AND code = 'owner'
+      ON CONFLICT (company_id, id) DO NOTHING`;
+  }
 }
 
-export async function seedActiveStaff(h: OnboardingHarness, recoveryEmail?: string | null) {
+/** ينشئ مديراً أو مالكاً مستقلاً للاختبار مع عضوية فعّالة حتى لا تؤثر اختبارات الرفض على بقية الملف. */
+export async function seedCompanyActor(
+  h: OnboardingHarness,
+  roleCode: 'owner' | 'branch_manager',
+  email: string,
+) {
+  const userId = systemUuidV7().newId();
+  const membershipId = systemUuidV7().newId();
+  const scopeType = roleCode === 'owner' ? 'COMPANY' : 'BRANCH';
+  const scopeId = roleCode === 'owner' ? TENANT.A.company : TENANT.A.branch;
+  await ensureSeedUser(h, userId, email);
+  await h.owner`
+    INSERT INTO memberships (company_id, id, user_id, role_id, role_owner_key, scope_type, scope_id, starts_at)
+    SELECT ${TENANT.A.company}, ${membershipId}, ${userId}, id, 'global', ${scopeType}, ${scopeId}, now() - interval '1 hour'
+    FROM roles WHERE company_id IS NULL AND code = ${roleCode}`;
+  return { userId, membershipId, email };
+}
+
+export async function seedActiveStaff(
+  h: OnboardingHarness,
+  recoveryEmail?: string | null,
+  grantedBy: string = USER,
+) {
   await ensureSeedUser(h);
   const employeeId = systemUuidV7().newId();
   const userId = systemUuidV7().newId();
@@ -151,10 +215,10 @@ export async function seedActiveStaff(h: OnboardingHarness, recoveryEmail?: stri
     FROM roles WHERE company_id IS NULL AND code = 'staff'`;
   await h.owner`
     INSERT INTO employee_staff_access (company_id, id, business_id, employee_id, operation_id, user_id, membership_id, role_code, branch_id, attempt_id, phone_hash, state, granted_by)
-    VALUES (${TENANT.A.company}, ${accessId}, ${TENANT.A.business}, ${employeeId}, ${operationId}, ${userId}, ${membershipId}, 'staff', ${TENANT.A.branch}, ${attemptId}, ${empNo.toString().padStart(64, '0')}, 'ACTIVE', ${USER})`;
+    VALUES (${TENANT.A.company}, ${accessId}, ${TENANT.A.business}, ${employeeId}, ${operationId}, ${userId}, ${membershipId}, 'staff', ${TENANT.A.branch}, ${attemptId}, ${empNo.toString().padStart(64, '0')}, 'ACTIVE', ${grantedBy})`;
   await h.owner`
     INSERT INTO cashier_pins (company_id, id, user_id, pin_hash, set_by, set_at, temporary, expires_at)
-    VALUES (${TENANT.A.company}, ${pinRevision}, ${userId}, 'pbkdf2-sha256$1$aa$bb', ${USER}, now(), true, now() + interval '1 day')
+    VALUES (${TENANT.A.company}, ${pinRevision}, ${userId}, 'pbkdf2-sha256$1$aa$bb', ${grantedBy}, now(), true, now() + interval '1 day')
     ON CONFLICT (company_id, user_id) DO UPDATE SET id = EXCLUDED.id, temporary = true, expires_at = EXCLUDED.expires_at`;
   return {
     employeeId,
@@ -170,12 +234,13 @@ export async function seedActiveStaff(h: OnboardingHarness, recoveryEmail?: stri
 export async function seedPendingInvitation(
   h: OnboardingHarness,
   issuedAt: Date = INVITE_ISSUED_AT,
+  invitedBy: string = USER,
 ) {
   await ensureSeedUser(h);
   const invitationId = systemUuidV7().newId();
   const emailHash = invitationId.replaceAll('-', '').padEnd(64, 'a');
   await h.owner`
     INSERT INTO member_invitations (company_id, id, email_hash, role_code, scope_type, scope_id, invited_by, state, link_issued_at)
-    VALUES (${TENANT.A.company}, ${invitationId}, ${emailHash}, 'accountant', 'COMPANY', ${TENANT.A.company}, ${USER}, 'PENDING', ${issuedAt.toISOString()}::timestamptz)`;
+    VALUES (${TENANT.A.company}, ${invitationId}, ${emailHash}, 'accountant', 'COMPANY', ${TENANT.A.company}, ${invitedBy}, 'PENDING', ${issuedAt.toISOString()}::timestamptz)`;
   return invitationId;
 }

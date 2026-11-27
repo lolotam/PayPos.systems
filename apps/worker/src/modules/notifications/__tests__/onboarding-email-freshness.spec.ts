@@ -8,11 +8,14 @@ import { NOW, notificationHarness } from './harness.ts';
 import {
   DAY_MS,
   INVITE_ISSUED_AT,
+  queueInvitationNotice,
+  queueStaffWelcomeNotice,
   RecordingChannel,
   requestOnboarding,
   sealInvitationPayload,
   sealStaffPayload,
   seedActiveStaff,
+  seedCompanyActor,
   seedPendingInvitation,
   type OnboardingHarness,
 } from './onboarding-email-harness.ts';
@@ -264,5 +267,120 @@ it('refuses a superseded member invitation link after reissue', async () => {
   await h.owner`UPDATE member_invitations SET link_issued_at = ${reissuedAt.toISOString()}::timestamptz WHERE company_id = ${TENANT.A.company} AND id = ${invitationId}`;
   await h.module.process({ data: { company_id: event.companyId, attempt_id: id } });
   expect(await h.read(id)).toMatchObject({ status: 'FAILED', failure_code: 'DESTINATION_INVALID' });
+  expect(channel.requests).toHaveLength(0);
+});
+
+it('re-checks admission on a retry delayed past the 1000ms cooldown window', async () => {
+  const staff = await seedActiveStaff(h);
+  const { id, event } = await queueStaffWelcomeNotice(h, NOW.getTime() + DAY_MS, {
+    email: staff.email,
+    employeeId: staff.employeeId,
+    operationId: staff.attemptId,
+    pinRevision: staff.pinRevision,
+  });
+  const base = h.module.send;
+  let reserveCalls = 0;
+  let verifyCalls = 0;
+  const sendDelayed = new SendNotification(
+    base.attempts,
+    base.channel,
+    {
+      reserve: async () => {
+        reserveCalls += 1;
+        return reserveCalls === 1;
+      },
+    },
+    base.identity,
+    {
+      ...base.configuration,
+      verify: async (attempt, scope) => {
+        verifyCalls += 1;
+        if (verifyCalls === 1) {
+          h.advance(new Date(NOW.getTime() + 1_500));
+          throw new Error('TRANSIENT_FRESHNESS_READ_FAILURE');
+        }
+        return base.configuration.verify?.(attempt, scope) ?? true;
+      },
+    },
+    base.clock,
+    base.ids,
+  );
+  await sendDelayed.execute(event.companyId, id);
+  expect(reserveCalls).toBe(2);
+  expect(await h.read(id)).toMatchObject({ status: 'FAILED', failure_code: 'ADMISSION_REFUSED' });
+  expect(channel.requests).toHaveLength(0);
+});
+
+it('refuses a manager staff welcome notice after manager email change or revoked branch authority', async () => {
+  const managerOne = await seedCompanyActor(h, 'branch_manager', 'mgr-one@example.test');
+  const staffOne = await seedActiveStaff(h, null, managerOne.userId);
+  const expiresAtMs = NOW.getTime() + DAY_MS;
+  const first = await queueStaffWelcomeNotice(h, expiresAtMs, {
+    recipient: 'manager',
+    email: managerOne.email,
+    targetMaskedEmail: 'ca***@example.test',
+    employeeId: staffOne.employeeId,
+    operationId: staffOne.attemptId,
+    pinRevision: staffOne.pinRevision,
+  });
+  await h.owner`UPDATE "user" SET email = 'mgr-one-new@example.test' WHERE id = ${managerOne.userId}`;
+  await h.module.process({ data: { company_id: first.event.companyId, attempt_id: first.id } });
+  expect(await h.read(first.id)).toMatchObject({
+    status: 'FAILED',
+    failure_code: 'DESTINATION_INVALID',
+  });
+
+  const managerTwo = await seedCompanyActor(h, 'branch_manager', 'mgr-two@example.test');
+  const staffTwo = await seedActiveStaff(h, null, managerTwo.userId);
+  const second = await queueStaffWelcomeNotice(h, expiresAtMs, {
+    recipient: 'manager',
+    email: managerTwo.email,
+    targetMaskedEmail: 'ca***@example.test',
+    employeeId: staffTwo.employeeId,
+    operationId: staffTwo.attemptId,
+    pinRevision: staffTwo.pinRevision,
+  });
+  await h.owner`UPDATE memberships SET ends_at = now() - interval '1 minute' WHERE company_id = ${TENANT.A.company} AND id = ${managerTwo.membershipId}`;
+  await h.module.process({ data: { company_id: second.event.companyId, attempt_id: second.id } });
+  expect(await h.read(second.id)).toMatchObject({
+    status: 'FAILED',
+    failure_code: 'DESTINATION_INVALID',
+  });
+  expect(channel.requests).toHaveLength(0);
+});
+
+it('refuses an owner invitation copy after owner email change or lost ownership', async () => {
+  const ownerOne = await seedCompanyActor(h, 'owner', 'owner-one@example.test');
+  const invOne = await seedPendingInvitation(h, INVITE_ISSUED_AT, ownerOne.userId);
+  const expiresAtMs = NOW.getTime() + 48 * 60 * 60 * 1000;
+  const first = await queueInvitationNotice(h, expiresAtMs, {
+    recipient: 'owner',
+    email: ownerOne.email,
+    targetMaskedEmail: 'in***@example.test',
+    invitationId: invOne,
+    issuedAt: INVITE_ISSUED_AT.toISOString(),
+  });
+  await h.owner`UPDATE "user" SET email = 'owner-one-new@example.test' WHERE id = ${ownerOne.userId}`;
+  await h.module.process({ data: { company_id: first.event.companyId, attempt_id: first.id } });
+  expect(await h.read(first.id)).toMatchObject({
+    status: 'FAILED',
+    failure_code: 'DESTINATION_INVALID',
+  });
+
+  const ownerTwo = await seedCompanyActor(h, 'owner', 'owner-two@example.test');
+  const invTwo = await seedPendingInvitation(h, INVITE_ISSUED_AT, ownerTwo.userId);
+  const second = await queueInvitationNotice(h, expiresAtMs, {
+    recipient: 'owner',
+    email: ownerTwo.email,
+    targetMaskedEmail: 'in***@example.test',
+    invitationId: invTwo,
+    issuedAt: INVITE_ISSUED_AT.toISOString(),
+  });
+  await h.owner`UPDATE memberships SET ends_at = now() - interval '1 minute' WHERE company_id = ${TENANT.A.company} AND id = ${ownerTwo.membershipId}`;
+  await h.module.process({ data: { company_id: second.event.companyId, attempt_id: second.id } });
+  expect(await h.read(second.id)).toMatchObject({
+    status: 'FAILED',
+    failure_code: 'DESTINATION_INVALID',
+  });
   expect(channel.requests).toHaveLength(0);
 });

@@ -16,11 +16,14 @@ import {
   INVITEE_EMAIL,
   onboardingEmailIdentity,
   PIN,
+  queueInvitationNotice,
+  queueStaffWelcomeNotice,
   RecordingChannel,
   requestOnboarding,
   sealInvitationPayload,
   sealStaffPayload,
   seedActiveStaff,
+  seedCompanyActor,
   seedPendingInvitation,
   STAFF_EMAIL,
   type OnboardingHarness,
@@ -232,4 +235,37 @@ it('records CONFIG_INVALID when worker email hash config is incomplete instead o
     failure_code: 'CONFIG_INVALID',
   });
   expect(channel.requests).toHaveLength(0);
+});
+
+it('sends valid manager welcome and owner invitation copies when actor contacts and authority match', async () => {
+  const manager = await seedCompanyActor(h, 'branch_manager', 'valid-mgr@example.test');
+  const staff = await seedActiveStaff(h, null, manager.userId);
+  const expiresAtMs = NOW.getTime() + DAY_MS;
+  const mgrNotice = await queueStaffWelcomeNotice(h, expiresAtMs, {
+    recipient: 'manager',
+    email: manager.email,
+    targetMaskedEmail: 'ca***@example.test',
+    employeeId: staff.employeeId,
+    operationId: staff.attemptId,
+    pinRevision: staff.pinRevision,
+  });
+  await h.module.process({
+    data: { company_id: mgrNotice.event.companyId, attempt_id: mgrNotice.id },
+  });
+  expect(await h.read(mgrNotice.id)).toMatchObject({ status: 'SENT', recipient_email: null });
+
+  const owner = await seedCompanyActor(h, 'owner', 'valid-owner@example.test');
+  const invitationId = await seedPendingInvitation(h, INVITE_ISSUED_AT, owner.userId);
+  const ownerNotice = await queueInvitationNotice(h, expiresAtMs, {
+    recipient: 'owner',
+    email: owner.email,
+    targetMaskedEmail: 'in***@example.test',
+    invitationId,
+    issuedAt: INVITE_ISSUED_AT.toISOString(),
+  });
+  await h.module.process({
+    data: { company_id: ownerNotice.event.companyId, attempt_id: ownerNotice.id },
+  });
+  expect(await h.read(ownerNotice.id)).toMatchObject({ status: 'SENT', recipient_email: null });
+  expect(channel.requests.map((request) => request.email)).toEqual([manager.email, owner.email]);
 });

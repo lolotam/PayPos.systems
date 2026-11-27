@@ -11,6 +11,7 @@ import type { IdGenerator } from '../../ports/id-generator.port.ts';
 import type { SendAdmission } from '../../ports/send-admission.port.ts';
 
 const MAX_PRECLAIM_VERIFY_ATTEMPTS = 3;
+const ADMISSION_RESERVATION_WINDOW_MS = 1000;
 
 function isPreClaimVerifyError(error: unknown): boolean {
   return (
@@ -41,16 +42,9 @@ export class SendNotification {
       await this.reject(attempt, refusal);
       return;
     }
-    if (!(await this.admission.reserve(attempt.identity.hash, attempt.deadline))) {
-      await this.reject(
-        attempt,
-        refusedResult(
-          mayStart(attempt.deadline, this.clock.now()) ? 'ADMISSION_REFUSED' : 'DEADLINE_EXPIRED',
-        ),
-      );
-      return;
-    }
-    const claimed = await this.claimAttempt(attempt);
+    const reservedAtMs = await this.reserveAdmission(attempt);
+    if (reservedAtMs === null) return;
+    const claimed = await this.claimAttempt(attempt, reservedAtMs);
     if (claimed === null) return;
     attempt = {
       ...attempt,
@@ -66,9 +60,24 @@ export class SendNotification {
     }
   }
 
+  private async reserveAdmission(attempt: Attempt): Promise<number | null> {
+    if (await this.admission.reserve(attempt.identity.hash, attempt.deadline)) {
+      return this.clock.now().getTime();
+    }
+    await this.reject(
+      attempt,
+      refusedResult(
+        mayStart(attempt.deadline, this.clock.now()) ? 'ADMISSION_REFUSED' : 'DEADLINE_EXPIRED',
+      ),
+    );
+    return null;
+  }
+
   private async claimAttempt(
     attempt: Attempt,
+    initialReservedAtMs: number,
   ): Promise<{ readonly executionId: string; readonly now: Date } | null> {
+    let reservedAtMs = initialReservedAtMs;
     const verifyFn = this.configuration.verify;
     for (let tryCount = 1; ; tryCount += 1) {
       // نفس اللحظة للفحص وللـ claim: لو اتحسبوا مرتين، الموعد ممكن يعدّي بينهم والـ claim يترفض في صمت،
@@ -78,6 +87,11 @@ export class SendNotification {
       if (!mayStart(attempt.deadline, now)) {
         await this.reject(attempt, refusedResult('DEADLINE_EXPIRED'));
         return null;
+      }
+      if (tryCount > 1 && now.getTime() - reservedAtMs >= ADMISSION_RESERVATION_WINDOW_MS) {
+        const renewedAtMs = await this.reserveAdmission(attempt);
+        if (renewedAtMs === null) return null;
+        reservedAtMs = renewedAtMs;
       }
       let failedDuringVerify = false;
       const verification: ClaimVerification | undefined =
