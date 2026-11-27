@@ -3700,3 +3700,9 @@ so much beteer to creat this advisore for the project level so you and the manag
 2. **التوقيت بالتوازي:** أول ما الـ PR يتفتح على head معيّن، يُطلَق المراجِع المستقل على نفس الـ SHA في نفس الوقت مع `@codex review` ولوحة MergePilot و`ci-gate`.
 3. **جولة تصليح واحدة مجمّعة:** نستنى المراجِع وكل البوتات يخلصوا على نفس الـ head (PP-119.1). بعدها تُجمع كل الملاحظات وتتصلح في push واحد: P0/P1 إلزامي، وP2/P3 يتصلح افتراضيًا أو يتحول إلى issue مربوط. بعد الـ push لا تتكرر المراجعة المستقلة إلا لو التصليح غيّر سلوكًا في مال أو صلاحيات أو RLS أو migration. البوتات بتراجع الـ head الجديد لوحدها، ويُقرأ ناتجها قبل الدمج.
 4. سؤال تقني لا يُنشر على صفحة القرارات (`CLAUDE.md` §1 5b).
+
+**تكملة PP-282 — ترتيب المراجِعين (`2026-11-27 18:21 بتوقيت الكويت`):** نص وليد الحرفي: «كلامك مظبو / reviewer : 1-antigravity opus 5.5 medium 2-fallback is Claude code opus 5.5 medium 3-falback is sol 6.2 medium».
+
+1. `antigravity` / `claude-opus-5-5` (`thought_level: "medium"`).
+2. احتياطي أول: `claudeAgent` / `claude-opus-5-5` (`effort: "medium"`).
+3. احتياطي ثانٍ: `codex` / `gpt-6.2-sol` (`medium`).
