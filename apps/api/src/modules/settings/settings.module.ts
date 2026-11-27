@@ -76,13 +76,18 @@ export function settingsProviders(
               createRedisSettingsCache(redis, ids),
             ),
     },
-    ...alertRulesProviders(database, ids),
+    ...alertRulesProviders(database, ids, redis),
   ];
 }
 
-function alertRulesProviders(database: TenantWrappers | undefined, ids: IdGenerator): Provider[] {
+function alertRulesProviders(
+  database: TenantWrappers | undefined,
+  ids: IdGenerator,
+  redis?: Redis,
+): Provider[] {
   if (database === undefined) return [{ provide: ALERT_RULES_WIRING, useValue: null }];
   const transactions = createAlertRulesTransactions(database, ids);
+  const cache = redis === undefined ? undefined : createRedisSettingsCache(redis, ids);
   return [
     {
       provide: ALERT_RULES_WIRING,
@@ -90,7 +95,7 @@ function alertRulesProviders(database: TenantWrappers | undefined, ids: IdGenera
         branchAccess: createAlertRulesReadAccess(),
         set: new SetAlertRules(transactions),
         reset: new ResetBranchAlertRule(transactions),
-        master: new SetAlertsMaster(transactions),
+        master: new SetAlertsMaster(transactions, cache),
       },
     },
   ];

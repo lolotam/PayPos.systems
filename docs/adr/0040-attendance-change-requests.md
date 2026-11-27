@@ -86,10 +86,12 @@ D-B13, FR-B17, row 62-2b). The rule gates and adds, it does not replace: `attend
 `attendanceDecisionRecipients` and `attendanceChangeRecipientGroups` stay as they are, so with no stored rule
 and the master switch null the recipients, the groups of a hundred and the payload are exactly what they were.
 A closed rule (the kind off, its branch override off, or the master switch off) skips the approver and
-requester authority reads entirely and leaves the event in the outbox with its facts and no
-`notification_recipients`: the event stays for the rest of the system and only the bell goes away. The rule's
-`recipientRoles` add recipients: the users who hold one of those system roles in the event branch's scope (a
-company, business or branch membership covering the branch, active at the event time), unioned with the fixed
+requester authority reads entirely and writes no outbox row at all (#457): the rule says the team hears
+nothing about it, so the system keeps no event either. An open rule with no channels (`channels: []`) or one
+whose resolved recipients are all excluded as the acting user still records the fact event in the outbox with
+its facts and no `notification_recipients`. The rule's `recipientRoles` add recipients: the users who hold one of those
+system roles in the event branch's scope (a company, business or branch membership covering the branch,
+active at the event time), unioned with the fixed
 recipients and deduplicated; the acting user (the requester on a request, the decider on a decision) never
 receives the bell, and the employee herself is left out unless she is an owner, exactly as the fixed
 recipients are. Those role holders are read through staff's `AlertRulesPort.roleHolders`, whose adapter calls

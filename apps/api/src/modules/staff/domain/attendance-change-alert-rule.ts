@@ -7,6 +7,8 @@ export type AttendanceChangeAlertKind =
 
 /** خطة الإشعار المسموح بها للمُرسِل بعد قراءة القاعدة الفعلية. */
 export interface AttendanceChangeAlertPlan {
+  /** القاعدة الفعلية شغّالة؛ false = النوع مقفول أو تعديل الفرع أو المفتاح العام مقفول (لا صف outbox، #457). */
+  readonly enabled: boolean;
   /** المستلم الثابت للنوع يتحسب من السلطة؛ false = القاعدة ما جابتش المستلم الثابت بتاع النوع. */
   readonly fixed: boolean;
   /** قنوات الإشعار المفعّلة في القاعدة (جرس وإيميل وواتساب)؛ فاضية = بلا إشعار. */
@@ -25,7 +27,8 @@ export interface AttendanceChangeNoticeParameter {
   readonly value: string;
 }
 
-const NOTHING: AttendanceChangeAlertPlan = { fixed: false, channels: [], roles: [] };
+const CLOSED: AttendanceChangeAlertPlan = { enabled: false, fixed: false, channels: [], roles: [] };
+const QUIET: AttendanceChangeAlertPlan = { enabled: true, fixed: false, channels: [], roles: [] };
 
 const DECIDE_PERMISSION = 'decide:attendance-change:company';
 
@@ -48,18 +51,26 @@ function carriesSelector(rule: EffectiveAlertRule, kind: AttendanceChangeAlertKi
 /**
  * بيحوّل القاعدة الفعلية لنوع التنبيه إلى اللي المُرسِل مسموح يعمله: يحسب المستلم الثابت، ويزود مستلمي
  * أدوار القاعدة، ويكتب قنوات الإشعار. كل واحد فيهم بيتحسب لوحده: القاعدة اللي ما جابتش المستلم الثابت
- * ما بتقراش حازمين القرار، والقاعدة المقفولة (النوع مطفي أو المفتاح العام مقفول) ما بتقراش حاجة خالص.
+ * ما بتقراش حازمين القرار، والقاعدة المقفولة (النوع مطفي أو المفتاح العام مقفول) بترجّع enabled: false
+ * لعدم كتابة صف outbox (#457)، بينما القاعدة الشغّالة بلا قنوات بترجّع enabled: true مع قنوات فاضية
+ * لحفظ حدث الواقعة بلا إشعار.
  *
  * @param rule القاعدة الفعلية بعد المفتاح العام
  * @param kind نوع التنبيه: طلب التعديل أم قراره
- * @returns الخطة: هل المستلم الثابت يتحسب وإيه القنوات وإيه الأدوار اللي بتتحسب
+ * @returns الخطة: هل القاعدة شغّالة وهل المستلم الثابت يتحسب وإيه القنوات وإيه الأدوار اللي بتتحسب
  */
 export function attendanceChangeAlertPlan(
   rule: EffectiveAlertRule,
   kind: AttendanceChangeAlertKind,
 ): AttendanceChangeAlertPlan {
-  if (!rule.enabled || rule.channels.length === 0) return NOTHING;
-  return { fixed: carriesSelector(rule, kind), channels: rule.channels, roles: rule.recipientRoles };
+  if (!rule.enabled) return CLOSED;
+  if (rule.channels.length === 0) return QUIET;
+  return {
+    enabled: true,
+    fixed: carriesSelector(rule, kind),
+    channels: rule.channels,
+    roles: rule.recipientRoles,
+  };
 }
 
 /**

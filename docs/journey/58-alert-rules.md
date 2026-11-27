@@ -131,9 +131,10 @@ API only, no screen yet. What you see is the bell.
 - **Errors:** `ALERT_RULE_INVALID` 422 · `ALERT_RULE_REVISION_CONFLICT` 409 · `VALIDATION_FAILED` 400 · `FORBIDDEN` 403 ·
   `NOT_READY` 503.
 - **Assertions:** audit actions `alert_rule.saved`, `alert_rule.branch_reset`, `alert_rules_master.enabled|disabled`, none
-  on a same-value save; effective rule = branch row → business row → default, master switch on top; a closed periodic
+  on a same-value save; a same-value master switch writes no settings row and leaves `updated_at` alone (#480);
+  effective rule = branch row → business row → default, master switch on top; a closed periodic
   alert writes its ledger row with `suppressed_at` set and `recipient_count = 0`, no audit and no outbox event; a closed
-  attendance-change kind leaves the event with no `notification_recipients`; a closed orders kind claims its ledger row
+  attendance-change kind writes no outbox event at all (#457); a closed orders kind claims its ledger row
   with zero recipients; `alert_rules` RLS hides another tenant's rows; the new permission is in `deviceForbidden`.
 - **Sources:** `docs/specs/060-ratings-and-staff-app/spec.md` (§B.2 Story B5, §B.4 alert kinds, §B.5 rows 62-1…62-4),
   `apps/api/src/modules/settings/http/alert-rules.controller.ts`, `packages/contracts/src/settings/alert-rules.ts`,

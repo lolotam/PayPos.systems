@@ -106,7 +106,7 @@ export interface EmployeeImportCommitRequested {
   readonly preview_id: string;
 }
 
-/** يصدر عند تسجيل طلب معلق فقط لإبلاغ الملاك، دون سبب الطلب في حقائق الحدث. */
+/** يصدر عند تسجيل طلب معلق فقط لإبلاغ الملاك بشرط أن تكون القاعدة الفعلية للنوع شغّالة (#457، ADR-0040)، دون سبب الطلب في حقائق الحدث. */
 export interface AttendanceChangeRequested {
   readonly request_id: string;
   readonly business_id: string;
@@ -118,7 +118,7 @@ export interface AttendanceChangeRequested {
   readonly requested_at: string;
   readonly revision: number;
 }
-/** يصدر عند الموافقة أو الرفض داخل معاملة القرار، بما فيها موافقة المالك الفورية. */
+/** يصدر عند الموافقة أو الرفض داخل معاملة القرار (بما فيها موافقة المالك الفورية) بشرط أن تكون القاعدة الفعلية للنوع شغّالة (#457، ADR-0040). */
 export interface AttendanceChangeDecided {
   readonly request_id: string;
   readonly business_id: string;
