@@ -22,12 +22,16 @@ export interface TiersDraft {
   accumulator: NonNullable<CommissionPlanTiers['accumulator']>;
   steps: StepDraft[];
 }
-export interface PlanDraft {
-  effectiveFrom: string;
-  wholePeriod: boolean;
+/** البلوكات الثلاثة المشتركة بين الخطة العادية وخطة الإصلاح؛ الحقول المشتركة بتشتغل على النوع ده. */
+export interface RepairPlanDraft {
   base: ComponentDraft;
   tiers: TiersDraft;
   packageSale: ComponentDraft;
+}
+/** مسودة الخطة العادية: البلوكات الثلاثة مع تاريخ السريان وكامل الفترة. */
+export interface PlanDraft extends RepairPlanDraft {
+  effectiveFrom: string;
+  wholePeriod: boolean;
 }
 
 export type DraftErrorCode =
@@ -153,11 +157,39 @@ export function toWireCandidate(draft: PlanDraft): WireCandidateResult {
   const candidate = {
     effective_from: effectiveFrom,
     whole_period: draft.wholePeriod,
+    ...blocksWire(draft, errors),
+  };
+  return { candidate, errors };
+}
+
+/** البلوكات الثلاثة بصيغة العقد مع أخطاء قراءتها، وهي الجزء المشترك بين الخطة العادية وخطة الإصلاح. */
+function blocksWire(draft: RepairPlanDraft, errors: DraftError[]) {
+  return {
     base: componentWire(draft.base, 'base', errors),
     tiers: tiersWire(draft.tiers, errors),
     package_sale: componentWire(draft.packageSale, 'packageSale', errors),
   };
-  return { candidate, errors };
+}
+
+/**
+ * يبني جسم طلب الإصلاح المرشّح: البلوكات الثلاثة بس، من غير تاريخ سريان ولا whole_period لأن الإصلاح بيسري
+ * في شهره وتاريخه أول الشهر (D-12).
+ *
+ * @param draft قيم البلوكات النصية
+ * @returns الجسم بصيغة العقد مع قائمة أخطاء القراءة
+ */
+export function toRepairWireCandidate(draft: RepairPlanDraft): WireCandidateResult {
+  const errors: DraftError[] = [];
+  return { candidate: blocksWire(draft, errors), errors };
+}
+
+/** يبدأ مسودة إصلاح فاضية وكل البلوكات معطّلة. */
+export function emptyRepairPlanDraft(): RepairPlanDraft {
+  return {
+    base: { enabled: false, calc: { kind: 'PCT', bps: '', amount: '' } },
+    tiers: { enabled: false, touched: false, mode: 'MARGINAL', accumulator: 'AMOUNT', steps: [] },
+    packageSale: { enabled: false, calc: { kind: 'PCT', bps: '', amount: '' } },
+  };
 }
 
 /** يبدأ مسودة فاضية بتاريخ النهارده في توقيت النشاط وكل البلوكات معطّلة. */
@@ -165,9 +197,7 @@ export function emptyPlanDraft(timeZone: string, now: Date): PlanDraft {
   return {
     effectiveFrom: localDate(now, timeZone),
     wholePeriod: false,
-    base: { enabled: false, calc: { kind: 'PCT', bps: '', amount: '' } },
-    tiers: { enabled: false, touched: false, mode: 'MARGINAL', accumulator: 'AMOUNT', steps: [] },
-    packageSale: { enabled: false, calc: { kind: 'PCT', bps: '', amount: '' } },
+    ...emptyRepairPlanDraft(),
   };
 }
 

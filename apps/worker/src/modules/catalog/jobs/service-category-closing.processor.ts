@@ -7,6 +7,7 @@ import {
   serviceCategoryClosingRequested,
 } from '@pospay/contracts';
 import type { ClaimedEvent, DeliveryOutcome } from '@pospay/db';
+import { FailurePersistedError, reactivatedAfterDelay } from './catalog-job-finalization.ts';
 import type { RunServiceCategoryClosing } from '../use-cases/run-service-category-closing/run-service-category-closing.ts';
 
 export const SERVICE_CATEGORY_CLOSING_QUEUE = 'service-category-closing';
@@ -42,14 +43,6 @@ function closingHandler(useCase: RunServiceCategoryClosing) {
 }
 
 /**
- * بيكشف إن المهمة اتفتحت تاني بعد تأخير أنا عملته: BullMQ بيزوّد attemptsStarted مع كل تفعيل
- * و attemptsMade بس مع كل محاولة فاشلة، فالفرق بعد طرح مرات الـ stall هو عدد تأخيراتنا.
- */
-function reactivatedAfterDelay(job: Job): boolean {
-  return job.attemptsStarted - job.attemptsMade - 1 - job.stalledCounter > 0;
-}
-
-/**
  * يكتب مؤشر الفشل في الطابور كخطوة اختيارية: رفض الكتابة ما يمنعش حفظ الفشل على صف الطلب.
  * المؤشر مش للعرض بس؛ هو اللي بيمنع إعادة تشغيل العمل بعد خلاص المحاولات، وعدّادات
  * المحاولات بتغطي الحالة اللي المؤشر ما انكتبش فيها.
@@ -62,19 +55,24 @@ async function markFailureProgress(job: Job, failure: Failure): Promise<void> {
   }
 }
 
-/** يكتب رمز الفشل على صف الطلب؛ لو الكتابة نفسها فشلت، المهمة بتتأجل بدل ما تضيع. */
+/**
+ * يكتب رمز الفشل على صف الطلب؛ لو الكتابة نفسها فشلت، المهمة بتتأجل بدل ما تضيع.
+ * بعد نجاح الكتابة بيرمي FailurePersistedError (من نوع UnrecoverableError) عشان الصف يدخل مجموعة الفاشل في BullMQ
+ * (مقاييس الفشل وremoveOnFail) بدل ما يتسجل «مكتمل» ويتمسح؛ ومستمع failed بيتجاهله هو بالذات.
+ */
 async function persistFailure(
   useCase: RunServiceCategoryClosing,
   job: Job,
   token: string | undefined,
   failure: Failure & { companyId: string; closingId: string },
-) {
+): Promise<never> {
   try {
     await useCase.fail(failure.companyId, failure.closingId, failure.code);
   } catch {
     await job.moveToDelayed(Date.now() + 2000, token);
     throw new DelayedError();
   }
+  throw new FailurePersistedError(failure.code);
 }
 
 /**
@@ -128,8 +126,8 @@ export function startServiceCategoryClosingProcessor(
     prefix,
   });
   worker.on('error', () => undefined);
-  worker.on('failed', (job) => {
-    if (job == null || !isTerminalFailure(job)) return;
+  worker.on('failed', (job, error) => {
+    if (job == null || error instanceof FailurePersistedError || !isTerminalFailure(job)) return;
     void persistTerminalFailure(useCase, job).catch(() => undefined);
   });
   return {

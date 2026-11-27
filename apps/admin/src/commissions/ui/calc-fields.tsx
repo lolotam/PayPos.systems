@@ -5,7 +5,7 @@ import { Input, Label, NativeSelect } from '@pospay/ui';
 import type { ChangeEvent } from 'react';
 import { useFormContext } from 'react-hook-form';
 import { useLocale } from '@/shared/locale/locale-context';
-import type { PlanDraft } from '../model/plan-draft';
+import type { RepairPlanDraft } from '../model/plan-draft';
 import type { CalcPath } from './plan-form-types';
 
 /**
@@ -15,7 +15,7 @@ import type { CalcPath } from './plan-form-types';
  */
 export function CalcFields({ id, path }: { id: string; path: CalcPath }) {
   const locale = useLocale();
-  const { register, setValue, watch } = useFormContext<PlanDraft>();
+  const { register, setValue, watch } = useFormContext<RepairPlanDraft>();
   const kind = watch(`${path}.kind`);
   const valueField = kind === 'PCT' ? register(`${path}.bps`) : register(`${path}.amount`);
   const normalizeOnBlur = (event: ChangeEvent<HTMLInputElement>) => {

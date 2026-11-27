@@ -26,6 +26,8 @@ export interface ClosedStatementContext {
   /** صرف الكشف لما يكون PAID، وإلا null. */
   readonly payment: ClosedStatementPayment | null;
   readonly scope: StatementViewScope;
+  /** من سابت الشغل قبل الشهر، من المصادر الحية لأن العلامة مش مجمّدة مع الصفوف (CM-50). */
+  readonly departed?: ReadonlySet<string>;
 }
 
 function paymentRows(payment: ClosedStatementPayment, visible: ReadonlySet<string> | null) {
@@ -56,6 +58,7 @@ export function closedStatementView(
     blocked: [],
     unlisted: [],
     scope: context.scope,
+    ...(context.departed === undefined ? {} : { departed: context.departed }),
   }).map(employeeContract);
   const { payment } = context;
   if (!context.scope.businessWide) {

@@ -41,7 +41,7 @@ export function CommissionPlansPage({
       {access.denied ? (
         <CommissionPlansDenied onRetry={() => restorePlanAccess(client, scope)} />
       ) : (
-        <CommissionPlansBoard scope={scope} renderSection={renderSection} />
+        <CommissionPlansBoard scope={scope} renderSection={renderSection} memory={memory} />
       )}
     </PageShell>
   );
