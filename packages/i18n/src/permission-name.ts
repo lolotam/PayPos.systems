@@ -91,6 +91,57 @@ export function permissionName(locale: Locale, code: string): string {
   return key === undefined ? code : t(locale, key);
 }
 
+/** أسماء وحدات الصلاحيات: كل وحدة في الكتالوج ليها اسم بشري بالعربي والإنجليزي. */
+const moduleNames: Readonly<Record<string, { readonly ar: string; readonly en: string }>> = {
+  'alert-rules': { ar: 'التنبيهات', en: 'Alerts' },
+  attendance: { ar: 'الحضور', en: 'Attendance' },
+  'attendance-change': { ar: 'طلبات تعديل الحضور', en: 'Attendance change requests' },
+  branches: { ar: 'الفروع', en: 'Branches' },
+  'business-identity': { ar: 'هوية النشاط', en: 'Business identity' },
+  businesses: { ar: 'الأنشطة', en: 'Businesses' },
+  'commission-plans': { ar: 'خطط العمولة', en: 'Commission plans' },
+  commissions: { ar: 'العمولات', en: 'Commissions' },
+  customers: { ar: 'العملاء', en: 'Customers' },
+  devices: { ar: 'الأجهزة', en: 'Devices' },
+  'discount-limits': { ar: 'حدود الخصم', en: 'Discount limits' },
+  discounts: { ar: 'الخصومات', en: 'Discounts' },
+  'document-types': { ar: 'أنواع الوثائق', en: 'Document types' },
+  'employee-hours': { ar: 'ساعات العمل', en: 'Working hours' },
+  'employee-number': { ar: 'الرقم الوظيفي', en: 'Employee numbers' },
+  employees: { ar: 'الموظفون', en: 'Employees' },
+  files: { ar: 'الملفات', en: 'Files' },
+  'imported-refunds': { ar: 'مرتجع الباقات المستوردة', en: 'Imported package refunds' },
+  leave: { ar: 'الإجازات', en: 'Leave' },
+  memberships: { ar: 'العضويات', en: 'Memberships' },
+  notifications: { ar: 'الإشعارات', en: 'Notifications' },
+  'package-types': { ar: 'أنواع الباقات', en: 'Package types' },
+  packages: { ar: 'الباقات', en: 'Packages' },
+  passkeys: { ar: 'مفاتيح المرور', en: 'Passkeys' },
+  'rating-requests': { ar: 'طلبات التقييم', en: 'Rating requests' },
+  ratings: { ar: 'التقييمات', en: 'Ratings' },
+  salaries: { ar: 'الرواتب', en: 'Salaries' },
+  'schedule-settings': { ar: 'إعدادات الجداول', en: 'Schedule settings' },
+  schedules: { ar: 'الجداول', en: 'Schedules' },
+  'service-categories': { ar: 'تصنيفات الخدمات', en: 'Service categories' },
+  'service-line-performers': { ar: 'منفّذو بنود الخدمة', en: 'Service line performers' },
+  'service-line-prices': { ar: 'أسعار بنود الخدمة', en: 'Service line prices' },
+  'service-lines': { ar: 'بنود الخدمة', en: 'Service lines' },
+  'service-sessions': { ar: 'جلسات الخدمة', en: 'Service sessions' },
+  services: { ar: 'الخدمات', en: 'Services' },
+  settings: { ar: 'الإعدادات', en: 'Settings' },
+  staff: { ar: 'دخول الموظفات', en: 'Staff access' },
+  'staff-app-columns': { ar: 'أعمدة تطبيق الموظفات', en: 'Staff app columns' },
+};
+
+/**
+ * اسم وحدة الصلاحية محلياً: القايمة بتعرض الصلاحيات مقسّمة بالوحدات، والاسم الخام للمفتاح
+ * مش مقروء للموظف. الوحدة المجهولة بترجع المفتاح زي ما هو.
+ */
+export function permissionModuleName(locale: Locale, moduleKey: string): string {
+  const entry = moduleNames[moduleKey];
+  return entry === undefined ? moduleKey : entry[locale];
+}
+
 /** أكواد صلاحيات الكتالوج: كل اللي شاشة الصلاحيات بتعرضه، بدون صلاحيات المنصة. */
 export const PERMISSION_CATALOG_CODES: readonly string[] = Object.keys(keys).filter(
   (code) => !code.endsWith(':platform'),

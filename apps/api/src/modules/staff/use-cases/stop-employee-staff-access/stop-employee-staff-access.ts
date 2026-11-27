@@ -54,6 +54,10 @@ export class StopEmployeeStaffAccessUseCase {
     await this.cache
       .invalidate({ companyId: command.companyId, membershipId: stopped.membershipId })
       .catch(() => undefined);
+    for (const membershipId of stopped.extraMembershipIds)
+      await this.cache
+        .invalidate({ companyId: command.companyId, membershipId })
+        .catch(() => undefined);
     return { role: stopped.role, branchId: stopped.branchId };
   }
 
@@ -75,7 +79,7 @@ export class StopEmployeeStaffAccessUseCase {
       record.userId === command.userId
     )
       throw new StaffAccessError('STAFF_ACCESS_NOT_ALLOWED');
-    await scope.stop({
+    const stopped = await scope.stop({
       recordId: record.id,
       userId: record.userId,
       membershipId: record.membershipId,
@@ -84,6 +88,7 @@ export class StopEmployeeStaffAccessUseCase {
       operationId: record.operationId,
       userId: record.userId,
       membershipId: record.membershipId,
+      extraMembershipIds: stopped.extraMembershipIds,
       role: record.roleCode,
       branchId: record.branchId,
     };

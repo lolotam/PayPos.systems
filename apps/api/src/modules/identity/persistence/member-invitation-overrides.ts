@@ -7,6 +7,7 @@ import {
   permissionHolderIsOwner,
   type OverrideTerms,
 } from '../domain/permission-edit.ts';
+import { orderOverrideCandidateMemberships } from '../domain/inline-override-candidates.ts';
 import { overrideLifecycleFailure } from '../domain/permission-override-lifecycle.ts';
 import type {
   CompleteInvitationInput,
@@ -14,14 +15,8 @@ import type {
   MemberInvitationRefusal,
 } from '../ports/member-invitations.port.ts';
 import { toRow, type InvitationRecord } from './member-invitation-records.ts';
-import { permissionEditorContext } from './permission-editor-context.ts';
-
-/** قرار استثناء محفوظ على عضوية: معرّفه وأثره ونهاية مدته. */
-interface SavedDecision extends Record<string, unknown> {
-  readonly id: string;
-  readonly effect: 'ALLOW' | 'DENY';
-  readonly expires_at: string | null;
-}
+import { permissionEditorBatch } from './permission-editor-context.ts';
+import { currentOverrides, writeOverride } from './permission-override-writer.ts';
 
 /** رفض جوّه معاملة الإتمام: بيرمي عشان الكتابة كلها تتراجع، وبيتحول لـ refusal بعد الـ rollback. */
 export class InvitationRefusedError extends Error {
@@ -99,54 +94,47 @@ export async function applyInvitationOverrides(
   input: CompleteInvitationInput,
   memberships: readonly InvitedMembership[],
 ): Promise<void> {
-  for (const terms of input.permissionOverrides) {
-    await applyOverride(tx, ids, input, memberships, terms);
-  }
-}
-
-/**
- * ترتيب العضويات المرشحة للاستثناء: اللي نطاقها يطابق نطاق الاستثناء الأول، وبعدها الأساسية،
- * وبعدها الباقي — عشان أول تطابق هو اللي بيتقبل.
- */
-function orderedCandidates(
-  memberships: readonly InvitedMembership[],
-  terms: OverrideTerms,
-): InvitedMembership[] {
-  const matching = memberships.filter(
-    (membership) =>
-      membership.scopeType === terms.scope_type && membership.scopeId === terms.scope_id,
+  if (input.permissionOverrides.length === 0) return;
+  const primary = memberships[0];
+  if (primary === undefined) throw new InvitationRefusedError('PERMISSION_NOT_HELD');
+  const batch = await permissionEditorBatch(
+    tx,
+    input.companyId,
+    input.actorUserId,
+    primary.membershipId,
   );
-  return [...matching, ...memberships.filter((membership) => !matching.includes(membership))];
+  for (const terms of input.permissionOverrides) {
+    await applyOverride(tx, ids, input, memberships, batch, terms);
+  }
 }
 
 /**
  * الاستثناء بيتقيّم على كل عضوية مرشحة: إما التعديل مسموح ودورة القرار مسموحة، أو رفض.
  * الرفض بيرجع من العضوية الأساسية عشان يبقى سبب الرفض واحد مهما كان الترتيب.
+ *
+ * معرّف النطاق بيتطبّع لحروف صغيرة قبل أي مقارنة: UUID مش حساس لحالة الأحرف، فالنطاق
+ * المكتوب بحرف كبير لازم يتعامل زي نفس النطاق المكتوب بحرف صغير.
  */
 async function applyOverride(
   tx: Tx,
   ids: IdGenerator,
   input: CompleteInvitationInput,
   memberships: readonly InvitedMembership[],
+  batch: Awaited<ReturnType<typeof permissionEditorBatch>>,
   terms: OverrideTerms,
 ): Promise<void> {
   const primary = memberships[0];
+  const canonicalTerms: OverrideTerms = { ...terms, scope_id: terms.scope_id.toLowerCase() };
   let primaryRefusal: MemberInvitationRefusal | null = null;
-  for (const candidate of orderedCandidates(memberships, terms)) {
-    const context = await permissionEditorContext(
-      tx,
-      input.companyId,
-      input.actorUserId,
-      candidate.membershipId,
-      terms,
-    );
-    const failure = permissionEditFailure(terms, context, 'SAVE');
+  for (const candidate of orderOverrideCandidateMemberships(memberships, canonicalTerms)) {
+    const context = await batch.forCandidate(candidate.membershipId, canonicalTerms);
+    const failure = permissionEditFailure(canonicalTerms, context, 'SAVE');
     if (failure === null) {
       const previous = await currentOverrides(
         tx,
         input.companyId,
         candidate.membershipId,
-        terms,
+        canonicalTerms,
         context.now,
       );
       const lifecycle = overrideLifecycleFailure(
@@ -156,7 +144,15 @@ async function applyOverride(
         context.now,
       );
       if (lifecycle === null) {
-        await writeOverride(tx, ids, input, candidate.membershipId, terms, previous, context.now);
+        await writeOverride(
+          tx,
+          ids,
+          input,
+          candidate.membershipId,
+          canonicalTerms,
+          previous,
+          context.now,
+        );
         return;
       }
       if (candidate.membershipId === primary?.membershipId) primaryRefusal = lifecycle;
@@ -165,57 +161,4 @@ async function applyOverride(
     if (candidate.membershipId === primary?.membershipId) primaryRefusal = failure;
   }
   throw new InvitationRefusedError(primaryRefusal ?? 'PERMISSION_NOT_HELD');
-}
-
-/** القرارات السارية على نفس المفتاح، مقفولة، عشان المستبدل ينهي القديم بدل ما يتكدّس. */
-async function currentOverrides(
-  tx: Tx,
-  companyId: string,
-  membershipId: string,
-  terms: OverrideTerms,
-  now: Date,
-): Promise<readonly SavedDecision[]> {
-  const rows = await tx.execute<SavedDecision>(sql`
-    SELECT id, effect, to_json(expires_at) #>> '{}' AS expires_at FROM permission_overrides
-    WHERE company_id = ${companyId} AND membership_id = ${membershipId}
-      AND permission_code = ${terms.permission_code} AND scope_type = ${terms.scope_type}
-      AND scope_id = ${terms.scope_id}
-      AND (expires_at IS NULL OR expires_at > ${now.toISOString()}::timestamptz)
-    ORDER BY id FOR UPDATE`);
-  return Array.from(rows);
-}
-
-/** كتابة الاستثناء: إنهاء القديم ثم إضافة الجديد مع تدقيق «ممنوح» أو «مستبدل». */
-async function writeOverride(
-  tx: Tx,
-  ids: IdGenerator,
-  input: CompleteInvitationInput,
-  membershipId: string,
-  terms: OverrideTerms,
-  previous: readonly SavedDecision[],
-  now: Date,
-): Promise<void> {
-  for (const row of previous) {
-    await tx.execute(sql`
-      UPDATE permission_overrides SET expires_at = ${now.toISOString()}::timestamptz
-      WHERE company_id = ${input.companyId} AND id = ${row.id}`);
-  }
-  const id = ids.newId();
-  await tx.execute(sql`
-    INSERT INTO permission_overrides
-      (company_id, id, membership_id, permission_code, effect, scope_type, scope_id, reason,
-       granted_by, granted_at, expires_at)
-    VALUES (${input.companyId}, ${id}, ${membershipId}, ${terms.permission_code}, ${terms.effect},
-      ${terms.scope_type}, ${terms.scope_id}, ${terms.reason}, ${input.actorUserId},
-      ${now.toISOString()}::timestamptz, ${terms.expires_at}::timestamptz)`);
-  await transactionWriters(tx, ids).audit.record({
-    entity: 'permission_override',
-    entityId: id,
-    action: previous.length === 0 ? 'permission.granted' : 'permission.replaced',
-    before:
-      previous.length === 0
-        ? null
-        : previous.map((row) => ({ ...row, membership_id: membershipId })),
-    after: { ...terms, membership_id: membershipId },
-  });
 }

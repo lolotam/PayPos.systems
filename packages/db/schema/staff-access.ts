@@ -8,6 +8,7 @@ import {
   text,
   timestamp,
   unique,
+  uniqueIndex,
   uuid,
 } from 'drizzle-orm/pg-core';
 
@@ -60,6 +61,9 @@ export const employeeStaffAccess = pgTable(
     primaryKey({ name: 'employee_staff_access_pkey', columns: [t.companyId, t.id] }),
     unique('employee_staff_access_employee').on(t.companyId, t.employeeId),
     unique('employee_staff_access_operation').on(t.companyId, t.operationId),
+    // مفتاح هوية مركّب (080-b): الجدول الفرعي employee_staff_access_branches بيعتمد عليه في قيده
+    // المركّب، فمحتاج قيد فريد على نفس الأعمدة بالترتيب ده.
+    unique('employee_staff_access_identity_key').on(t.companyId, t.id, t.businessId, t.employeeId),
     foreignKey({
       name: 'employee_staff_access_business_fk',
       columns: [t.companyId, t.businessId],
@@ -97,6 +101,69 @@ export const employeeStaffAccess = pgTable(
     check(
       'employee_staff_access_active_rows',
       sql`${t.state} <> 'ACTIVE' OR (${t.userId} IS NOT NULL AND ${t.membershipId} IS NOT NULL)`,
+    ),
+  ],
+);
+
+// الفروع الإضافية لدخول الموظفة (080-b): السجل الأساسي في employee_staff_access والجدول الفرعي ده
+// صف لكل فرع زيادة بدوره الخاص. عضويات الفروع الإضافية بتنشأ وقت التفعيل وتحفظ في membership_id؛
+// NULL معناها لسه PENDING أو اتوقّف. tenant table بـ RLS إجباري زي أي جدول شركة.
+export const employeeStaffAccessBranches = pgTable(
+  'employee_staff_access_branches',
+  {
+    companyId: uuid('company_id')
+      .notNull()
+      .references(() => companies.id),
+    id: uuid('id').notNull(),
+    // النشاط من السجل الأصلي — مرجع القيد المركّب مع الموظفة.
+    businessId: uuid('business_id').notNull(),
+    employeeId: uuid('employee_id').notNull(),
+    // السجل الأصلي اللي بيحكم الصف ده.
+    accessId: uuid('access_id').notNull(),
+    // الفرع الإضافي ودوره في الدخول ('staff' | 'reception').
+    branchId: uuid('branch_id').notNull(),
+    roleCode: text('role_code').notNull(),
+    // العضوية اللي اتعملت للفرع الإضافي؛ NULL قبل التفعيل وبعد الإيقاف.
+    membershipId: uuid('membership_id'),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    primaryKey({ name: 'employee_staff_access_branches_pkey', columns: [t.companyId, t.id] }),
+    unique('employee_staff_access_branches_access_branch_key').on(t.companyId, t.accessId, t.branchId),
+    foreignKey({
+      name: 'employee_staff_access_branches_access_fk',
+      columns: [t.companyId, t.accessId, t.businessId, t.employeeId],
+      foreignColumns: [
+        employeeStaffAccess.companyId,
+        employeeStaffAccess.id,
+        employeeStaffAccess.businessId,
+        employeeStaffAccess.employeeId,
+      ],
+    }).onDelete('cascade'),
+    foreignKey({
+      name: 'employee_staff_access_branches_employee_fk',
+      columns: [t.companyId, t.businessId, t.employeeId],
+      foreignColumns: [employees.companyId, employees.businessId, employees.id],
+    }),
+    foreignKey({
+      name: 'employee_staff_access_branches_branch_fk',
+      columns: [t.companyId, t.businessId, t.branchId],
+      foreignColumns: [branches.companyId, branches.businessId, branches.id],
+    }),
+    foreignKey({
+      name: 'employee_staff_access_branches_membership_fk',
+      columns: [t.companyId, t.membershipId],
+      foreignColumns: [memberships.companyId, memberships.id],
+    }),
+    index('employee_staff_access_branches_employee_idx').on(t.companyId, t.employeeId),
+    index('employee_staff_access_branches_branch_idx').on(t.companyId, t.businessId, t.branchId),
+    // عضوية واحدة بس لكل فرع إضافي: نفس العضوية ما تتكررش على فرعين.
+    uniqueIndex('employee_staff_access_branches_membership_uidx')
+      .on(t.companyId, t.membershipId)
+      .where(sql`${t.membershipId} IS NOT NULL`),
+    check(
+      'employee_staff_access_branches_role_code',
+      sql`${t.roleCode} IN ('staff', 'reception')`,
     ),
   ],
 );

@@ -1,5 +1,10 @@
 import { normalizeRecoveryEmail } from '../../domain/create-employee.ts';
 import { StaffAccessError } from '../../domain/errors.ts';
+import {
+  resolveAdditionalStaffBranches,
+  sameAdditionalStaffBranches,
+  type StaffAccessBranchAssignment,
+} from '../../domain/staff-access.ts';
 import type {
   GrantBeginOutcome,
   GrantCommitOutcome,
@@ -17,6 +22,13 @@ import {
   type StaffAccessGrantAdmission,
 } from '../../ports/staff-access-admission.port.ts';
 import type { Clock } from '../../../../shared/ports/clock.port.ts';
+import { AttemptOverrideBinding, canonicalOverrideKey } from './override-binding.ts';
+import {
+  applyGrantOverrides,
+  assertExtraGrantAuthority,
+  assertPrimaryGrantAuthority,
+  grantMemberships,
+} from './grant-commit-steps.ts';
 
 export { StaffAccessError };
 
@@ -37,6 +49,14 @@ export type GrantEmployeeAccessResult = {
 
 /** بيُنجز «إعطاء دخول» لموظفة على فرعها الأساسي بخطوات قابلة للاستئناف بمعرّف العملية (FR-F1-6). */
 export class GrantEmployeeAccessUseCase {
+  /**
+   * استثناءات الصلاحيات المربوطة بكل محاولة منحة: بصمة الاستثناءات وأصحابها. الطلب اللي
+   * يستأنف محاولة معلّقة لازم يجيب نفس الاستثناءات — تغييرها في نص المحاولة مرفوض عشان
+   * الاستثناء اللي اتكتب في محاولة ما يتقارنش بعرض تاني. البصمة بتتحرر بانتهاء المحاولة عشان
+   * إعادة المحاولة باستثناءات مصححة تنجح، والمحاولات المتزامنة لنفس البصمة ما تشيلش بعضها.
+   */
+  readonly #attemptOverrides = new AttemptOverrideBinding();
+
   constructor(
     private readonly steps: GrantEmployeeAccessSteps,
     private readonly users: StaffAccessUserSteps,
@@ -60,19 +80,20 @@ export class GrantEmployeeAccessUseCase {
   async execute(command: GrantEmployeeAccessCommand): Promise<GrantEmployeeAccessResult> {
     const slot = this.admission.admit(command.companyId);
     if (slot === null) throw new StaffAccessError('TRANSACTION_RETRY_REQUIRED');
+    // كل محاولة جارية لها صاحب واحد: بصمة الاستثناءات بتتحرر لصاحبها بس، فمحاولتين
+    // متزامنتين بنفس البصمة ما تشيلش بعضها، والمحاولة اللي فشلتت ما بتسيبش بصمة ورا.
+    const owner = Symbol('staff-access-grant');
     try {
-      const begin = await this.#begin(command);
-      const { userId } = await this.#provision(command, begin);
+      const begin = await this.#begin(command, owner);
+      const { userId } = await this.#provision(command, begin, owner);
       const pinHash = await this.users.hash(command.pin);
       const outcome = await this.#commit(command, begin, userId, pinHash);
       // بعد الالتزام: إبطال الكاش خطوة مساعدة، وفشلها ما بيرجعش منحة ملتومة لخطأ (AC-ACT-11).
       if (outcome.kind === 'granted')
-        await this.cache
-          .invalidate({
-            companyId: command.companyId,
-            membershipId: outcome.membershipId,
-          })
-          .catch(() => undefined);
+        for (const membershipId of [outcome.membershipId, ...outcome.extraMembershipIds])
+          await this.cache
+            .invalidate({ companyId: command.companyId, membershipId })
+            .catch(() => undefined);
       return {
         kind: outcome.kind,
         role: outcome.role,
@@ -81,12 +102,15 @@ export class GrantEmployeeAccessUseCase {
           outcome.kind === 'already' && !outcome.phoneMatches ? null : command.phone.slice(-3),
       };
     } finally {
+      // المحاولة خلصت — بنجاح أو برفض: بصمة الاستثناءات بتتحرر لصاحبها عشان إعادة المحاولة
+      // باستثناءات مصححة تنجح، والمحاولات المتزامنة لنفس البصمة ما تشيلش بعضها.
+      this.#attemptOverrides.release(owner);
       this.admission.release(slot);
     }
   }
 
   /** الخطوة الأولى: الشركة ← الموظفة (P1-3)، والسلطة قبل أي رفض كاشف بالحالة (P1-1). */
-  async #begin(command: GrantEmployeeAccessCommand): Promise<GrantBeginOutcome> {
+  async #begin(command: GrantEmployeeAccessCommand, owner: symbol): Promise<GrantBeginOutcome> {
     const actor: StaffAccessActor = { companyId: command.companyId, userId: command.userId };
     return this.steps.begin(
       actor,
@@ -102,6 +126,7 @@ export class GrantEmployeeAccessUseCase {
         if (employee === null) throw new StaffAccessError('EMPLOYEE_NOT_FOUND');
         if (!(await scope.authority(employee.businessId, employee.primaryBranchId)))
           throw new StaffAccessError('STAFF_ACCESS_NOT_ALLOWED');
+        const extraBranches = await this.#resolveExtraBranches(scope, command, employee);
         if (employee.userId === actor.userId)
           throw new StaffAccessError('STAFF_ACCESS_NOT_ALLOWED');
         const recoveryEmail = normalizeRecoveryEmail(command.recoveryEmail);
@@ -114,37 +139,81 @@ export class GrantEmployeeAccessUseCase {
           throw new StaffAccessError('STAFF_ACCESS_NOT_ALLOWED');
         if (record !== null && record.state === 'ACTIVE')
           throw new StaffAccessError('STAFF_ACCESS_ALREADY_GRANTED');
-        if (record !== null) return this.#reuseRecord(scope, command, employee, record);
+        if (record !== null)
+          return this.#reuseRecord(scope, command, employee, record, extraBranches, owner);
         const inserted = await scope.insertRecord({
           roleCode: command.role,
           branchId: employee.primaryBranchId,
           phoneHash: scope.phoneHash(command.phone),
+          extraBranches,
         });
+        this.#attemptOverrides.bind(
+          inserted.attemptId,
+          canonicalOverrideKey(command.permissionOverrides),
+          owner,
+        );
         return { record: inserted, employee };
       },
     );
   }
 
-  /** استئناف سجل قائم: الهاتف والدور والفرع لازم يطابقوا السجل المقفول — أي خلاف رفض بلا تفاصيل (P1-4). */
+  /**
+   * يسوّي الفروع الإضافية المطلوبة ويفحص سلطة المانح على كل فرع منها (080-b): فرع غريب أو
+   * مش من النشاط بيرفض زي ما بيرفض الفرع الأساسي، وما بياخدش خطوة auth.
+   */
+  async #resolveExtraBranches(
+    scope: GrantBeginScope,
+    command: GrantEmployeeAccessCommand,
+    employee: BeginEmployee,
+  ): Promise<readonly StaffAccessBranchAssignment[]> {
+    const resolved = resolveAdditionalStaffBranches(
+      employee.primaryBranchId,
+      command.role,
+      command.additionalBranches,
+    );
+    if (!resolved.ok) throw new StaffAccessError(resolved.refusal);
+    for (const extra of resolved.branches)
+      if (!(await scope.authority(employee.businessId, extra.branchId)))
+        throw new StaffAccessError('STAFF_ACCESS_NOT_ALLOWED');
+    return resolved.branches;
+  }
+
+  /** استئناف سجل قائم: الهاتف والدور والفرع والفروع لازم يطابقوا السجل المقفول — أي خلاف رفض بلا تفاصيل (P1-4). */
   async #reuseRecord(
     scope: BeginScope,
     command: GrantEmployeeAccessCommand,
     employee: BeginEmployee,
     record: BeginRecord,
+    extraBranches: readonly StaffAccessBranchAssignment[],
+    owner: symbol,
   ): Promise<GrantBeginOutcome> {
+    const canonical = canonicalOverrideKey(command.permissionOverrides);
     if (record.state === 'STOPPED') {
       const restarted = await scope.restartRecord(record.id, {
         phoneHash: scope.phoneHash(command.phone),
         roleCode: command.role,
         branchId: employee.primaryBranchId,
+        extraBranches,
       });
+      // المحاولة الجديدة بتاخد بصمة الاستثناءات الجديدة، وبصمة المحاولة القديمة بتتشال.
+      this.#attemptOverrides.release(owner);
+      this.#attemptOverrides.bind(restarted.attemptId, canonical, owner);
       return { record: restarted, employee };
     }
     const phoneMatches = scope.phoneHash(command.phone) === record.phoneHash;
     const roleMatches = record.roleCode === command.role;
     const branchMatches = record.branchId === employee.primaryBranchId;
-    if (!phoneMatches || !roleMatches || !branchMatches)
+    const savedExtras = await scope.findExtraBranches(record.id);
+    const extrasMatch = sameAdditionalStaffBranches(savedExtras, extraBranches);
+    if (!phoneMatches || !roleMatches || !branchMatches || !extrasMatch)
       throw new StaffAccessError('STAFF_ACCESS_NOT_ALLOWED');
+    // استئناف محاولة معلّقة: الاستثناءات لازم تكون نفسها اللي اتربطت بالمحاولة، وإلا
+    // الاستثناء اللي اتكتب في محاولة ما يتقارنش بعرض تاني. المحاولة اللي فشلتت بصمتها
+    // اتحررت، فإعادة المحاولة باستثناءات مصححة بتعدّي.
+    const bound = this.#attemptOverrides.keyOf(record.attemptId);
+    if (bound !== null && bound !== canonical)
+      throw new StaffAccessError('STAFF_ACCESS_NOT_ALLOWED');
+    this.#attemptOverrides.bind(record.attemptId, canonical, owner);
     return { record, employee };
   }
 
@@ -153,7 +222,7 @@ export class GrantEmployeeAccessUseCase {
    * محاولة أحدث، ويعيد فحص سلطة المانح وربط الموظفة تحت قفل الشركة قبل أي كتابة في auth (P1-2).
    * هاتف مملوك مؤكد يحرر المحاولة في نفس المعاملة فلا تبقى الموظفة معلّقة 24 ساعة (E1).
    */
-  async #provision(command: GrantEmployeeAccessCommand, begin: GrantBeginOutcome) {
+  async #provision(command: GrantEmployeeAccessCommand, begin: GrantBeginOutcome, owner: symbol) {
     const actor = { companyId: command.companyId, userId: command.userId };
     const result = await this.steps.begin(
       actor,
@@ -176,12 +245,13 @@ export class GrantEmployeeAccessUseCase {
         )
           throw new StaffAccessError('STAFF_ACCESS_NOT_ALLOWED');
         await this.#assertStillEligible(scope, command, employee, record);
-        await this.#reuseRecord(scope, command, employee, record);
+        const extraBranches = await this.#resolveExtraBranches(scope, command, employee);
+        await this.#reuseRecord(scope, command, employee, record, extraBranches, owner);
         if (record.state === 'ACTIVE') {
           if (record.userId === null) throw new StaffAccessError('STAFF_ACCESS_NOT_ALLOWED');
           return { userId: record.userId };
         }
-        return this.#provisionOrRelease(scope, command, { employee, record });
+        return this.#provisionOrRelease(scope, command, { employee, record }, owner);
       },
     );
     if (result === null) throw new StaffAccessError('STAFF_ACCESS_PHONE_TAKEN');
@@ -207,6 +277,7 @@ export class GrantEmployeeAccessUseCase {
     scope: BeginScope,
     command: GrantEmployeeAccessCommand,
     target: { employee: BeginEmployee; record: BeginRecord },
+    owner: symbol,
   ): Promise<{ userId: string } | null> {
     const { employee, record } = target;
     try {
@@ -224,8 +295,10 @@ export class GrantEmployeeAccessUseCase {
     } catch (error) {
       if (!(error instanceof StaffAccessError) || error.code !== 'STAFF_ACCESS_PHONE_TAKEN')
         throw error;
-      if (await this.#noAccountWritten(record))
+      if (await this.#noAccountWritten(record)) {
         await scope.releaseAttempt(record.id, record.attemptId);
+        this.#attemptOverrides.release(owner);
+      }
       return null;
     }
   }
@@ -248,7 +321,7 @@ export class GrantEmployeeAccessUseCase {
     pinHash: string,
   ): Promise<GrantCommitOutcome> {
     const actor: StaffAccessActor = { companyId: command.companyId, userId: command.userId };
-    return this.steps.commit(
+    const outcome = await this.steps.commit(
       actor,
       {
         businessId: command.businessId,
@@ -259,6 +332,7 @@ export class GrantEmployeeAccessUseCase {
       },
       (scope) => this.#commitWork(scope, { command, begin, userId, pinHash }),
     );
+    return outcome;
   }
 
   async #commitWork(
@@ -272,25 +346,84 @@ export class GrantEmployeeAccessUseCase {
   ): Promise<GrantCommitOutcome> {
     const { command, begin, userId, pinHash } = input;
     if (!(await scope.lockCompany())) throw new StaffAccessError('EMPLOYEE_NOT_FOUND');
-    const { employee, record } = await scope.recheck();
+    const { employee, record, extraBranches } = await scope.recheck();
     if (employee === null || record === null) throw new StaffAccessError('EMPLOYEE_NOT_FOUND');
     if (
       employee.userId === command.userId ||
       (employee.userId !== null && employee.userId !== userId)
     )
       throw new StaffAccessError('STAFF_ACCESS_NOT_ALLOWED');
-    if (!(await scope.authority(employee.businessId, employee.primaryBranchId)))
-      throw new StaffAccessError('STAFF_ACCESS_NOT_ALLOWED');
-    // المحاولة تُفحص قبل اختصار ACTIVE: طلب قديم لا يُنسب إليه نجاح محاولة أحدث (P1-1).
+    await assertPrimaryGrantAuthority(scope, employee);
+    // التكرار الناجح بيتقفل قبل فحص الفروع الإضافية (080-b): الطلب المكرر لنفس المحاولة
+    // بيرد بنفس النتيجة من غير ما يتأثر بسلطة فرع إضافي اتغيّر.
+    const already = this.#alreadyOutcome(record, begin);
+    if (already !== null) return already;
+    // سلطة المانح على كل فرع إضافي بتفحص جوّه نفس المعاملة (080-b).
+    await assertExtraGrantAuthority(scope, employee, extraBranches);
+    this.#assertPendingRecord(record, begin, employee);
+    const memberships = await grantMemberships(
+      scope,
+      command,
+      userId,
+      employee,
+      record,
+      extraBranches,
+    );
+    if (employee.userId !== userId) await scope.linkEmployee(userId);
+    await scope.saveTemporaryPin(userId, pinHash);
+    await scope.markActive({
+      recordId: record.id,
+      userId,
+      membershipId: memberships.primary.membershipId,
+    });
+    await scope.appendEvent({
+      employeeId: command.employeeId,
+      userId,
+      membershipId: memberships.primary.membershipId,
+      branchId: record.branchId,
+      role: record.roleCode,
+    });
+    await applyGrantOverrides(scope, command, {
+      membershipId: memberships.primary.membershipId,
+      branchId: record.branchId,
+      role: record.roleCode,
+      extras: memberships.extras,
+    });
+    return {
+      kind: 'granted',
+      membershipId: memberships.primary.membershipId,
+      extraMembershipIds: memberships.extras.map((extra) => extra.membershipId),
+      userId,
+      role: record.roleCode,
+      branchId: record.branchId,
+    };
+  }
+
+  /**
+   * تكرار ناجح: السجل ACTIVE بنفس المحاولة — الرد من السجل المقفول بلا قراءة تالية.
+   * المحاولة تُفحص قبل الاختصار: طلب قديم لا يُنسب إليه نجاح محاولة أحدث (P1-1).
+   */
+  #alreadyOutcome(
+    record: NonNullable<Awaited<ReturnType<GrantCommitScope['recheck']>>['record']>,
+    begin: GrantBeginOutcome,
+  ): GrantCommitOutcome | null {
     if (record.attemptId !== begin.record.attemptId)
       throw new StaffAccessError('STAFF_ACCESS_NOT_ALLOWED');
-    if (record.state === 'ACTIVE')
-      return {
-        kind: 'already',
-        role: record.roleCode,
-        branchId: record.branchId,
-        phoneMatches: record.phoneHash === begin.record.phoneHash,
-      };
+    if (record.state !== 'ACTIVE') return null;
+    return {
+      kind: 'already',
+      role: record.roleCode,
+      branchId: record.branchId,
+      phoneMatches: record.phoneHash === begin.record.phoneHash,
+    };
+  }
+
+  /** السجل لازم يكون PENDING بنفس العملية والهاتف والفرع — أي خلاف رفض بلا تفاصيل (P1-4). */
+  #assertPendingRecord(
+    record: NonNullable<Awaited<ReturnType<GrantCommitScope['recheck']>>['record']>,
+    begin: GrantBeginOutcome,
+    employee: NonNullable<Awaited<ReturnType<GrantCommitScope['recheck']>>['employee']>,
+  ): void {
     if (
       record.state !== 'PENDING' ||
       record.operationId !== begin.record.operationId ||
@@ -298,29 +431,6 @@ export class GrantEmployeeAccessUseCase {
       record.branchId !== employee.primaryBranchId
     )
       throw new StaffAccessError('STAFF_ACCESS_NOT_ALLOWED');
-    const granted = await scope.grantMembership({
-      operationId: record.operationId,
-      userId,
-      branchId: record.branchId,
-      role: record.roleCode,
-    });
-    if (employee.userId !== userId) await scope.linkEmployee(userId);
-    await scope.saveTemporaryPin(userId, pinHash);
-    await scope.markActive({ recordId: record.id, userId, membershipId: granted.membershipId });
-    await scope.appendEvent({
-      employeeId: command.employeeId,
-      userId,
-      membershipId: granted.membershipId,
-      branchId: record.branchId,
-      role: record.roleCode,
-    });
-    return {
-      kind: 'granted',
-      membershipId: granted.membershipId,
-      userId,
-      role: record.roleCode,
-      branchId: record.branchId,
-    };
   }
 }
 

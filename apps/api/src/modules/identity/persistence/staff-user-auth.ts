@@ -210,11 +210,53 @@ export async function deleteStaffUserSessions(
 }
 
 /**
+ * ينهي عضوية فرع إضافي للموظفة (`ends_at = at`) دون مسح الرقم السري العام للحساب، ويكتب تدقيق
+ * إنهاء العضوية داخل نفس المعاملة (080-b، الاستثناء المحدود في ADR-0063). يُستخدم لإيقاف
+ * الفروع الإضافية ولدمج الفرع المكرر عند تغيير الفرع الأساسي.
+ *
+ * @param tx    معاملة الشركة التي فتحها use case الموظفين
+ * @param input الشركة والعضوية وصاحبها ومولّد المعرّفات ولحظة الإنهاء الاختيارية (الافتراضي ساعة القاعدة)
+ * @returns true إذا انتهت العضوية فعلاً، false إذا كانت منتهية سابقاً
+ */
+export async function endExtraStaffMembership(
+  tx: Tx,
+  input: {
+    companyId: string;
+    membershipId: string;
+    userId: string;
+    ids: IdGenerator;
+    at?: Date;
+  },
+): Promise<boolean> {
+  const at =
+    input.at?.toISOString() ??
+    String((await tx.execute<{ at: string }>(sql`SELECT clock_timestamp()::text AS at`))[0]?.at);
+  const ended = await tx.execute(sql`UPDATE memberships SET ends_at=${at}::timestamptz
+    WHERE company_id=${input.companyId} AND id=${input.membershipId} AND user_id=${input.userId}
+      AND (ends_at IS NULL OR ends_at > ${at}::timestamptz)
+    RETURNING id`);
+  if (ended.length === 0) return false;
+  const { audit } = transactionWriters(tx, input.ids);
+  await audit.record({
+    entity: 'membership',
+    entityId: input.membershipId,
+    action: 'staff.membership_ended',
+    before: { ends_at: null },
+    after: { user_id: input.userId, ends_at: at },
+  });
+  return true;
+}
+
+/**
  * ينهي عضوية الموظفة فوراً (`ends_at = at`) ويمسح رقمها السري ويكتب التدقيق داخل معاملة staff نفسها
  * (الاستثناء المحدود في ADR-0063، D5). المسؤولة الوحيدة عن إنهاء عضوية موظفة: «إيقاف الدخول» اليوم
  * وأرشفة الموظفة لاحقاً. على مستوى البدائية نفسها، عضوية منتهية فعلاً لا تفشل الدالة حتى تتقارب
  * للمنتهي ولا يتكرر تدقيق «انتهاء العضوية»، بينما مسار «إيقاف الدخول» (`StopEmployeeStaffAccessUseCase`)
  * يشترط سجلًا فعّالًا ويرفض السجل الموقوف بـ 403. الرقم يُمسح بـ UPDATE لا DELETE لأن `pospay_app` لا يملك DELETE على `cashier_pins`.
+ *
+ * مع الفروع الإضافية (080-b): الدالة دي بتنهى العضوية الأساسية لوحدها وتمسح الرقم السري العام
+ * للحساب؛ الفروع الإضافية بتتنهى لوحدها بـ `endExtraStaffMembership` اللي ما بتمسحش الرقم السري —
+ * فإيقاف الدخول بيسلّم كل الفروع الإضافية من غير ما يمسح الرقم مرة تانية.
  *
  * @param tx    معاملة الشركة التي فتحها use case الموظفين
  * @param input الشركة والعضوية وصاحبها والمنفذ ولحظة الإنهاء ومولّد المعرّفات
@@ -230,21 +272,9 @@ export async function endStaffMembership(
     ids: IdGenerator;
   },
 ): Promise<void> {
-  const at = input.at.toISOString();
-  const ended = await tx.execute(sql`UPDATE memberships SET ends_at=${at}::timestamptz
-    WHERE company_id=${input.companyId} AND id=${input.membershipId} AND user_id=${input.userId}
-      AND (ends_at IS NULL OR ends_at > ${at}::timestamptz)
-    RETURNING id`);
+  await endExtraStaffMembership(tx, input);
   await clearStaffPin(tx, input);
   const { audit } = transactionWriters(tx, input.ids);
-  if (ended.length > 0)
-    await audit.record({
-      entity: 'membership',
-      entityId: input.membershipId,
-      action: 'staff.membership_ended',
-      before: { ends_at: null },
-      after: { user_id: input.userId, ends_at: at },
-    });
   await audit.record({
     entity: 'cashier_pin',
     entityId: input.userId,

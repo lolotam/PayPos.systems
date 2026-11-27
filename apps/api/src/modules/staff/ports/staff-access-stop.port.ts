@@ -43,14 +43,20 @@ export interface StopEmployeeStaffAccessScope {
   authority(businessId: string, branchId: string): Promise<boolean>;
   /**
    * ينهي العضوية فوراً ويمسح الرقم السري وينقل السجل إلى STOPPED ويكتب التدقيق. `employees.user_id`
-   * يبقى كما هو فيعيد «إعطاء الدخول» لاحقاً استخدام نفس الحساب.
+   * يبقى كما هو فيعيد «إعطاء الدخول» لاحقاً استخدام نفس الحساب. الفروع الإضافية (080-b) بتتم
+   * عضوياتها وبتتفضّل `membership_id` بتاعها وبتتدقيق.
    *
    * @param input السجل والحساب والعضوية
    * @param input.recordId     سجل الدخول المقفول
    * @param input.userId       حساب الموظفة
    * @param input.membershipId العضوية المنتهية
+   * @returns معرّفات العضويات الإضافية اللي انتهت
    */
-  stop(input: { recordId: string; userId: string; membershipId: string }): Promise<void>;
+  stop(input: {
+    recordId: string;
+    userId: string;
+    membershipId: string;
+  }): Promise<{ extraMembershipIds: readonly string[] }>;
 }
 
 /** معاملة الإيقاف على pospay_app: تفتحها وتشغّل الشغل جواها — أي رفض يرجّع كل ما كُتب فيها. */

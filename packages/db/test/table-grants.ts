@@ -99,6 +99,11 @@ export const ALLOWED_TABLE_GRANTS: Record<string, string[]> = {
     'employee_staff_access:INSERT',
     'employee_staff_access:SELECT',
     'employee_staff_access:UPDATE',
+    // الفروع الإضافية لدخول الموظفة: نفس معاملة الجدول الأصلي — RLS كامل ومنح pospay_app وحده.
+    'employee_staff_access_branches:DELETE',
+    'employee_staff_access_branches:INSERT',
+    'employee_staff_access_branches:SELECT',
+    'employee_staff_access_branches:UPDATE',
     'employees:INSERT',
     'employees:SELECT',
     'file_access_audit:INSERT',

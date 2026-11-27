@@ -74,3 +74,104 @@ describe('the optional recovery email on employees', () => {
     );
   });
 });
+
+// 080-b: فروع زيادة واستثناءات صلاحيات مضمّنة في نفس طلب المنح — كل واحدة اختيارية ومقفولة.
+describe('the multi-branch grant body', () => {
+  const grant = { phone: '+96551234567', phone_confirmed: true, role: 'staff', pin: '1234' } as const;
+  const branch = { branch_id: challenge, role: 'reception' } as const;
+  const override = {
+    permission_code: 'read:attendance:branch',
+    effect: 'ALLOW',
+    scope_type: 'BRANCH',
+    scope_id: challenge,
+    reason: 'covering the front desk',
+    expires_at: null,
+  } as const;
+
+  it('takes optional extra branches and inline permission overrides', () => {
+    expect(grantStaffAccessInput.safeParse({ ...grant, additional_branches: [branch] }).success).toBe(
+      true,
+    );
+    expect(
+      grantStaffAccessInput.safeParse({ ...grant, permission_overrides: [override] }).success,
+    ).toBe(true);
+    expect(
+      grantStaffAccessInput.safeParse({
+        ...grant,
+        additional_branches: [branch],
+        permission_overrides: [override],
+      }).success,
+    ).toBe(true);
+  });
+
+  it('refuses an unknown extra-branch role, a malformed branch id and an unknown key', () => {
+    expect(
+      grantStaffAccessInput.safeParse({
+        ...grant,
+        additional_branches: [{ branch_id: challenge, role: 'owner' }],
+      }).success,
+    ).toBe(false);
+    expect(
+      grantStaffAccessInput.safeParse({
+        ...grant,
+        additional_branches: [{ branch_id: 'not-a-uuid', role: 'staff' }],
+      }).success,
+    ).toBe(false);
+    expect(grantStaffAccessInput.safeParse({ ...grant, extra: 1 }).success).toBe(false);
+  });
+
+  it('refuses a malformed inline override and a primary role outside the closed list', () => {
+    expect(
+      grantStaffAccessInput.safeParse({
+        ...grant,
+        permission_overrides: [{ ...override, effect: 'MAYBE' }],
+      }).success,
+    ).toBe(false);
+    expect(
+      grantStaffAccessInput.safeParse({ ...grant, permission_overrides: [override, override] }).success,
+    ).toBe(true);
+    expect(grantStaffAccessInput.safeParse({ ...grant, role: 'owner' }).success).toBe(false);
+  });
+});
+
+// 080-b: سقف العقد 20 لفروع الزيادة و20 للاستثناءات — نفس السقف في شاشة المنح.
+describe('the multi-branch grant caps', () => {
+  const grant = { phone: '+96551234567', phone_confirmed: true, role: 'staff', pin: '1234' } as const;
+  const override = {
+    permission_code: 'read:attendance:branch',
+    effect: 'ALLOW',
+    scope_type: 'BRANCH',
+    scope_id: challenge,
+    reason: 'covering the front desk',
+    expires_at: null,
+  } as const;
+
+  it('takes twenty extra branches and refuses the twenty-first', () => {
+    const branches = Array.from({ length: 20 }, (_, index) => ({
+      branch_id: `01920000-0000-7000-8000-${String(index).padStart(12, '0')}`,
+      role: 'staff' as const,
+    }));
+    expect(
+      grantStaffAccessInput.safeParse({ ...grant, additional_branches: branches }).success,
+    ).toBe(true);
+    expect(
+      grantStaffAccessInput.safeParse({
+        ...grant,
+        additional_branches: [...branches, { branch_id: challenge, role: 'staff' }],
+      }).success,
+    ).toBe(false);
+  });
+
+  it('takes twenty inline overrides and refuses the twenty-first', () => {
+    const overrides = Array.from({ length: 20 }, () => override);
+    expect(
+      grantStaffAccessInput.safeParse({ ...grant, permission_overrides: overrides }).success,
+    ).toBe(true);
+    expect(
+      grantStaffAccessInput.safeParse({
+        ...grant,
+        permission_overrides: [...overrides, override],
+      }).success,
+    ).toBe(false);
+  });
+});
