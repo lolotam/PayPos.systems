@@ -5,7 +5,7 @@ import {
   type RendererOptions,
 } from '@pospay/documents';
 import type { Logger } from '@pospay/observability';
-import { DelayedError, Worker, type Job } from 'bullmq';
+import { Worker, type Job } from 'bullmq';
 import { Redis } from 'ioredis';
 
 import {
@@ -19,7 +19,6 @@ import { startRendererLiveness } from './liveness.ts';
 import type {
   EpochClock,
   ProcessDocumentDeps,
-  failDocumentJob as failDocumentJobFn,
   processDocumentJob as processDocumentJobFn,
 } from './process-job.ts';
 import { DocumentSourceRegistry } from './source-registry.ts';
@@ -56,6 +55,8 @@ export interface StartDocumentsInput {
   readonly closeGraceMs?: number;
   /** مهلة تفريغ الطابور في الإغلاق الطبيعي قبل القفل الإجباري. */
   readonly drainGraceMs?: number;
+  /** مهلة أوامر Redis جوه تأجيل PDF قبل تمرير الفشل لـ BullMQ. */
+  readonly deferOpTimeoutMs?: number;
   readonly onUnconfirmedExit?: (error: Error) => void;
   readonly lockDurationMs?: number;
   readonly stalledIntervalMs?: number;
@@ -133,23 +134,15 @@ async function runQueuedJob(
   token: string | undefined,
   startup: RendererStartup,
   deps: ProcessDocumentDeps,
-  handlers: {
-    readonly fail: typeof failDocumentJobFn;
-    readonly process: typeof processDocumentJobFn;
-    readonly deadlineMs: number;
-  },
+  process: typeof processDocumentJobFn,
+  deadlineMs: number,
 ): Promise<void> {
   const startedAtMs = Date.now();
-  try {
-    await deferPdfWhileStarting(job, token, startup, deps.registry);
-  } catch (error) {
-    if (error instanceof DelayedError) throw error;
-    await handlers.fail(job, deps, startedAtMs, error);
-    return;
-  }
-  await handlers.process(job, {
+  // بنسيب أي خطأ من التأجيل يطلع لـ BullMQ عشان ما نكتبش FAILED بالخطأ على وظيفة Redis نقّلها delayed فعلاً.
+  await deferPdfWhileStarting(job, token, startup, deps.registry);
+  await process(job, {
     ...deps,
-    deadlineMs: Math.max(1, handlers.deadlineMs - (Date.now() - startedAtMs)),
+    deadlineMs: Math.max(1, deadlineMs - (Date.now() - startedAtMs)),
   });
 }
 
@@ -168,11 +161,7 @@ async function openWorker(
     worker = new Worker(
       DOCUMENTS_RENDER_QUEUE,
       (job, token) =>
-        runQueuedJob(job, token, startup, deps, {
-          fail: jobs.failDocumentJob,
-          process: jobs.processDocumentJob,
-          deadlineMs: jobs.JOB_DEADLINE_MS,
-        }),
+        runQueuedJob(job, token, startup, deps, jobs.processDocumentJob, jobs.JOB_DEADLINE_MS),
       {
         connection,
         concurrency: 2,
@@ -362,6 +351,7 @@ export function beginDocumentRendering(input: StartDocumentsInput): DocumentRend
     starting: false,
     deadlineAt: 0,
     jobDeadlines: new Map(),
+    ...(input.deferOpTimeoutMs === undefined ? {} : { opTimeoutMs: input.deferOpTimeoutMs }),
   };
   if (input.renderer !== undefined) bindAvailableLog(input.logger, input.renderer);
   const runtime = trackDocumentStartup({

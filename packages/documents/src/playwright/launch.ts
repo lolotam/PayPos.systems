@@ -1,5 +1,5 @@
 import type { PdfBrowser } from './browser.ts';
-import { dropRetiredBrowser } from './retire.ts';
+import { dropRetiredBrowser, type RetireResult } from './retire.ts';
 
 type LaunchOutcome =
   | { readonly kind: 'browser'; readonly browser: PdfBrowser }
@@ -7,7 +7,8 @@ type LaunchOutcome =
   | { readonly kind: 'timeout'; readonly settled: Promise<void> }
   | { readonly kind: 'cancelled'; readonly settled: Promise<void> };
 
-function waitRetiredExit(browser: PdfBrowser, graceMs: number): Promise<void> {
+/** يقفل المتصفح المتقاعد ويستنى تأكيد خروج عمليته لو المهلة خلصت قبل التأكيد. */
+export function waitRetiredExit(browser: PdfBrowser, graceMs: number): Promise<void> {
   return dropRetiredBrowser(browser, graceMs)
     .then((outcome) => (outcome.confirmed ? undefined : outcome.exit))
     .catch(() => undefined);
@@ -82,9 +83,8 @@ export async function launchWithinTimeout(
  * يقفل المتصفح جوّه المهلة، وبيقتله إلا لو close خلّص في وقتها.
  * بتستخدمه للمتصفح اللي وصل متأخر وللإغلاق الأخير.
  */
-export async function closeOrKill(browser: PdfBrowser, graceMs: number): Promise<void> {
-  const outcome = await dropRetiredBrowser(browser, graceMs);
-  if (!outcome.confirmed) await outcome.exit;
+export async function closeOrKill(browser: PdfBrowser, graceMs: number): Promise<RetireResult> {
+  return dropRetiredBrowser(browser, graceMs);
 }
 
 /** يستنى بوّابة التقاعد أو الإلغاء، ويفك الانتظار فوراً لو إشارة البدء اتلغت. */

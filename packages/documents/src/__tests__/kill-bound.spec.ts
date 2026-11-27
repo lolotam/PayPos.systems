@@ -118,3 +118,48 @@ it('does not treat a failed or rejecting kill as confirmed process exit', async 
   );
   expect(syncThrowOutcome.confirmed).toBe(false);
 });
+
+it('returns from direct renderer.close() within grace on unsupported or rejecting kill while exposing unconfirmedExit', async () => {
+  const escalated: Error[] = [];
+  const noKillRenderer = new PlaywrightDocumentRenderer({
+    factory: {
+      launch: async () => ({
+        newContext: () => new Promise(() => undefined),
+        close: () => new Promise(() => undefined),
+        on: () => undefined,
+      }),
+    },
+    closeGraceMs: 20,
+    onUnconfirmedExit: (err) => escalated.push(err),
+  });
+  await noKillRenderer.start();
+  const startedNoKill = Date.now();
+  await noKillRenderer.close();
+  expect(Date.now() - startedNoKill).toBeLessThan(1_500);
+  expect(noKillRenderer.unconfirmedExit).not.toBeNull();
+  expect(escalated.map((e) => e.message)).toContain('DOCUMENT_CLOSE_UNCONFIRMED');
+
+  let releaseSlowKill: (() => void) | undefined;
+  const slowKillRenderer = new PlaywrightDocumentRenderer({
+    factory: {
+      launch: async () => ({
+        newContext: () => new Promise(() => undefined),
+        close: () => new Promise(() => undefined),
+        kill: () =>
+          new Promise<void>((resolve) => {
+            releaseSlowKill = resolve;
+          }),
+        on: () => undefined,
+      }),
+    },
+    closeGraceMs: 20,
+  });
+  await slowKillRenderer.start();
+  const startedSlow = Date.now();
+  await slowKillRenderer.close();
+  expect(Date.now() - startedSlow).toBeLessThan(1_500);
+  expect(slowKillRenderer.unconfirmedExit).not.toBeNull();
+  releaseSlowKill?.();
+  await slowKillRenderer.unconfirmedExit;
+  expect(slowKillRenderer.unconfirmedExit).toBeNull();
+});

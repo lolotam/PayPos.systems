@@ -83,22 +83,21 @@ function trackPendingExit(state: SessionState, outcome: RendererCloseOutcome): v
   state.pendingExit = wrapped;
 }
 
-function waitPendingExit(state: SessionState, stopped: () => boolean): Promise<void> {
-  const pending = state.pendingExit;
-  if (pending === undefined || state.closed || !state.accept || stopped()) {
-    return Promise.resolve();
+async function waitPendingExit(state: SessionState, stopped: () => boolean): Promise<void> {
+  while (state.pendingExit !== undefined && !state.closed && state.accept && !stopped()) {
+    const pending = state.pendingExit;
+    await new Promise<void>((resolve) => {
+      let done = false;
+      const finish = (): void => {
+        if (done) return;
+        done = true;
+        if (state.wake === finish) state.wake = undefined;
+        resolve();
+      };
+      state.wake = finish;
+      void pending.then(finish, finish);
+    });
   }
-  return new Promise<void>((resolve) => {
-    let done = false;
-    const finish = (): void => {
-      if (done) return;
-      done = true;
-      if (state.wake === finish) state.wake = undefined;
-      resolve();
-    };
-    state.wake = finish;
-    void pending.then(finish, finish);
-  });
 }
 
 function pause(

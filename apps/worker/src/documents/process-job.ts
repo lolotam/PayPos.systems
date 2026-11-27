@@ -175,19 +175,6 @@ async function failFinal(
   throw new Error(code, { cause: error });
 }
 
-/** يقفل فشل وقع قبل `processDocumentJob` داخل نفس ميزانية المهلة عشان الطابور ما يعلّقش. */
-export async function failDocumentJob(
-  job: Job,
-  deps: ProcessDocumentDeps,
-  startedAtMs: number,
-  error: unknown,
-): Promise<void> {
-  const parsed = documentRenderJob.safeParse(job.data);
-  if (!parsed.success) throw new UnrecoverableError('DOCUMENT_JOB_INVALID');
-  const deadlineAtMs = startedAtMs + (deps.deadlineMs ?? JOB_DEADLINE_MS);
-  await failFinal(job, deps, parsed.data, deps.clock.now(), deadlineAtMs, error);
-}
-
 /**
  * بيخلّص وظيفة مستند واحدة: حالة، ثم إنتاج HTML أو بايتات، ثم تخزين بنص قصير.
  * الفشل العابر بيترمي عشان BullMQ يعيد. النوع المجهول والحجم الزايد بيتقفلوا من أول مرة.

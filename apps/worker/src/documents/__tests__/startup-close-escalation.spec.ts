@@ -266,3 +266,97 @@ it('blocks replacement startup when renderer kill rejects while keeping session 
   expect(Date.now() - startedAt).toBeLessThan(1_000);
   expect(attempts).toBe(1);
 });
+
+function stalledPendingRenderer(onKillReady: (release: () => void) => void): DocumentRenderer {
+  return {
+    async start() {
+      return undefined;
+    },
+    close: () => new Promise<void>(() => undefined),
+    kill: () =>
+      new Promise<void>((resolve) => {
+        onKillReady(resolve);
+      }),
+    isAvailable: () => false,
+    onUnavailable: () => undefined,
+    onAvailable: () => undefined,
+    async render() {
+      return new Uint8Array();
+    },
+  };
+}
+
+function delayedCloseRenderer(onClosed: () => void): { renderer: DocumentRenderer; release: () => void } {
+  let release = () => undefined;
+  return {
+    release: () => release(),
+    renderer: {
+      async start() {
+        return undefined;
+      },
+      close: () =>
+        new Promise<void>((resolve) => {
+          release = () => {
+            onClosed();
+            resolve();
+          };
+        }),
+      kill: () => new Promise<void>(() => undefined),
+      isAvailable: () => false,
+      onUnavailable: () => undefined,
+      onAvailable: () => undefined,
+      async render() {
+        return new Uint8Array();
+      },
+    },
+  };
+}
+
+it('rechecks pendingExit when an abandoned renderer arrives while waitPendingExit is waiting', async () => {
+  let attempts = 0;
+  let abandonedClosed = false;
+  let releaseFirstKill: (() => void) | undefined;
+  let resolveLateAttemptOne!: (renderer: DocumentRenderer) => void;
+  const lateAttemptOne = new Promise<DocumentRenderer>((resolve) => {
+    resolveLateAttemptOne = resolve;
+  });
+  const session = trackDocumentStartup({
+    startupMs: 40,
+    closeGraceMs: 20,
+    retryDelaysMs: [0],
+    sleep: wait,
+    stopped: () => false,
+    onFailed: () => undefined,
+    run: async (attempt) => {
+      attempts += 1;
+      if (attempts === 1) {
+        attempt.setRenderer(await lateAttemptOne);
+        return true;
+      }
+      if (attempts === 2) {
+        attempt.setRenderer(stalledPendingRenderer((r) => (releaseFirstKill = r)));
+        return false;
+      }
+      return true;
+    },
+  });
+  try {
+    while (releaseFirstKill === undefined) await wait(10);
+    await wait(550);
+    const abandoned = delayedCloseRenderer(() => {
+      abandonedClosed = true;
+    });
+    resolveLateAttemptOne(abandoned.renderer);
+    await wait(50);
+    releaseFirstKill();
+    await wait(60);
+    expect(abandonedClosed).toBe(false);
+    expect(attempts).toBe(2);
+    abandoned.release();
+    await session.started;
+    expect(abandonedClosed).toBe(true);
+    expect(attempts).toBe(3);
+  } finally {
+    await session.close();
+  }
+});

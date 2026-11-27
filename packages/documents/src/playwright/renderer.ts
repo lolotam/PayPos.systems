@@ -5,7 +5,7 @@ import type { PdfBrowser, PdfBrowserFactory, PdfContext } from './browser.ts';
 import { closeContextOnce } from './context-guards.ts';
 import { asRendererError, isTimeoutError, raceDeadline } from './deadline.ts';
 import { DEFAULT_CHROMIUM_LAUNCH_TIMEOUT_MS, playwrightFactory } from './factory.ts';
-import { closeOrKill, launchWithinTimeout, waitGate, watchUnconfirmedExit } from './launch.ts';
+import { closeOrKill, launchWithinTimeout, waitGate, waitRetiredExit, watchUnconfirmedExit } from './launch.ts';
 import { renderPage, type RenderPageHooks } from './render-page.ts';
 import type { RendererOptions } from './renderer-options.ts';
 import { closeAfterTimeout, dropRetiredBrowser } from './retire.ts';
@@ -51,6 +51,7 @@ export class PlaywrightDocumentRenderer implements DocumentRenderer {
   #pendingCancel: Promise<void> | null = null;
   #relaunching: Promise<void> | null = null;
   #retiring: Promise<void> | null = null;
+  #closingExit: Promise<void> | null = null;
   #unavailable: Array<() => void> = [];
   #availableListeners: Array<() => void> = [];
 
@@ -81,6 +82,10 @@ export class PlaywrightDocumentRenderer implements DocumentRenderer {
 
   isAvailable(): boolean {
     return this.#available;
+  }
+
+  get unconfirmedExit(): Promise<void> | null {
+    return this.#closingExit;
   }
 
   onUnavailable(listener: () => void): void {
@@ -127,7 +132,8 @@ export class PlaywrightDocumentRenderer implements DocumentRenderer {
     if (browser === null) return;
     this.#closingBrowser = browser;
     try {
-      await closeOrKill(browser, this.#closeGraceMs);
+      const outcome = await closeOrKill(browser, this.#closeGraceMs);
+      if (!outcome.confirmed) this.#recordUnconfirmedClose(outcome.exit);
     } finally {
       this.#closingBrowser = null;
     }
@@ -139,6 +145,7 @@ export class PlaywrightDocumentRenderer implements DocumentRenderer {
     this.#launchController?.abort();
     this.#clearStable();
     this.#markUnavailable();
+    if (this.#closingExit !== null) return this.#closingExit;
     // المتصفح اللي بيتقفل دلوقتي لسه شغّال؛ القتل هو اللي يفكّه. رفض القتل أو غيابه يفضل غير مؤكّد.
     const browser = this.#browser ?? this.#closingBrowser;
     this.#browser = null;
@@ -177,6 +184,18 @@ export class PlaywrightDocumentRenderer implements DocumentRenderer {
     });
     this.#launchInFlight = flight;
     return flight;
+  }
+
+  #recordUnconfirmedClose(exit: Promise<void>): void {
+    const pending = exit.finally(() => {
+      if (this.#closingExit === pending) this.#closingExit = null;
+      if (this.#pendingCancel === pending) this.#pendingCancel = null;
+    });
+    this.#closingExit = pending;
+    this.#pendingCancel = pending;
+    const err = new Error('DOCUMENT_CLOSE_UNCONFIRMED');
+    this.#onLaunchError?.(err);
+    this.#onUnconfirmedExit?.(err);
   }
 
   #trackPendingCancel(settled: Promise<void>): void {
@@ -219,12 +238,12 @@ export class PlaywrightDocumentRenderer implements DocumentRenderer {
       const browser = outcome.browser;
       if (this.#closing || controller.signal.aborted || (signal?.aborted ?? false)) {
         controller.abort();
-        const settling = closeOrKill(browser, this.#closeGraceMs).catch(() => undefined);
         if (this.#closing) {
-          await settling;
+          const outcome = await closeOrKill(browser, this.#closeGraceMs);
+          if (!outcome.confirmed) this.#recordUnconfirmedClose(outcome.exit);
           return;
         }
-        this.#trackPendingCancel(settling);
+        this.#trackPendingCancel(waitRetiredExit(browser, this.#closeGraceMs));
         return;
       }
       this.#browser = browser;

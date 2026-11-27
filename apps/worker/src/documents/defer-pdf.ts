@@ -127,12 +127,16 @@ export async function deferPdfWhileStarting(
     await persistJobDeadline(job, jobDeadline, opTimeoutMs);
   }
   await withinDeferTimeout(opTimeoutMs, () =>
-    job.moveToDelayed(Math.min(now + PDF_DEFER_MS, effectiveDeadline), token),
+    Promise.resolve(
+      job.moveToDelayed(Math.min(now + PDF_DEFER_MS, effectiveDeadline), token),
+    ).then((res) => {
+      if (jobKey !== undefined && startup.jobDeadlines !== undefined) {
+        if (inMemory === undefined) pruneExpired(startup.jobDeadlines, now);
+        startup.jobDeadlines.set(jobKey, jobDeadline);
+      }
+      return res;
+    }),
   );
-  if (jobKey !== undefined && startup.jobDeadlines !== undefined) {
-    if (inMemory === undefined) pruneExpired(startup.jobDeadlines, now);
-    startup.jobDeadlines.set(jobKey, jobDeadline);
-  }
   throw new DelayedError();
 }
 

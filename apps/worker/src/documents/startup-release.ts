@@ -116,7 +116,11 @@ export async function closeRendererWithinGrace(
   } finally {
     grace.stop();
   }
-  if (closeResolved) return { confirmed: true, exit: Promise.resolve() };
+  if (closeResolved) {
+    const unconfirmed = (renderer as { readonly unconfirmedExit?: Promise<void> | null }).unconfirmedExit;
+    if (unconfirmed != null) return { confirmed: false, exit: unconfirmed };
+    return { confirmed: true, exit: Promise.resolve() };
+  }
   return killAndTrackExit(renderer, closing);
 }
 
