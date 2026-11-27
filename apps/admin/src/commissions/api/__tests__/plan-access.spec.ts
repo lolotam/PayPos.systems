@@ -3,6 +3,7 @@ import { expect, it, vi } from 'vitest';
 import { createQueryClient } from '@/shared/api/query-client';
 import {
   denyPlanAccess,
+  planBlockedCorrectionsKey,
   planEmployeesKey,
   planGeneration,
   planProbeKey,
@@ -48,6 +49,21 @@ it('denyPlanAccess closes the whole scope: denied flag, in-flight answer discard
   expect(fetcher).toHaveBeenCalledTimes(1);
   void pending;
   expect(accessEntry(client)?.denied).toBe(true);
+});
+
+it('planBlockedCorrectionsKey lives under the scope, takes the filter, and denyPlanAccess clears every filter', async () => {
+  expect(planBlockedCorrectionsKey(scope)).toEqual([...scope, 'blocked-corrections']);
+  expect(planBlockedCorrectionsKey(scope, 'resolved')).toEqual([
+    ...scope,
+    'blocked-corrections',
+    'resolved',
+  ]);
+  const client = createQueryClient();
+  client.setQueryData(planBlockedCorrectionsKey(scope, 'open'), { pages: [], pageParams: [] });
+  client.setQueryData(planBlockedCorrectionsKey(scope, 'all'), { pages: [], pageParams: [] });
+  await denyPlanAccess(client, scope);
+  expect(client.getQueryData(planBlockedCorrectionsKey(scope, 'open'))).toBeUndefined();
+  expect(client.getQueryData(planBlockedCorrectionsKey(scope, 'all'))).toBeUndefined();
 });
 
 it('restorePlanAccess opens a new generation with the flag off and keeps data empty', async () => {

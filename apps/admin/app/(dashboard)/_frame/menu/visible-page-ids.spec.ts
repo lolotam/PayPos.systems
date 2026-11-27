@@ -130,6 +130,20 @@ describe('a built entry keeps the audience the app map gave it', () => {
     },
   );
 
+  it.each(['owner', 'general_manager', 'business_manager', 'branch_manager'])(
+    'lists the devices screen for the %s',
+    (role) => {
+      expect(idsFor({ role })).toContain('pos-devices-and-pins');
+    },
+  );
+
+  it.each(['cashier', 'accountant', 'viewer', '', 'custom_admin'])(
+    'hides the devices screen from the role %j',
+    (role) => {
+      expect(idsFor({ role })).not.toContain('pos-devices-and-pins');
+    },
+  );
+
   it.each(['owner', 'cashier', 'viewer', 'custom_admin', ''])(
     'lists Appearance for the role %j, with no workspace data at all',
     (role) => {

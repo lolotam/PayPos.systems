@@ -69,7 +69,8 @@ export const commissionStatementIssue = responseObject({
 /**
  * موظفة في الكشف: صفوفها المرئية للقارئ ومجاميعها من الصفوف دي بس. `commission_subtotal` و`tip_side`
  * ممكن يبقوا سالبين، و`payable` عمره ما بيبقى سالب (§9، CS-Q7). `partial` بتقول إن في صف من شهرها برا
- * نطاق القارئ.
+ * نطاق القارئ. `departed` علامة عرض بتقول إن الموظفة سابت الشغل قبل الشهر (عقدها أو حذفها قبل أول يوم
+ * فيه)، وبتتحسب من بيانات الموظفة الحية ومش مجمّدة في الكشف (CM-50، CS-Q28).
  */
 export const commissionStatementEmployee = responseObject({
   employee_id: id,
@@ -77,6 +78,7 @@ export const commissionStatementEmployee = responseObject({
   name_ar: z.string().nullable(),
   name_en: z.string(),
   partial: z.boolean(),
+  departed: z.boolean().default(false),
   commission_subtotal: commissionStatementTotalMoney,
   tip_side: commissionStatementTotalMoney,
   payable: commissionStatementTotalMoney,

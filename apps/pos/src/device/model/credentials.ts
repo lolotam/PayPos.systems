@@ -5,6 +5,8 @@ export interface StoredRegistration {
   company_id: string;
   device_id: string;
   claim_secret: string;
+  /** كود المطابقة بتاع الجهاز، عشان المدير يطابقه مع شاشة الانتظار. */
+  check_code?: string | undefined;
 }
 
 export function readCredentials(): Promise<DeviceCredentialRow | undefined> {
@@ -19,6 +21,7 @@ export function saveRegistration(input: StoredRegistration): Promise<void> {
       device_id: input.device_id,
       claim_secret: input.claim_secret,
       device_token: null,
+      check_code: input.check_code ?? null,
     });
   });
 }

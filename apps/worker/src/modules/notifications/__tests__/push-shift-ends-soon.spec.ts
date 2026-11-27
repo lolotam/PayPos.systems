@@ -27,8 +27,9 @@ function fakeQueue() {
       added.push({ data });
       return { id: 'job' };
     },
+    getJob: async () => undefined,
   };
-  return { added, queue: queue as unknown as Pick<Queue, 'add'> };
+  return { added, queue: queue as unknown as Pick<Queue, 'add' | 'getJob'> };
 }
 
 // الحدث المأخوذ من الـ outbox كما يشوفه عامل الدفع.

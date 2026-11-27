@@ -222,9 +222,12 @@ export const ORDERS_NAV_PAGES: readonly NavigationPageEntry[] = [
   },
   {
     id: 'pos-devices-and-pins',
+    route: '/devices',
+    formerSoonId: 'pos-devices-and-pins',
     labelKey: 'adminNavPages.posDevicesAndPins',
     icon: 'Smartphone',
-    state: 'soon',
+    visible: 'always',
+    state: 'live',
     section: 'sales',
     submenu: 'pos',
     businessTypes: [],

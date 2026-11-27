@@ -10,6 +10,8 @@ import {
   CommissionPlanEmployeePicker,
   commissionPlanEmployeeLabel,
 } from '../ui/commission-plan-employee-picker';
+import type { PlanAttemptMemory } from '../api/use-save-commission-plan';
+import { CommissionBlockedCorrectionsSection } from '../ui/commission-blocked-corrections-section';
 import { planRefusalMessage } from '../ui/plan-server-messages';
 import { useState, type ReactNode } from 'react';
 
@@ -18,13 +20,15 @@ export type PlanBoardSelection = { employee: CommissionPlanEmployeeListItem; emp
 interface CommissionPlansBoardProps {
   scope: PlanScope;
   renderSection(selection: PlanBoardSelection): ReactNode;
+  /** لو اتبعتت بتظهر تحت اللقطة قائمة التصحيحات الموقوفة وإصلاحها (شاشة الخطط)، وغيابها بيخفي القسم (شاشة التجاوزات). */
+  memory?: PlanAttemptMemory;
 }
 
 /**
  * لقطة الموظفين والتاريخ لموظفة مختارة: بيبنيوا على أول صفحة موظفين ناجحة، والاختيار عايش هنا
  * فبيضيع لوحده مع قفل الوصول ومفيش استعادة للاختيار القديم بعد «جرّب تاني».
  */
-export function CommissionPlansBoard({ scope, renderSection }: CommissionPlansBoardProps) {
+export function CommissionPlansBoard({ scope, renderSection, memory }: CommissionPlansBoardProps) {
   const locale = useLocale();
   const [selectedId, setSelectedId] = useState('');
   const employees = useCommissionPlanEmployees(scope);
@@ -61,6 +65,14 @@ export function CommissionPlansBoard({ scope, renderSection }: CommissionPlansBo
       {selected !== null
         ? renderSection({ employee: selected, employeeLabel: commissionPlanEmployeeLabel(selected, locale), timeZone })
         : null}
+      {showPicker && memory !== undefined ? (
+        <CommissionBlockedCorrectionsSection
+          scope={scope}
+          employees={items}
+          timeZone={timeZone}
+          memory={memory}
+        />
+      ) : null}
     </>
   );
 }

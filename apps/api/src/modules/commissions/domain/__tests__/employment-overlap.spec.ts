@@ -1,6 +1,29 @@
 import { describe, expect, it } from 'vitest';
 
-import { employmentOverlapsMonth, type EmploymentDates } from '../employment-overlap.ts';
+import {
+  employeeLeftBeforeMonth,
+  employmentOverlapsMonth,
+  type EmploymentDates,
+} from '../employment-overlap.ts';
+
+describe('employeeLeftBeforeMonth', () => {
+  it.each([
+    { name: 'no end and no deletion', dates: { contractEnd: null, deletedOn: null }, expected: false },
+    { name: 'contract ended the day before the month', dates: { contractEnd: '2026-09-30', deletedOn: null }, expected: true },
+    { name: 'contract ended on the first day of the month', dates: { contractEnd: '2026-10-01', deletedOn: null }, expected: false },
+    { name: 'deleted the day before the month', dates: { contractEnd: null, deletedOn: '2026-09-30' }, expected: true },
+    { name: 'deleted inside the month', dates: { contractEnd: null, deletedOn: '2026-10-12' }, expected: false },
+    { name: 'either date precedes the month', dates: { contractEnd: '2026-12-31', deletedOn: '2026-09-15' }, expected: true },
+    { name: 'ended after the month', dates: { contractEnd: '2026-12-31', deletedOn: null }, expected: false },
+  ])('$name → $expected', ({ dates: input, expected }) => {
+    expect(employeeLeftBeforeMonth(input, '2026-10')).toBe(expected);
+  });
+
+  it('refuses a malformed period or date', () => {
+    expect(() => employeeLeftBeforeMonth({ contractEnd: null, deletedOn: null }, '2026-13')).toThrow(RangeError);
+    expect(() => employeeLeftBeforeMonth({ contractEnd: 'x', deletedOn: null }, '2026-10')).toThrow(RangeError);
+  });
+});
 
 const dates = (overrides: Partial<EmploymentDates> = {}): EmploymentDates => ({
   hireDate: '2025-01-01',

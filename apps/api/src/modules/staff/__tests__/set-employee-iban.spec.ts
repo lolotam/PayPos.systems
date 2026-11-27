@@ -16,6 +16,7 @@ import {
   registryIban,
   type IbanFixture,
 } from './employee-iban.fixture.ts';
+import { claimPayload } from '../../../../test/device-claim.ts';
 let f: IbanFixture;
 beforeAll(async () => {
   f = await employeeIbanFixture();
@@ -249,7 +250,7 @@ it('IB-09 refuses an approved Device credential on every IBAN route', async () =
     cookie: f.cookie,
     company: f.company,
   });
-  const claim = await f.h.app.inject({ method: 'POST', url: '/v1/devices/claim', payload: device });
+  const claim = await f.h.app.inject({ method: 'POST', url: '/v1/devices/claim', payload: claimPayload(device) });
   expect(claim.statusCode).toBe(200);
   const token = claim.json<{ device_token: string }>().device_token;
   for (const [method, suffix] of [

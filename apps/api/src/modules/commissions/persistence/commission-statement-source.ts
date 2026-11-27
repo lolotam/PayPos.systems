@@ -8,6 +8,7 @@ import type {
 import type { Tx } from '@pospay/db';
 import { sql } from 'drizzle-orm';
 
+import { employeeLeftBeforeMonth } from '../domain/employment-overlap.ts';
 import { completeNames, MISSING_NAME_PLACEHOLDER } from '../domain/statement-names.ts';
 import type {
   CommissionStatementRecord,
@@ -210,6 +211,7 @@ async function readNames(
 function inScopeLabels(
   employees: readonly CommissionStatementEmployeeName[],
   month: StatementMonthRows,
+  period: string,
 ): StatementEmployeeLabel[] {
   const withRows = new Set<string>();
   for (const line of month.lines) withRows.add(line.employeeId);
@@ -219,12 +221,32 @@ function inScopeLabels(
   for (const carry of month.carries) withRows.add(carry.employeeId);
   return employees
     .filter((employee) => employee.employedDuringPeriod || withRows.has(employee.employeeId))
-    .map((employee) => ({
-      employeeId: employee.employeeId,
-      employeeNumber: employee.employeeNumber,
-      nameAr: employee.nameAr,
-      nameEn: employee.nameEn,
-    }));
+    .map((employee) => statementLabel(employee, period));
+}
+
+/**
+ * يبني بطاقة الموظفة ومعاها علامة «سابت الشغل» (CM-50). القاعدة دايماً من التاريخ الخام عبر المجال، عشان
+ * العلامة وقاعدة «في النطاق» يقرأوا نفس اليوم المحلي.
+ *
+ * @param employee موظفة النشاط
+ * @param period الشهر بصيغة YYYY-MM
+ * @returns البطاقة بعلامتها
+ */
+function statementLabel(
+  employee: CommissionStatementEmployeeName,
+  period: string,
+): StatementEmployeeLabel {
+  const departed = employeeLeftBeforeMonth(
+    { contractEnd: employee.contractEnd, deletedOn: employee.deletedOn },
+    period,
+  );
+  return {
+    employeeId: employee.employeeId,
+    employeeNumber: employee.employeeNumber,
+    nameAr: employee.nameAr,
+    nameEn: employee.nameEn,
+    departed,
+  };
 }
 
 /**
@@ -240,17 +262,13 @@ function unlistedBlocked(
   all: readonly CommissionStatementEmployeeName[],
   listed: readonly StatementEmployeeLabel[],
   blocked: readonly OpenBlockedCorrection[],
+  period: string,
 ): StatementEmployeeLabel[] {
   const listedIds = new Set(listed.map((employee) => employee.employeeId));
   const blockedIds = new Set(blocked.map((block) => block.employeeId));
   return all
     .filter((employee) => blockedIds.has(employee.employeeId) && !listedIds.has(employee.employeeId))
-    .map((employee) => ({
-      employeeId: employee.employeeId,
-      employeeNumber: employee.employeeNumber,
-      nameAr: employee.nameAr,
-      nameEn: employee.nameEn,
-    }));
+    .map((employee) => statementLabel(employee, period));
 }
 
 /**
@@ -278,7 +296,7 @@ export async function readCommissionStatementSource(
     month.corrections.map((correction) => correction.sourceRef),
   );
   const allEmployees = await providers.employees(tx, companyId, businessId, period);
-  const employees = inScopeLabels(allEmployees, month);
+  const employees = inScopeLabels(allEmployees, month, period);
   const attachments = await providers.attachments(
     tx,
     companyId,
@@ -287,7 +305,7 @@ export async function readCommissionStatementSource(
     period,
   );
   const names = await readNames(tx, request, providers, referencedIds(month, heads));
-  const unlisted = unlistedBlocked(allEmployees, employees, blocked);
+  const unlisted = unlistedBlocked(allEmployees, employees, blocked, period);
   return {
     statement,
     employees,

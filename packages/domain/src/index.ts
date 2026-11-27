@@ -140,3 +140,4 @@ export {
   type CommissionActorsInput,
   type CommissionReadInput,
 } from './commission-statement-access.js';
+export { DEVICE_CHECK_CODE_ALPHABET, computeDeviceCheckCode } from './device-check-code.js';

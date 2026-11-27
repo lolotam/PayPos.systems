@@ -34,6 +34,32 @@ describe('WaitingScreen', () => {
     expect(screen.getByRole('button', { name: t('en', 'pos.startOver') })).not.toBeNull();
   });
 
+  it('shows the check code the manager compares, in Arabic and English', () => {
+    const { rerender } = render(
+      <DirectionProvider dir="rtl">
+        <LocaleProvider locale="ar" setLocale={() => undefined}>
+          <WaitingScreen checkCode="K7QP" onStartOver={() => Promise.resolve()} />
+        </LocaleProvider>
+      </DirectionProvider>,
+    );
+
+    expect(screen.getByTestId('device-check-code').textContent).toBe('K7QP');
+    expect(screen.getByText(t('ar', 'pos.checkCodeLabel'))).not.toBeNull();
+    expect(screen.getByText(t('ar', 'pos.checkCodeHint'))).not.toBeNull();
+
+    rerender(
+      <DirectionProvider dir="ltr">
+        <LocaleProvider locale="en" setLocale={() => undefined}>
+          <WaitingScreen checkCode="K7QP" onStartOver={() => Promise.resolve()} />
+        </LocaleProvider>
+      </DirectionProvider>,
+    );
+
+    expect(screen.getByTestId('device-check-code').textContent).toBe('K7QP');
+    expect(screen.getByText(t('en', 'pos.checkCodeLabel'))).not.toBeNull();
+    expect(screen.getByText(t('en', 'pos.checkCodeHint'))).not.toBeNull();
+  });
+
   it('calls onStartOver handler when start over button is clicked', () => {
     const onStartOver = vi.fn().mockResolvedValue(undefined);
     render(
