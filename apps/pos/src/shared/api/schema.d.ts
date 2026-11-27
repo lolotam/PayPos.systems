@@ -140,6 +140,40 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/branches/{branchId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description One branch with its stored opening hours and its effective time zone. Requires read:branches:branch at the branch. */
+        get: operations["getBranch"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/businesses/{businessId}/branches/{branchId}/opening-hours": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** @description Replaces the branch opening hours (PENDING-T3); null clears them. Requires create:branches:business on the business. The branch row is read under FOR NO KEY UPDATE and an unchanged value answers 200 without an UPDATE or an audit row; the audit records only the hours before and after. A branch of another business of the same company answers 404; an unknown or foreign business is refused by the business-scoped guard with the same 403 as every business route. No Idempotency-Key: the write is a replace and has no money or stock effect. */
+        put: operations["setBranchOpeningHours"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/businesses/{businessId}/packages/import/template": {
         parameters: {
             query?: never;
@@ -10750,6 +10784,16 @@ export interface components {
             opening_hours?: components["schemas"]["OpeningHours"];
             timezone?: components["schemas"]["TimeZone"];
         };
+        SetBranchOpeningHoursInput: {
+            /** @description Each ISO weekday (1 = Monday … 7 = Sunday) appears at most once; a missing weekday is closed. closes < opens means the interval crosses midnight. Intervals must not overlap, including across midnight and from Sunday into Monday. Enforced by the API. */
+            opening_hours: {
+                weekday: number;
+                intervals: {
+                    opens: string;
+                    closes: string;
+                }[];
+            }[] | null;
+        };
         PairingCode: {
             code: string;
             /** Format: date-time */
@@ -11600,6 +11644,122 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["SetBusinessCountryResult"];
+                };
+            };
+            /** @description The API error envelope */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description The API error envelope */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description The API error envelope */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    getBranch: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-company-id": string;
+            };
+            path: {
+                branchId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The branch */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Branch"];
+                };
+            };
+            /** @description The API error envelope */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description The API error envelope */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description The API error envelope */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    setBranchOpeningHours: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-company-id": string;
+            };
+            path: {
+                businessId: string;
+                branchId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SetBranchOpeningHoursInput"];
+            };
+        };
+        responses: {
+            /** @description The branch after the change */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Branch"];
+                };
+            };
+            /** @description The API error envelope */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
             /** @description The API error envelope */
@@ -13477,8 +13637,9 @@ export interface operations {
                 cursor?: string;
                 limit?: number;
             };
-            header: {
-                "x-company-id": string;
+            header?: {
+                /** @description Optional. The company the request targets. When the header is absent the endpoint guard falls back to the authenticated user session’s selected active company (the session company hint); when neither the header nor a valid session company hint is present, the request is refused with 403 FORBIDDEN. */
+                "x-company-id"?: string;
             };
             path: {
                 businessId: string;
@@ -13514,7 +13675,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Refused with two distinct envelope codes: FORBIDDEN when a valid session holds no manage:commission-plans:business on that business, or names a missing or foreign business (a device session is a valid non-user principal and answers FORBIDDEN the same way), and FEATURE_DISABLED when the commissions feature is off for the company */
+            /** @description Refused with two distinct envelope codes: FORBIDDEN when a valid session holds no manage:commission-plans:business on that business, or names a missing or foreign business, or names no company at all (no x-company-id header and no session company hint) (a device session is a valid non-user principal and answers FORBIDDEN the same way), and FEATURE_DISABLED when the commissions feature is off for the company */
             403: {
                 headers: {
                     [name: string]: unknown;

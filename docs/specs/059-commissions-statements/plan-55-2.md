@@ -546,12 +546,15 @@ No migration (the index is 55-2b's). API only.
 3. **HTTP:** new `http/commission-blocked-corrections.controller.ts`,
    `GET /v1/businesses/:businessId/commission-blocked-corrections`, guarded by `@Require('manage:commission-plans:business', { business: 'businessId' })` (CS-Q48),
    `@RequiresFeature('commissions')`, Zod pipes, one `withTenant(companyId, tx => …,
-   { userId })` transaction for the unlocked access recheck (`readCommissionPlanListAccess`, as the two existing lists
-   do) and the query — one transaction, no nested one (guard connection budget, PP-7.2).
+   { userId, readOnly: true })` transaction for the unlocked access recheck (`readCommissionPlanListAccess`, as the two existing lists
+   do) and the query — one transaction, no nested one (guard connection budget, PP-7.2). The transaction is one
+   `REPEATABLE READ, READ ONLY` snapshot, so the access recheck and the page read the same moment and a concurrent
+   revocation cannot split them.
 4. **Module:** register the controller in `commissions.module.ts`. `docs/module-map.md`: no change (no new arrow).
 5. **Tests:** L1 result shape; L2 `EXPLAIN ANALYZE` uses the list index; L3 keyset pagination over 3 pages with equal
-   `created_at` values; L4 `status` filter; L5 403 without the permission, 404/feature refusal as the sibling lists;
-   L6 cross-tenant and cross-business rows are never returned; L7 no route without a guard (the CI declaration test passes).
+   `created_at` values; L4 `status` filter; L5 a missing or foreign business and an insufficient permission yield
+   `403 FORBIDDEN`, and a disabled commissions feature yields `403 FEATURE_DISABLED` (the uniform refusal the sibling
+   lists use); L6 cross-tenant and cross-business rows are never returned; L7 no route without a guard (the CI declaration test passes).
 
 ## 9. 55-2f — the repair use case and HTTP (FR-047)
 

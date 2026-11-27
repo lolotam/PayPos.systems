@@ -69,6 +69,7 @@ export function AlertRulesPage(props: {
             businessId={props.businessId}
             branchId={branchId}
             server={server}
+            serverUpdatedAt={query.dataUpdatedAt}
           />
         </>
       ) : null}

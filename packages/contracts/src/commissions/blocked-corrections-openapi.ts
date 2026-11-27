@@ -8,7 +8,9 @@ const parameters = [
   {
     in: 'header',
     name: 'x-company-id',
-    required: true,
+    required: false,
+    description:
+      'Optional. The company the request targets. When the header is absent the endpoint guard falls back to the authenticated user session’s selected active company (the session company hint); when neither the header nor a valid session company hint is present, the request is refused with 403 FORBIDDEN.',
     schema: { type: 'string', format: 'uuid' },
   },
   { in: 'path', name: 'businessId', required: true, schema: { type: 'string', format: 'uuid' } },
@@ -56,7 +58,7 @@ export const commissionBlockedCorrectionPaths = {
         },
         '403': {
           description:
-            'Refused with two distinct envelope codes: FORBIDDEN when a valid session holds no manage:commission-plans:business on that business, or names a missing or foreign business (a device session is a valid non-user principal and answers FORBIDDEN the same way), and FEATURE_DISABLED when the commissions feature is off for the company',
+            'Refused with two distinct envelope codes: FORBIDDEN when a valid session holds no manage:commission-plans:business on that business, or names a missing or foreign business, or names no company at all (no x-company-id header and no session company hint) (a device session is a valid non-user principal and answers FORBIDDEN the same way), and FEATURE_DISABLED when the commissions feature is off for the company',
           content: json('ErrorEnvelope'),
         },
         default: { description: 'Bilingual refusal', content: json('ErrorEnvelope') },

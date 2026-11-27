@@ -21,7 +21,7 @@ type ResetBranchRuleButtonProps = {
   index: number;
   disabled: boolean;
   onDone: () => void;
-  onConflict: () => void;
+  onConflict: (options?: { immediate: boolean }) => void;
 };
 
 function useBranchResetAction(props: ResetBranchRuleButtonProps) {
@@ -29,19 +29,14 @@ function useBranchResetAction(props: ResetBranchRuleButtonProps) {
   const form = useFormContext<SetAlertRulesInput>();
   const writing = useAlertRulesWriting(companyId, userId, businessId);
   const [missingExpected, setMissingExpected] = useState(false);
-  const mutation = useResetBranchAlertRule(
-    companyId,
-    userId,
-    businessId,
-    branchId,
-    onDone,
-    onConflict,
+  const mutation = useResetBranchAlertRule(companyId, userId, businessId, branchId, onDone, () =>
+    onConflict(),
   );
   const reset = () => {
     const entry = form.getValues(`rules.${index}`);
     if (entry.expected_rule_id === null || entry.expected_revision === null) {
       setMissingExpected(true);
-      onConflict();
+      onConflict({ immediate: true });
       return;
     }
     setMissingExpected(false);

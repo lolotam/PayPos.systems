@@ -11,6 +11,7 @@ import type { IdGenerator } from '../../../../shared/ports/id-generator.port.ts'
 import { CommissionPlanVersionError } from '../../domain/errors.ts';
 import type { CommissionPeriodRepairSaved } from '../../events/published.ts';
 import {
+  assertCommissionRepairPeriodAllowed,
   commissionPlanMonthsToLock,
   nextCommissionPlanVersion,
 } from '../../domain/plan-periods.ts';
@@ -63,12 +64,11 @@ export async function repairCommissionPeriod(
   if (calendar === null) throw new Error('The employee business has no timezone');
   const current = monthOf(clock, calendar.timeZone);
   // لا تصحيح موقوف قبل أول شهر للنشاط ولا في الشهر الحالي أو بعده، ونرفض قبل قفل الموظفة وقبل أي قفل شهور، لأن القفل بينشئ كشفاً لكل شهر في المدى.
-  if (
-    period < sessionBusinessDate(calendar.createdAt, calendar.timeZone).slice(0, 7) ||
-    period >= current
-  ) {
-    throw new CommissionPlanVersionError('COMMISSION_REPAIR_NOT_ALLOWED');
-  }
+  assertCommissionRepairPeriodAllowed({
+    period,
+    businessStartMonth: sessionBusinessDate(calendar.createdAt, calendar.timeZone).slice(0, 7),
+    currentMonth: current,
+  });
   if (!(await scope.lockEmployee())) throw new CommissionPlanVersionError('EMPLOYEE_NOT_FOUND');
   const locked = await scope.lockPeriods(
     commissionPlanMonthsToLock(`${period}-01`, `${current}-01`),

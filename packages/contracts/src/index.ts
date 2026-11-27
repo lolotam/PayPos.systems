@@ -87,8 +87,10 @@ export * from './catalog/service-import-commit.js';
 export {
   branch,
   createBranchInput,
+  setBranchOpeningHoursInput,
   type Branch,
   type CreateBranchInput,
+  type SetBranchOpeningHoursInput,
 } from './tenancy/branch.js';
 export {
   company,

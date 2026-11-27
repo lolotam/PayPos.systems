@@ -3,6 +3,10 @@ import { LEAVE_HISTORY_REPORT_ROW_CAP } from '@pospay/contracts';
 import { createLogger } from '@pospay/observability';
 import { notClockedInDiagnostics } from './persistence/not-clocked-in-diagnostics.ts';
 import { branchPlaceAdapter } from './persistence/branch-place.adapter.ts';
+import {
+  NOT_CLOCKED_IN_NAME_FALLBACK,
+  STAFF_ALERT_NAME_FALLBACK,
+} from './domain/staff-name-fallbacks.ts';
 import type { IdGenerator, TenantWrappers, Tx } from '@pospay/db';
 import type { Clock } from './ports/clock.port.ts';
 import { companyCreatedConsumer } from './events/handlers/on-company-created.handler.ts';
@@ -63,20 +67,6 @@ const STAFF_EVENT_TYPES = [
   'EmployeeDocumentRecorded',
   'LeaveHistoryReportRequested',
 ] as const;
-
-const NOT_CLOCKED_IN_NAME_FALLBACK = {
-  employeeAr: t('ar', 'inApp.generic_employee'),
-  employeeEn: t('en', 'inApp.generic_employee'),
-  branchAr: t('ar', 'inApp.generic_branch'),
-  branchEn: t('en', 'inApp.generic_branch'),
-};
-
-// أسماء أجراس الحضور والمستندات: نفس الأسماء العامة مع نوع المستند، والكتالوج هو المصدر (CLAUDE.md §7).
-const STAFF_ALERT_NAME_FALLBACK = {
-  ...NOT_CLOCKED_IN_NAME_FALLBACK,
-  documentAr: t('ar', 'inApp.generic_document'),
-  documentEn: t('en', 'inApp.generic_document'),
-};
 
 export function createStaffDocumentDefaults(ids: IdGenerator) {
   return companyCreatedConsumer((tx) => new SeedDocumentTypes(createDocumentTypeSeeds(tx), ids));

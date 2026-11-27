@@ -1,5 +1,5 @@
 import { t } from '@pospay/i18n';
-import type { QueryClient } from '@tanstack/react-query';
+import { QueryClient } from '@tanstack/react-query';
 import { act, cleanup, fireEvent, screen, waitFor } from '@testing-library/react';
 import { afterEach, expect, it, vi } from 'vitest';
 import { createQueryClient } from '@/shared/api/query-client';
@@ -19,8 +19,13 @@ vi.mock('@/shared/locale/locale-context', () => ({ useLocale: () => state.locale
 vi.mock('@/shared/api/client', () => ({ apiClient: () => ({ GET: state.get }) }));
 
 const clients: QueryClient[] = [];
+const LIST_PATH = '/v1/permissions/memberships';
+const DRAFT = 'Draft retained across refresh';
+const LOCALES = ['ar', 'en'] as const;
+const listKey = ['permissions', companyId, userId, null, 'memberships', undefined];
 
 afterEach(() => {
+  vi.useRealTimers();
   cleanup();
   releaseHeldReads();
   for (const client of clients) client.clear();
@@ -84,10 +89,17 @@ it.each([
     fireEvent.click(await screen.findByRole('button', { name: t(locale, 'permissions.view') }));
     expect(await screen.findByRole('button', { name: t(locale, 'permissions.save') })).toBeTruthy();
     expect(screen.getByRole('table')).toBeTruthy();
-    const listKey = ['permissions', companyId, userId, business ?? null, 'memberships', undefined];
+    const scopedListKey = [
+      'permissions',
+      companyId,
+      userId,
+      business ?? null,
+      'memberships',
+      undefined,
+    ];
     refused = true;
     await act(async () => {
-      await client.refetchQueries({ queryKey: listKey, exact: true });
+      await client.refetchQueries({ queryKey: scopedListKey, exact: true });
     });
     await waitFor(() => {
       expect(screen.getByRole('alert').textContent).toContain(t(locale, 'errors.FORBIDDEN'));
@@ -96,10 +108,10 @@ it.each([
       expect(screen.queryByRole('button', { name: t(locale, 'permissions.next') })).toBeNull();
       expect(screen.queryByRole('button', { name: t(locale, 'permissions.save') })).toBeNull();
     });
-    expect(client.getQueryData(listKey)).toEqual(page);
+    expect(client.getQueryData(scopedListKey)).toEqual(page);
     refused = false;
     await act(async () => {
-      await client.refetchQueries({ queryKey: listKey, exact: true });
+      await client.refetchQueries({ queryKey: scopedListKey, exact: true });
     });
     expect(await screen.findByRole('table')).toBeTruthy();
     expect(await screen.findByRole('button', { name: t(locale, 'permissions.save') })).toBeTruthy();
@@ -107,73 +119,188 @@ it.each([
   },
 );
 
-async function expectRetainedDraft(locale: 'ar' | 'en') {
-  expect(await screen.findByRole('button', { name: t(locale, 'permissions.save') })).toBeTruthy();
-  expect(
-    screen.getByLabelText<HTMLInputElement>(t(locale, 'permissions.reason'), {
-      selector: '#override-reason',
-    }).value,
-  ).toBe('Draft retained across refresh');
+type Locale = (typeof LOCALES)[number];
+type Step = { gate?: Promise<void>; fail?: boolean; data?: unknown };
+
+function defaultClient() {
+  const client = createQueryClient();
+  expect(client.getDefaultOptions().queries?.retry).toBe(false);
+  return client;
 }
 
-it.each(['ar', 'en'] as const)(
-  'hides deferred refreshes, preserves a draft across transient failure and removes absent selection (%s)',
+async function openEditor(locale: Locale, client: QueryClient = defaultClient()) {
+  state.locale = locale;
+  const { page, detail } = permissionResponses(false, undefined);
+  clients.push(client);
+  const steps: Step[] = [];
+  const calls = { list: 0 };
+  state.get.mockImplementation(async (path: string) => {
+    if (path === `${LIST_PATH}/{membershipId}`) return { data: detail };
+    if (path !== LIST_PATH) throw new Error(`Unexpected test request: ${path}`);
+    calls.list += 1;
+    const step = steps.shift() ?? {};
+    await step.gate;
+    if (step.fail) throw new Error('Synthetic transient network failure');
+    return { data: step.data ?? page };
+  });
+  renderBrowser(client, undefined);
+  fireEvent.click(await screen.findByRole('button', { name: t(locale, 'permissions.view') }));
+  const reason = await screen.findByLabelText<HTMLInputElement>(t(locale, 'permissions.reason'), {
+    selector: '#override-reason',
+  });
+  return { client, page, steps, calls, reason };
+}
+
+const saveButton = (locale: Locale) =>
+  screen.queryByRole('button', { name: t(locale, 'permissions.save') });
+
+function startRefresh(client: QueryClient) {
+  let refreshed: Promise<void> = Promise.resolve();
+  act(() => {
+    refreshed = client.refetchQueries({ queryKey: listKey, exact: true });
+  });
+  return refreshed;
+}
+
+async function settle(release: () => void, refreshed: Promise<void>) {
+  await act(async () => {
+    release();
+    await refreshed;
+  });
+}
+
+function expectEditorVisible(locale: Locale, reason: HTMLInputElement) {
+  expect(screen.getByRole('table')).toBeTruthy();
+  expect(saveButton(locale)?.matches(':disabled')).toBe(false);
+  expect(reason.isConnected).toBe(true);
+  expect(reason.matches(':disabled')).toBe(false);
+  expect(document.activeElement).toBe(reason);
+  expect(screen.queryByRole('alert')).toBeNull();
+}
+
+function expectFailClosed(locale: Locale) {
+  expect(screen.getByRole('alert')).toBeTruthy();
+  expect(screen.queryByRole('table')).toBeNull();
+  expect(saveButton(locale)).toBeNull();
+}
+
+it.each(LOCALES)(
+  'keeps the table, editor, focus and draft during a held background refresh (%s)',
   async (locale) => {
-    state.locale = locale;
-    const { page, detail } = permissionResponses(false, undefined);
-    const client = createQueryClient();
-    clients.push(client);
-    expect(client.getDefaultOptions().queries?.retry).toBe(false);
-    const listKey = ['permissions', companyId, userId, null, 'memberships', undefined];
-    let nextPage = page;
-    let paused: Promise<void> | undefined;
-    let release = () => {};
-    let failed = false;
-    state.get.mockImplementation(async (path: string) => {
-      if (path === '/v1/permissions/memberships/{membershipId}') return { data: detail };
-      if (path !== '/v1/permissions/memberships')
-        throw new Error(`Unexpected test request: ${path}`);
-      await paused;
-      if (failed) throw new Error('Synthetic transient network failure');
-      return { data: nextPage };
-    });
-    renderBrowser(client, undefined);
-    fireEvent.click(await screen.findByRole('button', { name: t(locale, 'permissions.view') }));
-    const reason = await screen.findByLabelText(t(locale, 'permissions.reason'), {
-      selector: '#override-reason',
-    });
-    fireEvent.change(reason, { target: { value: 'Draft retained across refresh' } });
+    const { client, steps, reason } = await openEditor(locale);
+    fireEvent.change(reason, { target: { value: DRAFT } });
+    reason.focus();
     const held = hold();
-    paused = held.promise;
-    release = held.release;
-    let refreshed: Promise<void> | undefined;
-    act(() => {
-      refreshed = client.refetchQueries({ queryKey: listKey, exact: true });
-    });
-    await waitFor(() => expect(screen.queryByRole('table')).toBeNull());
-    expect(screen.queryByRole('button', { name: t(locale, 'permissions.save') })).toBeNull();
-    expect(
-      screen.queryAllByRole('textbox', { name: t(locale, 'permissions.reason') }),
-    ).toHaveLength(0);
-    failed = true;
+    steps.push({ gate: held.promise });
+    const refreshed = startRefresh(client);
+    await waitFor(() => expect(client.isFetching({ queryKey: listKey })).toBe(1));
+    expectEditorVisible(locale, reason);
+    fireEvent.change(reason, { target: { value: `${DRAFT} — still typing` } });
+    expect(document.activeElement).toBe(reason);
+    await settle(held.release, refreshed);
+    expectEditorVisible(locale, reason);
+    expect(reason.value).toBe(`${DRAFT} — still typing`);
+  },
+);
+
+it.each(LOCALES)(
+  'keeps focus and draft across the automatic 30 second poll (%s)',
+  async (locale) => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    const { client, steps, calls, reason } = await openEditor(locale);
+    fireEvent.change(reason, { target: { value: DRAFT } });
+    reason.focus();
+    const held = hold();
+    steps.push({ gate: held.promise });
     await act(async () => {
-      release();
-      await refreshed;
+      vi.advanceTimersByTime(30_000);
     });
-    expect(await screen.findByRole('alert')).toBeTruthy();
-    expect(screen.queryByRole('button', { name: t(locale, 'permissions.save') })).toBeNull();
-    failed = false;
-    paused = undefined;
-    await act(() => client.refetchQueries({ queryKey: listKey, exact: true }));
+    await waitFor(() => expect(calls.list).toBe(2));
+    expectEditorVisible(locale, reason);
+    expect(reason.value).toBe(DRAFT);
+    await act(async () => {
+      held.release();
+    });
+    await waitFor(() => expect(client.isFetching({ queryKey: listKey })).toBe(0));
+    expectEditorVisible(locale, reason);
+    expect(reason.value).toBe(DRAFT);
+  },
+);
+
+it.each(LOCALES)(
+  'fails closed on a refused refresh and stays closed while recovery is pending (%s)',
+  async (locale) => {
+    const { client, steps, reason } = await openEditor(locale);
+    fireEvent.change(reason, { target: { value: DRAFT } });
+    const failing = hold();
+    steps.push({ gate: failing.promise, fail: true });
+    await settle(failing.release, startRefresh(client));
+    await waitFor(() => expectFailClosed(locale));
+    const recovery = hold();
+    steps.push({ gate: recovery.promise });
+    const recovering = startRefresh(client);
+    await waitFor(() => expect(client.isFetching({ queryKey: listKey })).toBe(1));
+    expectFailClosed(locale);
+    await settle(recovery.release, recovering);
+    expect(await screen.findByRole('table')).toBeTruthy();
     await expectRetainedDraft(locale);
-    nextPage = { ...page, items: [] };
+    expect(screen.queryByRole('alert')).toBeNull();
+  },
+);
+
+it.each(LOCALES)(
+  'fails closed during an intermediate retry failure and restores the draft after recovery (%s)',
+  async (locale) => {
+    const retrying = new QueryClient({
+      defaultOptions: { queries: { retry: 1, retryDelay: 0, staleTime: 30_000 } },
+    });
+    const { client, steps, reason } = await openEditor(locale, retrying);
+    fireEvent.change(reason, { target: { value: DRAFT } });
+    const failing = hold();
+    const recovery = hold();
+    steps.push({ gate: failing.promise, fail: true }, { gate: recovery.promise });
+    const refreshed = startRefresh(client);
+    act(() => failing.release());
+    await waitFor(() => expectFailClosed(locale));
+    expect(client.getQueryState(listKey)?.fetchFailureCount).toBeGreaterThan(0);
+    await settle(recovery.release, refreshed);
+    expect(await screen.findByRole('table')).toBeTruthy();
+    await expectRetainedDraft(locale);
+    expect(screen.queryByRole('alert')).toBeNull();
+  },
+);
+
+it.each(LOCALES)(
+  'removes an absent selection and does not resurrect it when it reappears (%s)',
+  async (locale) => {
+    const { client, steps, page } = await openEditor(locale);
+    const nextPage = { ...page, items: [] };
+    steps.push({ data: nextPage });
     await act(() => client.refetchQueries({ queryKey: listKey, exact: true }));
     await waitFor(() => {
-      expect(screen.queryByRole('button', { name: t(locale, 'permissions.save') })).toBeNull();
+      expect(saveButton(locale)).toBeNull();
       expect(
         screen.queryAllByRole('textbox', { name: t(locale, 'permissions.reason') }),
       ).toHaveLength(0);
     });
     expect(client.getQueryData(listKey)).toEqual(nextPage);
+    steps.push({ data: { ...page, items: page.items } });
+    await act(() => client.refetchQueries({ queryKey: listKey, exact: true }));
+    expect(await screen.findByRole('table')).toBeTruthy();
+    expect(saveButton(locale)).toBeNull();
+    fireEvent.click(await screen.findByRole('button', { name: t(locale, 'permissions.view') }));
+    const fresh = await screen.findByLabelText<HTMLInputElement>(t(locale, 'permissions.reason'), {
+      selector: '#override-reason',
+    });
+    expect(fresh.value).toBe('');
   },
 );
+
+async function expectRetainedDraft(locale: Locale) {
+  expect(await screen.findByRole('button', { name: t(locale, 'permissions.save') })).toBeTruthy();
+  expect(
+    screen.getByLabelText<HTMLInputElement>(t(locale, 'permissions.reason'), {
+      selector: '#override-reason',
+    }).value,
+  ).toBe(DRAFT);
+}
