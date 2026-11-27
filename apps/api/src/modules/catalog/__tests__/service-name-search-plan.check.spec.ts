@@ -142,6 +142,19 @@ const REJECT: { name: string; plan: PlanNode[]; problem: string }[] = [
     problem: PLAN_PROBLEMS.tooManyRows,
   },
   {
+    name: 'an estimated-only node without actual execution counters',
+    plan: [
+      {
+        'Node Type': 'Index Scan',
+        'Relation Name': 'services',
+        'Index Name': 'services_company_business_id_key',
+        'Index Cond': TENANT_COND,
+        Filter: NAME_FILTER,
+      },
+    ],
+    problem: PLAN_PROBLEMS.missingExecutionStats,
+  },
+  {
     name: 'a bitmap and whose unbound branch read more rows than the business holds',
     plan: bitmapHeap({
       'Node Type': 'BitmapAnd',

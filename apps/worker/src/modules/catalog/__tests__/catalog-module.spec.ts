@@ -62,7 +62,9 @@ function startWorker() {
 
 it('closes every processor and reports the first refusal', async () => {
   const catalog = startWorker();
-  const [closingWorker, importWorker, recoveryWorker] = state.workers;
+  const closingWorker = state.workers.find((worker) => worker.name === 'service-category-closing');
+  const importWorker = state.workers.find((worker) => worker.name === 'service-import-commit');
+  const recoveryWorker = state.workers.find((worker) => worker.name === 'service-import-recovery');
   const failure = new Error('synthetic closing refusal');
   closingWorker?.close.mockRejectedValueOnce(failure);
 

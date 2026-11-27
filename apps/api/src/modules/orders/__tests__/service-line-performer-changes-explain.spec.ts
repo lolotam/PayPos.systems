@@ -127,7 +127,7 @@ it('reads headers and sides through their line and change indexes, never a Seq S
       const everyScanUses = (scans: PlanNode[], allowed: readonly string[]) =>
         scans.every((scan) => {
           const used = scanIndexes(scan);
-          return used.length > 0 && used.some((name) => allowed.includes(name));
+          return used.length > 0 && used.every((name) => allowed.includes(name));
         });
       expect(everyScanUses(headers, ['slpc_line_revision_uq', 'slpc_history_idx'])).toBe(true);
       expect(everyScanUses(sides, ['slpcr_ordinal_uq', 'slpcr_change_fk_idx'])).toBe(true);

@@ -11,9 +11,8 @@ import { FailurePersistedError, reactivatedAfterDelay } from './catalog-job-fina
 import type { RunServiceCategoryClosing } from '../use-cases/run-service-category-closing/run-service-category-closing.ts';
 
 export const SERVICE_CATEGORY_CLOSING_QUEUE = 'service-category-closing';
+export const SERVICE_CATEGORY_CLOSING_FINALIZATION_QUEUE = 'service-category-closing-finalization';
 const FINALIZING_FAILURE = 'finalizing-service-category-closing-failure';
-// اسم المهمة التي تعيد كتابة رمز الفشل بعد أن رفضت القاعدة الكتابة نفسها.
-// هي ليست قفلاً جديداً: تشغيل القفل تاني كان هيمسك نفس القفل مرتين.
 const FINALIZING_FAILURE_JOB = 'finalizing-failure';
 const failureProgress = z.strictObject({
   stage: z.literal(FINALIZING_FAILURE),
@@ -25,15 +24,24 @@ const GENERIC_FAILURE: Failure = {
   code: 'SERVICE_CATEGORY_CLOSING_FAILED',
 };
 
+/** مراقب سقوط إعادة كتابة الفشل عند رفض القاعدة والطابور معاً — للتسجيل بلا بيانات خاصة. */
+export type ClosingFinalizationDropObserver = (input: {
+  readonly companyId: string;
+  readonly closingId: string;
+  readonly code: 'SERVICE_CATEGORY_CLOSING_FAILURE_RETRY_DROPPED';
+}) => void;
+
+/** معرّف مهمة إعادة كتابة الفشل بلا نقطتين (:) حتى لا يرفضه فاحص BullMQ. */
+export function terminalFailureJobId(closingId: string, rawJobId: string | undefined): string {
+  const suffix = rawJobId ?? 'job';
+  return `terminal-fail-${closingId}-${suffix}`.replaceAll(':', '-');
+}
+
 function closingHandler(useCase: RunServiceCategoryClosing) {
   return async (job: Job, token?: string) => {
     const parsed = serviceCategoryClosingJob.safeParse(job.data);
     if (!parsed.success) throw new Error('SERVICE_CATEGORY_CLOSING_JOB_INVALID');
     const { companyId, closingId } = parsed.data;
-    // مهمة إعادة كتابة الفشل هي كتابة رمز الفشل بس: تشغيل القفل تاني كان
-    // هيمسك القفل مرتين ويضاعف زمنه على thousand خدمة.
-    if (job.name === FINALIZING_FAILURE_JOB)
-      return persistFailure(useCase, job, token, { companyId, closingId, ...GENERIC_FAILURE });
     const progress = failureProgress.safeParse(job.progress);
     if (progress.success)
       return persistFailure(useCase, job, token, { companyId, closingId, ...progress.data });
@@ -45,6 +53,23 @@ function closingHandler(useCase: RunServiceCategoryClosing) {
       if (job.attemptsMade + 1 < (job.opts.attempts ?? 1)) throw error;
       await markFailureProgress(job, GENERIC_FAILURE);
       return persistFailure(useCase, job, token, { companyId, closingId, ...GENERIC_FAILURE });
+    }
+  };
+}
+
+/** معالج طابور إعادة كتابة الفشل: يكتب رمز الفشل فقط وبميزانية محاولات BullMQ المحددة. */
+function finalizationHandler(useCase: RunServiceCategoryClosing) {
+  return async (job: Job) => {
+    const parsed = serviceCategoryClosingJob.safeParse(job.data);
+    if (!parsed.success) throw new Error('SERVICE_CATEGORY_CLOSING_JOB_INVALID');
+    try {
+      await useCase.fail(
+        parsed.data.companyId,
+        parsed.data.closingId,
+        'SERVICE_CATEGORY_CLOSING_FAILED',
+      );
+    } catch {
+      throw new Error('SERVICE_CATEGORY_CLOSING_FINALIZATION_RETRY');
     }
   };
 }
@@ -99,76 +124,126 @@ function isTerminalFailure(job: Job): boolean {
 async function persistTerminalFailure(
   useCase: RunServiceCategoryClosing,
   job: Job,
-  queue: Queue,
+  finalizationQueue: Queue,
+  onDrop?: ClosingFinalizationDropObserver,
 ): Promise<void> {
   const parsed = serviceCategoryClosingJob.safeParse(job.data);
   if (!parsed.success) return;
+  const { companyId, closingId } = parsed.data;
   try {
-    await useCase.fail(
-      parsed.data.companyId,
-      parsed.data.closingId,
-      'SERVICE_CATEGORY_CLOSING_FAILED',
-    );
+    await useCase.fail(companyId, closingId, 'SERVICE_CATEGORY_CLOSING_FAILED');
   } catch {
-    // الموعد النهائي بيخلي الصف المعلّق ما يفضلش قفل التصنيف، فرفض الكتابة هنا مش بيوقف العامل.
-    await queue
-      .add(FINALIZING_FAILURE_JOB, parsed.data, {
-        jobId: `${parsed.data.closingId}:terminal-fail:${job.id ?? 'job'}`,
+    try {
+      await finalizationQueue.add(FINALIZING_FAILURE_JOB, parsed.data, {
+        jobId: terminalFailureJobId(closingId, job.id),
         delay: 2000,
         attempts: 3,
         backoff: { type: 'exponential', delay: 2000 },
         removeOnComplete: true,
         removeOnFail: 100,
-      })
-      .catch(() => undefined);
+      });
+    } catch {
+      try {
+        await useCase.fail(companyId, closingId, 'SERVICE_CATEGORY_CLOSING_FAILED');
+      } catch {
+        // الموعد النهائي بيخلي الصف المعلّق ما يفضلش قفل التصنيف؛ نبلّغ عن سقوط إعادة المحاولة بلا بيانات خاصة.
+        onDrop?.({
+          companyId,
+          closingId,
+          code: 'SERVICE_CATEGORY_CLOSING_FAILURE_RETRY_DROPPED',
+        });
+      }
+    }
   }
 }
 
+/** يغلق العاملين والطابورين ويستنزف الكتابات الجارية ويفصل الاتصالات مهما رفض الإغلاق الأول. */
+async function closeClosingProcessor(parts: {
+  worker: Worker;
+  finalizationWorker: Worker;
+  queue: Queue;
+  finalizationQueue: Queue;
+  inFlightFailures: Set<Promise<void>>;
+  disconnect: () => void;
+}): Promise<void> {
+  const workersSettled = await Promise.allSettled([
+    parts.worker.close(),
+    parts.finalizationWorker.close(),
+  ]);
+  await Promise.allSettled([...parts.inFlightFailures]);
+  const queuesSettled = await Promise.allSettled([
+    parts.queue.close(),
+    parts.finalizationQueue.close(),
+  ]);
+  parts.disconnect();
+  const rejected = [...workersSettled, ...queuesSettled].find(
+    (result): result is PromiseRejectedResult => result.status === 'rejected',
+  );
+  if (rejected !== undefined) throw rejected.reason;
+}
+
 /**
- * يشغّل طابور قفل وفتح التصنيفات الكبيرة: يسلّم الحدث للطابور، ويشغّل الصف تحته.
+ * يشغّل طابور قفل وفتح التصنيفات الكبيرة: يسلّم الحدث للطابور، ويشغّل الصف تحته،
+ * مع طابور وعامل منفصلين لإعادة كتابة الفشل حتى لا تستهلكه عمالة قديمة أثناء التحديث التدريجي.
  *
- * @param useCase  حالة الاستخدام اللي تشغيل الطلب وكتابة نتيجته
- * @param redisUrl عنوان Redis اللي فيه الطابور
- * @param prefix   بادئة طوابير BullMQ
+ * @param useCase               حالة الاستخدام اللي تشغيل الطلب وكتابة نتيجته
+ * @param redisUrl              عنوان Redis اللي فيه الطابور
+ * @param prefix                بادئة طوابير BullMQ
+ * @param onFinalizationDropped مراقب اختياري عند رفض القاعدة وطابور إعادة المحاولة معاً
  * @returns التسليم والجاهزية والإغلاق
  */
 export function startServiceCategoryClosingProcessor(
   useCase: RunServiceCategoryClosing,
   redisUrl: string,
   prefix = 'bull',
+  onFinalizationDropped?: ClosingFinalizationDropObserver,
 ) {
   const connection = new Redis(redisUrl, { maxRetriesPerRequest: null, enableOfflineQueue: false });
   connection.on('error', () => undefined);
+  const finalizationConnection = connection.duplicate({ maxRetriesPerRequest: null, enableOfflineQueue: false });
+  finalizationConnection.on('error', () => undefined);
   const producer = connection.duplicate({ maxRetriesPerRequest: 1, commandTimeout: 5000 });
   producer.on('error', () => undefined);
   const queue = new Queue(SERVICE_CATEGORY_CLOSING_QUEUE, { connection: producer, prefix });
   queue.on('error', () => undefined);
-  const worker = new Worker(SERVICE_CATEGORY_CLOSING_QUEUE, closingHandler(useCase), {
-    connection,
+  const worker = new Worker(SERVICE_CATEGORY_CLOSING_QUEUE, closingHandler(useCase), { connection, concurrency: 1, prefix });
+  worker.on('error', () => undefined);
+  const finalizationQueue = new Queue(SERVICE_CATEGORY_CLOSING_FINALIZATION_QUEUE, { connection: producer, prefix });
+  finalizationQueue.on('error', () => undefined);
+  const finalizationWorker = new Worker(SERVICE_CATEGORY_CLOSING_FINALIZATION_QUEUE, finalizationHandler(useCase), {
+    connection: finalizationConnection,
     concurrency: 1,
     prefix,
   });
-  worker.on('error', () => undefined);
+  finalizationWorker.on('error', () => undefined);
   // كتابة الفشل بعد إغلاق المهمة مش جزء من عمل BullMQ، فالعامل بيتقفل قبلها.
   // المجموعة دي هي اللي بتخلي الإغلاق ينتظرها، عشان صف الطلب ما يفضلش معلّق.
   const inFlightFailures = new Set<Promise<void>>();
   worker.on('failed', (job, error) => {
     if (job == null || error instanceof FailurePersistedError || !isTerminalFailure(job)) return;
-    const pending = persistTerminalFailure(useCase, job, queue).finally(() =>
+    const pending = persistTerminalFailure(useCase, job, finalizationQueue, onFinalizationDropped).finally(() =>
       inFlightFailures.delete(pending),
     );
     inFlightFailures.add(pending);
   });
   return {
     deliver: (event: ClaimedEvent) => deliverClosing(queue, useCase, event),
-    ready: () => worker.waitUntilReady().then(() => undefined),
-    close: async () => {
-      await worker.close();
-      await Promise.allSettled([...inFlightFailures]);
-      await queue.close();
-      producer.disconnect();
-      connection.disconnect();
+    ready: async () => {
+      await Promise.all([worker.waitUntilReady(), finalizationWorker.waitUntilReady()]);
     },
+    close: () =>
+      closeClosingProcessor({
+        worker,
+        finalizationWorker,
+        queue,
+        finalizationQueue,
+        inFlightFailures,
+        disconnect: () => {
+          producer.disconnect();
+          finalizationConnection.disconnect();
+          connection.disconnect();
+        },
+      }),
   };
 }
 

@@ -24,6 +24,7 @@ export const PLAN_PROBLEMS = {
     'the services access is not bound by company_id and business_id in the index condition',
   nameInIndexCond: 'the name predicate became an index condition',
   nameNotFilter: 'the name predicate is not a filter',
+  missingExecutionStats: 'the plan node has no actual execution counters',
   tooManyRows: 'the node read more rows than the business holds',
 } as const;
 
@@ -107,6 +108,16 @@ function indexNodes(access: PlanNode): PlanNode[] {
   return (access.Plans ?? []).flatMap(indexNodes);
 }
 
+// عدادات التنفيذ الفعلية: خطة تقديرية بلا Actual Rows / Actual Loops لا تثبت سقف القراءة.
+function hasActualStats(node: PlanNode): boolean {
+  return (
+    typeof node['Actual Rows'] === 'number' &&
+    Number.isFinite(node['Actual Rows']) &&
+    typeof node['Actual Loops'] === 'number' &&
+    Number.isFinite(node['Actual Loops'])
+  );
+}
+
 // الصفوف اللي العقدة قراها: اللي رجعت، واللي الفلتر شالها، واللي الـ recheck شالها.
 export function rowsRead(node: PlanNode): number {
   const read =
@@ -148,7 +159,11 @@ export function tenantBoundProblems(nodes: PlanNode[], allowedRows: number): str
     // بيقرا آلاف الصفوف حتى لو الـ heap رجّع صفوف النشاط بس.
     const counted = new Set<PlanNode>([heap, ...indexes]);
     for (const node of counted) {
-      if (rowsRead(node) > allowedRows) problems.push(PLAN_PROBLEMS.tooManyRows);
+      if (!hasActualStats(node)) {
+        problems.push(PLAN_PROBLEMS.missingExecutionStats);
+      } else if (rowsRead(node) > allowedRows) {
+        problems.push(PLAN_PROBLEMS.tooManyRows);
+      }
     }
   }
   return problems;

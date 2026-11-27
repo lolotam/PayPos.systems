@@ -8,8 +8,8 @@ import { SERVICE_IMPORT_CONTENT_TYPE } from '../service-import-template.ts';
 // ملكية الملف ووثوقه: الملف المجهول أو الخارج عن النشاط أو غير منشئه أو المنظّف كله رفض
 // «غير موجود» دون كشف وجوده، والملف غير الوثوق أو غير xlsx أو فوق 2 MiB رفض مسمّى خاص به.
 
-const BUSINESS_ID = '01920000-0000-7000-8000-000000000002';
-const USER_ID = '01920000-0000-7000-8000-000000000003';
+const BUSINESS_ID = '01920000-0000-7000-8000-0000000000a2';
+const USER_ID = '01920000-0000-7000-8000-0000000000b3';
 const OTHER_ID = '01920000-0000-7000-8000-0000000000ff';
 const STORAGE_KEY = 'catalog/imports/verified-services.xlsx';
 
@@ -88,12 +88,17 @@ it('accepts a file at the maximum size', () => {
 });
 
 it('accepts a mixed-case business and uploader because the guard accepts any UUID case', () => {
+  expect(BUSINESS_ID.toUpperCase()).not.toBe(BUSINESS_ID);
+  expect(USER_ID.toUpperCase()).not.toBe(USER_ID);
   expect(
     validateServiceImportFile(
       facts({ business_id: BUSINESS_ID.toUpperCase(), created_by: USER_ID.toUpperCase() }),
       BUSINESS_ID,
       USER_ID,
     ),
+  ).toBe(STORAGE_KEY);
+  expect(
+    validateServiceImportFile(facts(), BUSINESS_ID.toUpperCase(), USER_ID.toUpperCase()),
   ).toBe(STORAGE_KEY);
 });
 

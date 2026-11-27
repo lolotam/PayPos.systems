@@ -39,38 +39,33 @@ async function seedExplainWorkspace(h: Awaited<ReturnType<typeof startHarness>>)
 }
 
 import { expect, it } from 'vitest';
+import { createDatabase } from '@pospay/db';
 import { systemUuidV7 } from '@pospay/ids';
+import { sql } from 'drizzle-orm';
 import keyVectors from '../domain/__tests__/service-import-key-vectors.json' with { type: 'json' };
 import { serviceCategoryKey, normalizeServiceCategoryName } from '../domain/service-category.ts';
+import { serviceImportRowsStatement } from '../queries/service-import-rows.query.ts';
 
 import { startHarness } from '../../../../test/harness.ts';
 import { seedCatalogWorkspace } from './service-import.fixture.ts';
 
-// استعلام الصفحات الإنتاجي نفسه (توسيع JSONB والترتيب والصفحة داخل SQL) يجب أن يمشي
-// على المفتاح (company_id, id) — الخطة إلزامية على شكل الاستعلام الحقيقي لا على تقليده.
+// استعلام الصفحات الإنتاجي نفسه (serviceImportRowsStatement تحت withTenant) يجب أن يمشي
+// على المفتاح (company_id, id) — الخطة إلزامية على استعلام الإنتاج نفسه لا على نسخة منسوخة.
 async function previewPagePlan(
-  h: Awaited<ReturnType<typeof startHarness>>,
+  database: ReturnType<typeof createDatabase>,
   scope: { company: string; business: string; userId: string; seeded: string },
 ) {
   const { company, business, userId, seeded } = scope;
-  return h.owner`EXPLAIN (ANALYZE, FORMAT JSON)
-    WITH preview AS (
-      SELECT rows FROM import_previews
-      WHERE company_id=${company} AND business_id=${business}
-        AND created_by=${userId} AND id=${seeded} AND entity='services'
-    ),
-    page_rows AS (
-      SELECT (r.value->>'row')::int AS row_no, r.value AS data
-      FROM preview p, jsonb_array_elements(p.rows) AS r(value)
-      WHERE (r.value->>'row')::int > 1
-      ORDER BY 1
-      LIMIT 21
-    )
-    SELECT
-      (SELECT EXISTS (SELECT 1 FROM preview)) AS found,
-      (SELECT COALESCE(jsonb_agg(data ORDER BY row_no), '[]'::jsonb) FROM (SELECT row_no, data FROM page_rows ORDER BY row_no LIMIT 20) t) AS items,
-      (SELECT max(row_no) FROM (SELECT row_no FROM page_rows ORDER BY row_no LIMIT 20) t) AS last_row_no,
-      EXISTS (SELECT 1 FROM page_rows OFFSET 20) AS has_more`;
+  const statement = serviceImportRowsStatement(
+    { companyId: company, businessId: business, userId, previewId: seeded },
+    1,
+    20,
+  );
+  return database.withTenant(
+    company,
+    (tx) => tx.execute(sql`EXPLAIN (ANALYZE, FORMAT JSON) ${statement}`),
+    { userId },
+  );
 }
 
 // مفاتيح الأسماء من المطبّع المشترك، ومساواة lower() على Postgres الفعلي بمتجهات Unicode المفحوصة (A-11/A-12).
@@ -135,7 +130,13 @@ it('scans the scoped unique index for category matching and the business index f
        AND lower(btrim(regexp_replace(s.name_en, '[[:space:]]+', ' ', 'g'))) = i.lookup_key`;
     const nameText = JSON.stringify(namePlan?.[0] ?? namePlan);
     expect(nameText).toContain('services_company_business_id_key');
-    const rowsPlan = await previewPagePlan(h, { company, business, userId, seeded });
+    const db = createDatabase({ url: h.urls.app, ids: systemUuidV7() });
+    let rowsPlan: unknown;
+    try {
+      rowsPlan = await previewPagePlan(db, { company, business, userId, seeded });
+    } finally {
+      await db.close();
+    }
     const rowsText = JSON.stringify(
       (rowsPlan as unknown as { 'QUERY PLAN': unknown }[])?.[0] ?? rowsPlan,
     );
