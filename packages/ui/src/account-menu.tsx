@@ -1,7 +1,7 @@
 'use client';
 
 import { DropdownMenu } from 'radix-ui';
-import { useState } from 'react';
+import { useState, type ReactNode } from 'react';
 
 import { AccountMenuEntryItem, type AccountMenuEntry } from './account-menu-entry.js';
 import { AccountMenuIdentity } from './account-menu-identity.js';
@@ -24,6 +24,8 @@ export type AccountMenuProps = {
   entries: readonly AccountMenuEntry[];
   /** يغيّره المستضيف عند كل انتقال فتُغلق القائمة دون إعادة بناء زرها؛ الغياب لا يغيّر شيئًا. */
   resetKey?: string | undefined;
+  /** أيقونة الزر بدل صورة المستخدم؛ الغياب يترك الصورة الافتراضية. */
+  icon?: ReactNode;
   className?: string;
 };
 
@@ -39,6 +41,7 @@ export function AccountMenu({
   email,
   entries,
   resetKey,
+  icon,
   className,
 }: AccountMenuProps) {
   const [open, setOpen] = useState(false);
@@ -53,12 +56,13 @@ export function AccountMenu({
         <button
           type="button"
           aria-label={labels.label}
+          title={labels.label}
           className={cn(
             'inline-flex size-11 items-center justify-center rounded-interactive text-muted-foreground transition-colors motion-reduce:transition-none hover:bg-accent hover:text-accent-foreground focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring',
             className,
           )}
         >
-          <UserRound aria-hidden className="size-4" />
+          {icon ?? <UserRound aria-hidden className="size-4" />}
         </button>
       </DropdownMenu.Trigger>
       <DropdownMenu.Portal>

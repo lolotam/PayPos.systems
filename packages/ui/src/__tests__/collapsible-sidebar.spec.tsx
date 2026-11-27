@@ -275,13 +275,33 @@ it('omits the title when the sidebar is expanded and shows the label as text', (
 it('centres the collapse toggle in the rail and keeps it at the inline end when expanded', () => {
   stubMedia();
   render(tree('ltr', { currentGroupId: 'home' }));
-  const expandedRow = screen.getByRole('button', { name: chromeLabels.collapse }).parentElement;
-  expect(expandedRow?.className).toContain('justify-end');
-  expect(expandedRow?.className).not.toContain('justify-center');
-  fireEvent.click(screen.getByRole('button', { name: chromeLabels.collapse }));
-  const railRow = screen.getByRole('button', { name: chromeLabels.expand }).parentElement;
+  const expandedToggle = screen.getByRole('button', { name: chromeLabels.collapse });
+  const expandedRow = expandedToggle.parentElement;
+  expect(expandedRow?.className).toContain('justify-center');
+  expect(expandedRow?.className).toContain('relative');
+  expect(expandedToggle.className).toContain('end-2');
+  expect(expandedToggle.className).toContain('min-[1024px]:absolute');
+  fireEvent.click(expandedToggle);
+  const railToggle = screen.getByRole('button', { name: chromeLabels.expand });
+  const railRow = railToggle.parentElement;
   expect(railRow?.className).toContain('justify-center');
-  expect(railRow?.className).not.toContain('justify-end');
+  expect(railToggle.className).not.toContain('end-2');
+  expect(railToggle.className).not.toContain('min-[1024px]:absolute');
+});
+
+it('shares one header row between the header slot and the collapse toggle', () => {
+  stubMedia();
+  render(tree('ltr', { header: <span>Header mark</span> }));
+  const toggle = screen.getByRole('button', { name: chromeLabels.collapse });
+  const row = toggle.parentElement as HTMLElement;
+  expect(within(row).getByText('Header mark')).toBeTruthy();
+  expect(row.className).toContain('justify-center');
+  expect(row.className).toContain('relative');
+  // وفي الشريط المطويّ يختفي رأس الشريط من غير تكرار، ويبقى مبدّل التوسيع في الوسط
+  fireEvent.click(toggle);
+  const railRow = screen.getByRole('button', { name: chromeLabels.expand }).parentElement as HTMLElement;
+  expect(within(railRow).queryByText('Header mark')).toBeNull();
+  expect(railRow.className).toContain('justify-center');
 });
 
 it('falls back to the visible label when a rail icon is conditionally false', () => {

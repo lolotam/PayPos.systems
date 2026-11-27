@@ -35,6 +35,21 @@ it('gives the icon-only trigger an accessible name from the caller', () => {
   expect(screen.queryByText('Sara')).toBeNull();
 });
 
+it('shows the icon the caller gives and keeps the name as the tooltip', () => {
+  render(
+    <DirectionProvider dir="rtl">
+      <AccountMenu
+        labels={{ label: 'Navigation style' }}
+        entries={entries}
+        icon={<svg data-testid="style-icon" />}
+      />
+    </DirectionProvider>,
+  );
+  const trigger = screen.getByRole('button', { name: 'Navigation style' });
+  expect(trigger.getAttribute('title')).toBe('Navigation style');
+  expect(screen.getByTestId('style-icon')).toBeTruthy();
+});
+
 it('opens with the name and email above the entries in the order given', async () => {
   render(menu({ name: 'Sara', email: 'sara@example.com' }));
   openAccountMenu();

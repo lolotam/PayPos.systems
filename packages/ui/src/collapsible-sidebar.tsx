@@ -16,6 +16,7 @@ export type CollapsibleSidebarProps = {
   currentGroupId?: string | undefined;
   currentPageId?: string | undefined;
   visiblePageIds?: readonly string[] | undefined;
+  /** محتوى رأس الشريط — يُرسم في نفس صف مبدّل الطي، ويختفي في الشريط المطويّ. */
   header?: ReactNode;
   footer?: ReactNode;
 };
@@ -120,8 +121,8 @@ export function CollapsibleSidebar({
         expandLabel={expandLabel}
         toggleRef={toggleRef}
         onToggle={() => setExpanded((value) => !value)}
+        header={rail ? undefined : header}
       />
-      {header && !rail ? <div className="shrink-0 p-2">{header}</div> : null}
       <SidebarGroups
         groups={groups}
         title={title}
