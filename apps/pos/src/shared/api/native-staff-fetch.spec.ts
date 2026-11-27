@@ -292,8 +292,8 @@ describe('nativeStaffFetch concurrent fence extension', () => {
       }),
     );
     const callB = nativeStaffFetch(
-      new Request('http://127.0.0.1:3000/v1/devices/me/staff-session', {
-        method: 'DELETE',
+      new Request('http://127.0.0.1:3000/v1/staff/personal-session', {
+        method: 'GET',
         signal: controllerB.signal,
       }),
     );

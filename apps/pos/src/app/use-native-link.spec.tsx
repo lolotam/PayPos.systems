@@ -60,14 +60,17 @@ vi.mock('@/personal-staff/api/use-personal-session', () => ({
 vi.mock('@/personal-staff/ui/personal-screen', () => ({
   PersonalScreen: ({
     workspace,
+    connect,
     notice,
   }: {
     workspace?: { company_id: string; business_id: string };
+    connect?: ReactNode;
     notice?: ReactNode;
   }) => (
     <>
       <h2>personal screen</h2>
       {workspace ? <p>{`${workspace.company_id} ${workspace.business_id}`}</p> : null}
+      {connect}
       {notice}
     </>
   ),
@@ -339,5 +342,38 @@ describe('useNativeLink late cold link after counter refusal', () => {
     });
 
     expect(window.sessionStorage.getItem('pospay.native.launchUrl')).toBeNull();
+  });
+});
+
+describe('useNativeLink pasted link retiring late cold launch', () => {
+  it('retires a pending getLaunchUrl cold link after connecting via PasteLinkForm', async () => {
+    vi.mocked(readDeviceRole).mockResolvedValue('employee');
+    vi.mocked(readRememberedBusiness).mockResolvedValue(null);
+    let releaseLaunch!: (value: { url?: string }) => void;
+    app.getLaunchUrl.mockImplementation(
+      () =>
+        new Promise<{ url?: string }>((resolve) => {
+          releaseLaunch = resolve;
+        }),
+    );
+    mountStrict();
+    await vi.waitFor(() => expect(app.opened).not.toBeNull());
+
+    await act(async () => {
+      app.opened?.({ url: 'https://pos.staging.pospay.systems/bad' });
+    });
+
+    const input = await screen.findByLabelText(t('ar', 'nativeShell.pasteLabel'));
+    fireEvent.change(input, { target: { value: OTHER_LAUNCH_URL } });
+    fireEvent.click(screen.getByRole('button', { name: t('ar', 'nativeShell.pasteSubmit') }));
+    expect(await screen.findByText(`${COMPANY} ${OTHER_BUSINESS}`)).not.toBeNull();
+
+    await act(async () => {
+      releaseLaunch({ url: LAUNCH_URL });
+      await Promise.resolve();
+    });
+
+    expect(screen.queryByText(`${COMPANY} ${BUSINESS}`)).toBeNull();
+    expect(window.sessionStorage.getItem('pospay.native.launchUrl')).not.toBeNull();
   });
 });

@@ -1,5 +1,15 @@
 const NAME = 'pospay-personal-session-change';
+const TAB_SENDER =
+  typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
+    ? crypto.randomUUID()
+    : `${Date.now()}-${Math.random()}`;
 const localListeners = new Set<() => void>();
+
+function isSameTabBroadcast(data: unknown): boolean {
+  return (
+    typeof data === 'object' && data !== null && 'sender' in data && data.sender === TAB_SENDER
+  );
+}
 
 function channel(): BroadcastChannel | null {
   try {
@@ -11,7 +21,13 @@ function channel(): BroadcastChannel | null {
 export function observePersonalChange(clear: () => void) {
   localListeners.add(clear);
   const source = channel();
-  if (source !== null) source.onmessage = clear;
+  if (source !== null) {
+    source.onmessage = (event: MessageEvent<unknown>) => {
+      // استرجاع نفس التبويب تم مسحه فوراً، فتجاهل صدى BroadcastChannel عشان ما يحصلش مسح مكرر متأخر.
+      if (isSameTabBroadcast(event.data)) return;
+      clear();
+    };
+  }
   const storage = (event: StorageEvent) => {
     if (event.key === NAME) clear();
   };
@@ -27,7 +43,7 @@ export function announcePersonalChange() {
   for (const listener of [...localListeners]) listener();
   const source = channel();
   try {
-    source?.postMessage('CHANGED');
+    source?.postMessage({ type: 'CHANGED', sender: TAB_SENDER });
   } catch {
     /* فشل القناة لا يبقي cache محلياً. */
   } finally {

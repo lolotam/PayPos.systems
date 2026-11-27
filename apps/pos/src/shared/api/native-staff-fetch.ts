@@ -51,15 +51,71 @@ interface NativeHttpClient {
   request(options: NativeHttpOptions): Promise<NativeHttpResponse>;
 }
 
+/** معلومات رد أصلي وصل متأخراً بعد إلغاء إشارته لتحديث الحالة المحلية عند اللزوم. */
+export interface LateAbortedNativeResponse {
+  url: string;
+  method: string;
+  status: number;
+  data: unknown;
+  headers: Headers;
+}
+
+const lateAbortedListeners = new Set<(response: LateAbortedNativeResponse) => void>();
+
+/** يسجل مستمعاً يتلقى رد CapacitorHttp إذا وصل بعد إلغاء إشارة الطلب الأصلي. */
+export function onLateAbortedNativeResponse(
+  listener: (response: LateAbortedNativeResponse) => void,
+): () => void {
+  lateAbortedListeners.add(listener);
+  return () => {
+    lateAbortedListeners.delete(listener);
+  };
+}
+
+function isNativeMutation(method: string): boolean {
+  const normalized = method.toUpperCase();
+  return normalized !== 'GET' && normalized !== 'HEAD';
+}
+
+function notifyLateAbortedResponse(
+  options: NativeHttpOptions,
+  nativeResponse: NativeHttpResponse,
+): void {
+  if (lateAbortedListeners.size === 0) return;
+  const payload: LateAbortedNativeResponse = {
+    url: options.url,
+    method: options.method.toUpperCase(),
+    status: nativeResponse.status,
+    data: nativeResponse.data,
+    headers: safeResponseHeaders(nativeResponse.headers),
+  };
+  for (const listener of [...lateAbortedListeners]) {
+    try {
+      listener(payload);
+    } catch {
+      /* فشل مستمع جانبي لا يعطّل بقية السياج. */
+    }
+  }
+}
+
 /** أقصى مدة انتظار لاكتمال طلب أصلي سابق ملغي قبل رفض الطلبات التالية بمهلة واضحة بدل التعليق للأبد. */
 export const NATIVE_FENCE_TIMEOUT_MS = 15_000;
 
 // طلب أصلي اتلغى من ناحية JS ممكن يكون لسه شغال ويمسح كوكي أحدث لما يرجع:
 // بنوقّف الطلب الأصلي اللي بعده لحد ما اللي اتلغى يخلص من نظام التشغيل أو يخلص بمهلة السياج.
 let pendingAbortedNativeCall: Promise<void> | null = null;
+// طلبات التعديل الأصلية تشارك مخزن كوكيز واحد على الجسر الأصلي، فلازم تتنفذ بالترتيب.
+let inFlightNativeMutation: Promise<void> | null = null;
 
-async function waitForPendingAbortedCalls(aborted: AbortRace): Promise<void> {
-  if (pendingAbortedNativeCall === null) return;
+function activeFenceBlocker(waitForMutation: boolean): Promise<void> | null {
+  if (pendingAbortedNativeCall !== null) return pendingAbortedNativeCall;
+  if (waitForMutation && inFlightNativeMutation !== null) return inFlightNativeMutation;
+  return null;
+}
+
+async function waitForNativeTurn(waitForMutation: boolean, aborted: AbortRace): Promise<void> {
+  let blocker = activeFenceBlocker(waitForMutation);
+  if (blocker === null) return;
   let timer: ReturnType<typeof setTimeout> | undefined;
   const timeout = new Promise<never>((_resolve, reject) => {
     timer = setTimeout(
@@ -68,9 +124,10 @@ async function waitForPendingAbortedCalls(aborted: AbortRace): Promise<void> {
     );
   });
   try {
-    // السياج ممكن يكبر بطلب تاني اتلغى أثناء الانتظار، فبنعيد الفحص بعد كل تسوية تحت مهلة واحدة.
-    while (pendingAbortedNativeCall !== null) {
-      await Promise.race([pendingAbortedNativeCall, aborted.rejected, timeout]);
+    // السياج ممكن يكبر بطلب تاني اتلغى أو mutation شغال، فبنعيد الفحص بعد كل تسوية تحت مهلة واحدة.
+    while (blocker !== null) {
+      await Promise.race([blocker, aborted.rejected, timeout]);
+      blocker = activeFenceBlocker(waitForMutation);
     }
   } finally {
     if (timer !== undefined) clearTimeout(timer);
@@ -102,9 +159,24 @@ function untilAborted(signal: AbortSignal): AbortRace {
   };
 }
 
+function enqueueAbortedCall(settled: Promise<void>): void {
+  const next = (pendingAbortedNativeCall ?? Promise.resolve()).then(() => settled);
+  pendingAbortedNativeCall = next;
+  void next.finally(() => {
+    if (pendingAbortedNativeCall === next) pendingAbortedNativeCall = null;
+  });
+}
+
+function trackInFlightMutation(settled: Promise<void>): void {
+  inFlightNativeMutation = settled;
+  void settled.finally(() => {
+    if (inFlightNativeMutation === settled) inFlightNativeMutation = null;
+  });
+}
+
 /**
- * بيستنى أي طلب أصلي سابق اتلغى قبل ما يفتح طلب جديد، ولو الطلب الجديد اتلغى قبل ما
- * الإضافة الأصلية تخلص بيحجز اللي بعده لحد ما المكالمة الجارية تهدأ.
+ * بيستنى أي طلب أصلي سابق اتلغى أو mutation شغال قبل ما يفتح طلب جديد، ولو الطلب الجديد
+ * اتلغى قبل ما الإضافة الأصلية تخلص بيحجز اللي بعده لحد ما المكالمة الجارية تهدأ.
  */
 async function sendFencedNativeRequest(
   client: NativeHttpClient,
@@ -112,31 +184,32 @@ async function sendFencedNativeRequest(
   signal: AbortSignal,
   aborted: AbortRace,
 ): Promise<NativeHttpResponse> {
-  while (pendingAbortedNativeCall !== null) {
-    await waitForPendingAbortedCalls(aborted);
-  }
+  const waitForMutation = isNativeMutation(options.method);
+  await waitForNativeTurn(waitForMutation, aborted);
   throwIfAborted(signal);
   const requestPromise = client.request(options);
   const settled = requestPromise.then(
     () => undefined,
     () => undefined,
   );
+  if (waitForMutation) trackInFlightMutation(settled);
   let finished = false;
   let fenced = false;
   const enterFence = (): void => {
     if (fenced || finished || !signal.aborted) return;
     fenced = true;
-    const next = (pendingAbortedNativeCall ?? Promise.resolve()).then(() => settled);
-    pendingAbortedNativeCall = next;
-    void next.finally(() => {
-      if (pendingAbortedNativeCall === next) pendingAbortedNativeCall = null;
-    });
+    enqueueAbortedCall(settled);
+    // لو الطلب اتلغى قبل ما نتيجته ترجع للمتصل، نبلغ المستمعين لو السيرفر نفّذه متأخر بعد الإلغاء.
+    void requestPromise.then(
+      (lateResponse) => notifyLateAbortedResponse(options, lateResponse),
+      () => undefined,
+    );
   };
   // تسجيل السياج فور الإلغاء يمنع أي طلب يتفتح في نفس الـ microtask من تفادي الانتظار.
   signal.addEventListener('abort', enterFence, { once: true });
   try {
     const response = await Promise.race([requestPromise, aborted.rejected]);
-    finished = true;
+    if (!signal.aborted) finished = true;
     return response;
   } finally {
     signal.removeEventListener('abort', enterFence);

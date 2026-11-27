@@ -1,10 +1,15 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { personalCalls } from '@/personal-staff/api/personal-calls';
 import { announcePersonalChange } from '@/personal-staff/model/session-change';
 import { disablePushOnSignOut } from '@/personal-staff/push/push-disable';
+import { nativeStaffFetch } from '@/shared/api/native-staff-fetch';
 
 import { endPersonalSession } from './end-sessions';
+
+const { requestMock } = vi.hoisted(() => ({ requestMock: vi.fn() }));
+
+vi.mock('@capacitor/core', () => ({ CapacitorHttp: { request: requestMock } }));
 
 vi.mock('@/personal-staff/api/personal-calls', () => ({
   personalCalls: { signOut: vi.fn() },
@@ -79,4 +84,93 @@ describe('endPersonalSession', () => {
       expect(announcePersonalChange).not.toHaveBeenCalled();
     },
   );
+});
+
+describe('endPersonalSession late native sign-out completion', () => {
+  beforeEach(() => {
+    vi.stubEnv('VITE_API_URL', 'http://127.0.0.1:3000');
+    requestMock.mockReset();
+  });
+
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
+  it('announces personal change when an aborted native sign-out settles late with signed_out', async () => {
+    let settle!: (value: {
+      status: number;
+      data: unknown;
+      headers: Record<string, string>;
+    }) => void;
+    requestMock.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          settle = resolve;
+        }),
+    );
+    const controller = new AbortController();
+    const pending = nativeStaffFetch(
+      new Request('http://127.0.0.1:3000/v1/staff/personal-session/sign-out', {
+        method: 'POST',
+        signal: controller.signal,
+      }),
+    );
+    await vi.waitFor(() => expect(requestMock).toHaveBeenCalledTimes(1));
+
+    controller.abort();
+    await expect(pending).rejects.toMatchObject({ name: 'AbortError' });
+    expect(announcePersonalChange).not.toHaveBeenCalled();
+
+    settle({
+      status: 200,
+      data: { status: 'SIGNED_OUT' },
+      headers: { 'Content-Type': 'application/json' },
+    });
+    await vi.waitFor(() => expect(announcePersonalChange).toHaveBeenCalledTimes(1));
+  });
+});
+
+describe('endPersonalSession late non-2xx native response', () => {
+  beforeEach(() => {
+    vi.stubEnv('VITE_API_URL', 'http://127.0.0.1:3000');
+    requestMock.mockReset();
+  });
+
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
+  it('ignores late aborted responses from other paths or non-2xx statuses', async () => {
+    let settleOther!: (value: {
+      status: number;
+      data: unknown;
+      headers: Record<string, string>;
+    }) => void;
+    requestMock.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          settleOther = resolve;
+        }),
+    );
+    const controller = new AbortController();
+    const pending = nativeStaffFetch(
+      new Request('http://127.0.0.1:3000/v1/staff/personal-session/sign-out', {
+        method: 'POST',
+        signal: controller.signal,
+      }),
+    );
+    await vi.waitFor(() => expect(requestMock).toHaveBeenCalledTimes(1));
+
+    controller.abort();
+    await expect(pending).rejects.toMatchObject({ name: 'AbortError' });
+
+    settleOther({
+      status: 500,
+      data: { status: 'SIGNED_OUT' },
+      headers: { 'Content-Type': 'application/json' },
+    });
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(announcePersonalChange).not.toHaveBeenCalled();
+  });
 });

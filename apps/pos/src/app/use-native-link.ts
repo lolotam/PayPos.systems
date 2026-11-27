@@ -49,7 +49,7 @@ export function notifyColdLinkSupersededAndRetired(): void {
 }
 
 function retireDeferredColdLink(warmState: WarmLinkState): void {
-  if (!warmState.superseded) return;
+  warmState.superseded = true;
   warmState.handled = true;
   if (warmState.deferredColdLink !== null) {
     markLaunchLinkHandled(warmState.deferredColdLink);

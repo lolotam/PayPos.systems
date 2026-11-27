@@ -1,6 +1,12 @@
+import { signOutResult } from '@pospay/contracts';
+
 import { personalCalls } from '@/personal-staff/api/personal-calls';
 import { announcePersonalChange } from '@/personal-staff/model/session-change';
 import { disablePushOnSignOut } from '@/personal-staff/push/push-disable';
+import {
+  onLateAbortedNativeResponse,
+  type LateAbortedNativeResponse,
+} from '@/shared/api/native-staff-fetch';
 
 /**
  * بيخرج الجلسة الشخصية من السيرفر ويوقف إشعارات الموظفة القديمة على الجهاز.
@@ -57,3 +63,30 @@ function waitOrAbort(work: Promise<unknown>, signal?: AbortSignal): Promise<'don
     );
   });
 }
+
+const PERSONAL_SIGN_OUT_PATH = '/v1/staff/personal-session/sign-out';
+
+function parseSignOutPayload(data: unknown): unknown {
+  if (typeof data !== 'string') return data;
+  try {
+    return JSON.parse(data);
+  } catch {
+    return null;
+  }
+}
+
+function isConfirmedLateSignOut(response: LateAbortedNativeResponse): boolean {
+  if (response.method !== 'POST') return false;
+  if (response.status < 200 || response.status >= 300) return false;
+  try {
+    if (new URL(response.url).pathname !== PERSONAL_SIGN_OUT_PATH) return false;
+  } catch {
+    return false;
+  }
+  return signOutResult.safeParse(parseSignOutPayload(response.data)).success;
+}
+
+onLateAbortedNativeResponse((response) => {
+  // الخروج الشخصي الملغي بمهلة قد ينجح فعلياً على الخادم لاحقاً، فإعلان التغيير يمنع بقاء شاشة شخصية قديمة.
+  if (isConfirmedLateSignOut(response)) announcePersonalChange();
+});
