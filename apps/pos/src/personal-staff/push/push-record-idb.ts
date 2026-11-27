@@ -1,4 +1,10 @@
-import type { PushRecord, PushRecordStore, PushSuspension, PushWriteOptions } from './push-record';
+import {
+  PushRecordAbortedError,
+  type PushRecord,
+  type PushRecordStore,
+  type PushSuspension,
+  type PushWriteOptions,
+} from './push-record';
 
 // داتابيز مستقلة عن داتابيز التطبيق: السجل ده بيشتغل مع التطبيق ومع الـ service worker،
 // ومالهوش علاقة بمسح الكاش الخاص اللي بيعمله مسار الدخول الشخصي (ADR-0027، ADR-0052 §7).
@@ -52,7 +58,7 @@ function runTransaction<T>(
         };
         transaction.onabort = () => {
           database.close();
-          reject(transaction.error ?? unavailable());
+          reject(new PushRecordAbortedError(transaction.error));
         };
       }),
   );
@@ -81,7 +87,7 @@ function bumpGeneration(): Promise<number> {
         };
         transaction.onabort = () => {
           database.close();
-          reject(transaction.error ?? unavailable());
+          reject(new PushRecordAbortedError(transaction.error));
         };
       }),
   );
@@ -129,7 +135,7 @@ function writeIfGeneration(
         };
         transaction.onabort = () => {
           database.close();
-          reject(transaction.error ?? unavailable());
+          reject(new PushRecordAbortedError(transaction.error));
         };
       }),
   );
@@ -162,7 +168,7 @@ function removeIfMatches(expected: { token: string | null; revision: number }): 
         };
         transaction.onabort = () => {
           database.close();
-          reject(transaction.error ?? unavailable());
+          reject(new PushRecordAbortedError(transaction.error));
         };
       }),
   );
@@ -207,7 +213,7 @@ function suspendRecord(unlessOwner?: string): Promise<PushSuspension | null> {
         };
         transaction.onabort = () => {
           database.close();
-          reject(transaction.error ?? unavailable());
+          reject(new PushRecordAbortedError(transaction.error));
         };
       }),
   );

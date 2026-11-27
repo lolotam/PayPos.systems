@@ -3,7 +3,7 @@ import { beforeEach, expect, it, vi } from 'vitest';
 import { unsubscribePush } from './push-browser';
 import { pushCalls } from './push-calls';
 import { enablePush } from './push-enable';
-import type { PushRecord, PushWriteOptions } from './push-record';
+import { PushRecordAbortedError, type PushRecord, type PushWriteOptions } from './push-record';
 
 const INSTALLATION = '12345678-1234-4234-8234-123456789abc';
 const CONFIG = {
@@ -27,6 +27,7 @@ const fakes = vi.hoisted(() => ({
   record: null as PushRecord | null,
   generation: 0,
   readFails: false,
+  writeAborts: false,
 }));
 
 vi.mock('./push-lock', () => ({
@@ -50,7 +51,15 @@ vi.mock('./push-record-idb', () => ({
       fakes.record = suspended;
       return { record: suspended, generation: fakes.generation };
     },
+    removeIfMatches: async (expected: { token: string | null; revision: number }) => {
+      const stored = fakes.record;
+      if (stored === null || stored.token !== expected.token) return false;
+      if (stored.revision !== expected.revision) return false;
+      fakes.record = null;
+      return true;
+    },
     writeIfGeneration: async (record: PushRecord, expected: number, options?: PushWriteOptions) => {
+      if (fakes.writeAborts) throw new PushRecordAbortedError();
       if (expected !== fakes.generation) return false;
       const stored = fakes.record;
       if (
@@ -118,6 +127,7 @@ beforeEach(() => {
   fakes.record = null;
   fakes.generation = 0;
   fakes.readFails = false;
+  fakes.writeAborts = false;
   vi.mocked(pushCalls.config).mockResolvedValue({ kind: 'ready', config: CONFIG });
   vi.mocked(pushCalls.revoke).mockResolvedValue(undefined);
 });
@@ -222,4 +232,59 @@ it('registers after the current session confirms the same person', async () => {
   expect(pushCalls.config).toHaveBeenCalledTimes(3);
   expect(pushCalls.register).toHaveBeenCalledTimes(1);
   expect(pushCalls.revoke).not.toHaveBeenCalled();
+});
+
+it('tears its own registration down when the store reports a known aborted write', async () => {
+  fakes.writeAborts = true;
+
+  const outcome = await enablePush(input);
+
+  expect(outcome).toEqual({ kind: 'failed' });
+  expect(unsubscribePush).toHaveBeenCalledTimes(1);
+  expect(pushCalls.revoke).toHaveBeenCalledWith(INSTALLATION, expect.any(AbortSignal));
+  expect(fakes.record).toBeNull();
+});
+
+it('leaves the registration alone when a known aborted write meets a record another tab wrote', async () => {
+  fakes.writeAborts = true;
+  vi.mocked(pushCalls.register).mockImplementation(async () => {
+    fakes.record = { ...RECORD, token: 'test-winner-b' };
+  });
+
+  const outcome = await enablePush(input);
+
+  expect(outcome).toEqual({ kind: 'failed' });
+  expect(unsubscribePush).not.toHaveBeenCalled();
+  expect(pushCalls.revoke).not.toHaveBeenCalled();
+  expect(fakes.record?.token).toBe('test-winner-b');
+});
+
+it('removes the unchanged previous record when a known aborted write follows its replaced subscription', async () => {
+  fakes.record = { ...RECORD };
+  fakes.writeAborts = true;
+
+  const outcome = await enablePush(input);
+
+  expect(outcome).toEqual({ kind: 'failed' });
+  // واحد لتبديل اشتراك السجل القديم وواحد لتفكيك تسجيلنا.
+  expect(unsubscribePush).toHaveBeenCalledTimes(2);
+  expect(pushCalls.revoke).toHaveBeenCalledWith(INSTALLATION, expect.any(AbortSignal));
+  // السجل القديم ما يفضلش بيقول «شغال» على اشتراك اتبدّل وسطره اتراجع.
+  expect(fakes.record).toBeNull();
+});
+
+it('keeps a record another tab wrote when a known aborted write follows a replaced previous record', async () => {
+  fakes.record = { ...RECORD };
+  fakes.writeAborts = true;
+  vi.mocked(pushCalls.register).mockImplementation(async () => {
+    fakes.record = { ...RECORD, token: 'test-winner-b' };
+  });
+
+  const outcome = await enablePush(input);
+
+  expect(outcome).toEqual({ kind: 'failed' });
+  // اتبدّل اشتراك السجل القديم بس؛ تبويب تاني كسب السجل والسطر فمحدش بيتلمس بعد كده.
+  expect(unsubscribePush).toHaveBeenCalledTimes(1);
+  expect(pushCalls.revoke).not.toHaveBeenCalled();
+  expect(fakes.record?.token).toBe('test-winner-b');
 });

@@ -140,6 +140,40 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/branches/{branchId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description One branch with its stored opening hours and its effective time zone. Requires read:branches:branch at the branch. */
+        get: operations["getBranch"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/businesses/{businessId}/branches/{branchId}/opening-hours": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** @description Replaces the branch opening hours (PENDING-T3); null clears them. Requires create:branches:business on the business. The branch row is read under FOR NO KEY UPDATE and an unchanged value answers 200 without an UPDATE or an audit row; the audit records only the hours before and after. A branch of another business of the same company answers 404; an unknown or foreign business is refused by the business-scoped guard with the same 403 as every business route. No Idempotency-Key: the write is a replace and has no money or stock effect. */
+        put: operations["setBranchOpeningHours"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/businesses/{businessId}/packages/import/template": {
         parameters: {
             query?: never;
@@ -404,6 +438,23 @@ export interface paths {
         };
         /** @description Human read:attendance:branch permission, staff feature and tenant membership required. */
         get: operations["attendanceStatementShifts"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/businesses/{businessId}/branches/{branchId}/attendance-statement-employees": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description Human read:attendance:branch permission, staff feature and tenant membership required. Lists the employees with coverage in the period, sorted by employee number. Returns 404 for a branch outside the business and 422 for a period that is inverted, longer than 366 days, or past the current month in the branch time zone. */
+        get: operations["attendanceStatementEmployees"];
         put?: never;
         post?: never;
         delete?: never;
@@ -10510,6 +10561,7 @@ export interface components {
         PushSubscriptionInput: {
             /** Format: uuid */
             installation_id: string;
+            subscriber_ref: string;
             vapid_key_id: string;
             /** Format: uuid */
             delivery_token: string;
@@ -10673,6 +10725,16 @@ export interface components {
             geo?: components["schemas"]["GeoPoint"];
             opening_hours?: components["schemas"]["OpeningHours"];
             timezone?: components["schemas"]["TimeZone"];
+        };
+        SetBranchOpeningHoursInput: {
+            /** @description Each ISO weekday (1 = Monday … 7 = Sunday) appears at most once; a missing weekday is closed. closes < opens means the interval crosses midnight. Intervals must not overlap, including across midnight and from Sunday into Monday. Enforced by the API. */
+            opening_hours: {
+                weekday: number;
+                intervals: {
+                    opens: string;
+                    closes: string;
+                }[];
+            }[] | null;
         };
         PairingCode: {
             code: string;
@@ -11524,6 +11586,122 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["SetBusinessCountryResult"];
+                };
+            };
+            /** @description The API error envelope */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description The API error envelope */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description The API error envelope */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    getBranch: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-company-id": string;
+            };
+            path: {
+                branchId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The branch */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Branch"];
+                };
+            };
+            /** @description The API error envelope */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description The API error envelope */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description The API error envelope */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    setBranchOpeningHours: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-company-id": string;
+            };
+            path: {
+                businessId: string;
+                branchId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SetBranchOpeningHoursInput"];
+            };
+        };
+        responses: {
+            /** @description The branch after the change */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Branch"];
+                };
+            };
+            /** @description The API error envelope */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
             /** @description The API error envelope */
@@ -12454,6 +12632,51 @@ export interface operations {
                         shifts: {
                             start: string;
                             end: string;
+                        }[];
+                    };
+                };
+            };
+            /** @description Bilingual refusal */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    attendanceStatementEmployees: {
+        parameters: {
+            query: {
+                from: string;
+                to: string;
+            };
+            header: {
+                "x-company-id": string;
+            };
+            path: {
+                businessId: string;
+                branchId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Employees with attendance coverage in the period */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        employees: {
+                            /** Format: uuid */
+                            employee_id: string;
+                            name_ar: string | null;
+                            name_en: string;
+                            employee_number: number;
                         }[];
                     };
                 };
@@ -25228,7 +25451,7 @@ export interface operations {
             };
         };
         responses: {
-            /** @description Registers or refreshes the caller subscription, answered no-store. VALIDATION_FAILED 400 for a refused endpoint or key; PUSH_KEY_STALE 409 when the key id is not the current one; PUSH_REGISTRATION_BUSY 409 when another registration for the same device is in progress; RATE_LIMITED 429 after twenty registrations an hour per user; NOT_READY 503 when push is not configured. */
+            /** @description Registers or refreshes the caller subscription, answered no-store. VALIDATION_FAILED 400 for a refused endpoint or key; PUSH_KEY_STALE 409 when the key id is not the current one; PUSH_SESSION_MISMATCH 409 when the subscriber_ref sent is not the signed-in caller, checked before any limit or write; PUSH_REGISTRATION_BUSY 409 when another registration for the same device is in progress; RATE_LIMITED 429 after twenty registrations an hour per user; NOT_READY 503 when push is not configured. */
             204: {
                 headers: {
                     [name: string]: unknown;

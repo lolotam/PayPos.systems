@@ -7,6 +7,33 @@ import type { PushSuspension } from './push-record';
 
 const CONFIG_TIMEOUT_MS = 8000;
 
+/**
+ * التعليق فشل: السجل مفتوح، فبنمسحه ونشيل الاشتراك (fail-closed). لو في صاحب جلسة حالية
+ * (`unlessOwner`) سجله ما بيتمسحش: بنقرا الأول، وبنمسح بس سجل شخص تاني اتأكد بالقراءة وبالمطابقة
+ * على التوكن والمراجعة. قراءة فاشلة معناها حالة مجهولة، فمفيش خطوة مدمرة.
+ *
+ * @param unlessOwner مرجع صاحب الجلسة الحالية اللي سجله ما يتمسحش
+ */
+async function failClosedAfterSuspendError(unlessOwner: string | undefined): Promise<void> {
+  if (unlessOwner === undefined) {
+    await pushRecordStore.remove().catch(() => undefined);
+  } else {
+    let stored: Awaited<ReturnType<typeof pushRecordStore.read>>;
+    try {
+      stored = await pushRecordStore.read();
+    } catch {
+      return;
+    }
+    if (stored === null || stored.subscriber_ref === unlessOwner) return;
+    const removed = await pushRecordStore
+      .removeIfMatches({ token: stored.token, revision: stored.revision })
+      .catch(() => false);
+    if (!removed) return;
+  }
+  await unsubscribePush().catch(() => undefined);
+  notifyPushRecordChanged();
+}
+
 // رقم لكل تشغيل: جواب تشغيل قديم بيتجاهل، عشان ماينفعش جواب متأخر يغيّر قرار تشغيل أحدث (FR-018).
 let sequence = 0;
 
@@ -25,10 +52,9 @@ export async function suspendPushForSignIn(unlessOwner?: string): Promise<void> 
       unlessOwner === undefined ? undefined : { unlessOwner },
     );
   } catch {
-    // من غير تعليق السجل بيفضل قايم مفتوح، فبنمسحه ونشيل الاشتراك (fail-closed).
-    await pushRecordStore.remove().catch(() => undefined);
-    await unsubscribePush().catch(() => undefined);
-    notifyPushRecordChanged();
+    // من غير تعليق السجل بيفضل قايم مفتوح، فبنمسحه ونشيل الاشتراك (fail-closed) من غير ما
+    // نمس سجل صاحب الجلسة الحالية.
+    await failClosedAfterSuspendError(unlessOwner);
     return;
   }
   if (snapshot === null) return;

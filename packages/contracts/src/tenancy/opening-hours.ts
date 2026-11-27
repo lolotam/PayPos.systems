@@ -56,8 +56,13 @@ function hasOverlap(spans: Span[]): boolean {
   return false;
 }
 
+const openingHoursDescription =
+  'Each ISO weekday (1 = Monday … 7 = Sunday) appears at most once; a missing weekday is closed. ' +
+  'closes < opens means the interval crosses midnight. Intervals must not overlap, including across ' +
+  'midnight and from Sunday into Monday. Enforced by the API.';
+
 // فترات مواعيد عمل الفرع لكل يوم (قرار Waleed 2026-09-23): فترة أو أكتر لكل يوم، ومفيش تداخل.
-export const openingHours = z
+const openingHoursValue = z
   .array(openingDay)
   .max(7)
   .refine((days) => new Set(days.map((day) => day.weekday)).size === days.length, {
@@ -67,12 +72,14 @@ export const openingHours = z
     message: 'Opening intervals overlap',
   })
   // القاعدتين دول مينفعش يتكتبوا JSON Schema، فبيتنشروا كـ description في OpenAPI بدل ما يتخبّوا.
-  .meta({
-    id: 'OpeningHours',
-    description:
-      'Each ISO weekday (1 = Monday … 7 = Sunday) appears at most once; a missing weekday is closed. ' +
-      'closes < opens means the interval crosses midnight. Intervals must not overlap, including across ' +
-      'midnight and from Sunday into Monday. Enforced by the API.',
-  });
+  .describe(openingHoursDescription);
+
+export const openingHours = openingHoursValue.meta({
+  id: 'OpeningHours',
+  description: openingHoursDescription,
+});
+
+// في OpenAPI 3.0.3، nullable جنب allOf/$ref من غير type محلي بيترفض؛ استخدام السكيما الأساسية بيطلع type: array + nullable: true.
+export const nullableOpeningHours = openingHoursValue.nullable();
 
 export type OpeningHours = z.infer<typeof openingHours>;

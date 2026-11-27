@@ -213,6 +213,10 @@ export function registerOnServer(model: CrossTabModel, body: PushSubscriptionInp
   if (model.currentVapid !== null && body.vapid_key_id !== model.currentVapid) {
     throw new Error('PUSH_KEY_STALE');
   }
+  // والسيرفر بيرفض التسجيل لو مرجع المشترك المبعوت مش مرجع صاحب الجلسة دلوقتي.
+  if (body.subscriber_ref !== model.callerRef) {
+    throw Object.assign(new Error('PUSH_SESSION_MISMATCH'), { code: 'PUSH_SESSION_MISMATCH' });
+  }
   model.rows.set(`${model.caller}:${body.installation_id}`, {
     token: body.delivery_token,
     endpoint: body.subscription.endpoint,

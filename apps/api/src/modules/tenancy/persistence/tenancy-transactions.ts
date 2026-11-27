@@ -1,8 +1,10 @@
 import { runIdempotent, type IdGenerator, type TenantWrappers, type Tx } from '@pospay/db';
+import type { Branch } from '@pospay/contracts';
 import { sql } from 'drizzle-orm';
 
 import { transactionWriters } from '../../../shared/adapters/transaction-writers.ts';
 import type {
+  BranchOpeningHoursScope,
   BusinessCountryScope,
   NewBranch,
   NewBusiness,
@@ -50,6 +52,49 @@ async function saveBusinessCountry(
     SET settings = CASE WHEN jsonb_typeof(settings) = 'object' THEN settings ELSE '{}'::jsonb END
                   || jsonb_build_object('country', ${country}::text)
     WHERE company_id = ${companyId} AND id = ${businessId}`);
+}
+
+async function lockBranchOpeningHours(
+  tx: Tx,
+  companyId: string,
+  businessId: string,
+  branchId: string,
+): Promise<{ readonly openingHours: unknown } | null> {
+  // الفرع لازم يبقى تحت النشاط اللي الصلاحية اتقيّمت عنده: فرع نشاط تاني في نفس الشركة بيرجع null (نفس 404).
+  const [row] = await tx.execute<{ opening_hours: unknown }>(sql`
+    SELECT opening_hours FROM branches
+    WHERE company_id = ${companyId} AND business_id = ${businessId} AND id = ${branchId}
+    FOR NO KEY UPDATE`);
+  return row === undefined ? null : { openingHours: row.opening_hours };
+}
+
+async function saveBranchOpeningHours(
+  tx: Tx,
+  companyId: string,
+  branchId: string,
+  openingHours: unknown,
+): Promise<void> {
+  await tx.execute(sql`
+    UPDATE branches
+    SET opening_hours = ${openingHours === null ? null : jsonb(openingHours)}
+    WHERE company_id = ${companyId} AND id = ${branchId}`);
+}
+
+async function readStoredBranch(tx: Tx, companyId: string, branchId: string): Promise<Branch> {
+  const [row] = Array.from(
+    await tx.execute<Branch>(sql`
+      SELECT b.id, b.company_id, b.business_id, b.name_ar, b.name_en, b.address_ar, b.address_en,
+             CASE WHEN b.geo_lat IS NULL THEN NULL
+                  ELSE json_build_object('lat', b.geo_lat, 'lng', b.geo_lng) END AS geo,
+             b.opening_hours, b.timezone,
+             COALESCE(b.timezone, bu.timezone) AS effective_timezone,
+             b.is_active, to_json(b.created_at) #>> '{}' AS created_at
+      FROM branches b
+      JOIN businesses bu ON bu.company_id = b.company_id AND bu.id = b.business_id
+      WHERE b.company_id = ${companyId} AND b.id = ${branchId}`),
+  );
+  if (row === undefined) throw new Error('branch vanished under its own lock');
+  return row;
 }
 
 async function insertBranch(tx: Tx, companyId: string, b: NewBranch) {
@@ -101,6 +146,23 @@ export function createTenancyTransactions(
             lockBusinessCountry: (businessId) => lockBusinessSettings(tx, companyId, businessId),
             saveBusinessCountry: (businessId, country) =>
               saveBusinessCountry(tx, companyId, businessId, country),
+          };
+          return work(scope);
+        },
+        { userId },
+      ),
+    runBranchOpeningHoursChange: ({ companyId, userId }, work) =>
+      db.withTenant(
+        companyId,
+        (tx) => {
+          const scope: BranchOpeningHoursScope = {
+            companyId,
+            ...transactionWriters(tx, ids),
+            lockBranchOpeningHours: (businessId, branchId) =>
+              lockBranchOpeningHours(tx, companyId, businessId, branchId),
+            saveBranchOpeningHours: (branchId, openingHours) =>
+              saveBranchOpeningHours(tx, companyId, branchId, openingHours),
+            readBranch: (branchId) => readStoredBranch(tx, companyId, branchId),
           };
           return work(scope);
         },

@@ -1915,6 +1915,171 @@
         }
       }
     },
+    "/v1/branches/{branchId}": {
+      "get": {
+        "operationId": "getBranch",
+        "description": "One branch with its stored opening hours and its effective time zone. Requires read:branches:branch at the branch.",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "x-company-id",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "in": "path",
+            "name": "branchId",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The branch",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Branch"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The API error envelope",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "The API error envelope",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "The API error envelope",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/businesses/{businessId}/branches/{branchId}/opening-hours": {
+      "put": {
+        "operationId": "setBranchOpeningHours",
+        "description": "Replaces the branch opening hours (PENDING-T3); null clears them. Requires create:branches:business on the business. The branch row is read under FOR NO KEY UPDATE and an unchanged value answers 200 without an UPDATE or an audit row; the audit records only the hours before and after. A branch of another business of the same company answers 404; an unknown or foreign business is refused by the business-scoped guard with the same 403 as every business route. No Idempotency-Key: the write is a replace and has no money or stock effect.",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "x-company-id",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "in": "path",
+            "name": "businessId",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "in": "path",
+            "name": "branchId",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SetBranchOpeningHoursInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The branch after the change",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Branch"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The API error envelope",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The API error envelope",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "The API error envelope",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "The API error envelope",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/v1/businesses/{businessId}/packages/import/template": {
       "get": {
         "operationId": "getPackageImportTemplate",
@@ -3494,6 +3659,118 @@
                   },
                   "required": [
                     "shifts"
+                  ]
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Bilingual refusal",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/businesses/{businessId}/branches/{branchId}/attendance-statement-employees": {
+      "get": {
+        "operationId": "attendanceStatementEmployees",
+        "description": "Human read:attendance:branch permission, staff feature and tenant membership required. Lists the employees with coverage in the period, sorted by employee number. Returns 404 for a branch outside the business and 422 for a period that is inverted, longer than 366 days, or past the current month in the branch time zone.",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "x-company-id",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "in": "path",
+            "name": "businessId",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "in": "path",
+            "name": "branchId",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "in": "query",
+            "name": "from",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "date"
+            }
+          },
+          {
+            "in": "query",
+            "name": "to",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "date"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Employees with attendance coverage in the period",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "employees": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "employee_id": {
+                            "type": "string",
+                            "format": "uuid",
+                            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                          },
+                          "name_ar": {
+                            "nullable": true,
+                            "type": "string"
+                          },
+                          "name_en": {
+                            "type": "string"
+                          },
+                          "employee_number": {
+                            "type": "integer",
+                            "minimum": 1,
+                            "maximum": 999999
+                          }
+                        },
+                        "required": [
+                          "employee_id",
+                          "name_ar",
+                          "name_en",
+                          "employee_number"
+                        ],
+                        "additionalProperties": false
+                      }
+                    }
+                  },
+                  "required": [
+                    "employees"
                   ]
                 }
               }
@@ -25204,7 +25481,7 @@
         },
         "responses": {
           "204": {
-            "description": "Registers or refreshes the caller subscription, answered no-store. VALIDATION_FAILED 400 for a refused endpoint or key; PUSH_KEY_STALE 409 when the key id is not the current one; PUSH_REGISTRATION_BUSY 409 when another registration for the same device is in progress; RATE_LIMITED 429 after twenty registrations an hour per user; NOT_READY 503 when push is not configured."
+            "description": "Registers or refreshes the caller subscription, answered no-store. VALIDATION_FAILED 400 for a refused endpoint or key; PUSH_KEY_STALE 409 when the key id is not the current one; PUSH_SESSION_MISMATCH 409 when the subscriber_ref sent is not the signed-in caller, checked before any limit or write; PUSH_REGISTRATION_BUSY 409 when another registration for the same device is in progress; RATE_LIMITED 429 after twenty registrations an hour per user; NOT_READY 503 when push is not configured."
           },
           "default": {
             "description": "The API error envelope",
@@ -53558,6 +53835,10 @@
             "format": "uuid",
             "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$"
           },
+          "subscriber_ref": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          },
           "vapid_key_id": {
             "type": "string",
             "pattern": "^[0-9a-f]{16}$"
@@ -53612,6 +53893,7 @@
         },
         "required": [
           "installation_id",
+          "subscriber_ref",
           "vapid_key_id",
           "delivery_token",
           "subscription",
@@ -54238,6 +54520,57 @@
         },
         "required": [
           "name_en"
+        ],
+        "additionalProperties": false
+      },
+      "SetBranchOpeningHoursInput": {
+        "type": "object",
+        "properties": {
+          "opening_hours": {
+            "nullable": true,
+            "maxItems": 7,
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "weekday": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "maximum": 7
+                },
+                "intervals": {
+                  "minItems": 1,
+                  "maxItems": 6,
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "opens": {
+                        "type": "string",
+                        "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$"
+                      },
+                      "closes": {
+                        "type": "string",
+                        "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$"
+                      }
+                    },
+                    "required": [
+                      "opens",
+                      "closes"
+                    ]
+                  }
+                }
+              },
+              "required": [
+                "weekday",
+                "intervals"
+              ]
+            },
+            "description": "Each ISO weekday (1 = Monday … 7 = Sunday) appears at most once; a missing weekday is closed. closes < opens means the interval crosses midnight. Intervals must not overlap, including across midnight and from Sunday into Monday. Enforced by the API."
+          }
+        },
+        "required": [
+          "opening_hours"
         ],
         "additionalProperties": false
       },

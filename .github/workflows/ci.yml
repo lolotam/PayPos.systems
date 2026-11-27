@@ -478,7 +478,7 @@ jobs:
           done
 
       # Build the shared stage alone, then cap target builds at two processes to contain runner memory use.
-      - name: build api · migrate · worker · backup · postgres · admin · pos (and the build stage)
+      - name: build api · migrate · ops · worker · backup · postgres · admin · pos (and the build stage)
         run: |
           set -euo pipefail
           registry="$(echo "$REGISTRY" | tr '[:upper:]' '[:lower:]')"
@@ -496,6 +496,7 @@ jobs:
           }
           build_target docker build -f deploy/Dockerfile.api --target api -t "$registry/pospay-api:$SHA" .
           build_target docker build -f deploy/Dockerfile.api --target migrate -t "$registry/pospay-migrate:$SHA" .
+          build_target docker build -f deploy/Dockerfile.api --target ops -t "$registry/pospay-ops:$SHA" .
           build_target docker build -f deploy/Dockerfile.worker -t "$registry/pospay-worker:$SHA" .
           build_target docker build -f deploy/Dockerfile.backup -t "$registry/pospay-backup:$SHA" .
           build_target docker build -f deploy/Dockerfile.postgres -t "$registry/pospay-postgres:$SHA" .
@@ -517,7 +518,7 @@ jobs:
           set -euo pipefail
           leaked=0
           images="pospay-build-stage:check $REGISTRY_LC/pospay-api:$SHA"
-          images="$images $REGISTRY_LC/pospay-migrate:$SHA $REGISTRY_LC/pospay-worker:$SHA $REGISTRY_LC/pospay-backup:$SHA"
+          images="$images $REGISTRY_LC/pospay-migrate:$SHA $REGISTRY_LC/pospay-ops:$SHA $REGISTRY_LC/pospay-worker:$SHA $REGISTRY_LC/pospay-backup:$SHA"
           images="$images $REGISTRY_LC/pospay-admin:$SHA"
           images="$images $REGISTRY_LC/pospay-pos:$SHA $REGISTRY_LC/pospay-postgres:$SHA"
           if [ "$PUSH" = "true" ]; then
@@ -538,7 +539,7 @@ jobs:
           TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           echo "$TOKEN" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
-          for image in api migrate worker backup postgres admin pos admin-staging pos-staging admin-prod pos-prod; do docker push "$REGISTRY_LC/pospay-$image:$SHA"; done
+          for image in api migrate ops worker backup postgres admin pos admin-staging pos-staging admin-prod pos-prod; do docker push "$REGISTRY_LC/pospay-$image:$SHA"; done
 
   admin-document-popup:
     name: admin document popup · production browser
@@ -701,7 +702,17 @@ jobs:
   gate:
     name: ci-gate
     needs:
-      [changes, check, packages-tests, api-tests, worker-tests, build, images, admin-document-popup, navigation-components-browser]
+      [
+        changes,
+        check,
+        packages-tests,
+        api-tests,
+        worker-tests,
+        build,
+        images,
+        admin-document-popup,
+        navigation-components-browser,
+      ]
     if: always()
     runs-on: ubuntu-24.04
     timeout-minutes: 2

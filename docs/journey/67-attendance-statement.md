@@ -84,7 +84,7 @@ still issued (spec 061 BR-01).
 - **API** (`apps/api/src/modules/staff/http/`, prefix `/v1/businesses/<BUSINESS_ID>/branches/<BRANCH_ID>`, all
   `read:attendance:branch` + the `staff` feature):
   `POST /attendance-statements` · `GET /attendance-statements/<RENDER_ID>` ·
-  `POST /attendance-statements/<RENDER_ID>/download` · `GET /attendance-statement-shifts`.
+  `POST /attendance-statements/<RENDER_ID>/download` · `GET /attendance-statement-shifts` · `GET /attendance-statement-employees?from&to`.
 - **Errors** (`packages/i18n/src/attendance-statement-errors.ts`): `ATTENDANCE_STATEMENT_PERIOD_INVALID` ·
   `ATTENDANCE_STATEMENT_EMPLOYEE_NOT_FOUND` · `ATTENDANCE_STATEMENT_BRANCH_NOT_FOUND` ·
   `ATTENDANCE_STATEMENT_RATE_LIMITED` · `ATTENDANCE_STATEMENT_SHIFT_FILTER_INVALID` · `RENDERER_UNAVAILABLE` ·

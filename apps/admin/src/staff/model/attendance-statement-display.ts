@@ -141,27 +141,6 @@ export function statementPeriodIsValid(period: StatementPeriod, timezone: string
   return period.to <= statementCurrentMonthEnd(timezone);
 }
 
-/** الشهور اللي الفترة بتمسّها — واحد لكل شهر في التقرير الشهري (PP-74.2). */
-export function statementMonthsInPeriod(period: StatementPeriod): string[] {
-  const start = period.from.slice(0, 7);
-  const end = period.to.slice(0, 7);
-  if (start > end) return [];
-  const [startYear = 0, startMonth = 1] = start.split('-').map(Number);
-  const [endYear = 0, endMonth = 1] = end.split('-').map(Number);
-  const months: string[] = [];
-  let year = startYear;
-  let month = startMonth;
-  while (year < endYear || (year === endYear && month <= endMonth)) {
-    months.push(`${year}-${String(month).padStart(2, '0')}`);
-    month += 1;
-    if (month > 12) {
-      month = 1;
-      year += 1;
-    }
-  }
-  return months;
-}
-
 /** اسم الموظفة بلغة العرض؛ العربي بيفضّل الاسم العربي لو موجود. */
 export function statementEmployeeName(employee: StatementEmployee, locale: Locale): string {
   return locale === 'ar' ? (employee.name_ar ?? employee.name_en) : employee.name_en;

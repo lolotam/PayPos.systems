@@ -7,6 +7,7 @@ const INSTALLATION = '12345678-1234-4234-8234-123456789abc';
 
 const subscription: PushSubscriptionInput = {
   installation_id: INSTALLATION,
+  subscriber_ref: 's'.repeat(64),
   vapid_key_id: '0123456789abcdef',
   delivery_token: 'aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee',
   subscription: {
@@ -79,6 +80,26 @@ it('refuses a registration made under a key the server no longer serves', async 
   fetcher.mockResolvedValue(json({ code: 'PUSH_KEY_STALE', message_ar: '', message_en: '' }, 409));
 
   await expect(pushCalls.register(subscription)).rejects.toThrow('PUSH_KEY_STALE');
+});
+
+it('refuses a registration made for another session as a session mismatch', async () => {
+  fetcher.mockResolvedValue(
+    json({ code: 'PUSH_SESSION_MISMATCH', message_ar: '', message_en: '' }, 409),
+  );
+
+  await expect(pushCalls.register(subscription)).rejects.toMatchObject({
+    code: 'PUSH_SESSION_MISMATCH',
+    name: 'PushSessionMismatchError',
+  });
+});
+
+it('sends the subscriber reference in the registration body', async () => {
+  fetcher.mockResolvedValue(new Response(null, { status: 204 }));
+
+  await pushCalls.register(subscription);
+
+  const request = fetcher.mock.calls[0]?.[0] as Request;
+  expect(JSON.parse(await request.text())).toMatchObject({ subscriber_ref: 's'.repeat(64) });
 });
 
 it('aborts the request when the time is up', async () => {

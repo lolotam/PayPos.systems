@@ -85,7 +85,7 @@ type ThemeStore = {
 type ThemeStoreFactory = (config: ThemeRuntimeConfig) => ThemeStore;
 
 /* eslint-disable no-var, @typescript-eslint/no-dynamic-delete, @typescript-eslint/no-unused-vars --
-   نص الدوال الثلاثة دي بيتولّد في THEME_BOOT_SCRIPT وبيشتغل خام في الـ HTML من غير أي ترجمة،
+   نص الدوال الأربعة دي بيتولّد في THEME_BOOT_SCRIPT وبيشتغل خام في الـ HTML من غير أي ترجمة،
    فالصياغة الـ plain (var والحذف الديناميكي للمقبض) مقصودة: مترجمات الإنتاج ما بتحقنش
    helpers، والـ WebViews القديمة بتشغّل السكربت كما هو. ومن ممنوعات نصوصها كذلك أي typeof window
    متبوعة بمقارنة: مترجمات سيرفر Next بتستبدلها بالثابت "undefined" فيتجمّد الحرس في السكربت المتولّد.
@@ -220,11 +220,47 @@ function createThemeStore(config: ThemeRuntimeConfig): ThemeStore {
 }
 
 /**
+ * مصنع الاشتراك في وسائط النظام: بيرجّع دالة إلغاء الاشتراك، أو null لو مفيش طريقة للاشتراك.
+ */
+type MediaListenerFactory = (
+  media: MediaQueryList | null,
+  listener: () => void,
+) => (() => void) | null;
+
+/**
+ * بيسجّل مستمع لتغيّر وضع النظام بالطريقة اللي المتصفح بيعرفها: addEventListener في المتصفحات
+ * الحديثة، و addListener في المتصفحات والـ WebViews القديمة — اللي الـ MediaQueryList فيها لسه
+ * مش وريث من EventTarget (زي سفاري و iOS 13 وأقدم). من غير الـ fallback ده تغيير النظام ما
+ * بيوصلش للصفحة على الأجهزة دي. الدالة دي نصّها بيتولّد جوّه THEME_BOOT_SCRIPT زي دوال المشغّل
+ * التانية، فصياغتها plain (function) من غير optional chaining ولا spread ولا template literals.
+ *
+ * @param media استعلام وسائط النظام، أو null لو المتصفح مافيش فيه matchMedia
+ * @param listener بيتندّى كل ما وضع النظام يتغيّر
+ * @returns دالة إلغاء الاشتراك، أو null لو مفيش طريقة للاشتراك
+ */
+function listenMedia(media: MediaQueryList | null, listener: () => void): (() => void) | null {
+  if (!media) return null;
+  if (typeof media.addEventListener === 'function') {
+    media.addEventListener('change', listener);
+    return function unlistenModern() {
+      if (typeof media.removeEventListener === 'function') media.removeEventListener('change', listener);
+    };
+  }
+  if (typeof media.addListener === 'function') {
+    media.addListener(listener);
+    return function unlistenLegacy() {
+      if (typeof media.removeListener === 'function') media.removeListener(listener);
+    };
+  }
+  return null;
+}
+
+/**
  * بيركّب المثيل الواحد لمشغّل الوضع على window: لو المقبض موجود بيرجّعه زي ما هو (idempotent)،
  * فالموديول وسكربت الإقلاع ما بيركّبوش مستمعين مرة تانية (عالج #1082.4). مستمع storage
  * ومستمع prefers-color-scheme بيعيشوا في نفس الغلق اللي فيه الاختيار اللي في الذاكرة،
  * فتغيّر النظام ما بيتقدرش يمسح اختيار صريح اتحفظ وقت فشل التخزين (عالج #1082.1)،
- * ومستمع التخزين شغال على كل صفحة حتى من غير ThemeSwitch (عالج #1082.2). الدوال الثلاثة
+ * ومستمع التخزين شغال على كل صفحة حتى من غير ThemeSwitch (عالج #1082.2). الدوال الأربع
  * نفسها نصّها بيتولّد في THEME_BOOT_SCRIPT، فمعزولة تمامًا: كل حاجة من الباراميترات
  * وصياغة plain (var/function) من غير optional chaining ولا spread ولا destructuring،
  * عشان مترجمات الإنتاج ما تحقنش helpers والـ WebViews القديمة تشغّلها كما هي.
@@ -232,12 +268,14 @@ function createThemeStore(config: ThemeRuntimeConfig): ThemeStore {
  * @param config إعدادات المشغّل: المفاتيح والمحددات والألوان واسم المقبض
  * @param createPainter مصنع الرسام اللي بيرسم الوضع على الصفحة
  * @param createStore مصنع المخزن اللي بيقرأ ويكتب اختيار الوضع المحفوظ
+ * @param listenMedia مصنع الاشتراك في وسائط النظام، وبيقبل الـ WebViews القديمة
  * @returns المثيل المثبّت على window[config.handle]
  */
 function installThemeRuntime(
   config: ThemeRuntimeConfig,
   createPainter: ThemePainterFactory,
   createStore: ThemeStoreFactory,
+  listenMedia: MediaListenerFactory,
 ): ThemeRuntime {
   if (window[config.handle]) return window[config.handle] as ThemeRuntime;
   var painter = createPainter(config);
@@ -249,8 +287,7 @@ function installThemeRuntime(
   painter.paint(current);
   if (typeof window.addEventListener === 'function')
     window.addEventListener('storage', handleStorageEvent);
-  if (painter.media && typeof painter.media.addEventListener === 'function')
-    painter.media.addEventListener('change', refresh);
+  var unlistenMedia = listenMedia(painter.media, refresh);
   // المقبض بيتنشر آخر خطوة: لو الرسم أو التسجيل فشل، مفيش مثيل مكسور من غير مستمعين
   // بيفضل معلّق على window وكل نداء لاحق بيلتحق بيه — النداء الجاي بيركّب من الأول.
   window[config.handle] = runtime;
@@ -314,8 +351,7 @@ function installThemeRuntime(
   function dispose(): void {
     if (typeof window.removeEventListener === 'function')
       window.removeEventListener('storage', handleStorageEvent);
-    if (painter.media && typeof painter.media.removeEventListener === 'function')
-      painter.media.removeEventListener('change', refresh);
+    if (unlistenMedia) unlistenMedia();
     // المشتركين بيمسحوا مع المثيل: بعد dispose المثيل مات، فمستمع لسه شايل إشارة ليه
     // ما يتناداش على حالة قديمة لو المثيل اتركّب تاني.
     subscribers.clear();
@@ -331,7 +367,7 @@ function installThemeRuntime(
  * والاختبارات تقدر تجهّز matchMedia والتخزين قبل التثبيت.
  */
 function themeRuntime(): ThemeRuntime {
-  return installThemeRuntime(THEME_RUNTIME_CONFIG, createThemePainter, createThemeStore);
+  return installThemeRuntime(THEME_RUNTIME_CONFIG, createThemePainter, createThemeStore, listenMedia);
 }
 
 /**
@@ -367,10 +403,10 @@ export function subscribeToThemePreference(listener: () => void): () => void {
 }
 
 /**
- * سكربت الإقلاع مش نص مكتوب بالإيد: بيتولّد من الدوال الثلاثة بتوع المشغّل نفسهم — الرسام،
- * المخزن، ومالك الحالة — فمنطق الوضع بيعيش مرة واحدة والنسخة اللي بتوصل للـ HTML هي نفس
+ * سكربت الإقلاع مش نص مكتوب بالإيد: بيتولّد من دوال المشغّل نفسهم — الرسام، المخزن، مالك
+ * الحالة، ومشترك وسائط النظام — فمنطق الوضع بيعيش مرة واحدة والنسخة اللي بتوصل للـ HTML هي نفس
  * كود الموديول متسلسل (عالج #1082.4). بيتشغّل قبل الرسم على كل صفحة — حتى من غير ThemeSwitch —
  * فبيرسم الوضع الصح ويقفل المستمعين من أول لحظة، والمبدّل بعدين بيلتقي على نفس المثيل
  * بدل ما يركّب واحد تاني.
  */
-export const THEME_BOOT_SCRIPT = `(${installThemeRuntime.toString()})(${JSON.stringify(THEME_RUNTIME_CONFIG)},${createThemePainter.toString()},${createThemeStore.toString()});`;
+export const THEME_BOOT_SCRIPT = `(${installThemeRuntime.toString()})(${JSON.stringify(THEME_RUNTIME_CONFIG)},${createThemePainter.toString()},${createThemeStore.toString()},${listenMedia.toString()});`;

@@ -10,11 +10,13 @@ import type {
 
 import {
   checkCommissionReminderReadiness,
+  createCommissionReminderCoverageSweeper,
   createCommissionReminderDelivery,
   createCommissionReminderSchedule,
   createReminderRecoveryStore,
   createStatementReminderTransactions,
   recoverCommissionReminders,
+  REMINDER_COVERAGE_SWEEP_INTERVAL_MS,
   remindCommissionStatements,
   reminderRecoveryReaders,
   startCommissionReminderWorker,
@@ -22,6 +24,7 @@ import {
   type RecoverCommissionRemindersDeps,
   type ReminderRecoveryReaders,
   type RecoveryResult,
+  type VerifyCommissionReminderCoverageDeps,
   type ReminderRecoveryStore,
 } from './modules/commissions/index.ts';
 import { statementReminderAlertRules } from './modules/commissions/persistence/alert-rule.adapter.ts';
@@ -146,6 +149,7 @@ export function startCommissionReminderWiring(
     void recoverCommissionReminders(recoveryDeps, { mode: 'DETECT' }).catch(() => undefined);
   }, 60_000);
   heartbeat.unref?.();
+  const coverage = startCoverageSweep({ database, store, schedule, logger });
   const startup = new AbortController();
   void runStartupRecovery(() => recoverCommissionReminders(recoveryDeps, { mode: 'STARTUP' }), {
     signal: startup.signal,
@@ -159,13 +163,58 @@ export function startCommissionReminderWiring(
     },
     stop: () => {
       clearInterval(heartbeat);
+      coverage.stop();
       startup.abort();
     },
     close: async () => {
       clearInterval(heartbeat);
+      coverage.stop();
       startup.abort();
+      await coverage.drain();
       await Promise.allSettled([worker.close(), schedule.close(), recoveryRedis.quit()]);
       recoveryRedis.disconnect();
+    },
+  };
+}
+
+/** مقبض الفحص الدوري: إيقاف المؤقّت، وانتظار جولة شغّالة قبل إغلاق Redis. */
+interface CoverageSweepHandle {
+  readonly stop: () => void;
+  readonly drain: () => Promise<void>;
+}
+
+/**
+ * يشغّل الفحص الدوري لتغطية الجدولات (ADR-0061 §8): مؤقّت مستقل عن نبض الاستعادة، وحارس
+ * التداخل جوه المشغّل. الجولة الشغّالة بيتحتفظ بوعدها، عشان `close` تستناها قبل ما اتصال Redis
+ * يتقفل فما تفشلش بـ`REDIS_ENDED` بعد الإغلاق.
+ *
+ * @param deps القارئات والجدولة والسجل
+ * @returns مقبض الإيقاف والانتظار
+ */
+function startCoverageSweep(
+  deps: Omit<VerifyCommissionReminderCoverageDeps, 'clock'>,
+): CoverageSweepHandle {
+  const sweeper = createCommissionReminderCoverageSweeper({
+    ...deps,
+    clock: { now: () => new Date() },
+  });
+  let inFlight: Promise<void> | null = null;
+  const timer = setInterval(() => {
+    if (inFlight !== null) return;
+    const run: Promise<void> = sweeper
+      .run()
+      .then(() => undefined)
+      .catch(() => undefined)
+      .finally(() => {
+        if (inFlight === run) inFlight = null;
+      });
+    inFlight = run;
+  }, REMINDER_COVERAGE_SWEEP_INTERVAL_MS);
+  timer.unref?.();
+  return {
+    stop: () => clearInterval(timer),
+    drain: async () => {
+      await inFlight;
     },
   };
 }

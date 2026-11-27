@@ -14,7 +14,7 @@ import type {
 } from '../../ports/push-subscriptions.port.ts';
 import { RegisterPushSubscription } from '../register-push-subscription/register-push-subscription.ts';
 
-const SCOPE = { companyId: 'company-1', userId: 'user-1' };
+const SCOPE = { companyId: 'company-1', userId: 'user-1', subscriberRef: 'a'.repeat(64) };
 const CONFIG = { keyId: '0123456789abcdef' };
 
 // مفتاح عام حقيقي: نقطة P-256 على المنحنى، ومفتاح مصادقة 16 بايت.
@@ -29,6 +29,7 @@ const SHORT_AUTH = Buffer.from(VALID.auth, 'base64url').subarray(0, 15).toString
 
 const INPUT: PushSubscriptionInput = {
   installation_id: '01920000-0000-4000-8000-0000000000a1',
+  subscriber_ref: 'a'.repeat(64),
   vapid_key_id: '0123456789abcdef',
   delivery_token: '01920000-0000-4000-8000-0000000000a2',
   subscription: {
@@ -241,6 +242,18 @@ describe('the registration guards', () => {
       code: 'NOT_READY',
     });
     expect(state.transactions).toBe(0);
+  });
+
+  it('refuses a registration for another subscriber before the limit and any write', async () => {
+    const state: State = { transactions: 0, locked: [], revokes: 0, upserts: 0 };
+    const limiter = fakeLimiter();
+    const register = useCase(state, limiter.limiter);
+    await expect(
+      register.execute(SCOPE, { ...INPUT, subscriber_ref: 'b'.repeat(64) }, CONFIG),
+    ).rejects.toMatchObject({ code: 'PUSH_SESSION_MISMATCH' });
+    expect(limiter.keys()).toEqual([]);
+    expect(state.transactions).toBe(0);
+    expect(state.upserts).toBe(0);
   });
 
   it('refuses a registration made under another key and stores nothing', async () => {

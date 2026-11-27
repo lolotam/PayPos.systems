@@ -16,6 +16,7 @@ export const inAppEn = {
   generic_branch: 'Branch',
   generic_package: 'Package',
   generic_document: 'Document',
+  generic_document_type: 'Document',
   late_service_session:
     'A late service session dated {{business_date}} was recorded at {{branch_name_en}}.',
   service_line_price_edited:
@@ -79,6 +80,7 @@ export const inAppAr = {
   generic_branch: 'فرع',
   generic_package: 'باقة',
   generic_document: 'مستند',
+  generic_document_type: 'غير محدد',
   late_service_session: 'سُجّلت جلسة متأخرة بتاريخ {{business_date}} في فرع {{branch_name_ar}}.',
   service_line_price_edited:
     'عدّل {{editor_name_ar}} خدمة {{service_name_ar}} في فرع {{branch_name_ar}} بتاريخ {{business_date}}: كان الصافي {{previous_net}} دينار وأصبح {{new_net}} دينار.',

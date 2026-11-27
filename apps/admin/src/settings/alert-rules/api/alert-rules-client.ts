@@ -1,5 +1,4 @@
 import {
-  alertRules,
   type AlertKindCode,
   type AlertRules,
   ratingSettingsResponse,
@@ -8,6 +7,7 @@ import {
   type SetAlertRulesInput,
 } from '@pospay/contracts';
 import { apiClient } from '@/shared/api/client';
+import { parseAlertRules } from '../model/parse-alert-rules';
 
 const businessPath = '/v1/businesses/{businessId}/alert-rules';
 const masterPath = '/v1/businesses/{businessId}/alert-rules/master';
@@ -51,7 +51,7 @@ export async function readAlertRules(
       })
     : await apiClient().GET(businessPath, { params: { header, path: { businessId } }, signal });
   if (response.error) throw { ...response.error, status: response.response.status };
-  return alertRules.parse(response.data);
+  return parseAlertRules(response.data);
 }
 
 export async function saveAlertRules(
@@ -68,7 +68,7 @@ export async function saveAlertRules(
       })
     : await apiClient().PUT(businessPath, { params: { header, path: { businessId } }, body });
   if (response.error) throw { ...response.error, status: response.response.status };
-  return alertRules.parse(response.data);
+  return parseAlertRules(response.data);
 }
 
 export async function setAlertsMaster(
@@ -81,7 +81,7 @@ export async function setAlertsMaster(
     body: { alerts_enabled: enabled },
   });
   if (response.error) throw { ...response.error, status: response.response.status };
-  return alertRules.parse(response.data);
+  return parseAlertRules(response.data);
 }
 
 export async function resetBranchAlertRule(

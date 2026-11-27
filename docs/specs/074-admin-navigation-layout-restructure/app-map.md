@@ -168,7 +168,7 @@ owner chose each grouping on 2026-11-21 from three options per section (`owner-q
 | Sub-menu | Page | Phase | State | Shown only to | Roles |
 |---|---|---|---|---|---|
 | Business | Business identity | 1 | Live | every business type | Owner |
-| Business | Branches | — | Soon | every business type | Owner, General manager, Business manager |
+| Business | Branches | — | Live | every business type | Owner, General manager, Business manager |
 | Business | Alerts and notifications | 1 | Live | every business type | Owner, General manager, Business manager |
 | Business | Imported-package refunds | 1 | Live | every business type | Owner |
 | Business | Data import (Excel) | 1 | Soon | every business type | Owner, General manager, Business manager |

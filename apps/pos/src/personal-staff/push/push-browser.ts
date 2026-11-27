@@ -54,12 +54,16 @@ export function canEnablePush(): boolean {
   return supportsPush() && hasCrossTabLock();
 }
 
-/** آيفون أو آيباد: iPadOS بيبعت نفسه MacIntel وبيحسب نقاط اللمس على الشاشة. */
+/**
+ * آيفون أو آيباد. سفاري الآيباد في وضع سطح المكتب (الافتراضي) بيبعت `Macintosh; Intel Mac OS X`
+ * في userAgent و`MacIntel` في navigator.platform، فبنفرقه عن الماك بنقاط اللمس.
+ */
 export function isIosDevice(): boolean {
   const nav = globalThis.navigator;
   const agent = nav?.userAgent ?? '';
   if (/iPhone|iPad|iPod/i.test(agent)) return true;
-  return /MacIntel/i.test(agent) && (nav?.maxTouchPoints ?? 0) > 1;
+  const looksLikeMac = nav?.platform === 'MacIntel' || /Macintosh/i.test(agent);
+  return looksLikeMac && (nav?.maxTouchPoints ?? 0) > 1;
 }
 
 /** التطبيق متضاف على الشاشة الرئيسية: iOS بيعمل كده، والويب بيقولها display-mode. */

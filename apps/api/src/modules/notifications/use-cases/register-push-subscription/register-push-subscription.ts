@@ -29,11 +29,13 @@ export class RegisterPushSubscription {
   ) {}
 
   async execute(
-    scope: { companyId: string; userId: string },
+    scope: { companyId: string; userId: string; subscriberRef: string },
     input: PushSubscriptionInput,
     config: { readonly keyId: string } | null,
   ): Promise<void> {
     if (config === null) throw new ApiError('NOT_READY');
+    // الجلسة اتبدّلت بعد ما التطبيق أكّد صاحبها: بنرفض قبل الحد وأي كتابة (ADR-0052 §7).
+    if (input.subscriber_ref !== scope.subscriberRef) throw new ApiError('PUSH_SESSION_MISMATCH');
     if (input.vapid_key_id !== config.keyId) throw new ApiError('PUSH_KEY_STALE');
     // من غير Redis مفيش حد بيتحسب، فالتسجيل كله بيتقفل بدل ما يعدّي مفتوح.
     if (this.rateLimiter === null) throw new ApiError('NOT_READY');

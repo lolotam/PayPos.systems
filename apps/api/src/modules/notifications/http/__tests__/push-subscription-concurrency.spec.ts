@@ -1,4 +1,4 @@
-import { installationHash } from '@pospay/notifications';
+import { installationHash, subscriberRef } from '@pospay/notifications';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 import { pushFixture, type PushFixture } from './push-subscription.fixture.ts';
@@ -13,12 +13,16 @@ const subscription = (endpoint: string) => ({
 });
 const body = (over: Record<string, unknown> = {}) => ({
   installation_id: nextId(),
+  subscriber_ref: subscriberRef(f.userId),
   vapid_key_id: f.config.keyId,
   delivery_token: nextId(),
   subscription: subscription(`https://fcm.googleapis.com/fcm/send/${nextId()}`),
   locale: 'ar',
   ...over,
 });
+// جسم التسجيل بمرجع مشترك الجلسة اللي هتبعته، زي ما التطبيق بيبعت مرجع صاحب الجلسة.
+const bodyFor = (session: { userId: string }, over: Record<string, unknown> = {}) =>
+  body({ subscriber_ref: subscriberRef(session.userId), ...over });
 const liveFor = async (endpoint: string) =>
   await f.owner`SELECT count(*)::int AS count FROM push_subscriptions
     WHERE company_id=${f.companyId} AND endpoint=${endpoint} AND revoked_at IS NULL`;
@@ -52,7 +56,7 @@ describe('two employees on one endpoint', () => {
         body: body({ subscription: subscription(endpoint) }),
       }),
       f.send('PUT', '/v1/staff/push/subscription', {
-        body: body({ subscription: subscription(endpoint) }),
+        body: bodyFor(colleague, { subscription: subscription(endpoint) }),
         headers: colleague.headers,
       }),
     ]);
@@ -68,11 +72,11 @@ describe('two employees on one endpoint', () => {
     const endpoint = `https://fcm.googleapis.com/fcm/send/${nextId()}`;
     const results = await Promise.all([
       f.send('PUT', '/v1/staff/push/subscription', {
-        body: body({ subscription: subscription(endpoint) }),
+        body: bodyFor(colleague, { subscription: subscription(endpoint) }),
         headers: colleague.headers,
       }),
       f.send('PUT', '/v1/staff/push/subscription', {
-        body: body({ subscription: subscription(endpoint) }),
+        body: bodyFor(colleague, { subscription: subscription(endpoint) }),
         headers: colleague.headers,
       }),
     ]);
@@ -90,7 +94,7 @@ describe('two employees crossing endpoints', () => {
       body: body({ subscription: subscription(mine) }),
     });
     await f.send('PUT', '/v1/staff/push/subscription', {
-      body: body({ subscription: subscription(theirs) }),
+      body: bodyFor(colleague, { subscription: subscription(theirs) }),
       headers: colleague.headers,
     });
     const results = await Promise.all([
@@ -98,7 +102,7 @@ describe('two employees crossing endpoints', () => {
         body: body({ subscription: subscription(theirs) }),
       }),
       f.send('PUT', '/v1/staff/push/subscription', {
-        body: body({ subscription: subscription(mine) }),
+        body: bodyFor(colleague, { subscription: subscription(mine) }),
         headers: colleague.headers,
       }),
     ]);
@@ -111,7 +115,7 @@ describe('two employees crossing endpoints', () => {
     const colleague = await f.seedStaff('Synthetic revoking colleague');
     const installation = nextId();
     await f.send('PUT', '/v1/staff/push/subscription', {
-      body: body({ installation_id: installation }),
+      body: bodyFor(colleague, { installation_id: installation }),
       headers: colleague.headers,
     });
     const results = await Promise.all([
@@ -120,7 +124,7 @@ describe('two employees crossing endpoints', () => {
         headers: colleague.headers,
       }),
       f.send('PUT', '/v1/staff/push/subscription', {
-        body: body({ installation_id: installation }),
+        body: bodyFor(colleague, { installation_id: installation }),
         headers: colleague.headers,
       }),
     ]);
@@ -136,7 +140,7 @@ describe('a row that comes back', () => {
     const colleague = await f.seedStaff('Synthetic returning colleague');
     const installation = nextId();
     await f.send('PUT', '/v1/staff/push/subscription', {
-      body: body({ installation_id: installation }),
+      body: bodyFor(colleague, { installation_id: installation }),
       headers: colleague.headers,
     });
     const [first] = await f.owner`SELECT id FROM push_subscriptions
@@ -146,7 +150,7 @@ describe('a row that comes back', () => {
       headers: colleague.headers,
     });
     await f.send('PUT', '/v1/staff/push/subscription', {
-      body: body({ installation_id: installation }),
+      body: bodyFor(colleague, { installation_id: installation }),
       headers: colleague.headers,
     });
     const [again] =
@@ -168,11 +172,11 @@ describe('a row that is replaced or counted', () => {
     const colleague = await f.seedStaff('Synthetic replacing colleague');
     const endpoint = `https://fcm.googleapis.com/fcm/send/${nextId()}`;
     await f.send('PUT', '/v1/staff/push/subscription', {
-      body: body({ subscription: subscription(endpoint) }),
+      body: bodyFor(colleague, { subscription: subscription(endpoint) }),
       headers: colleague.headers,
     });
     await f.send('PUT', '/v1/staff/push/subscription', {
-      body: body({ subscription: subscription(endpoint) }),
+      body: bodyFor(colleague, { subscription: subscription(endpoint) }),
       headers: colleague.headers,
     });
     const rows = await f.owner`SELECT revoked_at,revoked_reason FROM push_subscriptions
@@ -194,6 +198,7 @@ describe('a row that is replaced or counted', () => {
       f.send('PUT', '/v1/staff/push/subscription', {
         body: {
           installation_id: installation,
+          subscriber_ref: subscriberRef(colleague.userId),
           vapid_key_id: f.config.keyId,
           delivery_token: token,
           subscription: { endpoint, keys },

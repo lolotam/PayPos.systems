@@ -67,7 +67,12 @@ export class PushSubscriptionController {
     @Req() request: FastifyRequest,
   ): Promise<void> {
     if (this.writes === null) throw new ApiError('NOT_READY');
-    await this.writes.register.execute(scopeOf(request), input, this.push);
+    const scope = scopeOf(request);
+    await this.writes.register.execute(
+      { ...scope, subscriberRef: this.subscriberRef(scope.userId) },
+      input,
+      this.push,
+    );
   }
 
   @Post('subscription/revoke')
