@@ -4,22 +4,26 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { loginInput, type LoginInput } from '@pospay/contracts';
 import type { MessageKey } from '@pospay/i18n';
 import { t } from '@pospay/i18n';
-import { Button, EmptyState, CircleAlert } from '@pospay/ui';
+import { Button } from '@pospay/ui';
 import { useForm } from 'react-hook-form';
 
 import { useMounted } from '@/shared/browser/use-mounted';
 import { useLocale } from '@/shared/locale/locale-context';
 
+import { FormErrorAlert } from './form-error-alert';
 import { TextField } from './text-field';
 
 export function LoginForm({
   pending,
   error,
   onSubmit,
+  onForgotPassword,
 }: {
   pending: boolean;
   error?: MessageKey | undefined;
   onSubmit: (values: LoginInput) => Promise<void>;
+  /** يفتح مسار استرجاع كلمة المرور؛ من غيره الرابط مش بيظهر. */
+  onForgotPassword?: (() => void) | undefined;
 }) {
   const locale = useLocale();
   const mounted = useMounted();
@@ -52,18 +56,15 @@ export function LoginForm({
         disabled={pending}
         {...form.register('password')}
       />
-      {error ? (
-        <EmptyState
-          role="alert"
-          tone="danger"
-          icon={<CircleAlert />}
-          title={t(locale, error)}
-          className="p-4"
-        />
-      ) : null}
+      <FormErrorAlert error={error} />
       <Button type="submit" disabled={pending || !mounted}>
         {t(locale, 'admin.signInSubmit')}
       </Button>
+      {onForgotPassword ? (
+        <Button type="button" variant="link" onClick={onForgotPassword} disabled={pending}>
+          {t(locale, 'passwordReset.link')}
+        </Button>
+      ) : null}
     </form>
   );
 }
