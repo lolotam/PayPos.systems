@@ -166,8 +166,10 @@ function wrapBrowser(browser: Browser): PdfBrowser {
     newContext: async (options) => wrapContext(await browser.newContext(options)),
     close: () => browser.close(),
     kill: () => {
+      const proc = launchedProc ?? chromiumProcess(browser);
+      if (proc !== null) return killAndWait(proc);
       if (disconnected) return Promise.resolve();
-      return killAndWait(launchedProc ?? chromiumProcess(browser));
+      return killAndWait(null);
     },
     on: (event, listener) => {
       browser.on(event, listener);
@@ -185,15 +187,7 @@ export function playwrightFactory(
   timeoutMs = DEFAULT_CHROMIUM_LAUNCH_TIMEOUT_MS,
 ): PdfBrowserFactory {
   return {
-    launch: async (signal?: AbortSignal) => {
-      const wrapped = wrapBrowser(
-        await chromium.launch({ ...chromiumLaunchOptions, timeout: timeoutMs }),
-      );
-      if (signal?.aborted) {
-        await Promise.resolve(wrapped.kill?.()).catch(() => undefined);
-        throw new Error('DOCUMENT_LAUNCH_ABORTED');
-      }
-      return wrapped;
-    },
+    launch: async () =>
+      wrapBrowser(await chromium.launch({ ...chromiumLaunchOptions, timeout: timeoutMs })),
   };
 }

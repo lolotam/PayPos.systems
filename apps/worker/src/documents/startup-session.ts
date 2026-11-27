@@ -312,7 +312,11 @@ async function fail(
   arm(state, input);
 }
 
-async function stopSession(state: SessionState, force: boolean): Promise<void> {
+async function stopSession(
+  state: SessionState,
+  input: StartupSessionInput,
+  force: boolean,
+): Promise<void> {
   state.accept = false;
   state.current.controller.abort();
   state.wake?.();
@@ -321,7 +325,23 @@ async function stopSession(state: SessionState, force: boolean): Promise<void> {
   // المفتاح لو فضل بعد قفل المستهلك، الطلب الجاي هيلاقي متصفح من غير حد يستقبل.
   // Chromium بيفضل عشان الرندر الجاري، وبيتقفل آخر حاجة في close.
   await live.liveness?.stop().catch(() => undefined);
-  await live.worker.close(force).catch(() => undefined);
+  if (force) {
+    await live.worker.close(true).catch(() => undefined);
+    return;
+  }
+  const drainGraceMs = input.drainGraceMs ?? input.closeGraceMs ?? DRAIN_GRACE_MS;
+  let completed = false;
+  const draining = (async () => {
+    if (typeof live.worker.pause === 'function') {
+      await live.worker.pause(false).catch(() => undefined);
+    }
+    await live.worker.close(false).catch(() => undefined);
+    completed = true;
+  })();
+  const grace = waitForGrace(drainGraceMs);
+  await Promise.race([draining, grace.done]);
+  grace.stop();
+  if (!completed) void live.worker.close(true).catch(() => undefined);
 }
 
 async function closeSession(state: SessionState, input: StartupSessionInput): Promise<void> {
@@ -355,7 +375,7 @@ export function trackDocumentStartup(input: StartupSessionInput): StartupSession
   arm(state, input);
   return {
     started,
-    stop: (force = false) => stopSession(state, force),
+    stop: (force = false) => stopSession(state, input, force),
     close: () => closeSession(state, input),
   };
 }

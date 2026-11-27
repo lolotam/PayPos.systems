@@ -142,3 +142,30 @@ it('gives normal close drainGraceMs (default 35 s > 30 s budget) while keeping s
     'renderer-kill',
   ]);
 });
+
+it('escalates a real BullMQ worker via close(true) across the production stop-then-close sequence', async () => {
+  const events: string[] = [];
+  const { queue, worker, session, pickedUp, releaseJob, queueConnection, workerConnection } =
+    createStuckWorkerSession(events);
+  let closedEvent = false;
+  worker.on('closed', () => {
+    closedEvent = true;
+  });
+  try {
+    await session.started;
+    await queue.add('stuck-stop', {});
+    await pickedUp;
+    await session.stop();
+    await session.close();
+    expect(events).toEqual(['renderer-close', 'renderer-kill']);
+    await expect(worker.close(true)).resolves.toBeUndefined();
+    expect(closedEvent).toBe(true);
+    expect(worker.isPaused()).toBe(true);
+  } finally {
+    releaseJob();
+    await worker.close(true).catch(() => undefined);
+    await queue.close().catch(() => undefined);
+    workerConnection.disconnect();
+    queueConnection.disconnect();
+  }
+}, 15_000);

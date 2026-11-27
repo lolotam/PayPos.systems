@@ -6,6 +6,7 @@ import {
   clearJobDeferralDeadline,
   deferPdfWhileStarting,
   PDF_DEFER_RETENTION_MS,
+  PDF_DEFER_WINDOW_MS,
 } from '../defer-pdf.ts';
 import { DocumentSourceRegistry } from '../source-registry.ts';
 import {
@@ -225,4 +226,23 @@ it('retains recently expired deadlines across 256+ jobs and prunes stale entries
   ).rejects.toThrow(DelayedError);
   expect(jobDeadlines.has('recent-expired')).toBe(true);
   expect(jobDeadlines.has('stale-expired')).toBe(false);
+});
+
+it('enforces enqueue timestamp deferral ceiling across worker restarts with fresh startup maps', async () => {
+  const registry = new DocumentSourceRegistry();
+  registry.register('fixture', { load: async () => '<p>ok</p>' });
+  const delayed = vi.fn();
+  const pdfJob = {
+    id: 'job-restarted-1',
+    timestamp: Date.now() - PDF_DEFER_WINDOW_MS - 1,
+    data: job(renderId(), renderId(), 'fixture'),
+    moveToDelayed: delayed,
+  } as unknown as Job;
+  const freshStartup = {
+    starting: true,
+    deadlineAt: Date.now() + 60_000,
+    jobDeadlines: new Map<string, number>(),
+  };
+  await deferPdfWhileStarting(pdfJob, 'token', freshStartup, registry);
+  expect(delayed).not.toHaveBeenCalled();
 });

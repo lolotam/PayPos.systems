@@ -58,18 +58,22 @@ export async function deferPdfWhileStarting(
   if (!parsed.success) return;
   const source = registry.get(parsed.data.kind);
   if (source === undefined || source.output === 'bytes') return;
+  const enqueueCap =
+    typeof job.timestamp === 'number' && Number.isFinite(job.timestamp) && job.timestamp > 0
+      ? job.timestamp + PDF_DEFER_WINDOW_MS
+      : Number.POSITIVE_INFINITY;
   if (jobKey !== undefined && startup.jobDeadlines !== undefined) {
     let jobDeadline = startup.jobDeadlines.get(jobKey);
     if (jobDeadline === undefined) {
       pruneExpired(startup.jobDeadlines, now);
-      jobDeadline = Math.min(startup.deadlineAt, now + PDF_DEFER_WINDOW_MS);
+      jobDeadline = Math.min(startup.deadlineAt, now + PDF_DEFER_WINDOW_MS, enqueueCap);
       startup.jobDeadlines.set(jobKey, jobDeadline);
     }
-    if (now >= jobDeadline || now >= startup.deadlineAt) {
+    if (now >= jobDeadline || now >= startup.deadlineAt || now >= enqueueCap) {
       startup.jobDeadlines.set(jobKey, Math.min(jobDeadline, now));
       return;
     }
-  } else if (now >= startup.deadlineAt) {
+  } else if (now >= startup.deadlineAt || now >= enqueueCap) {
     return;
   }
   await job.moveToDelayed(now + PDF_DEFER_MS, token);
