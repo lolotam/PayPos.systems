@@ -173,3 +173,14 @@ it.each(['/v1/auth/sign-in/email', '/v1/businesses', '/v1/ratings/other'])(
     expect(publicAttempt.headers['access-control-allow-origin']).toBeUndefined();
   },
 );
+
+it('exposes retry-after and x-request-id on authenticated cross-origin responses', async () => {
+  const response = await app.inject({
+    method: 'POST',
+    url: '/v1/auth/password-reset/otp/request',
+    headers: { origin: ADMIN },
+  });
+  expect(response.headers['access-control-allow-origin']).toBe(ADMIN);
+  expect(response.headers['access-control-expose-headers']).toContain('retry-after');
+  expect(response.headers['access-control-expose-headers']).toContain('x-request-id');
+});

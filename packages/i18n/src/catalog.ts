@@ -19,6 +19,7 @@ import {
 } from './commission-statement-screen-catalog.js';
 import { en } from './en.js';
 import { nativeShellAr, nativeShellEn } from './native-shell-catalog.js';
+import { passwordResetAr, passwordResetEn } from './password-reset-catalog.js';
 import { packageImportAr, packageImportEn } from './package-import-catalog.js';
 import { packageSaleAr, packageSaleEn } from './package-sale-catalog.js';
 import { customerPackagesAr, customerPackagesEn } from './customer-packages-catalog.js';
@@ -80,6 +81,7 @@ type RegisteredCatalog = Catalog & {
   readonly schedules: Record<keyof typeof schedulesEn, string>;
   readonly adminNav: Record<keyof typeof adminNavEn, string>;
   readonly adminNavPages: Record<keyof typeof adminNavPagesEn, string>;
+  readonly passwordReset: Record<keyof typeof passwordResetEn, string>;
 };
 
 /** مفتاح رسالة: <القسم>.<الاسم>، زي errors.NOT_READY. */
@@ -123,6 +125,7 @@ const CATALOGS: Record<Locale, RegisteredCatalog> = {
     schedules: schedulesAr,
     adminNav: adminNavAr,
     adminNavPages: adminNavPagesAr,
+    passwordReset: passwordResetAr,
   },
   en: {
     myLeave: myLeaveEn,
@@ -156,6 +159,7 @@ const CATALOGS: Record<Locale, RegisteredCatalog> = {
     schedules: schedulesEn,
     adminNav: adminNavEn,
     adminNavPages: adminNavPagesEn,
+    passwordReset: passwordResetEn,
   },
 };
 
