@@ -97,14 +97,33 @@ ignore pattern يقدر يخمّن اسم الملف ده.
 مصادر التصميم في `assets/brand/` (SVG): الأيقونات مصدرها الأول، وفيها حرف P بنقشة Souk Tiles على خلفية كريمي (نفس
 رسمة فافيكون الويب: `souk-tile-p.png` نسخة من `android-chrome-512x512.png` في `apps/pos/public`، وكلّ SVG بيشاور
 عليها بمسار نسبي)، ودايرة كحلي فيها «B» في الركن (APP-Q21)، وشريط بنفسجي مايل فيه «تجربة» على أيقونة نسخة التجربة
-(APP-Q22). الأيقونات اتطابقت مع فافيكونات Souk Tiles في DS-3 A3 (#1081): كانت P البرتقالي على خلفية برتقالي، ولون خلفية
-أيقونة أندرويد التكيّفية (`values/ic_launcher_background.xml`) بقى الكريمي `#FBF9F5`. المصدر الوحيد للنقشة صورة 512
-بكسل، فأيقونة iOS 1024 متكبّرة منها؛ لو اتوفّر مصدر vector للنقشة تتولّد الأيقونات منه. صور أندرويد
+(APP-Q22)، و`splash.svg` لبلاطة شاشة الفتح. الأيقونات اتطابقت مع فافيكونات Souk Tiles في DS-3 A3 (#1081)، وهي
+الحركة المعتمدة في PP-193.1 (`docs/owner-decisions.ar.md` §113، `ADR-0059`): كانت P
+البرتقالي على خلفية برتقالي، ولون خلفية أيقونة أندرويد التكيّفية (`values/ic_launcher_background.xml`) بقى الكريمي
+`#FBF9F5`. المصدر الوحيد للنقشة صورة 512 بكسل، فأيقونة iOS 1024 متكبّرة منها؛ لو اتوفّر مصدر vector للنقشة تتولّد
+الأيقونات منه. لحد كده مفيش ولا مصدر vector ولا نسخة بدقة أعلى من `souk-tile-p.png`، فأيقونة iOS 1024 وبلاطة شاشة
+الفتح بتفضل متكبّرة من صورة الـ 512 دي. صور أندرويد
 (`android/app/src/main/res/mipmap-*` و`drawable*/splash.png`، وأيقونات التجربة في `android/app/src/staging/res/`)
 وصور iOS (`AppIcon` و`AppIconStaging` و`Splash` جوّه `Assets.xcassets`) متولّدة من المصادر دي بـ Playwright (Chromium على
 ويندوز بخط Segoe UI لحرف «B» وكلمة «تجربة»)، بسكربت عند المنسق مش جوّه الريبو، ومتسجّلة كملفات متولّدة: أي تعديل في الشكل
 يبدأ من الـ SVG وبعدين الصور كلها تتولّد تاني. أندرويد بياخد أيقونة التجربة لوحده من
-فولدر الـ flavour، وiOS بيختارها من `ASSETCATALOG_COMPILER_APPICON_NAME` في `ios/staging.xcconfig`. شاشة الفتح خلفيتها
-كريمي فاتح وفيها لوجو PosPay البرتقالي وتحته «PosPay Business» بالكحلي (APP-Q11، APP-Q25 اختيار أبو سالم): قبل أندرويد 12 من `drawable*/splash.png`، ومن أندرويد 12
-النظام بيرسمها من `windowSplashScreen*` في `values/styles.xml` و`values-v31/styles.xml` (`drawable/splash_mark.xml` للوجو، و`values/splash_background.xml` للون،
-و`drawable-xxxhdpi/splash_branding.png` للاسم).
+فولدر الـ flavour، وiOS بيختارها من `ASSETCATALOG_COMPILER_APPICON_NAME` في `ios/staging.xcconfig`.
+
+### شاشة الفتح (#1103)
+
+شاشة الفتح بقت بالنقشة بتاعة Souk Tiles P بدل لوجو PosPay البرتقالي، ودي الحركة اللي معتمدة في PP-193.1
+(`docs/owner-decisions.ar.md` §113، `ADR-0059`، `DS-3 A3` #1081، #1103) — اعتماد نظام التصميم Souk Tiles أساس
+لكل واجهة ويب وبرامج الموبايلات. والخلفيات لسه كريمي فاتح
+`#FCFAF6` (APP-Q25 اختيار أبو سالم الملزم) والاسم «PosPay Business» بالكحلي تحتها (APP-Q11). بلاطة الشاشة مصدرها
+`assets/brand/splash.svg`: مربّع بحواف دائرية (`rx="11.52"` من 64) على كريمي `#FBF9F5` بيتحبس فيه
+`souk-tile-p.png` — يعني نفس رسم أيقونة التطبيق من غير دايرة «B» ومن غير شريط «تجربة»، لأن النسختين
+بتشاركوا الشاشة نفسها والاسم مكتوب فوقها أصلًا.
+
+قبل أندرويد 12 الشاشة صورة كاملة من `drawable*/splash.png` (كل ملف في مقاسه الأصلي: من `480x320` لحد
+`1920x1280` في الوضعين الطولي والعرضي). من أندرويد 12 النظام هو اللي بيرسمها من `windowSplashScreen*` في
+`values/styles.xml` و`values-v31/styles.xml`: `values/splash_background.xml` للون، و`drawable/splash_mark.xml`
+للوجو — وهو `<inset>` بيشاور على `@drawable/splash_mark_tile` (الصورة في `drawable-xxxhdpi/`، 432 بكسل =
+108 dp) بنسبة `26.85%` عشان البلاطة تقعد في نفس المنطقة الآمنة `29..79` من `108` اللي كان فيها اللوجو القديم،
+وما تتقصّش في القصّ الدائري اللي النظام بيعمله — و`drawable-xxxhdpi/splash_branding.png` للاسم. صور iOS في
+`Assets.xcassets/Splash.imageset` متولّدة بنفس الطريقة (2732×2732).
+

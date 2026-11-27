@@ -29,7 +29,8 @@ permissions screens redrawn in the new style.
 9. **العربي:** بدّل اللغة للعربي ← الاتجاه من اليمين للشمال، والخط العربي الجديد، ومفيش حاجة مقلوبة.
 10. **أيقونة التطبيق (DS-3 A3):** على موبايل فيه تطبيق «PosPay Business» (نسخة التجربة أو الإنتاج) ← أيقونته على الشاشة
     الرئيسية فيها حرف P بنقشة Souk Tiles على خلفية كريمي ودايرة «B» في الركن، زي أيقونة الويب، ومفيش P برتقالي. نسخة
-    التجربة عليها كمان شريط «تجربة».
+    التجربة عليها كمان شريط «تجربة». وشاشة الفتح بتبدأ بنفس نقشة Souk Tiles P (من غير دايرة «B») على خلفية كريمية
+    فاتحة وتحتها «PosPay Business» بالكحلي، من غير P برتقالي (#1103).
 11. **قبل الدخول (#1095):** افتح تبويبين: واحد جوّه لوحة الإدارة، والتاني على صفحة تسجيل الدخول (أو شاشة الكاشير قبل
     دخول الموظفة). غيّر الوضع من الأول ← التاني بيتغيّر فورًا من غير تحديث.
 12. **المتصفح رافض التخزين (#1095):** لو المتصفح مانع الحفظ (تصفح خاص مثلًا) واخترت **غامق** ← الشاشة بتفضل غامقة
@@ -64,7 +65,9 @@ permissions screens redrawn in the new style.
    wrongly.
 10. **The app icon (DS-3 A3):** on a phone with the «PosPay Business» app (the test or the production build) → its
     home-screen icon shows the P in the Souk Tiles pattern on a cream background with the «B» circle in the corner,
-    like the web icon, and no orange P. The test build also carries the «تجربة» strip.
+    like the web icon, and no orange P. The test build also carries the «تجربة» strip. The launch screen opens with
+    the same Souk Tiles P (without the «B» circle) on a light cream background and «PosPay Business» under it in navy,
+    with no orange P (#1103).
 11. **Before sign-in (#1095):** open two tabs: one inside the admin, the other on the sign-in page (or the POS screen
     before an employee signs in). Change the theme in the first → the second changes at once, with no reload.
 12. **The browser refuses to store (#1095):** if the browser blocks saving (private browsing, for example) and you
