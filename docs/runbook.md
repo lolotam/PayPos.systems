@@ -85,6 +85,55 @@ cookie jar on the admin host (`apps/admin/src/session/api/server-session.ts`, us
 redesigned, the value stays, and the operator rule holds: **never open staging in a browser profile that holds a
 production session** (plan §1, risk row "Production cookie sent to staging hosts").
 
+## First-owner operator scripts (`pospay-ops`)
+
+The operator scripts are TypeScript, and Node 24 does not run `.ts` files from inside `node_modules`, so the
+`api`, `worker` and `migrate` images cannot run `create-user.ts`. The `ops` target of `deploy/Dockerfile.api`
+(PR-E, rehearsal gap G4) is a one-shot image for them, built in CI and pushed tagged by commit SHA like every
+other image: `ghcr.io/lolotam/pospay-ops:<sha>`. It runs as `USER node`, sets `NODE_ENV=production` and holds no
+env value; its build runs each script once with no arguments to prove the TypeScript loads.
+
+| Script (working directory `/app`) | Role (env) | Use |
+|---|---|---|
+| `node scripts/create-user.ts` | `pospay_auth` (`AUTH_DATABASE_URL`, `BETTER_AUTH_SECRET`, `BETTER_AUTH_URL`, `AUTH_TRUSTED_ORIGINS`) | `platform:create-user` |
+| `node db/scripts/platform-grant.ts` | `pospay_owner` (`MIGRATION_DATABASE_URL`) | `platform:grant` |
+| `node db/scripts/platform-commission-approval.ts` | `pospay_owner` (`MIGRATION_DATABASE_URL`) | `platform:commission-approval` |
+| `node db/scripts/seed.ts` | `pospay_owner` (`MIGRATION_DATABASE_URL`) | `db:seed` |
+
+**How to load the variables safely.** The compose file builds each `*_DATABASE_URL` from `POSTGRES_*_PASSWORD`, and
+`deploy/prod.env.example` stores passwords, not URLs, so the operator builds the URL once and never types it into a
+command line. Use one of two methods; both keep passwords out of arguments and shell history:
+
+```sh
+# A. Temporary mode-600 env file, deleted right after the run
+umask 077; envf="$(mktemp)"
+read -rs -p 'owner password: ' PW; echo
+printf 'MIGRATION_DATABASE_URL=postgres://pospay_owner:%s@postgres:5432/<DB_NAME>\n' "$PW" > "$envf"; unset PW
+docker run --rm --network pospay-prod-internal --env-file "$envf" \
+  ghcr.io/lolotam/pospay-ops:<sha> node db/scripts/platform-grant.ts --email <email> \
+  --permission create:companies:platform --operator <name> --expires <ISO time>
+rm -f "$envf"
+
+# B. Prompt and export, then unset (the value lives only in this shell; --env NAME copies it in by name)
+read -rs -p 'owner password: ' PW; echo
+export MIGRATION_DATABASE_URL="postgres://pospay_owner:${PW}@postgres:5432/<DB_NAME>"; unset PW
+docker run --rm --network pospay-prod-internal --env MIGRATION_DATABASE_URL \
+  ghcr.io/lolotam/pospay-ops:<sha> node db/scripts/platform-grant.ts --email <email> \
+  --permission create:companies:platform --operator <name> --expires <ISO time>
+unset MIGRATION_DATABASE_URL
+```
+
+For `create-user.ts` the same applies to `AUTH_DATABASE_URL` (user `pospay_auth`, `POSTGRES_AUTH_PASSWORD`) and
+`BETTER_AUTH_SECRET`; `BETTER_AUTH_URL` and `AUTH_TRUSTED_ORIGINS` are not secrets and may sit in the env file or on
+the command line. Take every value from the same source the `api` service uses; never paste one into a chat or a ticket.
+
+**Network by environment.** In production use `--network pospay-prod-internal` (defined in
+`deploy/docker-compose.prod.yml`; the host name `postgres` resolves only there). On staging use
+`--network dokploy-network` and the shared Postgres host name the staging `api` container uses.
+
+Use a SHA published after PR-E merged; the image is for operators and is never started as a service. The exact
+first-owner sequence is `docs/plans/2026-11-23-first-owner-rehearsal.md`.
+
 ## Restoring a logical dump
 
 Restore a logical dump only into a **freshly `initdb`'d cluster**, with triggers disabled:
