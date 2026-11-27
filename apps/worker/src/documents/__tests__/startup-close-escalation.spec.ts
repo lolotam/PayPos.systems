@@ -398,7 +398,7 @@ it('invokes kill() at the worker closeGraceMs deadline even when PlaywrightDocum
             on: () => undefined,
           }),
         },
-        closeGraceMs: 5_000,
+        closeGraceMs: 120,
         sleep: wait,
       });
       attempt.setRenderer(renderer);
@@ -411,4 +411,6 @@ it('invokes kill() at the worker closeGraceMs deadline even when PlaywrightDocum
   await session.close();
   expect(killCalls).toBe(1);
   expect(Date.now() - startedAt).toBeLessThan(1_000);
+  await wait(180);
+  expect(killCalls).toBe(1);
 });

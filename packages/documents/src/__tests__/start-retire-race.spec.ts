@@ -3,12 +3,19 @@ import { expect, it } from 'vitest';
 import type { PdfBrowser } from '../playwright/browser.ts';
 import { PlaywrightDocumentRenderer } from '../playwright/renderer.ts';
 
-function okBrowser(): PdfBrowser {
+function okBrowser(overrides: Partial<PdfBrowser> = {}): PdfBrowser {
   return {
     newContext: () => new Promise(() => undefined),
     close: async () => undefined,
     on: () => undefined,
+    ...overrides,
   };
+}
+
+async function waitAvailable(renderer: PlaywrightDocumentRenderer): Promise<void> {
+  for (let i = 0; i < 40 && !renderer.isAvailable(); i += 1) {
+    await new Promise((resolve) => setTimeout(resolve, 10));
+  }
 }
 
 function delayedLaunchFactory(onLaunch: (attempt: number) => Promise<PdfBrowser>) {
@@ -28,11 +35,7 @@ it('does not overlap manual start during retirement with post-retirement relaunc
   let releaseSecond: (() => void) | undefined;
   const spy = delayedLaunchFactory(async (attempt) => {
     if (attempt === 1) {
-      return {
-        newContext: () => new Promise(() => undefined),
-        close: () => new Promise((resolve) => setTimeout(resolve, 40)),
-        on: () => undefined,
-      };
+      return okBrowser({ close: () => new Promise((resolve) => setTimeout(resolve, 40)) });
     }
     return new Promise<PdfBrowser>((resolve) => {
       releaseSecond = () => resolve(okBrowser());
@@ -62,14 +65,12 @@ it('waits for retirement when an onUnavailable listener calls start synchronousl
   const spy = delayedLaunchFactory(async (attempt) => {
     events.push(`launch-${attempt}`);
     if (attempt === 1) {
-      return {
-        newContext: () => new Promise(() => undefined),
+      return okBrowser({
         close: async () => {
           await new Promise((resolve) => setTimeout(resolve, 45));
           events.push('retire-closed');
         },
-        on: () => undefined,
-      };
+      });
     }
     return okBrowser();
   });
@@ -85,9 +86,7 @@ it('waits for retirement when an onUnavailable listener calls start synchronousl
   });
   await renderer.start();
   await expect(renderer.render('<p>x</p>')).rejects.toThrow();
-  for (let i = 0; i < 30 && !renderer.isAvailable(); i += 1) {
-    await new Promise((resolve) => setTimeout(resolve, 10));
-  }
+  await waitAvailable(renderer);
   expect(spy.launches()).toBe(2);
   expect(events).toEqual(['launch-1', 'retire-closed', 'launch-2']);
   await renderer.close();
@@ -130,14 +129,14 @@ it('keeps launch guard until a cancelled attempt closes its late browser', async
   const cancelled = renderer.start({ signal: controller.signal });
   controller.abort();
   setTimeout(() => {
-    releaseFirst?.({
-      newContext: () => new Promise(() => undefined),
-      close: async () => {
-        await new Promise((resolve) => setTimeout(resolve, 35));
-        events.push('late-closed');
-      },
-      on: () => undefined,
-    });
+    releaseFirst?.(
+      okBrowser({
+        close: async () => {
+          await new Promise((resolve) => setTimeout(resolve, 35));
+          events.push('late-closed');
+        },
+      }),
+    );
   }, 15);
   await cancelled;
   await renderer.start();
@@ -167,18 +166,16 @@ it('holds the launch guard until a timed-out launch closes its late browser', as
   await renderer.start();
   expect(events).toEqual(['launch-1']);
   setTimeout(() => {
-    releaseFirst?.({
-      newContext: () => new Promise(() => undefined),
-      close: async () => {
-        await new Promise((resolve) => setTimeout(resolve, 35));
-        events.push('late-timeout-closed');
-      },
-      on: () => undefined,
-    });
+    releaseFirst?.(
+      okBrowser({
+        close: async () => {
+          await new Promise((resolve) => setTimeout(resolve, 35));
+          events.push('late-timeout-closed');
+        },
+      }),
+    );
   }, 10);
-  for (let i = 0; i < 40 && !renderer.isAvailable(); i += 1) {
-    await new Promise((resolve) => setTimeout(resolve, 10));
-  }
+  await waitAvailable(renderer);
   expect(events).toEqual(['launch-1', 'late-timeout-closed', 'launch-2']);
   await renderer.close();
 });
@@ -187,12 +184,10 @@ it('aborts wait during retirement cleanly and still schedules relaunch after ret
   let releaseKill: (() => void) | undefined;
   const spy = delayedLaunchFactory(async (attempt) => {
     if (attempt === 1) {
-      return {
-        newContext: () => new Promise(() => undefined),
+      return okBrowser({
         close: () => new Promise<void>(() => undefined),
         kill: () => new Promise<void>((r) => (releaseKill = r)),
-        on: () => undefined,
-      };
+      });
     }
     return okBrowser();
   });
@@ -215,9 +210,7 @@ it('aborts wait during retirement cleanly and still schedules relaunch after ret
   await abortedStart;
   expect(spy.launches()).toBe(1);
   releaseKill?.();
-  for (let i = 0; i < 40 && !renderer.isAvailable(); i += 1) {
-    await new Promise((resolve) => setTimeout(resolve, 10));
-  }
+  await waitAvailable(renderer);
   expect(spy.launches()).toBe(2);
   expect(renderer.isAvailable()).toBe(true);
   await renderer.close();
@@ -228,11 +221,7 @@ it('reports unconfirmed retirement and keeps replacement gated until close finis
   const errors: unknown[] = [];
   const spy = delayedLaunchFactory(async (attempt) => {
     if (attempt === 1) {
-      return {
-        newContext: () => new Promise(() => undefined),
-        close: () => new Promise<void>((r) => (releaseClose = r)),
-        on: () => undefined,
-      };
+      return okBrowser({ close: () => new Promise<void>((r) => (releaseClose = r)) });
     }
     return okBrowser();
   });
@@ -250,9 +239,7 @@ it('reports unconfirmed retirement and keeps replacement gated until close finis
   expect(spy.launches()).toBe(1);
   expect(errors.some((e) => e instanceof Error && e.message === 'DOCUMENT_RETIRE_UNCONFIRMED')).toBe(true);
   releaseClose?.();
-  for (let i = 0; i < 40 && !renderer.isAvailable(); i += 1) {
-    await new Promise((resolve) => setTimeout(resolve, 10));
-  }
+  await waitAvailable(renderer);
   expect(spy.launches()).toBe(2);
   expect(renderer.isAvailable()).toBe(true);
   await renderer.close();
@@ -263,11 +250,7 @@ it('escalates onUnconfirmedExit when retirement exit never confirms while keepin
   const escalated: Error[] = [];
   const spy = delayedLaunchFactory(async () => {
     launches += 1;
-    return {
-      newContext: () => new Promise(() => undefined),
-      close: () => new Promise<void>(() => undefined),
-      on: () => undefined,
-    };
+    return okBrowser({ close: () => new Promise<void>(() => undefined) });
   });
   const renderer = new PlaywrightDocumentRenderer({
     factory: spy.factory,
@@ -307,26 +290,20 @@ it('closes the browser and gates replacement start when abort lands during post-
   const ac = new AbortController();
   const cancelled = renderer.start({ signal: ac.signal });
   setTimeout(() => {
-    releaseFirst?.({
-      newContext: () => new Promise(() => undefined),
-      close: () => {
-        events.push('handoff-close-start');
-        return new Promise<void>((resolve) => {
-          releaseClose = () => {
-            events.push('handoff-close-done');
-            resolve();
-          };
-        });
-      },
-      on: () => undefined,
-    });
-    queueMicrotask(() => {
-      queueMicrotask(() => {
-        queueMicrotask(() => {
-          ac.abort();
-        });
-      });
-    });
+    releaseFirst?.(
+      okBrowser({
+        close: () => {
+          events.push('handoff-close-start');
+          return new Promise<void>((resolve) => {
+            releaseClose = () => {
+              events.push('handoff-close-done');
+              resolve();
+            };
+          });
+        },
+      }),
+    );
+    queueMicrotask(() => queueMicrotask(() => queueMicrotask(() => ac.abort())));
   }, 5);
   await cancelled;
   expect(renderer.isAvailable()).toBe(false);
@@ -345,19 +322,18 @@ it('retains the browser handle after a synchronous kill() throw so a later close
   let releaseClose: (() => void) | undefined;
   const renderer = new PlaywrightDocumentRenderer({
     factory: {
-      launch: async () => ({
-        newContext: () => new Promise(() => undefined),
-        close: () => {
-          closeCalls += 1;
-          return new Promise<void>((resolve) => {
-            releaseClose = resolve;
-          });
-        },
-        kill: () => {
-          throw new Error('EPERM');
-        },
-        on: () => undefined,
-      }),
+      launch: async () =>
+        okBrowser({
+          close: () => {
+            closeCalls += 1;
+            return new Promise<void>((resolve) => {
+              releaseClose = resolve;
+            });
+          },
+          kill: () => {
+            throw new Error('EPERM');
+          },
+        }),
     },
     closeGraceMs: 40,
   });
@@ -376,15 +352,11 @@ it('clears the unconfirmed kill gate when an in-flight graceful close() subseque
   let releaseClose: (() => void) | undefined;
   const renderer = new PlaywrightDocumentRenderer({
     factory: {
-      launch: async () => ({
-        newContext: () => new Promise(() => undefined),
-        close: () =>
-          new Promise<void>((resolve) => {
-            releaseClose = resolve;
-          }),
-        kill: () => Promise.reject(new Error('EPERM')),
-        on: () => undefined,
-      }),
+      launch: async () =>
+        okBrowser({
+          close: () => new Promise<void>((resolve) => (releaseClose = resolve)),
+          kill: () => Promise.reject(new Error('EPERM')),
+        }),
     },
     closeGraceMs: 200,
   });
@@ -396,5 +368,48 @@ it('clears the unconfirmed kill gate when an in-flight graceful close() subseque
   releaseClose?.();
   await closing;
   await pendingExit;
+  expect(renderer.unconfirmedExit).toBeNull();
+});
+
+it('allows kill() to terminate a launch-handoff browser immediately and avoids a second kill', async () => {
+  let releaseLaunch!: (browser: PdfBrowser) => void;
+  let closeCalls = 0;
+  let killCalls = 0;
+  const renderer = new PlaywrightDocumentRenderer({
+    factory: {
+      launch: () =>
+        new Promise<PdfBrowser>((resolve) => {
+          releaseLaunch = resolve;
+        }),
+    },
+    closeGraceMs: 120,
+  });
+  const starting = renderer.start();
+  let closing: Promise<void> | undefined;
+  await new Promise<void>((resolve) => {
+    setTimeout(() => {
+      releaseLaunch(
+        okBrowser({
+          close: () => {
+            closeCalls += 1;
+            return new Promise<void>(() => undefined);
+          },
+          kill: async () => {
+            killCalls += 1;
+          },
+        }),
+      );
+      queueMicrotask(() => queueMicrotask(() => { closing = renderer.close(); resolve(); }));
+    }, 5);
+  });
+  await new Promise<void>((resolve) => queueMicrotask(() => queueMicrotask(resolve)));
+  expect(closeCalls).toBe(1);
+  expect(killCalls).toBe(0);
+  const startedKillAt = Date.now();
+  await Promise.all([Promise.resolve(renderer.kill()), starting, closing]);
+  expect(Date.now() - startedKillAt).toBeLessThan(80);
+  expect(killCalls).toBe(1);
+  await new Promise((resolve) => setTimeout(resolve, 180));
+  expect(killCalls).toBe(1);
   expect(renderer.unconfirmedExit).toBeNull();
 });

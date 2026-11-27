@@ -1,5 +1,12 @@
 import type { PdfBrowser } from './browser.ts';
-import { dropRetiredBrowser, type RetireResult } from './retire.ts';
+import {
+  createBrowserShutdown,
+  dropRetiredBrowser,
+  type BrowserShutdown,
+  type RetireResult,
+} from './retire.ts';
+
+export { createBrowserShutdown, type BrowserShutdown };
 
 type LaunchOutcome =
   | { readonly kind: 'browser'; readonly browser: PdfBrowser }
@@ -24,6 +31,7 @@ export async function launchWithinTimeout(
   timeoutMs: number,
   graceMs: number,
   signal?: AbortSignal,
+  closeLate?: (browser: PdfBrowser) => Promise<void>,
 ): Promise<LaunchOutcome> {
   let cancelled = false;
   let landedBrowser: PdfBrowser | undefined;
@@ -31,7 +39,7 @@ export async function launchWithinTimeout(
   let timer: ReturnType<typeof setTimeout> | undefined;
   let onAbort: (() => void) | undefined;
   const closeOnce = (browser: PdfBrowser): Promise<void> => {
-    cleanup ??= waitRetiredExit(browser, graceMs);
+    cleanup ??= (closeLate ?? ((late) => waitRetiredExit(late, graceMs)))(browser);
     return cleanup;
   };
   const guarded: Promise<LaunchOutcome> = launching.then(
