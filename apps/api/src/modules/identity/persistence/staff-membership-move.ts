@@ -4,11 +4,12 @@ import { sql } from 'drizzle-orm';
 import { transactionWriters } from '../../../shared/adapters/transaction-writers.ts';
 
 import { StaffUserRefused } from '../domain/staff-access-errors.ts';
+import { shouldTransferOverrideOnBranchMove } from '../domain/inline-override-candidates.ts';
 import { staffAccessSystemRole } from '../domain/staff-access-roles.ts';
 import type { StaffAccessRole } from '../domain/staff-access-roles.ts';
 import { systemRoleId } from './staff-user-auth.ts';
 
-/** صف استثناء انتقل من عضوية لأخرى مع تدقيقه. */
+/** صف استثناء مرشّح للنقل مع تدقيقه. */
 interface TransferredOverride extends Record<string, unknown> {
   readonly previous_membership_id: string;
   readonly id: string;
@@ -16,6 +17,7 @@ interface TransferredOverride extends Record<string, unknown> {
   readonly effect: 'ALLOW' | 'DENY';
   readonly scope_type: 'COMPANY' | 'BUSINESS' | 'BRANCH';
   readonly scope_id: string;
+  readonly expires_at: Date | null;
 }
 
 /**
@@ -84,10 +86,36 @@ export async function moveStaffMembershipToBranch(
 }
 
 /**
+ * الاستثناءات المرشّحة للنقل: كل السارية على العضويتين، وكل واحد بيتقيّم بقاعدة الـ domain
+ * فيتحمل نقله أو لا.
+ */
+function transferableOverrides(
+  candidates: readonly TransferredOverride[],
+  input: { oldMembershipId: string },
+  allowedPermissions: readonly string[],
+  at: Date,
+): TransferredOverride[] {
+  return candidates.filter((row) =>
+    shouldTransferOverrideOnBranchMove(
+      {
+        source:
+          row.previous_membership_id === input.oldMembershipId ? 'old_primary' : 'merged_extra',
+        effect: row.effect,
+        scopeType: row.scope_type,
+        permissionCode: row.permission_code,
+        expiresAt: row.expires_at === null ? null : new Date(row.expires_at),
+      },
+      allowedPermissions,
+      at,
+    ),
+  );
+}
+
+/**
  * ينقل الاستثناءات السارية للعضوية الجديدة ويكتب تدقيق النقل: الاستثناءات على نطاق الشركة أو
  * النشاط بتنقل من العضوية القديمة (المنع بس — استثناءات الفرع بتخلص مع الفرع القديم)،
  * واستثناءات الفرع المدمج بتنقل كلها (المنع دايماً والسماح بس لو الدور الجديد يسمح). المنتهية
- * مدتها ما بتنتقلش.
+ * مدتها ما بتنتقلش. قاعدة الأهلية نفسها في الـ domain فتبقى واحدة مكانين.
  */
 async function transferActiveOverrides(
   tx: Tx,
@@ -101,40 +129,32 @@ async function transferActiveOverrides(
   at: string,
   audit: ReturnType<typeof transactionWriters>['audit'],
 ): Promise<void> {
-  const allowedCodes = [
+  const allowedPermissions = [
     ...(systemRolePolicy(systemRoleId(staffAccessSystemRole(input.role)), 'global')?.permissions ??
       []),
   ];
-  const allowedClause =
-    allowedCodes.length === 0
-      ? sql`false`
-      : sql`permission_code IN (${sql.join(
-          allowedCodes.map((code) => sql`${code}`),
-          sql`,`,
-        )})`;
-  const mergedClause =
-    input.mergedMembershipId === undefined
-      ? sql`false`
-      : sql`(membership_id = ${input.mergedMembershipId} AND (effect = 'DENY' OR ${allowedClause}))`;
-  const moved = await tx.execute<TransferredOverride>(sql`
-    WITH candidates AS (
-      SELECT id, membership_id AS previous_membership_id, permission_code, effect, scope_type, scope_id
-      FROM permission_overrides
-      WHERE company_id = ${input.companyId}
-        AND (expires_at IS NULL OR expires_at > ${at}::timestamptz)
-        AND (
-          (membership_id = ${input.oldMembershipId} AND effect = 'DENY'
-            AND scope_type IN ('COMPANY','BUSINESS'))
-          OR ${mergedClause}
-        )
-      FOR UPDATE
-    )
-    UPDATE permission_overrides po
-    SET membership_id = ${membershipId}
-    FROM candidates c
-    WHERE po.id = c.id
-    RETURNING c.previous_membership_id, po.id, po.permission_code, po.effect, po.scope_type, po.scope_id`);
-  for (const row of moved)
+  // القفل الأول بيجيب كل الاستثناءات السارية على العضويتين قبل التقييم، فما فيش سباق بين
+  // القراءة وكتابة النقل.
+  const candidates = await tx.execute<TransferredOverride>(sql`
+    SELECT id, membership_id AS previous_membership_id, permission_code, effect, scope_type, scope_id,
+      expires_at
+    FROM permission_overrides
+    WHERE company_id = ${input.companyId}
+      AND (expires_at IS NULL OR expires_at > ${at}::timestamptz)
+      AND (
+        membership_id = ${input.oldMembershipId}
+        OR ${input.mergedMembershipId === undefined ? sql`false` : sql`membership_id = ${input.mergedMembershipId}`}
+      )
+    FOR UPDATE`);
+  const toMove = transferableOverrides(candidates, input, allowedPermissions, new Date(at));
+  if (toMove.length === 0) return;
+  await tx.execute(sql`
+    UPDATE permission_overrides SET membership_id = ${membershipId}
+    WHERE company_id = ${input.companyId} AND id IN (${sql.join(
+      toMove.map((row) => sql`${row.id}`),
+      sql`,`,
+    )})`);
+  for (const row of toMove)
     await audit.record({
       entity: 'permission_override',
       entityId: row.id,

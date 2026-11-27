@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { t } from '@pospay/i18n';
+import { permissionModuleName, t } from '@pospay/i18n';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { EmployeeAccessGrantForm } from './employee-access-grant-form';
@@ -7,8 +7,9 @@ import { EmployeeAccessGrantForm } from './employee-access-grant-form';
 // فروع زيادة واستثناء صلاحية مضمّن في «إعطاء الدخول» (080-b): الشاشة بتختارهم وبتطلعهم في
 // نفس الطلب، والنتيجة الظاهرة بعد الالتزام هي حالة الدخول الممنوحة.
 const post = vi.hoisted(() => vi.fn());
+const localeState = vi.hoisted(() => ({ locale: 'en' as 'ar' | 'en' }));
 vi.mock('@/shared/api/client', () => ({ apiClient: () => ({ POST: post }) }));
-vi.mock('@/shared/locale/locale-context', () => ({ useLocale: () => 'en' as const }));
+vi.mock('@/shared/locale/locale-context', () => ({ useLocale: () => localeState.locale }));
 
 const COMPANY = '01920000-0000-7000-8000-00000000000a';
 const BUSINESS = '01920000-0000-7000-8000-00000000000b';
@@ -101,6 +102,7 @@ const EXPECTED_OVERRIDE = {
 };
 
 beforeEach(() => {
+  localeState.locale = 'en';
   post.mockReset().mockResolvedValue({ data: ACTIVE, error: undefined });
 });
 
@@ -124,7 +126,9 @@ describe('the multi-branch grant on the employee access form', () => {
     ]);
     addExtraBranch();
     // الفرع المضاف ما بيتردش تاني، والفرع المؤرشف ما بيظهرش أصلاً.
-    expect(Array.from(picker().querySelectorAll('option')).map((option) => option.value)).toEqual(['']);
+    expect(Array.from(picker().querySelectorAll('option')).map((option) => option.value)).toEqual([
+      '',
+    ]);
     // والصف المضاف لسه بيعرض اسم الفرع.
     expect(screen.getByText(/Hawalli/)).toBeTruthy();
   });
@@ -143,9 +147,7 @@ describe('the multi-branch grant on the employee access form', () => {
     expect(screen.getByRole('button', { name: 'Remove the branch' })).toBeTruthy();
     fireEvent.click(screen.getByRole('button', { name: 'Grant access' }));
     await waitFor(() => expect(post).toHaveBeenCalledTimes(1));
-    expect(sentBody()['additional_branches']).toEqual([
-      { branch_id: EXTRA, role: 'reception' },
-    ]);
+    expect(sentBody()['additional_branches']).toEqual([{ branch_id: EXTRA, role: 'reception' }]);
     expect(await screen.findByText(/Access granted/)).toBeTruthy();
   });
 
@@ -175,7 +177,10 @@ describe('the multi-branch grant on the employee access form', () => {
 // سقف العقد 20: الشاشة بتوقف الزيادة عنده قبل ما السيرفر يرفض الطلب.
 describe('the extra-branch cap on the employee access form', () => {
   it('stops adding extra branches at the contract cap of twenty', () => {
-    renderForm([...CAP_BRANCHES, { id: PRIMARY, name_en: 'Salmiya', name_ar: null, is_active: true }]);
+    renderForm([
+      ...CAP_BRANCHES,
+      { id: PRIMARY, name_en: 'Salmiya', name_ar: null, is_active: true },
+    ]);
     fillBasics();
     for (const branch of CAP_BRANCHES.slice(0, 20)) {
       fireEvent.change(screen.getByLabelText('Extra branch'), { target: { value: branch.id } });
@@ -196,13 +201,17 @@ describe('the inline override picker on the employee access form', () => {
     const select = screen.getByLabelText(t('en', 'invitations.overridePermissionLabel'));
     const groups = Array.from(select.querySelectorAll('optgroup'));
     expect(groups.length).toBeGreaterThan(0);
-    const branches = groups.find((group) => group.getAttribute('label') === 'branches');
+    const branches = groups.find(
+      (group) => group.getAttribute('label') === permissionModuleName('en', 'branches'),
+    );
     expect(branches).toBeTruthy();
     // `read:branches:branch` افتراضي لدور الموظفة، فبيطلع بعلامة «افتراضي».
     expect(branches?.querySelector('option[value="read:branches:branch"]')?.textContent).toContain(
       '(default)',
     );
-    const salaries = groups.find((group) => group.getAttribute('label') === 'salaries');
+    const salaries = groups.find(
+      (group) => group.getAttribute('label') === permissionModuleName('en', 'salaries'),
+    );
     expect(
       salaries?.querySelector('option[value="read:salaries:business"]')?.textContent,
     ).not.toContain('(default)');
@@ -212,13 +221,18 @@ describe('the inline override picker on the employee access form', () => {
     renderForm();
     fillBasics();
     addOverride();
-    expect(screen.getByRole('button', { name: t('en', 'invitations.removeOverride') })).toBeTruthy();
+    expect(
+      screen.getByRole('button', { name: t('en', 'invitations.removeOverride') }),
+    ).toBeTruthy();
     fireEvent.click(screen.getByRole('button', { name: 'Grant access' }));
     await waitFor(() => expect(post).toHaveBeenCalledTimes(1));
     expect(sentBody()['permission_overrides']).toEqual([EXPECTED_OVERRIDE]);
     expect(await screen.findByText(/Access granted/)).toBeTruthy();
   });
+});
 
+// سقف العقد 20 على الاستثناءات: الشاشة بتوقف الزيادة عنده قبل ما السيرفر يرفض الطلب.
+describe('the inline exception cap on the employee access form', () => {
   it('stops adding inline exceptions at the contract cap of twenty', () => {
     renderForm();
     fillBasics();
@@ -238,9 +252,63 @@ describe('the inline override picker on the employee access form', () => {
       fireEvent.click(screen.getByRole('button', { name: t('en', 'invitations.addOverride') }));
     }
     expect(
-      (screen.getByRole('button', { name: t('en', 'invitations.addOverride') }) as HTMLButtonElement)
-        .disabled,
+      (
+        screen.getByRole('button', {
+          name: t('en', 'invitations.addOverride'),
+        }) as HTMLButtonElement
+      ).disabled,
     ).toBe(true);
     expect(screen.getByText('Up to 20 permission exceptions can be added.')).toBeTruthy();
+  });
+});
+
+// أسماء وحدات الصلاحيات والعلامة «افتراضي» بتتبع النطاق المختار.
+describe('the permission module names in the inline override picker', () => {
+  it('names every permission module in the interface language instead of the raw key', () => {
+    renderForm();
+    fillBasics();
+    const select = screen.getByLabelText(t('en', 'invitations.overridePermissionLabel'));
+    const labels = Array.from(select.querySelectorAll('optgroup')).map((group) =>
+      group.getAttribute('label'),
+    );
+    expect(labels).toContain(permissionModuleName('en', 'branches'));
+    expect(labels).toContain(permissionModuleName('en', 'salaries'));
+    expect(labels).not.toContain('branches');
+    expect(labels).not.toContain('salaries');
+  });
+
+  it('names the permission modules in Arabic when the interface is Arabic', () => {
+    localeState.locale = 'ar';
+    renderForm();
+    const select = screen.getByLabelText(t('ar', 'invitations.overridePermissionLabel'));
+    const groups = Array.from(select.querySelectorAll('optgroup'));
+    const branches = groups.find(
+      (group) => group.getAttribute('label') === permissionModuleName('ar', 'branches'),
+    );
+    expect(branches).toBeTruthy();
+    expect(branches?.getAttribute('label')).not.toBe('branches');
+  });
+
+  it('marks the default permissions of the branch the override targets', () => {
+    renderForm();
+    fillBasics();
+    addExtraBranch('reception');
+    const optionText = () =>
+      screen
+        .getByLabelText(t('en', 'invitations.overridePermissionLabel'))
+        .querySelector('option[value="create:customers:branch"]')?.textContent ?? '';
+    fireEvent.change(screen.getByLabelText(t('en', 'invitations.overrideScopeTypeLabel')), {
+      target: { value: 'BRANCH' },
+    });
+    fireEvent.change(screen.getByLabelText(t('en', 'invitations.overrideScopeIdLabel')), {
+      target: { value: PRIMARY },
+    });
+    // دور الفرع الأساسي «staff» ما فيهوش إنشاء عملاء، فمفيش علامة افتراضي.
+    expect(optionText()).not.toContain('(default)');
+    fireEvent.change(screen.getByLabelText(t('en', 'invitations.overrideScopeIdLabel')), {
+      target: { value: EXTRA },
+    });
+    // فرع الزيادة دوره «reception»، ودوره بفيه إنشاء العملاء، فالعلامة بتظهر.
+    expect(optionText()).toContain('(default)');
   });
 });

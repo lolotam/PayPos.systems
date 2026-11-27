@@ -85,6 +85,7 @@ export function EmployeeAccessFields({
         companyId={companyId}
         businessId={businessId}
         branches={branches}
+        primaryBranchId={primaryBranchId}
       />
     </>
   );

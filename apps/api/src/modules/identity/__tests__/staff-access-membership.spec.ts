@@ -169,27 +169,26 @@ it('080-b moving primary branch onto an extra branch preserves active DENY overr
 
 it('080-b moving the primary onto the merged extra branch transfers the active DENY and leaves the expired history', async () => {
   const employee = await addEmployee(f, 'Move transfer', f.salmiya, 505);
-  expect(
-    (
-      await grant(f, employee, nextPhone(f), f.ownerCookie, {
-        role: 'staff',
-        additional_branches: [{ branch_id: f.hawalli, role: 'reception' }],
-        permission_overrides: [
-          {
-            permission_code: 'read:attendance:branch',
-            effect: 'DENY',
-            scope_type: 'BRANCH',
-            scope_id: f.hawalli,
-            reason: 'keep the branch denied after the primary transfer',
-            expires_at: null,
-          },
-        ],
-      })
-    ).status,
-  ).toBe(200);
-  const [record] = await f.h.owner`SELECT id, user_id, membership_id FROM employee_staff_access WHERE employee_id=${employee}`;
-  const [extra] = await f.h.owner`SELECT membership_id FROM employee_staff_access_branches WHERE access_id=${record?.id}`;
-  const [owner] = await f.h.owner`SELECT id FROM "user" WHERE email='staff-access-owner@example.test'`;
+  const denyAttendance = {
+    permission_code: 'read:attendance:branch',
+    effect: 'DENY',
+    scope_type: 'BRANCH',
+    scope_id: f.hawalli,
+    reason: 'keep the branch denied after the primary transfer',
+    expires_at: null,
+  };
+  const response = await grant(f, employee, nextPhone(f), f.ownerCookie, {
+    role: 'staff',
+    additional_branches: [{ branch_id: f.hawalli, role: 'reception' }],
+    permission_overrides: [denyAttendance],
+  });
+  expect(response.status).toBe(200);
+  const [record] = await f.h
+    .owner`SELECT id, user_id, membership_id FROM employee_staff_access WHERE employee_id=${employee}`;
+  const [extra] = await f.h
+    .owner`SELECT membership_id FROM employee_staff_access_branches WHERE access_id=${record?.id}`;
+  const [owner] = await f.h
+    .owner`SELECT id FROM "user" WHERE email='staff-access-owner@example.test'`;
   const userId = record?.user_id as string;
   const oldPrimary = record?.membership_id as string;
   const mergedExtra = extra?.membership_id as string;
@@ -259,7 +258,8 @@ it('080-b a business-scoped DENY on the old primary moves with it while a branch
       })
     ).status,
   ).toBe(200);
-  const [record] = await f.h.owner`SELECT id, user_id, membership_id FROM employee_staff_access WHERE employee_id=${employee}`;
+  const [record] = await f.h
+    .owner`SELECT id, user_id, membership_id FROM employee_staff_access WHERE employee_id=${employee}`;
   const userId = record?.user_id as string;
   const oldPrimary = record?.membership_id as string;
   const [businessWide] = await f.h.owner`SELECT id FROM permission_overrides
@@ -285,4 +285,98 @@ it('080-b a business-scoped DENY on the old primary moves with it while a branch
   const stayedBranch = await f.h.owner`SELECT membership_id FROM permission_overrides
     WHERE company_id=${f.company} AND id=${branchWide?.id}`;
   expect(stayedBranch[0]?.['membership_id']).toBe(oldPrimary);
+});
+
+/** موظفة بدور أساسي «staff» وفرع زيادة «reception» مع استثناءي سماح على الفرع المدمج. */
+async function grantWithMergedAllows(name: string, employeeNumber: number) {
+  const employee = await addEmployee(f, name, f.salmiya, employeeNumber);
+  expect(
+    (
+      await grant(f, employee, nextPhone(f), f.ownerCookie, {
+        role: 'staff',
+        additional_branches: [{ branch_id: f.hawalli, role: 'reception' }],
+        permission_overrides: [
+          {
+            permission_code: 'read:service-sessions:branch',
+            effect: 'ALLOW',
+            scope_type: 'BRANCH',
+            scope_id: f.hawalli,
+            reason: 'allowed by every staff role',
+            expires_at: null,
+          },
+          {
+            permission_code: 'create:customers:branch',
+            effect: 'ALLOW',
+            scope_type: 'BRANCH',
+            scope_id: f.hawalli,
+            reason: 'allowed by the reception role only',
+            expires_at: null,
+          },
+        ],
+      })
+    ).status,
+  ).toBe(200);
+  const [record] = await f.h
+    .owner`SELECT id, user_id, membership_id FROM employee_staff_access WHERE employee_id=${employee}`;
+  const [extra] = await f.h
+    .owner`SELECT membership_id FROM employee_staff_access_branches WHERE access_id=${record?.id}`;
+  return {
+    userId: record?.user_id as string,
+    oldPrimary: record?.membership_id as string,
+    mergedExtra: extra?.membership_id as string,
+  };
+}
+
+/** ينقل الفرع الأساسي على الفرع المدمج بدور جديد ويرجّع العضوية الجديدة. */
+async function moveOntoMergedExtra(
+  input: { userId: string; oldPrimary: string; mergedExtra: string },
+  role: 'staff' | 'reception',
+): Promise<string> {
+  let moved = '';
+  await f.db.withTenant(f.company, async (tx) => {
+    await endExtraStaffMembership(tx, {
+      companyId: f.company,
+      membershipId: input.mergedExtra,
+      userId: input.userId,
+      ids,
+    });
+    const result = await moveStaffMembershipToBranch(tx, {
+      companyId: f.company,
+      oldMembershipId: input.oldPrimary,
+      userId: input.userId,
+      branchId: f.hawalli,
+      role,
+      ids,
+      mergedMembershipId: input.mergedExtra,
+    });
+    moved = result.membershipId;
+  });
+  return moved;
+}
+
+/** العضوية اللي الاستثناء اتنقل عليها بعد النقل — مقصورة على عضويات المستخدم ده. */
+const membershipOfOverride = async (userId: string, permissionCode: string) =>
+  (
+    await f.h.owner`SELECT membership_id FROM permission_overrides
+      WHERE company_id=${f.company} AND permission_code=${permissionCode}
+        AND membership_id IN (
+          SELECT id FROM memberships WHERE company_id=${f.company} AND user_id=${userId})`
+  )[0]?.['membership_id'];
+
+it('080-b an allow on the merged extra branch stays when the new primary role does not allow it', async () => {
+  const granted = await grantWithMergedAllows('Move allow kept', 507);
+  const moved = await moveOntoMergedExtra(granted, 'staff');
+  // «read:service-sessions:branch» مسموحة لدور الموظفة، فبنتقل.
+  expect(await membershipOfOverride(granted.userId, 'read:service-sessions:branch')).toBe(moved);
+  // «create:customers:branch» مسموحة لدور الاستقبال بس، فتفضل على العضوية القديمة.
+  expect(await membershipOfOverride(granted.userId, 'create:customers:branch')).toBe(
+    granted.mergedExtra,
+  );
+});
+
+it('080-b an allow on the merged extra branch moves when the new primary role allows it', async () => {
+  const granted = await grantWithMergedAllows('Move allow moved', 508);
+  const moved = await moveOntoMergedExtra(granted, 'reception');
+  expect(await membershipOfOverride(granted.userId, 'read:service-sessions:branch')).toBe(moved);
+  expect(await membershipOfOverride(granted.userId, 'create:customers:branch')).toBe(moved);
 });

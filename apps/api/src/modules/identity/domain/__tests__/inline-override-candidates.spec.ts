@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { orderOverrideCandidateMemberships } from '../inline-override-candidates.ts';
+import {
+  orderOverrideCandidateMemberships,
+  shouldTransferOverrideOnBranchMove,
+  type OverrideBranchMoveCandidate,
+} from '../inline-override-candidates.ts';
 
 interface Candidate {
   readonly membershipId: string;
@@ -81,5 +85,112 @@ describe('orderOverrideCandidateMemberships with a mixed-case scope id', () => {
       { scope_type: 'BRANCH', scope_id: 'branch-1' },
     );
     expect(ids(ordered)).toEqual(['primary', 'extra']);
+  });
+});
+
+// قاعدة أهلية نقل الاستثناء عند تغيير الفرع الأساسي (080-b) — قاعدة صافية بلا قاعدة بيانات.
+const AT = new Date('2026-11-27T00:00:00.000Z');
+
+const moveCandidate = (
+  overrides: Partial<OverrideBranchMoveCandidate> &
+    Pick<OverrideBranchMoveCandidate, 'source' | 'effect'>,
+): OverrideBranchMoveCandidate => ({
+  scopeType: 'BRANCH',
+  permissionCode: 'read:attendance:branch',
+  expiresAt: null,
+  ...overrides,
+});
+
+describe('shouldTransferOverrideOnBranchMove from the old primary', () => {
+  it('never transfers an override whose expiry has passed', () => {
+    const expired = new Date('2026-11-26T00:00:00.000Z');
+    expect(
+      shouldTransferOverrideOnBranchMove(
+        moveCandidate({
+          source: 'old_primary',
+          effect: 'DENY',
+          scopeType: 'COMPANY',
+          expiresAt: expired,
+        }),
+        [],
+        AT,
+      ),
+    ).toBe(false);
+  });
+
+  it('transfers a company or business deny', () => {
+    for (const scopeType of ['COMPANY', 'BUSINESS'] as const) {
+      expect(
+        shouldTransferOverrideOnBranchMove(
+          moveCandidate({ source: 'old_primary', effect: 'DENY', scopeType }),
+          [],
+          AT,
+        ),
+      ).toBe(true);
+    }
+  });
+
+  it('leaves an allow or a branch scoped deny on the old membership', () => {
+    for (const scopeType of ['COMPANY', 'BUSINESS'] as const) {
+      expect(
+        shouldTransferOverrideOnBranchMove(
+          moveCandidate({ source: 'old_primary', effect: 'ALLOW', scopeType }),
+          ['read:attendance:branch'],
+          AT,
+        ),
+      ).toBe(false);
+    }
+    for (const effect of ['ALLOW', 'DENY'] as const) {
+      expect(
+        shouldTransferOverrideOnBranchMove(
+          moveCandidate({ source: 'old_primary', effect, scopeType: 'BRANCH' }),
+          [],
+          AT,
+        ),
+      ).toBe(false);
+    }
+  });
+});
+
+describe('shouldTransferOverrideOnBranchMove from the merged extra branch', () => {
+  it('never transfers an override whose expiry has passed', () => {
+    expect(
+      shouldTransferOverrideOnBranchMove(
+        moveCandidate({
+          source: 'merged_extra',
+          effect: 'DENY',
+          expiresAt: new Date('2026-11-26T00:00:00.000Z'),
+        }),
+        ['read:attendance:branch'],
+        AT,
+      ),
+    ).toBe(false);
+  });
+
+  it('transfers a deny whatever the new role allows', () => {
+    expect(
+      shouldTransferOverrideOnBranchMove(
+        moveCandidate({ source: 'merged_extra', effect: 'DENY' }),
+        [],
+        AT,
+      ),
+    ).toBe(true);
+  });
+
+  it('transfers an allow only when the new role allows it', () => {
+    expect(
+      shouldTransferOverrideOnBranchMove(
+        moveCandidate({ source: 'merged_extra', effect: 'ALLOW' }),
+        ['read:attendance:branch'],
+        AT,
+      ),
+    ).toBe(true);
+    expect(
+      shouldTransferOverrideOnBranchMove(
+        moveCandidate({ source: 'merged_extra', effect: 'ALLOW' }),
+        ['read:commissions:own'],
+        AT,
+      ),
+    ).toBe(false);
   });
 });

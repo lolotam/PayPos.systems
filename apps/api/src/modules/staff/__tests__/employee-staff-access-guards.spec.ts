@@ -10,6 +10,7 @@ import {
   nextPhone,
   staffAccessFixture,
   staffUsersOf,
+  systemRoleId,
   type Fixture,
 } from '../../../../test/staff-access.fixture.ts';
 import { Authenticated } from '../../../shared/access.decorators.ts';
@@ -35,7 +36,10 @@ class TestStaffAccessSiblingController {
   }
 }
 
-const TEST_ROUTE_CONTROLLERS = [TestStaffAccessSubRouteController, TestStaffAccessSiblingController];
+const TEST_ROUTE_CONTROLLERS = [
+  TestStaffAccessSubRouteController,
+  TestStaffAccessSiblingController,
+];
 
 const ids = systemUuidV7();
 const ADMIN_ORIGIN = 'https://admin.example.test';
@@ -237,7 +241,8 @@ it('AC-ACT-11 a cancel without authority answers the same refusal with and witho
 // GR-003: فرع مؤرشف ما بياخدش دخول — القايمة بتفرشه على السيرفر كمان.
 it('080-b an archived extra branch is refused and writes nothing', async () => {
   const employee = await addEmployee(f, 'Archived branch', f.salmiya, 43);
-  await f.h.owner`UPDATE branches SET is_active=false WHERE company_id=${f.company} AND id=${f.hawalli}`;
+  await f.h
+    .owner`UPDATE branches SET is_active=false WHERE company_id=${f.company} AND id=${f.hawalli}`;
   try {
     const usersBefore = (await staffUsersOf(f)).length;
     const response = await grant(f, employee, nextPhone(f), f.ownerCookie, {
@@ -249,7 +254,8 @@ it('080-b an archived extra branch is refused and writes nothing', async () => {
     ).toHaveLength(0);
     expect((await staffUsersOf(f)).length).toBe(usersBefore);
   } finally {
-    await f.h.owner`UPDATE branches SET is_active=true WHERE company_id=${f.company} AND id=${f.hawalli}`;
+    await f.h
+      .owner`UPDATE branches SET is_active=true WHERE company_id=${f.company} AND id=${f.hawalli}`;
   }
 });
 
@@ -259,7 +265,8 @@ it('080-b a manager without authority on the extra branch cannot stop the access
   await grant(f, employee, nextPhone(f), f.ownerCookie, {
     additional_branches: [{ branch_id: f.hawalli, role: 'staff' }],
   });
-  const [record] = await f.h.owner`SELECT user_id FROM employee_staff_access WHERE employee_id = ${employee}`;
+  const [record] = await f.h
+    .owner`SELECT user_id FROM employee_staff_access WHERE employee_id = ${employee}`;
   const response = await f.h.send('DELETE', grantPath(f, employee), {
     cookie: f.managerCookie,
     company: f.company,
@@ -269,4 +276,41 @@ it('080-b a manager without authority on the extra branch cannot stop the access
     WHERE company_id=${f.company} AND user_id=${record?.user_id}`;
   expect(memberships).toHaveLength(2);
   expect(memberships.every((row) => row['ends_at'] === null)).toBe(true);
+});
+
+// 080-b: قراءة حالة الدخول بتغطي فروع الموظفة كلها — مدير السالمية ما يقدرش يدير موظفة
+// شغالة على حولي كمان، لحد ما السجل يقف وتتفضل فروعها القديمة مش شغالة.
+it('080-b the manager cannot manage an employee who also works on a branch he does not control', async () => {
+  const employee = await addEmployee(f, 'Multi branch manager', f.salmiya, 45);
+  // المدير يقرأ موظفة على السالمية وحولّي: صلاحية إدارة الموظفين على النشاط، وصلاحية
+  // «إعطاء الدخول» على السالمية بس (دور مدير الفرع).
+  await f.h
+    .owner`INSERT INTO memberships(company_id,id,user_id,role_id,role_owner_key,scope_type,scope_id)
+    VALUES (${f.company},${ids.newId()},${f.managerUserId},${systemRoleId('business_manager')},'global',
+      'BUSINESS',${f.business})`;
+  expect(
+    (
+      await grant(f, employee, nextPhone(f), f.ownerCookie, {
+        additional_branches: [{ branch_id: f.hawalli, role: 'staff' }],
+      })
+    ).status,
+  ).toBe(200);
+  const before = await f.h.send('GET', grantPath(f, employee), {
+    cookie: f.managerCookie,
+    company: f.company,
+  });
+  expect(before.status).toBe(200);
+  expect(before.body).toMatchObject({ can_manage: false, can_cancel: false });
+  // بعد إيقاف الدخول بالصلاحية الكاملة: موظفة على السالمية بس، فالمدير يرجّع يديرها.
+  const stopped = await f.h.send('DELETE', grantPath(f, employee), {
+    cookie: f.ownerCookie,
+    company: f.company,
+  });
+  expect(stopped.status).toBe(200);
+  const after = await f.h.send('GET', grantPath(f, employee), {
+    cookie: f.managerCookie,
+    company: f.company,
+  });
+  expect(after.status).toBe(200);
+  expect(after.body).toMatchObject({ state: 'STOPPED', can_manage: true });
 });

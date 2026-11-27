@@ -31,3 +31,45 @@ export function orderOverrideCandidateMemberships<
     ...rest,
   ];
 }
+
+/** بيانات استثناء مرشّح للنقل عند تغيير الفرع الأساسي للموظفة (080-b). */
+export interface OverrideBranchMoveCandidate {
+  /** مصدر العضوية: الأساسية القديمة أو الفرع الإضافي المدمج. */
+  readonly source: 'old_primary' | 'merged_extra';
+  /** أثر الاستثناء. */
+  readonly effect: 'ALLOW' | 'DENY';
+  /** نوع نطاق الاستثناء. */
+  readonly scopeType: ScopeType;
+  /** كود الصلاحية. */
+  readonly permissionCode: string;
+  /** نهاية المدة أو null. */
+  readonly expiresAt: Date | null;
+}
+
+/**
+ * يقرر هل ينتقل استثناء الصلاحية للعضوية الأساسية الجديدة عند نقل الفرع الأساسي:
+ * - المنتهي مدته لا ينتقل أبداً (`expiresAt !== null && expiresAt <= at`).
+ * - من العضوية الأساسية القديمة: ينتقل المنع (`DENY`) على نطاق الشركة أو النشاط فقط،
+ *   بينما استثناءات الفرع تبقى على العضوية القديمة وتنتهي معها (AC-F3-3).
+ * - من عضوية الفرع الإضافي المدمج: ينتقل المنع دائماً، والسماح ينتقل بس لو صلاحية
+ *   الدور الجديد تسمح بيه.
+ *
+ * @param candidate           الاستثناء المرشح ومصدر عضويته
+ * @param allowedPermissions  الصلاحيات المسموح بها لدور العضوية الجديدة
+ * @param at                  لحظة التنفيذ المعتمدة
+ * @returns true لو يجب نقل الاستثناء للعضوية الجديدة
+ */
+export function shouldTransferOverrideOnBranchMove(
+  candidate: OverrideBranchMoveCandidate,
+  allowedPermissions: readonly string[],
+  at: Date,
+): boolean {
+  if (candidate.expiresAt !== null && candidate.expiresAt <= at) return false;
+  if (candidate.source === 'old_primary') {
+    return (
+      candidate.effect === 'DENY' &&
+      (candidate.scopeType === 'COMPANY' || candidate.scopeType === 'BUSINESS')
+    );
+  }
+  return candidate.effect === 'DENY' || allowedPermissions.includes(candidate.permissionCode);
+}

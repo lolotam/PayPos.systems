@@ -1,13 +1,13 @@
 'use client';
 
 import type { PermissionOverrideInput } from '@pospay/contracts';
-import { PERMISSION_CATALOG_CODES, permissionName, t } from '@pospay/i18n';
+import { PERMISSION_CATALOG_CODES, permissionModuleName, permissionName, t } from '@pospay/i18n';
 import { Button, Label } from '@pospay/ui';
 import { useState } from 'react';
 import { useLocale } from '@/shared/locale/locale-context';
 import { extraBranchName, type StaffExtraBranchOption } from './employee-access-extra-branches';
 
-type OverrideScopeType = 'COMPANY' | 'BUSINESS' | 'BRANCH';
+export type OverrideScopeType = 'COMPANY' | 'BUSINESS' | 'BRANCH';
 
 /** سطر استثناء في القائمة: صلاحيته وأثره ونطاقه وزر شيله. */
 export function OverrideRow({
@@ -92,7 +92,7 @@ function OverrideDecisionFields({
       >
         <option value="">—</option>
         {[...permissionGroups()].map(([moduleKey, codes]) => (
-          <optgroup key={moduleKey} label={moduleKey}>
+          <optgroup key={moduleKey} label={permissionModuleName(locale, moduleKey)}>
             {codes.map((candidate) => (
               <option key={candidate} value={candidate}>
                 {permissionName(locale, candidate)} · {candidate}
@@ -230,8 +230,11 @@ export interface OverridePickerInput {
   readonly companyId: string;
   readonly businessId: string;
   readonly branches: readonly StaffExtraBranchOption[];
-  /** الصلاحيات اللي الدور المختار بيمنحها افتراضياً — بتطلع بعلامة «افتراضي». */
-  readonly defaults: ReadonlySet<string>;
+  /**
+   * الصلاحيات الافتراضية للنطاق المختار — بتطلع بعلامة «افتراضي». الخدمة بتتبع النطاق
+   * عشان استثناء على فرع إضافي يقارن بدور ذلك الفرع مش بدور الفرع الأساسي.
+   */
+  readonly defaultsForScope: (scopeType: OverrideScopeType, scopeId: string) => ReadonlySet<string>;
   /** هل وصلنا سقف الاستثناءات — التوليد مقفول فوقه. */
   readonly atLimit: boolean;
   readonly onAdd: (terms: PermissionOverrideInput) => void;
@@ -292,7 +295,7 @@ export function OverridePicker({
   companyId,
   businessId,
   branches,
-  defaults,
+  defaultsForScope,
   atLimit,
   onAdd,
 }: OverridePickerInput) {
@@ -304,6 +307,7 @@ export function OverridePicker({
   const [expiresAt, setExpiresAt] = useState('');
   const effectiveScopeId =
     scopeType === 'COMPANY' ? companyId : scopeType === 'BUSINESS' ? businessId : scopeId;
+  const defaults = defaultsForScope(scopeType, effectiveScopeId);
   const terms = readyOverrideTerms({
     code,
     effect,

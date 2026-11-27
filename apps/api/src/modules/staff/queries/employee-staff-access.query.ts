@@ -36,10 +36,17 @@ export interface EmployeeAccessStateReads {
    *
    * @param tx    معاملة القراءة داخل الشركة
    * @param input الشركة والقارئ والنشاط والفرع
+   * @param input.employeeId الموظفة — لو اتبعت، الفحص بيغطي فروعها الإضافية كمان (080-b)
    */
   authority(
     tx: Tx,
-    input: { companyId: string; actorUserId: string; businessId: string; branchId: string },
+    input: {
+      companyId: string;
+      actorUserId: string;
+      businessId: string;
+      branchId: string;
+      employeeId?: string | undefined;
+    },
   ): Promise<boolean>;
   /**
    * يقرأ حساب الدخول بمعرّف العملية لآخر ثلاثة أرقام من الهاتف فقط.
@@ -100,6 +107,7 @@ export async function readEmployeeStaffAccess(
     actorUserId: context.actorUserId,
     businessId: context.businessId,
     branchId: row.branchId,
+    employeeId: context.employeeId,
   });
   return projectState(tx, row, authority, reads, false, context);
 }
@@ -114,7 +122,13 @@ export async function readGrantedEmployeeStaffAccess(
   reads: EmployeeAccessStateReads,
 ): Promise<StaffAccessState | null> {
   const row = await reads.state(tx, context);
-  if (row === null || !(await reads.authority(tx, { ...context, branchId: row.branchId }))) return null;
+  if (row === null) return null;
+  const authority = await reads.authority(tx, {
+    ...context,
+    branchId: row.branchId,
+    employeeId: context.employeeId,
+  });
+  if (!authority) return null;
   return projectState(tx, row, true, reads, true, context);
 }
 
@@ -135,8 +149,7 @@ async function projectState(
         })
       : null;
   return staffAccessState.parse({
-    state:
-      record === null ? 'NONE' : record.state === 'CANCELLING' ? 'PENDING' : record.state,
+    state: record === null ? 'NONE' : record.state === 'CANCELLING' ? 'PENDING' : record.state,
     role: record?.roleCode ?? null,
     branch_id: record?.branchId ?? null,
     phone_last3: record?.userId != null ? (staffUser?.phoneLast3 ?? null) : null,

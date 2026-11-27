@@ -47,7 +47,12 @@ export async function applyStaffAccessOverrides(
   if (input.overrides.length === 0) return;
   const seed = input.memberships[0];
   if (seed === undefined) throw new StaffUserRefused('STAFF_ACCESS_OVERRIDE_REFUSED');
-  const batch = await permissionEditorBatch(tx, input.companyId, input.actorUserId, seed.membershipId);
+  const batch = await permissionEditorBatch(
+    tx,
+    input.companyId,
+    input.actorUserId,
+    seed.membershipId,
+  );
   for (const terms of input.overrides) {
     await applyOverride(tx, ids, input, batch, terms);
   }
@@ -75,6 +80,9 @@ function orderedCandidates(
 /**
  * الاستثناء بيتقيّم على كل عضوية مرشحة: إما التعديل مسموح ودورة القرار مسموحة، أو refusal.
  * لو مفيش ولا عضوية صلحت، بيرمي رفض ثابت واحد عشان ما يتفضحش سبب الرفض.
+ *
+ * معرّف النطاق بيتطبّع لحروف صغيرة قبل أي مقارنة: UUID مش حساس لحالة الأحرف، فالنطاق
+ * المكتوب بحرف كبير لازم يتعامل زي نفس النطاق المكتوب بحرف صغير.
  */
 async function applyOverride(
   tx: Tx,
@@ -87,15 +95,16 @@ async function applyOverride(
   batch: Awaited<ReturnType<typeof permissionEditorBatch>>,
   terms: OverrideTerms,
 ): Promise<void> {
-  for (const candidate of orderedCandidates(input.memberships, terms)) {
-    const context = await batch.forCandidate(candidate.membershipId, terms);
-    const failure = permissionEditFailure(terms, context, 'SAVE');
+  const canonicalTerms: OverrideTerms = { ...terms, scope_id: terms.scope_id.toLowerCase() };
+  for (const candidate of orderedCandidates(input.memberships, canonicalTerms)) {
+    const context = await batch.forCandidate(candidate.membershipId, canonicalTerms);
+    const failure = permissionEditFailure(canonicalTerms, context, 'SAVE');
     if (failure !== null) continue;
     const previous = await currentOverrides(
       tx,
       input.companyId,
       candidate.membershipId,
-      terms,
+      canonicalTerms,
       context.now,
     );
     const lifecycle = overrideLifecycleFailure(
@@ -110,7 +119,7 @@ async function applyOverride(
       ids,
       input,
       candidate.membershipId,
-      terms,
+      canonicalTerms,
       previous,
       context.now,
     );

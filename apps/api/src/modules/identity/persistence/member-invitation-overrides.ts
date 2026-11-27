@@ -16,10 +16,7 @@ import type {
 } from '../ports/member-invitations.port.ts';
 import { toRow, type InvitationRecord } from './member-invitation-records.ts';
 import { permissionEditorBatch } from './permission-editor-context.ts';
-import {
-  currentOverrides,
-  writeOverride,
-} from './permission-override-writer.ts';
+import { currentOverrides, writeOverride } from './permission-override-writer.ts';
 
 /** رفض جوّه معاملة الإتمام: بيرمي عشان الكتابة كلها تتراجع، وبيتحول لـ refusal بعد الـ rollback. */
 export class InvitationRefusedError extends Error {
@@ -114,6 +111,9 @@ export async function applyInvitationOverrides(
 /**
  * الاستثناء بيتقيّم على كل عضوية مرشحة: إما التعديل مسموح ودورة القرار مسموحة، أو رفض.
  * الرفض بيرجع من العضوية الأساسية عشان يبقى سبب الرفض واحد مهما كان الترتيب.
+ *
+ * معرّف النطاق بيتطبّع لحروف صغيرة قبل أي مقارنة: UUID مش حساس لحالة الأحرف، فالنطاق
+ * المكتوب بحرف كبير لازم يتعامل زي نفس النطاق المكتوب بحرف صغير.
  */
 async function applyOverride(
   tx: Tx,
@@ -124,16 +124,17 @@ async function applyOverride(
   terms: OverrideTerms,
 ): Promise<void> {
   const primary = memberships[0];
+  const canonicalTerms: OverrideTerms = { ...terms, scope_id: terms.scope_id.toLowerCase() };
   let primaryRefusal: MemberInvitationRefusal | null = null;
-  for (const candidate of orderOverrideCandidateMemberships(memberships, terms)) {
-    const context = await batch.forCandidate(candidate.membershipId, terms);
-    const failure = permissionEditFailure(terms, context, 'SAVE');
+  for (const candidate of orderOverrideCandidateMemberships(memberships, canonicalTerms)) {
+    const context = await batch.forCandidate(candidate.membershipId, canonicalTerms);
+    const failure = permissionEditFailure(canonicalTerms, context, 'SAVE');
     if (failure === null) {
       const previous = await currentOverrides(
         tx,
         input.companyId,
         candidate.membershipId,
-        terms,
+        canonicalTerms,
         context.now,
       );
       const lifecycle = overrideLifecycleFailure(
@@ -143,7 +144,15 @@ async function applyOverride(
         context.now,
       );
       if (lifecycle === null) {
-        await writeOverride(tx, ids, input, candidate.membershipId, terms, previous, context.now);
+        await writeOverride(
+          tx,
+          ids,
+          input,
+          candidate.membershipId,
+          canonicalTerms,
+          previous,
+          context.now,
+        );
         return;
       }
       if (candidate.membershipId === primary?.membershipId) primaryRefusal = lifecycle;
