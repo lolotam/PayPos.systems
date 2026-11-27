@@ -204,25 +204,14 @@ it('waits past 500 ms kill grace until renderer kill confirms exit before starti
     run: async (attempt) => {
       attempts += 1;
       if (attempts > 1) return true;
-      attempt.setRenderer({
-        async start() {
-          return undefined;
-        },
-        close: () => new Promise<void>(() => undefined),
-        kill: () =>
-          new Promise<void>((resolve) => {
-            releaseKill = () => {
-              killResolved = true;
-              resolve();
-            };
-          }),
-        isAvailable: () => false,
-        onUnavailable: () => undefined,
-        onAvailable: () => undefined,
-        async render() {
-          return new Uint8Array();
-        },
-      });
+      attempt.setRenderer(
+        stalledPendingRenderer((resolve) => {
+          releaseKill = () => {
+            killResolved = true;
+            resolve();
+          };
+        }),
+      );
       return false;
     },
   });
@@ -252,17 +241,8 @@ it('blocks replacement startup when renderer kill rejects while keeping session 
     run: async (attempt) => {
       attempts += 1;
       attempt.setRenderer({
-        async start() {
-          return undefined;
-        },
-        close: () => new Promise<void>(() => undefined),
+        ...stalledPendingRenderer(() => undefined),
         kill: () => Promise.reject(new Error('EPERM')),
-        isAvailable: () => false,
-        onUnavailable: () => undefined,
-        onAvailable: () => undefined,
-        async render() {
-          return new Uint8Array();
-        },
       });
       return false;
     },
@@ -292,7 +272,7 @@ function delayedCloseRenderer(onClosed: () => void): { renderer: DocumentRendere
   return {
     release: () => release(),
     renderer: {
-      start: async () => undefined,
+      ...stalledPendingRenderer(() => undefined),
       close: () =>
         new Promise<void>((resolve) => {
           release = () => {
@@ -300,11 +280,6 @@ function delayedCloseRenderer(onClosed: () => void): { renderer: DocumentRendere
             resolve();
           };
         }),
-      kill: () => new Promise<void>(() => undefined),
-      isAvailable: () => false,
-      onUnavailable: () => undefined,
-      onAvailable: () => undefined,
-      render: async () => new Uint8Array(),
     },
   };
 }
@@ -399,4 +374,41 @@ it('holds replacement under matching worker and PlaywrightDocumentRenderer close
   } finally {
     await session.close();
   }
+});
+
+it('invokes kill() at the worker closeGraceMs deadline even when PlaywrightDocumentRenderer has a longer closeGraceMs', async () => {
+  const { PlaywrightDocumentRenderer } = await import('@pospay/documents');
+  let killCalls = 0;
+  const session = trackDocumentStartup({
+    startupMs: 500,
+    closeGraceMs: 25,
+    retryDelaysMs: [0],
+    sleep: wait,
+    stopped: () => false,
+    onFailed: () => undefined,
+    run: async (attempt) => {
+      const renderer = new PlaywrightDocumentRenderer({
+        factory: {
+          launch: async () => ({
+            newContext: () => new Promise(() => undefined),
+            close: () => new Promise(() => undefined),
+            kill: async () => {
+              killCalls += 1;
+            },
+            on: () => undefined,
+          }),
+        },
+        closeGraceMs: 5_000,
+        sleep: wait,
+      });
+      attempt.setRenderer(renderer);
+      await renderer.start();
+      return true;
+    },
+  });
+  await session.started;
+  const startedAt = Date.now();
+  await session.close();
+  expect(killCalls).toBe(1);
+  expect(Date.now() - startedAt).toBeLessThan(1_000);
 });

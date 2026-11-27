@@ -115,10 +115,20 @@ export async function closeRendererWithinGrace(
   }
   const confirmedClose = confirmedCloseOf(renderer, closing);
   let closeConfirmed = false;
+  let closeSettled = false;
+  let closeRejected = false;
   void confirmedClose.then(() => {
     closeConfirmed = true;
   });
-  const pending = closing.then(() => undefined, () => undefined);
+  const pending = closing.then(
+    () => {
+      closeSettled = true;
+    },
+    () => {
+      closeSettled = true;
+      closeRejected = true;
+    },
+  );
   const grace = waitForGrace(graceMs);
   try {
     await Promise.race([pending, grace.done]);
@@ -126,7 +136,9 @@ export async function closeRendererWithinGrace(
     grace.stop();
   }
   if (closeConfirmed) return { confirmed: true, exit: Promise.resolve() };
-  if (renderer.unconfirmedExit != null) return { confirmed: false, exit: confirmedClose };
+  if (closeSettled && !closeRejected && renderer.unconfirmedExit != null) {
+    return { confirmed: false, exit: confirmedClose };
+  }
   return killAndTrackExit(renderer, confirmedClose);
 }
 

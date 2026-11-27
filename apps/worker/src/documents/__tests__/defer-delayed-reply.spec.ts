@@ -209,3 +209,47 @@ it('retries transient markFailed Redis errors in recordExternalJobFailure and su
     redis.disconnect();
   }
 });
+
+it('logs a warning instead of state FAILED when all markFailed retries fail in recordExternalJobFailure', async () => {
+  const { recordExternalJobFailure } = await import('../process-job.ts');
+  const redis = new Redis(redisUrl, { maxRetriesPerRequest: 1, enableOfflineQueue: false });
+  await whenRedisReady(redis);
+  const lines: string[] = [];
+  const logger = createLogger('info', {
+    events: WORKER_LOG_EVENTS,
+    destination: new Writable({
+      write(chunk, _encoding, done) {
+        lines.push(String(chunk));
+        done();
+      },
+    }),
+  });
+  const companyId = renderId();
+  const id = renderId();
+  const evalSpy = vi.spyOn(redis, 'eval').mockRejectedValue(new Error('ECONNRESET'));
+  try {
+    await recordExternalJobFailure(
+      {
+        finishedOn: Date.now(),
+        processedOn: Date.now() - 20,
+        data: { company_id: companyId, render_id: id, kind: 'fixture' },
+      } as unknown as Job,
+      { redis, logger, clock: { now: () => Date.now() } },
+    );
+    expect(evalSpy).toHaveBeenCalledTimes(3);
+    const parsed = lines.map((line) => JSON.parse(line) as Record<string, unknown>);
+    expect(parsed.some((entry) => entry['state'] === 'FAILED')).toBe(false);
+    expect(parsed).toContainEqual(
+      expect.objectContaining({
+        msg: 'document renderer unavailable',
+        company_id: companyId,
+        render_id: id,
+        error_code: 'DOCUMENT_RENDER_FAILED',
+        capability: { name: 'DOCUMENTS', state: 'UNAVAILABLE', reason: 'STATUS_WRITE_FAILED' },
+      }),
+    );
+  } finally {
+    evalSpy.mockRestore();
+    redis.disconnect();
+  }
+});

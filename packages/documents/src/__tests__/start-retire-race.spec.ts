@@ -339,3 +339,62 @@ it('closes the browser and gates replacement start when abort lands during post-
   expect(renderer.isAvailable()).toBe(true);
   await renderer.close();
 });
+
+it('retains the browser handle after a synchronous kill() throw so a later close() confirms exit', async () => {
+  let closeCalls = 0;
+  let releaseClose: (() => void) | undefined;
+  const renderer = new PlaywrightDocumentRenderer({
+    factory: {
+      launch: async () => ({
+        newContext: () => new Promise(() => undefined),
+        close: () => {
+          closeCalls += 1;
+          return new Promise<void>((resolve) => {
+            releaseClose = resolve;
+          });
+        },
+        kill: () => {
+          throw new Error('EPERM');
+        },
+        on: () => undefined,
+      }),
+    },
+    closeGraceMs: 40,
+  });
+  await renderer.start();
+  await expect(Promise.resolve(renderer.kill())).rejects.toThrow('EPERM');
+  expect(renderer.unconfirmedExit).not.toBeNull();
+  const closing = renderer.close();
+  await new Promise((resolve) => setTimeout(resolve, 10));
+  expect(closeCalls).toBe(1);
+  releaseClose?.();
+  await closing;
+  expect(renderer.unconfirmedExit).toBeNull();
+});
+
+it('clears the unconfirmed kill gate when an in-flight graceful close() subsequently succeeds', async () => {
+  let releaseClose: (() => void) | undefined;
+  const renderer = new PlaywrightDocumentRenderer({
+    factory: {
+      launch: async () => ({
+        newContext: () => new Promise(() => undefined),
+        close: () =>
+          new Promise<void>((resolve) => {
+            releaseClose = resolve;
+          }),
+        kill: () => Promise.reject(new Error('EPERM')),
+        on: () => undefined,
+      }),
+    },
+    closeGraceMs: 200,
+  });
+  await renderer.start();
+  const closing = renderer.close();
+  await expect(Promise.resolve(renderer.kill())).rejects.toThrow('EPERM');
+  const pendingExit = renderer.unconfirmedExit;
+  expect(pendingExit).not.toBeNull();
+  releaseClose?.();
+  await closing;
+  await pendingExit;
+  expect(renderer.unconfirmedExit).toBeNull();
+});

@@ -51,6 +51,7 @@ export class PlaywrightDocumentRenderer implements DocumentRenderer {
   #retiring: Promise<void> | null = null;
   #closingPromise: Promise<void> | null = null;
   #closingExit: Promise<void> | null = null;
+  #releaseClosingExit: (() => void) | null = null;
   #unavailable: Array<() => void> = [];
   #availableListeners: Array<() => void> = [];
 
@@ -85,8 +86,7 @@ export class PlaywrightDocumentRenderer implements DocumentRenderer {
       this.#closingExit === null &&
       this.#retiring === null &&
       this.#pendingCancel === null &&
-      this.#launchInFlight === null &&
-      this.#closingPromise === null;
+      this.#launchInFlight === null;
     return idle ? null : this.#drainExitGates();
   }
 
@@ -118,13 +118,7 @@ export class PlaywrightDocumentRenderer implements DocumentRenderer {
   }
 
   close(): Promise<void> {
-    this.#closing = true;
-    this.#relaunchNeeded = false;
-    this.#closeAbort.abort();
-    // الإطلاق المعلّق بيتلغي فورًا؛ المتصفح اللي يوصل بعدين بيتسجل في unconfirmedExit.
-    this.#launchController?.abort();
-    this.#clearStable();
-    this.#markUnavailable();
+    this.#beginShutdown();
     this.#closingPromise ??= this.#runClose().finally(() => {
       this.#closingPromise = null;
     });
@@ -132,27 +126,24 @@ export class PlaywrightDocumentRenderer implements DocumentRenderer {
   }
 
   kill(): void | Promise<void> {
-    this.#closing = true;
-    this.#relaunchNeeded = false;
-    this.#closeAbort.abort();
-    this.#launchController?.abort();
-    this.#clearStable();
-    this.#markUnavailable();
+    this.#beginShutdown();
     const browser = this.#browser ?? this.#closingBrowser;
     this.#browser = null;
     if (browser === null) return this.unconfirmedExit ?? undefined;
+    this.#closingBrowser = browser;
     if (typeof browser.kill !== 'function') {
-      this.#closingExit ??= new Promise<void>(() => undefined);
+      this.#openClosingGate();
       return Promise.reject(new Error('DOCUMENT_BROWSER_KILL_UNSUPPORTED'));
     }
     try {
       const result = browser.kill();
       if (result === undefined) {
-        this.#closingExit = null;
+        this.#confirmBrowserExit(browser);
         return this.unconfirmedExit ?? undefined;
       }
-      return this.#recordKillPromise(result);
+      return this.#recordKillPromise(browser, result);
     } catch (error) {
+      this.#openClosingGate();
       return Promise.reject(error instanceof Error ? error : new Error('DOCUMENT_BROWSER_KILL_FAILED'));
     }
   }
@@ -186,14 +177,12 @@ export class PlaywrightDocumentRenderer implements DocumentRenderer {
   async #drainExitGates(): Promise<void> {
     while (
       this.#launchInFlight !== null ||
-      this.#closingPromise !== null ||
       this.#closingExit !== null ||
       this.#retiring !== null ||
       this.#pendingCancel !== null
     ) {
-      const flight = this.#launchInFlight ?? this.#closingPromise;
-      if (flight !== null) {
-        await flight.catch(() => undefined);
+      if (this.#launchInFlight !== null) {
+        await this.#launchInFlight.catch(() => undefined);
         continue;
       }
       const gate = this.#closingExit ?? this.#retiring ?? this.#pendingCancel;
@@ -201,47 +190,62 @@ export class PlaywrightDocumentRenderer implements DocumentRenderer {
     }
   }
 
+  #beginShutdown(): void {
+    this.#closing = true;
+    this.#relaunchNeeded = false;
+    this.#closeAbort.abort();
+    this.#launchController?.abort();
+    this.#clearStable();
+    this.#markUnavailable();
+  }
+
+  #openClosingGate(): Promise<void> {
+    if (this.#closingExit !== null) return this.#closingExit;
+    const gate = new Promise<void>((resolve) => {
+      this.#releaseClosingExit = resolve;
+    });
+    this.#closingExit = gate;
+    return gate;
+  }
+
+  #confirmBrowserExit(browser: PdfBrowser): void {
+    if (this.#closingBrowser === browser) this.#closingBrowser = null;
+    const release = this.#releaseClosingExit;
+    this.#closingExit = null;
+    this.#releaseClosingExit = null;
+    release?.();
+  }
+
   async #runClose(): Promise<void> {
+    const priorClosing = this.#closingBrowser;
     if (this.#launchInFlight !== null) await this.#launchInFlight.catch(() => undefined);
-    const browser = this.#browser;
+    const browser = this.#browser ?? priorClosing;
     this.#browser = null;
     if (browser === null) return;
     this.#closingBrowser = browser;
-    let releaseInFlight: () => void = () => undefined;
-    const inFlightExit = new Promise<void>((resolve) => {
-      releaseInFlight = resolve;
-    });
-    this.#closingExit ??= inFlightExit;
-    try {
-      const outcome = await closeOrKill(browser, this.#closeGraceMs);
-      if (!outcome.confirmed) this.#recordUnconfirmedClose(outcome.exit);
-      else if (this.#closingExit === inFlightExit) this.#closingExit = null;
-    } finally {
-      releaseInFlight();
-      this.#closingBrowser = null;
-    }
+    this.#openClosingGate();
+    const outcome = await closeOrKill(browser, this.#closeGraceMs);
+    if (this.#closingBrowser !== browser) return;
+    if (outcome.confirmed) this.#confirmBrowserExit(browser);
+    else this.#recordUnconfirmedClose(browser, outcome.exit);
   }
 
-  #recordKillPromise(result: Promise<void>): Promise<void> {
-    const gate = result.then(
-      () => {
-        if (this.#closingExit === gate) this.#closingExit = null;
-      },
-      () => new Promise<void>(() => undefined),
-    );
-    this.#closingExit = gate;
+  #recordKillPromise(browser: PdfBrowser, result: Promise<void>): Promise<void> {
+    this.#openClosingGate();
     return result.then(async () => {
+      this.#confirmBrowserExit(browser);
       await this.unconfirmedExit;
     });
   }
 
-  #recordUnconfirmedClose(exit: Promise<void>): void {
-    const pending = exit.finally(() => {
-      if (this.#closingExit === pending) this.#closingExit = null;
+  #recordUnconfirmedClose(browser: PdfBrowser, exit: Promise<void>): void {
+    this.#closingBrowser = browser;
+    const gate = this.#openClosingGate();
+    const pending = gate.finally(() => {
       if (this.#pendingCancel === pending) this.#pendingCancel = null;
     });
-    this.#closingExit = pending;
     this.#pendingCancel = pending;
+    void exit.then(() => this.#confirmBrowserExit(browser));
     const err = new Error('DOCUMENT_CLOSE_UNCONFIRMED');
     this.#onLaunchError?.(err);
     this.#onUnconfirmedExit?.(err);
@@ -289,7 +293,7 @@ export class PlaywrightDocumentRenderer implements DocumentRenderer {
         controller.abort();
         if (this.#closing) {
           const outcome = await closeOrKill(browser, this.#closeGraceMs);
-          if (!outcome.confirmed) this.#recordUnconfirmedClose(outcome.exit);
+          if (!outcome.confirmed) this.#recordUnconfirmedClose(browser, outcome.exit);
           return;
         }
         this.#trackPendingCancel(waitRetiredExit(browser, this.#closeGraceMs));

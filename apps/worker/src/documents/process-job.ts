@@ -294,15 +294,17 @@ export async function recordExternalJobFailure(
   const processedOn = job.processedOn ?? deps.clock.now();
   const outcome = await writeTerminalFailureStatus(deps.redis, company_id, render_id, code);
   if (outcome.error !== undefined) {
-    logOutcome(deps.logger, {
-      company_id,
-      render_id,
-      kind,
-      state: 'FAILED',
-      duration_ms: deps.clock.now() - processedOn,
-      error_code: code,
-      error_class: rendererFailureText(outcome.error).error_class,
-    });
+    deps.logger.warn(
+      {
+        capability: { name: 'DOCUMENTS', state: 'UNAVAILABLE', reason: 'STATUS_WRITE_FAILED' },
+        company_id,
+        render_id,
+        kind,
+        error_code: code,
+        error_class: rendererFailureText(outcome.error).error_class,
+      },
+      'document renderer unavailable',
+    );
     return;
   }
   if (outcome.wrote !== true) return;
