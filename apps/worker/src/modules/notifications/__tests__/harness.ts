@@ -32,7 +32,9 @@ export const EMAIL_ENV = {
     'postgres://pospay_notifications:synthetic@127.0.0.1:5432/pospay',
 };
 
-export async function notificationHarness() {
+export async function notificationHarness(
+  options: { readonly emailChannel?: (now: () => Date) => FakeChannel<EmailRequest> } = {},
+) {
   const testDb = await createTestDatabase();
   await seedTwoTenants(testDb.ownerUrl);
   const ids = systemUuidV7();
@@ -42,7 +44,8 @@ export async function notificationHarness() {
   let suppressed = false;
   const clock = { now: () => new Date(current) };
   const channel = new FakeChannel(clock.now);
-  const emailChannel = new FakeChannel<EmailRequest>(clock.now);
+  const emailChannel =
+    options.emailChannel?.(clock.now) ?? new FakeChannel<EmailRequest>(clock.now);
   const registry = testRegistry();
   const module = createNotificationModule({
     database: db,
@@ -142,7 +145,11 @@ function testQueries(db: Database, owner: postgres.Sql) {
 }
 
 function testRequester(db: Database, ids: ReturnType<typeof systemUuidV7>) {
-  return async (recipient: Record<string, unknown> = {}, company: string = TENANT.A.company) => {
+  return async (
+    recipient: Record<string, unknown> = {},
+    company: string = TENANT.A.company,
+    eventType = 'AppointmentBooked',
+  ) => {
     const id = ids.newId();
     const payload = {
       notification_recipients: [
@@ -163,7 +170,7 @@ function testRequester(db: Database, ids: ReturnType<typeof systemUuidV7>) {
       appendOutboxEvent(tx, id, {
         aggregateType: 'test',
         aggregateId: id,
-        eventType: 'AppointmentBooked',
+        eventType,
         payload,
       }),
     );
@@ -172,7 +179,7 @@ function testRequester(db: Database, ids: ReturnType<typeof systemUuidV7>) {
       companyId: company,
       aggregateType: 'test',
       aggregateId: id,
-      eventType: 'AppointmentBooked',
+      eventType,
       payload,
       attempt: 1,
     };

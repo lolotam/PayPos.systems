@@ -60,7 +60,7 @@ export class SendNotification {
   private preflight(attempt: Attempt): TerminalResult | null {
     if (!mayStart(attempt.deadline, this.clock.now())) return refusedResult('DEADLINE_EXPIRED');
     const destination = attempt.channel === 'email' ? attempt.email : attempt.phone;
-    if (destination == null || !this.identity.matches(destination, attempt.identity))
+    if (destination == null || !this.identity.matches(destination, attempt.identity, attempt))
       return refusedResult('DESTINATION_INVALID');
     const failure = this.configuration.failure(attempt);
     return failure === null ? null : refusedResult(failure);

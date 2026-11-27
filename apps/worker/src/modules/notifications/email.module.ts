@@ -3,6 +3,7 @@ import { TEAM_ALERT_TEMPLATE_KEYS, type NotificationRecipient } from '@pospay/co
 import type { ClaimedEvent, Tx } from '@pospay/db';
 import {
   createEmailIdentity,
+  deriveOnboardingEnvelopeKey,
   readEmailConfiguration,
   renderOperationalEmail,
   ResendChannel,
@@ -10,12 +11,18 @@ import {
   type EmailConfiguration,
   type EmailRequest,
 } from '@pospay/notifications';
+import type { Attempt, NotificationInput } from './domain/attempt-status.ts';
 import type { Clock } from './ports/clock.port.ts';
 import type { IdGenerator } from './ports/id-generator.port.ts';
 import type { SuppressionGate } from './ports/suppression-gate.port.ts';
 import { createEmailChannelAdapter } from './persistence/email-channel.adapter.ts';
 import { createAuthorizationRepository } from './persistence/drizzle-authorization.repository.ts';
 import { createEmailSuppressionGate } from './persistence/drizzle-email-suppression.gate.ts';
+import {
+  isOnboardingTemplate,
+  onboardingDestinationMatches,
+  unsealAttempt,
+} from './persistence/onboarding-envelope.ts';
 import { AuthorizeNotification } from './use-cases/authorize-notification/authorize-notification.ts';
 
 export interface EmailModuleOptions {
@@ -55,9 +62,17 @@ export function createEmailModule(options: EmailModuleOptions) {
       ? createEmailIdentity(config.hashKey, config.hashKeyId)
       : null;
   const adminOrigin = config.adminOrigin ?? 'https://app.pospay.systems';
+  // إيميلات الترحيب بتتختم بمفتاح البصمة نفسه؛ من غيره ما فيش مظروف ينفك.
+  const envelopeKey = config.hashKey ? deriveOnboardingEnvelopeKey(config.hashKey) : null;
   const adapter = createEmailChannelAdapter(
     options.testing?.channel ?? liveChannel(options, config),
     adminOrigin,
+    envelopeKey === null
+      ? undefined
+      : (attempt) => {
+          const payload = unsealAttempt(attempt, envelopeKey, options.clock.now());
+          return payload === null ? null : { email: payload.email, payload };
+        },
   );
   return {
     capability: { enabled: config.enabled, reason: config.reason } as const,
@@ -65,8 +80,18 @@ export function createEmailModule(options: EmailModuleOptions) {
     matches: (
       destination: string,
       stored: Parameters<NonNullable<typeof identity>['matches']>[1],
-    ) => identity?.matches(destination, stored) ?? false,
-    authorize: emailAuthorizer(options, config, identity, adminOrigin),
+      attempt?: Attempt,
+    ) => {
+      if (attempt !== undefined && isOnboardingTemplate(attempt.templateKey)) {
+        if (envelopeKey === null) return false;
+        const payload = unsealAttempt(attempt, envelopeKey, options.clock.now());
+        if (payload === null) return false;
+        if (!onboardingDestinationMatches(payload, destination, envelopeKey)) return false;
+        return identity?.matches(payload.email, stored) ?? false;
+      }
+      return identity?.matches(destination, stored) ?? false;
+    },
+    authorize: emailAuthorizer(options, config, identity, adminOrigin, envelopeKey),
   };
 }
 
@@ -95,6 +120,7 @@ function emailAuthorizer(
   config: EmailConfiguration,
   identity: ReturnType<typeof createEmailIdentity> | null,
   adminOrigin: string,
+  envelopeKey: Buffer | null,
 ) {
   // لو مفتاح بصمة البريد ناقص، بنستعمل مفتاح عشوائي مؤقت في الذاكرة لتنبيهات الفريق عشان نسجّل FAILED / CONFIG_INVALID
   // بدل ما يسقط التنبيه في صمت (AL-Q6، ADR-0018 §11)؛ غير تنبيهات الفريق بيفضل يرمي EMAIL_DISABLED_HASH_UNAVAILABLE.
@@ -103,13 +129,6 @@ function emailAuthorizer(
     if (identity === null && !TEAM_ALERT_KEYS.has(recipient.template_key))
       throw new Error('EMAIL_DISABLED_HASH_UNAVAILABLE');
     const activeIdentity = identity ?? unconfiguredIdentity;
-    const prepared = renderOperationalEmail(
-      recipient.template_key,
-      recipient.template_revision,
-      recipient.locale ?? '',
-      recipient.safe_parameters,
-      adminOrigin,
-    );
     const authorizer = new AuthorizeNotification(
       createAuthorizationRepository(tx),
       identity === null
@@ -118,27 +137,122 @@ function emailAuthorizer(
       options.clock,
       options.ids,
     );
-    await authorizer.execute({
-      companyId: event.companyId,
-      sourceEventId: event.id,
-      businessId: scope.business_id ?? null,
-      branchId: scope.branch_id ?? null,
-      channel: 'email',
-      phone: '',
-      email: recipient.email,
-      identity: activeIdentity.identify(recipient.email),
-      locale: recipient.locale ?? null,
-      templateKey: recipient.template_key,
-      templateRevision: recipient.template_revision,
-      providerTemplateName: null,
-      safeParameters: [],
-      deadline: recipient.send_deadline == null ? null : new Date(recipient.send_deadline),
-      configurationFailure:
-        identity === null || (!config.enabled && options.testing === undefined)
-          ? 'CONFIG_INVALID'
-          : prepared === null
-            ? 'PARAMETERS_INVALID'
-            : null,
-    });
+    const input = {
+      options,
+      config,
+      identity,
+      activeIdentity,
+      adminOrigin,
+      envelopeKey,
+      event,
+      recipient,
+      scope,
+    };
+    await authorizer.execute(
+      isOnboardingTemplate(recipient.template_key)
+        ? onboardingNotificationInput(input)
+        : teamNotificationInput(input),
+    );
+  };
+}
+
+/** محاولة تنبيه الفريق: العنصر الصريح مفيش، والقالب جاهز من غير معاملات. */
+function teamNotificationInput(input: {
+  readonly options: EmailModuleOptions;
+  readonly config: EmailConfiguration;
+  readonly identity: ReturnType<typeof createEmailIdentity> | null;
+  readonly activeIdentity: ReturnType<typeof createEmailIdentity>;
+  readonly adminOrigin: string;
+  readonly event: ClaimedEvent;
+  readonly recipient: EmailRecipient;
+  readonly scope: EmailScope;
+}): NotificationInput {
+  const { options, config, identity, activeIdentity, adminOrigin, event, recipient, scope } = input;
+  const prepared = renderOperationalEmail(
+    recipient.template_key,
+    recipient.template_revision,
+    recipient.locale ?? '',
+    recipient.safe_parameters,
+    adminOrigin,
+  );
+  return {
+    companyId: event.companyId,
+    sourceEventId: event.id,
+    businessId: scope.business_id ?? null,
+    branchId: scope.branch_id ?? null,
+    channel: 'email',
+    phone: '',
+    email: recipient.email,
+    identity: activeIdentity.identify(recipient.email),
+    locale: recipient.locale ?? null,
+    templateKey: recipient.template_key,
+    templateRevision: recipient.template_revision,
+    providerTemplateName: null,
+    safeParameters: [],
+    deadline: recipient.send_deadline == null ? null : new Date(recipient.send_deadline),
+    configurationFailure:
+      identity === null || (!config.enabled && options.testing === undefined)
+        ? 'CONFIG_INVALID'
+        : prepared === null
+          ? 'PARAMETERS_INVALID'
+          : null,
+  };
+}
+
+/** إيميلات الترحيب: بتتفك من المظروف المشفّر، والمحوّلة ما بتتسجّلش أبداً. */
+function onboardingNotificationInput(input: {
+  readonly options: EmailModuleOptions;
+  readonly config: EmailConfiguration;
+  readonly activeIdentity: ReturnType<typeof createEmailIdentity>;
+  readonly adminOrigin: string;
+  readonly envelopeKey: Buffer | null;
+  readonly event: ClaimedEvent;
+  readonly recipient: EmailRecipient;
+  readonly scope: EmailScope;
+}): NotificationInput {
+  const { options, config, activeIdentity, adminOrigin, envelopeKey, event, recipient, scope } =
+    input;
+  const disabled = !config.enabled && options.testing === undefined;
+  const unsealed =
+    disabled || envelopeKey === null
+      ? null
+      : unsealAttempt(
+          {
+            companyId: event.companyId,
+            templateKey: recipient.template_key,
+            templateRevision: recipient.template_revision,
+            email: recipient.email,
+            safeParameters: recipient.safe_parameters,
+          },
+          envelopeKey,
+          options.clock.now(),
+        );
+  const prepared =
+    unsealed === null
+      ? null
+      : renderOperationalEmail(
+          recipient.template_key,
+          recipient.template_revision,
+          recipient.locale ?? '',
+          [unsealed],
+          adminOrigin,
+        );
+  const failure = disabled ? 'CONFIG_INVALID' : prepared === null ? 'PARAMETERS_INVALID' : null;
+  return {
+    companyId: event.companyId,
+    sourceEventId: event.id,
+    businessId: scope.business_id ?? null,
+    branchId: scope.branch_id ?? null,
+    channel: 'email',
+    phone: '',
+    email: recipient.email,
+    identity: activeIdentity.identify(unsealed?.email ?? recipient.email),
+    locale: recipient.locale ?? null,
+    templateKey: recipient.template_key,
+    templateRevision: recipient.template_revision,
+    providerTemplateName: null,
+    safeParameters: failure === null ? recipient.safe_parameters : [],
+    deadline: recipient.send_deadline == null ? null : new Date(recipient.send_deadline),
+    configurationFailure: failure,
   };
 }

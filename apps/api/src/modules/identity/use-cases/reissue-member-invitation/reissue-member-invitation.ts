@@ -75,7 +75,13 @@ export class ReissueMemberInvitation {
       }
       throw error;
     }
-    await this.#transactions.stampLink({ ...who, invitationId, at: now });
+    await this.#transactions.stampLink({
+      ...who,
+      invitationId,
+      at: now,
+      userId: claimed.userId,
+      link,
+    });
     return { invitation_id: invitationId, set_password_link: link };
   }
 }

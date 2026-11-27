@@ -64,7 +64,7 @@ export class EmailLayoutError extends Error {
  * @param value النص الخام
  * @returns النص بعد استبدال الرموز الخاصة
  */
-function escapeHtml(value: string): string {
+export function escapeHtml(value: string): string {
   return value.replace(/[&<>"']/g, (character) => ESCAPES.get(character) ?? character);
 }
 
@@ -81,7 +81,12 @@ function normalizeAdminOrigin(adminOrigin: string): string {
   } catch {
     throw new EmailLayoutError();
   }
-  if (url.protocol !== 'https:' || url.hostname === '' || url.username !== '' || url.password !== '')
+  if (
+    url.protocol !== 'https:' ||
+    url.hostname === '' ||
+    url.username !== '' ||
+    url.password !== ''
+  )
     throw new EmailLayoutError();
   if (url.search !== '' || url.hash !== '' || (url.pathname !== '' && url.pathname !== '/'))
     throw new EmailLayoutError();

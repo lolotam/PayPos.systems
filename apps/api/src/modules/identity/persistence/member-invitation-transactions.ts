@@ -2,6 +2,7 @@ import type { IdGenerator, TenantWrappers, Tx } from '@pospay/db';
 import { sql } from 'drizzle-orm';
 
 import { transactionWriters } from '../../../shared/adapters/transaction-writers.ts';
+import type { OnboardingEmailSealer } from '../../../shared/ports/onboarding-email.port.ts';
 import type { InvitationAssignment } from '../domain/invitable-roles.ts';
 import type {
   CompleteInvitationInput,
@@ -31,6 +32,7 @@ import {
   InvitationRefusedError,
   writeInvitationMemberships,
 } from './member-invitation-overrides.ts';
+import { appendMemberInvitationNotice } from './member-invitation-notice.ts';
 
 /** صف PENDING بيتعاد استخدامه بس من نفس الداعي بنفس الدور والنطاق؛ أي اختلاف بيرفض (P1-b). */
 function resumeRefused(row: InvitationRecord, input: OpenInvitationInput): boolean {
@@ -86,7 +88,8 @@ async function reclaimStaleRow(
   if (row.state !== 'PENDING' || row.user_id !== null || row.membership_id !== null) return false;
   if (new Date(row.created_at).getTime() >= staleBefore.getTime()) return false;
   const resumable = !resumeRefused(row, input);
-  const sameOperation = input.accountOperationId === undefined || input.accountOperationId === row.id;
+  const sameOperation =
+    input.accountOperationId === undefined || input.accountOperationId === row.id;
   if (resumable && sameOperation) return false;
   await tx.execute(sql`
     UPDATE member_invitations SET state = 'CANCELLED'
@@ -226,12 +229,7 @@ async function claimLink(tx: Tx, input: LinkClaimInput): Promise<LinkClaimOutcom
     return { claimed: false, refusal: 'MEMBER_INVITATION_EXISTS' };
   }
   if (
-    !(await activeMembership(
-      tx,
-      input.companyId,
-      invitation.membership_id,
-      invitation.user_id,
-    ))
+    !(await activeMembership(tx, input.companyId, invitation.membership_id, invitation.user_id))
   ) {
     return { claimed: false, refusal: 'MEMBER_INVITATION_EXISTS' };
   }
@@ -268,12 +266,7 @@ async function reissueClaim(
     return { refusal: 'MEMBER_INVITATION_NOT_REISSUEABLE' };
   }
   if (
-    !(await activeMembership(
-      tx,
-      input.companyId,
-      invitation.membership_id,
-      invitation.user_id,
-    ))
+    !(await activeMembership(tx, input.companyId, invitation.membership_id, invitation.user_id))
   ) {
     return { refusal: 'MEMBER_INVITATION_NOT_REISSUEABLE' };
   }
@@ -367,7 +360,14 @@ function staleFor(input: StaleInvitationInput) {
 async function stampIssuedLink(
   tx: Tx,
   ids: IdGenerator,
-  input: InvitationActor & { invitationId: string; at: Date },
+  input: InvitationActor & {
+    invitationId: string;
+    at: Date;
+    userId?: string | undefined;
+    link?: string | undefined;
+    email?: string | undefined;
+  },
+  sealer: OnboardingEmailSealer | undefined,
 ): Promise<void> {
   await tx.execute(sql`
     UPDATE member_invitations SET link_issued_at = ${input.at.toISOString()}::timestamptz
@@ -378,6 +378,7 @@ async function stampIssuedLink(
     action: 'link.issued',
     after: { invitation_id: input.invitationId },
   });
+  await appendMemberInvitationNotice(tx, ids, input, sealer);
 }
 
 /**
@@ -391,6 +392,7 @@ async function stampIssuedLink(
 export function createMemberInvitationTransactions(
   db: TenantWrappers,
   ids: IdGenerator,
+  onboardingSealer?: OnboardingEmailSealer,
 ): MemberInvitationTransactions {
   const run = <T>(actor: InvitationActor, work: (tx: Tx) => Promise<T>): Promise<T> =>
     db.withTenant(actor.companyId, work, { userId: actor.actorUserId });
@@ -442,6 +444,6 @@ export function createMemberInvitationTransactions(
     },
     claimLink: (input) => run(input, (tx) => claimLink(tx, input)),
     claimReissue: (input) => run(input, (tx) => reissueClaim(tx, ids, input)),
-    stampLink: (input) => run(input, (tx) => stampIssuedLink(tx, ids, input)),
+    stampLink: (input) => run(input, (tx) => stampIssuedLink(tx, ids, input, onboardingSealer)),
   };
 }

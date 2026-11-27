@@ -38,6 +38,33 @@ export {
   STAFF_PIN_RESET_OTP_KEY,
   STAFF_PIN_RESET_OTP_REVISION,
 } from './templates/staff-pin-reset-otp.ts';
+export {
+  STAFF_WELCOME_PIN_KEY,
+  STAFF_WELCOME_PIN_REVISION,
+  renderStaffWelcomePinEmail,
+  type StaffWelcomePinEmail,
+} from './templates/staff-welcome-pin.ts';
+export {
+  MEMBER_INVITATION_KEY,
+  MEMBER_INVITATION_REVISION,
+  renderMemberInvitationEmail,
+  type MemberInvitationEmail,
+} from './templates/member-invitation.ts';
+export {
+  deriveOnboardingEnvelopeKey,
+  maskOnboardingEmail,
+  onboardingPlaceholderEmail,
+  sealOnboardingEmailEnvelope,
+  unsealOnboardingEmailEnvelope,
+  ONBOARDING_EMAIL_CHUNK_SIZE,
+  ONBOARDING_EMAIL_PARAM_PREFIX,
+  ONBOARDING_PLACEHOLDER_DOMAIN,
+} from './onboarding-email-envelope.ts';
+export type {
+  OnboardingEmailPayload,
+  OnboardingEnvelopeAad,
+  OnboardingEnvelopeParameter,
+} from './onboarding-email-envelope.ts';
 export { ratingRequest } from './templates/rating-request.ts';
 export { genericNotice, validInAppTemplate } from './templates/generic-notice.ts';
 export { lateServiceSession } from './templates/late-service-session.ts';

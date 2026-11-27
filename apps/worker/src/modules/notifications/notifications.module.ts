@@ -1,10 +1,5 @@
 import { notificationRedisOptions } from '@pospay/notifications';
-import type {
-  ClaimedEvent,
-  DeliveryOutcome,
-  TenantWrappers,
-  Tx,
-} from '@pospay/db';
+import type { ClaimedEvent, DeliveryOutcome, TenantWrappers, Tx } from '@pospay/db';
 import {
   createPhoneIdentity,
   createTemplateRegistry,
@@ -19,6 +14,7 @@ import { Worker, type Job } from 'bullmq';
 import type { Redis } from 'ioredis';
 
 import type { Clock } from './ports/clock.port.ts';
+import type { Attempt, PhoneIdentity } from './domain/attempt-status.ts';
 import type { IdGenerator } from './ports/id-generator.port.ts';
 import type { RatingTokenSender } from './ports/channel.port.ts';
 import { resolveRatingPageOrigin } from './domain/rating-page-origin.ts';
@@ -168,8 +164,8 @@ function routeChannels(
         (attempt.channel === 'email' ? email.adapter : adapter).failure(attempt),
     },
     destinations: {
-      matches: (value: string, stored: Parameters<typeof identity.matches>[1]) =>
-        (stored.last3 === '' ? email : identity).matches(value, stored),
+      matches: (value: string, stored: PhoneIdentity, attempt?: Attempt) =>
+        (stored.last3 === '' ? email : identity).matches(value, stored, attempt),
     },
   };
 }
@@ -300,7 +296,7 @@ export function createEmailSendModule(options: {
     attempts,
     adapter,
     admission,
-    { matches: (value, stored) => options.email.matches(value, stored) },
+    { matches: (value, stored, attempt) => options.email.matches(value, stored, attempt) },
     adapter,
     options.clock,
     options.ids,

@@ -4,7 +4,10 @@ import { ApiError } from '../../../../shared/errors.ts';
 import type { Clock } from '../../../../shared/ports/clock.port.ts';
 import type { IdGenerator } from '../../../../shared/ports/id-generator.port.ts';
 import type { DomainEvent } from '../../../../shared/ports/outbox-writer.port.ts';
-import { collectInvitationAssignments, type InvitationAssignment } from '../../domain/invitable-roles.ts';
+import {
+  collectInvitationAssignments,
+  type InvitationAssignment,
+} from '../../domain/invitable-roles.ts';
 import { MEMBER_INVITED, type MemberInvited } from '../../events/published.ts';
 import {
   MemberLinkRefusedError,
@@ -32,7 +35,11 @@ export interface InviteMemberResult {
 }
 
 /** حدث MemberInvited من الصف المقفول: معرّفات الحالة والدور بس — مفيش إيميل ولا رابط ولا token. */
-function invitedEvent(row: MemberInvitationRow, membership: InvitedMembership, userId: string): DomainEvent {
+function invitedEvent(
+  row: MemberInvitationRow,
+  membership: InvitedMembership,
+  userId: string,
+): DomainEvent {
   const payload: MemberInvited = {
     invitation_id: row.id,
     user_id: userId,
@@ -156,7 +163,7 @@ export class InviteMember {
       await this.#abandonOwn(who, opened.invitationId);
       throw new ApiError(outcome.refusal);
     }
-    const link = await this.#issueLink(userId, who, opened.invitationId, now);
+    const link = await this.#issueLink(userId, who, opened.invitationId, now, input.email);
     if (!outcome.alreadyComplete) {
       for (const membershipId of outcome.membershipIds) {
         await this.#invalidator.invalidate(actor.companyId, membershipId);
@@ -305,6 +312,7 @@ export class InviteMember {
     who: InvitationActor,
     invitationId: string,
     now: Date,
+    email: string,
   ): Promise<string> {
     const claimed = await this.#transactions.claimLink({
       ...who,
@@ -325,7 +333,7 @@ export class InviteMember {
       if (error instanceof MemberLinkRefusedError) throw new ApiError('MEMBER_INVITATION_EXISTS');
       throw error;
     }
-    await this.#transactions.stampLink({ ...who, invitationId, at: now });
+    await this.#transactions.stampLink({ ...who, invitationId, at: now, userId, link, email });
     return link;
   }
 }

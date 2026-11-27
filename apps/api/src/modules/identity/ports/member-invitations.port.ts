@@ -241,10 +241,22 @@ export interface MemberInvitationTransactions {
   ): Promise<{ readonly userId: string } | { readonly refusal: ReissueRefusal }>;
   /**
    * بيختم وقت الإصدار الفعلي بعد كتابة التوكن، ويسجّل تدقيق «link.issued» بمعرّف الدعوة من غير أي سر.
+   * وبيرسل بريد الدعوة لو الـ userId والرابط موجودين: الرابط بيتختم قبل ما يوصل للـ outbox.
    *
    * @param input الفاعل ومعرف الدعوة ووقت الإصدار
+   * @param input.userId المستخدم المدعو، لو الدعوة ليها حساب
+   * @param input.link رابط تعيين كلمة المرور، لو اتصدر
+   * @param input.email إيميل المدعو، وقت ما الطلب لسه شايفه صريح
    */
-  stampLink(input: InvitationActor & { invitationId: string; at: Date }): Promise<void>;
+  stampLink(
+    input: InvitationActor & {
+      invitationId: string;
+      at: Date;
+      userId?: string | undefined;
+      link?: string | undefined;
+      email?: string | undefined;
+    },
+  ): Promise<void>;
 }
 
 /** حدود جداول الهوية لعملية الدعوة — الخدمة الوحيدة اللي تقدر تلمس جداول Better Auth. */

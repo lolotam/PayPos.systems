@@ -17,8 +17,9 @@ export interface DestinationIdentity {
    *
    * @param phone الوجهة المؤقتة للهاتف أو البريد
    * @param identity الهوية المخزنة
+   * @param attempt لقطة المحاولة؛ قوالب الترحيب بتفك المظروف منها قبل المطابقة
    */
-  matches(phone: string, identity: PhoneIdentity): boolean;
+  matches(phone: string, identity: PhoneIdentity, attempt?: Attempt): boolean;
 }
 export interface SendConfiguration {
   /** يرفض أي قالب غير معتمد أو معاملات حساسة قبل الإرسال.

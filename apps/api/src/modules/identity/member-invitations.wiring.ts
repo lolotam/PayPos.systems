@@ -5,6 +5,7 @@ import type { IdGenerator, TenantWrappers } from '@pospay/db';
 import type { Redis } from 'ioredis';
 
 import { AUTH_SERVICE } from '../../shared/session.guard.ts';
+import type { OnboardingEmailSealer } from '../../shared/ports/onboarding-email.port.ts';
 import { createGrantInvalidator } from './persistence/grant-invalidator.ts';
 import { createEndMembershipTransactions } from './persistence/end-membership-transactions.ts';
 import { createMemberAccounts } from './persistence/member-accounts.adapter.ts';
@@ -38,14 +39,15 @@ export function memberInvitationProviders(
   redis: Redis | undefined,
   adminOrigin: string | undefined,
   clock: { now(): Date },
+  onboardingSealer: OnboardingEmailSealer | undefined,
 ): Provider[] {
   const redirectTo = adminOrigin === undefined ? undefined : `${adminOrigin}/set-password`;
   const limiter = redis === undefined ? null : createInvitationRateLimiter(redis);
   return [
     { provide: INVITATION_RATE_LIMITER, useValue: limiter },
     passwordStateProvider(),
-    inviteMemberProvider(database, ids, redis, redirectTo, clock),
-    reissueMemberInvitationProvider(database, ids, redirectTo, clock),
+    inviteMemberProvider(database, ids, redis, redirectTo, clock, onboardingSealer),
+    reissueMemberInvitationProvider(database, ids, redirectTo, clock, onboardingSealer),
     endMembershipProvider(database, ids, redis, clock),
   ];
 }
@@ -67,6 +69,7 @@ function inviteMemberProvider(
   redis: Redis | undefined,
   redirectTo: string | undefined,
   clock: { now(): Date },
+  onboardingSealer: OnboardingEmailSealer | undefined,
 ): Provider {
   return {
     provide: InviteMember,
@@ -80,7 +83,7 @@ function inviteMemberProvider(
         return null;
       }
       return new InviteMember({
-        transactions: createMemberInvitationTransactions(database, ids),
+        transactions: createMemberInvitationTransactions(database, ids, onboardingSealer),
         accounts: createMemberAccounts(auth),
         limiter: rateLimiter,
         invalidator: createGrantInvalidator(redis),
@@ -100,6 +103,7 @@ function reissueMemberInvitationProvider(
   ids: IdGenerator,
   redirectTo: string | undefined,
   clock: { now(): Date },
+  onboardingSealer: OnboardingEmailSealer | undefined,
 ): Provider {
   return {
     provide: ReissueMemberInvitation,
@@ -113,7 +117,7 @@ function reissueMemberInvitationProvider(
         return null;
       }
       return new ReissueMemberInvitation({
-        transactions: createMemberInvitationTransactions(database, ids),
+        transactions: createMemberInvitationTransactions(database, ids, onboardingSealer),
         accounts: createMemberAccounts(auth),
         limiter: rateLimiter,
         clock,

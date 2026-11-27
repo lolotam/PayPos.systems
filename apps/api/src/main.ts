@@ -395,6 +395,8 @@ try {
       // البوابة بتتقرأ مرة واحدة هنا عند الإقلاع: مفيش مسار من شريحة 076 يوصل قبل ما تتدمج.
       staffAccessRoutes: staffAccessRoutesEnabled(process.env),
       ...memberInvitationsDependency(config),
+      // ختم إيميلات الترحيب: نفس مفتاح بصمة البريد في الـ worker؛ من غيره مفيش بريد ترحيب.
+      onboardingEmailKey: process.env['NOTIFICATION_EMAIL_HASH_KEY'] ?? null,
       ratingPageOrigin: config.RATING_PAGE_ORIGIN,
       push: readPushApiConfiguration(process.env),
       ratingLinksAvailable,

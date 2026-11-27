@@ -3,6 +3,7 @@ import type { IdGenerator, TenantWrappers } from '@pospay/db';
 import type { Redis } from 'ioredis';
 
 import { systemClock } from '../../shared/adapters/system-clock.ts';
+import type { OnboardingEmailSealer } from '../../shared/ports/onboarding-email.port.ts';
 import {
   STAFF_ACCESS_ROUTES_ENABLED,
   EmployeeAccessController,
@@ -28,8 +29,10 @@ import {
   createStopEmployeeStaffAccessSteps,
 } from './persistence/staff-access-stop.adapter.ts';
 import { createStaffAccessGrantAdmission } from './persistence/staff-access-admission.adapter.ts';
+import { createStaffWelcomePinDatabase } from './persistence/staff-welcome-pin.adapter.ts';
 import type { AuthFacadeForStaffAccess } from './ports/staff-access-auth.port.ts';
 import type { StaffAccessGrantCache, StaffAccessUserSteps } from './ports/staff-access.port.ts';
+import { StaffWelcomeGrantUseCase } from './staff-welcome-grant.ts';
 import { GrantEmployeeAccessUseCase } from './use-cases/grant-employee-access/grant-employee-access.ts';
 import { CancelPendingStaffAccessUseCase } from './use-cases/cancel-pending-staff-access/cancel-pending-staff-access.ts';
 import { ResetEmployeeStaffPinUseCase } from './use-cases/reset-employee-staff-pin/reset-employee-staff-pin.ts';
@@ -100,6 +103,44 @@ function stopProvider(deps: {
  *                        المسارات NOT_READY بدل ما تكتب بصمة بلا مفتاح
  * @returns الـ providers المضافة لموديول staff
  */
+/** مزوّد use case «إعطاء الدخول»: يربط الترحيب بالمعاملة نفسها بلا ملفات إضافية عند الاستعمال. */
+function grantAccessProvider(deps: {
+  database: TenantWrappers | undefined;
+  auth: AuthFacadeForStaffAccess | null;
+  users: StaffAccessUserSteps | null;
+  phoneHashSecret: Buffer | string | null;
+  cache: StaffAccessGrantCache;
+  ids: IdGenerator;
+  onboardingSealer: OnboardingEmailSealer | undefined;
+}): Provider {
+  const { database, auth, users, phoneHashSecret, cache, ids, onboardingSealer } = deps;
+  const steps =
+    database === undefined ||
+    auth === null ||
+    phoneHashSecret === null ||
+    phoneHashSecret.length === 0
+      ? null
+      : createGrantEmployeeAccessSteps(
+          createStaffWelcomePinDatabase(database, onboardingSealer, ids),
+          auth,
+          phoneHashSecret,
+        );
+  return {
+    provide: GrantEmployeeAccessUseCase,
+    useValue:
+      steps === null || users === null
+        ? null
+        : new StaffWelcomeGrantUseCase(
+            steps,
+            users,
+            cache,
+            systemClock,
+            ids,
+            createStaffAccessGrantAdmission(),
+          ),
+  };
+}
+
 export function staffAccessProviders(
   database: TenantWrappers | undefined,
   redis: Redis | undefined,
@@ -107,17 +148,11 @@ export function staffAccessProviders(
   auth: AuthFacadeForStaffAccess | null,
   routesEnabled: boolean,
   phoneHashSecret: Buffer | string | null = null,
+  onboardingSealer?: OnboardingEmailSealer,
 ): Provider[] {
   const cache = createStaffAccessGrantCache(redis);
   const users = auth === null ? null : createStaffAccessUserSteps(auth);
   const cancelUser = auth === null ? null : createStaffAccessCancelUser(auth);
-  const steps =
-    database === undefined ||
-    auth === null ||
-    phoneHashSecret === null ||
-    phoneHashSecret.length === 0
-      ? null
-      : createGrantEmployeeAccessSteps(database, auth, phoneHashSecret);
   const cancelSteps = database === undefined ? null : createCancelPendingStaffAccessSteps(database);
   const resetSteps = database === undefined ? null : createResetEmployeeStaffPinSteps(database);
   return [
@@ -127,20 +162,15 @@ export function staffAccessProviders(
       useValue:
         database === undefined || auth === null ? null : createEmployeeAccessStateReads(auth),
     },
-    {
-      provide: GrantEmployeeAccessUseCase,
-      useValue:
-        steps === null || users === null
-          ? null
-          : new GrantEmployeeAccessUseCase(
-              steps,
-              users,
-              cache,
-              systemClock,
-              ids,
-              createStaffAccessGrantAdmission(),
-            ),
-    },
+    grantAccessProvider({
+      database,
+      auth,
+      users,
+      phoneHashSecret,
+      cache,
+      ids,
+      onboardingSealer,
+    }),
     {
       provide: CancelPendingStaffAccessUseCase,
       useValue:
