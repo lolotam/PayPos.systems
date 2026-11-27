@@ -9,7 +9,7 @@ import { WaitingScreen } from '@/device/ui/waiting-screen';
 
 import { LoadingNotice } from './loading-notice';
 
-/** الرجوع في كود الاقتران بس ومن غير طلب شغال؛ عدم الدعم ما بيثبتش إن الجهاز غير مقترن. */
+/** الرجوع بيظهر في كود الاقتران من غير طلب شغال، وفي شاشة عدم الدعم بس لما القراءة تأكد إن الجهاز مش مقترن. */
 export function DeviceBody({
   session,
   startOver,
@@ -50,7 +50,15 @@ export function DeviceBody({
     );
   }
   if (screen.kind === 'offline') return <OfflineNotice onRetry={session.retry} />;
-  if (screen.kind === 'unsupported') return <UnsupportedNotice />;
+  if (screen.kind === 'unsupported') {
+    // الجهاز المقترن ما يقدرش يرجع: الاقتران لسه شغال، والرجوع بيمسحه.
+    return (
+      <>
+        <UnsupportedNotice />
+        {screen.canStartOver ? startOver : null}
+      </>
+    );
+  }
   return (
     <ReceptionBody
       key={`${screen.branchId}:${screen.deviceId}`}

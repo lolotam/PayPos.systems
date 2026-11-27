@@ -110,3 +110,24 @@ describe('PersonalScreen props', () => {
     expect(screen.queryByText('the gate says no')).toBeNull();
   });
 });
+
+describe('PersonalScreen notice', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    window.history.replaceState({}, '', '/');
+  });
+
+  it('shows the alert inside the frame, under the header', () => {
+    mount({ notice: <p role="alert">test alert</p> });
+
+    const alert = screen.getByRole('alert');
+    const main = screen.getByRole('main');
+    const header = document.querySelector('header');
+
+    expect(main.contains(alert)).toBe(true);
+    expect(header).not.toBeNull();
+    expect(
+      (header?.compareDocumentPosition(main) ?? 0) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+  });
+});

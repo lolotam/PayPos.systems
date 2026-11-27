@@ -5,14 +5,21 @@
 **/*.env
 !**/.env.example
 !**/*.env.example
+# Signing material of the native shell: a key file must never reach a build stage (ADR-0055).
+**/*.p12
+**/*.jks
+**/*.keystore
+**/*.p8
+**/*.pem
+**/*.key
+**/*.pfx
 **/node_modules
 **/dist
 **/dist-native
 **/.turbo
 **/.next
 **/coverage
-apps/business/ios
-apps/business/android
+apps/business
 .git
 .github
 *.log

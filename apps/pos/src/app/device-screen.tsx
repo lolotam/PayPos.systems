@@ -12,14 +12,17 @@ import { DeviceBody } from './device-body';
 export function DeviceScreen({
   startOver,
   locked = false,
+  notice,
 }: {
   startOver?: ReactNode;
   locked?: boolean;
+  notice?: ReactNode;
 }) {
   const locale = useLocale();
   const session = useDeviceSession();
   return (
     <AppFrame brand={t(locale, 'pos.appName')} actions={<LocaleSwitch />}>
+      {notice}
       <DeviceBody session={session} startOver={startOver} locked={locked} />
     </AppFrame>
   );

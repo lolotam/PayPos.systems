@@ -34,27 +34,30 @@ export function NativeEntry() {
   if (state.kind === 'flow') {
     const alertText = state.alert ? t(locale, FLOW_ALERT_KEYS[state.alert]) : null;
     const connect = <PasteLinkForm onConnect={(next) => void onLink(next)} locked={busy} />;
-    return (
-      <>
-        {alertText ? (
-          <p role="alert" className={ALERT_CLASS}>
-            {alertText}
-          </p>
-        ) : null}
-        {state.role === 'counter' ? (
-          <DeviceScreen startOver={back} locked={busy} />
-        ) : (
-          <EmployeeFlow
-            business={state.business}
-            pending={state.pending ?? null}
-            busy={busy}
-            connect={connect}
-            startOver={back}
-            onConfirm={confirm}
-            onCancel={cancel}
-          />
-        )}
-      </>
+    // التنبيه بينزل جوه إطار الشاشة عشان يبقى فوق المحتوى مش فوق الصفحة كلها.
+    const alertBanner = alertText ? (
+      <p role="alert" className={ALERT_CLASS}>
+        {alertText}
+      </p>
+    ) : undefined;
+    return state.role === 'counter' ? (
+      <DeviceScreen
+        startOver={back}
+        locked={busy}
+        {...(alertBanner === undefined ? {} : { notice: alertBanner })}
+      />
+    ) : (
+      <EmployeeFlow
+        business={state.business}
+        businessUnreadable={state.businessUnreadable === true}
+        pending={state.pending ?? null}
+        busy={busy}
+        connect={connect}
+        startOver={back}
+        onConfirm={confirm}
+        onCancel={cancel}
+        {...(alertBanner === undefined ? {} : { notice: alertBanner })}
+      />
     );
   }
   return state.alert === undefined ? (

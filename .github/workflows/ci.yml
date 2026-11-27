@@ -476,6 +476,14 @@ jobs:
           for file in .env .env.production apps/api/.env apps/api/.env.production apps/admin/.env apps/pos/.env packages/db/.env.local deploy/backup/backup.env; do
             echo "DECOY=never-in-an-image" > "$file"
           done
+          # The native shell stays out of every image, signing material included.
+          mkdir -p apps/business/.secrets
+          echo "DECOY=never-in-an-image" > apps/business/.secrets/decoy.p12
+          echo "DECOY=never-in-an-image" > apps/business/.secrets/decoy.jks
+          # Exercise every recursive signing-key pattern outside apps/business as well.
+          for ext in p12 jks keystore p8 pfx pem key; do
+            echo "DECOY=never-in-an-image" > "apps/pos/decoy.$ext"
+          done
 
       # Build the shared stage alone, then cap target builds at two processes to contain runner memory use.
       - name: build api · migrate · ops · worker · backup · postgres · admin · pos (and the build stage)
@@ -513,7 +521,7 @@ jobs:
           done
           [ "$failed" -eq 0 ]
 
-      - name: no env file in any image or build stage
+      - name: no secret file or native shell in any image or build stage
         run: |
           set -euo pipefail
           leaked=0
@@ -525,12 +533,20 @@ jobs:
             images="$images $REGISTRY_LC/pospay-admin-staging:$SHA $REGISTRY_LC/pospay-pos-staging:$SHA"
             images="$images $REGISTRY_LC/pospay-admin-prod:$SHA $REGISTRY_LC/pospay-pos-prod:$SHA"
           fi
-          search='find / \( -name ".env" -o -name ".env.*" -o -name "*.env" \) ! -name "*.env.example" ! -name ".env.example" -not -path "/proc/*" 2>/dev/null; true'
+          # The signing extensions are listed by name; generic `*.pem` and `*.key` are left out because OS images
+          # carry their own certificates under /etc/ssl, while explicit `decoy.pem`/`decoy.key` prove the recursive ignore.
+          search='find / \( -path /proc -o -path /sys -o -path /dev \) -prune -o \( -name ".env" -o -name ".env.*" -o -name "*.env" -o -name "*.p12" -o -name "*.jks" -o -name "*.keystore" -o -name "*.p8" -o -name "*.pfx" -o -name "decoy.pem" -o -name "decoy.key" -o -path "*/apps/business/.secrets*" \) ! -name "*.env.example" ! -name ".env.example" -print'
           for image in $images; do
             # A failed inspection fails the step (set -e); it never counts as "nothing found".
-            found="$(docker run --rm --entrypoint sh "$image" -c "$search")"
+            found="$(docker run --rm --user 0 --entrypoint sh "$image" -c "$search")"
             if [ -n "$found" ]; then echo "::error::$image contains: $found"; leaked=1; fi
           done
+          # The build stage carries the source tree; pnpm install creates /repo/apps/business/node_modules from the
+          # workspace lockfile, while .dockerignore must keep every source, config and secret file of apps/business out.
+          business_tree="$(docker run --rm --entrypoint sh pospay-build-stage:check -c 'if [ -d /repo/apps/business ]; then find /repo/apps/business -mindepth 1 -maxdepth 1 ! -name node_modules; fi')"
+          if [ -n "$business_tree" ]; then
+            echo "::error::pospay-build-stage:check contains: $business_tree"; leaked=1
+          fi
           [ "$leaked" -eq 0 ]
 
       - name: push (main only)
