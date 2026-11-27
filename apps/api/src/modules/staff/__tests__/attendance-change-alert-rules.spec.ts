@@ -90,56 +90,50 @@ const employeeAt = async (branchId: string, userId: string | null = null) => {
   return id;
 };
 
-it('62-2b: a switched-off kind keeps the event and drops its recipients', async () => {
+it('62-2b: a switched-off kind writes no outbox row at all (#457)', async () => {
   await saveRule('ATTENDANCE_CHANGE_REQUESTED', false);
   try {
     const request = await file();
-    const rows = await outbox(request.id);
-    expect(rows).toMatchObject([{ event_type: 'AttendanceChangeRequested' }]);
-    expect(rows[0]?.['payload']).toMatchObject({ request_id: request.id, kind: 'ADD_SESSION' });
-    expect(rows[0]?.['payload']).not.toHaveProperty('notification_recipients');
+    expect(await outbox(request.id)).toEqual([]);
   } finally {
     await clearRules();
   }
 });
 
-it('62-2b: a switched-off decision kind drops the decision notice only', async () => {
+it('62-2b: a switched-off decision kind drops the decision row only (#457)', async () => {
   await saveRule('ATTENDANCE_CHANGE_DECIDED', false);
   try {
     const request = await file();
     await approve(request.id);
     const rows = await outbox(request.id);
-    expect(rows.map((row) => row['event_type'])).toEqual([
-      'AttendanceChangeRequested',
-      'AttendanceChangeDecided',
-    ]);
+    expect(rows.map((row) => row['event_type'])).toEqual(['AttendanceChangeRequested']);
     expect(await recipients(request.id, 'AttendanceChangeRequested')).toEqual([f.owner]);
-    expect(rows[1]?.['payload']).not.toHaveProperty('notification_recipients');
   } finally {
     await clearRules();
   }
 });
 
-it('62-2b: the master switch stops both kinds', async () => {
+it('62-2b: the master switch stops both kinds and writes nothing (#457)', async () => {
   await setMaster(false);
   try {
     const request = await file();
     await approve(request.id);
-    const rows = await outbox(request.id);
-    expect(rows).toHaveLength(2);
-    for (const row of rows) expect(row['payload']).not.toHaveProperty('notification_recipients');
+    expect(await outbox(request.id)).toEqual([]);
   } finally {
     await setMaster(null);
   }
 });
 
-it('62-2b: a branch override switches the kind off for its branch only', async () => {
+it('62-2b: a branch override switches the kind off for its branch only (#457)', async () => {
   await saveRule('ATTENDANCE_CHANGE_REQUESTED', true);
   await saveRule('ATTENDANCE_CHANGE_REQUESTED', false, f.branch);
   try {
     const here = await file();
     const elsewhere = await file(await employeeAt(f.secondBranch));
-    expect(await recipients(here.id, 'AttendanceChangeRequested')).toEqual([]);
+    expect(await outbox(here.id)).toEqual([]);
+    expect((await outbox(elsewhere.id)).map((row) => row['event_type'])).toEqual([
+      'AttendanceChangeRequested',
+    ]);
     expect(await recipients(elsewhere.id, 'AttendanceChangeRequested')).toEqual([f.owner]);
   } finally {
     await clearRules();

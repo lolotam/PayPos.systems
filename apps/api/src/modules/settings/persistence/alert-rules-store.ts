@@ -122,15 +122,19 @@ function scopeFor(tx: Tx, companyId: string, userId: string, ids: IdGenerator): 
       return row === undefined ? null : toStoredAlertRule(row);
     },
     lockMaster: async (businessId) => {
-      await tx.execute(sql`INSERT INTO business_settings (company_id, business_id)
-        VALUES (${companyId}, ${businessId}) ON CONFLICT (company_id, business_id) DO NOTHING`);
+      // القفل الاستشاري بدل صف مبكّر: طلب ما بيغيّرش مايعملش صف، وكتابتين أول مرة بتتقفوا على بعض.
+      await tx.execute(
+        sql`SELECT pg_advisory_xact_lock(hashtextextended('business_settings:alerts_enabled:' || ${companyId}::text || ':' || ${businessId}::text, 0))`,
+      );
       const [row] = await tx.execute<{ alerts_enabled: boolean | null }>(sql`SELECT alerts_enabled
         FROM business_settings WHERE company_id = ${companyId} AND business_id = ${businessId} FOR UPDATE`);
       return row?.alerts_enabled ?? null;
     },
     saveMaster: async (businessId, enabled) => {
-      await tx.execute(sql`UPDATE business_settings SET alerts_enabled = ${enabled}
-        WHERE company_id = ${companyId} AND business_id = ${businessId}`);
+      // الكتابة بتعمل الصف لو مش موجود؛ الصف الموجود بيتغير فيه المفتاح بس، من غير ما updated_at يتلمس.
+      await tx.execute(sql`INSERT INTO business_settings (company_id, business_id, alerts_enabled)
+        VALUES (${companyId}, ${businessId}, ${enabled})
+        ON CONFLICT (company_id, business_id) DO UPDATE SET alerts_enabled = EXCLUDED.alerts_enabled`);
     },
   };
 }

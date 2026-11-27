@@ -187,6 +187,10 @@ async function events(
     context.employeeUserId,
     alertRules,
   );
+  // القاعدة المقفولة (النوع مطفي، أو تعديل الفرع مطفي، أو المفتاح العام مقفول) ماعندهاش قناة: مفيش
+  // إشعار ومفيش حدث، فمفيش سطر في الـ outbox خالص (#457). القاعدة المفتوحة بيكتب الحدث حتى لو مفيش
+  // مستلمين (كل المستلمين استُثنوا كفاعل)، عشان باقي النظام يشوف الواقعة.
+  if (channels.length === 0) return;
   const groups = noticeGroups(row, { users, channels, contacts });
   const facts = {
     request_id: row.id,

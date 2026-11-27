@@ -1,3 +1,4 @@
+import { businessSettings } from '@pospay/contracts';
 import { afterAll, beforeAll, expect, it } from 'vitest';
 
 import { permissionFixture, type PermissionFixture } from '../../../../test/permissions-fixture.ts';
@@ -25,6 +26,28 @@ const names = (label: string) =>
     body: { official_name_ar: `صالون ${label}`, official_name_en: `Salon ${label}` },
   });
 
+// نشاط جديد لكل حالة (#480): صف إعداداته لسه مش موجود، فحالة اللي قبلها ماتأثرش عليها.
+const freshBusiness = async () => {
+  const id = f.ids.newId();
+  await f.h.owner`INSERT INTO businesses (company_id, id, name_en, vertical_type)
+    VALUES (${f.company}, ${id}, 'Synthetic master business', 'salon')`;
+  return id;
+};
+const setMaster = (business: string, alerts_enabled: boolean) =>
+  f.h.send('PUT', `/v1/businesses/${business}/alert-rules/master`, {
+    cookie: f.cookie,
+    company: f.company,
+    body: { alerts_enabled },
+  });
+const readSettings = (business: string) =>
+  f.h.send('GET', `/v1/businesses/${business}/settings`, { cookie: f.cookie, company: f.company });
+const settingsRow = (business: string) =>
+  f.h.owner`SELECT updated_at FROM business_settings
+    WHERE company_id=${f.company} AND business_id=${business}`;
+const masterAudits = (business: string) =>
+  f.h.owner`SELECT action FROM audit_log
+    WHERE company_id=${f.company} AND entity='alert_rules_master' AND entity_id=${business} ORDER BY id`;
+
 it('the master switch and the identity names write the same row without locking each other out', async () => {
   let enabled = true;
   let label = 'Race 0';
@@ -46,4 +69,46 @@ it('the master switch and the identity names write the same row without locking 
   expect(row?.['alerts_enabled']).toBe(enabled);
   expect(row?.['official_name_ar']).toBe(`صالون ${label}`);
   expect(row?.['official_name_en']).toBe(`Salon ${label}`);
+});
+
+it('issue #480: a master switch that changes nothing writes no settings row and no audit', async () => {
+  const business = await freshBusiness();
+  const before = await readSettings(business);
+  expect(before.status).toBe(200);
+  expect(businessSettings.parse(before.body).updated_at).toBeNull();
+
+  const switched = await setMaster(business, true);
+  expect(switched.status).toBe(200);
+
+  // الطلب اللي ما غيّرش حاجة مايعملش صف إعدادات ومايكتبش تدقيق.
+  expect(await settingsRow(business)).toEqual([]);
+  expect(await masterAudits(business)).toEqual([]);
+  const after = await readSettings(business);
+  expect(after.status).toBe(200);
+  expect(businessSettings.parse(after.body).updated_at).toBeNull();
+});
+
+it('issue #480: switching the master off creates the row once, invalidates the cached read and leaves it alone afterwards', async () => {
+  const business = await freshBusiness();
+  const cached = await readSettings(business);
+  expect(cached.status).toBe(200);
+  expect(businessSettings.parse(cached.body).updated_at).toBeNull();
+
+  const switched = await setMaster(business, false);
+  expect(switched.status).toBe(200);
+
+  // القراءة المخزنة لازم تشوف الصف الجديد: الإبطال بيحصل بعد الـ commit.
+  const fresh = await readSettings(business);
+  expect(fresh.status).toBe(200);
+  expect(businessSettings.parse(fresh.body).updated_at).not.toBeNull();
+  const [created] = await settingsRow(business);
+  const stamped = created?.['updated_at'];
+  expect(stamped).not.toBeNull();
+
+  // نفس القيمة تاني: مافيش كتابة، فالـ updated_at زي ما هو ومافيش سطر تدقيق زيادة.
+  const again = await setMaster(business, false);
+  expect(again.status).toBe(200);
+  const [same] = await settingsRow(business);
+  expect(same?.['updated_at']).toEqual(stamped);
+  expect(await masterAudits(business)).toHaveLength(1);
 });
