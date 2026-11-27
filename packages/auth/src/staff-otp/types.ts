@@ -11,7 +11,21 @@ export interface PersonalWorkspace {
   readonly companyId: string;
   readonly businessId: string;
 }
-export type OtpContext = StaffDeviceContext | PersonalWorkspace;
+/** استرجاع كلمة المرور بالإيميل: مفيش شركة ولا جهاز — اليوزر نفسه هو المقصود. */
+export interface PasswordResetWorkspace {
+  readonly purpose: 'PASSWORD_RESET';
+}
+/** استرجاع PIN الموظف بنفسه: الجهاز والشركة والفرع وقناة الإرسال. */
+export interface StaffPinResetWorkspace {
+  readonly purpose: 'STAFF_PIN_RESET';
+  readonly companyId: string;
+  readonly businessId: string;
+  readonly branchId: string;
+  readonly deviceId: string;
+  readonly channel: 'EMAIL' | 'WHATSAPP';
+}
+export type OtpContext =
+  StaffDeviceContext | PersonalWorkspace | PasswordResetWorkspace | StaffPinResetWorkspace;
 /** جلسة شخصية مطلقة لا تمنح صلاحيات أعمال. */
 export interface PersonalSession {
   readonly userId: string;
@@ -74,6 +88,11 @@ export interface OtpStrategies {
   identify(phone: string): OtpIdentity & { valid: boolean };
   /** ترتيب القفل مستقل عن الشركة لمنع سباق STOP. */
   phoneLockKey(hash: Uint8Array): bigint;
+}
+
+/** استراتيجيات قناة الإيميل: بصمة الإيميل نفسها اللي بتستخدمها جداول الحظر — مش بصمة مستقلة. */
+export interface EmailOtpStrategies extends OtpStrategies {
+  identifyEmail(email: string): OtpIdentity & { valid: boolean };
 }
 
 export interface StaffEligibility<C extends OtpContext = StaffDeviceContext> {

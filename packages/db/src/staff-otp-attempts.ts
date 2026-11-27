@@ -33,6 +33,11 @@ async function locked(runtime: OtpRuntime, tx: Tx, challengeId: string, attemptI
   return challenge === undefined || attempt === undefined ? null : { now, challenge, attempt };
 }
 
+/** جاهزية قناة الإرسال: بتتفحص بعد قراءة المحاولة وقبل ما تتحجز للتنفيذ. */
+export type ChannelReadiness = (channel: 'EMAIL' | 'WHATSAPP') => Promise<boolean>;
+
+const channelAlwaysReady: ChannelReadiness = async () => true;
+
 export function otpAttempts(runtime: OtpRuntime) {
   return {
     release: (
@@ -45,8 +50,12 @@ export function otpAttempts(runtime: OtpRuntime) {
     timeout: (challengeId: string, attemptId: string) => timeout(runtime, challengeId, attemptId),
     failPreparation: (challengeId: string, attemptId: string, deadline: Date) =>
       failPreparation(runtime, challengeId, attemptId, deadline),
-    claim: (challengeId: string, attemptId: string, executionId: string) =>
-      claim(runtime, challengeId, attemptId, executionId),
+    claim: (
+      challengeId: string,
+      attemptId: string,
+      executionId: string,
+      ready: ChannelReadiness = channelAlwaysReady,
+    ) => claim(runtime, challengeId, attemptId, executionId, ready),
     materialize: (challengeId: string, attemptId: string, executionId: string) =>
       materialize(runtime, challengeId, attemptId, executionId),
     finish: (
@@ -68,7 +77,12 @@ const release = (
   runtime.run(async (tx) => {
     const found = await locked(runtime, tx, challengeId, attemptId);
     if (found === null || found.attempt.status !== 'PREPARED') return false;
-    const blocked = await runtime.suppressed(tx, found.challenge.recipientHash);
+    // لكل قناة دالة حظرها: الاعتماد بالإيميل بيتحقق من حظر الإيميل.
+    const blocked = await runtime.suppressed(
+      tx,
+      found.challenge.recipientHash,
+      found.attempt.channel === 'EMAIL' ? 'EMAIL' : 'WHATSAPP',
+    );
     const [clock] = await tx.execute<{ now: Date }>(sql`SELECT clock_timestamp() AS now`);
     if (clock === undefined) throw new Error('OTP_DATABASE_UNAVAILABLE');
     const now = new Date(clock.now);
@@ -103,9 +117,14 @@ const pending = (runtime: OtpRuntime, challengeId: string, attemptId: string) =>
       .select()
       .from(attempts)
       .where(and(eq(attempts.id, attemptId), eq(attempts.challengeId, challengeId)));
-    return row === undefined ? null : { ...row, locale: row.locale as 'ar' | 'en' };
+    return row === undefined
+      ? null
+      : {
+          ...row,
+          locale: row.locale as 'ar' | 'en',
+          channel: row.channel === 'EMAIL' ? 'EMAIL' : 'WHATSAPP',
+        };
   });
-
 const timeout = (runtime: OtpRuntime, challengeId: string, attemptId: string) =>
   runtime.run(async (tx): Promise<string | null> => {
     const found = await locked(runtime, tx, challengeId, attemptId);
@@ -147,7 +166,13 @@ const failPreparation = (
       .where(eq(attempts.id, attemptId));
   }, deadline);
 
-const claim = (runtime: OtpRuntime, challengeId: string, attemptId: string, executionId: string) =>
+const claim = (
+  runtime: OtpRuntime,
+  challengeId: string,
+  attemptId: string,
+  executionId: string,
+  ready: ChannelReadiness,
+) =>
   runtime.run(async (tx) => {
     const found = await locked(runtime, tx, challengeId, attemptId);
     if (
@@ -158,6 +183,8 @@ const claim = (runtime: OtpRuntime, challengeId: string, attemptId: string, exec
       found.now >= found.attempt.sendDeadline
     )
       return false;
+    // جاهزية القناة بتُفحص بعد قراءة المحاولة: قناة الإيميل جاهزيتها مستقلة عن الواتساب.
+    if (!(await ready(found.attempt.channel === 'EMAIL' ? 'EMAIL' : 'WHATSAPP'))) return false;
     await tx
       .update(attempts)
       .set({ status: 'SENDING', executionId, sendingAt: found.now, updatedAt: found.now })
@@ -171,30 +198,58 @@ const materialize = (
   attemptId: string,
   executionId: string,
 ) =>
-  runtime.run(async (tx): Promise<{ challenge: OtpChallengeRecord; phone: string } | null> => {
-    const found = await locked(runtime, tx, challengeId, attemptId);
-    if (
-      found === null ||
-      found.attempt.status !== 'SENDING' ||
-      found.attempt.executionId !== executionId ||
-      found.challenge.status !== 'ACTIVE' ||
-      found.now >= found.challenge.expiresAt ||
-      found.challenge.userId === null
-    )
-      return null;
-    const [bound] = await tx
-      .select({ phone: user.phoneNumber, approved: user.phoneBindingApprovedAt })
-      .from(user)
-      .where(eq(user.id, found.challenge.userId));
-    if (bound?.phone === null || bound?.phone === undefined || bound.approved === null) return null;
-    return {
-      challenge: {
-        ...found.challenge,
-        deviceContext: found.challenge.deviceContext as OtpContext,
-      },
-      phone: bound.phone,
-    };
-  });
+  runtime.run(
+    async (
+      tx,
+    ): Promise<{
+      challenge: OtpChallengeRecord;
+      channel: 'EMAIL' | 'WHATSAPP';
+      destination: string | null;
+    } | null> => {
+      const found = await locked(runtime, tx, challengeId, attemptId);
+      if (
+        found === null ||
+        found.attempt.status !== 'SENDING' ||
+        found.attempt.executionId !== executionId ||
+        found.challenge.status !== 'ACTIVE' ||
+        found.now >= found.challenge.expiresAt ||
+        found.challenge.userId === null
+      )
+        return null;
+      const channel = found.attempt.channel === 'EMAIL' ? 'EMAIL' : 'WHATSAPP';
+      if (channel === 'EMAIL') {
+        // الاعتماد بالإيميل بيجيب الوجهة من اليوزر نفسه: حساب موظف ما يستردش كلمة مرور.
+        const [owner] = await tx
+          .select({ email: user.email, staff: user.staffAccessOperationId })
+          .from(user)
+          .where(eq(user.id, found.challenge.userId));
+        if (owner?.email === null || owner?.email === undefined || owner.staff !== null)
+          return null;
+        return {
+          challenge: {
+            ...found.challenge,
+            deviceContext: found.challenge.deviceContext as OtpContext,
+          },
+          channel,
+          destination: owner.email,
+        };
+      }
+      const [bound] = await tx
+        .select({ phone: user.phoneNumber, approved: user.phoneBindingApprovedAt })
+        .from(user)
+        .where(eq(user.id, found.challenge.userId));
+      if (bound?.phone === null || bound?.phone === undefined || bound.approved === null)
+        return null;
+      return {
+        challenge: {
+          ...found.challenge,
+          deviceContext: found.challenge.deviceContext as OtpContext,
+        },
+        channel,
+        destination: bound.phone,
+      };
+    },
+  );
 
 const finish = (
   runtime: OtpRuntime,

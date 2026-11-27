@@ -14,6 +14,7 @@ export function createOtpChannel(
   now: () => Date,
 ): OtpChannel {
   return {
+    channel: 'WHATSAPP',
     valid: (attempt: OtpPending) => attempt.providerTemplateName === approval.names[attempt.locale],
     send: async (attempt, material) => {
       if (attempt.providerTemplateName === null)
@@ -32,7 +33,7 @@ export function createOtpChannel(
       )
         return { status: 'FAILED', failureCode: 'CONFIG_INVALID', outcomeKnown: true };
       const result = await channel.send({
-        phone: material.phone,
+        phone: material.destination,
         locale: attempt.locale,
         deadline: material.deadline,
         providerTemplateName: prepared.name,

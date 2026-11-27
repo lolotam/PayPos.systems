@@ -38,9 +38,13 @@ import { filePaths } from './files-openapi.js';
 import { employeeImportPaths } from './staff/employee-import-openapi.js';
 import { staffPaths } from './staff/staff-openapi.js';
 import { permissionPaths } from './identity/permissions-openapi.js';
-import { memberInvitationPaths, memberInvitationSchemas } from './identity/member-invitation-openapi.js';
+import {
+  memberInvitationPaths,
+  memberInvitationSchemas,
+} from './identity/member-invitation-openapi.js';
 import { devicePaths, pendingDevicesPaths } from './identity/devices-openapi.js';
 import { staffSignInPaths } from './identity/staff-sign-in-openapi.js';
+import { passwordResetOtpPaths } from './identity/password-reset-otp-openapi.js';
 import { privateViewPaths } from './identity/private-view-openapi.js';
 import { mePaths } from './identity/me-openapi.js';
 import { customerPaths } from './customers-openapi.js';
@@ -122,6 +126,7 @@ const PATHS = {
     },
   },
   ...staffSignInPaths,
+  ...passwordResetOtpPaths,
   ...privateViewPaths,
   '/v1/webhooks/whatsapp': {
     get: {

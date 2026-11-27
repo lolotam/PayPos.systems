@@ -139,6 +139,7 @@ function makeFakeAuth(
           };
     },
     provisionUser: async () => userId,
+    hashPassword: async () => 'synthetic-hash',
     issuePasswordSetLink: async () => 'http://api.test/unused',
     recordPlatformAction: async () => undefined,
     discardUser: async () => undefined,

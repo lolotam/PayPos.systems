@@ -2,6 +2,7 @@ import { expect, it } from 'vitest';
 
 import {
   emailFeedbackDecision,
+  emailFeedbackRoute,
   evaluateAttemptBinding,
   nextFeedbackRetry,
   MAX_FEEDBACK_ATTEMPTS,
@@ -174,4 +175,18 @@ it('quarantines the row once the retrieval attempts are exhausted', () => {
   expect(nextFeedbackRetry(MAX_FEEDBACK_ATTEMPTS + 3, now)).toEqual({
     quarantine: 'RETRIEVAL_EXHAUSTED',
   });
+});
+
+it.each([
+  [
+    { companyId: null, authChallengeId: 'c' },
+    { kind: 'auth', challengeId: 'c' },
+  ],
+  [
+    { companyId: COMPANY, authChallengeId: null },
+    { kind: 'tenant', companyId: COMPANY },
+  ],
+  [{ companyId: null, authChallengeId: null }, { kind: 'invalid' }],
+])('routes the provider tags %j to %j without inventing an empty company', (ids, route) => {
+  expect(emailFeedbackRoute({ ...ids, attemptId: 'a', executionId: EXECUTION })).toEqual(route);
 });

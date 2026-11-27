@@ -7,7 +7,16 @@ export interface OtpDeviceContext {
 
 export type OtpContext =
   | OtpDeviceContext
-  | { readonly purpose: 'STAFF_PERSONAL'; readonly companyId: string; readonly businessId: string };
+  | { readonly purpose: 'STAFF_PERSONAL'; readonly companyId: string; readonly businessId: string }
+  | { readonly purpose: 'PASSWORD_RESET' }
+  | {
+      readonly purpose: 'STAFF_PIN_RESET';
+      readonly companyId: string;
+      readonly businessId: string;
+      readonly branchId: string;
+      readonly deviceId: string;
+      readonly channel: 'EMAIL' | 'WHATSAPP';
+    };
 
 export interface OtpChallengeRecord {
   readonly id: string;
@@ -31,6 +40,8 @@ export interface OtpAttemptRecord {
   readonly hashKeyId: string;
   readonly userId: string | null;
   readonly locale: 'ar' | 'en';
+  /** قناة المحاولة: واتساب أو إيميل — بتحدد دالة الحظر والقالب. */
+  readonly channel: 'EMAIL' | 'WHATSAPP';
   readonly providerTemplateName: string | null;
   readonly status: string;
   readonly executionId: string | null;

@@ -49,6 +49,14 @@ export function readStaffOtpConfiguration(
   }
 }
 
+/** حلقة مفاتيح اشتقاق/تحقق الرمز: المفتاح الحالي ومفاتيح المعاش، وبتحمل مفتاح غير صالح ترمي. */
+export function otpKeyRing(
+  env: NodeJS.ProcessEnv,
+  family: string,
+): ReadonlyMap<string, Uint8Array> {
+  return keyRing(env, family);
+}
+
 function keyRing(env: NodeJS.ProcessEnv, family: string): ReadonlyMap<string, Uint8Array> {
   const id = env[`STAFF_OTP_${family}_KEY_ID`] ?? '';
   const value = env[`STAFF_OTP_${family}_KEY`] ?? '';

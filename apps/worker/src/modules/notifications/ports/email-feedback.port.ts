@@ -138,6 +138,33 @@ export interface EmailRetrievalPort {
   retrieve(providerEmailId: string): Promise<EmailRetrievalResult>;
 }
 
+/** مدخلات خطوة الاعتماد: المحاولة والهدف وبصمة رسالة المزود. */
+export interface EmailFeedbackAuthInput {
+  readonly challengeId: string;
+  readonly attemptId: string;
+  readonly executionId: string;
+  readonly recipientHash: Uint8Array;
+  readonly hashKeyId: string;
+  /** بصمة معرّف رسالة المزود — المعرّف الخام ما بيسجلش في السجل. */
+  readonly providerMessageDigest: Uint8Array;
+}
+
+/** نتيجة خطوة الاعتماد: مقبولة أو مرفوضة بسبب تعطيل ثابت. */
+export type EmailFeedbackAuthOutcome =
+  | { readonly ok: true; readonly bound: boolean }
+  | { readonly ok: false; readonly reason: EmailQuarantineReason };
+
+/** خطوة الاعتماد: ربط ردّ المزود بسجل الاعتماد على pospay_auth. */
+export interface EmailFeedbackAuthRepository {
+  /**
+   * يربط ردّ المزود بالمحاولة ويقفل التعارض في البصمة.
+   *
+   * @param input المدخلات
+   * @returns النتيجة
+   */
+  reconcile(input: EmailFeedbackAuthInput): Promise<EmailFeedbackAuthOutcome>;
+}
+
 /** طابور ردّ المزود: يقبل معرّف صف الصندوق فقط. */
 export interface EmailFeedbackQueue {
   /**

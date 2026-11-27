@@ -1,4 +1,5 @@
 import { renderEmailLayout } from './email-layout.ts';
+import { PASSWORD_RESET_OTP_KEY, renderPasswordResetEmail } from './password-reset-otp.ts';
 
 export interface EmailContent {
   readonly subject: string;
@@ -35,7 +36,7 @@ const ADMIN_ORIGINS: readonly string[] = [
  * @param locale لغة الرسالة
  * @param parameters معاملات القالب الآمنة
  * @param adminOrigin أصل لوحة الإدارة
- * @returns البريد بصيغتيه، أو null لما القالب أو الأصل مش على-spec
+ * @returns البريد بصيغتيه، أو null لما القالب أو الأصل مش مطابق للمواصفة
  */
 export function renderOperationalEmail(
   key: string,
@@ -44,6 +45,10 @@ export function renderOperationalEmail(
   parameters: readonly unknown[],
   adminOrigin: string,
 ): EmailContent | null {
+  if (key === PASSWORD_RESET_OTP_KEY) {
+    const reset = renderPasswordResetEmail(revision, locale, parameters[0], adminOrigin);
+    return reset === null ? null : { subject: reset.subject, text: reset.text, html: reset.html };
+  }
   if (
     key !== 'document_expiring' ||
     revision !== 1 ||

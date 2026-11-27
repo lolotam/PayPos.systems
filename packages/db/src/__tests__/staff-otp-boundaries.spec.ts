@@ -53,7 +53,7 @@ it('hourly expiry cleanup clears the terminal MAC without reviving a stale deliv
       statement_timestamp()-interval '1 second',statement_timestamp()-interval '301 seconds')`;
   await f.db.cleanup(100);
   expect(await f.db.find(id)).toMatchObject({ status: 'EXPIRED', codeMac: null });
-  expect(await f.db.claim(id, randomUUID(), randomUUID())).toBe(false);
+  expect(await f.db.claim(id, randomUUID(), randomUUID(), async () => true)).toBe(false);
 });
 
 it('rechecks expiry after the user lock wait and never compares or consumes an expired proof', async () => {
@@ -109,7 +109,7 @@ it('thirty-day purge removes the real ledger and challenges without touching STO
   expect(await f.db.cleanup(100)).toBe(1);
   expect(await f.db.find(id)).toBeNull();
   expect(await f.db.pending(id, attempt)).toBeNull();
-  expect(await f.db.claim(id, attempt, randomUUID())).toBe(false);
+  expect(await f.db.claim(id, attempt, randomUUID(), async () => true)).toBe(false);
   expect(
     await f.owner`SELECT * FROM platform_whatsapp_suppressions WHERE recipient_hash=${hash}`,
   ).toEqual(before);

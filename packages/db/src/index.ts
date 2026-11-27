@@ -57,8 +57,16 @@ export {
 } from './business-identity-read.ts';
 export { canonicalJson } from './canonical-json.ts';
 export { createDatabase, type Database, type DatabaseOptions } from './client.ts';
-export { createCoverageIssuer, CoverageIssuanceError, coverageIssuanceFailure } from './commission-coverage-issuer.ts';
-export type { CoverageIssuer, CoverageIssuanceSnapshot, CoverageIssuanceProof } from './commission-coverage-issuer.ts';
+export {
+  createCoverageIssuer,
+  CoverageIssuanceError,
+  coverageIssuanceFailure,
+} from './commission-coverage-issuer.ts';
+export type {
+  CoverageIssuer,
+  CoverageIssuanceSnapshot,
+  CoverageIssuanceProof,
+} from './commission-coverage-issuer.ts';
 export { markEventConsumed } from './consumed-events.ts';
 export {
   currentSessionTipsStatement,
@@ -171,5 +179,19 @@ export type {
   OtpAttemptRecord,
   OtpExecutionResult,
 } from './staff-otp-types.ts';
+export type {
+  AuthAttemptReconciliation,
+  AuthAttemptReconciliationResult,
+  AuthAttemptRefusal,
+} from './auth-attempt-feedback.ts';
+export type {
+  CredentialAccountRule,
+  CredentialUser,
+  EmailResetPreparation,
+  EmailResetPreparationResult,
+  PasswordResetCheck,
+  PasswordResetConsumption,
+  PasswordResetOutcome,
+} from './password-reset-otp.ts';
 export { assertReplayBounds, ReplayCursorError } from './replay-cursor.ts';
 export { AuthUserNotFoundError } from './auth-user-not-found.ts';
