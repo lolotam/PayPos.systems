@@ -1,5 +1,10 @@
 import { normalizeRecoveryEmail } from '../../domain/create-employee.ts';
 import { StaffAccessError } from '../../domain/errors.ts';
+import {
+  resolveAdditionalStaffBranches,
+  sameAdditionalStaffBranches,
+  type StaffAccessBranchAssignment,
+} from '../../domain/staff-access.ts';
 import type {
   GrantBeginOutcome,
   GrantCommitOutcome,
@@ -11,7 +16,7 @@ import type {
   StaffAccessIds,
   StaffAccessUserSteps,
 } from '../../ports/staff-access.port.ts';
-import type { GrantBeginScope } from '../../ports/staff-access-begin.port.ts';
+import type { GrantBeginScope, StaffAccessRole } from '../../ports/staff-access-begin.port.ts';
 import {
   unlimitedStaffAccessGrantAdmission,
   type StaffAccessGrantAdmission,
@@ -67,12 +72,10 @@ export class GrantEmployeeAccessUseCase {
       const outcome = await this.#commit(command, begin, userId, pinHash);
       // بعد الالتزام: إبطال الكاش خطوة مساعدة، وفشلها ما بيرجعش منحة ملتومة لخطأ (AC-ACT-11).
       if (outcome.kind === 'granted')
-        await this.cache
-          .invalidate({
-            companyId: command.companyId,
-            membershipId: outcome.membershipId,
-          })
-          .catch(() => undefined);
+        for (const membershipId of [outcome.membershipId, ...outcome.extraMembershipIds])
+          await this.cache
+            .invalidate({ companyId: command.companyId, membershipId })
+            .catch(() => undefined);
       return {
         kind: outcome.kind,
         role: outcome.role,
@@ -102,6 +105,7 @@ export class GrantEmployeeAccessUseCase {
         if (employee === null) throw new StaffAccessError('EMPLOYEE_NOT_FOUND');
         if (!(await scope.authority(employee.businessId, employee.primaryBranchId)))
           throw new StaffAccessError('STAFF_ACCESS_NOT_ALLOWED');
+        const extraBranches = await this.#resolveExtraBranches(scope, command, employee);
         if (employee.userId === actor.userId)
           throw new StaffAccessError('STAFF_ACCESS_NOT_ALLOWED');
         const recoveryEmail = normalizeRecoveryEmail(command.recoveryEmail);
@@ -114,36 +118,63 @@ export class GrantEmployeeAccessUseCase {
           throw new StaffAccessError('STAFF_ACCESS_NOT_ALLOWED');
         if (record !== null && record.state === 'ACTIVE')
           throw new StaffAccessError('STAFF_ACCESS_ALREADY_GRANTED');
-        if (record !== null) return this.#reuseRecord(scope, command, employee, record);
+        if (record !== null)
+          return this.#reuseRecord(scope, command, employee, record, extraBranches);
         const inserted = await scope.insertRecord({
           roleCode: command.role,
           branchId: employee.primaryBranchId,
           phoneHash: scope.phoneHash(command.phone),
+          extraBranches,
         });
         return { record: inserted, employee };
       },
     );
   }
 
-  /** استئناف سجل قائم: الهاتف والدور والفرع لازم يطابقوا السجل المقفول — أي خلاف رفض بلا تفاصيل (P1-4). */
+  /**
+   * يسوّي الفروع الإضافية المطلوبة ويفحص سلطة المانح على كل فرع منها (080-b): فرع غريب أو
+   * مش من النشاط بيرفض زي ما بيرفض الفرع الأساسي، وما بياخدش خطوة auth.
+   */
+  async #resolveExtraBranches(
+    scope: GrantBeginScope,
+    command: GrantEmployeeAccessCommand,
+    employee: BeginEmployee,
+  ): Promise<readonly StaffAccessBranchAssignment[]> {
+    const resolved = resolveAdditionalStaffBranches(
+      employee.primaryBranchId,
+      command.role,
+      command.additionalBranches,
+    );
+    if (!resolved.ok) throw new StaffAccessError(resolved.refusal);
+    for (const extra of resolved.branches)
+      if (!(await scope.authority(employee.businessId, extra.branchId)))
+        throw new StaffAccessError('STAFF_ACCESS_NOT_ALLOWED');
+    return resolved.branches;
+  }
+
+  /** استئناف سجل قائم: الهاتف والدور والفرع والفروع لازم يطابقوا السجل المقفول — أي خلاف رفض بلا تفاصيل (P1-4). */
   async #reuseRecord(
     scope: BeginScope,
     command: GrantEmployeeAccessCommand,
     employee: BeginEmployee,
     record: BeginRecord,
+    extraBranches: readonly StaffAccessBranchAssignment[],
   ): Promise<GrantBeginOutcome> {
     if (record.state === 'STOPPED') {
       const restarted = await scope.restartRecord(record.id, {
         phoneHash: scope.phoneHash(command.phone),
         roleCode: command.role,
         branchId: employee.primaryBranchId,
+        extraBranches,
       });
       return { record: restarted, employee };
     }
     const phoneMatches = scope.phoneHash(command.phone) === record.phoneHash;
     const roleMatches = record.roleCode === command.role;
     const branchMatches = record.branchId === employee.primaryBranchId;
-    if (!phoneMatches || !roleMatches || !branchMatches)
+    const savedExtras = await scope.findExtraBranches(record.id);
+    const extrasMatch = sameAdditionalStaffBranches(savedExtras, extraBranches);
+    if (!phoneMatches || !roleMatches || !branchMatches || !extrasMatch)
       throw new StaffAccessError('STAFF_ACCESS_NOT_ALLOWED');
     return { record, employee };
   }
@@ -176,7 +207,8 @@ export class GrantEmployeeAccessUseCase {
         )
           throw new StaffAccessError('STAFF_ACCESS_NOT_ALLOWED');
         await this.#assertStillEligible(scope, command, employee, record);
-        await this.#reuseRecord(scope, command, employee, record);
+        const extraBranches = await this.#resolveExtraBranches(scope, command, employee);
+        await this.#reuseRecord(scope, command, employee, record, extraBranches);
         if (record.state === 'ACTIVE') {
           if (record.userId === null) throw new StaffAccessError('STAFF_ACCESS_NOT_ALLOWED');
           return { userId: record.userId };
@@ -272,7 +304,7 @@ export class GrantEmployeeAccessUseCase {
   ): Promise<GrantCommitOutcome> {
     const { command, begin, userId, pinHash } = input;
     if (!(await scope.lockCompany())) throw new StaffAccessError('EMPLOYEE_NOT_FOUND');
-    const { employee, record } = await scope.recheck();
+    const { employee, record, extraBranches } = await scope.recheck();
     if (employee === null || record === null) throw new StaffAccessError('EMPLOYEE_NOT_FOUND');
     if (
       employee.userId === command.userId ||
@@ -281,16 +313,98 @@ export class GrantEmployeeAccessUseCase {
       throw new StaffAccessError('STAFF_ACCESS_NOT_ALLOWED');
     if (!(await scope.authority(employee.businessId, employee.primaryBranchId)))
       throw new StaffAccessError('STAFF_ACCESS_NOT_ALLOWED');
-    // المحاولة تُفحص قبل اختصار ACTIVE: طلب قديم لا يُنسب إليه نجاح محاولة أحدث (P1-1).
+    // سلطة المانح على كل فرع إضافي بتفحص جوّه نفس المعاملة (080-b).
+    for (const extra of extraBranches)
+      if (!(await scope.authority(employee.businessId, extra.branchId)))
+        throw new StaffAccessError('STAFF_ACCESS_NOT_ALLOWED');
+    const already = this.#alreadyOutcome(record, begin);
+    if (already !== null) return already;
+    this.#assertPendingRecord(record, begin, employee);
+    const memberships = await this.#grantMemberships(scope, command, userId, employee, record, extraBranches);
+    if (employee.userId !== userId) await scope.linkEmployee(userId);
+    await scope.saveTemporaryPin(userId, pinHash);
+    await scope.markActive({
+      recordId: record.id,
+      userId,
+      membershipId: memberships.primary.membershipId,
+    });
+    await scope.appendEvent({
+      employeeId: command.employeeId,
+      userId,
+      membershipId: memberships.primary.membershipId,
+      branchId: record.branchId,
+      role: record.roleCode,
+    });
+    await this.#applyOverrides(scope, command, {
+      membershipId: memberships.primary.membershipId,
+      branchId: record.branchId,
+      role: record.roleCode,
+      extras: memberships.extras,
+    });
+    return {
+      kind: 'granted',
+      membershipId: memberships.primary.membershipId,
+      extraMembershipIds: memberships.extras.map((extra) => extra.membershipId),
+      userId,
+      role: record.roleCode,
+      branchId: record.branchId,
+    };
+  }
+
+  /** عضوية الفرع الأساسي وعضويات الفروع الإضافية — كلها جوّه معاملة الخطوة الثالثة. */
+  async #grantMemberships(
+    scope: GrantCommitScope,
+    command: GrantEmployeeAccessCommand,
+    userId: string,
+    employee: { readonly businessId: string },
+    record: { readonly id: string; readonly branchId: string; readonly roleCode: StaffAccessRole; readonly operationId: string },
+    extraBranches: readonly { readonly id: string; readonly branchId: string; readonly roleCode: StaffAccessRole }[],
+  ): Promise<{
+    primary: { membershipId: string };
+    extras: readonly { membershipId: string; branchId: string; role: StaffAccessRole }[];
+  }> {
+    const primary = await scope.grantMembership({
+      operationId: record.operationId,
+      userId,
+      branchId: record.branchId,
+      role: record.roleCode,
+    });
+    const extras = await scope.grantExtraMemberships({
+      operationId: record.operationId,
+      userId,
+      recordId: record.id,
+      businessId: employee.businessId,
+      employeeId: command.employeeId,
+      branches: extraBranches,
+    });
+    return { primary, extras };
+  }
+
+  /**
+   * تكرار ناجح: السجل ACTIVE بنفس المحاولة — الرد من السجل المقفول بلا قراءة تالية.
+   * المحاولة تُفحص قبل الاختصار: طلب قديم لا يُنسب إليه نجاح محاولة أحدث (P1-1).
+   */
+  #alreadyOutcome(
+    record: NonNullable<Awaited<ReturnType<GrantCommitScope['recheck']>>['record']>,
+    begin: GrantBeginOutcome,
+  ): GrantCommitOutcome | null {
     if (record.attemptId !== begin.record.attemptId)
       throw new StaffAccessError('STAFF_ACCESS_NOT_ALLOWED');
-    if (record.state === 'ACTIVE')
-      return {
-        kind: 'already',
-        role: record.roleCode,
-        branchId: record.branchId,
-        phoneMatches: record.phoneHash === begin.record.phoneHash,
-      };
+    if (record.state !== 'ACTIVE') return null;
+    return {
+      kind: 'already',
+      role: record.roleCode,
+      branchId: record.branchId,
+      phoneMatches: record.phoneHash === begin.record.phoneHash,
+    };
+  }
+
+  /** السجل لازم يكون PENDING بنفس العملية والهاتف والفرع — أي خلاف رفض بلا تفاصيل (P1-4). */
+  #assertPendingRecord(
+    record: NonNullable<Awaited<ReturnType<GrantCommitScope['recheck']>>['record']>,
+    begin: GrantBeginOutcome,
+    employee: NonNullable<Awaited<ReturnType<GrantCommitScope['recheck']>>['employee']>,
+  ): void {
     if (
       record.state !== 'PENDING' ||
       record.operationId !== begin.record.operationId ||
@@ -298,29 +412,31 @@ export class GrantEmployeeAccessUseCase {
       record.branchId !== employee.primaryBranchId
     )
       throw new StaffAccessError('STAFF_ACCESS_NOT_ALLOWED');
-    const granted = await scope.grantMembership({
-      operationId: record.operationId,
-      userId,
-      branchId: record.branchId,
-      role: record.roleCode,
+  }
+
+  /**
+   * استثناءات الصلاحية المضمّنة (080-b): بتتكتب على العضوية الأساسية أو على أقرب فرع زي ما
+   * ترتّبهم قواعد identity. أول استثناء مرفوض بيرمي من جوّه المعاملة فترجع كل الكتابة.
+   */
+  async #applyOverrides(
+    scope: GrantCommitScope,
+    command: GrantEmployeeAccessCommand,
+    granted: {
+      membershipId: string;
+      branchId: string;
+      role: StaffAccessRole;
+      extras: readonly { membershipId: string; branchId: string; role: StaffAccessRole }[];
+    },
+  ): Promise<void> {
+    const overrides = command.permissionOverrides ?? [];
+    if (overrides.length === 0) return;
+    await scope.applyOverrides({
+      memberships: [
+        { membershipId: granted.membershipId, branchId: granted.branchId, role: granted.role },
+        ...granted.extras,
+      ],
+      overrides,
     });
-    if (employee.userId !== userId) await scope.linkEmployee(userId);
-    await scope.saveTemporaryPin(userId, pinHash);
-    await scope.markActive({ recordId: record.id, userId, membershipId: granted.membershipId });
-    await scope.appendEvent({
-      employeeId: command.employeeId,
-      userId,
-      membershipId: granted.membershipId,
-      branchId: record.branchId,
-      role: record.roleCode,
-    });
-    return {
-      kind: 'granted',
-      membershipId: granted.membershipId,
-      userId,
-      role: record.roleCode,
-      branchId: record.branchId,
-    };
   }
 }
 

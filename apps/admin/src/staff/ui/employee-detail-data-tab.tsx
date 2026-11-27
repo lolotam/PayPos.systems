@@ -35,6 +35,8 @@ export function EmployeeDetailDataTab({
         companyId={companyId}
         businessId={business.id}
         employeeId={employee.id}
+        primaryBranchId={employee.primary_branch_id}
+        branches={business.branches}
       />
     </>
   );

@@ -467,8 +467,13 @@ sync_writes:
   - staff -> identity.clearStaffPin @ apps/api/src/modules/staff/persistence/staff-access-phone.adapter.ts
   - staff -> identity.saveTemporaryStaffPin @ apps/api/src/modules/staff/persistence/staff-access-phone.adapter.ts
   - staff -> identity.endStaffMembership @ apps/api/src/modules/staff/persistence/staff-access-stop.adapter.ts
+  - staff -> identity.endExtraStaffMembership @ apps/api/src/modules/staff/persistence/staff-access-stop.adapter.ts
   - staff -> identity.deleteStaffUserSessions @ apps/api/src/modules/staff/persistence/staff-access-stop.adapter.ts
   - staff -> identity.moveStaffMembershipToBranch @ apps/api/src/modules/staff/persistence/employee-access-branch-follow.ts
+  - staff -> identity.endExtraStaffMembership @ apps/api/src/modules/staff/persistence/employee-access-branch-follow.ts
+  - staff -> identity.applyStaffAccessOverrides @ apps/api/src/modules/staff/persistence/staff-access.adapter.ts
+  - staff -> identity.grantStaffMembership @ apps/api/src/modules/staff/persistence/staff-access-extra-branches.ts
+  - staff -> identity.staffAccessGrantedEvent @ apps/api/src/modules/staff/persistence/staff-access-extra-branches.ts
 reads:
   - orders -> staff.readOwnEmployee @ apps/api/src/modules/orders/persistence/own-work-context.adapter.ts
   - orders -> identity.readOwnServiceSessionsAccess @ apps/api/src/modules/orders/persistence/own-work-context.adapter.ts
@@ -635,6 +640,9 @@ reads:
   - staff -> identity.readEmployeeBranchAccess @ apps/api/src/modules/staff/persistence/employee-context.adapter.ts
   - staff -> identity.readEmployeeBranchAccess @ apps/api/src/modules/staff/persistence/employee-detail-access.adapter.ts
   - staff -> tenancy.employeeWorkplace @ apps/api/src/modules/staff/persistence/employee-context.adapter.ts
+  - staff -> tenancy.employeeWorkplace @ apps/api/src/modules/staff/persistence/staff-access.adapter.ts
+  - staff -> tenancy.attendanceBranch @ apps/api/src/modules/staff/persistence/staff-access-extra-branches.ts
+  - staff -> tenancy.businessTimeZone @ apps/api/src/modules/staff/persistence/staff-access-extra-branches.ts
   - staff -> identity.lockEmployeeCreationAccess @ apps/api/src/modules/staff/persistence/employee-context.adapter.ts
   - staff -> identity.employeeUserLinkAvailable @ apps/api/src/modules/staff/persistence/employee-context.adapter.ts
   - staff -> identity.readEmployeeDetailAccess @ apps/api/src/modules/staff/persistence/employee-detail-access.adapter.ts

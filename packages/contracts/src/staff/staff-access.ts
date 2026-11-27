@@ -1,8 +1,18 @@
 import { z } from 'zod';
+import { permissionOverrideInput } from '../identity/permissions.js';
 import { canonicalStaffPhone } from '../identity/staff-otp.js';
 import { recoveryEmail } from '../identity/staff-pin-reset.js';
 import { responseObject } from '../response-object.js';
 import { id } from '../scalars/id.js';
+
+/** فرع إضافي ودوره عند منح دخول الموظفة (080-b). */
+export const staffAccessBranchAssignment = z
+  .strictObject({
+    branch_id: id,
+    role: z.enum(['staff', 'reception']),
+  })
+  .meta({ id: 'StaffAccessBranchAssignment' });
+export type StaffAccessBranchAssignment = z.infer<typeof staffAccessBranchAssignment>;
 
 /**
  * إعطاء دخول موظفة (spec 076 F1): الطلب strict ودوره اختيار من اتنين بس —
@@ -16,6 +26,10 @@ export const grantStaffAccessInput = z
     pin: z.string().regex(/^\d{4}$/),
     // إيميل الاستعادة الاختياري: لو اتبعت بيتسجل على الموظفة في نفس العملية (spec 079 PR-c1).
     recovery_email: recoveryEmail,
+    // فروع زيادة للموظفة، كل فرع بدوره (080-b): كل واحد منهم عضوية مستقلة على نفس الدخول.
+    additional_branches: z.array(staffAccessBranchAssignment).max(50).optional(),
+    // استثناءات صلاحيات مضمّنة تُكتب مع العضويات في نفس المعاملة (080-b).
+    permission_overrides: z.array(permissionOverrideInput).max(100).optional(),
   })
   .strict()
   .meta({ id: 'GrantStaffAccessInput' });

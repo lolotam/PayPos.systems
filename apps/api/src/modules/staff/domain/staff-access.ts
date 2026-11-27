@@ -56,3 +56,75 @@ export function pendingStaffAccessCancellable(
   if (record.state !== 'PENDING' && record.state !== 'CANCELLING') return false;
   return now.getTime() - record.attemptStartedAt.getTime() >= PENDING_STAFF_ACCESS_CANCEL_TTL_MS;
 }
+
+/** فرع إضافي ودوره عند منح دخول الموظفة (080-b). */
+export interface StaffAccessBranchAssignment {
+  /** معرّف الفرع الإضافي. */
+  readonly branchId: string;
+  /** دور الموظفة على الفرع الإضافي — نفس قائمة الدورين المقفولة. */
+  readonly role: 'staff' | 'reception';
+}
+
+/**
+ * نتيجة تسوية الفروع الإضافية: الفروع المقبولة، أو رفض واحد ثابت.
+ * الرفض واحد لكل أسباب التعارض عشان ما يتفضحش سبب الرفض في الرد.
+ */
+export type AdditionalStaffBranchesResolution =
+  | { readonly ok: true; readonly branches: readonly StaffAccessBranchAssignment[] }
+  | { readonly ok: false; readonly refusal: 'STAFF_ACCESS_NOT_ALLOWED' };
+
+/**
+ * يسوّي الفروع الإضافية المطلوبة قبل أي كتابة: الفرع الأساسي بنفس دوره بيتدمج (مش صف زيادة)،
+ * والفرع نفسه بدورين مختلفين مرفوض، والتكرار بنفس الدور بيتخطى.
+ *
+ * @param primaryBranchId الفرع الأساسي للموظفة
+ * @param primaryRole      دور الطلب على الفرع الأساسي
+ * @param additionalBranches الفروع الإضافية المطلوبة كما وصلت
+ * @returns الفروع المقبولة أو رفض ثابت
+ */
+export function resolveAdditionalStaffBranches(
+  primaryBranchId: string,
+  primaryRole: 'staff' | 'reception',
+  additionalBranches: readonly StaffAccessBranchAssignment[] | undefined,
+): AdditionalStaffBranchesResolution {
+  const seen = new Map<string, 'staff' | 'reception'>();
+  for (const entry of additionalBranches ?? []) {
+    if (entry.branchId === primaryBranchId) {
+      if (entry.role !== primaryRole) return { ok: false, refusal: 'STAFF_ACCESS_NOT_ALLOWED' };
+      continue;
+    }
+    const previous = seen.get(entry.branchId);
+    if (previous === undefined) {
+      seen.set(entry.branchId, entry.role);
+      continue;
+    }
+    if (previous !== entry.role) return { ok: false, refusal: 'STAFF_ACCESS_NOT_ALLOWED' };
+  }
+  return {
+    ok: true,
+    branches: [...seen].map(([branchId, role]) => ({ branchId, role })),
+  };
+}
+
+/**
+ * يقارن الفروع الإضافية المحفوظة بالمطلوبة بعد الترتيب: نفس العدد ونفس (فرع، دور) في كل موضع.
+ * بترتيب مفتاح عشان ترتيب الطلب ما يغيّرش النتيجة.
+ *
+ * @param saved     الفروع المحفوظة في السجل
+ * @param requested الفروع المطلوبة في الطلب
+ * @returns true لو الاتنين متطابقين
+ */
+export function sameAdditionalStaffBranches(
+  saved: readonly StaffAccessBranchAssignment[],
+  requested: readonly StaffAccessBranchAssignment[],
+): boolean {
+  if (saved.length !== requested.length) return false;
+  const byBranch = (list: readonly StaffAccessBranchAssignment[]) =>
+    [...list].sort((a, b) => a.branchId.localeCompare(b.branchId));
+  const left = byBranch(saved);
+  const right = byBranch(requested);
+  return left.every(
+    (entry, index) =>
+      entry.branchId === right[index]?.branchId && entry.role === right[index]?.role,
+  );
+}

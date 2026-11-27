@@ -1,0 +1,124 @@
+import type { IdGenerator, Tx } from '@pospay/db';
+
+import {
+  permissionEditFailure,
+  permissionHolderIsOwner,
+  type OverrideTerms,
+} from '../domain/permission-edit.ts';
+import { overrideLifecycleFailure } from '../domain/permission-override-lifecycle.ts';
+import { StaffUserRefused } from '../domain/staff-access-errors.ts';
+import { permissionEditorContext } from './permission-editor-context.ts';
+import { currentOverrides, writeOverride } from './permission-override-writer.ts';
+
+/** عضوية موظفة على فرع، مع دورها — مرشحة لكتابة استثناء الصلاحية عليها. */
+export interface StaffAccessMembershipCandidate {
+  /** معرّف العضوية. */
+  readonly membershipId: string;
+  /** الفرع اللي العضوية عليها. */
+  readonly branchId: string;
+  /** دور الموظفة على الفرع. */
+  readonly role: string;
+}
+
+/**
+ * استثناءات الصلاحية المضمّنة في «إعطاء الدخول» (080-b): كل استثناء بيتكتب على أقرب عضوية صالحة
+ * له — العضوية اللي نطاقها يطابق نطاق الاستثناء أول، بعدين الأساسية، وبعدها الباقي. أول استثناء
+ * مرفوض بيرمي عشان كل الكتابة تتراجع: ما يبقاش عندنا نص منحة ملتومة.
+ *
+ * @param tx                 معاملة الشركة
+ * @param ids                مولّد المعرّفات
+ * @param input              الشركة والمنحّ والعضويات والاستثناءات
+ * @param input.companyId    الشركة
+ * @param input.actorUserId  صاحب المنح
+ * @param input.memberships  العضويات المرشحة (الأساسية أول)
+ * @param input.overrides    الاستثناءات المطلوبة
+ */
+export async function applyStaffAccessOverrides(
+  tx: Tx,
+  ids: IdGenerator,
+  input: {
+    readonly companyId: string;
+    readonly actorUserId: string;
+    readonly memberships: readonly StaffAccessMembershipCandidate[];
+    readonly overrides: readonly OverrideTerms[];
+  },
+): Promise<void> {
+  for (const terms of input.overrides) {
+    await applyOverride(tx, ids, input, terms);
+  }
+}
+
+/**
+ * ترتيب العضويات المرشحة للاستثناء: اللي نطاقها يطابق نطاق الاستثناء الأول، وبعدها الأساسية،
+ * وبعدها الباقي — عشان أول تطابق هو اللي بيتقبل.
+ */
+function orderedCandidates(
+  memberships: readonly StaffAccessMembershipCandidate[],
+  terms: OverrideTerms,
+): StaffAccessMembershipCandidate[] {
+  const matching = memberships.filter(
+    (membership) =>
+      terms.scope_type === 'BRANCH' && terms.scope_id === membership.branchId,
+  );
+  const primary = memberships[0];
+  const rest = memberships.filter(
+    (membership) => !matching.includes(membership) && membership !== primary,
+  );
+  return [
+    ...matching,
+    ...(primary !== undefined && !matching.includes(primary) ? [primary] : []),
+    ...rest,
+  ];
+}
+
+/**
+ * الاستثناء بيتقيّم على كل عضوية مرشحة: إما التعديل مسموح ودورة القرار مسموحة، أو refusal.
+ * لو مفيش ولا عضوية صلحت، بيرمي رفض ثابت واحد عشان ما يتفضحش سبب الرفض.
+ */
+async function applyOverride(
+  tx: Tx,
+  ids: IdGenerator,
+  input: {
+    readonly companyId: string;
+    readonly actorUserId: string;
+    readonly memberships: readonly StaffAccessMembershipCandidate[];
+  },
+  terms: OverrideTerms,
+): Promise<void> {
+  for (const candidate of orderedCandidates(input.memberships, terms)) {
+    const context = await permissionEditorContext(
+      tx,
+      input.companyId,
+      input.actorUserId,
+      candidate.membershipId,
+      terms,
+    );
+    const failure = permissionEditFailure(terms, context, 'SAVE');
+    if (failure !== null) continue;
+    const previous = await currentOverrides(
+      tx,
+      input.companyId,
+      candidate.membershipId,
+      terms,
+      context.now,
+    );
+    const lifecycle = overrideLifecycleFailure(
+      'SAVE',
+      previous,
+      permissionHolderIsOwner(context),
+      context.now,
+    );
+    if (lifecycle !== null) continue;
+    await writeOverride(
+      tx,
+      ids,
+      input,
+      candidate.membershipId,
+      terms,
+      previous,
+      context.now,
+    );
+    return;
+  }
+  throw new StaffUserRefused('STAFF_ACCESS_OVERRIDE_REFUSED');
+}

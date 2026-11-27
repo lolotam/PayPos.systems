@@ -48,8 +48,13 @@ sync_writes:
   - { from: staff, to: identity, symbol: clearStaffPin, file: apps/api/src/modules/staff/persistence/staff-access-phone.adapter.ts }
   - { from: staff, to: identity, symbol: saveTemporaryStaffPin, file: apps/api/src/modules/staff/persistence/staff-access-phone.adapter.ts }
   - { from: staff, to: identity, symbol: endStaffMembership, file: apps/api/src/modules/staff/persistence/staff-access-stop.adapter.ts }
+  - { from: staff, to: identity, symbol: endExtraStaffMembership, file: apps/api/src/modules/staff/persistence/staff-access-stop.adapter.ts }
   - { from: staff, to: identity, symbol: deleteStaffUserSessions, file: apps/api/src/modules/staff/persistence/staff-access-stop.adapter.ts }
   - { from: staff, to: identity, symbol: moveStaffMembershipToBranch, file: apps/api/src/modules/staff/persistence/employee-access-branch-follow.ts }
+  - { from: staff, to: identity, symbol: endExtraStaffMembership, file: apps/api/src/modules/staff/persistence/employee-access-branch-follow.ts }
+  - { from: staff, to: identity, symbol: applyStaffAccessOverrides, file: apps/api/src/modules/staff/persistence/staff-access.adapter.ts }
+  - { from: staff, to: identity, symbol: grantStaffMembership, file: apps/api/src/modules/staff/persistence/staff-access-extra-branches.ts }
+  - { from: staff, to: identity, symbol: staffAccessGrantedEvent, file: apps/api/src/modules/staff/persistence/staff-access-extra-branches.ts }
 reads:
   - { from: orders, to: staff, symbol: readOwnEmployee, file: apps/api/src/modules/orders/persistence/own-work-context.adapter.ts }
   - { from: orders, to: identity, symbol: readOwnServiceSessionsAccess, file: apps/api/src/modules/orders/persistence/own-work-context.adapter.ts }
@@ -216,6 +221,9 @@ reads:
   - { from: staff, to: identity, symbol: readEmployeeBranchAccess, file: apps/api/src/modules/staff/persistence/employee-context.adapter.ts }
   - { from: staff, to: identity, symbol: readEmployeeBranchAccess, file: apps/api/src/modules/staff/persistence/employee-detail-access.adapter.ts }
   - { from: staff, to: tenancy, symbol: employeeWorkplace, file: apps/api/src/modules/staff/persistence/employee-context.adapter.ts }
+  - { from: staff, to: tenancy, symbol: employeeWorkplace, file: apps/api/src/modules/staff/persistence/staff-access.adapter.ts }
+  - { from: staff, to: tenancy, symbol: attendanceBranch, file: apps/api/src/modules/staff/persistence/staff-access-extra-branches.ts }
+  - { from: staff, to: tenancy, symbol: businessTimeZone, file: apps/api/src/modules/staff/persistence/staff-access-extra-branches.ts }
   - { from: staff, to: identity, symbol: lockEmployeeCreationAccess, file: apps/api/src/modules/staff/persistence/employee-context.adapter.ts }
   - { from: staff, to: identity, symbol: employeeUserLinkAvailable, file: apps/api/src/modules/staff/persistence/employee-context.adapter.ts }
   - { from: staff, to: identity, symbol: readEmployeeDetailAccess, file: apps/api/src/modules/staff/persistence/employee-detail-access.adapter.ts }

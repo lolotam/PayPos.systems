@@ -1884,6 +1884,13 @@
       "when": 1795774850739,
       "tag": "0270_2026-11-27_alert-rules-channels-validate",
       "breakpoints": true
+    },
+    {
+      "idx": 271,
+      "version": "7",
+      "when": 1795782715310,
+      "tag": "0271_2026-11-27_employee-staff-access-branches",
+      "breakpoints": true
     }
   ]
 }

@@ -1,6 +1,7 @@
 import type { GrantBeginScope } from './staff-access-begin.port.ts';
 import type { StaffAccessRole } from './staff-access-begin.port.ts';
 import type { StaffAccessIds, StaffAccessActor } from './staff-access-begin.port.ts';
+import type { StaffAccessOverrideTerms } from './staff-access-begin.port.ts';
 
 /**
  * نطاق الخطوة الثالثة داخل معاملة الشركة: إعادة الفحص تحت القفل ثم العضوية والربط والرقم المؤقت
@@ -29,6 +30,12 @@ export interface GrantCommitScope {
       readonly attemptId: string;
       readonly phoneHash: string;
     } | null;
+    /** الفروع الإضافية المحفوظة للسجل تحت القفل (080-b). */
+    extraBranches: readonly {
+      readonly id: string;
+      readonly branchId: string;
+      readonly roleCode: StaffAccessRole;
+    }[];
   }>;
   /**
    * نفس فحص السلطة جوه المعاملة الجديدة.
@@ -52,6 +59,49 @@ export interface GrantCommitScope {
     branchId: string;
     role: StaffAccessRole;
   }): Promise<{ membershipId: string }>;
+  /**
+   * يمنح عضوية لكل فرع إضافي (080-b): عضوية بدور الفرع، وربط الصف بالعضوية، ومزامنة ارتباط
+   * الموظفة بالفرع، وحدث `StaffAccessGranted` لكل عضوية — كله في نفس معاملة الخطوة الثالثة.
+   *
+   * @param input بيانات الفروع الإضافية من السجل المقفول
+   * @param input.operationId معرّف العملية المقفولة
+   * @param input.userId المستخدم المستهدف
+   * @param input.recordId سجل الدخول
+   * @param input.businessId نشاط الموظفة
+   * @param input.employeeId الموظفة
+   * @param input.branches الفروع الإضافية المقفولة
+   * @returns العضويات الممنوحة مع فرعها ودورها
+   */
+  grantExtraMemberships(input: {
+    operationId: string;
+    userId: string;
+    recordId: string;
+    businessId: string;
+    employeeId: string;
+    branches: readonly {
+      readonly id: string;
+      readonly branchId: string;
+      readonly roleCode: StaffAccessRole;
+    }[];
+  }): Promise<
+    readonly { membershipId: string; branchId: string; role: StaffAccessRole }[]
+  >;
+  /**
+   * يكتب استثناءات الصلاحية المضمّنة على العضويات الممنوحة (080-b) — أول استثناء مرفوض بيرمي
+   * عشان المعاملة كلها تتراجع.
+   *
+   * @param input            العضويات والاستثناءات
+   * @param input.memberships العضويات الممنوحة (الأساسية أول)
+   * @param input.overrides   الاستثناءات المطلوبة
+   */
+  applyOverrides(input: {
+    memberships: readonly {
+      readonly membershipId: string;
+      readonly branchId: string;
+      readonly role: StaffAccessRole;
+    }[];
+    overrides: readonly StaffAccessOverrideTerms[];
+  }): Promise<void>;
   /**
    * يربط الموظفة بمستخدم الدخول ويرفع revision ويسجل التدقيق (FR-F1-4).
    *

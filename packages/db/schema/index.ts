@@ -41,7 +41,7 @@ export * from './staff-leave-history-reports.ts';
 
 export { employeeDefaultShifts } from './staff-default-shifts.ts';
 export { employeeNumberSequences } from './staff-employee-numbers.ts';
-export { employeeStaffAccess } from './staff-access.ts';
+export { employeeStaffAccess, employeeStaffAccessBranches } from './staff-access.ts';
 export * from './orders.ts';
 export * from './orders-packages.ts';
 export * from './orders-package-redemptions.ts';

@@ -8,9 +8,14 @@ import {
   EmployeeRecoveryEmailField,
   newRecoveryEmailOptions,
 } from './employee-recovery-email-field';
+import {
+  EmployeeAccessExtraBranches,
+  type StaffExtraBranchOption,
+} from './employee-access-extra-branches';
+import { EmployeeAccessInlineOverrides } from './employee-access-inline-overrides';
 
-/** حقول نموذج المنح: الهاتف والتأكيد والدور والرقم السري — نفس عقد السيرفر بالحرف. */
-export function EmployeeAccessFields({ form }: { form: UseFormReturn<GrantStaffAccessInput> }) {
+/** الهاتف والتأكيد والدور والرقم السري — نفس عقد السيرفر بالحرف. */
+function EmployeeAccessCredentials({ form }: { form: UseFormReturn<GrantStaffAccessInput> }) {
   const locale = useLocale();
   const confirmed = form.watch('phone_confirmed');
   return (
@@ -45,9 +50,41 @@ export function EmployeeAccessFields({ form }: { form: UseFormReturn<GrantStaffA
         {...form.register('pin')}
       />
       {form.formState.errors.pin ? <p role="alert">{t(locale, 'staff.pinInvalid')}</p> : null}
+    </>
+  );
+}
+
+/** حقول نموذج المنح: بيانات الدخول وفروع الزيادة واستثناءات الصلاحيات. */
+export function EmployeeAccessFields({
+  form,
+  companyId = '',
+  businessId = '',
+  branches = [],
+  primaryBranchId,
+}: {
+  form: UseFormReturn<GrantStaffAccessInput>;
+  companyId?: string;
+  businessId?: string;
+  branches?: readonly StaffExtraBranchOption[];
+  primaryBranchId?: string | undefined;
+}) {
+  return (
+    <>
+      <EmployeeAccessCredentials form={form} />
       <EmployeeRecoveryEmailField
         field={form.register('recovery_email', newRecoveryEmailOptions)}
         invalid={form.formState.errors.recovery_email !== undefined}
+      />
+      <EmployeeAccessExtraBranches
+        form={form}
+        branches={branches}
+        primaryBranchId={primaryBranchId}
+      />
+      <EmployeeAccessInlineOverrides
+        form={form}
+        companyId={companyId}
+        businessId={businessId}
+        branches={branches}
       />
     </>
   );

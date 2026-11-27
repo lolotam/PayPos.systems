@@ -183,9 +183,21 @@ async function deleteCancellingRecord(
   const current = state[0]?.state;
   if (current === undefined) return true;
   if (current !== 'CANCELLING') return false;
+  // الفروع الإضافية بتتشال Cascade مع السجل، فبتتقفل وبتتدقيق قبل الحذف (080-b).
+  const children = await tx.execute<{ id: string; branch_id: string; role_code: string }>(sql`
+    SELECT id, branch_id, role_code FROM employee_staff_access_branches
+    WHERE company_id=${companyId} AND access_id=${recordId} ORDER BY id FOR UPDATE`);
   const removed = await tx.execute(sql`DELETE FROM employee_staff_access
     WHERE company_id=${companyId} AND id=${recordId} AND state='CANCELLING' RETURNING id`);
   if (removed.length === 0) return true;
+  for (const child of children)
+    await audit.record({
+      entity: 'employee_staff_access_branch',
+      entityId: child.id,
+      action: 'deleted',
+      before: { branch_id: child.branch_id, role_code: child.role_code },
+      after: { access_id: recordId, employee_id: employeeId, reason: 'PENDING_CANCELLED' },
+    });
   await audit.record({
     entity: 'employee_staff_access',
     entityId: recordId,

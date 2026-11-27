@@ -67,6 +67,52 @@ export function toRecordRow(
   };
 }
 
+/** صف فرع إضافي كما يعود من SQL المشترك (080-b). */
+export type StaffAccessExtraBranchSqlRow = {
+  readonly id: string;
+  readonly branch_id: string;
+  readonly role_code: StaffAccessRole;
+  readonly membership_id: string | null;
+};
+
+/**
+ * يقرأ الفروع الإضافية لسجل قفول (080-b) — يُقرأ من جدول employee_staff_access_branches.
+ *
+ * @param tx        معاملة الشركة
+ * @param companyId الشركة
+ * @param recordId  سجل الدخول
+ * @returns صفوف الفروع الإضافية
+ */
+export async function readExtraBranchRows(
+  tx: Tx,
+  companyId: string,
+  recordId: string,
+): Promise<readonly StaffAccessExtraBranchSqlRow[]> {
+  const rows = await tx.execute<StaffAccessExtraBranchSqlRow>(sql`
+    SELECT id, branch_id, role_code, membership_id FROM employee_staff_access_branches
+    WHERE company_id=${companyId} AND access_id=${recordId} ORDER BY id`);
+  return Array.from(rows);
+}
+
+/**
+ * يقفل الفروع الإضافية لسجل قفول (080-b) عشان تعديلها ما يتزاحمش مع منح متوازي.
+ *
+ * @param tx        معاملة الشركة
+ * @param companyId الشركة
+ * @param recordId  سجل الدخول
+ * @returns صفوف الفروع الإضافية المقفولة
+ */
+export async function lockExtraBranchRows(
+  tx: Tx,
+  companyId: string,
+  recordId: string,
+): Promise<readonly StaffAccessExtraBranchSqlRow[]> {
+  const rows = await tx.execute<StaffAccessExtraBranchSqlRow>(sql`
+    SELECT id, branch_id, role_code, membership_id FROM employee_staff_access_branches
+    WHERE company_id=${companyId} AND access_id=${recordId} ORDER BY id FOR UPDATE`);
+  return Array.from(rows);
+}
+
 /** يقفل الشركة النشطة FOR NO KEY UPDATE — أول قفل في كل مسار كتابة (P1-3). */
 export async function lockCompanyRow(tx: Tx, companyId: string): Promise<boolean> {
   const rows = await tx.execute(sql`SELECT id FROM companies
