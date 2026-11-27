@@ -64,8 +64,20 @@ export class EmailLayoutError extends Error {
  * @param value النص الخام
  * @returns النص بعد استبدال الرموز الخاصة
  */
-function escapeHtml(value: string): string {
+export function escapeHtml(value: string): string {
   return value.replace(/[&<>"']/g, (character) => ESCAPES.get(character) ?? character);
+}
+
+/**
+ * ينسّق الطابع الزمني ISO لعرض واضح بدل السلسلة التقنية الخام.
+ *
+ * @param iso الطابع الزمني بصيغة ISO
+ * @returns صيغة YYYY-MM-DD HH:mm UTC عندما يكون ISO صالحاً
+ */
+export function formatEmailUtcTimestamp(iso: string): string {
+  return /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/.test(iso)
+    ? `${iso.slice(0, 10)} ${iso.slice(11, 16)} UTC`
+    : iso;
 }
 
 /**
@@ -81,7 +93,12 @@ function normalizeAdminOrigin(adminOrigin: string): string {
   } catch {
     throw new EmailLayoutError();
   }
-  if (url.protocol !== 'https:' || url.hostname === '' || url.username !== '' || url.password !== '')
+  if (
+    url.protocol !== 'https:' ||
+    url.hostname === '' ||
+    url.username !== '' ||
+    url.password !== ''
+  )
     throw new EmailLayoutError();
   if (url.search !== '' || url.hash !== '' || (url.pathname !== '' && url.pathname !== '/'))
     throw new EmailLayoutError();

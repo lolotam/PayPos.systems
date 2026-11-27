@@ -101,6 +101,8 @@ export const NOTIFICATION_SOURCE_EVENTS = [
   'StaffAccessGrantedNoticeRequested',
   'StaffPinSetByOtherNoticeRequested',
   'StaffPinRecoveredNoticeRequested',
+  'StaffWelcomePinNoticeRequested',
+  'MemberInvitationNoticeRequested',
 ] as const;
 
 export function notificationRequestConsumer(

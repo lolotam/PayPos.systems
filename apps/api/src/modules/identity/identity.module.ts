@@ -17,6 +17,7 @@ import type { Redis } from 'ioredis';
 
 import { systemClock } from '../../shared/adapters/system-clock.ts';
 import type { Clock } from '../../shared/ports/clock.port.ts';
+import type { OnboardingEmailSealer } from '../../shared/ports/onboarding-email.port.ts';
 import { DEVICE_AUTHENTICATOR } from '../../shared/device-authenticator.ts';
 import { STAFF_AUTHENTICATION } from '../../shared/staff-authentication.ts';
 import {
@@ -157,6 +158,8 @@ export function identityProviders(
   invitations?: { readonly adminOrigin: string; readonly clock?: { now(): Date } },
   staffAccessRoutes = false,
   staffPinClock: Clock = systemClock,
+  /** ختم إيميلات الترحيب: من غيره مفيش بريد دعوة. */
+  onboardingSealer?: OnboardingEmailSealer,
 ): Provider[] {
   const capabilities = identityCapabilities(database, ids, redis, staffCompanyOf);
   const reader = capabilities.reader;
@@ -169,6 +172,7 @@ export function identityProviders(
       redis,
       invitations?.adminOrigin,
       invitations?.clock ?? systemClock,
+      onboardingSealer,
     ),
     {
       provide: STAFF_AUTHENTICATION,
