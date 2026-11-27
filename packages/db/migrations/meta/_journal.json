@@ -1856,6 +1856,13 @@
       "when": 1795682600000,
       "tag": "0266_2026-11-26_package-refund-notices",
       "breakpoints": true
+    },
+    {
+      "idx": 267,
+      "version": "7",
+      "when": 1795742492441,
+      "tag": "0267_2026-11-27_auth-email-otp-and-suppression-grant",
+      "breakpoints": true
     }
   ]
 }

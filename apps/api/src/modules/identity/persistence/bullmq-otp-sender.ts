@@ -45,14 +45,17 @@ export function createOtpSender(url: string) {
       if (current.connection.status !== 'ready') throw new Error('OTP_ENQUEUE_UNAVAILABLE');
       await current.connection.ping();
     },
-    workerFingerprint: async (deadline?: Date) => {
+    workerFingerprint: async (deadline?: Date, channel: 'EMAIL' | 'WHATSAPP' = 'WHATSAPP') => {
       if (
         current === undefined ||
         current.connection.status !== 'ready' ||
         (deadline !== undefined && Date.now() + 40 >= deadline.getTime())
       )
         return null;
-      return current.connection.get('staff-otp:worker-capability');
+      // قدرة الإيميل مستقلة عن الواتساب: كل قناة ليها مفتاح بصمة بيكتبه العامل لقناته.
+      return current.connection.get(
+        channel === 'EMAIL' ? 'email-otp:worker-capability' : 'staff-otp:worker-capability',
+      );
     },
     close: async (force = false) => {
       stopped = true;

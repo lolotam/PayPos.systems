@@ -71,13 +71,23 @@ import {
   changeTemporaryStaffPinInput,
 } from './identity/staff-otp.js';
 import {
+  passwordResetOtpRequestInput,
+  passwordResetOtpResetInput,
+  passwordResetOtpAcknowledgement,
+  passwordResetOtpResult,
+} from './identity/password-reset-otp.js';
+import {
   privateViewOpenInput,
   privateViewWindow,
   privateViewTouch,
 } from './identity/private-view.js';
 import { errorEnvelope } from './errors/envelope.js';
 import { cashierPinVerified, verifyCashierPinInput } from './identity/cashier-pin.js';
-import { navStyle, myPreferencesResponse, setMyPreferencesInput } from './identity/me-preferences.js';
+import {
+  navStyle,
+  myPreferencesResponse,
+  setMyPreferencesInput,
+} from './identity/me-preferences.js';
 import { myMembership, myMembershipsResponse } from './identity/my-memberships.js';
 import {
   myWorkspacesResponse,
@@ -218,6 +228,10 @@ export const openApiSchemas = [
   staffOtpAcknowledgement,
   staffSessionContext,
   signOutResult,
+  passwordResetOtpRequestInput,
+  passwordResetOtpResetInput,
+  passwordResetOtpAcknowledgement,
+  passwordResetOtpResult,
   privateViewOpenInput,
   privateViewWindow,
   privateViewTouch,

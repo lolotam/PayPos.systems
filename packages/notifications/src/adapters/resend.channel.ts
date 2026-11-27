@@ -68,23 +68,35 @@ export class ResendChannel implements Channel<EmailRequest> {
       input.safeParameters,
       this.#adminOrigin,
     );
+    const auth = input.authChallengeId !== undefined;
+    const ids = auth
+      ? [input.authChallengeId, input.attemptId, input.executionId]
+      : [input.companyId, input.attemptId, input.executionId];
     if (
       content === null ||
       canonicalEmail(input.email) !== input.email ||
       !input.email ||
-      ![input.companyId, input.attemptId, input.executionId].every((id) => ID.test(id))
+      !ids.every((id) => typeof id === 'string' && ID.test(id))
     )
       throw new Error('EMAIL_REQUEST_INVALID');
+    // بريد الاعتماد بيتربّط بسجل الاعتماد، وبريد الشركة بيمشي بوسم الشركة — والاثنين بالـ attempt.
+    const tags = auth
+      ? [
+          { name: 'auth_challenge_id', value: input.authChallengeId ?? '' },
+          { name: 'attempt_id', value: input.attemptId },
+          { name: 'execution_id', value: input.executionId },
+        ]
+      : [
+          { name: 'company_id', value: input.companyId },
+          { name: 'attempt_id', value: input.attemptId },
+          { name: 'execution_id', value: input.executionId },
+        ];
     return JSON.stringify({
       from: this.#from,
       to: [input.email],
       reply_to: this.#replyTo,
       ...content,
-      tags: [
-        { name: 'company_id', value: input.companyId },
-        { name: 'attempt_id', value: input.attemptId },
-        { name: 'execution_id', value: input.executionId },
-      ],
+      tags,
     });
   }
 

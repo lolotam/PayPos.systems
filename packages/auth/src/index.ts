@@ -42,12 +42,26 @@ export {
   createStaffOtpMaintenance,
   type StaffOtpExecution,
 } from './staff-otp/execution.ts';
+export {
+  createPasswordResetOtpApi,
+  PASSWORD_RESET_LIFETIME_MS,
+  PASSWORD_RESET_RETRY_MS,
+  type PasswordResetOtpApi,
+  type PasswordResetOtpApiOptions,
+  type PasswordResetOutcome,
+  type PasswordResetRequestResult,
+} from './password-reset-otp/api.ts';
+export {
+  readEmailOtpConfiguration,
+  type EmailOtpConfiguration,
+} from './password-reset-otp/configuration.ts';
 export { readStaffOtpConfiguration, type OtpConfiguration } from './staff-otp/configuration.ts';
 export type {
   OtpCapability,
   OtpRates,
   OtpSender,
   OtpStrategies,
+  EmailOtpStrategies,
   StaffDeviceContext,
   StaffEligibility,
   StaffSession,

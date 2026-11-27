@@ -1,6 +1,6 @@
 import { DiscountApprovalError } from './discount-approval-error.ts';
 import { needsApproval, proposalExpiry } from './discount-approval-rules.ts';
-import { firstName } from './discount-first-name.ts';
+import { firstName, optionalFirstName } from './discount-first-name.ts';
 import {
   buildDiscountTerms,
   canonicalDiscountTerms,
@@ -107,7 +107,10 @@ export interface DiscountTermsFacts {
  * @param line البند المحضّر كما سيُكتب
  * @returns شروط الخصم الموقّعة بصيغتها القانونية
  */
-export function discountTermsOfLine(facts: DiscountTermsFacts, line: PreparedSessionLine): DiscountTermsV1 {
+export function discountTermsOfLine(
+  facts: DiscountTermsFacts,
+  line: PreparedSessionLine,
+): DiscountTermsV1 {
   return buildDiscountTerms({
     company_id: facts.company_id,
     business_id: facts.business_id,
@@ -203,19 +206,22 @@ function proposalFromLine(
 }
 
 function requesterSnapshot(input: DiscountRequestPlanInput) {
+  // اسمٌ مسافاتٌ فقط لا يُحفظ: الاسم والاسم الأول يبقيان معاً فارغين، وغياب الإنجليزي يسقط العربي حفظاً لقيد الجدول.
+  const firstNameEn = optionalFirstName(input.requester.name_en);
+  const firstNameAr = firstNameEn === null ? null : optionalFirstName(input.requester.name_ar);
   return {
     requested_by: input.requested_by,
     requested_by_membership_id: input.requested_by_membership_id,
     requester_limit_source: input.limit.source,
     requester_limit_bps: input.limit.bps,
-    requester_name_ar: input.requester.name_ar,
-    requester_name_en: input.requester.name_en,
+    requester_name_ar: firstNameAr === null ? null : input.requester.name_ar,
+    requester_name_en: firstNameEn === null ? null : input.requester.name_en,
     requester_role: input.requester.role.code,
     requester_role_is_system: input.requester.role.is_system,
     requester_role_name_ar: input.requester.role.name_ar,
     requester_role_name_en: input.requester.role.name_en,
-    requester_first_name_en: input.requester.name_en === null ? null : firstName(input.requester.name_en),
-    requester_first_name_ar: input.requester.name_ar === null ? null : firstName(input.requester.name_ar),
+    requester_first_name_en: firstNameEn,
+    requester_first_name_ar: firstNameAr,
   };
 }
 
@@ -232,7 +238,7 @@ function performerRows(
       employee_id: performer.employee.id,
       linked_user_id: performer.employee.user_id,
       first_name_en: firstName(performer.employee.name_en),
-      first_name_ar: performer.employee.name_ar === null ? null : firstName(performer.employee.name_ar),
+      first_name_ar: optionalFirstName(performer.employee.name_ar),
     };
   });
 }

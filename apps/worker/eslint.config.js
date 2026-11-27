@@ -30,7 +30,10 @@ export default [
     ...allowDatabaseFacade(['createOutboxDispatcherDatabase', 'createPlatformWhatsappDatabase']),
   },
   {
-    files: ['src/**/__tests__/email-feedback-harness.ts'],
+    files: [
+      'src/**/__tests__/email-feedback-harness.ts',
+      'src/**/__tests__/email-feedback-auth.spec.ts',
+    ],
     ...allowDatabaseFacade(['createOutboxDispatcherDatabase', 'createPlatformEmailDatabase']),
   },
   {

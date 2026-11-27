@@ -99,6 +99,7 @@ it('reads the correlation tags and hashes the recipient without letting the addr
     expect(result.id).toBe(PROVIDER_ID);
     expect(result.tags).toEqual({
       companyId: COMPANY,
+      authChallengeId: null,
       attemptId: ATTEMPT,
       executionId: EXECUTION,
     });
@@ -227,6 +228,59 @@ it('escapes the provider id in the request path', async () => {
   try {
     await retriever(server).retrieve('id/../other');
     expect(server.state.paths).toEqual(['/emails/id%2F..%2Fother']);
+  } finally {
+    await server.close();
+  }
+});
+
+const CHALLENGE = '01920000-0000-7000-8000-000000000005';
+
+it('reads the auth correlation tags of a recovery email instead of the company tag', async () => {
+  const server = await loopback();
+  try {
+    server.state.body = JSON.stringify({
+      id: PROVIDER_ID,
+      to: [RECIPIENT],
+      tags: [
+        { name: 'auth_challenge_id', value: CHALLENGE },
+        { name: 'attempt_id', value: ATTEMPT },
+        { name: 'execution_id', value: EXECUTION },
+      ],
+    });
+    const result = await retriever(server).retrieve(PROVIDER_ID);
+    expect(result.kind).toBe('found');
+    if (result.kind !== 'found') return;
+    expect(result.tags).toEqual({
+      companyId: null,
+      authChallengeId: CHALLENGE,
+      attemptId: ATTEMPT,
+      executionId: EXECUTION,
+    });
+    expect(result.recipientHash).toEqual(identity.identify(RECIPIENT).hash);
+  } finally {
+    await server.close();
+  }
+});
+
+it('quarantines tags that carry both the company and the auth challenge, or neither, or a bad id', async () => {
+  const server = await loopback();
+  try {
+    const base = [
+      { name: 'attempt_id', value: ATTEMPT },
+      { name: 'execution_id', value: EXECUTION },
+    ];
+    for (const extra of [
+      [],
+      [{ name: 'auth_challenge_id', value: 'not-a-uuid' }],
+      [{ name: 'company_id', value: 'not-a-uuid' }],
+    ]) {
+      server.state.body = JSON.stringify({
+        id: PROVIDER_ID,
+        to: [RECIPIENT],
+        tags: [...base, ...extra],
+      });
+      expect(await retriever(server).retrieve(PROVIDER_ID)).toMatchObject({ kind: 'invalid_tags' });
+    }
   } finally {
     await server.close();
   }

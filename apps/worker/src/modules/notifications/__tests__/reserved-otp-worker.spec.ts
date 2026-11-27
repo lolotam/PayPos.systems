@@ -26,7 +26,12 @@ function execution(rows: Map<string, OtpPending>): OtpExecution {
     materialize: async (id) => {
       const row = rows.get(id);
       return row?.status === 'SENDING'
-        ? { phone: '+99900000001', code: String(7).padStart(6, '0'), deadline: row.sendDeadline }
+        ? {
+            destination: '+99900000001',
+            code: String(7).padStart(6, '0'),
+            deadline: row.sendDeadline,
+            executionId: 'synthetic-execution',
+          }
         : null;
     },
     finish: async (id, _attempt, _execution, result) => {
@@ -64,7 +69,7 @@ function useCase(redis: Redis, submitted: number[]) {
     execution(rows),
     capability,
     redisSendAdmission(redis, 1000),
-    channel,
+    [channel],
     { now },
     { newId: randomUUID },
     { pause: (ms) => new Promise((resolve) => setTimeout(resolve, ms)) },
@@ -82,6 +87,7 @@ function jobs(rows: Map<string, OtpPending>, count: number) {
       challengeId,
       recipientHash: randomBytes(32),
       locale: 'ar',
+      channel: 'WHATSAPP',
       providerTemplateName: 'synthetic_ar',
       status: 'PENDING',
       preparationDeadline: new Date(createdAt.getTime() + 200),

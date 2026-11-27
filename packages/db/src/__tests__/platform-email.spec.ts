@@ -99,7 +99,23 @@ it('gives pospay_app the boolean check only, and no table privilege', async () =
 });
 
 it('keeps the function away from the other runtime roles and the reader from the runtime', async () => {
-  for (const url of [test.authUrl, test.dispatcherUrl, test.notificationsUrl]) {
+  // الاعتماد بالإيميل محتاج دالة الحظر العام، فـ pospay_auth ليها EXECUTE بس من غير جداول.
+  const auth = postgres(test.authUrl, { max: 1, onnotice: () => undefined });
+  try {
+    expect(await auth`SELECT platform_email_is_suppressed(${hash}) AS value`).toEqual([
+      { value: false },
+    ]);
+    await expect(auth`SELECT 1 FROM platform_email_suppressions`).rejects.toThrow(
+      /permission denied/,
+    );
+    await expect(auth`SELECT 1 FROM platform_email_feedback_inbox`).rejects.toThrow(
+      /permission denied/,
+    );
+    await expect(auth`SELECT 1 FROM platform_email_audit`).rejects.toThrow(/permission denied/);
+  } finally {
+    await auth.end();
+  }
+  for (const url of [test.dispatcherUrl, test.notificationsUrl]) {
     const raw = postgres(url, { max: 1, onnotice: () => undefined });
     try {
       await expect(raw`SELECT platform_email_is_suppressed(${hash})`).rejects.toThrow(

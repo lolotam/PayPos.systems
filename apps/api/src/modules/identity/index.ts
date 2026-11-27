@@ -74,6 +74,11 @@ export {
   OperatorSessionEnded,
   type OperatorSessionCheck,
 } from './persistence/fence-operator-session.ts';
+export {
+  createPasswordResetCapability,
+  passwordResetProviders,
+  type PasswordResetCapability,
+} from './password-reset-capability.ts';
 export { staffSessionBinding } from './http/staff-session-binding.ts';
 export { lockDocumentAccess, readDocumentAccess } from './persistence/document-access.ts';
 export {

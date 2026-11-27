@@ -59,11 +59,35 @@ export type AttemptBindingDecision =
   | { readonly ok: true; readonly bindProviderMessageId: boolean }
   | { readonly ok: false; readonly reason: EmailQuarantineReason };
 
-/** وسوم الارتباط المسترجعة من المزود: الشركة والمحاولة والتنفيذ. */
+/** وسوم الارتباط المسترجعة من المزود: الشركة أو الاعتماد، مع المحاولة والتنفيذ. */
 export interface EmailRetrievedTags {
-  readonly companyId: string;
+  /** وسم الشركة — بريد الشركات بس. */
+  readonly companyId: string | null;
+  /** وسم الاعتماد — بريد الاسترجاع بس. */
+  readonly authChallengeId: string | null;
   readonly attemptId: string;
   readonly executionId: string;
+}
+
+/** مسار التسوية: الاعتماد أو الشركة، أو وسوم ما بتحدد مسار (لا شركة ولا اعتماد). */
+export type EmailFeedbackRoute =
+  | { readonly kind: 'auth'; readonly challengeId: string }
+  | { readonly kind: 'tenant'; readonly companyId: string }
+  | { readonly kind: 'invalid' };
+
+/**
+ * يحدد مسار تسوية ردّ المزود من الوسوم: وسم الاعتماد بيكسب، وإلا لازم وسم الشركة. وسوم من غير
+ * أيّ منهما مسار غير صالح، مش شركة فاضية.
+ *
+ * @param tags الوسوم المسترجعة من المزود
+ * @returns المسار
+ */
+export function emailFeedbackRoute(tags: EmailRetrievedTags): EmailFeedbackRoute {
+  if (tags.authChallengeId !== null && tags.authChallengeId !== undefined)
+    return { kind: 'auth', challengeId: tags.authChallengeId };
+  if (tags.companyId !== null && tags.companyId !== undefined)
+    return { kind: 'tenant', companyId: tags.companyId };
+  return { kind: 'invalid' };
 }
 
 /** نتيجة استرجاع الإيميل المرسل: وُجد، أو وسوم غير صالحة، أو فشل مؤقت. */

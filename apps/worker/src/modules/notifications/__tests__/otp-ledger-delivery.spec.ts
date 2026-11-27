@@ -3,6 +3,7 @@ import { afterAll, beforeAll, expect, it, vi } from 'vitest';
 import { createStaffOtpExecution } from '@pospay/auth';
 import {
   FakeChannel,
+  createEmailIdentity,
   createPhoneIdentity,
   createProviderMessageDigest,
   phoneLockKey,
@@ -20,6 +21,7 @@ const keys = {
   verification: new Map([['synthetic-v', Buffer.alloc(32, 29)]]),
 };
 const identity = createPhoneIdentity('synthetic'.repeat(8), 'synthetic-h');
+const emailIdentity = createEmailIdentity('synthetic-email'.repeat(6), 'synthetic-e');
 const capability = { available: () => true, ready: async () => true };
 let f: Awaited<ReturnType<typeof otpFixture>>, auth: ReturnType<typeof createStaffOtpExecution>;
 beforeAll(async () => {
@@ -33,8 +35,18 @@ beforeAll(async () => {
       templates: { ar: 'synthetic_ar', en: 'synthetic_en' },
       posOrigin: 'https://pos.synthetic.invalid',
     }),
+    emailConfiguration: () => ({
+      state: 'READY',
+      fingerprint: 'synthetic-email',
+      keys,
+    }),
     capability,
-    strategies: { identify: identity.identify, phoneLockKey },
+    emailCapability: capability,
+    strategies: {
+      identify: identity.identify,
+      phoneLockKey,
+      identifyEmail: emailIdentity.identify,
+    },
   });
   await auth.readiness();
 });
@@ -85,7 +97,7 @@ function execution(
       ledger,
       capability,
       { reserve: async () => true },
-      channel,
+      [channel],
       { now },
       { newId: randomUUID },
       wait,

@@ -210,6 +210,7 @@ it('quarantines every mismatch without writing anything in the tenant', async ()
       (seed) => ({
         tags: {
           companyId: COMPANY,
+          authChallengeId: null,
           attemptId: '01920000-0000-7000-8000-0000000000b1',
           executionId: seed.executionId,
         },
@@ -222,6 +223,7 @@ it('quarantines every mismatch without writing anything in the tenant', async ()
       (seed) => ({
         tags: {
           companyId: COMPANY,
+          authChallengeId: null,
           attemptId: seed.id,
           executionId: '01920000-0000-7000-8000-0000000000b2',
         },
