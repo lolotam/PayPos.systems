@@ -8,7 +8,11 @@ import { startNotificationQueue, startWhatsappInbound } from './modules/notifica
 import type { Inbound } from './modules/notifications/index.ts';
 import type { OtpDelivery, OtpWorker } from './otp-delivery.ts';
 import { retryDelayMs } from './outbox/retry-policy.ts';
-import { closeOptional, optionalWithin } from './shared/optional-capability.ts';
+import {
+  closeOptional,
+  optionalWithin,
+  whatsappSetupSubReason,
+} from './shared/optional-capability.ts';
 
 type Maintenance = ReturnType<typeof createStaffOtpMaintenance>;
 type NotificationQueue = ReturnType<typeof startNotificationQueue>;
@@ -196,9 +200,16 @@ async function startWhatsappIntake(
       'staff OTP capability',
     );
     return { inbound, database };
-  } catch {
+  } catch (error) {
     input.logger.warn(
-      { capability: { name: 'WHATSAPP_INTAKE', state: 'UNAVAILABLE', reason: 'SETUP_FAILED' } },
+      {
+        capability: {
+          name: 'WHATSAPP_INTAKE',
+          state: 'UNAVAILABLE',
+          reason: 'SETUP_FAILED',
+          subReason: whatsappSetupSubReason(error),
+        },
+      },
       'staff OTP capability',
     );
     await closeOptional([() => inbound?.close(true), () => database?.close(true)]);
