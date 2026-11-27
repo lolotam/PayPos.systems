@@ -35,13 +35,10 @@ export function useSaveAlertRules(
     },
     onError: async (error) => {
       if (!isAlertRulesRefusal(error) && alertRulesStatus(error) !== 409) return;
-      // فشل إعادة القراءة مش دليل على نسخة جديدة، فالمسودة ورسالة التعارض بتفضل من غير استبدال.
-      try {
-        await client.refetchQueries({ queryKey: key, exact: true }, { throwOnError: true });
-      } catch {
-        return;
-      }
+      // طلب الاستبدال بيتسجّل فورًا وبيتطبّق عند أول قراءة ناجحة؛ فشل القراءة هنا ما بيمسحوش،
+      // والمسودة ورسالة التعارض بتفضل لحد ما القراءة تنجح (issue #623).
       if (alertRulesStatus(error) === 409) onConflict();
+      await client.refetchQueries({ queryKey: key, exact: true });
     },
   });
 }

@@ -1354,6 +1354,19 @@ and repaired by the worker, and a manual flush only creates a new incident.
 A parked `CompanyCreated` whose scheduler exists (for example the `staff` consumer failed) raises none of these and does
 not degrade `/ready`.
 
+### Periodic coverage verification (issue #1220)
+
+Every 5 minutes the worker runs one bounded sweep that checks company schedulers while the certificate is valid and no
+pass owns the key: at most 5 pages of 200 ids (the same `recovery_company_ids` read), one Redis pipeline per page, at most
+100 successful upserts per sweep (a refused registration does not use the cap and the cursor moves past it); it stops
+starting pages or registrations after 60 s and re-checks before every page that no recovery pass owns the key. The cursor
+wraps, so every company is checked each cycle. It registers **only the missing**
+schedulers and never touches the certificate, the lease or the incident ledger, so `/ready` does not change.
+
+| Alert code (log field `code`) | Meaning | What to do |
+| --- | --- | --- |
+| `COMMISSION_REMINDER_SCHEDULER_RESTORED` | a sweep found `missing` schedulers while the certificate was intact and tried to restore them (`restored` succeeded, `failed` will be retried next cycle) | a one-off after a new company is fine (its `CompanyCreated` was not delivered yet); if it repeats for existing companies, look for what deletes `commissions-statement-reminders-*` keys in Redis and check `failed` |
+
 ### Rollout rule
 
 1. Deploy the migration (0263) first: the tables, the two definer roles and the grants are additive.

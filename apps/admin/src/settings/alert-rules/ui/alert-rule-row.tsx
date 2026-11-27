@@ -21,7 +21,7 @@ type AlertRuleRowProps = {
   index: number;
   disabled: boolean;
   onResetDone: () => void;
-  onResetConflict: () => void;
+  onResetConflict: (options?: { immediate: boolean }) => void;
 };
 
 export function AlertRuleRow(props: AlertRuleRowProps) {

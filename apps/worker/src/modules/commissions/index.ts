@@ -159,6 +159,7 @@ export {
   parseReminderSentinel,
   parseReminderSlot,
   recoverySlotDelayMs,
+  REMINDER_COVERAGE_SWEEP_INTERVAL_MS,
   REMINDER_RECOVERY_KEY,
   REMINDER_RECOVERY_LEASE_TTL_SECONDS,
   REMINDER_RECOVERY_PAGE_SIZE,
@@ -186,3 +187,11 @@ export {
   type ReadinessFailure,
   type ReadinessResult,
 } from './use-cases/check-commission-reminder-readiness/check-commission-reminder-readiness.ts';
+export {
+  createCommissionReminderCoverageSweeper,
+  verifyCommissionReminderCoverage,
+  type CommissionReminderCoverageSweeper,
+  type CoverageSweepBounds,
+  type CoverageSweepResult,
+  type VerifyCommissionReminderCoverageDeps,
+} from './use-cases/verify-commission-reminder-coverage/verify-commission-reminder-coverage.ts';

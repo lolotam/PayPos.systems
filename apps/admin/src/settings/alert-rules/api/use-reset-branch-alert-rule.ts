@@ -23,22 +23,15 @@ export function useResetBranchAlertRule(
     mutationFn: ({ kind, expected }: ResetInput) =>
       resetBranchAlertRule(companyId, businessId, branchId, kind, expected),
     onSuccess: async () => {
-      // إعلان الرجوع للقاعدة الأم بيتم بعد قراءة ناجحة بس، وإلا تفضل القيم ورسالة القراءة ظاهرة.
-      try {
-        await client.refetchQueries({ queryKey: key, exact: true }, { throwOnError: true });
-      } catch {
-        return;
-      }
+      // طلب الاستبدال وإعلان الرجوع للقاعدة الأم بيتسجّلوا فورًا ويتطبّقوا عند أول قراءة ناجحة؛
+      // فشل القراءة هنا ما بيضيّعهمش (issue #623).
       onDone();
+      await client.refetchQueries({ queryKey: key, exact: true });
     },
     onError: async (error) => {
       if (!isAlertRulesRefusal(error) && alertRulesStatus(error) !== 409) return;
-      try {
-        await client.refetchQueries({ queryKey: key, exact: true }, { throwOnError: true });
-      } catch {
-        return;
-      }
       if (alertRulesStatus(error) === 409) onConflict();
+      await client.refetchQueries({ queryKey: key, exact: true });
     },
   });
 }
