@@ -5,6 +5,7 @@ import { createHmac } from 'node:crypto';
 import { sql } from 'drizzle-orm';
 
 import {
+  applyStaffAccessOverrides,
   createGrantInvalidator,
   grantStaffMembership,
   readStaffAccessAuthority,
@@ -12,6 +13,7 @@ import {
   staffAccessGrantedEvent,
   type StaffAccessGranted,
 } from '../../identity/index.ts';
+import { attendanceBranch, employeeWorkplace } from '../../tenancy/index.ts';
 import { transactionWriters } from '../../../shared/adapters/transaction-writers.ts';
 import type { AuditTrail } from '../../../shared/ports/audit-trail.port.ts';
 import type { OutboxWriter } from '../../../shared/ports/outbox-writer.port.ts';
@@ -27,7 +29,19 @@ import type {
   StaffAccessGrantCache,
 } from '../ports/staff-access.port.ts';
 import {
+  grantExtraBranchMemberships,
+  readExtraBranches,
+  replaceExtraBranches,
+} from './staff-access-extra-branches.ts';
+import {
+  insertPendingRecord,
+  releaseAttemptRow,
+  writeRecoveryEmail,
+  type StaffAccessRecordWriteInput,
+} from './staff-access-record-writes.ts';
+import {
   lockCompanyRow,
+  lockExtraBranchRows,
   lockRecordWithEmployee,
   readRecordRow,
   STAFF_ACCESS_EMPLOYEE_COLUMNS,
@@ -35,31 +49,33 @@ import {
   type StaffAccessEmployeeSqlRow,
 } from './staff-access-rows.ts';
 
-interface BeginInput {
-  readonly businessId: string;
-  readonly employeeId: string;
-  readonly ids: IdGenerator;
-  readonly at: Date;
-}
-
-interface CommitInput extends BeginInput {
+interface CommitInput extends StaffAccessRecordWriteInput {
   readonly recordId: string;
 }
 
+/**
+ * فحص السلطة على فرع: لازم الفرع يكون تابع للنشاط فعلاً (080-b) — فرع غريب أو مش موجود
+ * بيرفض زيف بدل ما يبقى خطأ قيد أجنبي. فرع مش نشط (مؤرشف) بيترفض كمان: منح دخول على فرع
+ * مؤرشف معناه ولا حاجة. بعدها صلاحية `manage:staff-access:branch` جوه نفس المعاملة.
+ */
 function authorityChecker(tx: Tx, actor: StaffAccessActor): GrantBeginScope['authority'] {
-  return (businessId, branchId) =>
-    readStaffAccessAuthority(tx, {
+  return async (businessId, branchId) => {
+    const workplace = await employeeWorkplace(tx, actor.companyId, businessId, branchId);
+    if (!workplace.businessExists || workplace.branchBusinessId !== businessId) return false;
+    if ((await attendanceBranch(tx, actor.companyId, businessId, branchId)) === null) return false;
+    return readStaffAccessAuthority(tx, {
       companyId: actor.companyId,
       actorUserId: actor.userId,
       businessId,
       branchId,
     });
+  };
 }
 
 function beginScope(
   tx: Tx,
   actor: StaffAccessActor,
-  input: BeginInput,
+  input: StaffAccessRecordWriteInput,
   phoneHashSecret: Buffer | string,
 ): GrantBeginScope {
   const audit = transactionWriters(tx, input.ids).audit;
@@ -75,6 +91,7 @@ function beginScope(
     },
     authority: authorityChecker(tx, actor),
     findRecord: () => readRecordRow(tx, actor.companyId, input.employeeId),
+    findExtraBranches: (recordId) => readExtraBranches(tx, actor.companyId, recordId),
     setRecoveryEmail: (email) =>
       writeRecoveryEmail(tx, actor.companyId, input.employeeId, email, audit),
     releaseAttempt: (recordId, attemptId) =>
@@ -84,6 +101,20 @@ function beginScope(
         role_code=${binding.roleCode},branch_id=${binding.branchId},granted_by=${actor.userId},
         attempt_id=${input.ids.newId()},attempt_started_at=${input.at.toISOString()}::timestamptz,
         updated_at=${input.at.toISOString()}::timestamptz WHERE company_id=${actor.companyId} AND id=${recordId}`);
+      // الفروع الإضافية القديمة بتتشال وبتتدقيق والجديدة بتكتب في نفس المعاملة (080-b).
+      await replaceExtraBranches(
+        tx,
+        {
+          companyId: actor.companyId,
+          actorUserId: actor.userId,
+          businessId: input.businessId,
+          employeeId: input.employeeId,
+          recordId,
+          ids: input.ids,
+          at: input.at,
+        },
+        binding.extraBranches ?? [],
+      );
       const record = await readRecordRow(tx, actor.companyId, input.employeeId);
       if (record === null) throw new Error('STAFF_RECORD_RESTART_FAILED');
       return record;
@@ -98,105 +129,24 @@ function beginScope(
   };
 }
 
-/** يكتب إيميل الاستعادة ويزوّد المراجعة ويسجّل التدقيق؛ مخالفة الفهرس الفريد بتتحول لرفض مسمّى. */
-async function writeRecoveryEmail(
-  tx: Tx,
-  companyId: string,
-  employeeId: string,
-  email: string,
-  audit: AuditTrail,
-): Promise<void> {
-  const [current] = await tx.execute<{ recovery_email: string | null }>(
-    sql`SELECT recovery_email FROM employees WHERE company_id=${companyId} AND id=${employeeId} AND deleted_at IS NULL`,
-  );
-  if (current === undefined || current.recovery_email === email) return;
-  try {
-    await tx.execute(
-      sql`UPDATE employees SET recovery_email=${email},revision=revision+1 WHERE company_id=${companyId} AND id=${employeeId} AND deleted_at IS NULL`,
-    );
-  } catch (error) {
-    const cause = error instanceof Error && 'cause' in error ? error.cause : error;
-    if (
-      typeof cause === 'object' &&
-      cause !== null &&
-      'constraint_name' in cause &&
-      cause.constraint_name === 'employees_company_recovery_email_uidx'
-    )
-      throw new StaffAccessError('EMPLOYEE_RECOVERY_EMAIL_TAKEN');
-    throw error;
-  }
-  await audit.record({
-    entity: 'employee',
-    entityId: employeeId,
-    action: 'updated',
-    before: { recovery_email: current.recovery_email === null ? null : 'SET' },
-    after: { recovery_email: current.recovery_email === null ? 'SET' : 'CHANGED' },
-  });
-}
-
-async function insertPendingRecord(
-  tx: Tx,
-  actor: StaffAccessActor,
-  input: BeginInput,
-  audit: AuditTrail,
-  record: { roleCode: StaffAccessRole; branchId: string; phoneHash: string },
-): Promise<StaffAccessRecordRow & { grantedBy: string; phoneHash: string }> {
-  const id = input.ids.newId();
-  const operationId = input.ids.newId();
-  const attemptId = input.ids.newId();
-  await tx.execute(sql`INSERT INTO employee_staff_access
-    (company_id,id,business_id,employee_id,operation_id,role_code,branch_id,state,granted_by,phone_hash,
-      attempt_id,attempt_started_at)
-    VALUES (${actor.companyId},${id},${input.businessId},${input.employeeId},${operationId},
-      ${record.roleCode},${record.branchId},'PENDING',${actor.userId},${record.phoneHash},
-      ${attemptId},${input.at.toISOString()}::timestamptz)`);
-  await audit.record({
-    entity: 'employee_staff_access',
-    entityId: id,
-    action: 'created',
-    after: { employee_id: input.employeeId, role_code: record.roleCode, state: 'PENDING' },
-  });
-  return {
-    id,
-    state: 'PENDING',
-    roleCode: record.roleCode,
-    branchId: record.branchId,
-    operationId,
-    userId: null,
-    membershipId: null,
-    attemptId,
-    attemptStartedAt: input.at,
-    grantedBy: actor.userId,
-    phoneHash: record.phoneHash,
+/**
+ * يغلّف واجهة الحساب في كاش واحد للمعاملة: كل عضوية فرع إضافية بتنادي `bindingOf` بنفس
+ * معرّف العملية، ومن غير الكاش دي 51 قراءة لنفس العملية في نفس المعاملة. باقي الدوال بتتنى
+ * زي ما هي.
+ */
+function memoizedAuth(auth: AuthFacadeForStaffAccess): AuthFacadeForStaffAccess {
+  const bindings = new Map<string, ReturnType<AuthFacadeForStaffAccess['bindingOf']>>();
+  const bindingOf = (operationId: string) => {
+    const cached = bindings.get(operationId);
+    if (cached !== undefined) return cached;
+    const pending = auth.bindingOf(operationId);
+    bindings.set(operationId, pending);
+    return pending;
   };
-}
-
-/** يحرر محاولة رُفضت بهاتف مملوك: يحذف سجلاً بلا مستخدم أو يعيد سجل إعادة المنح إلى STOPPED. */
-async function releaseAttemptRow(
-  tx: Tx,
-  actor: StaffAccessActor,
-  input: BeginInput,
-  audit: AuditTrail,
-  target: { recordId: string; attemptId: string },
-): Promise<boolean> {
-  const restored = await tx.execute(sql`UPDATE employee_staff_access
-    SET state='STOPPED',updated_at=${input.at.toISOString()}::timestamptz
-    WHERE company_id=${actor.companyId} AND id=${target.recordId} AND attempt_id=${target.attemptId}
-      AND state='PENDING' AND user_id IS NOT NULL RETURNING id`);
-  const removed =
-    restored.length !== 0
-      ? []
-      : await tx.execute(sql`DELETE FROM employee_staff_access
-    WHERE company_id=${actor.companyId} AND id=${target.recordId} AND attempt_id=${target.attemptId}
-      AND state='PENDING' AND user_id IS NULL RETURNING id`);
-  if (restored.length === 0 && removed.length === 0) return false;
-  await audit.record({
-    entity: 'employee_staff_access',
-    entityId: target.recordId,
-    action: restored.length !== 0 ? 'regrant_cancelled' : 'deleted',
-    after: { employee_id: input.employeeId, reason: 'PHONE_TAKEN' },
+  return new Proxy(auth, {
+    get: (target, property, receiver) =>
+      property === 'bindingOf' ? bindingOf : Reflect.get(target, property, receiver),
   });
-  return true;
 }
 
 function commitScope(
@@ -206,12 +156,44 @@ function commitScope(
   auth: AuthFacadeForStaffAccess,
 ): GrantCommitScope {
   const writers = transactionWriters(tx, input.ids);
+  const memoAuth = memoizedAuth(auth);
   return {
     lockCompany: () => lockCompanyRow(tx, actor.companyId),
     recheck: () => recheckUnderLock(tx, actor, input),
     authority: authorityChecker(tx, actor),
     grantMembership: (membership) =>
-      grantMembershipAndAudit(tx, auth, actor, input.ids, writers.audit, membership),
+      grantMembershipAndAudit(tx, memoAuth, actor, input.ids, writers.audit, membership),
+    grantExtraMemberships: (payload) =>
+      grantExtraBranchMemberships(
+        tx,
+        memoAuth,
+        {
+          companyId: actor.companyId,
+          actorUserId: actor.userId,
+          businessId: payload.businessId,
+          employeeId: payload.employeeId,
+          recordId: payload.recordId,
+          ids: input.ids,
+          at: input.at,
+        },
+        {
+          operationId: payload.operationId,
+          userId: payload.userId,
+          branches: payload.branches,
+        },
+      ),
+    applyOverrides: (payload) =>
+      applyStaffAccessOverrides(tx, input.ids, {
+        companyId: actor.companyId,
+        actorUserId: actor.userId,
+        memberships: payload.memberships,
+        overrides: payload.overrides,
+      }).catch((error: unknown) => {
+        // رفض الاستثناء بيرجع كـ 403 واحد؛ أي خطأ تاني بيفضل زي ما هو (500 حقيقي).
+        if (error instanceof Error && 'code' in error && error.code === 'STAFF_ACCESS_OVERRIDE_REFUSED')
+          throw new StaffAccessError('STAFF_ACCESS_NOT_ALLOWED');
+        throw error;
+      }),
     linkEmployee: (userId) => linkEmployeeAndAudit(tx, actor, input, writers.audit, userId),
     saveTemporaryPin: (userId, pinHash) =>
       saveTemporaryPinAndAudit(tx, actor, input, writers.audit, userId, pinHash),
@@ -228,6 +210,7 @@ function commitScope(
   };
 }
 
+/** إعادة الفحص تحت القفل: السجل والموظفة والفروع الإضافية مقفولة جوّه نفس المعاملة (080-b). */
 async function recheckUnderLock(
   tx: Tx,
   actor: StaffAccessActor,
@@ -235,8 +218,19 @@ async function recheckUnderLock(
 ): Promise<{
   employee: StaffAccessEmployeeRow | null;
   record: StaffAccessRecordRow | null;
+  extraBranches: readonly { id: string; branchId: string; roleCode: StaffAccessRole }[];
 }> {
-  return lockRecordWithEmployee(tx, actor.companyId, input);
+  const locked = await lockRecordWithEmployee(tx, actor.companyId, input);
+  const extras = await lockExtraBranchRows(tx, actor.companyId, input.recordId);
+  return {
+    employee: locked.employee,
+    record: locked.record,
+    extraBranches: extras.map((row) => ({
+      id: row.id,
+      branchId: row.branch_id,
+      roleCode: row.role_code,
+    })),
+  };
 }
 
 async function grantMembershipAndAudit(
@@ -272,7 +266,7 @@ async function grantMembershipAndAudit(
 async function linkEmployeeAndAudit(
   tx: Tx,
   actor: StaffAccessActor,
-  input: BeginInput,
+  input: StaffAccessRecordWriteInput,
   audit: AuditTrail,
   userId: string,
 ): Promise<void> {
@@ -290,7 +284,7 @@ async function linkEmployeeAndAudit(
 async function saveTemporaryPinAndAudit(
   tx: Tx,
   actor: StaffAccessActor,
-  input: BeginInput,
+  input: StaffAccessRecordWriteInput,
   audit: AuditTrail,
   userId: string,
   pinHash: string,

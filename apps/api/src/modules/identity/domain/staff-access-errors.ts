@@ -7,6 +7,7 @@ export class StaffUserRefused extends Error {
     | 'STAFF_ACCESS_PIN_INVALID'
     | 'STAFF_ACCESS_ROLE_MISSING'
     | 'STAFF_ACCESS_PHONE_TAKEN'
+    | 'STAFF_ACCESS_OVERRIDE_REFUSED'
     | 'STAFF_MEMBERSHIP_NOT_ACTIVE';
 
   /**
@@ -20,6 +21,7 @@ export class StaffUserRefused extends Error {
       | 'STAFF_ACCESS_PIN_INVALID'
       | 'STAFF_ACCESS_ROLE_MISSING'
       | 'STAFF_ACCESS_PHONE_TAKEN'
+      | 'STAFF_ACCESS_OVERRIDE_REFUSED'
       | 'STAFF_MEMBERSHIP_NOT_ACTIVE',
   ) {
     super(code);

@@ -99,6 +99,11 @@ export class EmployeeAccessController {
         phone: input.phone,
         pin: input.pin,
         recoveryEmail: input.recovery_email,
+        additionalBranches: input.additional_branches?.map((branch) => ({
+          branchId: branch.branch_id,
+          role: branch.role,
+        })),
+        permissionOverrides: input.permission_overrides,
       });
       // الرد من نتيجة المعاملة الملتزمة نفسها: لا قراءة تالية (معاملة جديدة ومكالمة auth) قد تفشل
       // فتحوّل منحاً ملتزماً إلى 500. الحالة بعد المنح ACTIVE دائماً.

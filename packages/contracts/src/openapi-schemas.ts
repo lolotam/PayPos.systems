@@ -51,6 +51,7 @@ import {
   employeePage,
   employeeListQuery,
 } from './staff/update-employee.js';
+import { staffAccessBranchAssignment } from './staff/staff-access.js';
 import { permissionSchemas } from './identity/permissions-openapi.js';
 import { pendingDevicesSchemas } from './identity/devices-openapi.js';
 import { customerSchemas } from './customers.js';
@@ -194,6 +195,7 @@ export const openApiSchemas = [
   employeeListItem,
   employeePage,
   employeeListQuery,
+  staffAccessBranchAssignment,
   ...permissionSchemas,
   ...pendingDevicesSchemas,
   ...fileSchemas,

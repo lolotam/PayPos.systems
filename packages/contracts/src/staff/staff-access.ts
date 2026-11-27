@@ -1,8 +1,55 @@
 import { z } from 'zod';
+import { permissionOverrideInput } from '../identity/permissions.js';
 import { canonicalStaffPhone } from '../identity/staff-otp.js';
 import { recoveryEmail } from '../identity/staff-pin-reset.js';
 import { responseObject } from '../response-object.js';
 import { id } from '../scalars/id.js';
+
+/** فرع إضافي ودوره عند منح دخول الموظفة (080-b). */
+export const staffAccessBranchAssignment = z
+  .strictObject({
+    branch_id: id,
+    role: z.enum(['staff', 'reception']),
+  })
+  .meta({ id: 'StaffAccessBranchAssignment' });
+export type StaffAccessBranchAssignment = z.infer<typeof staffAccessBranchAssignment>;
+
+/**
+ * صلاحيات كل دور من دوري «إعطاء الدخول» الافتراضية — نفس مصفوفة `ROLE_DEFAULTS` في packages/db
+ * لدوري `staff` و`cashier` (080-b). الشاشة بتستخدمها علامة «افتراضي» على كل صلاحية الموظفة
+ * عندها من غير استثناء، والاختبار في packages/db بيمنع أي انحراف عن المصدر.
+ */
+export const STAFF_ACCESS_ROLE_DEFAULTS = {
+  staff: [
+    'read:service-sessions:own',
+    'read:commissions:own',
+    'read:attendance:own',
+    'read:ratings:own',
+    'create:leave:own',
+    'read:leave:own',
+    'cancel:leave:own',
+    'read:branches:branch',
+    'login:staff:branch',
+  ],
+  reception: [
+    'read:service-sessions:own',
+    'read:commissions:own',
+    'read:attendance:own',
+    'read:ratings:own',
+    'create:leave:own',
+    'read:leave:own',
+    'cancel:leave:own',
+    'read:branches:branch',
+    'login:staff:branch',
+    'record:service-sessions:branch',
+    'sell:packages:branch',
+    'create:customers:branch',
+    'clock:attendance:branch',
+  ],
+} as const;
+
+/** دور «إعطاء الدخول» اللي ليه قائمة صلاحيات افتراضية معروفة. */
+export type StaffAccessRoleDefaultsKey = keyof typeof STAFF_ACCESS_ROLE_DEFAULTS;
 
 /**
  * إعطاء دخول موظفة (spec 076 F1): الطلب strict ودوره اختيار من اتنين بس —
@@ -16,6 +63,10 @@ export const grantStaffAccessInput = z
     pin: z.string().regex(/^\d{4}$/),
     // إيميل الاستعادة الاختياري: لو اتبعت بيتسجل على الموظفة في نفس العملية (spec 079 PR-c1).
     recovery_email: recoveryEmail,
+    // فروع زيادة للموظفة، كل فرع بدوره (080-b): كل واحد منهم عضوية مستقلة على نفس الدخول.
+    additional_branches: z.array(staffAccessBranchAssignment).max(20).optional(),
+    // استثناءات صلاحيات مضمّنة تُكتب مع العضويات في نفس المعاملة (080-b).
+    permission_overrides: z.array(permissionOverrideInput).max(20).optional(),
   })
   .strict()
   .meta({ id: 'GrantStaffAccessInput' });

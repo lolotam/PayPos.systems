@@ -78,6 +78,7 @@ function scopeOf(world: World): StopEmployeeStaffAccessScope {
     stop: async (input) => {
       world.order.push('stop');
       world.stopped.push(input);
+      return { extraMembershipIds: [] };
     },
   };
 }
