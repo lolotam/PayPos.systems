@@ -278,21 +278,23 @@ function createFeedbackWorkers(
   queue: Pick<Queue, 'add'>,
   connection: ReturnType<typeof notificationRedisOptions>,
 ) {
+  const authReconciler: AuthAttemptReconciler =
+    keys.digest !== null && options.authReconciler !== undefined
+      ? options.authReconciler
+      : {
+          reconcileAuthAttempt: async () => ({
+            kind: 'refused' as const,
+            reason: 'EXECUTION_MISSING' as const,
+          }),
+        };
   const worker = new Worker(
     EMAIL_FEEDBACK_QUEUE,
     emailFeedbackProcessor(
       new ReconcileEmailFeedback(
         inbox,
         createEmailFeedbackTenantRepository(appDatabase),
-        // المصالحة على سجل الاعتماد: من غير واجهة محصورة ردّ المزود بيسيب الصف شارد.
-        createAuthEmailFeedbackRepository(
-          options.authReconciler ?? {
-            reconcileAuthAttempt: async () => ({
-              kind: 'refused' as const,
-              reason: 'EXECUTION_MISSING' as const,
-            }),
-          },
-        ),
+        // المصالحة على سجل الاعتماد: من غير واجهة محصورة أو بصمة معرّف الرسالة ردّ المزود بيسيب الصف شارد.
+        createAuthEmailFeedbackRepository(authReconciler),
         createResendEmailRetriever({ apiKey: keys.apiKey, identify: keys.identify }),
         options.clock,
         options.ids,
@@ -321,25 +323,30 @@ function createFeedbackWorkers(
   return { worker, maintenanceWorker };
 }
 
+function optionalMessageDigest(
+  env: NodeJS.ProcessEnv,
+  keyId: string,
+): ((completeId: string) => Buffer) | null {
+  try {
+    return createProviderMessageDigest(env['NOTIFICATION_MESSAGE_ID_HASH_KEY'] ?? '', keyId);
+  } catch {
+    return null;
+  }
+}
+
 function feedbackKeys(env: NodeJS.ProcessEnv) {
   const apiKey = env['RESEND_API_KEY'] ?? '';
   if (apiKey === '' || /[\r\n]/.test(apiKey)) return null;
   try {
-    const id = createEmailIdentity(
-      env['NOTIFICATION_EMAIL_HASH_KEY'] ?? '',
-      env['NOTIFICATION_EMAIL_HASH_KEY_ID'] ?? '',
-    );
-    const digest = createProviderMessageDigest(
-      env['NOTIFICATION_MESSAGE_ID_HASH_KEY'] ?? '',
-      env['NOTIFICATION_EMAIL_HASH_KEY_ID'] ?? '',
-    );
+    const keyId = env['NOTIFICATION_EMAIL_HASH_KEY_ID'] ?? '';
+    const id = createEmailIdentity(env['NOTIFICATION_EMAIL_HASH_KEY'] ?? '', keyId);
     return {
       apiKey,
       identify: (c: string) => {
         const h = id.identify(c);
         return { hash: h.hash, keyId: h.hashKeyId };
       },
-      digest,
+      digest: optionalMessageDigest(env, keyId),
     };
   } catch {
     return null;

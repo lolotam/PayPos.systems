@@ -27,8 +27,8 @@ export class ReconcileEmailFeedback {
     private readonly retrieval: EmailRetrievalPort,
     private readonly clock: Clock,
     private readonly ids: IdGenerator,
-    /** بصمة معرّف رسالة المزود — المعرّف الخام ما بيسجلش في أي سجل. */
-    private readonly digest: (providerMessageId: string) => Uint8Array,
+    /** بصمة معرّف رسالة المزود — من غيرها مصالحة بريد الاعتماد مقفولة بالكامل. */
+    private readonly digest: ((providerMessageId: string) => Uint8Array) | null,
   ) {}
 
   async execute(inboxId: string): Promise<void> {
@@ -68,14 +68,16 @@ export class ReconcileEmailFeedback {
               providerTimestamp: row.providerTimestamp,
               recordedAt: now,
             })
-          : await this.auth.reconcile({
-              challengeId: route.challengeId,
-              attemptId: retrieved.tags.attemptId,
-              executionId: retrieved.tags.executionId,
-              recipientHash: retrieved.recipientHash,
-              hashKeyId: retrieved.hashKeyId,
-              providerMessageDigest: this.digest(retrieved.id),
-            });
+          : this.digest === null
+            ? ({ ok: false, reason: 'EXECUTION_MISSING' } as const)
+            : await this.auth.reconcile({
+                challengeId: route.challengeId,
+                attemptId: retrieved.tags.attemptId,
+                executionId: retrieved.tags.executionId,
+                recipientHash: retrieved.recipientHash,
+                hashKeyId: retrieved.hashKeyId,
+                providerMessageDigest: this.digest(retrieved.id),
+              });
       if (!outcome.ok) {
         await this.inbox.quarantine(row.id, outcome.reason, now);
         return;
