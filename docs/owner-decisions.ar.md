@@ -3678,3 +3678,12 @@ so much beteer to creat this advisore for the project level so you and the manag
 3. **`TQ-080-1` — صلاحية الدعوة متعددة النطاقات و«أدوار أكتر» واستثناءات الصلاحيات inline (`spec 080` / `080-a`):**
    - **الاختيار المفوَّض السابق (تاريخ — `2026-11-27 ~13:15 الكويت`):** قصرها على المالك (`owner` فقط عبر `authorityAllows`).
    - **التأكيد (`2026-11-27 17:05 الكويت`):** الدعوة متعددة النطاقات واستثناءات الصلاحيات inline للمالك بس. مسجّل أيضًا في `docs/specs/080-multi-scope-staff-and-permission-exceptions/owner-questions.ar.md` (`TQ-080-1`) و`spec.md`.
+
+## PP-281 — رجوع حصة Codex: المراجِع الأول Codex `gpt-6.2-sol` medium، ورجوع بوتات GitHub كلها (2026-11-27)
+
+**تعليمات وليد الحرفية (`2026-11-27 18:13 بتوقيت الكويت`، في محادثة المدير الرئيسي):** «now codex quota renewed so make the first reviewer in the list is codex sol 6.2 medium also the codex bot and megpilot bots came back all».
+
+1. **المراجِع المستقل الأول:** Codex `gpt-6.2-sol` بمستوى `medium` عبر `delegate_task`، بالـ skill `/waleed_general_reviewer` مع ملحق PosPay (PP-277). هذا يرجّع ترتيب `reviewer-sol-62` ويعدّل PP-267: Antigravity Opus 5.5 `medium` يصبح احتياطيًا فقط عند فشل Codex أو نفاد حصته.
+2. **بوتات GitHub رجعت كلها:** بوت Codex (`@codex review` بعد كل push) ولوحة MergePilot (MergePilot وwaleed_bot وmohamed_bot). قبل الدمج تُقرأ نتيجة كل بوت على الـ head نفسه؛ أي P0/P1 يُصلَح في جولة التصليح الواحدة، وP2/P3 يُصلَح افتراضيًا أو يتحول إلى issue مربوط.
+3. **الـ PRs الجارية:** PR خلص مراجعته المستقلة قبل هذا القرار لا يعيد المراجعة، لكنه ينتظر نتائج البوتات على الـ head. PR لم يُراجَع بعد يُراجَع بـ Codex `gpt-6.2-sol` medium.
+4. سؤال تقني لا يُنشر على صفحة القرارات (`CLAUDE.md` §1 5b).
