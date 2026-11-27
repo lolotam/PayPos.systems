@@ -142,7 +142,12 @@ export function employeesPayload(tenant: Tenant) {
   return { next_cursor: null, items: tenant.employees.map((id) => employee(id, tenant)) };
 }
 export function detailPayload(id: string, tenant: Tenant) {
-  return { ...employee(id, tenant), revision: 1, branch_ids: [tenant.branch] };
+  return {
+    ...employee(id, tenant),
+    revision: 1,
+    branch_ids: [tenant.branch],
+    recovery_email: null,
+  };
 }
 function routeOf(
   kind: Kind,
