@@ -15,20 +15,30 @@ import { PushKeyStaleError, pushCalls, withAbortTimeout } from './push-calls';
 import { hasCrossTabLock, runPushExclusive } from './push-lock';
 import { notifyPushRecordChanged } from './push-record-events';
 import { pushRecordStore } from './push-record-idb';
-import type { PushRecord } from './push-record';
-import { suspendChangedSession } from './push-refresh-session';
-import { checkSession, identityOf } from './push-session-binding';
+import { PushRecordAbortedError, type PushRecord } from './push-record';
+import {
+  dropSubscription,
+  removeOrphanedRecord,
+  removeStaleRecord,
+  teardownUnrecordedRegistration,
+} from './push-refresh-record';
+import { suspendAfterServerMismatch, suspendChangedSession } from './push-refresh-session';
+import { checkSession, identityOf, isSessionMismatch } from './push-session-binding';
 
 const API_TIMEOUT_MS = 10_000;
 const SUBSCRIBE_TIMEOUT_MS = 15_000;
 const REVOKE_TIMEOUT_MS = 5000;
 
-/** نتيجة محاولة التشغيل: اتشغّل، ولا المتصفح رفض، ولا الخدمة مش جاهزة، ولا في خطأ. */
+/**
+ * نتيجة محاولة التشغيل: اتشغّل، ولا المتصفح رفض، ولا الخدمة مش جاهزة، ولا في خطأ، ولا الجلسة
+ * اتبدّلت لشخص تاني فالواجهة لازم تقرأ هوية الجلسة الجديدة.
+ */
 export type PushEnableOutcome =
   | { kind: 'enabled'; token: string }
   | { kind: 'blocked' }
   | { kind: 'not-ready' }
-  | { kind: 'failed' };
+  | { kind: 'failed' }
+  | { kind: 'session-changed' };
 
 export interface PushEnableInput {
   companyId: string;
@@ -75,8 +85,11 @@ async function readStartSnapshot(): Promise<StartSnapshot | null> {
   }
 }
 
-/** نتيجة كتابة سجل التشغيل: اتكتب، ولا السجل اتغيّر قبل الكتابة، ولا المخزن رما استثناء. */
-type EnabledWrite = 'written' | 'lost' | 'error';
+/**
+ * نتيجة كتابة سجل التشغيل: اتكتب، ولا السجل اتغيّر قبل الكتابة، ولا المتصفح لغى الكتابة
+ * وهو متأكد إنها ما اتحفظتش، ولا المخزن رما استثناء حالته مجهولة.
+ */
+type EnabledWrite = 'written' | 'lost' | 'aborted' | 'error';
 
 /**
  * كتابة السجل بعد ما الـ API قبل التسجيل: الكتابة المحروسة هي اللي بتحدد مين كسب
@@ -107,8 +120,29 @@ async function writeEnabledRecord(
       },
     );
     return written ? 'written' : 'lost';
-  } catch {
-    return 'error';
+  } catch (cause) {
+    return cause instanceof PushRecordAbortedError ? 'aborted' : 'error';
+  }
+}
+
+/**
+ * المتصفح أكد إن كتابة سجل التشغيل ما اتحفظتش: تسجيلنا مالوش سجل، فبيتشال لو السجل لسه زي
+ * ما كان؛ سجل أحدث معناه إن تبويب تاني كسب الاشتراك فبنسيبه (ADR-0052 §7). السجل القديم
+ * اللي اشتراكه اتبدّل وسطره اتراجع بيتشال كمان بنفس حراسة التوكن والمراجعة.
+ *
+ * @param installationId معرف التثبيت اللي سطره عند الـ API بيتراجع
+ * @param snapshot لقطة السجل وقت بداية التشغيل
+ */
+async function tearDownAbortedEnable(
+  installationId: string,
+  snapshot: StartSnapshot,
+): Promise<void> {
+  const tornDown = await teardownUnrecordedRegistration(installationId, {
+    token: snapshot.previous?.token ?? null,
+    revision: snapshot.revision,
+  });
+  if (tornDown && snapshot.previous !== null) {
+    await removeStaleRecord({ token: snapshot.previous.token, revision: snapshot.revision });
   }
 }
 
@@ -148,11 +182,17 @@ export async function enablePush(input: PushEnableInput): Promise<PushEnableOutc
       if (subscription === null) return { kind: 'failed' };
       const token = crypto.randomUUID();
       try {
-        const registered = await confirmAndRegister(input, config.config, subscription, token);
+        const registered = await confirmAndRegister(
+          { input, config: config.config, subscription, token },
+          previous,
+        );
         if (!registered) return { kind: 'failed' };
       } catch (cause) {
         // سجل ناقص أسوأ من مفيش سجل: الاشتراك الجديد بيتشال لو التسجيل مرفوض.
-        await unsubscribePush().catch(() => undefined);
+        await dropSubscription();
+        // الجلسة اتبدّلت بين التأكيد والـ PUT: السيرفر رفض قبل أي كتابة، والسجل القديم بيتعلّق،
+        // وسجل صاحب الجلسة الجديدة اليتيم (اشتراكه اتبدّل) بيتشال بحراسة التوكن والمراجعة.
+        if (isSessionMismatch(cause)) return suspendAfterServerMismatch(previous);
         if (cause instanceof PushKeyStaleError && attempt === 0) continue;
         return { kind: 'failed' };
       }
@@ -162,8 +202,12 @@ export async function enablePush(input: PushEnableInput): Promise<PushEnableOutc
       if (written === 'lost') {
         // السجل اتغيّر تحتنا (خروج أو تعليق دخول أو إيقاف): التشغيلين متسلسلين بالقفل،
         // فمحدش كسب السجل — تسجيلنا مش مطلوب من حد، فبيتشال وسطره بيراجع.
-        await unsubscribePush().catch(() => undefined);
+        await dropSubscription();
         await revoke(input.installationId);
+        return { kind: 'failed' };
+      }
+      if (written === 'aborted') {
+        await tearDownAbortedEnable(input.installationId, snapshot);
         return { kind: 'failed' };
       }
       if (written === 'error') {
@@ -198,15 +242,25 @@ async function confirmBeforeSubscribe(config: PushConfig): Promise<boolean> {
  * المجهولة والشركة التانية ما بيعلّقوش حاجة.
  */
 async function confirmAndRegister(
-  input: PushEnableInput,
-  config: PushConfig,
-  subscription: PushSubscriptionLike,
-  token: string,
+  attempt: {
+    input: PushEnableInput;
+    config: PushConfig;
+    subscription: PushSubscriptionLike;
+    token: string;
+  },
+  previous: PushRecord | null,
 ): Promise<boolean> {
+  const { input, config, subscription, token } = attempt;
   const session = await checkSession(identityOf(config));
   if (session.kind !== 'match') {
-    if (session.kind === 'mismatch') await suspendChangedSession(session.current.subscriber_ref);
-    await unsubscribePush().catch(() => undefined);
+    if (session.kind === 'mismatch') {
+      await suspendChangedSession(session.current.subscriber_ref);
+      await dropSubscription();
+      // اشتراك السجل القديم اتشال وقت التبديل، فالسجل ما يفضلش بيقول «شغال» على اشتراك مش موجود.
+      await removeOrphanedRecord(previous, session.current.subscriber_ref);
+      return false;
+    }
+    await dropSubscription();
     return false;
   }
   await withAbortTimeout(
@@ -233,6 +287,7 @@ function registerBody(
 ): PushSubscriptionInput {
   return {
     installation_id: input.installationId,
+    subscriber_ref: config.subscriber_ref,
     vapid_key_id: config.vapid_key_id,
     delivery_token: token,
     subscription: pushSubscriptionBody(subscription),

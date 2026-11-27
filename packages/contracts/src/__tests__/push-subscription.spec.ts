@@ -14,9 +14,11 @@ const COMPANY = '01920000-0000-4000-8000-0000000000b1';
 const P256DH = 'A'.repeat(87);
 const AUTH = 'B'.repeat(22);
 const KEY_ID = '0123456789abcdef';
+const SUBSCRIBER_REF = 'c'.repeat(64);
 
 const body = (overrides: Record<string, unknown> = {}) => ({
   installation_id: INSTALLATION,
+  subscriber_ref: SUBSCRIBER_REF,
   vapid_key_id: KEY_ID,
   delivery_token: '01920000-0000-4000-8000-0000000000a2',
   subscription: {
@@ -231,6 +233,18 @@ describe('pushSubscriptionInput', () => {
 });
 
 describe('the refused pushSubscriptionInput', () => {
+  it('refuses a missing or malformed subscriber reference', () => {
+    const withoutRef: Record<string, unknown> = body();
+    delete withoutRef['subscriber_ref'];
+    expect(pushSubscriptionInput.safeParse(withoutRef).success).toBe(false);
+    expect(pushSubscriptionInput.safeParse(body({ subscriber_ref: 'C'.repeat(64) })).success).toBe(
+      false,
+    );
+    expect(pushSubscriptionInput.safeParse(body({ subscriber_ref: 'c'.repeat(63) })).success).toBe(
+      false,
+    );
+  });
+
   it('refuses a bad installation id, key id, token, locale or key length', () => {
     expect(pushSubscriptionInput.safeParse(body({ installation_id: 'not-a-uuid' })).success).toBe(
       false,

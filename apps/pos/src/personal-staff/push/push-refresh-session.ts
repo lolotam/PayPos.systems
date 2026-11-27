@@ -1,6 +1,8 @@
 import type { PushConfig } from '@pospay/contracts';
 
-import { checkSession, identityOf } from './push-session-binding';
+import type { PushRecord } from './push-record';
+import { removeOrphanedRecord } from './push-refresh-record';
+import { checkSession, fetchSessionConfig, identityOf } from './push-session-binding';
 import { suspendPushForSignIn } from './push-sign-in-check';
 
 /** نتيجة الفحص قبل أي تغيير: ولا حاجة، أو اختلاف مؤكد بيمنع التغيير. */
@@ -18,6 +20,25 @@ export async function suspendChangedSession(
   currentSubscriberRef: string,
 ): Promise<{ kind: 'session-changed' }> {
   await suspendPushForSignIn(currentSubscriberRef);
+  return { kind: 'session-changed' };
+}
+
+/**
+ * السيرفر رفض التسجيل لأن الجلسة اتبدّلت: صاحب السجل المخزن ما بقاش صاحب الجلسة. بنقرأ هوية
+ * الجلسة الحالية عشان سجلها هو ما يتعلّقش؛ لو القراءة فشلت بنعلّق السجل من غير استثناء
+ * (fail-closed)، والتحديث الجاي بيرجّعه لو صاحبه رجع. لما التسجيل بدأ بسجل قديم واشتراكه اتبدّل
+ * قبل الرفض، سجل صاحب الجلسة الجديدة بيتشال لأنه بقى يتيم (بحراسة التوكن والمراجعة)، وسجل أي
+ * شخص تاني بيفضل معلّق.
+ *
+ * @param orphanCandidate السجل القديم اللي اشتراكه اتبدّل قبل الرفض، أو null لما مفيش تبديل
+ * @returns نتيجة تمنع التحديث وتطلب من الواجهة قراءة هوية الجلسة الجديدة
+ */
+export async function suspendAfterServerMismatch(
+  orphanCandidate: PushRecord | null = null,
+): Promise<{ kind: 'session-changed' }> {
+  const current = await fetchSessionConfig();
+  await suspendPushForSignIn(current?.subscriber_ref);
+  if (current !== null) await removeOrphanedRecord(orphanCandidate, current.subscriber_ref);
   return { kind: 'session-changed' };
 }
 

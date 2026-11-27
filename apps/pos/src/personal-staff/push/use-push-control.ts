@@ -253,6 +253,7 @@ function usePushActions(input: {
 }) {
   const [pending, setPending] = useState(false);
   const [failed, setFailed] = useState(false);
+  const queryClient = useQueryClient();
   const { companyId, locale, installationId, reload, markSeen, onEnabled } = input;
 
   const enable = useCallback(async () => {
@@ -268,13 +269,17 @@ function usePushActions(input: {
         onRegistered: onEnabled,
       });
       if (outcome.kind === 'failed') setFailed(true);
+      // الجلسة اتبدّلت: إعدادات الإشعارات القديمة بتخص الشخص اللي فات، فبتتقرا تاني.
+      if (outcome.kind === 'session-changed') {
+        void queryClient.invalidateQueries({ queryKey: ['staff-push-config'] });
+      }
     } catch {
       setFailed(true);
     } finally {
       setPending(false);
       await reload();
     }
-  }, [companyId, installationId, locale, markSeen, onEnabled, pending, reload]);
+  }, [companyId, installationId, locale, markSeen, onEnabled, pending, queryClient, reload]);
 
   const disable = useCallback(async () => {
     if (pending) return;

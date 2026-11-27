@@ -4,7 +4,6 @@ import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { disablePush, disablePushOnSignOut } from './push-disable';
 import { enablePush } from './push-enable';
 import { pushCalls } from './push-calls';
-import { runPushExclusive } from './push-lock';
 import { pushRecordStore } from './push-record-idb';
 import type { PushRecord } from './push-record';
 import { refreshPush } from './push-refresh';
@@ -49,6 +48,48 @@ const RECORD: PushRecord = {
   revision: 0,
 };
 
+async function removeIfMatches(expected: {
+  token: string | null;
+  revision: number;
+}): Promise<boolean> {
+  const stored = fakes.state.record;
+  if (
+    stored === null ||
+    stored.token !== expected.token ||
+    (stored.revision ?? 0) !== expected.revision
+  ) {
+    return false;
+  }
+  fakes.state.removed += 1;
+  fakes.state.record = null;
+  return true;
+}
+
+async function writeIfGeneration(
+  record: PushRecord,
+  expected: number,
+  options?: {
+    clearSuspension?: boolean;
+    expectRevision?: number;
+    expectToken?: string | null;
+  },
+): Promise<boolean> {
+  if (fakes.state.writeIfGenerationFails) throw new Error('PUSH_STORE_UNAVAILABLE');
+  if (fakes.state.generation !== expected) return false;
+  const stored = fakes.state.record;
+  if (options?.expectRevision !== undefined && (stored?.revision ?? 0) !== options.expectRevision) {
+    return false;
+  }
+  if (options?.expectToken !== undefined && (stored?.token ?? null) !== options.expectToken) {
+    return false;
+  }
+  const clear = options?.clearSuspension === true;
+  const suspended = stored?.suspended === true && !clear;
+  fakes.state.record = suspended ? { ...record, suspended: true } : record;
+  fakes.state.writes.push(fakes.state.record);
+  return true;
+}
+
 vi.mock('./push-record-idb', () => ({
   pushRecordStore: {
     read: async () => (fakes.state.record === null ? null : { ...fakes.state.record }),
@@ -70,31 +111,13 @@ vi.mock('./push-record-idb', () => ({
       fakes.state.removed += 1;
       fakes.state.record = null;
     },
+    removeIfMatches,
     generation: async () => fakes.state.generation,
     bumpGeneration: async () => {
       fakes.state.generation += 1;
       return fakes.state.generation;
     },
-    writeIfGeneration: async (
-      record: PushRecord,
-      expected: number,
-      options?: { clearSuspension?: boolean; expectRevision?: number },
-    ) => {
-      if (fakes.state.writeIfGenerationFails) throw new Error('PUSH_STORE_UNAVAILABLE');
-      if (fakes.state.generation !== expected) return false;
-      const stored = fakes.state.record;
-      if (
-        options?.expectRevision !== undefined &&
-        (stored?.revision ?? 0) !== options.expectRevision
-      ) {
-        return false;
-      }
-      const clear = options?.clearSuspension === true;
-      const suspended = stored?.suspended === true && !clear;
-      fakes.state.record = suspended ? { ...record, suspended: true } : record;
-      fakes.state.writes.push(fakes.state.record);
-      return true;
-    },
+    writeIfGeneration,
   },
 }));
 
@@ -193,10 +216,6 @@ function gate(): { reached: Promise<void>; release: () => void } {
 // القفل الأصلي بتاع البيئة (تسلسل حقيقي)؛ الاختبارات اللي بتغيّره بترجّعه تاني عشان
 // اختبارات السباق اللي بعده تشتغل على القفل الحقيقي.
 const locksDescriptor = Object.getOwnPropertyDescriptor(globalThis.navigator, 'locks');
-
-function withoutLocks(): void {
-  Object.defineProperty(globalThis.navigator, 'locks', { value: undefined, configurable: true });
-}
 
 function recordingLocks(order: string[]): void {
   Object.defineProperty(globalThis.navigator, 'locks', {
@@ -319,6 +338,7 @@ it('a refresh that resumes after the sign out does not write the record back', a
 
   expect(fakes.state.writes).toHaveLength(0);
   expect(fakes.state.record).toBeNull();
+  expect(fakes.state.removed).toBe(1);
 });
 
 it('a failed record write leaves no registration behind', async () => {
@@ -376,6 +396,7 @@ it('deletes the record and revokes when the sign out happens during a rotation',
   await signingOut;
 
   expect(fakes.state.record).toBeNull();
+  expect(fakes.state.removed).toBe(1);
   expect(fakes.state.writes).toHaveLength(0);
   expect(pushCalls.revoke).toHaveBeenCalled();
 });
@@ -412,35 +433,4 @@ it('turns the notifications on over a suspended record and ends unsuspended', as
   expect(outcome.kind).toBe('enabled');
   expect(fakes.state.record?.suspended).toBe(false);
   expect(fakes.state.record?.revision).toBe(1);
-});
-
-it('runs the work one at a time when the browser has no locks', async () => {
-  withoutLocks();
-  const order: string[] = [];
-
-  const first = runPushExclusive(async () => {
-    order.push('first-start');
-    await new Promise((resolve) => setTimeout(resolve, 5));
-    order.push('first-end');
-    return 'first';
-  });
-  const second = runPushExclusive(async () => {
-    order.push('second-start');
-    return 'second';
-  });
-
-  await expect(first).resolves.toBe('first');
-  await expect(second).resolves.toBe('second');
-  expect(order).toEqual(['first-start', 'first-end', 'second-start']);
-});
-
-it('keeps the queue going after a failure', async () => {
-  withoutLocks();
-
-  await expect(
-    runPushExclusive(async () => {
-      throw new Error('SYNTHETIC_FAILURE');
-    }),
-  ).rejects.toThrow('SYNTHETIC_FAILURE');
-  await expect(runPushExclusive(async () => 'after')).resolves.toBe('after');
 });

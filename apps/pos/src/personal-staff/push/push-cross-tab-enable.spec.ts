@@ -225,6 +225,7 @@ it('refuses to enable and to refresh without a cross tab lock', async () => {
   model.caller = COMPANY;
   registerOnServer(model, {
     installation_id: INSTALLATION,
+    subscriber_ref: model.callerRef,
     vapid_key_id: CONFIG.vapid_key_id,
     delivery_token: EXISTING,
     subscription: {
