@@ -15,6 +15,7 @@ import {
   Inbox,
   KeyRound,
   Languages,
+  LayoutPanelLeft,
   LoaderCircle,
   LogOut,
   MapPin,
@@ -56,6 +57,7 @@ const ICONS: readonly (readonly [string, IconComponent])[] = [
   ['Moon', Moon],
   ['Monitor', Monitor],
   ['Star', Star],
+  ['LayoutPanelLeft', LayoutPanelLeft],
 ];
 
 it.each(ICONS)('%s renders an SVG in client DOM and SSR markup', (_name, Icon) => {

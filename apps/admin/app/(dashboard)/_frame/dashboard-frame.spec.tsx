@@ -53,8 +53,8 @@ vi.mock(
 const label = (key: Parameters<typeof t>[1]) => t('en', key);
 const page = (body = 'Page body') => <CurrentRoute>{body}</CurrentRoute>;
 
-function openAccountMenu() {
-  fireEvent.keyDown(screen.getByRole('button', { name: label('adminNav.accountMenuLabel') }), {
+function openStyleMenu() {
+  fireEvent.keyDown(screen.getByRole('button', { name: label('adminNav.accountMenuStyle') }), {
     key: 'Enter',
   });
   return screen.getByRole('menu');
@@ -127,10 +127,10 @@ describe('switching the style', () => {
     expect(document.cookie).toContain('pospay_nav_style=A');
   });
 
-  it('changes the frame from the account menu and keeps the address', () => {
+  it('changes the frame from the header dropdown and keeps the address', () => {
     frameState.pathname = '/staff';
     renderDashboard(page(), 'B');
-    const styleC = within(openAccountMenu()).getByRole('menuitem', {
+    const styleC = within(openStyleMenu()).getByRole('menuitem', {
       name: new RegExp(label('adminNav.styleCLabel')),
     });
     fireEvent.click(styleC);

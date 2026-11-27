@@ -111,14 +111,16 @@ describe('the dashboard header logo with a business logo', () => {
     expect(pospayMarks(container)).toHaveLength(0);
   });
 
-  it('deduplicates the logo download in style A where lockup and mark both mount', async () => {
+  it('deduplicates the logo download in style A where the sidebar mark and the topbar mark both mount', async () => {
     selectBusinessWithLogo(FILE_ID);
+    // على سطح المكتب بين مركّبتان: علامة الشريط الجانبي وعلامة الشريط العلوي، والنزلة واحدة
+    stubViewport(1280);
     const client = new QueryClient({
       defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
     });
     const { container } = renderWithClient(<StyleAFrame>Page body</StyleAFrame>, client);
     const logos = await screen.findAllByRole('img', { name: 'Synthetic business' });
-    expect(logos.length).toBeGreaterThan(0);
+    expect(logos).toHaveLength(2);
     expect(api.POST).toHaveBeenCalledTimes(1);
     expect(pospayMarks(container)).toHaveLength(0);
   });

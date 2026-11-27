@@ -2,11 +2,15 @@ import type { AlertRules } from '@pospay/contracts';
 
 import { ApiError } from '../../../../shared/errors.ts';
 import type { AlertRulesTransactions } from '../../ports/alert-rules.port.ts';
+import type { SettingsCache } from '../../ports/settings.port.ts';
 import { alertRulesView } from '../alert-rules-view/alert-rules-view.ts';
 
 // بيقفل أو يفتح كل تنبيهات الفريق للنشاط مرة واحدة (AL-Q4)؛ نفس القيمة تاني مابتكتبش تدقيق.
 export class SetAlertsMaster {
-  constructor(private readonly transactions: AlertRulesTransactions) {}
+  constructor(
+    private readonly transactions: AlertRulesTransactions,
+    private readonly cache?: Pick<SettingsCache, 'invalidate'>,
+  ) {}
 
   async execute(
     actor: { companyId: string; userId: string },
@@ -14,10 +18,12 @@ export class SetAlertsMaster {
     alertsEnabled: boolean,
   ): Promise<AlertRules> {
     const target = { businessId, branchId: null };
-    return this.transactions.run(actor.companyId, actor.userId, async (scope) => {
+    let changed = false;
+    const view = await this.transactions.run(actor.companyId, actor.userId, async (scope) => {
       if ((await scope.access(target)) !== null) throw new ApiError('FORBIDDEN');
       const before = await scope.lockMaster(businessId);
-      if ((before ?? true) !== alertsEnabled) {
+      changed = (before ?? true) !== alertsEnabled;
+      if (changed) {
         await scope.saveMaster(businessId, alertsEnabled);
         await scope.audit.record({
           entity: 'alert_rules_master',
@@ -29,5 +35,8 @@ export class SetAlertsMaster {
       }
       return alertRulesView(target, await scope.snapshot(target));
     });
+    // الإبطال بعد كل طلب نجح حتى لو القيمة ما تغيّرتش: إعادة المحاولة بعد سقوط Redis لازم تمسح الجيل القديم.
+    await this.cache?.invalidate(actor.companyId, businessId);
+    return view;
   }
 }
