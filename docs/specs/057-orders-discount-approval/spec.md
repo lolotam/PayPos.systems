@@ -248,7 +248,8 @@ second branch manager who also performs services.
   back refused with `approval_refusal = CONSUMED` (M2 "one wins").
 - **DP-22** Changed discount, price, service, customer, performers, branch or date → the line returns refused with
   `TERMS_MISMATCH`; the proposal stays `APPROVED` until it lapses.
-- **DP-23** `PENDING`, `REJECTED` → `NOT_APPROVED`; past `expires_at` → `EXPIRED`; unknown, foreign, other branch or
+- **DP-23** `REJECTED` → `NOT_APPROVED`; `PENDING` with matching terms → `NOT_APPROVED`, `PENDING` with changed terms →
+  `TERMS_MISMATCH` (#1040); past `expires_at` → `EXPIRED` (checked before terms); unknown, foreign, other branch or
   another requester → `NOT_FOUND` (D-13). Each is the SS-Q6 partial path: the other lines save.
 - **DP-24** An idempotent replay of a create that consumed returns the original 201 with no second consumption; a new
   key re-sending the same line → `CONSUMED`.

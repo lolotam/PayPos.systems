@@ -212,6 +212,10 @@ describe('whether a line may consume an approval', () => {
     expect(consumptionRefusal(proposal({ branch_id: 'branch-2' }), TERMS, ACTOR, NOW, identityHasher)).toBe('NOT_FOUND');
     expect(consumptionRefusal(proposal({ requested_by: 'user-2' }), TERMS, ACTOR, NOW, identityHasher)).toBe('NOT_FOUND');
     expect(consumptionRefusal(proposal({ requested_by_membership_id: 'membership-2' }), TERMS, ACTOR, NOW, identityHasher)).toBe('NOT_FOUND');
+    const changed = { ...TERMS, price: '24.000' };
+    expect(consumptionRefusal(proposal({ status: 'PENDING', branch_id: 'branch-2' }), changed, ACTOR, NOW, identityHasher)).toBe('NOT_FOUND');
+    expect(consumptionRefusal(proposal({ status: 'PENDING', requested_by: 'user-2' }), changed, ACTOR, NOW, identityHasher)).toBe('NOT_FOUND');
+    expect(consumptionRefusal(proposal({ status: 'PENDING', requested_by_membership_id: 'membership-2' }), changed, ACTOR, NOW, identityHasher)).toBe('NOT_FOUND');
   });
 
   it('accepts a request whose ids differ only by letter case', () => {
