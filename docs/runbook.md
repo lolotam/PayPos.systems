@@ -895,6 +895,27 @@ six-type replay (owner answer CS-Q51, 2026-11-21: the replay projects and marks,
    range. If no usable event covers the revision, stop repeating the same replay and escalate for source-history
    investigation. Keep dispatcher state and consumption marks unchanged.
 
+## Package sale worker: deploy order and rollback floor (#941)
+
+A package type that has stopped selling (`package_types.selling_stopped_at`, route
+`POST /v1/businesses/{businessId}/package-types/{packageTypeId}/stop-selling`, row 33b-2, #1055) or has a closed
+service is refused by the **worker** as `PACKAGE_TYPE_NOT_SELLABLE`, before the `expected_type_revision` comparison, and
+the refusal writes nothing else. Only the worker refuses an already-accepted request, so the order matters:
+
+1. **Deploy the worker first.** Before the API release that exposes the stop route or the sale-accept route
+   (`POST /v1/businesses/{businessId}/branches/{branchId}/package-sales`, row 42-3b2a, #1051), confirm the worker
+   image on the target is at or after the SHA of #1042 (the `selling_stopped_at` refusal) and #1340 (the closed-service
+   refusal). The check: the worker's `package-sale` readiness is green, and the deployed SHA contains both commits
+   (`git merge-base --is-ancestor <PR merge SHA> <deployed worker SHA>`).
+2. **Rollback floor.** Never roll the worker back below that SHA while the stop route or the sale-accept route is live:
+   a worker without the refusal would sell a stopped type, or turn the stop into a stale-quote refusal. If a rollback below
+   the floor is unavoidable, roll the API back first to a SHA that predates both routes (they then answer 404), confirm
+   no `pending` row remains in `package_sale_requests` (the recovery sweep fails the stale ones after ten minutes),
+   and only then roll the worker back.
+3. **Recovery after Redis loss.** The worker re-registers the per-company recovery sweeps for package sales and package
+   import commits on startup and every two minutes (#1035), so a request left `pending` or `commit_requested` after a
+   Redis restart is closed by the ten-minute rule without waiting for that company's next event.
+
 ## Admin service-session browser tests
 
 The Playwright config has no `webServer`. Postgres, Redis, the API and the admin must already be running.

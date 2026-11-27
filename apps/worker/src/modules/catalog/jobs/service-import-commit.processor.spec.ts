@@ -49,6 +49,11 @@ it(
       timeout: 60_000,
     });
     expect(execute).toHaveBeenCalledTimes(4);
+    // الفشل النهائي يدخل مجموعة الفاشل في BullMQ (لا «مكتمل» ولا حذف) فتراه مقاييس الفشل.
+    await vi.waitFor(async () => expect(await queue.getJobState(event.id)).toBe('failed'), {
+      timeout: 10_000,
+    });
+    expect(fail).toHaveBeenCalledTimes(1);
     const reject = vi
       .spyOn(Queue.prototype, 'add')
       .mockRejectedValueOnce(new Error('Synthetic unavailable'));

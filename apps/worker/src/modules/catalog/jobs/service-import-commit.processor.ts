@@ -2,6 +2,7 @@ import { Queue, Worker, DelayedError, type Job } from 'bullmq';
 import { Redis } from 'ioredis';
 import { serviceImportCommitJob, serviceImportCommitRequested } from '@pospay/contracts';
 import type { ClaimedEvent, DeliveryOutcome } from '@pospay/db';
+import { FailurePersistedError, reactivatedAfterDelay } from './catalog-job-finalization.ts';
 import type { CommitServiceImport } from '../use-cases/commit-service-import/commit-service-import.ts';
 
 export const SERVICE_IMPORT_QUEUE = 'service-import-commit';
@@ -10,8 +11,9 @@ export const SERVICE_IMPORT_QUEUE = 'service-import-commit';
 const SERVICE_IMPORT_ATTEMPTS = 4;
 
 /**
- * مؤشر مرحلة الإنهاء على صف الطابور: يمنع إعادة تشغيل الاستيراد بعد خلاص المحاولات،
- * وتبقى كتابة رمز الفشل على الطلب مؤجَّلة قابلة لإعادة المحاولة إن رفضت القاعدة (نمط قفل التصنيفات).
+ * كتابة رمز الفشل على الطلب الحي، مؤجَّلة قابلة لإعادة المحاولة إن رفضت القاعدة (نمط قفل التصنيفات).
+ * بعد نجاحها تُرمى FailurePersistedError (من نوع UnrecoverableError) ليدخل الصف مجموعة الفاشل في BullMQ (مقاييس الفشل وremoveOnFail)
+ * بدل أن يُسجَّل «مكتملاً» ويُحذف؛ ومستمع failed يتجاهلها هي بالذات فلا تُكتب النتيجة مرتين.
  */
 async function persistFailure(
   useCase: CommitServiceImport,
@@ -19,7 +21,7 @@ async function persistFailure(
   token: string | undefined,
   companyId: string,
   previewId: string,
-): Promise<void> {
+): Promise<never> {
   try {
     await useCase.fail(companyId, previewId);
   } catch {
@@ -27,6 +29,7 @@ async function persistFailure(
     await job.moveToDelayed(Date.now() + 2000, token);
     throw new DelayedError();
   }
+  throw new FailurePersistedError('SERVICE_IMPORT_COMMIT_FAILED');
 }
 
 /** معالج صف الالتزام: إعادة التحقق كلها، وإنهاء الفشل غير المتوقع بعد آخر محاولة بلا إعادة تشغيل. */
@@ -35,14 +38,14 @@ function commitHandler(useCase: CommitServiceImport) {
     const parsed = serviceImportCommitJob.safeParse(job.data);
     if (!parsed.success) throw new Error('SERVICE_IMPORT_JOB_INVALID');
     const { companyId, previewId } = parsed.data;
-    // استنفاد الميزانية يعني أن كل محاولات التشغيل الحقيقية فشلت: أي تفعيل بعدها — تأخيرنا
-    // أو stall أثناء الإنهاء مع ضياع المؤشر — ينهي الطلب فقط ولا يُعيد تشغيل الاستيراد
-    // محاولة خامسة خارج الميزانية الموثّقة (FR-009، مراجعة 1186).
+    // استنفاد الميزانية (attemptsMade) يغطي كل تفعيل بعد فشل المحاولات الحقيقية كلها، لكن DelayedError
+    // لا يزيد attemptsMade: التفعيل بعد تأخيرنا في المحاولة الأخيرة يكشفه reactivatedAfterDelay
+    // مهما ضاع مؤشر التقدم، فلا يُعاد تشغيل الاستيراد خارج الميزانية الموثّقة (FR-009، #1197).
     const budgetExhausted = job.attemptsMade >= (job.opts.attempts ?? 1);
     // محاولة بعد التأخير الذي أجّلناه لكتابة الفشل: نُكمل الإنهاء بلا إعادة تشغيل الاستيراد.
     const finalizing =
       job.progress !== null && typeof job.progress === 'object' && 'stage' in job.progress;
-    if (finalizing || budgetExhausted)
+    if (finalizing || budgetExhausted || reactivatedAfterDelay(job))
       return persistFailure(useCase, job, token, companyId, previewId);
     try {
       await useCase.execute(companyId, previewId);
@@ -108,9 +111,11 @@ export function startServiceImportProcessor(
     prefix,
   });
   worker.on('error', () => undefined);
-  worker.on('failed', (job) => {
+  worker.on('failed', (job, error) => {
     // BullMQ أقفل الصف بلا معالج (تجاوز حد التوقف): إنهاء طلب حي بكتابة شرطية أخيرة.
-    if (job === undefined || job === null) return;
+    // FailurePersistedError صدرت من persistFailure بعد نجاح كتابة الفشل فلا كتابة ثانية؛
+    // أما UnrecoverableError اللي BullMQ نفسه يرميها عند حد التوقف فكتابتها لسه مطلوبة.
+    if (job === undefined || job === null || error instanceof FailurePersistedError) return;
     const parsed = serviceImportCommitJob.safeParse(job.data);
     if (!parsed.success || typeof job.finishedOn !== 'number') return;
     void useCase.fail(parsed.data.companyId, parsed.data.previewId).catch(() => undefined);

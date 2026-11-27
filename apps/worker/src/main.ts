@@ -64,6 +64,7 @@ import {
 } from './modules/commissions/index.ts';
 import { businessCalendar, businessTimeZone } from './modules/tenancy/index.ts';
 import { startCommissionReminderWiring } from './commission-reminders.ts';
+import { startPackageRecoveryDiscoveryFor } from './package-recovery-discovery.ts';
 import { drainDispatchAndDocuments } from './documents/shutdown-drain.ts';
 
 const config = readConfig(process.env);
@@ -273,6 +274,8 @@ const commissionReminders = startCommissionReminderWiring({
   redisUrl: config.REDIS_URL,
   logger,
 });
+// ضياع Redis بعد إقرار الحدث لا يترك طلب بيع أو تثبيت باقات عالقًا: المسح يعيد تسجيل استعادة كل شركة عندها طلب معلق (#1035).
+const packageRecovery = startPackageRecoveryDiscoveryFor(dispatcher, [sales, imports], logger);
 const loop = createDispatchLoop({
   dispatcher,
   deliver,
@@ -284,6 +287,8 @@ const release = async (): Promise<void> => {
   stopping = true;
   clearInterval(capabilityTimer);
   commissionReminders.stop();
+  // المسح يتوقف قبل إغلاق العمال حتى لا يسجّل جدولة على طابور مغلق.
+  await packageRecovery.stop();
   // تثبيت الاستيراد أول عامل يُغلق وبالقوة: الإغلاق القسري لا ينتظر، ويمنعه من بدء تثبيت مالي جديد بينما بقية العمال تُصفّى.
   await imports.close();
   await customerImports.close();

@@ -15,6 +15,7 @@ function fakeTransactions(batches: readonly (readonly string[])[]) {
   const reads: Read[] = [];
   const closed: Closed[] = [];
   const transactions: PackageSaleRecoveryTransactions = {
+    hasPending: async () => pending.length > 0,
     candidates: async (companyId, before) => {
       reads.push({ companyId, before });
       return pending.shift() ?? [];
