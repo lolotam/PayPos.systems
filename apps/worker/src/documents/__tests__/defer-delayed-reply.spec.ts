@@ -25,6 +25,14 @@ function silentLogger() {
   });
 }
 
+async function waitUntil(ready: () => boolean, timeoutMs: number, message: string): Promise<void> {
+  const deadline = Date.now() + timeoutMs;
+  while (!ready()) {
+    if (Date.now() >= deadline) throw new Error(message);
+    await new Promise((resolve) => setTimeout(resolve, 10));
+  }
+}
+
 function spyFirstDelayedReply(onCall: () => void) {
   let calls = 0;
   const original = Job.prototype.moveToDelayed;
@@ -42,31 +50,35 @@ function spyFirstDelayedReply(onCall: () => void) {
   });
 }
 
-function awaitCompletion(events: QueueEvents, id: string): Promise<void> {
+function awaitQueueEvent(
+  events: QueueEvents,
+  id: string,
+  expected: 'completed' | 'failed',
+): Promise<void> {
   return new Promise<void>((resolve, reject) => {
     events.on('completed', ({ jobId }) => {
-      if (jobId === id) resolve();
+      if (jobId !== id) return;
+      if (expected === 'completed') resolve();
+      else reject(new Error('unexpected completed event'));
     });
     events.on('failed', ({ jobId, failedReason }) => {
-      if (jobId === id) reject(new Error(`unexpected failed event: ${failedReason}`));
+      if (jobId !== id) return;
+      if (expected === 'failed') resolve();
+      else reject(new Error(`unexpected failed event: ${failedReason}`));
     });
   });
 }
 
-it('keeps a delayed job QUEUED and renders to READY when moveToDelayed succeeds in Redis after opTimeoutMs', async () => {
-  const prefix = `documents-delayed-reply-${renderId()}`;
+async function withQueueEnv(
+  run: (ctx: { redis: Redis; prefix: string; queue: Queue; events: QueueEvents; renderer: FakeRenderer }) => Promise<void>,
+): Promise<void> {
+  const prefix = `documents-defer-edge-${renderId()}`;
   const redis = new Redis(redisUrl, { maxRetriesPerRequest: 1, enableOfflineQueue: false });
   await whenRedisReady(redis);
   const registry = new DocumentSourceRegistry();
   registry.register('fixture', { load: async () => '<p>delayed-ok</p>' });
   const renderer = new FakeRenderer();
   renderer.available = false;
-  const companyId = renderId();
-  const id = renderId();
-  let delayed = false;
-  const spy = spyFirstDelayedReply(() => {
-    delayed = true;
-  });
   const handle = beginDocumentRendering({
     redis,
     redisUrl,
@@ -85,31 +97,61 @@ it('keeps a delayed job QUEUED and renders to READY when moveToDelayed succeeds 
   });
   try {
     await events.waitUntilReady();
-    await redis.hset(documentStatusKey(companyId, id), {
-      state: 'QUEUED',
-      requested_by: 'user-1',
-      filename: 'a.pdf',
-    });
-    const completed = awaitCompletion(events, id);
-    await queue.add(
-      'render',
-      { company_id: companyId, render_id: id, kind: 'fixture' },
-      { ...documentRenderJobOptions(id), attempts: 1 },
-    );
-    while (!delayed) await new Promise((resolve) => setTimeout(resolve, 10));
-    await new Promise((resolve) => setTimeout(resolve, 250));
-    expect(await redis.hget(documentStatusKey(companyId, id), 'state')).toBe('QUEUED');
-    renderer.available = true;
-    await renderer.start();
-    await completed;
-    expect(await redis.hget(documentStatusKey(companyId, id), 'state')).toBe('READY');
-    expect(renderer.seen).toEqual(['<p>delayed-ok</p>']);
+    await run({ redis, prefix, queue, events, renderer });
   } finally {
-    spy.mockRestore();
     await queue.obliterate({ force: true }).catch(() => undefined);
     await handle.close();
     await events.close();
     await queue.close();
     redis.disconnect();
+  }
+}
+
+it('keeps a delayed job QUEUED and renders to READY when moveToDelayed succeeds in Redis after opTimeoutMs', async () => {
+  let delayed = false;
+  const spy = spyFirstDelayedReply(() => {
+    delayed = true;
+  });
+  try {
+    await withQueueEnv(async ({ redis, queue, events, renderer }) => {
+      const companyId = renderId();
+      const id = renderId();
+      await redis.hset(documentStatusKey(companyId, id), { state: 'QUEUED', requested_by: 'u1', filename: 'a.pdf' });
+      const completed = awaitQueueEvent(events, id, 'completed');
+      await queue.add('render', { company_id: companyId, render_id: id, kind: 'fixture' }, { ...documentRenderJobOptions(id), attempts: 1 });
+      await waitUntil(() => delayed, 3_000, 'moveToDelayed was not called');
+      await new Promise((resolve) => setTimeout(resolve, 250));
+      expect(await redis.hget(documentStatusKey(companyId, id), 'state')).toBe('QUEUED');
+      renderer.available = true;
+      await renderer.start();
+      await completed;
+      expect(await redis.hget(documentStatusKey(companyId, id), 'state')).toBe('READY');
+      expect(renderer.seen).toEqual(['<p>delayed-ok</p>']);
+    });
+  } finally {
+    spy.mockRestore();
+  }
+}, 15_000);
+
+it('maps terminal updateProgress deferral timeout to DOCUMENT_RENDER_TIMEOUT', async () => {
+  const spy = vi.spyOn(Job.prototype, 'updateProgress').mockImplementation(() => new Promise<void>(() => undefined));
+  try {
+    await withQueueEnv(async ({ redis, queue, events }) => {
+      const companyId = renderId();
+      const id = renderId();
+      const key = documentStatusKey(companyId, id);
+      await redis.hset(key, { state: 'QUEUED', requested_by: 'u1', filename: 'a.pdf' });
+      const failed = awaitQueueEvent(events, id, 'failed');
+      await queue.add('render', { company_id: companyId, render_id: id, kind: 'fixture' }, { ...documentRenderJobOptions(id), attempts: 1 });
+      await failed;
+      const deadline = Date.now() + 2_000;
+      while ((await redis.hget(key, 'state')) !== 'FAILED' && Date.now() < deadline) {
+        await new Promise((resolve) => setTimeout(resolve, 20));
+      }
+      expect(await redis.hget(key, 'state')).toBe('FAILED');
+      expect(await redis.hget(key, 'error_code')).toBe('DOCUMENT_RENDER_TIMEOUT');
+    });
+  } finally {
+    spy.mockRestore();
   }
 }, 15_000);

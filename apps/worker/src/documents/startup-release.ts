@@ -53,12 +53,22 @@ async function closeHeld(worker: Worker, connection: Redis, force: boolean): Pro
   connection.disconnect();
 }
 
+function confirmedCloseOf(renderer: DocumentRenderer, closing: Promise<unknown>): Promise<void> {
+  const never = (): Promise<void> => new Promise<void>(() => undefined);
+  return closing.then(
+    () => {
+      const unconfirmed = renderer.unconfirmedExit;
+      return unconfirmed == null ? undefined : unconfirmed.then(() => undefined, never);
+    },
+    never,
+  );
+}
+
 async function killAndTrackExit(
   renderer: DocumentRenderer,
-  closing: Promise<unknown>,
+  confirmedClose: Promise<void>,
 ): Promise<RendererCloseOutcome> {
   const never = (): Promise<void> => new Promise<void>(() => undefined);
-  const cleanClose = closing.then(() => undefined, never);
   let killCall: unknown;
   let killFailed = typeof renderer.kill !== 'function';
   if (!killFailed) {
@@ -75,7 +85,7 @@ async function killAndTrackExit(
         () => undefined,
         () => never(),
       );
-  const exit = Promise.race([cleanClose, killClean]);
+  const exit = Promise.race([confirmedClose, killClean]);
   let resolved = false;
   const confirmed = exit.then(() => {
     resolved = true;
@@ -97,31 +107,27 @@ export async function closeRendererWithinGrace(
   renderer: DocumentRenderer,
   graceMs: number,
 ): Promise<RendererCloseOutcome> {
-  let closeResolved = false;
   let closing: Promise<unknown>;
   try {
     closing = Promise.resolve(renderer.close());
   } catch (error) {
     closing = Promise.reject(error);
   }
-  const pending = closing.then(
-    () => {
-      closeResolved = true;
-    },
-    () => undefined,
-  );
+  const confirmedClose = confirmedCloseOf(renderer, closing);
+  let closeConfirmed = false;
+  void confirmedClose.then(() => {
+    closeConfirmed = true;
+  });
+  const pending = closing.then(() => undefined, () => undefined);
   const grace = waitForGrace(graceMs);
   try {
     await Promise.race([pending, grace.done]);
   } finally {
     grace.stop();
   }
-  if (closeResolved) {
-    const unconfirmed = (renderer as { readonly unconfirmedExit?: Promise<void> | null }).unconfirmedExit;
-    if (unconfirmed != null) return { confirmed: false, exit: unconfirmed };
-    return { confirmed: true, exit: Promise.resolve() };
-  }
-  return killAndTrackExit(renderer, closing);
+  if (closeConfirmed) return { confirmed: true, exit: Promise.resolve() };
+  if (renderer.unconfirmedExit != null) return { confirmed: false, exit: confirmedClose };
+  return killAndTrackExit(renderer, confirmedClose);
 }
 
 async function releaseQueue(

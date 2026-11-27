@@ -87,16 +87,22 @@ export async function closeOrKill(browser: PdfBrowser, graceMs: number): Promise
   return dropRetiredBrowser(browser, graceMs);
 }
 
-/** يستنى بوّابة التقاعد أو الإلغاء، ويفك الانتظار فوراً لو إشارة البدء اتلغت. */
-export function waitGate(gate: Promise<void> | null, signal?: AbortSignal): Promise<void> {
-  if (gate === null || signal?.aborted) return Promise.resolve();
-  if (signal === undefined) return gate;
+/** يستنى بوّابة التقاعد أو الإلغاء، ويفك الانتظار فوراً لو إشارة البدء أو الإغلاق اتلغت. */
+export function waitGate(
+  gate: Promise<void> | null,
+  signal?: AbortSignal,
+  closeSignal?: AbortSignal,
+): Promise<void> {
+  if (gate === null || signal?.aborted || closeSignal?.aborted) return Promise.resolve();
+  if (signal === undefined && closeSignal === undefined) return gate;
   return new Promise<void>((resolve) => {
     const finish = (): void => {
-      signal.removeEventListener('abort', finish);
+      signal?.removeEventListener('abort', finish);
+      closeSignal?.removeEventListener('abort', finish);
       resolve();
     };
-    signal.addEventListener('abort', finish, { once: true });
+    signal?.addEventListener('abort', finish, { once: true });
+    closeSignal?.addEventListener('abort', finish, { once: true });
     void gate.then(finish, finish);
   });
 }

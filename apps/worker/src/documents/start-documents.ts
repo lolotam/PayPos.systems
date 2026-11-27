@@ -178,11 +178,11 @@ async function openWorker(
     worker.on('completed', (job) => {
       if (job != null) clearJobDeferralDeadline(job, startup);
     });
-    worker.on('failed', (job) => {
+    worker.on('failed', (job, error) => {
       if (job == null) return;
       if (jobs.isTerminalJobFailure(job)) clearJobDeferralDeadline(job, startup);
       void jobs
-        .recordExternalJobFailure(job, { redis: input.redis, logger: input.logger, clock: input.clock })
+        .recordExternalJobFailure(job, { redis: input.redis, logger: input.logger, clock: input.clock }, error)
         .catch(() => undefined);
     });
     await worker.waitUntilReady();

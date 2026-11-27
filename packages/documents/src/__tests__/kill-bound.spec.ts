@@ -163,3 +163,50 @@ it('returns from direct renderer.close() within grace on unsupported or rejectin
   await slowKillRenderer.unconfirmedExit;
   expect(slowKillRenderer.unconfirmedExit).toBeNull();
 });
+
+it('exposes unconfirmedExit after close() for both a retiring browser and a cancelled launch', async () => {
+  let releaseRetireKill: (() => void) | undefined;
+  const retireRenderer = new PlaywrightDocumentRenderer({
+    factory: {
+      launch: async () => ({
+        newContext: () => new Promise(() => undefined),
+        close: () => new Promise(() => undefined),
+        kill: () => new Promise<void>((r) => (releaseRetireKill = r)),
+        on: () => undefined,
+      }),
+    },
+    overallTimeoutMs: 15,
+    browserCloseGraceMs: 10,
+    closeGraceMs: 10,
+    sleep: (ms) => new Promise((r) => setTimeout(r, ms)),
+  });
+  await retireRenderer.start();
+  await expect(retireRenderer.render('<p>x</p>')).rejects.toThrow();
+  await new Promise((r) => setTimeout(r, 30));
+  await retireRenderer.close();
+  expect(retireRenderer.unconfirmedExit).not.toBeNull();
+  releaseRetireKill?.();
+  await retireRenderer.unconfirmedExit;
+  expect(retireRenderer.unconfirmedExit).toBeNull();
+
+  let resolveLate!: (browser: { newContext: () => Promise<never>; close: () => Promise<void>; on: () => void }) => void;
+  let releaseLateClose!: () => void;
+  const cancelRenderer = new PlaywrightDocumentRenderer({
+    factory: { launch: () => new Promise((resolve) => (resolveLate = resolve)) },
+    closeGraceMs: 15,
+  });
+  const pendingStart = cancelRenderer.start();
+  await cancelRenderer.close();
+  await pendingStart;
+  expect(cancelRenderer.unconfirmedExit).not.toBeNull();
+  resolveLate({
+    newContext: () => new Promise(() => undefined),
+    close: () => new Promise<void>((r) => (releaseLateClose = r)),
+    on: () => undefined,
+  });
+  await new Promise((r) => setTimeout(r, 40));
+  expect(cancelRenderer.unconfirmedExit).not.toBeNull();
+  releaseLateClose();
+  await cancelRenderer.unconfirmedExit;
+  expect(cancelRenderer.unconfirmedExit).toBeNull();
+});

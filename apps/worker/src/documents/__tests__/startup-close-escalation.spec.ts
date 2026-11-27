@@ -13,6 +13,14 @@ function wait(ms: number): Promise<void> {
   });
 }
 
+async function waitUntil(ready: () => boolean, timeoutMs: number, message: string): Promise<void> {
+  const deadline = Date.now() + timeoutMs;
+  while (!ready()) {
+    if (Date.now() >= deadline) throw new Error(message);
+    await wait(10);
+  }
+}
+
 function waitForWorkerClosed(worker: Worker, timeoutMs = 1_500): Promise<boolean> {
   return new Promise((resolve) => {
     const onClosed = (): void => {
@@ -269,31 +277,22 @@ it('blocks replacement startup when renderer kill rejects while keeping session 
 
 function stalledPendingRenderer(onKillReady: (release: () => void) => void): DocumentRenderer {
   return {
-    async start() {
-      return undefined;
-    },
+    start: async () => undefined,
     close: () => new Promise<void>(() => undefined),
-    kill: () =>
-      new Promise<void>((resolve) => {
-        onKillReady(resolve);
-      }),
+    kill: () => new Promise<void>((resolve) => onKillReady(resolve)),
     isAvailable: () => false,
     onUnavailable: () => undefined,
     onAvailable: () => undefined,
-    async render() {
-      return new Uint8Array();
-    },
+    render: async () => new Uint8Array(),
   };
 }
 
 function delayedCloseRenderer(onClosed: () => void): { renderer: DocumentRenderer; release: () => void } {
-  let release = () => undefined;
+  let release: () => void = () => undefined;
   return {
     release: () => release(),
     renderer: {
-      async start() {
-        return undefined;
-      },
+      start: async () => undefined,
       close: () =>
         new Promise<void>((resolve) => {
           release = () => {
@@ -305,9 +304,7 @@ function delayedCloseRenderer(onClosed: () => void): { renderer: DocumentRendere
       isAvailable: () => false,
       onUnavailable: () => undefined,
       onAvailable: () => undefined,
-      async render() {
-        return new Uint8Array();
-      },
+      render: async () => new Uint8Array(),
     },
   };
 }
@@ -341,14 +338,14 @@ it('rechecks pendingExit when an abandoned renderer arrives while waitPendingExi
     },
   });
   try {
-    while (releaseFirstKill === undefined) await wait(10);
+    await waitUntil(() => releaseFirstKill !== undefined, 2_000, 'releaseFirstKill timed out');
     await wait(550);
     const abandoned = delayedCloseRenderer(() => {
       abandonedClosed = true;
     });
     resolveLateAttemptOne(abandoned.renderer);
     await wait(50);
-    releaseFirstKill();
+    releaseFirstKill?.();
     await wait(60);
     expect(abandonedClosed).toBe(false);
     expect(attempts).toBe(2);
@@ -356,6 +353,49 @@ it('rechecks pendingExit when an abandoned renderer arrives while waitPendingExi
     await session.started;
     expect(abandonedClosed).toBe(true);
     expect(attempts).toBe(3);
+  } finally {
+    await session.close();
+  }
+});
+
+it('holds replacement under matching worker and PlaywrightDocumentRenderer closeGraceMs until slow kill settles', async () => {
+  const { PlaywrightDocumentRenderer } = await import('@pospay/documents');
+  let launches = 0;
+  let releaseKill: (() => void) | undefined;
+  const session = trackDocumentStartup({
+    startupMs: 500,
+    closeGraceMs: 20,
+    retryDelaysMs: [0],
+    sleep: wait,
+    stopped: () => false,
+    onFailed: () => undefined,
+    run: async (attempt) => {
+      launches += 1;
+      if (launches > 1) return true;
+      const renderer = new PlaywrightDocumentRenderer({
+        factory: {
+          launch: async () => ({
+            newContext: () => new Promise(() => undefined),
+            close: () => new Promise(() => undefined),
+            kill: () => new Promise<void>((r) => (releaseKill = r)),
+            on: () => undefined,
+          }),
+        },
+        closeGraceMs: 20,
+        sleep: wait,
+      });
+      attempt.setRenderer(renderer);
+      await renderer.start();
+      return false;
+    },
+  });
+  try {
+    await waitUntil(() => releaseKill !== undefined, 2_000, 'Playwright kill was not triggered');
+    await wait(560);
+    expect(launches).toBe(1);
+    releaseKill?.();
+    await session.started;
+    expect(launches).toBe(2);
   } finally {
     await session.close();
   }

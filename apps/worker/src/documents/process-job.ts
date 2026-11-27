@@ -246,16 +246,27 @@ async function runGuarded(
   }
 }
 
-/** فشل BullMQ من غير ما المعالج يتنده، زي تجاوز maxStalledCount. الحالة بتتقفل لو الانتقال مسموح. */
+function externalErrorCode(job: Job, error?: unknown): DocumentRenderErrorCode {
+  if (error instanceof DocumentRenderTimeoutError) return 'DOCUMENT_RENDER_TIMEOUT';
+  const message = error instanceof Error ? error.message : job.failedReason;
+  if (message === 'DOCUMENT_RENDER_TIMEOUT' || message === 'Document render timed out') {
+    return 'DOCUMENT_RENDER_TIMEOUT';
+  }
+  return 'DOCUMENT_RENDER_FAILED';
+}
+
+/** فشل BullMQ من غير ما المعالج يتنده، زي تجاوز maxStalledCount أو مهلة التأجيل. الحالة بتتقفل لو الانتقال مسموح. */
 export async function recordExternalJobFailure(
   job: Job,
   deps: Pick<ProcessDocumentDeps, 'redis' | 'logger' | 'clock'>,
+  error?: unknown,
 ): Promise<void> {
   if (!isTerminalJobFailure(job)) return;
   const parsed = documentRenderJob.safeParse(job.data);
   if (!parsed.success) return;
   const { company_id, render_id, kind } = parsed.data;
-  const failed = await markFailed(deps.redis, company_id, render_id, 'DOCUMENT_RENDER_FAILED');
+  const code = externalErrorCode(job, error);
+  const failed = await markFailed(deps.redis, company_id, render_id, code);
   if (!failed) return;
   const processedOn = job.processedOn ?? deps.clock.now();
   logOutcome(deps.logger, {
@@ -264,6 +275,6 @@ export async function recordExternalJobFailure(
     kind,
     state: 'FAILED',
     duration_ms: deps.clock.now() - processedOn,
-    error_code: 'DOCUMENT_RENDER_FAILED',
+    error_code: code,
   });
 }
