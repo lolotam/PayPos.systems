@@ -341,7 +341,7 @@ The phase order follows `06` §7 (the governing doc), `05_App_Blueprint_Build_Pl
 | **3** | Inventory, recipes, production, kitchen | restaurant | `inventory`, `kitchen`; tables/floor map | 7–10 weeks | see Phase 3 exit |
 | **4** | Appointments, e-menu, loyalty, channels, notifications | salon (full) + restaurants (online menu) | `appointments`, `loyalty`, `channels`, minimal `expenses` (event consumer), `notifications` full; `apps/menu` | 8–10 weeks | see Phase 4 exit |
 | **5** | Reporting, platform, subscriptions, sale-readiness | first external pilot customer | `reporting`, `expenses`, `platform`; `packages/documents` (PDF/Excel); payroll; public API; billing; self-signup; marketing site | 10–14 weeks | see Phase 5 exit |
-| **6** | Expansion | new verticals / markets | laundry, retail, services, clinic templates; ZATCA; customer app; native mobile (ADR); direct delivery integrations; multi-currency | continuous | per template: named lifecycle scenarios pass |
+| **6** | Expansion | new verticals / markets | laundry, retail, services, clinic templates; ZATCA; customer app («PosPay», MOB-16; P6-T8); direct delivery integrations; multi-currency | continuous | per template: named lifecycle scenarios pass |
 
 **Total to end of Phase 5:** ≈ **12–16 months** of one developer's focused build time, **plus** pilot calendar time and partner waits. That replaces this PRD's first estimate of 9–11 months, which the Codex review rejected as "a coding budget, not a completion forecast". It also supersedes the "≈ 5–6 months" in `05` and the "≈ 4 weeks for Phase 0" in Phase 0 plan v1 (not `06` — `06` §7 gives no durations). Both are flagged in §13 for correction in the client-facing documents. **Phase 2 is the likeliest overrun**: real hardware, offline recovery, payments and field fixes. Phase 1 is the first visible value, ≈ 4 months in.
 
@@ -928,7 +928,7 @@ Because the POS does not exist yet, the salon records completed services through
 - [ ] P6-T4 **Clinics / centres template** [V2].
 - [ ] P6-T5 **Gym / education** (memberships, freeze, classes with capacity, trainers, session packages, guardian ↔ student) — from `client-discovery` Q51–Q54, needs its own discovery.
 - [ ] P6-T6 **ZATCA** compliance module for Saudi (phase 2 e-invoicing, QR).
-- [ ] P6-T7 **Native mobile app** (one app, two modes: staff and admin) — ADR required; PWA remains the V1 answer.
+- [ ] P6-T7 **Store apps** (APP-Q1, final 2026-10-23, `docs/owner-decisions.ar.md` §22): two App Store and Google Play apps instead of the PWA-only plan. «PosPay Business» serves the owner and every employee by permission, with a cashier mode on tablets and phones that works offline; «PosPay» serves customers (P6-T8). The full back-office stays web (`apps/admin`). Both are planned on the MOB track (MOB-14 … MOB-19). «PosPay Business» no longer waits for Phase 6: it is a Capacitor shell around `apps/pos` (ADR-0055); «PosPay» comes later (MOB-16) and needs its own ADR first.
 - [ ] P6-T8 **Customer app** with loyalty and wallet cards (Apple/Google Wallet stamp cards, proximity offers within platform limits).
 - [ ] P6-T9 **Direct delivery-partner integrations** for the highest-volume partner once middleware cost exceeds its value.
 - [ ] P6-T10 **Multi-currency**, additional interface languages (Urdu/Hindi), Gulf region hosting move.

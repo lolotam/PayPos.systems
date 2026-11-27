@@ -114,9 +114,12 @@ running and `pnpm infra:up` done — the db tests use the compose Postgres (ADR-
 **Two facts that cost time before:**
 
 - **Each worktree tests on its own local Postgres container** (`docs/agent-delivery-pipeline.md` §6, PP-69.9), so
-  parallel worktrees may run DB tests at the same time. Every spec that touches the cluster roles takes the advisory
-  lock `pospay:test-cluster-roles` (`packages/db/test/role-lock.ts`), so two DB test runs on the **same** container —
-  two shells in one worktree — block or fail each other: run one at a time per container.
+  parallel worktrees may run DB tests at the same time — but only after `node scripts/test-db/lane.mjs up <lane>` has
+  started that worktree's own cluster (`docs/runbook.md`, «Per-lane test Postgres»). Plain `pnpm infra:up` uses the
+  shared `pospay-dev` cluster (`127.0.0.1:5432` by default). Every spec that touches the cluster roles takes the advisory
+  lock `pospay:test-cluster-roles` (`packages/db/test/role-lock.ts`), so two DB test runs on the **same** cluster —
+  two worktrees on the shared one, or two shells in one worktree — wait on each other and can fail with `55P03`
+  when a wait outlives `lock_timeout`: run one at a time per cluster.
 - **Deleting a merged worktree on Windows** fails on long `node_modules` paths. Empty it with
   `robocopy <empty-dir> <worktree-dir> /MIR`, then `Remove-Item` the folder, then `git worktree prune`, then
   `git branch -D <branch>`. `/MIR` deletes without asking, so first run `git status --porcelain` in that worktree and
