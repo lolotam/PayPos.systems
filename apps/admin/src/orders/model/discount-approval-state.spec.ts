@@ -70,9 +70,17 @@ it('APPROVED covers and attaches the row', () => {
   expect(view.attach).toEqual([{ localId: A, proposalId: id(60) }]);
 });
 
-it('APPROVED refused by this proposal becomes requestable without attach', () => {
+it('APPROVED after a pending NOT_APPROVED refusal on the same proposal stays covered and attached', () => {
   const approved = item(id(60), 0, 'APPROVED');
-  const view = discountApprovalView([row(A, 'TERMS_MISMATCH', id(60))], [tracked(first, { 0: A })], { [first]: [approved] });
+  const view = discountApprovalView([row(A, 'NOT_APPROVED', id(60))], [tracked(first, { 0: A })], { [first]: [approved] });
+  expect(view.lines[A]).toEqual({ proposal: approved, covered: true });
+  expect(view.requestable).toEqual([]);
+  expect(view.attach).toEqual([{ localId: A, proposalId: id(60) }]);
+});
+
+it.each(['NOT_FOUND', 'EXPIRED', 'CONSUMED', 'TERMS_MISMATCH'] as const)('APPROVED refused with %s by this proposal becomes requestable without attach', (code) => {
+  const approved = item(id(60), 0, 'APPROVED');
+  const view = discountApprovalView([row(A, code, id(60))], [tracked(first, { 0: A })], { [first]: [approved] });
   expect(view.lines[A]?.covered).toBe(false);
   expect(view.requestable).toEqual([A]);
   expect(view.attach).toEqual([]);
