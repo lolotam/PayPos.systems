@@ -1,6 +1,6 @@
 import { DocumentRenderTimeoutError, DocumentRendererUnavailableError } from '../domain/errors.ts';
 import { assertHtmlWithinLimit, assertPdfWithinLimit } from '../domain/limits.ts';
-import type { DocumentRenderer, RenderOptions } from '../ports/document-renderer.ts';
+import type { DocumentRenderer, RenderOptions, StartOptions } from '../ports/document-renderer.ts';
 import type { PdfBrowser, PdfBrowserFactory, PdfContext } from './browser.ts';
 import { closeContextOnce } from './context-guards.ts';
 import { asRendererError, isTimeoutError, raceDeadline } from './deadline.ts';
@@ -48,6 +48,7 @@ export class PlaywrightDocumentRenderer implements DocumentRenderer {
   #launchFailures = 0;
   #stableTimer: ReturnType<typeof setTimeout> | undefined;
   #starting: Promise<void> | null = null;
+  #launchInFlight: Promise<void> | null = null;
   #relaunching: Promise<void> | null = null;
   #retiring: Promise<void> | null = null;
   #unavailable: Array<() => void> = [];
@@ -88,15 +89,17 @@ export class PlaywrightDocumentRenderer implements DocumentRenderer {
     this.#availableListeners.push(listener);
   }
 
-  start(): Promise<void> {
+  start(options?: StartOptions): Promise<void> {
     // الإقلاع المكرّر لو المتصفح شغّال أو لسه بيقلع أو بيعيد الإطلاق أو اتقفل ما يفتحش متصفح تاني.
-    if (this.#available || this.#closing || this.#relaunching !== null) return Promise.resolve();
+    if (this.#available || this.#closing || this.#relaunching !== null || options?.signal?.aborted) {
+      return Promise.resolve();
+    }
     if (this.#starting !== null) return this.#starting;
-    const starting = (async () => {
-      await this.#launchOnce();
-      if (!this.#available && !this.#closing) this.#scheduleRelaunch();
-    })().finally(() => {
+    const detachAbort = this.#attachLaunchAbort(options?.signal);
+    const starting = this.#launchOnce(options?.signal).finally(() => {
+      detachAbort();
       if (this.#starting === starting) this.#starting = null;
+      if (!this.#available && !this.#closing && this.#retiring === null) this.#scheduleRelaunch();
     });
     this.#starting = starting;
     return starting;
@@ -142,10 +145,29 @@ export class PlaywrightDocumentRenderer implements DocumentRenderer {
     return this.#renderOnce(browser, html, options);
   }
 
-  async #launchOnce(): Promise<void> {
+  #attachLaunchAbort(signal: AbortSignal | undefined): () => void {
+    if (signal === undefined) return () => undefined;
+    const abort = (): void => {
+      this.#launchController?.abort();
+    };
+    signal.addEventListener('abort', abort, { once: true });
+    return () => signal.removeEventListener('abort', abort);
+  }
+
+  #launchOnce(signal?: AbortSignal): Promise<void> {
+    // حارس واحد لكل إطلاق: start() وإعادة الإطلاق في الخلفية ما يفتحوش متصفحين مع بعض.
+    if (this.#launchInFlight !== null) return this.#launchInFlight;
+    const flight = this.#runSingleLaunch(signal).finally(() => {
+      if (this.#launchInFlight === flight) this.#launchInFlight = null;
+    });
+    this.#launchInFlight = flight;
+    return flight;
+  }
+
+  async #runSingleLaunch(signal?: AbortSignal): Promise<void> {
     // المتصفح المتقاعد لازم يتقفل أو يتقتل الأول، عشان متصفحين ما يبقوش شغالين مع بعض.
     if (this.#retiring !== null) await this.#retiring;
-    if (this.#closing) return;
+    if (this.#closing || signal?.aborted) return;
     const controller = new AbortController();
     this.#launchController = controller;
     try {
@@ -173,6 +195,8 @@ export class PlaywrightDocumentRenderer implements DocumentRenderer {
     } catch (error) {
       this.#onLaunchError?.(error);
       this.#markUnavailable();
+    } finally {
+      if (this.#launchController === controller) this.#launchController = null;
     }
   }
 
@@ -215,10 +239,20 @@ export class PlaywrightDocumentRenderer implements DocumentRenderer {
   }
 
   #scheduleRelaunch(): void {
-    if (this.#closing || this.#relaunching !== null) return;
+    if (
+      this.#closing ||
+      this.#available ||
+      this.#starting !== null ||
+      this.#relaunching !== null ||
+      this.#retiring !== null
+    ) {
+      return;
+    }
     this.#relaunching = this.#relaunchLoop().finally(() => {
       this.#relaunching = null;
-      if (!this.#closing && !this.#available) this.#scheduleRelaunch();
+      if (!this.#closing && !this.#available && this.#starting === null && this.#retiring === null) {
+        this.#scheduleRelaunch();
+      }
     });
   }
 
@@ -298,7 +332,13 @@ export class PlaywrightDocumentRenderer implements DocumentRenderer {
     if (this.#browser !== browser) return;
     this.#browser = null;
     this.#markUnavailable();
-    const retiring = dropRetiredBrowser(browser, this.#browserCloseGraceMs, this.#sleep);
+    // لو مهلة القتل خلصت قبل تأكيد خروج العملية، إعادة الإطلاق بتستنى خروجها عشان متصفحين ما يتفتحوش.
+    const retiring = dropRetiredBrowser(browser, this.#browserCloseGraceMs, this.#sleep).then(
+      (outcome) => {
+        if (!outcome.confirmed && !this.#closing) return outcome.exit;
+        return undefined;
+      },
+    );
     this.#retiring = retiring;
     void retiring
       .catch(() => undefined)

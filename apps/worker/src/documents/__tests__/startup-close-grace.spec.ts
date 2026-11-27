@@ -346,3 +346,45 @@ it('bounds cleanup wait when renderer.kill returns a never-settling promise', as
   expect(kills).toBe(1);
   expect(Date.now() - startedAt).toBeLessThan(1_500);
 });
+
+it('closes Chromium within grace on normal close even when worker close never settles', async () => {
+  const events: string[] = [];
+  const session = trackDocumentStartup({
+    startupMs: 500,
+    closeGraceMs: 25,
+    retryDelaysMs: [0],
+    sleep: wait,
+    stopped: () => false,
+    onFailed: () => undefined,
+    run: async (attempt) => {
+      attempt.setLive({
+        worker: { close: () => new Promise<void>(() => undefined) } as never,
+        connection: { disconnect: () => events.push('redis-disconnect') } as never,
+      });
+      attempt.setRenderer({
+        async start() {
+          return undefined;
+        },
+        close: () => {
+          events.push('renderer-close');
+          return new Promise<void>(() => undefined);
+        },
+        kill: () => {
+          events.push('renderer-kill');
+        },
+        isAvailable: () => true,
+        onUnavailable: () => undefined,
+        onAvailable: () => undefined,
+        async render() {
+          return new Uint8Array();
+        },
+      });
+      return true;
+    },
+  });
+  await session.started;
+  const startedAt = Date.now();
+  await session.close();
+  expect(events).toEqual(['renderer-close', 'renderer-kill']);
+  expect(Date.now() - startedAt).toBeLessThan(1_000);
+});

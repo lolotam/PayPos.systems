@@ -81,7 +81,10 @@ interface PublishState {
 const activePublishers = new WeakMap<Redis, PublishState>();
 
 function isLive(state: PublishState): boolean {
-  return !state.stopped && state.renderer.isAvailable();
+  // الناشر المسبوق ما يكتبش ولا يعتبر حيّ بعد ما ناشر أحدث ياخد نفس عميل Redis.
+  return (
+    !state.stopped && activePublishers.get(state.redis) === state && state.renderer.isAvailable()
+  );
 }
 
 function shouldDeleteAliveKey(state: PublishState): boolean {
@@ -131,7 +134,6 @@ async function haltPublish(state: PublishState): Promise<void> {
 
 function armInterval(state: PublishState): void {
   if (!isLive(state) || state.timer !== undefined) return;
-  if (activePublishers.get(state.redis) === undefined) activePublishers.set(state.redis, state);
   void publishOnce(state);
   state.timer = setInterval(() => {
     void publishOnce(state);

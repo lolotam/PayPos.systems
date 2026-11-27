@@ -59,6 +59,6 @@ export async function launchWithinTimeout(
  * يقفل المتصفح جوّه المهلة، وبيقتله إلا لو close خلّص في وقتها.
  * بتستخدمه للمتصفح اللي وصل متأخر وللإغلاق الأخير.
  */
-export function closeOrKill(browser: PdfBrowser, graceMs: number): Promise<void> {
-  return dropRetiredBrowser(browser, graceMs);
+export async function closeOrKill(browser: PdfBrowser, graceMs: number): Promise<void> {
+  await dropRetiredBrowser(browser, graceMs);
 }

@@ -9,6 +9,11 @@ export interface RenderOptions {
   onAbortedRequest?: (url: string) => void;
 }
 
+export interface StartOptions {
+  /** إشارة لإلغاء محاولة الإقلاع لما مهلتها تخلص قبل ما نبدأ محاولة تانية. */
+  readonly signal?: AbortSignal;
+}
+
 /**
  * محوّل الرندر. التنفيذ بيقفل جافاسكربت والشبكة؛ البورت نفسه ما بيعرفش Playwright.
  */
@@ -17,9 +22,10 @@ export interface DocumentRenderer {
    * بيجهّز متصفح العملية مرة واحدة.
    * فشل الإطلاق الأول مش بيوقع الوركر؛ المحوّل بيعلّم نفسه غير متاح ويعيد المحاولة.
    *
+   * @param options خيارات الإقلاع الاختيارية؛ الإشارة بتلغي انتظار المحاولة المعلّقة
    * @returns بعد ما المحاولة الأولى تخلّص أو تتجدول
    */
-  start(): Promise<void>;
+  start(options?: StartOptions): Promise<void>;
 
   /**
    * بيقفل المتصفح ويمنع إعادة الإطلاق وقت الإيقاف.

@@ -298,7 +298,7 @@ it('awaits a slow pending start instead of calling start() a second time', async
   let stored: string | null = null;
   const { renderer, isAvailable } = delayedStartRenderer(async () => {
     calls += 1;
-    await new Promise((resolve) => setTimeout(resolve, 60));
+    await new Promise((resolve) => setTimeout(resolve, 45));
     return true;
   });
   const handle = await startDocumentRendering({
@@ -308,7 +308,7 @@ it('awaits a slow pending start instead of calling start() a second time', async
     redisUrl,
     logger,
     clock: { now: () => 1 },
-    startupMs: 15,
+    startupMs: 25,
     retryDelaysMs: [5],
     sleep: async () => undefined,
     livenessIntervalMs: 60_000,
@@ -339,7 +339,7 @@ it('retries once a slow pending initial start settles with a rejection', async (
     inFlight += 1;
     maxInFlight = Math.max(maxInFlight, inFlight);
     try {
-      await new Promise((resolve) => setTimeout(resolve, 50));
+      await new Promise((resolve) => setTimeout(resolve, 40));
       if (calls === 1) throw new Error('slow launch failure');
       return true;
     } finally {
@@ -351,7 +351,7 @@ it('retries once a slow pending initial start settles with a rejection', async (
     redisUrl,
     logger,
     clock: { now: () => 1 },
-    startupMs: 15,
+    startupMs: 25,
     retryDelaysMs: [5],
     sleep: async () => undefined,
     livenessIntervalMs: 60_000,

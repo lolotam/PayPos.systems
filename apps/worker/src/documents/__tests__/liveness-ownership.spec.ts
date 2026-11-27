@@ -1,0 +1,82 @@
+import type { DocumentRenderer } from '@pospay/documents';
+import type { Redis } from 'ioredis';
+import { expect, it } from 'vitest';
+
+import { startRendererLiveness } from '../liveness.ts';
+
+class ToggleRenderer implements DocumentRenderer {
+  available = true;
+  readonly #up: Array<() => void> = [];
+  readonly #down: Array<() => void> = [];
+
+  async start(): Promise<void> {
+    if (this.available) for (const listener of this.#up) listener();
+  }
+
+  async close(): Promise<void> {
+    this.available = false;
+    for (const listener of this.#down) listener();
+  }
+
+  isAvailable(): boolean {
+    return this.available;
+  }
+
+  onUnavailable(listener: () => void): void {
+    this.#down.push(listener);
+  }
+
+  onAvailable(listener: () => void): void {
+    this.#up.push(listener);
+  }
+
+  async render(): Promise<Uint8Array> {
+    return new Uint8Array();
+  }
+}
+
+it('blocks superseded publisher interval writes while the replacement is temporarily unavailable', async () => {
+  let stored: string | null = null;
+  const redis = {
+    status: 'ready',
+    on() {
+      return this;
+    },
+    off() {
+      return this;
+    },
+    set: async (_key: string, value: string) => {
+      stored = value;
+      return 'OK';
+    },
+    del: async () => {
+      stored = null;
+      return 1;
+    },
+  } as unknown as Redis;
+  const oldRenderer = new ToggleRenderer();
+  const newRenderer = new ToggleRenderer();
+  const liveOld = await startRendererLiveness({
+    redis,
+    renderer: oldRenderer,
+    intervalMs: 10,
+    readyTimeoutMs: 1_000,
+  });
+  const liveNew = await startRendererLiveness({
+    redis,
+    renderer: newRenderer,
+    intervalMs: 60_000,
+    readyTimeoutMs: 1_000,
+  });
+  await newRenderer.close();
+  await new Promise((resolve) => setTimeout(resolve, 60));
+  expect(stored).toBeNull();
+  newRenderer.available = true;
+  await newRenderer.start();
+  await new Promise((resolve) => setImmediate(resolve));
+  expect(stored).toBe('1');
+  await liveOld.stop();
+  expect(stored).toBe('1');
+  await liveNew.stop();
+  expect(stored).toBeNull();
+});

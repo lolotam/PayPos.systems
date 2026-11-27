@@ -27,19 +27,27 @@ export interface RetireGuards {
 }
 
 /**
+ * نتيجة تقاعد المتصفح: هل اتأكد خروج العملية، ووعد ينتهي لما القفل أو القتل يثبت.
+ */
+export interface RetireResult {
+  readonly confirmed: boolean;
+  readonly exit: Promise<void>;
+}
+
+/**
  * بيقفل المتصفح المتقاعد جوّه مهلة السماح، وبيقتله إلا لو close خلّص في وقتها.
  * القفل المعلّق بياخد المهلة وبس؛ العمليات القديمة ما بتتسيبش شغّالة.
  *
  * @param browser المتصفح اللي اتقاعد
  * @param graceMs مهلة السماح للقفل قبل القتل
  * @param sleep النوم المحقون الاختياري؛ لو غاب بنستعمل مؤقّت بيتصفّى بعد القفل
- * @returns بعد ما المتصفح يتقفل أو يتقتل
+ * @returns confirmed لو اتأكد خروج المتصفح، مع exit للاستكمال قبل إعادة الإطلاق لو اتأخر
  */
 export async function dropRetiredBrowser(
   browser: PdfBrowser,
   graceMs: number,
   sleep?: (ms: number) => Promise<void>,
-): Promise<void> {
+): Promise<RetireResult> {
   let finished = false;
   let closing: Promise<unknown>;
   try {
@@ -60,16 +68,38 @@ export async function dropRetiredBrowser(
   } finally {
     grace.stop();
   }
-  if (finished) return;
-  const killGrace = armGrace(KILL_WAIT_MS);
+  if (finished) return { confirmed: true, exit: Promise.resolve() };
+  let killCall: unknown;
   try {
-    const killed = Promise.resolve(browser.kill?.()).catch(() => undefined);
-    await Promise.race([killed, killGrace.done]);
+    killCall = browser.kill?.();
   } catch {
     // إشارة القتل مش بتوقف إعادة الإطلاق؛ المتصفح القديم مش هو الحالي.
+    return { confirmed: true, exit: Promise.resolve() };
+  }
+  if (killCall === undefined) return { confirmed: true, exit: Promise.resolve() };
+  // رفض close ما يثبتش خروج العملية، فانتظار الخروج يعتمد على حل close أو kill بس.
+  const cleanClose = closing.then(
+    () => undefined,
+    () => new Promise<void>(() => undefined),
+  );
+  const exit = Promise.race([
+    cleanClose,
+    Promise.resolve(killCall).then(
+      () => undefined,
+      () => undefined,
+    ),
+  ]);
+  let settled = false;
+  const confirmed = exit.then(() => {
+    settled = true;
+  });
+  const killGrace = armGrace(KILL_WAIT_MS);
+  try {
+    await Promise.race([confirmed, killGrace.done]);
   } finally {
     killGrace.stop();
   }
+  return { confirmed: settled, exit };
 }
 
 /**

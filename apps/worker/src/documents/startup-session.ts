@@ -159,8 +159,8 @@ async function release(slot: Slot, graceMs: number, boundQueue = false): Promise
     ]);
     return;
   }
-  // الإغلاق الطبيعي يقفل الطابور الأول عشان أي رسم شغّال يخلّص قبل قفل Chromium.
-  await releaseQueue(live, queue);
+  // الإغلاق الطبيعي يفرّغ الطابور الأول بحدّ مهلة عشان قفل Redis المعلّق ما يمنعش قفل Chromium.
+  await boundedQueueRelease(live, queue, graceMs);
   if (renderer !== undefined) await closeRendererWithinGrace(renderer, graceMs);
 }
 
