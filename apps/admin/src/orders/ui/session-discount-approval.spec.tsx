@@ -177,6 +177,26 @@ it('keeps the pending request after a re-save with a new result', async () => {
   expect((screen.getByRole('button', { name: t('en', 'discountApproval.request') }) as HTMLButtonElement).disabled).toBe(true);
 });
 
+it('attaches a pending proposal and frees the row once its terms change', async () => {
+  api.locale = 'en';
+  api.post.mockResolvedValue({ data: requestResponse, response: { status: 201 } });
+  api.get.mockResolvedValue({ data: { items: [proposal('PENDING')] }, response: { status: 200 } });
+  const value = result(), { client, commands, view } = mount(value);
+  await clickRequest('en');
+  await waitFor(() => expect(screen.getByText(t('en', 'discountApproval.pending'))).toBeTruthy());
+  expect((screen.getByRole('button', { name: t('en', 'discountApproval.request') }) as HTMLButtonElement).disabled).toBe(true);
+  fireEvent.click(screen.getByRole('button', { name: t('en', 'serviceSessions.save') }));
+  expect(commands.mock.calls[0]?.[1][0]).toHaveProperty('discount_proposal_id', proposalId);
+
+  const row = value.rejected[0];
+  if (!row) throw new Error('Missing rejected row');
+  const next = { ...value, rejected: [{ ...row, error: { ...row.error,
+    approval_refusal: 'TERMS_MISMATCH' as const, discount_proposal_id: proposalId } }] };
+  view.rerender(<QueryClientProvider client={client}><Harness result={next} onCommands={commands} /></QueryClientProvider>);
+  expect(screen.getByText(discountApprovalRefusals.TERMS_MISMATCH.message_en)).toBeTruthy();
+  expect((screen.getByRole('button', { name: t('en', 'discountApproval.request') }) as HTMLButtonElement).disabled).toBe(false);
+});
+
 it('shows one customer-required alert and sends no request when the fresh visit has no customer', async () => {
   api.locale = 'en';
   const value = { ...result(), customerId: null, customer: null };

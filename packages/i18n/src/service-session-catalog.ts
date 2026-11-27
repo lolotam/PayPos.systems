@@ -156,7 +156,7 @@ export const serviceSessionsAr: Record<keyof typeof serviceSessionsEn, string> =
   packageSuggested: 'مقترحة: أقرب انتهاء',
   packageExpiresOn: 'تنتهي في {date}',
   packageRemaining: 'متبقي {n} جلسة',
-  packageExpired: 'منتهية: صالحة فقط لو تاريخ الزيارة قبل الانتهاء',
+  packageExpired: 'منتهية: صالحة فقط لو تاريخ الزيارة في يوم الانتهاء أو قبله',
   packageNoCustomer: 'اختاري الزبونة الأول.',
   packageNoService: 'اختاري الخدمة الأول.',
   packageNoneUsable: 'مفيش باقة صالحة لهذه الزبونة للخدمة دي.',
