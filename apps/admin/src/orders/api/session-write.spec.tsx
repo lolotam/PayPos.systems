@@ -174,7 +174,7 @@ it('rejects PII before storing and purges malformed journals', async () => {
   expect((await reload()).read()).toBeNull(); expect(sessionStorage.length).toBe(0);
 });
 
-it.each(['record', 'append'] as const)('closes %s retry window at 23h from first send even after a late replay, including reload', async (kind) => {
+it.each(['record', 'append'] as const)('closes %s retry window at 23h from attempt creation even after a late replay, including reload', async (kind) => {
   const command: SessionAttemptCommand = kind === 'record' ? { kind, body: { ...body, occurred_at: instant } } : { kind, sessionId: id(12), body: { lines: body.lines } };
   const store = journal(), attempt = store.begin(command, rows), hook = hooks(store);
   post.mockRejectedValue(new TypeError('Response lost'));

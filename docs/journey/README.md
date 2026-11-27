@@ -119,7 +119,7 @@ answer.
 | 45 | [Maximum shifts per day, per branch](45-max-shifts-per-branch.md) — أقصى عدد ورديات في اليوم لكل فرع | #151 | yes |
 | 46 | [Default working hours per employee](46-employee-default-hours.md) — الدوام الافتراضي للموظفة | #154 | yes |
 | 47 | [Record a visit at reception](47-record-visit-reception.md) — تسجيل زيارة من الريسبشن | #212, #215 | yes; needs the `orders` and `customers` features; the expired exit is [48](48-reception-own-recordings.md) |
-| 48 | [Clear an expired recording with your own visits of that day](48-reception-own-recordings.md) — حسم تسجيل منتهي من زياراتك في اليوم ده | #230, #231, #233, #234 | yes, but only after a save stays unresolved 25 h in the same open tab; no browser test yet |
+| 48 | [Clear an expired recording with your own visits of that day](48-reception-own-recordings.md) — حسم تسجيل منتهي من زياراتك في اليوم ده | #230, #231, #233, #234 | yes, but only after a save stays unresolved 23 h from the first attempt in the same open tab; no browser test yet |
 | 49 | [Edit the price or discount of a saved service](49-price-discount-edit.md) — تعديل سعر أو خصم خدمة محفوظة | #253, #254, #266, #288, #304, #312, #323, #334, #353, #354, #357, #360, #361 | yes; needs the `orders` feature; the bell comes from the worker and follows the alert rules (58) |
 | 50 | [Record a visit's tips](50-visit-tips.md) — تسجيل بقشيش الزيارة | #336, #339, #345, #366, #383, #398 | yes; needs the `orders` feature |
 | 51 | [Cancel a saved service line](51-cancel-service-line.md) — إلغاء خدمة محفوظة | #322, #341, #346, #364, #386, #390, #395 | yes; the bell comes from the worker and follows the alert rules (58) |
