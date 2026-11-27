@@ -1,6 +1,20 @@
 import type { PdfBrowser, PdfContext } from './browser.ts';
 import { closeHungContext, openWithinGrace } from './context-guards.ts';
 
+function armGrace(ms: number): { done: Promise<void>; stop: () => void } {
+  if (!(ms > 0)) return { done: Promise.resolve(), stop: () => undefined };
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const done = new Promise<void>((resolve) => {
+    timer = setTimeout(resolve, ms);
+  });
+  return {
+    done,
+    stop: () => {
+      if (timer !== undefined) clearTimeout(timer);
+    },
+  };
+}
+
 /**
  * حدود القفل الموقوت: مهلة السماح، والنوم المحقون، والإحالة للمتصفح المتقاعد.
  */
@@ -16,13 +30,13 @@ export interface RetireGuards {
  *
  * @param browser المتصفح اللي اتقاعد
  * @param graceMs مهلة السماح للقفل قبل القتل
- * @param sleep النوم المحقون اللي بيقيس المهلة
+ * @param sleep النوم المحقون الاختياري؛ لو غاب بنستعمل مؤقّت بيتصفّى بعد القفل
  * @returns بعد ما المتصفح يتقفل أو يتقتل
  */
 export async function dropRetiredBrowser(
   browser: PdfBrowser,
   graceMs: number,
-  sleep: (ms: number) => Promise<void>,
+  sleep?: (ms: number) => Promise<void>,
 ): Promise<void> {
   let finished = false;
   let closing: Promise<unknown>;
@@ -37,10 +51,16 @@ export async function dropRetiredBrowser(
     },
     () => undefined,
   );
-  await Promise.race([pending, sleep(graceMs)]).catch(() => undefined);
+  const grace =
+    sleep === undefined ? armGrace(graceMs) : { done: sleep(graceMs), stop: () => undefined };
+  try {
+    await Promise.race([pending, grace.done]).catch(() => undefined);
+  } finally {
+    grace.stop();
+  }
   if (finished) return;
   try {
-    browser.kill?.();
+    await browser.kill?.();
   } catch {
     // إشارة القتل مش بتوقف إعادة الإطلاق؛ المتصفح القديم مش هو الحالي.
   }

@@ -204,3 +204,49 @@ it('kills a renderer that arrives after the startup timeout', async () => {
     await session.close();
   }
 });
+
+it('kills a hanging renderer within grace even when a held queue close hangs in parallel', async () => {
+  const events: string[] = [];
+  let attempt = 0;
+  const session = trackDocumentStartup({
+    startupMs: 50,
+    closeGraceMs: 40,
+    retryDelaysMs: [0],
+    sleep: wait,
+    stopped: () => false,
+    onFailed: () => undefined,
+    run: async (binder) => {
+      attempt += 1;
+      if (attempt === 1) {
+        binder.holdQueue({
+          worker: { close: () => new Promise<void>(() => undefined) } as never,
+          connection: { disconnect: () => undefined } as never,
+        });
+        binder.setRenderer({
+          async start() {
+            return undefined;
+          },
+          close: () => new Promise<void>(() => undefined),
+          kill: () => {
+            events.push('kill-1');
+          },
+          isAvailable: () => false,
+          onUnavailable: () => undefined,
+          onAvailable: () => undefined,
+          async render() {
+            return new Uint8Array();
+          },
+        });
+        return false;
+      }
+      events.push('attempt-2');
+      return true;
+    },
+  });
+  try {
+    await session.started;
+    expect(events).toEqual(['kill-1', 'attempt-2']);
+  } finally {
+    await session.close();
+  }
+});

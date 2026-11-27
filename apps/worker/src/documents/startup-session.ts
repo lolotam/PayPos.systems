@@ -102,27 +102,49 @@ async function closeRendererWithinGrace(renderer: DocumentRenderer, graceMs: num
   await Promise.resolve();
   if (finished) return;
   try {
-    renderer.kill?.();
+    await renderer.kill?.();
   } catch {
     // القتل اختياري؛ المحاولة الجاية ليها متصفح جديد.
   }
 }
 
-async function release(slot: Slot, graceMs: number): Promise<void> {
+async function releaseQueue(
+  live: LiveQueue | undefined,
+  queue: HeldQueue | undefined,
+): Promise<void> {
+  if (live !== undefined) {
+    await live.liveness?.stop().catch(() => undefined);
+    await closeHeld(live.worker, live.connection, false);
+    return;
+  }
+  if (queue !== undefined) {
+    // لسه مش جاهز وماسكش وظيفة، فالقوة بتقطع إعادة اتصال Redis
+    await closeHeld(queue.worker, queue.connection, true);
+  }
+}
+
+async function boundedQueueRelease(
+  live: LiveQueue | undefined,
+  queue: HeldQueue | undefined,
+  graceMs: number,
+): Promise<void> {
+  if (live === undefined && queue === undefined) return;
+  const grace = waitForGrace(graceMs);
+  await Promise.race([releaseQueue(live, queue).catch(() => undefined), grace.done]);
+  grace.stop();
+}
+
+async function release(slot: Slot, graceMs: number, boundQueue = false): Promise<void> {
   const live = slot.live;
   const queue = slot.queue;
   const renderer = slot.renderer;
   slot.live = undefined;
   slot.queue = undefined;
   slot.renderer = undefined;
-  if (live !== undefined) {
-    await live.liveness?.stop().catch(() => undefined);
-    await closeHeld(live.worker, live.connection, false);
-  } else if (queue !== undefined) {
-    // لسه مش جاهز وماسكش وظيفة، فالقوة بتقطع إعادة اتصال Redis
-    await closeHeld(queue.worker, queue.connection, true);
-  }
-  if (renderer !== undefined) await closeRendererWithinGrace(renderer, graceMs);
+  await Promise.all([
+    boundQueue ? boundedQueueRelease(live, queue, graceMs) : releaseQueue(live, queue),
+    renderer === undefined ? Promise.resolve() : closeRendererWithinGrace(renderer, graceMs),
+  ]);
 }
 
 function waitForGrace(ms: number): { done: Promise<void>; stop: () => void } {
@@ -234,11 +256,8 @@ async function fail(
   slot.controller.abort();
   if (state.timer !== undefined) clearTimeout(state.timer);
   input.onFailed(error);
-  // تنظيف المتصفح المعلّق ما يؤجّلش المحاولة الجاية. القفل يكمل لو عدّى المهلة.
-  const cleaning = release(slot, input.closeGraceMs ?? CLOSE_GRACE_MS);
-  const grace = waitForGrace(input.closeGraceMs ?? CLOSE_GRACE_MS);
-  await Promise.race([cleaning.catch(() => undefined), grace.done]);
-  grace.stop();
+  // تنظيف الطابور ومتصفح المحاولة الفاشلة يشتغلوا بالتوازي؛ المتصفح بيتقتل جوّه مهلة السماح قبل أي إطلاق جديد.
+  await release(slot, input.closeGraceMs ?? CLOSE_GRACE_MS, true);
   if (state.closed || !state.accept || input.stopped()) return;
   const last = input.retryDelaysMs.length - 1;
   const delay = input.retryDelaysMs[Math.min(state.attempt, last)] ?? 60_000;

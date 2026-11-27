@@ -1,18 +1,5 @@
 import type { PdfBrowser } from './browser.ts';
-
-function armGrace(ms: number): { done: Promise<void>; stop: () => void } {
-  if (!(ms > 0)) return { done: Promise.resolve(), stop: () => undefined };
-  let timer: ReturnType<typeof setTimeout> | undefined;
-  const done = new Promise<void>((resolve) => {
-    timer = setTimeout(resolve, ms);
-  });
-  return {
-    done,
-    stop: () => {
-      if (timer !== undefined) clearTimeout(timer);
-    },
-  };
-}
+import { dropRetiredBrowser } from './retire.ts';
 
 type LaunchOutcome =
   | { readonly kind: 'browser'; readonly browser: PdfBrowser }
@@ -72,30 +59,6 @@ export async function launchWithinTimeout(
  * يقفل المتصفح جوّه المهلة، وبيقتله إلا لو close خلّص في وقتها.
  * بتستخدمه للمتصفح اللي وصل متأخر وللإغلاق الأخير.
  */
-export async function closeOrKill(browser: PdfBrowser, graceMs: number): Promise<void> {
-  let finished = false;
-  let closing: Promise<unknown>;
-  try {
-    closing = browser.close();
-  } catch {
-    closing = Promise.reject(new Error('close failed'));
-  }
-  const pending = closing.then(
-    () => {
-      finished = true;
-    },
-    () => undefined,
-  );
-  const grace = armGrace(graceMs);
-  try {
-    await Promise.race([pending, grace.done]);
-  } finally {
-    grace.stop();
-  }
-  if (finished) return;
-  try {
-    browser.kill?.();
-  } catch {
-    // إشارة القتل مش بتوقف إعادة الإطلاق؛ المتصفح القديم مش هو الحالي.
-  }
+export function closeOrKill(browser: PdfBrowser, graceMs: number): Promise<void> {
+  return dropRetiredBrowser(browser, graceMs);
 }

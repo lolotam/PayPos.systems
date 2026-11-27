@@ -190,3 +190,63 @@ it('stops retrying the liveness publisher when the capability is closed', async 
     await handle.close();
   }
 });
+
+it('retries a custom renderer whose start() rejects until it becomes available', async () => {
+  const { lines, logger } = linesOf();
+  let calls = 0;
+  let stored: string | null = null;
+  let available = false;
+  let upListener: (() => void) | undefined;
+  const renderer: DocumentRenderer = {
+    start: async () => {
+      calls += 1;
+      if (calls < 3) throw new Error('transient start failure');
+      available = true;
+      upListener?.();
+    },
+    close: async () => {
+      available = false;
+    },
+    isAvailable: () => available,
+    onUnavailable: () => undefined,
+    onAvailable: (listener) => {
+      upListener = listener;
+    },
+    render: async () => new Uint8Array(),
+  };
+  const redis = {
+    status: 'ready',
+    on: () => undefined,
+    off: () => undefined,
+    set: async (_key: string, value: string) => {
+      stored = value;
+      return 'OK';
+    },
+    del: async () => {
+      stored = null;
+      return 1;
+    },
+  } as unknown as Redis;
+  const handle = await startDocumentRendering({
+    redis,
+    redisUrl,
+    logger,
+    clock: { now: () => 1 },
+    retryDelaysMs: [5],
+    sleep: async () => undefined,
+    livenessIntervalMs: 60_000,
+    renderer,
+  });
+  try {
+    const deadline = Date.now() + 2_000;
+    while ((calls < 3 || stored !== '1') && Date.now() < deadline) {
+      await new Promise((resolve) => setTimeout(resolve, 10));
+    }
+    expect(calls).toBe(3);
+    expect(available).toBe(true);
+    expect(stored).toBe('1');
+    expect(setupFailures(lines).length).toBeGreaterThanOrEqual(2);
+  } finally {
+    await handle.close();
+  }
+});

@@ -143,3 +143,27 @@ it('keeps a queued PDF deferred while a launch takes longer than the start bound
     await closeRender(opened);
   }
 }, 30_000);
+
+it('re-arms bounded PDF deferral after a runtime renderer disconnect until recovery', async () => {
+  const renderer = new FakeRenderer();
+  const opened = await openRender({ renderer });
+  try {
+    const companyId = renderId();
+    const id = renderId();
+    opened.registry.register('fixture', { load: async () => '<p>recovered</p>' });
+    await seedQueued(opened, companyId, id);
+    await renderer.close();
+    expect(renderer.isAvailable()).toBe(false);
+    const done = finishJob(opened, job(companyId, id, 'fixture'), id);
+    await new Promise((resolve) => setTimeout(resolve, 2_200));
+    expect((await statusOf(opened, companyId, id))['state']).not.toBe('FAILED');
+    expect(renderer.seen).toEqual([]);
+    renderer.available = true;
+    await renderer.start();
+    await done;
+    expect((await statusOf(opened, companyId, id))['state']).toBe('READY');
+    expect(renderer.seen).toEqual(['<p>recovered</p>']);
+  } finally {
+    await closeRender(opened);
+  }
+}, 30_000);

@@ -357,3 +357,51 @@ it('treats a context whose close fails as hung', async () => {
   };
   expect(await closeHungContext(closing, 30, never)).toBe(false);
 });
+
+it('waits for browser kill process-exit confirmation before launching the replacement browser', async () => {
+  const gate = sleepGate();
+  let launches = 0;
+  let releaseKill: (() => void) | undefined;
+  let killFinished = false;
+  const renderer = rendererFor(
+    {
+      launch: async () => {
+        launches += 1;
+        if (launches > 1) return quietBrowser();
+        return {
+          newContext: () => new Promise(() => undefined),
+          close: () => new Promise(() => undefined),
+          kill: () =>
+            new Promise<void>((resolve) => {
+              releaseKill = () => {
+                killFinished = true;
+                resolve();
+              };
+            }),
+          on: () => undefined,
+        };
+      },
+    },
+    gate,
+  );
+  await renderer.start();
+  const rendering = expect(renderer.render(HTML)).rejects.toThrow(DocumentRenderTimeoutError);
+  for (let step = 0; step < 20 && releaseKill === undefined; step += 1) {
+    await new Promise((resolve) => setTimeout(resolve, 5));
+    gate.release();
+  }
+  await rendering;
+  await new Promise((resolve) => setTimeout(resolve, 10));
+  expect(releaseKill).toBeDefined();
+  expect(killFinished).toBe(false);
+  expect(launches).toBe(1);
+  releaseKill?.();
+  for (let step = 0; step < 20 && launches < 2; step += 1) {
+    await new Promise((resolve) => setTimeout(resolve, 5));
+    gate.releaseAll();
+  }
+  expect(killFinished).toBe(true);
+  expect(launches).toBe(2);
+  gate.releaseAll();
+  await renderer.close();
+});

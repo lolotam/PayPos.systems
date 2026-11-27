@@ -1,14 +1,10 @@
-import {
-  DocumentRenderTimeoutError,
-  DocumentRendererUnavailableError,
-  asRendererError,
-  isTimeoutError,
-} from '../domain/errors.ts';
+import { DocumentRenderTimeoutError, DocumentRendererUnavailableError } from '../domain/errors.ts';
 import { assertHtmlWithinLimit, assertPdfWithinLimit } from '../domain/limits.ts';
 import type { DocumentRenderer, RenderOptions } from '../ports/document-renderer.ts';
 import type { PdfBrowser, PdfBrowserFactory, PdfContext } from './browser.ts';
-import { raceDeadline } from './deadline.ts';
-import { playwrightFactory } from './factory.ts';
+import { closeContextOnce } from './context-guards.ts';
+import { asRendererError, isTimeoutError, raceDeadline } from './deadline.ts';
+import { DEFAULT_CHROMIUM_LAUNCH_TIMEOUT_MS, playwrightFactory } from './factory.ts';
 import { closeOrKill, launchWithinTimeout } from './launch.ts';
 import { renderPage, type RenderPageHooks } from './render-page.ts';
 import type { RendererOptions } from './renderer-options.ts';
@@ -58,7 +54,6 @@ export class PlaywrightDocumentRenderer implements DocumentRenderer {
 
   constructor(options: RendererOptions = {}) {
     this.#launchTimeoutMs = options.launchTimeoutMs ?? LAUNCH_TIMEOUT_MS;
-    this.#factory = options.factory ?? playwrightFactory(this.#launchTimeoutMs);
     this.#sleep = options.sleep ?? delay;
     this.#backoff = options.backoffMs ?? DEFAULT_BACKOFF_MS;
     this.#contentTimeoutMs = options.contentTimeoutMs ?? 10_000;
@@ -69,6 +64,15 @@ export class PlaywrightDocumentRenderer implements DocumentRenderer {
     this.#stableForMs = options.stableForMs ?? 30_000;
     this.#onLaunchError = options.onLaunchError;
     this.#onDocumentHtml = options.onDocumentHtml;
+    const playwrightTimeoutMs =
+      this.#launchTimeoutMs === LAUNCH_TIMEOUT_MS
+        ? DEFAULT_CHROMIUM_LAUNCH_TIMEOUT_MS
+        : Math.max(
+            1,
+            this.#launchTimeoutMs -
+              Math.min(this.#browserCloseGraceMs, Math.floor(this.#launchTimeoutMs / 2)),
+          );
+    this.#factory = options.factory ?? playwrightFactory(playwrightTimeoutMs);
   }
 
   isAvailable(): boolean {
@@ -105,7 +109,7 @@ export class PlaywrightDocumentRenderer implements DocumentRenderer {
     }
   }
 
-  kill(): void {
+  kill(): void | Promise<void> {
     this.#closing = true;
     this.#launchController?.abort();
     this.#clearStable();
@@ -114,9 +118,10 @@ export class PlaywrightDocumentRenderer implements DocumentRenderer {
     const browser = this.#browser ?? this.#closingBrowser;
     this.#browser = null;
     try {
-      browser?.kill?.();
+      return browser?.kill?.();
     } catch {
       // إشارة القتل مش بتوقف إعادة الإطلاق؛ المتصفح القديم مش هو الحالي.
+      return undefined;
     }
   }
 
@@ -251,7 +256,7 @@ export class PlaywrightDocumentRenderer implements DocumentRenderer {
         throw error;
       } finally {
         // قفل السياق المعلّق بيستهلك المهلة الكلية؛ القفل بيتم من فوق عبر closeAfterTimeout.
-        if (!timedOut) await opened.close().catch(() => undefined);
+        if (!timedOut) await closeContextOnce(opened).catch(() => undefined);
       }
     });
     try {

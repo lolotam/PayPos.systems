@@ -10,10 +10,10 @@ import {
 import type { PdfBrowser, PdfBrowserFactory, PdfContext, PdfPage, PdfRoute } from './browser.ts';
 
 /**
- * مهلة إطلاق Chromium.
- * الإطلاق المعلّق بيتحسب فشل بدل ما يفضل شغّال للأبد.
+ * مهلة إطلاق Chromium على Playwright.
+ * تفضل تحت حد الإطلاق الخارجي (40 s) عشان مهلة Playwright تقتل العملية قبل المهلة الخارجية.
  */
-export const DEFAULT_CHROMIUM_LAUNCH_TIMEOUT_MS = 40_000;
+export const DEFAULT_CHROMIUM_LAUNCH_TIMEOUT_MS = 35_000;
 
 /**
  * إشارات الإيقاف بتوصل للوركر. Playwright لو قفل Chromium معاها، الوظيفة الجارية بتتقص قبل ما الطابور يخلّص.
@@ -60,16 +60,25 @@ function wrapPage(page: Page): PdfPage {
 }
 
 function wrapContext(context: BrowserContext): PdfContext {
+  let closed: Promise<void> | undefined;
   return {
     route: async (pattern, handler) => {
       await context.route(pattern, (route) => handler(wrapRoute(route)));
     },
     newPage: async () => wrapPage(await context.newPage()),
-    close: () => context.close(),
+    close: () => (closed ??= context.close()),
   };
 }
 
-type KillableProcess = { kill(signal: NodeJS.Signals): boolean };
+type KillableProcess = {
+  kill(signal: NodeJS.Signals): boolean;
+  readonly exitCode?: number | null;
+  readonly signalCode?: string | null;
+  once?(event: 'exit', listener: () => void): unknown;
+  off?(event: 'exit', listener: () => void): unknown;
+};
+
+const PROCESS_EXIT_WAIT_MS = 500;
 
 /**
  * Playwright 1.63 شال Browser.process() من الواجهة العامة.
@@ -92,13 +101,44 @@ function chromiumProcess(browser: Browser): KillableProcess | null {
   }
 }
 
+function killAndWait(proc: KillableProcess | null): Promise<void> | void {
+  if (proc === null) return;
+  const once = proc.once;
+  if (
+    typeof once !== 'function' ||
+    (proc.exitCode !== undefined && proc.exitCode !== null) ||
+    (proc.signalCode !== undefined && proc.signalCode !== null)
+  ) {
+    proc.kill('SIGKILL');
+    return;
+  }
+  return new Promise<void>((resolve) => {
+    let settled = false;
+    const finish = (): void => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      proc.off?.('exit', finish);
+      resolve();
+    };
+    const timer = setTimeout(finish, PROCESS_EXIT_WAIT_MS);
+    once.call(proc, 'exit', finish);
+    try {
+      const signaled = proc.kill('SIGKILL');
+      if (!signaled && ((proc.exitCode ?? null) !== null || (proc.signalCode ?? null) !== null)) {
+        finish();
+      }
+    } catch {
+      finish();
+    }
+  });
+}
+
 function wrapBrowser(browser: Browser): PdfBrowser {
   return {
     newContext: async (options) => wrapContext(await browser.newContext(options)),
     close: () => browser.close(),
-    kill: () => {
-      chromiumProcess(browser)?.kill('SIGKILL');
-    },
+    kill: () => killAndWait(chromiumProcess(browser)),
     on: (event, listener) => {
       browser.on(event, listener);
     },

@@ -151,7 +151,7 @@ it('maps a renderer timeout', async () => {
     expect((await statusOf(opened, companyId, id))['error_code']).toBe('DOCUMENT_RENDER_TIMEOUT');
     expect(opened.lines.join('\n')).not.toContain(LEAK_MARKER);
   });
-});
+}, 35_000);
 
 it('does not overwrite bytes already stored', async () => {
   await useRender(async (opened) => {

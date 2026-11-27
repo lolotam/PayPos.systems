@@ -98,3 +98,56 @@ it('retires the browser when the context close hangs after the print deadline', 
     await scene.renderer.close();
   }
 });
+
+it('reuses a single context.close() promise so overall-deadline cleanup still retires on a hung first close', async () => {
+  let closeCalls = 0;
+  let kills = 0;
+  const page: PdfPage = {
+    setContent: async () => undefined,
+    evaluate: async () => undefined,
+    pdf: async () => {
+      await sleep(10);
+      return Uint8Array.from([1, 2, 3]);
+    },
+    close: async () => undefined,
+  };
+  const context: PdfContext = {
+    route: async () => undefined,
+    newPage: async () => page,
+    close: () => {
+      closeCalls += 1;
+      if (closeCalls === 1) return new Promise<void>(() => undefined);
+      return Promise.resolve();
+    },
+  };
+  const renderer = new PlaywrightDocumentRenderer({
+    factory: {
+      launch: async () => ({
+        newContext: async () => context,
+        close: () => new Promise<void>(() => undefined),
+        kill: () => {
+          kills += 1;
+        },
+        on: () => undefined,
+      }),
+    },
+    sleep,
+    backoffMs: [0],
+    pdfTimeoutMs: 500,
+    overallTimeoutMs: 40,
+    browserCloseGraceMs: CLOSE_GRACE_MS,
+    closeGraceMs: CLOSE_GRACE_MS,
+  });
+  try {
+    await renderer.start();
+    await expect(renderer.render(HTML)).rejects.toBeInstanceOf(DocumentRenderTimeoutError);
+    const deadline = Date.now() + 1_000;
+    while (kills === 0 && Date.now() < deadline) {
+      await sleep(5);
+    }
+    expect(closeCalls).toBe(1);
+    expect(kills).toBe(1);
+  } finally {
+    await renderer.close();
+  }
+});

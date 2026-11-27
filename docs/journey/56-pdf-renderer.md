@@ -84,7 +84,7 @@ The worker runs on staging, but there is nothing to test there. The only thing t
   this journey.
 - Run the commands of steps 2, 4 and 6; assert exit code 0 and `passed`.
 - Queue `documents-render`; job data exactly `{ company_id, render_id, kind }` (`packages/contracts/src/documents-render.ts`), 2 attempts,
-  5 s backoff.
+  15 s backoff.
 - Redis keys: `documents:status:<company>:<render>` (900 s), the bytes key (120 s, `SET NX`, collected with `GETDEL`),
   `documents:renderer-alive` (3 s).
 - States: `QUEUED`, `RENDERING`, `READY`, `FAILED`, `EXPIRED`, `CONSUMED`.

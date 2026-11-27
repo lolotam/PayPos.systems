@@ -1,4 +1,5 @@
-import { DocumentRenderTimeoutError, isTimeoutError } from '../domain/errors.ts';
+import { DocumentRenderTimeoutError } from '../domain/errors.ts';
+import { isTimeoutError } from './deadline.ts';
 import type { PdfContext, PdfPage } from './browser.ts';
 
 export interface RenderPageHooks {

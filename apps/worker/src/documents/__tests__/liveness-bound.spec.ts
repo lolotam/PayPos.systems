@@ -284,3 +284,54 @@ it('subscribes to the renderer once across failed starts', async () => {
   await new Promise((resolve) => setTimeout(resolve, 50));
   expect(sets).toEqual([]);
 });
+
+it('keeps the alive key intact when an older publisher SET settles after a replacement publisher is live', async () => {
+  let stored: string | null = null;
+  let releaseOld: (() => void) | undefined;
+  let calls = 0;
+  const redis = redisStub('ready');
+  redis.set = (_key: string, value: string) => {
+    calls += 1;
+    if (calls === 1) {
+      return new Promise((resolve) => {
+        releaseOld = () => {
+          stored = value;
+          resolve('OK');
+        };
+      });
+    }
+    stored = value;
+    return Promise.resolve('OK');
+  };
+  redis.del = async () => {
+    stored = null;
+    return 1;
+  };
+  const oldRenderer = new FakeRenderer();
+  const newRenderer = new FakeRenderer();
+  const startingOld = startRendererLiveness({
+    redis,
+    renderer: oldRenderer,
+    intervalMs: 60_000,
+    readyTimeoutMs: 1_000,
+    commandTimeoutMs: 5,
+  });
+  await yieldNow();
+  const liveNew = await startRendererLiveness({
+    redis,
+    renderer: newRenderer,
+    intervalMs: 60_000,
+    readyTimeoutMs: 1_000,
+  });
+  expect(stored).toBe('1');
+  oldRenderer.available = false;
+  await oldRenderer.close();
+  releaseOld?.();
+  const liveOld = await startingOld;
+  await yieldNow();
+  expect(stored).toBe('1');
+  await liveOld.stop();
+  expect(stored).toBe('1');
+  await liveNew.stop();
+  expect(stored).toBeNull();
+});

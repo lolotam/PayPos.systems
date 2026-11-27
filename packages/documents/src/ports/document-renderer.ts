@@ -31,9 +31,9 @@ export interface DocumentRenderer {
   /**
    * بيقتل عملية المتصفح فوراً لما إغلاق البروتوكول يعلّق بعد مهلة السماح.
    *
-   * @returns لا شيء
+   * @returns وعد خروج العملية أو لا شيء
    */
-  kill?(): void;
+  kill?(): void | Promise<void>;
 
   /**
    * بيقول لو في متصفح جاهز يستقبل صفحة.

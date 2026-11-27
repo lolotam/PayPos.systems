@@ -19,8 +19,8 @@ export const DOCUMENT_RENDERER_ALIVE_TTL_SECONDS = 3;
 
 /**
  * مهلة إعادة محاولة الرندر.
- * لازم تكون أعلى من أطول تأخير في إعادة إطلاق Chromium (5000 ms) زائد مهلة الإطلاق،
- * عشان المحاولة الجاية ما تقعش لسه Chromium واقع.
+ * لازم تكون أعلى من أطول تأخير في إعادة إطلاق Chromium (5000 ms) زائد هامش إعادة الإطلاق العادية (10 s)؛
+ * مش مهلة الإطلاق الكاملة (40 s)، والـ worker بيستخدم تأجيل مقفول وقت الاسترداد لو الإقلاع طوّل.
  */
 export const DOCUMENT_RENDER_RETRY_DELAY_MS = 15_000;
 
@@ -110,8 +110,8 @@ export function documentBytesKey(companyId: string, renderId: string): string {
 
 /**
  * Producer options. jobId is the render id, so a double enqueue is one job.
- * The fixed 15s delay is longer than the renderer's relaunch backoff (5s max) plus the
- * launch allowance, so the second attempt does not land while Chromium is still down.
+ * The fixed 15s delay clears the renderer's maximum relaunch backoff (5s) plus a 10s normal
+ * relaunch allowance (not the full 40s launch timeout); worker recovery adds bounded PDF deferral.
  */
 export function documentRenderJobOptions(renderId: string): {
   readonly jobId: string;

@@ -77,18 +77,26 @@ interface PublishState {
   timer: ReturnType<typeof setInterval> | undefined;
 }
 
+/** آخر ناشر ممسوك لكل عميل Redis، عشان ناشر قديم ما يمسحش نبضة ناشر حيّ بديله. */
+const activePublishers = new WeakMap<Redis, PublishState>();
+
 function isLive(state: PublishState): boolean {
   return !state.stopped && state.renderer.isAvailable();
 }
 
+function shouldDeleteAliveKey(state: PublishState): boolean {
+  const active = activePublishers.get(state.redis);
+  return active === undefined || active === state || !isLive(active);
+}
+
 /**
- * SET خلص بعد ما الوقت عدّى؛ المفتاح اتكتب متأخر فبنمسحه لو epoch اتغيّر أو المتصفح واقع.
- * المسح بيتبعت بعد ما الأمر نفسه يخلّص، عشان الرد المتأخر ما يعلنش متصفح ميت.
+ * SET خلص بعد ما الوقت عدّى؛ المفتاح اتكتب متأخر فبنمسحه لو epoch اتغيّر أو المتصفح واقع
+ * ومفيش ناشر حيّ تاني ماسك نفس العميل. المسح بيتبعت بعد ما الأمر يخلّص.
  */
 function watchSet(state: PublishState, set: Promise<unknown>, token: number): void {
   void settled(set).finally(() => {
     state.busy = false;
-    if (token === state.epoch && isLive(state)) return;
+    if ((token === state.epoch && isLive(state)) || !shouldDeleteAliveKey(state)) return;
     try {
       void boundCommand(state.redis.del(DOCUMENT_RENDERER_ALIVE_KEY), state.commandTimeoutMs);
     } catch {
@@ -108,15 +116,17 @@ async function publishOnce(state: PublishState): Promise<void> {
   const set = state.redis.set(DOCUMENT_RENDERER_ALIVE_KEY, '1', 'EX', state.ttlSeconds);
   watchSet(state, set, token);
   await boundCommand(set, state.commandTimeoutMs);
-  if (token !== state.epoch || !isLive(state)) {
+  if ((token !== state.epoch || !isLive(state)) && shouldDeleteAliveKey(state)) {
     await boundCommand(state.redis.del(DOCUMENT_RENDERER_ALIVE_KEY), state.commandTimeoutMs);
   }
 }
 
 async function haltPublish(state: PublishState): Promise<void> {
   state.epoch += 1;
+  if (activePublishers.get(state.redis) === state) activePublishers.delete(state.redis);
   if (state.timer !== undefined) clearInterval(state.timer);
   state.timer = undefined;
+  if (!shouldDeleteAliveKey(state)) return;
   await boundCommand(state.redis.del(DOCUMENT_RENDERER_ALIVE_KEY), state.commandTimeoutMs);
 }
 
@@ -186,6 +196,7 @@ export async function startRendererLiveness(input: {
     busy: false,
     timer: undefined,
   };
+  activePublishers.set(input.redis, state);
   attachHooks(input.renderer, state);
   try {
     await whenRedisReady(input.redis, input.readyTimeoutMs ?? READY_TIMEOUT_MS);

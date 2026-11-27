@@ -168,9 +168,46 @@ function halted(input: StartDocumentsInput, attempt: AttemptBinder): boolean {
   return attempt.cancelled() || input.isStopping?.() === true;
 }
 
+async function retryRendererStart(
+  input: StartDocumentsInput,
+  renderer: DocumentRenderer,
+  attempt: AttemptBinder,
+): Promise<void> {
+  const delays = input.retryDelaysMs ?? RETRY_DELAYS_MS;
+  for (let attemptNo = 0; !halted(input, attempt); attemptNo += 1) {
+    const delayMs = delays[Math.min(attemptNo, delays.length - 1)] ?? 60_000;
+    await waitOrAbort(delayMs, attempt.signal, input.sleep);
+    if (halted(input, attempt)) return;
+    try {
+      const start = await startWithin(renderer, input.startupMs ?? STARTUP_MS, attempt.signal);
+      if (start.state === 'started') return;
+      logUnavailable(input.logger, 'SETUP_FAILED', start.error);
+    } catch (error) {
+      logUnavailable(input.logger, 'SETUP_FAILED', error);
+    }
+  }
+}
+
+function armRecoveryDeferral(
+  renderer: DocumentRenderer,
+  attempt: AttemptBinder,
+  startup: RendererStartup,
+): void {
+  // التأجيل بيقفل لما المتصفح يبقى متاح، وبيتعاد تسليحه لما يقع أثناء التشغيل ضمن نفس سقف الانتظار.
+  renderer.onAvailable(() => {
+    if (!attempt.cancelled()) startup.starting = false;
+  });
+  renderer.onUnavailable(() => {
+    if (attempt.cancelled() || startup.starting) return;
+    startup.starting = true;
+    startup.deadlineAt = Date.now() + PDF_DEFER_WINDOW_MS;
+  });
+  if (!attempt.cancelled() && renderer.isAvailable()) startup.starting = false;
+}
+
 /**
  * إقلاع Chromium بعد ما الطابور بقى live. الإقلاع له مهلة واحدة، وناشر الحياة بيعيد
- * المحاولة لو Redis مش جاهز: الطابور ما بيتقفلش، والمتصفح الحقيقي بيرجع لوحده.
+ * المحاولة لو Redis مش جاهز: الطابور ما بيتقفلش، ولو start() رفضت بنعيد المحاولة في الخلفية.
  */
 async function startRenderer(
   input: StartDocumentsInput,
@@ -179,7 +216,10 @@ async function startRenderer(
 ): Promise<void> {
   try {
     const start = await startWithin(renderer, input.startupMs ?? STARTUP_MS, attempt.signal);
-    if (start.state !== 'started') logUnavailable(input.logger, 'SETUP_FAILED', start.error);
+    if (start.state !== 'started') {
+      logUnavailable(input.logger, 'SETUP_FAILED', start.error);
+      void retryRendererStart(input, renderer, attempt);
+    }
     await publishLiveness(input, renderer, attempt);
   } catch (error) {
     logUnavailable(input.logger, 'SETUP_FAILED', error);
@@ -227,11 +267,7 @@ async function bringUp(
   const renderer = await openRenderer(input);
   attempt.setRenderer(renderer);
   if (halted(input, attempt)) return false;
-  // التأجيل بيقفل لما المتصفح يبقى متاح، مش بمهلة الإقلاع.
-  renderer.onAvailable(() => {
-    if (!attempt.cancelled()) startup.starting = false;
-  });
-  if (!attempt.cancelled() && renderer.isAvailable()) startup.starting = false;
+  armRecoveryDeferral(renderer, attempt, startup);
   const opened = await openWorker(input, registry, renderer, attempt, startup);
   if (halted(input, attempt)) {
     await opened.worker.close().catch(() => undefined);

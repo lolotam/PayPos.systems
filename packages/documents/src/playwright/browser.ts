@@ -34,7 +34,7 @@ export interface PdfBrowser {
   close(): Promise<void>;
   on(event: 'disconnected', listener: () => void): void;
   /** البروتوكول المعلّق ما بيرجّعش close، فالقتل هو اللي يفضي المكان للإطلاق الجاي. */
-  kill?(): void;
+  kill?(): void | Promise<void>;
 }
 
 export interface PdfBrowserFactory {
