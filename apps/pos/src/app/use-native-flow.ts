@@ -1,5 +1,7 @@
 import { useCallback, useRef, useState } from 'react';
 
+import { markLaunchLinkHandled } from '@/shared/platform/launch-links';
+
 import { switchBusiness, type SwitchOutcome } from './business-switch';
 import { rememberBusiness, type DeviceRole } from './device-role';
 import {
@@ -102,6 +104,8 @@ export function useNativeFlow(): NativeFlow {
         const outcome = await switchStep(pending, latest.current);
         if (outcome === null) return;
         apply((current: NativeState) => stateAfterSwitch(current, outcome, pending));
+        // اللينك الافتتاحي المعلّق ما بيتقفلش غير لما التبديل يكمل فعلًا، ولو فشل بيفضل قابل للإعادة.
+        if (outcome === 'switched') markLaunchLinkHandled();
       });
     },
     [apply, queue],
@@ -109,6 +113,8 @@ export function useNativeFlow(): NativeFlow {
 
   const cancel = useCallback(() => {
     apply(stateWithoutPending(latest.current));
+    // رفض التبديل بيقفل اللينك الافتتاحي عشان إعادة التحميل ما تفتحش نفس اللوحة تاني.
+    markLaunchLinkHandled();
   }, [apply]);
 
   return { state, busy, onStart, onLink, choose, startOver, confirm, cancel };
@@ -163,10 +169,20 @@ function runQueuedLink(
       try {
         const outcome = await resolveLink(workspace, fallback);
         apply((current: NativeState) => stateFromLink(current, outcome));
-        // الفشل المؤقت زي انقطاع النت أو فشل التخزين ما بيعلّمش اللينك إنه اتطبّق عشان إعادة المحاولة.
-        handled =
+        const hasPendingSwitch =
           outcome.kind === 'state' &&
-          (outcome.state.kind === 'loading' || outcome.state.alert !== 'needsInternet');
+          outcome.state.kind === 'flow' &&
+          outcome.state.pending !== undefined;
+        // الفشل المؤقت زي انقطاع النت أو انتظار تأكيد التبديل ما بيقفلش اللينك؛ ونجاح أي لينك أحدث بيقفل القديم.
+        const settled =
+          outcome.kind === 'state' &&
+          outcome.state.kind !== 'loading' &&
+          outcome.state.alert !== 'needsInternet' &&
+          !hasPendingSwitch;
+        if (settled) {
+          markLaunchLinkHandled();
+          handled = true;
+        }
       } finally {
         resolve(handled);
       }

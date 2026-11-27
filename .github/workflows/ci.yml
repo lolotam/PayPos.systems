@@ -535,10 +535,10 @@ jobs:
           fi
           # The signing extensions are listed by name; generic `*.pem` and `*.key` are left out because OS images
           # carry their own certificates under /etc/ssl, while explicit `decoy.pem`/`decoy.key` prove the recursive ignore.
-          search='find / \( -name ".env" -o -name ".env.*" -o -name "*.env" -o -name "*.p12" -o -name "*.jks" -o -name "*.keystore" -o -name "*.p8" -o -name "*.pfx" -o -name "decoy.pem" -o -name "decoy.key" -o -path "*/apps/business/.secrets*" \) ! -name "*.env.example" ! -name ".env.example" -not -path "/proc/*" 2>/dev/null; true'
+          search='find / \( -path /proc -o -path /sys -o -path /dev \) -prune -o \( -name ".env" -o -name ".env.*" -o -name "*.env" -o -name "*.p12" -o -name "*.jks" -o -name "*.keystore" -o -name "*.p8" -o -name "*.pfx" -o -name "decoy.pem" -o -name "decoy.key" -o -path "*/apps/business/.secrets*" \) ! -name "*.env.example" ! -name ".env.example" -print'
           for image in $images; do
             # A failed inspection fails the step (set -e); it never counts as "nothing found".
-            found="$(docker run --rm --entrypoint sh "$image" -c "$search")"
+            found="$(docker run --rm --user 0 --entrypoint sh "$image" -c "$search")"
             if [ -n "$found" ]; then echo "::error::$image contains: $found"; leaked=1; fi
           done
           # The build stage carries the source tree; pnpm install creates /repo/apps/business/node_modules from the

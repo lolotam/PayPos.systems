@@ -8,7 +8,7 @@ import { readDeviceRole, readRememberedBusiness, rememberBusiness } from '@/app/
 import { endPersonalSession } from '@/app/end-sessions';
 import { usePersonalSession } from '@/personal-staff/api/use-personal-session';
 import { LocaleProvider } from '@/shared/locale/locale-context';
-import { readLaunchLink } from '@/shared/platform/launch-links';
+import { markLaunchLinkHandled, readLaunchLink } from '@/shared/platform/launch-links';
 import type * as NativeShellModule from '@/shared/platform/native-shell';
 
 import { NativeEntry } from './native-entry';
@@ -133,6 +133,7 @@ describe('NativeEntry business switch', () => {
     expect(screen.getByText(`${COMPANY} ${BUSINESS}`)).not.toBeNull();
     expect(endPersonalSession).not.toHaveBeenCalled();
     expect(rememberBusiness).not.toHaveBeenCalled();
+    expect(markLaunchLinkHandled).not.toHaveBeenCalled();
   });
 
   it('signs out first and only then remembers the new business', async () => {
@@ -155,6 +156,7 @@ describe('NativeEntry business switch', () => {
       company_id: COMPANY,
       business_id: OTHER_BUSINESS,
     });
+    expect(markLaunchLinkHandled).toHaveBeenCalled();
   });
 
   it('keeps the old business and the session when the employee cancels', async () => {
@@ -166,6 +168,7 @@ describe('NativeEntry business switch', () => {
     expect(screen.getByText(`${COMPANY} ${BUSINESS}`)).not.toBeNull();
     expect(endPersonalSession).not.toHaveBeenCalled();
     expect(rememberBusiness).not.toHaveBeenCalled();
+    expect(markLaunchLinkHandled).toHaveBeenCalled();
   });
 });
 
@@ -184,6 +187,7 @@ describe('NativeEntry business switch that does not happen', () => {
     expect(screen.getByText(`${COMPANY} ${BUSINESS}`)).not.toBeNull();
     expect(endPersonalSession).not.toHaveBeenCalled();
     expect(rememberBusiness).not.toHaveBeenCalled();
+    expect(markLaunchLinkHandled).not.toHaveBeenCalled();
   });
 
   it('keeps the old business and says nothing changed when the sign-out is refused', async () => {
@@ -197,6 +201,7 @@ describe('NativeEntry business switch that does not happen', () => {
     expect(screen.getByText(t('ar', 'nativeShell.switchBusinessConfirm'))).not.toBeNull();
     expect(screen.getByText(`${COMPANY} ${BUSINESS}`)).not.toBeNull();
     expect(rememberBusiness).not.toHaveBeenCalled();
+    expect(markLaunchLinkHandled).not.toHaveBeenCalled();
   });
 
   it('keeps the old business and warns when the new one cannot be stored', async () => {

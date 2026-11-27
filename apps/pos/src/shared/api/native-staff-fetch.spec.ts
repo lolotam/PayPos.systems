@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { nativeStaffFetch } from './native-staff-fetch';
+import { NATIVE_FENCE_TIMEOUT_MS, nativeStaffFetch } from './native-staff-fetch';
 
 const { requestMock } = vi.hoisted(() => ({ requestMock: vi.fn() }));
 
@@ -258,6 +258,58 @@ describe('nativeStaffFetch abort fence', () => {
     settleFirst();
     const response = await second;
     expect(response.status).toBe(200);
+    expect(requestMock).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe('nativeStaffFetch abort fence timeout', () => {
+  stubNativeTransport();
+
+  it('rejects a waiting request after the fence timeout when a cancelled call never settles', async () => {
+    let settleStalled: (() => void) | undefined;
+    requestMock
+      .mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            settleStalled = () => resolve(nativeResponse({ status: 204, data: '', headers: {} }));
+          }),
+      )
+      .mockResolvedValueOnce(nativeResponse());
+
+    const controller = new AbortController();
+    const stalled = nativeStaffFetch(
+      new Request('http://127.0.0.1:3000/v1/devices/me/staff-session', {
+        method: 'DELETE',
+        signal: controller.signal,
+      }),
+    );
+    await vi.waitFor(() => expect(requestMock).toHaveBeenCalledTimes(1));
+    controller.abort();
+    await expect(stalled).rejects.toMatchObject({ name: 'AbortError' });
+
+    vi.useFakeTimers();
+    try {
+      const followUp = nativeStaffFetch(
+        new Request('http://127.0.0.1:3000/v1/devices/me/staff-session'),
+      );
+      const rejection = expect(followUp).rejects.toThrow('NATIVE_FETCH_FENCE_TIMEOUT');
+      await vi.advanceTimersByTimeAsync(0);
+      expect(requestMock).toHaveBeenCalledTimes(1);
+
+      await vi.advanceTimersByTimeAsync(NATIVE_FENCE_TIMEOUT_MS);
+      await rejection;
+      expect(requestMock).toHaveBeenCalledTimes(1);
+    } finally {
+      vi.useRealTimers();
+      settleStalled?.();
+      await Promise.resolve();
+      await Promise.resolve();
+    }
+
+    const recovered = await nativeStaffFetch(
+      new Request('http://127.0.0.1:3000/v1/devices/me/staff-session'),
+    );
+    expect(recovered.status).toBe(200);
     expect(requestMock).toHaveBeenCalledTimes(2);
   });
 });

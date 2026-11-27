@@ -27,6 +27,16 @@ describe('readLaunchLink', () => {
     await expect(readLaunchLink()).resolves.toBeNull();
   });
 
+  it('retires the last read launch link when markLaunchLinkHandled is called with no argument', async () => {
+    launch.getLaunchUrl.mockResolvedValue({ url: LAUNCH_URL });
+
+    await expect(readLaunchLink()).resolves.toBe(LAUNCH_URL);
+    markLaunchLinkHandled();
+
+    await expect(readLaunchLink()).resolves.toBeNull();
+    expect(window.sessionStorage.getItem('pospay.native.launchUrl')).not.toBeNull();
+  });
+
   it('stores only a fingerprint in sessionStorage and never the raw URL or parameters', async () => {
     launch.getLaunchUrl.mockResolvedValue({ url: LAUNCH_URL });
 

@@ -51,9 +51,25 @@ interface NativeHttpClient {
   request(options: NativeHttpOptions): Promise<NativeHttpResponse>;
 }
 
+/** أقصى مدة انتظار لاكتمال طلب أصلي سابق ملغي قبل رفض الطلبات التالية بمهلة واضحة بدل التعليق للأبد. */
+export const NATIVE_FENCE_TIMEOUT_MS = 15_000;
+
 // طلب أصلي اتلغى من ناحية JS ممكن يكون لسه شغال ويمسح كوكي أحدث لما يرجع:
-// بنوقّف الطلب الأصلي اللي بعده لحد ما اللي اتلغى يخلص من نظام التشغيل.
-let pendingAbortedNativeCall: Promise<void> = Promise.resolve();
+// بنوقّف الطلب الأصلي اللي بعده لحد ما اللي اتلغى يخلص من نظام التشغيل أو يخلص بمهلة السياج.
+let pendingAbortedNativeCall: Promise<void> | null = null;
+
+function waitForPendingAbortedCall(pendingCall: Promise<void>, aborted: AbortRace): Promise<void> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const timeout = new Promise<never>((_resolve, reject) => {
+    timer = setTimeout(
+      () => reject(new Error('NATIVE_FETCH_FENCE_TIMEOUT')),
+      NATIVE_FENCE_TIMEOUT_MS,
+    );
+  });
+  return Promise.race([pendingCall, aborted.rejected, timeout]).finally(() => {
+    if (timer !== undefined) clearTimeout(timer);
+  });
+}
 
 /**
  * وعد يرفض بإشارة الإلغاء أول ما الإشارة تشتغل.
@@ -88,7 +104,9 @@ async function sendFencedNativeRequest(
   signal: AbortSignal,
   aborted: AbortRace,
 ): Promise<NativeHttpResponse> {
-  await Promise.race([pendingAbortedNativeCall, aborted.rejected]);
+  if (pendingAbortedNativeCall !== null) {
+    await waitForPendingAbortedCall(pendingAbortedNativeCall, aborted);
+  }
   throwIfAborted(signal);
   const requestPromise = client.request(options);
   const settled = requestPromise.then(
@@ -102,7 +120,11 @@ async function sendFencedNativeRequest(
     return response;
   } finally {
     if (!finished && signal.aborted) {
-      pendingAbortedNativeCall = pendingAbortedNativeCall.then(() => settled);
+      const next = (pendingAbortedNativeCall ?? Promise.resolve()).then(() => settled);
+      pendingAbortedNativeCall = next;
+      void next.finally(() => {
+        if (pendingAbortedNativeCall === next) pendingAbortedNativeCall = null;
+      });
     }
   }
 }

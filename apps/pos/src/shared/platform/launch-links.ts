@@ -12,6 +12,8 @@ interface CapacitorAppModule {
 }
 
 let capacitorAppModule: Promise<CapacitorAppModule> | null = null;
+// آخر لينك افتتاحي اتقرى ولسه ما اتقفلش: بنحتاجه لو تبديل اتأكد أو لينك تاني نجح من غير ما يمرّره.
+let pendingLaunchUrl: string | null = null;
 
 /** بيحمّل إضافة Capacitor مرة واحدة عند أول طلب عشان الاستدعاءات المتزامنة في StrictMode تشترك في نفس الوعد. */
 function loadCapacitorApp(): Promise<CapacitorAppModule> {
@@ -39,10 +41,18 @@ export async function readLaunchLink(): Promise<string | null> {
     const launch = await App.getLaunchUrl();
     // نسخة الويب بترجع نص فاضي، فالنص الفاضي معناه مفيش لينك.
     const url = launch?.url ? launch.url : null;
-    if (url === null) return null;
-    if (readHandledLaunchFingerprint() === launchUrlFingerprint(url)) return null;
+    if (url === null) {
+      pendingLaunchUrl = null;
+      return null;
+    }
+    if (readHandledLaunchFingerprint() === launchUrlFingerprint(url)) {
+      pendingLaunchUrl = null;
+      return null;
+    }
+    pendingLaunchUrl = url;
     return url;
   } catch {
+    pendingLaunchUrl = null;
     return null;
   }
 }
@@ -50,12 +60,18 @@ export async function readLaunchLink(): Promise<string | null> {
 /**
  * بيسجل بصمة اللينك بعد ما الشاشة تتعامل معاه بنجاح، عشان إعادة تحميل الـ WebView ما تعيدهوش تاني.
  *
- * @param url اللينك اللي اتطبّق
+ * لو ما اتبعتش عنوان، بيقفل آخر لينك افتتاحي معروض، عشان تأكيد أو إلغاء التبديل أو نجاح لينك أحدث
+ * ما يسيبوش اللينك القديم يتعاد عند إعادة التشغيل.
+ *
+ * @param url اللينك اللي اتطبّق (اختياري، والافتراضي آخر لينك افتتاحي معروض)
  */
-export function markLaunchLinkHandled(url: string): void {
+export function markLaunchLinkHandled(url?: string): void {
+  const target = url ?? pendingLaunchUrl;
+  if (target === null) return;
+  if (pendingLaunchUrl === target) pendingLaunchUrl = null;
   try {
     // بنحفظ البصمة بس ومش العنوان نفسه، عشان أي بارامترات أو أجزاء زيادة ما تفضلش في التخزين المؤقت.
-    window.sessionStorage.setItem(HANDLED_LAUNCH_URL_KEY, launchUrlFingerprint(url));
+    window.sessionStorage.setItem(HANDLED_LAUNCH_URL_KEY, launchUrlFingerprint(target));
   } catch {
     // من غير تخزين مفيش تكرار يمنع، بس الخطأ ما بيوقّفش التطبيق.
   }
