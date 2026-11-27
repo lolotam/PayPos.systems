@@ -7,6 +7,7 @@ import {
   clearNumberGrants,
   executeCreate,
   grantNumber,
+  numberAuditEntities,
   numberAudits,
   numberDevice,
   numberFixture,
@@ -101,6 +102,7 @@ it('EN-10 returns the same number without an audit and audits one real change', 
   expect(await numberAudits(f, employee.id)).toEqual([
     { before: { employee_number: employee.employee_number }, after: { employee_number: 90_000 } },
   ]);
+  expect((await numberAuditEntities(f, employee.id)).map((row) => row['entity'])).toEqual(['employee']);
 });
 
 it('D-5 hides a deleted employee and an employee addressed through another business', async () => {

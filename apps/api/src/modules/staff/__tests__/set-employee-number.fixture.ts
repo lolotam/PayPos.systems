@@ -37,7 +37,12 @@ export async function putNumber(
 
 export function numberAudits(f: EmployeeFixture, employeeId: string) {
   return f.h.owner`SELECT before, after FROM audit_log
-    WHERE company_id=${f.company} AND entity='employees' AND action='employee_number.changed' AND entity_id=${employeeId}`;
+    WHERE company_id=${f.company} AND entity='employee' AND action='employee_number.changed' AND entity_id=${employeeId}`;
+}
+
+export function numberAuditEntities(f: EmployeeFixture, employeeId: string) {
+  return f.h.owner`SELECT entity FROM audit_log
+    WHERE company_id=${f.company} AND action='employee_number.changed' AND entity_id=${employeeId}`;
 }
 
 export async function grantNumber(
