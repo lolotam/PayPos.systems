@@ -283,6 +283,30 @@ it('L5 a member without the plan permission, a disabled feature and a foreign bu
   expect([missing.status, missing.body['code']]).toEqual([403, 'FORBIDDEN']);
 });
 
+it('L5 the session company hint answers a headerless request, and no hint at all is refused', async () => {
+  const statementId = await statementFor(fx.f, fx.f.company, fx.f.business, '2026-11');
+  const seeded = await seedBlocked(fx.f, { statementId, createdAt: '2026-11-01T08:00:00Z' });
+  await fx.f.h.owner`UPDATE session SET active_company_id=${fx.f.company} WHERE user_id=${fx.f.userId}`;
+  const hinted = await fx.f.h.app.inject({
+    method: 'GET',
+    url: listPath(fx.f.business),
+    headers: { cookie: fx.f.cookie },
+  });
+  expect(hinted.statusCode).toBe(200);
+  const body = commissionBlockedCorrectionList.parse(hinted.json());
+  expect(body.items.map((item) => item.id)).toEqual([seeded]);
+  await fx.f.h.owner`UPDATE session SET active_company_id=NULL WHERE user_id=${fx.f.userId}`;
+  const withoutHint = await fx.f.h.app.inject({
+    method: 'GET',
+    url: listPath(fx.f.business),
+    headers: { cookie: fx.f.cookie },
+  });
+  expect([withoutHint.statusCode, (withoutHint.json() as { code?: string }).code]).toEqual([
+    403,
+    'FORBIDDEN',
+  ]);
+});
+
 it('L6 rows of another business and of another tenant are never returned', async () => {
   const statementId = await statementFor(fx.f, fx.f.company, fx.f.business, '2026-11');
   const mine = await seedBlocked(fx.f, { statementId, createdAt: '2026-11-01T08:00:00Z' });

@@ -4,7 +4,7 @@ import type { QueryClient } from '@tanstack/react-query';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { t } from '@pospay/i18n';
 import { createQueryClient } from '@/shared/api/query-client';
-import { denyPlanAccess, planScope, planSeedKey } from '../../api/plan-access';
+import { denyPlanAccess, planScope, planSeedKey, planVersionsKey } from '../../api/plan-access';
 import {
   deferredAnswer,
   EMP_A as EMP_A_ID,
@@ -151,7 +151,7 @@ it('a 403 removes the cached seed with the other plan caches, so the editor disa
   expect(client.getQueryData(planSeedKey(scope, EMP_A_ID))).toBeUndefined();
 });
 
-it('never opens on a seed older than the newest ordinary version of the first history page: the seed is refreshed first', async () => {
+it('never opens on a seed older than the newest ordinary version of the first history page: the page itself is the base, with no second seed read', async () => {
   const newer = versionItem(EMP_A_ID, 2, {
     base: { enabled: true, calc: { kind: 'PCT', bps: 800 } },
   });
@@ -166,12 +166,62 @@ it('never opens on a seed older than the newest ordinary version of the first hi
   await screen.findByRole('button', { name: B.save });
 
   expect(bps()).toBe('800');
-  expect(seedReads).toBe(2);
+  expect(seedReads).toBe(1);
+});
+
+it('a failed seed keeps the editor closed, and a refetch that recovers opens it with the draft', async () => {
+  let seedReads = 0;
+  routeGet(api.GET, async (_path, options) =>
+    options?.params?.query?.['kind'] === 'ordinary'
+      ? ++seedReads === 1
+        ? refusal(500, 'INTERNAL')
+        : ok(versionPage([ordinary], null))
+      : ok(versionPage([ordinary], null)),
+  );
+  mount();
+
+  expect((await screen.findByRole('alert')).textContent).toBe('Synthetic refusal');
+  expect(screen.queryByRole('button', { name: B.save })).toBeNull();
+
+  await act(async () => {
+    await client.refetchQueries({ queryKey: planSeedKey(scope, EMP_A_ID) });
+  });
+
+  await screen.findByRole('button', { name: B.save });
+  expect(bps()).toBe('500');
+});
+
+it('a history that advanced past the seed opens the editor with the newer ordinary version', async () => {
+  const newer = versionItem(EMP_A_ID, 2, {
+    base: { enabled: true, calc: { kind: 'PCT', bps: 800 } },
+  });
+  const seed = deferredAnswer();
+  routeGet(api.GET, async (_path, options) =>
+    options?.params?.query?.['kind'] === 'ordinary' ? seed.promise : ok(versionPage([newer], null)),
+  );
+  mount();
+
+  // الدليل إن التاريخ وصل لنسخة أحدث والبذرة لسه معلقة: المحرّر يفضل مقفول.
+  await waitFor(() => expect(client.getQueryData(planVersionsKey(scope, EMP_A_ID))).toBeTruthy());
+  expect(screen.queryByRole('button', { name: B.save })).toBeNull();
+
+  seed.resolve(ok(versionPage([ordinary], null)));
+
+  await screen.findByRole('button', { name: B.save });
+  expect(bps()).toBe('800');
 });
 
 it('a seed that succeeded but a failed first history page keeps the editor closed and shows the error', async () => {
-  route(ok(versionPage([ordinary], null)), refusal(500, 'INTERNAL'));
+  const history = deferredAnswer();
+  routeGet(api.GET, async (_path, options) =>
+    options?.params?.query?.['kind'] === 'ordinary'
+      ? ok(versionPage([ordinary], null))
+      : history.promise,
+  );
   mount();
+
+  await waitFor(() => expect(client.getQueryData(planSeedKey(scope, EMP_A_ID))).toBeTruthy());
+  history.resolve(refusal(500, 'INTERNAL'));
 
   expect((await screen.findByRole('alert')).textContent).toBe('Synthetic refusal');
 

@@ -137,6 +137,31 @@ export function assertCommissionPlanEffectiveFrom(input: {
 }
 
 /**
+ * يرفض شهر التصحيح قبل بداية النشاط أو في الشهر الحالي أو بعده.
+ * التصحيح بيصلّح شهر مقفول سابق، فشهر النشاط نفسه لسه مفتوح والشهر الجاي لسه ما وصلش:
+ * إعادة حسابه دلوقتي كانت هتتصادم مع الـ worker وهو ماسك نفس الشهر.
+ * الفحص بيستعمل monthIndex، فشهر مش مكتوب بصيغة YYYY-MM يقع RangeError زي أي شهر تاني.
+ *
+ * @param input الشهر المطلوب وبداية النشاط والشهر الحالي
+ * @param input.period شهر التصحيح بصيغة YYYY-MM
+ * @param input.businessStartMonth شهر بداية النشاط في منطقته الزمنية بصيغة YYYY-MM
+ * @param input.currentMonth الشهر الحالي في منطقة النشاط بصيغة YYYY-MM
+ * @returns لا شيء؛ يرمي COMMISSION_REPAIR_NOT_ALLOWED عند الرفض
+ */
+export function assertCommissionRepairPeriodAllowed(input: {
+  readonly period: string;
+  readonly businessStartMonth: string;
+  readonly currentMonth: string;
+}): void {
+  const period = monthIndex(input.period);
+  const businessStart = monthIndex(input.businessStartMonth);
+  const current = monthIndex(input.currentMonth);
+  if (period < businessStart || period >= current) {
+    throw new CommissionPlanVersionError('COMMISSION_REPAIR_NOT_ALLOWED');
+  }
+}
+
+/**
  * يخصص رقم الإصدار التالي للموظفة بعد قراءة أعلى رقم تحت قفل صفها.
  *
  * @param previousMax أعلى رقم محفوظ، أو null عندما لا توجد إصدارات سابقة
