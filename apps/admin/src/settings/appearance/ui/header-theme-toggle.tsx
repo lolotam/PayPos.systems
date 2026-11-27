@@ -22,12 +22,16 @@ const serverTheme = (): 'light' | 'dark' => 'light';
 
 /**
  * زرّ تبديل الوضع في الشريط العلوي: يبدّل بين الفاتح والغامق بضغطة واحدة.
- * لما يكون الاختيار تبع النظام، أول ضغطة تثبّت اختيارًا صريحًا؛ مفيش خيار «تبع النظام» في الهيدر.
+ * اسمه يسمّي الوضع الهدف لا الحالي («Display theme: Dark»)، لأن زرّ «تبديل»
+ * بلا هدف يبني قارئ الشاشة على تخمين، و`aria-pressed` يقول إن الوضع الغامق شغّال.
+ * لما يكون الاختيار تبع النظام، أول ضغطة تثبّت اختيارًا صريحًا؛ مفيش خيار
+ * «تبع النظام» في الهيدر، والصفحة `/appearance` هي مكان الخيارات الثلاثة.
  */
-export function FrameThemeToggle() {
+export function HeaderThemeToggle() {
   const locale = useLocale();
   const theme = useSyncExternalStore(subscribeToThemePreference, readEffectiveTheme, serverTheme);
-  const label = t(locale, 'adminNav.accountMenuTheme');
+  const nextTheme = theme === 'dark' ? 'light' : 'dark';
+  const label = `${t(locale, 'adminNav.accountMenuTheme')}: ${t(locale, nextTheme === 'dark' ? 'theme.dark' : 'theme.light')}`;
   return (
     <Button
       type="button"
@@ -35,13 +39,14 @@ export function FrameThemeToggle() {
       size="icon"
       aria-label={label}
       title={label}
-      onClick={() => setThemePreference(theme === 'dark' ? 'light' : 'dark')}
-      className="shrink-0 text-muted-foreground [&_svg]:size-5"
+      aria-pressed={theme === 'dark'}
+      onClick={() => setThemePreference(nextTheme)}
+      className="shrink-0 text-muted-foreground"
     >
       {theme === 'dark' ? (
-        <Sun aria-hidden="true" data-theme-icon="sun" className="size-5" />
+        <Sun aria-hidden="true" data-theme-icon="sun" className="size-4" />
       ) : (
-        <Moon aria-hidden="true" data-theme-icon="moon" className="size-5" />
+        <Moon aria-hidden="true" data-theme-icon="moon" className="size-4" />
       )}
     </Button>
   );

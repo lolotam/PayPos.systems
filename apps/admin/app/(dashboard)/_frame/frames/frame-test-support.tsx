@@ -112,10 +112,19 @@ export const signOutMock = {
   useSignOut: () => ({ pending: false, failed: false, submit: () => Promise.resolve() }),
 };
 export const bellMock = {
-  NotificationBell: () => <button type="button">Notifications</button>,
+  NotificationBell: () => (
+    <button type="button" className="size-11 shrink-0">
+      Notifications
+    </button>
+  ),
 };
 export const localeSwitchMock = {
-  LocaleSwitch: () => <button type="button">Switch language</button>,
+  // الزرّ نصّي، فعرضه بعرض نصّه وارتفاعه 44px زي بقية أزرار الرأس.
+  LocaleSwitch: () => (
+    <button type="button" className="min-h-11">
+      Switch language
+    </button>
+  ),
 };
 
 const COMPANY = {

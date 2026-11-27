@@ -17,6 +17,8 @@ type CollapseToggleProps = {
   header?: ReactNode;
 };
 
+// ارتفاع 60px محجوز من 1024px فقط: الشريط المطويّ على التابلت صف فارغ بلا رأس، فحجزه
+// فيه يضيّع شريطًا كاملًا من الشاشة بلا فائدة.
 export function CollapseToggle({
   dir,
   expanded,
@@ -27,7 +29,7 @@ export function CollapseToggle({
   header,
 }: CollapseToggleProps) {
   return (
-    <div className="relative flex min-h-15 shrink-0 items-center justify-center p-2">
+    <div className="relative flex shrink-0 items-center justify-center p-2 min-[1024px]:min-h-15">
       {expanded ? header : null}
       <Button
         ref={toggleRef}
