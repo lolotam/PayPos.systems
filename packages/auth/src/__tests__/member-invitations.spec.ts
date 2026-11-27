@@ -139,6 +139,10 @@ describe('link lifetime (D9, IM-Q3)', () => {
     });
     expect(second.issuedAt.getTime()).toBeGreaterThan(first.issuedAt.getTime());
     expect(second.link).not.toBe(first.link);
+    const [row] = await liveLinks(userId);
+    expect((row?.['expires_at'] as Date).getTime()).toBe(
+      second.issuedAt.getTime() + MEMBER_INVITATION_LINK_TTL_MS,
+    );
   });
 });
 

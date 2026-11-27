@@ -130,19 +130,16 @@ async function claimWithVerification(
     withTenant: <R>(_companyId: string, fn: (innerTx: Tx) => Promise<R>) => fn(tx),
   };
   const fresh = await verification.verify(txScope);
-  onVerified();
   const claimNow = verification.decisionTime?.() ?? now;
-  if (!fresh) {
-    await record(
-      tx,
-      attempt,
-      refusedResult('DESTINATION_INVALID'),
-      verification.rejectEventId,
-      claimNow,
-      true,
-    );
-    return false;
+  if (
+    fresh &&
+    mayStart(attempt.deadline, claimNow) &&
+    verification.reservationValid !== undefined &&
+    !verification.reservationValid(claimNow)
+  ) {
+    throw new Error('NOTIFICATION_ADMISSION_EXPIRED_DURING_VERIFY');
   }
+  onVerified();
   if (!mayStart(attempt.deadline, claimNow)) {
     await record(
       tx,
@@ -154,7 +151,39 @@ async function claimWithVerification(
     );
     return false;
   }
+  if (!fresh) {
+    await record(
+      tx,
+      attempt,
+      refusedResult('DESTINATION_INVALID'),
+      verification.rejectEventId,
+      claimNow,
+      true,
+    );
+    return false;
+  }
   return claimRow(tx, attempt, executionId, claimNow);
+}
+
+async function runClaimWithPreClaimRetry(
+  database: Pick<TenantWrappers, 'withTenant'>,
+  companyId: string,
+  fn: (markClaimStarted: () => void) => (tx: Tx) => Promise<boolean>,
+): Promise<boolean> {
+  let preClaim = true;
+  try {
+    return await database.withTenant(
+      companyId,
+      fn(() => {
+        preClaim = false;
+      }),
+      { timeoutMs: 10_000 },
+    );
+  } catch (error) {
+    const safe = safePersistenceError(error);
+    if (preClaim) Object.assign(safe, { preClaimVerifyFailed: true });
+    throw safe;
+  }
 }
 
 export function createAttemptsRepository(
@@ -180,26 +209,14 @@ export function createAttemptsRepository(
         const attempt = await readAttempt(tx, id);
         return attempt?.status === 'PENDING' ? attempt : null;
       }),
-    claim: async (attempt, executionId, now, verification) => {
-      if (verification === undefined) {
-        return run(attempt.companyId, (tx) => claimRow(tx, attempt, executionId, now));
-      }
-      let preClaim = true;
-      try {
-        return await database.withTenant(
-          attempt.companyId,
-          (tx) =>
-            claimWithVerification(tx, attempt, executionId, now, verification, () => {
-              preClaim = false;
-            }),
-          { timeoutMs: 10_000 },
-        );
-      } catch (error) {
-        const safe = safePersistenceError(error);
-        if (preClaim) Object.assign(safe, { preClaimVerifyFailed: true });
-        throw safe;
-      }
-    },
+    claim: (attempt, executionId, now, verification) =>
+      runClaimWithPreClaimRetry(database, attempt.companyId, (onStarted) => (tx) => {
+        if (verification === undefined) {
+          onStarted();
+          return claimRow(tx, attempt, executionId, now);
+        }
+        return claimWithVerification(tx, attempt, executionId, now, verification, onStarted);
+      }),
     finishPending: (attempt, result, eventId, now) =>
       run(attempt.companyId, (tx) => record(tx, attempt, result, eventId, now, true)),
     finish: (attempt, result, eventId, now) =>

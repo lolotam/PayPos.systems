@@ -44,9 +44,9 @@ if redis.call('GET', KEYS[1]) == ARGV[1] then
 end
 return 0`;
 
-const LOCK_TTL_MS = 30_000;
-const LOCK_RETRY_DELAY_MS = 40;
-const LOCK_MAX_WAIT_MS = 10_000;
+const LOCK_TTL_MS = 5_000;
+const LOCK_RETRY_DELAY_MS = 25;
+const LOCK_MAX_WAIT_MS = 150;
 
 /**
  * ينسّق إصدار رابط الدعوة وختمه عبر مثيلات الـ API لنفس الدعوة باستخدام قفل Redis قصير الأمد،

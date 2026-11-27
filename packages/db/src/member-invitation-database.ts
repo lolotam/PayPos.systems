@@ -1,4 +1,4 @@
-import { and, eq, inArray, isNotNull, like, sql } from 'drizzle-orm';
+import { and, eq, inArray, isNotNull, like } from 'drizzle-orm';
 import type { PostgresJsDatabase } from 'drizzle-orm/postgres-js';
 
 import type { IdentitySchema } from './auth-database.ts';
@@ -167,27 +167,49 @@ const createInvitedMember = async (
     return 'created';
   });
 
+function nextInvitationWindow(
+  input: Pick<InvitationLinkRow, 'now' | 'expiresAt'>,
+  login: { readonly createdAt: Date; readonly updatedAt: Date },
+  existingLinks: readonly { readonly createdAt: Date }[],
+) {
+  const prevAccountMs =
+    login.updatedAt.getTime() > login.createdAt.getTime() ? login.updatedAt.getTime() : 0;
+  const prevLinkMaxMs = existingLinks.reduce(
+    (maxMs, row) => Math.max(maxMs, row.createdAt.getTime()),
+    prevAccountMs,
+  );
+  const issuedAt = new Date(
+    prevLinkMaxMs > 0 ? Math.max(input.now.getTime(), prevLinkMaxMs + 1) : input.now.getTime(),
+  );
+  const lifetimeMs = Math.max(0, input.expiresAt.getTime() - input.now.getTime());
+  return {
+    issuedAt,
+    expiresAt: new Date(issuedAt.getTime() + lifetimeMs),
+    accountCreatedAt: new Date(Math.min(login.createdAt.getTime(), issuedAt.getTime() - 1)),
+  };
+}
+
 const issueInvitationLink = async (db: Database, input: InvitationLinkRow): Promise<Date | null> =>
   db.transaction(async (tx) => {
     // القفل على صف المستخدم وصف حساب الدخول معاً: تعيين كلمة المرور في Better Auth بيحدّث صف
     // الحساب، فبيستنى هنا. استهلاك الرابط (password-reset-database) بياخد نفس القفلين بنفس الترتيب
     // وبيمسح الروابط في معاملته — فمفيش رابط حي على حساب له كلمة مرور. القفلين منفصلين لأن FOR UPDATE ما يتطبقش على الجهة الاختيارية في outer join.
     const [owner] = await tx
-      .select({ invitedByCompanyId: user.invitedByCompanyId, updatedAt: user.updatedAt })
+      .select({ invitedByCompanyId: user.invitedByCompanyId })
       .from(user)
       .where(eq(user.id, input.userId))
       .for('update');
     if (owner === undefined || owner.invitedByCompanyId !== input.companyId) return null;
     const [login] = await tx
-      .select({ password: account.password })
+      .select({
+        password: account.password,
+        createdAt: account.createdAt,
+        updatedAt: account.updatedAt,
+      })
       .from(account)
       .where(and(eq(account.userId, input.userId), eq(account.providerId, 'credential')))
       .for('update');
     if (login === undefined || login.password !== null) return null;
-    const [clockRow] = await tx.execute<{ db_now: string | Date }>(
-      sql`SELECT date_trunc('milliseconds', clock_timestamp()) AS db_now`,
-    );
-    const dbNowMs = clockRow?.db_now === undefined ? 0 : new Date(clockRow.db_now).getTime();
     const existingLinks = await tx
       .select({ createdAt: verification.createdAt })
       .from(verification)
@@ -197,14 +219,16 @@ const issueInvitationLink = async (db: Database, input: InvitationLinkRow): Prom
           like(verification.identifier, `${RESET_LINK_PREFIX}%`),
         ),
       );
-    const prevLinkMaxMs = existingLinks.reduce(
-      (maxMs, row) => Math.max(maxMs, row.createdAt.getTime()),
-      0,
-    );
-    const issuedAt = new Date(
-      Math.max(input.now.getTime(), dbNowMs, owner.updatedAt.getTime() + 1, prevLinkMaxMs + 1),
+    const { issuedAt, expiresAt, accountCreatedAt } = nextInvitationWindow(
+      input,
+      login,
+      existingLinks,
     );
     await tx.update(user).set({ updatedAt: issuedAt }).where(eq(user.id, input.userId));
+    await tx
+      .update(account)
+      .set({ createdAt: accountCreatedAt, updatedAt: issuedAt })
+      .where(and(eq(account.userId, input.userId), eq(account.providerId, 'credential')));
     await tx
       .delete(verification)
       .where(
@@ -217,7 +241,7 @@ const issueInvitationLink = async (db: Database, input: InvitationLinkRow): Prom
       id: input.id,
       identifier: input.identifier,
       value: input.userId,
-      expiresAt: input.expiresAt,
+      expiresAt,
       createdAt: issuedAt,
       updatedAt: issuedAt,
     });

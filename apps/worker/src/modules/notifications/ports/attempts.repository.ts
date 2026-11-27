@@ -35,6 +35,8 @@ export interface ClaimVerification {
   readonly rejectEventId: string;
   /** يرجع وقت القرار الحالي بعد إتمام التحقق وقبل التحديث إلى SENDING. */
   readonly decisionTime?: () => Date;
+  /** يتحقق بعد الفحص وقبل الحيازة من بقاء حجز القبول صالحاً في النافذة الزمنية. */
+  readonly reservationValid?: (decisionNow: Date) => boolean;
 }
 
 export interface AttemptsRepository {

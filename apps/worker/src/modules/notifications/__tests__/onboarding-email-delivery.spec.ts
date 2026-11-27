@@ -9,6 +9,7 @@ import {
 
 import { TENANT } from '../../../../../../packages/db/test/tenancy-fixtures.ts';
 import { createNotificationModule } from '../notifications.module.ts';
+import { SendNotification } from '../use-cases/send-notification/send-notification.ts';
 import { EMAIL_ENV, NOW, notificationHarness } from './harness.ts';
 import {
   DAY_MS,
@@ -268,4 +269,84 @@ it('sends valid manager welcome and owner invitation copies when actor contacts 
   });
   expect(await h.read(ownerNotice.id)).toMatchObject({ status: 'SENT', recipient_email: null });
   expect(channel.requests.map((request) => request.email)).toEqual([manager.email, owner.email]);
+});
+
+it('renews expired Redis admission when slow verification exceeds 1000ms and delivers once', async () => {
+  const staff = await seedActiveStaff(h);
+  const { id, event } = await queueStaffWelcomeNotice(h, NOW.getTime() + DAY_MS, {
+    email: staff.email,
+    employeeId: staff.employeeId,
+    operationId: staff.attemptId,
+    pinRevision: staff.pinRevision,
+  });
+  const base = h.module.send;
+  let reserveCalls = 0;
+  let verifyCalls = 0;
+  const sendRenewed = new SendNotification(
+    base.attempts,
+    base.channel,
+    {
+      reserve: async () => {
+        reserveCalls += 1;
+        return true;
+      },
+    },
+    base.identity,
+    {
+      ...base.configuration,
+      verify: async (attempt, scope) => {
+        verifyCalls += 1;
+        const ok = await (base.configuration.verify?.(attempt, scope) ?? Promise.resolve(true));
+        if (verifyCalls === 1) h.advance(new Date(NOW.getTime() + 1_500));
+        return ok;
+      },
+    },
+    base.clock,
+    base.ids,
+  );
+  await sendRenewed.execute(event.companyId, id);
+  expect(reserveCalls).toBe(2);
+  expect(verifyCalls).toBe(2);
+  expect(await h.read(id)).toMatchObject({ status: 'SENT' });
+  expect(channel.requests).toHaveLength(1);
+});
+
+it('re-checks deadline before Redis admission on retries delayed past the 1000ms cooldown window', async () => {
+  const staff = await seedActiveStaff(h);
+  const { id, event } = await queueStaffWelcomeNotice(h, NOW.getTime() + 2_000, {
+    email: staff.email,
+    employeeId: staff.employeeId,
+    operationId: staff.attemptId,
+    pinRevision: staff.pinRevision,
+  });
+  const base = h.module.send;
+  let reserveCalls = 0;
+  let verifyCalls = 0;
+  const sendDelayed = new SendNotification(
+    base.attempts,
+    base.channel,
+    {
+      reserve: async () => {
+        reserveCalls += 1;
+        if (reserveCalls > 1) throw new Error('REDIS_SHOULD_NOT_BE_CALLED_AFTER_DEADLINE');
+        return true;
+      },
+    },
+    base.identity,
+    {
+      ...base.configuration,
+      verify: async (attempt, scope) => {
+        verifyCalls += 1;
+        h.advance(new Date(NOW.getTime() + 2_500));
+        if (verifyCalls === 1) throw new Error('TRANSIENT_FRESHNESS_READ_FAILURE');
+        return base.configuration.verify?.(attempt, scope) ?? true;
+      },
+    },
+    base.clock,
+    base.ids,
+  );
+  await sendDelayed.execute(event.companyId, id);
+  expect(reserveCalls).toBe(1);
+  expect(await h.read(id)).toMatchObject({ status: 'EXPIRED', failure_code: 'DEADLINE_EXPIRED' });
+  expect(channel.requests).toHaveLength(0);
 });

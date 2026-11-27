@@ -76,6 +76,7 @@ export class SendNotification {
   private buildVerification(
     attempt: Attempt,
     verifyFn: NonNullable<SendConfiguration['verify']>,
+    reservedAtMs: number,
     onError: () => void,
     onDecisionTime: (now: Date) => void,
   ): ClaimVerification {
@@ -86,6 +87,8 @@ export class SendNotification {
         onDecisionTime(current);
         return current;
       },
+      reservationValid: (decisionNow) =>
+        decisionNow.getTime() - reservedAtMs < ADMISSION_RESERVATION_WINDOW_MS,
       verify: async (scope) => {
         try {
           return await verifyFn(attempt, scope);
@@ -107,20 +110,21 @@ export class SendNotification {
       verifyFn !== undefined && (this.configuration.shouldVerify?.(attempt) ?? true);
     for (let tryCount = 1; ; tryCount += 1) {
       const executionId = this.ids.newId();
-      if (
-        tryCount > 1 &&
-        this.clock.now().getTime() - reservedAtMs >= ADMISSION_RESERVATION_WINDOW_MS
-      ) {
-        const renewedAtMs = await this.reserveAdmission(attempt);
-        if (renewedAtMs === null) return null;
-        reservedAtMs = renewedAtMs;
-      }
-      // نفس اللحظة للفحص وللـ claim: لو اتحسبوا مرتين، الموعد ممكن يعدّي بينهم والـ claim يترفض في صمت،
-      // فالمحاولة تفضل PENDING ومعاها الرقم ومن غير نتيجة EXPIRED.
-      const now = this.clock.now();
+      // نفحص الموعد أولاً قبل لمس Redis حتى لا تتعطل نهاية الصلاحية عند تعذر القبول.
+      let now = this.clock.now();
       if (!mayStart(attempt.deadline, now)) {
         await this.reject(attempt, refusedResult('DEADLINE_EXPIRED'));
         return null;
+      }
+      if (tryCount > 1 && now.getTime() - reservedAtMs >= ADMISSION_RESERVATION_WINDOW_MS) {
+        const renewedAtMs = await this.reserveAdmission(attempt);
+        if (renewedAtMs === null) return null;
+        reservedAtMs = renewedAtMs;
+        now = this.clock.now();
+        if (!mayStart(attempt.deadline, now)) {
+          await this.reject(attempt, refusedResult('DEADLINE_EXPIRED'));
+          return null;
+        }
       }
       let claimNow = now;
       let failedDuringVerify = false;
@@ -129,6 +133,7 @@ export class SendNotification {
         : this.buildVerification(
             attempt,
             verifyFn,
+            reservedAtMs,
             () => {
               failedDuringVerify = true;
             },

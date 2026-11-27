@@ -47,7 +47,10 @@ export function memberInvitationProviders(
 ): Provider[] {
   const redirectTo = adminOrigin === undefined ? undefined : `${adminOrigin}/set-password`;
   const limiter = redis === undefined ? null : createInvitationRateLimiter(redis);
-  const coordinator = redis === undefined ? undefined : createInvitationLinkCoordinator(redis);
+  const coordinator =
+    redis === undefined || onboardingSealer === undefined
+      ? undefined
+      : createInvitationLinkCoordinator(redis);
   return [
     { provide: INVITATION_RATE_LIMITER, useValue: limiter },
     passwordStateProvider(),

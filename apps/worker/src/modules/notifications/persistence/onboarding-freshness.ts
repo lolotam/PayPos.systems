@@ -90,18 +90,28 @@ async function lockInvitationActors(
     ORDER BY o.id FOR SHARE`);
 }
 
+/** يلتقط طابع قاعدة البيانات الفعلي بعد انتظار أقفال الصفوف حتى لا تتقادم فحوص النوافذ الزمنية. */
+async function postLockTimestamp(tx: Tx): Promise<string> {
+  const [row] = await tx.execute<{ checked_at: string | Date }>(
+    sql`SELECT clock_timestamp() AS checked_at`,
+  );
+  if (row?.checked_at === undefined) throw new Error('CLOCK_TIMESTAMP_MISSING');
+  return new Date(row.checked_at).toISOString();
+}
+
 /** يطابق البريد المختوم مع جهة الاتصال الحية للعضو داخل الشركة عبر القراءة المحدودة. */
 async function matchesMemberContactEmail(
   tx: Tx,
   companyId: string,
   userId: string,
   expectedEmail: string,
+  checkedAt: string,
 ): Promise<boolean> {
   const [contact] = await tx.execute<{ email: string | null }>(sql`
     SELECT email FROM public.team_alert_recipient_contacts(
       ${companyId}::uuid,
       ARRAY[${userId}::uuid],
-      now(),
+      ${checkedAt}::timestamptz,
       false
     )
     WHERE user_id = ${userId}::uuid`);
@@ -130,6 +140,7 @@ async function managerAuthorizedForBranch(
   userId: string,
   businessId: string,
   branchId: string,
+  checkedAt: string,
 ): Promise<boolean> {
   const [row] = await tx.execute<{ allowed: boolean | null }>(sql`
     SELECT (
@@ -137,7 +148,7 @@ async function managerAuthorizedForBranch(
         SELECT 1 FROM memberships m
         JOIN role_permissions rp ON rp.role_id = m.role_id AND rp.role_owner_key = m.role_owner_key
         WHERE m.company_id = ${companyId}::uuid AND m.user_id = ${userId}::uuid
-          AND m.starts_at <= now() AND (m.ends_at IS NULL OR m.ends_at > now())
+          AND m.starts_at <= ${checkedAt}::timestamptz AND (m.ends_at IS NULL OR m.ends_at > ${checkedAt}::timestamptz)
           AND rp.permission_code = ${STAFF_GRANT_PERMISSION}
           AND ${systemRoleGrantAllowedSql('m', 'rp')}
           AND ${branchScopeCoversSql('m', companyId, businessId, branchId)}
@@ -146,10 +157,10 @@ async function managerAuthorizedForBranch(
         SELECT 1 FROM permission_overrides o
         JOIN memberships m ON m.company_id = o.company_id AND m.id = o.membership_id
         WHERE m.company_id = ${companyId}::uuid AND m.user_id = ${userId}::uuid
-          AND m.starts_at <= now() AND (m.ends_at IS NULL OR m.ends_at > now())
+          AND m.starts_at <= ${checkedAt}::timestamptz AND (m.ends_at IS NULL OR m.ends_at > ${checkedAt}::timestamptz)
           AND o.permission_code = ${STAFF_GRANT_PERMISSION}
           AND o.effect = 'ALLOW'
-          AND (o.expires_at IS NULL OR o.expires_at > now())
+          AND (o.expires_at IS NULL OR o.expires_at > ${checkedAt}::timestamptz)
           AND ${systemRoleOverrideAllowedSql('m', 'o', STAFF_GRANT_PERMISSION)}
           AND ${branchScopeCoversSql('o', companyId, businessId, branchId)}
       )
@@ -157,17 +168,17 @@ async function managerAuthorizedForBranch(
       EXISTS (
         SELECT 1 FROM memberships om
         WHERE om.company_id = ${companyId}::uuid AND om.user_id = ${userId}::uuid
-          AND om.starts_at <= now() AND (om.ends_at IS NULL OR om.ends_at > now())
+          AND om.starts_at <= ${checkedAt}::timestamptz AND (om.ends_at IS NULL OR om.ends_at > ${checkedAt}::timestamptz)
           AND ${canonicalOwnerSql('om', companyId)}
       )
       OR NOT EXISTS (
         SELECT 1 FROM permission_overrides o
         JOIN memberships m ON m.company_id = o.company_id AND m.id = o.membership_id
         WHERE m.company_id = ${companyId}::uuid AND m.user_id = ${userId}::uuid
-          AND m.starts_at <= now() AND (m.ends_at IS NULL OR m.ends_at > now())
+          AND m.starts_at <= ${checkedAt}::timestamptz AND (m.ends_at IS NULL OR m.ends_at > ${checkedAt}::timestamptz)
           AND o.permission_code = ${STAFF_GRANT_PERMISSION}
           AND o.effect = 'DENY'
-          AND (o.expires_at IS NULL OR o.expires_at > now())
+          AND (o.expires_at IS NULL OR o.expires_at > ${checkedAt}::timestamptz)
           AND ${systemRoleOverrideAllowedSql('m', 'o', STAFF_GRANT_PERMISSION)}
           AND ${branchScopeCoversSql('o', companyId, businessId, branchId)}
       )
@@ -180,11 +191,12 @@ async function ownerAuthorizedForInvitations(
   tx: Tx,
   companyId: string,
   userId: string,
+  checkedAt: string,
 ): Promise<boolean> {
   const rows = await tx.execute(sql`
     SELECT 1 FROM memberships m
     WHERE m.company_id = ${companyId}::uuid AND m.user_id = ${userId}::uuid
-      AND m.starts_at <= now() AND (m.ends_at IS NULL OR m.ends_at > now())
+      AND m.starts_at <= ${checkedAt}::timestamptz AND (m.ends_at IS NULL OR m.ends_at > ${checkedAt}::timestamptz)
       AND ${canonicalOwnerSql('m', companyId)}
       AND EXISTS (
         SELECT 1 FROM role_permissions rp
@@ -196,7 +208,7 @@ async function ownerAuthorizedForInvitations(
         WHERE o.company_id = m.company_id AND o.membership_id = m.id
           AND o.permission_code = ${INVITE_MANAGE_PERMISSION}
           AND o.effect = 'DENY'
-          AND (o.expires_at IS NULL OR o.expires_at > now())
+          AND (o.expires_at IS NULL OR o.expires_at > ${checkedAt}::timestamptz)
           AND o.scope_type = 'COMPANY' AND o.scope_id = ${companyId}::uuid
       )`);
   return rows.length === 1;
@@ -238,11 +250,13 @@ async function verifyStaffWelcomeInTx(
   )
     return false;
   if (payload.recipient === 'manager') {
+    const checkedAt = await postLockTimestamp(tx);
     const emailMatches = await matchesMemberContactEmail(
       tx,
       companyId,
       access.granted_by,
       payload.email,
+      checkedAt,
     );
     const authorized =
       emailMatches &&
@@ -252,6 +266,7 @@ async function verifyStaffWelcomeInTx(
         access.granted_by,
         access.business_id,
         access.branch_id,
+        checkedAt,
       ));
     if (!authorized) return false;
   }
@@ -283,21 +298,28 @@ async function verifyMemberInvitationInTx(
       date_trunc('milliseconds', link_issued_at) = date_trunc('milliseconds', ${issuedAt}::timestamptz) AS issued_match
     FROM member_invitations
     WHERE company_id = ${companyId}::uuid AND id = ${invitationId}::uuid FOR SHARE`);
-  if (inv === undefined || inv.state !== 'PENDING' || inv.issued_match !== true) return false;
-  if (payload.recipient === 'owner') {
-    if (!(await matchesMemberContactEmail(tx, companyId, inv.invited_by, payload.email)))
-      return false;
-    return ownerAuthorizedForInvitations(tx, companyId, inv.invited_by);
-  }
-  if (inv.user_id === null || inv.membership_id === null) return false;
+  const checkedAt = await postLockTimestamp(tx);
+  if (
+    inv === undefined ||
+    inv.state !== 'PENDING' ||
+    inv.issued_match !== true ||
+    inv.user_id === null ||
+    inv.membership_id === null
+  )
+    return false;
   const activeRows = await tx.execute(sql`
     SELECT 1 FROM memberships
     WHERE company_id = ${companyId}::uuid
       AND (id = ${inv.membership_id}::uuid OR user_id = ${inv.user_id}::uuid)
-      AND starts_at <= now() AND (ends_at IS NULL OR ends_at > now())
+      AND starts_at <= ${checkedAt}::timestamptz AND (ends_at IS NULL OR ends_at > ${checkedAt}::timestamptz)
     LIMIT 1`);
   if (activeRows.length === 0) return false;
-  return matchesMemberContactEmail(tx, companyId, inv.user_id, payload.email);
+  if (payload.recipient === 'owner') {
+    if (!(await matchesMemberContactEmail(tx, companyId, inv.invited_by, payload.email, checkedAt)))
+      return false;
+    return ownerAuthorizedForInvitations(tx, companyId, inv.invited_by, checkedAt);
+  }
+  return matchesMemberContactEmail(tx, companyId, inv.user_id, payload.email, checkedAt);
 }
 
 /**

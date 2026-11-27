@@ -244,59 +244,32 @@ it('refuses an invitation without bound user/membership or after invitee members
   });
 
   const endedEmail = 'ended-invitee@example.test';
-  const endedId = await seedPendingInvitation(h, INVITE_ISSUED_AT, undefined, endedEmail);
+  const endedId = await seedPendingInvitation(h, INVITE_ISSUED_AT, actor.userId, endedEmail);
   const ended = await queueInvitationNotice(h, expiresAtMs, {
     email: endedEmail,
     invitationId: endedId,
     issuedAt: INVITE_ISSUED_AT.toISOString(),
   });
+  const endedOwnerCopy = await queueInvitationNotice(h, expiresAtMs, {
+    recipient: 'owner',
+    email: actor.email,
+    targetMaskedEmail: 'en***@example.test',
+    invitationId: endedId,
+    issuedAt: INVITE_ISSUED_AT.toISOString(),
+  });
   await h.owner`UPDATE memberships SET ends_at = now() - interval '1 minute' WHERE company_id = ${TENANT.A.company} AND id = (SELECT membership_id FROM member_invitations WHERE company_id = ${TENANT.A.company} AND id = ${endedId})`;
   await h.module.process({ data: { company_id: ended.event.companyId, attempt_id: ended.id } });
+  await h.module.process({
+    data: { company_id: endedOwnerCopy.event.companyId, attempt_id: endedOwnerCopy.id },
+  });
   expect(await h.read(ended.id)).toMatchObject({
     status: 'FAILED',
     failure_code: 'DESTINATION_INVALID',
   });
-  expect(channel.requests).toHaveLength(0);
-});
-
-it('re-checks admission on a retry delayed past the 1000ms cooldown window', async () => {
-  const staff = await seedActiveStaff(h);
-  const { id, event } = await queueStaffWelcomeNotice(h, NOW.getTime() + DAY_MS, {
-    email: staff.email,
-    employeeId: staff.employeeId,
-    operationId: staff.attemptId,
-    pinRevision: staff.pinRevision,
+  expect(await h.read(endedOwnerCopy.id)).toMatchObject({
+    status: 'FAILED',
+    failure_code: 'DESTINATION_INVALID',
   });
-  const base = h.module.send;
-  let reserveCalls = 0;
-  let verifyCalls = 0;
-  const sendDelayed = new SendNotification(
-    base.attempts,
-    base.channel,
-    {
-      reserve: async () => {
-        reserveCalls += 1;
-        return reserveCalls === 1;
-      },
-    },
-    base.identity,
-    {
-      ...base.configuration,
-      verify: async (attempt, scope) => {
-        verifyCalls += 1;
-        if (verifyCalls === 1) {
-          h.advance(new Date(NOW.getTime() + 1_500));
-          throw new Error('TRANSIENT_FRESHNESS_READ_FAILURE');
-        }
-        return base.configuration.verify?.(attempt, scope) ?? true;
-      },
-    },
-    base.clock,
-    base.ids,
-  );
-  await sendDelayed.execute(event.companyId, id);
-  expect(reserveCalls).toBe(2);
-  expect(await h.read(id)).toMatchObject({ status: 'FAILED', failure_code: 'ADMISSION_REFUSED' });
   expect(channel.requests).toHaveLength(0);
 });
 
@@ -394,9 +367,9 @@ it('records DEADLINE_EXPIRED under the attempt lock when verification crosses se
     {
       ...base.configuration,
       verify: async (attempt, scope) => {
-        const ok = await (base.configuration.verify?.(attempt, scope) ?? Promise.resolve(true));
+        await (base.configuration.verify?.(attempt, scope) ?? Promise.resolve(true));
         h.advance(new Date(NOW.getTime() + 3_000));
-        return ok;
+        return false;
       },
     },
     base.clock,
