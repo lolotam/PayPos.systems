@@ -27,6 +27,14 @@ export interface AuthorizationRepository {
     now: Date,
   ): Promise<boolean>;
 }
+/** التحقق السياقي داخل معاملة الحيازة قبل تحويل المحاولة إلى SENDING. */
+export interface ClaimVerification {
+  /** دالة التحقق داخل نفس المعاملة؛ تُشغَّل بعد قفل الصف بالـ FOR UPDATE. */
+  readonly verify: (scope: unknown) => Promise<boolean>;
+  /** معرّف حدث الفشل عند رفض الحيازة لبطلان الوجهة. */
+  readonly rejectEventId: string;
+}
+
 export interface AttemptsRepository {
   /** يحمل المحاولة المعلقة تحت RLS؛ الحالات المحجوزة والنهائية لا تعود للعمل.
    *
@@ -36,11 +44,17 @@ export interface AttemptsRepository {
   pending(companyId: string, attemptId: string): Promise<Attempt | null>;
   /** يمنح إذن الإرسال فقط بعد رد COMMIT الناجح، ولا يعيد حيازة التنفيذ.
    *
-   * @param attempt المحاولة المراد حيازتها
-   * @param executionId معرّف السياج
-   * @param now وقت القرار
+   * @param attempt      المحاولة المراد حيازتها
+   * @param executionId  معرّف السياج
+   * @param now          وقت القرار
+   * @param verification تحقق اختياري داخل نفس معاملة القفل قبل التحويل إلى SENDING
    */
-  claim(attempt: Attempt, executionId: string, now: Date): Promise<boolean>;
+  claim(
+    attempt: Attempt,
+    executionId: string,
+    now: Date,
+    verification?: ClaimVerification,
+  ): Promise<boolean>;
   /** يسجل رفضًا قبل الحيازة مع مسح الوجهة وحدث النتيجة في معاملة واحدة.
    *
    * @param attempt المحاولة المعلقة

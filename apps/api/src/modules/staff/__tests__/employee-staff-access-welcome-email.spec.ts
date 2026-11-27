@@ -122,6 +122,11 @@ describe('the staff welcome email with a sealing key', () => {
     const nora = await addEmployee(f, 'Nora', f.hawalli, 2);
     const manager = managerRecipient(await grantAndReadRecipients(f, nora));
     expect(manager).toBeDefined();
+    const [pinRow] = await f.h.owner<{ id: string }[]>`
+      SELECT cp.id::text AS id FROM cashier_pins cp
+      JOIN employee_staff_access esa ON esa.company_id = cp.company_id AND esa.user_id = cp.user_id
+      WHERE cp.company_id = ${f.company} AND esa.employee_id = ${nora} AND cp.temporary = true`;
+    expect(pinRow?.id).toBeDefined();
     expect(manager && unsealManagerNotice(f.company, manager)).toMatchObject({
       kind: 'staff_welcome_pin',
       email: OWNER_EMAIL,
@@ -129,6 +134,7 @@ describe('the staff welcome email with a sealing key', () => {
       role: 'staff',
       recipient: 'manager',
       employeeId: nora,
+      pinRevision: pinRow?.id,
     });
   });
 

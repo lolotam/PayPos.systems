@@ -44,6 +44,7 @@ it('refuses to send a staff PIN to a changed employee recovery_email', async () 
     email: staff.email,
     employeeId: staff.employeeId,
     operationId: staff.attemptId,
+    pinRevision: staff.pinRevision,
   });
   const { id, event } = await requestOnboarding(h, 'StaffWelcomePinNoticeRequested', {
     channel: 'email',
@@ -68,6 +69,7 @@ it('refuses a queued staff welcome notice after stop and regrant changes attempt
     email: staff.email,
     employeeId: staff.employeeId,
     operationId: staff.attemptId,
+    pinRevision: staff.pinRevision,
   });
   const { id, event } = await requestOnboarding(h, 'StaffWelcomePinNoticeRequested', {
     channel: 'email',
@@ -79,6 +81,31 @@ it('refuses a queued staff welcome notice after stop and regrant changes attempt
     send_deadline: new Date(expiresAtMs).toISOString(),
   });
   await h.owner`UPDATE employee_staff_access SET attempt_id = ${nextAttemptId}, state = 'ACTIVE' WHERE company_id = ${TENANT.A.company} AND id = ${staff.accessId}`;
+  await h.module.process({ data: { company_id: event.companyId, attempt_id: id } });
+  expect(await h.read(id)).toMatchObject({ status: 'FAILED', failure_code: 'DESTINATION_INVALID' });
+  expect(channel.requests).toHaveLength(0);
+});
+
+it('refuses a queued staff welcome notice after PIN reset rotates cashier_pins.id on the same grant', async () => {
+  const staff = await seedActiveStaff(h);
+  const nextPinRevision = systemUuidV7().newId();
+  const expiresAtMs = NOW.getTime() + DAY_MS;
+  const { placeholder, parameters } = sealStaffPayload(expiresAtMs, {
+    email: staff.email,
+    employeeId: staff.employeeId,
+    operationId: staff.attemptId,
+    pinRevision: staff.pinRevision,
+  });
+  const { id, event } = await requestOnboarding(h, 'StaffWelcomePinNoticeRequested', {
+    channel: 'email',
+    email: placeholder,
+    locale: 'ar',
+    template_key: STAFF_WELCOME_PIN_KEY,
+    template_revision: 1,
+    safe_parameters: parameters,
+    send_deadline: new Date(expiresAtMs).toISOString(),
+  });
+  await h.owner`UPDATE cashier_pins SET id = ${nextPinRevision} WHERE company_id = ${TENANT.A.company} AND user_id = ${staff.userId}`;
   await h.module.process({ data: { company_id: event.companyId, attempt_id: id } });
   expect(await h.read(id)).toMatchObject({ status: 'FAILED', failure_code: 'DESTINATION_INVALID' });
   expect(channel.requests).toHaveLength(0);
@@ -125,13 +152,14 @@ it('fails closed when staff access or invitation records are missing', async () 
   expect(channel.requests).toHaveLength(0);
 });
 
-it('leaves attempt PENDING without claiming SENDING when pre-claim freshness read throws', async () => {
+it('retries transient pre-claim verification errors automatically and delivers once without leaving SENDING', async () => {
   const staff = await seedActiveStaff(h);
   const expiresAtMs = NOW.getTime() + DAY_MS;
   const { placeholder, parameters } = sealStaffPayload(expiresAtMs, {
     email: staff.email,
     employeeId: staff.employeeId,
     operationId: staff.attemptId,
+    pinRevision: staff.pinRevision,
   });
   const { id, event } = await requestOnboarding(h, 'StaffWelcomePinNoticeRequested', {
     channel: 'email',
@@ -143,6 +171,56 @@ it('leaves attempt PENDING without claiming SENDING when pre-claim freshness rea
     send_deadline: new Date(expiresAtMs).toISOString(),
   });
   const base = h.module.send;
+  let verifyCalls = 0;
+  let reserved = false;
+  const sendWithTransientVerify = new SendNotification(
+    base.attempts,
+    base.channel,
+    {
+      reserve: async (hash, deadline) => {
+        reserved = true;
+        return base.admission.reserve(hash, deadline);
+      },
+    },
+    base.identity,
+    {
+      ...base.configuration,
+      verify: async (attempt, scope) => {
+        expect(reserved).toBe(true);
+        verifyCalls += 1;
+        if (verifyCalls === 1) throw new Error('TRANSIENT_FRESHNESS_READ_FAILURE');
+        return base.configuration.verify?.(attempt, scope) ?? true;
+      },
+    },
+    base.clock,
+    base.ids,
+  );
+  await sendWithTransientVerify.execute(event.companyId, id);
+  expect(verifyCalls).toBe(2);
+  expect(await h.read(id)).toMatchObject({ status: 'SENT', recipient_email: null });
+  expect(channel.requests).toHaveLength(1);
+});
+
+it('leaves attempt PENDING without claiming SENDING when bounded pre-claim freshness retries all throw', async () => {
+  const staff = await seedActiveStaff(h);
+  const expiresAtMs = NOW.getTime() + DAY_MS;
+  const { placeholder, parameters } = sealStaffPayload(expiresAtMs, {
+    email: staff.email,
+    employeeId: staff.employeeId,
+    operationId: staff.attemptId,
+    pinRevision: staff.pinRevision,
+  });
+  const { id, event } = await requestOnboarding(h, 'StaffWelcomePinNoticeRequested', {
+    channel: 'email',
+    email: placeholder,
+    locale: 'ar',
+    template_key: STAFF_WELCOME_PIN_KEY,
+    template_revision: 1,
+    safe_parameters: parameters,
+    send_deadline: new Date(expiresAtMs).toISOString(),
+  });
+  const base = h.module.send;
+  let verifyCalls = 0;
   const sendWithFailingVerify = new SendNotification(
     base.attempts,
     base.channel,
@@ -151,6 +229,7 @@ it('leaves attempt PENDING without claiming SENDING when pre-claim freshness rea
     {
       ...base.configuration,
       verify: async () => {
+        verifyCalls += 1;
         throw new Error('TRANSIENT_FRESHNESS_READ_FAILURE');
       },
     },
@@ -158,8 +237,9 @@ it('leaves attempt PENDING without claiming SENDING when pre-claim freshness rea
     base.ids,
   );
   await expect(sendWithFailingVerify.execute(event.companyId, id)).rejects.toThrow(
-    'TRANSIENT_FRESHNESS_READ_FAILURE',
+    'NOTIFICATION_PERSISTENCE_FAILED',
   );
+  expect(verifyCalls).toBe(3);
   expect(await h.read(id)).toMatchObject({ status: 'PENDING', execution_id: null });
   expect(channel.requests).toHaveLength(0);
 });

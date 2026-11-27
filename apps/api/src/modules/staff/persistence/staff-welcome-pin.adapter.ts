@@ -51,6 +51,25 @@ async function readEmployeeRecoveryEmail(
   return rows[0]?.recovery_email ?? null;
 }
 
+/**
+ * يقرأ نسخة الرقم السري المؤقت السارية للموظفة داخل نفس معاملة المنح لربط مظروف البريد بها.
+ *
+ * @param tx        معاملة الشركة
+ * @param companyId الشركة
+ * @param userId    مستخدم الموظفة الممنوحة
+ * @returns معرّف صف الرقم المؤقت، أو null عند غيابه
+ */
+async function readTemporaryPinRevision(
+  tx: Tx,
+  companyId: string,
+  userId: string,
+): Promise<string | null> {
+  const rows = await tx.execute<{ id: string }>(sql`
+    SELECT id::text AS id FROM cashier_pins
+    WHERE company_id = ${companyId}::uuid AND user_id = ${userId}::uuid AND temporary = true`);
+  return rows[0]?.id ?? null;
+}
+
 type WelcomeNotificationRecipient = {
   readonly channel: 'email';
   readonly email: string;
@@ -70,6 +89,7 @@ function sealWelcomeRecipients(
   recipients: readonly StaffWelcomeRecipientSpec[],
   command: StaffWelcomePinCommand,
   operationId: string,
+  pinRevision: string,
   role: string,
   expiresAt: Date,
   sealer: OnboardingEmailSealer,
@@ -89,6 +109,7 @@ function sealWelcomeRecipients(
         targetMaskedEmail: recipient.targetMaskedEmail,
         employeeId: command.employeeId,
         operationId,
+        pinRevision,
         expiresAt: expiresAt.toISOString(),
         expiresAtMs: expiresAt.getTime(),
       },
@@ -132,6 +153,8 @@ async function appendStaffWelcomePin(
     [command.userId],
     input.at,
   );
+  const pinRevision = await readTemporaryPinRevision(tx, command.companyId, payload.userId);
+  if (pinRevision === null) return;
   const recoveryEmail = await readEmployeeRecoveryEmail(tx, command.companyId, command.employeeId);
   const plan = planStaffWelcomePinNotice({
     expiresAt: pinExpiresAt(input.at),
@@ -144,6 +167,7 @@ async function appendStaffWelcomePin(
     plan.recipients,
     command,
     operationId,
+    pinRevision,
     payload.role,
     plan.expiresAt,
     sealer,

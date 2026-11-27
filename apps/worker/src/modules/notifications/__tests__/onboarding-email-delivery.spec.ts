@@ -89,6 +89,7 @@ it('sends the sealed staff welcome email to the real address with the PIN in mem
     email: staff.email,
     employeeId: staff.employeeId,
     operationId: staff.attemptId,
+    pinRevision: staff.pinRevision,
   });
   const { id, event } = await requestOnboarding(h, 'StaffWelcomePinNoticeRequested', {
     channel: 'email',

@@ -78,8 +78,15 @@ async function verifyStaffWelcomeFresh(
   payload: Extract<OnboardingEmailPayload, { kind: 'staff_welcome_pin' }>,
   operationId: string,
 ): Promise<boolean> {
-  if (payload.employeeId === undefined || payload.operationId !== operationId) return false;
+  if (
+    payload.employeeId === undefined ||
+    payload.operationId !== operationId ||
+    payload.pinRevision === undefined ||
+    payload.pinRevision.length === 0
+  )
+    return false;
   const employeeId = payload.employeeId;
+  const pinRevision = payload.pinRevision;
   return database.withTenant(companyId, async (tx) => {
     if (payload.recipient === 'employee') {
       const [emp] = await tx.execute<{ recovery_email: string | null; deleted_at: unknown }>(sql`
@@ -93,10 +100,24 @@ async function verifyStaffWelcomeFresh(
       )
         return false;
     }
-    const [access] = await tx.execute<{ state: string; attempt_id: string }>(sql`
-      SELECT state, attempt_id::text AS attempt_id FROM employee_staff_access
+    const [access] = await tx.execute<{
+      state: string;
+      attempt_id: string;
+      user_id: string | null;
+    }>(sql`
+      SELECT state, attempt_id::text AS attempt_id, user_id::text AS user_id FROM employee_staff_access
       WHERE company_id = ${companyId}::uuid AND employee_id = ${employeeId}::uuid`);
-    return access !== undefined && access.state === 'ACTIVE' && access.attempt_id === operationId;
+    if (
+      access === undefined ||
+      access.state !== 'ACTIVE' ||
+      access.attempt_id !== operationId ||
+      access.user_id === null
+    )
+      return false;
+    const [pin] = await tx.execute<{ id: string; temporary: boolean }>(sql`
+      SELECT id::text AS id, temporary FROM cashier_pins
+      WHERE company_id = ${companyId}::uuid AND user_id = ${access.user_id}::uuid`);
+    return pin !== undefined && pin.temporary === true && pin.id === pinRevision;
   });
 }
 

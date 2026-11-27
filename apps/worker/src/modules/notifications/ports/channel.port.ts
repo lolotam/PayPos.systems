@@ -27,11 +27,12 @@ export interface SendConfiguration {
    * @param attempt لقطة القالب الثابتة
    */
   failure(attempt: Attempt): FailureCode | null;
-  /** فحص اختياري قبل حيازة التنفيذ للتحقق من سريان الوجهة أو المرجع في قاعدة البيانات.
+  /** فحص اختياري داخل معاملة الحيازة للتحقق من سريان الوجهة أو المرجع في قاعدة البيانات.
    *
    * @param attempt لقطة المحاولة قبل التحويل إلى SENDING
+   * @param scope   نطاق المعاملة الحالية لتشغيل القراءة تحت نفس القفل، إن وُجد
    */
-  verify?(attempt: Attempt): Promise<boolean>;
+  verify?(attempt: Attempt, scope?: unknown): Promise<boolean>;
 }
 
 /** مشتق رابط التقييم في الذاكرة وقت الإرسال فقط؛ الرابط لا يُخزَّن ولا يُسجَّل ولا يدخل outbox. */

@@ -30,6 +30,7 @@ function staffWelcomePayload(payload: StaffWelcomeEnvelopePayload): OnboardingEm
     targetMaskedEmail: payload.targetMaskedEmail,
     ...(payload.employeeId === undefined ? {} : { employeeId: payload.employeeId }),
     ...(payload.operationId === undefined ? {} : { operationId: payload.operationId }),
+    ...(payload.pinRevision === undefined ? {} : { pinRevision: payload.pinRevision }),
     expiresAt: payload.expiresAt,
     expiresAtMs: payload.expiresAtMs,
   };

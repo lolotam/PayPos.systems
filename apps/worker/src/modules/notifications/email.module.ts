@@ -72,6 +72,21 @@ function buildEmailMatcher(
   };
 }
 
+function databaseFromScope(
+  scope: unknown,
+  fallback: Pick<TenantWrappers, 'withTenant'> | undefined,
+): Pick<TenantWrappers, 'withTenant'> | undefined {
+  if (
+    typeof scope === 'object' &&
+    scope !== null &&
+    'withTenant' in scope &&
+    typeof (scope as { withTenant?: unknown }).withTenant === 'function'
+  ) {
+    return scope as Pick<TenantWrappers, 'withTenant'>;
+  }
+  return fallback;
+}
+
 export function createEmailModule(options: EmailModuleOptions) {
   if (
     (options.production || process.env['NODE_ENV'] === 'production') &&
@@ -104,9 +119,9 @@ export function createEmailModule(options: EmailModuleOptions) {
           const payload = unsealAttempt(attempt, envelopeKey, options.clock.now());
           return payload === null ? null : { email: payload.email, payload };
         },
-    (attempt, payload) =>
+    (attempt, payload, scope) =>
       verifyOnboardingRecipientFresh(
-        options.database,
+        databaseFromScope(scope, options.database),
         attempt,
         payload,
         extractOnboardingOperationId(attempt.safeParameters),

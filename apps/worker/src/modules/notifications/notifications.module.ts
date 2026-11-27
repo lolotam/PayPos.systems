@@ -165,9 +165,9 @@ function routeChannels(
         (attempt.channel === 'email' ? email.adapter : adapter).send(attempt),
       failure: (attempt: Parameters<typeof adapter.failure>[0]) =>
         (attempt.channel === 'email' ? email.adapter : adapter).failure(attempt),
-      verify: (attempt: Parameters<typeof adapter.failure>[0]) =>
+      verify: (attempt: Parameters<typeof adapter.failure>[0], scope?: unknown) =>
         attempt.channel === 'email'
-          ? (email.adapter.verify?.(attempt) ?? Promise.resolve(true))
+          ? (email.adapter.verify?.(attempt, scope) ?? Promise.resolve(true))
           : Promise.resolve(true),
     },
     destinations: {
@@ -299,8 +299,8 @@ export function createEmailSendModule(options: {
       options.email.adapter.send(attempt),
     failure: (attempt: Parameters<typeof options.email.adapter.failure>[0]) =>
       options.email.adapter.failure(attempt),
-    verify: (attempt: Parameters<typeof options.email.adapter.failure>[0]) =>
-      options.email.adapter.verify?.(attempt) ?? Promise.resolve(true),
+    verify: (attempt: Parameters<typeof options.email.adapter.failure>[0], scope?: unknown) =>
+      options.email.adapter.verify?.(attempt, scope) ?? Promise.resolve(true),
   };
   const send = new SendNotification(
     attempts,

@@ -35,6 +35,7 @@ export type OnboardingEmailPayload =
       readonly targetMaskedEmail?: string | null;
       readonly employeeId?: string | undefined;
       readonly operationId?: string | undefined;
+      readonly pinRevision?: string | undefined;
       readonly expiresAt: string;
       readonly expiresAtMs: number;
     }
@@ -342,7 +343,8 @@ function readStaffWelcomePayload(
   if (typeof pin !== 'string' || !/^\d{4}$/.test(pin)) return null;
   const employeeId = optionalTextField(payload, 'employeeId');
   const operationId = optionalTextField(payload, 'operationId');
-  if (!employeeId.ok || !operationId.ok) return null;
+  const pinRevision = optionalTextField(payload, 'pinRevision');
+  if (!employeeId.ok || !operationId.ok || !pinRevision.ok) return null;
   return {
     kind: 'staff_welcome_pin',
     ...base,
@@ -350,6 +352,7 @@ function readStaffWelcomePayload(
     recipient,
     ...(employeeId.value === undefined ? {} : { employeeId: employeeId.value }),
     ...(operationId.value === undefined ? {} : { operationId: operationId.value }),
+    ...(pinRevision.value === undefined ? {} : { pinRevision: pinRevision.value }),
   };
 }
 
@@ -424,14 +427,18 @@ function readOnboardingPayload(
     : readMemberInvitationPayload(payload, base);
 }
 
+/** أقصى طول للرابط بالبايت: يضمن بقاء كل مظروف مع operation_id تحت حد 20 معاملاً بالعقد. */
+const ONBOARDING_LINK_MAX_BYTES = 1600;
+
 /**
- * يفحص رابط الدعوة: https فقط، مع السماح لـ localhost ونطاقات ‎.test الاختبارية في التطوير والاختبار، ومن غير بيانات دخول.
+ * يفحص رابط الدعوة: https فقط، مع السماح لـ localhost ونطاقات ‎.test الاختبارية في التطوير والاختبار، ومن غير بيانات دخول، وبحجم يضمن صلاحية المظروف.
  *
  * @param link الرابط الخام
  * @returns true لما الرابط سليم
  */
 export function isSafeOnboardingLink(link: string): boolean {
-  if (/[\p{Cc}\s]/u.test(link)) return false;
+  if (/[\p{Cc}\s]/u.test(link) || Buffer.byteLength(link, 'utf8') > ONBOARDING_LINK_MAX_BYTES)
+    return false;
   let url: URL;
   try {
     url = new URL(link);

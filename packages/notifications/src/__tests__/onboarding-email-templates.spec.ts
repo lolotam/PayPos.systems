@@ -382,6 +382,7 @@ describe('the member invitation email', () => {
       );
     expect(isSafeOnboardingLink('http://evil.example/reset-password/token')).toBe(false);
     expect(isSafeOnboardingLink('http://localhost:3000/reset-password/token')).toBe(true);
+    expect(isSafeOnboardingLink(`https://example.test/${'a'.repeat(1600)}`)).toBe(false);
     expect(render('http://api.pospay.systems/reset-password/token')).toBeNull();
     expect(render('https://user:pass@example.test/x')).toBeNull();
     expect(render('javascript:alert(1)')).toBeNull();

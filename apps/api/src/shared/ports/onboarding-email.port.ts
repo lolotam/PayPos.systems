@@ -15,6 +15,7 @@ export interface StaffWelcomeEnvelopePayload {
   readonly targetMaskedEmail: string | null;
   readonly employeeId?: string | undefined;
   readonly operationId?: string | undefined;
+  readonly pinRevision?: string | undefined;
   readonly expiresAt: string;
   readonly expiresAtMs: number;
 }
