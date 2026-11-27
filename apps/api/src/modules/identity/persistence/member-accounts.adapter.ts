@@ -18,7 +18,7 @@ export function createMemberAccounts(auth: AuthService): MemberAccounts {
     discardInvitedMember: (input) => auth.members.discardInvitedMember(input),
     issueLink: async (input) => {
       try {
-        return await auth.members.issueInvitationLink(input);
+        return await auth.members.issueInvitationLinkReceipt(input);
       } catch (error) {
         if (error instanceof InvitationLinkRefusedError) throw new MemberLinkRefusedError();
         throw error;

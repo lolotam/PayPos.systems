@@ -62,6 +62,14 @@ export interface MemberInvitationAccounts {
     lifetimeMs: number;
     now: Date;
   }): Promise<string>;
+  /** يصدر رابط تعيين كلمة مرور ويرجّعه مع لحظة الإصدار المتزايدة المعتمدة من قفل الهوية. */
+  issueInvitationLinkReceipt(input: {
+    userId: string;
+    companyId: string;
+    redirectTo: string;
+    lifetimeMs: number;
+    now: Date;
+  }): Promise<{ readonly link: string; readonly issuedAt: Date }>;
   /**
    * يمسح حساب اتنشأ من عملية دعوة بعينها لو لسه من غير كلمة مرور. المتصل بيثبت قبلها إن صف الدعوة
    * اتلغى ومفيش عضوية؛ بيتكرر بأمان.
@@ -122,6 +130,33 @@ async function createInvitedMember(
   return { createdByInvitation: false };
 }
 
+async function issueReceipt(
+  queries: MemberQueries,
+  options: { ids: { newId(): string }; baseUrl: string },
+  input: {
+    userId: string;
+    companyId: string;
+    redirectTo: string;
+    lifetimeMs: number;
+    now: Date;
+  },
+): Promise<{ readonly link: string; readonly issuedAt: Date }> {
+  const token = randomBytes(24).toString('base64url');
+  const issuedAt = await queries.issueInvitationLink({
+    id: options.ids.newId(),
+    identifier: `reset-password:${token}`,
+    companyId: input.companyId,
+    userId: input.userId,
+    expiresAt: new Date(input.now.getTime() + input.lifetimeMs),
+    now: input.now,
+  });
+  if (issuedAt === null) throw new InvitationLinkRefusedError();
+  return {
+    link: `${options.baseUrl}/reset-password/${token}?callbackURL=${encodeURIComponent(input.redirectTo)}`,
+    issuedAt,
+  };
+}
+
 /**
  * بيبني حدود جداول الهوية لعملية الدعوة. الرابط بيتكتب بنفس شكل صف Better Auth
  * (`reset-password:<token>`)، فتخزين التوكن هو نفس تخزين أي رابط reset موجود قبل الدعوات.
@@ -153,19 +188,8 @@ export function createMemberInvitationAccounts(options: {
     hasPassword: async (userId) => (await queries.readHasPassword(userId)) === true,
     hasPasswords: async (userIds) => queries.readHasPasswords(userIds),
     createInvitedMember: (input) => createInvitedMember(queries, options.ids, input),
-    issueInvitationLink: async (input) => {
-      const token = randomBytes(24).toString('base64url');
-      const issued = await queries.issueInvitationLink({
-        id: options.ids.newId(),
-        identifier: `reset-password:${token}`,
-        companyId: input.companyId,
-        userId: input.userId,
-        expiresAt: new Date(input.now.getTime() + input.lifetimeMs),
-        now: input.now,
-      });
-      if (!issued) throw new InvitationLinkRefusedError();
-      return `${options.baseUrl}/reset-password/${token}?callbackURL=${encodeURIComponent(input.redirectTo)}`;
-    },
+    issueInvitationLink: async (input) => (await issueReceipt(queries, options, input)).link,
+    issueInvitationLinkReceipt: (input) => issueReceipt(queries, options, input),
     discardInvitedMember: async (input) =>
       (await queries.discardInvitedMember(input.operationId, input.companyId)) === 'discarded',
   };

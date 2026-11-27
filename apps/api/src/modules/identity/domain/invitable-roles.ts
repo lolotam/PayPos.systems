@@ -82,7 +82,9 @@ export interface InvitationAssignmentInput {
  * @param input الدور الأساسي ونطاقه والأدوار الإضافية
  * @returns التوزيعات بعد إزالة المكرر، أو كود الرفض
  */
-export function collectInvitationAssignments(input: InvitationAssignmentInput): InvitationAssignments {
+export function collectInvitationAssignments(
+  input: InvitationAssignmentInput,
+): InvitationAssignments {
   const assignments: InvitationAssignment[] = [];
   const seen = new Set<string>();
   for (const entry of [
@@ -98,4 +100,53 @@ export function collectInvitationAssignments(input: InvitationAssignmentInput): 
     assignments.push({ role: entry.role, scope: { ...entry.scope } });
   }
   return { ok: true, assignments };
+}
+
+/** مستلم بريد دعوة عضو بعد حسم الاستهداف والقناع داخل الدومين. */
+export interface InvitationNoticeRecipientSpec {
+  readonly email: string;
+  readonly recipient: 'invitee' | 'owner';
+  readonly targetMaskedEmail: string | null;
+}
+
+/**
+ * يحسب لحظة انتهاء صلاحية رابط دعوة العضو في الدومين انطلاقاً من وقت الإصدار.
+ *
+ * @param issuedAt لحظة إصدار الرابط من الساعة المحقونة
+ * @param ttlMs مدة صلاحية الرابط بالمللي ثانية
+ * @returns لحظة انتهاء الرابط
+ */
+export function memberInvitationLinkExpiresAt(issuedAt: Date, ttlMs: number): Date {
+  return new Date(issuedAt.getTime() + ttlMs);
+}
+
+/**
+ * يختار مستلمي بريد الدعوة في الدومين: المدعوّ أولاً ثم المالك الداعي عند اختلاف البريد.
+ *
+ * @param input بريد المدعوّ وبريد المالك ودالة القناع
+ * @param input.inviteeEmail بريد المدعوّ الحقيقي أو null
+ * @param input.ownerEmail بريد المالك الحقيقي أو null
+ * @param input.mask دالة قناع البريد لعرضه للمالك
+ * @returns قائمة المستلمين بدون تكرار
+ */
+export function selectMemberInvitationNoticeRecipients(input: {
+  readonly inviteeEmail: string | null;
+  readonly ownerEmail: string | null;
+  readonly mask: (email: string) => string;
+}): readonly InvitationNoticeRecipientSpec[] {
+  const recipients: InvitationNoticeRecipientSpec[] = [];
+  if (input.inviteeEmail !== null) {
+    recipients.push({ email: input.inviteeEmail, recipient: 'invitee', targetMaskedEmail: null });
+  }
+  if (
+    input.ownerEmail !== null &&
+    input.ownerEmail.trim().toLowerCase() !== input.inviteeEmail?.trim().toLowerCase()
+  ) {
+    recipients.push({
+      email: input.ownerEmail,
+      recipient: 'owner',
+      targetMaskedEmail: input.inviteeEmail === null ? null : input.mask(input.inviteeEmail),
+    });
+  }
+  return recipients;
 }

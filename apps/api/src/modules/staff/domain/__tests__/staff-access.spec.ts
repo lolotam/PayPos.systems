@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   pendingStaffAccessCancellable,
+  planStaffWelcomePinNotice,
   resolveAdditionalStaffBranches,
   sameAdditionalStaffBranches,
   staffAccessCancelAllowed,
@@ -55,11 +56,63 @@ it('FR-F1-6 only a PENDING record is cancellable, whatever its age', () => {
 
 it('P1-2 cancelling resumes after interruption; only original granter or owner may cancel', () => {
   expect(
-    pendingStaffAccessCancellable({ state: 'CANCELLING', attemptStartedAt: new Date('2026-11-01') }, now),
+    pendingStaffAccessCancellable(
+      { state: 'CANCELLING', attemptStartedAt: new Date('2026-11-01') },
+      now,
+    ),
   ).toBe(true);
   expect(staffAccessCancelAllowed({ grantedBy: 'original' }, 'original', false)).toBe(true);
   expect(staffAccessCancelAllowed({ grantedBy: 'original' }, 'other', true)).toBe(true);
   expect(staffAccessCancelAllowed({ grantedBy: 'original' }, 'other', false)).toBe(false);
+});
+
+it('plans welcome email recipients with masking only on manager and case-insensitive dedup', () => {
+  const expiresAt = new Date('2026-11-28T12:00:00Z');
+  const mask = (email: string) => `masked(${email})`;
+  expect(
+    planStaffWelcomePinNotice({
+      expiresAt,
+      managerEmail: 'mgr@example.test',
+      recoveryEmail: 'staff@example.test',
+      mask,
+    }),
+  ).toEqual({
+    expiresAt,
+    recipients: [
+      {
+        email: 'mgr@example.test',
+        recipient: 'manager',
+        targetMaskedEmail: 'masked(staff@example.test)',
+      },
+      { email: 'staff@example.test', recipient: 'employee', targetMaskedEmail: null },
+    ],
+  });
+  expect(
+    planStaffWelcomePinNotice({
+      expiresAt,
+      managerEmail: 'Mgr@Example.test',
+      recoveryEmail: ' mgr@example.test ',
+      mask,
+    }).recipients,
+  ).toEqual([
+    {
+      email: 'Mgr@Example.test',
+      recipient: 'manager',
+      targetMaskedEmail: 'masked( mgr@example.test )',
+    },
+  ]);
+  expect(
+    planStaffWelcomePinNotice({ expiresAt, managerEmail: 'mgr@e.test', recoveryEmail: null, mask })
+      .recipients,
+  ).toEqual([{ email: 'mgr@e.test', recipient: 'manager', targetMaskedEmail: null }]);
+  expect(
+    planStaffWelcomePinNotice({ expiresAt, managerEmail: null, recoveryEmail: 's@e.test', mask })
+      .recipients,
+  ).toEqual([{ email: 's@e.test', recipient: 'employee', targetMaskedEmail: null }]);
+  expect(
+    planStaffWelcomePinNotice({ expiresAt, managerEmail: null, recoveryEmail: null, mask })
+      .recipients,
+  ).toEqual([]);
 });
 
 describe('resolveAdditionalStaffBranches', () => {
@@ -152,12 +205,12 @@ describe('sameAdditionalStaffBranches', () => {
 
   it('refuses a different length, a different branch and a different role', () => {
     expect(sameAdditionalStaffBranches([branch('b2', 'staff')], [])).toBe(false);
-    expect(
-      sameAdditionalStaffBranches([branch('b2', 'staff')], [branch('b3', 'staff')]),
-    ).toBe(false);
-    expect(
-      sameAdditionalStaffBranches([branch('b2', 'staff')], [branch('b2', 'reception')]),
-    ).toBe(false);
+    expect(sameAdditionalStaffBranches([branch('b2', 'staff')], [branch('b3', 'staff')])).toBe(
+      false,
+    );
+    expect(sameAdditionalStaffBranches([branch('b2', 'staff')], [branch('b2', 'reception')])).toBe(
+      false,
+    );
   });
 
   it('matches across a different letter case in the branch id', () => {
@@ -170,8 +223,8 @@ describe('sameAdditionalStaffBranches', () => {
   });
 
   it('refuses a different role even when the branch id differs only in letter case', () => {
-    expect(
-      sameAdditionalStaffBranches([branch('B2', 'staff')], [branch('b2', 'reception')]),
-    ).toBe(false);
+    expect(sameAdditionalStaffBranches([branch('B2', 'staff')], [branch('b2', 'reception')])).toBe(
+      false,
+    );
   });
 });

@@ -57,6 +57,59 @@ export function pendingStaffAccessCancellable(
   return now.getTime() - record.attemptStartedAt.getTime() >= PENDING_STAFF_ACCESS_CANCEL_TTL_MS;
 }
 
+/** مستلم بريد ترحيب موظفة بعد حسم الاستهداف والقناع داخل الدومين. */
+export interface StaffWelcomeRecipientSpec {
+  readonly email: string;
+  readonly recipient: 'manager' | 'employee';
+  readonly targetMaskedEmail: string | null;
+}
+
+/** خطة بريد الترحيب: لحظة انتهاء الرقم المؤقت والمستلمون من غير تكرار. */
+export interface StaffWelcomePinNoticePlan {
+  readonly expiresAt: Date;
+  readonly recipients: readonly StaffWelcomeRecipientSpec[];
+}
+
+/**
+ * يحسب خطة بريد الترحيب بالرقم السري المؤقت في الدومين: اختيار المدير والموظفة (عند توفر recovery_email) مع منع التكرار.
+ *
+ * @param input تاريخ انتهاء الرقم وإيميل المدير وإيميل الاسترجاع ودالة القناع
+ * @param input.expiresAt لحظة انتهاء الرقم السري المؤقت المحسوبة من قاعدة identity
+ * @param input.managerEmail إيميل المدير المانح أو null
+ * @param input.recoveryEmail إيميل استرجاع الموظفة أو null
+ * @param input.mask دالة قناع البريد للعرض للمدير فقط
+ * @returns تاريخ الانتهاء والمستلمون بلا تكرار
+ */
+export function planStaffWelcomePinNotice(input: {
+  readonly expiresAt: Date;
+  readonly managerEmail: string | null;
+  readonly recoveryEmail: string | null;
+  readonly mask: (email: string) => string;
+}): StaffWelcomePinNoticePlan {
+  const recipients: StaffWelcomeRecipientSpec[] = [];
+  if (input.managerEmail !== null) {
+    recipients.push({
+      email: input.managerEmail,
+      recipient: 'manager',
+      targetMaskedEmail: input.recoveryEmail === null ? null : input.mask(input.recoveryEmail),
+    });
+  }
+  if (
+    input.recoveryEmail !== null &&
+    input.recoveryEmail.trim().toLowerCase() !== input.managerEmail?.trim().toLowerCase()
+  ) {
+    recipients.push({
+      email: input.recoveryEmail,
+      recipient: 'employee',
+      targetMaskedEmail: null,
+    });
+  }
+  return {
+    expiresAt: input.expiresAt,
+    recipients,
+  };
+}
+
 /** فرع إضافي ودوره عند منح دخول الموظفة (080-b). */
 export interface StaffAccessBranchAssignment {
   /** معرّف الفرع الإضافي. */

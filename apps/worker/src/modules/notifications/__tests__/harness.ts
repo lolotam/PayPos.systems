@@ -23,6 +23,7 @@ export const logger: Logger = createLogger('silent');
 export const EMAIL_ENV = {
   NOTIFICATION_EMAIL_HASH_KEY: 'synthetic-email-identity'.repeat(3),
   NOTIFICATION_EMAIL_HASH_KEY_ID: 'email-test-v1',
+  ONBOARDING_EMAIL_ENVELOPE_KEY: 'test-only-envelope-material'.padEnd(36, '0'),
   RESEND_API_KEY: 'synthetic-test-only',
   EMAIL_FROM_ADDRESS: 'synthetic@send.pospay.systems',
   EMAIL_FROM_NAME: 'Synthetic sender',
@@ -32,27 +33,51 @@ export const EMAIL_ENV = {
     'postgres://pospay_notifications:synthetic@127.0.0.1:5432/pospay',
 };
 
-export async function notificationHarness() {
+function suppressionTracker() {
+  let suppressed = false;
+  const suppressedHashes: Uint8Array[] = [];
+  return {
+    isSuppressed: (hash?: Uint8Array) =>
+      suppressed ||
+      (hash !== undefined &&
+        suppressedHashes.some((entry) => Buffer.from(entry).equals(Buffer.from(hash)))),
+    isGlobalSuppressed: () => suppressed,
+    suppress: () => {
+      suppressed = true;
+    },
+    suppressHash: (hash: Uint8Array) => {
+      suppressedHashes.push(hash);
+    },
+    clearSuppressions: () => {
+      suppressed = false;
+      suppressedHashes.length = 0;
+    },
+  };
+}
+
+export async function notificationHarness(
+  options: { readonly emailChannel?: (now: () => Date) => FakeChannel<EmailRequest> } = {},
+) {
   const testDb = await createTestDatabase();
   await seedTwoTenants(testDb.ownerUrl);
   const ids = systemUuidV7();
   const db = createDatabase({ url: testDb.appUrl, ids });
   const owner = postgres(testDb.ownerUrl, { max: 1, onnotice: () => undefined });
   let current = NOW;
-  let suppressed = false;
+  const tracker = suppressionTracker();
   const clock = { now: () => new Date(current) };
   const channel = new FakeChannel(clock.now);
-  const emailChannel = new FakeChannel<EmailRequest>(clock.now);
-  const registry = testRegistry();
+  const emailChannel =
+    options.emailChannel?.(clock.now) ?? new FakeChannel<EmailRequest>(clock.now);
   const module = createNotificationModule({
     database: db,
     ids,
     clock,
     channel,
-    registry,
+    registry: testRegistry(),
     production: false,
-    ...testEmailOptions(emailChannel, () => suppressed),
-    suppression: () => ({ isSuppressed: async () => suppressed }),
+    ...testEmailOptions(emailChannel, tracker.isSuppressed),
+    suppression: () => ({ isSuppressed: async () => tracker.isGlobalSuppressed() }),
     configuration: {
       mode: 'fake',
       hashKey: 'test-key-not-a-secret'.repeat(3),
@@ -62,19 +87,19 @@ export async function notificationHarness() {
   const deliver = createDeliverer(db, [module.consumer], logger, {
     knownEventTypes: module.eventTypes,
   });
-  const queries = testQueries(db, owner);
   return {
     db,
+    owner,
     testDb,
     module,
     channel,
     emailChannel,
     clock,
     deliver,
-    ...queries,
-    suppress: () => {
-      suppressed = true;
-    },
+    ...testQueries(db, owner),
+    suppress: tracker.suppress,
+    suppressHash: tracker.suppressHash,
+    clearSuppressions: tracker.clearSuppressions,
     advance: (at: Date) => {
       current = at;
     },
@@ -89,11 +114,15 @@ export async function notificationHarness() {
 
 export function testEmailOptions(
   channel: FakeChannel<EmailRequest>,
-  suppressed: () => boolean = () => false,
+  suppressed: (hash?: Uint8Array) => boolean = () => false,
 ) {
   return {
     emailConfiguration: readEmailConfiguration(EMAIL_ENV),
-    emailTesting: { channel, suppression: () => ({ isSuppressed: async () => suppressed() }) },
+    emailEnvelopeKey: EMAIL_ENV.ONBOARDING_EMAIL_ENVELOPE_KEY,
+    emailTesting: {
+      channel,
+      suppression: () => ({ isSuppressed: async (hash: Uint8Array) => suppressed(hash) }),
+    },
   };
 }
 
@@ -142,7 +171,11 @@ function testQueries(db: Database, owner: postgres.Sql) {
 }
 
 function testRequester(db: Database, ids: ReturnType<typeof systemUuidV7>) {
-  return async (recipient: Record<string, unknown> = {}, company: string = TENANT.A.company) => {
+  return async (
+    recipient: Record<string, unknown> = {},
+    company: string = TENANT.A.company,
+    eventType = 'AppointmentBooked',
+  ) => {
     const id = ids.newId();
     const payload = {
       notification_recipients: [
@@ -163,7 +196,7 @@ function testRequester(db: Database, ids: ReturnType<typeof systemUuidV7>) {
       appendOutboxEvent(tx, id, {
         aggregateType: 'test',
         aggregateId: id,
-        eventType: 'AppointmentBooked',
+        eventType,
         payload,
       }),
     );
@@ -172,7 +205,7 @@ function testRequester(db: Database, ids: ReturnType<typeof systemUuidV7>) {
       companyId: company,
       aggregateType: 'test',
       aggregateId: id,
-      eventType: 'AppointmentBooked',
+      eventType,
       payload,
       attempt: 1,
     };
