@@ -83,8 +83,10 @@ export type EmailFeedbackRoute =
  * @returns المسار
  */
 export function emailFeedbackRoute(tags: EmailRetrievedTags): EmailFeedbackRoute {
-  if (tags.authChallengeId !== null) return { kind: 'auth', challengeId: tags.authChallengeId };
-  if (tags.companyId !== null) return { kind: 'tenant', companyId: tags.companyId };
+  if (tags.authChallengeId !== null && tags.authChallengeId !== undefined)
+    return { kind: 'auth', challengeId: tags.authChallengeId };
+  if (tags.companyId !== null && tags.companyId !== undefined)
+    return { kind: 'tenant', companyId: tags.companyId };
   return { kind: 'invalid' };
 }
 

@@ -83,37 +83,15 @@ export function createOtpDelivery(input: OtpDeliveryInput): OtpDelivery {
   const staffConfiguration = () =>
     readStaffOtpConfiguration(input.env, 'worker', readOtpTemplateApproval(input.env));
   const emailConfiguration = () => readEmailOtpConfiguration(input.env);
-  const state: DeliveryState = { inbound: undefined, auth: undefined };
-  const probeCore = async () => {
-    await state.auth?.readiness();
-    await input.redis.ping();
-  };
-  const whatsapp = channelCapability({
-    name: 'STAFF_LOGIN',
-    logger: input.logger,
-    configured: () =>
-      state.inbound !== undefined && staffConfiguration().state === 'READY' && !input.stopping(),
-    probe: async () => {
-      await state.inbound?.ready();
-      await probeCore();
-    },
-  });
-  const email = channelCapability({
-    name: 'EMAIL_OTP',
-    logger: input.logger,
-    configured: () =>
-      readEmailConfiguration(input.env).enabled &&
-      emailConfiguration().state === 'READY' &&
-      !input.stopping(),
-    probe: probeCore,
-  });
+  const state: DeliveryState = { inbound: undefined, auth: undefined, abandoned: false };
+  const channels = deliveryChannels(input, state, staffConfiguration, emailConfiguration);
   const openAuth = () =>
     (state.auth ??= createStaffOtpExecution({
       databaseUrl: input.env['AUTH_DATABASE_URL'] ?? '',
       configuration: staffConfiguration,
       emailConfiguration,
-      capability: whatsapp,
-      emailCapability: email,
+      capability: channels.whatsapp,
+      emailCapability: channels.email,
       strategies: otpStrategies(input.env),
     }));
   return {
@@ -122,21 +100,56 @@ export function createOtpDelivery(input: OtpDeliveryInput): OtpDelivery {
       return state.auth;
     },
     start: async (received: Inbound | undefined) => {
+      state.abandoned = false;
       state.inbound = received;
       const whatsappUsable = received !== undefined && staffConfiguration().state === 'READY';
       const emailUsable =
         readEmailConfiguration(input.env).enabled && emailConfiguration().state === 'READY';
-      if (!whatsappUsable && !emailUsable) return startOtpDelivery(input, undefined);
-      return startOtpDelivery(input, {
+      if (!whatsappUsable && !emailUsable) return startOtpDelivery(input, state, undefined);
+      return startOtpDelivery(input, state, {
         staffConfiguration,
         emailConfiguration,
         whatsappUsable,
         emailUsable,
-        whatsapp,
-        email,
+        ...channels,
         auth: openAuth(),
       });
     },
+  };
+}
+
+/** قنوات الجاهزية: الواتساب والإيميل، كل واحدة لها فحصها وإعدادها المستقل. */
+function deliveryChannels(
+  input: OtpDeliveryInput,
+  state: DeliveryState,
+  staffConfiguration: () => OtpConfiguration,
+  emailConfiguration: () => EmailOtpConfiguration,
+): { whatsapp: OtpWorkerCapability; email: OtpWorkerCapability } {
+  const active = () => !state.abandoned && !input.stopping();
+  const probeCore = async () => {
+    await state.auth?.readiness();
+    await input.redis.ping();
+  };
+  return {
+    whatsapp: channelCapability({
+      name: 'STAFF_LOGIN',
+      logger: input.logger,
+      configured: () =>
+        active() && state.inbound !== undefined && staffConfiguration().state === 'READY',
+      probe: async () => {
+        await state.inbound?.ready();
+        await probeCore();
+      },
+    }),
+    email: channelCapability({
+      name: 'EMAIL_OTP',
+      logger: input.logger,
+      configured: () =>
+        active() &&
+        readEmailConfiguration(input.env).enabled &&
+        emailConfiguration().state === 'READY',
+      probe: probeCore,
+    }),
   };
 }
 
@@ -144,6 +157,7 @@ export function createOtpDelivery(input: OtpDeliveryInput): OtpDelivery {
 interface DeliveryState {
   inbound: Inbound | undefined;
   auth: StaffOtpExecution | undefined;
+  abandoned: boolean;
 }
 
 /**
@@ -224,6 +238,7 @@ interface OtpDeliveryPlan {
  */
 async function startOtpDelivery(
   input: OtpDeliveryInput,
+  state: DeliveryState,
   plan: OtpDeliveryPlan | undefined,
 ): Promise<OtpDeliveryState> {
   const started: OtpDeliveryState = { otp: undefined, timer: undefined };
@@ -237,7 +252,7 @@ async function startOtpDelivery(
   try {
     await openOtpDelivery(input, plan, started);
   } catch {
-    await abandonOtpDelivery(started, input.logger);
+    await abandonOtpDelivery(started, state, input.logger);
   }
   input.logger.info(
     {
@@ -281,6 +296,7 @@ async function openOtpDelivery(
     },
   });
   started.otp = otp;
+  await optionalWithin(() => plan.auth.readiness());
   await optionalWithin(() => otp.ready());
   const publish = publishCapability(input.redis, [
     {
@@ -324,6 +340,10 @@ function channelCapability(input: {
   return {
     available: () => report(healthy && input.configured()),
     ready: async () => {
+      if (!input.configured()) {
+        healthy = false;
+        return report(false);
+      }
       try {
         await optionalWithin(() => input.probe());
         healthy = true;
@@ -372,14 +392,21 @@ function watchCapability(publish: () => Promise<boolean>, logger: Logger) {
 }
 
 /** بيتقفل العامل ساعة التوقف: مفيش تنفيذ باقى شغال. */
-async function abandonOtpDelivery(started: OtpDeliveryState, logger: Logger): Promise<void> {
+async function abandonOtpDelivery(
+  started: OtpDeliveryState,
+  state: DeliveryState,
+  logger: Logger,
+): Promise<void> {
   logger.warn(
     { capability: { name: 'STAFF_LOGIN', state: 'UNAVAILABLE', reason: 'SETUP_FAILED' } },
     'staff OTP capability',
   );
   clearInterval(started.timer);
+  state.abandoned = true;
   const failedWorker = started.otp;
+  const failedAuth = state.auth;
   started.otp = undefined;
   started.timer = undefined;
-  await closeOptional([() => failedWorker?.close(true)]);
+  state.auth = undefined;
+  await closeOptional([() => failedWorker?.close(true), () => failedAuth?.close()]);
 }

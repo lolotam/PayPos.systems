@@ -79,27 +79,26 @@ redis.on('error', (error: unknown) => logger.warn({ err: error }, 'redis connect
 
 // ADR-0019: استقبال STOP وin-app مستقلان؛ تفعيل OTP لا يفتح إرسال الشركات.
 const production = process.env['NODE_ENV'] === 'production';
+const clock = { now: () => new Date() };
 const files = startFilesWorker(app, systemUuidV7(), config.REDIS_URL, process.env);
 const previews = startPackagePreviewWorker(
   app,
   files.readImportBytes,
   config.REDIS_URL,
-  {
-    now: () => new Date(),
-  },
+  clock,
   undefined,
   retryDelayMs,
 );
 const sales = startPackageSaleWorker(app, systemUuidV7(), {
   redisUrl: config.REDIS_URL,
-  clock: { now: () => new Date() },
+  clock,
   transactionTimeoutMs: config.PACKAGE_SALE_TRANSACTION_TIMEOUT_MS,
   retryDelayMs,
 });
 // المستهلك مسجّل قبل المنتج (47-2d)؛ لا شيء يصدر PackageImportCommitRequested بعد في الإنتاج.
 const imports = startPackageImportCommitWorker(app, systemUuidV7(), {
   redisUrl: config.REDIS_URL,
-  clock: { now: () => new Date() },
+  clock,
   transactionTimeoutMs: config.PACKAGE_IMPORT_COMMIT_TRANSACTION_TIMEOUT_MS,
   retryDelayMs,
 });
@@ -107,19 +106,17 @@ const staff = startStaffWorker(
   app,
   systemUuidV7(),
   config.REDIS_URL,
-  { now: () => new Date() },
+  clock,
   undefined,
   retryDelayMs,
 );
 // عامل تثبيت استيراد العملاء: حدث الطلب من الـ outbox إلى الطابور ثم تثبيت ذري (073 D-4).
 const customerImports = startCustomersImportWorker(app, systemUuidV7(), {
   redisUrl: config.REDIS_URL,
-  clock: { now: () => new Date() },
+  clock,
 });
 // قفل وفتح التصنيفات الكبيرة عملية خلفية واحدة لكل طلب؛ العامل نايم لحد ما يجي المنتج.
-const catalog = startCatalogWorker(app, systemUuidV7(), config.REDIS_URL, {
-  now: () => new Date(),
-});
+const catalog = startCatalogWorker(app, systemUuidV7(), config.REDIS_URL, clock);
 // ADR-0019: قدر الاعتماد محجوز وبيملكه الجذر؛ مصالحة ردّ المزود بتاخد منه نفس واجهة الهوية.
 const otpDelivery = createOtpDelivery({
   env: process.env,
@@ -133,7 +130,7 @@ const email = await startEmailCapability({
   production,
   logger,
   ids: systemUuidV7(),
-  clock: { now: () => new Date() },
+  clock,
   appDatabase: app,
   redisUrl: config.REDIS_URL,
   authReconciler: otpDelivery.reconciler,
@@ -144,7 +141,7 @@ const push = await startPushCapability({
   env: process.env,
   production,
   logger,
-  clock: { now: () => new Date() },
+  clock,
   ids: systemUuidV7(),
   database: app,
   redisUrl: config.REDIS_URL,
@@ -156,7 +153,7 @@ if (!production) {
     notifications = createNotificationModule({
       database: app,
       ids: systemUuidV7(),
-      clock: { now: () => new Date() },
+      clock,
       configuration: readNotificationConfiguration(process.env),
       production,
       email: email.module,
@@ -178,7 +175,7 @@ const inApp =
     ? createInAppNotificationModule({
         database: app,
         ids: systemUuidV7(),
-        clock: { now: () => new Date() },
+        clock,
         email: email.module,
         push: { enabled: push.enabled },
       })
@@ -194,18 +191,13 @@ const emailSend =
     ? createEmailSendModule({
         database: app,
         ids: systemUuidV7(),
-        clock: { now: () => new Date() },
+        clock,
         email: email.module,
         redis,
       })
     : undefined;
-let globalDatabase: OptionalCapabilities['database'];
-let inbound: OptionalCapabilities['inbound'];
-let otp: OptionalCapabilities['otp'];
-let otpAuth: OptionalCapabilities['auth'];
-let capabilityTimer: OptionalCapabilities['timer'];
+let optional: OptionalCapabilities | undefined;
 let stopping = false;
-let maintenance: OptionalCapabilities['maintenance'];
 const businessDeliver = createDeliverer(
   app,
   [
@@ -214,7 +206,7 @@ const businessDeliver = createDeliverer(
       notifications: notifications?.consumer ?? null,
       inApp: inApp?.consumer ?? null,
       newIds: systemUuidV7,
-      clock: { now: () => new Date() },
+      clock,
       daySessions: daySessionsReader,
       commissions: {
         businessTimeZone,
@@ -238,10 +230,11 @@ const businessDeliver = createDeliverer(
     ),
   },
 );
-let queue: OptionalCapabilities['queue'];
 let documents: DocumentRendering | undefined;
 // حدث إذن الدفع بيروح للطابور بس لما الدفع جاهز؛ ولو مش جاهز التسليم يرجع زي ما هو.
-const pushTransport = push.transport((claimed) => (queue?.deliver ?? businessDeliver)(claimed));
+const pushTransport = push.transport((claimed) =>
+  (optional?.queue?.deliver ?? businessDeliver)(claimed),
+);
 // تصميم 7: المجدول الحيّ ما بيشتغلش من الإقلاع، فالتركيب بيسجّل المسجّل المغلق بس.
 const ratingClaims = closedRatingClaimsLifecycle();
 const deliver: typeof businessDeliver = (event) =>
@@ -266,7 +259,7 @@ const deliver: typeof businessDeliver = (event) =>
 const parkAlert = createParkedCommissionAlert({
   database: app,
   ids: systemUuidV7(),
-  clock: { now: () => new Date() },
+  clock,
   owners: companyOwners,
 });
 // المسح الدوري هو المصدر الوحيد لتنبيه المالك عن حدث عمولة وقف (ADR-0012 §3): الـdispatcher
@@ -295,7 +288,7 @@ const loop = createDispatchLoop({
 
 const release = async (): Promise<void> => {
   stopping = true;
-  clearInterval(capabilityTimer);
+  clearInterval(optional?.timer);
   commissionReminders.stop();
   // المسح يتوقف قبل إغلاق العمال حتى لا يسجّل جدولة على طابور مغلق.
   await packageRecovery.stop();
@@ -315,12 +308,12 @@ const release = async (): Promise<void> => {
   await optionalWithin(
     () =>
       Promise.allSettled([
-        inbound?.close(true),
-        otp?.close(true),
-        otpAuth?.close(),
-        maintenance?.close(),
-        globalDatabase?.close(true),
-        queue?.close(true),
+        optional?.inbound?.close(true),
+        optional?.otp?.close(true),
+        optional?.auth?.close(),
+        optional?.maintenance?.close(),
+        optional?.database?.close(true),
+        optional?.queue?.close(true),
         push.close(true),
         email.close(),
         dispatcher.close(),
@@ -361,7 +354,7 @@ function readinessChecks(): readonly ReadinessCheck[] {
 
 async function startWorkerCore(): Promise<void> {
   reportRatingTokenCapability(process.env, logger);
-  const started = await startOptionalCapabilities({
+  optional = await startOptionalCapabilities({
     env: process.env,
     logger,
     notifications,
@@ -373,28 +366,21 @@ async function startWorkerCore(): Promise<void> {
     redis,
     stopping: () => stopping,
   });
-  maintenance = started.maintenance;
-  queue = started.queue;
-  globalDatabase = started.database;
-  inbound = started.inbound;
-  otp = started.otp;
-  otpAuth = started.auth;
-  capabilityTimer = started.timer;
   const worker = await createWorker(
     {
       readiness: readinessChecks(),
       stopPolling: async () => {
         stopping = true;
-        maintenance?.stop();
+        optional?.maintenance?.stop();
         await closeOptional([() => email.stop(), () => push.stop()]);
         await drainDispatchAndDocuments({
           stopDispatch: () => loop.stop(),
           stopDocuments: () => documents?.stop(),
-          stopQueue: () => queue?.stop(),
-          stopInbound: () => inbound?.stop(),
+          stopQueue: () => optional?.queue?.stop(),
+          stopInbound: () => optional?.inbound?.stop(),
         });
-        clearInterval(capabilityTimer);
-        await closeOptional([() => otp?.stop()]);
+        clearInterval(optional?.timer);
+        await closeOptional([() => optional?.otp?.stop()]);
       },
       release,
     },
@@ -416,7 +402,7 @@ try {
         createAttendanceStatementSource({
           readStatement: createAttendanceStatementReader(app),
           readLogo: files.readStatementLogo,
-          clock: { now: () => new Date() },
+          clock,
         }),
       );
       registry.register(
