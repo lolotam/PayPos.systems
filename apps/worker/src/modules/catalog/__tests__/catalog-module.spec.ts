@@ -80,19 +80,21 @@ it('closes every processor, waits for siblings to settle, and reports the first 
   const closing = catalog.close().then(
     () => {
       settled = true;
+      return { ok: true as const };
     },
-    (err: unknown) => {
+    (reason: unknown) => {
       settled = true;
-      throw err;
+      return { ok: false as const, reason };
     },
   );
-  await Promise.resolve();
-  await Promise.resolve();
+  await new Promise<void>((resolve) => setImmediate(resolve));
   expect(settled).toBe(false);
 
   expect(releaseImportClose).toBeDefined();
   releaseImportClose?.();
-  await expect(closing).rejects.toBe(failure);
+  const outcome = await closing;
+  expect(outcome.ok).toBe(false);
+  if (!outcome.ok) expect(outcome.reason).toBe(failure);
   expect(importWorker?.close).toHaveBeenCalledTimes(1);
   expect(recoveryWorker?.close).toHaveBeenCalledTimes(1);
 });
