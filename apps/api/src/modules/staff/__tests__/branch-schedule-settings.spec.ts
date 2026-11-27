@@ -9,6 +9,7 @@ import {
   setWeek,
   type SchedulesFixture,
 } from './schedules.fixture.ts';
+import { claimPayload } from '../../../../test/device-claim.ts';
 
 let f: SchedulesFixture;
 let cookie: string;
@@ -324,7 +325,7 @@ it('MB-05: an approved device cannot set or clear branch settings', async () => 
     cookie,
     company: f.company,
   });
-  const claim = await f.h.app.inject({ method: 'POST', url: '/v1/devices/claim', payload: device });
+  const claim = await f.h.app.inject({ method: 'POST', url: '/v1/devices/claim', payload: claimPayload(device) });
   expect(claim.statusCode).toBe(200);
   const token = claim.json<{ device_token: string }>().device_token;
   for (const method of ['PUT', 'DELETE'] as const) {

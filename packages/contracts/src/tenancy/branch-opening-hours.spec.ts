@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
+import { buildOpenApiDocument } from '../openapi.js';
 import { setBranchOpeningHoursInput } from './branch.js';
 
 const day = (weekday: number, opens = '09:00', closes = '17:00') => ({
@@ -39,5 +40,15 @@ describe('setBranchOpeningHoursInput', () => {
     expect(
       setBranchOpeningHoursInput.safeParse({ opening_hours: [day(1, '9:00', '17:00')] }).success,
     ).toBe(false);
+  });
+
+  it('publishes SetBranchOpeningHoursInput.opening_hours as a nullable array without allOf in OpenAPI 3.0.3', () => {
+    const components = buildOpenApiDocument()['components'] as {
+      schemas: Record<string, { properties?: Record<string, Record<string, unknown>> }>;
+    };
+    const openingHoursProp =
+      components.schemas['SetBranchOpeningHoursInput']?.properties?.['opening_hours'];
+    expect(openingHoursProp).toMatchObject({ type: 'array', nullable: true });
+    expect(openingHoursProp).not.toHaveProperty('allOf');
   });
 });

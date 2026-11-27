@@ -2386,10 +2386,61 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** @description The branch devices whose status is PENDING, newest first, one page of at most a hundred. Requires manage:devices:branch at the branch. */
+        /** @description The branch devices of one status — PENDING (newest first) or ACTIVE — one page of at most a hundred. Requires manage:devices:branch at the branch. */
         get: operations["listPendingDevices"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/branches/{branchId}/devices/pairing-code": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @description A single-use pairing code for one branch, valid ten minutes. Issuing a code cancels the branch’s previous live code. */
+        post: operations["issuePairingCode"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/branches/{branchId}/devices/{deviceId}/approve": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @description The manager approves a pending device of their branch. */
+        post: operations["approveDevice"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/branches/{branchId}/devices/{deviceId}/revoke": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @description The manager refuses a pending device or removes an active one; the device loses its access at once. */
+        post: operations["revokeDevice"];
         delete?: never;
         options?: never;
         head?: never;
@@ -6245,7 +6296,7 @@ export interface components {
             /** @default 20 */
             limit: number;
             /** @enum {string} */
-            status: "pending";
+            status: "pending" | "active";
         };
         PendingDevicesResponse: {
             items: {
@@ -6254,6 +6305,9 @@ export interface components {
                 label: string;
                 /** Format: date-time */
                 created_at: string;
+                check_code: string | null;
+                /** Format: date-time */
+                last_seen_at: string | null;
             }[];
             next_cursor: string | null;
         };
@@ -10653,7 +10707,14 @@ export interface components {
             timezone?: components["schemas"]["TimeZone"];
         };
         SetBranchOpeningHoursInput: {
-            opening_hours: components["schemas"]["OpeningHours"] | null;
+            /** @description Each ISO weekday (1 = Monday … 7 = Sunday) appears at most once; a missing weekday is closed. closes < opens means the interval crosses midnight. Intervals must not overlap, including across midnight and from Sunday into Monday. Enforced by the API. */
+            opening_hours: {
+                weekday: number;
+                intervals: {
+                    opens: string;
+                    closes: string;
+                }[];
+            }[] | null;
         };
         PairingCode: {
             code: string;
@@ -10672,6 +10733,7 @@ export interface components {
             /** Format: uuid */
             device_id: string;
             claim_secret: string;
+            check_code: string;
         };
         ClaimDeviceInput: {
             /** Format: uuid */
@@ -19384,7 +19446,7 @@ export interface operations {
     listPendingDevices: {
         parameters: {
             query: {
-                status: "pending";
+                status: "pending" | "active";
                 cursor?: string;
                 limit?: number;
             };
@@ -19398,7 +19460,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description The branch devices waiting for approval */
+            /** @description The branch devices of the requested status */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -19407,7 +19469,7 @@ export interface operations {
                     "application/json": components["schemas"]["PendingDevicesResponse"];
                 };
             };
-            /** @description The status query is missing or not pending */
+            /** @description The status query is missing, or it is neither pending nor active */
             400: {
                 headers: {
                     [name: string]: unknown;
@@ -19418,6 +19480,148 @@ export interface operations {
             };
             /** @description The bilingual error envelope; a foreign branch and a missing permission share the same 403. */
             403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description The bilingual error envelope; a foreign branch and a missing permission share the same 403. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    issuePairingCode: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-company-id": string;
+            };
+            path: {
+                branchId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The pairing code and when it expires */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PairingCode"];
+                };
+            };
+            /** @description The bilingual error envelope; a foreign branch and a missing permission share the same 403. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description The bilingual error envelope; a foreign branch and a missing permission share the same 403. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    approveDevice: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-company-id": string;
+            };
+            path: {
+                branchId: string;
+                deviceId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The device is active */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description The bilingual error envelope; a foreign branch and a missing permission share the same 403. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description The bilingual error envelope; a foreign branch and a missing permission share the same 403. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description The bilingual error envelope; a foreign branch and a missing permission share the same 403. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    revokeDevice: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-company-id": string;
+            };
+            path: {
+                branchId: string;
+                deviceId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The device is revoked */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description The bilingual error envelope; a foreign branch and a missing permission share the same 403. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description The bilingual error envelope; a foreign branch and a missing permission share the same 403. */
+            404: {
                 headers: {
                     [name: string]: unknown;
                 };

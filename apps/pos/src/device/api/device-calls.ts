@@ -17,6 +17,7 @@ interface Registered {
   company_id: string;
   device_id: string;
   claim_secret: string;
+  check_code: string;
 }
 
 export async function readDeviceMe(): Promise<MeResult> {

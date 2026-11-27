@@ -12,6 +12,7 @@ import {
   identityCapabilityBusinessStatement,
   readIdentityCapability,
 } from '../queries/identity-capability.query.ts';
+import { claimPayload } from '../../../../test/device-claim.ts';
 
 let f: PermissionFixture;
 let deniedBody = '';
@@ -107,7 +108,7 @@ it('reports the same false body for a device principal', async () => {
   const claimed = await f.h.app.inject({
     method: 'POST',
     url: '/v1/devices/claim',
-    payload: device,
+    payload: claimPayload(device),
   });
   expect(claimed.statusCode).toBe(200);
   const token = claimed.json<{ device_token: string }>().device_token;

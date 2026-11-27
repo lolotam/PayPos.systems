@@ -64,15 +64,53 @@ function Notices({
   );
 }
 
+function EditorActions({
+  canSave,
+  saving,
+  hasStored,
+  onSaveDraft,
+  onClear,
+}: {
+  canSave: boolean;
+  saving: boolean;
+  hasStored: boolean;
+  onSaveDraft: () => void;
+  onClear: () => void;
+}) {
+  const locale = useLocale();
+  return (
+    <div className="flex flex-wrap gap-2">
+      <Button type="button" disabled={!canSave} onClick={onSaveDraft}>
+        {t(locale, saving ? 'branchHours.saving' : 'branchHours.save')}
+      </Button>
+      {hasStored ? (
+        <Button type="button" variant="outline" disabled={saving} onClick={onClear}>
+          {t(locale, 'branchHours.clear')}
+        </Button>
+      ) : null}
+    </div>
+  );
+}
+
 /** محرر مواعيد الفرع: المسودة محلية، والحفظ بيبعت الأسبوع كامل، ومسح المواعيد بيبعت null. */
 export function HoursEditor({ branch, saving, failure, result, onSave }: EditorProps) {
   const locale = useLocale();
   const stored = branch.opening_hours;
   const baseline = draftFromHours(stored);
+  const [lastBaseline, setLastBaseline] = useState<HoursDraft>(baseline);
   const [draft, setDraft] = useState<HoursDraft>(baseline);
+  if (!draftEquals(baseline, lastBaseline)) {
+    setLastBaseline(baseline);
+    if (draftEquals(draft, lastBaseline)) setDraft(baseline);
+  }
   const problem = draftProblem(draft);
   const dirty = !draftEquals(draft, baseline);
   const canSave = !saving && problem === null && (dirty || stored === null);
+  const resetEmpty = () => {
+    const empty = draftFromHours(null);
+    setLastBaseline(empty);
+    setDraft(empty);
+  };
   return (
     <Card>
       <CardHeader>
@@ -90,6 +128,7 @@ export function HoursEditor({ branch, saving, failure, result, onSave }: EditorP
               key={weekday}
               weekday={weekday}
               intervals={draft[weekday] ?? []}
+              disabled={saving}
               onChange={(intervals) => setDraft({ ...draft, [weekday]: intervals })}
             />
           ))}
@@ -102,21 +141,13 @@ export function HoursEditor({ branch, saving, failure, result, onSave }: EditorP
           dirty={dirty}
           saving={saving}
         />
-        <div className="flex flex-wrap gap-2">
-          <Button type="button" disabled={!canSave} onClick={() => onSave(payloadFromDraft(draft))}>
-            {t(locale, saving ? 'branchHours.saving' : 'branchHours.save')}
-          </Button>
-          {stored !== null ? (
-            <Button
-              type="button"
-              variant="outline"
-              disabled={saving}
-              onClick={() => onSave(null, () => setDraft(draftFromHours(null)))}
-            >
-              {t(locale, 'branchHours.clear')}
-            </Button>
-          ) : null}
-        </div>
+        <EditorActions
+          canSave={canSave}
+          saving={saving}
+          hasStored={stored !== null}
+          onSaveDraft={() => onSave(payloadFromDraft(draft))}
+          onClear={() => onSave(null, resetEmpty)}
+        />
       </CardContent>
     </Card>
   );

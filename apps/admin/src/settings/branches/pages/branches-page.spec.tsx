@@ -38,11 +38,14 @@ function renderPage() {
   const client = new QueryClient({
     defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
   });
-  return render(
-    <QueryClientProvider client={client}>
-      <BranchesPage scope={scope} />
-    </QueryClientProvider>,
-  );
+  return {
+    client,
+    ...render(
+      <QueryClientProvider client={client}>
+        <BranchesPage scope={scope} />
+      </QueryClientProvider>,
+    ),
+  };
 }
 
 const checkbox = (day: string) =>
@@ -252,4 +255,37 @@ it('shows a load failure with a retry that reads the branch again', async () => 
   expect(alert.textContent).toContain(label('branchHours.loadFailed'));
   fireEvent.click(screen.getByRole('button', { name: label('branchHours.retry') }));
   expect(await screen.findByText('Main salon')).toBeTruthy();
+});
+
+it('updates an untouched draft when a background refetch returns fresher hours', async () => {
+  storedHours = [{ weekday: 1, intervals: [{ opens: '09:00', closes: '17:00' }] }];
+  const { client } = renderPage();
+  await screen.findByText('Main salon');
+  expect(checkbox('Monday').checked).toBe(true);
+  storedHours = [{ weekday: 2, intervals: [{ opens: '10:00', closes: '18:00' }] }];
+  await client.invalidateQueries();
+  await waitFor(() => expect(checkbox('Tuesday').checked).toBe(true));
+  expect(checkbox('Monday').checked).toBe(false);
+  expect(screen.queryByText(label('branchHours.dirtyNote'))).toBeNull();
+  expect(save().disabled).toBe(true);
+});
+
+it('disables day controls while a Clear request is in flight', async () => {
+  storedHours = [{ weekday: 1, intervals: [{ opens: '09:00', closes: '17:00' }] }];
+  let resolvePut!: (value: unknown) => void;
+  api.PUT.mockImplementationOnce(
+    () =>
+      new Promise((resolve) => {
+        resolvePut = resolve;
+      }),
+  );
+  renderPage();
+  await screen.findByText('Main salon');
+  fireEvent.click(screen.getByRole('button', { name: label('branchHours.clear') }));
+  await waitFor(() => expect(checkbox('Monday').disabled).toBe(true));
+  storedHours = null;
+  resolvePut(ok(branchBody()));
+  expect(await screen.findByText(label('branchHours.cleared'))).toBeTruthy();
+  expect(checkbox('Monday').checked).toBe(false);
+  expect(checkbox('Monday').disabled).toBe(false);
 });

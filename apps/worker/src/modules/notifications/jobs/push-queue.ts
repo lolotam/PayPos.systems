@@ -17,7 +17,7 @@ export const PUSH_SEND_QUEUE = 'push-send';
  * @returns دالة التسليم
  */
 export function createPushTransport(
-  queue: Pick<Queue, 'add'>,
+  queue: Pick<Queue, 'add' | 'getJob'>,
   next: (event: ClaimedEvent) => Promise<DeliveryOutcome>,
   logger: Logger,
 ): (event: ClaimedEvent) => Promise<DeliveryOutcome> {
@@ -28,14 +28,20 @@ export function createPushTransport(
       if (!parsed.success || parsed.data.company_id !== event.companyId)
         throw new TypeError('PUSH_JOB_INVALID');
       const data = parsed.data;
+      const jobId = `${data.company_id}-${data.attempt_id}`;
       // إعادة المحاولة آمنة: بعد الحيازة المحاولة مش بتتبعت تاني، والحيازة مقفولة على PENDING.
       await queue.add('send', data, {
-        jobId: `${data.company_id}-${data.attempt_id}`,
+        jobId,
         attempts: 3,
         backoff: { type: 'exponential', delay: 5_000 },
         removeOnComplete: { age: 86_400 },
         removeOnFail: { age: 604_800 },
       });
+      // BullMQ بيتجاهل add لنفس jobId لو المهمة القديمة فاشلة وسايباها؛ فحدث معاد من غير الفحص ده
+      // كان هيتأكد وهو ما اتعملوش. المهمة الفاشلة بتتعاد، وفشل إعادتها بيرجّع الحدث للمحاولة.
+      const existing = await queue.getJob(jobId);
+      if (existing !== undefined && (await existing.isFailed()))
+        await existing.retry('failed', { resetAttemptsMade: true });
       return { delivered: true };
     } catch (error) {
       const diagnostic = errorDiagnostic(error) as { type: string; code?: string };

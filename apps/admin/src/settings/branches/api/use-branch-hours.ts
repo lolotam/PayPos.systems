@@ -24,6 +24,10 @@ export function useSetBranchHours({ companyId, userId, businessId, branchId }: S
     mutationFn: (hours: OpeningHours | null) =>
       writeBranchOpeningHours(companyId, businessId, branchId, hours),
     // رد الكتابة هو الفرع المخزّن فعلاً، فبيحل محل المقروء من غير قراءة تانية.
-    onSuccess: (saved) => client.setQueryData(branchKey(companyId, userId, branchId), saved),
+    onSuccess: async (saved) => {
+      const key = branchKey(companyId, userId, branchId);
+      await client.cancelQueries({ queryKey: key, exact: true });
+      client.setQueryData(key, saved);
+    },
   });
 }

@@ -4,7 +4,7 @@ import { nameAr, nameEn } from '../bilingual/names.js';
 import { id } from '../scalars/id.js';
 import { timeZone } from '../reference/time-zone.js';
 import { timestamp } from '../scalars/timestamp.js';
-import { openingHours } from './opening-hours.js';
+import { nullableOpeningHours, openingHours } from './opening-hours.js';
 
 // العنوان نص حر بالعربي والإنجليزي (قرار Waleed 2026-09-23)، مش عنوان كويتي منظم.
 const address = z.string().trim().min(1).max(500);
@@ -52,7 +52,7 @@ export const createBranchInput = z
 
 // تعديل مواعيد عمل الفرع بعد إنشائه (PENDING-T3): القيمة كاملة بتستبدل المخزّنة، و null بيرجّع الفرع «من غير مواعيد».
 export const setBranchOpeningHoursInput = z
-  .strictObject({ opening_hours: openingHours.nullable() })
+  .strictObject({ opening_hours: nullableOpeningHours })
   .meta({ id: 'SetBranchOpeningHoursInput' });
 
 export type Branch = z.infer<typeof branch>;

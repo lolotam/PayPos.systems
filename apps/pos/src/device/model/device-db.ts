@@ -6,6 +6,8 @@ export interface DeviceCredentialRow {
   device_id: string;
   claim_secret: string | null;
   device_token: string | null;
+  /** كود المطابقة اللي المدير بيطابقه مع الشاشة دي (spec 071). */
+  check_code?: string | null;
 }
 
 // بيانات اعتماد الجهاز في IndexedDB لأن الـ PWA مالهاش httpOnly cookie للجهاز.

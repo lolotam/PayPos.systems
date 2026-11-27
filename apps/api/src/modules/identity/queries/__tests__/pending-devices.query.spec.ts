@@ -1,5 +1,6 @@
 import { pendingDevicesResponse, type PendingDevicesQuery } from '@pospay/contracts';
 import { createDatabase, type Database, type TenantWrappers, type Tx } from '@pospay/db';
+import { computeDeviceCheckCode } from '@pospay/domain';
 import { sql, type SQL } from 'drizzle-orm';
 import postgres from 'postgres';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
@@ -29,6 +30,7 @@ const PENDING_NEW = deviceId(2);
 const ACTIVE = deviceId(3);
 const REVOKED = deviceId(4);
 const OTHER_TENANT = deviceId(5);
+const ACTIVE_SEEN = deviceId(6);
 
 const plans: string[] = [];
 
@@ -74,6 +76,11 @@ async function seed(owner: postgres.Sql): Promise<void> {
     INSERT INTO devices (company_id, id, branch_id, label, status, created_at, approved_by, approved_at)
     VALUES (${A.company}, ${ACTIVE}, ${A.branch}, 'Active till', 'ACTIVE',
             '2026-03-01T00:00:00Z'::timestamptz, ${APPROVER}, '2026-03-01T00:00:00Z'::timestamptz)`;
+  await owner`
+    INSERT INTO devices (company_id, id, branch_id, label, status, created_at, approved_by, approved_at, last_seen_at)
+    VALUES (${A.company}, ${ACTIVE_SEEN}, ${A.branch}, 'Seen till', 'ACTIVE',
+            '2026-03-01T12:00:00Z'::timestamptz, ${APPROVER}, '2026-03-01T00:00:00Z'::timestamptz,
+            '2026-03-02T09:30:00Z'::timestamptz)`;
   await owner`
     INSERT INTO devices (company_id, id, branch_id, label, status, created_at, revoked_by, revoked_at)
     VALUES (${A.company}, ${REVOKED}, ${A.branch}, 'Revoked till', 'REVOKED',
@@ -124,16 +131,30 @@ afterAll(async () => {
 });
 
 describe('listPendingDevices — rows and isolation', () => {
-  it('returns the branch pending devices newest first, with nothing but id, label and created_at', async () => {
+  it('returns the branch pending devices newest first, with the check code and nothing else', async () => {
     const body = pendingDevicesResponse.parse(await pending(A.company, A.branch, firstPage));
     expect(body.items.map((device) => device.id)).toEqual([PENDING_NEW, PENDING_OLD]);
     expect(body.items[0]).toEqual({
       id: PENDING_NEW,
       label: 'New till',
       created_at: '2026-02-01T00:00:00.000000Z',
+      check_code: computeDeviceCheckCode(PENDING_NEW),
+      last_seen_at: null,
     });
-    expect(Object.keys(body.items[0] ?? {}).sort()).toEqual(['created_at', 'id', 'label']);
+    expect(Object.keys(body.items[0] ?? {}).sort()).toEqual([
+      'check_code',
+      'created_at',
+      'id',
+      'label',
+      'last_seen_at',
+    ]);
     expect(body.next_cursor).toBeNull();
+  });
+
+  it('gives every pending device its own check code', async () => {
+    const body = await pending(A.company, A.branch, firstPage);
+    const codes = body.items.map((device) => device.check_code);
+    expect(new Set(codes).size).toBe(codes.length);
   });
 
   it('leaves the active and the revoked device out, and shows another tenant nothing', async () => {
@@ -154,9 +175,69 @@ describe('listPendingDevices — rows and isolation', () => {
     expect(ids).toContain(PENDING_NEW);
     expect(ids).not.toContain(OTHER_TENANT);
   });
+
+  it('RLS hides the other company’s pending and active devices from both statuses', async () => {
+    const ids = await inTenant(B.company, async (tx) => {
+      const rows = await tx.execute<DeviceIdRow>(sql`SELECT id FROM devices`);
+      return Array.from(rows).map((row) => row.id);
+    });
+    expect(ids).toContain(OTHER_TENANT);
+    expect(ids).not.toContain(PENDING_NEW);
+    expect(ids).not.toContain(PENDING_OLD);
+    expect(ids).not.toContain(ACTIVE);
+    expect(ids).not.toContain(ACTIVE_SEEN);
+    expect((await pending(B.company, A.branch, firstPage)).items).toEqual([]);
+    expect(
+      (await pending(B.company, A.branch, { status: 'active', limit: 20 })).items,
+    ).toEqual([]);
+  });
 });
 
-describe('listPendingDevices — paging and plan', () => {
+describe('listPendingDevices — the active devices', () => {
+  const activePage: PendingDevicesQuery = { status: 'active', limit: 20 };
+
+  it('returns the active devices with the last contact and no check code', async () => {
+    const body = pendingDevicesResponse.parse(await pending(A.company, A.branch, activePage));
+    expect(body.items.map((device) => device.id)).toEqual([ACTIVE_SEEN, ACTIVE]);
+    expect(body.items[0]).toEqual({
+      id: ACTIVE_SEEN,
+      label: 'Seen till',
+      created_at: '2026-03-01T12:00:00.000000Z',
+      check_code: null,
+      last_seen_at: '2026-03-02T09:30:00.000000Z',
+    });
+    expect(body.items[1]?.last_seen_at).toBeNull();
+    expect(body.next_cursor).toBeNull();
+  });
+
+  it('shows another tenant nothing, and hides its active devices from this company', async () => {
+    expect(await pending(B.company, A.branch, activePage)).toEqual({ items: [], next_cursor: null });
+    expect(await pending(A.company, B.branch, activePage)).toEqual({ items: [], next_cursor: null });
+  });
+
+  it('refuses a cursor made for the other status', async () => {
+    const page = await pending(A.company, A.branch, { status: 'pending', limit: 1 });
+    expect(page.next_cursor).not.toBeNull();
+    await expect(
+      pending(A.company, A.branch, {
+        status: 'active',
+        limit: 20,
+        cursor: page.next_cursor ?? '',
+      }),
+    ).rejects.toThrow(PendingDevicesCursorError);
+  });
+
+  it('EXPLAIN ANALYZE looks the devices up by index and never scans them sequentially', async () => {
+    plans.length = 0;
+    await explaining(db).withTenant(A.company, (tx) =>
+      listPendingDevices(tx, A.company, A.branch, activePage),
+    );
+    const plan = plans.find((entry) => entry.includes('devices')) ?? '';
+    expect(plan).toMatch(/devices_(company_id_branch_id_idx|company_branch_id_key)/);
+    expect(plan).not.toContain('Seq Scan');
+  });
+});
+describe('listPendingDevices — paging', () => {
   it('pages through every pending device with a cursor, each one exactly once', async () => {
     const ids: string[] = [];
     const cursors: (string | null)[] = [];
@@ -180,11 +261,37 @@ describe('listPendingDevices — paging and plan', () => {
     expect(cursors.at(-1)).toBeNull();
   });
 
+  it('keeps the check code of every device the same on every page', async () => {
+    const first = await pending(A.company, CAP_BRANCH, { status: 'pending', limit: 50 });
+    const second = await pending(A.company, CAP_BRANCH, {
+      status: 'pending',
+      limit: 50,
+      cursor: first.next_cursor ?? '',
+    });
+    for (const item of second.items) {
+      expect(item.check_code).toBe(computeDeviceCheckCode(item.id));
+    }
+  });
+});
+
+describe('listPendingDevices — cursors and plan', () => {
   it('refuses a cursor made for another branch', async () => {
     const page = await pending(A.company, CAP_BRANCH, { status: 'pending', limit: 1 });
     expect(page.next_cursor).not.toBeNull();
     await expect(
       pending(A.company, A.branch, {
+        status: 'pending',
+        limit: 20,
+        cursor: page.next_cursor ?? '',
+      }),
+    ).rejects.toThrow(PendingDevicesCursorError);
+  });
+
+  it('refuses a cursor made for another company', async () => {
+    const page = await pending(A.company, A.branch, { status: 'pending', limit: 1 });
+    expect(page.next_cursor).not.toBeNull();
+    await expect(
+      pending(B.company, A.branch, {
         status: 'pending',
         limit: 20,
         cursor: page.next_cursor ?? '',

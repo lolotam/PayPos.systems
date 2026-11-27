@@ -46,12 +46,27 @@ function testWithoutToken(): void {
       device_id: 'd1',
       claim_secret: 'test-secret',
       device_token: null,
+      check_code: 'K7QP',
+    });
+
+    const state = await bootDevice(queryClient);
+
+    expect(state).toEqual({ kind: 'waiting', checkCode: 'K7QP' });
+    expect(mockGet).not.toHaveBeenCalled();
+  });
+
+  it('returns waiting screen without a check code when the registration has none', async () => {
+    mockCredentials.get.mockResolvedValue({
+      id: 'current',
+      company_id: 'c1',
+      device_id: '01920000-0000-7000-8000-000000000001',
+      claim_secret: 'test-secret',
+      device_token: null,
     });
 
     const state = await bootDevice(queryClient);
 
     expect(state).toEqual({ kind: 'waiting' });
-    expect(mockGet).not.toHaveBeenCalled();
   });
 }
 

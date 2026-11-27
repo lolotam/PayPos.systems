@@ -13,6 +13,7 @@ import {
 interface DayRowProps {
   readonly weekday: number;
   readonly intervals: readonly IntervalDraft[];
+  readonly disabled?: boolean | undefined;
   readonly onChange: (intervals: readonly IntervalDraft[]) => void;
 }
 
@@ -20,12 +21,14 @@ function IntervalRow({
   day,
   index,
   interval,
+  disabled,
   onChange,
   onRemove,
 }: {
   day: string;
   index: number;
   interval: IntervalDraft;
+  disabled: boolean;
   onChange: (change: Partial<IntervalDraft>) => void;
   onRemove: () => void;
 }) {
@@ -37,6 +40,7 @@ function IntervalRow({
         <Input
           type="time"
           dir="ltr"
+          disabled={disabled}
           value={interval.opens}
           aria-label={`${day} ${t(locale, 'branchHours.opens')} ${index + 1}`}
           onChange={(event) => onChange({ opens: event.target.value })}
@@ -47,6 +51,7 @@ function IntervalRow({
         <Input
           type="time"
           dir="ltr"
+          disabled={disabled}
           value={interval.closes}
           aria-label={`${day} ${t(locale, 'branchHours.closes')} ${index + 1}`}
           onChange={(event) => onChange({ closes: event.target.value })}
@@ -56,6 +61,7 @@ function IntervalRow({
         type="button"
         size="sm"
         variant="ghost"
+        disabled={disabled}
         aria-label={`${day}: ${t(locale, 'branchHours.removeInterval')} ${index + 1}`}
         onClick={onRemove}
       >
@@ -66,7 +72,7 @@ function IntervalRow({
 }
 
 /** يوم واحد من الأسبوع: مفتوح أو قافل، ولما يكون مفتوح فترة أو أكتر بوقت فتح ووقت قفل. */
-export function HoursDayRow({ weekday, intervals, onChange }: DayRowProps) {
+export function HoursDayRow({ weekday, intervals, disabled = false, onChange }: DayRowProps) {
   const locale = useLocale();
   const day = t(locale, WEEKDAY_LABEL_KEYS[weekday] ?? 'branchHours.monday');
   const open = intervals.length > 0;
@@ -78,6 +84,7 @@ export function HoursDayRow({ weekday, intervals, onChange }: DayRowProps) {
         <input
           type="checkbox"
           className="size-5"
+          disabled={disabled}
           checked={open}
           aria-label={`${day}: ${t(locale, 'branchHours.open')}`}
           onChange={(event) => onChange(event.target.checked ? [DEFAULT_INTERVAL] : [])}
@@ -93,6 +100,7 @@ export function HoursDayRow({ weekday, intervals, onChange }: DayRowProps) {
           day={day}
           index={index}
           interval={interval}
+          disabled={disabled}
           onChange={(change) => setAt(index, change)}
           onRemove={() => onChange(intervals.filter((_, at) => at !== index))}
         />
@@ -103,6 +111,7 @@ export function HoursDayRow({ weekday, intervals, onChange }: DayRowProps) {
             type="button"
             size="sm"
             variant="outline"
+            disabled={disabled}
             aria-label={`${day}: ${t(locale, 'branchHours.addInterval')}`}
             onClick={() => onChange([...intervals, DEFAULT_INTERVAL])}
           >

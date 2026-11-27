@@ -1,6 +1,7 @@
 import { Body, Controller, Get, HttpCode, Inject, Param, Post, Req } from '@nestjs/common';
 import {
   claimDeviceInput,
+  id,
   registerDeviceInput,
   type ClaimDeviceInput,
   type DeviceRegistration,
@@ -77,7 +78,7 @@ export class DevicesController {
   @Post('branches/:branchId/devices/pairing-code')
   @Require('manage:devices:branch', { branch: 'branchId' })
   async pairingCode(
-    @Param('branchId') branchId: string,
+    @Param('branchId', new ZodValidationPipe(id)) branchId: string,
     @Req() request: FastifyRequest,
   ): Promise<PairingCode> {
     const issued = await this.#ready().issuePairingCode.execute({
@@ -105,6 +106,7 @@ export class DevicesController {
         company_id: registered.companyId,
         device_id: registered.deviceId,
         claim_secret: registered.claimSecret,
+        check_code: registered.checkCode,
       };
     } catch (error) {
       if (error instanceof PairingCodeInvalidError) throw new ApiError('PAIRING_CODE_INVALID');
@@ -135,7 +137,7 @@ export class DevicesController {
   @HttpCode(204)
   async approve(
     @Param('branchId') branchId: string,
-    @Param('deviceId') deviceId: string,
+    @Param('deviceId', new ZodValidationPipe(id)) deviceId: string,
     @Req() request: FastifyRequest,
   ): Promise<void> {
     try {
@@ -155,7 +157,7 @@ export class DevicesController {
   @HttpCode(204)
   async revoke(
     @Param('branchId') branchId: string,
-    @Param('deviceId') deviceId: string,
+    @Param('deviceId', new ZodValidationPipe(id)) deviceId: string,
     @Req() request: FastifyRequest,
   ): Promise<void> {
     try {
