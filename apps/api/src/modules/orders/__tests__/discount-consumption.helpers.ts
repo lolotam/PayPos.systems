@@ -42,9 +42,12 @@ export async function requestedProposal(
   f: DiscountRequestFixture,
   extra: { session_id?: string; occurred_at?: string } = { occurred_at: OCCURRED_AT },
 ): Promise<string> {
-  const body = requestDiscountApprovalResponse.parse(await f.request.execute({
-    ...f.context(), input: f.requestBody([draftLine(f)], extra),
-  }));
+  const body = requestDiscountApprovalResponse.parse(
+    await f.request.execute({
+      ...f.context(),
+      input: f.requestBody([draftLine(f)], extra),
+    }),
+  );
   return must(body.proposals[0]).id;
 }
 
@@ -71,14 +74,16 @@ export async function decideProposal(
 
 /** صف الطلب كما حُفظ، بكل حقول الحالة والاستهلاك. */
 export async function proposalRow(f: DiscountRequestFixture, id: string) {
-  const [row] = await f.h.owner`SELECT id,kind,status,session_id,expires_at,consumed_line_id,consumed_at,terms_hash
+  const [row] = await f.h
+    .owner`SELECT id,kind,status,session_id,expires_at,consumed_line_id,consumed_at,terms_hash
     FROM discount_proposals WHERE company_id=${f.company} AND id=${id}`;
   return row as Record<string, unknown> | undefined;
 }
 
 /** صف السطر كما حُفظ، بحدّ المسجّلة وبالموافقة التي استهلكها. */
 export async function lineRow(f: DiscountRequestFixture, lineId: string) {
-  const [row] = await f.h.owner`SELECT id,discount_proposal_id,limit_bps_applied,limit_source,net,revision
+  const [row] = await f.h
+    .owner`SELECT id,session_id,discount_proposal_id,limit_bps_applied,limit_source,net,revision
     FROM service_lines WHERE company_id=${f.company} AND id=${lineId}`;
   return row as Record<string, unknown> | undefined;
 }
@@ -101,15 +106,23 @@ export async function consumedAudits(f: DiscountRequestFixture, proposalId: stri
 }
 
 /** يزرع طلب موافقة في صفّ مباشر، لحالات لا يغطّيها مسار الطلب نفسه. */
-export async function seedProposal(f: DiscountRequestFixture, over: {
-  businessId?: string; branchId?: string; serviceId?: string; serviceName?: string; status?: 'PENDING' | 'APPROVED';
-} = {}): Promise<string> {
+export async function seedProposal(
+  f: DiscountRequestFixture,
+  over: {
+    businessId?: string;
+    branchId?: string;
+    serviceId?: string;
+    serviceName?: string;
+    status?: 'PENDING' | 'APPROVED';
+  } = {},
+): Promise<string> {
   const id = ids.newId();
   const businessId = over.businessId ?? f.business;
   const branchId = over.branchId ?? f.branch;
   const serviceId = over.serviceId ?? must(f.services[0]);
   const serviceName = over.serviceName ?? 'Synthetic service 0';
-  await f.h.owner`INSERT INTO discount_proposals(company_id,id,business_id,branch_id,request_id,input_index,kind,session_id,occurred_at,
+  await f.h
+    .owner`INSERT INTO discount_proposals(company_id,id,business_id,branch_id,request_id,input_index,kind,session_id,occurred_at,
     customer_id,service_id,service_name_en,service_name_ar,terms,terms_hash,effective_bps,requested_by,requested_by_membership_id,
     requester_limit_source,requester_limit_bps,requester_name_ar,requester_name_en,requester_role,requester_role_is_system,
     requester_role_name_ar,requester_role_name_en,requester_first_name_en,requester_first_name_ar,customer_first_name,requested_at,status,expires_at)
@@ -122,9 +135,14 @@ export async function seedProposal(f: DiscountRequestFixture, over: {
 }
 
 /** يزرع طلب تعديل فوق سطر محفوظ، فهو من نوع EDIT لا يقبله مسار التسجيل. */
-export async function seedEditProposal(f: DiscountRequestFixture, lineId: string, sessionId: string): Promise<string> {
+export async function seedEditProposal(
+  f: DiscountRequestFixture,
+  lineId: string,
+  sessionId: string,
+): Promise<string> {
   const id = ids.newId();
-  await f.h.owner`INSERT INTO discount_proposals(company_id,id,business_id,branch_id,request_id,input_index,kind,line_id,base_revision,
+  await f.h
+    .owner`INSERT INTO discount_proposals(company_id,id,business_id,branch_id,request_id,input_index,kind,line_id,base_revision,
     base_price,base_discount,base_net,session_id,occurred_at,customer_id,service_id,service_name_en,service_name_ar,terms,terms_hash,
     effective_bps,requested_by,requested_by_membership_id,requester_limit_source,requester_limit_bps,requester_name_ar,requester_name_en,
     requester_role,requester_role_is_system,requester_role_name_ar,requester_role_name_en,requester_first_name_en,requester_first_name_ar,

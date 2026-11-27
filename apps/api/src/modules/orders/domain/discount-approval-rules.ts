@@ -11,7 +11,8 @@ export type DiscountProposalStatus = 'PENDING' | 'APPROVED' | 'REJECTED' | 'CONS
 export type DiscountProposalState = DiscountProposalStatus | 'EXPIRED';
 
 /** سبب رفض السطر عند استهلاك الموافقة، نفس قيم مخطط `approval_refusal`. */
-export type ApprovalRefusal = 'NOT_FOUND' | 'NOT_APPROVED' | 'EXPIRED' | 'CONSUMED' | 'TERMS_MISMATCH';
+export type ApprovalRefusal =
+  'NOT_FOUND' | 'NOT_APPROVED' | 'EXPIRED' | 'CONSUMED' | 'TERMS_MISMATCH';
 
 /** رابط المنفّذة بالمستخدم: لقطة وقت الطلب والربط الحالي، وكلاهما قد يكون فارغاً. */
 export interface ProposalPerformerLink {
@@ -27,6 +28,10 @@ export interface ConsumableProposal {
   status: DiscountProposalStatus;
   expires_at: Date;
   terms_hash: string;
+  /** معرّف الجلسة المسجَّل على المقترح (`null` لمقترحات الزيارة الجديدة). */
+  readonly session_id?: string | null | undefined;
+  /** معرّف الجلسة التي أنشأها مقترح شقيق من نفس `request_id` بعد استهلاكه، أو `null` إن لم يُستهلك أي شقيق بعد. */
+  readonly bound_session_id?: string | null | undefined;
 }
 
 /** من يحاول استهلاك الموافقة: الفرع والمستخدم والعضوية التي طلبت بها. */
