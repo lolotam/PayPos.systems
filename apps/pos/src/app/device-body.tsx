@@ -9,7 +9,7 @@ import { WaitingScreen } from '@/device/ui/waiting-screen';
 
 import { LoadingNotice } from './loading-notice';
 
-/** الرجوع في كود الاقتران بس ومن غير طلب شغال؛ عدم الدعم ما بيثبتش إن الجهاز غير مقترن. */
+/** الرجوع بيظهر في كود الاقتران من غير طلب شغال، وفي شاشة عدم الدعم بس لما القراءة تأكد إن الجهاز مش مقترن. */
 export function DeviceBody({
   session,
   startOver,

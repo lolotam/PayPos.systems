@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 
 import {
   markLaunchLinkHandled,
@@ -9,6 +9,31 @@ import {
 import { readDeviceRole, readRememberedBusiness, type DeviceRole } from './device-role';
 import type { KnownShellState } from './link-rules';
 import { readManagerLink, type PersonalWorkspace } from './manager-link';
+
+async function readStartupShell() {
+  const [roleResult, businessResult, link] = await Promise.all([
+    Promise.resolve()
+      .then(() => readDeviceRole())
+      .then(
+        (value) => ({ status: 'fulfilled' as const, value }),
+        () => ({ status: 'rejected' as const }),
+      ),
+    Promise.resolve()
+      .then(() => readRememberedBusiness())
+      .then(
+        (value) => ({ status: 'fulfilled' as const, value }),
+        () => ({ status: 'rejected' as const }),
+      ),
+    readLaunchLink(),
+  ]);
+  return {
+    role: roleResult.status === 'fulfilled' ? roleResult.value : null,
+    business: businessResult.status === 'fulfilled' ? businessResult.value : null,
+    businessUnreadable: businessResult.status === 'rejected',
+    storageFailed: roleResult.status === 'rejected' || businessResult.status === 'rejected',
+    link,
+  };
+}
 
 /**
  * بيقرا حالة الجهاز أول ما التطبيق يفتح، وبيسمع للينكات اللي بتتفتح والتطبيق شغال.
@@ -30,30 +55,18 @@ export function useNativeLink(
   ) => void,
   onLink: (workspace: PersonalWorkspace | null, fallback?: KnownShellState) => Promise<boolean>,
 ): void {
+  // لو لينك دافي صالح وصل وقراءة التشغيل البارد لسه ما خلصتش، اللينك البارد المتأخر ما يغلبش الأحدث.
+  const supersededLaunch = useRef(false);
+
   useEffect(() => {
     let cancelled = false;
     const start = async () => {
-      const [roleResult, businessResult, link] = await Promise.all([
-        Promise.resolve()
-          .then(() => readDeviceRole())
-          .then(
-            (value) => ({ status: 'fulfilled' as const, value }),
-            () => ({ status: 'rejected' as const }),
-          ),
-        Promise.resolve()
-          .then(() => readRememberedBusiness())
-          .then(
-            (value) => ({ status: 'fulfilled' as const, value }),
-            () => ({ status: 'rejected' as const }),
-          ),
-        readLaunchLink(),
-      ]);
+      const { role, business, businessUnreadable, storageFailed, link } = await readStartupShell();
       if (cancelled) return;
-      const role = roleResult.status === 'fulfilled' ? roleResult.value : null;
-      const business = businessResult.status === 'fulfilled' ? businessResult.value : null;
-      const businessUnreadable = businessResult.status === 'rejected';
-      // تخزين غير مقروء زي أول تشغيل: اللي اتقري معروف، واللي فات معروف إنه فشل.
-      const storageFailed = roleResult.status === 'rejected' || businessUnreadable;
+      if (link !== null && supersededLaunch.current) {
+        markLaunchLinkHandled(link);
+        return;
+      }
       if (link === null) {
         onStart(role, business, storageFailed, businessUnreadable);
         return;
@@ -75,7 +88,9 @@ export function useNativeLink(
   useEffect(
     () =>
       onLinkOpened((raw) => {
-        void onLink(readManagerLink(raw));
+        const parsed = readManagerLink(raw);
+        if (parsed !== null) supersededLaunch.current = true;
+        void onLink(parsed);
       }),
     [onLink],
   );

@@ -38,6 +38,8 @@ export type NativeState =
       business: PersonalWorkspace | null;
       /** قراءة النشاط المتذكر فشلت: ما نعرفش النشاط ولا نمسح الجلسة الحية. */
       businessUnreadable?: boolean;
+      /** أول ربط على جهاز من غير نشاط متذكر: يمنع تبنّي جلسة قديمة لنفس النشاط قبل تسجيل دخول جديد. */
+      mustClearLeftoverSession?: boolean;
       pending?: PersonalWorkspace;
       alert?: FlowAlert;
     };
@@ -125,7 +127,7 @@ export async function stateAfterLink(
     // من غير نت مفيش حاجة تتحفظ: اللينك بيرفض زي باقي أول تشغيل (FR-012).
     if (!navigator.onLine) return { kind: 'start', business: null, alert: 'needsInternet' };
     await connectEmployee(workspace);
-    return { kind: 'flow', role: 'employee', business: workspace };
+    return { kind: 'flow', role: 'employee', business: workspace, mustClearLeftoverSession: true };
   }
   if (business === null) {
     // من غير نت مفيش حاجة تتحفظ: الموظفة ما بتتربطش بنشاط من غير نت (FR-012).
@@ -133,7 +135,7 @@ export async function stateAfterLink(
       return { kind: 'flow', role: 'employee', business: null, alert: 'needsInternet' };
     }
     await rememberBusiness(workspace);
-    return { kind: 'flow', role: 'employee', business: workspace };
+    return { kind: 'flow', role: 'employee', business: workspace, mustClearLeftoverSession: true };
   }
   const same =
     business.company_id === workspace.company_id && business.business_id === workspace.business_id;
@@ -160,7 +162,22 @@ export function stateAfterFailure(
   business: PersonalWorkspace | null,
   businessUnreadable?: boolean,
 ): NativeState {
-  if (current.kind === 'flow') return { ...current, alert: 'saveFailed' };
+  if (current.kind === 'flow') {
+    const nextBusiness =
+      businessUnreadable === true ? current.business : (business ?? current.business);
+    const stillUnreadable =
+      nextBusiness === null &&
+      (businessUnreadable === true ||
+        (businessUnreadable === undefined && current.businessUnreadable === true));
+    const rest = { ...current };
+    delete rest.businessUnreadable;
+    return {
+      ...rest,
+      business: nextBusiness,
+      ...(stillUnreadable ? { businessUnreadable: true } : {}),
+      alert: 'saveFailed',
+    };
+  }
   if (role === null) return { kind: 'start', business, alert: 'saveFailed' };
   return {
     kind: 'flow',
@@ -224,7 +241,21 @@ export async function resolveLink(
  * @returns حالة الشاشة بعد اللينك
  */
 export function stateFromLink(current: NativeState, outcome: LinkOutcome): NativeState {
-  if (outcome.kind === 'state') return outcome.state;
+  if (outcome.kind === 'state') {
+    if (
+      current.kind === 'flow' &&
+      current.mustClearLeftoverSession === true &&
+      outcome.state.kind === 'flow' &&
+      outcome.state.role === 'employee' &&
+      current.business !== null &&
+      outcome.state.business !== null &&
+      current.business.company_id === outcome.state.business.company_id &&
+      current.business.business_id === outcome.state.business.business_id
+    ) {
+      return { ...outcome.state, mustClearLeftoverSession: true };
+    }
+    return outcome.state;
+  }
   return stateAfterFailure(current, outcome.role, outcome.business, outcome.businessUnreadable);
 }
 

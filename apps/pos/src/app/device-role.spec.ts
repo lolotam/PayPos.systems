@@ -17,7 +17,38 @@ const state = vi.hoisted(() => ({
   versions: [] as { version: number; stores: Record<string, string> }[],
   databases: new Map<string, Map<string, Map<string, unknown>>>(),
   failing: new Set<string>(),
+  activeTransactionTables: null as Set<string> | null,
 }));
+
+function assertInTransactionScope(dbName: string, table: string): void {
+  if (
+    state.activeTransactionTables !== null &&
+    !state.activeTransactionTables.has(`${dbName}:${table}`)
+  ) {
+    throw new Error('SYNTHETIC_OUTSIDE_TRANSACTION_SCOPE');
+  }
+}
+
+function createTableHandle(dbName: string, table: string) {
+  return {
+    dbName,
+    tableName: table,
+    get: async (id: string) => {
+      assertInTransactionScope(dbName, table);
+      return storeRows(dbName, table).get(id);
+    },
+    put: async (row: { id: string }) => {
+      assertInTransactionScope(dbName, table);
+      if (state.failing.has(table)) throw new Error('SYNTHETIC_WRITE_FAILURE');
+      storeRows(dbName, table).set(row.id, row);
+      return row.id;
+    },
+    delete: async (id: string) => {
+      assertInTransactionScope(dbName, table);
+      storeRows(dbName, table).delete(id);
+    },
+  };
+}
 
 /** جدول في الذاكرة مرتبط بمخزن القاعدة الحالي (يفشل لو الجدول مش متعرف في القاعدة لسه). */
 function storeRows(dbName: string, table: string): Map<string, unknown> {
@@ -40,20 +71,10 @@ vi.mock('dexie', () => {
           }
           for (const table of Object.keys(schema)) {
             if (!stores.has(table)) stores.set(table, new Map());
-            const tableHandle = {
-              dbName: this.name,
-              tableName: table,
-              get: async (id: string) => storeRows(this.name, table).get(id),
-              put: async (row: { id: string }) => {
-                if (state.failing.has(table)) throw new Error('SYNTHETIC_WRITE_FAILURE');
-                storeRows(this.name, table).set(row.id, row);
-                return row.id;
-              },
-              delete: async (id: string) => {
-                storeRows(this.name, table).delete(id);
-              },
-            };
-            (this as unknown as Record<string, unknown>)[table] = tableHandle;
+            (this as unknown as Record<string, unknown>)[table] = createTableHandle(
+              this.name,
+              table,
+            );
           }
           return this;
         },
@@ -62,8 +83,11 @@ vi.mock('dexie', () => {
     transaction(_mode: 'rw', ...args: unknown[]) {
       const scope = args[args.length - 1] as () => Promise<unknown>;
       const tables = args.slice(0, -1) as { dbName: string; tableName: string }[];
+      const allowed = new Set(tables.map((t) => `${t.dbName}:${t.tableName}`));
       const snapshots = tables.map((t) => new Map(storeRows(t.dbName, t.tableName)));
       return (async () => {
+        const previous = state.activeTransactionTables;
+        state.activeTransactionTables = allowed;
         try {
           return await scope();
         } catch (error) {
@@ -73,6 +97,8 @@ vi.mock('dexie', () => {
             for (const [key, value] of snapshots[index] ?? []) target.set(key, value);
           });
           throw error;
+        } finally {
+          state.activeTransactionTables = previous;
         }
       })();
     }
@@ -98,6 +124,7 @@ beforeEach(() => {
   state.databases.delete('pospay-native-shell');
   new NativeShellDatabase();
   state.failing.clear();
+  state.activeTransactionTables = null;
 });
 
 describe('the shell store schema (MemoryDexie contract)', () => {
@@ -195,5 +222,14 @@ describe('the remembered business', () => {
       company_id: COMPANY,
       business_id: BUSINESS,
     });
+  });
+
+  it('rejects writes to tables outside the declared transaction scope', async () => {
+    const db = new NativeShellDatabase();
+    await expect(
+      db.transaction('rw', db.role, async () => {
+        await db.business.put({ id: 'current', company_id: COMPANY, business_id: BUSINESS });
+      }),
+    ).rejects.toThrow('SYNTHETIC_OUTSIDE_TRANSACTION_SCOPE');
   });
 });

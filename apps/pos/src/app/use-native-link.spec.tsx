@@ -189,3 +189,53 @@ describe('useNativeLink launch lifecycle across switches and newer links', () =>
     expect(screen.queryByText(t('ar', 'nativeShell.switchBusinessConfirm'))).toBeNull();
   });
 });
+
+describe('useNativeLink rejected warm links and late launch reads', () => {
+  it('keeps an offline cold-start launch link retryable when an invalid warm link arrives', async () => {
+    let online = false;
+    vi.spyOn(window.navigator, 'onLine', 'get').mockImplementation(() => online);
+    const firstMount = mountStrict();
+
+    const alert = await screen.findByRole('alert');
+    expect(alert.textContent).toContain(t('ar', 'nativeShell.needsInternet'));
+
+    await act(async () => {
+      app.opened?.({ url: 'https://pospay.app/other' });
+    });
+    expect(window.sessionStorage.getItem('pospay.native.launchUrl')).toBeNull();
+
+    firstMount.unmount();
+    online = true;
+    mountStrict();
+
+    expect(await screen.findByText(`${COMPANY} ${BUSINESS}`)).not.toBeNull();
+    expect(connectEmployee).toHaveBeenCalledTimes(1);
+    expect(window.sessionStorage.getItem('pospay.native.launchUrl')).not.toBeNull();
+  });
+
+  it('retires a late cold-start launch link without superseding a newer warm link', async () => {
+    let releaseLaunch!: (value: { url?: string }) => void;
+    app.getLaunchUrl.mockImplementation(
+      () =>
+        new Promise<{ url?: string }>((resolve) => {
+          releaseLaunch = resolve;
+        }),
+    );
+    mountStrict();
+    await vi.waitFor(() => expect(app.opened).not.toBeNull());
+
+    await act(async () => {
+      app.opened?.({ url: OTHER_LAUNCH_URL });
+    });
+    expect(await screen.findByText(`${COMPANY} ${OTHER_BUSINESS}`)).not.toBeNull();
+
+    await act(async () => {
+      releaseLaunch({ url: LAUNCH_URL });
+      await Promise.resolve();
+    });
+
+    expect(screen.getByText(`${COMPANY} ${OTHER_BUSINESS}`)).not.toBeNull();
+    expect(screen.queryByText(t('ar', 'nativeShell.switchBusinessConfirm'))).toBeNull();
+    expect(window.sessionStorage.getItem('pospay.native.launchUrl')).not.toBeNull();
+  });
+});

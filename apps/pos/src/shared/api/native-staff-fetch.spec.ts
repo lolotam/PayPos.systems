@@ -262,6 +262,68 @@ describe('nativeStaffFetch abort fence', () => {
   });
 });
 
+describe('nativeStaffFetch concurrent fence extension', () => {
+  stubNativeTransport();
+
+  it('keeps waiting when a second concurrent call aborts while a third call is already at the fence', async () => {
+    let settleA!: () => void;
+    let settleB!: () => void;
+    requestMock
+      .mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            settleA = () => resolve(nativeResponse({ status: 204, data: '', headers: {} }));
+          }),
+      )
+      .mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            settleB = () => resolve(nativeResponse({ status: 204, data: '', headers: {} }));
+          }),
+      )
+      .mockResolvedValueOnce(nativeResponse());
+
+    const controllerA = new AbortController();
+    const controllerB = new AbortController();
+    const callA = nativeStaffFetch(
+      new Request('http://127.0.0.1:3000/v1/devices/me/staff-session', {
+        method: 'DELETE',
+        signal: controllerA.signal,
+      }),
+    );
+    const callB = nativeStaffFetch(
+      new Request('http://127.0.0.1:3000/v1/devices/me/staff-session', {
+        method: 'DELETE',
+        signal: controllerB.signal,
+      }),
+    );
+    await vi.waitFor(() => expect(requestMock).toHaveBeenCalledTimes(2));
+
+    controllerA.abort();
+    await expect(callA).rejects.toMatchObject({ name: 'AbortError' });
+
+    const callC = nativeStaffFetch(
+      new Request('http://127.0.0.1:3000/v1/devices/me/staff-session'),
+    );
+    await Promise.resolve();
+    expect(requestMock).toHaveBeenCalledTimes(2);
+
+    // ب يتلغي بعد ما ج دخل السياج: ج لازم يستنى ب كمان بعد ما أ يخلص.
+    controllerB.abort();
+    await expect(callB).rejects.toMatchObject({ name: 'AbortError' });
+
+    settleA();
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(requestMock).toHaveBeenCalledTimes(2);
+
+    settleB();
+    const response = await callC;
+    expect(response.status).toBe(200);
+    expect(requestMock).toHaveBeenCalledTimes(3);
+  });
+});
+
 describe('nativeStaffFetch abort fence timeout', () => {
   stubNativeTransport();
 

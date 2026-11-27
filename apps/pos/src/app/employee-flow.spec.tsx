@@ -1,6 +1,6 @@
 import { act, fireEvent, render, screen } from '@testing-library/react';
 import { t } from '@pospay/i18n';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { endPersonalSession } from '@/app/end-sessions';
 import type { PersonalWorkspace } from '@/app/manager-link';
@@ -8,6 +8,7 @@ import { usePersonalSession } from '@/personal-staff/api/use-personal-session';
 import { LocaleProvider } from '@/shared/locale/locale-context';
 
 import { EmployeeFlow } from './employee-flow';
+import { FOREIGN_SIGN_OUT_WAIT_MS } from './foreign-session-notice';
 
 vi.mock('@/app/end-sessions', () => ({
   endPersonalSession: vi.fn(),
@@ -40,9 +41,9 @@ const SESSION = {
   expires_at: '2026-10-24T10:00:00.000Z',
 };
 
-function sessionState(session: typeof SESSION | null) {
+function sessionState(session: typeof SESSION | null, epoch = 0) {
   return {
-    epoch: 0,
+    epoch,
     online: true,
     loading: false,
     confirmedNoSession: session === null,
@@ -52,11 +53,16 @@ function sessionState(session: typeof SESSION | null) {
   };
 }
 
-function flow(business: PersonalWorkspace | null = REMEMBERED, businessUnreadable = false) {
+function flow(
+  business: PersonalWorkspace | null = REMEMBERED,
+  businessUnreadable = false,
+  mustClearLeftoverSession = false,
+) {
   return (
     <EmployeeFlow
       business={business}
       businessUnreadable={businessUnreadable}
+      mustClearLeftoverSession={mustClearLeftoverSession}
       pending={null}
       busy={false}
       connect={<p>connect</p>}
@@ -66,10 +72,14 @@ function flow(business: PersonalWorkspace | null = REMEMBERED, businessUnreadabl
   );
 }
 
-function mount(business: PersonalWorkspace | null = REMEMBERED, businessUnreadable = false) {
+function mount(
+  business: PersonalWorkspace | null = REMEMBERED,
+  businessUnreadable = false,
+  mustClearLeftoverSession = false,
+) {
   return render(
     <LocaleProvider locale="ar" setLocale={() => undefined}>
-      {flow(business, businessUnreadable)}
+      {flow(business, businessUnreadable, mustClearLeftoverSession)}
     </LocaleProvider>,
   );
 }
@@ -86,6 +96,10 @@ beforeEach(() => {
   vi.clearAllMocks();
   vi.mocked(endPersonalSession).mockResolvedValue('done');
   vi.mocked(usePersonalSession).mockReturnValue(sessionState(SESSION));
+});
+
+afterEach(() => {
+  vi.useRealTimers();
 });
 
 describe('EmployeeFlow with a session of another business', () => {
@@ -227,5 +241,52 @@ describe('EmployeeFlow without a remembered business', () => {
     expect(await screen.findByText('connect')).not.toBeNull();
     expect(screen.queryByText(`session screen ${SESSION.employee_id}`)).toBeNull();
     expect(endPersonalSession).not.toHaveBeenCalled();
+  });
+});
+
+describe('EmployeeFlow first link and foreign sign-out abort', () => {
+  it('signs out a leftover same-business session after connecting without a remembered business, then opens after fresh sign-in', async () => {
+    vi.mocked(usePersonalSession).mockReturnValue(
+      sessionState({ ...SESSION, business_id: BUSINESS }, 0),
+    );
+    const view = mount(REMEMBERED, false, true);
+
+    expect(await screen.findByRole('status')).not.toBeNull();
+    expect(screen.queryByText(`session screen ${SESSION.employee_id}`)).toBeNull();
+    expect(endPersonalSession).toHaveBeenCalledTimes(1);
+
+    vi.mocked(usePersonalSession).mockReturnValue(
+      sessionState({ ...SESSION, business_id: BUSINESS }, 1),
+    );
+    view.rerender(
+      <LocaleProvider locale="ar" setLocale={() => undefined}>
+        {flow(REMEMBERED, false, true)}
+      </LocaleProvider>,
+    );
+
+    expect(await screen.findByText(`session screen ${SESSION.employee_id}`)).not.toBeNull();
+  });
+
+  it('aborts an in-flight foreign sign-out request when the wait timer expires', () => {
+    vi.useFakeTimers();
+    let received: AbortSignal | undefined;
+    vi.mocked(endPersonalSession).mockImplementation((signal?: AbortSignal) => {
+      received = signal;
+      return new Promise<'done' | 'failed'>(() => undefined);
+    });
+
+    mount();
+
+    expect(received).toBeInstanceOf(AbortSignal);
+    expect(received?.aborted).toBe(false);
+
+    act(() => {
+      vi.advanceTimersByTime(FOREIGN_SIGN_OUT_WAIT_MS);
+    });
+
+    expect(received?.aborted).toBe(true);
+    expect(screen.getByRole('alert').textContent).toContain(
+      t('ar', 'nativeShell.roleChangeFailed'),
+    );
   });
 });

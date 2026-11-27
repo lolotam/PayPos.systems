@@ -173,16 +173,21 @@ function runQueuedLink(
           outcome.kind === 'state' &&
           outcome.state.kind === 'flow' &&
           outcome.state.pending !== undefined;
-        // الفشل المؤقت زي انقطاع النت أو انتظار تأكيد التبديل ما بيقفلش اللينك؛ ونجاح أي لينك أحدث بيقفل القديم.
+        // الفشل المؤقت زي انقطاع النت أو انتظار تأكيد التبديل ما بيقفلش اللينك.
         const settled =
           outcome.kind === 'state' &&
           outcome.state.kind !== 'loading' &&
           outcome.state.alert !== 'needsInternet' &&
           !hasPendingSwitch;
-        if (settled) {
-          markLaunchLinkHandled();
-          handled = true;
-        }
+        // اللينك الدافي المرفوض أو على جهاز كاونتر ما يستهلكش لينك افتتاحي قديم قابل للإعادة.
+        const applied =
+          workspace !== null &&
+          settled &&
+          outcome.state.kind === 'flow' &&
+          outcome.state.role === 'employee' &&
+          outcome.state.alert === undefined;
+        if (applied) markLaunchLinkHandled();
+        if (settled) handled = true;
       } finally {
         resolve(handled);
       }

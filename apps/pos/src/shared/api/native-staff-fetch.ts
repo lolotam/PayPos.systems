@@ -58,7 +58,8 @@ export const NATIVE_FENCE_TIMEOUT_MS = 15_000;
 // بنوقّف الطلب الأصلي اللي بعده لحد ما اللي اتلغى يخلص من نظام التشغيل أو يخلص بمهلة السياج.
 let pendingAbortedNativeCall: Promise<void> | null = null;
 
-function waitForPendingAbortedCall(pendingCall: Promise<void>, aborted: AbortRace): Promise<void> {
+async function waitForPendingAbortedCalls(aborted: AbortRace): Promise<void> {
+  if (pendingAbortedNativeCall === null) return;
   let timer: ReturnType<typeof setTimeout> | undefined;
   const timeout = new Promise<never>((_resolve, reject) => {
     timer = setTimeout(
@@ -66,9 +67,14 @@ function waitForPendingAbortedCall(pendingCall: Promise<void>, aborted: AbortRac
       NATIVE_FENCE_TIMEOUT_MS,
     );
   });
-  return Promise.race([pendingCall, aborted.rejected, timeout]).finally(() => {
+  try {
+    // السياج ممكن يكبر بطلب تاني اتلغى أثناء الانتظار، فبنعيد الفحص بعد كل تسوية تحت مهلة واحدة.
+    while (pendingAbortedNativeCall !== null) {
+      await Promise.race([pendingAbortedNativeCall, aborted.rejected, timeout]);
+    }
+  } finally {
     if (timer !== undefined) clearTimeout(timer);
-  });
+  }
 }
 
 /**
@@ -104,9 +110,7 @@ async function sendFencedNativeRequest(
   signal: AbortSignal,
   aborted: AbortRace,
 ): Promise<NativeHttpResponse> {
-  if (pendingAbortedNativeCall !== null) {
-    await waitForPendingAbortedCall(pendingAbortedNativeCall, aborted);
-  }
+  await waitForPendingAbortedCalls(aborted);
   throwIfAborted(signal);
   const requestPromise = client.request(options);
   const settled = requestPromise.then(
@@ -130,6 +134,21 @@ async function sendFencedNativeRequest(
 }
 
 // الـ web view على iOS مابيبعتش كوكي مضيف الـ API من `capacitor://localhost` والمتصفح بيسقط `Origin`، فالطلبات دي بتعدي أصلية.
+let capacitorHttpClient: Promise<NativeHttpClient> | null = null;
+
+function loadCapacitorHttp(): Promise<NativeHttpClient> {
+  if (capacitorHttpClient === null) {
+    // تحميل الإضافة مرة واحدة يمنع سباق الاستيراد المتزامن ويحمي حزمة الويب.
+    capacitorHttpClient = import('@capacitor/core')
+      .then(({ CapacitorHttp }) => CapacitorHttp)
+      .catch((error: unknown) => {
+        capacitorHttpClient = null;
+        throw error;
+      });
+  }
+  return capacitorHttpClient;
+}
+
 export async function nativeStaffFetch(request: Request): Promise<Response> {
   assertApiOrigin(request.url);
   throwIfAborted(request.signal);
@@ -139,12 +158,12 @@ export async function nativeStaffFetch(request: Request): Promise<Response> {
   };
   const body = request.method === 'GET' || request.method === 'HEAD' ? '' : await request.text();
   throwIfAborted(request.signal);
-  const { CapacitorHttp } = await import('@capacitor/core');
+  const client = await loadCapacitorHttp();
   throwIfAborted(request.signal);
   const aborted = untilAborted(request.signal);
   try {
     const nativeResponse = await sendFencedNativeRequest(
-      CapacitorHttp,
+      client,
       {
         url: request.url,
         method: request.method,
