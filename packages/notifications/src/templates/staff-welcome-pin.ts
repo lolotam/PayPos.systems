@@ -1,42 +1,65 @@
-import { escapeHtml, renderEmailLayout } from './email-layout.ts';
+import { escapeHtml, formatEmailUtcTimestamp, renderEmailLayout } from './email-layout.ts';
 
 /** مفتاح قالب بريد الترحيب بالموظفة — نفس المفتاح في حدث الطلب. */
 export const STAFF_WELCOME_PIN_KEY = 'staff_welcome_pin';
 /** مراجعة القالب: نسخة واحدة معتمدة، أي تغيير بياخد مراجعة جديدة. */
 export const STAFF_WELCOME_PIN_REVISION = 1;
 
-/** نسخة رسالة الترحيب: العنوان، والمقدمة، والرقم، وتغييره الإجباري، وانتهاء الصلاحية، والتحذير. */
+/** نسخة رسالة الترحيب: العنوان، والمقدمة، والرقم، وتغييره الإجباري، وانتهاء الصلاحية، والتحذير حسب المتلقي. */
 interface StaffWelcomePinCopy {
   readonly subject: string;
-  readonly intro: string;
+  readonly employeeIntro: string;
+  readonly managerIntro: string;
   readonly label: string;
+  readonly roleLabel: string;
   readonly change: string;
   readonly expiry: string;
-  readonly share: string;
+  readonly employeeShare: string;
+  readonly managerShare: string;
   readonly managerTarget: string;
+  readonly roles: Readonly<Record<string, string>>;
 }
 
-/** نسخ القالب بلغتين: الرقم المؤقت، تغييره إجباري، انتهاء الصلاحية، والتحذير. */
+/** نسخ القالب بلغتين: الرقم المؤقت، تغييره إجباري، انتهاء الصلاحية، وتوجيه واضح لكل متلقي. */
 const COPY: Record<'ar' | 'en', StaffWelcomePinCopy> = {
   ar: {
     subject: 'رمز الدخول المؤقت للموظفة',
-    intro: 'اتعمل حساب جديد للموظفة في PosPay. استخدموا الرمز المؤقت ده لأول دخول.',
+    employeeIntro:
+      'اتعمل لكِ حساب دخول في PosPay. استخدمي الرمز المؤقت ده لأول دخول على شاشة الكاشير.',
+    managerIntro: 'اتعمل حساب دخول لموظفة جديدة في PosPay. الرمز التالي مؤقت لأول دخول للموظفة.',
     label: 'الرقم السري المؤقت',
+    roleLabel: 'الدور',
     change: 'الرقم ده مؤقت، ولازم يتغيّر من أول دخول على شاشة الكاشير.',
-    expiry: 'الرقم صالح لمدة 24 ساعة من وقت الإصدار، وبعدها مش هيشتغل تاني.',
-    share: 'ما تشاركش الرقم مع أي حد، ولا تديه لأي حد طلبه منك على التليفون.',
+    expiry: 'الرقم صالح لمدة 24 ساعة من وقت الإصدار حتى:',
+    employeeShare: 'لا تشاركي هذا الرقم مع أي شخص، ولا تعطيه لأي شخص يطلبه على الهاتف.',
+    managerShare: 'سلّمي هذا الرقم للموظفة يداً بيد فقط، واطلبي منها تغييره عند أول دخول.',
     managerTarget: 'الموظفة الجديدة:',
+    roles: {
+      staff: 'موظفة',
+      reception: 'استقبال / كاشير',
+      cashier: 'استقبال / كاشير',
+    },
   },
   en: {
     subject: 'Your temporary staff sign-in PIN',
-    intro:
-      'A new staff account was created in PosPay. Use this temporary PIN for the first sign-in.',
+    employeeIntro:
+      'Your PosPay staff account has been created. Use this temporary PIN for your first cashier sign-in.',
+    managerIntro:
+      'A new staff sign-in account was created in PosPay. Provide this temporary PIN to the employee for their first sign-in.',
     label: 'Temporary PIN',
+    roleLabel: 'Role',
     change: 'This PIN is temporary and must be changed on the first cashier sign-in.',
-    expiry:
-      'The PIN is valid for 24 hours from the moment it was issued, and it stops working after that.',
-    share: 'Do not share the PIN with anyone, and never give it to anyone who calls you.',
+    expiry: 'The PIN is valid for 24 hours from issue until:',
+    employeeShare:
+      'Do not share this PIN with anyone, and never give it to anyone who asks over the phone.',
+    managerShare:
+      'Hand this temporary PIN to the employee in person only, and ask them to change it on their first sign-in.',
     managerTarget: 'New staff member:',
+    roles: {
+      staff: 'Staff',
+      reception: 'Reception / Cashier',
+      cashier: 'Reception / Cashier',
+    },
   },
 };
 
@@ -129,32 +152,37 @@ function renderStaffWelcomePin(
   const pinStyle =
     'margin:16px 0 0 0;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:32px;font-weight:700;letter-spacing:8px;color:#FF6421;';
   const noteStyle = 'margin:12px 0 0 0;font-size:13px;line-height:1.6;color:#5A6675;';
+  const isManager = data.recipient === 'manager';
+  const intro = isManager ? copy.managerIntro : copy.employeeIntro;
+  const share = isManager ? copy.managerShare : copy.employeeShare;
+  const roleDisplay = copy.roles[data.role] ?? data.role;
+  const expiresDisplay = formatEmailUtcTimestamp(data.expiresAt);
   const target =
-    data.recipient === 'manager' && data.targetMaskedEmail !== null
+    isManager && data.targetMaskedEmail !== null
       ? `<p style="${noteStyle}">${escapeHtml(copy.managerTarget)} ${escapeHtml(data.targetMaskedEmail)}</p>`
       : '';
-  const roleLine = `<p style="${noteStyle}">${escapeHtml(data.role)}</p>`;
-  const expiryLine = `<p style="${noteStyle}">${escapeHtml(copy.expiry)} ${escapeHtml(data.expiresAt)}</p>`;
+  const roleLine = `<p style="${noteStyle}">${escapeHtml(copy.roleLabel)}: ${escapeHtml(roleDisplay)}</p>`;
+  const expiryLine = `<p style="${noteStyle}">${escapeHtml(copy.expiry)} ${escapeHtml(expiresDisplay)}</p>`;
   const layout = renderEmailLayout({
     locale,
     adminOrigin,
     title: copy.subject,
-    bodyHtml: `<p style="margin:0;">${escapeHtml(copy.intro)}</p>
+    bodyHtml: `<p style="margin:0;">${escapeHtml(intro)}</p>
       <p style="margin:8px 0 0 0;font-size:13px;color:#5A6675;">${escapeHtml(copy.label)}</p>
       <p style="${pinStyle}">${escapeHtml(data.pin)}</p>
       ${roleLine}
       ${target}
       <p style="${noteStyle}">${escapeHtml(copy.change)}</p>
       ${expiryLine}
-      <p style="${noteStyle}">${escapeHtml(copy.share)}</p>`,
+      <p style="${noteStyle}">${escapeHtml(share)}</p>`,
     bodyText: [
-      copy.intro,
+      intro,
       `${copy.label}: ${data.pin}`,
-      data.role,
+      `${copy.roleLabel}: ${roleDisplay}`,
       ...(target === '' ? [] : [`${copy.managerTarget} ${data.targetMaskedEmail ?? ''}`]),
       copy.change,
-      `${copy.expiry} ${data.expiresAt}`,
-      copy.share,
+      `${copy.expiry} ${expiresDisplay}`,
+      share,
     ].join('\n'),
   });
   return { subject: copy.subject, text: layout.text, html: layout.html };

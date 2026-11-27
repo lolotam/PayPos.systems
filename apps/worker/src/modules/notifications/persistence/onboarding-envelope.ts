@@ -1,10 +1,13 @@
+import type { TenantWrappers } from '@pospay/db';
 import {
+  extractOnboardingOperationId,
   MEMBER_INVITATION_KEY,
   onboardingPlaceholderEmail,
   STAFF_WELCOME_PIN_KEY,
   unsealOnboardingEmailEnvelope,
   type OnboardingEmailPayload,
 } from '@pospay/notifications';
+import { sql } from 'drizzle-orm';
 
 /** لقطة المحاولة اللي كفاية لفك المظروف: الشركة والقالب والوجهة الموقّعة والمعاملات المسمّاة. */
 export interface OnboardingEnvelopeAttempt {
@@ -36,31 +39,97 @@ export function isOnboardingTemplate(key: string): boolean {
 }
 
 /**
- * يفك مظروف إيميل الترحيب: مربوط بالشركة والقالب والوجهة الموقّعة، وبيرفض أي تزوير أو انتهاء.
+ * يفك مظروف إيميل الترحيب: مربوط بالشركة والعملية والقالب والوجهة الموقّعة، وبيرفض أي تزوير أو انتهاء.
  *
  * @param attempt لقطة المحاولة
  * @param key مفتاح الختم
  * @param now اللحظة الحالية
+ * @param options خيارات فك التشفير (تعطيل فحص العمر مطلوب فقط لمطابقة الوجهة)
  * @returns الحمولة، أو null لما المظروف مش سليم أو انتهى
  */
 export function unsealAttempt(
   attempt: OnboardingEnvelopeAttempt,
   key: Buffer,
   now: Date,
+  options: { readonly checkExpiry?: boolean } = {},
 ): OnboardingEmailPayload | null {
   const placeholder = attempt.email;
-  if (typeof placeholder !== 'string' || placeholder === '') return null;
+  const operationId = extractOnboardingOperationId(attempt.safeParameters);
+  if (typeof placeholder !== 'string' || placeholder === '' || operationId === null) return null;
   return unsealOnboardingEmailEnvelope(
     key,
     attempt.safeParameters,
     {
       companyId: attempt.companyId,
+      operationId,
       templateKey: attempt.templateKey,
       templateRevision: attempt.templateRevision,
       placeholderEmail: placeholder,
     },
     now,
+    options,
   );
+}
+
+/**
+ * يتأكد قبل الإرسال من حداثة الوجهة وحالة العملية: لا يُرسل PIN لعنوان استرجاع تم تعديله أو حذفه
+ * ولا رابط دعوة أُبطِل بإعادة الإصدار.
+ *
+ * @param database غلافات الشركة لقراءة الجداول تحت RLS
+ * @param attempt المحاولة الجارية
+ * @param payload الحمولة بعد فك التشفير
+ * @param operationId هوية العملية المربوطة بالمظروف
+ * @returns true لو الوجهة والعملية ما زالتا ساريتين
+ */
+export async function verifyOnboardingRecipientFresh(
+  database: Pick<TenantWrappers, 'withTenant'> | undefined,
+  attempt: { readonly companyId: string },
+  payload: OnboardingEmailPayload,
+  operationId: string | null,
+): Promise<boolean> {
+  if (database === undefined) return true;
+  if (payload.kind === 'staff_welcome_pin') {
+    if (payload.employeeId === undefined) return true;
+    const employeeId = payload.employeeId;
+    return database.withTenant(attempt.companyId, async (tx) => {
+      if (payload.recipient === 'employee') {
+        const [emp] = await tx.execute<{ recovery_email: string | null; deleted_at: unknown }>(sql`
+          SELECT recovery_email, deleted_at FROM employees
+          WHERE company_id = ${attempt.companyId}::uuid AND id = ${employeeId}::uuid`);
+        if (emp !== undefined) {
+          if (
+            emp.deleted_at !== null ||
+            emp.recovery_email === null ||
+            emp.recovery_email.trim().toLowerCase() !== payload.email.trim().toLowerCase()
+          )
+            return false;
+        }
+      }
+      if (operationId !== null) {
+        const [access] = await tx.execute<{ state: string; operation_id: string }>(sql`
+          SELECT state, operation_id::text AS operation_id FROM employee_staff_access
+          WHERE company_id = ${attempt.companyId}::uuid AND employee_id = ${employeeId}::uuid`);
+        if (
+          access !== undefined &&
+          (access.state !== 'ACTIVE' || access.operation_id !== operationId)
+        )
+          return false;
+      }
+      return true;
+    });
+  }
+  if (payload.invitationId === undefined || payload.issuedAt === undefined) return true;
+  const invitationId = payload.invitationId;
+  const issuedAt = payload.issuedAt;
+  return database.withTenant(attempt.companyId, async (tx) => {
+    const [inv] = await tx.execute<{ state: string; issued_match: boolean | null }>(sql`
+      SELECT state,
+        date_trunc('milliseconds', link_issued_at) = date_trunc('milliseconds', ${issuedAt}::timestamptz) AS issued_match
+      FROM member_invitations
+      WHERE company_id = ${attempt.companyId}::uuid AND id = ${invitationId}::uuid`);
+    if (inv === undefined) return true;
+    return inv.state === 'PENDING' && inv.issued_match === true;
+  });
 }
 
 /**

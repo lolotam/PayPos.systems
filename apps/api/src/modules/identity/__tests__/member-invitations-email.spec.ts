@@ -3,13 +3,14 @@ import { afterAll, beforeAll, expect, it } from 'vitest';
 import {
   deriveOnboardingEnvelopeKey,
   MEMBER_INVITATION_KEY,
+  ONBOARDING_EMAIL_OPERATION_PARAM,
   onboardingPlaceholderEmail,
   unsealOnboardingEmailEnvelope,
 } from '@pospay/notifications';
 
 import { startHarness, type Harness } from '../../../../test/harness.ts';
 
-const SEALING_KEY = 'onboarding-envelope-secret-key-0123456789';
+const SEALING_KEY = 'test-only-envelope-material'.padEnd(36, '0');
 const OWNER_EMAIL = 'g1-email-owner@example.test';
 const MEMBER_EMAIL = 'g1-email-member@example.test';
 
@@ -75,7 +76,12 @@ it(
       expect(recipient.email).toMatch(/^sealed-[0-9a-f]{24}@redacted\.invalid$/);
       expect(recipient.template_key).toBe(MEMBER_INVITATION_KEY);
       expect(recipient.template_revision).toBe(1);
-      expect(recipient.safe_parameters.length).toBeGreaterThan(0);
+      expect(recipient.safe_parameters[0]).toEqual({
+        name: ONBOARDING_EMAIL_OPERATION_PARAM,
+        type: 'text',
+        value: invitationId,
+      });
+      expect(recipient.safe_parameters.length).toBeGreaterThan(1);
     }
     const serialized = JSON.stringify(events[0]?.payload);
     expect(serialized).not.toContain(MEMBER_EMAIL);
@@ -121,6 +127,7 @@ it(
       invitee?.safe_parameters ?? [],
       {
         companyId: company,
+        operationId: invitationId,
         templateKey: MEMBER_INVITATION_KEY,
         templateRevision: 1,
         placeholderEmail: invitee?.email ?? '',
@@ -132,6 +139,7 @@ it(
       email: MEMBER_EMAIL,
       role: 'accountant',
       recipient: 'invitee',
+      invitationId,
     });
     expect(String((unsealed as { link?: string } | null)?.link)).toContain('/reset-password/');
   },

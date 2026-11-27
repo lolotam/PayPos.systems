@@ -1,9 +1,10 @@
 import { randomBytes } from 'node:crypto';
 import { TEAM_ALERT_TEMPLATE_KEYS, type NotificationRecipient } from '@pospay/contracts';
-import type { ClaimedEvent, Tx } from '@pospay/db';
+import type { ClaimedEvent, TenantWrappers, Tx } from '@pospay/db';
 import {
   createEmailIdentity,
   deriveOnboardingEnvelopeKey,
+  extractOnboardingOperationId,
   readEmailConfiguration,
   renderOperationalEmail,
   ResendChannel,
@@ -22,10 +23,12 @@ import {
   isOnboardingTemplate,
   onboardingDestinationMatches,
   unsealAttempt,
+  verifyOnboardingRecipientFresh,
 } from './persistence/onboarding-envelope.ts';
 import { AuthorizeNotification } from './use-cases/authorize-notification/authorize-notification.ts';
 
 export interface EmailModuleOptions {
+  readonly database?: Pick<TenantWrappers, 'withTenant'>;
   readonly production: boolean;
   readonly clock: Clock;
   readonly ids: IdGenerator;
@@ -34,6 +37,8 @@ export interface EmailModuleOptions {
   readonly feedbackReady?: boolean;
   /** بيئة العملية؛ بتقرأ منها الإعداد لما مفيش configuration جوّالة. */
   readonly env?: NodeJS.ProcessEnv;
+  /** مفتاح مظروف إيميلات الترحيب المخصّص؛ يتجاوز قراءة المتغير عند تمريره صراحةً. */
+  readonly envelopeKey?: string | null;
   readonly testing?: {
     readonly channel: Channel<EmailRequest>;
     readonly suppression?: (tx: Tx) => SuppressionGate;
@@ -44,6 +49,28 @@ export type EmailScope = {
   business_id?: string | null | undefined;
   branch_id?: string | null | undefined;
 };
+
+/** يطابق بصمة المستلم المخزّنة مع المظروف أو البريد العادي عند الإرسال. */
+function buildEmailMatcher(
+  identity: ReturnType<typeof createEmailIdentity> | null,
+  envelopeKey: Buffer | null,
+  now: () => Date,
+) {
+  return (
+    destination: string,
+    stored: Parameters<NonNullable<typeof identity>['matches']>[1],
+    attempt?: Attempt,
+  ) => {
+    if (attempt !== undefined && isOnboardingTemplate(attempt.templateKey)) {
+      if (envelopeKey === null) return false;
+      const payload = unsealAttempt(attempt, envelopeKey, now(), { checkExpiry: false });
+      if (payload === null) return false;
+      if (!onboardingDestinationMatches(payload, destination, envelopeKey)) return false;
+      return identity?.matches(payload.email, stored) ?? false;
+    }
+    return identity?.matches(destination, stored) ?? false;
+  };
+}
 
 export function createEmailModule(options: EmailModuleOptions) {
   if (
@@ -62,8 +89,12 @@ export function createEmailModule(options: EmailModuleOptions) {
       ? createEmailIdentity(config.hashKey, config.hashKeyId)
       : null;
   const adminOrigin = config.adminOrigin ?? 'https://app.pospay.systems';
-  // إيميلات الترحيب بتتختم بمفتاح البصمة نفسه؛ من غيره ما فيش مظروف ينفك.
-  const envelopeKey = config.hashKey ? deriveOnboardingEnvelopeKey(config.hashKey) : null;
+  // إيميلات الترحيب بتتختم بمفتاح المظروف المخصّص ONBOARDING_EMAIL_ENVELOPE_KEY فقط؛ من غيره تتعطل بدون سقوط أو خلط مع مفتاح البصمة.
+  const rawEnvelopeKey =
+    options.envelopeKey === undefined
+      ? (options.env ?? {})['ONBOARDING_EMAIL_ENVELOPE_KEY']
+      : options.envelopeKey;
+  const envelopeKey = rawEnvelopeKey ? deriveOnboardingEnvelopeKey(rawEnvelopeKey) : null;
   const adapter = createEmailChannelAdapter(
     options.testing?.channel ?? liveChannel(options, config),
     adminOrigin,
@@ -73,24 +104,18 @@ export function createEmailModule(options: EmailModuleOptions) {
           const payload = unsealAttempt(attempt, envelopeKey, options.clock.now());
           return payload === null ? null : { email: payload.email, payload };
         },
+    (attempt, payload) =>
+      verifyOnboardingRecipientFresh(
+        options.database,
+        attempt,
+        payload,
+        extractOnboardingOperationId(attempt.safeParameters),
+      ),
   );
   return {
     capability: { enabled: config.enabled, reason: config.reason } as const,
     adapter,
-    matches: (
-      destination: string,
-      stored: Parameters<NonNullable<typeof identity>['matches']>[1],
-      attempt?: Attempt,
-    ) => {
-      if (attempt !== undefined && isOnboardingTemplate(attempt.templateKey)) {
-        if (envelopeKey === null) return false;
-        const payload = unsealAttempt(attempt, envelopeKey, options.clock.now());
-        if (payload === null) return false;
-        if (!onboardingDestinationMatches(payload, destination, envelopeKey)) return false;
-        return identity?.matches(payload.email, stored) ?? false;
-      }
-      return identity?.matches(destination, stored) ?? false;
-    },
+    matches: buildEmailMatcher(identity, envelopeKey, () => options.clock.now()),
     authorize: emailAuthorizer(options, config, identity, adminOrigin, envelopeKey),
   };
 }
@@ -126,7 +151,11 @@ function emailAuthorizer(
   // بدل ما يسقط التنبيه في صمت (AL-Q6، ADR-0018 §11)؛ غير تنبيهات الفريق بيفضل يرمي EMAIL_DISABLED_HASH_UNAVAILABLE.
   const unconfiguredIdentity = createEmailIdentity(randomBytes(32).toString('hex'), 'unconfigured');
   return async (tx: Tx, event: ClaimedEvent, recipient: EmailRecipient, scope: EmailScope) => {
-    if (identity === null && !TEAM_ALERT_KEYS.has(recipient.template_key))
+    if (
+      identity === null &&
+      !TEAM_ALERT_KEYS.has(recipient.template_key) &&
+      !isOnboardingTemplate(recipient.template_key)
+    )
       throw new Error('EMAIL_DISABLED_HASH_UNAVAILABLE');
     const activeIdentity = identity ?? unconfiguredIdentity;
     const authorizer = new AuthorizeNotification(
@@ -199,33 +228,29 @@ function teamNotificationInput(input: {
   };
 }
 
-/** إيميلات الترحيب: بتتفك من المظروف المشفّر، والمحوّلة ما بتتسجّلش أبداً. */
-function onboardingNotificationInput(input: {
-  readonly options: EmailModuleOptions;
-  readonly config: EmailConfiguration;
-  readonly activeIdentity: ReturnType<typeof createEmailIdentity>;
-  readonly adminOrigin: string;
+/** يفك المظروف ويتحقق من القالب، ويرجّع البريد المقصود أو سبب التعثّر. */
+function unsealAndRenderOnboarding(input: {
+  readonly disabled: boolean;
   readonly envelopeKey: Buffer | null;
-  readonly event: ClaimedEvent;
+  readonly companyId: string;
   readonly recipient: EmailRecipient;
-  readonly scope: EmailScope;
-}): NotificationInput {
-  const { options, config, activeIdentity, adminOrigin, envelopeKey, event, recipient, scope } =
-    input;
-  const disabled = !config.enabled && options.testing === undefined;
+  readonly adminOrigin: string;
+  readonly now: Date;
+}) {
+  const { disabled, envelopeKey, companyId, recipient, adminOrigin, now } = input;
   const unsealed =
     disabled || envelopeKey === null
       ? null
       : unsealAttempt(
           {
-            companyId: event.companyId,
+            companyId,
             templateKey: recipient.template_key,
             templateRevision: recipient.template_revision,
             email: recipient.email,
             safeParameters: recipient.safe_parameters,
           },
           envelopeKey,
-          options.clock.now(),
+          now,
         );
   const prepared =
     unsealed === null
@@ -237,7 +262,47 @@ function onboardingNotificationInput(input: {
           [unsealed],
           adminOrigin,
         );
-  const failure = disabled ? 'CONFIG_INVALID' : prepared === null ? 'PARAMETERS_INVALID' : null;
+  const failure: NotificationInput['configurationFailure'] = disabled
+    ? 'CONFIG_INVALID'
+    : prepared === null
+      ? 'PARAMETERS_INVALID'
+      : null;
+  return { unsealed, failure };
+}
+
+/** إيميلات الترحيب: بتتفك من المظروف المشفّر، والمحوّلة ما بتتسجّلش أبداً. */
+function onboardingNotificationInput(input: {
+  readonly options: EmailModuleOptions;
+  readonly config: EmailConfiguration;
+  readonly identity: ReturnType<typeof createEmailIdentity> | null;
+  readonly activeIdentity: ReturnType<typeof createEmailIdentity>;
+  readonly adminOrigin: string;
+  readonly envelopeKey: Buffer | null;
+  readonly event: ClaimedEvent;
+  readonly recipient: EmailRecipient;
+  readonly scope: EmailScope;
+}): NotificationInput {
+  const {
+    options,
+    config,
+    identity,
+    activeIdentity,
+    adminOrigin,
+    envelopeKey,
+    event,
+    recipient,
+    scope,
+  } = input;
+  const disabled =
+    identity === null || envelopeKey === null || (!config.enabled && options.testing === undefined);
+  const { unsealed, failure } = unsealAndRenderOnboarding({
+    disabled,
+    envelopeKey,
+    companyId: event.companyId,
+    recipient,
+    adminOrigin,
+    now: options.clock.now(),
+  });
   return {
     companyId: event.companyId,
     sourceEventId: event.id,

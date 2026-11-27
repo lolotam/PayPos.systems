@@ -69,6 +69,18 @@ export function escapeHtml(value: string): string {
 }
 
 /**
+ * ينسّق الطابع الزمني ISO لعرض واضح بدل السلسلة التقنية الخام.
+ *
+ * @param iso الطابع الزمني بصيغة ISO
+ * @returns صيغة YYYY-MM-DD HH:mm UTC عندما يكون ISO صالحاً
+ */
+export function formatEmailUtcTimestamp(iso: string): string {
+  return /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/.test(iso)
+    ? `${iso.slice(0, 10)} ${iso.slice(11, 16)} UTC`
+    : iso;
+}
+
+/**
  * يفحص أصل اللوحة ويفضّله من غير slash لآخر، عشان رابط الهوية ما يتكررش فيه slash.
  *
  * @param adminOrigin الأصل كما جاء

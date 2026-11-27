@@ -1,5 +1,10 @@
-import { renderOperationalEmail, type Channel, type EmailRequest } from '@pospay/notifications';
-import { refusedResult, submissionResult } from '../domain/attempt-status.ts';
+import {
+  renderOperationalEmail,
+  type Channel,
+  type EmailRequest,
+  type OnboardingEmailPayload,
+} from '@pospay/notifications';
+import { refusedResult, submissionResult, type Attempt } from '../domain/attempt-status.ts';
 import type { ChannelPort, SendConfiguration } from '../ports/channel.port.ts';
 import { isOnboardingTemplate, type OnboardingResolver } from './onboarding-envelope.ts';
 
@@ -7,6 +12,7 @@ export function createEmailChannelAdapter(
   channel: Channel<EmailRequest> | undefined,
   adminOrigin = 'https://app.pospay.systems',
   resolveOnboarding?: OnboardingResolver,
+  verifyOnboarding?: (attempt: Attempt, payload: OnboardingEmailPayload) => Promise<boolean>,
 ): ChannelPort & SendConfiguration {
   // قوالب الترحيب مظروفها مشفّر: بتتفك في الذاكرة وقت الإرسال بس، وما بتتسجلش في المحاولة.
   const onboardingOf = (attempt: Parameters<SendConfiguration['failure']>[0]) =>
@@ -42,6 +48,12 @@ export function createEmailChannelAdapter(
       const isOnboarding = isOnboardingTemplate(attempt.templateKey);
       const onboarding = onboardingOf(attempt);
       if (isOnboarding && onboarding === null) return refusedResult('PARAMETERS_INVALID');
+      if (
+        onboarding !== null &&
+        verifyOnboarding !== undefined &&
+        !(await verifyOnboarding(attempt, onboarding.payload))
+      )
+        return refusedResult('DESTINATION_INVALID');
       const result = await channel.send({
         email: onboarding?.email ?? attempt.email,
         locale: attempt.locale,

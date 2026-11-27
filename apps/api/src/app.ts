@@ -30,6 +30,7 @@ import {
   readCommissionReturnAccess,
   readCommissionScope,
   readCommissionRequesterMembership,
+  temporaryStaffPinExpiresAt,
 } from './modules/identity/index.ts';
 import { settingsProviders } from './modules/settings/index.ts';
 import { notificationsProviders } from './modules/notifications/index.ts';
@@ -230,6 +231,7 @@ function onboardingProviders(
       deps.auth?.service.staffUsers ?? null,
       deps.staffAccessRoutes === true,
       sealer,
+      temporaryStaffPinExpiresAt,
     ),
   ];
 }
@@ -243,6 +245,12 @@ class AppModule {
     limiter: RateLimiter | null,
   ): DynamicModule {
     const onboardingSealer = createOnboardingEmailSealer(deps.onboardingEmailKey ?? null);
+    if (onboardingSealer === undefined) {
+      logger.info(
+        { capability: { name: 'ONBOARDING_EMAIL', state: 'DISABLED' } },
+        'onboarding email disabled',
+      );
+    }
     return {
       module: AppModule,
       controllers: [...controllers],

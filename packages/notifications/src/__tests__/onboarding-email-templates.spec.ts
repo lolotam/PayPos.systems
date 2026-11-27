@@ -2,12 +2,15 @@ import { describe, expect, it } from 'vitest';
 
 import {
   deriveOnboardingEnvelopeKey,
+  extractOnboardingOperationId,
+  isSafeOnboardingLink,
   maskOnboardingEmail,
   onboardingPlaceholderEmail,
   sealOnboardingEmailEnvelope,
   unsealOnboardingEmailEnvelope,
   MEMBER_INVITATION_KEY,
   ONBOARDING_EMAIL_CHUNK_SIZE,
+  ONBOARDING_EMAIL_OPERATION_PARAM,
   ONBOARDING_EMAIL_PARAM_PREFIX,
   ONBOARDING_PLACEHOLDER_DOMAIN,
   renderOperationalEmail,
@@ -16,17 +19,22 @@ import {
   type OnboardingEnvelopeAad,
 } from '../index.ts';
 
-const SECRET = 'onboarding-envelope-secret-key-0123456789';
+const ENVELOPE_MATERIAL = 'test-only-envelope-material'.padEnd(36, '0');
 const ADMIN_ORIGIN = 'https://app.pospay.systems';
 const COMPANY = '0f6c5d3a-2b1e-4a77-9d10-5b8e7c1d2a30';
+const OPERATION_ID = '1f6c5d3a-2b1e-4a77-9d10-5b8e7c1d2a31';
 const NOW = new Date('2026-11-27T10:00:00.000Z');
 
-const key = deriveOnboardingEnvelopeKey(SECRET);
+const key = deriveOnboardingEnvelopeKey(ENVELOPE_MATERIAL);
 
-function aadFor(payload: OnboardingEmailPayload): OnboardingEnvelopeAad {
+function aadFor(
+  payload: OnboardingEmailPayload,
+  operationId: string = OPERATION_ID,
+): OnboardingEnvelopeAad {
   const placeholder = onboardingPlaceholderEmail(payload.email, key ?? Buffer.alloc(0));
   return {
     companyId: COMPANY,
+    operationId,
     templateKey:
       payload.kind === 'staff_welcome_pin' ? STAFF_WELCOME_PIN_KEY : MEMBER_INVITATION_KEY,
     templateRevision: 1,
@@ -72,13 +80,15 @@ describe('the onboarding envelope key', () => {
   it('derives thirty-two bytes from a long secret', () => {
     expect(key).not.toBeNull();
     expect(key?.length).toBe(32);
-    expect(deriveOnboardingEnvelopeKey(SECRET)?.equals(key ?? Buffer.alloc(0))).toBe(true);
+    expect(deriveOnboardingEnvelopeKey(ENVELOPE_MATERIAL)?.equals(key ?? Buffer.alloc(0))).toBe(
+      true,
+    );
   });
 
   it('refuses a short secret, an empty secret, and a secret with a line break', () => {
     expect(deriveOnboardingEnvelopeKey('')).toBeNull();
-    expect(deriveOnboardingEnvelopeKey('short-secret')).toBeNull();
-    expect(deriveOnboardingEnvelopeKey(`${SECRET}\nmore`)).toBeNull();
+    expect(deriveOnboardingEnvelopeKey('short-material')).toBeNull();
+    expect(deriveOnboardingEnvelopeKey(`${ENVELOPE_MATERIAL}\nmore`)).toBeNull();
   });
 });
 
@@ -114,15 +124,26 @@ describe('the placeholder email', () => {
 });
 
 describe('the sealed onboarding envelope', () => {
-  it('round-trips the staff payload through named chunks', () => {
+  it('round-trips the staff payload through contract-valid named chunks', () => {
     const aad = aadFor(staffPayload);
     const parameters = sealOnboardingEmailEnvelope(key ?? Buffer.alloc(0), staffPayload, aad);
-    expect(parameters.length).toBeGreaterThan(0);
+    expect(parameters.length).toBeGreaterThan(1);
     expect(parameters.length).toBeLessThanOrEqual(20);
-    for (const [index, parameter] of parameters.entries()) {
+    expect(parameters[0]).toEqual({
+      name: ONBOARDING_EMAIL_OPERATION_PARAM,
+      type: 'text',
+      value: OPERATION_ID,
+    });
+    expect(extractOnboardingOperationId(parameters)).toBe(OPERATION_ID);
+    const chunks = parameters.slice(1);
+    for (const [index, parameter] of chunks.entries()) {
       expect(parameter.name).toBe(`${ONBOARDING_EMAIL_PARAM_PREFIX}${index}`);
       expect(parameter.type).toBe('text');
       expect(parameter.value.length).toBeLessThanOrEqual(ONBOARDING_EMAIL_CHUNK_SIZE);
+    }
+    for (const parameter of parameters) {
+      expect(parameter.name).toMatch(/^[a-z][a-z0-9_]{0,63}$/);
+      expect(parameter.value.length).toBeLessThanOrEqual(255);
     }
     const unsealed = unsealOnboardingEmailEnvelope(key ?? Buffer.alloc(0), parameters, aad, NOW);
     expect(unsealed).toEqual(staffPayload);
@@ -161,32 +182,42 @@ describe('the sealed onboarding envelope', () => {
   });
 });
 
-describe('a tampered or broken envelope', () => {
-  const unsealAt = (
-    parameters: readonly {
-      readonly name?: unknown;
-      readonly type?: unknown;
-      readonly value?: unknown;
-    }[],
-    aad: OnboardingEnvelopeAad = aadFor(staffPayload),
-    now: Date = NOW,
-  ) => unsealOnboardingEmailEnvelope(key ?? Buffer.alloc(0), parameters, aad, now);
+function unsealAt(
+  parameters: readonly {
+    readonly name?: unknown;
+    readonly type?: unknown;
+    readonly value?: unknown;
+  }[],
+  aad: OnboardingEnvelopeAad = aadFor(staffPayload),
+  now: Date = NOW,
+) {
+  return unsealOnboardingEmailEnvelope(key ?? Buffer.alloc(0), parameters, aad, now);
+}
 
+describe('a tampered or broken envelope', () => {
   it('returns null on a tampered chunk and on a missing chunk', () => {
     const aad = aadFor(staffPayload);
     const parameters = sealOnboardingEmailEnvelope(key ?? Buffer.alloc(0), staffPayload, aad);
-    const tampered = parameters.map((parameter, index) =>
-      index === 0 ? { ...parameter, value: `${parameter.value.slice(0, -2)}xy` } : parameter,
+    const tampered = parameters.map((parameter) =>
+      parameter.name.startsWith(ONBOARDING_EMAIL_PARAM_PREFIX)
+        ? { ...parameter, value: `${parameter.value.slice(0, -2)}xy` }
+        : parameter,
     );
     expect(unsealAt(tampered, aad)).toBeNull();
     expect(unsealAt(parameters.slice(0, -1), aad)).toBeNull();
   });
 
-  it('rejects a duplicate index and a missing index', () => {
+  it('rejects a duplicate index and a missing chunk index', () => {
     const aad = aadFor(staffPayload);
     const parameters = sealOnboardingEmailEnvelope(key ?? Buffer.alloc(0), staffPayload, aad);
-    expect(unsealAt([...parameters, parameters[0] as (typeof parameters)[0]], aad)).toBeNull();
-    expect(unsealAt(parameters.slice(1), aad)).toBeNull();
+    const firstChunk = parameters.find((p) => p.name === `${ONBOARDING_EMAIL_PARAM_PREFIX}0`);
+    expect(unsealAt([...parameters, firstChunk as (typeof parameters)[0]], aad)).toBeNull();
+    expect(
+      unsealAt(
+        parameters.filter((p) => p.name !== `${ONBOARDING_EMAIL_PARAM_PREFIX}0`),
+        aad,
+      ),
+    ).toBeNull();
   });
 
   it('reassembles the chunks by index, whatever order they arrive in', () => {
@@ -195,12 +226,20 @@ describe('a tampered or broken envelope', () => {
     expect(unsealAt([...parameters].reverse(), aad)).toEqual(staffPayload);
   });
 
-  it('returns null on a foreign key and on a foreign company', () => {
+  it('rejects an unknown chunk name, a non-text chunk, and an empty value', () => {
+    const aad = aadFor(staffPayload);
+    expect(unsealAt([{ name: 'other_0', type: 'text', value: 'abc' }], aad)).toBeNull();
+    expect(unsealAt([{ name: 'env_0', type: 'number', value: 'abc' }], aad)).toBeNull();
+    expect(unsealAt([{ name: 'env_0', type: 'text', value: '' }], aad)).toBeNull();
+  });
+});
+
+describe('a foreign or expired envelope', () => {
+  it('returns null on a foreign key, a foreign company, and a mismatched operation id', () => {
     const aad = aadFor(staffPayload);
     const parameters = sealOnboardingEmailEnvelope(key ?? Buffer.alloc(0), staffPayload, aad);
-    const otherKey =
-      deriveOnboardingEnvelopeKey('another-onboarding-envelope-secret-key-987654') ??
-      Buffer.alloc(0);
+    const otherMaterial = 'another-envelope-test-material'.padEnd(38, '0');
+    const otherKey = deriveOnboardingEnvelopeKey(otherMaterial) ?? Buffer.alloc(0);
     expect(unsealOnboardingEmailEnvelope(otherKey, parameters, aad, NOW)).toBeNull();
     expect(
       unsealOnboardingEmailEnvelope(
@@ -210,19 +249,20 @@ describe('a tampered or broken envelope', () => {
         NOW,
       ),
     ).toBeNull();
+    expect(
+      unsealOnboardingEmailEnvelope(
+        key ?? Buffer.alloc(0),
+        parameters,
+        { ...aad, operationId: '22222222-2222-4222-8222-222222222222' },
+        NOW,
+      ),
+    ).toBeNull();
   });
 
   it('returns null on an expired envelope', () => {
     const aad = aadFor(staffPayload);
     const parameters = sealOnboardingEmailEnvelope(key ?? Buffer.alloc(0), staffPayload, aad);
     expect(unsealAt(parameters, aad, new Date('2026-11-30T10:00:00.000Z'))).toBeNull();
-  });
-
-  it('rejects an unknown chunk name, a non-text chunk, and an empty value', () => {
-    const aad = aadFor(staffPayload);
-    expect(unsealAt([{ name: 'other_0', type: 'text', value: 'abc' }], aad)).toBeNull();
-    expect(unsealAt([{ name: 'env_0', type: 'number', value: 'abc' }], aad)).toBeNull();
-    expect(unsealAt([{ name: 'env_0', type: 'text', value: '' }], aad)).toBeNull();
   });
 });
 
@@ -258,7 +298,7 @@ describe('the staff welcome email', () => {
     expect(english?.text).toContain('24 hours');
   });
 
-  it('shows the masked target only to the manager', () => {
+  it('shows recipient-specific copy for the manager vs employee and formats role/expiry', () => {
     const manager = renderOperationalEmail(
       STAFF_WELCOME_PIN_KEY,
       1,
@@ -267,6 +307,10 @@ describe('the staff welcome email', () => {
       ADMIN_ORIGIN,
     );
     expect(manager?.text).toContain('ca***@example.test');
+    expect(manager?.text).toContain('Reception / Cashier');
+    expect(manager?.text).toContain('2026-11-28 10:00 UTC');
+    expect(manager?.text).toContain('Hand this temporary PIN to the employee in person only');
+    expect(manager?.text).not.toContain('Do not share this PIN with anyone');
     const employee = renderOperationalEmail(
       STAFF_WELCOME_PIN_KEY,
       1,
@@ -275,6 +319,7 @@ describe('the staff welcome email', () => {
       ADMIN_ORIGIN,
     );
     expect(employee?.text).not.toContain('ca***@example.test');
+    expect(employee?.text).toContain('Do not share this PIN with anyone');
   });
 
   it('refuses a bad revision, a bad locale, a bad PIN, and an unknown origin', () => {
@@ -326,7 +371,7 @@ describe('the member invitation email', () => {
     expect(rendered?.text).toContain('48');
   });
 
-  it('refuses a link with credentials, a non-http scheme, and a control character', () => {
+  it('refuses remote http links, credentials, non-http schemes, and control characters', () => {
     const render = (link: string) =>
       renderOperationalEmail(
         MEMBER_INVITATION_KEY,
@@ -335,12 +380,15 @@ describe('the member invitation email', () => {
         [{ ...invitationPayload, link }],
         ADMIN_ORIGIN,
       );
+    expect(isSafeOnboardingLink('http://evil.example/reset-password/token')).toBe(false);
+    expect(isSafeOnboardingLink('http://localhost:3000/reset-password/token')).toBe(true);
+    expect(render('http://api.pospay.systems/reset-password/token')).toBeNull();
     expect(render('https://user:pass@example.test/x')).toBeNull();
     expect(render('javascript:alert(1)')).toBeNull();
     expect(render('https://example.test/ ')).toBeNull();
   });
 
-  it('shows the masked target only to the owner', () => {
+  it('renders recipient-specific copy for the owner vs invitee', () => {
     const owner = renderOperationalEmail(
       MEMBER_INVITATION_KEY,
       1,
@@ -349,6 +397,11 @@ describe('the member invitation email', () => {
       ADMIN_ORIGIN,
     );
     expect(owner?.text).toContain('in***@example.test');
+    expect(owner?.text).toContain('Accountant');
+    expect(owner?.text).toContain('2026-11-29 10:00 UTC');
+    expect(owner?.text).toContain('Forward this link only to the invitee');
+    expect(owner?.text).toContain('Member invitation link');
+    expect(owner?.text).not.toContain('Complete your details');
     const invitee = renderOperationalEmail(
       MEMBER_INVITATION_KEY,
       1,
@@ -357,5 +410,7 @@ describe('the member invitation email', () => {
       ADMIN_ORIGIN,
     );
     expect(invitee?.text).not.toContain('in***@example.test');
+    expect(invitee?.text).toContain('Complete your details');
+    expect(invitee?.text).toContain('Do not share this link with anyone');
   });
 });

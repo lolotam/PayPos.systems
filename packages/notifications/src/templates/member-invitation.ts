@@ -1,46 +1,69 @@
 import { isSafeOnboardingLink } from '../onboarding-email-envelope.ts';
-import { escapeHtml, renderEmailLayout } from './email-layout.ts';
+import { escapeHtml, formatEmailUtcTimestamp, renderEmailLayout } from './email-layout.ts';
 
 /** مفتاح قالب بريد دعوة العضو — نفس المفتاح في حدث الطلب. */
 export const MEMBER_INVITATION_KEY = 'member_invitation';
 /** مراجعة القالب: نسخة واحدة معتمدة، أي تغيير بياخد مراجعة جديدة. */
 export const MEMBER_INVITATION_REVISION = 1;
 
-/** نسخة رسالة الدعوة: العنوان، والمقدمة، والدور، والمدة، والزر، والتحذير. */
+/** نسخة رسالة الدعوة: العنوان، والمقدمة، والدور، والمدة، والزر، والتحذير حسب المتلقي. */
 interface MemberInvitationCopy {
   readonly subject: string;
   readonly inviteeIntro: string;
   readonly ownerIntro: string;
   readonly label: string;
-  readonly action: string;
+  readonly inviteeAction: string;
+  readonly ownerAction: string;
   readonly expiry: string;
-  readonly share: string;
+  readonly inviteeShare: string;
+  readonly ownerShare: string;
   readonly ownerTarget: string;
+  readonly roles: Readonly<Record<string, string>>;
 }
 
-/** نسخ القالب بلغتين: الدعوة، والدور، والمدة، والزر، والتحذير. */
+/** نسخ القالب بلغتين: الدعوة، والدور، والمدة، والزر، وتوجيه واضح للمدعو وللمالك. */
 const COPY: Record<'ar' | 'en', MemberInvitationCopy> = {
   ar: {
     subject: 'دعوة الانضمام إلى PosPay',
-    inviteeIntro: 'دعاك مالك الشركة تنضم ل PosPay. اضغط الزر وكمّل بياناتك.',
-    ownerIntro: 'صدرت دعوة انضمام لعضو جديد في PosPay. الرابط ده خاص بيك.',
+    inviteeIntro: 'دعاك مالك الشركة تنضم لـ PosPay. اضغط الزر لإكمال بياناتك وتعيين كلمة المرور.',
+    ownerIntro: 'صدر رابط دعوة لعضو جديد في PosPay لتعيين كلمة مروره وإكمال حسابه.',
     label: 'الدور',
-    action: 'كمّل بياناتك',
-    expiry: 'الرابط صالح لمدة 48 ساعة من وقت الإصدار، وبعدها بينتهي.',
-    share: 'ما تشاركش الرابط ده مع أي حد، هو رابط شخصي.',
+    inviteeAction: 'إكمال بياناتك وتعيين كلمة المرور',
+    ownerAction: 'رابط دعوة العضو',
+    expiry: 'الرابط صالح لمدة 48 ساعة من وقت الإصدار حتى:',
+    inviteeShare: 'لا تشاركي هذا الرابط مع أي شخص؛ هو مخصص لكِ فقط.',
+    ownerShare:
+      'مرّر هذا الرابط للمدعو فقط؛ الرابط يضبط كلمة المرور الخاصة بالمدعو ولا تستخدمه بدلاً منه.',
     ownerTarget: 'العضو المدعو:',
+    roles: {
+      general_manager: 'المدير العام',
+      business_manager: 'مدير النشاط',
+      branch_manager: 'مدير الفرع',
+      accountant: 'محاسب',
+      owner: 'المالك',
+    },
   },
   en: {
     subject: 'You are invited to join PosPay',
     inviteeIntro:
-      'The company owner invited you to join PosPay. Press the button and complete your details.',
-    ownerIntro: 'A new member was invited to PosPay. This setup link is for you.',
+      'The company owner invited you to join PosPay. Press the button to complete your details.',
+    ownerIntro:
+      'An invitation setup link was issued for a new PosPay member so they can set their password.',
     label: 'Role',
-    action: 'Complete your details',
-    expiry:
-      'The link is valid for 48 hours from the moment it was issued, and it expires after that.',
-    share: 'Do not share this link with anyone, it is personal to you.',
+    inviteeAction: 'Complete your details',
+    ownerAction: 'Member invitation link',
+    expiry: 'The link is valid for 48 hours from issue until:',
+    inviteeShare: 'Do not share this link with anyone; it is personal to you.',
+    ownerShare:
+      'Forward this link only to the invitee; it sets their password, so do not use it yourself.',
     ownerTarget: 'Invited member:',
+    roles: {
+      general_manager: 'General Manager',
+      business_manager: 'Business Manager',
+      branch_manager: 'Branch Manager',
+      accountant: 'Accountant',
+      owner: 'Owner',
+    },
   },
 };
 
@@ -133,29 +156,34 @@ function renderMemberInvitation(
   const noteStyle = 'margin:12px 0 0 0;font-size:13px;line-height:1.6;color:#5A6675;';
   const buttonStyle =
     "display:inline-block;background-color:#FF6421;color:#FFFFFF;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Tahoma,Arial,sans-serif;font-size:15px;font-weight:600;line-height:1;text-decoration:none;padding:14px 24px;border-radius:10px;margin:16px 0 0 0;";
-  const intro = data.recipient === 'owner' ? copy.ownerIntro : copy.inviteeIntro;
+  const isOwner = data.recipient === 'owner';
+  const intro = isOwner ? copy.ownerIntro : copy.inviteeIntro;
+  const action = isOwner ? copy.ownerAction : copy.inviteeAction;
+  const share = isOwner ? copy.ownerShare : copy.inviteeShare;
+  const roleDisplay = copy.roles[data.role] ?? data.role;
+  const expiresDisplay = formatEmailUtcTimestamp(data.expiresAt);
   const target =
-    data.recipient === 'owner' && data.targetMaskedEmail !== null
+    isOwner && data.targetMaskedEmail !== null
       ? `<p style="${noteStyle}">${escapeHtml(copy.ownerTarget)} ${escapeHtml(data.targetMaskedEmail)}</p>`
       : '';
-  const button = `<a href="${escapeHtml(data.link)}" style="${buttonStyle}">${escapeHtml(copy.action)}</a>`;
+  const button = `<a href="${escapeHtml(data.link)}" style="${buttonStyle}">${escapeHtml(action)}</a>`;
   const layout = renderEmailLayout({
     locale,
     adminOrigin,
     title: copy.subject,
     bodyHtml: `<p style="margin:0;">${escapeHtml(intro)}</p>
-      <p style="${noteStyle}">${escapeHtml(copy.label)}: ${escapeHtml(data.role)}</p>
+      <p style="${noteStyle}">${escapeHtml(copy.label)}: ${escapeHtml(roleDisplay)}</p>
       ${target}
       ${button}
-      <p style="${noteStyle}">${escapeHtml(copy.expiry)} ${escapeHtml(data.expiresAt)}</p>
-      <p style="${noteStyle}">${escapeHtml(copy.share)}</p>`,
+      <p style="${noteStyle}">${escapeHtml(copy.expiry)} ${escapeHtml(expiresDisplay)}</p>
+      <p style="${noteStyle}">${escapeHtml(share)}</p>`,
     bodyText: [
       intro,
-      `${copy.label}: ${data.role}`,
+      `${copy.label}: ${roleDisplay}`,
       ...(target === '' ? [] : [`${copy.ownerTarget} ${data.targetMaskedEmail ?? ''}`]),
-      `${copy.action}\n${data.link}`,
-      `${copy.expiry} ${data.expiresAt}`,
-      copy.share,
+      `${action}\n${data.link}`,
+      `${copy.expiry} ${expiresDisplay}`,
+      share,
     ].join('\n'),
   });
   return { subject: copy.subject, text: layout.text, html: layout.html };

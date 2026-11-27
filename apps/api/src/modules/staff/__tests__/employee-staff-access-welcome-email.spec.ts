@@ -1,6 +1,8 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import {
   deriveOnboardingEnvelopeKey,
+  extractOnboardingOperationId,
+  ONBOARDING_EMAIL_OPERATION_PARAM,
   onboardingPlaceholderEmail,
   STAFF_WELCOME_PIN_KEY,
   unsealOnboardingEmailEnvelope,
@@ -15,7 +17,7 @@ import {
   type Fixture,
 } from '../../../../test/staff-access.fixture.ts';
 
-const SEALING_KEY = 'onboarding-envelope-secret-key-0123456789';
+const SEALING_KEY = 'test-only-envelope-material'.padEnd(36, '0');
 const OWNER_EMAIL = 'staff-access-owner@example.test';
 const RECOVERY_EMAIL = 'sara.recovery@example.test';
 const PIN = '1234';
@@ -40,18 +42,21 @@ const managerRecipient = (recipients: readonly NoticeRecipient[]) => {
   return recipients.find((recipient) => recipient.email === placeholder);
 };
 
-const unsealManagerNotice = (companyId: string, recipient: NoticeRecipient) =>
-  unsealOnboardingEmailEnvelope(
+const unsealManagerNotice = (companyId: string, recipient: NoticeRecipient) => {
+  const operationId = extractOnboardingOperationId(recipient.safe_parameters) ?? '';
+  return unsealOnboardingEmailEnvelope(
     deriveOnboardingEnvelopeKey(SEALING_KEY) ?? Buffer.alloc(0),
     recipient.safe_parameters,
     {
       companyId,
+      operationId,
       templateKey: STAFF_WELCOME_PIN_KEY,
       templateRevision: 1,
       placeholderEmail: recipient.email,
     },
     new Date(),
   );
+};
 
 const assertSealedAndClean = async (f: Fixture, payload: unknown) => {
   const recipients = recipientsOf(payload);
@@ -60,7 +65,8 @@ const assertSealedAndClean = async (f: Fixture, payload: unknown) => {
     expect(recipient.email).toMatch(/^sealed-[0-9a-f]{24}@redacted\.invalid$/);
     expect(recipient.template_key).toBe(STAFF_WELCOME_PIN_KEY);
     expect(recipient.template_revision).toBe(1);
-    expect(recipient.safe_parameters[0]?.name).toBe('env_0');
+    expect(recipient.safe_parameters[0]?.name).toBe(ONBOARDING_EMAIL_OPERATION_PARAM);
+    expect(recipient.safe_parameters[1]?.name).toBe('env_0');
   }
   const serialized = JSON.stringify(payload);
   for (const forbidden of [PIN, OWNER_EMAIL, RECOVERY_EMAIL])
@@ -72,6 +78,14 @@ const assertSealedAndClean = async (f: Fixture, payload: unknown) => {
   expect(capturedLogs()).not.toContain(PIN);
   expect(capturedLogs()).not.toContain(RECOVERY_EMAIL);
 };
+
+async function grantAndReadRecipients(f: Fixture, employeeId: string) {
+  expect((await grant(f, employeeId, nextPhone(f))).status).toBe(200);
+  const rows = await f.h
+    .owner`SELECT payload FROM outbox WHERE event_type = 'StaffWelcomePinNoticeRequested' AND aggregate_id = ${employeeId}`;
+  expect(rows).toHaveLength(1);
+  return recipientsOf(rows[0]?.payload);
+}
 
 describe('the staff welcome email with a sealing key', () => {
   let f: Fixture;
@@ -94,11 +108,7 @@ describe('the staff welcome email with a sealing key', () => {
 
   it('sends only to the manager when the employee has no recovery email', async () => {
     const huda = await addEmployee(f, 'Huda', f.salmiya, 4);
-    expect((await grant(f, huda, nextPhone(f))).status).toBe(200);
-    const events = await f.h
-      .owner`SELECT payload FROM outbox WHERE event_type = 'StaffWelcomePinNoticeRequested' AND aggregate_id = ${huda}`;
-    expect(events).toHaveLength(1);
-    const recipients = recipientsOf(events[0]?.payload);
+    const recipients = await grantAndReadRecipients(f, huda);
     expect(recipients).toHaveLength(1);
     expect(recipients[0]?.email).toBe(
       onboardingPlaceholderEmail(
@@ -110,9 +120,7 @@ describe('the staff welcome email with a sealing key', () => {
 
   it('unseals the notice for the worker with the shared key', async () => {
     const nora = await addEmployee(f, 'Nora', f.hawalli, 2);
-    await grant(f, nora, nextPhone(f));
-    const events = await noticeEvents(f);
-    const manager = managerRecipient(recipientsOf(events[events.length - 1]?.payload));
+    const manager = managerRecipient(await grantAndReadRecipients(f, nora));
     expect(manager).toBeDefined();
     expect(manager && unsealManagerNotice(f.company, manager)).toMatchObject({
       kind: 'staff_welcome_pin',
@@ -120,7 +128,21 @@ describe('the staff welcome email with a sealing key', () => {
       pin: PIN,
       role: 'staff',
       recipient: 'manager',
+      employeeId: nora,
     });
+  });
+
+  it('deduplicates recipients when employee recovery_email matches the creating manager', async () => {
+    const rana = await addEmployee(f, 'Rana', f.salmiya, 5);
+    await f.h.owner`UPDATE employees SET recovery_email = ${OWNER_EMAIL} WHERE id = ${rana}`;
+    const recipients = await grantAndReadRecipients(f, rana);
+    expect(recipients).toHaveLength(1);
+    expect(recipients[0]?.email).toBe(
+      onboardingPlaceholderEmail(
+        OWNER_EMAIL,
+        deriveOnboardingEnvelopeKey(SEALING_KEY) ?? Buffer.alloc(0),
+      ),
+    );
   });
 });
 

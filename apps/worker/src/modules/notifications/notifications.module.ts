@@ -61,6 +61,7 @@ export interface NotificationModuleOptions {
   readonly admission?: SendAdmission;
   readonly emailConfiguration?: EmailModuleOptions['configuration'];
   readonly emailTesting?: EmailModuleOptions['testing'];
+  readonly emailEnvelopeKey?: string | null;
   readonly email?: ReturnType<typeof createEmailModule>;
   /** جاهزية الدفع في العامل: هي اللي بتفعّل كتابة محاولات الدفع (ADR-0052 قرار 2). */
   readonly push?: { readonly enabled: boolean };
@@ -83,12 +84,14 @@ export function createNotificationModule(options: NotificationModuleOptions) {
   const email =
     options.email ??
     createEmailModule({
+      database: options.database,
       production: options.production || configuration.mode === 'live',
       clock,
       ids,
       ...(options.emailConfiguration === undefined
         ? {}
         : { configuration: options.emailConfiguration }),
+      ...(options.emailEnvelopeKey === undefined ? {} : { envelopeKey: options.emailEnvelopeKey }),
       ...(options.emailTesting === undefined ? {} : { testing: options.emailTesting }),
     });
   const { routed, destinations } = routeChannels(adapter, identity, email);
@@ -225,6 +228,7 @@ export function createInAppNotificationModule(
   const email =
     options.email ??
     createEmailModule({
+      database: options.database,
       production: true,
       ids: options.ids,
       clock: options.clock,

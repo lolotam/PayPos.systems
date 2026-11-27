@@ -13,6 +13,8 @@ export interface StaffWelcomeEnvelopePayload {
   readonly role: string;
   readonly recipient: 'manager' | 'employee';
   readonly targetMaskedEmail: string | null;
+  readonly employeeId?: string | undefined;
+  readonly operationId?: string | undefined;
   readonly expiresAt: string;
   readonly expiresAtMs: number;
 }
@@ -25,6 +27,8 @@ export interface MemberInvitationEnvelopePayload {
   readonly role: string;
   readonly recipient: 'invitee' | 'owner';
   readonly targetMaskedEmail: string | null;
+  readonly invitationId?: string | undefined;
+  readonly issuedAt?: string | undefined;
   readonly expiresAt: string;
   readonly expiresAtMs: number;
 }
@@ -46,9 +50,10 @@ export interface OnboardingSealedEnvelope {
   readonly parameters: readonly OnboardingEnvelopeParameter[];
 }
 
-/** مدخلات الختم: الشركة والوجهة والحمولة. */
+/** مدخلات الختم: الشركة وهوية العملية والوجهة والحمولة. */
 export interface OnboardingSealInput {
   readonly companyId: string;
+  readonly operationId: string;
   readonly email: string;
   readonly payload: OnboardingEnvelopePayload;
 }

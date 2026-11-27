@@ -29,7 +29,7 @@ import {
   createStopEmployeeStaffAccessSteps,
 } from './persistence/staff-access-stop.adapter.ts';
 import { createStaffAccessGrantAdmission } from './persistence/staff-access-admission.adapter.ts';
-import { createStaffWelcomePinDatabase } from './persistence/staff-welcome-pin.adapter.ts';
+import { createStaffWelcomeBinding } from './persistence/staff-welcome-pin.adapter.ts';
 import type { AuthFacadeForStaffAccess } from './ports/staff-access-auth.port.ts';
 import type { StaffAccessGrantCache, StaffAccessUserSteps } from './ports/staff-access.port.ts';
 import { StaffWelcomeGrantUseCase } from './staff-welcome-grant.ts';
@@ -90,19 +90,6 @@ function stopProvider(deps: {
   };
 }
 
-/**
- * ربط قدرة «إعطاء الدخول»: بوابة التفعيل من بيئة التشغيل، وخطوة auth عبر identity لما تكون موجودة،
- * والuse cases بلا قاعدة بيانات يرجعون null فكل المسارات ترد NOT_READY.
- *
- * @param database        مغلفات الشركة من @pospay/db أو undefined في تطبيق بلا قاعدة
- * @param redis           عميل Redis لإبطال الكاش أو undefined
- * @param ids             مولّد UUID v7
- * @param auth            واجهة حساب الموظفة عبر identity أو null
- * @param routesEnabled   بوابة STAFF_ACCESS_ROUTES المقروءة مرة واحدة عند التشغيل
- * @param phoneHashSecret مفتاح بصمة الهاتف (HMAC) أو null — null أو فاضي يمنع بناء الخطوات فترد
- *                        المسارات NOT_READY بدل ما تكتب بصمة بلا مفتاح
- * @returns الـ providers المضافة لموديول staff
- */
 /** مزوّد use case «إعطاء الدخول»: يربط الترحيب بالمعاملة نفسها بلا ملفات إضافية عند الاستعمال. */
 function grantAccessProvider(deps: {
   database: TenantWrappers | undefined;
@@ -112,35 +99,51 @@ function grantAccessProvider(deps: {
   cache: StaffAccessGrantCache;
   ids: IdGenerator;
   onboardingSealer: OnboardingEmailSealer | undefined;
+  pinExpiresAt: ((at: Date) => Date) | undefined;
 }): Provider {
-  const { database, auth, users, phoneHashSecret, cache, ids, onboardingSealer } = deps;
-  const steps =
+  const { database, auth, users, phoneHashSecret, cache, ids, onboardingSealer, pinExpiresAt } =
+    deps;
+  const binding =
     database === undefined ||
     auth === null ||
     phoneHashSecret === null ||
     phoneHashSecret.length === 0
       ? null
-      : createGrantEmployeeAccessSteps(
-          createStaffWelcomePinDatabase(database, onboardingSealer, ids),
-          auth,
-          phoneHashSecret,
+      : createStaffWelcomeBinding(database, onboardingSealer, pinExpiresAt, (db) =>
+          createGrantEmployeeAccessSteps(db, auth, phoneHashSecret),
         );
   return {
     provide: GrantEmployeeAccessUseCase,
     useValue:
-      steps === null || users === null
+      binding === null || users === null
         ? null
         : new StaffWelcomeGrantUseCase(
-            steps,
+            binding.steps,
             users,
             cache,
             systemClock,
             ids,
             createStaffAccessGrantAdmission(),
+            binding.welcome,
           ),
   };
 }
 
+/**
+ * ربط قدرة «إعطاء الدخول»: بوابة التفعيل من بيئة التشغيل، وخطوة auth عبر identity لما تكون موجودة،
+ * والuse cases بلا قاعدة بيانات يرجعون null فكل المسارات ترد NOT_READY.
+ *
+ * @param database         مغلفات الشركة من @pospay/db أو undefined في تطبيق بلا قاعدة
+ * @param redis            عميل Redis لإبطال الكاش أو undefined
+ * @param ids              مولّد UUID v7
+ * @param auth             واجهة حساب الموظفة عبر identity أو null
+ * @param routesEnabled    بوابة STAFF_ACCESS_ROUTES المقروءة مرة واحدة عند التشغيل
+ * @param phoneHashSecret  مفتاح بصمة الهاتف (HMAC) أو null — null أو فاضي يمنع بناء الخطوات فترد
+ *                         المسارات NOT_READY بدل ما تكتب بصمة بلا مفتاح
+ * @param onboardingSealer ختم إيميلات الترحيب عند توفر مفتاح المظروف
+ * @param pinExpiresAt     دالة حساب انتهاء الرقم المؤقت المحقونة من جذر التركيب
+ * @returns الـ providers المضافة لموديول staff
+ */
 export function staffAccessProviders(
   database: TenantWrappers | undefined,
   redis: Redis | undefined,
@@ -149,6 +152,7 @@ export function staffAccessProviders(
   routesEnabled: boolean,
   phoneHashSecret: Buffer | string | null = null,
   onboardingSealer?: OnboardingEmailSealer,
+  pinExpiresAt?: (at: Date) => Date,
 ): Provider[] {
   const cache = createStaffAccessGrantCache(redis);
   const users = auth === null ? null : createStaffAccessUserSteps(auth);
@@ -170,6 +174,7 @@ export function staffAccessProviders(
       cache,
       ids,
       onboardingSealer,
+      pinExpiresAt,
     }),
     {
       provide: CancelPendingStaffAccessUseCase,

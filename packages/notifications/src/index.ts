@@ -52,11 +52,14 @@ export {
 } from './templates/member-invitation.ts';
 export {
   deriveOnboardingEnvelopeKey,
+  extractOnboardingOperationId,
+  isSafeOnboardingLink,
   maskOnboardingEmail,
   onboardingPlaceholderEmail,
   sealOnboardingEmailEnvelope,
   unsealOnboardingEmailEnvelope,
   ONBOARDING_EMAIL_CHUNK_SIZE,
+  ONBOARDING_EMAIL_OPERATION_PARAM,
   ONBOARDING_EMAIL_PARAM_PREFIX,
   ONBOARDING_PLACEHOLDER_DOMAIN,
 } from './onboarding-email-envelope.ts';

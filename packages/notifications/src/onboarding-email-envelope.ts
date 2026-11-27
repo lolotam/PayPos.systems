@@ -2,8 +2,10 @@ import { createCipheriv, createDecipheriv, createHmac, hkdfSync, randomBytes } f
 
 import { canonicalEmail } from './email-identity.ts';
 
-/** بادئة اسم معامل المظروف؛ الأسماء المسموحة في العقد بتبدأ بحرف صغير وبعدها حروف أو أرقام. */
+/** بادئة اسم معامل المظروف؛ الأسماء المسموحة في العقد تطابق /^[a-z][a-z0-9_]{0,63}$/. */
 export const ONBOARDING_EMAIL_PARAM_PREFIX = 'env_';
+/** اسم معامل هوية العملية المرافِقة للمظروف؛ يطابق /^[a-z][a-z0-9_]{0,63}$/. */
+export const ONBOARDING_EMAIL_OPERATION_PARAM = 'operation_id';
 /** أقصى طول لمقطع المظروف الواحد؛ العقد بيسمح بـ 255 محرف لكل معامل. */
 export const ONBOARDING_EMAIL_CHUNK_SIZE = 200;
 /** النطاق البديل للعنصر الموقّع: نطاق لا يقبل بريداً حقيقياً. */
@@ -31,6 +33,8 @@ export type OnboardingEmailPayload =
       readonly role: string;
       readonly recipient: 'manager' | 'employee';
       readonly targetMaskedEmail?: string | null;
+      readonly employeeId?: string | undefined;
+      readonly operationId?: string | undefined;
       readonly expiresAt: string;
       readonly expiresAtMs: number;
     }
@@ -41,13 +45,16 @@ export type OnboardingEmailPayload =
       readonly role: string;
       readonly recipient: 'invitee' | 'owner';
       readonly targetMaskedEmail?: string | null;
+      readonly invitationId?: string | undefined;
+      readonly issuedAt?: string | undefined;
       readonly expiresAt: string;
       readonly expiresAtMs: number;
     };
 
-/** البيانات المرتبطة بالتشفير: بتربط المظروف بالشركة والقالب والوجهة الموقّعة. */
+/** البيانات المرتبطة بالتشفير: بتربط المظروف بالشركة والعملية والقالب والوجهة الموقّعة. */
 export interface OnboardingEnvelopeAad {
   readonly companyId: string;
+  readonly operationId: string;
   readonly templateKey: string;
   readonly templateRevision: number;
   readonly placeholderEmail: string;
@@ -114,7 +121,7 @@ export function onboardingPlaceholderEmail(realEmail: string, key: Buffer): stri
 }
 
 /**
- * يبني نص البيانات المرتبطة: يربط المظروف بالشركة والقالب والوجهة الموقّعة.
+ * يبني نص البيانات المرتبطة: يربط المظروف بالشركة والعملية والقالب والوجهة الموقّعة.
  *
  * @param aad البيانات المرتبطة
  * @returns نص UTF-8 للتشفير
@@ -123,6 +130,7 @@ function onboardingEnvelopeAad(aad: OnboardingEnvelopeAad): string {
   return [
     'pospay:onboarding-email:v1',
     aad.companyId,
+    aad.operationId,
     aad.templateKey,
     String(aad.templateRevision),
     aad.placeholderEmail,
@@ -144,6 +152,8 @@ export function sealOnboardingEmailEnvelope(
 ): OnboardingEnvelopeParameter[] {
   const canonical = canonicalEmail(payload.email);
   if (canonical === null) throw new Error('ONBOARDING_EMAIL_ENVELOPE_RECIPIENT_INVALID');
+  if (aad.operationId.length === 0 || aad.operationId.length > 255)
+    throw new Error('ONBOARDING_EMAIL_ENVELOPE_AAD_MISMATCH');
   if (onboardingPlaceholderEmail(canonical, key) !== aad.placeholderEmail)
     throw new Error('ONBOARDING_EMAIL_ENVELOPE_AAD_MISMATCH');
   const iv = randomBytes(IV_SIZE);
@@ -159,7 +169,10 @@ export function sealOnboardingEmailEnvelope(
     cipher.getAuthTag(),
     ciphertext,
   ]);
-  return chunkEnvelope(envelope.toString('base64url'));
+  return [
+    { name: ONBOARDING_EMAIL_OPERATION_PARAM, type: 'text', value: aad.operationId },
+    ...chunkEnvelope(envelope.toString('base64url')),
+  ];
 }
 
 /**
@@ -184,6 +197,29 @@ function chunkEnvelope(encoded: string): OnboardingEnvelopeParameter[] {
 }
 
 /**
+ * يستخرج معرّف العملية المرفق بمعاملات المظروف، أو null عند الغياب أو التكرار.
+ *
+ * @param parameters المعاملات المسمّاة
+ * @returns معرّف العملية، أو null
+ */
+export function extractOnboardingOperationId(
+  parameters: readonly {
+    readonly name?: unknown;
+    readonly type?: unknown;
+    readonly value?: unknown;
+  }[],
+): string | null {
+  let operationId: string | null = null;
+  for (const parameter of parameters) {
+    if (parameter.name !== ONBOARDING_EMAIL_OPERATION_PARAM) continue;
+    if (parameter.type !== 'text' || typeof parameter.value !== 'string') return null;
+    if (parameter.value.length === 0 || operationId !== null) return null;
+    operationId = parameter.value;
+  }
+  return operationId;
+}
+
+/**
  * يجمّع القطع المسمّاة في نص واحد؛ أي قطعة ناقصة أو زائدة أو مكررة بترفض المظروف كله.
  *
  * @param parameters المعاملات المسمّاة
@@ -197,9 +233,15 @@ function joinEnvelopeChunks(
   }[],
 ): string | null {
   const chunks = new Map<number, string>();
+  let seenOperation = false;
   for (const parameter of parameters) {
     if (typeof parameter.name !== 'string' || parameter.type !== 'text') return null;
     if (typeof parameter.value !== 'string' || parameter.value.length === 0) return null;
+    if (parameter.name === ONBOARDING_EMAIL_OPERATION_PARAM) {
+      if (seenOperation) return null;
+      seenOperation = true;
+      continue;
+    }
     if (!parameter.name.startsWith(ONBOARDING_EMAIL_PARAM_PREFIX)) return null;
     const index = parameter.name.slice(ONBOARDING_EMAIL_PARAM_PREFIX.length);
     if (!/^\d+$/.test(index)) return null;
@@ -224,6 +266,7 @@ function joinEnvelopeChunks(
  * @param parameters المعاملات المسمّاة
  * @param aad البيانات المرتبطة
  * @param now اللحظة الحالية
+ * @param options خيارات فك التشفير (تعطيل فحص العمر مطلوب فقط لمطابقة الوجهة قبل الرفض)
  * @returns الحمولة، أو null عند أي تزوير أو انتهاء
  */
 export function unsealOnboardingEmailEnvelope(
@@ -235,7 +278,9 @@ export function unsealOnboardingEmailEnvelope(
   }[],
   aad: OnboardingEnvelopeAad,
   now: Date,
+  options: { readonly checkExpiry?: boolean } = {},
 ): OnboardingEmailPayload | null {
+  if (aad.operationId.length === 0) return null;
   const encoded = joinEnvelopeChunks(parameters);
   if (encoded === null) return null;
   let envelope: Buffer;
@@ -264,7 +309,70 @@ export function unsealOnboardingEmailEnvelope(
   } catch {
     return null;
   }
-  return readOnboardingPayload(parsed, key, aad, now);
+  return readOnboardingPayload(parsed, key, aad, now, options.checkExpiry !== false);
+}
+
+/** يتحقق من نص اختياري داخل الحمولة: undefined مقبول، وأي نوع تاني أو نص فاضي مرفوض. */
+function optionalTextField(
+  payload: Record<string, unknown>,
+  key: string,
+): { readonly ok: true; readonly value: string | undefined } | { readonly ok: false } {
+  const raw = payload[key];
+  if (raw === undefined) return { ok: true, value: undefined };
+  if (typeof raw !== 'string' || raw.length === 0) return { ok: false };
+  return { ok: true, value: raw };
+}
+
+interface OnboardingBaseFields {
+  readonly email: string;
+  readonly role: string;
+  readonly targetMaskedEmail: string | null;
+  readonly expiresAt: string;
+  readonly expiresAtMs: number;
+}
+
+/** يتحقق من حقول بريد الترحيب بالرقم السري المؤقت بعد التحقق من الأساسيات. */
+function readStaffWelcomePayload(
+  payload: Record<string, unknown>,
+  base: OnboardingBaseFields,
+): OnboardingEmailPayload | null {
+  const recipient = payload['recipient'];
+  if (recipient !== 'manager' && recipient !== 'employee') return null;
+  const pin = payload['pin'];
+  if (typeof pin !== 'string' || !/^\d{4}$/.test(pin)) return null;
+  const employeeId = optionalTextField(payload, 'employeeId');
+  const operationId = optionalTextField(payload, 'operationId');
+  if (!employeeId.ok || !operationId.ok) return null;
+  return {
+    kind: 'staff_welcome_pin',
+    ...base,
+    pin,
+    recipient,
+    ...(employeeId.value === undefined ? {} : { employeeId: employeeId.value }),
+    ...(operationId.value === undefined ? {} : { operationId: operationId.value }),
+  };
+}
+
+/** يتحقق من حقول بريد دعوة العضو بعد التحقق من الأساسيات. */
+function readMemberInvitationPayload(
+  payload: Record<string, unknown>,
+  base: OnboardingBaseFields,
+): OnboardingEmailPayload | null {
+  const recipient = payload['recipient'];
+  if (recipient !== 'invitee' && recipient !== 'owner') return null;
+  const link = payload['link'];
+  if (typeof link !== 'string' || !isSafeOnboardingLink(link)) return null;
+  const invitationId = optionalTextField(payload, 'invitationId');
+  const issuedAt = optionalTextField(payload, 'issuedAt');
+  if (!invitationId.ok || !issuedAt.ok) return null;
+  return {
+    kind: 'member_invitation',
+    ...base,
+    link,
+    recipient,
+    ...(invitationId.value === undefined ? {} : { invitationId: invitationId.value }),
+    ...(issuedAt.value === undefined ? {} : { issuedAt: issuedAt.value }),
+  };
 }
 
 /**
@@ -274,6 +382,7 @@ export function unsealOnboardingEmailEnvelope(
  * @param key مفتاح الختم
  * @param aad البيانات المرتبطة
  * @param now اللحظة الحالية
+ * @param checkExpiry فحص انتهاء الصلاحية
  * @returns الحمولة الصالحة، أو null
  */
 function readOnboardingPayload(
@@ -281,6 +390,7 @@ function readOnboardingPayload(
   key: Buffer,
   aad: OnboardingEnvelopeAad,
   now: Date,
+  checkExpiry: boolean,
 ): OnboardingEmailPayload | null {
   if (typeof parsed !== 'object' || parsed === null) return null;
   const payload = parsed as Record<string, unknown>;
@@ -301,40 +411,21 @@ function readOnboardingPayload(
   const expiresAt = payload['expiresAt'];
   const expiresAtMs = payload['expiresAtMs'];
   if (typeof expiresAt !== 'string' || typeof expiresAtMs !== 'number') return null;
-  if (!Number.isFinite(expiresAtMs) || now.getTime() > expiresAtMs) return null;
-  const recipient = payload['recipient'];
-  if (kind === 'staff_welcome_pin') {
-    if (recipient !== 'manager' && recipient !== 'employee') return null;
-    const pin = payload['pin'];
-    if (typeof pin !== 'string' || !/^\d{4}$/.test(pin)) return null;
-    return {
-      kind,
-      email,
-      pin,
-      role,
-      recipient,
-      targetMaskedEmail: targetMaskedEmail ?? null,
-      expiresAt,
-      expiresAtMs,
-    };
-  }
-  if (recipient !== 'invitee' && recipient !== 'owner') return null;
-  const link = payload['link'];
-  if (typeof link !== 'string' || !isSafeOnboardingLink(link)) return null;
-  return {
-    kind,
+  if (!Number.isFinite(expiresAtMs) || (checkExpiry && now.getTime() > expiresAtMs)) return null;
+  const base: OnboardingBaseFields = {
     email,
-    link,
     role,
-    recipient,
     targetMaskedEmail: targetMaskedEmail ?? null,
     expiresAt,
     expiresAtMs,
   };
+  return kind === 'staff_welcome_pin'
+    ? readStaffWelcomePayload(payload, base)
+    : readMemberInvitationPayload(payload, base);
 }
 
 /**
- * يفحص رابط الدعوة: http أو https، من غير بيانات دخول ومن غير محارف تحكم.
+ * يفحص رابط الدعوة: https فقط، مع السماح لـ localhost ونطاقات ‎.test الاختبارية في التطوير والاختبار، ومن غير بيانات دخول.
  *
  * @param link الرابط الخام
  * @returns true لما الرابط سليم
@@ -347,6 +438,11 @@ export function isSafeOnboardingLink(link: string): boolean {
   } catch {
     return false;
   }
-  if (url.protocol !== 'http:' && url.protocol !== 'https:') return false;
-  return url.username === '' && url.password === '';
+  const safeProtocol =
+    url.protocol === 'https:' ||
+    (url.protocol === 'http:' &&
+      (url.hostname === 'localhost' ||
+        url.hostname === '127.0.0.1' ||
+        url.hostname.endsWith('.test')));
+  return safeProtocol && url.username === '' && url.password === '';
 }

@@ -342,6 +342,7 @@ export function staffProviders(
   staffAccessAuth: AuthFacadeForStaffAccess | null = null,
   staffAccessRoutes = false,
   onboardingSealer?: OnboardingEmailSealer,
+  pinExpiresAt?: (at: Date) => Date,
 ): Provider[] {
   const ids = systemUuidV7();
   return [
@@ -354,6 +355,7 @@ export function staffProviders(
       staffAccessRoutes,
       employeeCardKey,
       onboardingSealer,
+      pinExpiresAt,
     ),
     ...attendanceProviders(database, redis, passkeys, ids, logger),
     ...cardProviders(database, ids, employeeCardKey, redis, logger),

@@ -1,6 +1,28 @@
-import type { GrantBeginScope } from './staff-access-begin.port.ts';
-import type { StaffAccessRole } from './staff-access-begin.port.ts';
-import type { StaffAccessIds, StaffAccessActor } from './staff-access-begin.port.ts';
+import type {
+  GrantBeginScope,
+  StaffAccessActor,
+  StaffAccessIds,
+  StaffAccessRole,
+} from './staff-access-begin.port.ts';
+
+export interface StaffWelcomePinCommand {
+  readonly companyId: string;
+  readonly businessId: string;
+  readonly employeeId: string;
+  readonly userId: string;
+  readonly pin: string;
+}
+
+/** منفذ تمرير الرقم السري المؤقت لخطوة الترحيب بدون استيراد طبقة الحفظ داخل الـ use case. */
+export interface StaffWelcomePinContextPort {
+  /**
+   * يشغّل عملية المنح ضمن سياق يحفظ الرقم المؤقت لختم بريد الترحيب عند نجاح المنح.
+   *
+   * @param command بيانات الموظفة والرقم السري المؤقت للمنح الجاري
+   * @param work    تنفيذ عملية المنح داخل السياق
+   */
+  runWithPin<T>(command: StaffWelcomePinCommand, work: () => Promise<T>): Promise<T>;
+}
 
 /**
  * نطاق الخطوة الثالثة داخل معاملة الشركة: إعادة الفحص تحت القفل ثم العضوية والربط والرقم المؤقت

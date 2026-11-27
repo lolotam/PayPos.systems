@@ -1,52 +1,36 @@
 import { AsyncLocalStorage } from 'node:async_hooks';
-import type { IdGenerator, TenantWrappers, Tx } from '@pospay/db';
+import type { TenantWrappers, Tx } from '@pospay/db';
 import { sql } from 'drizzle-orm';
 
 import { transactionWriters } from '../../../shared/adapters/transaction-writers.ts';
-import type { Clock } from '../../../shared/ports/clock.port.ts';
 import type { OnboardingEmailSealer } from '../../../shared/ports/onboarding-email.port.ts';
+import {
+  planStaffWelcomePinNotice,
+  type StaffWelcomeRecipientSpec,
+} from '../domain/staff-access.ts';
+import type { GrantCommitScope, GrantEmployeeAccessSteps } from '../ports/staff-access.port.ts';
+import type {
+  StaffWelcomePinCommand,
+  StaffWelcomePinContextPort,
+} from '../ports/staff-access-commit.port.ts';
 import { readStaffMemberEmailContacts } from './attendance-change-alert-rule.adapter.ts';
 
-/** عمر الرقم السري المؤقت في بريد الترحيب — نفس مدة الرقم في identity (قرار D4، FR-F2-1). */
-const STAFF_WELCOME_PIN_TTL_MS = 24 * 60 * 60 * 1000;
+type CommitPayload = Parameters<GrantCommitScope['appendEvent']>[0];
+type CommitInputArg = Parameters<GrantEmployeeAccessSteps['commit']>[1];
+type CommitActorArg = Parameters<GrantEmployeeAccessSteps['commit']>[0];
 
-/** اللي بريد الترحيب بيحتاجه من أمر إعطاء الدخول. */
-export interface StaffWelcomeCommand {
-  readonly companyId: string;
-  readonly businessId: string;
-  readonly employeeId: string;
-  readonly userId: string;
-  readonly pin: string;
+/** حالة طلب المنح الجاري: الرقم السري المؤقت من الأمر فقط، ثم حالة المعاملة الثالثة داخلها. */
+interface WelcomePinSlot {
+  readonly command: StaffWelcomePinCommand;
+  commit?: {
+    readonly actor: CommitActorArg;
+    readonly input: CommitInputArg;
+    operationId: string | null;
+    granted: CommitPayload | null;
+  };
 }
 
-/** سياق الطلب الجاري: الأمر والساعة، بينتقل مع الاستدعاءات غير المتزامنة. */
-interface StaffWelcomeContext {
-  readonly command: StaffWelcomeCommand;
-  readonly clock: Clock;
-}
-
-const welcomeContext = new AsyncLocalStorage<StaffWelcomeContext>();
-
-/** مستلم بريد ترحيب: إيميله الحقيقي ودوره في الرسالة. */
-interface StaffWelcomeRecipient {
-  readonly email: string;
-  readonly recipient: 'manager' | 'employee';
-  readonly targetMaskedEmail: string | null;
-}
-
-/**
- * يشغّل شغل الطلب جوّه سياق بريد الترحيب؛ السياق بيتنقل مع الاستدعاءات غير المتزامنة.
- *
- * @param context الأمر والساعة
- * @param work    شغل الطلب
- * @returns نتيجة الشغل
- */
-export function runWithStaffWelcomeContext<T>(
-  context: StaffWelcomeContext,
-  work: () => Promise<T>,
-): Promise<T> {
-  return welcomeContext.run(context, work);
-}
+const welcomePinSlot = new AsyncLocalStorage<WelcomePinSlot>();
 
 /**
  * بريد استرجاع الموظفة: الإيميل الاختياري بتاع الموظفة نفسها، مش بريد حساب الدخول.
@@ -67,59 +51,6 @@ async function readEmployeeRecoveryEmail(
   return rows[0]?.recovery_email ?? null;
 }
 
-/**
- * مستلمو بريد الترحيب: المدير اللي منح، والموظفة لو عندها إيميل استرجاع؛ من غير تكرار.
- *
- * @param tx         معاملة الشركة
- * @param companyId  الشركة
- * @param command    أمر إعطاء الدخول
- * @param at         لحظة الإصدار
- * @param sealer     ختم إيميلات الترحيب
- * @returns المستلمون، أو قائمة فاضية
- */
-async function welcomeRecipients(
-  tx: Tx,
-  companyId: string,
-  command: StaffWelcomeCommand,
-  at: Date,
-  sealer: OnboardingEmailSealer,
-): Promise<readonly StaffWelcomeRecipient[]> {
-  const contacts = await readStaffMemberEmailContacts(tx, companyId, [command.userId], at);
-  const managerEmail = contacts.get(command.userId)?.email ?? null;
-  const recoveryEmail = await readEmployeeRecoveryEmail(tx, companyId, command.employeeId);
-  const recipients: StaffWelcomeRecipient[] = [];
-  if (managerEmail !== null)
-    recipients.push({
-      email: managerEmail,
-      recipient: 'manager',
-      targetMaskedEmail: recoveryEmail === null ? null : sealer.mask(recoveryEmail),
-    });
-  if (
-    recoveryEmail !== null &&
-    recoveryEmail.trim().toLowerCase() !== managerEmail?.trim().toLowerCase()
-  )
-    recipients.push({ email: recoveryEmail, recipient: 'employee', targetMaskedEmail: null });
-  return recipients;
-}
-
-/**
- * نتيجة الخطوة الثالثة:.email مانح بس، وبها الدور والفرع.
- *
- * @param outcome نتيجة الخطوة
- * @returns true لما الطلب اتمنح
- */
-function isGrantedOutcome(
-  outcome: unknown,
-): outcome is { readonly kind: 'granted'; readonly role: string; readonly branchId: string } {
-  if (typeof outcome !== 'object' || outcome === null) return false;
-  const granted = outcome as { kind?: unknown; role?: unknown; branchId?: unknown };
-  return (
-    granted.kind === 'granted' &&
-    typeof granted.role === 'string' &&
-    typeof granted.branchId === 'string'
-  );
-}
-
 type WelcomeNotificationRecipient = {
   readonly channel: 'email';
   readonly email: string;
@@ -136,8 +67,9 @@ type WelcomeNotificationRecipient = {
 
 /** يختم مستلمي بريد الترحيب في مظاريف صالحة للـ outbox من غير أي نص صريح. */
 function sealWelcomeRecipients(
-  recipients: readonly StaffWelcomeRecipient[],
-  command: StaffWelcomeCommand,
+  recipients: readonly StaffWelcomeRecipientSpec[],
+  command: StaffWelcomePinCommand,
+  operationId: string,
   role: string,
   expiresAt: Date,
   sealer: OnboardingEmailSealer,
@@ -146,6 +78,7 @@ function sealWelcomeRecipients(
   for (const recipient of recipients) {
     const sealed = sealer.sealStaffWelcomePin({
       companyId: command.companyId,
+      operationId,
       email: recipient.email,
       payload: {
         kind: 'staff_welcome_pin',
@@ -154,6 +87,8 @@ function sealWelcomeRecipients(
         role,
         recipient: recipient.recipient,
         targetMaskedEmail: recipient.targetMaskedEmail,
+        employeeId: command.employeeId,
+        operationId,
         expiresAt: expiresAt.toISOString(),
         expiresAtMs: expiresAt.getTime(),
       },
@@ -173,62 +108,118 @@ function sealWelcomeRecipients(
 }
 
 /**
- * بريد ترحيب الموظفة: حدث واحد في الـ outbox، بمظروف مشفّر لكل مستلم، ونص صريح مفيش.
+ * بريد ترحيب الموظفة: حدث واحد في الـ outbox باستخدام نفس وقت وصلاحية الرقم المؤقت وهوية العملية المقفولة.
  *
- * @param tx        معاملة الخطوة الثالثة
- * @param ids       مولّد المعرّفات
- * @param command   أمر إعطاء الدخول
- * @param outcome   نتيجة الخطوة الثالثة
- * @param at        لحظة الإصدار
- * @param sealer    ختم إيميلات الترحيب
+ * @param tx          معاملة الخطوة الثالثة
+ * @param command     أمر إعطاء الدخول
+ * @param input       مدخلات الخطوة الثالثة (الساعة ومولّد المعرّفات)
+ * @param operationId معرّف العملية المقفول في الخطوة الثالثة
+ * @param payload     حمولة حدث المنح المعتمدة من scope.appendEvent
+ * @param sealer      ختم إيميلات الترحيب
  */
 async function appendStaffWelcomePin(
   tx: Tx,
-  ids: IdGenerator,
-  command: StaffWelcomeCommand,
-  outcome: { readonly role: string; readonly branchId: string },
-  at: Date,
+  command: StaffWelcomePinCommand,
+  input: CommitInputArg,
+  operationId: string,
+  payload: CommitPayload,
   sealer: OnboardingEmailSealer,
+  pinExpiresAt: (at: Date) => Date,
 ): Promise<void> {
-  const recipients = await welcomeRecipients(tx, command.companyId, command, at, sealer);
-  if (recipients.length === 0) return;
-  const expiresAt = new Date(at.getTime() + STAFF_WELCOME_PIN_TTL_MS);
+  const contacts = await readStaffMemberEmailContacts(
+    tx,
+    command.companyId,
+    [command.userId],
+    input.at,
+  );
+  const recoveryEmail = await readEmployeeRecoveryEmail(tx, command.companyId, command.employeeId);
+  const plan = planStaffWelcomePinNotice({
+    expiresAt: pinExpiresAt(input.at),
+    managerEmail: contacts.get(command.userId)?.email ?? null,
+    recoveryEmail,
+    mask: sealer.mask,
+  });
+  if (plan.recipients.length === 0) return;
   const notificationRecipients = sealWelcomeRecipients(
-    recipients,
+    plan.recipients,
     command,
-    outcome.role,
-    expiresAt,
+    operationId,
+    payload.role,
+    plan.expiresAt,
     sealer,
   );
   if (notificationRecipients.length === 0) return;
-  await transactionWriters(tx, ids).outbox.append({
+  await transactionWriters(tx, input.ids).outbox.append({
     aggregateType: 'employee',
     aggregateId: command.employeeId,
     eventType: 'StaffWelcomePinNoticeRequested',
     payload: {
       business_id: command.businessId,
-      branch_id: outcome.branchId,
+      branch_id: payload.branchId,
       notification_recipients: notificationRecipients,
     },
   });
 }
 
+/** يلتقط هوية العملية وحمولة الحدث المعتمد من الخطوة الثالثة بلا تعديل على خطوات المنح. */
+function wrapGrantCommit(innerSteps: GrantEmployeeAccessSteps): GrantEmployeeAccessSteps {
+  return {
+    begin: innerSteps.begin,
+    commit: (actor, input, work) => {
+      const slot = welcomePinSlot.getStore();
+      if (slot === undefined) return innerSteps.commit(actor, input, work);
+      const commitState: NonNullable<WelcomePinSlot['commit']> = {
+        actor,
+        input,
+        operationId: null,
+        granted: null,
+      };
+      return welcomePinSlot.run({ command: slot.command, commit: commitState }, () =>
+        innerSteps.commit(actor, input, (scope) =>
+          work({
+            ...scope,
+            recheck: async () => {
+              const rechecked = await scope.recheck();
+              commitState.operationId = rechecked.record?.operationId ?? null;
+              return rechecked;
+            },
+            appendEvent: async (payload) => {
+              await scope.appendEvent(payload);
+              commitState.granted = payload;
+            },
+          }),
+        ),
+      );
+    },
+  };
+}
+
 /**
- * غلاف معاملات الشركة: بعد ما الخطوة الثالثة تمنح الدخول، بريد الترحيب بيتكتب في نفس المعاملة.
- * من غير ختم صالح مفيش بريد خالص — والمنح نفسه ما بيقفش.
+ * يبني ربط بريد الترحيب فوق خطوات المنح: يحقن معاملة الخطوة الثالثة بساعة المنح وهوية العملية
+ * المقفولة بدون أي تعديل على `grant-employee-access.ts` أو `staff-access.adapter.ts` (تجنب تداخل 080-b).
  *
- * @param database غلافات الشركة
- * @param sealer   ختم إيميلات الترحيب
- * @param ids      مولّد المعرّفات
- * @returns الغلافات مع خطوة الترحيب
+ * @param database     غلافات الشركة الأصلية
+ * @param sealer       ختم إيميلات الترحيب، أو undefined عند التعطيل
+ * @param pinExpiresAt دالة حساب انتهاء الرقم المؤقت المحقونة من جذر التركيب
+ * @param buildSteps   دالة بناء خطوات المنح فوق غلاف قاعدة البيانات
+ * @returns الغلاف والمنفذ الجاهزان لحقن مزوّد المنح
  */
-export function createStaffWelcomePinDatabase(
+export function createStaffWelcomeBinding(
   database: TenantWrappers,
   sealer: OnboardingEmailSealer | undefined,
-  ids: IdGenerator,
-): TenantWrappers {
-  if (sealer === undefined) return database;
-  return {
+  pinExpiresAt: ((at: Date) => Date) | undefined,
+  buildSteps: (db: TenantWrappers) => GrantEmployeeAccessSteps,
+): {
+  readonly steps: GrantEmployeeAccessSteps;
+  readonly welcome: StaffWelcomePinContextPort;
+} {
+  const welcome: StaffWelcomePinContextPort = {
+    runWithPin: (command, work) => welcomePinSlot.run({ command }, work),
+  };
+  if (sealer === undefined || pinExpiresAt === undefined) {
+    return { steps: buildSteps(database), welcome };
+  }
+  const wrappedDb: TenantWrappers = {
     ...database,
     withTenant: <T>(
       companyId: string,
@@ -239,13 +230,23 @@ export function createStaffWelcomePinDatabase(
         companyId,
         async (tx) => {
           const outcome = await work(tx);
-          const context = welcomeContext.getStore();
-          if (context === undefined || !isGrantedOutcome(outcome)) return outcome;
-          const at = context.clock.now();
-          await appendStaffWelcomePin(tx, ids, context.command, outcome, at, sealer);
+          const slot = welcomePinSlot.getStore();
+          const commit = slot?.commit;
+          if (slot !== undefined && commit?.granted != null && commit.operationId !== null) {
+            await appendStaffWelcomePin(
+              tx,
+              slot.command,
+              commit.input,
+              commit.operationId,
+              commit.granted,
+              sealer,
+              pinExpiresAt,
+            );
+          }
           return outcome;
         },
         options,
       ),
   };
+  return { welcome, steps: wrapGrantCommit(buildSteps(wrappedDb)) };
 }
