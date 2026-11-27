@@ -69,7 +69,9 @@ it('clears a PARTIAL visit left elsewhere or switches to a different saved visit
   const old = recorded(), empty = transition(old, { type: 'JOURNAL', entry: null });
   expect(empty).toEqual(emptySessionRecordingResult(old.customer)); expect(sessionResultCommand(empty, [inputLine]).kind).toBe('record');
   const switched = transition(old, { type: 'JOURNAL', entry: { version: 1, state: 'PARTIAL', scope, sessionId: id(99) } });
-  expect(switched).toEqual({ ...emptySessionRecordingResult(old.customer), sessionId: id(99), visitTimeUnknown: true });
+  expect(switched).toEqual({ ...emptySessionRecordingResult(null), sessionId: id(99), visitTimeUnknown: true });
+  const sameCustomer = transition(old, { type: 'JOURNAL', entry: { version: 1, state: 'PARTIAL', scope, sessionId: id(99), customerId: id(77) } });
+  expect(sameCustomer).toEqual({ ...emptySessionRecordingResult(null), sessionId: id(99), customerId: id(77), visitTimeUnknown: true });
 });
 it.each(['NOT_PERSISTED', 'SAVING', 'UNRESOLVED'] as const)('a matching partial journal restores stale %s feedback', (kind) => {
   const stale = { ...recorded(), attempt, feedback: { kind }, persistenceWarning: 'NOT_PERSISTED' as const };
@@ -384,14 +386,11 @@ it('restores customer, visit time, and draft occurred_at from an EXPIRED append 
 
 it('JOURNAL EXPIRED for a different session clears previous visit drafts, rejections and customer', () => {
   const saved = recorded();
-  expect(saved.customerId).not.toBeNull();
-  expect(saved.drafts.lines.length).toBeGreaterThan(0); expect(saved.rejected.length).toBeGreaterThan(0);
+  expect(saved.customerId).not.toBeNull(); expect(saved.drafts.lines.length).toBeGreaterThan(0); expect(saved.rejected.length).toBeGreaterThan(0);
   const entry = { version: 1 as const, state: 'EXPIRED' as const, scope, key: attempt.key, createdAt: attempt.createdAt, sessionId: id(99) };
   const result = transition(saved, { type: 'JOURNAL', entry });
-  expect(result.sessionId).toBe(id(99));
-  expect(result.customerId).toBeNull(); expect(result.customer).toBeNull();
-  expect(result.drafts.lines).toEqual([]);
-  expect(result.rejected).toEqual([]);
+  expect(result.sessionId).toBe(id(99)); expect(result.customerId).toBeNull(); expect(result.customer).toBeNull();
+  expect(result.drafts.lines).toEqual([]); expect(result.rejected).toEqual([]);
   expect(transition(saved, { type: 'JOURNAL', entry: { ...entry, customerId: id(77) } }).customerId).toBe(id(77));
 });
 

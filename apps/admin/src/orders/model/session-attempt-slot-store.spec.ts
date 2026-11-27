@@ -156,3 +156,24 @@ it('slot carrying PENDING envelope with extra errorCode rewrites without errorCo
   expect(journal.read()).toEqual({ version: 1, state: 'PENDING', attempt });
   keys.forEach((key) => expect(sessionStorage.getItem(key) ?? '').not.toContain('errorCode'));
 });
+
+it('IDLE tombstone with a harmless futureField recovers as null and rewrites cleanly', async () => {
+  sessionStorage.setItem(keys[0], JSON.stringify({ generation: 1, envelope: { version: 1, state: 'IDLE', futureField: 'x' } }));
+  const journal = await reload();
+  expect(journal.read()).toBeNull();
+  expect(journal.persistenceWarning).toBeNull();
+  keys.forEach((key) => expect(sessionStorage.getItem(key) ?? '').not.toContain('futureField'));
+  expect((await reload()).read()).toBeNull();
+});
+
+it.each(['customerName', 'verificationCode', 'customerphone', 'cUsToMeRpHoNe'] as const)(
+  'IDLE tombstone carrying concatenated or mixed-case PII key %s rejects the slot',
+  async (piiKey) => {
+    seed(partial);
+    sessionStorage.setItem(keys[1], JSON.stringify({ generation: 2, envelope: { version: 1, state: 'IDLE', [piiKey]: 'secret' } }));
+    const journal = await reload();
+    expect(journal.read()).toEqual(partial);
+    expect(journal.persistenceWarning).toBe('NOT_PERSISTED');
+    expect(sessionStorage.getItem(keys[1])).toBeNull();
+  },
+);

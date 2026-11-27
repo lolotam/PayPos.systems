@@ -74,11 +74,22 @@ function strictFields(value: unknown, required: string[], optional: string[] = [
 
 const journalEnvelopeFields = ['version', 'state', 'attempt', 'scope', 'key', 'createdAt', 'lastSentAt', 'sessionId', 'occurredAt', 'customerId'];
 const journalPiiKeyTokens = new Set(['phone', 'mobile', 'msisdn', 'email', 'otp', 'pin', 'passcode', 'password', 'secret', 'token', 'iban', 'challenge']);
+const journalPiiCompactFragments = [
+  'phone', 'mobile', 'msisdn', 'email', 'passcode', 'password', 'secret', 'token', 'iban', 'challenge',
+  'whatsapp', 'nationalnumber', 'callingcode', 'birthday', 'birthdate',
+  'customername', 'clientname', 'personname', 'staffname', 'employeename', 'username', 'fullname', 'firstname', 'lastname', 'middlename', 'surname', 'nickname',
+  'verificationcode', 'verifycode', 'authcode', 'securitycode', 'recoverycode', 'pairingcode', 'confirmcode', 'confirmationcode', 'accesscode', 'logincode', 'resetcode',
+  'otpcode', 'pincode', 'customerotp', 'customerpin', 'userotp', 'userpin', 'verifyotp', 'smsotp', 'authotp',
+];
 
-// الدليل كلمة كاملة من قائمة محددة؛ الاسم والكود عامّان ومش دليل بيانات حساسة لوحدهما.
+// الدليل كلمة كاملة أو مقطع ملزوق أو اسم/كود شخصي سياقي بأي حالة حروف؛ errorCode و displayName و filename عامّة ومش بيانات عميل.
 export function isJournalPiiKey(key: string): boolean {
   const tokens = key.match(/[A-Z]+(?![a-z])|[A-Z]?[a-z]+|[0-9]+/g) ?? [];
-  return tokens.some((token) => journalPiiKeyTokens.has(token.toLowerCase()));
+  if (tokens.some((token) => journalPiiKeyTokens.has(token.toLowerCase()))) return true;
+  const compact = key.toLowerCase().replace(/[^a-z0-9]/g, '');
+  return journalPiiCompactFragments.some((fragment) => compact.includes(fragment))
+    || compact.endsWith('otp')
+    || compact.endsWith('pin');
 }
 
 // الـ slot store يحتاج يميّز النسخة الخام ذات الحقول الزائدة ليعيد كتابتها بعد تنقيتها.

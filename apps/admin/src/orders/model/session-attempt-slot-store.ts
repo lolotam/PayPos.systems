@@ -5,6 +5,11 @@ const slots = [`${key}:a`, `${key}:b`] as const;
 export type JournalStorage = Pick<Storage, 'getItem' | 'setItem' | 'removeItem'>;
 type Slot = { key: string; generation: number; raw: string; envelope: SessionJournalEnvelope | null };
 
+function isIdleEnvelope(envelope: unknown): envelope is Record<string, unknown> {
+  return !!envelope && typeof envelope === 'object' && !Array.isArray(envelope) &&
+    'version' in envelope && envelope.version === 1 && 'state' in envelope && envelope.state === 'IDLE';
+}
+
 function parseSlot(slotKey: string, raw: string): Slot {
   const value: unknown = JSON.parse(raw);
   if (!value || typeof value !== 'object' || !('generation' in value) || !('envelope' in value) ||
@@ -12,9 +17,12 @@ function parseSlot(slotKey: string, raw: string): Slot {
   // حقل غلاف حساس يرفض الخانة؛ أي حقل غلاف تاني بيتجاهل عشان ما يمسحش زيارة سليمة.
   if (Object.keys(value).some((field) => field !== 'generation' && field !== 'envelope' && isJournalPiiKey(field))) throw new Error('SESSION_SLOT_INVALID');
   const envelope = value.envelope;
-  const idle = envelope && typeof envelope === 'object' && Object.keys(envelope).length === 2 &&
-    'version' in envelope && envelope.version === 1 && 'state' in envelope && envelope.state === 'IDLE';
-  return { key: slotKey, generation: value.generation, raw, envelope: idle ? null : parseSessionJournalEnvelope(envelope) };
+  if (isIdleEnvelope(envelope)) {
+    // مسودة IDLE من إصدار أحدث ممكن تشيل حقول زيادة؛ الحساس يرفض الخانة والمحايد يتنقى عند الاسترداد.
+    if (Object.keys(envelope).some((field) => field !== 'version' && field !== 'state' && isJournalPiiKey(field))) throw new Error('SESSION_SLOT_INVALID');
+    return { key: slotKey, generation: value.generation, raw, envelope: null };
+  }
+  return { key: slotKey, generation: value.generation, raw, envelope: parseSessionJournalEnvelope(envelope) };
 }
 
 function scan(storage: JournalStorage | undefined) {
@@ -64,9 +72,10 @@ export function createSessionAttemptSlotStore(storage?: JournalStorage) {
       if (active) {
         const stored = JSON.parse(active.raw) as Record<string, unknown>;
         const storedEnvelope: unknown = active.key === key ? stored : stored.envelope;
-        // حقل غلاف غريب بينقّى بنفس إعادة كتابة المظروف، فتبقى الخانة الجديدة فيها generation و envelope بس.
+        // حقل غلاف غريب أو حقل زيادة جوه IDLE بينقّى بنفس إعادة كتابة المظروف، فتبقى الخانة فيها الصيغة القياسية بس.
         const unknownWrapper = active.key !== key && Object.keys(stored).some((field) => field !== 'generation' && field !== 'envelope');
-        if ((envelope && hasUnknownJournalFields(storedEnvelope)) || unknownWrapper) {
+        const unknownIdle = isIdleEnvelope(storedEnvelope) && Object.keys(storedEnvelope).some((field) => field !== 'version' && field !== 'state');
+        if ((envelope && hasUnknownJournalFields(storedEnvelope)) || unknownWrapper || unknownIdle) {
           // فشل التنقية لا يستدعي الحذف: مفاتيح PII مرفوضة أصلًا، وحذف الخانة هنا قد يضيّع علامة PENDING.
           writeSlot(envelope ?? null);
         }

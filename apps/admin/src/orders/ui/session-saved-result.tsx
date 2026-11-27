@@ -19,7 +19,8 @@ export function SessionSavedResult({ result, journal, onNewVisit, scope, online 
   const leaveFeedback = failure?.source === result ? failure.feedback : null;
   const leave = (sameCustomer: boolean) => {
     if (editBusy) return;
-    try { onNewVisit(newSessionVisit(result, journal, sameCustomer)); }
+    // رفض ملف الزبونة يمنع ترجيع ملخصها في الزيارة التالية حتى لو المستخدم اختار نفس الزبونة (#1187).
+    try { onNewVisit(newSessionVisit(result, journal, sameCustomer && !hideCustomer)); }
     catch (error) { setFailure({ source: result, feedback: sessionLeaveFeedback(error) }); }
   };
   const when = formatInstant(new Date(session.occurred_at), locale, session.business_timezone);

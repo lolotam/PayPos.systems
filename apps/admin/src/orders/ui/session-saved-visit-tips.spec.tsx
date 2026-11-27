@@ -5,6 +5,7 @@ import { useState } from 'react';
 import { beforeEach, expect, it, vi } from 'vitest';
 import { sessionTipsPath } from '../api/use-session-tips';
 import {
+  id,
   initial,
   recordAttempt,
   response,
@@ -87,4 +88,30 @@ it('disables Record tip while an edit is busy and keeps that editor after a tips
   expect(screen.getByText('Synthetic service')).toBeTruthy();
   expect(screen.getByLabelText(t('en', 'serviceLineEdit.reason'))).toBeTruthy();
   expect(screen.queryByRole('button', { name: t('en', 'sessionTips.open') })).toBeNull();
+});
+
+it('shows Record tip again when switching to visit B after a 403 hid it on visit A (#406)', async () => {
+  api.get.mockResolvedValue(forbidden);
+  const visitA = result as SessionRecordingResult;
+  const visitB = {
+    ...visitA,
+    sessionId: id(99),
+    session: visitA.session ? { ...visitA.session, id: id(99) } : null,
+  };
+  const view = render(
+    <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+      <SessionSavedVisit result={visitA} scope={scope} online />
+    </QueryClientProvider>,
+  );
+  fireEvent.click(screen.getByRole('button', { name: t('en', 'sessionTips.open') }));
+  expect((await screen.findByRole('alert')).textContent).toContain(t('en', 'errors.FORBIDDEN'));
+  expect(screen.queryByRole('button', { name: t('en', 'sessionTips.open') })).toBeNull();
+
+  view.rerender(
+    <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+      <SessionSavedVisit result={visitB} scope={scope} online />
+    </QueryClientProvider>,
+  );
+  expect(screen.getByRole('button', { name: t('en', 'sessionTips.open') })).toBeTruthy();
+  expect(screen.queryByRole('alert')).toBeNull();
 });

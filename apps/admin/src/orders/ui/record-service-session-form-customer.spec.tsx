@@ -1,8 +1,8 @@
 import type { RecordingContext } from '@pospay/contracts';
 import { t } from '@pospay/i18n';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
-import { useEffect } from 'react';
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { useEffect, useState } from 'react';
 import { afterEach, expect, it, vi } from 'vitest';
 import { id, instant, response, scope } from '../model/session-recording-result.fixture';
 import { emptySessionRecordingResult } from '../model/session-recording-result';
@@ -208,4 +208,154 @@ it('preserves two package lines for the same customer and clears both for a diff
   await resolveCustomer(otherCustomer.name);
   await expectAllToggles(false);
   expect(screen.queryByRole('radiogroup', { name: t('en', 'serviceSessions.packagePicker') })).toBeNull();
+});
+
+const profileForbidden = {
+  error: { code: 'FORBIDDEN', message_ar: t('ar', 'serviceSessions.profileLoadFailed'), message_en: 'Refused' },
+  response: { status: 403 },
+};
+
+function installProfileDenialReads(options: { denied?: () => boolean; onProfile?: () => Promise<unknown> } = {}) {
+  installReads();
+  const base = state.get.getMockImplementation();
+  state.get.mockImplementation((path: string, init: unknown) => {
+    if (String(path).includes('/profile')) {
+      if (options.onProfile) return options.onProfile();
+      return Promise.resolve((options.denied?.() ?? true) ? profileForbidden : { data: { ...customer, locale: 'ar', opted_out: false, birthday: null, gender: null, email: null, notes: [] }, response: { status: 200 } });
+    }
+    return (base as (p: string, i: unknown) => unknown)(path, init);
+  });
+}
+
+function expectCustomerHidden() {
+  expect(screen.queryAllByText(customer.name)).toHaveLength(0);
+  expect(screen.queryByText(customer.phone)).toBeNull();
+  expect(screen.queryByDisplayValue(customer.name)).toBeNull();
+  expect(screen.queryByRole('link', { name: t('en', 'customerPackages.open') })).toBeNull();
+}
+
+it('starts a new unselected visit when leaving a completed or unknown-time visit after denial (#1187)', async () => {
+  installProfileDenialReads();
+  let mode: 'complete' | 'unknown' = 'complete';
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
+  function TransitionHarness() {
+    const recording = useSessionRecording(scope);
+    const [online, setOnline] = useState(true);
+    useEffect(() => { active = recording; }, [recording]);
+    const { journal, replaceResult } = recording;
+    useEffect(() => {
+      if (!journal) return;
+      replaceResult({
+        ...emptySessionRecordingResult(customer),
+        ...(mode === 'complete'
+          ? { session: complete.session, sessionId: complete.session.id, feedback: { kind: 'COMPLETE' as const } }
+          : { sessionId: id(12), feedback: { kind: 'PARTIAL' as const }, drafts: { lines: [] }, visitTimeUnknown: true }),
+      });
+    }, [journal, replaceResult]);
+    return <>
+      <button type="button" onClick={() => setOnline(false)}>Go offline</button>
+      <RecordServiceSessionForm scope={scope} context={context} online={online} recording={recording} onRefreshScope={() => undefined} />
+    </>;
+  }
+  const first = render(<QueryClientProvider client={client}><TransitionHarness /></QueryClientProvider>);
+  await waitFor(() => expectCustomerHidden());
+  fireEvent.click(screen.getByRole('button', { name: 'Go offline' }));
+  fireEvent.click(screen.getByRole('button', { name: t('en', 'serviceSessions.newVisitSameCustomer') }));
+  expectCustomerHidden();
+  expect(active?.result.customer).toBeNull();
+  first.unmount();
+
+  mode = 'unknown';
+  render(<QueryClientProvider client={client}><TransitionHarness /></QueryClientProvider>);
+  await waitFor(() => expectCustomerHidden());
+  fireEvent.click(screen.getByRole('button', { name: t('en', 'serviceSessions.newVisitSameCustomer') }));
+  expectCustomerHidden();
+  expect(active?.result.customer).toBeNull();
+});
+
+it('keeps a denied customer hidden offline and while a fresh read is pending when the first save completes (#1187)', async () => {
+  let profilePhase: 'ok' | 'denied' | 'pending' = 'ok';
+  let releaseSave: (value: unknown) => void = () => undefined;
+  installProfileDenialReads({
+    onProfile: () => (profilePhase === 'pending' ? new Promise(() => undefined)
+      : Promise.resolve(profilePhase === 'denied' ? profileForbidden : { data: { ...customer, locale: 'ar', opted_out: false, birthday: null, gender: null, email: null, notes: [] }, response: { status: 200 } })),
+  });
+  state.post.mockImplementation((path: string) => {
+    if (String(path).includes('/customers/')) return Promise.resolve({ data: { ...customer, locale: 'ar', opted_out: false } });
+    return new Promise((resolve) => { releaseSave = resolve; });
+  });
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
+  function SaveHarness() {
+    const recording = useSessionRecording(scope);
+    const [online, setOnline] = useState(true);
+    const [tick, setTick] = useState(0);
+    useEffect(() => { active = recording; }, [recording]);
+    return <>
+      <button type="button" onClick={() => setOnline(false)}>Go offline</button>
+      <RecordServiceSessionForm scope={scope} context={{ ...context, generated_at: `2026-10-12T10:00:0${tick}.000Z` }} online={online} recording={recording} onRefreshScope={() => setTick((n) => n + 1)} />
+    </>;
+  }
+  render(<QueryClientProvider client={client}><SaveHarness /></QueryClientProvider>);
+  await resolveCustomer();
+  await chooseLine(0);
+  await waitFor(() => expect(saveButton().disabled).toBe(false));
+  fireEvent.click(saveButton());
+  await waitFor(() => expect(state.post).toHaveBeenCalledTimes(2));
+  profilePhase = 'denied';
+  await act(async () => { await client.refetchQueries({ queryKey: ['session-customer-profile'] }); });
+  await waitFor(() => expectCustomerHidden());
+  profilePhase = 'pending';
+  await act(async () => { releaseSave({ data: complete, response: { status: 201 } }); });
+  await waitFor(() => expect(active?.result.sessionId).toBe(complete.session.id));
+  expectCustomerHidden();
+  expect(screen.getByRole('button', { name: t('en', 'serviceSessions.correctAndAppend') })).toBeTruthy();
+  fireEvent.click(screen.getByRole('button', { name: 'Go offline' }));
+  expectCustomerHidden();
+});
+
+it('clears a denied transient customer when a frozen draft fails back to editing and permits a newly authorized selection (#1188)', async () => {
+  let rejectSave!: (reason: unknown) => void;
+  let profileDenied = false;
+  let selectedTarget = customer;
+  installReads();
+  const base = state.get.getMockImplementation();
+  state.get.mockImplementation((path: string, init: unknown) => {
+    if (String(path).includes('/profile')) {
+      return Promise.resolve(profileDenied ? profileForbidden : { data: { ...selectedTarget, locale: 'ar', opted_out: false, birthday: null, gender: null, email: null, notes: [] }, response: { status: 200 } });
+    }
+    return (base as (p: string, i: unknown) => unknown)(path, init);
+  });
+  let postCount = 0;
+  state.post.mockImplementation((path: string) => {
+    postCount += 1;
+    if (String(path).includes('/customers/')) return Promise.resolve({ data: { ...selectedTarget, locale: 'ar', opted_out: false } });
+    if (postCount <= 2) return new Promise((_resolve, reject) => { rejectSave = reject; });
+    return Promise.resolve({ data: { ...complete, session: { ...complete.session, customer: { ...complete.session.customer, id: otherCustomer.id, name: otherCustomer.name, phone_masked: otherCustomer.phone } } }, response: { status: 201 } });
+  });
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
+  function RetryHarness() {
+    const recording = useSessionRecording(scope);
+    useEffect(() => { active = recording; }, [recording]);
+    return <RecordServiceSessionForm scope={scope} context={context} online recording={recording} onRefreshScope={() => undefined} />;
+  }
+  const view = render(<QueryClientProvider client={client}><RetryHarness /></QueryClientProvider>);
+  await resolveCustomer();
+  await chooseLine(0);
+  fireEvent.click(saveButton());
+  await waitFor(() => expect(state.post).toHaveBeenCalledTimes(2));
+  profileDenied = true;
+  await act(async () => { await client.refetchQueries({ queryKey: ['session-customer-profile'] }); });
+  await act(async () => { rejectSave({ status: 422, code: 'SESSION_TIME_TOO_OLD', message_ar: 'Old', message_en: 'Too old' }); });
+  await waitFor(() => expect(active?.result.customer).toBeNull());
+  expect(saveButton().disabled).toBe(true);
+  const form = view.container.querySelector('form');
+  if (!form) throw new Error('Missing form');
+  fireEvent.submit(form);
+  expect(state.post).toHaveBeenCalledTimes(2);
+  profileDenied = false;
+  selectedTarget = otherCustomer;
+  await resolveCustomer(otherCustomer.name);
+  await waitFor(() => expect(saveButton().disabled).toBe(false));
+  fireEvent.click(saveButton());
+  await waitFor(() => expect(active?.result.session?.customer.id).toBe(otherCustomer.id));
 });
