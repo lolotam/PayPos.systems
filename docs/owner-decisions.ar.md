@@ -3706,3 +3706,16 @@ so much beteer to creat this advisore for the project level so you and the manag
 1. `antigravity` / `claude-opus-5-5` (`thought_level: "medium"`).
 2. احتياطي أول: `claudeAgent` / `claude-opus-5-5` (`effort: "medium"`).
 3. احتياطي ثانٍ: `codex` / `gpt-6.2-sol` (`medium`).
+
+## PP-283 — ترتيب المنفّذين (2026-11-27)
+
+**نص وليد الحرفي (`2026-11-27 18:27 بتوقيت الكويت`، في محادثة المدير الرئيسي):** «implementor : 1st -choise -opencode Minimax 3.1 fast coding 2nd-choise -Antigravity hydrogen 4 medium 3rd- choise - free model (opencode big peakle ) 4th-choise -free model (open code Hy4 flash free)».
+
+يُطبَّق على كل شغل البناء وجولات التصليح، وعلى كل `delegate_task`، بالمعرّفات اللي اتأكدنا منها في `orchestrator_capabilities`:
+
+1. `opencode` / `minimax-coding-plan/MiniMax-M3.1-Flash` (بالإعداد الافتراضي، زي PP-270).
+2. احتياطي أول: `antigravity` / `gemini-4-hydrogen` (`thought_level: "medium"`).
+3. احتياطي ثانٍ (مجاني): `opencode` / `opencode/big-pickle`.
+4. احتياطي ثالث (مجاني): `opencode` / `opencode/hy4-flash-free`.
+
+ننتقل للخيار اللي بعده لما الحالي يفشل أو حصته تخلص (PP-112: محاولة واحدة إضافية وبعدين نغيّر). النموذجان المجانيان بياخدوا brief دقيق، وكل سطر من شغلهم يتراجع (ملاحظة 11-24). المراجِعون حسب PP-282، والـ guard skills بعد التنفيذ حسب PP-198/PP-270. يحل محل خيار Sonnet الاحتياطي في PP-270. سؤال تقني لا يُنشر على صفحة القرارات.
