@@ -77,22 +77,23 @@ it('uses a tablet rail and leaves the phone shell to a later integration', () =>
   expect(screen.getByText('page content')).toBeTruthy();
 });
 
-it.each(['rtl', 'ltr'] as const)('filters empty groups and keeps child highlighting in %s', (dir) => {
-  stubMedia();
-  const view = render(
-    tree(dir, { visiblePageIds: ['employees'], currentPageId: 'employees' }),
-  );
-  const aside = view.container.querySelector('aside');
-  expect(aside?.getAttribute('dir')).toBe(dir);
-  expect(aside?.className).toContain('start-0');
-  expect(screen.getAllByRole('link')).toHaveLength(1);
-  const team = screen.getByRole('link', { name: /Team/ });
-  expect(team.getAttribute('dir')).toBe(dir);
-  expect(team.getAttribute('aria-current')).toBe('page');
-  expect(team.classList.contains('bg-sidebar-primary')).toBe(true);
-  expect(team.textContent).not.toContain('2');
-  expect(screen.queryByRole('link', { name: /Home/ })).toBeNull();
-});
+it.each(['rtl', 'ltr'] as const)(
+  'filters empty groups and keeps child highlighting in %s',
+  (dir) => {
+    stubMedia();
+    const view = render(tree(dir, { visiblePageIds: ['employees'], currentPageId: 'employees' }));
+    const aside = view.container.querySelector('aside');
+    expect(aside?.getAttribute('dir')).toBe(dir);
+    expect(aside?.className).toContain('start-0');
+    expect(screen.getAllByRole('link')).toHaveLength(1);
+    const team = screen.getByRole('link', { name: /Team/ });
+    expect(team.getAttribute('dir')).toBe(dir);
+    expect(team.getAttribute('aria-current')).toBe('page');
+    expect(team.classList.contains('bg-sidebar-primary')).toBe(true);
+    expect(team.textContent).not.toContain('2');
+    expect(screen.queryByRole('link', { name: /Home/ })).toBeNull();
+  },
+);
 
 it('hides a group whose only page is excluded', () => {
   stubMedia();
@@ -120,7 +121,9 @@ it('transfers focus from the desktop toggle to a visible rail link at 1024 to 10
   toggle.focus();
   width = 800;
   view.rerender(tree('ltr', { currentGroupId: 'home' }));
-  await waitFor(() => expect(document.activeElement).toBe(screen.getByRole('link', { name: /Home/ })));
+  await waitFor(() =>
+    expect(document.activeElement).toBe(screen.getByRole('link', { name: /Home/ })),
+  );
 
   const firstLinkAfterRail = screen.getByRole('link', { name: /Home/ });
   firstLinkAfterRail.focus();
@@ -149,7 +152,9 @@ it('transfers focus from a hidden header slot to a rail link at 1024 to 1023', a
       header: <button type="button">Header action</button>,
     }),
   );
-  await waitFor(() => expect(document.activeElement).toBe(screen.getByRole('link', { name: /Home/ })));
+  await waitFor(() =>
+    expect(document.activeElement).toBe(screen.getByRole('link', { name: /Home/ })),
+  );
 });
 
 it('keeps focus outside the sidebar when the tablet breakpoint changes', async () => {
@@ -176,7 +181,9 @@ it('transfers focus at the fractional 1024 to 1023.5 sidebar boundary', async ()
 
   width = 1023.5;
   view.rerender(tree('ltr', { currentGroupId: 'home' }));
-  await waitFor(() => expect(document.activeElement).toBe(screen.getByRole('link', { name: /Home/ })));
+  await waitFor(() =>
+    expect(document.activeElement).toBe(screen.getByRole('link', { name: /Home/ })),
+  );
   expect(view.container.querySelector('aside')?.getAttribute('data-collapsed')).toBe('');
 });
 
@@ -185,15 +192,17 @@ it('shows group labels in the rail when no icons are supplied', () => {
   render(tree('ltr'));
   const link = screen.getByRole('link', { name: /Home/ });
   expect(link.getAttribute('aria-label')).toBe('Home');
-  expect(
-    screen.getAllByText('Home').some((node) => !node.className.includes('sr-only')),
-  ).toBe(true);
+  expect(screen.getAllByText('Home').some((node) => !node.className.includes('sr-only'))).toBe(
+    true,
+  );
 });
 
 it('marks only the explicitly current group when the active page is in another group', () => {
   stubMedia();
   render(tree('ltr', { currentGroupId: 'sales', currentPageId: 'approvals' }));
-  const current = screen.getAllByRole('link').filter((link) => link.getAttribute('aria-current') === 'page');
+  const current = screen
+    .getAllByRole('link')
+    .filter((link) => link.getAttribute('aria-current') === 'page');
   expect(current).toHaveLength(1);
   expect(current).toEqual([screen.getByRole('link', { name: /Sales/ })]);
 });
@@ -251,7 +260,9 @@ it('still transfers focus at the tablet breakpoint when an outside press left fo
 
   width = 800;
   view.rerender(tree('ltr', { currentGroupId: 'home' }));
-  await waitFor(() => expect(document.activeElement).toBe(screen.getByRole('link', { name: /Home/ })));
+  await waitFor(() =>
+    expect(document.activeElement).toBe(screen.getByRole('link', { name: /Home/ })),
+  );
 });
 
 function homeWithIcon(): readonly NavigationGroup[] {
@@ -275,13 +286,44 @@ it('omits the title when the sidebar is expanded and shows the label as text', (
 it('centres the collapse toggle in the rail and keeps it at the inline end when expanded', () => {
   stubMedia();
   render(tree('ltr', { currentGroupId: 'home' }));
-  const expandedRow = screen.getByRole('button', { name: chromeLabels.collapse }).parentElement;
-  expect(expandedRow?.className).toContain('justify-end');
-  expect(expandedRow?.className).not.toContain('justify-center');
-  fireEvent.click(screen.getByRole('button', { name: chromeLabels.collapse }));
-  const railRow = screen.getByRole('button', { name: chromeLabels.expand }).parentElement;
+  const expandedToggle = screen.getByRole('button', { name: chromeLabels.collapse });
+  const expandedRow = expandedToggle.parentElement;
+  expect(expandedRow?.className).toContain('justify-center');
+  expect(expandedRow?.className).toContain('relative');
+  expect(expandedToggle.className).toContain('end-2');
+  expect(expandedToggle.className).toContain('min-[1024px]:absolute');
+  fireEvent.click(expandedToggle);
+  const railToggle = screen.getByRole('button', { name: chromeLabels.expand });
+  const railRow = railToggle.parentElement;
   expect(railRow?.className).toContain('justify-center');
-  expect(railRow?.className).not.toContain('justify-end');
+  expect(railToggle.className).not.toContain('end-2');
+  expect(railToggle.className).not.toContain('min-[1024px]:absolute');
+});
+
+it('shares one header row between the header slot and the collapse toggle', () => {
+  stubMedia();
+  render(tree('ltr', { header: <span>Header mark</span> }));
+  const toggle = screen.getByRole('button', { name: chromeLabels.collapse });
+  const row = toggle.parentElement as HTMLElement;
+  expect(within(row).getByText('Header mark')).toBeTruthy();
+  expect(row.className).toContain('justify-center');
+  expect(row.className).toContain('relative');
+  // وفي الشريط المطويّ يختفي رأس الشريط من غير تكرار، ويبقى مبدّل التوسيع في الوسط
+  fireEvent.click(toggle);
+  const railRow = screen.getByRole('button', { name: chromeLabels.expand })
+    .parentElement as HTMLElement;
+  expect(within(railRow).queryByText('Header mark')).toBeNull();
+  expect(railRow.className).toContain('justify-center');
+});
+
+it('reserves the 60px header row from 1024px only, so the tablet rail keeps its height', () => {
+  stubMedia({ width: 800 });
+  render(tree('ltr', { currentGroupId: 'home' }));
+  const row = screen.getByRole('button', { name: chromeLabels.collapse })
+    .parentElement as HTMLElement;
+  expect(row.className).toContain('min-[1024px]:min-h-15');
+  // والارتفاع المحجوز مش على الشاشات الضيقة، فصف التابلت ما يضيّعش شريطًا كاملًا
+  expect(row.className).not.toMatch(/(?:^|\s)min-h-15(?:\s|$)/);
 });
 
 it('falls back to the visible label when a rail icon is conditionally false', () => {
@@ -295,7 +337,11 @@ it('falls back to the visible label when a rail icon is conditionally false', ()
   for (const name of ['Home', 'Sales', 'Team']) {
     const link = screen.getByRole('link', { name });
     expect(link.hasAttribute('title')).toBe(false);
-    expect(within(link).getAllByText(name).some((node) => !node.className.includes('sr-only'))).toBe(true);
+    expect(
+      within(link)
+        .getAllByText(name)
+        .some((node) => !node.className.includes('sr-only')),
+    ).toBe(true);
   }
 });
 

@@ -8,6 +8,7 @@ import {
   DeviceMobileSlashIcon,
   HouseIcon,
   KeyIcon,
+  LayoutIcon,
   MapPinIcon,
   MonitorIcon,
   MoonIcon,
@@ -90,3 +91,5 @@ export const Sun = withDefaults(SunIcon);
 export const Moon = withDefaults(MoonIcon);
 export const Monitor = withDefaults(MonitorIcon);
 export const Star = withDefaults(StarIcon);
+/** أيقونة «نمط التنقّل» في الشريط العلوي: لوح بمقاطع، زي اختيار شكل الشاشة. */
+export const LayoutPanelLeft = withDefaults(LayoutIcon);

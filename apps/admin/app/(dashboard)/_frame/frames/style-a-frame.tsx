@@ -19,8 +19,9 @@ const PAGE_COLUMN_CLASS =
 
 /**
  * النمط A: شريط جانبي بمجموعات وتبويبات للمجموعة الحالية وحبوب للصفحات فوق المحتوى.
- * رأس الشريط للشعار فقط لأنه يخفي رأسه وتذييله في وضع الأيقونات؛ مبدّل مساحة العمل وقائمة الحساب
- * في الشريط العلوي فتبقى ظاهرة بكل عرض. على الهاتف الشريط السفلي أربعة أقسام و«المزيد».
+ * رأس الشريط يحمل علامة PosPay فقط — من غير اسم — لأنها بتتكرر في الشريط العلوي؛
+ * ومبدّل مساحة العمل وقائمة الحساب في الشريط العلوي فتبقى ظاهرة بكل عرض.
+ * على الهاتف الشريط السفلي أربعة أقسام و«المزيد».
  */
 export function StyleAFrame({ children }: { children: ReactNode }) {
   const labels = useFrameLabels();
@@ -41,7 +42,7 @@ export function StyleAFrame({ children }: { children: ReactNode }) {
             groups={view.groups}
             currentGroupId={view.currentGroupId}
             currentPageId={view.currentPageId}
-            header={<DashboardBrandLogo variant="lockup" tone="sidebar" />}
+            header={<DashboardBrandLogo variant="mark" />}
           />
         </FrameChrome>
         <div className={PAGE_COLUMN_CLASS}>

@@ -1,13 +1,11 @@
 'use client';
 
-import { t } from '@pospay/i18n';
-import { Bell, Button } from '@pospay/ui';
 import { useId, useRef, useState } from 'react';
 import { useLocale } from '@/shared/locale/locale-context';
 import { useNotifications } from '../api/use-notifications';
 import { useDocumentNumbers } from '../api/use-document-numbers';
+import { NotificationBellButton } from './notification-bell-button';
 import { NotificationPanel } from './notification-panel';
-import { UnreadBadge } from './notification-unread-badge';
 import { useOutsideDismiss } from '../model/use-outside-dismiss';
 
 interface NotificationBellProps {
@@ -47,18 +45,15 @@ export function NotificationBell({ companyId, userId, businessId }: Notification
         if (!event.currentTarget.contains(event.relatedTarget)) close();
       }}
     >
-      <Button
-        ref={button}
-        variant="ghost"
+      <NotificationBellButton
+        buttonRef={button}
+        locale={locale}
+        open={open}
+        panelId={panelId}
+        unread={unread}
         disabled={companyId === undefined || userId === null}
-        aria-label={t(locale, 'inApp.title')}
-        aria-expanded={open}
-        aria-controls={panelId}
-        onClick={() => setOpen(!open)}
-      >
-        <Bell aria-hidden="true" className="size-5" />
-        <UnreadBadge unread={unread} locale={locale} />
-      </Button>
+        onToggle={() => setOpen(!open)}
+      />
       {open ? (
         <NotificationPanel
           id={panelId}

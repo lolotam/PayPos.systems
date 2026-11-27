@@ -64,6 +64,17 @@ describe.each([
     expect(actions.parentElement?.className).toContain('flex-wrap');
   });
 
+  it('wraps the bar and the actions so a 360px phone never scrolls sideways', () => {
+    renderFrame(<Frame>Page body</Frame>);
+    const actions = screen.getByRole('button', { name: label('adminNav.accountMenuLabel') })
+      .parentElement as HTMLElement;
+    expect(actions.className).toContain('flex-wrap');
+    expect(actions.className).toContain('max-w-full');
+    // الشريط نفسه يلتفّ، فالإجراءات تنزل سطرًا ثانيًا بدل أن تتجاوز حافة الشاشة
+    const bar = actions.closest('.border-b') as HTMLElement;
+    expect(bar.className).toContain('flex-wrap');
+  });
+
   it('keeps the account menu button from shrinking below its 44px size', () => {
     renderFrame(<Frame>Page body</Frame>);
     const trigger = screen.getByRole('button', { name: label('adminNav.accountMenuLabel') });

@@ -109,7 +109,7 @@ describe('/overview/<group>', () => {
       }),
     ).toBeTruthy();
     expect(frameState.replace).not.toHaveBeenCalled();
-    fireEvent.keyDown(screen.getByRole('button', { name: label('adminNav.accountMenuLabel') }), {
+    fireEvent.keyDown(screen.getByRole('button', { name: label('adminNav.accountMenuStyle') }), {
       key: 'Enter',
     });
     fireEvent.click(

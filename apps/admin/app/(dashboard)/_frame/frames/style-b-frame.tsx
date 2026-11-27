@@ -27,7 +27,7 @@ export function StyleBFrame({ children }: { children: ReactNode }) {
   return (
     <div className="flex min-h-dvh flex-col">
       <FrameChrome>
-        <div className="flex items-center border-b border-sidebar-border bg-sidebar text-sidebar-foreground">
+        <div className="flex flex-wrap items-center border-b border-sidebar-border bg-sidebar text-sidebar-foreground">
           <div className="shrink-0 ps-3 pe-2">
             <DashboardBrandLogo variant="mark" />
           </div>
@@ -42,7 +42,7 @@ export function StyleBFrame({ children }: { children: ReactNode }) {
               resetKey={navigationKey}
             />
           </div>
-          <div className="min-w-0 px-2 py-2">
+          <div className="ms-auto min-w-0 px-2 py-2">
             <FrameBarEnd />
           </div>
         </div>

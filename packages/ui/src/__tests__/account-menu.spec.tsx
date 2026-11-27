@@ -35,6 +35,21 @@ it('gives the icon-only trigger an accessible name from the caller', () => {
   expect(screen.queryByText('Sara')).toBeNull();
 });
 
+it('shows the icon the caller gives and keeps the name as the tooltip', () => {
+  render(
+    <DirectionProvider dir="rtl">
+      <AccountMenu
+        labels={{ label: 'Navigation style' }}
+        entries={entries}
+        icon={<svg data-testid="style-icon" />}
+      />
+    </DirectionProvider>,
+  );
+  const trigger = screen.getByRole('button', { name: 'Navigation style' });
+  expect(trigger.getAttribute('title')).toBe('Navigation style');
+  expect(screen.getByTestId('style-icon')).toBeTruthy();
+});
+
 it('opens with the name and email above the entries in the order given', async () => {
   render(menu({ name: 'Sara', email: 'sara@example.com' }));
   openAccountMenu();
@@ -110,6 +125,29 @@ it('drops the native activation of a focused link entry while it is disabled', a
     </DirectionProvider>,
   );
   expect(screen.getByRole('menuitem', { name: 'Sign out' }).getAttribute('href')).toBe('/sign-out');
+});
+
+it('marks the current entry in words for assistive technology', async () => {
+  render(
+    menu({
+      entries: [
+        {
+          id: 'style-a',
+          label: 'A — Sidebar and tabs',
+          ariaLabel: 'A — Sidebar and tabs — Current',
+          current: true,
+          onSelect: vi.fn(),
+        },
+        { id: 'style-b', label: 'B — Top bar and hubs', onSelect: vi.fn() },
+      ],
+    }),
+  );
+  openAccountMenu();
+  const items = await screen.findAllByRole('menuitem');
+  expect(items[0]?.getAttribute('aria-current')).toBe('true');
+  expect(items[0]?.getAttribute('aria-label')).toBe('A — Sidebar and tabs — Current');
+  expect(items[1]?.getAttribute('aria-current')).toBeNull();
+  expect(items[1]?.hasAttribute('aria-label')).toBe(false);
 });
 
 it('bounds the menu to the available viewport with internal scrolling and a capped width', async () => {

@@ -14,6 +14,10 @@ export type AccountMenuEntry = {
   /** حالة انتظار (مثل خروج جارٍ): المدخل يتعطل ويظهر مؤشر تحميل يتوقف تحت reduced motion. */
   pending?: boolean;
   disabled?: boolean;
+  /** اسم بديل يقرأه قارئ الشاشة بدل النص الظاهر (مثل «النمط الحالي»)؛ غيابه يبقي النص الظاهر. */
+  ariaLabel?: string;
+  /** مدخل الاختيار الحالي: يُنقل إلى `aria-current` على العنصر المعروض. */
+  current?: boolean;
 };
 
 const ITEM_CLASS =
@@ -36,6 +40,8 @@ export function AccountMenuEntryItem({ entry }: { entry: AccountMenuEntry }) {
         <a
           href={disabled ? undefined : entry.href}
           data-account-entry={entry.id}
+          aria-label={entry.ariaLabel}
+          aria-current={entry.current ? 'true' : undefined}
           className={ITEM_CLASS}
         >
           {pendingMark}
@@ -48,6 +54,8 @@ export function AccountMenuEntryItem({ entry }: { entry: AccountMenuEntry }) {
     <DropdownMenu.Item
       data-account-entry={entry.id}
       disabled={disabled}
+      aria-label={entry.ariaLabel}
+      aria-current={entry.current ? 'true' : undefined}
       onSelect={() => entry.onSelect?.()}
       className={ITEM_CLASS}
     >

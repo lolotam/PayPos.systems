@@ -81,6 +81,39 @@ describe.each(['ltr', 'rtl'] as const)('style A in %s', (dir) => {
   });
 });
 
+describe.each(['ltr', 'rtl'] as const)('the style A sidebar header in %s', (dir) => {
+  it('shows the PosPay mark without the wordmark, in the row of the collapse toggle', () => {
+    renderFrame(<StyleAFrame>Page body</StyleAFrame>, dir);
+    const sidebar = screen.getByRole('complementary');
+    expect(sidebar.textContent).not.toContain(t('en', 'brand.latinName'));
+    expect(sidebar.textContent).not.toContain(t('ar', 'brand.arabicName'));
+    const mark = sidebar.querySelector<HTMLImageElement>(
+      'img[src="/brand/logo-mark-simple-tile.png"]',
+    );
+    expect(mark).toBeTruthy();
+    expect(mark?.getAttribute('alt')).toBe(label('brand.title'));
+    const row = mark?.parentElement as HTMLElement;
+    expect(row.className).toContain('justify-center');
+    expect(row.className).toContain('relative');
+    const toggle = within(row).getByRole('button', { name: label('adminNav.collapseNavigation') });
+    expect(toggle.className).toContain('end-2');
+    expect(toggle.className).toContain('min-[1024px]:absolute');
+    expect(toggle.className).not.toContain('right-2');
+    expect(toggle.className).not.toContain('left-2');
+  });
+
+  it('drops the mark in the rail and keeps the toggle centred', () => {
+    renderFrame(<StyleAFrame>Page body</StyleAFrame>, dir);
+    const sidebar = screen.getByRole('complementary');
+    fireEvent.click(screen.getByRole('button', { name: label('adminNav.collapseNavigation') }));
+    expect(sidebar.getAttribute('data-collapsed')).toBe('');
+    expect(sidebar.querySelector('img[src="/brand/logo-mark-simple-tile.png"]')).toBeNull();
+    const toggle = screen.getByRole('button', { name: label('adminNav.expandNavigation') });
+    expect(toggle.className).not.toContain('end-2');
+    expect(toggle.parentElement?.className).toContain('justify-center');
+  });
+});
+
 describe('style A visibility', () => {
   it('omits a group and a tab whose pages are all hidden', () => {
     frameState.visible = ['dashboard', 'employees', 'employee-numbers'];

@@ -1,7 +1,7 @@
 'use client';
 
 import { DropdownMenu } from 'radix-ui';
-import { useState } from 'react';
+import { useState, type ReactNode } from 'react';
 
 import { AccountMenuEntryItem, type AccountMenuEntry } from './account-menu-entry.js';
 import { AccountMenuIdentity } from './account-menu-identity.js';
@@ -11,7 +11,7 @@ import { cn } from './shared/cn.js';
 export type { AccountMenuEntry };
 
 export type AccountMenuLabels = {
-  /** الاسم المتاح لزر الحساب الأيقوني. */
+  /** الاسم المتاح للزر الأيقوني الذي يفتح القائمة. */
   label: string;
 };
 
@@ -20,18 +20,20 @@ export type AccountMenuProps = {
   /** الاسم والبريد الظاهران أعلى القائمة؛ غيابهما يفتح القائمة بلا كتلة هوية. */
   name?: string;
   email?: string;
-  /** المداخل بترتيبها المعطى — كل نص فيها مترجم من المستدعي، ومنها ما يخص الوضع والمظهر. */
+  /** المداخل بترتيبها المعطى — كل نص فيها مترجم من المستدعي، وقد تحكي إما قائمة الحساب أو قائمة رأس كاختيار نمط التنقّل. */
   entries: readonly AccountMenuEntry[];
   /** يغيّره المستضيف عند كل انتقال فتُغلق القائمة دون إعادة بناء زرها؛ الغياب لا يغيّر شيئًا. */
   resetKey?: string | undefined;
+  /** أيقونة الزر بدل صورة المستخدم؛ الغياب يترك الصورة الافتراضية. */
+  icon?: ReactNode;
   className?: string;
 };
 
 /**
- * قائمة الحساب: الاسم والبريد ثم المداخل بترتيبها المعطى، وباب مغلق بالهروب
+ * قائمة منسدلة يفتحها زر أيقوني: المداخل بترتيبها المعطى، وباب مغلق بالهروب
  * يرجع التركيز إلى الزر؛ الكيت لا يقرأ جلسة ولا مسارًا، وكل نص من المستدعي.
- * لا خانات حرة بعد المداخل: عناصر Radix لا تصلها لوحة المفاتيح، وأي تحكم
- * إضافي (مثل مبدّل الوضع) يدخل كمدخل من المداخل في خطوة 074-7.
+ * تخدم قائمة الحساب وقائمة رأس مثل اختيار نمط التنقّل، فهي لا تفترض مدخلات
+ * معيّنة: لا خانات حرة بعد المداخل، لأن عناصر Radix لا تصلها لوحة المفاتيح.
  */
 export function AccountMenu({
   labels,
@@ -39,6 +41,7 @@ export function AccountMenu({
   email,
   entries,
   resetKey,
+  icon,
   className,
 }: AccountMenuProps) {
   const [open, setOpen] = useState(false);
@@ -53,12 +56,13 @@ export function AccountMenu({
         <button
           type="button"
           aria-label={labels.label}
+          title={labels.label}
           className={cn(
             'inline-flex size-11 items-center justify-center rounded-interactive text-muted-foreground transition-colors motion-reduce:transition-none hover:bg-accent hover:text-accent-foreground focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring',
             className,
           )}
         >
-          <UserRound aria-hidden className="size-4" />
+          {icon ?? <UserRound aria-hidden className="size-4" />}
         </button>
       </DropdownMenu.Trigger>
       <DropdownMenu.Portal>

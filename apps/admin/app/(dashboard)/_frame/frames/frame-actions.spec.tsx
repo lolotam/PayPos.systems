@@ -42,15 +42,34 @@ vi.mock(
 
 const label = (key: Parameters<typeof t>[1]) => t('en', key);
 
+/** اسم زر الوضع: يسمّي الوضع الهدف لا الحالي، فالقارئ يسمع الفعل. */
+const themeButtonName = (target: 'light' | 'dark') =>
+  `${label('adminNav.accountMenuTheme')}: ${label(target === 'dark' ? 'theme.dark' : 'theme.light')}`;
+
 function Probe() {
   return <p>Style in use: {useNavStyle().style}</p>;
 }
 
-function openMenu() {
-  fireEvent.keyDown(screen.getByRole('button', { name: label('adminNav.accountMenuLabel') }), {
-    key: 'Enter',
-  });
+function openMenu(name: string) {
+  fireEvent.keyDown(screen.getByRole('button', { name }), { key: 'Enter' });
   return screen.getByRole('menu');
+}
+
+const openAccountMenu = () => openMenu(label('adminNav.accountMenuLabel'));
+const openStyleMenu = () => openMenu(label('adminNav.accountMenuStyle'));
+
+/**
+ * يضبط وضع النظام المخبوز في المتصفح ويعيد تركيب مشغّل الوضع، عشان الاختبار
+ * يقرأ حالة الصفحة من غير ما يعتمد على مشغّل مركّب من اختبار قبله.
+ */
+function stubSystemTheme(dark: boolean) {
+  vi.stubGlobal('matchMedia', (query: string) => ({
+    matches: query.includes('prefers-color-scheme: dark') ? dark : false,
+    media: query,
+    addEventListener: vi.fn(),
+    removeEventListener: vi.fn(),
+  }));
+  window.__pospayTheme?.dispose();
 }
 
 beforeEach(() => {
@@ -65,7 +84,7 @@ beforeEach(() => {
 
 it('shows the name, email, links and every choice in order', () => {
   renderFrame(<FrameActions />);
-  const menu = openMenu();
+  const menu = openAccountMenu();
   expect(within(menu).getByText('Sara Ali')).toBeTruthy();
   expect(within(menu).getByText('sara@example.test')).toBeTruthy();
   expect(
@@ -78,36 +97,54 @@ it('shows the name, email, links and every choice in order', () => {
       .getByRole('menuitem', { name: label('adminNav.appearanceTitle') })
       .getAttribute('href'),
   ).toBe('/appearance');
-  expect(within(menu).getAllByRole('menuitem')).toHaveLength(9);
+  const items = within(menu).getAllByRole('menuitem');
+  expect(items).toHaveLength(3);
+  expect(items.map((item) => item.getAttribute('data-account-entry'))).toEqual([
+    'authenticator',
+    'appearance',
+    'sign-out',
+  ]);
+  // اختيار النمط والوضع بقى في الشريط العلوي، فمفيش مدخل لهما في قائمة الحساب
+  expect(
+    items.filter((item) => /^(style-|theme-)/.test(item.getAttribute('data-account-entry') ?? '')),
+  ).toHaveLength(0);
 });
 
-it('marks the current style in words and switches it without a reload', () => {
+it('marks the current style in the header dropdown and switches it without a reload', () => {
   renderFrame(
     <>
       <FrameActions />
       <Probe />
     </>,
   );
-  let menu = openMenu();
-  const styleItems = within(menu).getAllByRole('menuitem', {
-    name: new RegExp(label('adminNav.accountMenuStyle')),
-  });
-  expect(styleItems.map((item) => item.textContent)).toEqual([
-    `${label('adminNav.accountMenuStyle')}: ${label('adminNav.styleALabel')}`,
-    `${label('adminNav.accountMenuStyle')}: ${label('adminNav.styleBLabel')}`,
-    `${label('adminNav.accountMenuStyle')}: ${label('adminNav.styleCLabel')} — ${label('adminNav.currentStyleBadge')}`,
+  let menu = openStyleMenu();
+  let items = within(menu).getAllByRole('menuitem');
+  expect(items.map((item) => item.textContent)).toEqual([
+    label('adminNav.styleALabel'),
+    label('adminNav.styleBLabel'),
+    `✓ ${label('adminNav.styleCLabel')}`,
   ]);
-  fireEvent.click(styleItems[0] as HTMLElement);
+  // الاختيار الحالي معلّم بالعين وبالكلمة معًا، لأن علامة الصح ما تنطقها القارئات
+  expect(items.map((item) => item.getAttribute('aria-current'))).toEqual([null, null, 'true']);
+  expect(items[2]?.getAttribute('aria-label')).toBe(
+    `${label('adminNav.styleCLabel')} — ${label('adminNav.currentStyleBadge')}`,
+  );
+  fireEvent.click(within(menu).getByRole('menuitem', { name: label('adminNav.styleALabel') }));
   expect(screen.getByText('Style in use: A')).toBeTruthy();
-  menu = openMenu();
-  expect(
-    within(menu).getByRole('menuitem', {
-      name: new RegExp(`${label('adminNav.styleALabel')} — `),
-    }),
-  ).toBeTruthy();
+  menu = openStyleMenu();
+  items = within(menu).getAllByRole('menuitem');
+  expect(items.map((item) => item.textContent)).toEqual([
+    `✓ ${label('adminNav.styleALabel')}`,
+    label('adminNav.styleBLabel'),
+    label('adminNav.styleCLabel'),
+  ]);
+  expect(items.map((item) => item.getAttribute('aria-current'))).toEqual(['true', null, null]);
+  expect(items[0]?.getAttribute('aria-label')).toBe(
+    `${label('adminNav.styleALabel')} — ${label('adminNav.currentStyleBadge')}`,
+  );
 });
 
-it('shows the fixed save-failure alert after switching from the account menu entry', async () => {
+it('shows the fixed save-failure alert after switching from the header dropdown', async () => {
   preferencesApi.put.mockResolvedValueOnce({ error: {}, response: { ok: false } });
   renderFrame(
     <>
@@ -117,8 +154,7 @@ it('shows the fixed save-failure alert after switching from the account menu ent
     </>,
   );
   fireEvent.click(
-    within(openMenu())
-      .getAllByRole('menuitem', { name: new RegExp(label('adminNav.accountMenuStyle')) })[0] as HTMLElement,
+    within(openStyleMenu()).getByRole('menuitem', { name: label('adminNav.styleALabel') }),
   );
   const alert = await screen.findByRole('alert');
   expect(alert.textContent).toContain(t('en', 'adminNav.saveFailed'));
@@ -136,8 +172,7 @@ it('a user with no ready workspace switches through the provider tree and sends 
     </>,
   );
   fireEvent.click(
-    within(openMenu())
-      .getAllByRole('menuitem', { name: new RegExp(label('adminNav.accountMenuStyle')) })[0] as HTMLElement,
+    within(openStyleMenu()).getByRole('menuitem', { name: label('adminNav.styleALabel') }),
   );
   expect(screen.getByText('Style in use: A')).toBeTruthy();
   await waitFor(() => expect(preferencesApi.put).toHaveBeenCalledTimes(1));
@@ -147,25 +182,52 @@ it('a user with no ready workspace switches through the provider tree and sends 
   ]);
 });
 
-it('applies the theme choice and marks the current one', () => {
+it('toggles the display theme from the header in one click, with no theme menu', () => {
+  stubSystemTheme(false);
   renderFrame(<FrameActions />);
-  const menu = openMenu();
-  fireEvent.click(within(menu).getByRole('menuitem', { name: new RegExp(label('theme.dark')) }));
+  const lightToggle = screen.getByRole('button', { name: themeButtonName('dark') });
+  expect(lightToggle.getAttribute('aria-pressed')).toBe('false');
+  expect(lightToggle.getAttribute('title')).toBe(themeButtonName('dark'));
+  expect(lightToggle.querySelector('[data-theme-icon="moon"]')).toBeTruthy();
+  expect(document.documentElement.classList.contains('dark')).toBe(false);
+  fireEvent.click(lightToggle);
   expect(readThemePreference()).toBe('dark');
-  const reopened = openMenu();
-  expect(
-    within(reopened).getByRole('menuitem', { name: new RegExp(`${label('theme.dark')} — `) }),
-  ).toBeTruthy();
+  expect(document.documentElement.classList.contains('dark')).toBe(true);
+  const darkToggle = screen.getByRole('button', { name: themeButtonName('light') });
+  expect(darkToggle.getAttribute('aria-pressed')).toBe('true');
+  expect(darkToggle.getAttribute('title')).toBe(themeButtonName('light'));
+  expect(darkToggle.querySelector('[data-theme-icon="sun"]')).toBeTruthy();
+  fireEvent.click(darkToggle);
+  expect(readThemePreference()).toBe('light');
+  expect(document.documentElement.classList.contains('dark')).toBe(false);
+  const backToLight = screen.getByRole('button', { name: themeButtonName('dark') });
+  expect(backToLight.getAttribute('aria-pressed')).toBe('false');
+  expect(backToLight.querySelector('[data-theme-icon="moon"]')).toBeTruthy();
+});
+
+it('fixes an explicit theme when the preference follows the system', () => {
+  stubSystemTheme(true);
+  renderFrame(<FrameActions />);
+  const systemToggle = screen.getByRole('button', { name: themeButtonName('light') });
+  expect(systemToggle.getAttribute('aria-pressed')).toBe('true');
+  expect(systemToggle.querySelector('[data-theme-icon="sun"]')).toBeTruthy();
+  fireEvent.click(systemToggle);
+  expect(readThemePreference()).toBe('light');
+  const fixedToggle = screen.getByRole('button', { name: themeButtonName('dark') });
+  expect(fixedToggle.getAttribute('aria-pressed')).toBe('false');
+  expect(fixedToggle.querySelector('[data-theme-icon="moon"]')).toBeTruthy();
 });
 
 it('signs out from the last entry and shows a failure in its text', () => {
   const { rerenderFrame } = renderFrame(<FrameActions />);
-  fireEvent.click(within(openMenu()).getByRole('menuitem', { name: label('admin.signOut') }));
+  fireEvent.click(
+    within(openAccountMenu()).getByRole('menuitem', { name: label('admin.signOut') }),
+  );
   expect(signOut.submit).toHaveBeenCalledTimes(1);
   signOut.failed = true;
   act(() => rerenderFrame(<FrameActions />));
   expect(
-    within(openMenu()).getByRole('menuitem', {
+    within(openAccountMenu()).getByRole('menuitem', {
       name: `${label('admin.signOut')} — ${label('admin.unexpected')}`,
     }),
   ).toBeTruthy();
@@ -174,16 +236,62 @@ it('signs out from the last entry and shows a failure in its text', () => {
 it('keeps the other frame controls beside the menu', () => {
   renderFrame(<FrameActions />);
   expect(screen.getByRole('button', { name: 'Notifications' })).toBeTruthy();
+  expect(screen.getByRole('button', { name: label('adminNav.accountMenuStyle') })).toBeTruthy();
+  expect(screen.getByRole('button', { name: themeButtonName('dark') })).toBeTruthy();
   expect(screen.getByRole('button', { name: 'Switch language' })).toBeTruthy();
+});
+
+it('keeps the header controls in order: bell, style, theme, language, account', () => {
+  renderFrame(<FrameActions />);
+  const bell = screen.getByRole('button', { name: 'Notifications' });
+  const group = bell.parentElement as HTMLElement;
+  expect(
+    Array.from(group.children).map(
+      (child) => child.getAttribute('aria-label') ?? child.textContent ?? '',
+    ),
+  ).toEqual([
+    'Notifications',
+    label('adminNav.accountMenuStyle'),
+    themeButtonName('dark'),
+    'Switch language',
+    label('adminNav.accountMenuLabel'),
+  ]);
+});
+
+it('gives every header icon button the same 44px target and no shrinking', () => {
+  renderFrame(<FrameActions />);
+  const iconButtons = [
+    screen.getByRole('button', { name: 'Notifications' }),
+    screen.getByRole('button', { name: label('adminNav.accountMenuStyle') }),
+    screen.getByRole('button', { name: themeButtonName('dark') }),
+    screen.getByRole('button', { name: label('adminNav.accountMenuLabel') }),
+  ];
+  for (const button of iconButtons) {
+    expect(button.className).toContain('size-11');
+    expect(button.className).toContain('shrink-0');
+  }
+  // زر اللغة نصّي، فعرضه بعرض نصّه وارتفاعه 44px زي الباقي
+  const language = screen.getByRole('button', { name: 'Switch language' });
+  expect(language.className).toContain('min-h-11');
+  // وأيقونتا النمط والوضع 16px زي أيقونة بقية أزرار الرأس
+  for (const name of [label('adminNav.accountMenuStyle'), themeButtonName('dark')]) {
+    expect(
+      screen.getByRole('button', { name }).querySelector('svg')?.getAttribute('class'),
+    ).toContain('size-4');
+  }
+  // والمجموعة تلتفّ على الشاشات الضيقة بدل أن تتجاوز الشاشة
+  const actions = iconButtons[0]?.parentElement as HTMLElement;
+  expect(actions.className).toContain('flex-wrap');
+  expect(actions.className).toContain('max-w-full');
 });
 
 it('closes the account menu on every navigation, Back included, and keeps the same trigger', () => {
   renderFrame(<FrameActions />);
   const trigger = screen.getByRole('button', { name: label('adminNav.accountMenuLabel') });
-  openMenu();
+  openAccountMenu();
   goTo('/leave');
   expect(screen.queryByRole('menu')).toBeNull();
-  openMenu();
+  openAccountMenu();
   goTo('/');
   expect(screen.queryByRole('menu')).toBeNull();
   expect(screen.getByRole('button', { name: label('adminNav.accountMenuLabel') })).toBe(trigger);
@@ -219,19 +327,18 @@ it('names the workspace switcher by a prompt until a company and a business are 
 });
 
 it.each([
-  ['account menu', () => <FrameActions />, 'menu'],
-  ['workspace switcher', () => <FrameWorkspaceSwitcher />, 'dialog'],
+  ['account menu', () => <FrameActions />, 'menu', label('adminNav.accountMenuLabel')],
+  ['style menu', () => <FrameActions />, 'menu', label('adminNav.accountMenuStyle')],
+  ['workspace switcher', () => <FrameWorkspaceSwitcher />, 'dialog', /Synthetic business/],
 ])(
   'closes the %s on a query-only or fragment-only move, Back and Forward included',
-  (_name, frame, role) => {
+  (_name, frame, role, triggerName) => {
     frameState.pathname = '/packages';
     renderFrame(frame());
-    const trigger = screen.getByRole('button', {
-      name: role === 'menu' ? label('adminNav.accountMenuLabel') : /Synthetic business/,
-    });
+    const trigger = screen.getByRole('button', { name: triggerName });
     const open = () => {
-      if (role === 'menu') openMenu();
-      else fireEvent.click(screen.getByRole('button', { name: /Synthetic business/ }));
+      if (role === 'menu') fireEvent.keyDown(trigger, { key: 'Enter' });
+      else fireEvent.click(trigger);
       expect(screen.getByRole(role)).toBeTruthy();
     };
     open();
