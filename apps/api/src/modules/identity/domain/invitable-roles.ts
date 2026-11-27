@@ -55,3 +55,47 @@ export function invitationScopeFailure(
   if (required === null) return 'MEMBER_ROLE_NOT_INVITABLE';
   return required === scopeType ? null : 'MEMBER_ROLE_NOT_INVITABLE';
 }
+
+/** توزيع دور مع نطاقه: الدور الأساسي للدعوة أو دور إضافي من «أدوار أكتر» (080). */
+export interface InvitationAssignment {
+  readonly role: InvitableRole;
+  readonly scope: { readonly type: InvitationScopeType; readonly id: string };
+}
+
+/** نتيجة جمع التوزيعات: إمّا كلها صالحة، أو كود الرفض بتاع أول توزيع غلط. */
+export type InvitationAssignments =
+  | { readonly ok: true; readonly assignments: readonly InvitationAssignment[] }
+  | { readonly ok: false; readonly refusal: 'MEMBER_ROLE_NOT_INVITABLE' };
+
+/** مدخل جمع التوزيعات: الدور الأساسي ونطاقه والأدوار الإضافية («أدوار أكتر»). */
+export interface InvitationAssignmentInput {
+  readonly role: InvitableRole;
+  readonly scope: { readonly type: InvitationScopeType; readonly id: string };
+  readonly additional_roles?: readonly InvitationAssignment[] | undefined;
+}
+
+/**
+ * بيجمع الدور الأساسي والأدوار الإضافية وبيشيل المكرر، وبيحكم على كل واحد بجدول
+ * الأدوار: النطاق لازم يطابق نوع النطاق اللي الدور بيطلبه. التكرار بيتشال بترتيب ثابت
+ * (الأساسي الأول) عشان نفس الطلب يبقى نفس النتيجة كل مرة.
+ *
+ * @param input الدور الأساسي ونطاقه والأدوار الإضافية
+ * @returns التوزيعات بعد إزالة المكرر، أو كود الرفض
+ */
+export function collectInvitationAssignments(input: InvitationAssignmentInput): InvitationAssignments {
+  const assignments: InvitationAssignment[] = [];
+  const seen = new Set<string>();
+  for (const entry of [
+    { role: input.role, scope: input.scope },
+    ...(input.additional_roles ?? []),
+  ]) {
+    if (invitationScopeFailure(entry.role, entry.scope.type) !== null) {
+      return { ok: false, refusal: 'MEMBER_ROLE_NOT_INVITABLE' };
+    }
+    const key = `${entry.role}:${entry.scope.type}:${entry.scope.id}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    assignments.push({ role: entry.role, scope: { ...entry.scope } });
+  }
+  return { ok: true, assignments };
+}

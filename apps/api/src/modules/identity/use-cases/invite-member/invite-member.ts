@@ -4,12 +4,13 @@ import { ApiError } from '../../../../shared/errors.ts';
 import type { Clock } from '../../../../shared/ports/clock.port.ts';
 import type { IdGenerator } from '../../../../shared/ports/id-generator.port.ts';
 import type { DomainEvent } from '../../../../shared/ports/outbox-writer.port.ts';
-import { invitationScopeFailure } from '../../domain/invitable-roles.ts';
+import { collectInvitationAssignments, type InvitationAssignment } from '../../domain/invitable-roles.ts';
 import { MEMBER_INVITED, type MemberInvited } from '../../events/published.ts';
 import {
   MemberLinkRefusedError,
   type InvitationActor,
   type InvitationRateLimiter,
+  type InvitedMembership,
   type MemberAccounts,
   type MemberInvitationRow,
   type MemberInvitationTransactions,
@@ -31,14 +32,14 @@ export interface InviteMemberResult {
 }
 
 /** حدث MemberInvited من الصف المقفول: معرّفات الحالة والدور بس — مفيش إيميل ولا رابط ولا token. */
-function invitedEvent(row: MemberInvitationRow, membershipId: string, userId: string): DomainEvent {
+function invitedEvent(row: MemberInvitationRow, membership: InvitedMembership, userId: string): DomainEvent {
   const payload: MemberInvited = {
     invitation_id: row.id,
     user_id: userId,
-    membership_id: membershipId,
-    role_code: row.roleCode,
-    scope_type: row.scopeType,
-    scope_id: row.scopeId,
+    membership_id: membership.membershipId,
+    role_code: membership.roleCode,
+    scope_type: membership.scopeType,
+    scope_id: membership.scopeId,
     invited_by: row.invitedBy,
   };
   return {
@@ -49,8 +50,12 @@ function invitedEvent(row: MemberInvitationRow, membershipId: string, userId: st
   };
 }
 
-/** صفوف التدقيق من الصف المقفول: إنشاء الحساب، ثم العضوية — بالترتيب اللي بتكتب بيه. */
-function auditEntries(row: MemberInvitationRow, membershipId: string, userId: string) {
+/** صفوف التدقيق من الصف المقفول: إنشاء الحساب، ثم صف عضوية لكل عضوية — بالترتيب اللي بتكتب بيه. */
+function auditEntries(
+  row: MemberInvitationRow,
+  memberships: readonly InvitedMembership[],
+  userId: string,
+) {
   return [
     {
       entity: 'member_invitation',
@@ -58,18 +63,18 @@ function auditEntries(row: MemberInvitationRow, membershipId: string, userId: st
       action: 'user.created',
       after: { user_id: userId, invitation_id: row.id },
     },
-    {
+    ...memberships.map((membership) => ({
       entity: 'membership',
-      entityId: membershipId,
+      entityId: membership.membershipId,
       action: 'created',
       after: {
-        membership_id: membershipId,
+        membership_id: membership.membershipId,
         user_id: userId,
-        role_code: row.roleCode,
-        scope_type: row.scopeType,
-        scope_id: row.scopeId,
+        role_code: membership.roleCode,
+        scope_type: membership.scopeType,
+        scope_id: membership.scopeId,
       },
-    },
+    })),
   ];
 }
 
@@ -117,40 +122,31 @@ export class InviteMember {
     const { actor, input } = command;
     const who = { companyId: actor.companyId, actorUserId: actor.userId };
     if (!(await this.#limiter.allow(actor.userId))) throw new ApiError('TOO_MANY_REQUESTS');
-    const scopeFailure = invitationScopeFailure(input.role, input.scope.type);
-    if (scopeFailure !== null) throw new ApiError(scopeFailure);
-    const scope = { type: input.scope.type, id: input.scope.id };
-    const denied = await this.#transactions.authorize({ ...who, scope });
+    const collected = collectInvitationAssignments({
+      role: input.role,
+      scope: input.scope,
+      additional_roles: input.additional_roles,
+    });
+    if (!collected.ok) throw new ApiError(collected.refusal);
+    const additionalAssignments = collected.assignments.slice(1);
+    // كل النطاقات — الأساسية والإضافية — بتتتفحص قبل أي قراءة عن الإيميل، عشان رد «له حساب» ما يتسربش.
+    const denied = await this.#transactions.authorize({
+      ...who,
+      scope: { type: input.scope.type, id: input.scope.id },
+      additionalAssignments,
+    });
     if (denied !== null) throw new ApiError(denied);
     const now = this.#clock.now();
-    const staleBefore = new Date(now.getTime() - STALE_INVITATION_AFTER_MS);
-    let email = this.#accounts.isStaffEmail(input.email)
-      ? { kind: 'TAKEN' as const }
-      : await this.#accounts.inspectEmail(input.email, actor.companyId);
-    if (email.kind === 'OURS') {
-      email = await this.#reclaimAbandoned(who, email, input, staleBefore);
-    }
-    if (email.kind === 'TAKEN') await this.#refuseEmail(who);
-    const opened = await this.#transactions.open({
-      ...who,
-      invitationId: this.#ids.newId(),
-      emailHash: this.#accounts.hashEmail(input.email),
-      roleCode: input.role,
-      scope,
-      now,
-      staleBefore,
-      accountOperationId: email.kind === 'OURS' ? email.operationId : undefined,
-    });
-    if ('refusal' in opened) throw new ApiError(opened.refusal);
-    if (email.kind === 'OURS' && email.operationId !== opened.invitationId) {
-      await this.#freeDanglingAccount(who, email.operationId, opened.invitationId);
-    }
+    const opened = await this.#open(who, input, additionalAssignments, now);
     const userId = await this.#createAccount(who, opened.invitationId, input);
     const outcome = await this.#transactions.complete({
       ...who,
       invitationId: opened.invitationId,
       membershipId: this.#ids.newId(),
       userId,
+      additionalAssignments,
+      additionalMembershipIds: additionalAssignments.map(() => this.#ids.newId()),
+      permissionOverrides: input.permission_overrides ?? [],
       buildEvent: invitedEvent,
       buildAudit: auditEntries,
       now,
@@ -162,9 +158,52 @@ export class InviteMember {
     }
     const link = await this.#issueLink(userId, who, opened.invitationId, now);
     if (!outcome.alreadyComplete) {
-      await this.#invalidator.invalidate(actor.companyId, outcome.membershipId);
+      for (const membershipId of outcome.membershipIds) {
+        await this.#invalidator.invalidate(actor.companyId, membershipId);
+      }
     }
     return { invitation_id: opened.invitationId, set_password_link: link };
+  }
+
+  /**
+   * فتح صف الدعوة: فحص الإيميل، ورفض «له حساب»، وكتابة الصف أو إعادة استخدامه بعد انقطاع.
+   *
+   * @param who المتصل والشركة
+   * @param input الإيميل والاسم والدور من الطلب
+   * @param additionalAssignments التوزيعات الإضافية بعد إزالة المكرر
+   * @param now وقت الطلب
+   * @returns معرّف صف الدعوة المفتوح
+   */
+  async #open(
+    who: InvitationActor,
+    input: InviteMemberCommand['input'],
+    additionalAssignments: readonly InvitationAssignment[],
+    now: Date,
+  ): Promise<{ invitationId: string }> {
+    const staleBefore = new Date(now.getTime() - STALE_INVITATION_AFTER_MS);
+    let email = this.#accounts.isStaffEmail(input.email)
+      ? { kind: 'TAKEN' as const }
+      : await this.#accounts.inspectEmail(input.email, who.companyId);
+    if (email.kind === 'OURS') {
+      email = await this.#reclaimAbandoned(who, email, input, staleBefore, additionalAssignments);
+    }
+    if (email.kind === 'TAKEN') await this.#refuseEmail(who);
+    const opened = await this.#transactions.open({
+      ...who,
+      invitationId: this.#ids.newId(),
+      emailHash: this.#accounts.hashEmail(input.email),
+      roleCode: input.role,
+      scope: { type: input.scope.type, id: input.scope.id },
+      additionalAssignments,
+      now,
+      staleBefore,
+      accountOperationId: email.kind === 'OURS' ? email.operationId : undefined,
+    });
+    if ('refusal' in opened) throw new ApiError(opened.refusal);
+    if (email.kind === 'OURS' && email.operationId !== opened.invitationId) {
+      await this.#freeDanglingAccount(who, email.operationId, opened.invitationId);
+    }
+    return opened;
   }
 
   /** دعوة نفس الطلب اترفض إتمامها: بتتلغى، وحساب عمليتها بيتمسح لما يتأكد إن مفيش عضوية. */
@@ -231,12 +270,14 @@ export class InviteMember {
     email: { kind: 'OURS'; operationId: string },
     input: InviteMemberCommand['input'],
     staleBefore: Date,
+    additionalAssignments: readonly InvitationAssignment[],
   ): Promise<{ kind: 'FREE' } | { kind: 'TAKEN' } | { kind: 'OURS'; operationId: string }> {
     const abandoned = await this.#transactions.abandonStale({
       ...who,
       invitationId: email.operationId,
       roleCode: input.role,
       scope: { type: input.scope.type, id: input.scope.id },
+      additionalAssignments,
       staleBefore,
     });
     if (!abandoned) return email;

@@ -4,6 +4,9 @@ import type { InviteMemberInput } from '@pospay/contracts';
 import { useFormContext } from 'react-hook-form';
 
 import { InvitationConfirmFields } from './invitation-confirm-fields';
+import { InvitationExtraRolesFields } from './invitation-extra-roles-fields';
+import { InvitationInlineOverrides } from './invitation-inline-overrides';
+import { InvitationMultiScopeFields } from './invitation-multi-scope-fields';
 import { InvitationRoleScopeFields } from './invitation-role-scope-fields';
 import type { InvitationScopeChoices } from '../model/invitable-roles';
 import { t } from '@pospay/i18n';
@@ -50,6 +53,9 @@ export function InvitationFields({
         ) : null}
       </div>
       <InvitationRoleScopeFields choices={choices} companyId={companyId} />
+      <InvitationMultiScopeFields choices={choices} />
+      <InvitationExtraRolesFields choices={choices} companyId={companyId} />
+      <InvitationInlineOverrides choices={choices} companyId={companyId} />
       <InvitationConfirmFields />
     </>
   );

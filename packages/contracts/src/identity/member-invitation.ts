@@ -4,6 +4,7 @@ import { page } from '../pagination/cursor.js';
 import { responseObject } from '../response-object.js';
 import { id } from '../scalars/id.js';
 import { timestamp } from '../scalars/timestamp.js';
+import { permissionOverrideInput } from './permissions.js';
 
 /** الأدوار اللي بتتدى بالدعوة (IM-Q2) — دور المالك مش فيهم أبداً. */
 export const invitableRole = z.enum([
@@ -17,8 +18,20 @@ export const invitableRole = z.enum([
 export const invitationScopeType = z.enum(['COMPANY', 'BUSINESS', 'BRANCH']);
 
 /**
+ * دور إضافي مع نطاقه: «أدوار أكتر» في الدعوة (080). كل سطر مستقل وبيتحول لعضوية مستقلة.
+ */
+export const invitationRoleAssignment = z
+  .strictObject({
+    role: invitableRole,
+    scope: z.strictObject({ type: invitationScopeType, id }),
+  })
+  .meta({ id: 'InvitationRoleAssignment' });
+
+/**
  * طلب دعوة عضو. التأكيد مطلوب دايماً (D10): الشاشة بتعرض الإيميل كامل وبتطلب علامة التأكيد قبل الإرسال،
  * سواء كان للحساب حساب موجود أو لأ.
+ * الأدوار الإضافية والاستثناءات اختيارية: الطلب القديم بدور واحد لسه صالح، والكتابة كلها في
+ * معاملة واحدة (080).
  */
 export const inviteMemberInput = z
   .strictObject({
@@ -27,6 +40,10 @@ export const inviteMemberInput = z
     role: invitableRole,
     scope: z.strictObject({ type: invitationScopeType, id }),
     email_confirmed: z.literal(true),
+    /** أدوار ونطاقات إضافية («أدوار أكتر») — كل واحد بيفتح عضوية مستقلة في نفس الشركة. */
+    additional_roles: z.array(invitationRoleAssignment).max(50).optional(),
+    /** استثناءات صلاحية تُكتب مع العضويات في نفس المعاملة («استثناء صلاحية»). */
+    permission_overrides: z.array(permissionOverrideInput).max(100).optional(),
   })
   .meta({ id: 'InviteMemberInput' });
 
@@ -60,6 +77,7 @@ export const memberInvitationPage = page(memberInvitation).meta({ id: 'MemberInv
 
 export type InvitableRole = z.infer<typeof invitableRole>;
 export type InvitationScopeType = z.infer<typeof invitationScopeType>;
+export type InvitationRoleAssignment = z.infer<typeof invitationRoleAssignment>;
 export type InviteMemberInput = z.infer<typeof inviteMemberInput>;
 export type MemberInvitationResult = z.infer<typeof memberInvitationResult>;
 export type EndMembershipResult = z.infer<typeof endMembershipResult>;

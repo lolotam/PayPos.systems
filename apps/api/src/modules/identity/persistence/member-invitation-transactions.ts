@@ -1,7 +1,8 @@
-import { SYSTEM_ROLES, type IdGenerator, type TenantWrappers, type Tx } from '@pospay/db';
+import type { IdGenerator, TenantWrappers, Tx } from '@pospay/db';
 import { sql } from 'drizzle-orm';
 
 import { transactionWriters } from '../../../shared/adapters/transaction-writers.ts';
+import type { InvitationAssignment } from '../domain/invitable-roles.ts';
 import type {
   CompleteInvitationInput,
   CompleteInvitationOutcome,
@@ -18,12 +19,18 @@ import type {
 import {
   activeMembership,
   authorityAllows,
+  lockCompany,
   lockInvitation,
   lockInvitationByEmail,
   scopeBelongs,
-  toRow,
+  scopesBelong,
   type InvitationRecord,
 } from './member-invitation-records.ts';
+import {
+  applyInvitationOverrides,
+  InvitationRefusedError,
+  writeInvitationMemberships,
+} from './member-invitation-overrides.ts';
 
 /** صف PENDING بيتعاد استخدامه بس من نفس الداعي بنفس الدور والنطاق؛ أي اختلاف بيرفض (P1-b). */
 function resumeRefused(row: InvitationRecord, input: OpenInvitationInput): boolean {
@@ -32,18 +39,33 @@ function resumeRefused(row: InvitationRecord, input: OpenInvitationInput): boole
     row.invited_by !== input.actorUserId ||
     row.role_code !== input.roleCode ||
     row.scope_type !== input.scope.type ||
-    row.scope_id !== input.scope.id
+    row.scope_id !== input.scope.id ||
+    (row.membership_id !== null && input.additionalAssignments.length > 0)
   );
+}
+
+/** النطاقات كلها للدعوة: الأساسية والإضافية — كلها بتتفحص على إنّها من الشركة. */
+function scopesOf(input: {
+  readonly scope: InvitationScope;
+  readonly additionalAssignments: readonly InvitationAssignment[];
+}): InvitationScope[] {
+  return [
+    input.scope,
+    ...input.additionalAssignments.map((assignment) => ({
+      type: assignment.scope.type,
+      id: assignment.scope.id,
+    })),
+  ];
 }
 
 /** سلطة المالك ثم نطاق تابع للشركة، بالحالة وقت المعاملة؛ null لما الاتنين سليمين. */
 async function authorityRefusal(
   tx: Tx,
   actor: InvitationActor,
-  scope: InvitationScope,
+  scopes: readonly InvitationScope[],
 ): Promise<'FORBIDDEN' | 'MEMBER_ROLE_NOT_INVITABLE' | null> {
   if (!(await authorityAllows(tx, actor.companyId, actor.actorUserId))) return 'FORBIDDEN';
-  return (await scopeBelongs(tx, actor.companyId, scope)) ? null : 'MEMBER_ROLE_NOT_INVITABLE';
+  return (await scopesBelong(tx, actor.companyId, scopes)) ? null : 'MEMBER_ROLE_NOT_INVITABLE';
 }
 
 /**
@@ -89,7 +111,7 @@ async function openInvitation(
   input: OpenInvitationInput,
 ): Promise<OpenInvitationOutcome> {
   const existing = await lockInvitationByEmail(tx, input.companyId, input.emailHash);
-  const refusal = await authorityRefusal(tx, input, input.scope);
+  const refusal = await authorityRefusal(tx, input, scopesOf(input));
   if (refusal !== null) return { refusal };
   if (existing !== undefined) {
     const reclaimed = await reclaimStaleRow(tx, ids, input, existing);
@@ -123,48 +145,24 @@ async function openInvitation(
   }
   // سباق على نفس الإيميل: الفايز اتكتب بالتوازي، فنحكم عليه بنفس قواعد الإعادة.
   const raced = await lockInvitationByEmail(tx, input.companyId, input.emailHash);
-  const racedRefusal = await authorityRefusal(tx, input, input.scope);
+  const racedRefusal = await authorityRefusal(tx, input, scopesOf(input));
   if (racedRefusal !== null) return { refusal: racedRefusal };
   return raced !== undefined && !resumeRefused(raced, input)
     ? { invitationId: raced.id }
     : { refusal: 'MEMBER_INVITATION_EXISTS' };
 }
 
-/** كتابة العضوية والتدقيق والحدث من الصف المقفول — كلها في معاملة الإتمام. */
-async function writeMembership(
-  tx: Tx,
-  ids: IdGenerator,
-  input: CompleteInvitationInput,
-  invitation: InvitationRecord,
-): Promise<void> {
-  // كود الدور جاي من الصف المقفول؛ لو مش من أدوار النظام ده كسر ثابت في الجدول (500).
-  const roleId = SYSTEM_ROLES.find((role) => role.code === invitation.role_code)?.id;
-  if (roleId === undefined) {
-    throw new Error(`member invitation role ${invitation.role_code} is not a system role`);
-  }
-  const row = toRow(invitation);
-  await tx.execute(sql`
-    INSERT INTO memberships
-      (company_id, id, user_id, role_id, role_owner_key, scope_type, scope_id, starts_at)
-    VALUES (${input.companyId}, ${input.membershipId}, ${input.userId}, ${roleId}::uuid,
-            'global', ${row.scopeType}, ${row.scopeId}, ${input.now.toISOString()}::timestamptz)`);
-  await tx.execute(sql`
-    UPDATE member_invitations
-    SET user_id = ${input.userId}, membership_id = ${input.membershipId}
-    WHERE company_id = ${input.companyId} AND id = ${input.invitationId}`);
-  const writers = transactionWriters(tx, ids);
-  for (const entry of input.buildAudit(row, input.membershipId, input.userId)) {
-    await writers.audit.record(entry);
-  }
-  await writers.outbox.append(input.buildEvent(row, input.membershipId, input.userId));
-}
-
-/** الإتمام جوه معاملة واحدة: قفل الصف، ثم السلطة، ثم النطاق قبل أي رد «اتكمل قبل كده»، ثم الكتابة (P1-a، P1-b). */
+/**
+ * الإتمام جوه معاملة واحدة: قفل الشركة، ثم قفل صف الدعوة، ثم السلطة، ثم النطاق قبل أي رد
+ * «اتكمل قبل كده»، ثم كتابة العضويات والتدقيق والأحداث والاستثناءات (P1-a، P1-b).
+ * ترتيب القفل: الشركة قبل صف الدعوة قبل العضويات — زي مسار تعديل الصلاحيات بالظبط.
+ */
 async function completeInvitation(
   tx: Tx,
   ids: IdGenerator,
   input: CompleteInvitationInput,
 ): Promise<CompleteInvitationOutcome> {
+  await lockCompany(tx, input.companyId);
   const invitation = await lockInvitation(tx, input.companyId, input.invitationId);
   if (!(await authorityAllows(tx, input.companyId, input.actorUserId))) {
     return { done: false, refusal: 'FORBIDDEN' };
@@ -179,14 +177,32 @@ async function completeInvitation(
     return { done: false, refusal: 'MEMBER_INVITATION_EXISTS' };
   }
   const scope: InvitationScope = { type: invitation.scope_type, id: invitation.scope_id };
-  if (!(await scopeBelongs(tx, input.companyId, scope))) {
+  const scopes = [
+    scope,
+    ...input.additionalAssignments.map((assignment) => ({
+      type: assignment.scope.type,
+      id: assignment.scope.id,
+    })),
+  ];
+  if (!(await scopesBelong(tx, input.companyId, scopes))) {
     return { done: false, refusal: 'MEMBER_ROLE_NOT_INVITABLE' };
   }
   if (invitation.membership_id !== null) {
-    return { done: true, membershipId: invitation.membership_id, alreadyComplete: true };
+    return {
+      done: true,
+      membershipId: invitation.membership_id,
+      membershipIds: [invitation.membership_id],
+      alreadyComplete: true,
+    };
   }
-  await writeMembership(tx, ids, input, invitation);
-  return { done: true, membershipId: input.membershipId, alreadyComplete: false };
+  const memberships = await writeInvitationMemberships(tx, ids, input, invitation);
+  await applyInvitationOverrides(tx, ids, input, memberships);
+  return {
+    done: true,
+    membershipId: input.membershipId,
+    membershipIds: memberships.map((membership) => membership.membershipId),
+    alreadyComplete: false,
+  };
 }
 
 /**
@@ -209,7 +225,14 @@ async function claimLink(tx: Tx, input: LinkClaimInput): Promise<LinkClaimOutcom
   ) {
     return { claimed: false, refusal: 'MEMBER_INVITATION_EXISTS' };
   }
-  if (!(await activeMembership(tx, input.companyId, invitation.membership_id))) {
+  if (
+    !(await activeMembership(
+      tx,
+      input.companyId,
+      invitation.membership_id,
+      invitation.user_id,
+    ))
+  ) {
     return { claimed: false, refusal: 'MEMBER_INVITATION_EXISTS' };
   }
   const scope: InvitationScope = { type: invitation.scope_type, id: invitation.scope_id };
@@ -244,7 +267,14 @@ async function reissueClaim(
   ) {
     return { refusal: 'MEMBER_INVITATION_NOT_REISSUEABLE' };
   }
-  if (!(await activeMembership(tx, input.companyId, invitation.membership_id))) {
+  if (
+    !(await activeMembership(
+      tx,
+      input.companyId,
+      invitation.membership_id,
+      invitation.user_id,
+    ))
+  ) {
     return { refusal: 'MEMBER_INVITATION_NOT_REISSUEABLE' };
   }
   const scope: InvitationScope = { type: invitation.scope_type, id: invitation.scope_id };
@@ -316,10 +346,15 @@ async function cancelUnfinished(
   return true;
 }
 
-/** دعوة عالقة قديمة: المتصل مش هيكملها بنفس الدور والنطاق، وعدّى عليها وقت يكفي إن مفيش طلب شغال فيها. */
+/**
+ * دعوة عالقة قديمة: المتصل مش هيكملها بنفس الدور والنطاق، وعدّى عليها وقت يكفي إن مفيش طلب شغال فيها.
+ * الدعوة اللي جاي فيها أدوار إضافية مش بتتكمل على صف قديم: الصف ما بيحفظش التوزيعات الإضافية،
+ * فالاستئناف بيكمّل بصف ما بيعرفش غير الدور الأساسي.
+ */
 function staleFor(input: StaleInvitationInput) {
   return (row: InvitationRecord): boolean => {
     const resumable =
+      input.additionalAssignments.length === 0 &&
       row.invited_by === input.actorUserId &&
       row.role_code === input.roleCode &&
       row.scope_type === input.scope.type &&
@@ -363,7 +398,7 @@ export function createMemberInvitationTransactions(
     authorize: (input) =>
       run(input, async (tx) => {
         if (!(await authorityAllows(tx, input.companyId, input.actorUserId))) return 'FORBIDDEN';
-        return (await scopeBelongs(tx, input.companyId, input.scope))
+        return (await scopesBelong(tx, input.companyId, scopesOf(input)))
           ? null
           : 'MEMBER_ROLE_NOT_INVITABLE';
       }),
@@ -396,7 +431,15 @@ export function createMemberInvitationTransactions(
             ),
         ),
       ),
-    complete: (input) => run(input, (tx) => completeInvitation(tx, ids, input)),
+    // الرفض جوّه معاملة الإتمام بيرمي عشان الكتابة كلها تتراجع؛ التحويل لـ refusal جوه الـ catch.
+    complete: async (input) => {
+      try {
+        return await run(input, (tx) => completeInvitation(tx, ids, input));
+      } catch (error) {
+        if (error instanceof InvitationRefusedError) return { done: false, refusal: error.refusal };
+        throw error;
+      }
+    },
     claimLink: (input) => run(input, (tx) => claimLink(tx, input)),
     claimReissue: (input) => run(input, (tx) => reissueClaim(tx, ids, input)),
     stampLink: (input) => run(input, (tx) => stampIssuedLink(tx, ids, input)),

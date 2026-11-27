@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import {
   INVITABLE_ROLES,
   INVITABLE_SCOPE_TYPE,
+  collectInvitationAssignments,
   invitationScopeFailure,
   invitableScopeType,
   isInvitableRole,
@@ -76,5 +77,52 @@ describe('the closed role list and its scope table', () => {
     ['general_manager', 'BUSINESS', 'MEMBER_ROLE_NOT_INVITABLE'],
   ])('invitationScopeFailure(%j, %j) is %j', (role, scopeType, expected) => {
     expect(invitationScopeFailure(role, scopeType)).toBe(expected);
+  });
+});
+
+// «أدوار أكتر» (080): التوزيعات بتتجمع وبيتشيّل المكرر، وكل واحد بيتحقق على جدول الأدوار.
+describe('collecting the invitation assignments', () => {
+  const branch = { type: 'BRANCH', id: 'branch-1' } as const;
+
+  it('keeps the primary assignment alone when there are no extra roles', () => {
+    expect(
+      collectInvitationAssignments({ role: 'branch_manager', scope: branch }),
+    ).toEqual({
+      ok: true,
+      assignments: [{ role: 'branch_manager', scope: { type: 'BRANCH', id: 'branch-1' } }],
+    });
+  });
+
+  it('puts the primary first and keeps the extra roles after it', () => {
+    const collected = collectInvitationAssignments({
+      role: 'branch_manager',
+      scope: branch,
+      additional_roles: [
+        { role: 'branch_manager', scope: { type: 'BRANCH', id: 'branch-2' } },
+        { role: 'accountant', scope: { type: 'COMPANY', id: 'company-1' } },
+      ],
+    });
+    expect(collected.ok).toBe(true);
+    expect(collected.ok ? collected.assignments : []).toHaveLength(3);
+    expect(collected.ok ? collected.assignments[0]?.scope.id : '').toBe('branch-1');
+  });
+
+  it('drops an extra role that repeats the primary assignment', () => {
+    const collected = collectInvitationAssignments({
+      role: 'branch_manager',
+      scope: branch,
+      additional_roles: [{ role: 'branch_manager', scope: { type: 'BRANCH', id: 'branch-1' } }],
+    });
+    expect(collected.ok ? collected.assignments : []).toHaveLength(1);
+  });
+
+  it('refuses an extra role whose scope does not match the role', () => {
+    expect(
+      collectInvitationAssignments({
+        role: 'branch_manager',
+        scope: branch,
+        additional_roles: [{ role: 'accountant', scope: { type: 'BRANCH', id: 'branch-2' } }],
+      }),
+    ).toEqual({ ok: false, refusal: 'MEMBER_ROLE_NOT_INVITABLE' });
   });
 });

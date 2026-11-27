@@ -10,6 +10,7 @@ export const identitySchemaNames = [
   'DiscountLimitInput',
   'EndMembershipResult',
   'InviteMemberInput',
+  'InvitationRoleAssignment',
   'MembershipPageQuery',
   'MembershipPermissions',
   'MembershipPermissionsQuery',

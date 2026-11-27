@@ -98,6 +98,7 @@ async function stuckAfterAccount(company: string, email: string) {
     emailHash: h.auth.members.hashEmail(email),
     roleCode: 'accountant',
     scope: { type: 'COMPANY', id: company },
+    additionalAssignments: [],
     now: systemClock.now(),
   });
   if (!('invitationId' in opened)) throw new Error('open refused');

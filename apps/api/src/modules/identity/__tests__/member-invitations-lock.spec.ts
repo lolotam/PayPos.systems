@@ -79,6 +79,7 @@ async function stuckAfterAccount(company: string, email: string) {
     emailHash: h.auth.members.hashEmail(email),
     roleCode: 'accountant',
     scope: { type: 'COMPANY', id: company },
+    additionalAssignments: [],
     now: systemClock.now(),
   });
   if (!('invitationId' in opened)) throw new Error('open refused');
@@ -119,11 +120,14 @@ const completeInput = (company: string, invitationId: string, userId: string) =>
   invitationId,
   membershipId: ids.newId(),
   userId,
-  buildEvent: (row: { id: string }, membershipId: string, user: string) => ({
+  additionalAssignments: [],
+  additionalMembershipIds: [],
+  permissionOverrides: [],
+  buildEvent: (row: { id: string }, membership: { membershipId: string }, user: string) => ({
     aggregateType: 'member_invitation',
     aggregateId: row.id,
     eventType: 'MemberInvited',
-    payload: { invitation_id: row.id, user_id: user, membership_id: membershipId },
+    payload: { invitation_id: row.id, user_id: user, membership_id: membership.membershipId },
   }),
   buildAudit: () => [],
   now: systemClock.now(),
@@ -153,6 +157,7 @@ const abandonStaleInput = (
   invitationId,
   roleCode: 'accountant',
   scope: { type: 'COMPANY', id: company },
+  additionalAssignments: [],
   staleBefore: new Date(Date.now() - 60_000),
 });
 

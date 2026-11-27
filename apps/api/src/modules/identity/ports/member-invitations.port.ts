@@ -1,10 +1,17 @@
 import type { AuditRecord } from '../../../shared/ports/audit-trail.port.ts';
 import type { DomainEvent } from '../../../shared/ports/outbox-writer.port.ts';
+import type { InvitationAssignment } from '../domain/invitable-roles.ts';
 import type { InvitableRole, InvitationScopeType } from '../domain/invitable-roles.ts';
+import type { OverrideTerms, permissionEditFailure } from '../domain/permission-edit.ts';
+import type { overrideLifecycleFailure } from '../domain/permission-override-lifecycle.ts';
 
 /** رفض متوقع في مسار الدعوة — الـ use case بيحوّله لكود خطأ معروف. */
 export type MemberInvitationRefusal =
-  'FORBIDDEN' | 'MEMBER_INVITATION_EXISTS' | 'MEMBER_ROLE_NOT_INVITABLE';
+  | 'FORBIDDEN'
+  | 'MEMBER_INVITATION_EXISTS'
+  | 'MEMBER_ROLE_NOT_INVITABLE'
+  | NonNullable<ReturnType<typeof permissionEditFailure>>
+  | NonNullable<ReturnType<typeof overrideLifecycleFailure>>;
 
 /** رفض إعادة إصدار الرابط: السلطة أو حالة الدعوة جوه المعاملة. */
 export type ReissueRefusal =
@@ -39,12 +46,22 @@ export interface InvitationActor {
   readonly actorUserId: string;
 }
 
+/** عضوية واحدة بتتكتب مع الدعوة: المعرّف والدور والنطاق اللي بتاخدهم. */
+export interface InvitedMembership {
+  readonly membershipId: string;
+  readonly roleCode: string;
+  readonly scopeType: InvitationScopeType;
+  readonly scopeId: string;
+}
+
 /** مدخلات الخطوة الأولى: السلطة والنطاق وصف الدعوة. */
 export interface OpenInvitationInput extends InvitationActor {
   readonly invitationId: string;
   readonly emailHash: string;
   readonly roleCode: InvitableRole;
   readonly scope: InvitationScope;
+  /** التوزيعات الإضافية («أدوار أكتر») — بتتحقق من نفس الشركة ونفس شرط النطاق. */
+  readonly additionalAssignments: readonly InvitationAssignment[];
   readonly now: Date;
   /**
    * الحدّ اللي قبله الدعوة العالقة بتتحسب مهجورة: صف أقدم من الوقت ده ومفيش عليه طلب شغال،
@@ -69,6 +86,8 @@ export interface StaleInvitationInput extends InvitationActor {
   readonly invitationId: string;
   readonly roleCode: InvitableRole;
   readonly scope: InvitationScope;
+  /** التوزيعات الإضافية للدعوة الجديدة — بتلغيّ بس لو هي اتغيّرت. */
+  readonly additionalAssignments: readonly InvitationAssignment[];
   /** دعوة أحدث من الوقت ده ممكن يكون عليها طلب شغال، فمبتتلغيش. */
   readonly staleBefore: Date;
 }
@@ -79,16 +98,22 @@ export interface CompleteInvitationInput extends InvitationActor {
   readonly membershipId: string;
   /** اليوزر اللي الخطوة التانية أنشأته لهذه العملية؛ بيتطابق مع الصف المقفول أو الإتمام بيرفض. */
   readonly userId: string;
+  /** التوزيعات الإضافية بعد إزالة المكرر — كل واحد بيفتح عضوية مستقلة في نفس المعاملة. */
+  readonly additionalAssignments: readonly InvitationAssignment[];
+  /** معرّفات العضويات الإضافية، بنفس ترتيب التوزيعات — بتتولّد من الـ IdGenerator قبل المعاملة. */
+  readonly additionalMembershipIds: readonly string[];
+  /** استثناءات الصلاحية المضمّنة («استثناء صلاحية») — بتكتب على أقرب عضوية صالحة. */
+  readonly permissionOverrides: readonly OverrideTerms[];
   /** بيبني حدث MemberInvited من الصف المقفول — مفيش فيه إيميل ولا رابط ولا token. */
   readonly buildEvent: (
     row: MemberInvitationRow,
-    membershipId: string,
+    membership: InvitedMembership,
     userId: string,
   ) => DomainEvent;
-  /** بيبني صفوف التدقيق من الصف المقفول بترتيب الكتابة. */
+  /** بيبني صفوف التدقيق من الصف المقفول بترتيب الكتابة: حساب واحد وصف عضوية لكل عضوية. */
   readonly buildAudit: (
     row: MemberInvitationRow,
-    membershipId: string,
+    memberships: readonly InvitedMembership[],
     userId: string,
   ) => readonly AuditRecord[];
   readonly now: Date;
@@ -99,6 +124,8 @@ export type CompleteInvitationOutcome =
   | {
       readonly done: true;
       readonly membershipId: string;
+      /** كل العضويات اللي اتكتبت (الأساسية والإضافية) — عشان إبطال كاش المنح بعد الـ commit. */
+      readonly membershipIds: readonly string[];
       /** true لما العضوية اتكتبت في محاولة سابقة — بيرد بالحالة من غير كتابة ولا حدث. */
       readonly alreadyComplete: boolean;
     }
@@ -137,11 +164,14 @@ export interface MemberInvitationTransactions {
   /**
    * فحص السلطة والنطاق قبل أي قراءة عن الإيميل، عشان رد «له حساب» ما يتسربش لغير المالك.
    *
-   * @param input الفاعل والنطاق
+   * @param input الفاعل والنطاق الأساسي والنطاقات الإضافية
    * @returns null لما مسموح، أو الرفض
    */
   authorize(
-    input: InvitationActor & { scope: InvitationScope },
+    input: InvitationActor & {
+      scope: InvitationScope;
+      additionalAssignments: readonly InvitationAssignment[];
+    },
   ): Promise<MemberInvitationRefusal | null>;
   /**
    * الخطوة الأولى: السلطة والنطاق وكتابة صف PENDING مع تدقيق الفتح؛ صف PENDING موجود بيتعاد
