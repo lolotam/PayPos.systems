@@ -24,6 +24,19 @@ export const REMINDER_RECOVERY_MAX_IDLE_MS = 90_000;
 export const REMINDER_RECOVERY_PASS_DEADLINE_MS = 15 * 60_000;
 /** حجم صفحة قائمة الشركات (ADR-0061 §1: الدالة بتقصّ المقاس على مية). */
 export const REMINDER_RECOVERY_PAGE_SIZE = 1000;
+/** الفاصل بين جولات الفحص الدوري لتغطية الجدولات بالميلي ثانية (ADR-0061 §8، issue #1220). */
+export const REMINDER_COVERAGE_SWEEP_INTERVAL_MS = 5 * 60_000;
+/** حجم صفحة الفحص الدوري: أصغر من صفحة الاستعادة عشان الجولة الواحدة خفيفة. */
+export const REMINDER_COVERAGE_PAGE_SIZE = 200;
+/** أقصى عدد صفحات في الجولة الواحدة: السقف الأعلى لتكلفة الجولة مع حجم الصفحة. */
+export const REMINDER_COVERAGE_MAX_PAGES = 5;
+/** أقصى عدد جدولات تتسجّل في الجولة الواحدة: الباقي ينتظر الجولة الجاية. */
+export const REMINDER_COVERAGE_MAX_RESTORES = 100;
+/** مهلة كل عملية في الجولة (قراءة صفحة أو فحص وجود أو تسجيل) بالميلي ثانية. */
+export const REMINDER_COVERAGE_OPERATION_DEADLINE_MS = 10_000;
+/** المهلة الكلية للجولة: بعدها ما بتبدأش صفحة جديدة وبتكمل من نفس المؤشر في الجولة الجاية. */
+export const REMINDER_COVERAGE_SWEEP_DEADLINE_MS = 60_000;
+
 /** عمر سجل الإيقاع بالثواني: شبكة أمان (ADR-0061 §4). */
 export const REMINDER_RECOVERY_SLOT_TTL_SECONDS = 24 * 60 * 60;
 

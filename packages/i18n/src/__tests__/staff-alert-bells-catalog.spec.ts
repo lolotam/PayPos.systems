@@ -65,3 +65,13 @@ it('registers the generic document name in both locales', () => {
   expect(t('ar', 'inApp.generic_document')).toBe('مستند');
   expect(t('en', 'inApp.generic_document')).toBe('Document');
 });
+
+it('registers an Arabic document-type fallback that reads naturally after «مستند»', () => {
+  expect(t('en', 'inApp.generic_document_type')).toBe('Document');
+  const rendered = t('ar', 'inApp.document_expiring').replace(
+    '{{document_type_ar}}',
+    t('ar', 'inApp.generic_document_type'),
+  );
+  expect(rendered.startsWith('مستند غير محدد الخاص بـ')).toBe(true);
+  expect(rendered.match(/مستند/g)).toHaveLength(1);
+});

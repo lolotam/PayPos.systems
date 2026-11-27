@@ -400,6 +400,30 @@ weaker readiness. The contract of points 1 to 7 above is unchanged; these refine
   `CompanyCreated`; the scheduler is registered in Redis in the delivery path before its `consumed_events` mark and outside
   the database transaction, so a Redis failure is a retryable failure with no mark.
 
+### 8. Periodic scheduler-coverage verification (issue #1220)
+
+A single scheduler can vanish while the Redis process and the certificate survive (§4 sees no loss). Besides the
+delivery-path repair (CM-57b) and the process-start pass, the worker runs a **bounded coverage sweep**:
+
+- **Cadence and cost.** Every 5 minutes (`REMINDER_COVERAGE_SWEEP_INTERVAL_MS`) one sweep, with its own timer and a guard
+  so two sweeps never overlap. A sweep reads at most 5 pages of 200 company ids through the same narrow
+  `recovery_company_ids` read (no new function, grant or role), checks each page with one Redis pipeline of `EXISTS`, and
+  registers at most 100 missing schedulers (a refused registration does not use that cap, and the cursor moves past it); it stops starting pages or registrations after 60 s, re-checks the lease before every page, and bounds every operation at 10 s. The
+  cursor lives in memory and wraps, so a sweep covers up to 1,000 companies and a full cycle over N companies takes
+  `ceil(N / 1000)` sweeps (5 minutes each; 10,000 companies: about 50 minutes) while no sweep costs more than 5 reads,
+  5 pipelines and 100 upserts.
+- **Only the absent ones.** It registers only the schedulers that do not exist (the idempotent upsert of §2), never the
+  whole page (unlike the recovery pass, which refreshes cadence).
+- **No recovery state.** It takes no lease, invalidates no certificate and raises no incident: `/ready` is unaffected. It
+  runs only while the certificate is valid (same `run_id`, no lease). With a missing or stale certificate, or while a pass
+  owns the lease, it does nothing and the recovery pass owns the case.
+- **Alert.** When it finds missing schedulers it logs one warning with `code`
+  `COMMISSION_REMINDER_SCHEDULER_RESTORED` and the counts `missing`, `restored`, `failed` (no company id). A failed
+  registration is retried by the next cycle.
+- **Known false positive.** A company whose `CompanyCreated` has not yet been delivered has no scheduler, so a sweep can
+  register it early (harmless, idempotent) and log the alert for it; the alert is therefore a signal to look at, not proof
+  of a loss.
+
 ## What the code PR must amend
 
 `CLAUDE.md` §5 (the dispatcher also reads company ids through one definer, clears one named flag through another and
@@ -540,8 +564,9 @@ Recovery cases (CS-Q32), each with its own expected result:
   (the incident can close on a Redis check that is already stale; readiness is never published for the lost generation and
   a new incident is raised at the first heartbeat after the connection returns). It is not widened by anything else in this
   ADR: the cut-off, the parked-event check, the pacing record and the retry add no closing path.
-- **A single lost scheduler with a surviving Redis process and sentinel** is out of scope here; periodic verification of
-  scheduler coverage is tracked in [issue #1220](https://github.com/lolotam/PayPos.systems/issues/1220).
+- **A single lost scheduler with a surviving Redis process and sentinel** is not a recovery event; it is covered by the
+  periodic verification of §8 ([issue #1220](https://github.com/lolotam/PayPos.systems/issues/1220)), with the repair
+  delay bounded by the sweep cycle (5 minutes per sweep, one full cycle per `companies / 1000` sweeps).
 - **Four open items, each required to be proven or closed in the 56b-1 code PR before that PR merges**
   ([issue #1222](https://github.com/lolotam/PayPos.systems/issues/1222)); not all of them fail safe, and the ADR does not claim so:
   (1) **no fixed upper bound for the recovery listing** under sustained onboarding with slow Redis: the pass may not reach

@@ -20,3 +20,10 @@ export const COMMISSION_REMINDER_ALERT_COMPANY_PARKED =
   'COMMISSION_REMINDER_COMPANY_SCHEDULING_PARKED';
 export const COMMISSION_REMINDER_ALERT_RECERTIFICATION_FAILED =
   'COMMISSION_REMINDER_RECERTIFICATION_FAILED';
+
+/**
+ * كود تنبيه الفحص الدوري لتغطية الجدولات (ADR-0061 §8، issue #1220): لقى جدولة شركة ناقصة
+ * والشهادة سليمة، فحاول إعادة تسجيلها. الحمولة عدّادات بس، ومفيش معرّف شركة.
+ */
+export const COMMISSION_REMINDER_ALERT_SCHEDULER_RESTORED =
+  'COMMISSION_REMINDER_SCHEDULER_RESTORED';

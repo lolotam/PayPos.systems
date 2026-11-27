@@ -7,7 +7,7 @@ import { useSaveAlertRules } from '../api/use-save-alert-rules';
 import { buildAlertRulesDraft } from '../model/alert-rules-draft';
 import { alertRulesSaveBody } from '../model/alert-rules-save-body';
 import type { AlertRulesNotice } from './alert-rules-form-status';
-import type { AlertRulesReplacement } from './use-sync-alert-rules-form';
+import type { AlertRulesReplaceRequest } from './use-sync-alert-rules-form';
 
 export type AlertRulesFormProps = {
   companyId: string;
@@ -15,20 +15,22 @@ export type AlertRulesFormProps = {
   businessId: string;
   branchId: string | null;
   server: AlertRules;
+  /** لحظة آخر قراءة ناجحة لقواعد النطاق ده (تتحرك حتى لو القيم متطابقة). */
+  serverUpdatedAt: number;
 };
 
 export function useAlertRulesSubmit(
   props: AlertRulesFormProps,
   form: UseFormReturn<SetAlertRulesInput>,
   setNotice: Dispatch<SetStateAction<AlertRulesNotice>>,
-  setReplace: Dispatch<SetStateAction<AlertRulesReplacement>>,
+  requestReplace: (request: AlertRulesReplaceRequest) => void,
 ) {
   const save = useSaveAlertRules(
     props.companyId,
     props.userId,
     props.businessId,
     props.branchId,
-    () => setReplace({ all: true, kinds: [] }),
+    () => requestReplace({ all: true, kinds: [] }),
   );
   const submit = form.handleSubmit((data) => {
     setNotice(null);
