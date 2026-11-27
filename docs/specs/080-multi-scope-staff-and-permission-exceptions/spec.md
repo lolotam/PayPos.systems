@@ -2,7 +2,7 @@
 
 **Status:** Draft specification (docs only — **do not implement yet**; opens sequentially after `spec 079` completes).  
 **Source:** Owner decision batch `PR-Q9` (Waleed, card responses on 2026-11-26 ~09:30 Kuwait — [`owner-questions.ar.md`](./owner-questions.ar.md)), separated from `spec 079` (`PR-a`/`PR-b`/`PR-c1`/`PR-c2`) by Project Manager decision (2026-11-26 14:00 Kuwait) to respect `PP-273` (`≤1,500` prod lines per PR).  
-**Pending Partner Review:** `PR-Q9` is queued for Abu Salem's next decisions-page batch (`PENDING`). Any implementation waits for `spec 079` completion and follows Waleed's approved choices unless Abu Salem overrides a business rule.
+**Partner Review:** `PR-Q9` (`079-Q9`, Batch 106) confirmed by **Abu Salem** (`2026-11-27T13:51:28.130Z`, `verdict: "ok"`, `choice: 0`, `text: ""` — **«الأربعة كلهم.»**), matching Waleed's choices in full; `TQ-080-1` (`owner`-only multi-scope + inline overrides) confirmed by **Waleed** (`2026-11-27 17:05`, «YES , YES , YES», `PP-280`).
 
 ---
 
