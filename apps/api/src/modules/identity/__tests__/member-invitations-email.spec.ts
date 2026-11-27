@@ -25,11 +25,15 @@ const logChunks: Buffer[] = [];
 let h: Harness;
 let company: string;
 let invitationId: string;
+let ownerCookie: string;
+
+const now = new Date('2026-11-27T10:00:00.000Z');
 
 beforeAll(async () => {
   h = await startHarness({
     staffAccessRoutes: true,
     onboardingEmailKey: SEALING_KEY,
+    clock: { now: () => now },
     logs: new Writable({
       write(chunk, _encoding, callback) {
         logChunks.push(chunk as Buffer);
@@ -52,10 +56,10 @@ it(
   'seals the invitation link for the invitee and the owner, with no plaintext in the outbox',
   { timeout: 90_000 },
   async () => {
-    const cookie = await h.signedInOperator(OWNER_EMAIL);
-    company = await h.onboard(cookie, 'G1 Email');
+    ownerCookie = await h.signedInOperator(OWNER_EMAIL);
+    company = await h.onboard(ownerCookie, 'G1 Email');
     const invited = await h.send('POST', '/v1/memberships/invitations', {
-      cookie,
+      cookie: ownerCookie,
       company,
       body: {
         email: MEMBER_EMAIL,
@@ -90,7 +94,7 @@ it(
     expect(serialized).not.toContain(new URL(link).pathname.split('/').pop() ?? '');
 
     const reissued = await h.send('POST', `/v1/memberships/invitations/${invitationId}/link`, {
-      cookie,
+      cookie: ownerCookie,
       company,
     });
     expect(reissued.status).toBe(200);
@@ -142,5 +146,17 @@ it(
       invitationId,
     });
     expect(String((unsealed as { link?: string } | null)?.link)).toContain('/reset-password/');
+    const res = await h.send('POST', `/v1/memberships/invitations/${invitationId}/link`, {
+      cookie: ownerCookie,
+      company,
+    });
+    expect(res.status).toBe(200);
+    const eventsAfterFreeze = await noticeEvents();
+    expect(eventsAfterFreeze.length).toBeGreaterThanOrEqual(3);
+    const [invRow] = await h.owner`
+      SELECT link_issued_at FROM member_invitations WHERE company_id = ${company} AND id = ${invitationId}`;
+    expect(new Date(invRow?.['link_issued_at'] as string | Date).getTime()).toBeGreaterThan(
+      now.getTime(),
+    );
   },
 );

@@ -12,6 +12,7 @@ import { MEMBER_INVITED, type MemberInvited } from '../../events/published.ts';
 import {
   MemberLinkRefusedError,
   type InvitationActor,
+  type InvitationLinkCoordinator,
   type InvitationRateLimiter,
   type InvitedMembership,
   type MemberAccounts,
@@ -99,6 +100,7 @@ export class InviteMember {
   readonly #ids: IdGenerator;
   readonly #redirectTo: string;
   readonly #linkLifetimeMs: number;
+  readonly #coordinator: InvitationLinkCoordinator | undefined;
 
   constructor(options: {
     transactions: MemberInvitationTransactions;
@@ -110,6 +112,7 @@ export class InviteMember {
     redirectTo: string;
     /** عمر رابط الدعوة بالمللي ثانية (IM-Q3: 48 ساعة) — من التركيب، مش ثابت في الـ use case. */
     linkLifetimeMs: number;
+    coordinator?: InvitationLinkCoordinator;
   }) {
     this.#transactions = options.transactions;
     this.#accounts = options.accounts;
@@ -119,6 +122,7 @@ export class InviteMember {
     this.#ids = options.ids;
     this.#redirectTo = options.redirectTo;
     this.#linkLifetimeMs = options.linkLifetimeMs;
+    this.#coordinator = options.coordinator;
   }
 
   /**
@@ -314,26 +318,38 @@ export class InviteMember {
     now: Date,
     email: string,
   ): Promise<string> {
-    const claimed = await this.#transactions.claimLink({
-      ...who,
-      invitationId,
-      at: now,
-    });
-    if (!claimed.claimed) throw new ApiError(claimed.refusal);
-    let link: string;
-    try {
-      link = await this.#accounts.issueLink({
-        userId,
-        companyId: who.companyId,
-        redirectTo: this.#redirectTo,
-        lifetimeMs: this.#linkLifetimeMs,
-        now,
+    const issue = async () => {
+      const claimed = await this.#transactions.claimLink({
+        ...who,
+        invitationId,
+        at: now,
       });
-    } catch (error) {
-      if (error instanceof MemberLinkRefusedError) throw new ApiError('MEMBER_INVITATION_EXISTS');
-      throw error;
-    }
-    await this.#transactions.stampLink({ ...who, invitationId, at: now, userId, link, email });
-    return link;
+      if (!claimed.claimed) throw new ApiError(claimed.refusal);
+      let issued: { readonly link: string; readonly issuedAt: Date };
+      try {
+        issued = await this.#accounts.issueLink({
+          userId,
+          companyId: who.companyId,
+          redirectTo: this.#redirectTo,
+          lifetimeMs: this.#linkLifetimeMs,
+          now,
+        });
+      } catch (error) {
+        if (error instanceof MemberLinkRefusedError) throw new ApiError('MEMBER_INVITATION_EXISTS');
+        throw error;
+      }
+      await this.#transactions.stampLink({
+        ...who,
+        invitationId,
+        at: issued.issuedAt,
+        userId,
+        link: issued.link,
+        email,
+      });
+      return issued.link;
+    };
+    return this.#coordinator === undefined
+      ? issue()
+      : this.#coordinator.run(who.companyId, invitationId, issue);
   }
 }

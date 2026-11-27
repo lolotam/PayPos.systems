@@ -1,4 +1,4 @@
-import { and, eq, inArray, isNotNull, like } from 'drizzle-orm';
+import { and, eq, inArray, isNotNull, like, sql } from 'drizzle-orm';
 import type { PostgresJsDatabase } from 'drizzle-orm/postgres-js';
 
 import type { IdentitySchema } from './auth-database.ts';
@@ -57,11 +57,12 @@ export interface MemberInvitationQueries {
   createInvitedMember(input: InvitedMemberRow): Promise<'created' | 'conflict'>;
   /**
    * بيصدر رابط الدعوة في معاملة واحدة تحت قفل صف المستخدم وصف حساب الدخول: بيرفض لو
-   * المستخدم مش مدعوّ من الشركة دي أو كلمة مروره اتحطت، وبيبطل الروابط القديمة قبل الكتابة.
+   * المستخدم مش مدعوّ من الشركة دي أو كلمة مروره اتحطت، وبيبطل الروابط القديمة قبل الكتابة،
+   * ويرجّع لحظة الإصدار المتزايدة بترتيب القفل على المستخدم.
    *
-   * @returns true لما الرابط اتكتب، وfalse لما الإصدار مرفوض
+   * @returns لحظة الإصدار عند الكتابة، أو null لما الإصدار مرفوض
    */
-  issueInvitationLink(input: InvitationLinkRow): Promise<boolean>;
+  issueInvitationLink(input: InvitationLinkRow): Promise<Date | null>;
   /**
    * بيمسح حساب اتنشأ من عملية دعوة معيّنة لشركة معيّنة، بس لو لسه من غير كلمة مرور: بيقفل صف
    * اليوزر وحسابه، ويمسح الروابط الحية، ويمسح اليوزر. بيتكرر بأمان: لو اليوزر اتمسح قبل كده يرجّع
@@ -166,23 +167,44 @@ const createInvitedMember = async (
     return 'created';
   });
 
-const issueInvitationLink = async (db: Database, input: InvitationLinkRow): Promise<boolean> =>
+const issueInvitationLink = async (db: Database, input: InvitationLinkRow): Promise<Date | null> =>
   db.transaction(async (tx) => {
     // القفل على صف المستخدم وصف حساب الدخول معاً: تعيين كلمة المرور في Better Auth بيحدّث صف
     // الحساب، فبيستنى هنا. استهلاك الرابط (password-reset-database) بياخد نفس القفلين بنفس الترتيب
     // وبيمسح الروابط في معاملته — فمفيش رابط حي على حساب له كلمة مرور. القفلين منفصلين لأن FOR UPDATE ما يتطبقش على الجهة الاختيارية في outer join.
     const [owner] = await tx
-      .select({ invitedByCompanyId: user.invitedByCompanyId })
+      .select({ invitedByCompanyId: user.invitedByCompanyId, updatedAt: user.updatedAt })
       .from(user)
       .where(eq(user.id, input.userId))
       .for('update');
-    if (owner === undefined || owner.invitedByCompanyId !== input.companyId) return false;
+    if (owner === undefined || owner.invitedByCompanyId !== input.companyId) return null;
     const [login] = await tx
       .select({ password: account.password })
       .from(account)
       .where(and(eq(account.userId, input.userId), eq(account.providerId, 'credential')))
       .for('update');
-    if (login === undefined || login.password !== null) return false;
+    if (login === undefined || login.password !== null) return null;
+    const [clockRow] = await tx.execute<{ db_now: string | Date }>(
+      sql`SELECT date_trunc('milliseconds', clock_timestamp()) AS db_now`,
+    );
+    const dbNowMs = clockRow?.db_now === undefined ? 0 : new Date(clockRow.db_now).getTime();
+    const existingLinks = await tx
+      .select({ createdAt: verification.createdAt })
+      .from(verification)
+      .where(
+        and(
+          eq(verification.value, input.userId),
+          like(verification.identifier, `${RESET_LINK_PREFIX}%`),
+        ),
+      );
+    const prevLinkMaxMs = existingLinks.reduce(
+      (maxMs, row) => Math.max(maxMs, row.createdAt.getTime()),
+      0,
+    );
+    const issuedAt = new Date(
+      Math.max(input.now.getTime(), dbNowMs, owner.updatedAt.getTime() + 1, prevLinkMaxMs + 1),
+    );
+    await tx.update(user).set({ updatedAt: issuedAt }).where(eq(user.id, input.userId));
     await tx
       .delete(verification)
       .where(
@@ -196,10 +218,10 @@ const issueInvitationLink = async (db: Database, input: InvitationLinkRow): Prom
       identifier: input.identifier,
       value: input.userId,
       expiresAt: input.expiresAt,
-      createdAt: input.now,
-      updatedAt: input.now,
+      createdAt: issuedAt,
+      updatedAt: issuedAt,
     });
-    return true;
+    return issuedAt;
   });
 
 const discardInvitedMember = async (

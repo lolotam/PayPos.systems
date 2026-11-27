@@ -67,7 +67,7 @@ function phoneScope(
   return {
     lockCompany: () => lockCompanyRow(tx, actor.companyId),
     lock: () => lockRecordWithEmployee(tx, actor.companyId, input),
-    authority: staffAccessAuthority(tx, actor),
+    authority: staffAccessAuthority(tx, actor, input.employeeId),
     phoneHash: (phone) => phoneHashOf(phoneHashSecret, phone),
     startChange: (change) => startChange(tx, { actor, input, audit: writers.audit, change }),
     completeChange: (done) => completeChange(tx, { actor, input, audit: writers.audit, done }),

@@ -114,7 +114,7 @@ it('sends the sealed staff welcome email to the real address with the PIN in mem
 });
 
 it('sends the sealed member invitation email with the setup link', async () => {
-  const invitationId = await seedPendingInvitation(h, INVITE_ISSUED_AT);
+  const invitationId = await seedPendingInvitation(h, INVITE_ISSUED_AT, undefined, INVITEE_EMAIL);
   const expiresAtMs = NOW.getTime() + 48 * 60 * 60 * 1000;
   const { placeholder, parameters } = sealInvitationPayload(expiresAtMs, {
     invitationId,

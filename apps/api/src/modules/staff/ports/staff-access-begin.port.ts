@@ -1,7 +1,23 @@
-import type { StaffAccessRecordRow } from '../domain/staff-access.ts';
+import type { StaffAccessBranchAssignment, StaffAccessRecordRow } from '../domain/staff-access.ts';
 
 /** دورا إعطاء الدخول كما في عقد `grantStaffAccessInput` — النسخة المحلية لحدود الطبقات. */
 export type StaffAccessRole = 'staff' | 'reception';
+
+/** شروط استثناء صلاحية مضمّن في «إعطاء الدخول» (080-b) — نسخة محلية لحدود الطبقات. */
+export interface StaffAccessOverrideTerms {
+  /** كود الصلاحية. */
+  readonly permission_code: string;
+  /** أثر الاستثناء. */
+  readonly effect: 'ALLOW' | 'DENY';
+  /** نوع النطاق. */
+  readonly scope_type: 'COMPANY' | 'BUSINESS' | 'BRANCH';
+  /** معرّف النطاق. */
+  readonly scope_id: string;
+  /** سبب الاستثناء. */
+  readonly reason: string;
+  /** نهاية المدة أو null. */
+  readonly expires_at: string | null;
+}
 
 /** مولّد UUID v7 — نفس شكل `IdGenerator` من @pospay/db بلا استيراد بنية تحتية في الطبقات الداخلية. */
 export interface StaffAccessIds {
@@ -45,6 +61,10 @@ export interface GrantEmployeeAccessCommand extends StaffAccessActor {
   readonly pin: string;
   /** إيميل الاستعادة الاختياري: لو اتبعت بيتسجل على الموظفة في نفس معاملة الخطوة الأولى. */
   readonly recoveryEmail?: string | null | undefined;
+  /** فروع زيادة للموظفة بدورها (080-b): كل فرع بيتحول لعضوية مستقلة عند التفعيل. */
+  readonly additionalBranches?: readonly StaffAccessBranchAssignment[] | undefined;
+  /** استثناءات صلاحيات مضمّنة تُكتب مع العضويات في نفس المعاملة (080-b). */
+  readonly permissionOverrides?: readonly StaffAccessOverrideTerms[] | undefined;
 }
 
 /** ناتج الخطوة الأولى: السجل المُعاد استخدامه أو المُنشأ، واسم الموظفة وفرعها الأساسي. */
@@ -63,6 +83,8 @@ export type GrantCommitOutcome =
   | {
       readonly kind: 'granted';
       readonly membershipId: string;
+      /** عضويات الفروع الإضافية الممنوحة (080-b) — تُبطَل كاش المنح على كل واحدة. */
+      readonly extraMembershipIds: readonly string[];
       readonly userId: string;
       readonly role: StaffAccessRole;
       readonly branchId: string;
@@ -96,6 +118,12 @@ export interface GrantBeginScope {
   /** يقرأ سجل الدخول للموظفة إن وُجد بلا قفل إضافي. */
   findRecord(): Promise<StaffAccessRecordRow | null>;
   /**
+   * يقرأ الفروع الإضافية المحفوظة للسجل القفول (080-b) عشان استئناف الطلب يطابق السجل.
+   *
+   * @param recordId سجل الدخول
+   */
+  findExtraBranches(recordId: string): Promise<readonly StaffAccessBranchAssignment[]>;
+  /**
    * يسجّل إيميل الاستعادة المطبّع على الموظفة المقفولة؛ التكرار داخل الشركة يرفع EMPLOYEE_RECOVERY_EMAIL_TAKEN.
    *
    * @param email الإيميل المطبّع
@@ -109,10 +137,17 @@ export interface GrantBeginScope {
    * @param input.phoneHash بصمة الهاتف
    * @param input.roleCode الدور المختار
    * @param input.branchId الفرع الأساسي
+   * @param input.extraBranches الفروع الإضافية الجديدة
    */
   restartRecord(
     recordId: string,
-    input: { phoneHash: string; roleCode: StaffAccessRole; branchId: string },
+    input: {
+      phoneHash: string;
+      roleCode: StaffAccessRole;
+      branchId: string;
+      /** الفروع الإضافية الجديدة — الصفوف القديمة بتتشال وبتتدقيق أولاً (080-b). */
+      extraBranches?: readonly StaffAccessBranchAssignment[] | undefined;
+    },
   ): Promise<StaffAccessRecordRow>;
   /**
    * يحرر محاولة المنح الحالية بعد رفض هاتف مملوك مؤكد: سجل بلا مستخدم يُحذف، وسجل إعادة منح يعود
@@ -135,10 +170,13 @@ export interface GrantBeginScope {
    * @param input.roleCode الدور المختار
    * @param input.branchId الفرع الأساسي للسجل
    * @param input.phoneHash hash الهاتف المطلوب
+   * @param input.extraBranches الفروع الإضافية المطلوبة
    */
   insertRecord(input: {
     roleCode: StaffAccessRole;
     branchId: string;
     phoneHash: string;
+    /** الفروع الإضافية المطلوبة — بتكتب مع السجل في نفس المعاملة (080-b). */
+    extraBranches?: readonly StaffAccessBranchAssignment[] | undefined;
   }): Promise<StaffAccessRecordRow>;
 }

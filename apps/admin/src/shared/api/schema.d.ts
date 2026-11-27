@@ -6286,6 +6286,12 @@ export interface components {
             employee_number?: string;
             q?: string;
         };
+        StaffAccessBranchAssignment: {
+            /** Format: uuid */
+            branch_id: string;
+            /** @enum {string} */
+            role: "staff" | "reception";
+        };
         DiscountLimit: {
             limit_bps: number | null;
         };
@@ -26379,6 +26385,24 @@ export interface operations {
                     pin: string;
                     /** Format: email */
                     recovery_email?: string | null;
+                    additional_branches?: {
+                        /** Format: uuid */
+                        branch_id: string;
+                        /** @enum {string} */
+                        role: "staff" | "reception";
+                    }[];
+                    permission_overrides?: {
+                        permission_code: string;
+                        /** @enum {string} */
+                        effect: "ALLOW" | "DENY";
+                        /** @enum {string} */
+                        scope_type: "COMPANY" | "BUSINESS" | "BRANCH";
+                        /** Format: uuid */
+                        scope_id: string;
+                        reason: string;
+                        /** Format: date-time */
+                        expires_at: string | null;
+                    }[];
                 };
             };
         };

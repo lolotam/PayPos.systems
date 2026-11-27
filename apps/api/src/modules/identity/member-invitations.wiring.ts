@@ -10,13 +10,17 @@ import { createGrantInvalidator } from './persistence/grant-invalidator.ts';
 import { createEndMembershipTransactions } from './persistence/end-membership-transactions.ts';
 import { createMemberAccounts } from './persistence/member-accounts.adapter.ts';
 import { createMemberInvitationTransactions } from './persistence/member-invitation-transactions.ts';
-import { createInvitationRateLimiter } from './persistence/redis-invitation-rates.ts';
+import {
+  createInvitationLinkCoordinator,
+  createInvitationRateLimiter,
+} from './persistence/redis-invitation-rates.ts';
 import {
   MEMBER_PASSWORD_STATE,
   type MemberPasswordState,
 } from './http/member-invitations.controller.ts';
 import {
   INVITATION_RATE_LIMITER,
+  type InvitationLinkCoordinator,
   type InvitationRateLimiter,
 } from './ports/member-invitations.port.ts';
 import { EndMembership } from './use-cases/end-membership/end-membership.ts';
@@ -43,11 +47,19 @@ export function memberInvitationProviders(
 ): Provider[] {
   const redirectTo = adminOrigin === undefined ? undefined : `${adminOrigin}/set-password`;
   const limiter = redis === undefined ? null : createInvitationRateLimiter(redis);
+  const coordinator = redis === undefined ? undefined : createInvitationLinkCoordinator(redis);
   return [
     { provide: INVITATION_RATE_LIMITER, useValue: limiter },
     passwordStateProvider(),
-    inviteMemberProvider(database, ids, redis, redirectTo, clock, onboardingSealer),
-    reissueMemberInvitationProvider(database, ids, redirectTo, clock, onboardingSealer),
+    inviteMemberProvider(database, ids, redis, redirectTo, clock, onboardingSealer, coordinator),
+    reissueMemberInvitationProvider(
+      database,
+      ids,
+      redirectTo,
+      clock,
+      onboardingSealer,
+      coordinator,
+    ),
     endMembershipProvider(database, ids, redis, clock),
   ];
 }
@@ -70,6 +82,7 @@ function inviteMemberProvider(
   redirectTo: string | undefined,
   clock: { now(): Date },
   onboardingSealer: OnboardingEmailSealer | undefined,
+  coordinator: InvitationLinkCoordinator | undefined,
 ): Provider {
   return {
     provide: InviteMember,
@@ -91,6 +104,7 @@ function inviteMemberProvider(
         ids,
         redirectTo,
         linkLifetimeMs: MEMBER_INVITATION_LINK_TTL_MS,
+        ...(coordinator === undefined ? {} : { coordinator }),
       });
     },
     inject: [AUTH_SERVICE, INVITATION_RATE_LIMITER],
@@ -104,6 +118,7 @@ function reissueMemberInvitationProvider(
   redirectTo: string | undefined,
   clock: { now(): Date },
   onboardingSealer: OnboardingEmailSealer | undefined,
+  coordinator: InvitationLinkCoordinator | undefined,
 ): Provider {
   return {
     provide: ReissueMemberInvitation,
@@ -123,6 +138,7 @@ function reissueMemberInvitationProvider(
         clock,
         redirectTo,
         linkLifetimeMs: MEMBER_INVITATION_LINK_TTL_MS,
+        ...(coordinator === undefined ? {} : { coordinator }),
       });
     },
     inject: [AUTH_SERVICE, INVITATION_RATE_LIMITER],

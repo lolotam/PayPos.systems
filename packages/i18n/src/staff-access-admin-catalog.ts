@@ -41,6 +41,16 @@ export const staffAccessAdminEn = {
   recoveryEmailHint:
     'Used to contact the employee and to recover her PIN. Recommended; it stays private.',
   recoveryEmailInvalid: 'Enter a valid email address, or leave the field empty.',
+  extraBranchesTitle: 'Extra branches',
+  extraBranchesEmpty: 'No extra branches yet.',
+  extraBranchLabel: 'Extra branch',
+  extraBranchRoleLabel: 'Extra branch role',
+  addExtraBranch: 'Add a branch',
+  removeExtraBranch: 'Remove the branch',
+  extraBranchesSamePrimaryHint: 'The primary branch with the same role is already granted — no extra row needed.',
+  extraBranchesLimit: 'Up to 20 extra branches can be added.',
+  inlineOverridesLimit: 'Up to 20 permission exceptions can be added.',
+  overrideDefaultBadge: 'default',
 };
 
 /** الترجمة العربية لنفس مفاتيح شاشة دخول الموظفة. */
@@ -84,4 +94,14 @@ export const staffAccessAdminAr: typeof staffAccessAdminEn = {
   recoveryEmailLabel: 'إيميل الاستعادة (اختياري)',
   recoveryEmailHint: 'للتواصل مع الموظفة واستعادة رقمها السري لو نسيته. يُفضّل تسجيله، وبيفضل خاص.',
   recoveryEmailInvalid: 'اكتب إيميل صحيح، أو سيب الخانة فاضية.',
+  extraBranchesTitle: 'فروع زيادة',
+  extraBranchesEmpty: 'مفيش فروع زيادة بعد.',
+  extraBranchLabel: 'فرع زيادة',
+  extraBranchRoleLabel: 'دور فرع الزيادة',
+  addExtraBranch: 'ضيف فرع',
+  removeExtraBranch: 'شيل الفرع',
+  extraBranchesSamePrimaryHint: 'الفرع الأساسي بنفس الدور متمنوح بالفعل — مفيش سطر زيادة لازم.',
+  extraBranchesLimit: 'يمكن إضافة 20 فرع زيادة كحد أقصى.',
+  inlineOverridesLimit: 'يمكن إضافة 20 استثناء صلاحية كحد أقصى.',
+  overrideDefaultBadge: 'افتراضي',
 };

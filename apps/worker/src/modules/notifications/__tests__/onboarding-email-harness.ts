@@ -235,12 +235,20 @@ export async function seedPendingInvitation(
   h: OnboardingHarness,
   issuedAt: Date = INVITE_ISSUED_AT,
   invitedBy: string = USER,
+  inviteeEmail: string = `invitee-${++nextEmployeeNumber}@example.test`,
 ) {
   await ensureSeedUser(h);
   const invitationId = systemUuidV7().newId();
+  const userId = systemUuidV7().newId();
+  const membershipId = systemUuidV7().newId();
   const emailHash = invitationId.replaceAll('-', '').padEnd(64, 'a');
+  await ensureSeedUser(h, userId, inviteeEmail);
   await h.owner`
-    INSERT INTO member_invitations (company_id, id, email_hash, role_code, scope_type, scope_id, invited_by, state, link_issued_at)
-    VALUES (${TENANT.A.company}, ${invitationId}, ${emailHash}, 'accountant', 'COMPANY', ${TENANT.A.company}, ${invitedBy}, 'PENDING', ${issuedAt.toISOString()}::timestamptz)`;
+    INSERT INTO memberships (company_id, id, user_id, role_id, role_owner_key, scope_type, scope_id, starts_at)
+    SELECT ${TENANT.A.company}, ${membershipId}, ${userId}, id, 'global', 'COMPANY', ${TENANT.A.company}, now() - interval '1 hour'
+    FROM roles WHERE company_id IS NULL AND code = 'accountant'`;
+  await h.owner`
+    INSERT INTO member_invitations (company_id, id, email_hash, user_id, membership_id, role_code, scope_type, scope_id, invited_by, state, link_issued_at)
+    VALUES (${TENANT.A.company}, ${invitationId}, ${emailHash}, ${userId}, ${membershipId}, 'accountant', 'COMPANY', ${TENANT.A.company}, ${invitedBy}, 'PENDING', ${issuedAt.toISOString()}::timestamptz)`;
   return invitationId;
 }

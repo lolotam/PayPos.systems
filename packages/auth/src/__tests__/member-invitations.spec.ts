@@ -62,7 +62,8 @@ async function invitedUser(email: string, companyId = COMPANY): Promise<string> 
     email,
     name: 'Member',
   });
-  if (!created.createdByInvitation) throw new Error('the invitation should have created the account');
+  if (!created.createdByInvitation)
+    throw new Error('the invitation should have created the account');
   return created.userId;
 }
 
@@ -117,6 +118,27 @@ describe('link lifetime (D9, IM-Q3)', () => {
     const [row] = await owner`
       SELECT identifier, value FROM verification WHERE value = ${userId}`;
     expect(row).toEqual({ identifier: `reset-password:${token}`, value: userId });
+  });
+
+  it('assigns strictly increasing issuedAt timestamps even when callers pass the same clock instant', async () => {
+    const userId = await invitedUser('monotonic@example.test');
+    const frozen = new Date('2026-11-24T10:00:00.000Z');
+    const first = await members().issueInvitationLinkReceipt({
+      userId,
+      companyId: COMPANY,
+      redirectTo: `${ORIGIN}/set-password`,
+      lifetimeMs: MEMBER_INVITATION_LINK_TTL_MS,
+      now: frozen,
+    });
+    const second = await members().issueInvitationLinkReceipt({
+      userId,
+      companyId: COMPANY,
+      redirectTo: `${ORIGIN}/set-password`,
+      lifetimeMs: MEMBER_INVITATION_LINK_TTL_MS,
+      now: frozen,
+    });
+    expect(second.issuedAt.getTime()).toBeGreaterThan(first.issuedAt.getTime());
+    expect(second.link).not.toBe(first.link);
   });
 });
 

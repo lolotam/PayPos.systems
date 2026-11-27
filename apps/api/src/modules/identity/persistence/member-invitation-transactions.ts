@@ -372,7 +372,7 @@ async function stampIssuedLink(
   const stamped = await tx.execute<{ id: string }>(sql`
     UPDATE member_invitations SET link_issued_at = ${input.at.toISOString()}::timestamptz
     WHERE company_id = ${input.companyId} AND id = ${input.invitationId}
-      AND (link_issued_at IS NULL OR link_issued_at <= ${input.at.toISOString()}::timestamptz)
+      AND (link_issued_at IS NULL OR link_issued_at < ${input.at.toISOString()}::timestamptz)
     RETURNING id`);
   if (stamped.length === 0) return;
   await transactionWriters(tx, ids).audit.record({

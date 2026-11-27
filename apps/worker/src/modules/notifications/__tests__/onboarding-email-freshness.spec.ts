@@ -1,6 +1,5 @@
 import { afterAll, beforeAll, beforeEach, expect, it } from 'vitest';
 import { systemUuidV7 } from '@pospay/ids';
-import { MEMBER_INVITATION_KEY, STAFF_WELCOME_PIN_KEY } from '@pospay/notifications';
 
 import { TENANT } from '../../../../../../packages/db/test/tenancy-fixtures.ts';
 import { SendNotification } from '../use-cases/send-notification/send-notification.ts';
@@ -11,9 +10,6 @@ import {
   queueInvitationNotice,
   queueStaffWelcomeNotice,
   RecordingChannel,
-  requestOnboarding,
-  sealInvitationPayload,
-  sealStaffPayload,
   seedActiveStaff,
   seedCompanyActor,
   seedPendingInvitation,
@@ -42,21 +38,11 @@ beforeEach(() => {
 
 it('refuses to send a staff PIN to a changed employee recovery_email', async () => {
   const staff = await seedActiveStaff(h);
-  const expiresAtMs = NOW.getTime() + DAY_MS;
-  const { placeholder, parameters } = sealStaffPayload(expiresAtMs, {
+  const { id, event } = await queueStaffWelcomeNotice(h, NOW.getTime() + DAY_MS, {
     email: staff.email,
     employeeId: staff.employeeId,
     operationId: staff.attemptId,
     pinRevision: staff.pinRevision,
-  });
-  const { id, event } = await requestOnboarding(h, 'StaffWelcomePinNoticeRequested', {
-    channel: 'email',
-    email: placeholder,
-    locale: 'ar',
-    template_key: STAFF_WELCOME_PIN_KEY,
-    template_revision: 1,
-    safe_parameters: parameters,
-    send_deadline: new Date(expiresAtMs).toISOString(),
   });
   await h.owner`UPDATE employees SET recovery_email = 'corrected@example.test' WHERE company_id = ${TENANT.A.company} AND id = ${staff.employeeId}`;
   await h.module.process({ data: { company_id: event.companyId, attempt_id: id } });
@@ -67,21 +53,11 @@ it('refuses to send a staff PIN to a changed employee recovery_email', async () 
 it('refuses a queued staff welcome notice after stop and regrant changes attempt_id', async () => {
   const staff = await seedActiveStaff(h);
   const nextAttemptId = systemUuidV7().newId();
-  const expiresAtMs = NOW.getTime() + DAY_MS;
-  const { placeholder, parameters } = sealStaffPayload(expiresAtMs, {
+  const { id, event } = await queueStaffWelcomeNotice(h, NOW.getTime() + DAY_MS, {
     email: staff.email,
     employeeId: staff.employeeId,
     operationId: staff.attemptId,
     pinRevision: staff.pinRevision,
-  });
-  const { id, event } = await requestOnboarding(h, 'StaffWelcomePinNoticeRequested', {
-    channel: 'email',
-    email: placeholder,
-    locale: 'ar',
-    template_key: STAFF_WELCOME_PIN_KEY,
-    template_revision: 1,
-    safe_parameters: parameters,
-    send_deadline: new Date(expiresAtMs).toISOString(),
   });
   await h.owner`UPDATE employee_staff_access SET attempt_id = ${nextAttemptId}, state = 'ACTIVE' WHERE company_id = ${TENANT.A.company} AND id = ${staff.accessId}`;
   await h.module.process({ data: { company_id: event.companyId, attempt_id: id } });
@@ -92,21 +68,11 @@ it('refuses a queued staff welcome notice after stop and regrant changes attempt
 it('refuses a queued staff welcome notice after PIN reset rotates cashier_pins.id on the same grant', async () => {
   const staff = await seedActiveStaff(h);
   const nextPinRevision = systemUuidV7().newId();
-  const expiresAtMs = NOW.getTime() + DAY_MS;
-  const { placeholder, parameters } = sealStaffPayload(expiresAtMs, {
+  const { id, event } = await queueStaffWelcomeNotice(h, NOW.getTime() + DAY_MS, {
     email: staff.email,
     employeeId: staff.employeeId,
     operationId: staff.attemptId,
     pinRevision: staff.pinRevision,
-  });
-  const { id, event } = await requestOnboarding(h, 'StaffWelcomePinNoticeRequested', {
-    channel: 'email',
-    email: placeholder,
-    locale: 'ar',
-    template_key: STAFF_WELCOME_PIN_KEY,
-    template_revision: 1,
-    safe_parameters: parameters,
-    send_deadline: new Date(expiresAtMs).toISOString(),
   });
   await h.owner`UPDATE cashier_pins SET id = ${nextPinRevision} WHERE company_id = ${TENANT.A.company} AND user_id = ${staff.userId}`;
   await h.module.process({ data: { company_id: event.companyId, attempt_id: id } });
@@ -115,37 +81,18 @@ it('refuses a queued staff welcome notice after PIN reset rotates cashier_pins.i
 });
 
 it('fails closed when staff access or invitation records are missing', async () => {
-  const expiresAtMs = NOW.getTime() + DAY_MS;
-  const staffMissing = sealStaffPayload(expiresAtMs, {
+  const s = await queueStaffWelcomeNotice(h, NOW.getTime() + DAY_MS, {
     employeeId: systemUuidV7().newId(),
     operationId: systemUuidV7().newId(),
-  });
-  const s = await requestOnboarding(h, 'StaffWelcomePinNoticeRequested', {
-    channel: 'email',
-    email: staffMissing.placeholder,
-    locale: 'ar',
-    template_key: STAFF_WELCOME_PIN_KEY,
-    template_revision: 1,
-    safe_parameters: staffMissing.parameters,
-    send_deadline: new Date(expiresAtMs).toISOString(),
   });
   await h.module.process({ data: { company_id: s.event.companyId, attempt_id: s.id } });
   expect(await h.read(s.id)).toMatchObject({
     status: 'FAILED',
     failure_code: 'DESTINATION_INVALID',
   });
-  const invMissing = sealInvitationPayload(NOW.getTime() + 2 * DAY_MS, {
+  const inv = await queueInvitationNotice(h, NOW.getTime() + 2 * DAY_MS, {
     invitationId: systemUuidV7().newId(),
     issuedAt: INVITE_ISSUED_AT.toISOString(),
-  });
-  const inv = await requestOnboarding(h, 'MemberInvitationNoticeRequested', {
-    channel: 'email',
-    email: invMissing.placeholder,
-    locale: 'ar',
-    template_key: MEMBER_INVITATION_KEY,
-    template_revision: 1,
-    safe_parameters: invMissing.parameters,
-    send_deadline: new Date(NOW.getTime() + 2 * DAY_MS).toISOString(),
   });
   await h.module.process({ data: { company_id: inv.event.companyId, attempt_id: inv.id } });
   expect(await h.read(inv.id)).toMatchObject({
@@ -157,21 +104,11 @@ it('fails closed when staff access or invitation records are missing', async () 
 
 it('retries transient pre-claim verification errors automatically and delivers once without leaving SENDING', async () => {
   const staff = await seedActiveStaff(h);
-  const expiresAtMs = NOW.getTime() + DAY_MS;
-  const { placeholder, parameters } = sealStaffPayload(expiresAtMs, {
+  const { id, event } = await queueStaffWelcomeNotice(h, NOW.getTime() + DAY_MS, {
     email: staff.email,
     employeeId: staff.employeeId,
     operationId: staff.attemptId,
     pinRevision: staff.pinRevision,
-  });
-  const { id, event } = await requestOnboarding(h, 'StaffWelcomePinNoticeRequested', {
-    channel: 'email',
-    email: placeholder,
-    locale: 'ar',
-    template_key: STAFF_WELCOME_PIN_KEY,
-    template_revision: 1,
-    safe_parameters: parameters,
-    send_deadline: new Date(expiresAtMs).toISOString(),
   });
   const base = h.module.send;
   let verifyCalls = 0;
@@ -206,21 +143,11 @@ it('retries transient pre-claim verification errors automatically and delivers o
 
 it('leaves attempt PENDING without claiming SENDING when bounded pre-claim freshness retries all throw', async () => {
   const staff = await seedActiveStaff(h);
-  const expiresAtMs = NOW.getTime() + DAY_MS;
-  const { placeholder, parameters } = sealStaffPayload(expiresAtMs, {
+  const { id, event } = await queueStaffWelcomeNotice(h, NOW.getTime() + DAY_MS, {
     email: staff.email,
     employeeId: staff.employeeId,
     operationId: staff.attemptId,
     pinRevision: staff.pinRevision,
-  });
-  const { id, event } = await requestOnboarding(h, 'StaffWelcomePinNoticeRequested', {
-    channel: 'email',
-    email: placeholder,
-    locale: 'ar',
-    template_key: STAFF_WELCOME_PIN_KEY,
-    template_revision: 1,
-    safe_parameters: parameters,
-    send_deadline: new Date(expiresAtMs).toISOString(),
   });
   const base = h.module.send;
   let verifyCalls = 0;
@@ -248,25 +175,87 @@ it('leaves attempt PENDING without claiming SENDING when bounded pre-claim fresh
 });
 
 it('refuses a superseded member invitation link after reissue', async () => {
-  const invitationId = await seedPendingInvitation(h, INVITE_ISSUED_AT);
+  const inviteeEmail = 'reissued-invitee@example.test';
+  const invitationId = await seedPendingInvitation(h, INVITE_ISSUED_AT, undefined, inviteeEmail);
   const reissuedAt = new Date('2026-10-01T10:05:00.000Z');
-  const expiresAtMs = NOW.getTime() + 48 * 60 * 60 * 1000;
-  const { placeholder, parameters } = sealInvitationPayload(expiresAtMs, {
+  const { id, event } = await queueInvitationNotice(h, NOW.getTime() + 48 * 60 * 60 * 1000, {
+    email: inviteeEmail,
     invitationId,
     issuedAt: INVITE_ISSUED_AT.toISOString(),
-  });
-  const { id, event } = await requestOnboarding(h, 'MemberInvitationNoticeRequested', {
-    channel: 'email',
-    email: placeholder,
-    locale: 'ar',
-    template_key: MEMBER_INVITATION_KEY,
-    template_revision: 1,
-    safe_parameters: parameters,
-    send_deadline: new Date(expiresAtMs).toISOString(),
   });
   await h.owner`UPDATE member_invitations SET link_issued_at = ${reissuedAt.toISOString()}::timestamptz WHERE company_id = ${TENANT.A.company} AND id = ${invitationId}`;
   await h.module.process({ data: { company_id: event.companyId, attempt_id: id } });
   expect(await h.read(id)).toMatchObject({ status: 'FAILED', failure_code: 'DESTINATION_INVALID' });
+  expect(channel.requests).toHaveLength(0);
+});
+
+it('refuses a case-only local-part address mismatch on recovery email and user contact', async () => {
+  const staff = await seedActiveStaff(h, 'cashier-case@example.test');
+  const staffNotice = await queueStaffWelcomeNotice(h, NOW.getTime() + DAY_MS, {
+    email: 'Cashier-Case@example.test',
+    employeeId: staff.employeeId,
+    operationId: staff.attemptId,
+    pinRevision: staff.pinRevision,
+  });
+  await h.module.process({
+    data: { company_id: staffNotice.event.companyId, attempt_id: staffNotice.id },
+  });
+  expect(await h.read(staffNotice.id)).toMatchObject({
+    status: 'FAILED',
+    failure_code: 'DESTINATION_INVALID',
+  });
+
+  const actor = await seedCompanyActor(h, 'branch_manager', 'Case-Mgr@example.test');
+  const mgrStaff = await seedActiveStaff(h, null, actor.userId);
+  const mgrNotice = await queueStaffWelcomeNotice(h, NOW.getTime() + DAY_MS, {
+    recipient: 'manager',
+    email: actor.email,
+    targetMaskedEmail: 'ca***@example.test',
+    employeeId: mgrStaff.employeeId,
+    operationId: mgrStaff.attemptId,
+    pinRevision: mgrStaff.pinRevision,
+  });
+  await h.owner`UPDATE "user" SET email = 'case-mgr@example.test' WHERE id = ${actor.userId}`;
+  await h.module.process({
+    data: { company_id: mgrNotice.event.companyId, attempt_id: mgrNotice.id },
+  });
+  expect(await h.read(mgrNotice.id)).toMatchObject({
+    status: 'FAILED',
+    failure_code: 'DESTINATION_INVALID',
+  });
+  expect(channel.requests).toHaveLength(0);
+});
+
+it('refuses an invitation without bound user/membership or after invitee membership ends', async () => {
+  const actor = await seedCompanyActor(h, 'owner', 'unbound-owner@example.test');
+  const unboundId = systemUuidV7().newId();
+  const expiresAtMs = NOW.getTime() + 48 * 60 * 60 * 1000;
+  await h.owner`
+    INSERT INTO member_invitations (company_id, id, email_hash, role_code, scope_type, scope_id, invited_by, state, link_issued_at)
+    VALUES (${TENANT.A.company}, ${unboundId}, ${unboundId.replaceAll('-', '').padEnd(64, 'b')}, 'accountant', 'COMPANY', ${TENANT.A.company}, ${actor.userId}, 'PENDING', ${INVITE_ISSUED_AT.toISOString()}::timestamptz)`;
+  const unbound = await queueInvitationNotice(h, expiresAtMs, {
+    invitationId: unboundId,
+    issuedAt: INVITE_ISSUED_AT.toISOString(),
+  });
+  await h.module.process({ data: { company_id: unbound.event.companyId, attempt_id: unbound.id } });
+  expect(await h.read(unbound.id)).toMatchObject({
+    status: 'FAILED',
+    failure_code: 'DESTINATION_INVALID',
+  });
+
+  const endedEmail = 'ended-invitee@example.test';
+  const endedId = await seedPendingInvitation(h, INVITE_ISSUED_AT, undefined, endedEmail);
+  const ended = await queueInvitationNotice(h, expiresAtMs, {
+    email: endedEmail,
+    invitationId: endedId,
+    issuedAt: INVITE_ISSUED_AT.toISOString(),
+  });
+  await h.owner`UPDATE memberships SET ends_at = now() - interval '1 minute' WHERE company_id = ${TENANT.A.company} AND id = (SELECT membership_id FROM member_invitations WHERE company_id = ${TENANT.A.company} AND id = ${endedId})`;
+  await h.module.process({ data: { company_id: ended.event.companyId, attempt_id: ended.id } });
+  expect(await h.read(ended.id)).toMatchObject({
+    status: 'FAILED',
+    failure_code: 'DESTINATION_INVALID',
+  });
   expect(channel.requests).toHaveLength(0);
 });
 

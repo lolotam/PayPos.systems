@@ -189,6 +189,7 @@ export {
   CLEARED_STAFF_PIN_HASH,
   clearStaffPin,
   deleteStaffUserSessions,
+  endExtraStaffMembership,
   endStaffMembership,
   grantStaffMembership,
   hashStaffPin,
@@ -197,6 +198,10 @@ export {
   saveTemporaryStaffPin,
 } from './persistence/staff-user-auth.ts';
 export { moveStaffMembershipToBranch } from './persistence/staff-membership-move.ts';
+export {
+  applyStaffAccessOverrides,
+  type StaffAccessMembershipCandidate,
+} from './persistence/staff-access-overrides.ts';
 export {
   readStaffAccessAuthority,
   readStaffAccessOwner,
