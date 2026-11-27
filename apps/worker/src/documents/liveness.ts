@@ -223,6 +223,7 @@ export async function startRendererLiveness(input: {
       !existingHookTarget.stopped
     ) {
       hook.target = existingHookTarget;
+      armInterval(existingHookTarget);
     }
     await stopLiveness(state).catch(() => undefined);
     throw error;

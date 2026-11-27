@@ -5,7 +5,7 @@ import type { PdfBrowser, PdfBrowserFactory, PdfContext } from './browser.ts';
 import { closeContextOnce } from './context-guards.ts';
 import { asRendererError, isTimeoutError, raceDeadline } from './deadline.ts';
 import { DEFAULT_CHROMIUM_LAUNCH_TIMEOUT_MS, playwrightFactory } from './factory.ts';
-import { closeOrKill, launchWithinTimeout } from './launch.ts';
+import { closeOrKill, launchWithinTimeout, waitGate } from './launch.ts';
 import { renderPage, type RenderPageHooks } from './render-page.ts';
 import type { RendererOptions } from './renderer-options.ts';
 import { closeAfterTimeout, dropRetiredBrowser } from './retire.ts';
@@ -46,6 +46,7 @@ export class PlaywrightDocumentRenderer implements DocumentRenderer {
   #available = false;
   #closing = false;
   #launchFailures = 0;
+  #relaunchNeeded = false;
   #stableTimer: ReturnType<typeof setTimeout> | undefined;
   #starting: Promise<void> | null = null;
   #launchInFlight: Promise<void> | null = null;
@@ -104,8 +105,9 @@ export class PlaywrightDocumentRenderer implements DocumentRenderer {
         !this.#available &&
         !this.#closing &&
         this.#retiring === null &&
-        !options?.signal?.aborted
+        (this.#relaunchNeeded || !options?.signal?.aborted)
       ) {
+        this.#relaunchNeeded = false;
         this.#scheduleRelaunch();
       }
     });
@@ -115,6 +117,7 @@ export class PlaywrightDocumentRenderer implements DocumentRenderer {
 
   async close(): Promise<void> {
     this.#closing = true;
+    this.#relaunchNeeded = false;
     // الإطلاق المعلّق بيتلغي فورًا؛ المتصفح اللي يوصل بعدين بيتقفل في الكور.
     this.#launchController?.abort();
     this.#clearStable();
@@ -132,6 +135,7 @@ export class PlaywrightDocumentRenderer implements DocumentRenderer {
 
   kill(): void | Promise<void> {
     this.#closing = true;
+    this.#relaunchNeeded = false;
     this.#launchController?.abort();
     this.#clearStable();
     this.#markUnavailable();
@@ -174,19 +178,20 @@ export class PlaywrightDocumentRenderer implements DocumentRenderer {
 
   async #runSingleLaunch(signal?: AbortSignal): Promise<void> {
     // المتصفح المتقاعد والإلغاء المعلّق لازم يخلصوا الأول، عشان متصفحين ما يبقوش شغالين مع بعض.
-    if (this.#retiring !== null) await this.#retiring;
-    if (this.#pendingCancel !== null) await this.#pendingCancel;
+    if (this.#retiring !== null) await waitGate(this.#retiring, signal);
+    if (this.#pendingCancel !== null) await waitGate(this.#pendingCancel, signal);
     if (this.#closing || signal?.aborted) return;
     const controller = new AbortController();
     this.#launchController = controller;
     try {
       const outcome = await launchWithinTimeout(
-        this.#factory.launch(),
+        this.#factory.launch(controller.signal),
         this.#launchTimeoutMs,
         this.#closeGraceMs,
         controller.signal,
       );
       if (outcome.kind === 'cancelled' || outcome.kind === 'timeout') {
+        if (outcome.kind === 'timeout') controller.abort();
         if (!this.#closing) {
           const settling = outcome.settled.finally(() => {
             if (this.#pendingCancel === settling) this.#pendingCancel = null;
@@ -220,12 +225,14 @@ export class PlaywrightDocumentRenderer implements DocumentRenderer {
     browser.on('disconnected', () => {
       if (this.#closing || this.#browser !== browser) return;
       this.#browser = null;
+      this.#relaunchNeeded = true;
       this.#markUnavailable();
       this.#scheduleRelaunch();
     });
   }
 
   #markAvailable(): void {
+    this.#relaunchNeeded = false;
     this.#available = true;
     this.#armStable();
     for (const listener of this.#availableListeners) listener();
@@ -264,6 +271,7 @@ export class PlaywrightDocumentRenderer implements DocumentRenderer {
     ) {
       return;
     }
+    this.#relaunchNeeded = false;
     this.#relaunching = this.#relaunchLoop().finally(() => {
       this.#relaunching = null;
       if (!this.#closing && !this.#available && this.#starting === null && this.#retiring === null) {
@@ -294,7 +302,7 @@ export class PlaywrightDocumentRenderer implements DocumentRenderer {
     const opening = browser.newContext(CONTEXT);
     const work = opening.then(async (opened) => {
       if (abandoned) {
-        await opened.close().catch(() => undefined);
+        await closeContextOnce(opened).catch(() => undefined);
         throw new DocumentRenderTimeoutError();
       }
       context = opened;
@@ -347,6 +355,7 @@ export class PlaywrightDocumentRenderer implements DocumentRenderer {
   #retire(browser: PdfBrowser): void {
     if (this.#browser !== browser) return;
     this.#browser = null;
+    this.#relaunchNeeded = true;
     let releaseGate: () => void = () => undefined;
     const gate = new Promise<void>((resolve) => {
       releaseGate = resolve;
@@ -357,7 +366,10 @@ export class PlaywrightDocumentRenderer implements DocumentRenderer {
       this.#markUnavailable();
       const retiring = dropRetiredBrowser(browser, this.#browserCloseGraceMs, this.#sleep).then(
         (outcome) => {
-          if (!outcome.confirmed && !this.#closing) return outcome.exit;
+          if (!outcome.confirmed && !this.#closing) {
+            this.#onLaunchError?.(new Error('DOCUMENT_RETIRE_UNCONFIRMED'));
+            return outcome.exit;
+          }
           return undefined;
         },
       );

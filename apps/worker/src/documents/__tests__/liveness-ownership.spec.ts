@@ -129,3 +129,51 @@ it('retains previous publisher ownership when a replacement fails readiness', as
   await prev.stop();
   expect(stored).toBeNull();
 });
+
+it('re-arms restored publisher when renderer recovers during a failing replacement readiness wait', async () => {
+  let sets = 0;
+  let releaseReady: (() => void) | undefined;
+  const listeners = new Map<string, Array<() => void>>();
+  let status = 'ready';
+  const redis = {
+    get status() {
+      return status;
+    },
+    on(event: string, fn: () => void) {
+      const list = listeners.get(event) ?? [];
+      list.push(fn);
+      listeners.set(event, list);
+      return this;
+    },
+    off() {
+      return this;
+    },
+    set: async () => {
+      sets += 1;
+      return 'OK';
+    },
+    del: async () => 1,
+  } as unknown as Redis;
+  const renderer = new ToggleRenderer();
+  renderer.available = false;
+  const prev = await startRendererLiveness({ redis, renderer, intervalMs: 15, readyTimeoutMs: 1_000 });
+  status = 'connect';
+  const replacement = expect(
+    startRendererLiveness({ redis, renderer, intervalMs: 15, readyTimeoutMs: 1_000 }),
+  ).rejects.toThrow('redis ended');
+  renderer.available = true;
+  await renderer.start();
+  await new Promise<void>((resolve) => {
+    releaseReady = () => {
+      status = 'end';
+      for (const fn of listeners.get('end') ?? []) fn();
+      resolve();
+    };
+    setImmediate(releaseReady);
+  });
+  await replacement;
+  const before = sets;
+  await new Promise((resolve) => setTimeout(resolve, 60));
+  expect(sets).toBeGreaterThan(before);
+  await prev.stop();
+});

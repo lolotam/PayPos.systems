@@ -7,6 +7,12 @@ type LaunchOutcome =
   | { readonly kind: 'timeout'; readonly settled: Promise<void> }
   | { readonly kind: 'cancelled'; readonly settled: Promise<void> };
 
+function waitRetiredExit(browser: PdfBrowser, graceMs: number): Promise<void> {
+  return dropRetiredBrowser(browser, graceMs)
+    .then((outcome) => (outcome.confirmed ? undefined : outcome.exit))
+    .catch(() => undefined);
+}
+
 /**
  * إطلاق المتصفح بمهلة. إطلاق معلّق بيتحسب فشل، والوعد المتروك بيتبلع جوّه:
  * رفض متأخر ما يبقاش رفض غير متعامل، ومتصفح وصل بعد المهلة أو الإلغاء بيتقفل قبل فكّ الحارس.
@@ -24,7 +30,7 @@ export async function launchWithinTimeout(
   let timer: ReturnType<typeof setTimeout> | undefined;
   let onAbort: (() => void) | undefined;
   const closeOnce = (browser: PdfBrowser): Promise<void> => {
-    cleanup ??= closeOrKill(browser, graceMs).catch(() => undefined);
+    cleanup ??= waitRetiredExit(browser, graceMs);
     return cleanup;
   };
   const guarded: Promise<LaunchOutcome> = launching.then(
@@ -78,4 +84,18 @@ export async function launchWithinTimeout(
  */
 export async function closeOrKill(browser: PdfBrowser, graceMs: number): Promise<void> {
   await dropRetiredBrowser(browser, graceMs);
+}
+
+/** يستنى بوّابة التقاعد أو الإلغاء، ويفك الانتظار فوراً لو إشارة البدء اتلغت. */
+export function waitGate(gate: Promise<void> | null, signal?: AbortSignal): Promise<void> {
+  if (gate === null || signal?.aborted) return Promise.resolve();
+  if (signal === undefined) return gate;
+  return new Promise<void>((resolve) => {
+    const finish = (): void => {
+      signal.removeEventListener('abort', finish);
+      resolve();
+    };
+    signal.addEventListener('abort', finish, { once: true });
+    void gate.then(finish, finish);
+  });
 }

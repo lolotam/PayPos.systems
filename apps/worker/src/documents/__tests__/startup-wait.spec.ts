@@ -76,6 +76,8 @@ it('detaches shutdown listener on cancelPending when start never settles', async
   await vi.advanceTimersByTimeAsync(50);
   const outcome = await starting;
   expect(outcome.state).toBe('pending');
+  expect(outcome.cancelPending).toBeTypeOf('function');
+  removeSpy.mockClear();
   outcome.cancelPending?.();
-  expect(removeSpy).toHaveBeenCalled();
+  expect(removeSpy).toHaveBeenCalledTimes(1);
 });

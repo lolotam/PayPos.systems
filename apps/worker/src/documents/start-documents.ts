@@ -8,7 +8,12 @@ import type { Logger } from '@pospay/observability';
 import { Worker } from 'bullmq';
 import { Redis } from 'ioredis';
 
-import { deferPdfWhileStarting, PDF_DEFER_WINDOW_MS, type RendererStartup } from './defer-pdf.ts';
+import {
+  clearJobDeferralDeadline,
+  deferPdfWhileStarting,
+  PDF_DEFER_WINDOW_MS,
+  type RendererStartup,
+} from './defer-pdf.ts';
 import { startRendererLiveness } from './liveness.ts';
 import type { EpochClock } from './process-job.ts';
 import { DocumentSourceRegistry } from './source-registry.ts';
@@ -116,7 +121,9 @@ async function openWorker(
   attempt: AttemptBinder,
   startup: RendererStartup,
 ): Promise<{ worker: Worker; connection: Redis }> {
-  const { processDocumentJob, recordExternalJobFailure } = await import('./process-job.ts');
+  const { isTerminalJobFailure, processDocumentJob, recordExternalJobFailure } = await import(
+    './process-job.ts'
+  );
   const connection = openQueueConnection(input.redisUrl);
   let worker: Worker | undefined;
   try {
@@ -147,8 +154,12 @@ async function openWorker(
     attempt.holdQueue({ worker, connection });
     input.onQueueConstructed?.({ worker, connection });
     worker.on('error', (error: Error) => logUnavailable(input.logger, 'QUEUE_FAILED', error));
+    worker.on('completed', (job) => {
+      if (job != null) clearJobDeferralDeadline(job, startup);
+    });
     worker.on('failed', (job) => {
       if (job == null) return;
+      if (isTerminalJobFailure(job)) clearJobDeferralDeadline(job, startup);
       void recordExternalJobFailure(job, {
         redis: input.redis,
         logger: input.logger,

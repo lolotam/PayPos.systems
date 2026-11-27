@@ -2,7 +2,11 @@ import { DOCUMENT_XLSX_MIME_TYPE } from '@pospay/contracts';
 import { DelayedError, type Job } from 'bullmq';
 import { expect, it, vi } from 'vitest';
 
-import { deferPdfWhileStarting } from '../defer-pdf.ts';
+import {
+  clearJobDeferralDeadline,
+  deferPdfWhileStarting,
+  PDF_DEFER_RETENTION_MS,
+} from '../defer-pdf.ts';
 import { DocumentSourceRegistry } from '../source-registry.ts';
 import {
   FakeRenderer,
@@ -168,7 +172,7 @@ it('re-arms bounded PDF deferral after a runtime renderer disconnect until recov
   }
 }, 30_000);
 
-it('enforces a job-level deferral deadline even when disconnects reset startup.deadlineAt', async () => {
+it('enforces a job-level deferral deadline across disconnects and BullMQ retries', async () => {
   const registry = new DocumentSourceRegistry();
   registry.register('fixture', { load: async () => '<p>ok</p>' });
   const delayed = vi.fn();
@@ -189,6 +193,32 @@ it('enforces a job-level deferral deadline even when disconnects reset startup.d
   startup.deadlineAt = Date.now() + 60_000;
   await new Promise((resolve) => setTimeout(resolve, 60));
   await deferPdfWhileStarting(pdfJob, 'token', startup, registry);
+  await deferPdfWhileStarting(pdfJob, 'token', startup, registry);
   expect(delayed).toHaveBeenCalledTimes(1);
+  expect(startup.jobDeadlines.has('job-flap-1')).toBe(true);
+  clearJobDeferralDeadline(pdfJob, startup);
   expect(startup.jobDeadlines.has('job-flap-1')).toBe(false);
+});
+
+it('retains recently expired deadlines across 256+ jobs and prunes stale entries past retention', async () => {
+  const registry = new DocumentSourceRegistry();
+  registry.register('fixture', { load: async () => '<p>ok</p>' });
+  const now = Date.now();
+  const jobDeadlines = new Map<string, number>([
+    ['recent-expired', now - 10],
+    ['stale-expired', now - PDF_DEFER_RETENTION_MS - 1],
+  ]);
+  for (let i = 0; i < 256; i += 1) {
+    jobDeadlines.set(`active-${i}`, now + 60_000);
+  }
+  const pdfJob = {
+    id: 'new-job',
+    data: job(renderId(), renderId(), 'fixture'),
+    moveToDelayed: vi.fn(),
+  } as unknown as Job;
+  await expect(
+    deferPdfWhileStarting(pdfJob, 'token', { starting: true, deadlineAt: now + 60_000, jobDeadlines }, registry),
+  ).rejects.toThrow(DelayedError);
+  expect(jobDeadlines.has('recent-expired')).toBe(true);
+  expect(jobDeadlines.has('stale-expired')).toBe(false);
 });

@@ -38,5 +38,5 @@ export interface PdfBrowser {
 }
 
 export interface PdfBrowserFactory {
-  launch(): Promise<PdfBrowser>;
+  launch(signal?: AbortSignal): Promise<PdfBrowser>;
 }

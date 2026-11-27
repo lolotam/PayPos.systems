@@ -297,3 +297,58 @@ it('does not kill a late browser whose close finishes', async () => {
   const kills = await lateBrowserKills(async () => undefined);
   expect(kills).toBe(0);
 });
+
+it('aborts the factory launch signal on launch timeout', async () => {
+  let receivedSignal: AbortSignal | undefined;
+  const factory: PdfBrowserFactory = {
+    launch: async (signal) => {
+      receivedSignal = signal;
+      return new Promise<PdfBrowser>(() => undefined);
+    },
+  };
+  const renderer = new PlaywrightDocumentRenderer({ factory, launchTimeoutMs: 20, backoffMs: [500] });
+  await renderer.start();
+  expect(receivedSignal?.aborted).toBe(true);
+  await renderer.close();
+});
+
+it('waits past 500 ms for a late browser kill to finish before launching replacement', async () => {
+  let launches = 0;
+  let releaseKill: (() => void) | undefined;
+  let releaseLate: ((b: PdfBrowser) => void) | undefined;
+  let killSettled = false;
+  const factory: PdfBrowserFactory = {
+    launch: async () => {
+      launches += 1;
+      if (launches === 1) return new Promise<PdfBrowser>((resolve) => (releaseLate = resolve));
+      return browser(async () => Uint8Array.from([1]));
+    },
+  };
+  const renderer = new PlaywrightDocumentRenderer({
+    factory,
+    launchTimeoutMs: 20,
+    closeGraceMs: 15,
+    backoffMs: [0],
+    sleep: async () => undefined,
+  });
+  await renderer.start();
+  releaseLate?.({
+    newContext: async () => context(async () => Uint8Array.from([1])),
+    close: () => new Promise<void>(() => undefined),
+    kill: () =>
+      new Promise<void>((resolve) => {
+        releaseKill = () => {
+          killSettled = true;
+          resolve();
+        };
+      }),
+    on: () => undefined,
+  });
+  await new Promise((resolve) => setTimeout(resolve, 560));
+  expect(killSettled).toBe(false);
+  expect(launches).toBe(1);
+  releaseKill?.();
+  await untilAvailable(renderer);
+  expect(launches).toBe(2);
+  await renderer.close();
+});

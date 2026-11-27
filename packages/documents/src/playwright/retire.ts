@@ -70,11 +70,13 @@ export async function dropRetiredBrowser(
   }
   if (finished) return { confirmed: true, exit: Promise.resolve() };
   let killCall: unknown;
-  let killFailed = false;
-  try {
-    killCall = browser.kill?.();
-  } catch {
-    killFailed = true;
+  let killFailed = typeof browser.kill !== 'function';
+  if (!killFailed) {
+    try {
+      killCall = browser.kill?.();
+    } catch {
+      killFailed = true;
+    }
   }
   if (!killFailed && killCall === undefined) return { confirmed: true, exit: Promise.resolve() };
   // رفض close أو فشل القتل ما يثبتش خروج العملية، فانتظار الخروج يعتمد على حل close أو kill بس.

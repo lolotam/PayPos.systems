@@ -182,3 +182,78 @@ it('holds the launch guard until a timed-out launch closes its late browser', as
   expect(events).toEqual(['launch-1', 'late-timeout-closed', 'launch-2']);
   await renderer.close();
 });
+
+it('aborts wait during retirement cleanly and still schedules relaunch after retirement', async () => {
+  let releaseKill: (() => void) | undefined;
+  const spy = delayedLaunchFactory(async (attempt) => {
+    if (attempt === 1) {
+      return {
+        newContext: () => new Promise(() => undefined),
+        close: () => new Promise<void>(() => undefined),
+        kill: () => new Promise<void>((r) => (releaseKill = r)),
+        on: () => undefined,
+      };
+    }
+    return okBrowser();
+  });
+  const renderer = new PlaywrightDocumentRenderer({
+    factory: spy.factory,
+    sleep: (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
+    backoffMs: [5],
+    overallTimeoutMs: 15,
+    browserCloseGraceMs: 5,
+  });
+  await renderer.start();
+  await expect(renderer.render('<p>x</p>')).rejects.toThrow();
+  for (let i = 0; i < 20 && releaseKill === undefined; i += 1) {
+    await new Promise((resolve) => setTimeout(resolve, 5));
+  }
+  expect(releaseKill).toBeDefined();
+  const ac = new AbortController();
+  const abortedStart = renderer.start({ signal: ac.signal });
+  ac.abort();
+  await abortedStart;
+  expect(spy.launches()).toBe(1);
+  releaseKill?.();
+  for (let i = 0; i < 40 && !renderer.isAvailable(); i += 1) {
+    await new Promise((resolve) => setTimeout(resolve, 10));
+  }
+  expect(spy.launches()).toBe(2);
+  expect(renderer.isAvailable()).toBe(true);
+  await renderer.close();
+});
+
+it('reports unconfirmed retirement and keeps replacement gated until close finishes without kill', async () => {
+  let releaseClose: (() => void) | undefined;
+  const errors: unknown[] = [];
+  const spy = delayedLaunchFactory(async (attempt) => {
+    if (attempt === 1) {
+      return {
+        newContext: () => new Promise(() => undefined),
+        close: () => new Promise<void>((r) => (releaseClose = r)),
+        on: () => undefined,
+      };
+    }
+    return okBrowser();
+  });
+  const renderer = new PlaywrightDocumentRenderer({
+    factory: spy.factory,
+    sleep: async () => undefined,
+    backoffMs: [0],
+    overallTimeoutMs: 15,
+    browserCloseGraceMs: 10,
+    onLaunchError: (err) => errors.push(err),
+  });
+  await renderer.start();
+  await expect(renderer.render('<p>x</p>')).rejects.toThrow();
+  await new Promise((resolve) => setTimeout(resolve, 560));
+  expect(spy.launches()).toBe(1);
+  expect(errors.some((e) => e instanceof Error && e.message === 'DOCUMENT_RETIRE_UNCONFIRMED')).toBe(true);
+  releaseClose?.();
+  for (let i = 0; i < 40 && !renderer.isAvailable(); i += 1) {
+    await new Promise((resolve) => setTimeout(resolve, 10));
+  }
+  expect(spy.launches()).toBe(2);
+  expect(renderer.isAvailable()).toBe(true);
+  await renderer.close();
+});
