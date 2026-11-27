@@ -173,19 +173,18 @@ function nextInvitationWindow(
   existingLinks: readonly { readonly createdAt: Date }[],
 ) {
   const prevAccountMs =
-    login.updatedAt.getTime() > login.createdAt.getTime() ? login.updatedAt.getTime() : 0;
+    login.updatedAt.getTime() !== login.createdAt.getTime() ? login.updatedAt.getTime() : 0;
   const prevLinkMaxMs = existingLinks.reduce(
     (maxMs, row) => Math.max(maxMs, row.createdAt.getTime()),
     prevAccountMs,
   );
-  const issuedAt = new Date(
-    prevLinkMaxMs > 0 ? Math.max(input.now.getTime(), prevLinkMaxMs + 1) : input.now.getTime(),
-  );
+  const baseMs =
+    prevLinkMaxMs > 0 ? Math.max(input.now.getTime(), prevLinkMaxMs + 1) : input.now.getTime();
+  const issuedAt = new Date(baseMs === login.createdAt.getTime() ? baseMs + 1 : baseMs);
   const lifetimeMs = Math.max(0, input.expiresAt.getTime() - input.now.getTime());
   return {
     issuedAt,
     expiresAt: new Date(issuedAt.getTime() + lifetimeMs),
-    accountCreatedAt: new Date(Math.min(login.createdAt.getTime(), issuedAt.getTime() - 1)),
   };
 }
 
@@ -219,15 +218,11 @@ const issueInvitationLink = async (db: Database, input: InvitationLinkRow): Prom
           like(verification.identifier, `${RESET_LINK_PREFIX}%`),
         ),
       );
-    const { issuedAt, expiresAt, accountCreatedAt } = nextInvitationWindow(
-      input,
-      login,
-      existingLinks,
-    );
+    const { issuedAt, expiresAt } = nextInvitationWindow(input, login, existingLinks);
     await tx.update(user).set({ updatedAt: issuedAt }).where(eq(user.id, input.userId));
     await tx
       .update(account)
-      .set({ createdAt: accountCreatedAt, updatedAt: issuedAt })
+      .set({ updatedAt: issuedAt })
       .where(and(eq(account.userId, input.userId), eq(account.providerId, 'credential')));
     await tx
       .delete(verification)

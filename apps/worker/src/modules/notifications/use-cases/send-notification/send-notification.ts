@@ -61,8 +61,9 @@ export class SendNotification {
   }
 
   private async reserveAdmission(attempt: Attempt): Promise<number | null> {
+    const startedAtMs = this.clock.now().getTime();
     if (await this.admission.reserve(attempt.identity.hash, attempt.deadline)) {
-      return this.clock.now().getTime();
+      return startedAtMs;
     }
     await this.reject(
       attempt,

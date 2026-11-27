@@ -214,6 +214,32 @@ async function ownerAuthorizedForInvitations(
   return rows.length === 1;
 }
 
+/** يتحقق بعد إقفال صفوف المانح والموظفة من تطابق بريد المدير وصلاحيته على الفرع وقت الـ post-lock. */
+async function verifyManagerBranchSender(
+  tx: Tx,
+  companyId: string,
+  access: { readonly granted_by: string; readonly business_id: string; readonly branch_id: string },
+  expectedEmail: string,
+): Promise<boolean> {
+  const checkedAt = await postLockTimestamp(tx);
+  const emailMatches = await matchesMemberContactEmail(
+    tx,
+    companyId,
+    access.granted_by,
+    expectedEmail,
+    checkedAt,
+  );
+  if (!emailMatches) return false;
+  return managerAuthorizedForBranch(
+    tx,
+    companyId,
+    access.granted_by,
+    access.business_id,
+    access.branch_id,
+    checkedAt,
+  );
+}
+
 /** يتحقق داخل المعاملة من سريان الموظفة والمانح وسجل المنح وصف الرقم المؤقت تحت أقفال مشتركة. */
 async function verifyStaffWelcomeInTx(
   tx: Tx,
@@ -249,31 +275,13 @@ async function verifyStaffWelcomeInTx(
     access.user_id === null
   )
     return false;
-  if (payload.recipient === 'manager') {
-    const checkedAt = await postLockTimestamp(tx);
-    const emailMatches = await matchesMemberContactEmail(
-      tx,
-      companyId,
-      access.granted_by,
-      payload.email,
-      checkedAt,
-    );
-    const authorized =
-      emailMatches &&
-      (await managerAuthorizedForBranch(
-        tx,
-        companyId,
-        access.granted_by,
-        access.business_id,
-        access.branch_id,
-        checkedAt,
-      ));
-    if (!authorized) return false;
-  }
   const [pin] = await tx.execute<{ id: string; temporary: boolean }>(sql`
     SELECT id::text AS id, temporary FROM cashier_pins
     WHERE company_id = ${companyId}::uuid AND user_id = ${access.user_id}::uuid FOR SHARE`);
-  return pin !== undefined && pin.temporary === true && pin.id === payload.pinRevision;
+  if (pin === undefined || pin.temporary !== true || pin.id !== payload.pinRevision) return false;
+  if (payload.recipient === 'manager')
+    return verifyManagerBranchSender(tx, companyId, access, payload.email);
+  return true;
 }
 
 /** يتحقق داخل المعاملة من سريان الدعوة وبريد وصلاحية الداعي أو عضوية المدعو تحت أقفال مشتركة. */
