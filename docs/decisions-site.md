@@ -60,10 +60,12 @@ curl -s -u "$PLAN_AUTH" "$B/api/doc?path=decisions/<docId>"
 # decision on Waleed's word, name the old choice in "source" so the history survives.
 # Do it as ONE GET that saves both the body you inspect and its ETag, so the ETag belongs to what you read.
 # Stop if the ETag is missing: an empty If-Match is dropped by curl, and a PUT without it writes unconditionally.
-curl -s -u "$PLAN_AUTH" -D decision.headers -o decision.json "$B/api/doc?path=decisions/<docId>"
-ETAG=$(tr -d '\r' < decision.headers | awk 'tolower($1)=="etag:"{print $2}')
+# Save them in a temp dir of this call only, so two sessions never read each other's body or ETag.
+D=$(mktemp -d); trap 'rm -rf "$D"' EXIT
+curl -s -u "$PLAN_AUTH" -D "$D/headers" -o "$D/body.json" "$B/api/doc?path=decisions/<docId>"
+ETAG=$(tr -d '\r' < "$D/headers" | awk 'tolower($1)=="etag:"{print $2}')
 [ -n "$ETAG" ] || { echo "no ETag, not writing"; exit 1; }
-# inspect decision.json (and Abu Salem's note) here; write only if the rule above allows it
+# inspect "$D/body.json" (and Abu Salem's note) here; write only if the rule above allows it
 # A 412 {"code":"stale"} means someone wrote in between; GET again and re-decide.
 curl -s -u "$PLAN_AUTH" -X PUT -H 'content-type: application/json' -H "If-Match: $ETAG" \
   -d '{"qid":"XX-Q1","choice":0,"decidedAt":"<ISO time>","source":"Waleed answered in chat, <date>"}' \
@@ -106,13 +108,22 @@ Every question is recorded as `PP-n` and asked directly to Waleed in the project
 # Waleed's pick from a card: a note under his user id, marked source "card" (choice = 0-based option index).
 # One GET saves the note you inspect and its ETag (a missing note has one too); stop if the ETag is empty.
 N="$B/api/doc?path=reviews/u_kxawXFcE2cQIRRqI4Cn8Iw/notes/<docId>"
-curl -s -u "$PLAN_AUTH" -D note.headers -o note.json "$N"
-ETAG=$(tr -d '\r' < note.headers | awk 'tolower($1)=="etag:"{print $2}')
+D=$(mktemp -d); trap 'rm -rf "$D"' EXIT   # this call's own files, never shared with another session
+curl -s -u "$PLAN_AUTH" -D "$D/headers" -o "$D/body.json" "$N"
+ETAG=$(tr -d '\r' < "$D/headers" | awk 'tolower($1)=="etag:"{print $2}')
 [ -n "$ETAG" ] || { echo "no ETag, not writing"; exit 1; }
-# inspect note.json here: write only when it does not exist or its source is "card" (below)
-curl -s -u "$PLAN_AUTH" -X PUT -H 'content-type: application/json' -H "If-Match: $ETAG" \
-  -d '{"qid":"XX-Q1","verdict":"ok","choice":0,"text":"<his words, verbatim>","source":"card","updatedAt":"<ISO time>"}' \
-  "$N"
+# inspect "$D/body.json" here: write only when it does not exist or its source is "card" (below)
+# Build the body with JSON.stringify, never by pasting his words into a JSON literal: a quote in them breaks it.
+# TEXT_FILE is a UTF-8 file holding his words verbatim (write it with an editor, not a shell echo).
+# Stop if the body was not built (a missing TEXT_FILE, say): an empty PUT must never be sent.
+BODY=$(node -e 'const fs = require("fs");
+  process.stdout.write(JSON.stringify({ qid: "XX-Q1", verdict: "ok", choice: 0,
+    text: fs.readFileSync(process.argv[1], "utf8").replace(/\r?\n$/, ""),
+    source: "card", updatedAt: new Date().toISOString() }));' "$TEXT_FILE") && [ -n "$BODY" ] ||
+  { echo "body not built, not writing"; exit 1; }
+printf '%s' "$BODY" |
+  curl -s -u "$PLAN_AUTH" -X PUT -H 'content-type: application/json' -H "If-Match: $ETAG" \
+    --data-binary @- "$N"
 ```
 
 Before the PUT, GET the note: write only when it does not exist (`{"exists":false}`) or its `source` is `"card"`. A note without `source` was made on the page by Waleed himself and is not overwritten. Since 2026-10-24 the API has a conditional write: `GET /api/doc` returns an `ETag` header (a missing document has one too), and a `PUT` that sends it as `If-Match` is refused with `412 {"code":"stale","etag":…}` and writes nothing when the document changed in between. Always send it, which closes the race #461 described: on a 412, GET again and apply the rule above to what is there now. A `PUT` without `If-Match` still writes unconditionally, so never omit it. Also record the card answer in the audit record (`owner-questions.ar.md` or `docs/owner-decisions.ar.md`) before the PUT, so it is never lost; and when Waleed says he picked something else on the page, his page pick wins, and you correct the record. When his card answer matches no option (free text), store it as `"verdict":"change"` with his words in `text` and no `choice`, so the page shows it as his own answer and not as agreement with the recommended option.
