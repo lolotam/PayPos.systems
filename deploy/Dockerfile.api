@@ -10,7 +10,8 @@ COPY . .
 RUN pnpm install --frozen-lockfile
 RUN pnpm turbo run build --filter=@pospay/api...
 RUN pnpm --filter @pospay/api deploy --prod --legacy /out/api \
- && pnpm --filter @pospay/db deploy --prod --legacy /out/migrate
+ && pnpm --filter @pospay/db deploy --prod --legacy /out/migrate \
+ && pnpm --filter @pospay/auth deploy --prod --legacy /out/ops
 
 # Migrations run as their own step before new containers start (plan T13): one-shot, exits when done.
 FROM node:24-alpine AS migrate
@@ -19,6 +20,24 @@ WORKDIR /app
 COPY --from=build --chown=node:node /out/migrate .
 USER node
 CMD ["node", "scripts/migrate.ts"]
+
+# Operator one-shots (G4, PR-E): `docker run --rm` containers for the TypeScript operator scripts, which Node 24 cannot
+# run from inside node_modules. /app holds @pospay/auth (scripts/create-user.ts, on AUTH_DATABASE_URL); /app/db holds
+# @pospay/db (scripts/platform-grant.ts, seed.ts, platform-commission-approval.ts, on MIGRATION_DATABASE_URL). Each tree
+# keeps its own node_modules, so the two packages' src/ never collide. No env value is baked in.
+FROM node:24-alpine AS ops
+ENV NODE_ENV=production
+WORKDIR /app
+COPY --from=build --chown=node:node /out/ops .
+COPY --from=build --chown=node:node /out/migrate ./db
+USER node
+# Non-destructive smoke: every script must load its TypeScript and fail with its own usage / missing-env message,
+# never a module or syntax error. No database is reached.
+RUN node scripts/create-user.ts 2>&1 | grep -q 'usage: --email' \
+ && node db/scripts/platform-grant.ts 2>&1 | grep -q 'MIGRATION_DATABASE_URL is not set' \
+ && node db/scripts/platform-commission-approval.ts 2>&1 | grep -q 'usage: --expires' \
+ && node db/scripts/seed.ts 2>&1 | grep -q 'MIGRATION_DATABASE_URL is not set'
+CMD ["node", "scripts/create-user.ts"]
 
 FROM node:24-alpine AS api
 ENV NODE_ENV=production API_HOST=0.0.0.0 API_PORT=3000

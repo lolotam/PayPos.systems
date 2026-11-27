@@ -128,6 +128,7 @@ A failed step blocks go-live. The drill is repeated after every Postgres major u
 - A new tool (pgBackRest) and a new image (`pospay-postgres`) enter the project; `CLAUDE.md` §10 gains the production
   topology line when PR-A merges.
 - Production and staging share only the server, Docker, Traefik and the application images.
+- Operator scripts (`create-user`, `platform-grant`, `seed`, `platform-commission-approval`) run from one more application image, `pospay-ops`, built from `deploy/Dockerfile.api` and tagged by SHA like the others; it is run with `docker run --rm` and is never a compose service; `seed` can also be run by hand from it, while the compose `seed` service keeps using `pospay-migrate` (PR-E; `docs/runbook.md`, «First-owner operator scripts»).
 - One server remains a single point of failure for availability. Recovery to another machine is possible from R2
   alone (base backup + WAL + the key), which is what the drill proves.
 - A Postgres image change is a deliberate, separate release with its own snapshot, never a side effect.
