@@ -5,7 +5,6 @@ import { Require, RequiresFeature } from '../../../shared/access.decorators.ts';
 import { actorOf } from '../../../shared/actor.ts';
 import { ApiError } from '../../../shared/errors.ts';
 import { Idempotency, requestFingerprint, type IdempotencyInput } from '../../../shared/idempotency.ts';
-import { SelectedCompanyGuard } from '../../../shared/selected-company.guard.ts';
 import { ZodValidationPipe } from '../../../shared/zod-validation.pipe.ts';
 import { SessionTipsCurrentQuery, SessionTipsReadError } from '../queries/session-tips-current.query.ts';
 import { SessionError } from '../use-cases/record-service-session/record-service-session.usecase.ts';
@@ -49,7 +48,7 @@ export class SessionTipsController {
   @Get(':sessionId/tips')
   @Require('record:service-sessions:branch', { branch: 'branchId' })
   @RequiresFeature('orders')
-  @UseGuards(SelectedCompanyGuard, SessionAdminGuard)
+  @UseGuards(SessionAdminGuard)
   async read(@Param('businessId', new ZodValidationPipe(pathId)) businessId: string,
     @Param('branchId', new ZodValidationPipe(pathId)) branchId: string,
     @Param('sessionId', new ZodValidationPipe(pathId)) sessionId: string,

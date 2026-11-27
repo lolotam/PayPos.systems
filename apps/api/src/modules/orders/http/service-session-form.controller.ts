@@ -42,7 +42,7 @@ export class ServiceSessionFormController {
   @Get('service-options')
   @Require('record:service-sessions:branch', { branch: 'branchId' })
   @RequiresFeature('orders')
-  @UseGuards(SelectedCompanyGuard, SessionAdminGuard)
+  @UseGuards(SessionAdminGuard)
   async services(@Param('businessId', new ZodValidationPipe(id.toLowerCase())) businessId: string,
     @Param('branchId', new ZodValidationPipe(id.toLowerCase())) branchId: string,
     @Query(new ZodValidationPipe(sessionServiceOptionsQuery)) query: SessionServiceOptionsQuery,

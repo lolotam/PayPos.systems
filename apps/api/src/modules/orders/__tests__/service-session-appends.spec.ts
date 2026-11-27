@@ -1,5 +1,6 @@
 import { afterAll, beforeAll, expect, it } from 'vitest';
 import { SYSTEM_ROLES } from '@pospay/db';
+import { SessionAppendGuard } from '../http/session-access.guard.ts';
 import { sessionFixture, ids, must, AT, type SessionFixture } from './session.fixture.ts';
 
 let f: SessionFixture;
@@ -126,4 +127,43 @@ it('delegated staff admin can record another performer; DENY and disabled/expire
   await f.h.owner`DELETE FROM company_feature_overrides WHERE company_id=${f.company} AND flag='orders'`;
   await f.h.owner`DELETE FROM permission_overrides WHERE company_id=${f.company} AND id=${grant}`;
   await f.h.owner`UPDATE memberships SET role_id=${cashier} WHERE company_id=${f.company} AND id=${f.membership}`;
+});
+
+it('SS-401 SessionAppendGuard checks input synchronously and forbidden append retry succeeds with the same key once granted', async () => {
+  const created = await create();
+  const guard = new SessionAppendGuard();
+  const guardResult = guard.canActivate({
+    switchToHttp: () => ({
+      getRequest: () => ({
+        principal: { kind: 'user', userId: f.userId, companyId: f.company },
+        params: { businessId: f.business, branchId: f.branch, sessionId: created.session.id },
+        body: { lines: [f.line()] },
+      }),
+    }),
+  } as Parameters<SessionAppendGuard['canActivate']>[0]);
+  expect(guardResult).toBe(true);
+
+  const staffRole = must(SYSTEM_ROLES.find((item) => item.code === 'staff')).id;
+  const otherEmail = 'append-401-caller@example.test';
+  await f.h.signedInOperator(otherEmail);
+  const users = await f.h.owner`SELECT id FROM "user" WHERE email=${otherEmail}`;
+  const callerId = must(users[0])['id'] as string;
+  const mem = ids.newId();
+  const allowId = ids.newId();
+  await f.h.owner`INSERT INTO memberships(company_id,id,user_id,role_id,role_owner_key,scope_type,scope_id,limit_bps,starts_at)
+    VALUES(${f.company},${mem},${callerId},${staffRole},'global','BRANCH',${f.branch},2000,'2026-01-01T00:00:00Z')`;
+  const key = ids.newId();
+  try {
+    await expect(add(created.session.id, [f.line()], { key, userId: callerId })).rejects.toThrow('FORBIDDEN');
+    expect(await f.h.owner`SELECT 1 FROM idempotency_keys WHERE company_id=${f.company} AND key=${key}`).toHaveLength(0);
+
+    await f.h.owner`INSERT INTO permission_overrides(company_id,id,membership_id,permission_code,effect,scope_type,scope_id,reason,granted_by)
+      VALUES(${f.company},${allowId},${mem},'record:service-sessions:branch','ALLOW','BRANCH',${f.branch},'Granted after 403',${f.ownerId})`;
+    const retried = await add(created.session.id, [f.line()], { key, userId: callerId });
+    expect(retried.added_lines).toHaveLength(1);
+    expect(retried.added_lines[0]?.recorded_by).toBe(callerId);
+  } finally {
+    await f.h.owner`DELETE FROM permission_overrides WHERE company_id=${f.company} AND id=${allowId}`;
+    await f.h.owner`UPDATE memberships SET ends_at='2026-01-02T00:00:00Z' WHERE company_id=${f.company} AND id=${mem}`;
+  }
 });
