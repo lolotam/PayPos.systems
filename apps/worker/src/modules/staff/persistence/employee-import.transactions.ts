@@ -1,6 +1,6 @@
 import {
   appendOutboxEvent,
-  assignEmployeeNumber,
+  assignEmployeeNumberBatch,
   EmployeeNumberExhaustedError,
   type IdGenerator,
   type TenantWrappers,
@@ -59,7 +59,7 @@ export function employeeImportTransactions(
           await work({
             preview: preview ?? null,
             branches: (businessId) => employeeImportBranches(tx, businessId),
-            assignEmployeeNumber: () => nextImportedNumber(tx, companyId),
+            assignEmployeeNumbers: (count) => nextImportedNumbers(tx, companyId, count),
             insert: (records) => insertEmployees(tx, companyId, ids, records),
             complete: (stored, records, at) => complete(tx, ids, stored, records, at),
           });
@@ -75,9 +75,13 @@ export function employeeImportTransactions(
 }
 
 // امتلاء النطاق يُرجع المعاملة كلها ويُفشل المعاينة بالرمز الموجود، من غير ما الـ use case يعرف خطأ قاعدة البيانات.
-async function nextImportedNumber(tx: Tx, companyId: string): Promise<number> {
+async function nextImportedNumbers(
+  tx: Tx,
+  companyId: string,
+  count: number,
+): Promise<readonly number[]> {
   try {
-    return await assignEmployeeNumber(tx, companyId);
+    return await assignEmployeeNumberBatch(tx, companyId, count);
   } catch (error) {
     if (error instanceof EmployeeNumberExhaustedError)
       throw new ImportCommitError('IMPORT_COMMIT_FAILED');

@@ -1,6 +1,12 @@
 /** أكبر رقم وظيفي مسموح (قرار المالك EN-Q8: رقم صحيح من 1 إلى 999999). */
 export const EMPLOYEE_NUMBER_MAX = 999999;
 
+/** نتيجة تخصيص دفعة أرقام وظيفية في الذاكرة: الأرقام المسنَدة وقيمة العدّاد التالية. */
+export interface EmployeeNumberBatch {
+  readonly numbers: readonly number[];
+  readonly nextCounter: number;
+}
+
 /**
  * يجد أول رقم وظيفي غير مستخدم عند العدّاد أو بعده.
  * القاعدة: التخطي يشمل كل رقم مستخدم (EN-Q6)، والرقم المكتوب بالإيد لا يحرّك العدّاد.
@@ -31,6 +37,36 @@ export function firstFreeEmployeeNumber(
  */
 export function nextEmployeeNumberCounter(assigned: number): number {
   return Math.min(assigned + 1, 1_000_000);
+}
+
+/**
+ * يخصّص دفعة أرقام وظيفية متتالية في الذاكرة انطلاقاً من العدّاد، متخطياً الأرقام المستخدمة.
+ * يطبّق نفس قواعد firstFreeEmployeeNumber وnextEmployeeNumberCounter صفاً بصف دون جولات SQL لكل صف.
+ *
+ * @param counter أول رقم يُفحص عند العدّاد
+ * @param count عدد الأرقام المطلوب تخصيصها بالترتيب
+ * @param usedAtOrAbove الأرقام المستخدمة فعلاً داخل الشركة من العدّاد فما فوق
+ * @returns الأرقام المسنَدة والعدّاد التالي، أو null إذا امتلأ النطاق قبل إتمام الدفعة
+ */
+export function allocateEmployeeNumberBatch(
+  counter: number,
+  count: number,
+  usedAtOrAbove: ReadonlySet<number> | readonly number[],
+): EmployeeNumberBatch | null {
+  if (!Number.isInteger(count) || count < 0) {
+    throw new RangeError('count must be a non-negative integer');
+  }
+  if (count === 0) return { numbers: [], nextCounter: counter };
+  const used: ReadonlySet<number> = 'has' in usedAtOrAbove ? usedAtOrAbove : new Set(usedAtOrAbove);
+  const numbers: number[] = [];
+  let cursor = counter;
+  for (let index = 0; index < count; index++) {
+    const assigned = firstFreeEmployeeNumber(cursor, used);
+    if (assigned === null) return null;
+    numbers.push(assigned);
+    cursor = nextEmployeeNumberCounter(assigned);
+  }
+  return { numbers, nextCounter: cursor };
 }
 
 /**

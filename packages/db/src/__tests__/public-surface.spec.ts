@@ -35,6 +35,7 @@ const PUBLIC_EXPORTS = [
   'assertReplayBounds',
   'assertStatementPeriodsOpen',
   'assignEmployeeNumber',
+  'assignEmployeeNumberBatch',
   'attendanceMonthlyInputsStatement',
   'attendanceReportContractsStatement',
   'attendanceStatementEmployeeCoverageStatement',

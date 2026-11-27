@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import {
   EMPLOYEE_NUMBER_MAX,
+  allocateEmployeeNumberBatch,
   employeeNumberCounterAfterStart,
   firstFreeEmployeeNumber,
   nextEmployeeNumberCounter,
@@ -116,4 +117,31 @@ describe('parseEmployeeNumber', () => {
       expect(parseEmployeeNumber(text)).toBeNull();
     },
   );
+});
+
+describe('allocateEmployeeNumberBatch', () => {
+  it('allocates zero items without advancing the counter', () => {
+    expect(allocateEmployeeNumberBatch(10, 0, [])).toEqual({ numbers: [], nextCounter: 10 });
+  });
+
+  it('allocates sequential numbers in memory and skips used numbers', () => {
+    expect(allocateEmployeeNumberBatch(10, 4, new Set([11, 13, 5]))).toEqual({
+      numbers: [10, 12, 14, 15],
+      nextCounter: 16,
+    });
+  });
+
+  it('caps nextCounter at 1000000 on 999999 and returns null when exhausted', () => {
+    expect(allocateEmployeeNumberBatch(999_998, 2, [])).toEqual({
+      numbers: [999_998, 999_999],
+      nextCounter: 1_000_000,
+    });
+    expect(allocateEmployeeNumberBatch(999_998, 3, [])).toBeNull();
+    expect(allocateEmployeeNumberBatch(999_997, 2, [999_998, 999_999])).toBeNull();
+  });
+
+  it('throws RangeError on negative or fractional count', () => {
+    expect(() => allocateEmployeeNumberBatch(1, -1, [])).toThrow(RangeError);
+    expect(() => allocateEmployeeNumberBatch(1, 1.5, [])).toThrow(RangeError);
+  });
 });
