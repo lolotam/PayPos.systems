@@ -1,14 +1,16 @@
 import { serviceLinePerformerChangesCursor, serviceLinePerformerChangesPage, serviceLinePerformerChangesQuery,
-  type ServiceLinePerformerChangesCursor, type ServiceLinePerformerChangesPage, type ServiceLinePerformerChangesQuery } from '@pospay/contracts';
+  type ServiceLinePerformerChangesPage, type ServiceLinePerformerChangesQuery } from '@pospay/contracts';
 import type { TenantWrappers } from '@pospay/db';
 import { editorLabel } from '@pospay/i18n';
 import { sql } from 'drizzle-orm';
-import { SessionDayReadError, type SessionDayAccess, type SessionDayScope } from './branch-day-service-sessions.query.ts';
+import { SessionDayReadError, type SessionDayAccess } from './branch-day-service-sessions.query.ts';
+import {
+  decodeLineHistoryCursor,
+  encodeLineHistoryCursor,
+  type ServiceLineHistoryScope,
+} from './service-line-history-cursor.ts';
 
-export interface ServiceLinePerformerChangesScope extends SessionDayScope {
-  sessionId: string;
-  lineId: string;
-}
+export type ServiceLinePerformerChangesScope = ServiceLineHistoryScope;
 type ChangeRow = {
   revision: number | null;
   changed_at: string | null;
@@ -17,22 +19,6 @@ type ChangeRow = {
   changer_role_is_system: boolean | null; changer_role_name_ar: string | null; changer_role_name_en: string | null;
   before_side: unknown; after_side: unknown;
 };
-function cursorScope(scope: ServiceLinePerformerChangesScope) {
-  return { v: 1 as const, company: scope.companyId, business: scope.businessId, branch: scope.branchId,
-    session: scope.sessionId, line: scope.lineId };
-}
-function decode(scope: ServiceLinePerformerChangesScope, query: ServiceLinePerformerChangesQuery): ServiceLinePerformerChangesCursor | null {
-  if (query.cursor === undefined) return null;
-  try {
-    const bytes = Buffer.from(query.cursor, 'base64url');
-    if (bytes.toString('base64url') !== query.cursor) throw new Error();
-    const cursor = serviceLinePerformerChangesCursor.parse(JSON.parse(bytes.toString('utf8')));
-    const expected = cursorScope(scope);
-    if (cursor.company === expected.company && cursor.business === expected.business && cursor.branch === expected.branch &&
-      cursor.session === expected.session && cursor.line === expected.line) return cursor;
-  } catch { /* بيانات المؤشر لا تدخل التشخيصات. */ }
-  throw new SessionDayReadError('VALIDATION_FAILED');
-}
 const changedAt = sql`to_char(hist.changed_at AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.US"Z"')`;
 // جانب واحد من التغيير: الاسم والنسبة فقط، بلا معرّف الموظف ولا رابط المستخدم ولا التحذيرات (FR-016).
 function side(which: 'BEFORE' | 'AFTER') {
@@ -42,7 +28,7 @@ function side(which: 'BEFORE' | 'AFTER') {
 }
 // شاشة سجل تغيير منفّذي سطر محفوظ لمن يملك read:service-sessions:branch؛ السبب وهوية اللي غيّر المنفّذين بيرجعوا هنا بس (D-7).
 export function serviceLinePerformerChangesStatement(scope: ServiceLinePerformerChangesScope, query: ServiceLinePerformerChangesQuery) {
-  const cursor = decode(scope, query);
+  const cursor = decodeLineHistoryCursor(scope, query.cursor, (value) => serviceLinePerformerChangesCursor.parse(value));
   const older = cursor === null ? sql`true` : sql`c.revision<${cursor.revision}`;
   return sql`WITH scoped AS (
     SELECT l.company_id,l.business_id,l.id FROM service_lines l
@@ -85,8 +71,8 @@ export class ServiceLinePerformerChangeHistoryQuery {
       const present = rows.filter((row) => row.revision !== null);
       const items = present.slice(0, query.limit).map(toItem);
       const last = items[items.length - 1];
-      return serviceLinePerformerChangesPage.parse({ items, next_cursor: present.length > query.limit && last !== undefined
-        ? Buffer.from(JSON.stringify({ ...cursorScope(scope), revision: last.revision })).toString('base64url') : null });
+      return serviceLinePerformerChangesPage.parse({ items, next_cursor: present.length > query.limit && last !== undefined && last.revision !== null
+        ? encodeLineHistoryCursor(scope, last.revision) : null });
     }, { userId: scope.userId });
   }
 }

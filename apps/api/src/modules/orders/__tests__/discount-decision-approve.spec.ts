@@ -301,3 +301,18 @@ it('orders feature off returns 403 FEATURE_DISABLED', async () => {
     await f.h.owner`DELETE FROM company_feature_overrides WHERE company_id = ${f.company} AND flag = 'orders'`;
   }
 });
+
+it('#966 idempotent replay of approve succeeds when the approver later gains a second eligible membership', async () => {
+  const proposal = await requestSingleProposal(f);
+  const key = ids.newId();
+  const input = { proposal_ids: [proposal.id], terms_hashes: [proposal.terms_hash] };
+  const first = await decide.execute({ ...decideContext(f, f.editorId, { key }), decision: 'APPROVE', input });
+  expect(first.proposals[0]?.status).toBe('APPROVED');
+  const secondMem = await insertSecondEligibleMembership(f, f.editorId);
+  try {
+    const replay = await decide.execute({ ...decideContext(f, f.editorId, { key }), decision: 'APPROVE', input });
+    expect(replay).toEqual(first);
+  } finally {
+    await endMembership(f, secondMem);
+  }
+});

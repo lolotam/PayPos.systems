@@ -4,7 +4,6 @@ import type { FastifyRequest } from 'fastify';
 import { Require, RequiresFeature } from '../../../shared/access.decorators.ts';
 import { actorOf } from '../../../shared/actor.ts';
 import { ApiError } from '../../../shared/errors.ts';
-import { SelectedCompanyGuard } from '../../../shared/selected-company.guard.ts';
 import { ZodValidationPipe } from '../../../shared/zod-validation.pipe.ts';
 import { SessionRecoveryQuery, SessionRecoveryReadError } from '../queries/session-recovery.query.ts';
 import { SessionError } from '../use-cases/record-service-session/record-service-session.usecase.ts';
@@ -37,7 +36,7 @@ export class SessionRecoveryController {
   @Header('Cache-Control', 'no-store')
   @Require('record:service-sessions:branch', { branch: 'branchId' })
   @RequiresFeature('orders')
-  @UseGuards(SelectedCompanyGuard, SessionAdminGuard)
+  @UseGuards(SessionAdminGuard)
   async read(@Param('businessId', new ZodValidationPipe(pathId)) businessId: string,
     @Param('branchId', new ZodValidationPipe(pathId)) branchId: string,
     @Query(new ZodValidationPipe(serviceSessionRecoveryQuery)) query: ServiceSessionRecoveryQuery,
@@ -53,7 +52,7 @@ export class SessionRecoveryController {
   @HttpCode(204)
   @Require('record:service-sessions:branch', { branch: 'branchId' })
   @RequiresFeature('orders')
-  @UseGuards(SelectedCompanyGuard, SessionAdminGuard)
+  @UseGuards(SessionAdminGuard)
   async confirm(@Param('businessId', new ZodValidationPipe(pathId)) businessId: string,
     @Param('branchId', new ZodValidationPipe(pathId)) branchId: string,
     @Body(new ZodValidationPipe(confirmSessionRecoveryBody)) body: ConfirmSessionRecoveryBody,

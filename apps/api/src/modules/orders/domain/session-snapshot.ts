@@ -30,6 +30,7 @@ export function sessionLineSnapshot(line: SessionLine) {
       name_en: p.employee.name_en, name_ar: p.employee.name_ar, share_bps: p.share_bps,
       not_clocked_in_warning: p.not_clocked_in_warning, approved_leave_warning: p.approved_leave_warning })),
     recorded_by: line.recorded_by, recorded_by_membership_id: line.recorded_by_membership_id, recorded_at: line.recorded_at.toISOString(), late: line.late,
+    ...(line.edited ? { edited: true as const } : {}),
     ...(line.discount_proposal_id === undefined ? {} : { discount_proposal_id: line.discount_proposal_id }),
   };
 }

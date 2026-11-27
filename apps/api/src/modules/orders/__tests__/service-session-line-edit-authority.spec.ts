@@ -228,7 +228,91 @@ it('a failed history insert hides the typed reason and writes nothing', async ()
   expect(line).toMatchObject({ revision: 1 });
 });
 
+it('LE-19b revoking sibling branch read while waiting for the access lock narrows the response', async () => {
+  const visit = await recorded(f, '25.000', '0.000');
+  const email = 'session-le19b-editor@example.test';
+  await f.h.signedInOperator(email);
+  const users = await f.h.owner`SELECT id FROM "user" WHERE email=${email}`;
+  const userId = must(users[0])['id'] as string;
+  const editRole = ids.newId();
+  const readRole = ids.newId();
+  const editMem = ids.newId();
+  const readMem = ids.newId();
+  await f.h.owner`INSERT INTO roles(id,company_id,code,name_en) VALUES
+    (${editRole},${f.company},'le_narrow_editor','LE narrow editor'),
+    (${readRole},${f.company},'le_narrow_reader','LE narrow reader')`;
+  await f.h.owner`INSERT INTO role_permissions(role_id,role_owner_key,company_id,permission_code) VALUES
+    (${editRole},${f.company},${f.company},'edit:service-line-prices:branch'),
+    (${readRole},${f.company},${f.company},'read:service-sessions:branch')`;
+  await f.h.owner`INSERT INTO memberships(company_id,id,user_id,role_id,role_owner_key,scope_type,scope_id,limit_bps,starts_at) VALUES
+    (${f.company},${editMem},${userId},${editRole},${f.company},'BRANCH',${f.branch},10000,'2026-01-01T00:00:00Z'),
+    (${f.company},${readMem},${userId},${readRole},${f.company},'BRANCH',${f.branch},10000,'2026-01-01T00:00:00Z')`;
+  let release!: () => void;
+  const released = new Promise<void>((resolve) => { release = resolve; });
+  let locked!: () => void;
+  const acquired = new Promise<void>((resolve) => { locked = resolve; });
+  const blocker = f.h.owner.begin(async (tx) => {
+    await tx`SELECT id FROM memberships WHERE company_id=${f.company} AND id=${readMem} FOR UPDATE`;
+    locked();
+    await released;
+    await tx`UPDATE memberships SET ends_at='2026-01-02T00:00:00Z' WHERE company_id=${f.company} AND id=${readMem}`;
+  });
+  let editResult: Promise<unknown> | undefined;
+  try {
+    await acquired;
+    editResult = runEdit(f, visit.sessionId, visit.lineId, editBody({ price: '26.000', discount: amount('0.000'), editor_membership_id: editMem }), { userId });
+    await waitForRowLock(f);
+    release();
+    await blocker;
+    const response = await editResult;
+    expect(response).toEqual({ saved: true, edited: true });
+    expect((await editRows(f, visit.sessionId, visit.lineId)).line).toMatchObject({ revision: 2, price: '26.000' });
+  } finally {
+    release();
+    await blocker.catch(() => undefined);
+    await editResult?.catch(() => undefined);
+    await f.h.owner`UPDATE memberships SET ends_at='2026-01-02T00:00:00Z' WHERE company_id=${f.company} AND id IN (${editMem}, ${readMem})`;
+  }
+});
+
+it('FR-014 active owner ignores sibling DENY overrides on read and edit and keeps the full shape', async () => {
+  const visit = await recorded(f, '25.000', '0.000');
+  const sibling = ids.newId();
+  const readDeny = ids.newId();
+  const editDeny = ids.newId();
+  await f.h.owner`INSERT INTO memberships(company_id,id,user_id,role_id,role_owner_key,scope_type,scope_id,limit_bps,starts_at)
+    VALUES(${f.company},${sibling},${f.ownerId},${managerRole},'global','BRANCH',${f.branch},2000,'2026-01-01T00:00:00Z')`;
+  await f.h.owner`INSERT INTO permission_overrides(company_id,id,membership_id,permission_code,effect,scope_type,scope_id,reason,granted_by) VALUES
+    (${f.company},${readDeny},${sibling},'read:service-sessions:branch','DENY','COMPANY',${f.company},'Legacy sibling read deny',${f.ownerId}),
+    (${f.company},${editDeny},${sibling},'edit:service-line-prices:branch','DENY','COMPANY',${f.company},'Legacy sibling edit deny',${f.ownerId})`;
+  try {
+    const response = await runEdit(
+      f,
+      visit.sessionId,
+      visit.lineId,
+      editBody({ price: '26.000', discount: amount('0.000'), editor_membership_id: f.ownerMembership }),
+      { userId: f.ownerId },
+    );
+    expect(response).toMatchObject({ line: { revision: 2, price: '26.000', edited: true }, session: { id: visit.sessionId } });
+  } finally {
+    await f.h.owner`DELETE FROM permission_overrides WHERE company_id=${f.company} AND id IN (${readDeny}, ${editDeny})`;
+    await f.h.owner`UPDATE memberships SET ends_at='2026-01-02T00:00:00Z' WHERE company_id=${f.company} AND id=${sibling}`;
+  }
+});
+
 const managerRole = must(SYSTEM_ROLES.find((role) => role.code === 'branch_manager')).id;
+
+async function waitForRowLock(f: EditFixture) {
+  const observer = postgres(f.h.ownerUrl, { max: 1, onnotice: () => undefined });
+  const start = Date.now();
+  try {
+    while (Date.now() - start < 3000) {
+      await new Promise((resolve) => setTimeout(resolve, 40));
+      const [row] = await observer`SELECT count(*)::int AS waiting FROM pg_stat_activity WHERE datname=current_database() AND wait_event_type='Lock'`;
+      if (Number(row?.['waiting'] ?? 0) >= 1) return;
+    }
+  } finally { await observer.end(); }
+}
 
 async function waitForAdvisory(f: EditFixture, needed: number) {
   const observer = postgres(f.h.ownerUrl, { max: 1, onnotice: () => undefined });
