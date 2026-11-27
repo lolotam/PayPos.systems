@@ -77,6 +77,9 @@ export type AdditionalStaffBranchesResolution =
  * يسوّي الفروع الإضافية المطلوبة قبل أي كتابة: الفرع الأساسي بنفس دوره بيتدمج (مش صف زيادة)،
  * والفرع نفسه بدورين مختلفين مرفوض، والتكرار بنفس الدور بيتخطى.
  *
+ * معرّف الفرع بيتطبّع لحروف صغيرة قبل المقارنة والدمج، لأن UUID في القاعدة مش حساس لحالة
+ * الأحرف: طلب فيه الفرع نفسه مكتوب بحرف كبير هو نفس الفرع، فلازم يتدمج أو يترفض بنفس القاعدة.
+ *
  * @param primaryBranchId الفرع الأساسي للموظفة
  * @param primaryRole      دور الطلب على الفرع الأساسي
  * @param additionalBranches الفروع الإضافية المطلوبة كما وصلت
@@ -87,15 +90,17 @@ export function resolveAdditionalStaffBranches(
   primaryRole: 'staff' | 'reception',
   additionalBranches: readonly StaffAccessBranchAssignment[] | undefined,
 ): AdditionalStaffBranchesResolution {
+  const primary = primaryBranchId.toLowerCase();
   const seen = new Map<string, 'staff' | 'reception'>();
   for (const entry of additionalBranches ?? []) {
-    if (entry.branchId === primaryBranchId) {
+    const branchId = entry.branchId.toLowerCase();
+    if (branchId === primary) {
       if (entry.role !== primaryRole) return { ok: false, refusal: 'STAFF_ACCESS_NOT_ALLOWED' };
       continue;
     }
-    const previous = seen.get(entry.branchId);
+    const previous = seen.get(branchId);
     if (previous === undefined) {
-      seen.set(entry.branchId, entry.role);
+      seen.set(branchId, entry.role);
       continue;
     }
     if (previous !== entry.role) return { ok: false, refusal: 'STAFF_ACCESS_NOT_ALLOWED' };
@@ -110,6 +115,8 @@ export function resolveAdditionalStaffBranches(
  * يقارن الفروع الإضافية المحفوظة بالمطلوبة بعد الترتيب: نفس العدد ونفس (فرع، دور) في كل موضع.
  * بترتيب مفتاح عشان ترتيب الطلب ما يغيّرش النتيجة.
  *
+ * المقارنة على معرّف الفرع مطبّع لحروف صغيرة، لأن UUID في القاعدة مش حساس لحالة الأحرف.
+ *
  * @param saved     الفروع المحفوظة في السجل
  * @param requested الفروع المطلوبة في الطلب
  * @returns true لو الاتنين متطابقين
@@ -120,7 +127,9 @@ export function sameAdditionalStaffBranches(
 ): boolean {
   if (saved.length !== requested.length) return false;
   const byBranch = (list: readonly StaffAccessBranchAssignment[]) =>
-    [...list].sort((a, b) => a.branchId.localeCompare(b.branchId));
+    [...list]
+      .map((entry) => ({ branchId: entry.branchId.toLowerCase(), role: entry.role }))
+      .sort((a, b) => a.branchId.localeCompare(b.branchId));
   const left = byBranch(saved);
   const right = byBranch(requested);
   return left.every(

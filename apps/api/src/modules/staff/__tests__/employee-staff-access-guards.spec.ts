@@ -9,6 +9,7 @@ import {
   grantPath,
   nextPhone,
   staffAccessFixture,
+  staffUsersOf,
   type Fixture,
 } from '../../../../test/staff-access.fixture.ts';
 import { Authenticated } from '../../../shared/access.decorators.ts';
@@ -231,4 +232,41 @@ it('AC-ACT-11 a cancel without authority answers the same refusal with and witho
   expect(
     await f.h.owner`SELECT id FROM employee_staff_access WHERE employee_id = ${withRecord}`,
   ).toHaveLength(1);
+});
+
+// GR-003: فرع مؤرشف ما بياخدش دخول — القايمة بتفرشه على السيرفر كمان.
+it('080-b an archived extra branch is refused and writes nothing', async () => {
+  const employee = await addEmployee(f, 'Archived branch', f.salmiya, 43);
+  await f.h.owner`UPDATE branches SET is_active=false WHERE company_id=${f.company} AND id=${f.hawalli}`;
+  try {
+    const usersBefore = (await staffUsersOf(f)).length;
+    const response = await grant(f, employee, nextPhone(f), f.ownerCookie, {
+      additional_branches: [{ branch_id: f.hawalli, role: 'staff' }],
+    });
+    expect(response).toMatchObject({ status: 403, body: { code: 'STAFF_ACCESS_NOT_ALLOWED' } });
+    expect(
+      await f.h.owner`SELECT id FROM employee_staff_access WHERE employee_id = ${employee}`,
+    ).toHaveLength(0);
+    expect((await staffUsersOf(f)).length).toBe(usersBefore);
+  } finally {
+    await f.h.owner`UPDATE branches SET is_active=true WHERE company_id=${f.company} AND id=${f.hawalli}`;
+  }
+});
+
+// المانح لازم يكون عنده السلطة على كل فرع زيادة للموظفة، وإلا يقدر يوقف موظفة على فرع مش مسؤول عنه.
+it('080-b a manager without authority on the extra branch cannot stop the access', async () => {
+  const employee = await addEmployee(f, 'Guarded stop', f.salmiya, 44);
+  await grant(f, employee, nextPhone(f), f.ownerCookie, {
+    additional_branches: [{ branch_id: f.hawalli, role: 'staff' }],
+  });
+  const [record] = await f.h.owner`SELECT user_id FROM employee_staff_access WHERE employee_id = ${employee}`;
+  const response = await f.h.send('DELETE', grantPath(f, employee), {
+    cookie: f.managerCookie,
+    company: f.company,
+  });
+  expect(response).toMatchObject({ status: 403, body: { code: 'STAFF_ACCESS_NOT_ALLOWED' } });
+  const memberships = await f.h.owner`SELECT ends_at FROM memberships
+    WHERE company_id=${f.company} AND user_id=${record?.user_id}`;
+  expect(memberships).toHaveLength(2);
+  expect(memberships.every((row) => row['ends_at'] === null)).toBe(true);
 });

@@ -242,7 +242,12 @@ it('080-b an inline permission override is written with the grant', async () => 
   expect(overrides).toEqual([
     { permission_code: 'read:attendance:branch', effect: 'DENY', scope_id: f.hawalli },
   ]);
-  const audits = await f.h.owner`SELECT action FROM audit_log WHERE entity='permission_override'`;
+  // تدقيق الاستثناء مقصور على شركة هذه الموظفة وعضوياتها، فمش متعلق بترتيب الصفوف.
+  const audits = await f.h.owner`SELECT action FROM audit_log
+    WHERE company_id=${f.company} AND entity='permission_override' AND entity_id IN (
+      SELECT id FROM permission_overrides WHERE company_id=${f.company} AND membership_id IN (
+        SELECT id FROM memberships WHERE company_id=${f.company} AND user_id=${access?.['user_id']}))
+    ORDER BY action`;
   expect(audits.map((row) => row['action'])).toEqual(['permission.granted']);
 });
 

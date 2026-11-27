@@ -53,6 +53,23 @@ synchronous cross-module write; this is the second and last, one row per symbol 
 `docs/module-map.md` §3.1/§6. An event cannot serve: the grant must refuse on the employee lock and end
 in one observable final state per operation id.
 
+**4a. (080-b.) The multi-branch grant.** One tenant table carries the extra branches of a grant
+(`employee_staff_access_branches`, migration `0271`), and the grant writes one membership per branch
+inside the same transaction as the primary one. Three identity entry points sit beside the ones
+decision 4 already names, all reached through identity's `index.ts`:
+
+- `endExtraStaffMembership` ends **one** extra-branch membership without clearing the account PIN, so
+  stopping access closes every branch without clearing the PIN twice.
+- `applyStaffAccessOverrides` writes the inline permission exceptions in the same transaction as the
+  memberships; the first refused exception aborts the whole grant, so no half-written exception set
+  survives.
+- `moveStaffMembershipToBranch` re-homes the **active** overrides onto the new primary membership and
+  writes a `permission.transferred` audit row per moved override: a `DENY` scoped to the company or the
+  business moves (it still covers the unchanged extra branches), and every active override of the merged
+  extra branch moves (a `DENY` always, an `ALLOW` only when the new role may hold that permission). The
+  branch-scoped overrides of the old primary stay on the old membership and end with it (AC-F3-3), and
+  expired history never moves.
+
 **5. Activation gate and rollback floor (plan §1.1).** Nothing in this slice is reachable in production
 until all five PRs merged: every new route answers 503 `NOT_READY` unless the API started with
 `STAFF_ACCESS_ROUTES=on`, read once at startup. Until F2 lands, a manager-set PIN is stored temporary
@@ -62,6 +79,13 @@ compare first, then charge a failed attempt to the same user counter and refuse.
 `employee_staff_access` holds a row, the API does not roll back below the PR that wrote it: an older API
 would read only the PIN hash and accept a temporary or expired PIN. The floor is checked by a read-only
 count before any rollback.
+
+**5a. The multi-branch rollback floor (0271).** The floor of decision 5 moves with the multi-branch
+tables: the API does not roll back below the PR that wrote `employee_staff_access_branches` (`0271`)
+either, because an older API ends the primary membership only (`endStaffMembership`) and leaves every
+extra-branch membership running — the employee keeps the access of the branches the older API cannot
+see. The same read-only count therefore covers both tables, and rolling back below `080-b` is refused
+while any grant holds an extra branch.
 
 **6. A staff user is a separate kind of account (D8).** No credential account; the synthetic email is
 `staff-<operation_id>@staff.pospay.invalid` (reserved domain, never derived from the phone). Every

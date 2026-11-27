@@ -80,18 +80,43 @@ export function createStaffAccessCancelUser(auth: AuthFacadeForStaffAccess) {
 /**
  * فحص `manage:staff-access:branch` على فرع محدد جوه معاملة الشركة — نفس القاعدة للإلغاء
  * وإعادة الضبط، عشان سحب الصلاحية أثناء المعاملة ما يعديش في أي منهم.
+ *
+ * مع الفروع الإضافية (080-b): لو الموظفة معطاة فروع زيادة، لازم المانح يكون عنده السلطة على
+ * كل فرع من دول كمان — وإلا يقدر يوقف أو يلغي موظفة على فرع هو مش مسؤول عنه. الفحص مابيشترط
+ * إن الفرع نشط، عشان مالك الشركة يفضل يقدر يوقف موظفة فرعها الإضافي اتؤرشف.
+ *
+ * @param tx         معاملة الشركة
+ * @param actor      الشركة والمانح من الجلسة
+ * @param employeeId الموظفة — لو معطاة بيتفحص كل فرع زيادة ليها
  */
 export function staffAccessAuthority(
   tx: Tx,
   actor: StaffAccessActor,
+  employeeId?: string | undefined,
 ): (businessId: string, branchId: string) => Promise<boolean> {
-  return (businessId, branchId) =>
-    readStaffAccessAuthority(tx, {
+  return async (businessId, branchId) => {
+    const allowed = await readStaffAccessAuthority(tx, {
       companyId: actor.companyId,
       actorUserId: actor.userId,
       businessId,
       branchId,
     });
+    if (!allowed) return false;
+    if (employeeId === undefined) return true;
+    const extras = await tx.execute<{ branch_id: string }>(sql`
+      SELECT DISTINCT branch_id FROM employee_staff_access_branches
+      WHERE company_id=${actor.companyId} AND employee_id=${employeeId}`);
+    for (const extra of extras) {
+      const extraAllowed = await readStaffAccessAuthority(tx, {
+        companyId: actor.companyId,
+        actorUserId: actor.userId,
+        businessId,
+        branchId: extra.branch_id,
+      });
+      if (!extraAllowed) return false;
+    }
+    return true;
+  };
 }
 
 function cancelScope(
@@ -106,7 +131,7 @@ function cancelScope(
       if (!(await lockCompanyRow(tx, actor.companyId))) return { employee: null, record: null };
       return lockRecordWithEmployee(tx, actor.companyId, input);
     },
-    authority: staffAccessAuthority(tx, actor),
+    authority: staffAccessAuthority(tx, actor, input.employeeId),
     actorIsOwner: async () => {
       const rows = await tx.execute(sql`SELECT 1 FROM memberships
         WHERE company_id=${actor.companyId} AND user_id=${actor.userId}
@@ -239,7 +264,7 @@ function resetPinScope(
   return {
     lockCompany: () => lockCompanyRow(tx, actor.companyId),
     lock: () => lockRecordWithEmployee(tx, actor.companyId, input),
-    authority: staffAccessAuthority(tx, actor),
+    authority: staffAccessAuthority(tx, actor, input.employeeId),
     saveTemporaryPin: (userId, pinHash) =>
       saveResetPinAndAudit(tx, {
         actor,

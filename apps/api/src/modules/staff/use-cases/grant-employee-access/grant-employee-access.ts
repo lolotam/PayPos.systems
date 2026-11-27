@@ -22,6 +22,7 @@ import {
   type StaffAccessGrantAdmission,
 } from '../../ports/staff-access-admission.port.ts';
 import type { Clock } from '../../../../shared/ports/clock.port.ts';
+import { canonicalOverrideKey } from './override-binding.ts';
 
 export { StaffAccessError };
 
@@ -42,6 +43,13 @@ export type GrantEmployeeAccessResult = {
 
 /** بيُنجز «إعطاء دخول» لموظفة على فرعها الأساسي بخطوات قابلة للاستئناف بمعرّف العملية (FR-F1-6). */
 export class GrantEmployeeAccessUseCase {
+  /**
+   * استثناءات الصلاحيات المربوطة بكل محاولة منحة: معرّف المحاولة ← بصمة الاستثناءات.
+   * الطلب اللي يستأنف محاولة معلّقة لازم يجيب نفس الاستثناءات — تغييرها في نص المحاولة
+   * مرفوض عشان الاستثناء اللي اتكتب في محاولة ما يتقارنش بعرض تاني.
+   */
+  readonly #attemptOverrides = new Map<string, string>();
+
   constructor(
     private readonly steps: GrantEmployeeAccessSteps,
     private readonly users: StaffAccessUserSteps,
@@ -126,6 +134,10 @@ export class GrantEmployeeAccessUseCase {
           phoneHash: scope.phoneHash(command.phone),
           extraBranches,
         });
+        this.#attemptOverrides.set(
+          inserted.attemptId,
+          canonicalOverrideKey(command.permissionOverrides),
+        );
         return { record: inserted, employee };
       },
     );
@@ -160,6 +172,7 @@ export class GrantEmployeeAccessUseCase {
     record: BeginRecord,
     extraBranches: readonly StaffAccessBranchAssignment[],
   ): Promise<GrantBeginOutcome> {
+    const canonical = canonicalOverrideKey(command.permissionOverrides);
     if (record.state === 'STOPPED') {
       const restarted = await scope.restartRecord(record.id, {
         phoneHash: scope.phoneHash(command.phone),
@@ -167,8 +180,14 @@ export class GrantEmployeeAccessUseCase {
         branchId: employee.primaryBranchId,
         extraBranches,
       });
+      // المحاولة الجديدة بتاخد بصمة الاستثناءات الجديدة، وبصمة المحاولة القديمة بتتشال.
+      this.#attemptOverrides.delete(record.attemptId);
+      this.#attemptOverrides.set(restarted.attemptId, canonical);
       return { record: restarted, employee };
     }
+    const bound = this.#attemptOverrides.get(record.attemptId);
+    if (bound !== undefined && bound !== canonical)
+      throw new StaffAccessError('STAFF_ACCESS_NOT_ALLOWED');
     const phoneMatches = scope.phoneHash(command.phone) === record.phoneHash;
     const roleMatches = record.roleCode === command.role;
     const branchMatches = record.branchId === employee.primaryBranchId;
@@ -256,8 +275,10 @@ export class GrantEmployeeAccessUseCase {
     } catch (error) {
       if (!(error instanceof StaffAccessError) || error.code !== 'STAFF_ACCESS_PHONE_TAKEN')
         throw error;
-      if (await this.#noAccountWritten(record))
+      if (await this.#noAccountWritten(record)) {
         await scope.releaseAttempt(record.id, record.attemptId);
+        this.#attemptOverrides.delete(record.attemptId);
+      }
       return null;
     }
   }
@@ -280,7 +301,7 @@ export class GrantEmployeeAccessUseCase {
     pinHash: string,
   ): Promise<GrantCommitOutcome> {
     const actor: StaffAccessActor = { companyId: command.companyId, userId: command.userId };
-    return this.steps.commit(
+    const outcome = await this.steps.commit(
       actor,
       {
         businessId: command.businessId,
@@ -291,6 +312,9 @@ export class GrantEmployeeAccessUseCase {
       },
       (scope) => this.#commitWork(scope, { command, begin, userId, pinHash }),
     );
+    // المحاولة خلصت: بصمة الاستثناءات بتتشال من الخريطة.
+    this.#attemptOverrides.delete(begin.record.attemptId);
+    return outcome;
   }
 
   async #commitWork(
@@ -313,12 +337,14 @@ export class GrantEmployeeAccessUseCase {
       throw new StaffAccessError('STAFF_ACCESS_NOT_ALLOWED');
     if (!(await scope.authority(employee.businessId, employee.primaryBranchId)))
       throw new StaffAccessError('STAFF_ACCESS_NOT_ALLOWED');
+    // التكرار الناجح بيتقفل قبل فحص الفروع الإضافية (080-b): الطلب المكرر لنفس المحاولة
+    // بيرد بنفس النتيجة من غير ما يتأثر بسلطة فرع إضافي اتغيّر.
+    const already = this.#alreadyOutcome(record, begin);
+    if (already !== null) return already;
     // سلطة المانح على كل فرع إضافي بتفحص جوّه نفس المعاملة (080-b).
     for (const extra of extraBranches)
       if (!(await scope.authority(employee.businessId, extra.branchId)))
         throw new StaffAccessError('STAFF_ACCESS_NOT_ALLOWED');
-    const already = this.#alreadyOutcome(record, begin);
-    if (already !== null) return already;
     this.#assertPendingRecord(record, begin, employee);
     const memberships = await this.#grantMemberships(scope, command, userId, employee, record, extraBranches);
     if (employee.userId !== userId) await scope.linkEmployee(userId);

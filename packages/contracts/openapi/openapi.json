@@ -26116,7 +26116,7 @@
                     "pattern": "^(?:[A-Za-z0-9_'+\\-]+\\.)*[A-Za-z0-9_'+\\-]*[A-Za-z0-9_+-]@(?:[A-Za-z0-9][A-Za-z0-9\\-]*\\.)+[A-Za-z]{2,}$"
                   },
                   "additional_branches": {
-                    "maxItems": 50,
+                    "maxItems": 20,
                     "type": "array",
                     "items": {
                       "type": "object",
@@ -26142,7 +26142,7 @@
                     }
                   },
                   "permission_overrides": {
-                    "maxItems": 100,
+                    "maxItems": 20,
                     "type": "array",
                     "items": {
                       "type": "object",

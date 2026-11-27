@@ -111,6 +111,35 @@ describe('resolveAdditionalStaffBranches', () => {
   });
 });
 
+// UUID في القاعدة مش حساس لحالة الأحرف، فالمقارنة في الدومين بتطبّعه قبل الدمج والرفض.
+describe('resolveAdditionalStaffBranches with a mixed-case branch id', () => {
+  it('merges the primary branch written with a different letter case', () => {
+    const resolved = resolveAdditionalStaffBranches('B1', 'staff', [branch('b1', 'staff')]);
+    expect(resolved).toEqual({ ok: true, branches: [] });
+  });
+
+  it('refuses the primary branch written with a different letter case and another role', () => {
+    const resolved = resolveAdditionalStaffBranches('B1', 'staff', [branch('b1', 'reception')]);
+    expect(resolved).toEqual({ ok: false, refusal: 'STAFF_ACCESS_NOT_ALLOWED' });
+  });
+
+  it('drops a repeated extra branch written with a different letter case', () => {
+    const resolved = resolveAdditionalStaffBranches('b1', 'staff', [
+      branch('B2', 'reception'),
+      branch('b2', 'reception'),
+    ]);
+    expect(resolved).toEqual({ ok: true, branches: [{ branchId: 'b2', role: 'reception' }] });
+  });
+
+  it('refuses a repeated extra branch written with a different letter case and another role', () => {
+    const resolved = resolveAdditionalStaffBranches('b1', 'staff', [
+      branch('B2', 'reception'),
+      branch('b2', 'staff'),
+    ]);
+    expect(resolved).toEqual({ ok: false, refusal: 'STAFF_ACCESS_NOT_ALLOWED' });
+  });
+});
+
 describe('sameAdditionalStaffBranches', () => {
   it('ignores the order of the two lists', () => {
     expect(
@@ -128,6 +157,21 @@ describe('sameAdditionalStaffBranches', () => {
     ).toBe(false);
     expect(
       sameAdditionalStaffBranches([branch('b2', 'staff')], [branch('b2', 'reception')]),
+    ).toBe(false);
+  });
+
+  it('matches across a different letter case in the branch id', () => {
+    expect(
+      sameAdditionalStaffBranches(
+        [branch('B2', 'staff'), branch('b3', 'reception')],
+        [branch('b3', 'reception'), branch('b2', 'staff')],
+      ),
+    ).toBe(true);
+  });
+
+  it('refuses a different role even when the branch id differs only in letter case', () => {
+    expect(
+      sameAdditionalStaffBranches([branch('B2', 'staff')], [branch('b2', 'reception')]),
     ).toBe(false);
   });
 });

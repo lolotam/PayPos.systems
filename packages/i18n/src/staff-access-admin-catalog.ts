@@ -48,6 +48,9 @@ export const staffAccessAdminEn = {
   addExtraBranch: 'Add a branch',
   removeExtraBranch: 'Remove the branch',
   extraBranchesSamePrimaryHint: 'The primary branch with the same role is already granted — no extra row needed.',
+  extraBranchesLimit: 'Up to 20 extra branches can be added.',
+  inlineOverridesLimit: 'Up to 20 permission exceptions can be added.',
+  overrideDefaultBadge: 'default',
 };
 
 /** الترجمة العربية لنفس مفاتيح شاشة دخول الموظفة. */
@@ -98,4 +101,7 @@ export const staffAccessAdminAr: typeof staffAccessAdminEn = {
   addExtraBranch: 'ضيف فرع',
   removeExtraBranch: 'شيل الفرع',
   extraBranchesSamePrimaryHint: 'الفرع الأساسي بنفس الدور متمنوح بالفعل — مفيش سطر زيادة لازم.',
+  extraBranchesLimit: 'يمكن إضافة 20 فرع زيادة كحد أقصى.',
+  inlineOverridesLimit: 'يمكن إضافة 20 استثناء صلاحية كحد أقصى.',
+  overrideDefaultBadge: 'افتراضي',
 };

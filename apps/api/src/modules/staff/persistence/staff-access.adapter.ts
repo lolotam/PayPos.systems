@@ -13,7 +13,7 @@ import {
   staffAccessGrantedEvent,
   type StaffAccessGranted,
 } from '../../identity/index.ts';
-import { employeeWorkplace } from '../../tenancy/index.ts';
+import { attendanceBranch, employeeWorkplace } from '../../tenancy/index.ts';
 import { transactionWriters } from '../../../shared/adapters/transaction-writers.ts';
 import type { AuditTrail } from '../../../shared/ports/audit-trail.port.ts';
 import type { OutboxWriter } from '../../../shared/ports/outbox-writer.port.ts';
@@ -55,13 +55,14 @@ interface CommitInput extends StaffAccessRecordWriteInput {
 
 /**
  * فحص السلطة على فرع: لازم الفرع يكون تابع للنشاط فعلاً (080-b) — فرع غريب أو مش موجود
- * بيرفض زيف بدل ما يبقى خطأ قيد أجنبي. بعدها صلاحية `manage:staff-access:branch` جوه
- * نفس المعاملة.
+ * بيرفض زيف بدل ما يبقى خطأ قيد أجنبي. فرع مش نشط (مؤرشف) بيترفض كمان: منح دخول على فرع
+ * مؤرشف معناه ولا حاجة. بعدها صلاحية `manage:staff-access:branch` جوه نفس المعاملة.
  */
 function authorityChecker(tx: Tx, actor: StaffAccessActor): GrantBeginScope['authority'] {
   return async (businessId, branchId) => {
     const workplace = await employeeWorkplace(tx, actor.companyId, businessId, branchId);
     if (!workplace.businessExists || workplace.branchBusinessId !== businessId) return false;
+    if ((await attendanceBranch(tx, actor.companyId, businessId, branchId)) === null) return false;
     return readStaffAccessAuthority(tx, {
       companyId: actor.companyId,
       actorUserId: actor.userId,
@@ -128,6 +129,26 @@ function beginScope(
   };
 }
 
+/**
+ * يغلّف واجهة الحساب في كاش واحد للمعاملة: كل عضوية فرع إضافية بتنادي `bindingOf` بنفس
+ * معرّف العملية، ومن غير الكاش دي 51 قراءة لنفس العملية في نفس المعاملة. باقي الدوال بتتنى
+ * زي ما هي.
+ */
+function memoizedAuth(auth: AuthFacadeForStaffAccess): AuthFacadeForStaffAccess {
+  const bindings = new Map<string, ReturnType<AuthFacadeForStaffAccess['bindingOf']>>();
+  const bindingOf = (operationId: string) => {
+    const cached = bindings.get(operationId);
+    if (cached !== undefined) return cached;
+    const pending = auth.bindingOf(operationId);
+    bindings.set(operationId, pending);
+    return pending;
+  };
+  return new Proxy(auth, {
+    get: (target, property, receiver) =>
+      property === 'bindingOf' ? bindingOf : Reflect.get(target, property, receiver),
+  });
+}
+
 function commitScope(
   tx: Tx,
   actor: StaffAccessActor,
@@ -135,16 +156,17 @@ function commitScope(
   auth: AuthFacadeForStaffAccess,
 ): GrantCommitScope {
   const writers = transactionWriters(tx, input.ids);
+  const memoAuth = memoizedAuth(auth);
   return {
     lockCompany: () => lockCompanyRow(tx, actor.companyId),
     recheck: () => recheckUnderLock(tx, actor, input),
     authority: authorityChecker(tx, actor),
     grantMembership: (membership) =>
-      grantMembershipAndAudit(tx, auth, actor, input.ids, writers.audit, membership),
+      grantMembershipAndAudit(tx, memoAuth, actor, input.ids, writers.audit, membership),
     grantExtraMemberships: (payload) =>
       grantExtraBranchMemberships(
         tx,
-        auth,
+        memoAuth,
         {
           companyId: actor.companyId,
           actorUserId: actor.userId,

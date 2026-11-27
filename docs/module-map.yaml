@@ -222,6 +222,7 @@ reads:
   - { from: staff, to: identity, symbol: readEmployeeBranchAccess, file: apps/api/src/modules/staff/persistence/employee-detail-access.adapter.ts }
   - { from: staff, to: tenancy, symbol: employeeWorkplace, file: apps/api/src/modules/staff/persistence/employee-context.adapter.ts }
   - { from: staff, to: tenancy, symbol: employeeWorkplace, file: apps/api/src/modules/staff/persistence/staff-access.adapter.ts }
+  - { from: staff, to: tenancy, symbol: attendanceBranch, file: apps/api/src/modules/staff/persistence/staff-access.adapter.ts }
   - { from: staff, to: tenancy, symbol: attendanceBranch, file: apps/api/src/modules/staff/persistence/staff-access-extra-branches.ts }
   - { from: staff, to: tenancy, symbol: businessTimeZone, file: apps/api/src/modules/staff/persistence/staff-access-extra-branches.ts }
   - { from: staff, to: identity, symbol: lockEmployeeCreationAccess, file: apps/api/src/modules/staff/persistence/employee-context.adapter.ts }

@@ -57,14 +57,14 @@ function EmployeeAccessCredentials({ form }: { form: UseFormReturn<GrantStaffAcc
 /** حقول نموذج المنح: بيانات الدخول وفروع الزيادة واستثناءات الصلاحيات. */
 export function EmployeeAccessFields({
   form,
-  companyId = '',
-  businessId = '',
+  companyId,
+  businessId,
   branches = [],
   primaryBranchId,
 }: {
   form: UseFormReturn<GrantStaffAccessInput>;
-  companyId?: string;
-  businessId?: string;
+  companyId: string;
+  businessId: string;
   branches?: readonly StaffExtraBranchOption[];
   primaryBranchId?: string | undefined;
 }) {

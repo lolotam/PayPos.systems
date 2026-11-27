@@ -166,3 +166,123 @@ it('080-b moving primary branch onto an extra branch preserves active DENY overr
   });
   expect(await canCreate(f.hawalli)).toBe(false);
 });
+
+it('080-b moving the primary onto the merged extra branch transfers the active DENY and leaves the expired history', async () => {
+  const employee = await addEmployee(f, 'Move transfer', f.salmiya, 505);
+  expect(
+    (
+      await grant(f, employee, nextPhone(f), f.ownerCookie, {
+        role: 'staff',
+        additional_branches: [{ branch_id: f.hawalli, role: 'reception' }],
+        permission_overrides: [
+          {
+            permission_code: 'read:attendance:branch',
+            effect: 'DENY',
+            scope_type: 'BRANCH',
+            scope_id: f.hawalli,
+            reason: 'keep the branch denied after the primary transfer',
+            expires_at: null,
+          },
+        ],
+      })
+    ).status,
+  ).toBe(200);
+  const [record] = await f.h.owner`SELECT id, user_id, membership_id FROM employee_staff_access WHERE employee_id=${employee}`;
+  const [extra] = await f.h.owner`SELECT membership_id FROM employee_staff_access_branches WHERE access_id=${record?.id}`;
+  const [owner] = await f.h.owner`SELECT id FROM "user" WHERE email='staff-access-owner@example.test'`;
+  const userId = record?.user_id as string;
+  const oldPrimary = record?.membership_id as string;
+  const mergedExtra = extra?.membership_id as string;
+  const [active] = await f.h.owner`SELECT id FROM permission_overrides
+    WHERE company_id=${f.company} AND membership_id=${mergedExtra} AND permission_code='read:attendance:branch'`;
+  // تاريخ منتهٍ مدته على نفس العضوية: لازم يفضل مكانه ما يتنقلش.
+  const expiredId = ids.newId();
+  await f.h.owner`INSERT INTO permission_overrides
+    (company_id, id, membership_id, permission_code, effect, scope_type, scope_id, reason, granted_by, expires_at)
+    VALUES (${f.company}, ${expiredId}, ${mergedExtra}, 'read:ratings:own', 'DENY', 'BRANCH', ${f.hawalli},
+      'expired history that must not move', ${owner?.id}, now() - interval '1 day')`;
+  let moved = '';
+  await f.db.withTenant(f.company, async (tx) => {
+    const result = await moveStaffMembershipToBranch(tx, {
+      companyId: f.company,
+      oldMembershipId: oldPrimary,
+      userId,
+      branchId: f.hawalli,
+      role: 'staff',
+      ids,
+      mergedMembershipId: mergedExtra,
+    });
+    moved = result.membershipId;
+  });
+  const movedActive = await f.h.owner`SELECT membership_id FROM permission_overrides
+    WHERE company_id=${f.company} AND id=${active?.id}`;
+  expect(movedActive[0]?.['membership_id']).toBe(moved);
+  const stayedExpired = await f.h.owner`SELECT membership_id FROM permission_overrides
+    WHERE company_id=${f.company} AND id=${expiredId}`;
+  expect(stayedExpired[0]?.['membership_id']).toBe(mergedExtra);
+  const audits = await f.h.owner`SELECT before, after FROM audit_log
+    WHERE company_id=${f.company} AND entity='permission_override' AND action='permission.transferred'
+      AND entity_id=${active?.id}`;
+  expect(audits).toHaveLength(1);
+  expect(audits[0]?.['before']).toMatchObject({ membership_id: mergedExtra });
+  expect(audits[0]?.['after']).toMatchObject({ membership_id: moved });
+});
+
+it('080-b a business-scoped DENY on the old primary moves with it while a branch-scoped one stays', async () => {
+  const employee = await addEmployee(f, 'Move scoped', f.salmiya, 506);
+  const third = ids.newId();
+  await f.h.owner`INSERT INTO branches (company_id,id,business_id,name_en)
+    VALUES (${f.company},${third},${f.business},'Third branch')`;
+  expect(
+    (
+      await grant(f, employee, nextPhone(f), f.ownerCookie, {
+        role: 'staff',
+        additional_branches: [{ branch_id: f.hawalli, role: 'staff' }],
+        permission_overrides: [
+          {
+            permission_code: 'read:attendance:branch',
+            effect: 'DENY',
+            scope_type: 'BUSINESS',
+            scope_id: f.business,
+            reason: 'business wide deny that must cover the unchanged branches',
+            expires_at: null,
+          },
+          {
+            permission_code: 'read:schedules:branch',
+            effect: 'DENY',
+            scope_type: 'BRANCH',
+            scope_id: f.salmiya,
+            reason: 'branch wide deny that ends with the old branch',
+            expires_at: null,
+          },
+        ],
+      })
+    ).status,
+  ).toBe(200);
+  const [record] = await f.h.owner`SELECT id, user_id, membership_id FROM employee_staff_access WHERE employee_id=${employee}`;
+  const userId = record?.user_id as string;
+  const oldPrimary = record?.membership_id as string;
+  const [businessWide] = await f.h.owner`SELECT id FROM permission_overrides
+    WHERE company_id=${f.company} AND membership_id=${oldPrimary} AND scope_type='BUSINESS'`;
+  const [branchWide] = await f.h.owner`SELECT id FROM permission_overrides
+    WHERE company_id=${f.company} AND membership_id=${oldPrimary} AND scope_type='BRANCH'`;
+  let moved = '';
+  await f.db.withTenant(f.company, async (tx) => {
+    const result = await moveStaffMembershipToBranch(tx, {
+      companyId: f.company,
+      oldMembershipId: oldPrimary,
+      userId,
+      branchId: third,
+      role: 'staff',
+      ids,
+    });
+    moved = result.membershipId;
+  });
+  const movedBusiness = await f.h.owner`SELECT membership_id FROM permission_overrides
+    WHERE company_id=${f.company} AND id=${businessWide?.id}`;
+  expect(movedBusiness[0]?.['membership_id']).toBe(moved);
+  // استثناء الفرع يفضل على العضوية القديمة وتنتهي معاها (AC-F3-3).
+  const stayedBranch = await f.h.owner`SELECT membership_id FROM permission_overrides
+    WHERE company_id=${f.company} AND id=${branchWide?.id}`;
+  expect(stayedBranch[0]?.['membership_id']).toBe(oldPrimary);
+});

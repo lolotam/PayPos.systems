@@ -1,5 +1,6 @@
 import type { IdGenerator, Tx } from '@pospay/db';
 
+import { orderOverrideCandidateMemberships } from '../domain/inline-override-candidates.ts';
 import {
   permissionEditFailure,
   permissionHolderIsOwner,
@@ -54,25 +55,21 @@ export async function applyStaffAccessOverrides(
 
 /**
  * ترتيب العضويات المرشحة للاستثناء: اللي نطاقها يطابق نطاق الاستثناء الأول، وبعدها الأساسية،
- * وبعدها الباقي — عشان أول تطابق هو اللي بيتقبل.
+ * وبعدها الباقي — عشان أول تطابق هو اللي بيتقبل. عضوية «إعطاء الدخول» كلها على فروع، فنطاقها
+ * نوعه BRANCH ومعرّفه هو معرّف الفرع.
  */
 function orderedCandidates(
   memberships: readonly StaffAccessMembershipCandidate[],
   terms: OverrideTerms,
 ): StaffAccessMembershipCandidate[] {
-  const matching = memberships.filter(
-    (membership) =>
-      terms.scope_type === 'BRANCH' && terms.scope_id === membership.branchId,
+  return orderOverrideCandidateMemberships(
+    memberships.map((membership) => ({
+      ...membership,
+      scopeType: 'BRANCH' as const,
+      scopeId: membership.branchId,
+    })),
+    terms,
   );
-  const primary = memberships[0];
-  const rest = memberships.filter(
-    (membership) => !matching.includes(membership) && membership !== primary,
-  );
-  return [
-    ...matching,
-    ...(primary !== undefined && !matching.includes(primary) ? [primary] : []),
-    ...rest,
-  ];
 }
 
 /**

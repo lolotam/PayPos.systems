@@ -7,11 +7,16 @@ import { useState } from 'react';
 import type { UseFormReturn } from 'react-hook-form';
 import { useLocale } from '@/shared/locale/locale-context';
 
+/** أقصى عدد فروع زيادة في الطلب الواحد (080-b) — نفس حد العقد في السيرفر. */
+export const MAX_EXTRA_BRANCHES = 20;
+
 /** فرع من فروع النشاط المعروض في قائمة الزيادة. */
 export interface StaffExtraBranchOption {
   readonly id: string;
   readonly name_en: string;
   readonly name_ar: string | null;
+  /** الفرع مؤرشف (مش نشط) — ما بياخدش فرع زيادة. */
+  readonly is_active?: boolean | undefined;
 }
 
 /** اسم الفرع بلغة الواجهة: العربية لو متاحة وإلا الإنجليزي. */
@@ -48,14 +53,21 @@ function ExtraBranchRow({
 /** اختيار الفرع الإضافي ودوره وإضافته للقائمة. */
 function ExtraBranchPicker({
   options,
+  atLimit,
   onAdd,
 }: {
   options: readonly StaffExtraBranchOption[];
+  atLimit: boolean;
   onAdd: (branchId: string, role: 'staff' | 'reception') => void;
 }) {
   const locale = useLocale();
   const [branchId, setBranchId] = useState('');
   const [role, setRole] = useState<'staff' | 'reception'>('staff');
+  const add = () => {
+    if (branchId === '') return;
+    onAdd(branchId, role);
+    setBranchId('');
+  };
   return (
     <>
       <Label htmlFor="staff-access-extra-branch">{t(locale, 'staff.extraBranchLabel')}</Label>
@@ -86,18 +98,22 @@ function ExtraBranchPicker({
         type="button"
         variant="outline"
         className="self-start"
-        disabled={branchId === ''}
-        onClick={() => onAdd(branchId, role)}
+        disabled={branchId === '' || atLimit}
+        onClick={add}
       >
         {t(locale, 'staff.addExtraBranch')}
       </Button>
+      {atLimit ? (
+        <p className="text-sm text-muted-foreground">{t(locale, 'staff.extraBranchesLimit')}</p>
+      ) : null}
     </>
   );
 }
 
 /**
  * «فروع زيادة»: كل فرع بيتحول لعضوية مستقلة بنفس الدخول، ودوره بيتختار معاه.
- * الفرع الأساسي ما بيتردشش في القائمة — هو أساس منح الدخول مش فرع زيادة.
+ * الفرع الأساسي ما بيتردشش في القائمة — هو أساس منح الدخول مش فرع زيادة — والفرع المؤرشف
+ * والفرع المضاف قبل كده ما بيتردوش، عشان الطلب ما يبقاش فيه فرع مكرر أو فرع مش شغال.
  */
 export function EmployeeAccessExtraBranches({
   form,
@@ -110,8 +126,15 @@ export function EmployeeAccessExtraBranches({
 }) {
   const locale = useLocale();
   const selected = form.watch('additional_branches') ?? [];
-  const options = branches.filter((branch) => branch.id !== primaryBranchId);
+  const activeBranches = branches.filter((branch) => branch.is_active !== false);
+  const options = activeBranches.filter(
+    (branch) =>
+      branch.id !== primaryBranchId &&
+      !selected.some((entry) => entry.branch_id === branch.id),
+  );
+  const atLimit = selected.length >= MAX_EXTRA_BRANCHES;
   const add = (branchId: string, role: 'staff' | 'reception') => {
+    if (atLimit) return;
     form.setValue('additional_branches', [...selected, { branch_id: branchId, role }]);
   };
   const remove = (index: number) => {
@@ -131,7 +154,7 @@ export function EmployeeAccessExtraBranches({
             <ExtraBranchRow
               key={`${entry.branch_id}:${entry.role}:${index}`}
               entry={entry}
-              options={options}
+              options={activeBranches}
               onRemove={() => remove(index)}
             />
           ))}
@@ -142,7 +165,10 @@ export function EmployeeAccessExtraBranches({
           {t(locale, 'staff.extraBranchesSamePrimaryHint')}
         </p>
       ) : null}
-      <ExtraBranchPicker options={options} onAdd={add} />
+      <ExtraBranchPicker options={options} atLimit={atLimit} onAdd={add} />
+      {form.formState.errors.additional_branches ? (
+        <p role="alert">{t(locale, 'staff.extraBranchesLimit')}</p>
+      ) : null}
     </details>
   );
 }

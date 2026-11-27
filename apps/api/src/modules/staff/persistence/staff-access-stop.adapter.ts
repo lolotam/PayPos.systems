@@ -36,7 +36,7 @@ function stopScope(tx: Tx, actor: StaffAccessActor, input: StopInput): StopEmplo
   return {
     lockCompany: () => lockCompanyRow(tx, actor.companyId),
     lock: () => lockRecordWithEmployee(tx, actor.companyId, input),
-    authority: staffAccessAuthority(tx, actor),
+    authority: staffAccessAuthority(tx, actor, input.employeeId),
     stop: async (change) => {
       // الفروع الإضافية بتتقفل قبل أي تعديل عشان ما يتزاحمش الإيقاف مع منح متوازي (080-b).
       const extras = await lockExtraBranchRows(tx, actor.companyId, change.recordId);

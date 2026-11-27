@@ -1323,6 +1323,7 @@ any 5xx alert until AC-ACT-17 is closed; every other 5xx on the API is a real fa
    ```sql
    SELECT
      (SELECT count(*) FROM employee_staff_access) AS staff_access_rows,
+     (SELECT count(*) FROM employee_staff_access_branches) AS staff_access_branch_rows,
      (SELECT count(*) FROM member_invitations) AS invitation_rows,
      (SELECT count(*) FROM cashier_pins
       WHERE temporary = true OR expires_at IS NOT NULL) AS temporary_pin_rows;
@@ -1330,7 +1331,9 @@ any 5xx alert until AC-ACT-17 is closed; every other 5xx on the API is a real fa
 
    If any count is non-zero, rolling the API image back below `076-F2b` is forbidden: close
    `STAFF_ACCESS_ROUTES` on the current release instead (unset the variable and restart the API). Record the
-   three counts and the time of the check with the decision.
+   counts and the time of the check with the decision. The `employee_staff_access_branches` count is the
+   `080-b` floor (ADR-0063 §5a): an API older than `0271` ends the primary membership only and leaves every
+   extra-branch membership running, so a rollback below `080-b` is forbidden while that count is non-zero.
 
 ## 56b-1: commission statement reminders and reminder-schedule recovery (ADR-0061)
 

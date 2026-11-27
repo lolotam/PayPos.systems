@@ -7,6 +7,7 @@ import {
   permissionHolderIsOwner,
   type OverrideTerms,
 } from '../domain/permission-edit.ts';
+import { orderOverrideCandidateMemberships } from '../domain/inline-override-candidates.ts';
 import { overrideLifecycleFailure } from '../domain/permission-override-lifecycle.ts';
 import type {
   CompleteInvitationInput,
@@ -111,21 +112,6 @@ export async function applyInvitationOverrides(
 }
 
 /**
- * ترتيب العضويات المرشحة للاستثناء: اللي نطاقها يطابق نطاق الاستثناء الأول، وبعدها الأساسية،
- * وبعدها الباقي — عشان أول تطابق هو اللي بيتقبل.
- */
-function orderedCandidates(
-  memberships: readonly InvitedMembership[],
-  terms: OverrideTerms,
-): InvitedMembership[] {
-  const matching = memberships.filter(
-    (membership) =>
-      membership.scopeType === terms.scope_type && membership.scopeId === terms.scope_id,
-  );
-  return [...matching, ...memberships.filter((membership) => !matching.includes(membership))];
-}
-
-/**
  * الاستثناء بيتقيّم على كل عضوية مرشحة: إما التعديل مسموح ودورة القرار مسموحة، أو رفض.
  * الرفض بيرجع من العضوية الأساسية عشان يبقى سبب الرفض واحد مهما كان الترتيب.
  */
@@ -139,7 +125,7 @@ async function applyOverride(
 ): Promise<void> {
   const primary = memberships[0];
   let primaryRefusal: MemberInvitationRefusal | null = null;
-  for (const candidate of orderedCandidates(memberships, terms)) {
+  for (const candidate of orderOverrideCandidateMemberships(memberships, terms)) {
     const context = await batch.forCandidate(candidate.membershipId, terms);
     const failure = permissionEditFailure(terms, context, 'SAVE');
     if (failure === null) {

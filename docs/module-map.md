@@ -641,6 +641,7 @@ reads:
   - staff -> identity.readEmployeeBranchAccess @ apps/api/src/modules/staff/persistence/employee-detail-access.adapter.ts
   - staff -> tenancy.employeeWorkplace @ apps/api/src/modules/staff/persistence/employee-context.adapter.ts
   - staff -> tenancy.employeeWorkplace @ apps/api/src/modules/staff/persistence/staff-access.adapter.ts
+  - staff -> tenancy.attendanceBranch @ apps/api/src/modules/staff/persistence/staff-access.adapter.ts
   - staff -> tenancy.attendanceBranch @ apps/api/src/modules/staff/persistence/staff-access-extra-branches.ts
   - staff -> tenancy.businessTimeZone @ apps/api/src/modules/staff/persistence/staff-access-extra-branches.ts
   - staff -> identity.lockEmployeeCreationAccess @ apps/api/src/modules/staff/persistence/employee-context.adapter.ts
