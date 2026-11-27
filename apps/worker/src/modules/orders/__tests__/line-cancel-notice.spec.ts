@@ -37,7 +37,7 @@ it('a redelivered event keeps one ledger row and one notice', async () => {
   expect(requests).toHaveLength(1);
   const parsed = serviceLineCancelNoticeRequested.parse(requests[0]?.['payload']);
   expect(parsed.business_timezone).toBe('Asia/Kuwait');
-  expect(parsed.notification_recipients.map((recipient) => recipient.user_id)).toEqual([USER]);
+  expect(parsed.notification_recipients.flatMap((recipient) => ('user_id' in recipient ? [recipient.user_id] : []))).toEqual([USER]);
   expect(parsed.notification_recipients[0]).toMatchObject({
     channel: 'IN_APP',
     locale: 'ar',

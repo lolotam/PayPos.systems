@@ -51,7 +51,7 @@ API بس، لسه مفيش شاشة. اللي بيبان لك هو الجرس.
    **قيمة القاعدة برّه المسموح لنوع التنبيه ده (المدة أو الأدوار أو القنوات).**
 8. **قيم غلط:** مدة 0 أو 1441 دقيقة ←
    **قيمة القاعدة برّه المسموح لنوع التنبيه ده (المدة أو الأدوار أو القنوات).** (422). مدة 20.5 ←
-   **البيانات المرسلة غير صحيحة** (400). القناة الوحيدة دلوقتي التطبيق.
+   **البيانات المرسلة غير صحيحة** (400). القنوات المسموحة التطبيق والإيميل والواتساب؛ قناة غير دول (زي SMS) بتتطلع 400، والواتساب بيفضل مقفول لحد ضبط قوالب Meta (بتتسجّل محاولة فاشلة CONFIG_INVALID وبيظهر جنبه تنبيه في الشاشة).
 9. **اتنين بيعدّلوا مع بعض:** مدير حفظ بنسخة قديمة بعد ما مدير تاني عدّل ←
    **عدّل مدير آخر قاعدة التنبيه. أعد التحميل قبل الحفظ.** (409) ومفيش حاجة اتحفظت.
 10. **الصلاحية:** اللي معاه **إدارة إعدادات النشاط** بس، أو مديرة السالمية، أو حد صلاحيته على فرع واحد بس (حتى لقاعدة
@@ -89,7 +89,7 @@ API only, no screen yet. What you see is the bell.
    **A value is outside what this alert kind allows (minutes, roles or channels).**
 8. **Bad values:** 0 or 1441 minutes →
    **A value is outside what this alert kind allows (minutes, roles or channels).** (422). 20.5 minutes →
-   **The request is not valid** (400). The only channel today is in-app.
+   **The request is not valid** (400). The allowed channels are in-app, email and WhatsApp; any other channel (such as SMS) is a 400, and WhatsApp stays closed until the approved Meta templates are configured (the attempt is recorded as failed with CONFIG_INVALID and the screen shows a note beside the choice).
 9. **Two editors:** a manager saves with a stale revision after another manager changed the rule →
    **Another manager changed this alert rule. Reload before saving.** (409), nothing saved.
 10. **Permission:** a holder of **Manage business settings** alone, the Salmiya Branch Manager, someone whose grant

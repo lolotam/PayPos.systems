@@ -3,11 +3,11 @@ import type { AlertRules, SetAlertRulesInput } from '@pospay/contracts';
 export type AlertRuleInput = SetAlertRulesInput['rules'][number];
 export type AlertRulesDraft = SetAlertRulesInput;
 
-function sameRoles(left: readonly string[], right: readonly string[]): boolean {
+function sameSet(left: readonly string[], right: readonly string[]): boolean {
   const values = new Set(left);
   const other = new Set(right);
   if (values.size !== other.size) return false;
-  return right.every((role) => values.has(role));
+  return right.every((value) => values.has(value));
 }
 
 export function alertRulesSaveBody(
@@ -20,7 +20,8 @@ export function alertRulesSaveBody(
     if (!rule) return false;
     return (
       entry.enabled !== rule.enabled ||
-      !sameRoles(entry.recipient_roles, rule.recipient_roles) ||
+      !sameSet(entry.recipient_roles, rule.recipient_roles) ||
+      !sameSet(entry.channels, rule.channels) ||
       entry.delay_minutes !== rule.delay_minutes ||
       entry.lead_minutes !== rule.lead_minutes
     );

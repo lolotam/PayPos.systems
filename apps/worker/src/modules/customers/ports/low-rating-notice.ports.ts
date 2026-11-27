@@ -1,4 +1,10 @@
-import type { AlertKind, EffectiveAlertRule } from '@pospay/domain';
+import type {
+  AlertKind,
+  EffectiveAlertRule,
+  TeamAlertContactsPort,
+  TeamAlertEmailRecipient,
+  TeamAlertWhatsappRecipient,
+} from '@pospay/domain';
 import type {
   LowRatingFacts,
   LowRatingRecipient,
@@ -134,7 +140,11 @@ export interface LowRatingRepository {
 export interface LowRatingRequest {
   readonly business_id: string;
   readonly branch_id: string;
-  readonly notification_recipients: readonly LowRatingRecipient[];
+  readonly notification_recipients: readonly (
+    | LowRatingRecipient
+    | TeamAlertEmailRecipient
+    | TeamAlertWhatsappRecipient
+  )[];
 }
 
 /** الأثر المتبادل مع الإشعارات يمر عبر الأوتبوكس فقط. */
@@ -157,4 +167,6 @@ export interface LowRatingPorts {
   readonly place: LowRatingPlace;
   readonly repository: LowRatingRepository;
   readonly outbox: LowRatingOutbox;
+  /** جهات اتصال البريد والواتساب (AL-Q6)؛ مطلوب لما قناة خارجية تتفعّل، وغيابه معها خطأ تركيب. */
+  readonly contacts?: TeamAlertContactsPort;
 }

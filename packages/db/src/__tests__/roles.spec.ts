@@ -180,6 +180,51 @@ describe('bootstrap re-run for the approval reader role', () => {
   });
 });
 
+describe('bootstrap re-run for the team contact reader role', () => {
+  // نفس ترتيب اختبار قارئ الاعتماد: دور أُفسد بعد الهجرة، ثم يعاد الـ bootstrap فيصلح صفاته وعضوياته ولا يمسّ دالته ولا سياسته (ADR-0003 §6a).
+  it('migrating again restores the team contact reader role and leaves its function, grants and policy in place', async () => {
+    const env = readPgTestEnv();
+    const row = await withClusterRoleLock('exclusive', async () => {
+      try {
+        await owner`CREATE ROLE pospay_test_contact_member NOLOGIN`;
+        await owner`ALTER ROLE pospay_team_contact_reader LOGIN CREATEDB`;
+        await owner`GRANT pg_read_all_data TO pospay_team_contact_reader WITH ADMIN OPTION`;
+        await owner`GRANT pospay_team_contact_reader TO pospay_test_contact_member`;
+        await migrateDatabase(testDb.ownerUrl, {
+          app: env.appPassword,
+          auth: env.authPassword,
+          dispatcher: env.dispatcherPassword,
+        });
+        return (
+          await owner`SELECT r.rolcanlogin, r.rolcreatedb, r.rolsuper, r.rolbypassrls, r.rolinherit,
+          (SELECT count(*) FROM pg_auth_members m WHERE r.oid IN (m.roleid, m.member))::int AS links,
+          pg_get_userbyid((SELECT proowner FROM pg_proc WHERE proname = 'team_alert_recipient_contacts')) AS fn_owner,
+          has_function_privilege('pospay_app', 'public.team_alert_recipient_contacts(uuid,uuid[],timestamptz,boolean)', 'EXECUTE') AS app_executes,
+          has_column_privilege(r.oid, 'public."user"', 'email', 'SELECT') AS reads_email,
+          (SELECT count(*) FROM pg_policies WHERE policyname = 'memberships_team_contact_select')::int AS policies
+          FROM pg_roles r WHERE r.rolname = 'pospay_team_contact_reader'`
+        )[0];
+      } finally {
+        await owner`DROP ROLE IF EXISTS pospay_test_contact_member`;
+        await owner`ALTER ROLE pospay_team_contact_reader NOLOGIN NOCREATEDB`;
+        await owner`REVOKE pg_read_all_data FROM pospay_team_contact_reader CASCADE`;
+      }
+    });
+    expect(row).toEqual({
+      rolcanlogin: false,
+      rolcreatedb: false,
+      rolsuper: false,
+      rolbypassrls: false,
+      rolinherit: false,
+      links: 0,
+      fn_owner: 'pospay_team_contact_reader',
+      app_executes: true,
+      reads_email: true,
+      policies: 1,
+    });
+  });
+});
+
 describe('context helpers (migration 0000)', () => {
   it('read an unset or empty setting as NULL instead of failing the uuid cast', async () => {
     const rows = await owner.begin(async (tx) => {

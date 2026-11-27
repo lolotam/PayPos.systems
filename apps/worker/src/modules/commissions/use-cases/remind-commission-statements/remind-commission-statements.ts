@@ -111,7 +111,7 @@ async function emitApprovalReminder(
   day: 3 | 5,
 ): Promise<number> {
   const rule = await scope.alertRule(businessId, 'STATEMENT_AWAITING_APPROVAL');
-  if (!rule.enabled || !rule.channels.includes('IN_APP')) return 0;
+  if (!rule.enabled || rule.channels.length === 0) return 0;
   const decisionAt = await scope.decisionTime();
   if (!(await scope.switchEnabled(APPROVAL_SWITCH_FLAG, decisionAt))) return 0;
   const recipients = await scope.recipients(businessId, 'approve:commissions:business', decisionAt);
@@ -132,6 +132,8 @@ async function emitApprovalReminder(
     period,
     recipients,
     templateKey: 'statement_awaiting_approval',
+    channels: rule.channels,
+    at: decisionAt,
   });
   return 1;
 }
@@ -154,7 +156,7 @@ async function emitReviewReminder(
   date: string,
 ): Promise<number> {
   const rule = await scope.alertRule(businessId, 'STATEMENT_AWAITING_REVIEW');
-  if (!rule.enabled || !rule.channels.includes('IN_APP')) return 0;
+  if (!rule.enabled || rule.channels.length === 0) return 0;
   const decisionAt = await scope.decisionTime();
   const recipients = await scope.recipients(businessId, 'review:commissions:business', decisionAt);
   const inserted = await scope.insertLedger({
@@ -172,6 +174,8 @@ async function emitReviewReminder(
     period,
     recipients,
     templateKey: 'statement_awaiting_review',
+    channels: rule.channels,
+    at: decisionAt,
   });
   return 1;
 }

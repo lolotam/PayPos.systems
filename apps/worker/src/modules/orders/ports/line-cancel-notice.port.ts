@@ -1,3 +1,8 @@
+import type {
+  TeamAlertContactsPort,
+  TeamAlertEmailRecipient,
+  TeamAlertWhatsappRecipient,
+} from '@pospay/domain';
 import type { LineCancelParameters } from '../domain/line-cancel-notice.ts';
 import type { AlertRulesPort } from './alert-rule.port.ts';
 import type { Clock, IdGenerator } from './late-service-session-notice.port.ts';
@@ -103,14 +108,18 @@ export interface LineCancelNoticeRequest {
   readonly branch_id: string;
   readonly business_date: string;
   readonly business_timezone: string;
-  readonly notification_recipients: readonly {
-    channel: 'IN_APP';
-    user_id: string;
-    locale: 'ar';
-    template_key: 'service_line_cancelled';
-    template_revision: 1;
-    safe_parameters: LineCancelParameters;
-  }[];
+  readonly notification_recipients: readonly (
+    | {
+        channel: 'IN_APP';
+        user_id: string;
+        locale: 'ar';
+        template_key: 'service_line_cancelled';
+        template_revision: 1;
+        safe_parameters: LineCancelParameters;
+      }
+    | TeamAlertEmailRecipient
+    | TeamAlertWhatsappRecipient
+  )[];
 }
 /** الأثر نحو الإشعارات يمر عبر الأوتبوكس فقط. */
 export interface LineCancelNoticeOutbox {
@@ -129,4 +138,6 @@ export interface LineCancelNoticePorts {
   readonly repository: LineCancelNoticeRepository;
   readonly outbox: LineCancelNoticeOutbox;
   readonly rules: AlertRulesPort;
+  /** جهات اتصال البريد والواتساب (AL-Q6)؛ مطلوب لما قناة خارجية تتفعّل، وغيابه معها خطأ تركيب. */
+  readonly contacts?: TeamAlertContactsPort;
 }

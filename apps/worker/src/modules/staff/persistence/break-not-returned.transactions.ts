@@ -10,6 +10,7 @@ import type {
 import type { NotClockedInCursor } from '../ports/not-clocked-in.port.ts';
 import { branchManagerRecipientsAdapter } from './branch-manager-recipients.adapter.ts';
 import { alertRules } from './alert-rule.adapter.ts';
+import { readTeamContacts } from './team-contacts.adapter.ts';
 import { recordBreakNotReturned, suppressBreakNotReturned } from './break-not-returned-writes.ts';
 import {
   closeBreakSuppressed,
@@ -192,6 +193,7 @@ function locked(
     },
     managers: (businessId, branchId, roles) =>
       branchManagerRecipientsAdapter.forBranch(tx, companyId, businessId, branchId, at, roles),
+    contacts: (userIds, moment) => readTeamContacts(tx, companyId, userIds, moment),
     record: (notice) => recordBreakNotReturned(tx, ids, companyId, notice),
     convert: (notice) => convertBreakNotReturned(tx, ids, companyId, notice),
     closeSuppressed: (shift) => closeBreakSuppressed(tx, companyId, shift),

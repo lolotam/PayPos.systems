@@ -21,17 +21,17 @@ const settings = (change: Partial<AlertRuleSettings> = {}): AlertRuleSettings =>
   ...change,
 });
 
-const NOTHING: AttendanceChangeAlertPlan = { fixed: false, channel: null, roles: [] };
-const FIXED: AttendanceChangeAlertPlan = { fixed: true, channel: 'IN_APP', roles: [] };
-const NO_FIXED: AttendanceChangeAlertPlan = { fixed: false, channel: 'IN_APP', roles: [] };
+const NOTHING: AttendanceChangeAlertPlan = { fixed: false, channels: [], roles: [] };
+const FIXED: AttendanceChangeAlertPlan = { fixed: true, channels: ['IN_APP'], roles: [] };
+const NO_FIXED: AttendanceChangeAlertPlan = { fixed: false, channels: ['IN_APP'], roles: [] };
 const FIXED_WITH_ROLE: AttendanceChangeAlertPlan = {
   fixed: true,
-  channel: 'IN_APP',
+  channels: ['IN_APP'],
   roles: ['owner'],
 };
 const ROLES_ONLY: AttendanceChangeAlertPlan = {
   fixed: false,
-  channel: 'IN_APP',
+  channels: ['IN_APP'],
   roles: ['branch_manager'],
 };
 
@@ -71,6 +71,23 @@ const cases: [string, EffectiveAlertRule, AttendanceChangeAlertKind, AttendanceC
     effectiveAlertRule('ATTENDANCE_CHANGE_DECIDED', settings({ channels: [] }), null, null),
     'ATTENDANCE_CHANGE_DECIDED',
     NOTHING,
+  ],
+  [
+    'an email-only rule keeps the fixed recipient (62b-1)',
+    effectiveAlertRule('ATTENDANCE_CHANGE_REQUESTED', settings({ channels: ['EMAIL'] }), null, null),
+    'ATTENDANCE_CHANGE_REQUESTED',
+    { fixed: true, channels: ['EMAIL'], roles: [] },
+  ],
+  [
+    'a WhatsApp rule on the decision kind keeps the requester recipient (62b-1)',
+    effectiveAlertRule(
+      'ATTENDANCE_CHANGE_DECIDED',
+      settings({ channels: ['IN_APP', 'WHATSAPP'] }),
+      null,
+      null,
+    ),
+    'ATTENDANCE_CHANGE_DECIDED',
+    { fixed: true, channels: ['IN_APP', 'WHATSAPP'], roles: [] },
   ],
   [
     'a rule without the selector the request kind needs',

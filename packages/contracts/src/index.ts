@@ -186,6 +186,7 @@ export {
   type SetImportedRefundsInput,
 } from './settings/imported-refunds.js';
 export * from './notifications.js';
+export * from './team-alert-recipients.js';
 export {
   inAppRecipient,
   inAppNotification,

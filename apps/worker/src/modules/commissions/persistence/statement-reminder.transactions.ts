@@ -5,7 +5,14 @@ import {
   type TenantWrappers,
   type Tx,
 } from '@pospay/db';
-import { commissionStatementNoticeGroupSize } from '@pospay/contracts';
+import {
+  needsTeamAlertContacts,
+  teamAlertRecipientGroups,
+  type TeamAlertContact,
+  type TeamAlertContactsPort,
+  type TeamAlertEmailRecipient,
+  type TeamAlertWhatsappRecipient,
+} from '@pospay/domain';
 import { sql } from 'drizzle-orm';
 
 import type {
@@ -14,6 +21,7 @@ import type {
   ReminderLedgerInput,
   StatementReminderAlertRulesReader,
   StatementReminderBusinessesReader,
+  StatementReminderContactsReader,
   StatementReminderFeatureReader,
   StatementReminderRecipientsReader,
   StatementReminderScope,
@@ -28,6 +36,8 @@ export interface StatementReminderReaders {
   readonly recipients: StatementReminderRecipientsReader<Tx>;
   readonly alertRules: StatementReminderAlertRulesReader<Tx>;
   readonly switch: StatementReminderSwitchReader<Tx>;
+  /** مطلوب لما قاعدة تفعّل إيميل أو واتساب؛ غيابه معها خطأ تركيب ظاهر. */
+  readonly contacts?: StatementReminderContactsReader<Tx>;
 }
 
 /**
@@ -52,6 +62,13 @@ export function createStatementReminderTransactions(
   };
 }
 
+/** منفذ جهات الاتصال على معاملة الشركة، أو undefined لو الجذر ما ربطش القارئ. */
+function contactsPort(tx: Tx, readers: StatementReminderReaders): TeamAlertContactsPort | undefined {
+  const read = readers.contacts;
+  if (read === undefined) return undefined;
+  return { read: (companyId, userIds, at) => read(tx, companyId, userIds, at) };
+}
+
 /** يبني نطاق العمل على معاملة الشركة. */
 function scopeOf(
   tx: Tx,
@@ -69,7 +86,8 @@ function scopeOf(
       readers.recipients(tx, companyId, businessId, permission, at),
     lockPeriod: (businessId, period) => lockPeriod(tx, ids, businessId, period),
     insertLedger: (input) => insertReminderLedger(tx, ids, input),
-    appendNoticeEvents: (input) => appendNoticeEvents(tx, ids, input),
+    appendNoticeEvents: (input) =>
+      appendNoticeEvents(tx, ids, companyId, input, contactsPort(tx, readers)),
   };
 }
 
@@ -123,46 +141,49 @@ interface NoticeRecipient {
   }[];
 }
 
-/**
- * يقسّم المستلمين لمجموعات متتالية ما تتجاوز مية، بعد حذف التكرار والترتيب التصاعدي
- * (ADR-0037 §5، FR-030).
- */
-export function groupNoticeRecipients(
-  userIds: readonly string[],
-): readonly (readonly string[])[] {
-  const unique = [...new Set(userIds)].sort();
-  const groups: string[][] = [];
-  for (let index = 0; index < unique.length; index += commissionStatementNoticeGroupSize) {
-    groups.push(unique.slice(index, index + commissionStatementNoticeGroupSize));
-  }
-  return groups;
-}
-
-/** يبني صفوف الجرس لمجموعة واحدة: هوية المستخدم والقالب والشهر وحده. */
-function noticeRecipients(
-  userIds: readonly string[],
+/** يبني صف الجرس لمستخدم واحد: هويته والقالب والشهر وحده. */
+function noticeRecipient(
+  user_id: string,
   period: string,
   templateKey: NoticeEventInput['templateKey'],
-): readonly NoticeRecipient[] {
-  return userIds.map((user_id) => ({
+): NoticeRecipient {
+  return {
     channel: 'IN_APP',
     user_id,
     locale: 'ar',
     template_key: templateKey,
     template_revision: 1,
     safe_parameters: [{ name: 'period', type: 'text', value: period }],
-  }));
+  };
 }
 
 /**
- * يكتب أحداث الجرس لمجموعات المستلمين في نفس معاملة الكاتب: حدث لكل مجموعة، مرتب تصاعديًا.
+ * يكتب أحداث الإشعار لمجموعات المستلمين في نفس معاملة الكاتب: حدث لكل مجموعة (مية مستلم على الأكثر)، مرتب تصاعديًا.
+ * المستلم الخارجي (إيميل أو واتساب) بيتبنى من نفس قالب النوع من غير معاملات (ADR-0018 §11).
  */
 async function appendNoticeEvents(
   tx: Tx,
   ids: IdGenerator,
+  companyId: string,
   input: NoticeEventInput,
+  contacts: TeamAlertContactsPort | undefined,
 ): Promise<number> {
-  const groups = groupNoticeRecipients(input.recipients);
+  const channels = input.channels ?? ['IN_APP'];
+  const userIds = [...new Set(input.recipients)].sort();
+  const at = input.at ?? (await decisionTime(tx));
+  let contactBook: ReadonlyMap<string, TeamAlertContact> = new Map();
+  if (needsTeamAlertContacts(channels) && userIds.length > 0) {
+    if (contacts === undefined) throw new Error('TEAM_ALERT_CONTACTS_UNAVAILABLE');
+    contactBook = await contacts.read(companyId, userIds, at);
+  }
+  const groups: (NoticeRecipient | TeamAlertEmailRecipient | TeamAlertWhatsappRecipient)[][] =
+    teamAlertRecipientGroups({
+      channels,
+      userIds,
+      templateKey: input.templateKey,
+      contacts: contactBook,
+      inApp: (userId) => noticeRecipient(userId, input.period, input.templateKey),
+    });
   for (const [index, group] of groups.entries()) {
     await appendOutboxEvent(tx, ids.newId(), {
       aggregateType: 'commission_statement',
@@ -177,7 +198,7 @@ async function appendNoticeEvents(
         statement_id: input.statementId,
         period: input.period,
         group_index: index,
-        notification_recipients: noticeRecipients(group, input.period, input.templateKey),
+        notification_recipients: group,
       },
     });
   }

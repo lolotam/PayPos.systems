@@ -2,6 +2,7 @@ import { z } from 'zod';
 
 import { lowRatingCommentRecipient, lowRatingRecipient } from '../low-rating-notifications.js';
 import { id } from '../scalars/id.js';
+import { withTeamAlertChannels } from '../team-alert-recipients.js';
 
 /**
  * حدث داخلي صغير ثابت الحجم يضيفه API التقييم العام في معاملة التقييم المنخفض؛
@@ -26,7 +27,13 @@ export const lowRatingReceived = z.strictObject({
   business_id: id,
   branch_id: id,
   notification_recipients: z
-    .array(z.discriminatedUnion('template_key', [lowRatingRecipient, lowRatingCommentRecipient]))
+    .array(
+      // البريد والواتساب دايمًا بقالب low_rating بدون معاملات وبدون التعليق (RT-Q9، ADR-0018 §11)؛ التعليق للجرس بس.
+      withTeamAlertChannels(
+        z.discriminatedUnion('template_key', [lowRatingRecipient, lowRatingCommentRecipient]),
+        'low_rating',
+      ),
+    )
     .min(1)
     .max(100),
 });

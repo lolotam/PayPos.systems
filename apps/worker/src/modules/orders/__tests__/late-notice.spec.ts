@@ -34,7 +34,7 @@ it('late recording and further appends/replays yield one durable request; on-tim
   const requests = await f.requests(id);
   expect(requests).toHaveLength(1);
   const parsed = lateServiceSessionNoticeRequested.parse(requests[0]?.['payload']);
-  expect(parsed.notification_recipients.map((r) => r.user_id)).toEqual([USER]);
+  expect(parsed.notification_recipients.flatMap((r) => ('user_id' in r ? [r.user_id] : []))).toEqual([USER]);
   expect(JSON.stringify(parsed)).not.toMatch(/phone|customer|employee|recorded_by|net|price/);
   const onTime = await f.session(false);
   await f.deliver(await f.event(onTime, false));

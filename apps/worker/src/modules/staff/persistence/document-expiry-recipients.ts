@@ -1,26 +1,29 @@
 import type { Tx } from '@pospay/db';
-import { inAppAlertOn } from '../domain/alert-rule-plan.ts';
+import { alertOn } from '../domain/alert-rule-plan.ts';
 import {
   documentExpiryRecipients,
   documentExpiringParameters,
   type DocumentExpiryParameter,
   type DocumentNameFallback,
 } from '../domain/document-expiry-notice.ts';
+import type { TeamAlertAudience } from '../domain/team-alert-groups.ts';
 import type { LockedDocumentExpiry } from '../ports/document-expiry.port.ts';
 import { alertRules } from './alert-rule.adapter.ts';
 import { branchManagerRecipientsAdapter } from './branch-manager-recipients.adapter.ts';
 import { fileReaderRecipientsAdapter } from './file-reader-recipients.adapter.ts';
+import { readTeamAlertAudience } from './team-contacts.adapter.ts';
 
 /** مستلمو جرس انتهاء المستند ومعاملاته كما تخرج من القواعد. */
 export interface DocumentExpiryRecipients {
   readonly userIds: readonly string[];
+  readonly audience: TeamAlertAudience;
   readonly parameters: readonly DocumentExpiryParameter[];
 }
 
 /**
  * من يصل جرس انتهاء المستند (AL-Q7): أصحاب صلاحية read:files:business على النشاط، والقاعدة بتفلترهم
  * بأدوارها: بلا أدوار توصل لكل أصحاب الصلاحية، وبأدوار توصل لمديري فرع الموظفة الأصلي منهم فقط.
- * القاعدة المقفولة أو بلا قناة داخل التطبيق معناها ولا جرس (issue #457).
+ * القاعدة المقفولة أو بلا أي قناة معناها ولا تنبيه (issue #457).
  *
  * @param tx معاملة الشركة بعد قفل الوثيقة
  * @param companyId الشركة
@@ -42,7 +45,7 @@ export async function documentExpiryRecipientsFor(
     { businessId: locked.businessId, branchId: null },
     'DOCUMENT_EXPIRING',
   );
-  if (!inAppAlertOn(rule)) return null;
+  if (!alertOn(rule)) return null;
   const holders = await fileReaderRecipientsAdapter.holders(tx, companyId, locked.businessId, at);
   const roles = rule.recipientRoles;
   const candidates =
@@ -68,5 +71,6 @@ export async function documentExpiryRecipientsFor(
     fallback,
   );
   if (parameters === null) return null;
-  return { userIds, parameters };
+  const audience = await readTeamAlertAudience(tx, companyId, rule.channels, userIds, at);
+  return { userIds, audience, parameters };
 }

@@ -3,6 +3,7 @@ import {
   RATING_REQUEST_TEMPLATE_KEY,
   RATING_TOKEN_KEY_VERSION_MAX,
   RATING_TOKEN_KEY_VERSION_PARAMETER,
+  TEAM_ALERT_TEMPLATE_KEYS,
   type InAppRecipient,
   type NotificationRecipient,
   type PushRecipient,
@@ -42,6 +43,7 @@ type AuthorizeDependencies = {
   readonly identity: Pick<ReturnType<typeof createPhoneIdentity>, 'identify'>;
   readonly registry: ReturnType<typeof createTemplateRegistry>;
   readonly email: EmailAuthorizer | undefined;
+  readonly closedTeamAlertWhatsapp: ClosedTeamAlertWhatsapp | undefined;
 };
 /** طلب تفويض واحد: المعاملة والحدث والمستلم والنطاق اللي جاي في الطلب. */
 type RecipientRequest = {
@@ -50,6 +52,17 @@ type RecipientRequest = {
   readonly recipient: ScheduledRecipient;
   readonly scope: EmailScope;
 };
+/**
+ * مسار واتساب المقفول لتنبيهات الفريق (AL-Q6، ADR-0018 §11): الإرسال الفعلي بيفضل مقفول لحد ضبط قوالب Meta،
+ * فمستلم واتساب بقالب تنبيه فريق بيتسجّل محاولة نهائية FAILED بسبب CONFIG_INVALID (ظاهرة، مش صامتة)
+ * بدل ما يرمي ويوقف الحدث كله بمستلمي الجرس اللي معاه.
+ */
+type ClosedTeamAlertWhatsapp = {
+  readonly authorize: (tx: Tx) => AuthorizeNotification;
+  readonly identity: Pick<ReturnType<typeof createPhoneIdentity>, 'identify'>;
+};
+/** مفاتيح قوالب تنبيهات الفريق التشغيلية؛ غيرها (رابط التقييم والـ OTP) بيفضل على سلوكه. */
+const TEAM_ALERT_KEYS: ReadonlySet<string> = new Set(TEAM_ALERT_TEMPLATE_KEYS);
 /** تخزين الدفع في المستهلك: التفعيل بيقول إن المرسل جاهز، والتخزين بيرجّع محاولة لكل اشتراك حيّ. */
 type PushStore = {
   readonly enabled: boolean;
@@ -97,6 +110,7 @@ export function notificationRequestConsumer(
   store: (tx: Tx) => StoreInAppNotification,
   email?: EmailAuthorizer,
   push?: PushStore,
+  closedTeamAlertWhatsapp?: ClosedTeamAlertWhatsapp,
 ): OutboxConsumer {
   return {
     id: 'notifications.authorize-v1',
@@ -104,7 +118,13 @@ export function notificationRequestConsumer(
     handle: async (tx, event: ClaimedEvent) => {
       const parsed = parseRequest(event);
       if (!parsed.success) return;
-      const dependencies: AuthorizeDependencies = { authorize, identity, registry, email };
+      const dependencies: AuthorizeDependencies = {
+        authorize,
+        identity,
+        registry,
+        email,
+        closedTeamAlertWhatsapp,
+      };
       for (const recipient of parsed.data.notification_recipients) {
         if (recipient.channel === 'IN_APP') {
           await storeRecipient(store(tx), event, recipient, parsed.data);
@@ -136,6 +156,12 @@ async function authorizeRecipient(
     await dependencies.email(tx, event, recipient, scope);
     return;
   }
+  if (TEAM_ALERT_KEYS.has(recipient.template_key)) {
+    const closed = dependencies.closedTeamAlertWhatsapp;
+    if (closed === undefined) throw new Error('TEAM_ALERT_WHATSAPP_CLOSED_UNWIRED');
+    await authorizeClosedTeamAlert(closed, request, recipient);
+    return;
+  }
   const locale = recipient.locale ?? null;
   const prepared =
     locale === 'ar' || locale === 'en'
@@ -162,6 +188,38 @@ async function authorizeRecipient(
     safeParameters: stored.safeParameters,
     deadline: recipient.send_deadline == null ? null : new Date(recipient.send_deadline),
     configurationFailure: stored.configurationFailure,
+  });
+}
+
+/**
+ * يسجّل محاولة واتساب تنبيه فريق نهائية FAILED بسبب CONFIG_INVALID: من غير وجهة (الهاتف ما بيتخزّنش)،
+ * مع آخر ثلاثة أرقام فقط، ومعاها حدث NotificationFailed (ADR-0018 §3، §11).
+ *
+ * @param closed تبعيات المسار المقفول
+ * @param request الطلب: المعاملة والحدث والنطاق
+ * @param recipient مستلم الواتساب بقالب تنبيه فريق
+ */
+async function authorizeClosedTeamAlert(
+  closed: ClosedTeamAlertWhatsapp,
+  request: RecipientRequest,
+  recipient: Extract<ScheduledRecipient, { channel: 'whatsapp' }>,
+): Promise<void> {
+  const { tx, event, scope } = request;
+  await closed.authorize(tx).execute({
+    companyId: event.companyId,
+    sourceEventId: event.id,
+    businessId: scope.business_id ?? null,
+    branchId: scope.branch_id ?? null,
+    phone: recipient.phone,
+    identity: closed.identity.identify(recipient.phone),
+    locale: recipient.locale ?? null,
+    channel: 'whatsapp',
+    templateKey: recipient.template_key,
+    templateRevision: recipient.template_revision,
+    providerTemplateName: null,
+    safeParameters: [],
+    deadline: recipient.send_deadline == null ? null : new Date(recipient.send_deadline),
+    configurationFailure: 'CONFIG_INVALID',
   });
 }
 

@@ -1,4 +1,4 @@
-import type { AlertRecipientRole, EffectiveAlertRule } from '@pospay/domain';
+import type { AlertChannel, AlertRecipientRole, EffectiveAlertRule } from '@pospay/domain';
 
 /** نوعا التنبيه الخاصان بطلب تعديل الحضور وبقراره. */
 export type AttendanceChangeAlertKind =
@@ -9,8 +9,8 @@ export type AttendanceChangeAlertKind =
 export interface AttendanceChangeAlertPlan {
   /** المستلم الثابت للنوع يتحسب من السلطة؛ false = القاعدة ما جابتش المستلم الثابت بتاع النوع. */
   readonly fixed: boolean;
-  /** قناة الإشعار اللي بتتكتب في الحدث؛ null = بلا إشعار. */
-  readonly channel: 'IN_APP' | null;
+  /** قنوات الإشعار المفعّلة في القاعدة (جرس وإيميل وواتساب)؛ فاضية = بلا إشعار. */
+  readonly channels: readonly AlertChannel[];
   /** أدوار القاعدة اللي بتزود مستلمين جنب المستلم الثابت؛ فاضية = مفيش قراءة أدوار. */
   readonly roles: readonly AlertRecipientRole[];
 }
@@ -25,7 +25,7 @@ export interface AttendanceChangeNoticeParameter {
   readonly value: string;
 }
 
-const NOTHING: AttendanceChangeAlertPlan = { fixed: false, channel: null, roles: [] };
+const NOTHING: AttendanceChangeAlertPlan = { fixed: false, channels: [], roles: [] };
 
 const DECIDE_PERMISSION = 'decide:attendance-change:company';
 
@@ -47,20 +47,19 @@ function carriesSelector(rule: EffectiveAlertRule, kind: AttendanceChangeAlertKi
 
 /**
  * بيحوّل القاعدة الفعلية لنوع التنبيه إلى اللي المُرسِل مسموح يعمله: يحسب المستلم الثابت، ويزود مستلمي
- * أدوار القاعدة، ويكتب قناة الإشعار. كل واحد فيهم بيتحسب لوحده: القاعدة اللي ما جابتش المستلم الثابت
+ * أدوار القاعدة، ويكتب قنوات الإشعار. كل واحد فيهم بيتحسب لوحده: القاعدة اللي ما جابتش المستلم الثابت
  * ما بتقراش حازمين القرار، والقاعدة المقفولة (النوع مطفي أو المفتاح العام مقفول) ما بتقراش حاجة خالص.
  *
  * @param rule القاعدة الفعلية بعد المفتاح العام
  * @param kind نوع التنبيه: طلب التعديل أم قراره
- * @returns الخطة: هل المستلم الثابت يتحسب وإيه القناة وإيه الأدوار اللي بتتحسب
+ * @returns الخطة: هل المستلم الثابت يتحسب وإيه القنوات وإيه الأدوار اللي بتتحسب
  */
 export function attendanceChangeAlertPlan(
   rule: EffectiveAlertRule,
   kind: AttendanceChangeAlertKind,
 ): AttendanceChangeAlertPlan {
-  const channel = rule.enabled && rule.channels.includes('IN_APP') ? 'IN_APP' : null;
-  if (channel === null) return NOTHING;
-  return { fixed: carriesSelector(rule, kind), channel, roles: rule.recipientRoles };
+  if (!rule.enabled || rule.channels.length === 0) return NOTHING;
+  return { fixed: carriesSelector(rule, kind), channels: rule.channels, roles: rule.recipientRoles };
 }
 
 /**

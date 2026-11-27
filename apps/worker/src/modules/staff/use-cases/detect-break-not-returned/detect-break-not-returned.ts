@@ -23,6 +23,7 @@ import {
   type NameFallback,
   type NotClockedInProgress,
 } from '../../domain/not-clocked-in.ts';
+import { teamAlertAudience } from '../read-team-alert-audience.ts';
 import type { Clock } from '../../ports/clock.port.ts';
 import type {
   BreakNoticeWrite,
@@ -246,13 +247,15 @@ export class DetectBreakNotReturned {
       this.nameFallback,
     ) : breakReturnedOtherBranchParameters(shift.nameAr, shift.nameEn, returned, this.nameFallback);
     if (parameters === null) throw new Error('ATTENDANCE_BREAK_NOT_RETURNED_PARAMETERS_INVALID');
+    const recipients = withoutAbsentEmployee(managers, shift.employeeUserId);
     return {
       kind: returned === null ? 'break_not_returned' : 'break_returned_other_branch',
       returned,
       shift,
       ...moments,
       detectedAt: at,
-      recipients: withoutAbsentEmployee(managers, shift.employeeUserId),
+      recipients,
+      audience: await teamAlertAudience(plan.channels, recipients, tx, at),
       parameters,
     };
   }

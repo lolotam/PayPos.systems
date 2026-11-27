@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { id } from '../scalars/id.js';
 import { lateServiceSessionRecipient } from '../in-app-notifications.js';
+import { withTeamAlertChannels } from '../team-alert-recipients.js';
 export const lateServiceSessionNoticeRequested = z
   .strictObject({
     schema_version: z.literal(1),
@@ -10,7 +11,7 @@ export const lateServiceSessionNoticeRequested = z
     business_date: z.iso.date(),
     business_timezone: z.string().min(1).max(255),
     notification_recipients: z
-      .array(lateServiceSessionRecipient.extend({ locale: z.literal('ar') }))
+      .array(withTeamAlertChannels(lateServiceSessionRecipient.extend({ locale: z.literal('ar') }), 'late_service_session'))
       .min(1)
       .max(100),
   })

@@ -6,7 +6,7 @@ import {
   type Tx,
 } from '@pospay/db';
 import { sql } from 'drizzle-orm';
-import { inAppRecipientGroups, type NoticeParameter } from '../domain/not-clocked-in.ts';
+import { distinctRecipients, teamAlertGroups } from '../domain/team-alert-groups.ts';
 import type { EmployeePush, NoticeWrite, SuppressedWrite } from '../ports/not-clocked-in.port.ts';
 
 /** حدث التنبيه بلا حمولته: الحمولة بتتضاف مع كل مجموعة مستلمين. */
@@ -22,13 +22,14 @@ export async function recordNotClockedIn(
   notice: NoticeWrite,
 ): Promise<boolean> {
   const id = ids.newId();
-  const groups = inAppRecipientGroups(notice.recipients);
+  const users = distinctRecipients(notice.recipients);
+  const groups = noticeGroups(notice);
   const inserted = await tx.execute<{ id: string }>(sql`
     INSERT INTO attendance_not_clocked_in_notices(
       company_id,id,business_id,branch_id,employee_id,shift_starts_at,shift_ends_at,alert_due_at,notified_at,recipient_count)
     VALUES(${companyId},${id},${notice.shift.businessId},${notice.shift.branchId},${notice.shift.employeeId},
       ${notice.shift.startsAt.toISOString()},${notice.shift.endsAt.toISOString()},${notice.alertAt.toISOString()},
-      ${notice.detectedAt.toISOString()},${groups.reduce((total, group) => total + group.length, 0)})
+      ${notice.detectedAt.toISOString()},${users.length})
     ON CONFLICT (company_id, employee_id, shift_starts_at) DO NOTHING RETURNING id`);
   if (inserted.length !== 1) return false;
   const facts = noticeFacts(id, notice);
@@ -36,7 +37,7 @@ export async function recordNotClockedIn(
     entity: 'attendance_notice',
     entityId: id,
     action: 'not_clocked_in.detected',
-    after: { ...facts, recipient_user_ids: groups.flat() },
+    after: { ...facts, recipient_user_ids: users },
   });
   await appendOutboxEvents(tx, outboxEntries(ids, notice, facts, groups));
   return true;
@@ -46,7 +47,7 @@ function outboxEntries(
   ids: IdGenerator,
   notice: NoticeWrite,
   facts: ReturnType<typeof noticeFacts>,
-  groups: readonly (readonly string[])[],
+  groups: NoticeGroups,
 ): OutboxEntry[] {
   const event: NoticeEvent = {
     aggregateType: 'employee',
@@ -64,7 +65,7 @@ function managerEntries(
   event: NoticeEvent,
   notice: NoticeWrite,
   facts: ReturnType<typeof noticeFacts>,
-  groups: readonly (readonly string[])[],
+  groups: NoticeGroups,
 ): OutboxEntry[] {
   if (groups.length === 0)
     return [
@@ -84,7 +85,7 @@ function managerEntries(
       payload: {
         ...facts,
         employee_push_user_id: index === 0 ? notice.employeePushUserId : null,
-        notification_recipients: recipientsFor(group, notice.parameters),
+        notification_recipients: group,
       },
     },
   }));
@@ -121,14 +122,17 @@ function pushEntry(
   };
 }
 
-function recipientsFor(userIds: readonly string[], parameters: readonly NoticeParameter[]) {
-  return userIds.map((userId) => ({
+type NoticeGroups = ReturnType<typeof noticeGroups>;
+
+// مجموعات المستلمين: الجرس وحده افتراضيًا، والإيميل والواتساب لما القاعدة تفعّلهم ويكون للمستخدم وجهة صالحة (62b-1).
+function noticeGroups(notice: NoticeWrite) {
+  return teamAlertGroups(notice.recipients, notice.audience, 'shift_not_clocked_in', (userId) => ({
     channel: 'IN_APP' as const,
     user_id: userId,
     locale: 'ar' as const,
     template_key: 'shift_not_clocked_in' as const,
     template_revision: 1 as const,
-    safe_parameters: parameters,
+    safe_parameters: notice.parameters,
   }));
 }
 

@@ -222,7 +222,7 @@ function bellPayload(
 }
 
 function recipientIds(payload: DiscountSelfApprovalNoticeRequested): string[] {
-  return payload.notification_recipients.map((recipient) => recipient.user_id);
+  return payload.notification_recipients.flatMap((recipient) => ('user_id' in recipient ? [recipient.user_id] : []));
 }
 
 function useCase(tx: Tx) {

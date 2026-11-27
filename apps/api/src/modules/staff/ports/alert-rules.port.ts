@@ -1,5 +1,10 @@
 import type { Tx } from '@pospay/db';
-import type { AlertKind, AlertRecipientRole, EffectiveAlertRule } from '@pospay/domain';
+import type {
+  AlertKind,
+  AlertRecipientRole,
+  EffectiveAlertRule,
+  TeamAlertContact,
+} from '@pospay/domain';
 
 /**
  * قواعد التنبيه اللي settings صاحبه، بتتقري جوه معاملة المُرسِل نفسها (spec 060 D-B13، FR-B17).
@@ -44,4 +49,20 @@ export interface AlertRulesPort {
     roles: readonly AlertRecipientRole[],
     at: Date,
   ): Promise<readonly { userId: string; owner: boolean }[]>;
+  /**
+   * جهات اتصال المستلمين للبريد والواتساب من دالة القراءة المحدودة (ADR-0003 §6a، AL-Q6) على معاملة المُرسِل نفسها؛
+   * مطلوبة لما قناة خارجية تتفعّل بس، وغيابها معها خطأ تركيب ظاهر.
+   *
+   * @param tx        معاملة الشركة بتاعة المُرسِل
+   * @param companyId الشركة
+   * @param userIds   المستلمين
+   * @param at        لحظة سريان العضوية
+   * @returns جهة اتصال لكل مستخدم عنده وجهة صالحة
+   */
+  contacts?(
+    tx: Tx,
+    companyId: string,
+    userIds: readonly string[],
+    at: Date,
+  ): Promise<ReadonlyMap<string, TeamAlertContact>>;
 }

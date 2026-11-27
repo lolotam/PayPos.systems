@@ -39910,7 +39910,9 @@
       "AlertChannel": {
         "type": "string",
         "enum": [
-          "IN_APP"
+          "IN_APP",
+          "EMAIL",
+          "WHATSAPP"
         ]
       },
       "AlertFixedRecipient": {
@@ -40064,7 +40066,7 @@
             }
           },
           "channels": {
-            "maxItems": 1,
+            "maxItems": 3,
             "type": "array",
             "items": {
               "$ref": "#/components/schemas/AlertChannel"
@@ -42992,140 +42994,244 @@
             "maxItems": 100,
             "type": "array",
             "items": {
-              "type": "object",
-              "properties": {
-                "channel": {
-                  "type": "string",
-                  "enum": [
-                    "IN_APP"
-                  ]
-                },
-                "user_id": {
-                  "type": "string",
-                  "format": "uuid",
-                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
-                },
-                "locale": {
-                  "type": "string",
-                  "enum": [
-                    "ar"
-                  ]
-                },
-                "template_revision": {
-                  "type": "number",
-                  "enum": [
-                    1
-                  ]
-                },
-                "template_key": {
-                  "type": "string",
-                  "enum": [
-                    "late_service_session"
-                  ]
-                },
-                "safe_parameters": {
-                  "type": "array",
-                  "items": {
-                    "anyOf": [
-                      {
-                        "type": "object",
-                        "properties": {
-                          "name": {
-                            "type": "string",
-                            "enum": [
-                              "branch_name_ar"
-                            ]
+              "anyOf": [
+                {
+                  "type": "object",
+                  "properties": {
+                    "channel": {
+                      "type": "string",
+                      "enum": [
+                        "IN_APP"
+                      ]
+                    },
+                    "user_id": {
+                      "type": "string",
+                      "format": "uuid",
+                      "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                    },
+                    "locale": {
+                      "type": "string",
+                      "enum": [
+                        "ar"
+                      ]
+                    },
+                    "template_revision": {
+                      "type": "number",
+                      "enum": [
+                        1
+                      ]
+                    },
+                    "template_key": {
+                      "type": "string",
+                      "enum": [
+                        "late_service_session"
+                      ]
+                    },
+                    "safe_parameters": {
+                      "type": "array",
+                      "items": {
+                        "anyOf": [
+                          {
+                            "type": "object",
+                            "properties": {
+                              "name": {
+                                "type": "string",
+                                "enum": [
+                                  "branch_name_ar"
+                                ]
+                              },
+                              "type": {
+                                "type": "string",
+                                "enum": [
+                                  "text"
+                                ]
+                              },
+                              "value": {
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 255
+                              }
+                            },
+                            "required": [
+                              "name",
+                              "type",
+                              "value"
+                            ],
+                            "additionalProperties": false
                           },
-                          "type": {
-                            "type": "string",
-                            "enum": [
-                              "text"
-                            ]
+                          {
+                            "type": "object",
+                            "properties": {
+                              "name": {
+                                "type": "string",
+                                "enum": [
+                                  "branch_name_en"
+                                ]
+                              },
+                              "type": {
+                                "type": "string",
+                                "enum": [
+                                  "text"
+                                ]
+                              },
+                              "value": {
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 255
+                              }
+                            },
+                            "required": [
+                              "name",
+                              "type",
+                              "value"
+                            ],
+                            "additionalProperties": false
                           },
-                          "value": {
-                            "type": "string",
-                            "minLength": 1,
-                            "maxLength": 255
+                          {
+                            "type": "object",
+                            "properties": {
+                              "name": {
+                                "type": "string",
+                                "enum": [
+                                  "business_date"
+                                ]
+                              },
+                              "type": {
+                                "type": "string",
+                                "enum": [
+                                  "text"
+                                ]
+                              },
+                              "value": {
+                                "type": "string",
+                                "format": "date",
+                                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))$"
+                              }
+                            },
+                            "required": [
+                              "name",
+                              "type",
+                              "value"
+                            ],
+                            "additionalProperties": false
                           }
-                        },
-                        "required": [
-                          "name",
-                          "type",
-                          "value"
-                        ],
-                        "additionalProperties": false
+                        ]
                       },
-                      {
-                        "type": "object",
-                        "properties": {
-                          "name": {
-                            "type": "string",
-                            "enum": [
-                              "branch_name_en"
-                            ]
-                          },
-                          "type": {
-                            "type": "string",
-                            "enum": [
-                              "text"
-                            ]
-                          },
-                          "value": {
-                            "type": "string",
-                            "minLength": 1,
-                            "maxLength": 255
-                          }
-                        },
-                        "required": [
-                          "name",
-                          "type",
-                          "value"
-                        ],
-                        "additionalProperties": false
-                      },
-                      {
-                        "type": "object",
-                        "properties": {
-                          "name": {
-                            "type": "string",
-                            "enum": [
-                              "business_date"
-                            ]
-                          },
-                          "type": {
-                            "type": "string",
-                            "enum": [
-                              "text"
-                            ]
-                          },
-                          "value": {
-                            "type": "string",
-                            "format": "date",
-                            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))$"
-                          }
-                        },
-                        "required": [
-                          "name",
-                          "type",
-                          "value"
-                        ],
-                        "additionalProperties": false
-                      }
-                    ]
+                      "minItems": 3,
+                      "maxItems": 3
+                    }
                   },
-                  "minItems": 3,
-                  "maxItems": 3
+                  "required": [
+                    "channel",
+                    "user_id",
+                    "locale",
+                    "template_revision",
+                    "template_key",
+                    "safe_parameters"
+                  ],
+                  "additionalProperties": false
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "email": {
+                      "type": "string",
+                      "minLength": 3,
+                      "maxLength": 254
+                    },
+                    "locale": {
+                      "type": "string",
+                      "enum": [
+                        "ar"
+                      ]
+                    },
+                    "channel": {
+                      "type": "string",
+                      "enum": [
+                        "email"
+                      ]
+                    },
+                    "template_key": {
+                      "type": "string",
+                      "enum": [
+                        "late_service_session"
+                      ]
+                    },
+                    "template_revision": {
+                      "type": "number",
+                      "enum": [
+                        1
+                      ]
+                    },
+                    "safe_parameters": {
+                      "type": "array",
+                      "items": {
+                        "anyOf": []
+                      },
+                      "maxItems": 0
+                    }
+                  },
+                  "required": [
+                    "email",
+                    "locale",
+                    "channel",
+                    "template_key",
+                    "template_revision",
+                    "safe_parameters"
+                  ],
+                  "additionalProperties": false
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "phone": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 32
+                    },
+                    "locale": {
+                      "type": "string",
+                      "enum": [
+                        "ar"
+                      ]
+                    },
+                    "channel": {
+                      "type": "string",
+                      "enum": [
+                        "whatsapp"
+                      ]
+                    },
+                    "template_key": {
+                      "type": "string",
+                      "enum": [
+                        "late_service_session"
+                      ]
+                    },
+                    "template_revision": {
+                      "type": "number",
+                      "enum": [
+                        1
+                      ]
+                    },
+                    "safe_parameters": {
+                      "type": "array",
+                      "items": {
+                        "anyOf": []
+                      },
+                      "maxItems": 0
+                    }
+                  },
+                  "required": [
+                    "phone",
+                    "locale",
+                    "channel",
+                    "template_key",
+                    "template_revision",
+                    "safe_parameters"
+                  ],
+                  "additionalProperties": false
                 }
-              },
-              "required": [
-                "channel",
-                "user_id",
-                "locale",
-                "template_revision",
-                "template_key",
-                "safe_parameters"
-              ],
-              "additionalProperties": false
+              ]
             }
           }
         },
@@ -43189,306 +43295,410 @@
             "maxItems": 100,
             "type": "array",
             "items": {
-              "type": "object",
-              "properties": {
-                "channel": {
-                  "type": "string",
-                  "enum": [
-                    "IN_APP"
-                  ]
-                },
-                "user_id": {
-                  "type": "string",
-                  "format": "uuid",
-                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
-                },
-                "locale": {
-                  "type": "string",
-                  "enum": [
-                    "ar"
-                  ]
-                },
-                "template_revision": {
-                  "type": "number",
-                  "enum": [
-                    1
-                  ]
-                },
-                "template_key": {
-                  "type": "string",
-                  "enum": [
-                    "service_line_price_edited"
-                  ]
-                },
-                "safe_parameters": {
-                  "type": "array",
-                  "items": {
-                    "anyOf": [
-                      {
-                        "type": "object",
-                        "properties": {
-                          "name": {
-                            "type": "string",
-                            "enum": [
-                              "service_name_ar"
-                            ]
+              "anyOf": [
+                {
+                  "type": "object",
+                  "properties": {
+                    "channel": {
+                      "type": "string",
+                      "enum": [
+                        "IN_APP"
+                      ]
+                    },
+                    "user_id": {
+                      "type": "string",
+                      "format": "uuid",
+                      "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                    },
+                    "locale": {
+                      "type": "string",
+                      "enum": [
+                        "ar"
+                      ]
+                    },
+                    "template_revision": {
+                      "type": "number",
+                      "enum": [
+                        1
+                      ]
+                    },
+                    "template_key": {
+                      "type": "string",
+                      "enum": [
+                        "service_line_price_edited"
+                      ]
+                    },
+                    "safe_parameters": {
+                      "type": "array",
+                      "items": {
+                        "anyOf": [
+                          {
+                            "type": "object",
+                            "properties": {
+                              "name": {
+                                "type": "string",
+                                "enum": [
+                                  "service_name_ar"
+                                ]
+                              },
+                              "type": {
+                                "type": "string",
+                                "enum": [
+                                  "text"
+                                ]
+                              },
+                              "value": {
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 255
+                              }
+                            },
+                            "required": [
+                              "name",
+                              "type",
+                              "value"
+                            ],
+                            "additionalProperties": false
                           },
-                          "type": {
-                            "type": "string",
-                            "enum": [
-                              "text"
-                            ]
+                          {
+                            "type": "object",
+                            "properties": {
+                              "name": {
+                                "type": "string",
+                                "enum": [
+                                  "service_name_en"
+                                ]
+                              },
+                              "type": {
+                                "type": "string",
+                                "enum": [
+                                  "text"
+                                ]
+                              },
+                              "value": {
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 255
+                              }
+                            },
+                            "required": [
+                              "name",
+                              "type",
+                              "value"
+                            ],
+                            "additionalProperties": false
                           },
-                          "value": {
-                            "type": "string",
-                            "minLength": 1,
-                            "maxLength": 255
+                          {
+                            "type": "object",
+                            "properties": {
+                              "name": {
+                                "type": "string",
+                                "enum": [
+                                  "branch_name_ar"
+                                ]
+                              },
+                              "type": {
+                                "type": "string",
+                                "enum": [
+                                  "text"
+                                ]
+                              },
+                              "value": {
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 255
+                              }
+                            },
+                            "required": [
+                              "name",
+                              "type",
+                              "value"
+                            ],
+                            "additionalProperties": false
+                          },
+                          {
+                            "type": "object",
+                            "properties": {
+                              "name": {
+                                "type": "string",
+                                "enum": [
+                                  "branch_name_en"
+                                ]
+                              },
+                              "type": {
+                                "type": "string",
+                                "enum": [
+                                  "text"
+                                ]
+                              },
+                              "value": {
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 255
+                              }
+                            },
+                            "required": [
+                              "name",
+                              "type",
+                              "value"
+                            ],
+                            "additionalProperties": false
+                          },
+                          {
+                            "type": "object",
+                            "properties": {
+                              "name": {
+                                "type": "string",
+                                "enum": [
+                                  "business_date"
+                                ]
+                              },
+                              "type": {
+                                "type": "string",
+                                "enum": [
+                                  "text"
+                                ]
+                              },
+                              "value": {
+                                "type": "string",
+                                "format": "date",
+                                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))$"
+                              }
+                            },
+                            "required": [
+                              "name",
+                              "type",
+                              "value"
+                            ],
+                            "additionalProperties": false
+                          },
+                          {
+                            "type": "object",
+                            "properties": {
+                              "name": {
+                                "type": "string",
+                                "enum": [
+                                  "previous_net"
+                                ]
+                              },
+                              "type": {
+                                "type": "string",
+                                "enum": [
+                                  "text"
+                                ]
+                              },
+                              "value": {
+                                "type": "string",
+                                "pattern": "^\\d{1,11}\\.\\d{3}$"
+                              }
+                            },
+                            "required": [
+                              "name",
+                              "type",
+                              "value"
+                            ],
+                            "additionalProperties": false
+                          },
+                          {
+                            "type": "object",
+                            "properties": {
+                              "name": {
+                                "type": "string",
+                                "enum": [
+                                  "new_net"
+                                ]
+                              },
+                              "type": {
+                                "type": "string",
+                                "enum": [
+                                  "text"
+                                ]
+                              },
+                              "value": {
+                                "type": "string",
+                                "pattern": "^\\d{1,11}\\.\\d{3}$"
+                              }
+                            },
+                            "required": [
+                              "name",
+                              "type",
+                              "value"
+                            ],
+                            "additionalProperties": false
+                          },
+                          {
+                            "type": "object",
+                            "properties": {
+                              "name": {
+                                "type": "string",
+                                "enum": [
+                                  "editor_name_ar"
+                                ]
+                              },
+                              "type": {
+                                "type": "string",
+                                "enum": [
+                                  "text"
+                                ]
+                              },
+                              "value": {
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 255
+                              }
+                            },
+                            "required": [
+                              "name",
+                              "type",
+                              "value"
+                            ],
+                            "additionalProperties": false
+                          },
+                          {
+                            "type": "object",
+                            "properties": {
+                              "name": {
+                                "type": "string",
+                                "enum": [
+                                  "editor_name_en"
+                                ]
+                              },
+                              "type": {
+                                "type": "string",
+                                "enum": [
+                                  "text"
+                                ]
+                              },
+                              "value": {
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 255
+                              }
+                            },
+                            "required": [
+                              "name",
+                              "type",
+                              "value"
+                            ],
+                            "additionalProperties": false
                           }
-                        },
-                        "required": [
-                          "name",
-                          "type",
-                          "value"
-                        ],
-                        "additionalProperties": false
+                        ]
                       },
-                      {
-                        "type": "object",
-                        "properties": {
-                          "name": {
-                            "type": "string",
-                            "enum": [
-                              "service_name_en"
-                            ]
-                          },
-                          "type": {
-                            "type": "string",
-                            "enum": [
-                              "text"
-                            ]
-                          },
-                          "value": {
-                            "type": "string",
-                            "minLength": 1,
-                            "maxLength": 255
-                          }
-                        },
-                        "required": [
-                          "name",
-                          "type",
-                          "value"
-                        ],
-                        "additionalProperties": false
-                      },
-                      {
-                        "type": "object",
-                        "properties": {
-                          "name": {
-                            "type": "string",
-                            "enum": [
-                              "branch_name_ar"
-                            ]
-                          },
-                          "type": {
-                            "type": "string",
-                            "enum": [
-                              "text"
-                            ]
-                          },
-                          "value": {
-                            "type": "string",
-                            "minLength": 1,
-                            "maxLength": 255
-                          }
-                        },
-                        "required": [
-                          "name",
-                          "type",
-                          "value"
-                        ],
-                        "additionalProperties": false
-                      },
-                      {
-                        "type": "object",
-                        "properties": {
-                          "name": {
-                            "type": "string",
-                            "enum": [
-                              "branch_name_en"
-                            ]
-                          },
-                          "type": {
-                            "type": "string",
-                            "enum": [
-                              "text"
-                            ]
-                          },
-                          "value": {
-                            "type": "string",
-                            "minLength": 1,
-                            "maxLength": 255
-                          }
-                        },
-                        "required": [
-                          "name",
-                          "type",
-                          "value"
-                        ],
-                        "additionalProperties": false
-                      },
-                      {
-                        "type": "object",
-                        "properties": {
-                          "name": {
-                            "type": "string",
-                            "enum": [
-                              "business_date"
-                            ]
-                          },
-                          "type": {
-                            "type": "string",
-                            "enum": [
-                              "text"
-                            ]
-                          },
-                          "value": {
-                            "type": "string",
-                            "format": "date",
-                            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))$"
-                          }
-                        },
-                        "required": [
-                          "name",
-                          "type",
-                          "value"
-                        ],
-                        "additionalProperties": false
-                      },
-                      {
-                        "type": "object",
-                        "properties": {
-                          "name": {
-                            "type": "string",
-                            "enum": [
-                              "previous_net"
-                            ]
-                          },
-                          "type": {
-                            "type": "string",
-                            "enum": [
-                              "text"
-                            ]
-                          },
-                          "value": {
-                            "type": "string",
-                            "pattern": "^\\d{1,11}\\.\\d{3}$"
-                          }
-                        },
-                        "required": [
-                          "name",
-                          "type",
-                          "value"
-                        ],
-                        "additionalProperties": false
-                      },
-                      {
-                        "type": "object",
-                        "properties": {
-                          "name": {
-                            "type": "string",
-                            "enum": [
-                              "new_net"
-                            ]
-                          },
-                          "type": {
-                            "type": "string",
-                            "enum": [
-                              "text"
-                            ]
-                          },
-                          "value": {
-                            "type": "string",
-                            "pattern": "^\\d{1,11}\\.\\d{3}$"
-                          }
-                        },
-                        "required": [
-                          "name",
-                          "type",
-                          "value"
-                        ],
-                        "additionalProperties": false
-                      },
-                      {
-                        "type": "object",
-                        "properties": {
-                          "name": {
-                            "type": "string",
-                            "enum": [
-                              "editor_name_ar"
-                            ]
-                          },
-                          "type": {
-                            "type": "string",
-                            "enum": [
-                              "text"
-                            ]
-                          },
-                          "value": {
-                            "type": "string",
-                            "minLength": 1,
-                            "maxLength": 255
-                          }
-                        },
-                        "required": [
-                          "name",
-                          "type",
-                          "value"
-                        ],
-                        "additionalProperties": false
-                      },
-                      {
-                        "type": "object",
-                        "properties": {
-                          "name": {
-                            "type": "string",
-                            "enum": [
-                              "editor_name_en"
-                            ]
-                          },
-                          "type": {
-                            "type": "string",
-                            "enum": [
-                              "text"
-                            ]
-                          },
-                          "value": {
-                            "type": "string",
-                            "minLength": 1,
-                            "maxLength": 255
-                          }
-                        },
-                        "required": [
-                          "name",
-                          "type",
-                          "value"
-                        ],
-                        "additionalProperties": false
-                      }
-                    ]
+                      "minItems": 9,
+                      "maxItems": 9
+                    }
                   },
-                  "minItems": 9,
-                  "maxItems": 9
+                  "required": [
+                    "channel",
+                    "user_id",
+                    "locale",
+                    "template_revision",
+                    "template_key",
+                    "safe_parameters"
+                  ],
+                  "additionalProperties": false
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "email": {
+                      "type": "string",
+                      "minLength": 3,
+                      "maxLength": 254
+                    },
+                    "locale": {
+                      "type": "string",
+                      "enum": [
+                        "ar"
+                      ]
+                    },
+                    "channel": {
+                      "type": "string",
+                      "enum": [
+                        "email"
+                      ]
+                    },
+                    "template_key": {
+                      "type": "string",
+                      "enum": [
+                        "service_line_price_edited"
+                      ]
+                    },
+                    "template_revision": {
+                      "type": "number",
+                      "enum": [
+                        1
+                      ]
+                    },
+                    "safe_parameters": {
+                      "type": "array",
+                      "items": {
+                        "anyOf": []
+                      },
+                      "maxItems": 0
+                    }
+                  },
+                  "required": [
+                    "email",
+                    "locale",
+                    "channel",
+                    "template_key",
+                    "template_revision",
+                    "safe_parameters"
+                  ],
+                  "additionalProperties": false
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "phone": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 32
+                    },
+                    "locale": {
+                      "type": "string",
+                      "enum": [
+                        "ar"
+                      ]
+                    },
+                    "channel": {
+                      "type": "string",
+                      "enum": [
+                        "whatsapp"
+                      ]
+                    },
+                    "template_key": {
+                      "type": "string",
+                      "enum": [
+                        "service_line_price_edited"
+                      ]
+                    },
+                    "template_revision": {
+                      "type": "number",
+                      "enum": [
+                        1
+                      ]
+                    },
+                    "safe_parameters": {
+                      "type": "array",
+                      "items": {
+                        "anyOf": []
+                      },
+                      "maxItems": 0
+                    }
+                  },
+                  "required": [
+                    "phone",
+                    "locale",
+                    "channel",
+                    "template_key",
+                    "template_revision",
+                    "safe_parameters"
+                  ],
+                  "additionalProperties": false
                 }
-              },
-              "required": [
-                "channel",
-                "user_id",
-                "locale",
-                "template_revision",
-                "template_key",
-                "safe_parameters"
-              ],
-              "additionalProperties": false
+              ]
             }
           }
         },
@@ -43554,223 +43764,327 @@
             "maxItems": 100,
             "type": "array",
             "items": {
-              "type": "object",
-              "properties": {
-                "channel": {
-                  "type": "string",
-                  "enum": [
-                    "IN_APP"
-                  ]
-                },
-                "user_id": {
-                  "type": "string",
-                  "format": "uuid",
-                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
-                },
-                "locale": {
-                  "type": "string",
-                  "enum": [
-                    "ar"
-                  ]
-                },
-                "template_revision": {
-                  "type": "number",
-                  "enum": [
-                    1
-                  ]
-                },
-                "template_key": {
-                  "type": "string",
-                  "enum": [
-                    "service_line_cancelled"
-                  ]
-                },
-                "safe_parameters": {
-                  "type": "array",
-                  "items": {
-                    "anyOf": [
-                      {
-                        "type": "object",
-                        "properties": {
-                          "name": {
-                            "type": "string",
-                            "enum": [
-                              "service_name_ar"
-                            ]
+              "anyOf": [
+                {
+                  "type": "object",
+                  "properties": {
+                    "channel": {
+                      "type": "string",
+                      "enum": [
+                        "IN_APP"
+                      ]
+                    },
+                    "user_id": {
+                      "type": "string",
+                      "format": "uuid",
+                      "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                    },
+                    "locale": {
+                      "type": "string",
+                      "enum": [
+                        "ar"
+                      ]
+                    },
+                    "template_revision": {
+                      "type": "number",
+                      "enum": [
+                        1
+                      ]
+                    },
+                    "template_key": {
+                      "type": "string",
+                      "enum": [
+                        "service_line_cancelled"
+                      ]
+                    },
+                    "safe_parameters": {
+                      "type": "array",
+                      "items": {
+                        "anyOf": [
+                          {
+                            "type": "object",
+                            "properties": {
+                              "name": {
+                                "type": "string",
+                                "enum": [
+                                  "service_name_ar"
+                                ]
+                              },
+                              "type": {
+                                "type": "string",
+                                "enum": [
+                                  "text"
+                                ]
+                              },
+                              "value": {
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 255
+                              }
+                            },
+                            "required": [
+                              "name",
+                              "type",
+                              "value"
+                            ],
+                            "additionalProperties": false
                           },
-                          "type": {
-                            "type": "string",
-                            "enum": [
-                              "text"
-                            ]
+                          {
+                            "type": "object",
+                            "properties": {
+                              "name": {
+                                "type": "string",
+                                "enum": [
+                                  "service_name_en"
+                                ]
+                              },
+                              "type": {
+                                "type": "string",
+                                "enum": [
+                                  "text"
+                                ]
+                              },
+                              "value": {
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 255
+                              }
+                            },
+                            "required": [
+                              "name",
+                              "type",
+                              "value"
+                            ],
+                            "additionalProperties": false
                           },
-                          "value": {
-                            "type": "string",
-                            "minLength": 1,
-                            "maxLength": 255
+                          {
+                            "type": "object",
+                            "properties": {
+                              "name": {
+                                "type": "string",
+                                "enum": [
+                                  "branch_name_ar"
+                                ]
+                              },
+                              "type": {
+                                "type": "string",
+                                "enum": [
+                                  "text"
+                                ]
+                              },
+                              "value": {
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 255
+                              }
+                            },
+                            "required": [
+                              "name",
+                              "type",
+                              "value"
+                            ],
+                            "additionalProperties": false
+                          },
+                          {
+                            "type": "object",
+                            "properties": {
+                              "name": {
+                                "type": "string",
+                                "enum": [
+                                  "branch_name_en"
+                                ]
+                              },
+                              "type": {
+                                "type": "string",
+                                "enum": [
+                                  "text"
+                                ]
+                              },
+                              "value": {
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 255
+                              }
+                            },
+                            "required": [
+                              "name",
+                              "type",
+                              "value"
+                            ],
+                            "additionalProperties": false
+                          },
+                          {
+                            "type": "object",
+                            "properties": {
+                              "name": {
+                                "type": "string",
+                                "enum": [
+                                  "business_date"
+                                ]
+                              },
+                              "type": {
+                                "type": "string",
+                                "enum": [
+                                  "text"
+                                ]
+                              },
+                              "value": {
+                                "type": "string",
+                                "format": "date",
+                                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))$"
+                              }
+                            },
+                            "required": [
+                              "name",
+                              "type",
+                              "value"
+                            ],
+                            "additionalProperties": false
+                          },
+                          {
+                            "type": "object",
+                            "properties": {
+                              "name": {
+                                "type": "string",
+                                "enum": [
+                                  "cancelled_net"
+                                ]
+                              },
+                              "type": {
+                                "type": "string",
+                                "enum": [
+                                  "text"
+                                ]
+                              },
+                              "value": {
+                                "type": "string",
+                                "pattern": "^\\d{1,11}\\.\\d{3}$"
+                              }
+                            },
+                            "required": [
+                              "name",
+                              "type",
+                              "value"
+                            ],
+                            "additionalProperties": false
                           }
-                        },
-                        "required": [
-                          "name",
-                          "type",
-                          "value"
-                        ],
-                        "additionalProperties": false
+                        ]
                       },
-                      {
-                        "type": "object",
-                        "properties": {
-                          "name": {
-                            "type": "string",
-                            "enum": [
-                              "service_name_en"
-                            ]
-                          },
-                          "type": {
-                            "type": "string",
-                            "enum": [
-                              "text"
-                            ]
-                          },
-                          "value": {
-                            "type": "string",
-                            "minLength": 1,
-                            "maxLength": 255
-                          }
-                        },
-                        "required": [
-                          "name",
-                          "type",
-                          "value"
-                        ],
-                        "additionalProperties": false
-                      },
-                      {
-                        "type": "object",
-                        "properties": {
-                          "name": {
-                            "type": "string",
-                            "enum": [
-                              "branch_name_ar"
-                            ]
-                          },
-                          "type": {
-                            "type": "string",
-                            "enum": [
-                              "text"
-                            ]
-                          },
-                          "value": {
-                            "type": "string",
-                            "minLength": 1,
-                            "maxLength": 255
-                          }
-                        },
-                        "required": [
-                          "name",
-                          "type",
-                          "value"
-                        ],
-                        "additionalProperties": false
-                      },
-                      {
-                        "type": "object",
-                        "properties": {
-                          "name": {
-                            "type": "string",
-                            "enum": [
-                              "branch_name_en"
-                            ]
-                          },
-                          "type": {
-                            "type": "string",
-                            "enum": [
-                              "text"
-                            ]
-                          },
-                          "value": {
-                            "type": "string",
-                            "minLength": 1,
-                            "maxLength": 255
-                          }
-                        },
-                        "required": [
-                          "name",
-                          "type",
-                          "value"
-                        ],
-                        "additionalProperties": false
-                      },
-                      {
-                        "type": "object",
-                        "properties": {
-                          "name": {
-                            "type": "string",
-                            "enum": [
-                              "business_date"
-                            ]
-                          },
-                          "type": {
-                            "type": "string",
-                            "enum": [
-                              "text"
-                            ]
-                          },
-                          "value": {
-                            "type": "string",
-                            "format": "date",
-                            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))$"
-                          }
-                        },
-                        "required": [
-                          "name",
-                          "type",
-                          "value"
-                        ],
-                        "additionalProperties": false
-                      },
-                      {
-                        "type": "object",
-                        "properties": {
-                          "name": {
-                            "type": "string",
-                            "enum": [
-                              "cancelled_net"
-                            ]
-                          },
-                          "type": {
-                            "type": "string",
-                            "enum": [
-                              "text"
-                            ]
-                          },
-                          "value": {
-                            "type": "string",
-                            "pattern": "^\\d{1,11}\\.\\d{3}$"
-                          }
-                        },
-                        "required": [
-                          "name",
-                          "type",
-                          "value"
-                        ],
-                        "additionalProperties": false
-                      }
-                    ]
+                      "minItems": 6,
+                      "maxItems": 6
+                    }
                   },
-                  "minItems": 6,
-                  "maxItems": 6
+                  "required": [
+                    "channel",
+                    "user_id",
+                    "locale",
+                    "template_revision",
+                    "template_key",
+                    "safe_parameters"
+                  ],
+                  "additionalProperties": false
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "email": {
+                      "type": "string",
+                      "minLength": 3,
+                      "maxLength": 254
+                    },
+                    "locale": {
+                      "type": "string",
+                      "enum": [
+                        "ar"
+                      ]
+                    },
+                    "channel": {
+                      "type": "string",
+                      "enum": [
+                        "email"
+                      ]
+                    },
+                    "template_key": {
+                      "type": "string",
+                      "enum": [
+                        "service_line_cancelled"
+                      ]
+                    },
+                    "template_revision": {
+                      "type": "number",
+                      "enum": [
+                        1
+                      ]
+                    },
+                    "safe_parameters": {
+                      "type": "array",
+                      "items": {
+                        "anyOf": []
+                      },
+                      "maxItems": 0
+                    }
+                  },
+                  "required": [
+                    "email",
+                    "locale",
+                    "channel",
+                    "template_key",
+                    "template_revision",
+                    "safe_parameters"
+                  ],
+                  "additionalProperties": false
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "phone": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 32
+                    },
+                    "locale": {
+                      "type": "string",
+                      "enum": [
+                        "ar"
+                      ]
+                    },
+                    "channel": {
+                      "type": "string",
+                      "enum": [
+                        "whatsapp"
+                      ]
+                    },
+                    "template_key": {
+                      "type": "string",
+                      "enum": [
+                        "service_line_cancelled"
+                      ]
+                    },
+                    "template_revision": {
+                      "type": "number",
+                      "enum": [
+                        1
+                      ]
+                    },
+                    "safe_parameters": {
+                      "type": "array",
+                      "items": {
+                        "anyOf": []
+                      },
+                      "maxItems": 0
+                    }
+                  },
+                  "required": [
+                    "phone",
+                    "locale",
+                    "channel",
+                    "template_key",
+                    "template_revision",
+                    "safe_parameters"
+                  ],
+                  "additionalProperties": false
                 }
-              },
-              "required": [
-                "channel",
-                "user_id",
-                "locale",
-                "template_revision",
-                "template_key",
-                "safe_parameters"
-              ],
-              "additionalProperties": false
+              ]
             }
           }
         },
@@ -43836,223 +44150,327 @@
             "maxItems": 100,
             "type": "array",
             "items": {
-              "type": "object",
-              "properties": {
-                "channel": {
-                  "type": "string",
-                  "enum": [
-                    "IN_APP"
-                  ]
-                },
-                "user_id": {
-                  "type": "string",
-                  "format": "uuid",
-                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
-                },
-                "locale": {
-                  "type": "string",
-                  "enum": [
-                    "ar"
-                  ]
-                },
-                "template_revision": {
-                  "type": "number",
-                  "enum": [
-                    1
-                  ]
-                },
-                "template_key": {
-                  "type": "string",
-                  "enum": [
-                    "service_line_performers_changed"
-                  ]
-                },
-                "safe_parameters": {
-                  "type": "array",
-                  "items": {
-                    "anyOf": [
-                      {
-                        "type": "object",
-                        "properties": {
-                          "name": {
-                            "type": "string",
-                            "enum": [
-                              "service_name_ar"
-                            ]
+              "anyOf": [
+                {
+                  "type": "object",
+                  "properties": {
+                    "channel": {
+                      "type": "string",
+                      "enum": [
+                        "IN_APP"
+                      ]
+                    },
+                    "user_id": {
+                      "type": "string",
+                      "format": "uuid",
+                      "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                    },
+                    "locale": {
+                      "type": "string",
+                      "enum": [
+                        "ar"
+                      ]
+                    },
+                    "template_revision": {
+                      "type": "number",
+                      "enum": [
+                        1
+                      ]
+                    },
+                    "template_key": {
+                      "type": "string",
+                      "enum": [
+                        "service_line_performers_changed"
+                      ]
+                    },
+                    "safe_parameters": {
+                      "type": "array",
+                      "items": {
+                        "anyOf": [
+                          {
+                            "type": "object",
+                            "properties": {
+                              "name": {
+                                "type": "string",
+                                "enum": [
+                                  "service_name_ar"
+                                ]
+                              },
+                              "type": {
+                                "type": "string",
+                                "enum": [
+                                  "text"
+                                ]
+                              },
+                              "value": {
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 255
+                              }
+                            },
+                            "required": [
+                              "name",
+                              "type",
+                              "value"
+                            ],
+                            "additionalProperties": false
                           },
-                          "type": {
-                            "type": "string",
-                            "enum": [
-                              "text"
-                            ]
+                          {
+                            "type": "object",
+                            "properties": {
+                              "name": {
+                                "type": "string",
+                                "enum": [
+                                  "service_name_en"
+                                ]
+                              },
+                              "type": {
+                                "type": "string",
+                                "enum": [
+                                  "text"
+                                ]
+                              },
+                              "value": {
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 255
+                              }
+                            },
+                            "required": [
+                              "name",
+                              "type",
+                              "value"
+                            ],
+                            "additionalProperties": false
                           },
-                          "value": {
-                            "type": "string",
-                            "minLength": 1,
-                            "maxLength": 255
+                          {
+                            "type": "object",
+                            "properties": {
+                              "name": {
+                                "type": "string",
+                                "enum": [
+                                  "branch_name_ar"
+                                ]
+                              },
+                              "type": {
+                                "type": "string",
+                                "enum": [
+                                  "text"
+                                ]
+                              },
+                              "value": {
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 255
+                              }
+                            },
+                            "required": [
+                              "name",
+                              "type",
+                              "value"
+                            ],
+                            "additionalProperties": false
+                          },
+                          {
+                            "type": "object",
+                            "properties": {
+                              "name": {
+                                "type": "string",
+                                "enum": [
+                                  "branch_name_en"
+                                ]
+                              },
+                              "type": {
+                                "type": "string",
+                                "enum": [
+                                  "text"
+                                ]
+                              },
+                              "value": {
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 255
+                              }
+                            },
+                            "required": [
+                              "name",
+                              "type",
+                              "value"
+                            ],
+                            "additionalProperties": false
+                          },
+                          {
+                            "type": "object",
+                            "properties": {
+                              "name": {
+                                "type": "string",
+                                "enum": [
+                                  "business_date"
+                                ]
+                              },
+                              "type": {
+                                "type": "string",
+                                "enum": [
+                                  "text"
+                                ]
+                              },
+                              "value": {
+                                "type": "string",
+                                "format": "date",
+                                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))$"
+                              }
+                            },
+                            "required": [
+                              "name",
+                              "type",
+                              "value"
+                            ],
+                            "additionalProperties": false
+                          },
+                          {
+                            "type": "object",
+                            "properties": {
+                              "name": {
+                                "type": "string",
+                                "enum": [
+                                  "line_net"
+                                ]
+                              },
+                              "type": {
+                                "type": "string",
+                                "enum": [
+                                  "text"
+                                ]
+                              },
+                              "value": {
+                                "type": "string",
+                                "pattern": "^\\d{1,11}\\.\\d{3}$"
+                              }
+                            },
+                            "required": [
+                              "name",
+                              "type",
+                              "value"
+                            ],
+                            "additionalProperties": false
                           }
-                        },
-                        "required": [
-                          "name",
-                          "type",
-                          "value"
-                        ],
-                        "additionalProperties": false
+                        ]
                       },
-                      {
-                        "type": "object",
-                        "properties": {
-                          "name": {
-                            "type": "string",
-                            "enum": [
-                              "service_name_en"
-                            ]
-                          },
-                          "type": {
-                            "type": "string",
-                            "enum": [
-                              "text"
-                            ]
-                          },
-                          "value": {
-                            "type": "string",
-                            "minLength": 1,
-                            "maxLength": 255
-                          }
-                        },
-                        "required": [
-                          "name",
-                          "type",
-                          "value"
-                        ],
-                        "additionalProperties": false
-                      },
-                      {
-                        "type": "object",
-                        "properties": {
-                          "name": {
-                            "type": "string",
-                            "enum": [
-                              "branch_name_ar"
-                            ]
-                          },
-                          "type": {
-                            "type": "string",
-                            "enum": [
-                              "text"
-                            ]
-                          },
-                          "value": {
-                            "type": "string",
-                            "minLength": 1,
-                            "maxLength": 255
-                          }
-                        },
-                        "required": [
-                          "name",
-                          "type",
-                          "value"
-                        ],
-                        "additionalProperties": false
-                      },
-                      {
-                        "type": "object",
-                        "properties": {
-                          "name": {
-                            "type": "string",
-                            "enum": [
-                              "branch_name_en"
-                            ]
-                          },
-                          "type": {
-                            "type": "string",
-                            "enum": [
-                              "text"
-                            ]
-                          },
-                          "value": {
-                            "type": "string",
-                            "minLength": 1,
-                            "maxLength": 255
-                          }
-                        },
-                        "required": [
-                          "name",
-                          "type",
-                          "value"
-                        ],
-                        "additionalProperties": false
-                      },
-                      {
-                        "type": "object",
-                        "properties": {
-                          "name": {
-                            "type": "string",
-                            "enum": [
-                              "business_date"
-                            ]
-                          },
-                          "type": {
-                            "type": "string",
-                            "enum": [
-                              "text"
-                            ]
-                          },
-                          "value": {
-                            "type": "string",
-                            "format": "date",
-                            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))$"
-                          }
-                        },
-                        "required": [
-                          "name",
-                          "type",
-                          "value"
-                        ],
-                        "additionalProperties": false
-                      },
-                      {
-                        "type": "object",
-                        "properties": {
-                          "name": {
-                            "type": "string",
-                            "enum": [
-                              "line_net"
-                            ]
-                          },
-                          "type": {
-                            "type": "string",
-                            "enum": [
-                              "text"
-                            ]
-                          },
-                          "value": {
-                            "type": "string",
-                            "pattern": "^\\d{1,11}\\.\\d{3}$"
-                          }
-                        },
-                        "required": [
-                          "name",
-                          "type",
-                          "value"
-                        ],
-                        "additionalProperties": false
-                      }
-                    ]
+                      "minItems": 6,
+                      "maxItems": 6
+                    }
                   },
-                  "minItems": 6,
-                  "maxItems": 6
+                  "required": [
+                    "channel",
+                    "user_id",
+                    "locale",
+                    "template_revision",
+                    "template_key",
+                    "safe_parameters"
+                  ],
+                  "additionalProperties": false
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "email": {
+                      "type": "string",
+                      "minLength": 3,
+                      "maxLength": 254
+                    },
+                    "locale": {
+                      "type": "string",
+                      "enum": [
+                        "ar"
+                      ]
+                    },
+                    "channel": {
+                      "type": "string",
+                      "enum": [
+                        "email"
+                      ]
+                    },
+                    "template_key": {
+                      "type": "string",
+                      "enum": [
+                        "service_line_performers_changed"
+                      ]
+                    },
+                    "template_revision": {
+                      "type": "number",
+                      "enum": [
+                        1
+                      ]
+                    },
+                    "safe_parameters": {
+                      "type": "array",
+                      "items": {
+                        "anyOf": []
+                      },
+                      "maxItems": 0
+                    }
+                  },
+                  "required": [
+                    "email",
+                    "locale",
+                    "channel",
+                    "template_key",
+                    "template_revision",
+                    "safe_parameters"
+                  ],
+                  "additionalProperties": false
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "phone": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 32
+                    },
+                    "locale": {
+                      "type": "string",
+                      "enum": [
+                        "ar"
+                      ]
+                    },
+                    "channel": {
+                      "type": "string",
+                      "enum": [
+                        "whatsapp"
+                      ]
+                    },
+                    "template_key": {
+                      "type": "string",
+                      "enum": [
+                        "service_line_performers_changed"
+                      ]
+                    },
+                    "template_revision": {
+                      "type": "number",
+                      "enum": [
+                        1
+                      ]
+                    },
+                    "safe_parameters": {
+                      "type": "array",
+                      "items": {
+                        "anyOf": []
+                      },
+                      "maxItems": 0
+                    }
+                  },
+                  "required": [
+                    "phone",
+                    "locale",
+                    "channel",
+                    "template_key",
+                    "template_revision",
+                    "safe_parameters"
+                  ],
+                  "additionalProperties": false
                 }
-              },
-              "required": [
-                "channel",
-                "user_id",
-                "locale",
-                "template_revision",
-                "template_key",
-                "safe_parameters"
-              ],
-              "additionalProperties": false
+              ]
             }
           }
         },
@@ -48358,251 +48776,355 @@
             "maxItems": 100,
             "type": "array",
             "items": {
-              "type": "object",
-              "properties": {
-                "channel": {
-                  "type": "string",
-                  "enum": [
-                    "IN_APP"
-                  ]
-                },
-                "user_id": {
-                  "type": "string",
-                  "format": "uuid",
-                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
-                },
-                "locale": {
-                  "type": "string",
-                  "enum": [
-                    "ar"
-                  ]
-                },
-                "template_revision": {
-                  "type": "number",
-                  "enum": [
-                    1
-                  ]
-                },
-                "template_key": {
-                  "type": "string",
-                  "enum": [
-                    "discount_self_approved"
-                  ]
-                },
-                "safe_parameters": {
-                  "type": "array",
-                  "items": {
-                    "anyOf": [
-                      {
-                        "type": "object",
-                        "properties": {
-                          "name": {
-                            "type": "string",
-                            "enum": [
-                              "branch_name_ar"
-                            ]
+              "anyOf": [
+                {
+                  "type": "object",
+                  "properties": {
+                    "channel": {
+                      "type": "string",
+                      "enum": [
+                        "IN_APP"
+                      ]
+                    },
+                    "user_id": {
+                      "type": "string",
+                      "format": "uuid",
+                      "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                    },
+                    "locale": {
+                      "type": "string",
+                      "enum": [
+                        "ar"
+                      ]
+                    },
+                    "template_revision": {
+                      "type": "number",
+                      "enum": [
+                        1
+                      ]
+                    },
+                    "template_key": {
+                      "type": "string",
+                      "enum": [
+                        "discount_self_approved"
+                      ]
+                    },
+                    "safe_parameters": {
+                      "type": "array",
+                      "items": {
+                        "anyOf": [
+                          {
+                            "type": "object",
+                            "properties": {
+                              "name": {
+                                "type": "string",
+                                "enum": [
+                                  "branch_name_ar"
+                                ]
+                              },
+                              "type": {
+                                "type": "string",
+                                "enum": [
+                                  "text"
+                                ]
+                              },
+                              "value": {
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 255
+                              }
+                            },
+                            "required": [
+                              "name",
+                              "type",
+                              "value"
+                            ],
+                            "additionalProperties": false
                           },
-                          "type": {
-                            "type": "string",
-                            "enum": [
-                              "text"
-                            ]
+                          {
+                            "type": "object",
+                            "properties": {
+                              "name": {
+                                "type": "string",
+                                "enum": [
+                                  "branch_name_en"
+                                ]
+                              },
+                              "type": {
+                                "type": "string",
+                                "enum": [
+                                  "text"
+                                ]
+                              },
+                              "value": {
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 255
+                              }
+                            },
+                            "required": [
+                              "name",
+                              "type",
+                              "value"
+                            ],
+                            "additionalProperties": false
                           },
-                          "value": {
-                            "type": "string",
-                            "minLength": 1,
-                            "maxLength": 255
+                          {
+                            "type": "object",
+                            "properties": {
+                              "name": {
+                                "type": "string",
+                                "enum": [
+                                  "approver_name_ar"
+                                ]
+                              },
+                              "type": {
+                                "type": "string",
+                                "enum": [
+                                  "text"
+                                ]
+                              },
+                              "value": {
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 255
+                              }
+                            },
+                            "required": [
+                              "name",
+                              "type",
+                              "value"
+                            ],
+                            "additionalProperties": false
+                          },
+                          {
+                            "type": "object",
+                            "properties": {
+                              "name": {
+                                "type": "string",
+                                "enum": [
+                                  "approver_name_en"
+                                ]
+                              },
+                              "type": {
+                                "type": "string",
+                                "enum": [
+                                  "text"
+                                ]
+                              },
+                              "value": {
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 255
+                              }
+                            },
+                            "required": [
+                              "name",
+                              "type",
+                              "value"
+                            ],
+                            "additionalProperties": false
+                          },
+                          {
+                            "type": "object",
+                            "properties": {
+                              "name": {
+                                "type": "string",
+                                "enum": [
+                                  "service_name_ar"
+                                ]
+                              },
+                              "type": {
+                                "type": "string",
+                                "enum": [
+                                  "text"
+                                ]
+                              },
+                              "value": {
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 255
+                              }
+                            },
+                            "required": [
+                              "name",
+                              "type",
+                              "value"
+                            ],
+                            "additionalProperties": false
+                          },
+                          {
+                            "type": "object",
+                            "properties": {
+                              "name": {
+                                "type": "string",
+                                "enum": [
+                                  "service_name_en"
+                                ]
+                              },
+                              "type": {
+                                "type": "string",
+                                "enum": [
+                                  "text"
+                                ]
+                              },
+                              "value": {
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 255
+                              }
+                            },
+                            "required": [
+                              "name",
+                              "type",
+                              "value"
+                            ],
+                            "additionalProperties": false
+                          },
+                          {
+                            "type": "object",
+                            "properties": {
+                              "name": {
+                                "type": "string",
+                                "enum": [
+                                  "max_percent"
+                                ]
+                              },
+                              "type": {
+                                "type": "string",
+                                "enum": [
+                                  "text"
+                                ]
+                              },
+                              "value": {
+                                "type": "string",
+                                "pattern": "^(?:100|[1-9]?\\d(?:\\.\\d?[1-9])?)$"
+                              }
+                            },
+                            "required": [
+                              "name",
+                              "type",
+                              "value"
+                            ],
+                            "additionalProperties": false
                           }
-                        },
-                        "required": [
-                          "name",
-                          "type",
-                          "value"
-                        ],
-                        "additionalProperties": false
+                        ]
                       },
-                      {
-                        "type": "object",
-                        "properties": {
-                          "name": {
-                            "type": "string",
-                            "enum": [
-                              "branch_name_en"
-                            ]
-                          },
-                          "type": {
-                            "type": "string",
-                            "enum": [
-                              "text"
-                            ]
-                          },
-                          "value": {
-                            "type": "string",
-                            "minLength": 1,
-                            "maxLength": 255
-                          }
-                        },
-                        "required": [
-                          "name",
-                          "type",
-                          "value"
-                        ],
-                        "additionalProperties": false
-                      },
-                      {
-                        "type": "object",
-                        "properties": {
-                          "name": {
-                            "type": "string",
-                            "enum": [
-                              "approver_name_ar"
-                            ]
-                          },
-                          "type": {
-                            "type": "string",
-                            "enum": [
-                              "text"
-                            ]
-                          },
-                          "value": {
-                            "type": "string",
-                            "minLength": 1,
-                            "maxLength": 255
-                          }
-                        },
-                        "required": [
-                          "name",
-                          "type",
-                          "value"
-                        ],
-                        "additionalProperties": false
-                      },
-                      {
-                        "type": "object",
-                        "properties": {
-                          "name": {
-                            "type": "string",
-                            "enum": [
-                              "approver_name_en"
-                            ]
-                          },
-                          "type": {
-                            "type": "string",
-                            "enum": [
-                              "text"
-                            ]
-                          },
-                          "value": {
-                            "type": "string",
-                            "minLength": 1,
-                            "maxLength": 255
-                          }
-                        },
-                        "required": [
-                          "name",
-                          "type",
-                          "value"
-                        ],
-                        "additionalProperties": false
-                      },
-                      {
-                        "type": "object",
-                        "properties": {
-                          "name": {
-                            "type": "string",
-                            "enum": [
-                              "service_name_ar"
-                            ]
-                          },
-                          "type": {
-                            "type": "string",
-                            "enum": [
-                              "text"
-                            ]
-                          },
-                          "value": {
-                            "type": "string",
-                            "minLength": 1,
-                            "maxLength": 255
-                          }
-                        },
-                        "required": [
-                          "name",
-                          "type",
-                          "value"
-                        ],
-                        "additionalProperties": false
-                      },
-                      {
-                        "type": "object",
-                        "properties": {
-                          "name": {
-                            "type": "string",
-                            "enum": [
-                              "service_name_en"
-                            ]
-                          },
-                          "type": {
-                            "type": "string",
-                            "enum": [
-                              "text"
-                            ]
-                          },
-                          "value": {
-                            "type": "string",
-                            "minLength": 1,
-                            "maxLength": 255
-                          }
-                        },
-                        "required": [
-                          "name",
-                          "type",
-                          "value"
-                        ],
-                        "additionalProperties": false
-                      },
-                      {
-                        "type": "object",
-                        "properties": {
-                          "name": {
-                            "type": "string",
-                            "enum": [
-                              "max_percent"
-                            ]
-                          },
-                          "type": {
-                            "type": "string",
-                            "enum": [
-                              "text"
-                            ]
-                          },
-                          "value": {
-                            "type": "string",
-                            "pattern": "^(?:100|[1-9]?\\d(?:\\.\\d?[1-9])?)$"
-                          }
-                        },
-                        "required": [
-                          "name",
-                          "type",
-                          "value"
-                        ],
-                        "additionalProperties": false
-                      }
-                    ]
+                      "minItems": 7,
+                      "maxItems": 7
+                    }
                   },
-                  "minItems": 7,
-                  "maxItems": 7
+                  "required": [
+                    "channel",
+                    "user_id",
+                    "locale",
+                    "template_revision",
+                    "template_key",
+                    "safe_parameters"
+                  ],
+                  "additionalProperties": false
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "email": {
+                      "type": "string",
+                      "minLength": 3,
+                      "maxLength": 254
+                    },
+                    "locale": {
+                      "type": "string",
+                      "enum": [
+                        "ar"
+                      ]
+                    },
+                    "channel": {
+                      "type": "string",
+                      "enum": [
+                        "email"
+                      ]
+                    },
+                    "template_key": {
+                      "type": "string",
+                      "enum": [
+                        "discount_self_approved"
+                      ]
+                    },
+                    "template_revision": {
+                      "type": "number",
+                      "enum": [
+                        1
+                      ]
+                    },
+                    "safe_parameters": {
+                      "type": "array",
+                      "items": {
+                        "anyOf": []
+                      },
+                      "maxItems": 0
+                    }
+                  },
+                  "required": [
+                    "email",
+                    "locale",
+                    "channel",
+                    "template_key",
+                    "template_revision",
+                    "safe_parameters"
+                  ],
+                  "additionalProperties": false
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "phone": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 32
+                    },
+                    "locale": {
+                      "type": "string",
+                      "enum": [
+                        "ar"
+                      ]
+                    },
+                    "channel": {
+                      "type": "string",
+                      "enum": [
+                        "whatsapp"
+                      ]
+                    },
+                    "template_key": {
+                      "type": "string",
+                      "enum": [
+                        "discount_self_approved"
+                      ]
+                    },
+                    "template_revision": {
+                      "type": "number",
+                      "enum": [
+                        1
+                      ]
+                    },
+                    "safe_parameters": {
+                      "type": "array",
+                      "items": {
+                        "anyOf": []
+                      },
+                      "maxItems": 0
+                    }
+                  },
+                  "required": [
+                    "phone",
+                    "locale",
+                    "channel",
+                    "template_key",
+                    "template_revision",
+                    "safe_parameters"
+                  ],
+                  "additionalProperties": false
                 }
-              },
-              "required": [
-                "channel",
-                "user_id",
-                "locale",
-                "template_revision",
-                "template_key",
-                "safe_parameters"
-              ],
-              "additionalProperties": false
+              ]
             }
           }
         },

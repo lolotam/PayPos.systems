@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { discountApprovalRequestedRecipient, discountSelfApprovedRecipient } from '../in-app-notifications.js';
 import { id as sharedId } from '../scalars/id.js';
+import { withTeamAlertChannels } from '../team-alert-recipients.js';
 import { timestamp } from '../scalars/timestamp.js';
 
 const id = sharedId.toLowerCase();
@@ -70,7 +71,12 @@ export const discountSelfApprovalNoticeRequested = z.strictObject({
   branch_id: id,
   proposal_ids: z.array(id).min(1).max(20),
   notification_recipients: z
-    .array(discountSelfApprovedRecipient.extend({ locale: z.literal('ar') }))
+    .array(
+      withTeamAlertChannels(
+        discountSelfApprovedRecipient.extend({ locale: z.literal('ar') }),
+        'discount_self_approved',
+      ),
+    )
     .min(1)
     .max(100),
 }).meta({ id: 'DiscountSelfApprovalNoticeRequested' });

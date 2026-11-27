@@ -44,11 +44,21 @@ describe('stars gate and event integrity', () => {
       expect(ratingMatchesEvent(facts, { ...facts, ...other })).toBe(false);
   });
 
-  it('a rule that is off or has no IN_APP channel delivers to nobody', () => {
+  it('a rule that is off or has no channel delivers to nobody', () => {
     const rule = { enabled: true, recipientRoles: ['owner'], channels: ['IN_APP'] } as const;
-    expect(lowRatingDelivery(rule)).toEqual({ active: true, roles: ['owner'] });
-    expect(lowRatingDelivery({ ...rule, enabled: false })).toEqual({ active: false, roles: [] });
-    expect(lowRatingDelivery({ ...rule, channels: [] })).toEqual({ active: false, roles: [] });
+    const nobody = { active: false, roles: [], channels: [] };
+    expect(lowRatingDelivery(rule)).toEqual({ active: true, roles: ['owner'], channels: ['IN_APP'] });
+    expect(lowRatingDelivery({ ...rule, enabled: false })).toEqual(nobody);
+    expect(lowRatingDelivery({ ...rule, channels: [] })).toEqual(nobody);
+  });
+
+  it('an email or WhatsApp only rule stays active with its roles (62b-1)', () => {
+    const rule = { enabled: true, recipientRoles: ['owner'], channels: ['EMAIL', 'WHATSAPP'] } as const;
+    expect(lowRatingDelivery(rule)).toEqual({
+      active: true,
+      roles: ['owner'],
+      channels: ['EMAIL', 'WHATSAPP'],
+    });
   });
 });
 

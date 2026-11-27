@@ -159,7 +159,8 @@ export const alertRules = pgTable(
       'alert_rules_recipient_roles',
       sql`${t.recipientRoles} <@ ARRAY['owner','general_manager','business_manager','branch_manager']::text[]`,
     ),
-    check('alert_rules_channels', sql`${t.channels} <@ ARRAY['IN_APP']::text[]`),
+    // قناتا EMAIL وWHATSAPP اتضافتا في 62b-1 (AL-Q6): بتتضاف NOT VALID في migration 0269 وبعدها VALIDATE في 0270.
+    check('alert_rules_channels', sql`${t.channels} <@ ARRAY['IN_APP','EMAIL','WHATSAPP']::text[]`),
     // مدير الفرع مالوش دور في تنبيهات كشف العمولات (AL-Q7 = PP-29.1، issue #486): الـ validator في packages/domain بيرفضه،
     // والـ CHECK بيمنع أي كاتب تاني: بيتضاف NOT VALID في migration 0245 فيمنع الكتابة الجديدة فوراً، وبعدها خطوة بيانات في 0246
     // بتنضّف الصفوف القديمة وبتعمل VALIDATE.

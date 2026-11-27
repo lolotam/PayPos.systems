@@ -18,6 +18,7 @@ import {
   type NotClockedInProgress,
 } from '../../domain/not-clocked-in.ts';
 import { shiftNotClockedInSelfParameters } from '../../domain/not-clocked-in-self.ts';
+import { teamAlertAudience } from '../read-team-alert-audience.ts';
 import type { Clock } from '../../ports/clock.port.ts';
 import type {
   DueShift,
@@ -143,11 +144,13 @@ export class DetectNotClockedIns {
       this.nameFallback,
     );
     if (parameters === null) throw new Error('ATTENDANCE_NOT_CLOCKED_IN_PARAMETERS_INVALID');
+    const recipients = withoutAbsentEmployee(managers, shift.employeeUserId);
     return tx.record({
       shift,
       alertAt,
       detectedAt: at,
-      recipients: withoutAbsentEmployee(managers, shift.employeeUserId),
+      recipients,
+      audience: await teamAlertAudience(plan.channels, recipients, tx, at),
       parameters,
       employeePushUserId: employeePushRecipient(plan, shift.employeeUserId),
       employeePush: await this.employeePush(tx, shift, at, plan),

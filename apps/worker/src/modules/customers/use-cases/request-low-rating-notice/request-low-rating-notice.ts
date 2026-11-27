@@ -1,4 +1,9 @@
 import {
+  buildExternalTeamAlertRecipients,
+  chunkTeamAlertRecipients,
+  needsTeamAlertContacts,
+} from '@pospay/domain';
+import {
   isLowRating,
   lowRatingDelivery,
   lowRatingDetails,
@@ -8,6 +13,7 @@ import {
   recipientGroups,
   sortedUnique,
 } from '../../domain/low-rating-notice.ts';
+import type { AlertChannel } from '@pospay/domain';
 import type { Clock, IdGenerator } from '../../ports/clock.port.ts';
 import type { LowRatingEvent, LowRatingPorts } from '../../ports/low-rating-notice.ports.ts';
 
@@ -43,12 +49,11 @@ export class RequestLowRatingNotice {
       recipientCount: users.length,
     });
     if (!won || branch === null || users.length === 0) return;
-    const { comment, readers } = await this.commentForReaders(
-      event,
-      stored.hasComment,
-      users,
-      decidedAt,
-    );
+    const inApp = delivery.channels.includes('IN_APP');
+    // التعليق للجرس داخل التطبيق بس (RT-Q9)، فمن غير جرس ما بيتقراش ولا بيدخل ذاكرة الـ worker.
+    const { comment, readers } = inApp
+      ? await this.commentForReaders(event, stored.hasComment, users, decidedAt)
+      : { comment: null, readers: [] };
     const customer = await this.ports.repository.readCustomer(event, stored.customerId);
     if (customer === null) throw new Error('LOW_RATING_CONTEXT_MISSING');
     const details = lowRatingDetails({
@@ -58,12 +63,43 @@ export class RequestLowRatingNotice {
       performers: await this.ports.repository.performers(event),
       customer,
     });
-    for (const group of recipientGroups(users, readers, comment))
-      await this.ports.outbox.append(this.ids.newId(), event.ratingId, {
-        business_id: event.businessId,
-        branch_id: event.branchId,
-        notification_recipients: noticeRecipients(group, details),
-      });
+    const groups = inApp ? recipientGroups(users, readers, comment) : [];
+    for (const group of groups)
+      await this.append(event, noticeRecipients(group, details));
+    for (const group of await this.externalGroups(event, delivery.channels, users, decidedAt))
+      await this.append(event, group);
+  }
+
+  private append(
+    event: LowRatingEvent,
+    recipients: Parameters<LowRatingPorts['outbox']['append']>[2]['notification_recipients'],
+  ): Promise<void> {
+    return this.ports.outbox.append(this.ids.newId(), event.ratingId, {
+      business_id: event.businessId,
+      branch_id: event.branchId,
+      notification_recipients: recipients,
+    });
+  }
+
+  /** مستلمو البريد والواتساب: دايمًا بقالب low_rating من غير معاملات ولا تعليق (RT-Q9، ADR-0018 §11). */
+  private async externalGroups(
+    event: LowRatingEvent,
+    channels: readonly AlertChannel[],
+    users: readonly string[],
+    decidedAt: Date,
+  ) {
+    const external = channels.filter((channel) => channel !== 'IN_APP');
+    if (!needsTeamAlertContacts(external)) return [];
+    if (this.ports.contacts === undefined) throw new Error('TEAM_ALERT_CONTACTS_UNAVAILABLE');
+    const contacts = await this.ports.contacts.read(event.companyId, users, decidedAt);
+    return chunkTeamAlertRecipients(
+      buildExternalTeamAlertRecipients({
+        channels: external,
+        userIds: users,
+        contacts,
+        templateKey: 'low_rating',
+      }),
+    );
   }
 
   /** نص التعليق لا يُقرأ إلا لما يوجد تعليق وقارئ مخوّل؛ غير ذلك يبقى النص خارج الذاكرة. */

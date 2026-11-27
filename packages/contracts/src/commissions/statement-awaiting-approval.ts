@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { id } from '../scalars/id.js';
 import { statementAwaitingApprovalRecipient } from '../statement-notifications.js';
 import { commissionPeriod } from '../statement-notifications.js';
+import { withTeamAlertChannels } from '../team-alert-recipients.js';
 
 /** حجم مجموعة مستلمين الجرس الأقصى؛ حدث الجرس بيقبل مية مستلم كحد أقصى (FR-030، ADR-0037 §5). */
 export const commissionStatementNoticeGroupSize = 100;
@@ -21,7 +22,12 @@ export const commissionStatementAwaitingApprovalRequested = z
     period: commissionPeriod,
     group_index: z.number().int().nonnegative(),
     notification_recipients: z
-      .array(statementAwaitingApprovalRecipient.extend({ locale: z.literal('ar') }))
+      .array(
+        withTeamAlertChannels(
+          statementAwaitingApprovalRecipient.extend({ locale: z.literal('ar') }),
+          'statement_awaiting_approval',
+        ),
+      )
       .min(1)
       .max(commissionStatementNoticeGroupSize),
   })

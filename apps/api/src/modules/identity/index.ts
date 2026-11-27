@@ -192,3 +192,4 @@ export {
   readStaffAccessState,
   type StaffAccessStateRow,
 } from './persistence/staff-access.ts';
+export { teamAlertRecipientContacts } from './persistence/team-alert-recipient-contacts.ts';

@@ -1,3 +1,4 @@
+import type { TeamAlertContactsPort, TeamAlertEmailRecipient, TeamAlertWhatsappRecipient } from '@pospay/domain';
 import type { LateNoticeParameters } from '../domain/late-service-session-notice.ts';
 import type { AlertRulesPort } from './alert-rule.port.ts';
 
@@ -71,14 +72,18 @@ export interface LateNoticeRequest {
   readonly branch_id: string;
   readonly business_date: string;
   readonly business_timezone: string;
-  readonly notification_recipients: readonly {
-    channel: 'IN_APP';
-    user_id: string;
-    locale: 'ar';
-    template_key: 'late_service_session';
-    template_revision: 1;
-    safe_parameters: LateNoticeParameters;
-  }[];
+  readonly notification_recipients: readonly (
+    | {
+        channel: 'IN_APP';
+        user_id: string;
+        locale: 'ar';
+        template_key: 'late_service_session';
+        template_revision: 1;
+        safe_parameters: LateNoticeParameters;
+      }
+    | TeamAlertEmailRecipient
+    | TeamAlertWhatsappRecipient
+  )[];
 }
 /** الأثر المتبادل مع الإشعارات يمر عبر الأوتبوكس فقط. */
 export interface LateNoticeOutbox {
@@ -105,4 +110,6 @@ export interface LateNoticePorts {
   readonly repository: LateNoticeRepository;
   readonly outbox: LateNoticeOutbox;
   readonly rules: AlertRulesPort;
+  /** جهات اتصال البريد والواتساب (AL-Q6)؛ مطلوب لما قناة خارجية تتفعّل، وغيابه معها خطأ تركيب. */
+  readonly contacts?: TeamAlertContactsPort;
 }

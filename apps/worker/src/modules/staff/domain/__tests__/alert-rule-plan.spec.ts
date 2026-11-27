@@ -3,8 +3,8 @@ import { describe, expect, it } from 'vitest';
 import {
   MIN_ALERT_DELAY_MS,
   employeePushRecipient,
-  inAppAlertOn,
-  inAppAlertRoles,
+  alertOn,
+  alertRoles,
   leadAlertPlan,
   periodicAlertPlan,
   type PeriodicAlertRule,
@@ -37,12 +37,30 @@ function leadRule(
   };
 }
 
+describe('periodicAlertPlan channels (62b-1)', () => {
+  it('keeps the roles and the channels of an email-only or WhatsApp-only rule (62b-1)', () => {
+    expect(periodicAlertPlan(rule({ channels: ['EMAIL'] }))).toMatchObject({
+      roles: MANAGERS,
+      channels: ['EMAIL'],
+    });
+    expect(periodicAlertPlan(rule({ channels: ['IN_APP', 'WHATSAPP'] }))).toMatchObject({
+      roles: MANAGERS,
+      channels: ['IN_APP', 'WHATSAPP'],
+    });
+  });
+
+  it('gives no roles when the rule has no channel at all', () => {
+    expect(periodicAlertPlan(rule({ channels: [] }))).toMatchObject({ roles: [], channels: [] });
+  });
+});
+
 describe('periodicAlertPlan', () => {
   it('reads the delay, the roles and the fixed employee push off an open rule', () => {
     expect(periodicAlertPlan(rule())).toEqual({
       enabled: true,
       delayMs: 20 * MINUTE,
       roles: MANAGERS,
+      channels: ['IN_APP'],
       employeePush: true,
     });
   });
@@ -52,6 +70,7 @@ describe('periodicAlertPlan', () => {
       enabled: false,
       delayMs: 20 * MINUTE,
       roles: [],
+      channels: [],
       employeePush: false,
     });
   });
@@ -62,6 +81,7 @@ describe('periodicAlertPlan', () => {
       enabled: false,
       delayMs: 20 * MINUTE,
       roles: [],
+      channels: [],
       employeePush: false,
     });
   });
@@ -161,37 +181,43 @@ it('the smallest delay a rule may carry is one minute', () => {
   expect(MIN_ALERT_DELAY_MS).toBe(MINUTE);
 });
 
-describe('inAppAlertRoles', () => {
+describe('alertRoles', () => {
   const open = { enabled: true, channels: ['IN_APP'] as const, recipientRoles: MANAGERS };
 
   it('keeps the roles of an open rule with the in-app channel', () => {
-    expect(inAppAlertRoles(open)).toEqual(MANAGERS);
+    expect(alertRoles(open)).toEqual(MANAGERS);
+  });
+
+  it('keeps the roles of an open rule whose only channel is email or WhatsApp', () => {
+    expect(alertRoles({ ...open, channels: ['EMAIL'] })).toEqual(MANAGERS);
+    expect(alertRoles({ ...open, channels: ['WHATSAPP'] })).toEqual(MANAGERS);
   });
 
   it('gives no roles when the rule is switched off', () => {
-    expect(inAppAlertRoles({ ...open, enabled: false })).toEqual([]);
+    expect(alertRoles({ ...open, enabled: false })).toEqual([]);
   });
 
   it('gives no roles when the master switch closed the rule', () => {
     const closed = effectiveAlertRule('ATTENDANCE_EXCEPTION', null, null, false);
-    expect(inAppAlertRoles(closed)).toEqual([]);
+    expect(alertRoles(closed)).toEqual([]);
   });
 
-  it('gives no roles when the rule has no in-app channel', () => {
-    expect(inAppAlertRoles({ ...open, channels: [] })).toEqual([]);
+  it('gives no roles when the rule has no channel', () => {
+    expect(alertRoles({ ...open, channels: [] })).toEqual([]);
   });
 });
 
-describe('inAppAlertOn', () => {
-  it('is on for an open rule with the in-app channel', () => {
-    expect(inAppAlertOn({ enabled: true, channels: ['IN_APP'] })).toBe(true);
+describe('alertOn', () => {
+  it('is on for an open rule with any channel', () => {
+    expect(alertOn({ enabled: true, channels: ['IN_APP'] })).toBe(true);
+    expect(alertOn({ enabled: true, channels: ['EMAIL'] })).toBe(true);
   });
 
   it('is off for a closed rule or a rule without the channel', () => {
-    expect(inAppAlertOn({ enabled: false, channels: ['IN_APP'] })).toBe(false);
-    expect(inAppAlertOn({ enabled: true, channels: [] })).toBe(false);
+    expect(alertOn({ enabled: false, channels: ['IN_APP'] })).toBe(false);
+    expect(alertOn({ enabled: true, channels: [] })).toBe(false);
     expect(
-      inAppAlertOn(effectiveAlertRule('ATTENDANCE_EXCEPTION', null, null, false)),
+      alertOn(effectiveAlertRule('ATTENDANCE_EXCEPTION', null, null, false)),
     ).toBe(false);
   });
 });

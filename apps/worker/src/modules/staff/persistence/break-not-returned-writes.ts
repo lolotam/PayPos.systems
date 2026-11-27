@@ -1,6 +1,6 @@
 import { appendAuditLog, appendOutboxEvents, type IdGenerator, type Tx } from '@pospay/db';
 import { sql } from 'drizzle-orm';
-import { inAppRecipientGroups } from '../domain/not-clocked-in.ts';
+import { distinctRecipients, teamAlertGroups } from '../domain/team-alert-groups.ts';
 import type { BreakNoticeWrite, BreakSuppressedWrite } from '../ports/break-not-returned.port.ts';
 
 export async function recordBreakNotReturned(
@@ -10,7 +10,7 @@ export async function recordBreakNotReturned(
   notice: BreakNoticeWrite,
 ): Promise<boolean> {
   const id = ids.newId();
-  const groups = inAppRecipientGroups(notice.recipients);
+  const recipientCount = distinctRecipients(notice.recipients).length;
   const { shift } = notice;
   const inserted = await tx.execute<{ id: string }>(sql`
     INSERT INTO attendance_break_not_returned_notices(
@@ -19,7 +19,7 @@ export async function recordBreakNotReturned(
     VALUES(${companyId},${id},${shift.businessId},${shift.branchId},${shift.employeeId},
       ${shift.startsAt.toISOString()},${shift.endsAt.toISOString()},${notice.breakEndsAt.toISOString()},
       ${notice.breakOutAt.toISOString()},${notice.alertAt.toISOString()},${notice.detectedAt.toISOString()},
-      ${groups.reduce((total, group) => total + group.length, 0)})
+      ${recipientCount})
     ON CONFLICT (company_id, employee_id, shift_starts_at) DO NOTHING RETURNING id`);
   if (inserted.length !== 1) return false;
   await writeBreakNotice(tx, ids, notice, id);
@@ -40,13 +40,14 @@ export async function writeBreakNotice(
   notice: BreakNoticeWrite,
   noticeId: string,
 ): Promise<void> {
-  const groups = inAppRecipientGroups(notice.recipients);
+  const users = distinctRecipients(notice.recipients);
+  const groups = breakGroups(notice);
   const facts = noticeFacts(noticeId, notice);
   await appendAuditLog(tx, ids.newId(), {
     entity: 'attendance_notice',
     entityId: noticeId,
     action: `${notice.kind}.detected`,
-    after: { ...facts, recipient_user_ids: groups.flat() },
+    after: { ...facts, recipient_user_ids: users },
   });
   await appendOutboxEvents(tx, outboxEntries(ids, notice, facts, groups));
 }
@@ -55,7 +56,7 @@ function outboxEntries(
   ids: IdGenerator,
   notice: BreakNoticeWrite,
   facts: ReturnType<typeof noticeFacts>,
-  groups: readonly (readonly string[])[],
+  groups: ReturnType<typeof breakGroups>,
 ) {
   const event = {
     aggregateType: 'employee',
@@ -67,13 +68,14 @@ function outboxEntries(
     id: ids.newId(),
     event: {
       ...event,
-      payload: { ...facts, notification_recipients: recipientsFor(group, notice) },
+      payload: { ...facts, notification_recipients: group },
     },
   }));
 }
 
-function recipientsFor(userIds: readonly string[], notice: BreakNoticeWrite) {
-  return userIds.map((userId) => ({
+// مجموعات المستلمين: الجرس وحده افتراضيًا، والإيميل والواتساب لما القاعدة تفعّلهم ويكون للمستخدم وجهة صالحة (62b-1).
+function breakGroups(notice: BreakNoticeWrite) {
+  return teamAlertGroups(notice.recipients, notice.audience, notice.kind, (userId) => ({
     channel: 'IN_APP' as const,
     user_id: userId,
     locale: 'ar' as const,

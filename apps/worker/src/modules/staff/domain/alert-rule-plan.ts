@@ -1,5 +1,6 @@
 import {
   ALERT_KIND_DEFINITIONS,
+  type AlertChannel,
   type AlertRecipientRole,
   type EffectiveAlertRule,
 } from '@pospay/domain';
@@ -12,6 +13,8 @@ export interface PeriodicAlertPlan {
   readonly enabled: boolean;
   readonly delayMs: number;
   readonly roles: readonly AlertRecipientRole[];
+  /** قنوات الفريق المفعّلة (جرس وإيميل وواتساب)؛ فاضية لما القاعدة مقفولة أو بلا قنوات. */
+  readonly channels: readonly AlertChannel[];
   readonly employeePush: boolean;
 }
 
@@ -35,7 +38,8 @@ export function periodicAlertPlan(rule: PeriodicAlertRule): PeriodicAlertPlan {
   return {
     enabled: rule.enabled,
     delayMs: minutes * 60_000,
-    roles: rule.enabled && rule.channels.includes('IN_APP') ? rule.recipientRoles : [],
+    roles: rule.enabled && rule.channels.length > 0 ? rule.recipientRoles : [],
+    channels: rule.enabled ? rule.channels : [],
     employeePush:
       rule.enabled && rule.fixedRecipients.some((recipient) => recipient.selector === 'EMPLOYEE_PUSH'),
   };
@@ -87,26 +91,25 @@ export function employeePushRecipient(
 }
 
 /**
- * أدوار المستلمين لجرس داخل التطبيق: القاعدة المفتوحة والقناة فيها IN_APP، وإلا لا مستلمين.
+ * أدوار المستلمين لتنبيه الفريق: القاعدة المفتوحة وفيها أي قناة (جرس أو إيميل أو واتساب)، وإلا لا مستلمين.
  * القاعدة المقفولة (أو المفتاح العام مقفول) مفيهاش أدوار، فالمُرسِل ما يبعتش لحد.
  *
  * @param rule القاعدة الفعلية بعد المفتاح العام
  * @returns أدوار المستلمين كما في القاعدة
  */
-export function inAppAlertRoles(
+export function alertRoles(
   rule: Pick<EffectiveAlertRule, 'enabled' | 'channels' | 'recipientRoles'>,
 ): readonly AlertRecipientRole[] {
-  if (!rule.enabled) return [];
-  if (!rule.channels.includes('IN_APP')) return [];
+  if (!rule.enabled || rule.channels.length === 0) return [];
   return rule.recipientRoles;
 }
 
 /**
- * هل القاعدة تشغل جرس داخل التطبيق؟ القاعدة المقفولة أو اللي مفيهاش قناة IN_APP ما بتوصلش لحد.
+ * هل القاعدة تشغّل أي قناة فريق؟ القاعدة المقفولة أو اللي مفيهاش قناة ما بتوصلش لحد.
  *
  * @param rule القاعدة الفعلية بعد المفتاح العام
- * @returns true لو الجرس داخل التطبيق شغال
+ * @returns true لو قناة واحدة على الأقل شغالة
  */
-export function inAppAlertOn(rule: Pick<EffectiveAlertRule, 'enabled' | 'channels'>): boolean {
-  return rule.enabled && rule.channels.includes('IN_APP');
+export function alertOn(rule: Pick<EffectiveAlertRule, 'enabled' | 'channels'>): boolean {
+  return rule.enabled && rule.channels.length > 0;
 }

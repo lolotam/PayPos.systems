@@ -1,4 +1,5 @@
-import type { NotificationRecipient } from '@pospay/contracts';
+import { randomBytes } from 'node:crypto';
+import { TEAM_ALERT_TEMPLATE_KEYS, type NotificationRecipient } from '@pospay/contracts';
 import type { ClaimedEvent, Tx } from '@pospay/db';
 import {
   createEmailIdentity,
@@ -87,14 +88,21 @@ function liveChannel(
   });
 }
 
+const TEAM_ALERT_KEYS: ReadonlySet<string> = new Set(TEAM_ALERT_TEMPLATE_KEYS);
+
 function emailAuthorizer(
   options: EmailModuleOptions,
   config: EmailConfiguration,
   identity: ReturnType<typeof createEmailIdentity> | null,
   adminOrigin: string,
 ) {
+  // لو مفتاح بصمة البريد ناقص، بنستعمل مفتاح عشوائي مؤقت في الذاكرة لتنبيهات الفريق عشان نسجّل FAILED / CONFIG_INVALID
+  // بدل ما يسقط التنبيه في صمت (AL-Q6، ADR-0018 §11)؛ غير تنبيهات الفريق بيفضل يرمي EMAIL_DISABLED_HASH_UNAVAILABLE.
+  const unconfiguredIdentity = createEmailIdentity(randomBytes(32).toString('hex'), 'unconfigured');
   return async (tx: Tx, event: ClaimedEvent, recipient: EmailRecipient, scope: EmailScope) => {
-    if (identity === null) throw new Error('EMAIL_DISABLED_HASH_UNAVAILABLE');
+    if (identity === null && !TEAM_ALERT_KEYS.has(recipient.template_key))
+      throw new Error('EMAIL_DISABLED_HASH_UNAVAILABLE');
+    const activeIdentity = identity ?? unconfiguredIdentity;
     const prepared = renderOperationalEmail(
       recipient.template_key,
       recipient.template_revision,
@@ -104,7 +112,9 @@ function emailAuthorizer(
     );
     const authorizer = new AuthorizeNotification(
       createAuthorizationRepository(tx),
-      options.testing?.suppression?.(tx) ?? createEmailSuppressionGate(tx),
+      identity === null
+        ? { isSuppressed: async () => false }
+        : (options.testing?.suppression?.(tx) ?? createEmailSuppressionGate(tx)),
       options.clock,
       options.ids,
     );
@@ -116,7 +126,7 @@ function emailAuthorizer(
       channel: 'email',
       phone: '',
       email: recipient.email,
-      identity: identity.identify(recipient.email),
+      identity: activeIdentity.identify(recipient.email),
       locale: recipient.locale ?? null,
       templateKey: recipient.template_key,
       templateRevision: recipient.template_revision,
@@ -124,7 +134,7 @@ function emailAuthorizer(
       safeParameters: [],
       deadline: recipient.send_deadline == null ? null : new Date(recipient.send_deadline),
       configurationFailure:
-        !config.enabled && options.testing === undefined
+        identity === null || (!config.enabled && options.testing === undefined)
           ? 'CONFIG_INVALID'
           : prepared === null
             ? 'PARAMETERS_INVALID'

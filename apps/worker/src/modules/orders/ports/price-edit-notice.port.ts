@@ -1,3 +1,8 @@
+import type {
+  TeamAlertContactsPort,
+  TeamAlertEmailRecipient,
+  TeamAlertWhatsappRecipient,
+} from '@pospay/domain';
 import type { PriceEditParameters } from '../domain/price-edit-notice.ts';
 import type { AlertRulesPort } from './alert-rule.port.ts';
 import type { Clock, IdGenerator } from './late-service-session-notice.port.ts';
@@ -111,14 +116,18 @@ export interface PriceEditNoticeRequest {
   readonly branch_id: string;
   readonly business_date: string;
   readonly business_timezone: string;
-  readonly notification_recipients: readonly {
-    channel: 'IN_APP';
-    user_id: string;
-    locale: 'ar';
-    template_key: 'service_line_price_edited';
-    template_revision: 1;
-    safe_parameters: PriceEditParameters;
-  }[];
+  readonly notification_recipients: readonly (
+    | {
+        channel: 'IN_APP';
+        user_id: string;
+        locale: 'ar';
+        template_key: 'service_line_price_edited';
+        template_revision: 1;
+        safe_parameters: PriceEditParameters;
+      }
+    | TeamAlertEmailRecipient
+    | TeamAlertWhatsappRecipient
+  )[];
 }
 /** الأثر نحو الإشعارات يمر عبر الأوتبوكس فقط. */
 export interface PriceEditNoticeOutbox {
@@ -137,4 +146,6 @@ export interface PriceEditNoticePorts {
   readonly repository: PriceEditNoticeRepository;
   readonly outbox: PriceEditNoticeOutbox;
   readonly rules: AlertRulesPort;
+  /** جهات اتصال البريد والواتساب (AL-Q6)؛ مطلوب لما قناة خارجية تتفعّل، وغيابه معها خطأ تركيب. */
+  readonly contacts?: TeamAlertContactsPort;
 }

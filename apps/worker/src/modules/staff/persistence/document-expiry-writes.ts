@@ -1,11 +1,8 @@
 import { appendAuditLog, appendOutboxEvents, type IdGenerator, type Tx } from '@pospay/db';
 import { sql } from 'drizzle-orm';
-import type {
-  DocumentExpiryParameter,
-  DocumentNameFallback,
-} from '../domain/document-expiry-notice.ts';
+import type { DocumentNameFallback } from '../domain/document-expiry-notice.ts';
 import { daysUntilExpiry } from '../domain/document-expiry.ts';
-import { inAppRecipientGroups } from '../domain/not-clocked-in.ts';
+import { teamAlertGroups } from '../domain/team-alert-groups.ts';
 import type { LockedDocumentExpiry } from '../ports/document-expiry.port.ts';
 import { documentExpiryRecipientsFor } from './document-expiry-recipients.ts';
 
@@ -112,9 +109,16 @@ async function appendExpiryEvents(
   ids: IdGenerator,
   locked: LockedDocumentExpiry,
   facts: DocumentExpiryFacts,
-  recipients: { userIds: readonly string[]; parameters: readonly DocumentExpiryParameter[] },
+  recipients: Awaited<ReturnType<typeof documentExpiryRecipientsFor>> & object,
 ): Promise<void> {
-  const groups = inAppRecipientGroups(recipients.userIds);
+  const groups = teamAlertGroups(recipients.userIds, recipients.audience, 'document_expiring', (userId) => ({
+    channel: 'IN_APP' as const,
+    user_id: userId,
+    locale: 'ar' as const,
+    template_key: 'document_expiring' as const,
+    template_revision: 1 as const,
+    safe_parameters: recipients.parameters,
+  }));
   await appendOutboxEvents(
     tx,
     groups.map((group) => ({
@@ -125,20 +129,9 @@ async function appendExpiryEvents(
         eventType: 'DocumentExpiring',
         payload: {
           ...facts,
-          notification_recipients: recipientsFor(group, recipients.parameters),
+          notification_recipients: group,
         },
       },
     })),
   );
-}
-
-function recipientsFor(userIds: readonly string[], parameters: readonly DocumentExpiryParameter[]) {
-  return userIds.map((userId) => ({
-    channel: 'IN_APP' as const,
-    user_id: userId,
-    locale: 'ar' as const,
-    template_key: 'document_expiring' as const,
-    template_revision: 1 as const,
-    safe_parameters: parameters,
-  }));
 }

@@ -1,3 +1,8 @@
+import type {
+  TeamAlertContactsPort,
+  TeamAlertEmailRecipient,
+  TeamAlertWhatsappRecipient,
+} from '@pospay/domain';
 import type { DiscountSelfApprovalNoticeParameters } from '../domain/discount-self-approval-notice.ts';
 import type { AlertRulesPort } from './alert-rule.port.ts';
 import type { DiscountApprovalNoticePlace } from './discount-approval-notice.port.ts';
@@ -76,14 +81,18 @@ export interface DiscountSelfApprovalNoticePayload {
   readonly business_id: string;
   readonly branch_id: string;
   readonly proposal_ids: string[];
-  readonly notification_recipients: {
-    readonly channel: 'IN_APP';
-    readonly user_id: string;
-    readonly locale: 'ar';
-    readonly template_key: 'discount_self_approved';
-    readonly template_revision: 1;
-    readonly safe_parameters: DiscountSelfApprovalNoticeParameters;
-  }[];
+  readonly notification_recipients: (
+    | {
+      readonly channel: 'IN_APP';
+      readonly user_id: string;
+      readonly locale: 'ar';
+      readonly template_key: 'discount_self_approved';
+      readonly template_revision: 1;
+      readonly safe_parameters: DiscountSelfApprovalNoticeParameters;
+      }
+    | TeamAlertEmailRecipient
+    | TeamAlertWhatsappRecipient
+  )[];
 }
 
 /** الأثر نحو الإشعارات يمر عبر الأوتبوكس فقط. */
@@ -105,4 +114,6 @@ export interface DiscountSelfApprovalNoticePorts {
   readonly repository: DiscountSelfApprovalNoticeRepository;
   readonly outbox: DiscountSelfApprovalNoticeOutbox;
   readonly rules: AlertRulesPort;
+  /** جهات اتصال البريد والواتساب (AL-Q6)؛ مطلوب لما قناة خارجية تتفعّل، وغيابه معها خطأ تركيب. */
+  readonly contacts?: TeamAlertContactsPort;
 }

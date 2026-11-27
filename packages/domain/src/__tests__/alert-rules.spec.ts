@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  ALERT_CHANNELS,
   ALERT_KIND_DEFINITIONS,
   alertKindAllowsBranchOverride,
   ALERT_KINDS,
@@ -7,6 +8,7 @@ import {
   effectiveAlertRule,
   resolveAlertRule,
   sameAlertRuleSettings,
+  TEAM_ALERT_REQUIRE_VERIFIED_EMAIL,
   type AlertRuleSettings,
 } from '../alert-rules.js';
 
@@ -138,6 +140,55 @@ describe('alertRuleViolation', () => {
     expect(
       alertRuleViolation('ATTENDANCE_EXCEPTION', rule({ channels: ['IN_APP', 'IN_APP'] })),
     ).toBe('DUPLICATE_VALUE');
+  });
+});
+
+describe('alert channels (AL-Q6, row 62b-1)', () => {
+  it('offers the in-app, email and WhatsApp channels, in that order', () => {
+    expect([...ALERT_CHANNELS]).toEqual(['IN_APP', 'EMAIL', 'WHATSAPP']);
+  });
+
+  it('accepts email and WhatsApp on a manager kind, alone or together with the in-app channel', () => {
+    for (const channels of [['EMAIL'], ['WHATSAPP'], ['IN_APP', 'EMAIL', 'WHATSAPP']] as const) {
+      expect(alertRuleViolation('ATTENDANCE_EXCEPTION', rule({ channels }))).toBeNull();
+    }
+  });
+
+  it('refuses a duplicated email or WhatsApp channel', () => {
+    for (const channel of ['EMAIL', 'WHATSAPP'] as const) {
+      expect(
+        alertRuleViolation('ATTENDANCE_EXCEPTION', rule({ channels: [channel, channel] })),
+      ).toBe('DUPLICATE_VALUE');
+    }
+  });
+
+  it('refuses any channel on the employee-only kind, the new ones included', () => {
+    for (const channel of ['IN_APP', 'EMAIL', 'WHATSAPP'] as const) {
+      expect(
+        alertRuleViolation(
+          'SHIFT_ENDS_SOON',
+          rule({ recipientRoles: [], leadMinutes: 30, channels: [channel] }),
+        ),
+      ).toBe('CHANNELS_NOT_ALLOWED');
+    }
+  });
+
+  it('keeps every default in-app only, so nothing starts sending email or WhatsApp by itself', () => {
+    for (const kind of ALERT_KINDS) {
+      const definition = ALERT_KIND_DEFINITIONS[kind];
+      expect(definition.defaults.channels).toEqual(definition.employeeOnly ? [] : ['IN_APP']);
+    }
+  });
+
+  it('compares two rules by channel set regardless of order', () => {
+    expect(
+      sameAlertRuleSettings(rule({ channels: ['EMAIL', 'IN_APP'] }), rule({ channels: ['IN_APP', 'EMAIL'] })),
+    ).toBe(true);
+    expect(sameAlertRuleSettings(rule({ channels: ['IN_APP'] }), rule({ channels: ['IN_APP', 'EMAIL'] }))).toBe(false);
+  });
+
+  it('requires a verified email by default until the owner confirms GR-003(d)', () => {
+    expect(TEAM_ALERT_REQUIRE_VERIFIED_EMAIL).toBe(true);
   });
 });
 

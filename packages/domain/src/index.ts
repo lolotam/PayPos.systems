@@ -93,6 +93,7 @@ export {
   ALERT_KINDS,
   ALERT_MAX_MINUTES,
   ALERT_RECIPIENT_ROLES,
+  TEAM_ALERT_REQUIRE_VERIFIED_EMAIL,
   alertKindAllowsBranchOverride,
   alertRuleViolation,
   effectiveAlertRule,
@@ -109,6 +110,21 @@ export {
   type FixedAlertRecipient,
   type ResolvedAlertRule,
 } from './alert-rules.js';
+
+export {
+  TEAM_ALERT_EVENT_RECIPIENT_LIMIT,
+  buildExternalTeamAlertRecipients,
+  buildTeamAlertRecipients,
+  chunkTeamAlertRecipients,
+  needsTeamAlertContacts,
+  teamAlertDelivery,
+  teamAlertRecipientGroups,
+  type TeamAlertContact,
+  type TeamAlertContactsPort,
+  type TeamAlertDelivery,
+  type TeamAlertEmailRecipient,
+  type TeamAlertWhatsappRecipient,
+} from './team-alert-recipients.js';
 
 export * from './packages/errors.js';
 export * from './packages/package-definition.js';

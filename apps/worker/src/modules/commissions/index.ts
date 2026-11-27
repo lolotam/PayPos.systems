@@ -124,6 +124,7 @@ export type {
   StatementReminderAlertRulesReader,
   StatementReminderBusiness,
   StatementReminderBusinessesReader,
+  StatementReminderContactsReader,
   StatementReminderFeatureReader,
   StatementReminderRecipientsReader,
   StatementReminderScope,
@@ -132,7 +133,6 @@ export type {
 } from './ports/statement-reminder.port.ts';
 export {
   createStatementReminderTransactions,
-  groupNoticeRecipients,
   type StatementReminderReaders,
 } from './persistence/statement-reminder.transactions.ts';
 export {

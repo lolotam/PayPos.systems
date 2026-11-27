@@ -1,3 +1,5 @@
+import type { TeamAlertContact } from '@pospay/domain';
+import type { TeamAlertAudience } from '../domain/team-alert-groups.ts';
 import type { LeaveInterval, NoticeParameter, PresenceSession } from '../domain/not-clocked-in.ts';
 import type { SelfParameter } from '../domain/not-clocked-in-self.ts';
 import type { AlertRulesPort } from './alert-rule.port.ts';
@@ -47,6 +49,8 @@ export interface NoticeWrite {
   readonly alertAt: Date;
   readonly detectedAt: Date;
   readonly recipients: readonly string[];
+  /** قنوات التنبيه وجهات اتصال المستلمين (62b-1)؛ غيابه معناه الجرس وحده. */
+  readonly audience?: TeamAlertAudience;
   readonly parameters: readonly NoticeParameter[];
   /** هدف الإشعار الثابت للموظفة الغائبة: بيتحمل على أول حدث من التنبيه بس؛ الإشعار نفسه بيسافر في طلبه هو (BR-008). */
   readonly employeePushUserId: string | null;
@@ -117,6 +121,17 @@ export interface LockedNotClockedIn {
     branchId: string,
     roles: readonly string[],
   ): Promise<readonly string[]>;
+  /**
+   * جهات اتصال المستلمين للبريد والواتساب من دالة القراءة المحدودة (AL-Q6)؛ مطلوبة لما قناة خارجية تتفعّل بس.
+   *
+   * @param userIds المستلمين
+   * @param at لحظة نافذة العضوية
+   * @returns جهة اتصال لكل مستخدم عنده وجهة صالحة
+   */
+  contacts?(
+    userIds: readonly string[],
+    at: Date,
+  ): Promise<ReadonlyMap<string, TeamAlertContact>>;
   /**
    * هل للمستخدم المرتبط عضوية سارية تغطّي الشركة أو نشاط الموظفة أو فرع من فروعها في يوم الوردية؟
    * عضوية منتهية أو مغطّاش النطاق معناها إن صلاحيته في الشغل انتهت، فمفيش إشعار يوصلها (ADR-0052 §5).

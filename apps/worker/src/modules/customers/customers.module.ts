@@ -23,6 +23,7 @@ import { businessNames } from './persistence/business-names.adapter.ts';
 import { performerNameAdapter } from './persistence/performer-name.adapter.ts';
 import { alertRules } from './persistence/alert-rule.adapter.ts';
 import { lowRatingPlace } from './persistence/low-rating-place.adapter.ts';
+import { teamContacts } from './persistence/team-contacts.adapter.ts';
 import { lowRatingRecipients } from './persistence/low-rating-recipients.adapter.ts';
 import {
   lowRatingOutbox,
@@ -80,6 +81,7 @@ export function createLowRatingNoticeConsumer(ids: IdGenerator, clock: Clock): O
         place: lowRatingPlace(tx),
         repository: lowRatingRepository(tx),
         outbox: lowRatingOutbox(tx),
+        contacts: teamContacts(tx),
       },
       ids,
       clock,

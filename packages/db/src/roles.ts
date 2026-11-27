@@ -48,9 +48,9 @@ DO $$ DECLARE m record; BEGIN
     FROM pg_auth_members a JOIN pg_roles granted ON granted.oid = a.roleid
     JOIN pg_roles member ON member.oid = a.member JOIN pg_roles grantor ON grantor.oid = a.grantor
     WHERE member.rolname IN ('pospay_approval_reader', 'pospay_coverage_issuer',
-         'pospay_recovery_company_reader', 'pospay_recovery_flag_clearer')
+         'pospay_recovery_company_reader', 'pospay_recovery_flag_clearer', 'pospay_team_contact_reader')
        OR granted.rolname IN ('pospay_approval_reader', 'pospay_coverage_issuer',
-         'pospay_recovery_company_reader', 'pospay_recovery_flag_clearer') LOOP
+         'pospay_recovery_company_reader', 'pospay_recovery_flag_clearer', 'pospay_team_contact_reader') LOOP
     EXECUTE format('REVOKE %I FROM %I GRANTED BY %I CASCADE', m.granted, m.member, m.grantor);
   END LOOP;
 END $$`;
@@ -75,7 +75,7 @@ export async function bootstrapRoles(sql: Sql, passwords: RolePasswords): Promis
                     set_config('pospay.auth_password', ${passwords.auth}, true),
                     set_config('pospay.dispatcher_password', ${passwords.dispatcher}, true)`;
     await tx.unsafe(ROLES_SQL);
-    // أدوار الدوال اللي مالها دخول: عدّاد الاعتماد، وإثبات التغطية، واستعادة الجدولة (ADR-0061 §1).
+    // أدوار الدوال اللي مالها دخول: عدّاد الاعتماد، وإثبات التغطية، واستعادة الجدولة (ADR-0061 §1)، وقراءة جهات اتصال تنبيهات الفريق (ADR-0003 §6a، AL-Q6).
     // كل واحد مالك دالة واحدة أو أكتر وما يعضوش في أي دور.
     await tx.unsafe(`DO $$ BEGIN
       IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'pospay_notifications') THEN
@@ -103,6 +103,10 @@ export async function bootstrapRoles(sql: Sql, passwords: RolePasswords): Promis
         CREATE ROLE pospay_recovery_flag_clearer NOLOGIN NOSUPERUSER NOBYPASSRLS NOINHERIT NOCREATEDB NOCREATEROLE NOREPLICATION;
       END IF;
       ALTER ROLE pospay_recovery_flag_clearer WITH NOLOGIN NOSUPERUSER NOBYPASSRLS NOINHERIT NOCREATEDB NOCREATEROLE NOREPLICATION;
+      IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'pospay_team_contact_reader') THEN
+        CREATE ROLE pospay_team_contact_reader NOLOGIN NOSUPERUSER NOBYPASSRLS NOINHERIT NOCREATEDB NOCREATEROLE NOREPLICATION;
+      END IF;
+      ALTER ROLE pospay_team_contact_reader WITH NOLOGIN NOSUPERUSER NOBYPASSRLS NOINHERIT NOCREATEDB NOCREATEROLE NOREPLICATION;
     END $$`);
     // دورا دالة العدّ ودوال إثبات التغطية ودوال الاستعادة لا يعضوان في أي دور ولا أحد يعضو فيهم؛ يُشال أي ربط قديم في الاتجاهين تحت نفس القفل، مع GRANTED BY و CASCADE كما أعلاه.
     await tx.unsafe(FUNCTION_OWNER_MEMBERSHIPS_SQL);

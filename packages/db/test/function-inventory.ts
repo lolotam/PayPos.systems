@@ -146,6 +146,8 @@ export const FUNCTION_INVENTORY = [
     prosecdef: true,
     proconfig: ['search_path=pg_catalog, pg_temp', 'row_security=on'],
   },
+  // قراءة جهات اتصال تنبيهات الفريق (ADR-0003 §6a): definer يملكه pospay_team_contact_reader.
+  { proname: 'team_alert_recipient_contacts', prosecdef: true, proconfig: ['search_path=pg_catalog, pg_temp', 'row_security=on'] },
   {
     // استعادة جدولة التذكيرات (ADR-0061 §1): الدالتان definer، ومالك كل واحدة دور مالك دالة، والمسار مثبّت في الدالة نفسها.
     proname: 'sweep_expired_idempotency_keys',

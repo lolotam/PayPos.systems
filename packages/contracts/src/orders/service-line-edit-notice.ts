@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { id } from '../scalars/id.js';
 import { serviceLinePriceEditedRecipient } from '../in-app-notifications.js';
+import { withTeamAlertChannels } from '../team-alert-recipients.js';
 
 /**
  * حدث مستقل لأن notifications لا تعرف المستلمين؛ عامل orders يلحقه داخل معاملته بعد حجز صف دفتر (line, revision).
@@ -16,7 +17,12 @@ export const serviceLineEditNoticeRequested = z
     business_date: z.iso.date(),
     business_timezone: z.string().min(1).max(255),
     notification_recipients: z
-      .array(serviceLinePriceEditedRecipient.extend({ locale: z.literal('ar') }))
+      .array(
+        withTeamAlertChannels(
+          serviceLinePriceEditedRecipient.extend({ locale: z.literal('ar') }),
+          'service_line_price_edited',
+        ),
+      )
       .min(1)
       .max(100),
   })
