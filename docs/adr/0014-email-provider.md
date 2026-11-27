@@ -244,8 +244,11 @@ PR that creates the table.
 ### D. The intake boundary
 
 The API holds the webhook signing secret and **one managed dedupe key** (`RESEND_EVENT_DIGEST_KEY`,
-32+ characters, API only). It holds no sending key and no recipient-hash key, so it cannot resolve a
-recipient and cannot send; the recipient hash and the sending key stay with the worker. The dedupe
+32+ characters, API only). It holds no sending key, so it cannot send; the sending key stays with the
+worker. The intake holds no recipient-hash key and cannot resolve a recipient. Since spec 079-b (PR #1360,
+2026-11-27) the API process does receive the email hash key `NOTIFICATION_EMAIL_HASH_KEY` and its key id,
+but only for the password-reset OTP (`PASSWORD_RESET_OTP`, `apps/api/src/password-reset-startup.ts`),
+which hashes an address the requester typed; the feedback intake never reads that key. The dedupe
 digest is keyed by the managed key, not by the signing secret, so a provider secret rotation cannot
 re-materialise an old event as new. The intake verifies the signature over the raw body with native
 `node:crypto` before the body is parsed, keeps a strict allowlist (`type`, `created_at`,
