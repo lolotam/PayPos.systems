@@ -272,3 +272,40 @@ describe('nativeStaffFetch multi-waiter queue after abort fence release', () => 
     expect(requestMock).toHaveBeenCalledTimes(3);
   });
 });
+
+describe('nativeStaffFetch stalled body abort release', () => {
+  beforeEach(() => {
+    vi.stubEnv('VITE_API_URL', 'http://127.0.0.1:3000');
+    requestMock.mockReset();
+    requestMock.mockResolvedValue(nativeResponse());
+  });
+
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
+  it('releases the mutation queue immediately when aborted during a stalled request body read', async () => {
+    const controller = new AbortController();
+    const stalledReq = new Request('http://127.0.0.1:3000/v1/staff/personal-otp/verify', {
+      method: 'POST',
+      body: JSON.stringify({ phone: '50000001' }),
+      signal: controller.signal,
+    });
+    vi.spyOn(stalledReq, 'text').mockImplementationOnce(() => new Promise<string>(() => undefined));
+
+    const first = nativeStaffFetch(stalledReq);
+    const second = nativeStaffFetch(
+      new Request('http://127.0.0.1:3000/v1/staff/personal-session/sign-out', { method: 'POST' }),
+    );
+    await Promise.resolve();
+    expect(requestMock).toHaveBeenCalledTimes(0);
+
+    controller.abort();
+    await expect(first).rejects.toMatchObject({ name: 'AbortError' });
+    expect((await second).status).toBe(200);
+    expect(requestMock).toHaveBeenCalledTimes(1);
+    expect(requestMock.mock.calls[0]?.[0]).toMatchObject({
+      url: 'http://127.0.0.1:3000/v1/staff/personal-session/sign-out',
+    });
+  });
+});

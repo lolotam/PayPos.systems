@@ -28,6 +28,33 @@ function responseBodyText(data: unknown, contentType: string): string | undefine
   return typeof data === 'string' ? data : JSON.stringify(data);
 }
 
+function toWebResponse(method: string, nativeResponse: NativeHttpResponse): Response {
+  const responseHeaders = safeResponseHeaders(nativeResponse.headers);
+  const empty = method === 'HEAD' || [204, 205, 304].includes(nativeResponse.status);
+  const responseBody = empty
+    ? null
+    : responseBodyText(nativeResponse.data, responseHeaders.get('content-type') ?? '');
+  return new Response(responseBody, { status: nativeResponse.status, headers: responseHeaders });
+}
+
+/** يفك حمولة رد أصلي مرة واحدة بنفس مسار Fetch وopenapi-fetch دون فحص MIME منفصل. */
+export function parseNativeResponseJson(response: LateAbortedNativeResponse): unknown {
+  if (response.method === 'HEAD' || [204, 205, 304].includes(response.status)) return undefined;
+  if (
+    response.headers.get('content-length') === '0' &&
+    !(response.headers.get('transfer-encoding')?.toLowerCase().includes('chunked') ?? false)
+  ) {
+    return undefined;
+  }
+  const text = responseBodyText(response.data, response.headers.get('content-type') ?? '');
+  if (text === undefined || text === '') return undefined;
+  try {
+    return JSON.parse(text);
+  } catch {
+    return undefined;
+  }
+}
+
 type AbortRace = { rejected: Promise<never>; release: () => void };
 
 interface NativeHttpOptions {
@@ -294,42 +321,41 @@ function buildNativeOptions(
   };
 }
 
+async function readRequestText(request: Request, aborted: AbortRace): Promise<string> {
+  if (request.method === 'GET' || request.method === 'HEAD') return '';
+  const bodyPromise = request.text();
+  // إذا تعلّق تدفق الجسم ثم ألغى المتصل، نمنع unhandledRejection لاحقاً.
+  void bodyPromise.catch(() => undefined);
+  return Promise.race([bodyPromise, aborted.rejected]);
+}
+
 export async function nativeStaffFetch(request: Request): Promise<Response> {
   assertApiOrigin(request.url);
   throwIfAborted(request.signal);
+  const aborted = untilAborted(request.signal);
   const mutationTurn = isNativeMutation(request.method) ? reserveMutationTurn() : null;
   try {
     const headers = {
       ...Object.fromEntries(request.headers.entries()),
       Origin: 'capacitor://localhost',
     };
-    const body = request.method === 'GET' || request.method === 'HEAD' ? '' : await request.text();
+    const body = await readRequestText(request, aborted);
     throwIfAborted(request.signal);
-    const client = await loadCapacitorHttp();
+    const clientPromise = loadCapacitorHttp();
+    void clientPromise.catch(() => undefined);
+    const client = await Promise.race([clientPromise, aborted.rejected]);
     throwIfAborted(request.signal);
-    const aborted = untilAborted(request.signal);
-    try {
-      const nativeResponse = await sendFencedNativeRequest(
-        client,
-        buildNativeOptions(request, headers, body),
-        request.signal,
-        aborted,
-        mutationTurn,
-      );
-      throwIfAborted(request.signal);
-      const responseHeaders = safeResponseHeaders(nativeResponse.headers);
-      const empty = request.method === 'HEAD' || [204, 205, 304].includes(nativeResponse.status);
-      const responseBody = empty
-        ? null
-        : responseBodyText(nativeResponse.data, responseHeaders.get('content-type') ?? '');
-      return new Response(responseBody, {
-        status: nativeResponse.status,
-        headers: responseHeaders,
-      });
-    } finally {
-      aborted.release();
-    }
+    const nativeResponse = await sendFencedNativeRequest(
+      client,
+      buildNativeOptions(request, headers, body),
+      request.signal,
+      aborted,
+      mutationTurn,
+    );
+    throwIfAborted(request.signal);
+    return toWebResponse(request.method, nativeResponse);
   } finally {
+    aborted.release();
     mutationTurn?.releaseIfUnstarted();
   }
 }

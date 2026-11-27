@@ -5,6 +5,7 @@ import { announcePersonalChange } from '@/personal-staff/model/session-change';
 import { disablePushOnSignOut } from '@/personal-staff/push/push-disable';
 import {
   onLateAbortedNativeResponse,
+  parseNativeResponseJson,
   type LateAbortedNativeResponse,
 } from '@/shared/api/native-staff-fetch';
 
@@ -66,13 +67,6 @@ function waitOrAbort(work: Promise<unknown>, signal?: AbortSignal): Promise<'don
 
 const PERSONAL_SIGN_OUT_PATH = '/v1/staff/personal-session/sign-out';
 
-function decodeLateJsonResponse(response: LateAbortedNativeResponse): unknown {
-  const contentType = response.headers.get('content-type')?.toLowerCase() ?? '';
-  if (!contentType.includes('json')) return undefined;
-  // Capacitor يقدّم application/json مفكوكة مرة واحدة بالفعل؛ لا نعيد JSON.parse على نص مزدوج الترميز.
-  return response.data;
-}
-
 function isConfirmedLateSignOut(response: LateAbortedNativeResponse): boolean {
   if (response.method !== 'POST') return false;
   if (response.status < 200 || response.status >= 300) return false;
@@ -81,7 +75,7 @@ function isConfirmedLateSignOut(response: LateAbortedNativeResponse): boolean {
   } catch {
     return false;
   }
-  return signOutResult.safeParse(decodeLateJsonResponse(response)).success;
+  return signOutResult.safeParse(parseNativeResponseJson(response)).success;
 }
 
 onLateAbortedNativeResponse((response) => {
