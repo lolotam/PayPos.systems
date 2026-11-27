@@ -48,6 +48,7 @@ const input = (overrides: {
   proposal_ids?: readonly string[];
   performer_row_ids?: readonly string[];
   requester?: DiscountRequestPlanInput['requester'];
+  customer_name?: string;
 } = {}): DiscountRequestPlanInput => ({
   lines: overrides.lines ?? [line(0, 'service-1', 25000n, 5000n, 2000)],
   limit: overrides.limit ?? LIMIT,
@@ -66,7 +67,7 @@ const input = (overrides: {
     name_en: null,
     name_ar: null,
   },
-  customer_name: 'Nawara Customer',
+  customer_name: overrides.customer_name ?? 'Nawara Customer',
   request_id: 'request-1',
   proposal_ids: overrides.proposal_ids ?? ['proposal-1'],
   performer_row_ids: overrides.performer_row_ids ?? ['performer-row-1'],
@@ -185,6 +186,50 @@ describe('the proposal the approver will read', () => {
     expect(proposal?.requester_name_ar).toBeNull();
     expect(proposal?.requester_first_name_ar).toBeNull();
     expect(proposal?.requester_first_name_en).toBe('Mona');
+  });
+});
+
+describe('the name in the snapshot', () => {
+  it('keeps the compound first name of the customer, the requester and the performer', () => {
+    const performers = [employee('employee-1', 'Sara Performer', 'عبد الله سالم')];
+    const proposal = planDiscountRequest(input({
+      lines: [line(0, 'service-1', 25000n, 5000n, 2000, performers)],
+      performer_row_ids: ['row-1'],
+      customer_name: 'نور الدين محمود',
+      requester: { role: { code: 'branch_manager', is_system: true, name_ar: null, name_en: 'Branch Manager' }, name_en: 'أبو سالم', name_ar: 'أم كلثوم إبراهيم' },
+    }))[0];
+    expect(proposal?.customer_first_name).toBe('نور الدين');
+    expect(proposal?.requester_first_name_en).toBe('أبو سالم');
+    expect(proposal?.requester_first_name_ar).toBe('أم كلثوم');
+    expect(proposal?.performers[0]?.first_name_ar).toBe('عبد الله');
+    expect(proposal?.performers[0]?.first_name_en).toBe('Sara');
+  });
+
+  it('leaves a name with nothing in it empty on both sides, and fills the required one', () => {
+    const performers = [employee('employee-1', '   ', '   ')];
+    const proposal = planDiscountRequest(input({
+      lines: [line(0, 'service-1', 25000n, 5000n, 2000, performers)],
+      performer_row_ids: ['row-1'],
+      customer_name: '   ',
+      requester: { role: { code: 'branch_manager', is_system: true, name_ar: null, name_en: 'Branch Manager' }, name_en: '\u00a0\u00a0', name_ar: '   ' },
+    }))[0];
+    expect(proposal?.requester_name_en).toBeNull();
+    expect(proposal?.requester_first_name_en).toBeNull();
+    expect(proposal?.requester_name_ar).toBeNull();
+    expect(proposal?.requester_first_name_ar).toBeNull();
+    expect(proposal?.performers[0]?.first_name_ar).toBeNull();
+    expect(proposal?.performers[0]?.first_name_en).toBe('—');
+    expect(proposal?.customer_first_name).toBe('—');
+  });
+
+  it('clears the Arabic requester pair too when only the English requester name is blank', () => {
+    const proposal = planDiscountRequest(input({
+      requester: { role: { code: 'cashier', is_system: true, name_ar: 'كاشير', name_en: 'Cashier' }, name_en: '\u00a0', name_ar: 'محمد' },
+    }))[0];
+    expect(proposal?.requester_name_en).toBeNull();
+    expect(proposal?.requester_first_name_en).toBeNull();
+    expect(proposal?.requester_name_ar).toBeNull();
+    expect(proposal?.requester_first_name_ar).toBeNull();
   });
 });
 

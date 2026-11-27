@@ -1,4 +1,4 @@
-import { expect, it } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import { approvalClaims, decideApprovals, discountConsumptionAudits, type LockedProposal } from '../discount-consumption.ts';
 import { discountTermsHash, type DiscountTermsV1 } from '../discount-terms.ts';
 import { discountTermsOfLine, type DiscountTermsFacts } from '../discount-request.ts';
@@ -191,4 +191,55 @@ it('the four argument plan is unchanged by the decisions', () => {
   expect(planSessionWrite([prepared], { source: 'OWNER', bps: null }, [], messages)).toMatchObject({ accepted: [prepared], rejected_lines: [], ordinals: [1], outcome: 'COMPLETE' });
   const terms: DiscountTermsV1 = termsOf(prepared);
   expect(terms.net).toBe('20.000');
+});
+
+describe('the fresh visit request and the visit it created', () => {
+  const SESSION_ID = 'session-1';
+  const OTHER_SESSION_ID = 'session-2';
+
+  /** A fresh-visit proposal: its terms were built without a visit, so it carries that hash. */
+  function freshVisitProposal(over: Partial<LockedProposal> = {}): LockedProposal {
+    return {
+      id: 'proposal-1', branch_id: 'branch-1', requested_by: 'user-1', requested_by_membership_id: 'membership-1',
+      status: 'APPROVED', expires_at: expiry, terms_hash: hashOf(line()), session_id: null, bound_session_id: null, ...over,
+    };
+  }
+
+  /** Decides with the visit of the route, and may force a visit into the terms. */
+  function decideOn(
+    sessionId: string | null,
+    claims: ReturnType<typeof approvalClaims>,
+    proposals: LockedProposal[],
+  ) {
+    const route = { ...facts, session_id: sessionId };
+    return decideApprovals(claims, (item, override) => discountTermsOfLine(
+      override === undefined ? route : { ...route, session_id: override }, item,
+    ), proposals, actor, now, sha);
+  }
+
+  const freshClaims = () => approvalClaims([line({ approval_proposal_id: 'proposal-1' })], limit);
+
+  it('is consumed on the visit its sibling created', () => {
+    const decisions = decideOn(SESSION_ID, freshClaims(), [freshVisitProposal({ bound_session_id: SESSION_ID })]);
+    expect(decisions[0]?.refusal).toBeNull();
+    expect(decisions[0]?.terms_hash).toBe(hashOf(line()));
+  });
+
+  it('is refused on the append when no sibling created a visit', () => {
+    expect(decideOn(SESSION_ID, freshClaims(), [freshVisitProposal()])[0]?.refusal).toBe('TERMS_MISMATCH');
+  });
+
+  it('is refused on the append when the sibling created another visit', () => {
+    const decisions = decideOn(SESSION_ID, freshClaims(), [freshVisitProposal({ bound_session_id: OTHER_SESSION_ID })]);
+    expect(decisions[0]?.refusal).toBe('TERMS_MISMATCH');
+  });
+
+  it('cannot create a second visit of the same request', () => {
+    expect(decideOn(null, freshClaims(), [freshVisitProposal({ bound_session_id: SESSION_ID })])[0]?.refusal).toBe('TERMS_MISMATCH');
+  });
+
+  it('stays consumed when it is replayed, not a second visit', () => {
+    const decisions = decideOn(null, freshClaims(), [freshVisitProposal({ status: 'CONSUMED', bound_session_id: SESSION_ID })]);
+    expect(decisions[0]?.refusal).toBe('CONSUMED');
+  });
 });

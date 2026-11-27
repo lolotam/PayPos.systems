@@ -1,4 +1,8 @@
-import { approvalClaims, decideApprovals, type ApprovalDecision } from '../../domain/discount-consumption.ts';
+import {
+  approvalClaims,
+  decideApprovals,
+  type ApprovalDecision,
+} from '../../domain/discount-consumption.ts';
 import type { ConsumptionActor } from '../../domain/discount-approval-rules.ts';
 import { discountTermsOfLine, type DiscountTermsFacts } from '../../domain/discount-request.ts';
 import type { PreparedSessionLine, SessionLimit, SessionLine } from '../../domain/session-types.ts';
@@ -17,7 +21,10 @@ export interface ApprovalDecisionFacts {
 }
 
 /** من يستهلك الموافقة: الفرع والمستخدم والعضوية التي سجّلت. */
-export function consumptionActor(context: { branchId: string; userId: string }, membershipId: string): ConsumptionActor {
+export function consumptionActor(
+  context: { branchId: string; userId: string },
+  membershipId: string,
+): ConsumptionActor {
   return { branch_id: context.branchId, user_id: context.userId, membership_id: membershipId };
 }
 
@@ -35,7 +42,13 @@ export async function lockApprovalProposals(
   tx: SessionTransaction,
   inputLines: readonly InputLine[],
 ): Promise<LockedDiscountProposal[]> {
-  const ids = [...new Set(inputLines.map((line) => line.discount_proposal_id).filter((id): id is string => id !== undefined))];
+  const ids = [
+    ...new Set(
+      inputLines
+        .map((line) => line.discount_proposal_id)
+        .filter((id): id is string => id !== undefined),
+    ),
+  ];
   if (ids.length === 0) return [];
   return tx.consumption.lock(ids);
 }
@@ -59,7 +72,20 @@ export function approvalDecisions(
   const claims = approvalClaims(facts.prepared, facts.limit);
   if (claims.length === 0) return [];
   const sha256Hex = (text: string) => tx.consumption.hash.sha256Hex(text);
-  return decideApprovals(claims, (line) => discountTermsOfLine(facts.terms, line), locked, facts.actor, at, sha256Hex);
+  return decideApprovals(
+    claims,
+    (line, overrideSessionId) =>
+      discountTermsOfLine(
+        overrideSessionId === undefined
+          ? facts.terms
+          : { ...facts.terms, session_id: overrideSessionId },
+        line,
+      ),
+    locked,
+    facts.actor,
+    at,
+    sha256Hex,
+  );
 }
 
 /**
@@ -80,10 +106,17 @@ export async function commitDiscountApprovals(
 ): Promise<void> {
   for (const line of lines) {
     if (line.discount_proposal_id === undefined) continue;
-    const decision = decisions.find((entry) =>
-      entry.proposal_id === line.discount_proposal_id && entry.input_index === line.input_index);
+    const decision = decisions.find(
+      (entry) =>
+        entry.proposal_id === line.discount_proposal_id && entry.input_index === line.input_index,
+    );
     if (decision === undefined) throw new Error('A consumed discount proposal has no decision');
-    const consumed = await tx.consumption.consume(line.discount_proposal_id, line.id, decision.terms_hash, at);
+    const consumed = await tx.consumption.consume(
+      line.discount_proposal_id,
+      line.id,
+      decision.terms_hash,
+      at,
+    );
     if (!consumed) throw new Error('A locked discount proposal lost its compare-and-set');
   }
 }
