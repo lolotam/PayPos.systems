@@ -33,7 +33,11 @@ import {
   type PasswordResetCapability,
 } from './modules/identity/index.ts';
 import { readConfig, memberInvitationsDependency } from './shared/config.ts';
-import { closeOptional, optionalWithin } from './shared/optional-capability.ts';
+import {
+  closeOptional,
+  optionalWithin,
+  whatsappSetupSubReason,
+} from './shared/optional-capability.ts';
 import { startPasswordReset } from './password-reset-startup.ts';
 import { startEmailFeedbackIntake, type EmailFeedbackIntake } from './email-feedback-startup.ts';
 import { staffAccessRoutesEnabled } from './shared/staff-access-routes.ts';
@@ -128,9 +132,16 @@ try {
         { capability: { name: 'WHATSAPP_INTAKE', state: 'READY' } },
         'staff OTP capability',
       );
-    } catch {
+    } catch (error) {
       logger.warn(
-        { capability: { name: 'WHATSAPP_INTAKE', state: 'UNAVAILABLE', reason: 'SETUP_FAILED' } },
+        {
+          capability: {
+            name: 'WHATSAPP_INTAKE',
+            state: 'UNAVAILABLE',
+            reason: 'SETUP_FAILED',
+            subReason: whatsappSetupSubReason(error),
+          },
+        },
         'staff OTP capability',
       );
       await closeOptional([() => whatsapp?.close(true), () => globalDatabase?.close(true)]);

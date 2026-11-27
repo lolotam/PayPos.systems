@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import Fastify from 'fastify';
+import type * as Notifications from '@pospay/notifications';
 import { HealthController } from '../health.controller.ts';
 
 const resources = vi.hoisted(() => ({
@@ -24,6 +25,8 @@ const resources = vi.hoisted(() => ({
   },
   logger: { info: vi.fn(), warn: vi.fn(), fatal: vi.fn() },
   passwordReset: vi.fn<(options: unknown) => null>(() => null),
+  // بيئة تهيئة البوابة: undefined يعني إن الاختبار ما يتحققش من إعدادات الواتساب، وobject يعني تحقق حقيقي.
+  whatsappConfigEnv: undefined as NodeJS.ProcessEnv | undefined,
 }));
 vi.mock('@pospay/db', () => ({
   createDatabase: () => resources.database,
@@ -74,9 +77,18 @@ vi.mock('../../app.ts', () => ({
     };
   },
 }));
-vi.mock('../../modules/notifications/index.ts', () => ({
-  createWhatsappIntake: () => resources.intake,
-}));
+vi.mock('../../modules/notifications/index.ts', async () => {
+  const { readWhatsappWebhookConfiguration } =
+    await vi.importActual<typeof Notifications>('@pospay/notifications');
+  return {
+    // قراءة إعدادات البوابة الحقيقية بترمي الخطأ الأصلي قبل ما الـintake تتبنى، زي ما في الإقلاع.
+    createWhatsappIntake: () => {
+      if (resources.whatsappConfigEnv !== undefined)
+        readWhatsappWebhookConfiguration(resources.whatsappConfigEnv);
+      return resources.intake;
+    },
+  };
+});
 vi.mock('../../modules/identity/index.ts', () => ({
   // استرجاع كلمة المرور بالإيميل خارج نطاق هذا الاختبار: القدرة مقفولة فمفيش خدمة تتبنى.
   createPasswordResetCapability: (options: unknown) => resources.passwordReset(options),
@@ -109,10 +121,28 @@ beforeEach(() => {
   vi.resetModules();
   vi.clearAllMocks();
   resources.configuration.state = 'DISABLED';
+  resources.whatsappConfigEnv = undefined;
   resources.intake.ready.mockRejectedValue(new Error('SYNTHETIC_INTAKE_FAILURE'));
   resources.intake.close.mockResolvedValue(undefined);
   resources.transport.ready.mockResolvedValue(undefined);
 });
+
+// شكل القدرة المكسورة في السجل: الاسم والحالة والسبب الآمن، من غير أي تفاصيل حساسة.
+const whatsappCapability = (subReason: string) => ({
+  name: 'WHATSAPP_INTAKE',
+  state: 'UNAVAILABLE',
+  reason: 'SETUP_FAILED',
+  subReason,
+});
+
+// كل ما وصل للسجل من أي مستوى، عشان نثبت إن التفاصيل الحساسة ماتفحصتش في أي مكان.
+function loggedArgs() {
+  return JSON.stringify([
+    ...resources.logger.info.mock.calls,
+    ...resources.logger.warn.mock.calls,
+    ...resources.logger.fatal.mock.calls,
+  ]);
+}
 
 async function ordinaryReadiness() {
   const options = resources.appOptions.mock.calls.at(-1)?.[0];
@@ -134,7 +164,14 @@ it('hung optional intake readiness and cleanup cannot prevent listening or /read
   expect(resources.listen).toHaveBeenCalledOnce();
   expect(resources.intake.close).toHaveBeenCalledWith(true);
   expect(resources.logger.warn).toHaveBeenCalledWith(
-    expect.objectContaining({ capability: expect.objectContaining({ state: 'UNAVAILABLE' }) }),
+    expect.objectContaining({
+      capability: expect.objectContaining({
+        name: 'WHATSAPP_INTAKE',
+        state: 'UNAVAILABLE',
+        reason: 'SETUP_FAILED',
+        subReason: 'OPTIONAL_CAPABILITY_TIMEOUT',
+      }),
+    }),
     'staff OTP capability',
   );
   await ordinaryReadiness();
@@ -203,15 +240,46 @@ it('a failing optional intake is diagnosed and isolated from ordinary API readin
   expect(resources.logger.fatal).not.toHaveBeenCalled();
   expect(resources.intake.close).toHaveBeenCalledOnce();
   expect(resources.logger.warn).toHaveBeenCalledWith(
-    {
-      capability: {
-        name: 'WHATSAPP_INTAKE',
-        state: 'UNAVAILABLE',
-        reason: 'SETUP_FAILED',
-      },
-    },
+    { capability: whatsappCapability('UNKNOWN_SETUP_ERROR') },
     'staff OTP capability',
   );
+});
+
+it('a whatsapp setup configuration failure is reported with its safe reason code', async () => {
+  resources.whatsappConfigEnv = {
+    WHATSAPP_WABA_ID: 'synthetic-waba',
+    WHATSAPP_PHONE_NUMBER_ID: 'synthetic-phone',
+  };
+  await import('../../main.ts');
+  expect(resources.logger.warn).toHaveBeenCalledWith(
+    { capability: whatsappCapability('WHATSAPP_CONFIG_INVALID:NOTIFICATION_PHONE_HASH_KEY_ID') },
+    'staff OTP capability',
+  );
+});
+
+it('a sensitive setup failure reports only its driver code and leaks no detail', async () => {
+  resources.intake.ready.mockRejectedValue(
+    Object.assign(new Error('secret-+96599999999-postgres://u:p@h/db'), { code: '28P01' }),
+  );
+  await import('../../main.ts');
+  expect(resources.logger.warn).toHaveBeenCalledWith(
+    { capability: whatsappCapability('DB_OR_IO_28P01') },
+    'staff OTP capability',
+  );
+  const logged = loggedArgs();
+  expect(logged).not.toContain('secret-+96599999999-postgres://u:p@h/db');
+  expect(logged).not.toContain('96599999999');
+  expect(logged).not.toContain('postgres://u:p@h/db');
+});
+
+it('an unknown setup failure reports no detail from its message', async () => {
+  resources.intake.ready.mockRejectedValue(new Error('SYNTHETIC_UNKNOWN_SETUP_FAILURE'));
+  await import('../../main.ts');
+  expect(resources.logger.warn).toHaveBeenCalledWith(
+    { capability: whatsappCapability('UNKNOWN_SETUP_ERROR') },
+    'staff OTP capability',
+  );
+  expect(loggedArgs()).not.toContain('SYNTHETIC_UNKNOWN_SETUP_FAILURE');
 });
 
 it('password reset stays closed in production without a trusted proxy and opens with one', async () => {

@@ -37,6 +37,8 @@ const resources = vi.hoisted(() => ({
   commissionReminders: { ready: vi.fn(async () => undefined) },
   ratingClaims: undefined as Customers.RatingClaimsLifecycle | undefined,
   deliverer: vi.fn(),
+  // خطأ تهيئة البوابة: undefined يعني إن التهيئة نجحت، وError يعني الخطأ اللي رماه الإعداد.
+  webhookConfiguration: vi.fn(),
   maintenance: vi.fn((options: { databaseUrl: string }) => {
     new URL(options.databaseUrl);
     return { readiness: vi.fn(), stop: vi.fn(), close: vi.fn() };
@@ -58,13 +60,14 @@ vi.mock('ioredis', () => ({
   Redis: class Redis {
     duplicate = () => new Redis();
     on() {}
-    quit = vi.fn();
-    disconnect = vi.fn();
-    ping = vi.fn();
-    set = resources.redis.set;
-    del = resources.redis.del;
-    get = resources.redis.get;
-    evalsha = resources.redis.evalsha;
+    constructor() {
+      Object.assign(this, {
+        quit: vi.fn(),
+        disconnect: vi.fn(),
+        ping: vi.fn(),
+        ...resources.redis,
+      });
+    }
   },
 }));
 // الطابور والعامل الحقيقيان يسجّلان ما يُبنى لنعرف إن مجدول المطالبات ما اتفتحش، والوحدة تُحمّل مرة واحدة فلا تحميل بارد بعد إعادة الضبط.
@@ -76,8 +79,8 @@ vi.mock('bullmq', async (original) => {
     (kind: string) =>
     (target: unknown, args: unknown[]): object => {
       resources.bullmq.constructed.push({ kind, name: String(args[0]) });
-      // طوابير البيع وتثبيت استيراد الباقات والخدمات ومسحيهما وقفل التصنيفات تُبنى فعليًا؛ بدل Redis حقيقي مقبض جاهز.
       const queueName = String(args[0]);
+      // طوابير البيع وتثبيت استيراد الباقات والخدمات ومسحيهما وقفل التصنيفات تُبنى فعليًا؛ بدل Redis حقيقي مقبض جاهز.
       if (
         (queueName.startsWith('package-') && queueName !== 'package-import-preview') ||
         queueName === 'service-category-closing' ||
@@ -107,9 +110,8 @@ vi.mock('../modules/customers/index.ts', async (original) => {
     ...actual,
     // المجدول المُسجّل في الإقلاع بيتشقط هنا، عشان الاختبار يمرّر بيه حدث.
     closedRatingClaimsLifecycle: () => {
-      const lifecycle = actual.closedRatingClaimsLifecycle();
-      resources.ratingClaims = lifecycle;
-      return lifecycle;
+      resources.ratingClaims = actual.closedRatingClaimsLifecycle();
+      return resources.ratingClaims;
     },
   };
 });
@@ -155,7 +157,7 @@ vi.mock('../modules/staff/index.ts', async (original) => ({
 }));
 vi.mock('@pospay/notifications', async (original) => ({
   ...(await original<typeof Notifications>()),
-  readWhatsappWebhookConfiguration: vi.fn(),
+  readWhatsappWebhookConfiguration: resources.webhookConfiguration,
 }));
 vi.mock('../commission-reminders.ts', () => ({
   startCommissionReminderWiring: () => ({
@@ -178,6 +180,8 @@ vi.mock('./config.ts', () => ({
 
 const resolveVoid = (...fns: ReturnType<typeof vi.fn>[]) =>
   fns.forEach((fn) => fn.mockResolvedValue(undefined));
+// وعد مالوش نهاية: بينسخ سلوك التعليق اللي بتعمله الاختبارات للمهلة.
+const hung = () => new Promise<void>(() => undefined);
 
 beforeEach(() => {
   vi.resetModules();
@@ -187,13 +191,11 @@ beforeEach(() => {
   vi.stubEnv('AUTH_DATABASE_URL', '');
   resources.global.ping.mockRejectedValue(new Error('SYNTHETIC_INTAKE_FAILURE'));
   resources.configuration.state = 'DISABLED';
+  resources.webhookConfiguration.mockReset();
   resolveVoid(resources.global.close, resources.inbound.close, resources.inbound.ready);
   resolveVoid(resources.execution.readiness, resources.execution.close, resources.otp.close);
-  resolveVoid(
-    resources.previews.ready,
-    resources.reports.ready,
-    resources.commissionReminders.ready,
-  );
+  resolveVoid(resources.previews.ready, resources.reports.ready);
+  resolveVoid(resources.commissionReminders.ready);
 });
 afterEach(async () => {
   await resources.workerOptions.mock.calls.at(-1)?.[0]?.release?.();
@@ -201,20 +203,25 @@ afterEach(async () => {
   vi.unstubAllEnvs();
 });
 
+// شكل القدرة المكسورة في السجل: الاسم والحالة والسبب الآمن، من غير أي تفاصيل حساسة.
+const whatsappCapability = (subReason: string) => ({
+  name: 'WHATSAPP_INTAKE',
+  state: 'UNAVAILABLE',
+  reason: 'SETUP_FAILED',
+  subReason,
+});
+// كل ما وصل للسجل من أي مستوى، عشان نثبت إن التفاصيل الحساسة ماتفحصتش في أي مكان.
+const loggedArgs = () =>
+  JSON.stringify(Object.values(resources.logger).flatMap((mock) => mock.mock.calls));
+
 async function readinessResponse() {
   const options = resources.workerOptions.mock.calls.at(-1)?.[0];
   const app = Fastify();
   app.get('/ready', (_request, reply) => new HealthController(options.readiness).ready(reply));
-  try {
-    return await app.inject('/ready');
-  } finally {
-    await app.close();
-  }
+  return app.inject('/ready').finally(() => app.close());
 }
 
-async function ordinaryReadiness() {
-  expect((await readinessResponse()).statusCode).toBe(200);
-}
+const ordinaryReadiness = async () => expect((await readinessResponse()).statusCode).toBe(200);
 
 it('listens and serves health while the package preview Redis is still connecting', async () => {
   resources.previews.ready.mockImplementation(() => new Promise(() => undefined));
@@ -226,16 +233,13 @@ it('listens and serves health while the package preview Redis is still connectin
   const controller = new HealthController(options.readiness);
   app.get('/health', () => controller.health());
   app.get('/ready', (_request, reply) => controller.ready(reply));
-  try {
-    const health = await app.inject('/health');
-    expect(health.statusCode).toBe(200);
-    expect(health.json()).toEqual({ status: 'ok' });
-    const ready = await app.inject('/ready');
-    expect(ready.statusCode).toBe(503);
-    expect(ready.json()).toMatchObject({ details: { checks: { 'package-previews': 'down' } } });
-  } finally {
-    await app.close();
-  }
+  const health = await app.inject('/health');
+  expect(health.statusCode).toBe(200);
+  expect(health.json()).toEqual({ status: 'ok' });
+  const ready = await app.inject('/ready');
+  expect(ready.statusCode).toBe(503);
+  expect(ready.json()).toMatchObject({ details: { checks: { 'package-previews': 'down' } } });
+  await app.close();
 }, 15_000);
 
 it('hung optional intake readiness and cleanup cannot prevent worker /ready 200', async () => {
@@ -246,7 +250,7 @@ it('hung optional intake readiness and cleanup cannot prevent worker /ready 200'
   expect(resources.listen).toHaveBeenCalledOnce();
   expect(resources.inbound.close).toHaveBeenCalledWith(true);
   expect(resources.logger.warn).toHaveBeenCalledWith(
-    expect.objectContaining({ capability: expect.objectContaining({ state: 'UNAVAILABLE' }) }),
+    { capability: whatsappCapability('OPTIONAL_CAPABILITY_TIMEOUT') },
     'staff OTP capability',
   );
   await ordinaryReadiness();
@@ -285,18 +289,9 @@ it('invalid email identity settings disable email alone without affecting ordina
   );
   await ordinaryReadiness();
   const options = resources.workerOptions.mock.calls.at(-1)?.[0];
-  expect(options.readiness.map((check: { name: string }) => check.name)).toEqual([
-    'database',
-    'package-previews',
-    'package-sale',
-    'package-import-commit',
-    'customer-import-commit',
-    'leave-history-reports',
-    'service-category-closing',
-    'dispatcher',
-    'redis',
-    'commission-reminder-recovery',
-  ]);
+  expect(options.readiness.map((check: { name: string }) => check.name).join(' ')).toBe(
+    'database package-previews package-sale package-import-commit customer-import-commit leave-history-reports service-category-closing dispatcher redis commission-reminder-recovery',
+  );
 });
 
 it('hung optional intake database readiness is force-closed before worker listens', async () => {
@@ -308,11 +303,7 @@ it('hung optional intake database readiness is force-closed before worker listen
 }, 5000);
 
 it('hung maintenance readiness and cleanup are isolated from worker /ready', async () => {
-  const retention = {
-    readiness: vi.fn(() => new Promise<void>(() => undefined)),
-    stop: vi.fn(),
-    close: vi.fn(() => new Promise<void>(() => undefined)),
-  };
+  const retention = { readiness: vi.fn(hung), stop: vi.fn(), close: vi.fn(hung) };
   resources.maintenance.mockReturnValueOnce(retention);
   vi.stubEnv('AUTH_DATABASE_URL', 'postgres://synthetic.invalid/synthetic');
   await import('../main.ts');
@@ -347,9 +338,7 @@ it('hung final OTP readiness cannot advertise READY or retain an unsuccessful wo
   resources.configuration.state = 'READY';
   resources.global.ping.mockResolvedValue(undefined);
   resources.otp.ready.mockResolvedValue(undefined);
-  resources.execution.readiness
-    .mockImplementation(() => new Promise(() => undefined))
-    .mockResolvedValueOnce(undefined);
+  resources.execution.readiness.mockImplementation(hung).mockResolvedValueOnce(undefined);
   vi.stubEnv('NOTIFICATION_PHONE_HASH_KEY', 'synthetic'.repeat(8));
   vi.stubEnv('NOTIFICATION_PHONE_HASH_KEY_ID', 'synthetic-h');
   await import('../main.ts');
@@ -364,7 +353,6 @@ it('hung final OTP readiness cannot advertise READY or retain an unsuccessful wo
 
 it('a failing optional intake is diagnosed and isolated from ordinary worker readiness', async () => {
   vi.stubEnv('STAFF_OTP_ENABLED', 'true');
-  vi.stubEnv('PLATFORM_NOTIFICATIONS_DATABASE_URL', 'synthetic');
   const exit = vi.spyOn(process, 'exit').mockImplementation(() => {
     throw new Error('SYNTHETIC_EXIT');
   });
@@ -372,18 +360,40 @@ it('a failing optional intake is diagnosed and isolated from ordinary worker rea
   expect(exit).not.toHaveBeenCalled();
   expect(resources.listen).toHaveBeenCalledOnce();
   expect(resources.loop.start).toHaveBeenCalledOnce();
-  expect(resources.workerOptions).toHaveBeenCalledWith(
-    expect.objectContaining({
-      readiness: expect.not.arrayContaining([
-        expect.objectContaining({ name: 'whatsapp-inbound' }),
-      ]),
-    }),
-  );
+  const readiness = resources.workerOptions.mock.calls.at(-1)?.[0].readiness;
+  expect(readiness.map((check: { name: string }) => check.name)).not.toContain('whatsapp-inbound');
   expect(resources.logger.fatal).not.toHaveBeenCalled();
   expect(resources.logger.warn).toHaveBeenCalledWith(
-    { capability: { name: 'WHATSAPP_INTAKE', state: 'UNAVAILABLE', reason: 'SETUP_FAILED' } },
+    { capability: whatsappCapability('UNKNOWN_SETUP_ERROR') },
     'staff OTP capability',
   );
+  expect(loggedArgs()).not.toContain('SYNTHETIC_INTAKE_FAILURE');
+});
+
+it('a whatsapp setup configuration failure is reported with its safe reason code', async () => {
+  // الكود ده هو اللي بيرميه readWhatsappWebhookConfiguration لما مفتاح الهاش ناقص، واختبار الـAPI
+  // بيمسك الخطأ الأصلي من القارئ الحقيقي؛ هنا بنثبت إن العامل بينقل نفس الكود من غير تغيير.
+  resources.webhookConfiguration.mockImplementation(() => {
+    throw new Error('WHATSAPP_CONFIG_INVALID:NOTIFICATION_PHONE_HASH_KEY_ID');
+  });
+  await import('../main.ts');
+  expect(resources.logger.warn).toHaveBeenCalledWith(
+    { capability: whatsappCapability('WHATSAPP_CONFIG_INVALID:NOTIFICATION_PHONE_HASH_KEY_ID') },
+    'staff OTP capability',
+  );
+});
+
+it('a sensitive setup failure reports only its driver code and leaks no detail', async () => {
+  resources.global.ping.mockRejectedValue(
+    Object.assign(new Error('secret-+96599999999-postgres://u:p@h/db'), { code: '28P01' }),
+  );
+  await import('../main.ts');
+  expect(resources.logger.warn).toHaveBeenCalledWith(
+    { capability: whatsappCapability('DB_OR_IO_28P01') },
+    'staff OTP capability',
+  );
+  expect(loggedArgs()).not.toContain('secret-+96599999999-postgres://u:p@h/db');
+  expect(loggedArgs()).not.toContain('96599999999');
 });
 
 // التصميم 7: المجدول الحيّ ما بيشتغلش من الإقلاع. مع إعدادات رموز صالحة، العامل
@@ -414,17 +424,14 @@ it('runtime_stays_dormant_with_valid_token_settings', async () => {
   const next = vi.fn(async (): Promise<DeliveryOutcome> => ({ delivered: true }));
   const outcome = await lifecycle?.deliver(event, next);
   expect(outcome?.delivered).toBe(true);
-  expect(next).toHaveBeenCalledOnce();
-  expect(next).toHaveBeenCalledWith(event);
+  expect(next).toHaveBeenCalledExactlyOnceWith(event);
   // مفيش طابور ولا عامل اتفتحوا: لا وقت الإقلاع ولا وقت الحدث.
-  expect(
-    resources.bullmq.constructed.filter((entry) => entry.name === RATING_CLAIMS_QUEUE),
-  ).toEqual([]);
+  expect(resources.bullmq.constructed.map((entry) => entry.name)).not.toContain(
+    RATING_CLAIMS_QUEUE,
+  );
   // منفذ حالة الجدولة بيكتب بـ eval، فمفيش eval ولا evalsha حصل.
   expect(resources.redis.evalsha).not.toHaveBeenCalled();
-  const written = resources.redis.set.mock.calls
-    .map((call) => call.map(String).join(' '))
-    .join(' ');
+  const written = resources.redis.set.mock.calls.flatMap((call) => call.map(String)).join(' ');
   expect(written).not.toMatch(/rating-claims/);
   expect(resources.database.withTenant).not.toHaveBeenCalled();
 });
