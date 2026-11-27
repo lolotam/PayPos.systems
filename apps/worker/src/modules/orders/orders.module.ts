@@ -1,22 +1,17 @@
 import { startPackagePreviewProcessor } from './jobs/package-preview.processor.ts';
 import { startPackageImportCommitProcessor } from './jobs/package-import-commit.processor.ts';
-import { startPackageImportRecoveryProcessor } from './jobs/package-import-recovery.processor.ts';
 import { packagePreviewWorkbook } from './persistence/package-preview-workbook.ts';
 import { packagePreviewTransactions } from './persistence/package-preview.transactions.ts';
 import { packageImportCommitTransactions } from './persistence/package-import-commit.transactions.ts';
-import { packageImportRecoveryTransactions } from './persistence/package-import-recovery.transactions.ts';
 import { ExecutePackagePreview } from './use-cases/execute-package-preview/execute-package-preview.ts';
 import { CommitPackageImport } from './use-cases/commit-package-import/commit-package-import.ts';
-import { RecoverPackageImports } from './use-cases/recover-package-imports/recover-package-imports.ts';
 import type { PackagePreviewClock } from './ports/package-preview.port.ts';
 import type { PackageCommitClock } from './ports/package-import-commit.port.ts';
 import { startPackageSaleProcessor } from './jobs/package-sale.processor.ts';
-import { startPackageSaleRecoveryProcessor } from './jobs/package-sale-recovery.processor.ts';
 import { packageSaleTransactions } from './persistence/package-sale.transactions.ts';
-import { packageSaleRecoveryTransactions } from './persistence/package-sale-recovery.transactions.ts';
 import { ExecutePackageSale } from './use-cases/execute-package-sale/execute-package-sale.ts';
-import { RecoverPackageSales } from './use-cases/recover-package-sales/recover-package-sales.ts';
 import type { PackageSaleClock } from './ports/package-sale.port.ts';
+import { packageImportRecovery, packageSaleRecovery } from './package-recovery.wiring.ts';
 
 import type { Tx, ClaimedEvent, DeliveryOutcome, TenantWrappers } from '@pospay/db';
 import { editorLabel, safeDisplayName, t } from '@pospay/i18n';
@@ -318,12 +313,14 @@ export function startPackageSaleWorker(
     clock,
   );
   const processor = startPackageSaleProcessor(sale, redisUrl, prefix, retryDelayMs);
-  const recoveryUseCase = new RecoverPackageSales(
-    packageSaleRecoveryTransactions(database, { timeoutMs: transactionTimeoutMs }),
-    clock,
-  );
-  const recovery = startPackageSaleRecoveryProcessor(recoveryUseCase, redisUrl, prefix);
+  const { processor: recovery, target } = packageSaleRecovery(database, clock, {
+    redisUrl,
+    timeoutMs: transactionTimeoutMs,
+    ...(prefix === undefined ? {} : { prefix }),
+  });
   return {
+    // مسح الاكتشاف الدوري (#1035) يعيد تسجيل الاستعادة لو ضاعت من Redis بعد إقرار الحدث.
+    recoveryTarget: target,
     eventTypes: ['PackageSaleRequested'],
     deliver: async (
       event: ClaimedEvent,
@@ -345,9 +342,6 @@ export function startPackageSaleWorker(
     close: () => Promise.all([processor.close(), recovery.close()]).then(() => undefined),
   };
 }
-
-// بيانات المسح قصيرة ومفهرسة على (company,status,requested_at)؛ لا تستخدم ميزانية المعاملة المالية أبدًا.
-const PACKAGE_IMPORT_RECOVERY_TIMEOUT_MS = 5_000;
 
 /** يشغّل نقل تثبيت استيراد الباقات ومسح استرداده؛ الحدث لا يُقرّ إلا بعد تسجيل المسح وقبول Redis للمهمة. */
 export function startPackageImportCommitWorker(
@@ -375,12 +369,12 @@ export function startPackageImportCommitWorker(
       ...(retryDelayMs === undefined ? {} : { retryDelayMs }),
     },
   );
-  const recoveryUseCase = new RecoverPackageImports(
-    packageImportRecoveryTransactions(database, { timeoutMs: PACKAGE_IMPORT_RECOVERY_TIMEOUT_MS }),
-    clock,
-  );
-  const recovery = startPackageImportRecoveryProcessor(recoveryUseCase, redisUrl, prefix);
+  const { processor: recovery, target } = packageImportRecovery(database, clock, {
+    redisUrl,
+    ...(prefix === undefined ? {} : { prefix }),
+  });
   return {
+    recoveryTarget: target,
     eventTypes: ['PackageImportCommitRequested'],
     deliver: async (
       event: ClaimedEvent,

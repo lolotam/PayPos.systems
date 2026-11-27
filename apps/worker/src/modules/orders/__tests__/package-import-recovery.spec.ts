@@ -132,6 +132,7 @@ it('drains a backlog of sixty stale requests in one execute', async () => {
 it('stops one execute after twenty full pages and leaves the rest to the next minute', async () => {
   let pages = 0;
   const alwaysFull = {
+    hasPending: async () => true,
     failStalePage: async (): Promise<number> => {
       pages += 1;
       return 50;

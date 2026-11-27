@@ -31,6 +31,13 @@ export function packageImportRecoveryTransactions(
   const withTenant = <T>(companyId: string, work: (tx: Tx) => Promise<T>) =>
     database.withTenant(companyId, work, options);
   return {
+    hasPending: (companyId) =>
+      withTenant(companyId, async (tx) => {
+        const rows = await tx.execute(sql`
+          SELECT 1 FROM import_previews
+          WHERE company_id=${companyId} AND entity='packages' AND status='commit_requested' LIMIT 1`);
+        return rows.length > 0;
+      }),
     failStalePage: (companyId, before) =>
       withTenant(companyId, async (tx) => {
         const rows = await tx.execute<{ id: string }>(packageImportRecoveryPage(companyId, before));
