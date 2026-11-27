@@ -207,6 +207,35 @@ it('terminal failure retry (#1047): falls back to a direct fail write and notifi
   });
 });
 
+it('terminal failure retry (#1047): swallows a throwing drop observer without unhandled rejections', async () => {
+  const fail = vi.fn(async () => {
+    throw new Error('private persistence failure');
+  });
+  const onDrop = vi.fn(() => {
+    throw new Error('observer crashed');
+  });
+  const unhandled: unknown[] = [];
+  const onUnhandled = (reason: unknown) => {
+    unhandled.push(reason);
+  };
+  process.on('unhandledRejection', onUnhandled);
+  try {
+    const { processor, closingWorker, finalizationQueue } = start({ fail, onDrop });
+    finalizationQueue.add.mockRejectedValueOnce(new Error('private redis outage'));
+    const terminal = job();
+    terminal.finishedOn = 1_700_000_000_000;
+
+    closingWorker.onFailed?.(terminal as never);
+
+    await vi.waitFor(() => expect(onDrop).toHaveBeenCalledTimes(1));
+    await new Promise<void>((resolve) => setImmediate(resolve));
+    expect(unhandled).toEqual([]);
+    await processor.close();
+  } finally {
+    process.off('unhandledRejection', onUnhandled);
+  }
+});
+
 describe('graceful shutdown (#1048)', () => {
   it('waits for the in-flight failure write before closing both queues', async () => {
     let release: (() => void) | undefined;
@@ -242,9 +271,11 @@ describe('graceful shutdown (#1048)', () => {
       release = resolve;
     });
     const fail = vi.fn(async () => written);
-    const { processor, closingQueue, finalizationQueue, closingWorker, finalizationWorker } = start({
-      fail,
-    });
+    const { processor, closingQueue, finalizationQueue, closingWorker, finalizationWorker } = start(
+      {
+        fail,
+      },
+    );
     const closeError = new Error('synthetic worker close failure');
     closingWorker.close.mockRejectedValueOnce(closeError);
     const terminal = job();

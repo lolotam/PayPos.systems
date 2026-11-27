@@ -147,11 +147,15 @@ async function persistTerminalFailure(
         await useCase.fail(companyId, closingId, 'SERVICE_CATEGORY_CLOSING_FAILED');
       } catch {
         // الموعد النهائي بيخلي الصف المعلّق ما يفضلش قفل التصنيف؛ نبلّغ عن سقوط إعادة المحاولة بلا بيانات خاصة.
-        onDrop?.({
-          companyId,
-          closingId,
-          code: 'SERVICE_CATEGORY_CLOSING_FAILURE_RETRY_DROPPED',
-        });
+        try {
+          onDrop?.({
+            companyId,
+            closingId,
+            code: 'SERVICE_CATEGORY_CLOSING_FAILURE_RETRY_DROPPED',
+          });
+        } catch {
+          // تعثّر المراقب نفسه لا يجب أن يسقط العامل أو يترك رفضاً غير معالج.
+        }
       }
     }
   }
@@ -182,6 +186,71 @@ async function closeClosingProcessor(parts: {
   if (rejected !== undefined) throw rejected.reason;
 }
 
+/** يتتبّع كتابات الفشل النهائية غير المتزامنة ويمنع سقوط العامل من رفضٍ غير مُعالَج. */
+function trackTerminalFailures(
+  worker: Worker,
+  useCase: RunServiceCategoryClosing,
+  finalizationQueue: Queue,
+  onFinalizationDropped?: ClosingFinalizationDropObserver,
+): Set<Promise<void>> {
+  // كتابة الفشل بعد إغلاق المهمة مش جزء من عمل BullMQ، فالعامل بيتقفل قبلها.
+  // المجموعة دي هي اللي بتخلي الإغلاق ينتظرها، عشان صف الطلب ما يفضلش معلّق.
+  const inFlightFailures = new Set<Promise<void>>();
+  worker.on('failed', (job, error) => {
+    if (job == null || error instanceof FailurePersistedError || !isTerminalFailure(job)) return;
+    const pending = persistTerminalFailure(useCase, job, finalizationQueue, onFinalizationDropped)
+      .catch(() => undefined)
+      .finally(() => inFlightFailures.delete(pending));
+    inFlightFailures.add(pending);
+  });
+  return inFlightFailures;
+}
+
+/** يهيئ اتصالات Redis وطوابير وعاملي إغلاق التصنيفات وإعادة كتابة الفشل. */
+function createClosingActors(useCase: RunServiceCategoryClosing, redisUrl: string, prefix: string) {
+  const connection = new Redis(redisUrl, { maxRetriesPerRequest: null, enableOfflineQueue: false });
+  connection.on('error', () => undefined);
+  const finalizationConnection = connection.duplicate({
+    maxRetriesPerRequest: null,
+    enableOfflineQueue: false,
+  });
+  finalizationConnection.on('error', () => undefined);
+  const producer = connection.duplicate({ maxRetriesPerRequest: 1, commandTimeout: 5000 });
+  producer.on('error', () => undefined);
+  const queue = new Queue(SERVICE_CATEGORY_CLOSING_QUEUE, { connection: producer, prefix });
+  queue.on('error', () => undefined);
+  const worker = new Worker(SERVICE_CATEGORY_CLOSING_QUEUE, closingHandler(useCase), {
+    connection,
+    concurrency: 1,
+    prefix,
+  });
+  worker.on('error', () => undefined);
+  const finalizationQueue = new Queue(SERVICE_CATEGORY_CLOSING_FINALIZATION_QUEUE, {
+    connection: producer,
+    prefix,
+  });
+  finalizationQueue.on('error', () => undefined);
+  const finalizationWorker = new Worker(
+    SERVICE_CATEGORY_CLOSING_FINALIZATION_QUEUE,
+    finalizationHandler(useCase),
+    {
+      connection: finalizationConnection,
+      concurrency: 1,
+      prefix,
+    },
+  );
+  finalizationWorker.on('error', () => undefined);
+  return {
+    connection,
+    finalizationConnection,
+    producer,
+    queue,
+    worker,
+    finalizationQueue,
+    finalizationWorker,
+  };
+}
+
 /**
  * يشغّل طابور قفل وفتح التصنيفات الكبيرة: يسلّم الحدث للطابور، ويشغّل الصف تحته،
  * مع طابور وعامل منفصلين لإعادة كتابة الفشل حتى لا تستهلكه عمالة قديمة أثناء التحديث التدريجي.
@@ -198,34 +267,21 @@ export function startServiceCategoryClosingProcessor(
   prefix = 'bull',
   onFinalizationDropped?: ClosingFinalizationDropObserver,
 ) {
-  const connection = new Redis(redisUrl, { maxRetriesPerRequest: null, enableOfflineQueue: false });
-  connection.on('error', () => undefined);
-  const finalizationConnection = connection.duplicate({ maxRetriesPerRequest: null, enableOfflineQueue: false });
-  finalizationConnection.on('error', () => undefined);
-  const producer = connection.duplicate({ maxRetriesPerRequest: 1, commandTimeout: 5000 });
-  producer.on('error', () => undefined);
-  const queue = new Queue(SERVICE_CATEGORY_CLOSING_QUEUE, { connection: producer, prefix });
-  queue.on('error', () => undefined);
-  const worker = new Worker(SERVICE_CATEGORY_CLOSING_QUEUE, closingHandler(useCase), { connection, concurrency: 1, prefix });
-  worker.on('error', () => undefined);
-  const finalizationQueue = new Queue(SERVICE_CATEGORY_CLOSING_FINALIZATION_QUEUE, { connection: producer, prefix });
-  finalizationQueue.on('error', () => undefined);
-  const finalizationWorker = new Worker(SERVICE_CATEGORY_CLOSING_FINALIZATION_QUEUE, finalizationHandler(useCase), {
-    connection: finalizationConnection,
-    concurrency: 1,
-    prefix,
-  });
-  finalizationWorker.on('error', () => undefined);
-  // كتابة الفشل بعد إغلاق المهمة مش جزء من عمل BullMQ، فالعامل بيتقفل قبلها.
-  // المجموعة دي هي اللي بتخلي الإغلاق ينتظرها، عشان صف الطلب ما يفضلش معلّق.
-  const inFlightFailures = new Set<Promise<void>>();
-  worker.on('failed', (job, error) => {
-    if (job == null || error instanceof FailurePersistedError || !isTerminalFailure(job)) return;
-    const pending = persistTerminalFailure(useCase, job, finalizationQueue, onFinalizationDropped).finally(() =>
-      inFlightFailures.delete(pending),
-    );
-    inFlightFailures.add(pending);
-  });
+  const {
+    connection,
+    finalizationConnection,
+    producer,
+    queue,
+    worker,
+    finalizationQueue,
+    finalizationWorker,
+  } = createClosingActors(useCase, redisUrl, prefix);
+  const inFlightFailures = trackTerminalFailures(
+    worker,
+    useCase,
+    finalizationQueue,
+    onFinalizationDropped,
+  );
   return {
     deliver: (event: ClaimedEvent) => deliverClosing(queue, useCase, event),
     ready: async () => {

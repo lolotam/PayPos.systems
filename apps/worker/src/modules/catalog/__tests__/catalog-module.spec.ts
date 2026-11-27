@@ -60,15 +60,39 @@ function startWorker() {
   });
 }
 
-it('closes every processor and reports the first refusal', async () => {
+it('closes every processor, waits for siblings to settle, and reports the first refusal', async () => {
   const catalog = startWorker();
   const closingWorker = state.workers.find((worker) => worker.name === 'service-category-closing');
   const importWorker = state.workers.find((worker) => worker.name === 'service-import-commit');
   const recoveryWorker = state.workers.find((worker) => worker.name === 'service-import-recovery');
   const failure = new Error('synthetic closing refusal');
-  closingWorker?.close.mockRejectedValueOnce(failure);
+  let releaseImportClose: (() => void) | undefined;
+  let settled = false;
 
-  await expect(catalog.close()).rejects.toBe(failure);
+  closingWorker?.close.mockRejectedValueOnce(failure);
+  importWorker?.close.mockImplementationOnce(
+    () =>
+      new Promise<void>((resolve) => {
+        releaseImportClose = resolve;
+      }),
+  );
+
+  const closing = catalog.close().then(
+    () => {
+      settled = true;
+    },
+    (err: unknown) => {
+      settled = true;
+      throw err;
+    },
+  );
+  await Promise.resolve();
+  await Promise.resolve();
+  expect(settled).toBe(false);
+
+  expect(releaseImportClose).toBeDefined();
+  releaseImportClose?.();
+  await expect(closing).rejects.toBe(failure);
   expect(importWorker?.close).toHaveBeenCalledTimes(1);
   expect(recoveryWorker?.close).toHaveBeenCalledTimes(1);
 });
