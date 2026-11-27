@@ -15,6 +15,8 @@ type ForeignSession = NonNullable<ReturnType<typeof usePersonalSession>['session
 /** خانات شاشة الموظفة: النشاط المتذكر، والنشاط الجديد، والشاشة الشخصية. */
 export interface EmployeeFlowProps {
   business: PersonalWorkspace | null;
+  /** قراءة النشاط المتذكر فشلت: الشاشات الخاصة بتفضل مخفية والجلسة الحية ما بتتخرجش. */
+  businessUnreadable?: boolean;
   pending: PersonalWorkspace | null;
   busy: boolean;
   connect: ReactNode;
@@ -32,11 +34,13 @@ export interface EmployeeFlowProps {
  * الشاشة الشخصية هي اللي بتقرا الجلسة، فالبوابة بتتبعت ليها: لو الجلسة فاضلة من
  * نشاط تاني بتعرض تنبيه بيخلّصها بدل شاشات الصالون القديم (FR-012).
  *
- * من غير نشاط متذكر الجهاز مش قادر يقارن الجلسة بيه، فأي جلسة شخصية حية بتعتبر
- * غريبة: بتتخلّص مرة واحدة، والشاشة الشخصية بتعرض تنبيه الخروج بدل شاشاتها (FR-012).
+ * من غير نشاط متذكر مؤكد غيابه، أي جلسة شخصية حية بتعتبر غريبة وبتتخلّص مرة واحدة.
+ * أما لو قراءة النشاط من التخزين هي اللي فشلت، فالشاشات الخاصة بتتخفي وتظهر خانة الربط
+ * من غير ما نخرج الجلسة الحية.
  */
 export function EmployeeFlow({
   business,
+  businessUnreadable = false,
   pending,
   busy,
   connect,
@@ -55,6 +59,8 @@ export function EmployeeFlow({
   }, []);
   const sessionGate = useCallback(
     (session: ForeignSession): ReactNode | null => {
+      // قراءة النشاط فشلت: نخفي الشاشات الخاصة بس من غير ما نخرج جلسة ممكن تكون صح.
+      if (businessUnreadable) return <>{connect}</>;
       if (sameBusiness(business, session)) return null;
       const key = foreignSessionKey(session);
       return (
@@ -66,7 +72,7 @@ export function EmployeeFlow({
         />
       );
     },
-    [business, report],
+    [business, businessUnreadable, connect, report],
   );
   const screenProps = {
     connect,

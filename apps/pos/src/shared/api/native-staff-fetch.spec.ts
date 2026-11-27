@@ -192,8 +192,13 @@ describe('nativeStaffFetch aborts', () => {
   });
 
   it('rejects at once when the request is aborted during the call', async () => {
-    // الطلب الأصلي ما بيرجعش أبدًا: الإلغاء هو الوحيد اللي يقدر يردّ.
-    requestMock.mockImplementation(() => new Promise(() => undefined));
+    let settle!: () => void;
+    requestMock.mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          settle = () => resolve(nativeResponse());
+        }),
+    );
     const controller = new AbortController();
     const request = new Request('http://127.0.0.1:3000/v1/devices/me/staff-session', {
       signal: controller.signal,
@@ -204,6 +209,7 @@ describe('nativeStaffFetch aborts', () => {
     controller.abort();
 
     await expect(pending).rejects.toMatchObject({ name: 'AbortError' });
+    settle();
   });
 
   it('removes the abort listener after a normal response', async () => {
@@ -214,6 +220,45 @@ describe('nativeStaffFetch aborts', () => {
 
     expect(response.status).toBe(200);
     expect(removeListener).toHaveBeenCalledWith('abort', expect.any(Function));
+  });
+});
+
+describe('nativeStaffFetch abort fence', () => {
+  stubNativeTransport();
+
+  it('waits for an aborted native call to settle before starting a later request', async () => {
+    let settleFirst!: () => void;
+    requestMock
+      .mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            settleFirst = () => resolve(nativeResponse({ status: 204, data: '', headers: {} }));
+          }),
+      )
+      .mockResolvedValueOnce(nativeResponse());
+
+    const controller = new AbortController();
+    const first = nativeStaffFetch(
+      new Request('http://127.0.0.1:3000/v1/devices/me/staff-session', {
+        method: 'DELETE',
+        signal: controller.signal,
+      }),
+    );
+    await vi.waitFor(() => expect(requestMock).toHaveBeenCalledTimes(1));
+    controller.abort();
+    await expect(first).rejects.toMatchObject({ name: 'AbortError' });
+
+    const second = nativeStaffFetch(
+      new Request('http://127.0.0.1:3000/v1/devices/me/staff-session'),
+    );
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(requestMock).toHaveBeenCalledTimes(1);
+
+    settleFirst();
+    const response = await second;
+    expect(response.status).toBe(200);
+    expect(requestMock).toHaveBeenCalledTimes(2);
   });
 });
 

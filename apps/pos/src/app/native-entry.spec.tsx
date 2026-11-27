@@ -67,6 +67,7 @@ vi.mock('@/personal-staff/ui/personal-screen', () => ({
 }));
 vi.mock('@/shared/platform/launch-links', () => ({
   readLaunchLink: vi.fn(),
+  markLaunchLinkHandled: vi.fn(),
   onLinkOpened: vi.fn((listener: (url: string) => void) => {
     opened.listener = listener;
     return () => undefined;

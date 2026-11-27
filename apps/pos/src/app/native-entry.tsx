@@ -49,6 +49,7 @@ export function NativeEntry() {
     ) : (
       <EmployeeFlow
         business={state.business}
+        businessUnreadable={state.businessUnreadable === true}
         pending={state.pending ?? null}
         busy={busy}
         connect={connect}

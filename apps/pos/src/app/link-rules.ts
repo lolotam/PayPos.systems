@@ -36,6 +36,8 @@ export type NativeState =
       kind: 'flow';
       role: DeviceRole;
       business: PersonalWorkspace | null;
+      /** قراءة النشاط المتذكر فشلت: ما نعرفش النشاط ولا نمسح الجلسة الحية. */
+      businessUnreadable?: boolean;
       pending?: PersonalWorkspace;
       alert?: FlowAlert;
     };
@@ -43,7 +45,12 @@ export type NativeState =
 /** نتيجة تطبيق لينك: شاشة جاهزة، أو فشل الحفظ مع الدور والنشاط اللي اتقروا. */
 export type LinkOutcome =
   | { kind: 'state'; state: NativeState }
-  | { kind: 'failed'; role: DeviceRole | null; business: PersonalWorkspace | null };
+  | {
+      kind: 'failed';
+      role: DeviceRole | null;
+      business: PersonalWorkspace | null;
+      businessUnreadable?: boolean;
+    };
 
 /**
  * حالة الجهاز المعروفة: الدور والنشاط اللي اتقروا قبل.
@@ -53,6 +60,7 @@ export type LinkOutcome =
 export interface KnownShellState {
   role: DeviceRole | null;
   business: PersonalWorkspace | null;
+  businessUnreadable?: boolean;
 }
 
 export const FLOW_ALERT_KEYS = {
@@ -138,20 +146,29 @@ export async function stateAfterLink(
  * الحفظ فشل: الجهاز اللي دوره محفوظ يفضل على شاشته، واللي من غير دور يرجع لشاشة البداية.
  *
  * النشاط المتذكر بيتحفظ مع الشاشة، حتى لو القراءة التانية هي اللي فشلت (FR-012).
+ * لو قراءة النشاط هي اللي فشلت بنعلّمها عشان الشاشة ما تفتكرش إن الجلسة الحية غريبة.
  *
- * @param current  حالة الشاشة الحالية
- * @param role     الدور المحفوظ على الجهاز
- * @param business النشاط المتذكر على الجهاز
+ * @param current            حالة الشاشة الحالية
+ * @param role               الدور المحفوظ على الجهاز
+ * @param business           النشاط المتذكر على الجهاز
+ * @param businessUnreadable true لو قراءة النشاط المتذكر من التخزين فشلت
  * @returns حالة الشاشة بعد فشل الحفظ
  */
 export function stateAfterFailure(
   current: NativeState,
   role: DeviceRole | null,
   business: PersonalWorkspace | null,
+  businessUnreadable?: boolean,
 ): NativeState {
   if (current.kind === 'flow') return { ...current, alert: 'saveFailed' };
   if (role === null) return { kind: 'start', business, alert: 'saveFailed' };
-  return { kind: 'flow', role, business, alert: 'saveFailed' };
+  return {
+    kind: 'flow',
+    role,
+    business,
+    ...(businessUnreadable ? { businessUnreadable: true } : {}),
+    alert: 'saveFailed',
+  };
 }
 
 /**
@@ -174,8 +191,17 @@ export async function resolveLink(
   const role = roleResult.status === 'fulfilled' ? roleResult.value : (fallback?.role ?? null);
   const business =
     businessResult.status === 'fulfilled' ? businessResult.value : (fallback?.business ?? null);
+  // لو القراءة فشلت ومفيش نشاط بديل معروف من قبلها، بنحفظ إن النشاط مش مقروء ومش مفقود.
+  const businessUnreadable =
+    businessResult.status === 'rejected' &&
+    (fallback === undefined ? true : (fallback.businessUnreadable ?? false));
   if (roleResult.status === 'rejected' || businessResult.status === 'rejected') {
-    return { kind: 'failed', role, business };
+    return {
+      kind: 'failed',
+      role,
+      business,
+      ...(businessUnreadable ? { businessUnreadable: true } : {}),
+    };
   }
   try {
     return {
@@ -199,7 +225,7 @@ export async function resolveLink(
  */
 export function stateFromLink(current: NativeState, outcome: LinkOutcome): NativeState {
   if (outcome.kind === 'state') return outcome.state;
-  return stateAfterFailure(current, outcome.role, outcome.business);
+  return stateAfterFailure(current, outcome.role, outcome.business, outcome.businessUnreadable);
 }
 
 /**

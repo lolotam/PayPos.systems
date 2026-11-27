@@ -46,6 +46,7 @@ vi.mock('@/personal-staff/ui/personal-screen', () => ({
 }));
 vi.mock('@/shared/platform/launch-links', () => ({
   readLaunchLink: vi.fn(),
+  markLaunchLinkHandled: vi.fn(),
   onLinkOpened: vi.fn(() => () => undefined),
 }));
 vi.mock('@/shared/platform/native-shell', async (importOriginal) => ({

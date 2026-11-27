@@ -4,6 +4,7 @@ import { DirectionProvider } from '@pospay/ui';
 import type { ReactNode } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { endPersonalSession } from '@/app/end-sessions';
 import {
   connectEmployee,
   readDeviceRole,
@@ -20,8 +21,10 @@ import type * as NativeShellModule from '@/shared/platform/native-shell';
 
 import { NativeEntry } from './native-entry';
 
+const sessionState = vi.hoisted(() => ({ current: null as Record<string, unknown> | null }));
 const opened = vi.hoisted(() => ({ listener: null as ((url: string) => void) | null }));
 
+vi.mock('@/app/end-sessions', () => ({ endPersonalSession: vi.fn(async () => 'done') }));
 vi.mock('@/app/device-role', () => ({
   readDeviceRole: vi.fn(),
   readRememberedBusiness: vi.fn(),
@@ -37,26 +40,32 @@ vi.mock('@/app/device-screen', () => ({
     </>
   ),
 }));
-vi.mock('@/personal-staff/api/use-personal-session', () => ({
-  usePersonalSession: vi.fn(),
-}));
+vi.mock('@/personal-staff/api/use-personal-session', () => ({ usePersonalSession: vi.fn() }));
 vi.mock('@/personal-staff/ui/personal-screen', () => ({
   PersonalScreen: ({
     workspace,
+    connect,
     notice,
+    sessionGate,
   }: {
     workspace?: { company_id: string; business_id: string };
+    connect?: ReactNode;
     notice?: ReactNode;
+    sessionGate?: (session: Record<string, unknown>) => ReactNode | null;
   }) => (
     <>
       <h2>personal screen</h2>
       {workspace ? <p>{`${workspace.company_id} ${workspace.business_id}`}</p> : null}
+      {sessionState.current
+        ? (sessionGate?.(sessionState.current) ?? <p>session screen</p>)
+        : connect}
       {notice}
     </>
   ),
 }));
 vi.mock('@/shared/platform/launch-links', () => ({
   readLaunchLink: vi.fn(),
+  markLaunchLinkHandled: vi.fn(),
   onLinkOpened: vi.fn((listener: (url: string) => void) => {
     opened.listener = listener;
     return () => undefined;
@@ -87,6 +96,7 @@ function mount() {
 function prepare() {
   vi.clearAllMocks();
   opened.listener = null;
+  sessionState.current = null;
   vi.mocked(readDeviceRole).mockResolvedValue(null);
   vi.mocked(readRememberedBusiness).mockResolvedValue(null);
   vi.mocked(readLaunchLink).mockResolvedValue(null);
@@ -305,7 +315,14 @@ describe('NativeEntry failed reads', () => {
 describe('NativeEntry a cold read that fails on its own', () => {
   beforeEach(prepare);
 
-  it('keeps the employee flow and warns when the business cannot be read', async () => {
+  it('keeps the employee flow and warns without ending a live session when business reads fail', async () => {
+    sessionState.current = {
+      user_id: '00000000-0000-4000-8000-000000000004',
+      company_id: COMPANY,
+      business_id: BUSINESS,
+      employee_id: '00000000-0000-4000-8000-000000000005',
+      expires_at: '2026-10-24T10:00:00.000Z',
+    };
     vi.mocked(readDeviceRole).mockResolvedValue('employee');
     vi.mocked(readRememberedBusiness).mockRejectedValue(new Error('SYNTHETIC_READ_FAILURE'));
     vi.mocked(readLaunchLink).mockResolvedValue(null);
@@ -315,6 +332,8 @@ describe('NativeEntry a cold read that fails on its own', () => {
     expect(alert.textContent).toContain(t('ar', 'nativeShell.saveFailed'));
     expect(screen.getByRole('heading', { name: 'personal screen' })).not.toBeNull();
     expect(screen.queryByRole('heading', { name: t('ar', 'nativeShell.title') })).toBeNull();
+    expect(screen.queryByText('session screen')).toBeNull();
+    expect(endPersonalSession).not.toHaveBeenCalled();
   });
 
   it('changes nothing when a launch link arrives over a business that cannot be read', async () => {

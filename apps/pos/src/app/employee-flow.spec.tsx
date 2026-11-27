@@ -52,10 +52,11 @@ function sessionState(session: typeof SESSION | null) {
   };
 }
 
-function flow(business: PersonalWorkspace | null = REMEMBERED) {
+function flow(business: PersonalWorkspace | null = REMEMBERED, businessUnreadable = false) {
   return (
     <EmployeeFlow
       business={business}
+      businessUnreadable={businessUnreadable}
       pending={null}
       busy={false}
       connect={<p>connect</p>}
@@ -65,10 +66,10 @@ function flow(business: PersonalWorkspace | null = REMEMBERED) {
   );
 }
 
-function mount(business: PersonalWorkspace | null = REMEMBERED) {
+function mount(business: PersonalWorkspace | null = REMEMBERED, businessUnreadable = false) {
   return render(
     <LocaleProvider locale="ar" setLocale={() => undefined}>
-      {flow(business)}
+      {flow(business, businessUnreadable)}
     </LocaleProvider>,
   );
 }
@@ -218,5 +219,13 @@ describe('EmployeeFlow without a remembered business', () => {
     expect(alert.textContent).toContain(t('ar', 'nativeShell.roleChangeFailed'));
     expect(screen.getByRole('button', { name: t('ar', 'nativeShell.retry') })).not.toBeNull();
     expect(screen.queryByText(`session screen ${SESSION.employee_id}`)).toBeNull();
+  });
+
+  it('hides private screens without signing out when the business could not be read', async () => {
+    mount(null, true);
+
+    expect(await screen.findByText('connect')).not.toBeNull();
+    expect(screen.queryByText(`session screen ${SESSION.employee_id}`)).toBeNull();
+    expect(endPersonalSession).not.toHaveBeenCalled();
   });
 });

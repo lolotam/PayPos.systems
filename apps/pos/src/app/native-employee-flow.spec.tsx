@@ -18,6 +18,7 @@ vi.mock('@/app/device-role', () => ({
 }));
 vi.mock('@/shared/platform/launch-links', () => ({
   readLaunchLink: vi.fn(async () => null),
+  markLaunchLinkHandled: vi.fn(),
   onLinkOpened: vi.fn(() => () => undefined),
 }));
 vi.mock('@/shared/platform/native-shell', async (importOriginal) => ({

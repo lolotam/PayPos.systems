@@ -23,8 +23,13 @@ import { useStepQueue } from './use-step-queue';
 export interface NativeFlow {
   state: NativeState;
   busy: boolean;
-  onStart: (role: DeviceRole | null, saved: PersonalWorkspace | null, readFailed?: boolean) => void;
-  onLink: (workspace: PersonalWorkspace | null, fallback?: KnownShellState) => Promise<void>;
+  onStart: (
+    role: DeviceRole | null,
+    saved: PersonalWorkspace | null,
+    readFailed?: boolean,
+    businessUnreadable?: boolean,
+  ) => void;
+  onLink: (workspace: PersonalWorkspace | null, fallback?: KnownShellState) => Promise<boolean>;
   choose: (role: DeviceRole) => void;
   /** بيرجع لاختيار نوع الجهاز لما مفيش اقتران ولا جلسة (FR-001). */
   startOver: () => void;
@@ -57,19 +62,20 @@ export function useNativeFlow(): NativeFlow {
   const { busy, queue } = useStepQueue(onError);
 
   const onStart = useCallback(
-    (role: DeviceRole | null, saved: PersonalWorkspace | null, readFailed?: boolean) => {
-      apply((current) => startState(current, role, saved, readFailed));
+    (
+      role: DeviceRole | null,
+      saved: PersonalWorkspace | null,
+      readFailed?: boolean,
+      businessUnreadable?: boolean,
+    ) => {
+      apply((current) => startState(current, role, saved, readFailed, businessUnreadable));
     },
     [apply],
   );
 
   const onLink = useCallback(
-    async (workspace: PersonalWorkspace | null, fallback?: KnownShellState) => {
-      queue(async () => {
-        const outcome = await resolveLink(workspace, fallback);
-        apply((current: NativeState) => stateFromLink(current, outcome));
-      });
-    },
+    (workspace: PersonalWorkspace | null, fallback?: KnownShellState): Promise<boolean> =>
+      runQueuedLink(queue, apply, workspace, fallback),
     [apply, queue],
   );
 
@@ -136,11 +142,36 @@ function startState(
   role: DeviceRole | null,
   saved: PersonalWorkspace | null,
   readFailed?: boolean,
+  businessUnreadable?: boolean,
 ): NativeState {
   if (current.kind !== 'loading') return current;
   // قراءة فاشلة: الشاشة بتفضل على اللي معروف، والتنبيه بيقول إن القراءة فشلت.
-  if (readFailed === true) return stateAfterFailure(current, role, saved);
+  if (readFailed === true) return stateAfterFailure(current, role, saved, businessUnreadable);
   return stateForRole(role, saved);
+}
+
+/** ينفّذ تطبيق لينك جوه طابور الخطوات ويرجع هل اللينك اتطبّق ومش محتاج إعادة. */
+function runQueuedLink(
+  queue: (step: () => Promise<void>) => void,
+  apply: (next: NativeState | ((current: NativeState) => NativeState)) => void,
+  workspace: PersonalWorkspace | null,
+  fallback?: KnownShellState,
+): Promise<boolean> {
+  return new Promise<boolean>((resolve) => {
+    let handled = false;
+    queue(async () => {
+      try {
+        const outcome = await resolveLink(workspace, fallback);
+        apply((current: NativeState) => stateFromLink(current, outcome));
+        // الفشل المؤقت زي انقطاع النت أو فشل التخزين ما بيعلّمش اللينك إنه اتطبّق عشان إعادة المحاولة.
+        handled =
+          outcome.kind === 'state' &&
+          (outcome.state.kind === 'loading' || outcome.state.alert !== 'needsInternet');
+      } finally {
+        resolve(handled);
+      }
+    });
+  });
 }
 
 /** نفس النشاط بالمعرّفين بتوعه. */

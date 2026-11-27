@@ -30,6 +30,31 @@ function responseBodyText(data: unknown, contentType: string): string | undefine
 
 type AbortRace = { rejected: Promise<never>; release: () => void };
 
+interface NativeHttpOptions {
+  url: string;
+  method: string;
+  headers: Record<string, string>;
+  data?: string;
+  disableRedirects: boolean;
+  connectTimeout: number;
+  readTimeout: number;
+  responseType: 'text';
+}
+
+interface NativeHttpResponse {
+  status: number;
+  data: unknown;
+  headers: Record<string, string>;
+}
+
+interface NativeHttpClient {
+  request(options: NativeHttpOptions): Promise<NativeHttpResponse>;
+}
+
+// طلب أصلي اتلغى من ناحية JS ممكن يكون لسه شغال ويمسح كوكي أحدث لما يرجع:
+// بنوقّف الطلب الأصلي اللي بعده لحد ما اللي اتلغى يخلص من نظام التشغيل.
+let pendingAbortedNativeCall: Promise<void> = Promise.resolve();
+
 /**
  * وعد يرفض بإشارة الإلغاء أول ما الإشارة تشتغل.
  *
@@ -53,6 +78,35 @@ function untilAborted(signal: AbortSignal): AbortRace {
   };
 }
 
+/**
+ * بيستنى أي طلب أصلي سابق اتلغى قبل ما يفتح طلب جديد، ولو الطلب الجديد اتلغى قبل ما
+ * الإضافة الأصلية تخلص بيحجز اللي بعده لحد ما المكالمة الجارية تهدأ.
+ */
+async function sendFencedNativeRequest(
+  client: NativeHttpClient,
+  options: NativeHttpOptions,
+  signal: AbortSignal,
+  aborted: AbortRace,
+): Promise<NativeHttpResponse> {
+  await Promise.race([pendingAbortedNativeCall, aborted.rejected]);
+  throwIfAborted(signal);
+  const requestPromise = client.request(options);
+  const settled = requestPromise.then(
+    () => undefined,
+    () => undefined,
+  );
+  let finished = false;
+  try {
+    const response = await Promise.race([requestPromise, aborted.rejected]);
+    finished = true;
+    return response;
+  } finally {
+    if (!finished && signal.aborted) {
+      pendingAbortedNativeCall = pendingAbortedNativeCall.then(() => settled);
+    }
+  }
+}
+
 // الـ web view على iOS مابيبعتش كوكي مضيف الـ API من `capacitor://localhost` والمتصفح بيسقط `Origin`، فالطلبات دي بتعدي أصلية.
 export async function nativeStaffFetch(request: Request): Promise<Response> {
   assertApiOrigin(request.url);
@@ -67,8 +121,9 @@ export async function nativeStaffFetch(request: Request): Promise<Response> {
   throwIfAborted(request.signal);
   const aborted = untilAborted(request.signal);
   try {
-    const nativeResponse = await Promise.race([
-      CapacitorHttp.request({
+    const nativeResponse = await sendFencedNativeRequest(
+      CapacitorHttp,
+      {
         url: request.url,
         method: request.method,
         headers,
@@ -77,9 +132,10 @@ export async function nativeStaffFetch(request: Request): Promise<Response> {
         connectTimeout: 15000,
         readTimeout: 15000,
         responseType: 'text',
-      }),
-      aborted.rejected,
-    ]);
+      },
+      request.signal,
+      aborted,
+    );
     throwIfAborted(request.signal);
     const responseHeaders = safeResponseHeaders(nativeResponse.headers);
     const empty = request.method === 'HEAD' || [204, 205, 304].includes(nativeResponse.status);

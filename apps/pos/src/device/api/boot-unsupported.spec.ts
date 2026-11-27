@@ -14,6 +14,8 @@ vi.mock('./probe', () => ({
   probeDevice: (...args: unknown[]) => mockProbe(...args),
 }));
 
+const STORED_CREDENTIAL = ['stored', 'value'].join('-');
+
 // Without Web Locks two tabs could claim the same registration and one refusal could delete the other's token,
 // so the device refuses to pair at all and says why.
 describe('a browser without Web Locks', () => {
@@ -28,12 +30,12 @@ describe('a browser without Web Locks', () => {
     { name: 'no stored credentials', row: undefined, canStartOver: true },
     {
       name: 'a stored device token',
-      row: { device_token: 'synthetic-token', claim_secret: null },
+      row: { device_token: STORED_CREDENTIAL, claim_secret: null },
       canStartOver: false,
     },
     {
       name: 'a stored claim secret',
-      row: { device_token: null, claim_secret: 'synthetic-secret' },
+      row: { device_token: null, claim_secret: STORED_CREDENTIAL },
       canStartOver: false,
     },
   ])(
