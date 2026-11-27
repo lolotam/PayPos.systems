@@ -79,6 +79,21 @@ export interface StaffPinSetByOther {
 
 export const STAFF_PIN_SET_BY_OTHER = 'StaffPinSetByOther';
 
+/**
+ * بيتبعت في نفس معاملة استعادة الموظفة لرقمها السري بنفسها عبر رمز التحقق (079-c1): الرقم
+ * اتغيّر لرقم دائم والغلطات اتصفّرت — الحمولة معرّفات بس: مفيش رقم سري ولا hash ولا هاتف ولا إيميل.
+ * `actor_user_id` و`occurred_at` لحظتها بيتثبتوا في الحدث نفسه عشان الجرس يعرض مين استعادها ومتى.
+ */
+export interface StaffPinRecovered {
+  readonly employee_id: string;
+  readonly user_id: string;
+  readonly branch_id: string;
+  readonly actor_user_id?: string;
+  readonly occurred_at?: string;
+}
+
+export const STAFF_PIN_RECOVERED = 'StaffPinRecovered';
+
 /** اسم الـ aggregate اللي الحدث بيتعلق بيه في الـ outbox. */
 export const STAFF_ACCESS_AGGREGATE = 'employee';
 
@@ -110,4 +125,18 @@ export function staffPinSetByOtherEvent(payload: StaffPinSetByOther): {
   payload: StaffPinSetByOther;
 } {
   return { eventType: STAFF_PIN_SET_BY_OTHER, aggregateType: STAFF_ACCESS_AGGREGATE, payload };
+}
+
+/**
+ * بيبني حمولة استعادة الموظفة رقمها السري بنفسها باسمها الثابت — الحمولة معرّفات ولحظة فقط.
+ *
+ * @param payload معرّفات الموظفة والمستخدم والفرع
+ * @returns الحدث جاهز لصف الـ outbox: النوع والحمولة
+ */
+export function staffPinRecoveredEvent(payload: StaffPinRecovered): {
+  eventType: typeof STAFF_PIN_RECOVERED;
+  aggregateType: typeof STAFF_ACCESS_AGGREGATE;
+  payload: StaffPinRecovered;
+} {
+  return { eventType: STAFF_PIN_RECOVERED, aggregateType: STAFF_ACCESS_AGGREGATE, payload };
 }

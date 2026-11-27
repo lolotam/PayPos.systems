@@ -5,6 +5,7 @@ import type { Clock } from '../../../../shared/ports/clock.port.ts';
 import type { IdGenerator } from '../../../../shared/ports/id-generator.port.ts';
 import {
   EmployeeCreationError,
+  normalizeRecoveryEmail,
   validateEmployeeCreation,
   type EmployeeRecord,
 } from '../../domain/create-employee.ts';
@@ -32,7 +33,11 @@ export class CreateEmployeeUseCase {
     return this.transactions.run(command, async (scope) => {
       if (!(await scope.authorize(command.businessId, command.input.primary_branch_id)))
         throw new EmployeeCreationError('FORBIDDEN');
-      const { employee_number: typedNumber, ...input } = command.input;
+      const {
+        employee_number: typedNumber,
+        recovery_email: recoveryEmail,
+        ...input
+      } = command.input;
       const at = this.clock.now();
       const record: EmployeeRecord = {
         ...input,
@@ -54,6 +59,7 @@ export class CreateEmployeeUseCase {
         ...numbered,
         name_en_key: employeeNameMatchKey(numbered.name_en),
         name_ar_key: numbered.name_ar === null ? null : employeeNameMatchKey(numbered.name_ar),
+        recovery_email: normalizeRecoveryEmail(recoveryEmail),
       };
       const attachmentId = this.ids.newId();
       // قرار المالك 2026-10-03: الوصول خطوة صريحة في شاشة الصلاحيات؛ إنشاء سجل الوظيفة لا يمنح عضوية.

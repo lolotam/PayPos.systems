@@ -39,7 +39,7 @@ const SUCCEEDED = `${CLAIM}
 const RELEASED = `${CLAIM}
   return 'ok'`;
 
-const keys = (companyId: string, employeeId: string) => {
+const keys = (companyId: string, employeeId: string): [string, string, string] => {
   const base = `pin:${companyId}:${employeeId}`;
   return [`${base}:failures`, `${base}:reservations`, `${base}:lock`];
 };
@@ -72,6 +72,10 @@ export function createRedisPinAttempts(redis: Redis, ids: IdGenerator): PinAttem
       (await run(SUCCEEDED, target, reservation)) as 'ok' | 'locked' | 'expired',
     release: async (target, reservation) => {
       await run(RELEASED, target, reservation);
+    },
+    clear: async (target) => {
+      const [failures, , lock] = keys(target.companyId, target.employeeId);
+      await redis.del(failures, lock);
     },
   };
 }

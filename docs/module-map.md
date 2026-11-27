@@ -434,7 +434,7 @@ packages_restricted:
 # Application composition roots may wire restricted packages (ADR-0018); never a business-module permission.
 composition_roots:
   auth: [apps/api/src/app.ts, apps/api/src/app-dependencies.ts, apps/api/src/main.ts, apps/worker/src/worker.ts, apps/worker/src/start-optional-capabilities.ts, apps/worker/src/otp-delivery.ts, apps/worker/src/rating-token-capability.ts, apps/api/src/password-reset-startup.ts]
-  staff-otp-db: [packages/auth/src/staff-otp/api.ts, packages/auth/src/password-reset-otp/api.ts, packages/auth/src/staff-otp/execution.ts, packages/auth/src/config.ts, packages/auth/src/auth-session-primitives.ts, packages/auth/src/personal-sessions.ts, packages/auth/src/approve-phone-binding.ts, packages/auth/src/staff-access-users.ts, packages/auth/src/operator/staging-staff-identity.ts]
+  staff-otp-db: [packages/auth/src/staff-otp/api.ts, packages/auth/src/password-reset-otp/api.ts, packages/auth/src/staff-pin-reset/api.ts, packages/auth/src/staff-otp/execution.ts, packages/auth/src/config.ts, packages/auth/src/auth-session-primitives.ts, packages/auth/src/personal-sessions.ts, packages/auth/src/approve-phone-binding.ts, packages/auth/src/staff-access-users.ts, packages/auth/src/operator/staging-staff-identity.ts]
   rating-token: [apps/worker/src/rating-token-capability.ts]
   platform-whatsapp-db: [apps/api/src/main.ts, apps/worker/src/start-optional-capabilities.ts]
   platform-email-db: [apps/api/src/main.ts, apps/api/src/email-feedback-startup.ts, apps/worker/src/start-optional-capabilities.ts, apps/worker/src/modules/notifications/email-startup.module.ts]

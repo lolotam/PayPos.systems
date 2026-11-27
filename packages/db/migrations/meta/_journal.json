@@ -1863,6 +1863,13 @@
       "when": 1795742492441,
       "tag": "0267_2026-11-27_auth-email-otp-and-suppression-grant",
       "breakpoints": true
+    },
+    {
+      "idx": 268,
+      "version": "7",
+      "when": 1795748626892,
+      "tag": "0268_2026-11-27_employee-recovery-email",
+      "breakpoints": true
     }
   ]
 }

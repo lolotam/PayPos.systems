@@ -192,6 +192,30 @@ const claim = (
     return true;
   });
 
+/** وجهة الاعتماد: null قيمة معناها «مفيش وجهة تنفع»، و{ value: null } معناها «الوجهة عند الشركة». */
+async function destinationOf(
+  tx: Tx,
+  channel: 'EMAIL' | 'WHATSAPP',
+  userId: string,
+  context: OtpContext,
+): Promise<{ readonly value: string | null } | null> {
+  // إيميل الموظفة عمود في جدول الشركة: بيتقرا بره قفل المستلم وبعد إغلاق المعاملة، فالوجهة null هنا.
+  if (channel === 'EMAIL' && staffPinReset(context)) return { value: null };
+  if (channel === 'EMAIL') {
+    // الاعتماد بالإيميل بيجيب الوجهة من اليوزر نفسه: حساب موظف ما يستردش كلمة مرور.
+    const [owner] = await tx
+      .select({ email: user.email, staff: user.staffAccessOperationId })
+      .from(user)
+      .where(eq(user.id, userId));
+    return owner?.email == null || owner.staff !== null ? null : { value: owner.email };
+  }
+  const [bound] = await tx
+    .select({ phone: user.phoneNumber, approved: user.phoneBindingApprovedAt })
+    .from(user)
+    .where(eq(user.id, userId));
+  return bound?.phone == null || bound.approved === null ? null : { value: bound.phone };
+}
+
 const materialize = (
   runtime: OtpRuntime,
   challengeId: string,
@@ -217,39 +241,20 @@ const materialize = (
       )
         return null;
       const channel = found.attempt.channel === 'EMAIL' ? 'EMAIL' : 'WHATSAPP';
-      if (channel === 'EMAIL') {
-        // الاعتماد بالإيميل بيجيب الوجهة من اليوزر نفسه: حساب موظف ما يستردش كلمة مرور.
-        const [owner] = await tx
-          .select({ email: user.email, staff: user.staffAccessOperationId })
-          .from(user)
-          .where(eq(user.id, found.challenge.userId));
-        if (owner?.email === null || owner?.email === undefined || owner.staff !== null)
-          return null;
-        return {
-          challenge: {
-            ...found.challenge,
-            deviceContext: found.challenge.deviceContext as OtpContext,
-          },
-          channel,
-          destination: owner.email,
-        };
-      }
-      const [bound] = await tx
-        .select({ phone: user.phoneNumber, approved: user.phoneBindingApprovedAt })
-        .from(user)
-        .where(eq(user.id, found.challenge.userId));
-      if (bound?.phone === null || bound?.phone === undefined || bound.approved === null)
-        return null;
+      const context = found.challenge.deviceContext as OtpContext;
+      const destination = await destinationOf(tx, channel, found.challenge.userId, context);
+      if (destination === null) return null;
       return {
-        challenge: {
-          ...found.challenge,
-          deviceContext: found.challenge.deviceContext as OtpContext,
-        },
+        challenge: { ...found.challenge, deviceContext: context },
         channel,
-        destination: bound.phone,
+        destination: destination.value,
       };
     },
   );
+
+/** هل السياق اعتماد استرجاع رقم سري لموظفة؟ */
+const staffPinReset = (context: OtpContext): boolean =>
+  'purpose' in context && context.purpose === 'STAFF_PIN_RESET';
 
 const finish = (
   runtime: OtpRuntime,

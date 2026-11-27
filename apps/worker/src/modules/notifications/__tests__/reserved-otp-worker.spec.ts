@@ -88,6 +88,7 @@ function jobs(rows: Map<string, OtpPending>, count: number) {
       recipientHash: randomBytes(32),
       locale: 'ar',
       channel: 'WHATSAPP',
+      templateKey: 'staff_otp',
       providerTemplateName: 'synthetic_ar',
       status: 'PENDING',
       preparationDeadline: new Date(createdAt.getTime() + 200),

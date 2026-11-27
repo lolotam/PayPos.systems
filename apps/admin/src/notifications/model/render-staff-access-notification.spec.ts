@@ -15,7 +15,7 @@ const staffAccessParameters = [
 ];
 
 const staffAccessBell = (
-  template_key: 'staff_access_granted' | 'staff_pin_set_by_other',
+  template_key: 'staff_access_granted' | 'staff_pin_set_by_other' | 'staff_pin_recovered',
   locale: 'ar' | 'en' = 'ar',
 ): InAppNotification =>
   ({
@@ -55,15 +55,29 @@ it('renders the pin reset bell in the viewer locale', () => {
   );
 });
 
+it('renders the self-recovered pin bell in the viewer locale without naming another actor', () => {
+  const item = staffAccessBell('staff_pin_recovered');
+  expect(renderNotification(item, 'ar')).toBe(
+    'استعادت سارة رقمها السري بنفسها في فرع السالمية يوم 2026-11-25 الساعة 09:30.',
+  );
+  expect(renderNotification(item, 'en')).toBe(
+    'Sara recovered their own PIN at Salmiya on 2026-11-25 at 09:30.',
+  );
+});
+
 it('falls back to the English names when the Arabic ones are blank', () => {
-  for (const key of ['staff_access_granted', 'staff_pin_set_by_other'] as const) {
+  for (const key of [
+    'staff_access_granted',
+    'staff_pin_set_by_other',
+    'staff_pin_recovered',
+  ] as const) {
     const item = {
       ...staffAccessBell(key),
       safe_parameters: staffAccessParameters.map((parameter) =>
         parameter.name.endsWith('_ar') ? { ...parameter, value: '   ' } : parameter,
       ),
     } as InAppNotification;
-    expect(renderNotification(item, 'ar')).toContain('Heba');
+    if (key !== 'staff_pin_recovered') expect(renderNotification(item, 'ar')).toContain('Heba');
     expect(renderNotification(item, 'ar')).toContain('Sara');
     expect(renderNotification(item, 'ar')).toContain('Salmiya');
     expect(renderNotification(item, 'ar')).not.toContain('{{');
@@ -71,7 +85,11 @@ it('falls back to the English names when the Arabic ones are blank', () => {
 });
 
 it('keeps the staff access bells free of a PIN, a phone or a token', () => {
-  for (const key of ['staff_access_granted', 'staff_pin_set_by_other'] as const) {
+  for (const key of [
+    'staff_access_granted',
+    'staff_pin_set_by_other',
+    'staff_pin_recovered',
+  ] as const) {
     for (const locale of ['ar', 'en'] as const) {
       const text = renderNotification(staffAccessBell(key), locale);
       const withoutDateAndTime = text.replace('2026-11-25', '').replace('09:30', '');
@@ -96,5 +114,11 @@ it('reads both staff access bells from the same catalogue copy', () => {
   );
   expect(t('en', 'inApp.staff_pin_set_by_other')).toBe(
     '{{actor_name_en}} reset the PIN for {{employee_name_en}} at {{branch_name_en}} on {{occurred_date}} at {{occurred_time}}.',
+  );
+  expect(t('ar', 'inApp.staff_pin_recovered')).toBe(
+    'استعادت {{employee_name_ar}} رقمها السري بنفسها في فرع {{branch_name_ar}} يوم {{occurred_date}} الساعة {{occurred_time}}.',
+  );
+  expect(t('en', 'inApp.staff_pin_recovered')).toBe(
+    '{{employee_name_en}} recovered their own PIN at {{branch_name_en}} on {{occurred_date}} at {{occurred_time}}.',
   );
 });

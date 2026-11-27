@@ -7,12 +7,18 @@ import { account, session, user, verification } from '../schema/identity-auth.ts
 import type { OtpRuntime } from './staff-otp-runtime.ts';
 import type { OtpChallengeRecord, OtpContext } from './staff-otp-types.ts';
 import type { Tx } from './with-tenant.ts';
+import {
+  lockedChallenge,
+  MAX_FAILED_ATTEMPTS,
+  passwordResetScope,
+  verifyOtpChallenge,
+  type PasswordResetCheck,
+} from './otp-challenge-verify.ts';
+
+export type { PasswordResetCheck };
 
 /** بادئة identifier لروابط تعيين كلمة المرور — نفس الشكل اللي Better Auth بيقراه. */
 const RESET_LINK_PREFIX = 'reset-password:';
-
-/** أقصى عدد محاولات فاشلة قبل ما الاعتماد ينتهي. */
-const MAX_FAILED_ATTEMPTS = 5;
 
 /** حساب اعتماد: هوية بريد وكلمة مرور، مش حساب موظف. */
 export interface CredentialUser {
@@ -20,9 +26,6 @@ export interface CredentialUser {
   readonly email: string;
   readonly staffAccessOperationId: string | null;
 }
-
-/** نتيجة فحص الاعتماد قبل أي كتابة: مطابق أو مرفوض أو مستنفد. */
-export type PasswordResetCheck = 'MATCH' | 'INVALID' | 'EXHAUSTED';
 
 /** تحضير اعتماد استرجاع بالإيميل: صف الاعتماد وصف المحاولة في معاملة واحدة. */
 export interface EmailResetPreparation {
@@ -41,6 +44,12 @@ export interface EmailResetPreparation {
   /** هل اليوزر مؤهّل أصلاً لاستعادة كلمة المرور. */
   readonly eligible: boolean;
   readonly auditId: string;
+  /** سياق الاسترجاع بالرقم السري للموظف؛ غيابه معناه استرجاع كلمة المرور. */
+  readonly staffPin?: {
+    readonly context: Extract<OtpContext, { purpose: 'STAFF_PIN_RESET' }>;
+    /** اسم قالب المزوّد للواتساب فقط؛ الإيميل بلا اسم قالب. */
+    readonly providerTemplateName: string | null;
+  };
   /** لا يحسب البصمة قبل فوز فحص الحظر داخل القفل. */
   materializeMac(): Buffer;
 }
@@ -144,7 +153,7 @@ async function insertResetRows(
     recipientHash: Buffer.from(input.recipientHash),
     hashKeyId: input.hashKeyId,
     userId: owner,
-    deviceContext: { purpose: 'PASSWORD_RESET' } satisfies OtpContext,
+    deviceContext: (input.staffPin?.context ?? { purpose: 'PASSWORD_RESET' }) satisfies OtpContext,
     codeMac: blocked ? null : input.materializeMac(),
     derivationKeyId: blocked ? null : input.derivationKeyId,
     verificationKeyId: blocked ? null : input.verificationKeyId,
@@ -162,11 +171,11 @@ async function insertResetRows(
     recipientHash: Buffer.from(input.recipientHash),
     hashKeyId: input.hashKeyId,
     userId: owner,
-    channel: 'EMAIL',
-    templateKey: 'password_reset_otp',
+    channel: input.staffPin?.context.channel ?? 'EMAIL',
+    templateKey: input.staffPin === undefined ? 'password_reset_otp' : 'staff_pin_reset_otp',
     templateRevision: 1,
     locale: input.locale,
-    providerTemplateName: null,
+    providerTemplateName: input.staffPin?.providerTemplateName ?? null,
     status: blocked ? 'SUPPRESSED' : 'PREPARED',
     authorizedAt: null,
     sendDeadline: input.expiresAt,
@@ -190,9 +199,17 @@ const prepareEmailReset = async (
   runtime.run(async (tx) => {
     const now = await runtime.lock(tx, input.recipientHash);
     if (now >= input.preparationDeadline) return 'REFUSED';
-    const blocked = await runtime.suppressed(tx, input.recipientHash, 'EMAIL');
+    const blocked = await runtime.suppressed(
+      tx,
+      input.recipientHash,
+      input.staffPin?.context.channel ?? 'EMAIL',
+    );
     if (!blocked && !input.eligible) return 'REFUSED';
-    // الاعتماد الجديد يبطل القديم: newest-accepted-challenge، والكود القديم ما ينفعشوش.
+    // الاعتماد الجديد يبطل القديم في نفس الغرض والشركة بس: طلب على غرض تاني ما يبطلش التاني (GR-002).
+    const samePurpose =
+      input.staffPin === undefined
+        ? sql`${challenges.deviceContext}->>'purpose' = 'PASSWORD_RESET'`
+        : sql`${challenges.deviceContext}->>'purpose' = 'STAFF_PIN_RESET' AND ${challenges.deviceContext}->>'companyId' = ${input.staffPin.context.companyId}`;
     await tx
       .update(challenges)
       .set({ status: 'SUPERSEDED', codeMac: null, finishedAt: now, updatedAt: now })
@@ -200,76 +217,14 @@ const prepareEmailReset = async (
         and(
           eq(challenges.recipientHash, Buffer.from(input.recipientHash)),
           eq(challenges.status, 'ACTIVE'),
+          samePurpose,
         ),
       );
     await insertResetRows(tx, input, blocked, now);
     await tx.execute(sql`INSERT INTO platform_audit_log(id,actor,action,target_user_id,details)
-        VALUES(${input.auditId},${input.userId ?? 'anonymous'},'reset.requested',${input.userId},'{}'::jsonb)`);
+        VALUES(${input.auditId},${input.userId ?? 'anonymous'},${input.staffPin === undefined ? 'reset.requested' : 'staffpin.reset_requested'},${input.userId},'{}'::jsonb)`);
     return blocked ? 'SUPPRESSED' : 'PREPARED';
   }, input.preparationDeadline);
-
-/** قفل الاعتماد وقراءة صفه تحت المستلم نفسه. */
-async function lockedChallenge(
-  runtime: OtpRuntime,
-  tx: Tx,
-  challengeId: string,
-): Promise<{ challenge: OtpChallengeRecord; now: Date } | null> {
-  const [hint] = await tx
-    .select({ hash: challenges.recipientHash })
-    .from(challenges)
-    .where(eq(challenges.id, challengeId));
-  if (hint === undefined) return null;
-  const now = await runtime.lock(tx, hint.hash);
-  const [row] = await tx
-    .select()
-    .from(challenges)
-    .where(eq(challenges.id, challengeId))
-    .for('update');
-  if (row === undefined) return null;
-  return { challenge: { ...row, deviceContext: row.deviceContext as OtpContext }, now };
-}
-
-/** يفحص الكود على الاعتماد النشط؛ الخطأ بيزوّد المحاولات والخامسة بتنهيه. */
-const verifyPasswordReset = (
-  runtime: OtpRuntime,
-  challengeId: string,
-  compare: (challenge: OtpChallengeRecord) => boolean,
-  auditId: string,
-  deadline?: Date,
-): Promise<PasswordResetCheck> =>
-  runtime.run(async (tx) => {
-    const found = await lockedChallenge(runtime, tx, challengeId);
-    if (found === null) return 'INVALID';
-    const row = found.challenge;
-    // اعتماد موظف (واتساب) ما ينفعش يتزوّد عدّاده ولا يتنهي من هنا.
-    if ((row.deviceContext as { purpose?: string }).purpose !== 'PASSWORD_RESET') return 'INVALID';
-    if (row.status !== 'ACTIVE') return 'INVALID';
-    if (found.now >= row.expiresAt) {
-      await tx
-        .update(challenges)
-        .set({ status: 'EXPIRED', codeMac: null, finishedAt: found.now, updatedAt: found.now })
-        .where(and(eq(challenges.id, challengeId), eq(challenges.status, 'ACTIVE')));
-      return 'INVALID';
-    }
-    if (row.failedAttempts >= MAX_FAILED_ATTEMPTS) return 'EXHAUSTED';
-    if (compare(row)) return 'MATCH';
-    const failedAttempts = row.failedAttempts + 1;
-    const exhausted = failedAttempts >= MAX_FAILED_ATTEMPTS;
-    await tx
-      .update(challenges)
-      .set({
-        status: exhausted ? 'EXHAUSTED' : 'ACTIVE',
-        failedAttempts,
-        codeMac: exhausted ? null : row.codeMac,
-        finishedAt: exhausted ? found.now : null,
-        updatedAt: found.now,
-      })
-      .where(and(eq(challenges.id, challengeId), eq(challenges.status, 'ACTIVE')));
-    if (exhausted)
-      await tx.execute(sql`INSERT INTO platform_audit_log(id,actor,action,target_user_id,details)
-          VALUES(${auditId},${row.userId ?? 'anonymous'},'reset.exhausted',${row.userId},'{}'::jsonb)`);
-    return exhausted ? 'EXHAUSTED' : 'INVALID';
-  }, deadline);
 
 /** الاستهلاك الذري: كلمة المرور والجلسات وروابط التعيين في معاملة واحدة. */
 const consumePasswordReset = async (
@@ -377,7 +332,7 @@ export function passwordResetOtpQueries(
       lookupCredentialUser(runtime, email, deadline),
     prepareEmailResetChallenge: (input) => prepareEmailReset(runtime, input),
     verifyPasswordResetOtp: (challengeId, compare, auditId, deadline) =>
-      verifyPasswordReset(runtime, challengeId, compare, auditId, deadline),
+      verifyOtpChallenge(runtime, passwordResetScope, challengeId, compare, auditId, deadline),
     consumePasswordResetOtp: (input) => consumePasswordReset(runtime, rule, input),
   };
 }

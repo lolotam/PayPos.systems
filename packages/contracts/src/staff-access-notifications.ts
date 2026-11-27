@@ -45,8 +45,11 @@ export const staffPinSetByOtherEventPayload = z.strictObject({
   occurred_at: timestamp.optional(),
 });
 
+/** حدث استعادة الموظفة رقمها السري بنفسها: معرّفات بس — مفيش رقم سري ولا hash ولا هاتف ولا إيميل (079-c1). */
+export const staffPinRecoveredEventPayload = staffPinSetByOtherEventPayload;
+
 /**
- * معاملات جرسَي وصول الدخول: الموظفة والمنحِ والفرع وتاريخ ووقت الوصول.
+ * معاملات أجراس وصول الدخول: الموظفة والفاعل والفرع وتاريخ ووقت الوصول.
  * الترتيب ثابت مع نص القالب، والتاريخ ميلادي والوقت HH:MM بتوقيت الفرع.
  */
 export const staffAccessNoticeParameters = z.tuple([
@@ -74,6 +77,13 @@ export const staffPinSetByOtherRecipient = z.strictObject({
   safe_parameters: staffAccessNoticeParameters,
 });
 
+/** مراجعة القالب 1 لأن نص جرس استعادة الرقم السري بنفسها ثابت؛ تغييره لاحقًا مراجعة جديدة حتى لا يُعاد تفسير الصفوف المخزنة. */
+export const staffPinRecoveredRecipient = z.strictObject({
+  ...inAppBase,
+  template_key: z.literal('staff_pin_recovered'),
+  safe_parameters: staffAccessNoticeParameters,
+});
+
 /** صف جرس منح الدخول المقروء: نفس معاملات المستلم، مع هوية الصف ولحظتيه. */
 export const staffAccessGrantedNotification = responseObject({
   ...inAppNotificationBase,
@@ -85,6 +95,13 @@ export const staffAccessGrantedNotification = responseObject({
 export const staffPinSetByOtherNotification = responseObject({
   ...inAppNotificationBase,
   template_key: z.literal('staff_pin_set_by_other'),
+  safe_parameters: staffAccessNoticeParameters,
+});
+
+/** صف جرس استعادة الرقم السري بنفسها المقروء: نفس معاملات المستلم، مع هوية الصف ولحظتيه. */
+export const staffPinRecoveredNotification = responseObject({
+  ...inAppNotificationBase,
+  template_key: z.literal('staff_pin_recovered'),
   safe_parameters: staffAccessNoticeParameters,
 });
 
@@ -118,3 +135,17 @@ export const staffPinSetByOtherNoticeRequested = z
       .max(staffAccessNoticeGroupSize),
   })
   .meta({ id: 'StaffPinSetByOtherNoticeRequested' });
+
+/** جرس استعادة الرقم السري بنفسها للمالكين: مجموعة مستلمين واحدة لكل مالك نشط، بلا رقم سري ولا هاتف ولا إيميل (079-c1). */
+export const staffPinRecoveredNoticeRequested = z
+  .strictObject({
+    schema_version: z.literal(1),
+    business_id: id,
+    branch_id: id,
+    employee_id: id,
+    notification_recipients: z
+      .array(staffPinRecoveredRecipient.extend({ locale: z.literal('ar') }))
+      .min(1)
+      .max(staffAccessNoticeGroupSize),
+  })
+  .meta({ id: 'StaffPinRecoveredNoticeRequested' });

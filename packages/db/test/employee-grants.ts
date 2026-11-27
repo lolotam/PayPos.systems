@@ -16,6 +16,7 @@ export const EMPLOYEE_COLUMN_GRANTS = [
   'employees.name_ar:pospay_app:UPDATE',
   'employees.name_en:pospay_app:UPDATE',
   'employees.primary_branch_id:pospay_app:UPDATE',
+  'employees.recovery_email:pospay_app:UPDATE',
   'employees.revision:pospay_app:UPDATE',
   'employees.role_code:pospay_app:UPDATE',
   'employees.user_id:pospay_app:UPDATE',

@@ -168,6 +168,9 @@ export {
   STAFF_PIN_SET_BY_OTHER,
   staffPinSetByOtherEvent,
   type StaffPinSetByOther,
+  STAFF_PIN_RECOVERED,
+  staffPinRecoveredEvent,
+  type StaffPinRecovered,
 } from './events/published.ts';
 export {
   cancelStaffUser,

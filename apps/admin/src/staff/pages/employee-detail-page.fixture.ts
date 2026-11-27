@@ -42,6 +42,7 @@ export function detail(overrides: Record<string, unknown> = {}) {
     employee_number: 15,
     revision: 3,
     branch_ids: [employeeId],
+    recovery_email: null,
     ...overrides,
   };
 }

@@ -89,7 +89,7 @@ function staffAccessNoticeFallback(): StaffAccessNoticeFallback {
  *
  * @param ids مولّد المعرّفات لصف الدفتر وأحداث المجموعات
  * @param clock الساعة التي تحدد لحظة نافذة العضوية
- * @returns مستهلك الأوتبوكس لحدثي `StaffAccessGranted` و`StaffPinSetByOther`
+ * @returns مستهلك الأوتبوكس لأحداث `StaffAccessGranted` و`StaffPinSetByOther` و`StaffPinRecovered`
  */
 export function createStaffAccessNoticeConsumer(ids: IdGenerator, clock: Clock): OutboxConsumer {
   const bind = (tx: Tx) =>
@@ -101,8 +101,7 @@ export function createStaffAccessNoticeConsumer(ids: IdGenerator, clock: Clock):
           if (place === null) return null;
           return { nameAr: place.nameAr, nameEn: place.nameEn, timeZone: place.timeZone };
         },
-        readEmployee: (companyId, employeeId) =>
-          readStaffAccessEmployee(tx, companyId, employeeId),
+        readEmployee: (companyId, employeeId) => readStaffAccessEmployee(tx, companyId, employeeId),
         readActorRecord: (event) => readStaffAccessActorRecord(tx, event),
         readActorProfile: (companyId, businessId, actorUserId, at) =>
           readStaffAccessActorProfile(tx, companyId, businessId, actorUserId, at),
@@ -118,7 +117,7 @@ export function createStaffAccessNoticeConsumer(ids: IdGenerator, clock: Clock):
     );
   return {
     id: 'staff.staff-access-notice-v1',
-    eventTypes: ['StaffAccessGranted', 'StaffPinSetByOther'],
+    eventTypes: ['StaffAccessGranted', 'StaffPinSetByOther', 'StaffPinRecovered'],
     handle: (tx, event) => onStaffAccessNotice(bind(tx), event),
   };
 }

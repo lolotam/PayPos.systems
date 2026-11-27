@@ -39,6 +39,7 @@ const record = {
   user_id: sibling.id,
   created_at: '2026-10-03T00:00:00Z',
   revision: 7,
+  recovery_email: null,
   branch_ids: [branch.id],
   employee_number: 4,
 };

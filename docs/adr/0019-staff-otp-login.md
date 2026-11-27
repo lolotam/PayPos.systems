@@ -1059,3 +1059,36 @@ under the user row lock.
 update `device_context`, `recipient_hash`, `created_at`, `channel` or `template_key`, and cannot read or write any
 `platform_email_*` table, a concurrency test with one winner, session and reset-link deletion with `two_factor` kept,
 and the provider-feedback reconciliation on the auth tags (spec 075 `ReconcileEmailFeedback`).
+
+## Addendum 2026-11-27 — an employee recovers her own PIN by email or WhatsApp code (spec 079 PR-c1)
+
+**Context.** PR-b settled the email proof and left the `STAFF_PIN_RESET` challenge shape and its two attempt templates
+in migration 0267. PR-c1 uses them: a paired branch device lets an employee with an `ACTIVE` `employee_staff_access`
+record choose email or WhatsApp, receive a six-digit code, and set a new four-digit PIN.
+
+**Decision (Waleed, 2026-11-26, PR-Q5, TQ-2 option A, TQ-3 option A; manager conditions 14:21).**
+- The recovery address is the optional `employees.recovery_email` column, on the tenant table only. `"user"`, the
+  synthetic staff email and every `pospay_auth` grant are untouched (D8). `pospay_app` gets one column-level
+  `UPDATE (recovery_email)`; no role gains a new table privilege.
+- The address is read only through `withTenant(device.companyId)` on `pospay_app`: by the API at request time, by the
+  worker after the identity transaction has closed (a callback bound at the worker root, never inside the recipient
+  lock), and by the API again inside the PIN-write transaction. At each read the HMAC of the address must equal the
+  challenge `recipient_hash`, so an address changed after the request ends the recovery.
+- A partial unique index `(company_id, lower(recovery_email))` over non-deleted rows refuses a duplicate as
+  `EMPLOYEE_RECOVERY_EMAIL_TAKEN` (409). The lookup reads at most two rows and treats anything but one as ineligible,
+  so the answer stays the uniform `202` and nothing is sent.
+- `POST /v1/devices/me/staff-pin/otp/request` answers the same `202` body in the same 200 ms window for an existing
+  employee, an unknown address, a stopped or deleted employee, an unbound channel, a missing `login:staff:branch`
+  permission, a closed company and a suppressed address. `…/otp/reset` verifies the code (counting failures on the same
+  device only), then hashes the PIN, then consumes the challenge once, then writes under the tenant transaction. The
+  two roles cannot share a transaction, so the order is consume first: a failure after consumption burns the code and
+  writes nothing, never the reverse.
+- The write is a permanent PIN (`temporary=false`, `expires_at NULL`, `set_by NULL`) with a new `cashier_pins.id`, which
+  invalidates every earlier `staff_pin_change_proofs` row (076 AC-ACT-9). It clears the Redis lockout counters, writes
+  the tenant `audit_log` row and, after the write, the `platform_audit_log` row `staffpin.reset_completed`, none with a
+  PIN, a code or an address. The owner bell reuses the existing `StaffPinSetByOther` notice with the employee as the
+  actor; its payload holds identifiers only.
+- Channels are gated independently (BR-004): email needs the email capability only. WhatsApp needs the staff OTP
+  capability and `STAFF_PIN_RESET_TEMPLATES_APPROVED=true`; until Meta approves a PIN-recovery template the API answers
+  `503 OTP_UNAVAILABLE` for it, and the worker's WhatsApp channel refuses any attempt whose `template_key` is not
+  `staff_otp`, so a recovery code can never leave on the login template.

@@ -21,6 +21,7 @@ const attempt: OtpPending = {
   recipientHash: Buffer.alloc(32),
   locale: 'ar',
   channel: 'WHATSAPP',
+  templateKey: 'staff_otp',
   providerTemplateName: 'synthetic_ar',
   status: 'SENDING',
   preparationDeadline: new Date(200),

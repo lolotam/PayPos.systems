@@ -3,8 +3,9 @@ import type { EditorLabelSnapshot } from '@pospay/i18n';
 import { formatLocalDate } from './attendance-exception-notice.ts';
 import { formatLocalShiftStart } from './not-clocked-in.ts';
 
-/** نوعا جرس وصول الدخول: منح الدخول أو إعادة ضبط الرقم السري من غير نفسها (076-F2b-4). */
-export type StaffAccessNoticeKind = 'staff_access_granted' | 'staff_pin_set_by_other';
+/** أنواع جرس وصول الدخول: منح الدخول، إعادة ضبط الرقم السري من غير نفسها، أو استعادته بنفسها (076-F2b-4، 079-c1). */
+export type StaffAccessNoticeKind =
+  'staff_access_granted' | 'staff_pin_set_by_other' | 'staff_pin_recovered';
 
 /**
  * تسميات الكتالوج ودالة الاسم الآمن وتسمية الفاعل؛ تُحقن من التوصيل حتى يبقى domain خالصاً.
@@ -74,9 +75,11 @@ export function staffAccessNoticeParameters(
   );
   const actor = {
     ar:
-      input.fallback.safeName(input.fallback.actorText('ar', input.actor)) ?? input.fallback.actor.ar,
+      input.fallback.safeName(input.fallback.actorText('ar', input.actor)) ??
+      input.fallback.actor.ar,
     en:
-      input.fallback.safeName(input.fallback.actorText('en', input.actor)) ?? input.fallback.actor.en,
+      input.fallback.safeName(input.fallback.actorText('en', input.actor)) ??
+      input.fallback.actor.en,
   };
   // منطقة زمنية مخزنة غلط ما تبطلش الوظيفة كلها؛ الجرس بيسقط والاستثناء بيفضل مكتوبًا زي ما هو.
   let date: string;

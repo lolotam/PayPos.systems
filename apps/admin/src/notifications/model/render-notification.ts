@@ -75,7 +75,8 @@ function isStaffAlert(item: ScalarNotification): boolean {
     item.template_key === 'attendance_exception_raised' ||
     item.template_key === 'document_expiring' ||
     item.template_key === 'staff_access_granted' ||
-    item.template_key === 'staff_pin_set_by_other'
+    item.template_key === 'staff_pin_set_by_other' ||
+    item.template_key === 'staff_pin_recovered'
   );
 }
 

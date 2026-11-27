@@ -1,10 +1,5 @@
 import type { NestFastifyApplication } from '@nestjs/platform-fastify';
-import {
-  createAuth,
-  createPlatformUser,
-  type AuthService,
-  type StaffOtpApi,
-} from '@pospay/auth';
+import { createPlatformUser, type AuthService } from '@pospay/auth';
 import {
   createDatabase,
   type Database,
@@ -15,10 +10,7 @@ import {
 import { sql, type SQL } from 'drizzle-orm';
 import { PgDialect } from 'drizzle-orm/pg-core';
 import { systemUuidV7 } from '@pospay/ids';
-import { phoneLockKey } from '@pospay/notifications';
-import { createLogger, type DestinationStream } from '@pospay/observability';
 import { randomBytes } from 'node:crypto';
-import type { Type } from '@nestjs/common';
 
 import { Redis } from 'ioredis';
 import postgres from 'postgres';
@@ -28,10 +20,17 @@ import { PROVISIONAL_PLAN_ID, seedReferenceData } from '../../../packages/db/src
 import { createTestDatabase, type TestDatabase } from '../../../packages/db/test/test-database.ts';
 import { cleanupStack } from './cleanup-stack.ts';
 import { testEmployeeCardKey } from './employee-card-key.ts';
+import {
+  HARNESS_BASE,
+  HARNESS_ORIGIN,
+  harnessAuth,
+  harnessLogger,
+  optionalWiring,
+  personalWiring,
+  staffWiring,
+  type HarnessOptions,
+} from './harness-wiring.ts';
 import { createApp } from '../src/app.ts';
-import { API_LOG_EVENTS } from '../src/shared/log-events.ts';
-import { createPersonalEligibility } from '../src/modules/staff/index.ts';
-import type { FilesRuntime } from '../src/modules/files/index.ts';
 
 export {
   readSessionServices,
@@ -68,8 +67,8 @@ export { readCommissionCustomerNames } from '../src/modules/customers/index.ts';
 
 // A real API over a cloned database with real Better Auth sessions. Users are made the way an operator makes them,
 // and every company goes through POST /v1/companies — the production path, never a raw insert.
-const BASE = 'http://api.test';
-const ORIGIN = 'http://admin.test';
+const BASE = HARNESS_BASE;
+const ORIGIN = HARNESS_ORIGIN;
 const PASSWORD = 'operator-chosen-pass';
 
 export interface Harness {
@@ -78,7 +77,12 @@ export interface Harness {
   readonly auth: AuthService;
   readonly redis: Redis;
   readonly ownerUrl: string;
-  readonly urls: { readonly app: string; readonly auth: string; readonly owner: string; readonly dispatcher: string };
+  readonly urls: {
+    readonly app: string;
+    readonly auth: string;
+    readonly owner: string;
+    readonly dispatcher: string;
+  };
   /**
    * What reached the database boundary, in order: every wrapper entered (with its tenant or user) and every SQL
    * statement executed inside it — the isolation proof asserts on the statements, not only on the wrapper calls.
@@ -232,49 +236,6 @@ function operatorMaker(
   };
 }
 
-/**
- * @param options where the API's log lines go (default: nowhere)
- * @param options.logs a destination stream for the API's logger
- * @returns a started API, its database, and helpers that go through the real HTTP paths
- */
-interface HarnessOptions {
-  files?: FilesRuntime;
-  logs?: DestinationStream;
-  staffOrigin?: string;
-  staffNativeOrigins?: readonly string[];
-  clock?: { now(): Date };
-  ordersClock?: { now(): Date };
-  /** ساعة موديول العملاء — قرار رفض التقييم بيقاس بيها. */
-  customersClock?: { now(): Date };
-  /** أقصى عمر لمعاملة رفض التقييم. */
-  customersTransactionTimeoutMs?: number;
-  /** هل قدرة روابط التقييم متاحة؟ false بتجيب NOT_READY قبل أي حدّ. */
-  ratingLinksAvailable?: boolean;
-  /** الـ proxies الموثوقين؛ من غيرهم كل الزوار بيشاركوا عنوان الـ proxy. */
-  trustedProxy?: readonly string[];
-  /** من غير Redis مفيش حدّ على المسارات العامة، فبترد NOT_READY. */
-  omitRedis?: boolean;
-  /** بوابة دخول الموظفات (FR-F1-9): المسارات ترد NOT_READY ما دامت مطفأة. */
-  staffAccessRoutes?: boolean;
-  /** الأصول المسموحة بـ CORS؛ بدونها لا يُسمح لأي أصل. */
-  corsOrigins?: readonly string[];
-  commissionsClock?: { now(): Date };
-  /** يلفّ غلاف قاعدة التطبيق، عشان اختبار يسجّل اتصالات معاملات الطلبات الحقيقية. */
-  wrapDatabase?: (database: TenantWrappers) => TenantWrappers;
-  staffOtpFactory?: (
-    auth: AuthService,
-    authUrl: string,
-    database: TenantWrappers,
-    redis: Redis,
-  ) => StaffOtpApi;
-  /** كاونترات اختبار بتركب جنب الكاونترات الحقيقية، عشان مسار محمي يتجرب. */
-  controllers?: readonly Type<unknown>[];
-  /** مصدر الجلسة الشخصية؛ من غيره المسار الشخصي مرفوض زي أي طلب بلا جلسة. */
-  personalOrigin?: string;
-  /** بادئة اسم cookies الجلسة — للاختبار اللي بي证明了 إن cookie بيئة تانية ما بتتقراش. */
-  cookiePrefix?: string;
-}
-
 export async function startHarness(options: HarnessOptions = {}): Promise<Harness> {
   const cleanup = cleanupStack();
   try {
@@ -286,6 +247,14 @@ export async function startHarness(options: HarnessOptions = {}): Promise<Harnes
     throw error;
   }
 }
+
+const emptyCalls = (): Harness['calls'] => ({
+  tenant: [],
+  user: [],
+  newTenant: [],
+  statements: [],
+  memberSnapshots: [],
+});
 
 async function prepareHarness(
   testDb: TestDatabase,
@@ -305,23 +274,20 @@ async function prepareHarness(
     createDatabase({
       url: testDb.appUrl,
       ids,
-      boundedTenantTransactions: options.staffOtpFactory !== undefined,
+      boundedTenantTransactions:
+        options.staffOtpFactory !== undefined || options.staffPinResetFactory !== undefined,
     }),
     (value) => value.close(),
   );
   await database.ping();
   const redis = cleanup.own(testRedis(), (value) => value.quit());
-  const calls: Harness['calls'] = {
-    tenant: [],
-    user: [],
-    newTenant: [],
-    statements: [],
-    memberSnapshots: [],
-  };
+  const calls = emptyCalls();
   const spiedDatabase = spied(database, calls);
   const wrappers = options.wrapDatabase?.(spiedDatabase) ?? spiedDatabase;
   const staffOtp = options.staffOtpFactory?.(auth, testDb.authUrl, wrappers, redis);
   if (staffOtp !== undefined) cleanup.own(staffOtp, (value) => value.close());
+  const pinReset = options.staffPinResetFactory?.(auth, testDb.authUrl, wrappers, redis);
+  if (pinReset !== undefined) cleanup.own(pinReset, (value) => value.close());
   const app = cleanup.own(
     await createApp(
       {
@@ -332,6 +298,7 @@ async function prepareHarness(
         ...optionalWiring(options),
         ...(options.corsOrigins === undefined ? {} : { corsOrigins: options.corsOrigins }),
         ...staffWiring(options, staffOtp, auth),
+        ...(pinReset === undefined ? {} : { staffPinReset: pinReset }),
         ...personalWiring(options, auth, database),
         ids,
         ...(options.omitRedis === true ? {} : { redis }),
@@ -359,7 +326,12 @@ function describeHarness(
     auth,
     redis,
     ownerUrl: testDb.ownerUrl,
-    urls: { app: testDb.appUrl, auth: testDb.authUrl, owner: testDb.ownerUrl, dispatcher: testDb.dispatcherUrl },
+    urls: {
+      app: testDb.appUrl,
+      auth: testDb.authUrl,
+      owner: testDb.ownerUrl,
+      dispatcher: testDb.dispatcherUrl,
+    },
     calls,
     send,
     signedInOperator: operatorMaker(app, auth, testDb.ownerUrl, ids),
@@ -374,85 +346,4 @@ function describeHarness(
     },
     close: cleanup.close,
   };
-}
-
-function optionalWiring(options: HarnessOptions) {
-  return {
-    ...(options.ordersClock === undefined ? {} : { ordersClock: options.ordersClock }),
-    ...(options.customersClock === undefined ? {} : { customersClock: options.customersClock }),
-    ...(options.customersTransactionTimeoutMs === undefined
-      ? {}
-      : { customersTransactionTimeoutMs: options.customersTransactionTimeoutMs }),
-    ...(options.ratingLinksAvailable === undefined
-      ? {}
-      : { ratingLinksAvailable: options.ratingLinksAvailable }),
-    ...(options.trustedProxy === undefined ? {} : { trustedProxy: options.trustedProxy }),
-    ...(options.commissionsClock === undefined
-      ? {}
-      : { commissionsClock: options.commissionsClock }),
-    ...(options.files === undefined ? {} : { files: options.files }),
-    // أصل اللوحة اللي رابط الدعوة بيتبنى عليه وساعتها؛ بوابة المسارات بتتفتح من الاختبارات اللي محتاجاها بس.
-    memberInvitations: {
-      adminOrigin: ORIGIN,
-      ...(options.clock === undefined ? {} : { clock: options.clock }),
-    },
-    ...(options.staffAccessRoutes === true ? { staffAccessRoutes: true } : {}),
-  };
-}
-
-function staffWiring(options: HarnessOptions, api: StaffOtpApi | undefined, auth: AuthService) {
-  // بوابة دخول الموظفات: الاختبارات التي تحتاج المسارات تشغّلها صراحةً (FR-F1-9).
-  const gate = options.staffAccessRoutes === true ? { staffAccessRoutes: true } : {};
-  const origins =
-    options.staffOrigin === undefined
-      ? {}
-      : {
-          staff: {
-            api: api ?? null,
-            sessions: auth.staff ?? null,
-            origin: options.staffOrigin,
-            nativeOrigins: options.staffNativeOrigins ?? [],
-          },
-        };
-  // ساعة اختبار الموظفات: نفس ساعة الاختبار، عشان مدّة الرقم المؤقت ومدّة دليل التغيير يتقاسوا بيها.
-  return { staffPinClock: options.clock, ...gate, ...origins };
-}
-
-// الجلسة الشخصية لها مصدر وجلسة وأهلية؛ من غير ما تتركب المسار الشخصي مرفوض.
-function personalWiring(options: HarnessOptions, auth: AuthService, database: Database) {
-  return options.personalOrigin === undefined
-    ? {}
-    : {
-        personal: {
-          origin: options.personalOrigin,
-          sessions: auth.personal ?? null,
-          eligibility: createPersonalEligibility(database),
-          otp: null,
-        },
-      };
-}
-
-function harnessLogger(options: HarnessOptions) {
-  return options.logs === undefined
-    ? createLogger('silent')
-    : createLogger('info', { destination: options.logs, events: API_LOG_EVENTS });
-}
-
-function harnessAuth(
-  authUrl: string,
-  ids: IdGenerator,
-  options: HarnessOptions,
-): Promise<AuthService> {
-  return createAuth({
-    staffPhoneLockKey: phoneLockKey,
-    ...(options.clock === undefined ? {} : { clock: options.clock }),
-    databaseUrl: authUrl,
-    secret: 'test-secret-that-is-long-enough-for-hmac',
-    baseURL: BASE,
-    trustedOrigins: [ORIGIN, ...(options.staffOrigin === undefined ? [] : [options.staffOrigin])],
-    ids,
-    secureCookies: false,
-    ...(options.cookiePrefix === undefined ? {} : { cookiePrefix: options.cookiePrefix }),
-    onLog: () => undefined,
-  });
 }

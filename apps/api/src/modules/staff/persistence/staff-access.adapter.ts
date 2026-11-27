@@ -15,6 +15,7 @@ import {
 import { transactionWriters } from '../../../shared/adapters/transaction-writers.ts';
 import type { AuditTrail } from '../../../shared/ports/audit-trail.port.ts';
 import type { OutboxWriter } from '../../../shared/ports/outbox-writer.port.ts';
+import { StaffAccessError } from '../domain/errors.ts';
 import type { StaffAccessRecordRow } from '../domain/staff-access.ts';
 import type { StaffAccessRole } from '../ports/staff-access-begin.port.ts';
 import type {
@@ -74,6 +75,8 @@ function beginScope(
     },
     authority: authorityChecker(tx, actor),
     findRecord: () => readRecordRow(tx, actor.companyId, input.employeeId),
+    setRecoveryEmail: (email) =>
+      writeRecoveryEmail(tx, actor.companyId, input.employeeId, email, audit),
     releaseAttempt: (recordId, attemptId) =>
       releaseAttemptRow(tx, actor, input, audit, { recordId, attemptId }),
     restartRecord: async (recordId, binding) => {
@@ -93,6 +96,42 @@ function beginScope(
         .digest('hex'),
     insertRecord: (record) => insertPendingRecord(tx, actor, input, audit, record),
   };
+}
+
+/** يكتب إيميل الاستعادة ويزوّد المراجعة ويسجّل التدقيق؛ مخالفة الفهرس الفريد بتتحول لرفض مسمّى. */
+async function writeRecoveryEmail(
+  tx: Tx,
+  companyId: string,
+  employeeId: string,
+  email: string,
+  audit: AuditTrail,
+): Promise<void> {
+  const [current] = await tx.execute<{ recovery_email: string | null }>(
+    sql`SELECT recovery_email FROM employees WHERE company_id=${companyId} AND id=${employeeId} AND deleted_at IS NULL`,
+  );
+  if (current === undefined || current.recovery_email === email) return;
+  try {
+    await tx.execute(
+      sql`UPDATE employees SET recovery_email=${email},revision=revision+1 WHERE company_id=${companyId} AND id=${employeeId} AND deleted_at IS NULL`,
+    );
+  } catch (error) {
+    const cause = error instanceof Error && 'cause' in error ? error.cause : error;
+    if (
+      typeof cause === 'object' &&
+      cause !== null &&
+      'constraint_name' in cause &&
+      cause.constraint_name === 'employees_company_recovery_email_uidx'
+    )
+      throw new StaffAccessError('EMPLOYEE_RECOVERY_EMAIL_TAKEN');
+    throw error;
+  }
+  await audit.record({
+    entity: 'employee',
+    entityId: employeeId,
+    action: 'updated',
+    before: { recovery_email: current.recovery_email === null ? null : 'SET' },
+    after: { recovery_email: current.recovery_email === null ? 'SET' : 'CHANGED' },
+  });
 }
 
 async function insertPendingRecord(

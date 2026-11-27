@@ -13,6 +13,7 @@ import {
   employeeBranchAccess,
   employeeContext,
 } from './employee-context.adapter.ts';
+import { canManageStaffAccess } from './employee-access-reads.adapter.ts';
 import { followPrimaryBranch } from './employee-access-branch-follow.ts';
 import { lockedEmployee } from './employee-update-record.ts';
 
@@ -47,9 +48,54 @@ async function loadEmployee(
   return current;
 }
 
+/** سجل التدقيق ما يحملش الإيميل: بيانات شخصية، فبيتسجل «موجود» أو «اتغيّر» أو null بس. */
+function auditSafe(record: EditableEmployee, previousEmail?: string | null) {
+  const recoveryEmail =
+    record.recovery_email === null
+      ? null
+      : previousEmail !== undefined &&
+          previousEmail !== null &&
+          previousEmail !== record.recovery_email
+        ? 'CHANGED'
+        : 'SET';
+  return { ...record, recovery_email: recoveryEmail };
+}
+
+/** تغيير إيميل الاستعادة مقيّد بصلاحية إدارة دخول الموظفين وممنوع على صاحبة الدخول لنفسها (GR-001). */
+async function assertRecoveryEmailAuthority(
+  tx: Tx,
+  input: {
+    readonly companyId: string;
+    readonly userId: string;
+    readonly before: EditableEmployee;
+    readonly after: EditableEmployee;
+  },
+): Promise<void> {
+  const { companyId, userId, before, after } = input;
+  if (after.recovery_email === before.recovery_email) return;
+  if (before.user_id === userId || after.user_id === userId) {
+    const accessRows = await tx.execute(
+      sql`SELECT 1 FROM employee_staff_access WHERE company_id=${companyId} AND employee_id=${after.id} LIMIT 1 FOR SHARE`,
+    );
+    if (accessRows.length !== 0) throw new EmployeeCreationError('FORBIDDEN');
+  }
+  for (const branchId of new Set([before.primary_branch_id, after.primary_branch_id])) {
+    if (
+      !(await canManageStaffAccess(tx, {
+        companyId,
+        actorUserId: userId,
+        businessId: after.business_id,
+        branchId,
+      }))
+    )
+      throw new EmployeeCreationError('FORBIDDEN');
+  }
+}
+
 async function saveEmployee(
   tx: Tx,
   companyId: string,
+  userId: string,
   ids: IdGenerator,
   before: EditableEmployee,
   plan: EmployeeUpdatePlan,
@@ -57,8 +103,9 @@ async function saveEmployee(
   attachments: readonly { id: string; branchId: string }[],
 ): Promise<Move | null> {
   const r = plan.after;
+  await assertRecoveryEmailAuthority(tx, { companyId, userId, before, after: r });
   const changed =
-    await tx.execute(sql`UPDATE employees SET primary_branch_id=${r.primary_branch_id},name_en=${r.name_en},name_ar=${r.name_ar},name_en_key=${plan.name_en_key},name_ar_key=${plan.name_ar_key},role_code=${r.role_code},hire_date=${r.hire_date},contract_end=${r.contract_end},user_id=${r.user_id},revision=${r.revision}
+    await tx.execute(sql`UPDATE employees SET primary_branch_id=${r.primary_branch_id},name_en=${r.name_en},name_ar=${r.name_ar},name_en_key=${plan.name_en_key},name_ar_key=${plan.name_ar_key},role_code=${r.role_code},hire_date=${r.hire_date},contract_end=${r.contract_end},user_id=${r.user_id},recovery_email=${r.recovery_email},revision=${r.revision}
     WHERE company_id=${companyId} AND business_id=${r.business_id} AND id=${r.id} AND revision=${before.revision} AND deleted_at IS NULL RETURNING id`);
   if (changed.length !== 1) throw new EmployeeCreationError('EMPLOYEE_REVISION_CONFLICT');
   for (const attachmentId of plan.detach)
@@ -73,18 +120,18 @@ async function saveEmployee(
     entity: 'employee',
     entityId: r.id,
     action: 'updated',
-    before,
+    before: auditSafe(before),
     after:
       plan.attach.length > 0 || plan.detach.length > 0
         ? {
-            ...r,
+            ...auditSafe(r, before.recovery_email),
             branch_change: {
               effective_date: date,
               attached: attachments,
               closed_attachment_ids: plan.detach,
             },
           }
-        : r,
+        : auditSafe(r, before.recovery_email),
   });
   if (r.primary_branch_id === before.primary_branch_id) return null;
   return followPrimaryBranch(tx, {
@@ -111,6 +158,8 @@ function updateError(error: unknown): never {
       throw new EmployeeCreationError('EMPLOYEE_BRANCH_DATE_BEFORE_START');
     if (cause.constraint_name === 'employees_active_user_business_key')
       throw new EmployeeCreationError('EMPLOYEE_USER_ALREADY_LINKED');
+    if (cause.constraint_name === 'employees_company_recovery_email_uidx')
+      throw new EmployeeCreationError('EMPLOYEE_RECOVERY_EMAIL_TAKEN');
     if (cause.constraint_name === 'employees_user_id_user_id_fk')
       throw new EmployeeCreationError('EMPLOYEE_USER_LINK_UNAVAILABLE');
   }
@@ -164,7 +213,7 @@ function updateScope(
       return rows.length !== 0;
     },
     save: async (before, plan, date, attachments) => {
-      const move = await saveEmployee(tx, companyId, ids, before, plan, date, attachments);
+      const move = await saveEmployee(tx, companyId, userId, ids, before, plan, date, attachments);
       if (move !== null) moved.push(move);
     },
   };

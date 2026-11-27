@@ -229,7 +229,10 @@ class AppModule {
           deps.staffAccessRoutes === true,
           deps.staffPinClock,
         ),
-        ...passwordResetProviders(deps.passwordReset ?? null, deps.corsOrigins ?? []),
+        ...passwordResetProviders(deps.passwordReset ?? null, deps.corsOrigins ?? [], {
+          api: deps.staffPinReset ?? null,
+          enabled: deps.staffAccessRoutes === true,
+        }),
         { provide: RATE_LIMITER, useValue: limiter },
         { provide: DATABASE, useValue: deps.database ?? null },
         ...tenancyProviders(deps.database, deps.ids ?? systemUuidV7()),

@@ -29,6 +29,18 @@ export interface EmployeeInsertRecord extends EmployeeRecord {
   readonly name_en_key: string;
   readonly name_ar_key: string | null;
   readonly employee_number: number;
+  /** إيميل الاستعادة المطبّع أو null؛ بيانات شخصية ما بتتسجلش ولا بترجع في الردود العامة. */
+  readonly recovery_email: string | null;
+}
+/**
+ * يطبّع إيميل الاستعادة بحروف صغيرة وبلا مسافات؛ الفراغ والغياب معناهم «بلا إيميل».
+ *
+ * @param value الإيميل كما وصل من الطلب
+ * @returns الإيميل المطبّع أو null
+ */
+export function normalizeRecoveryEmail(value: string | null | undefined): string | null {
+  const email = value?.trim().toLowerCase();
+  return email === undefined || email === '' ? null : email;
 }
 /** الحالة المقروءة داخل معاملة الإنشاء، بدون أسماء أو معرفات لشركة أخرى. */
 export interface EmployeeCreationContext {
@@ -59,6 +71,7 @@ export class EmployeeCreationError extends Error {
       | 'FEATURE_DISABLED'
       | 'FORBIDDEN'
       | 'EMPLOYEE_NUMBER_TAKEN'
+      | 'EMPLOYEE_RECOVERY_EMAIL_TAKEN'
       | 'TRANSACTION_RETRY_REQUIRED'
       | 'STAFF_ACCESS_PENDING_BRANCH_CHANGE',
   ) {

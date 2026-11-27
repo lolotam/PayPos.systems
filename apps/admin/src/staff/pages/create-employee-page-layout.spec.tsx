@@ -140,6 +140,7 @@ it('does not move the shared fields into grid cells on the edit form', () => {
         user_id: null,
         created_at: '2026-10-03T00:00:00Z',
         revision: 1,
+        recovery_email: null,
         branch_ids: [id],
         employee_number: 4,
       }}

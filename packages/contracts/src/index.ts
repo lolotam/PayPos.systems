@@ -237,6 +237,7 @@ export {
 // سطر من غير ما ننسى اسماً.
 export * from './identity/staff-otp.js';
 export * from './identity/password-reset-otp.js';
+export * from './identity/staff-pin-reset.js';
 export {
   PRIVATE_VIEW_WINDOW_HEADER,
   PRIVATE_VIEW_IDLE_REMAINING_HEADER,

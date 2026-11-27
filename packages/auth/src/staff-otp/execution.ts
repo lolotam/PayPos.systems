@@ -17,6 +17,11 @@ export function createStaffOtpExecution(options: {
   capability: OtpCapability;
   emailCapability: OtpCapability;
   strategies: EmailOtpStrategies;
+  /**
+   * قراءة إيميل الاستعادة من جدول الموظفين تحت withTenant للشركة — مربوطة في جذر العامل، وبتتنادى
+   * بعد ما معاملة الهوية تتقفل. غيابها بيمنع إرسال إيميل الموظفين.
+   */
+  readRecoveryEmail?(companyId: string, userId: string): Promise<string | null>;
 }) {
   const database = createStaffOtpDatabase({
     url: options.databaseUrl,
@@ -33,11 +38,13 @@ export function createStaffOtpExecution(options: {
       claimWithReadiness(database, ready, [challengeId, attemptId, executionId]),
     materialize: async (challengeId: string, attemptId: string, executionId: string) => {
       const found = await database.materialize(challengeId, attemptId, executionId);
-      if (found === null || found.destination === null) return null;
+      if (found === null) return null;
+      const destination = found.destination ?? (await recoveryEmail(options, found));
+      if (destination === null) return null;
       const identity =
         found.channel === 'EMAIL'
-          ? options.strategies.identifyEmail(found.destination)
-          : options.strategies.identify(found.destination);
+          ? options.strategies.identifyEmail(destination)
+          : options.strategies.identify(destination);
       // الوجهة لازم تفضل زي ما البصمة المحسوبة وقت الطلب: إيميل أو تليفون اتغيّر بعد كده؟ يُرفض.
       if (
         !identity.valid ||
@@ -54,7 +61,7 @@ export function createStaffOtpExecution(options: {
         const code = crypto.derive(found.challenge);
         if (!crypto.compare(found.challenge, code)) return null;
         return {
-          destination: found.destination,
+          destination,
           code,
           deadline: found.challenge.expiresAt,
           // fence التنفيذ المؤكد — بيتربّط وسم التتبع للمزوّد بالرسالة نفسها.
@@ -76,6 +83,26 @@ export function createStaffOtpExecution(options: {
 }
 
 export type StaffOtpExecution = ReturnType<typeof createStaffOtpExecution>;
+
+/** إيميل استرجاع الرقم السري للموظف: الوجهة الوحيدة اللي مش بتتقرا من الهوية، وبتتحقق بالبصمة بعدها. */
+async function recoveryEmail(
+  options: { readRecoveryEmail?(companyId: string, userId: string): Promise<string | null> },
+  found: {
+    channel: 'EMAIL' | 'WHATSAPP';
+    challenge: { userId: string | null; deviceContext: object };
+  },
+): Promise<string | null> {
+  const context = found.challenge.deviceContext as { purpose?: string; companyId?: string };
+  if (
+    found.channel !== 'EMAIL' ||
+    context.purpose !== 'STAFF_PIN_RESET' ||
+    context.companyId === undefined ||
+    found.challenge.userId === null ||
+    options.readRecoveryEmail === undefined
+  )
+    return null;
+  return options.readRecoveryEmail(context.companyId, found.challenge.userId).catch(() => null);
+}
 
 /**
  * يحجز المحاولة بعد فحص جاهزية القناتين بره معاملة الحجز: الحجز بيمسك قفل المستلم، ومينفعش

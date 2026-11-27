@@ -1,4 +1,9 @@
-import { PASSWORD_RESET_OTP_KEY, PASSWORD_RESET_OTP_REVISION } from '@pospay/notifications';
+import {
+  PASSWORD_RESET_OTP_KEY,
+  PASSWORD_RESET_OTP_REVISION,
+  STAFF_PIN_RESET_OTP_KEY,
+  STAFF_PIN_RESET_OTP_REVISION,
+} from '@pospay/notifications';
 import type { Channel, EmailRequest } from '@pospay/notifications';
 import type { OtpChannel, OtpPending, OtpWorkerCapability } from '../ports/otp-execution.port.ts';
 
@@ -24,15 +29,21 @@ export function createEmailOtpChannel(
   return {
     channel: 'EMAIL',
     // بريد الاعتماد مالوش اسم قالب المزوّد: القالب بتاعنا إحنا، والمزوّد بياخد HTML.
-    valid: (attempt: OtpPending) => attempt.providerTemplateName === null,
+    valid: (attempt: OtpPending) =>
+      attempt.providerTemplateName === null &&
+      [PASSWORD_RESET_OTP_KEY, STAFF_PIN_RESET_OTP_KEY].includes(attempt.templateKey),
     send: async (attempt, material) => {
       if (now() >= material.deadline || !(await capability.ready()))
         return { status: 'FAILED', failureCode: 'CONFIG_INVALID', outcomeKnown: true };
       const result = await channel.send({
         email: material.destination,
         locale: attempt.locale,
-        templateKey: PASSWORD_RESET_OTP_KEY,
-        templateRevision: PASSWORD_RESET_OTP_REVISION,
+        // القالب من سجل المحاولة نفسه: اعتماد الرقم السري ليه نص غير نص كلمة المرور.
+        templateKey: attempt.templateKey,
+        templateRevision:
+          attempt.templateKey === STAFF_PIN_RESET_OTP_KEY
+            ? STAFF_PIN_RESET_OTP_REVISION
+            : PASSWORD_RESET_OTP_REVISION,
         safeParameters: [material.code],
         attemptId: attempt.id,
         executionId: material.executionId,

@@ -1,5 +1,6 @@
 import type { StaffDeviceContext, StaffSessions } from '@pospay/auth';
 import type { AuditTrail } from '../../../shared/ports/audit-trail.port.ts';
+import type { OutboxWriter } from '../../../shared/ports/outbox-writer.port.ts';
 
 /** اعتماد المستخدم الموجود في الشركة؛ لا يمثل سجلاً في staff أو إثبات حضور. */
 export interface StaffPinRecord {
@@ -136,6 +137,29 @@ export interface StaffPinScope {
     readonly hash: string;
     readonly at: Date;
   }): Promise<boolean>;
+  /**
+   * إيميل الاستعادة الحالي للموظفة صاحبة الدخول السارية، مقفول FOR SHARE لحد نهاية المعاملة؛
+   * null لو مفيش إيميل أو الموظفة محذوفة أو صفين.
+   *
+   * @param userId صاحب الاعتماد
+   */
+  recoveryEmail(userId: string): Promise<string | null>;
+  /**
+   * استعادة الموظفة رقمها بنفسها بعد إثبات القناة: رقم دائم بمعرّف جديد (يبطل أي دليل تغيير قديم)
+   * وبلا مانح، بشرط إن سجل دخولها لسه ACTIVE. بيرجّع معرّف الموظفة لو اتغيّر الرقم فعلاً.
+   *
+   * @param pin صاحب الرقم والـhash الجديد ولحظة التغيير
+   * @param pin.userId صاحب الرقم
+   * @param pin.hash الـhash الجديد
+   * @param pin.at لحظة التغيير
+   */
+  recoverPin(pin: {
+    readonly userId: string;
+    readonly hash: string;
+    readonly at: Date;
+  }): Promise<string | null>;
+  /** كاتب أحداث الـ outbox في نفس المعاملة: جرس المالك بيتكتب معاها من غير رقم ولا إيميل. */
+  readonly outbox: OutboxWriter;
 }
 /** scope مأخوذ من الجهاز أو المدير المتحقق، وليس من body. */
 export interface StaffPinTransactions {

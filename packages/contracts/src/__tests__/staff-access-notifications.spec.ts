@@ -12,6 +12,9 @@ import {
   staffPinSetByOtherEventPayload,
   staffPinSetByOtherNoticeRequested,
   staffPinSetByOtherRecipient,
+  staffPinRecoveredEventPayload,
+  staffPinRecoveredNoticeRequested,
+  staffPinRecoveredRecipient,
 } from '../index.js';
 
 const USER = '01920000-0000-7000-8000-0000000000f1';
@@ -45,6 +48,11 @@ const pinRecipient = {
   template_key: 'staff_pin_set_by_other',
 };
 
+const recoveredRecipient = {
+  ...grantedRecipient,
+  template_key: 'staff_pin_recovered',
+};
+
 it('reads the two staff access event payloads as identifiers only', () => {
   expect(
     staffAccessGrantedEventPayload.parse({
@@ -63,6 +71,13 @@ it('reads the two staff access event payloads as identifiers only', () => {
   });
   expect(
     staffPinSetByOtherEventPayload.parse({
+      employee_id: EMPLOYEE,
+      user_id: USER,
+      branch_id: BRANCH,
+    }),
+  ).toEqual({ employee_id: EMPLOYEE, user_id: USER, branch_id: BRANCH });
+  expect(
+    staffPinRecoveredEventPayload.parse({
       employee_id: EMPLOYEE,
       user_id: USER,
       branch_id: BRANCH,
@@ -91,8 +106,10 @@ it('accepts both recipients with the ordered safe parameters', () => {
   expect(staffAccessNoticeParameters.parse(safeParameters)).toEqual(safeParameters);
   expect(staffAccessGrantedRecipient.parse(grantedRecipient)).toEqual(grantedRecipient);
   expect(staffPinSetByOtherRecipient.parse(pinRecipient)).toEqual(pinRecipient);
+  expect(staffPinRecoveredRecipient.parse(recoveredRecipient)).toEqual(recoveredRecipient);
   expect(inAppRecipient.parse(grantedRecipient)).toEqual(grantedRecipient);
   expect(inAppRecipient.parse(pinRecipient)).toEqual(pinRecipient);
+  expect(inAppRecipient.parse(recoveredRecipient)).toEqual(recoveredRecipient);
 });
 
 it('refuses unsafe names, a bad date, a bad time and an extra parameter', () => {
@@ -144,8 +161,10 @@ it('accepts the two notice request events with one group of recipients', () => {
     notification_recipients: [grantedRecipient],
   };
   const pin = { ...granted, notification_recipients: [pinRecipient] };
+  const recovered = { ...granted, notification_recipients: [recoveredRecipient] };
   expect(staffAccessGrantedNoticeRequested.parse(granted)).toEqual(granted);
   expect(staffPinSetByOtherNoticeRequested.parse(pin)).toEqual(pin);
+  expect(staffPinRecoveredNoticeRequested.parse(recovered)).toEqual(recovered);
   expect(
     staffAccessGrantedNoticeRequested.safeParse({
       ...granted,
@@ -167,8 +186,8 @@ it('accepts the two notice request events with one group of recipients', () => {
   expect(staffAccessNoticeGroupSize).toBe(100);
 });
 
-it('reads both notice requests through the notification request contract', () => {
-  for (const recipient of [grantedRecipient, pinRecipient]) {
+it('reads all three notice requests through the notification request contract', () => {
+  for (const recipient of [grantedRecipient, pinRecipient, recoveredRecipient]) {
     expect(
       notificationRequest.safeParse({
         business_id: BUSINESS,
@@ -179,8 +198,8 @@ it('reads both notice requests through the notification request contract', () =>
   }
 });
 
-it('reads both bells through the in-app notification contract', () => {
-  for (const recipient of [grantedRecipient, pinRecipient]) {
+it('reads all three bells through the in-app notification contract', () => {
+  for (const recipient of [grantedRecipient, pinRecipient, recoveredRecipient]) {
     const item = {
       id: USER,
       company_id: USER,

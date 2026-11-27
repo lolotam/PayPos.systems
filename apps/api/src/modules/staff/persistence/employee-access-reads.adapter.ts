@@ -8,10 +8,7 @@ import {
   readStaffAccessState,
   readStaffUser,
 } from '../../identity/index.ts';
-import {
-  pendingStaffAccessCancellable,
-  staffAccessCancelAllowed,
-} from '../domain/staff-access.ts';
+import { pendingStaffAccessCancellable, staffAccessCancelAllowed } from '../domain/staff-access.ts';
 import type { AuthFacadeForStaffAccess } from '../ports/staff-access-auth.port.ts';
 
 /**
@@ -24,17 +21,24 @@ import type { AuthFacadeForStaffAccess } from '../ports/staff-access-auth.port.t
  * @returns القراءات للاستعلام
  */
 export function createEmployeeAccessStateReads(auth: AuthFacadeForStaffAccess) {
-  const actorIsOwner = (tx: Tx, input: { companyId: string; actorUserId: string }): Promise<boolean> =>
-    readStaffAccessOwner(tx, input);
+  const actorIsOwner = (
+    tx: Tx,
+    input: { companyId: string; actorUserId: string },
+  ): Promise<boolean> => readStaffAccessOwner(tx, input);
   return {
-    state: (
-      tx: Tx,
-      input: { companyId: string; businessId: string; employeeId: string },
-    ) => readStaffAccessState(tx, input),
+    state: (tx: Tx, input: { companyId: string; businessId: string; employeeId: string }) =>
+      readStaffAccessState(tx, input),
     readAccess: (
       tx: Tx,
       input: { companyId: string; actorUserId: string; businessId: string; branchId: string },
-    ) => readEmployeeDetailAccess(tx, input.companyId, input.actorUserId, input.businessId, input.branchId),
+    ) =>
+      readEmployeeDetailAccess(
+        tx,
+        input.companyId,
+        input.actorUserId,
+        input.businessId,
+        input.branchId,
+      ),
     authority: (
       tx: Tx,
       input: { companyId: string; actorUserId: string; businessId: string; branchId: string },
@@ -59,4 +63,15 @@ export function createEmployeeAccessStateReads(auth: AuthFacadeForStaffAccess) {
       return staffAccessCancelAllowed(record, input.actorUserId, owner);
     },
   };
+}
+
+/**
+ * فحص سلطة «إعطاء الدخول» داخل معاملة كتابة الموظف (079-c1 / GR-001): ضبط أو تغيير إيميل
+ * الاستعادة مش مسموح إلا للي يملك `manage:staff-access:branch` على الفرع الأساسي.
+ */
+export function canManageStaffAccess(
+  tx: Tx,
+  input: { companyId: string; actorUserId: string; businessId: string; branchId: string },
+): Promise<boolean> {
+  return readStaffAccessAuthority(tx, input);
 }

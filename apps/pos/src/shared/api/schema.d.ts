@@ -3718,6 +3718,38 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/devices/me/staff-pin/otp/request": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["requestStaffPinResetOtp"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/devices/me/staff-pin/otp/reset": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["resetStaffPinWithOtp"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/staff-pins/reset": {
         parameters: {
             query?: never;
@@ -6203,6 +6235,8 @@ export interface components {
             contract_end?: components["schemas"]["EmployeeDate"] | null;
             /** Format: uuid */
             user_id?: string | null;
+            /** Format: email */
+            recovery_email?: string | null;
             expected_revision: number;
             branch_ids: string[];
             branch_effective_date: components["schemas"]["EmployeeDate"];
@@ -6226,6 +6260,8 @@ export interface components {
             employee_number: number;
             revision: number;
             branch_ids: string[];
+            /** Format: email */
+            recovery_email: string | null;
         };
         EmployeeListItem: {
             /** Format: uuid */
@@ -6474,6 +6510,8 @@ export interface components {
             /** Format: uuid */
             user_id?: string | null;
             employee_number?: number;
+            /** Format: email */
+            recovery_email?: string | null;
         };
         /** @enum {string} */
         EmployeeRoleCode: "owner" | "general_manager" | "accountant" | "business_manager" | "branch_manager" | "shift_supervisor" | "cashier" | "waiter" | "kitchen" | "storekeeper" | "staff" | "marketing" | "viewer";
@@ -9385,6 +9423,29 @@ export interface components {
             /** @enum {string} */
             status: "RESET";
         };
+        StaffPinResetRequestInput: {
+            /** @enum {string} */
+            channel: "EMAIL" | "WHATSAPP";
+            identifier: string;
+            /** @enum {string} */
+            locale: "ar" | "en";
+        };
+        StaffPinResetOtpInput: {
+            /** Format: uuid */
+            challenge_id: string;
+            code: string;
+            pin: string;
+        };
+        StaffPinResetAcknowledgement: {
+            /** @enum {string} */
+            status: "ACCEPTED";
+            /** Format: uuid */
+            challenge_id: string;
+            /** @enum {number} */
+            expires_in: 600;
+            /** @enum {number} */
+            retry_after: 60;
+        };
         PrivateViewOpenInput: {
             pin: string;
         };
@@ -10459,6 +10520,77 @@ export interface components {
             read_at: string | null;
             /** @enum {string} */
             template_key: "staff_pin_set_by_other";
+            safe_parameters: ({
+                /** @enum {string} */
+                name: "employee_name_ar";
+                /** @enum {string} */
+                type: "text";
+                value: string;
+            } | {
+                /** @enum {string} */
+                name: "employee_name_en";
+                /** @enum {string} */
+                type: "text";
+                value: string;
+            } | {
+                /** @enum {string} */
+                name: "actor_name_ar";
+                /** @enum {string} */
+                type: "text";
+                value: string;
+            } | {
+                /** @enum {string} */
+                name: "actor_name_en";
+                /** @enum {string} */
+                type: "text";
+                value: string;
+            } | {
+                /** @enum {string} */
+                name: "branch_name_ar";
+                /** @enum {string} */
+                type: "text";
+                value: string;
+            } | {
+                /** @enum {string} */
+                name: "branch_name_en";
+                /** @enum {string} */
+                type: "text";
+                value: string;
+            } | {
+                /** @enum {string} */
+                name: "occurred_date";
+                /** @enum {string} */
+                type: "text";
+                /** Format: date */
+                value: string;
+            } | {
+                /** @enum {string} */
+                name: "occurred_time";
+                /** @enum {string} */
+                type: "text";
+                value: string;
+            })[];
+        } | {
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            company_id: string;
+            /** Format: uuid */
+            business_id: string | null;
+            /** Format: uuid */
+            branch_id: string | null;
+            /** Format: uuid */
+            source_event_id: string;
+            /** @enum {number} */
+            template_revision: 1;
+            /** @enum {string} */
+            locale: "ar" | "en";
+            /** Format: date-time */
+            created_at: string;
+            /** Format: date-time */
+            read_at: string | null;
+            /** @enum {string} */
+            template_key: "staff_pin_recovered";
             safe_parameters: ({
                 /** @enum {string} */
                 name: "employee_name_ar";
@@ -24783,6 +24915,115 @@ export interface operations {
             };
         };
     };
+    requestStaffPinResetOtp: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["StaffPinResetRequestInput"];
+            };
+        };
+        responses: {
+            /** @description Indistinguishable acknowledgment */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StaffPinResetAcknowledgement"];
+                };
+            };
+            /** @description TOO_MANY_REQUESTS with Retry-After */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description OTP_UNAVAILABLE for the chosen channel */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description The API error envelope */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    resetStaffPinWithOtp: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["StaffPinResetOtpInput"];
+            };
+        };
+        responses: {
+            /** @description The PIN is now permanent; no session issued */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description OTP_INVALID */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description TOO_MANY_REQUESTS with Retry-After */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description OTP_UNAVAILABLE */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description The API error envelope */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
     resetStaffPin: {
         parameters: {
             query?: never;
@@ -26014,6 +26255,8 @@ export interface operations {
                     /** @enum {string} */
                     role: "staff" | "reception";
                     pin: string;
+                    /** Format: email */
+                    recovery_email?: string | null;
                 };
             };
         };

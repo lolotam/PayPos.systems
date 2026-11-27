@@ -44,7 +44,7 @@ export async function employeeDetail(
     primary_branch_id: string;
     branch_ids: string[];
     scope_branch_ids: string[];
-  }>(sql`SELECT id, business_id, primary_branch_id, user_id, name_ar, name_en, employee_number, revision,
+  }>(sql`SELECT id, business_id, primary_branch_id, user_id, name_ar, name_en, employee_number, revision, recovery_email,
     ARRAY(SELECT eb.branch_id FROM employee_branches eb WHERE eb.company_id=employees.company_id AND eb.employee_id=employees.id AND eb."to" IS NULL ORDER BY eb.branch_id) AS branch_ids,
     ARRAY(SELECT eb.branch_id FROM employee_branches eb WHERE eb.company_id=employees.company_id AND eb.employee_id=employees.id AND ${currentAttachment()}) AS scope_branch_ids,
     role_code, to_char(hire_date, 'YYYY-MM-DD') AS hire_date, to_char(contract_end, 'YYYY-MM-DD') AS contract_end,
@@ -53,7 +53,9 @@ export async function employeeDetail(
   if (row === undefined) return null;
   // الشاشة تعرض الفروع المضبوطة (المفتوحة)، لكن الإذن يشمل كمان ارتباط حالي ليه تاريخ نهاية لاحق (#156).
   const { scope_branch_ids: currentBranches, ...record } = row;
-  const scopeBranches = [...new Set([...row.branch_ids, ...currentBranches, row.primary_branch_id])];
+  const scopeBranches = [
+    ...new Set([...row.branch_ids, ...currentBranches, row.primary_branch_id]),
+  ];
   const decision = await access.checkMany(tx, companyId, userId, row.business_id, scopeBranches);
   if (!scopeBranches.every((branch) => decision.allowedBranchIds.includes(branch))) return null;
   if (!decision.featureEnabled) return 'FEATURE_DISABLED';

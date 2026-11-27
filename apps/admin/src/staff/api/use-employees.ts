@@ -48,13 +48,15 @@ async function update(
   employeeId: string,
   body: UpdateEmployeeInput,
 ) {
+  const { recovery_email: recoveryEmail, ...terms } = body;
   const result = await apiClient().PATCH('/v1/businesses/{businessId}/employees/{employeeId}', {
     params: { header: { 'x-company-id': companyId }, path: { businessId, employeeId } },
     body: {
-      ...body,
+      ...terms,
       name_ar: body.name_ar ?? null,
       contract_end: body.contract_end ?? null,
       user_id: body.user_id ?? null,
+      ...(recoveryEmail === undefined ? {} : { recovery_email: recoveryEmail }),
     },
   });
   if (result.error) throw result.error;

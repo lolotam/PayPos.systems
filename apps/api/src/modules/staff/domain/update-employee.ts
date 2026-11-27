@@ -1,6 +1,7 @@
 import { employeeNameMatchKey } from '@pospay/domain';
 import {
   EmployeeCreationError,
+  normalizeRecoveryEmail,
   validateEmployeeCreation,
   validateEmployeeBranch,
   type EmployeeRecord,
@@ -13,6 +14,8 @@ export interface EditableEmployee extends EmployeeRecord {
   readonly branch_ids: readonly string[];
   // الرقم يُقرأ مع الصف ويُعاد كما هو؛ التعديل لا يخصصه ولا يمسحه.
   readonly employee_number: number;
+  /** إيميل الاستعادة الحالي؛ بيتقرا مع الصف وبيتحدّث من التعديل بس لو الطلب بعته. */
+  readonly recovery_email: string | null;
 }
 /** تواريخ الارتباط الأصلي تبقى مستقلة عن تصحيح تاريخ التعيين. */
 export interface BranchAttachment {
@@ -30,6 +33,8 @@ export interface EmployeeUpdateTerms {
   readonly hire_date: string;
   readonly contract_end?: string | null | undefined;
   readonly user_id?: string | null | undefined;
+  /** غيابه يترك الإيميل كما هو؛ null أو الفراغ يمسحه. */
+  readonly recovery_email?: string | null | undefined;
   readonly branch_ids: readonly string[];
   readonly expected_revision: number;
   readonly branch_effective_date: string;
@@ -74,6 +79,10 @@ export function planEmployeeUpdate(
     hire_date: terms.hire_date,
     contract_end: terms.contract_end ?? null,
     user_id: terms.user_id ?? null,
+    recovery_email:
+      terms.recovery_email === undefined
+        ? before.recovery_email
+        : normalizeRecoveryEmail(terms.recovery_email),
     branch_ids: branchIds,
   };
   for (const context of contexts) validateEmployeeCreation(after, context);

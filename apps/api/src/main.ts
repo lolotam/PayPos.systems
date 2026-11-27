@@ -190,6 +190,7 @@ try {
     logger,
     production: process.env['NODE_ENV'] === 'production',
     trustedProxy: config.TRUSTED_PROXY_CIDRS,
+    database,
   });
   const initialOtp = otpConfiguration();
   if (initialOtp.state === 'READY' && whatsapp !== undefined) {
@@ -375,6 +376,7 @@ try {
         nativeOrigins: staffNativeOriginsFrom(process.env['STAFF_NATIVE_ORIGINS']),
       },
       passwordReset: passwordReset?.api ?? null,
+      staffPinReset: passwordReset?.pinReset ?? null,
       database,
       files,
       redis,

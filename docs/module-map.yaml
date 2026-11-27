@@ -36,7 +36,7 @@ composition_roots:
   platform-email-db: [apps/api/src/main.ts, apps/api/src/email-feedback-startup.ts, apps/worker/src/start-optional-capabilities.ts, apps/worker/src/modules/notifications/email-startup.module.ts]
   platform-whatsapp-db: [apps/api/src/main.ts, apps/worker/src/start-optional-capabilities.ts]
   rating-token: [apps/worker/src/rating-token-capability.ts]
-  staff-otp-db: [packages/auth/src/staff-otp/api.ts, packages/auth/src/password-reset-otp/api.ts, packages/auth/src/staff-otp/execution.ts, packages/auth/src/config.ts, packages/auth/src/auth-session-primitives.ts, packages/auth/src/personal-sessions.ts, packages/auth/src/approve-phone-binding.ts, packages/auth/src/staff-access-users.ts, packages/auth/src/operator/staging-staff-identity.ts]
+  staff-otp-db: [packages/auth/src/staff-otp/api.ts, packages/auth/src/password-reset-otp/api.ts, packages/auth/src/staff-pin-reset/api.ts, packages/auth/src/staff-otp/execution.ts, packages/auth/src/config.ts, packages/auth/src/auth-session-primitives.ts, packages/auth/src/personal-sessions.ts, packages/auth/src/approve-phone-binding.ts, packages/auth/src/staff-access-users.ts, packages/auth/src/operator/staging-staff-identity.ts]
 sync_writes:
   - { from: identity, to: tenancy, symbol: registerCompany, file: apps/api/src/modules/identity/persistence/tenancy-company-registry.adapter.ts }
   - { from: staff, to: identity, symbol: grantStaffMembership, file: apps/api/src/modules/staff/persistence/staff-access.adapter.ts }

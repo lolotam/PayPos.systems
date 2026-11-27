@@ -1,6 +1,12 @@
 import { expect, it } from 'vitest';
 
-import { staffAccessGranted, staffPinSetByOther, validInAppTemplate, type SafeParameter } from '../index.ts';
+import {
+  staffAccessGranted,
+  staffPinRecovered,
+  staffPinSetByOther,
+  validInAppTemplate,
+  type SafeParameter,
+} from '../index.ts';
 
 const parameters: readonly SafeParameter[] = [
   { name: 'employee_name_ar', type: 'text', value: 'سارة' },
@@ -13,7 +19,7 @@ const parameters: readonly SafeParameter[] = [
   { name: 'occurred_time', type: 'text', value: '09:30' },
 ];
 
-const keys = ['staff_access_granted', 'staff_pin_set_by_other'] as const;
+const keys = ['staff_access_granted', 'staff_pin_set_by_other', 'staff_pin_recovered'] as const;
 
 it.each(keys)('accepts the %s bell in ar and en', (key) => {
   expect(validInAppTemplate(key, 1, 'ar', parameters)).toBe(true);
@@ -93,6 +99,12 @@ it('publishes both bells as utility templates with the same ordered parameters',
     locales: ['ar', 'en'],
     category: 'UTILITY',
   });
+  expect(staffPinRecovered).toMatchObject({
+    key: 'staff_pin_recovered',
+    revision: 1,
+    locales: ['ar', 'en'],
+    category: 'UTILITY',
+  });
   expect(staffAccessGranted.parameters.map((parameter) => parameter.name)).toEqual(
     staffPinSetByOther.parameters.map((parameter) => parameter.name),
   );
@@ -119,7 +131,12 @@ it('publishes both bells as utility templates with the same ordered parameters',
 });
 
 it.each(keys)('keeps the %s copy free of a PIN, a phone or a token', (key) => {
-  const copy = key === 'staff_access_granted' ? staffAccessGranted.copy : staffPinSetByOther.copy;
+  const copy =
+    key === 'staff_access_granted'
+      ? staffAccessGranted.copy
+      : key === 'staff_pin_set_by_other'
+        ? staffPinSetByOther.copy
+        : staffPinRecovered.copy;
   for (const locale of ['ar', 'en'] as const) {
     expect(copy[locale]).not.toMatch(/\b\d{4,8}\b/);
     expect(copy[locale]).not.toMatch(/\+?\d{7,}/);
@@ -127,4 +144,6 @@ it.each(keys)('keeps the %s copy free of a PIN, a phone or a token', (key) => {
   }
   expect(staffAccessGranted.copy.ar).toContain('{{actor_name_ar}}');
   expect(staffPinSetByOther.copy.en).toContain('{{actor_name_en}}');
+  expect(staffPinRecovered.copy.ar).toContain('{{employee_name_ar}}');
+  expect(staffPinRecovered.copy.en).toContain('{{employee_name_en}}');
 });

@@ -87,6 +87,7 @@ export const NOTIFICATION_SOURCE_EVENTS = [
   'CommissionEventParkedNoticeRequested',
   'StaffAccessGrantedNoticeRequested',
   'StaffPinSetByOtherNoticeRequested',
+  'StaffPinRecoveredNoticeRequested',
 ] as const;
 
 export function notificationRequestConsumer(

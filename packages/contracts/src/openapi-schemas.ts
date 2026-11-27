@@ -77,6 +77,11 @@ import {
   passwordResetOtpResult,
 } from './identity/password-reset-otp.js';
 import {
+  staffPinResetRequestInput,
+  staffPinResetOtpInput,
+  staffPinResetAcknowledgement,
+} from './identity/staff-pin-reset.js';
+import {
   privateViewOpenInput,
   privateViewWindow,
   privateViewTouch,
@@ -232,6 +237,9 @@ export const openApiSchemas = [
   passwordResetOtpResetInput,
   passwordResetOtpAcknowledgement,
   passwordResetOtpResult,
+  staffPinResetRequestInput,
+  staffPinResetOtpInput,
+  staffPinResetAcknowledgement,
   privateViewOpenInput,
   privateViewWindow,
   privateViewTouch,

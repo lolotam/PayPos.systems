@@ -1,5 +1,11 @@
 import type { Type } from '@nestjs/common';
-import type { AuthService, PasswordResetOtpApi, StaffOtpApi, StaffSessions } from '@pospay/auth';
+import type {
+  AuthService,
+  PasswordResetOtpApi,
+  StaffOtpApi,
+  StaffPinResetApi,
+  StaffSessions,
+} from '@pospay/auth';
 import type { IdGenerator, TenantWrappers } from '@pospay/db';
 import type { PushApiConfiguration } from '@pospay/notifications';
 import type { Logger } from '@pospay/observability';
@@ -26,6 +32,8 @@ export interface AppDependencies {
   readonly personal?: PersonalAuthentication | null;
   /** استرجاع كلمة المرور بالإيميل (spec 079 PR-b): بدون الخدمة المسار بيرد OTP_UNAVAILABLE. */
   readonly passwordReset?: PasswordResetOtpApi | null;
+  /** استعادة الموظفة رقمها السري بكود (spec 079 PR-c1): بدون الخدمة المسارين بيردوا OTP_UNAVAILABLE. */
+  readonly staffPinReset?: StaffPinResetApi | null;
   readonly files?: FilesRuntime | null;
   readonly staff?: {
     api: StaffOtpApi | null;
