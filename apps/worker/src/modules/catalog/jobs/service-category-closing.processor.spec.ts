@@ -23,7 +23,9 @@ const state = vi.hoisted(() => ({
 
 vi.mock('bullmq', () => ({
   Queue: class {
-    add = vi.fn();
+    // BullMQ's add ترجع وعداً؛ المزيّ بيرجّعها زي الطابور الحقيقي عشان مسار
+    // إعادة كتابة الفشل يقدر يبني عليه (catch) من غير ما يفشل على قيمة undefined.
+    add = vi.fn(async () => undefined);
     close = vi.fn(async () => undefined);
     on = vi.fn();
     constructor(readonly name: string) {

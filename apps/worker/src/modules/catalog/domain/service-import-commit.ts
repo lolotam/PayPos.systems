@@ -57,6 +57,7 @@ export class ServiceImportCommitError extends Error {
  * @param preview              المعاينة المقفولة من الصف المقفل
  * @param preview.requested_at لحظة قبول الطلب المخزّنة من الساعة المحقونة عند القبول
  * @param preview.expires_at   لحظة انتهاء صلاحية المعاينة بعد 24 ساعة من الإنشاء
+ * @returns لا يُرجع قيمة؛ يرمي IMPORT_PREVIEW_EXPIRED عند انتهاء صلاحية الطلب
  */
 export function requireServiceImportRequestLive(preview: {
   readonly requested_at: string;

@@ -111,11 +111,26 @@ it('reads headers and sides through their line and change indexes, never a Seq S
       const sides = plan.filter((node) => node['Relation Name'] === 'service_line_performer_change_rows');
       expect(sides.length).toBeGreaterThan(0);
       expect(sides.every((node) => node['Node Type'] !== 'Seq Scan')).toBe(true);
-      // الفهرس ممكن يبان كـ Bitmap Index Scan تحت Bitmap Heap Scan، فبنجمع أسماء كل الفهارس اللي في الخطة.
-      const indexes = new Set(plan.map((node) => node['Index Name']).filter((name): name is string => name !== undefined));
-      const uses = (candidates: string[]) => candidates.some((name) => indexes.has(name));
-      expect(uses(['slpc_line_revision_uq', 'slpc_history_idx'])).toBe(true);
-      expect(uses(['slpcr_ordinal_uq', 'slpcr_change_fk_idx'])).toBe(true);
+      // كل مسح يقرأ فهرسه هو بس (Index Scan من عقدته، وBitmap Heap Scan من Bitmap Index Scan تحته) من غير النزول في SubPlan الجداول التانية (#434).
+      const bitmapIndexes = (node: PlanNode): string[] =>
+        node['Node Type'] === 'Bitmap Index Scan' && node['Index Name'] !== undefined
+          ? [node['Index Name']]
+          : node['Node Type'] === 'BitmapAnd' || node['Node Type'] === 'BitmapOr'
+            ? (node.Plans ?? []).flatMap(bitmapIndexes)
+            : [];
+      const scanIndexes = (scan: PlanNode): string[] =>
+        scan['Index Name'] !== undefined
+          ? [scan['Index Name']]
+          : scan['Node Type'] === 'Bitmap Heap Scan'
+            ? (scan.Plans ?? []).flatMap(bitmapIndexes)
+            : [];
+      const everyScanUses = (scans: PlanNode[], allowed: readonly string[]) =>
+        scans.every((scan) => {
+          const used = scanIndexes(scan);
+          return used.length > 0 && used.some((name) => allowed.includes(name));
+        });
+      expect(everyScanUses(headers, ['slpc_line_revision_uq', 'slpc_history_idx'])).toBe(true);
+      expect(everyScanUses(sides, ['slpcr_ordinal_uq', 'slpcr_change_fk_idx'])).toBe(true);
     });
   }
 }, 120_000);

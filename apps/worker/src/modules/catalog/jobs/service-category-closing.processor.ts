@@ -12,6 +12,9 @@ import type { RunServiceCategoryClosing } from '../use-cases/run-service-categor
 
 export const SERVICE_CATEGORY_CLOSING_QUEUE = 'service-category-closing';
 const FINALIZING_FAILURE = 'finalizing-service-category-closing-failure';
+// اسم المهمة التي تعيد كتابة رمز الفشل بعد أن رفضت القاعدة الكتابة نفسها.
+// هي ليست قفلاً جديداً: تشغيل القفل تاني كان هيمسك نفس القفل مرتين.
+const FINALIZING_FAILURE_JOB = 'finalizing-failure';
 const failureProgress = z.strictObject({
   stage: z.literal(FINALIZING_FAILURE),
   code: z.enum(SERVICE_CATEGORY_CLOSING_FAILURE_CODES),
@@ -27,6 +30,10 @@ function closingHandler(useCase: RunServiceCategoryClosing) {
     const parsed = serviceCategoryClosingJob.safeParse(job.data);
     if (!parsed.success) throw new Error('SERVICE_CATEGORY_CLOSING_JOB_INVALID');
     const { companyId, closingId } = parsed.data;
+    // مهمة إعادة كتابة الفشل هي كتابة رمز الفشل بس: تشغيل القفل تاني كان
+    // هيمسك القفل مرتين ويضاعف زمنه على thousand خدمة.
+    if (job.name === FINALIZING_FAILURE_JOB)
+      return persistFailure(useCase, job, token, { companyId, closingId, ...GENERIC_FAILURE });
     const progress = failureProgress.safeParse(job.progress);
     if (progress.success)
       return persistFailure(useCase, job, token, { companyId, closingId, ...progress.data });
@@ -86,8 +93,14 @@ function isTerminalFailure(job: Job): boolean {
 /**
  * يكتب رمز الفشل على صف الطلب اللي BullMQ قفله من غير ما المعالج يشتغل.
  * `fail` بيكتب بس على صف لسه pending، فالصف اللي المعالج خلّصه ما بيتغيرش.
+ * لو رفضت القاعدة الكتابة، بتتحوّل لمهمة إعادة كتابة متأخرة: الخطأ العابر في
+ * القاعدة كان بيضيع علامة الفشل وبيسيب صف الطلب معلّق للأبد.
  */
-async function persistTerminalFailure(useCase: RunServiceCategoryClosing, job: Job): Promise<void> {
+async function persistTerminalFailure(
+  useCase: RunServiceCategoryClosing,
+  job: Job,
+  queue: Queue,
+): Promise<void> {
   const parsed = serviceCategoryClosingJob.safeParse(job.data);
   if (!parsed.success) return;
   try {
@@ -98,6 +111,16 @@ async function persistTerminalFailure(useCase: RunServiceCategoryClosing, job: J
     );
   } catch {
     // الموعد النهائي بيخلي الصف المعلّق ما يفضلش قفل التصنيف، فرفض الكتابة هنا مش بيوقف العامل.
+    await queue
+      .add(FINALIZING_FAILURE_JOB, parsed.data, {
+        jobId: `${parsed.data.closingId}:terminal-fail:${job.id ?? 'job'}`,
+        delay: 2000,
+        attempts: 3,
+        backoff: { type: 'exponential', delay: 2000 },
+        removeOnComplete: true,
+        removeOnFail: 100,
+      })
+      .catch(() => undefined);
   }
 }
 
@@ -126,15 +149,22 @@ export function startServiceCategoryClosingProcessor(
     prefix,
   });
   worker.on('error', () => undefined);
+  // كتابة الفشل بعد إغلاق المهمة مش جزء من عمل BullMQ، فالعامل بيتقفل قبلها.
+  // المجموعة دي هي اللي بتخلي الإغلاق ينتظرها، عشان صف الطلب ما يفضلش معلّق.
+  const inFlightFailures = new Set<Promise<void>>();
   worker.on('failed', (job, error) => {
     if (job == null || error instanceof FailurePersistedError || !isTerminalFailure(job)) return;
-    void persistTerminalFailure(useCase, job).catch(() => undefined);
+    const pending = persistTerminalFailure(useCase, job, queue).finally(() =>
+      inFlightFailures.delete(pending),
+    );
+    inFlightFailures.add(pending);
   });
   return {
     deliver: (event: ClaimedEvent) => deliverClosing(queue, useCase, event),
     ready: () => worker.waitUntilReady().then(() => undefined),
     close: async () => {
       await worker.close();
+      await Promise.allSettled([...inFlightFailures]);
       await queue.close();
       producer.disconnect();
       connection.disconnect();

@@ -94,9 +94,17 @@ export function startCatalogWorker(
       await recovery.ready();
     },
     close: async () => {
-      await closing.close();
-      await importCommit.close();
-      await recovery.close();
+      // المعالجات التلاتة بتتقفل كلها حتى لو واحد فيهم رفض: رفض واحد ما
+      // يعنيش إن الباقي فضل مفتوح، والخطأ الأول بيرجع بعد ما التلاتة يخلصوا.
+      const settled = await Promise.allSettled([
+        closing.close(),
+        importCommit.close(),
+        recovery.close(),
+      ]);
+      const rejected = settled.find(
+        (result): result is PromiseRejectedResult => result.status === 'rejected',
+      );
+      if (rejected !== undefined) throw rejected.reason;
     },
   };
 }
