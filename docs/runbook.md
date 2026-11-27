@@ -984,7 +984,35 @@ the refusal writes nothing else. Only the worker refuses an already-accepted req
    import commits on startup and every two minutes (#1035), so a request left `pending` or `commit_requested` after a
    Redis restart is closed by the ten-minute rule without waiting for that company's next event.
 
+## Package types list: `can_manage` rollout and rollback (#1068)
+
+Since #1067 (row 33b-3, merge `db27ea1f0`), `GET /v1/businesses/{businessId}/package-types` returns a boolean
+`can_manage`, and the admin parses the page with `packageTypePage` from `@pospay/contracts`, where that field is
+required. In the browser a response schema drops unknown keys instead of refusing them; it is strict only under
+`POSPAY_STRICT_RESPONSES=1`, which only the API tests set (`packages/contracts/src/response-object.ts`). So:
+
+| Admin | API | Result |
+| --- | --- | --- |
+| before #1067 | before #1067 | works, without the selling controls |
+| before #1067 | at or after #1067 | works: the older admin drops `can_manage` |
+| at or after #1067 | at or after #1067 | works |
+| at or after #1067 | before #1067 | **not supported**: the page has no `can_manage`, `packageTypePage.parse` throws and the package-types list does not load |
+
+1. **Rollout:** the API at or after #1067 goes out before the admin or in the same release, never after it.
+2. **Rollback:** roll the admin back below #1067 first, then the API. A browser tab that still runs the newer admin
+   bundle fails to load the list once the API is below #1067, until that tab reloads.
+3. The admin has no fallback for a missing `can_manage`. Adding one is a separate change that needs approval (#1068);
+   the shared contract keeps the field required. This table comes from the contract code; no staging probe was run.
+
 ## Admin service-session browser tests
+
+**A manual debugging aid, not a gate.** Playwright E2E is a CI-only heavy gate (PP-113, `docs/agent-delivery-pipeline.md`
+§6). This local procedure never stands in for one, and a pass here proves nothing for `ci-gate`. A slice that needs this
+suite as a gate adds it to `.github/workflows/ci.yml` as part of the task, lists the job in `ci-gate`'s `needs` and checks
+it in the result script (SA-15 rule 5: «If a gate is not in CI yet, add it to the workflow as part of the task. Do not
+move it back to the local machine.»). Today `ci-gate` runs only the `admin-document-popup` and
+`navigation-components-browser` Playwright jobs, not this suite. The steps below are for reproducing or debugging it on a
+local stack.
 
 The Playwright config has no `webServer`. Postgres, Redis, the API and the admin must already be running.
 `apps/admin/playwright.config.ts` throws `e2e needs ADMIN_E2E_URL` when that variable is unset or empty,
