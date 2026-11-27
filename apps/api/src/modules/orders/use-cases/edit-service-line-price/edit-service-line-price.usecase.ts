@@ -65,9 +65,11 @@ export class EditServiceLinePriceUseCase {
   }
 
   private async recheck(tx: LineEditTransaction, context: EditContext): Promise<boolean> {
+    await tx.access.lock();
     const facts = await tx.access.read(this.clock.now());
     const access = lineActorAccess(facts);
     resolveSessionEditor(access, context.input.editor_membership_id ?? access.eligible_membership_ids[0]);
+    if ((await tx.place.read()) === null) throw new SessionError('FORBIDDEN');
     return facts.can_read;
   }
 
@@ -119,7 +121,6 @@ export class EditServiceLinePriceUseCase {
       return;
     }
     const found = await this.readIdentities(tx, locked);
-    if (missingPerformer(employeeIds, found)) throw new SessionError('FORBIDDEN');
     assertEditorIsNotPerformer(context.userId, [
       ...linePerformerIdentities(line.performers, found),
       ...linePerformerIdentities(locked.retained, found),
@@ -176,10 +177,6 @@ export class EditServiceLinePriceUseCase {
 function requestedDiscount(input: EditServiceLineInput) {
   if (input.discount.kind === 'PERCENT') return { kind: 'PERCENT' as const, bps: input.discount.bps };
   return { kind: 'AMOUNT' as const, amount: parseMoney(input.discount.amount) };
-}
-
-function missingPerformer(employeeIds: readonly string[], current: readonly SessionEmployee[]): boolean {
-  return employeeIds.some((id) => !current.some((employee) => employee.id === id));
 }
 
 function editInsert(

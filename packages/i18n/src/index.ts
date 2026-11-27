@@ -18,7 +18,11 @@ export { safeDisplayName } from './display-name.js';
 export { ratingBusinessName, ratingNamesLabel, ratingTeamLabel } from './rating-label.js';
 export { editorLabel, type EditorLabelSnapshot } from './editor-label.js';
 export { formatRemainingMinutes } from './remaining-minutes.js';
-export { permissionName, PERMISSION_CATALOG_CODES } from './permission-name.js';
+export {
+  permissionName,
+  permissionModuleName,
+  PERMISSION_CATALOG_CODES,
+} from './permission-name.js';
 export { serviceSessionErrors, type ServiceSessionErrorCode } from './service-session-errors.js';
 export {
   discountApprovalRefusals,

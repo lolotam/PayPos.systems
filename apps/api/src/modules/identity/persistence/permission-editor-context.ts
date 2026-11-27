@@ -65,14 +65,19 @@ async function editorGrants(
   return [...access.grants];
 }
 
-export async function permissionEditorContext(
+/**
+ * يفتح سياق تعديل الصلاحيات لمرة واحدة داخل المعاملة: يقفل الشركة والعضويات ويقرأ صلاحيات
+ * المحرر والكتالوج مرة واحدة، ويخزّن أهداف النطاق لتقييم عدة عضويات مرشحة بلا تكرار الأقفال.
+ */
+export async function permissionEditorBatch(
   tx: Tx,
   companyId: string,
   userId: string,
-  membershipId: string,
-  terms: OverrideTerms,
-): Promise<PermissionEditContext> {
-  const holderMemberships = await lockedHolderMemberships(tx, companyId, membershipId);
+  seedMembershipId: string,
+): Promise<{
+  forCandidate: (membershipId: string, terms: OverrideTerms) => Promise<PermissionEditContext>;
+}> {
+  const holderMemberships = await lockedHolderMemberships(tx, companyId, seedMembershipId);
   const [time] = await tx.execute<{ at: Date }>(sql`SELECT clock_timestamp() AS at`);
   if (time === undefined) throw new Error('Transaction time missing');
   const now = new Date(time.at);
@@ -82,28 +87,52 @@ export async function permissionEditorContext(
       AND m.starts_at <= ${now.toISOString()}::timestamptz
       AND (m.ends_at IS NULL OR m.ends_at > ${now.toISOString()}::timestamptz)
   ) AS is_owner`);
-  const catalog = await tx.execute<{ code: string }>(
+  const catalogRows = await tx.execute<{ code: string }>(
     sql`SELECT code FROM permissions WHERE code NOT LIKE '%:platform'`,
   );
-  const membership = holderMemberships.find((m) => m.id === membershipId) ?? null;
-  return {
-    membership,
-    membershipTarget:
-      membership === null
-        ? null
-        : (
-            await readScopeTargets(tx, companyId, {
-              scope_type: membership.scopeType,
-              scope_id: membership.scopeId,
-            })
-          ).target,
-    holderMemberships,
-    ...(await readScopeTargets(tx, companyId, terms)),
-    catalog: catalog.map((p) => p.code),
-    grants: await editorGrants(tx, companyId, userId, now.toISOString()),
-    companyId,
-    editorUserId: userId,
-    editorIsCompanyOwner: editor?.is_owner === true,
-    now,
+  const catalog = catalogRows.map((p) => p.code);
+  const grants = await editorGrants(tx, companyId, userId, now.toISOString());
+  const editorIsCompanyOwner = editor?.is_owner === true;
+  const scopeTargetsCache = new Map<string, Awaited<ReturnType<typeof readScopeTargets>>>();
+  const targetsFor = async (scope: { scope_type: ScopeType; scope_id: string }) => {
+    const key = `${scope.scope_type}:${scope.scope_id}`;
+    const cached = scopeTargetsCache.get(key);
+    if (cached !== undefined) return cached;
+    const loaded = await readScopeTargets(tx, companyId, scope);
+    scopeTargetsCache.set(key, loaded);
+    return loaded;
   };
+  return {
+    forCandidate: async (membershipId, terms) => {
+      const membership = holderMemberships.find((m) => m.id === membershipId) ?? null;
+      const membershipTarget =
+        membership === null
+          ? null
+          : (await targetsFor({ scope_type: membership.scopeType, scope_id: membership.scopeId }))
+              .target;
+      return {
+        membership,
+        membershipTarget,
+        holderMemberships,
+        ...(await targetsFor(terms)),
+        catalog,
+        grants,
+        companyId,
+        editorUserId: userId,
+        editorIsCompanyOwner,
+        now,
+      };
+    },
+  };
+}
+
+export async function permissionEditorContext(
+  tx: Tx,
+  companyId: string,
+  userId: string,
+  membershipId: string,
+  terms: OverrideTerms,
+): Promise<PermissionEditContext> {
+  const batch = await permissionEditorBatch(tx, companyId, userId, membershipId);
+  return batch.forCandidate(membershipId, terms);
 }

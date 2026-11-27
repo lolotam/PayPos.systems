@@ -112,6 +112,7 @@ export const staffSchemaNames = [
   'SetScheduleInput',
   'SetScheduleSettingsInput',
   'ShiftTemplate',
+  'StaffAccessBranchAssignment',
   'StaffSchedule',
   'TemplateListQuery',
   'TemplatePage',

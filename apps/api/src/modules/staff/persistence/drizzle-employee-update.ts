@@ -176,7 +176,7 @@ function updateError(error: unknown): never {
 /** إبطال كاش المنح بعد الالتزام: الافتراضي لا يفعل شيئاً فلا تتغير اختبارات تبني المنفذ بدون Redis. */
 const NO_INVALIDATION: StaffAccessGrantCache = { invalidate: async () => undefined };
 
-type Move = { oldMembershipId: string; newMembershipId: string };
+type Move = { membershipIds: readonly string[] };
 
 function updateScope(
   tx: Tx,
@@ -235,7 +235,7 @@ export function createEmployeeUpdateTransactions(
         );
         // الإبطال بعد الالتزام best-effort: فشل الكاش لا يحوّل تعديلاً التزم إلى خطأ، والمنح تنتهي بمهلتها.
         for (const move of moved)
-          for (const membershipId of [move.oldMembershipId, move.newMembershipId])
+          for (const membershipId of move.membershipIds)
             await grantCache
               .invalidate({ companyId: actor.companyId, membershipId })
               .catch(() => undefined);

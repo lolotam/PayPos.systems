@@ -1,5 +1,9 @@
 import { expect, it } from 'vitest';
-import { permissionName } from '../permission-name.js';
+import {
+  PERMISSION_CATALOG_CODES,
+  permissionModuleName,
+  permissionName,
+} from '../permission-name.js';
 
 const LABELLED_CODES = [
   'read:service-sessions:own',
@@ -48,16 +52,16 @@ const LABELLED_CODES = [
   'change:service-line-performers:branch',
   'cancel:service-lines:branch',
   'approve:discounts:branch',
-
 ];
 
 it.each(['ar', 'en'] as const)(
   'labels every scoped permission and the later catalog additions in %s',
   (locale) => {
-    for (const code of LABELLED_CODES)
-      expect(permissionName(locale, code)).not.toBe(code);
+    for (const code of LABELLED_CODES) expect(permissionName(locale, code)).not.toBe(code);
     expect(permissionName('ar', 'edit:service-line-prices:branch')).toBe('تعديل سعر/خصم جلسة');
-    expect(permissionName('en', 'edit:service-line-prices:branch')).toBe('Edit session price/discount');
+    expect(permissionName('en', 'edit:service-line-prices:branch')).toBe(
+      'Edit session price/discount',
+    );
     expect(permissionName('ar', 'change:service-line-performers:branch')).toBe(
       'تغيير منفّذي بند الخدمة',
     );
@@ -67,7 +71,9 @@ it.each(['ar', 'en'] as const)(
     expect(permissionName('ar', 'cancel:service-lines:branch')).toBe('إلغاء بنود الخدمة');
     expect(permissionName('en', 'cancel:service-lines:branch')).toBe('Cancel service lines');
     expect(permissionName('ar', 'approve:discounts:branch')).toBe('الموافقة على خصم فوق الحد');
-    expect(permissionName('en', 'approve:discounts:branch')).toBe('Approve discounts above the limit');
+    expect(permissionName('en', 'approve:discounts:branch')).toBe(
+      'Approve discounts above the limit',
+    );
     expect(permissionName('ar', 'manage:business-identity:business')).toBe('إدارة هوية النشاط');
     expect(permissionName('en', 'manage:business-identity:business')).toBe(
       'Manage business identity',
@@ -77,7 +83,9 @@ it.each(['ar', 'en'] as const)(
     expect(permissionName('ar', 'manage:rating-requests:business')).toBe('إدارة رسايل التقييم');
     expect(permissionName('en', 'manage:rating-requests:business')).toBe('Manage rating messages');
     expect(permissionName('ar', 'manage:commission-plans:business')).toBe('إدارة خطط العمولة');
-    expect(permissionName('en', 'manage:commission-plans:business')).toBe('Manage commission plans');
+    expect(permissionName('en', 'manage:commission-plans:business')).toBe(
+      'Manage commission plans',
+    );
     expect(permissionName('ar', 'manage:employee-number:company')).toBe('إدارة الرقم الوظيفي');
     expect(permissionName('en', 'manage:employee-number:company')).toBe('Manage employee numbers');
     expect(permissionName(locale, 'read:future:business')).toBe('read:future:business');
@@ -118,7 +126,9 @@ it('FR-050 refund:packages:branch has an Arabic and an English name', () => {
 });
 
 it('PK-Q24/PK-Q26 manage:imported-refunds:business has an Arabic and an English name', () => {
-  expect(permissionName('ar', 'manage:imported-refunds:business')).toBe('إدارة مرتجع الباقات المستوردة');
+  expect(permissionName('ar', 'manage:imported-refunds:business')).toBe(
+    'إدارة مرتجع الباقات المستوردة',
+  );
   expect(permissionName('en', 'manage:imported-refunds:business')).toBe(
     'Manage imported-package refunds',
   );
@@ -126,4 +136,36 @@ it('PK-Q24/PK-Q26 manage:imported-refunds:business has an Arabic and an English 
     expect(permissionName(locale, 'manage:imported-refunds:business')).not.toBe(
       'manage:imported-refunds:business',
     );
+});
+
+// اسم وحدة الصلاحية: القايمة بتقسم الصلاحيات بالوحدات، والاسم الخام للمفتاح مش مقروء.
+const MODULE_KEYS = [
+  ...new Set(PERMISSION_CATALOG_CODES.map((code) => code.split(':')[1] ?? code)),
+].sort();
+
+it('names every permission module in Arabic and English without repeating a name', () => {
+  expect(MODULE_KEYS).toHaveLength(38);
+  for (const locale of ['ar', 'en'] as const) {
+    const names = MODULE_KEYS.map((moduleKey) => permissionModuleName(locale, moduleKey));
+    for (const [index, moduleKey] of MODULE_KEYS.entries()) {
+      const name = names[index] as string;
+      expect(name).not.toBe(moduleKey);
+      expect(name.length).toBeGreaterThan(0);
+    }
+    expect(new Set(names).size).toBe(MODULE_KEYS.length);
+  }
+});
+
+it('names the known permission modules exactly', () => {
+  expect(permissionModuleName('ar', 'branches')).toBe('الفروع');
+  expect(permissionModuleName('en', 'branches')).toBe('Branches');
+  expect(permissionModuleName('ar', 'salaries')).toBe('الرواتب');
+  expect(permissionModuleName('en', 'salaries')).toBe('Salaries');
+  expect(permissionModuleName('ar', 'service-sessions')).toBe('جلسات الخدمة');
+  expect(permissionModuleName('en', 'service-sessions')).toBe('Service sessions');
+});
+
+it('keeps the raw key for an unknown permission module', () => {
+  expect(permissionModuleName('ar', 'not-a-module')).toBe('not-a-module');
+  expect(permissionModuleName('en', 'not-a-module')).toBe('not-a-module');
 });

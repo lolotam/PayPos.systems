@@ -75,8 +75,8 @@ export class DecideDiscountProposalsUseCase {
       const response = await tx.idempotent(() => this.decide(tx, context));
       if (response.replayed) {
         await tx.access.lock();
-        const now = this.clock.now();
-        resolveDiscountApprover(await tx.access.read(now), context.input.approver_membership_id);
+        const facts = await tx.access.read(this.clock.now());
+        resolveDiscountApprover(facts, context.input.approver_membership_id ?? facts.eligible[0]?.membership_id);
       }
       return response.body;
     });

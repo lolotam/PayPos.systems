@@ -408,9 +408,11 @@ it('refuses an append at issue when the recorder has two memberships and names n
   }
 });
 
-it('authorize writes no proof', async () => {
+it('forbidden append writes no proof', async () => {
   const created = await f.create.execute({ ...f.context(), input: f.body() });
   const before = await f.h.owner`SELECT id FROM service_session_recoveries WHERE company_id=${f.company}`;
-  await f.append.authorize({ ...f.context(), sessionId: created.session.id });
+  const key = ids.newId();
+  await expect(f.append.execute({ ...f.context(key, ids.newId()), sessionId: created.session.id, input: { lines: [f.line()] } })).rejects.toThrow('FORBIDDEN');
   expect(await f.h.owner`SELECT id FROM service_session_recoveries WHERE company_id=${f.company}`).toHaveLength(before.length);
+  expect(await proof(key, f.branch, 'append-service-session-lines')).toBeUndefined();
 });

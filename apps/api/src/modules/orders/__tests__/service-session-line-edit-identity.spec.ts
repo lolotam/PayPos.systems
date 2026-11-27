@@ -60,3 +60,21 @@ it('LE-13b a performer without a stored identity snapshot cannot be edited', asy
   await f.snapshotPerformers(visit.lineId, [{ employee_id: must(f.employees[0]), linked_user_id: null, linked_user_snapshotted: false }]);
   await expect(runEdit(f, visit.sessionId, visit.lineId, editBody())).rejects.toThrow('SESSION_EDIT_IDENTITY_UNKNOWN');
 });
+
+it('#325 price edit stays allowed after performer soft-delete/termination/unlink, unless currently linked to editor', async () => {
+  const performer = must(f.employees[0]);
+  const allowed = await recorded(f);
+  const blocked = await recorded(f, '25.000', '0.000');
+  try {
+    await f.h.owner`DELETE FROM employee_branches WHERE company_id=${f.company} AND business_id=${f.business} AND employee_id=${performer}`;
+    await f.h.owner`UPDATE employees SET deleted_at=now(), contract_end='2026-01-02' WHERE company_id=${f.company} AND id=${performer}`;
+    const saved = await runEdit(f, allowed.sessionId, allowed.lineId, editBody());
+    expect(saved).toMatchObject({ line: { revision: 2 } });
+    await f.linkEmployee(performer, f.editorId);
+    await expect(runEdit(f, blocked.sessionId, blocked.lineId, editBody({ price: '26.000', discount: { kind: 'AMOUNT', amount: '0.000' } }))).rejects.toThrow('SESSION_PERFORMER_SELF_FORBIDDEN');
+  } finally {
+    await f.h.owner`UPDATE employees SET deleted_at=NULL, contract_end=NULL, user_id=NULL WHERE company_id=${f.company} AND id=${performer}`;
+    await f.h.owner`INSERT INTO employee_branches(company_id,id,business_id,employee_id,branch_id,"from")
+      VALUES(${f.company},${ids.newId()},${f.business},${performer},${f.branch},'2026-01-01') ON CONFLICT DO NOTHING`;
+  }
+});

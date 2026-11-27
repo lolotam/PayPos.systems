@@ -8,6 +8,7 @@ import { useWorkspace } from '@/workspace/model/workspace-provider';
 import { useCancelPendingStaffAccess } from '../api/use-cancel-pending-staff-access';
 import { useEmployeeStaffAccess } from '../api/use-employee-staff-access';
 import { EmployeeAccessGrantForm } from './employee-access-grant-form';
+import type { StaffExtraBranchOption } from './employee-access-extra-branches';
 import { EmployeeAccessPhoneForm } from './employee-access-phone-form';
 import { EmployeeAccessPinResetForm } from './employee-access-pin-reset-form';
 import { EmployeeAccessReadout } from './employee-access-readout';
@@ -29,10 +30,16 @@ export function EmployeeAccessSection({
   companyId,
   businessId,
   employeeId,
+  primaryBranchId,
+  branches,
 }: {
   companyId: string;
   businessId: string;
   employeeId: string;
+  /** الفرع الأساسي للموظفة — بيستبعد من فروع الزيادة. */
+  primaryBranchId?: string | undefined;
+  /** فروع النشاط المعروضة في فروع الزيادة. */
+  branches?: readonly StaffExtraBranchOption[] | undefined;
 }) {
   const locale = useLocale();
   const [open, setOpen] = useState(false);
@@ -68,6 +75,8 @@ export function EmployeeAccessSection({
           companyId={companyId}
           businessId={businessId}
           employeeId={employeeId}
+          primaryBranchId={primaryBranchId}
+          branches={branches}
           onClose={close}
         />
       ) : null}

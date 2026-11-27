@@ -1,14 +1,16 @@
 import { serviceLineEditsCursor, serviceLineEditsPage, serviceLineEditsQuery,
-  type ServiceLineEditsCursor, type ServiceLineEditsPage, type ServiceLineEditsQuery } from '@pospay/contracts';
+  type ServiceLineEditsPage, type ServiceLineEditsQuery } from '@pospay/contracts';
 import type { TenantWrappers } from '@pospay/db';
 import { editorLabel } from '@pospay/i18n';
 import { sql } from 'drizzle-orm';
-import { SessionDayReadError, type SessionDayAccess, type SessionDayScope } from './branch-day-service-sessions.query.ts';
+import { SessionDayReadError, type SessionDayAccess } from './branch-day-service-sessions.query.ts';
+import {
+  decodeLineHistoryCursor,
+  encodeLineHistoryCursor,
+  type ServiceLineHistoryScope,
+} from './service-line-history-cursor.ts';
 
-export interface ServiceLineEditsScope extends SessionDayScope {
-  sessionId: string;
-  lineId: string;
-}
+export type ServiceLineEditsScope = ServiceLineHistoryScope;
 type EditRow = {
   revision: number | null;
   previous_price: string | null; previous_discount: string | null; previous_net: string | null;
@@ -17,27 +19,11 @@ type EditRow = {
   editor_name_ar: string | null; editor_name_en: string | null; editor_role: string | null;
   editor_role_is_system: boolean | null; editor_role_name_ar: string | null; editor_role_name_en: string | null;
 };
-function cursorScope(scope: ServiceLineEditsScope) {
-  return { v: 1 as const, company: scope.companyId, business: scope.businessId, branch: scope.branchId,
-    session: scope.sessionId, line: scope.lineId };
-}
-function decode(scope: ServiceLineEditsScope, query: ServiceLineEditsQuery): ServiceLineEditsCursor | null {
-  if (query.cursor === undefined) return null;
-  try {
-    const bytes = Buffer.from(query.cursor, 'base64url');
-    if (bytes.toString('base64url') !== query.cursor) throw new Error();
-    const cursor = serviceLineEditsCursor.parse(JSON.parse(bytes.toString('utf8')));
-    const expected = cursorScope(scope);
-    if (cursor.company === expected.company && cursor.business === expected.business && cursor.branch === expected.branch &&
-      cursor.session === expected.session && cursor.line === expected.line) return cursor;
-  } catch { /* بيانات المؤشر لا تدخل التشخيصات. */ }
-  throw new SessionDayReadError('VALIDATION_FAILED');
-}
 const changedAt = sql`to_char(hist.changed_at AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.US"Z"')`;
 
 // شاشة سجل تعديل سعر السطر لمن يملك read:service-sessions:branch. السبب هنا فقط، والجملة تثبت السطر للجلسة والفرع.
 export function serviceLineEditsStatement(scope: ServiceLineEditsScope, query: ServiceLineEditsQuery) {
-  const cursor = decode(scope, query);
+  const cursor = decodeLineHistoryCursor(scope, query.cursor, (value) => serviceLineEditsCursor.parse(value));
   const before = cursor === null ? sql`true` : sql`e.revision<${cursor.revision}`;
   return sql`WITH scoped AS (
     SELECT l.company_id,l.business_id,l.id FROM service_lines l
@@ -80,8 +66,8 @@ export class ServiceLineEditHistoryQuery {
       const present = rows.filter((row) => row.revision !== null);
       const items = present.slice(0, query.limit).map(toItem);
       const last = items[items.length - 1];
-      return serviceLineEditsPage.parse({ items, next_cursor: present.length > query.limit && last !== undefined
-        ? Buffer.from(JSON.stringify({ ...cursorScope(scope), revision: last.revision })).toString('base64url') : null });
+      return serviceLineEditsPage.parse({ items, next_cursor: present.length > query.limit && last !== undefined && last.revision !== null
+        ? encodeLineHistoryCursor(scope, last.revision) : null });
     }, { userId: scope.userId });
   }
 }

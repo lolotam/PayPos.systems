@@ -131,6 +131,9 @@ it('opens on Details: header, five tabs with Details current, the form and staff
     companyId: employeeId,
     businessId: employeeId,
     employeeId,
+    // الفرع الأساسي وفروع النشاط بيوصلوا للقسم عشان «فروع زيادة» تبني قائمتها منهم.
+    primaryBranchId: employeeId,
+    branches: business.branches,
   });
 });
 

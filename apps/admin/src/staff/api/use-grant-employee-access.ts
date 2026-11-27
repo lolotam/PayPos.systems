@@ -1,5 +1,6 @@
 'use client';
 import { useQueryClient } from '@tanstack/react-query';
+import type { PermissionOverrideInput, StaffAccessBranchAssignment } from '@pospay/contracts';
 import { useState } from 'react';
 import { apiClient } from '@/shared/api/client';
 import { employeeStaffAccessKey } from './use-employee-staff-access';
@@ -12,6 +13,10 @@ export interface EmployeeAccessGrantBody {
   readonly pin: string;
   /** إيميل الاستعادة الاختياري؛ غيابه معناه ما يتسجلش حاجة. */
   readonly recovery_email?: string | null | undefined;
+  /** فروع زيادة الموظفة بدورها — كل فرع بيتحول لعضوية مستقلة. */
+  readonly additional_branches?: readonly StaffAccessBranchAssignment[] | undefined;
+  /** استثناءات صلاحيات مضمّنة بتتكتب مع العضويات في نفس المنح. */
+  readonly permission_overrides?: readonly PermissionOverrideInput[] | undefined;
 }
 
 /** حالة نداء المنح: الانتظار والخطأ والنجاح — كلها في حالة الشاشة مش في كاش. */
@@ -45,7 +50,14 @@ export function useGrantEmployeeAccess(
     setFailed(false);
     setSucceeded(false);
     setError(null);
-    const { recovery_email: recoveryEmail, ...terms } = body;
+    const {
+      recovery_email: recoveryEmail,
+      additional_branches: additionalBranches,
+      permission_overrides: permissionOverrides,
+      ...terms
+    } = body;
+    const extraBranches = additionalBranches ?? [];
+    const overrides = permissionOverrides ?? [];
     try {
       const result = await apiClient().POST(
         '/v1/businesses/{businessId}/employees/{employeeId}/staff-access',
@@ -54,7 +66,12 @@ export function useGrantEmployeeAccess(
             header: { 'x-company-id': companyId },
             path: { businessId, employeeId },
           },
-          body: { ...terms, ...(recoveryEmail == null ? {} : { recovery_email: recoveryEmail }) },
+          body: {
+            ...terms,
+            ...(recoveryEmail == null ? {} : { recovery_email: recoveryEmail }),
+            ...(extraBranches.length === 0 ? {} : { additional_branches: [...extraBranches] }),
+            ...(overrides.length === 0 ? {} : { permission_overrides: [...overrides] }),
+          },
         },
       );
       if (result.error) throw result.error;

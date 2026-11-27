@@ -9,12 +9,17 @@ import { ModalDialog } from '@/shared/ui/modal-dialog';
 import { useGrantEmployeeAccess } from '../api/use-grant-employee-access';
 import { staffAccessDefaults, staffAccessResolver } from '../model/staff-access-form-schema';
 import { EmployeeAccessFields } from './employee-access-fields';
+import type { StaffExtraBranchOption } from './employee-access-extra-branches';
 
 type GrantFormProps = {
   companyId: string;
   businessId: string;
   employeeId: string;
   onClose: () => void;
+  /** الفرع الأساسي للموظفة — بيستبعد من فروع الزيادة. */
+  primaryBranchId?: string | undefined;
+  /** فروع النشاط المعروضة في فروع الزيادة. */
+  branches?: readonly StaffExtraBranchOption[] | undefined;
 };
 
 export function EmployeeAccessGrantForm(props: GrantFormProps) {
@@ -33,7 +38,13 @@ export function EmployeeAccessGrantForm(props: GrantFormProps) {
       className="max-w-lg"
     >
       <form onSubmit={form.handleSubmit((body) => save.mutate(body))} className="flex flex-col gap-3">
-        <EmployeeAccessFields form={form} />
+        <EmployeeAccessFields
+          form={form}
+          companyId={props.companyId}
+          businessId={props.businessId}
+          branches={props.branches ?? []}
+          primaryBranchId={props.primaryBranchId}
+        />
         {save.isError ? <p role="alert">{envelopeMessage(save.error, locale)}</p> : null}
         {save.isSuccess ? <p>{t(locale, 'staff.grantedMessage')}</p> : null}
         <div className="flex flex-wrap gap-2">
