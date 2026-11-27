@@ -28,9 +28,10 @@ export function enableApiCors(
       options.companyHeader,
       PRIVATE_VIEW_WINDOW_HEADER,
     ],
-    // تطبيق admin يقرأ المعرّف من الرد ليذكره المستخدم في طلب الدعم.
+    // تطبيق admin يقرأ المعرّف للدعم ويقرأ Retry-After لعدّاد الانتظار عند 429.
     exposedHeaders: [
       'x-request-id',
+      'retry-after',
       PRIVATE_VIEW_IDLE_REMAINING_HEADER,
       PRIVATE_VIEW_CAP_REMAINING_HEADER,
     ],

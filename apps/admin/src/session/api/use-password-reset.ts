@@ -28,7 +28,7 @@ export function usePasswordReset() {
     return () => clearTimeout(timer);
   }, [cooldown]);
 
-  async function requestCode(address: string): Promise<void> {
+  async function sendCode(address: string): Promise<void> {
     setPending(true);
     setError(undefined);
     const outcome = await requestPasswordResetCode(address, locale);
@@ -45,9 +45,14 @@ export function usePasswordReset() {
     setStep('verify');
   }
 
+  async function requestCode(address: string): Promise<void> {
+    if (cooldown > 0 || pending) return;
+    await sendCode(address);
+  }
+
   async function resend(): Promise<void> {
     if (cooldown > 0 || pending) return;
-    await requestCode(email);
+    await sendCode(email);
   }
 
   async function reset(code: string, newPassword: string): Promise<void> {

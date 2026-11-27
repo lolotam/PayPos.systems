@@ -22,12 +22,14 @@ export function PasswordResetVerifyForm({
   cooldown,
   onSubmit,
   onResend,
+  onBack,
 }: {
   pending: boolean;
   error?: MessageKey | undefined;
   cooldown: number;
   onSubmit: (code: string, newPassword: string) => Promise<void>;
   onResend: () => Promise<void>;
+  onBack: () => void;
 }) {
   const locale = useLocale();
   const mounted = useMounted();
@@ -58,6 +60,9 @@ export function PasswordResetVerifyForm({
         {t(locale, 'passwordReset.resetSubmit')}
       </Button>
       <PasswordResetResendButton disabled={pending} cooldown={cooldown} onResend={onResend} />
+      <Button type="button" variant="link" onClick={onBack} disabled={pending}>
+        {t(locale, 'passwordReset.backToSignIn')}
+      </Button>
     </form>
   );
 }

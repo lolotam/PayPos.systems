@@ -17,16 +17,19 @@ import { TextField } from './text-field';
 export function PasswordResetRequestForm({
   pending,
   error,
+  cooldown = 0,
   onSubmit,
   onBack,
 }: {
   pending: boolean;
   error?: MessageKey | undefined;
+  cooldown?: number | undefined;
   onSubmit: (email: string) => Promise<void>;
   onBack: () => void;
 }) {
   const locale = useLocale();
   const mounted = useMounted();
+  const waiting = cooldown > 0;
   const form = useForm<PasswordResetRequestForm>({
     resolver: zodResolver(passwordResetRequestForm),
     defaultValues: { email: '' },
@@ -47,8 +50,10 @@ export function PasswordResetRequestForm({
         {...form.register('email')}
       />
       <FormErrorAlert error={error} />
-      <Button type="submit" disabled={pending || !mounted}>
-        {t(locale, 'passwordReset.requestSubmit')}
+      <Button type="submit" disabled={pending || waiting || !mounted}>
+        {waiting
+          ? t(locale, 'passwordReset.resendWait').replace('{seconds}', String(cooldown))
+          : t(locale, 'passwordReset.requestSubmit')}
       </Button>
       <Button type="button" variant="link" onClick={onBack} disabled={pending}>
         {t(locale, 'passwordReset.backToSignIn')}

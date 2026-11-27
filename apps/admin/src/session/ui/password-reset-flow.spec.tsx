@@ -83,6 +83,13 @@ describe('forgot password entry', () => {
     fireEvent.click(screen.getByRole('button', { name: ar('passwordReset.backToSignIn') }));
     expect(await screen.findByText(ar('admin.signInTitle'))).not.toBeNull();
   });
+
+  it('returns to sign-in from the verify step without completing the reset', async () => {
+    await reachVerifyStep();
+    fireEvent.click(screen.getByRole('button', { name: ar('passwordReset.backToSignIn') }));
+    expect(await screen.findByText(ar('admin.signInTitle'))).not.toBeNull();
+    expect(screen.getByLabelText(ar('admin.passwordLabel'))).not.toBeNull();
+  });
 });
 
 describe('step 1 — request the code', () => {
@@ -115,6 +122,26 @@ describe('step 1 — request the code', () => {
     const alert = await screen.findByRole('alert');
     expect(alert.textContent).toContain(ar(key));
     expect(screen.getByText(ar('passwordReset.requestTitle'))).not.toBeNull();
+  });
+
+  it('disables request submission and shows the countdown after a 429 retry delay', async () => {
+    mockRequest.mockResolvedValue({
+      kind: 'error',
+      key: 'passwordReset.tooMany',
+      retryAfter: 45,
+    });
+    await openRequestStep();
+    fireEvent.change(screen.getByLabelText(ar('admin.emailLabel')), {
+      target: { value: 'owner@example.invalid' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: ar('passwordReset.requestSubmit') }));
+    const alert = await screen.findByRole('alert');
+    expect(alert.textContent).toContain(ar('passwordReset.tooMany'));
+    const waiting = await screen.findByRole('button', { name: waitingName });
+    expect((waiting as HTMLButtonElement).disabled).toBe(true);
+    expect(waiting.textContent).toBe(ar('passwordReset.resendWait').replace('{seconds}', '45'));
+    fireEvent.click(waiting);
+    expect(mockRequest).toHaveBeenCalledTimes(1);
   });
 });
 
@@ -208,12 +235,31 @@ describe('step 2 — server answers', () => {
     );
     await reachVerifyStep();
     fillVerify('123456', 'a-new-password', 'a-new-password');
-    await waitFor(() =>
+    await waitFor(() => {
+      expect(
+        (screen.getByLabelText(ar('passwordReset.codeLabel')) as HTMLInputElement).disabled,
+      ).toBe(true);
+      expect(
+        (screen.getByLabelText(ar('admin.newPasswordLabel')) as HTMLInputElement).disabled,
+      ).toBe(true);
+      expect(
+        (screen.getByLabelText(ar('admin.confirmPasswordLabel')) as HTMLInputElement).disabled,
+      ).toBe(true);
       expect(
         (screen.getByRole('button', { name: ar('passwordReset.resetSubmit') }) as HTMLButtonElement)
           .disabled,
-      ).toBe(true),
-    );
+      ).toBe(true);
+      expect(
+        (screen.getByRole('button', { name: waitingName }) as HTMLButtonElement).disabled,
+      ).toBe(true);
+      expect(
+        (
+          screen.getByRole('button', {
+            name: ar('passwordReset.backToSignIn'),
+          }) as HTMLButtonElement
+        ).disabled,
+      ).toBe(true);
+    });
     await act(async () => finish({ kind: 'done' }));
     expect(await screen.findByText(ar('passwordReset.doneTitle'))).not.toBeNull();
   });

@@ -29,6 +29,7 @@ export function PasswordResetFlow({ onExit }: { onExit: () => void }) {
         <PasswordResetRequestForm
           pending={reset.pending}
           error={reset.error}
+          cooldown={reset.cooldown}
           onSubmit={reset.requestCode}
           onBack={onExit}
         />
@@ -40,6 +41,7 @@ export function PasswordResetFlow({ onExit }: { onExit: () => void }) {
           cooldown={reset.cooldown}
           onSubmit={reset.reset}
           onResend={reset.resend}
+          onBack={onExit}
         />
       ) : null}
       {reset.step === 'done' ? (
