@@ -64,9 +64,10 @@ it('puts every field in one card, in two titled sections, in the same order as b
   expect(follows(details, employment)).toBe(true);
   const card = details.closest('.rounded-card') as HTMLElement;
   expect(card.contains(employment)).toBe(true);
-  expect(within(details).getAllByRole('textbox')).toHaveLength(2);
+  expect(within(details).getAllByRole('textbox')).toHaveLength(3);
   expect(within(details).getByLabelText('English name')).toBeTruthy();
   expect(within(details).getByLabelText('Arabic name (optional)')).toBeTruthy();
+  expect(within(details).getByLabelText('Recovery email (optional)')).toBeTruthy();
   const order = ['Primary branch', 'Role', 'Hire date', 'Contract end (optional)'].map((label) =>
     within(employment).getByLabelText(label),
   );
@@ -82,6 +83,7 @@ it('keeps each label and its control together in one cell', () => {
   const labels = [
     'English name',
     'Arabic name (optional)',
+    'Recovery email (optional)',
     'Primary branch',
     'Role',
     'Hire date',

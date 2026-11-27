@@ -5,7 +5,8 @@ export const staffAccessAdminEn = {
   giveAccessTitle: 'Give the employee access',
   cancelPending: 'Cancel pending grant',
   accessNone: 'No access yet.',
-  accessPending: 'Access pending — the grant can be repeated; cancel becomes available after 24 hours.',
+  accessPending:
+    'Access pending — the grant can be repeated; cancel becomes available after 24 hours.',
   accessActive: 'Access is active.',
   accessStopped: 'Access is stopped.',
   accessRole: 'Role',
@@ -36,6 +37,10 @@ export const staffAccessAdminEn = {
   phoneInvalid: 'Enter the phone with a + and 8–15 digits, like +96512345678.',
   pinInvalid: 'The PIN is exactly four digits.',
   confirmationRequired: 'Tick the confirmation before saving.',
+  recoveryEmailLabel: 'Recovery email (optional)',
+  recoveryEmailHint:
+    'Used to contact the employee and to recover her PIN. Recommended; it stays private.',
+  recoveryEmailInvalid: 'Enter a valid email address, or leave the field empty.',
 };
 
 /** الترجمة العربية لنفس مفاتيح شاشة دخول الموظفة. */
@@ -76,4 +81,7 @@ export const staffAccessAdminAr: typeof staffAccessAdminEn = {
   phoneInvalid: 'اكتب الهاتف بعلامة + ومن 8 إلى 15 رقمًا، مثل +96512345678.',
   pinInvalid: 'الرقم السري أربعة أرقام بالظبط.',
   confirmationRequired: 'علّمي التأكيد قبل الحفظ.',
+  recoveryEmailLabel: 'إيميل الاستعادة (اختياري)',
+  recoveryEmailHint: 'للتواصل مع الموظفة واستعادة رقمها السري لو نسيته. يُفضّل تسجيله، وبيفضل خاص.',
+  recoveryEmailInvalid: 'اكتب إيميل صحيح، أو سيب الخانة فاضية.',
 };

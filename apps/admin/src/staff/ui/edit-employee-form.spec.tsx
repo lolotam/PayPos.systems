@@ -135,6 +135,7 @@ it('DN-07 confirms the exact PATCH terms including revision and branch history f
     hire_date: record.hire_date,
     contract_end: null,
     user_id: sibling.id,
+    recovery_email: null,
     expected_revision: 7,
     branch_ids: [branch.id, sibling.id],
     branch_effective_date: '2026-10-04',
@@ -178,3 +179,33 @@ it('checks an Arabic-only change and fails open on edit too', async () => {
   });
   expect(screen.queryByRole('alert')).toBeNull();
 });
+
+it.each(['ar', 'en'] as const)(
+  'shows the saved recovery email, rejects a malformed one and saves null when cleared in %s',
+  async (locale) => {
+    state.locale = locale;
+    const save = vi.fn();
+    render(
+      <EditEmployeeForm
+        {...props}
+        record={{ ...record, recovery_email: 'sara@example.test' }}
+        onSave={save}
+      />,
+    );
+    const field = screen.getByLabelText(t(locale, 'staff.recoveryEmailLabel'));
+    expect((field as HTMLInputElement).value).toBe('sara@example.test');
+    fireEvent.change(field, { target: { value: 'not-an-email' } });
+    fireEvent.change(screen.getByLabelText(t(locale, 'staff.effectiveDate')), {
+      target: { value: '2026-10-04' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: t(locale, 'staff.save') }));
+    expect(
+      (await screen.findAllByText(t(locale, 'staff.recoveryEmailInvalid'))).length,
+    ).toBeGreaterThan(0);
+    expect(save).not.toHaveBeenCalled();
+    fireEvent.change(field, { target: { value: '  ' } });
+    fireEvent.click(screen.getByRole('button', { name: t(locale, 'staff.save') }));
+    await waitFor(() => expect(save).toHaveBeenCalledOnce());
+    expect(save.mock.calls[0]?.[0]).toMatchObject({ recovery_email: null });
+  },
+);
