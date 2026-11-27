@@ -4,6 +4,8 @@ import {
   type StaffOtpRequestInput,
   type StaffOtpVerifyInput,
   type StaffPinInput,
+  type StaffPinResetOtpInput,
+  type StaffPinResetRequestInput,
   type StaffSessionContext,
 } from '@pospay/contracts';
 import { staffApiClient } from '@/shared/api/client';
@@ -51,6 +53,42 @@ export async function changeTemporaryStaffPin(
   if (response.error?.code === 'PIN_EXPIRED') return 'expired';
   if (response.error?.code === 'PIN_LOCKED') return 'locked';
   return 'invalid';
+}
+
+/** نتيجة طلب كود استرجاع الرقم السري: اتقبل (الرد واحد لأي معرّف)، القناة مقفولة، حد معدّل، أو رفض. */
+export type StaffPinResetRequestOutcome =
+  | { readonly kind: 'accepted'; readonly challengeId: string }
+  | { readonly kind: 'unavailable' | 'limited' | 'refused' };
+
+/** نتيجة تعيين الرقم السري بالكود: اتغيّر، الكود غلط أو خلص، حد معدّل، القناة مقفولة، أو رفض عام. */
+export type StaffPinResetOutcome = 'reset' | 'invalid' | 'limited' | 'unavailable' | 'refused';
+
+export async function requestStaffPinReset(
+  input: StaffPinResetRequestInput,
+): Promise<StaffPinResetRequestOutcome> {
+  const response = await staffApiClient().POST('/v1/devices/me/staff-pin/otp/request', {
+    body: input,
+  });
+  if (response.data !== undefined)
+    return { kind: 'accepted', challengeId: response.data.challenge_id };
+  const code = response.error?.code;
+  if (code === 'OTP_UNAVAILABLE') return { kind: 'unavailable' };
+  if (code === 'TOO_MANY_REQUESTS') return { kind: 'limited' };
+  return { kind: 'refused' };
+}
+
+export async function resetStaffPinWithOtp(
+  input: StaffPinResetOtpInput,
+): Promise<StaffPinResetOutcome> {
+  const response = await staffApiClient().POST('/v1/devices/me/staff-pin/otp/reset', {
+    body: input,
+  });
+  if (response.response.ok) return 'reset';
+  const code = response.error?.code;
+  if (code === 'TOO_MANY_REQUESTS') return 'limited';
+  if (code === 'OTP_UNAVAILABLE') return 'unavailable';
+  if (code === 'OTP_INVALID') return 'invalid';
+  return 'refused';
 }
 
 export async function probeStaffSession() {

@@ -80,6 +80,9 @@ async function addFormerOwner(scope: Scope): Promise<string> {
   return userId;
 }
 
+const stripUuids = (value: string): string =>
+  value.replace(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/gi, '');
+
 const parametersOf = (payload: unknown): readonly SafeParameter[] =>
   (payload as { notification_recipients: { safe_parameters: readonly SafeParameter[] }[] })
     .notification_recipients[0]?.safe_parameters ?? [];
@@ -140,7 +143,7 @@ it('notifies every active canonical owner once about a granted staff access', as
   expect(validInAppTemplate('staff_access_granted', 1, 'en', parameters)).toBe(true);
   const text = JSON.stringify(notices[0]?.['payload']);
   expect(text).not.toMatch(/pin_hash|pin\b/i);
-  expect(text).not.toMatch(/\+?\b\d{9,}\b/);
+  expect(stripUuids(text)).not.toMatch(/\+?\b\d{9,}\b/);
 }, 60_000);
 
 it('names an owner actor without a linked employee by the owner role', async () => {
@@ -193,7 +196,7 @@ it('notifies the owners about a PIN reset by somebody else', async () => {
   expect(parameters[6]?.value).toBe('2026-11-25');
   expect(parameters[7]?.value).toBe('09:30');
   expect(validInAppTemplate('staff_pin_set_by_other', 1, 'ar', parameters)).toBe(true);
-  expect(JSON.stringify(notices[0]?.['payload'])).not.toMatch(/\+?\b\d{9,}\b/);
+  expect(stripUuids(JSON.stringify(notices[0]?.['payload']))).not.toMatch(/\+?\b\d{9,}\b/);
 }, 60_000);
 
 it('resolves the resetting manager from the audit log when the employee already replaced her PIN', async () => {

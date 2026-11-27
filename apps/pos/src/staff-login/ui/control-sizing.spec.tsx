@@ -24,7 +24,7 @@ it.each(['ar', 'en'] as const)(
       </LocaleProvider>,
     );
     const controls = container.querySelectorAll('input, select, button');
-    expect(controls).toHaveLength(8);
+    expect(controls).toHaveLength(9);
     for (const control of controls) {
       expect(control.classList.contains('min-h-12')).toBe(true);
       expect(control.classList.contains('min-h-11')).toBe(false);

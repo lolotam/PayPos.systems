@@ -14,6 +14,7 @@ import { EmployeeNameFields } from './employee-name-fields';
 import { EmployeePlacementFields } from './employee-placement-fields';
 import { EmployeeContractFields } from './employee-contract-fields';
 import { EmployeeBranchFields } from './employee-branch-fields';
+import { EmployeeRecoveryEmailField, recoveryEmailOptions } from './employee-recovery-email-field';
 import { useNameCheckedSubmit } from '../model/use-name-checked-submit';
 import { DuplicateNameWarning } from './duplicate-name-warning';
 
@@ -25,6 +26,7 @@ const defaultTerms = (record: EmployeeDetail): UpdateEmployeeInput => ({
   hire_date: record.hire_date,
   contract_end: record.contract_end,
   user_id: record.user_id,
+  recovery_email: record.recovery_email,
   expected_revision: record.revision,
   branch_ids: record.branch_ids,
   branch_effective_date: '',
@@ -59,6 +61,10 @@ export function EditEmployeeForm({
           className="flex flex-col gap-3"
         >
           <EmployeeNameFields />
+          <EmployeeRecoveryEmailField
+            field={form.register('recovery_email', recoveryEmailOptions)}
+            invalid={form.formState.errors.recovery_email !== undefined}
+          />
           <EmployeePlacementFields branches={branches} />
           <EmployeeContractFields />
           <EmployeeBranchFields branches={branches} />

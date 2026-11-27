@@ -10,6 +10,8 @@ export interface EmployeeAccessGrantBody {
   readonly phone_confirmed: true;
   readonly role: 'staff' | 'reception';
   readonly pin: string;
+  /** إيميل الاستعادة الاختياري؛ غيابه معناه ما يتسجلش حاجة. */
+  readonly recovery_email?: string | null | undefined;
 }
 
 /** حالة نداء المنح: الانتظار والخطأ والنجاح — كلها في حالة الشاشة مش في كاش. */
@@ -43,6 +45,7 @@ export function useGrantEmployeeAccess(
     setFailed(false);
     setSucceeded(false);
     setError(null);
+    const { recovery_email: recoveryEmail, ...terms } = body;
     try {
       const result = await apiClient().POST(
         '/v1/businesses/{businessId}/employees/{employeeId}/staff-access',
@@ -51,7 +54,7 @@ export function useGrantEmployeeAccess(
             header: { 'x-company-id': companyId },
             path: { businessId, employeeId },
           },
-          body,
+          body: { ...terms, ...(recoveryEmail == null ? {} : { recovery_email: recoveryEmail }) },
         },
       );
       if (result.error) throw result.error;
