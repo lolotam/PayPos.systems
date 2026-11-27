@@ -54,19 +54,37 @@ function awaitQueueEvent(
   events: QueueEvents,
   id: string,
   expected: 'completed' | 'failed',
+  timeoutMs = 5_000,
 ): Promise<void> {
-  return new Promise<void>((resolve, reject) => {
-    events.on('completed', ({ jobId }) => {
+  const promise = new Promise<void>((resolve, reject) => {
+    const finish = (cb: () => void): void => {
+      clearTimeout(timer);
+      events.off('completed', onCompleted);
+      events.off('failed', onFailed);
+      cb();
+    };
+    const onCompleted = ({ jobId }: { jobId: string }): void => {
       if (jobId !== id) return;
-      if (expected === 'completed') resolve();
-      else reject(new Error('unexpected completed event'));
-    });
-    events.on('failed', ({ jobId, failedReason }) => {
+      finish(() =>
+        expected === 'completed' ? resolve() : reject(new Error('unexpected completed event')),
+      );
+    };
+    const onFailed = ({ jobId, failedReason }: { jobId: string; failedReason: string }): void => {
       if (jobId !== id) return;
-      if (expected === 'failed') resolve();
-      else reject(new Error(`unexpected failed event: ${failedReason}`));
-    });
+      finish(() =>
+        expected === 'failed'
+          ? resolve()
+          : reject(new Error(`unexpected failed event: ${failedReason}`)),
+      );
+    };
+    const timer = setTimeout(() => {
+      finish(() => reject(new Error(`timed out waiting for queue ${expected} event`)));
+    }, timeoutMs);
+    events.on('completed', onCompleted);
+    events.on('failed', onFailed);
   });
+  promise.catch(() => undefined);
+  return promise;
 }
 
 async function withQueueEnv(
@@ -155,3 +173,39 @@ it('maps terminal updateProgress deferral timeout to DOCUMENT_RENDER_TIMEOUT', a
     spy.mockRestore();
   }
 }, 15_000);
+
+it('retries transient markFailed Redis errors in recordExternalJobFailure and succeeds', async () => {
+  const { DocumentRenderTimeoutError } = await import('@pospay/documents');
+  const { recordExternalJobFailure } = await import('../process-job.ts');
+  const redis = new Redis(redisUrl, { maxRetriesPerRequest: 1, enableOfflineQueue: false });
+  await whenRedisReady(redis);
+  const companyId = renderId();
+  const id = renderId();
+  const key = documentStatusKey(companyId, id);
+  const originalEval = redis.eval.bind(redis);
+  let evalCalls = 0;
+  const evalSpy = vi.spyOn(redis, 'eval').mockImplementation((...args: Parameters<Redis['eval']>) => {
+    evalCalls += 1;
+    if (evalCalls === 1) return Promise.reject(new Error('ECONNRESET'));
+    return originalEval(...args);
+  });
+  try {
+    await redis.hset(key, { state: 'QUEUED', requested_by: 'u1', filename: 'a.pdf' });
+    await recordExternalJobFailure(
+      {
+        finishedOn: Date.now(),
+        processedOn: Date.now() - 20,
+        data: { company_id: companyId, render_id: id, kind: 'fixture' },
+      } as unknown as Job,
+      { redis, logger: silentLogger(), clock: { now: () => Date.now() } },
+      new DocumentRenderTimeoutError(),
+    );
+    expect(evalCalls).toBe(2);
+    expect(await redis.hget(key, 'state')).toBe('FAILED');
+    expect(await redis.hget(key, 'error_code')).toBe('DOCUMENT_RENDER_TIMEOUT');
+  } finally {
+    evalSpy.mockRestore();
+    await redis.del(key).catch(() => undefined);
+    redis.disconnect();
+  }
+});

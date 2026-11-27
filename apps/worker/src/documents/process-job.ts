@@ -255,7 +255,32 @@ function externalErrorCode(job: Job, error?: unknown): DocumentRenderErrorCode {
   return 'DOCUMENT_RENDER_FAILED';
 }
 
-/** فشل BullMQ من غير ما المعالج يتنده، زي تجاوز maxStalledCount أو مهلة التأجيل. الحالة بتتقفل لو الانتقال مسموح. */
+const MARK_FAILED_RETRY_DELAYS_MS = [50, 150] as const;
+
+async function writeTerminalFailureStatus(
+  redis: Redis,
+  companyId: string,
+  renderId: string,
+  code: DocumentRenderErrorCode,
+): Promise<{ readonly wrote?: boolean; readonly error?: unknown }> {
+  let lastError: unknown;
+  for (let attempt = 0; attempt <= MARK_FAILED_RETRY_DELAYS_MS.length; attempt += 1) {
+    try {
+      const wrote = await withinBudget(MARK_FAILED_FLOOR_MS, () =>
+        markFailed(redis, companyId, renderId, code),
+      );
+      return { wrote };
+    } catch (error) {
+      lastError = error;
+      const delayMs = MARK_FAILED_RETRY_DELAYS_MS[attempt];
+      if (delayMs === undefined) break;
+      await new Promise<void>((resolve) => setTimeout(resolve, delayMs));
+    }
+  }
+  return { error: lastError };
+}
+
+/** فشل BullMQ من غير ما المعالج يتنده، زي تجاوز maxStalledCount أو مهلة التأجيل. الحالة بتتقفل مع إعادة محاولة محدودة لو Redis تعثّر. */
 export async function recordExternalJobFailure(
   job: Job,
   deps: Pick<ProcessDocumentDeps, 'redis' | 'logger' | 'clock'>,
@@ -266,9 +291,21 @@ export async function recordExternalJobFailure(
   if (!parsed.success) return;
   const { company_id, render_id, kind } = parsed.data;
   const code = externalErrorCode(job, error);
-  const failed = await markFailed(deps.redis, company_id, render_id, code);
-  if (!failed) return;
   const processedOn = job.processedOn ?? deps.clock.now();
+  const outcome = await writeTerminalFailureStatus(deps.redis, company_id, render_id, code);
+  if (outcome.error !== undefined) {
+    logOutcome(deps.logger, {
+      company_id,
+      render_id,
+      kind,
+      state: 'FAILED',
+      duration_ms: deps.clock.now() - processedOn,
+      error_code: code,
+      error_class: rendererFailureText(outcome.error).error_class,
+    });
+    return;
+  }
+  if (outcome.wrote !== true) return;
   logOutcome(deps.logger, {
     company_id,
     render_id,

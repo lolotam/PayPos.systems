@@ -1,14 +1,12 @@
-import { DocumentRenderTimeoutError, DocumentRendererUnavailableError } from '../domain/errors.ts';
-import { assertHtmlWithinLimit, assertPdfWithinLimit } from '../domain/limits.ts';
+import { DocumentRendererUnavailableError } from '../domain/errors.ts';
+import { assertHtmlWithinLimit } from '../domain/limits.ts';
 import type { DocumentRenderer, RenderOptions, StartOptions } from '../ports/document-renderer.ts';
-import type { PdfBrowser, PdfBrowserFactory, PdfContext } from './browser.ts';
-import { closeContextOnce } from './context-guards.ts';
-import { asRendererError, isTimeoutError, raceDeadline } from './deadline.ts';
+import type { PdfBrowser, PdfBrowserFactory } from './browser.ts';
 import { DEFAULT_CHROMIUM_LAUNCH_TIMEOUT_MS, playwrightFactory } from './factory.ts';
 import { closeOrKill, launchWithinTimeout, waitGate, waitRetiredExit, watchUnconfirmedExit } from './launch.ts';
-import { renderPage, type RenderPageHooks } from './render-page.ts';
+import { renderBrowserDocument, type RenderPageHooks } from './render-page.ts';
 import type { RendererOptions } from './renderer-options.ts';
-import { closeAfterTimeout, dropRetiredBrowser } from './retire.ts';
+import { dropRetiredBrowser } from './retire.ts';
 
 export type { RendererOptions } from './renderer-options.ts';
 
@@ -16,7 +14,6 @@ const DEFAULT_BACKOFF_MS = [250, 500, 1000, 2000, 5000] as const;
 const CLOSE_GRACE_MS = 5_000;
 const LAUNCH_TIMEOUT_MS = 40_000;
 const UNCONFIRMED_EXIT_TIMEOUT_MS = 10_000;
-const CONTEXT = { javaScriptEnabled: false, offline: true, serviceWorkers: 'block' } as const;
 const delay = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms));
 
 /**
@@ -52,6 +49,7 @@ export class PlaywrightDocumentRenderer implements DocumentRenderer {
   #pendingCancel: Promise<void> | null = null;
   #relaunching: Promise<void> | null = null;
   #retiring: Promise<void> | null = null;
+  #closingPromise: Promise<void> | null = null;
   #closingExit: Promise<void> | null = null;
   #unavailable: Array<() => void> = [];
   #availableListeners: Array<() => void> = [];
@@ -83,11 +81,13 @@ export class PlaywrightDocumentRenderer implements DocumentRenderer {
   }
 
   get unconfirmedExit(): Promise<void> | null {
-    const active = [this.#closingExit, this.#retiring, this.#pendingCancel, this.#launchInFlight].filter(
-      (p): p is Promise<void> => p !== null,
-    );
-    if (active.length === 0) return null;
-    return active.length === 1 ? (active[0] ?? null) : Promise.all(active).then(() => undefined);
+    const idle =
+      this.#closingExit === null &&
+      this.#retiring === null &&
+      this.#pendingCancel === null &&
+      this.#launchInFlight === null &&
+      this.#closingPromise === null;
+    return idle ? null : this.#drainExitGates();
   }
 
   onUnavailable(listener: () => void): void {
@@ -108,12 +108,7 @@ export class PlaywrightDocumentRenderer implements DocumentRenderer {
     const starting = this.#launchOnce(options?.signal).finally(() => {
       detachAbort();
       if (this.#starting === starting) this.#starting = null;
-      if (
-        !this.#available &&
-        !this.#closing &&
-        this.#retiring === null &&
-        (this.#relaunchNeeded || !options?.signal?.aborted)
-      ) {
+      if (!this.#available && !this.#closing && this.#retiring === null && (this.#relaunchNeeded || !options?.signal?.aborted)) {
         this.#relaunchNeeded = false;
         this.#scheduleRelaunch();
       }
@@ -122,7 +117,7 @@ export class PlaywrightDocumentRenderer implements DocumentRenderer {
     return starting;
   }
 
-  async close(): Promise<void> {
+  close(): Promise<void> {
     this.#closing = true;
     this.#relaunchNeeded = false;
     this.#closeAbort.abort();
@@ -130,17 +125,10 @@ export class PlaywrightDocumentRenderer implements DocumentRenderer {
     this.#launchController?.abort();
     this.#clearStable();
     this.#markUnavailable();
-    if (this.#launchInFlight !== null) await this.#launchInFlight.catch(() => undefined);
-    const browser = this.#browser;
-    this.#browser = null;
-    if (browser === null) return;
-    this.#closingBrowser = browser;
-    try {
-      const outcome = await closeOrKill(browser, this.#closeGraceMs);
-      if (!outcome.confirmed) this.#recordUnconfirmedClose(outcome.exit);
-    } finally {
-      this.#closingBrowser = null;
-    }
+    this.#closingPromise ??= this.#runClose().finally(() => {
+      this.#closingPromise = null;
+    });
+    return this.#closingPromise;
   }
 
   kill(): void | Promise<void> {
@@ -154,10 +142,16 @@ export class PlaywrightDocumentRenderer implements DocumentRenderer {
     this.#browser = null;
     if (browser === null) return this.unconfirmedExit ?? undefined;
     if (typeof browser.kill !== 'function') {
+      this.#closingExit ??= new Promise<void>(() => undefined);
       return Promise.reject(new Error('DOCUMENT_BROWSER_KILL_UNSUPPORTED'));
     }
     try {
-      return browser.kill();
+      const result = browser.kill();
+      if (result === undefined) {
+        this.#closingExit = null;
+        return this.unconfirmedExit ?? undefined;
+      }
+      return this.#recordKillPromise(result);
     } catch (error) {
       return Promise.reject(error instanceof Error ? error : new Error('DOCUMENT_BROWSER_KILL_FAILED'));
     }
@@ -187,6 +181,58 @@ export class PlaywrightDocumentRenderer implements DocumentRenderer {
     });
     this.#launchInFlight = flight;
     return flight;
+  }
+
+  async #drainExitGates(): Promise<void> {
+    while (
+      this.#launchInFlight !== null ||
+      this.#closingPromise !== null ||
+      this.#closingExit !== null ||
+      this.#retiring !== null ||
+      this.#pendingCancel !== null
+    ) {
+      const flight = this.#launchInFlight ?? this.#closingPromise;
+      if (flight !== null) {
+        await flight.catch(() => undefined);
+        continue;
+      }
+      const gate = this.#closingExit ?? this.#retiring ?? this.#pendingCancel;
+      if (gate !== null) await gate;
+    }
+  }
+
+  async #runClose(): Promise<void> {
+    if (this.#launchInFlight !== null) await this.#launchInFlight.catch(() => undefined);
+    const browser = this.#browser;
+    this.#browser = null;
+    if (browser === null) return;
+    this.#closingBrowser = browser;
+    let releaseInFlight: () => void = () => undefined;
+    const inFlightExit = new Promise<void>((resolve) => {
+      releaseInFlight = resolve;
+    });
+    this.#closingExit ??= inFlightExit;
+    try {
+      const outcome = await closeOrKill(browser, this.#closeGraceMs);
+      if (!outcome.confirmed) this.#recordUnconfirmedClose(outcome.exit);
+      else if (this.#closingExit === inFlightExit) this.#closingExit = null;
+    } finally {
+      releaseInFlight();
+      this.#closingBrowser = null;
+    }
+  }
+
+  #recordKillPromise(result: Promise<void>): Promise<void> {
+    const gate = result.then(
+      () => {
+        if (this.#closingExit === gate) this.#closingExit = null;
+      },
+      () => new Promise<void>(() => undefined),
+    );
+    this.#closingExit = gate;
+    return result.then(async () => {
+      await this.unconfirmedExit;
+    });
   }
 
   #recordUnconfirmedClose(exit: Promise<void>): void {
@@ -324,51 +370,21 @@ export class PlaywrightDocumentRenderer implements DocumentRenderer {
     }
   }
 
-  async #renderOnce(
+  #renderOnce(
     browser: PdfBrowser,
     html: string,
     options: RenderOptions | undefined,
   ): Promise<Uint8Array> {
-    let context: PdfContext | undefined;
-    let abandoned = false;
-    const print = new AbortController();
-    const opening = browser.newContext(CONTEXT);
-    const work = opening.then(async (opened) => {
-      if (abandoned) {
-        await closeContextOnce(opened).catch(() => undefined);
-        throw new DocumentRenderTimeoutError();
-      }
-      context = opened;
-      let timedOut = false;
-      try {
-        const deadlines = { contentMs: this.#contentTimeoutMs, pdfMs: this.#pdfTimeoutMs, signal: print.signal };
-        const pdf = await renderPage(opened, html, deadlines, this.#hooks(options?.onAbortedRequest));
-        return assertPdfWithinLimit(pdf);
-      } catch (error) {
-        timedOut = isTimeoutError(error);
-        throw error;
-      } finally {
-        // قفل السياق المعلّق بيستهلك المهلة الكلية؛ القفل بيتم من فوق عبر closeAfterTimeout.
-        if (!timedOut) await closeContextOnce(opened).catch(() => undefined);
-      }
+    return renderBrowserDocument(browser, html, {
+      contentMs: this.#contentTimeoutMs,
+      pdfMs: this.#pdfTimeoutMs,
+      overallMs: this.#overallTimeoutMs,
+      closeGraceMs: this.#browserCloseGraceMs,
+      sleep: this.#sleep,
+      signal: options?.signal,
+      hooks: this.#hooks(options?.onAbortedRequest),
+      retire: (retired) => this.#retire(retired),
     });
-    try {
-      return await raceDeadline(work, this.#overallTimeoutMs, options?.signal);
-    } catch (error) {
-      abandoned = true;
-      // المهلة الكلية لو سبقت الطباعة بتقفل السياق هنا. نلغي مؤقّت الطباعة من غير رفض السباق
-      // عشان page.pdf المعلّق ما يقفلش السياق مرة تانية وهو بيتقفل.
-      print.abort();
-      const mapped = asRendererError(error);
-      if (mapped instanceof DocumentRenderTimeoutError) {
-        await closeAfterTimeout(context, opening, browser, {
-          graceMs: this.#browserCloseGraceMs,
-          sleep: this.#sleep,
-          retire: (retired) => this.#retire(retired),
-        });
-      }
-      throw mapped;
-    }
   }
 
   /**

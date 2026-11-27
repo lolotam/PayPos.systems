@@ -210,3 +210,51 @@ it('exposes unconfirmedExit after close() for both a retiring browser and a canc
   await cancelRenderer.unconfirmedExit;
   expect(cancelRenderer.unconfirmedExit).toBeNull();
 });
+
+it('shares pending close gate across concurrent close() calls and chains kill() on an in-flight launch until late browser exits', async () => {
+  let releaseCloseKill: (() => void) | undefined;
+  const concurrent = new PlaywrightDocumentRenderer({
+    factory: {
+      launch: async () => ({
+        newContext: () => new Promise(() => undefined),
+        close: () => new Promise(() => undefined),
+        kill: () => new Promise<void>((r) => (releaseCloseKill = r)),
+        on: () => undefined,
+      }),
+    },
+    closeGraceMs: 15,
+  });
+  await concurrent.start();
+  const firstClose = concurrent.close();
+  const secondClose = concurrent.close();
+  expect(concurrent.unconfirmedExit).not.toBeNull();
+  await Promise.all([firstClose, secondClose]);
+  expect(concurrent.unconfirmedExit).not.toBeNull();
+  releaseCloseKill?.();
+  await concurrent.unconfirmedExit;
+  expect(concurrent.unconfirmedExit).toBeNull();
+
+  let resolveLaunch!: (browser: { newContext: () => Promise<never>; close: () => Promise<void>; on: () => void }) => void;
+  let releaseLateClose!: () => void;
+  const killing = new PlaywrightDocumentRenderer({
+    factory: { launch: () => new Promise((r) => (resolveLaunch = r)) },
+    closeGraceMs: 15,
+  });
+  const pendingStart = killing.start();
+  const killPromise = Promise.resolve(killing.kill());
+  await pendingStart;
+  let killResolved = false;
+  void killPromise.then(() => {
+    killResolved = true;
+  });
+  resolveLaunch({
+    newContext: () => new Promise(() => undefined),
+    close: () => new Promise<void>((r) => (releaseLateClose = r)),
+    on: () => undefined,
+  });
+  await new Promise((r) => setTimeout(r, 40));
+  expect(killResolved).toBe(false);
+  releaseLateClose();
+  await killPromise;
+  expect(killResolved).toBe(true);
+});

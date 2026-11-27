@@ -1,6 +1,9 @@
 import { DocumentRenderTimeoutError } from '../domain/errors.ts';
-import { isTimeoutError } from './deadline.ts';
-import type { PdfContext, PdfPage } from './browser.ts';
+import { assertPdfWithinLimit } from '../domain/limits.ts';
+import type { PdfBrowser, PdfContext, PdfPage } from './browser.ts';
+import { closeContextOnce } from './context-guards.ts';
+import { asRendererError, isTimeoutError, raceDeadline } from './deadline.ts';
+import { closeAfterTimeout } from './retire.ts';
 
 export interface RenderPageHooks {
   readonly onAbort: (url: string) => void;
@@ -108,5 +111,68 @@ export async function renderPage(
     // قفل الصفحة المعلّق بيستهلك مهلة الطباعة، فبنبلّغه ونرميه؛ المتصفح بيتقفل من فوق.
     if (timedOut) void page.close().catch(() => undefined);
     else await page.close().catch(() => undefined);
+  }
+}
+
+const CONTEXT_OPTIONS = { javaScriptEnabled: false, offline: true, serviceWorkers: 'block' } as const;
+
+/** خيارات تنفيذ محاولة رندر كاملة داخل سياق معزول مع مهلتي الطباعة والإغلاق. */
+export interface RenderAttemptConfig {
+  readonly contentMs: number;
+  readonly pdfMs: number;
+  readonly overallMs: number;
+  readonly closeGraceMs: number;
+  readonly sleep: (ms: number) => Promise<void>;
+  readonly signal?: AbortSignal | undefined;
+  readonly hooks: RenderPageHooks;
+  readonly retire: (browser: PdfBrowser) => void;
+}
+
+/** يرندر المستند في سياق معزول واحد ويعيد تقاعد المتصفح لو إغلاق السياق علّق بعد المهلة. */
+export async function renderBrowserDocument(
+  browser: PdfBrowser,
+  html: string,
+  config: RenderAttemptConfig,
+): Promise<Uint8Array> {
+  let context: PdfContext | undefined;
+  let abandoned = false;
+  const print = new AbortController();
+  const opening = browser.newContext(CONTEXT_OPTIONS);
+  const work = opening.then(async (opened) => {
+    if (abandoned) {
+      await closeContextOnce(opened).catch(() => undefined);
+      throw new DocumentRenderTimeoutError();
+    }
+    context = opened;
+    let timedOut = false;
+    try {
+      const pdf = await renderPage(
+        opened,
+        html,
+        { contentMs: config.contentMs, pdfMs: config.pdfMs, signal: print.signal },
+        config.hooks,
+      );
+      return assertPdfWithinLimit(pdf);
+    } catch (error) {
+      timedOut = isTimeoutError(error);
+      throw error;
+    } finally {
+      if (!timedOut) await closeContextOnce(opened).catch(() => undefined);
+    }
+  });
+  try {
+    return await raceDeadline(work, config.overallMs, config.signal);
+  } catch (error) {
+    abandoned = true;
+    print.abort();
+    const mapped = asRendererError(error);
+    if (mapped instanceof DocumentRenderTimeoutError) {
+      await closeAfterTimeout(context, opening, browser, {
+        graceMs: config.closeGraceMs,
+        sleep: config.sleep,
+        retire: config.retire,
+      });
+    }
+    throw mapped;
   }
 }
