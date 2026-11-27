@@ -1,5 +1,5 @@
 import { documentRenderJob } from '@pospay/contracts';
-import type { DocumentRenderer } from '@pospay/documents';
+import { DocumentRenderTimeoutError, type DocumentRenderer } from '@pospay/documents';
 import { DelayedError, type Job } from 'bullmq';
 
 import type { DocumentSourceRegistry } from './source-registry.ts';
@@ -10,6 +10,8 @@ export interface RendererStartup {
   deadlineAt: number;
   /** سقف تأجيل لكل وظيفة بحيث التقطيع المتكرر ما يمدّش سقفها من جديد. */
   readonly jobDeadlines?: Map<string, number>;
+  /** حد انتظار أوامر Redis أثناء التأجيل عشان انقطاع Redis ما يحجزش المستهلك. */
+  readonly opTimeoutMs?: number;
 }
 
 /** مهلة التأجيل القصيرة: بتتنادى مع كل فحص لحد ما المتصفح يطلع. */
@@ -20,6 +22,31 @@ export const PDF_DEFER_WINDOW_MS = 120_000;
 
 /** احتفاظ بسقف الوظيفة المنتهي عشر دقايق عشان إعادة المحاولة والتقطيع ما يجددوش السقف، ويمسح بس لما يبرد. */
 export const PDF_DEFER_RETENTION_MS = 600_000;
+
+/** مهلة أوامر Redis جوه تأجيل PDF عشان المستهلك ما يقفش لو Redis علّق. */
+export const PDF_DEFER_OP_TIMEOUT_MS = 5_000;
+
+function withinDeferTimeout<T>(ms: number, start: () => Promise<T>): Promise<T> {
+  if (!(ms > 0)) return Promise.reject(new DocumentRenderTimeoutError());
+  const work = Promise.resolve().then(start);
+  return new Promise<T>((resolve, reject) => {
+    let settled = false;
+    const finish = (settle: () => void): void => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      settle();
+    };
+    const timer = setTimeout(() => {
+      work.catch(() => undefined);
+      finish(() => reject(new DocumentRenderTimeoutError()));
+    }, ms);
+    work.then(
+      (value) => finish(() => resolve(value)),
+      (error: unknown) => finish(() => reject(error)),
+    );
+  });
+}
 
 function jobKeyOf(job: Job, parsedData?: { readonly render_id: string }): string | undefined {
   if (typeof job.id === 'string' && job.id.length > 0) return job.id;
@@ -45,12 +72,12 @@ function persistedDeadlineOf(job: Job): number | undefined {
   return undefined;
 }
 
-async function persistJobDeadline(job: Job, deadlineAt: number): Promise<void> {
+async function persistJobDeadline(job: Job, deadlineAt: number, opTimeoutMs: number): Promise<void> {
   const payload = { deferDeadlineAt: deadlineAt };
-  (job as { progress?: unknown }).progress = payload;
   if (typeof job.updateProgress === 'function') {
-    await job.updateProgress(payload);
+    await withinDeferTimeout(opTimeoutMs, () => job.updateProgress(payload));
   }
+  (job as { progress?: unknown }).progress = payload;
 }
 
 /** يمسح سجل سقف التأجيل لو انتهت الوظيفة بالنجاح أو الفشل النهائي. */
@@ -78,6 +105,7 @@ export async function deferPdfWhileStarting(
   if (!parsed.success) return;
   const source = registry.get(parsed.data.kind);
   if (source === undefined || source.output === 'bytes') return;
+  const opTimeoutMs = startup.opTimeoutMs ?? PDF_DEFER_OP_TIMEOUT_MS;
   const persisted = persistedDeadlineOf(job);
   const inMemory = jobKey !== undefined ? startup.jobDeadlines?.get(jobKey) : undefined;
   const existing = Math.min(inMemory ?? Number.POSITIVE_INFINITY, persisted ?? Number.POSITIVE_INFINITY);
@@ -86,19 +114,25 @@ export async function deferPdfWhileStarting(
     : Math.min(startup.deadlineAt, now + PDF_DEFER_WINDOW_MS);
   const effectiveDeadline = Math.min(jobDeadline, startup.deadlineAt);
   if (now >= effectiveDeadline) {
+    const expiredDeadline = Math.max(1, Math.min(jobDeadline, effectiveDeadline, now));
+    if (persisted === undefined || expiredDeadline < persisted) {
+      await persistJobDeadline(job, expiredDeadline, opTimeoutMs);
+    }
     if (jobKey !== undefined && startup.jobDeadlines !== undefined) {
-      startup.jobDeadlines.set(jobKey, Math.min(jobDeadline, now));
+      startup.jobDeadlines.set(jobKey, expiredDeadline);
     }
     return;
   }
+  if (persisted === undefined || jobDeadline < persisted) {
+    await persistJobDeadline(job, jobDeadline, opTimeoutMs);
+  }
+  await withinDeferTimeout(opTimeoutMs, () =>
+    job.moveToDelayed(Math.min(now + PDF_DEFER_MS, effectiveDeadline), token),
+  );
   if (jobKey !== undefined && startup.jobDeadlines !== undefined) {
     if (inMemory === undefined) pruneExpired(startup.jobDeadlines, now);
     startup.jobDeadlines.set(jobKey, jobDeadline);
   }
-  if (persisted === undefined || jobDeadline < persisted) {
-    await persistJobDeadline(job, jobDeadline);
-  }
-  await job.moveToDelayed(Math.min(now + PDF_DEFER_MS, effectiveDeadline), token);
   throw new DelayedError();
 }
 

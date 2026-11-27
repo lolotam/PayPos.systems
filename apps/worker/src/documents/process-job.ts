@@ -20,7 +20,7 @@ import type { DocumentSourceRegistry } from './source-registry.ts';
 import { markFailed, markRendering, storeReady } from './status-store.ts';
 import { AttendanceStatementEmptyError } from './statement-empty-error.ts';
 
-const JOB_DEADLINE_MS = 30_000;
+export const JOB_DEADLINE_MS = 30_000;
 /** بعد المهلة، كتابة الفشل لسه بتاخد محاولة قصيرة ومقفولة. */
 const MARK_FAILED_FLOOR_MS = 1_000;
 
@@ -173,6 +173,19 @@ async function failFinal(
   }
   if (failsAtOnce(code)) throw new UnrecoverableError(code);
   throw new Error(code, { cause: error });
+}
+
+/** يقفل فشل وقع قبل `processDocumentJob` داخل نفس ميزانية المهلة عشان الطابور ما يعلّقش. */
+export async function failDocumentJob(
+  job: Job,
+  deps: ProcessDocumentDeps,
+  startedAtMs: number,
+  error: unknown,
+): Promise<void> {
+  const parsed = documentRenderJob.safeParse(job.data);
+  if (!parsed.success) throw new UnrecoverableError('DOCUMENT_JOB_INVALID');
+  const deadlineAtMs = startedAtMs + (deps.deadlineMs ?? JOB_DEADLINE_MS);
+  await failFinal(job, deps, parsed.data, deps.clock.now(), deadlineAtMs, error);
 }
 
 /**

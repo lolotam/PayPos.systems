@@ -83,7 +83,8 @@ export async function launchWithinTimeout(
  * بتستخدمه للمتصفح اللي وصل متأخر وللإغلاق الأخير.
  */
 export async function closeOrKill(browser: PdfBrowser, graceMs: number): Promise<void> {
-  await dropRetiredBrowser(browser, graceMs);
+  const outcome = await dropRetiredBrowser(browser, graceMs);
+  if (!outcome.confirmed) await outcome.exit;
 }
 
 /** يستنى بوّابة التقاعد أو الإلغاء، ويفك الانتظار فوراً لو إشارة البدء اتلغت. */

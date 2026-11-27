@@ -139,14 +139,17 @@ export class PlaywrightDocumentRenderer implements DocumentRenderer {
     this.#launchController?.abort();
     this.#clearStable();
     this.#markUnavailable();
-    // المتصفح اللي بيتقفل دلوقتي لسه شغّال؛ القتل هو اللي يفكّه.
+    // المتصفح اللي بيتقفل دلوقتي لسه شغّال؛ القتل هو اللي يفكّه. رفض القتل أو غيابه يفضل غير مؤكّد.
     const browser = this.#browser ?? this.#closingBrowser;
     this.#browser = null;
+    if (browser === null) return undefined;
+    if (typeof browser.kill !== 'function') {
+      return Promise.reject(new Error('DOCUMENT_BROWSER_KILL_UNSUPPORTED'));
+    }
     try {
-      return browser?.kill?.();
-    } catch {
-      // إشارة القتل مش بتوقف إعادة الإطلاق؛ المتصفح القديم مش هو الحالي.
-      return undefined;
+      return browser.kill();
+    } catch (error) {
+      return Promise.reject(error instanceof Error ? error : new Error('DOCUMENT_BROWSER_KILL_FAILED'));
     }
   }
 
@@ -176,6 +179,19 @@ export class PlaywrightDocumentRenderer implements DocumentRenderer {
     return flight;
   }
 
+  #trackPendingCancel(settled: Promise<void>): void {
+    const settling = settled.finally(() => {
+      if (this.#pendingCancel === settling) this.#pendingCancel = null;
+    });
+    this.#pendingCancel = settling;
+    watchUnconfirmedExit(settling, this.#unconfirmedExitTimeoutMs, () => {
+      if (this.#closing) return;
+      const err = new Error('DOCUMENT_LAUNCH_CANCEL_UNCONFIRMED');
+      this.#onLaunchError?.(err);
+      this.#onUnconfirmedExit?.(err);
+    });
+  }
+
   async #runSingleLaunch(signal?: AbortSignal): Promise<void> {
     // المتصفح المتقاعد والإلغاء المعلّق لازم يخلصوا الأول، عشان متصفحين ما يبقوش شغالين مع بعض.
     if (this.#retiring !== null) await waitGate(this.#retiring, signal);
@@ -192,18 +208,7 @@ export class PlaywrightDocumentRenderer implements DocumentRenderer {
       );
       if (outcome.kind === 'cancelled' || outcome.kind === 'timeout') {
         if (outcome.kind === 'timeout') controller.abort();
-        if (!this.#closing) {
-          const settling = outcome.settled.finally(() => {
-            if (this.#pendingCancel === settling) this.#pendingCancel = null;
-          });
-          this.#pendingCancel = settling;
-          watchUnconfirmedExit(settling, this.#unconfirmedExitTimeoutMs, () => {
-            if (this.#closing) return;
-            const err = new Error('DOCUMENT_LAUNCH_CANCEL_UNCONFIRMED');
-            this.#onLaunchError?.(err);
-            this.#onUnconfirmedExit?.(err);
-          });
-        }
+        if (!this.#closing) this.#trackPendingCancel(outcome.settled);
         if (outcome.kind === 'timeout') {
           this.#onLaunchError?.(new Error('DOCUMENT_LAUNCH_TIMEOUT'));
           this.#markUnavailable();
@@ -212,8 +217,14 @@ export class PlaywrightDocumentRenderer implements DocumentRenderer {
       }
       if (outcome.kind === 'error') throw outcome.error;
       const browser = outcome.browser;
-      if (this.#closing) {
-        await closeOrKill(browser, this.#closeGraceMs);
+      if (this.#closing || controller.signal.aborted || (signal?.aborted ?? false)) {
+        controller.abort();
+        const settling = closeOrKill(browser, this.#closeGraceMs).catch(() => undefined);
+        if (this.#closing) {
+          await settling;
+          return;
+        }
+        this.#trackPendingCancel(settling);
         return;
       }
       this.#browser = browser;

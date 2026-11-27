@@ -31,6 +31,7 @@ function hangingFactory(mark: {
           if (mark.closeAt === 0) mark.closeAt = Date.now();
           return new Promise(() => undefined);
         },
+        kill: () => undefined,
         on: () => undefined,
       };
     },

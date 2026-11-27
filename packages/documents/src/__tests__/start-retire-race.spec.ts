@@ -285,3 +285,57 @@ it('escalates onUnconfirmedExit when retirement exit never confirms while keepin
   expect(escalated.map((e) => e.message)).toContain('DOCUMENT_RETIRE_UNCONFIRMED');
   await renderer.close();
 });
+
+it('closes the browser and gates replacement start when abort lands during post-launch handoff', async () => {
+  const events: string[] = [];
+  let releaseFirst: ((b: PdfBrowser) => void) | undefined;
+  let releaseClose: (() => void) | undefined;
+  const spy = delayedLaunchFactory((attempt) => {
+    events.push(`launch-${attempt}`);
+    if (attempt === 1) {
+      return new Promise<PdfBrowser>((resolve) => {
+        releaseFirst = resolve;
+      });
+    }
+    return Promise.resolve(okBrowser());
+  });
+  const renderer = new PlaywrightDocumentRenderer({
+    factory: spy.factory,
+    closeGraceMs: 30,
+    backoffMs: [10],
+  });
+  const ac = new AbortController();
+  const cancelled = renderer.start({ signal: ac.signal });
+  setTimeout(() => {
+    releaseFirst?.({
+      newContext: () => new Promise(() => undefined),
+      close: () => {
+        events.push('handoff-close-start');
+        return new Promise<void>((resolve) => {
+          releaseClose = () => {
+            events.push('handoff-close-done');
+            resolve();
+          };
+        });
+      },
+      on: () => undefined,
+    });
+    queueMicrotask(() => {
+      queueMicrotask(() => {
+        queueMicrotask(() => {
+          ac.abort();
+        });
+      });
+    });
+  }, 5);
+  await cancelled;
+  expect(renderer.isAvailable()).toBe(false);
+  const replacement = renderer.start();
+  await new Promise((resolve) => setTimeout(resolve, 40));
+  expect(spy.launches()).toBe(1);
+  releaseClose?.();
+  await replacement;
+  expect(events).toEqual(['launch-1', 'handoff-close-start', 'handoff-close-done', 'launch-2']);
+  expect(renderer.isAvailable()).toBe(true);
+  await renderer.close();
+});

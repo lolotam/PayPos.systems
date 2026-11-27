@@ -181,3 +181,88 @@ it('escalates a real BullMQ worker via close(true) across the production stop-th
     queueConnection.disconnect();
   }
 }, 15_000);
+
+it('waits past 500 ms kill grace until renderer kill confirms exit before starting the next attempt', async () => {
+  let attempts = 0;
+  let releaseKill: (() => void) | undefined;
+  let killResolved = false;
+  const session = trackDocumentStartup({
+    startupMs: 500,
+    closeGraceMs: 20,
+    retryDelaysMs: [0],
+    sleep: wait,
+    stopped: () => false,
+    onFailed: () => undefined,
+    run: async (attempt) => {
+      attempts += 1;
+      if (attempts > 1) return true;
+      attempt.setRenderer({
+        async start() {
+          return undefined;
+        },
+        close: () => new Promise<void>(() => undefined),
+        kill: () =>
+          new Promise<void>((resolve) => {
+            releaseKill = () => {
+              killResolved = true;
+              resolve();
+            };
+          }),
+        isAvailable: () => false,
+        onUnavailable: () => undefined,
+        onAvailable: () => undefined,
+        async render() {
+          return new Uint8Array();
+        },
+      });
+      return false;
+    },
+  });
+  try {
+    await wait(580);
+    expect(releaseKill).toBeDefined();
+    expect(killResolved).toBe(false);
+    expect(attempts).toBe(1);
+    releaseKill?.();
+    await session.started;
+    expect(killResolved).toBe(true);
+    expect(attempts).toBe(2);
+  } finally {
+    await session.close();
+  }
+});
+
+it('blocks replacement startup when renderer kill rejects while keeping session close bounded', async () => {
+  let attempts = 0;
+  const session = trackDocumentStartup({
+    startupMs: 500,
+    closeGraceMs: 20,
+    retryDelaysMs: [0],
+    sleep: wait,
+    stopped: () => false,
+    onFailed: () => undefined,
+    run: async (attempt) => {
+      attempts += 1;
+      attempt.setRenderer({
+        async start() {
+          return undefined;
+        },
+        close: () => new Promise<void>(() => undefined),
+        kill: () => Promise.reject(new Error('EPERM')),
+        isAvailable: () => false,
+        onUnavailable: () => undefined,
+        onAvailable: () => undefined,
+        async render() {
+          return new Uint8Array();
+        },
+      });
+      return false;
+    },
+  });
+  await wait(80);
+  expect(attempts).toBe(1);
+  const startedAt = Date.now();
+  await session.close();
+  expect(Date.now() - startedAt).toBeLessThan(1_000);
+  expect(attempts).toBe(1);
+});

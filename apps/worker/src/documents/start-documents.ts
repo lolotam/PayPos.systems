@@ -5,7 +5,7 @@ import {
   type RendererOptions,
 } from '@pospay/documents';
 import type { Logger } from '@pospay/observability';
-import { Worker } from 'bullmq';
+import { DelayedError, Worker, type Job } from 'bullmq';
 import { Redis } from 'ioredis';
 
 import {
@@ -16,7 +16,12 @@ import {
   type RendererStartup,
 } from './defer-pdf.ts';
 import { startRendererLiveness } from './liveness.ts';
-import type { EpochClock } from './process-job.ts';
+import type {
+  EpochClock,
+  ProcessDocumentDeps,
+  failDocumentJob as failDocumentJobFn,
+  processDocumentJob as processDocumentJobFn,
+} from './process-job.ts';
 import { DocumentSourceRegistry } from './source-registry.ts';
 import { trackDocumentStartup, type AttemptBinder, type HeldQueue } from './startup-session.ts';
 import { startWithin, waitOrAbort, type RendererStart } from './startup-wait.ts';
@@ -100,18 +105,14 @@ async function openRenderer(input: StartDocumentsInput): Promise<DocumentRendere
   }
   if (input.renderer !== undefined) return input.renderer;
   const { PlaywrightDocumentRenderer } = await import('@pospay/documents');
-  const escalate =
-    input.onUnconfirmedExit ??
-    (() => {
-      process.kill(process.pid, 'SIGTERM');
-    });
   const renderer = new PlaywrightDocumentRenderer({
     ...(input.browserFactory === undefined ? {} : { factory: input.browserFactory }),
     ...(input.closeGraceMs === undefined ? {} : { closeGraceMs: input.closeGraceMs }),
     onLaunchError: (error) => logUnavailable(input.logger, 'LAUNCH_FAILED', error),
     onUnconfirmedExit: (error) => {
+      // المتصفح قدرة اختيارية (ADR-0049 §3.6): ما نبعتش SIGTERM للـ worker المشترك عشان الإشعارات والـ Excel ما يقفوش.
       logUnavailable(input.logger, 'UNCONFIRMED_EXIT', error);
-      escalate(error);
+      input.onUnconfirmedExit?.(error);
     },
   });
   bindAvailableLog(input.logger, renderer);
@@ -127,6 +128,31 @@ function openQueueConnection(redisUrl: string): Redis {
   return connection;
 }
 
+async function runQueuedJob(
+  job: Job,
+  token: string | undefined,
+  startup: RendererStartup,
+  deps: ProcessDocumentDeps,
+  handlers: {
+    readonly fail: typeof failDocumentJobFn;
+    readonly process: typeof processDocumentJobFn;
+    readonly deadlineMs: number;
+  },
+): Promise<void> {
+  const startedAtMs = Date.now();
+  try {
+    await deferPdfWhileStarting(job, token, startup, deps.registry);
+  } catch (error) {
+    if (error instanceof DelayedError) throw error;
+    await handlers.fail(job, deps, startedAtMs, error);
+    return;
+  }
+  await handlers.process(job, {
+    ...deps,
+    deadlineMs: Math.max(1, handlers.deadlineMs - (Date.now() - startedAtMs)),
+  });
+}
+
 async function openWorker(
   input: StartDocumentsInput,
   registry: DocumentSourceRegistry,
@@ -134,31 +160,24 @@ async function openWorker(
   attempt: AttemptBinder,
   startup: RendererStartup,
 ): Promise<{ worker: Worker; connection: Redis }> {
-  const { isTerminalJobFailure, processDocumentJob, recordExternalJobFailure } = await import(
-    './process-job.ts'
-  );
+  const jobs = await import('./process-job.ts');
   const connection = openQueueConnection(input.redisUrl);
   let worker: Worker | undefined;
   try {
+    const deps: ProcessDocumentDeps = { redis: input.redis, registry, renderer, clock: input.clock, logger: input.logger };
     worker = new Worker(
       DOCUMENTS_RENDER_QUEUE,
-      async (job, token) => {
-        await deferPdfWhileStarting(job, token, startup, registry);
-        return processDocumentJob(job, {
-          redis: input.redis,
-          registry,
-          renderer,
-          clock: input.clock,
-          logger: input.logger,
-        });
-      },
+      (job, token) =>
+        runQueuedJob(job, token, startup, deps, {
+          fail: jobs.failDocumentJob,
+          process: jobs.processDocumentJob,
+          deadlineMs: jobs.JOB_DEADLINE_MS,
+        }),
       {
         connection,
         concurrency: 2,
         lockDuration: input.lockDurationMs ?? LOCK_MS,
-        ...(input.stalledIntervalMs === undefined
-          ? {}
-          : { stalledInterval: input.stalledIntervalMs }),
+        ...(input.stalledIntervalMs === undefined ? {} : { stalledInterval: input.stalledIntervalMs }),
         ...(input.maxStalledCount === undefined ? {} : { maxStalledCount: input.maxStalledCount }),
         ...(input.prefix === undefined ? {} : { prefix: input.prefix }),
       },
@@ -172,12 +191,10 @@ async function openWorker(
     });
     worker.on('failed', (job) => {
       if (job == null) return;
-      if (isTerminalJobFailure(job)) clearJobDeferralDeadline(job, startup);
-      void recordExternalJobFailure(job, {
-        redis: input.redis,
-        logger: input.logger,
-        clock: input.clock,
-      }).catch(() => undefined);
+      if (jobs.isTerminalJobFailure(job)) clearJobDeferralDeadline(job, startup);
+      void jobs
+        .recordExternalJobFailure(job, { redis: input.redis, logger: input.logger, clock: input.clock })
+        .catch(() => undefined);
     });
     await worker.waitUntilReady();
     return { worker, connection };

@@ -1,4 +1,5 @@
 import { DOCUMENT_XLSX_MIME_TYPE } from '@pospay/contracts';
+import { DocumentRenderTimeoutError } from '@pospay/documents';
 import { DelayedError, type Job } from 'bullmq';
 import { expect, it, vi } from 'vitest';
 
@@ -292,4 +293,61 @@ it('clamps the next delayed timestamp to the earliest remaining deadline', async
   ).rejects.toThrow(DelayedError);
   expect(delayed).toHaveBeenCalledTimes(1);
   expect(delayed).toHaveBeenCalledWith(deadlineAt, 'token');
+});
+
+it('persists an expired deferral deadline on first pickup so restarts do not re-defer', async () => {
+  const registry = new DocumentSourceRegistry();
+  registry.register('fixture', { load: async () => '<p>ok</p>' });
+  const delayed = vi.fn();
+  const updateProgress = vi.fn(async () => undefined);
+  const pdfJob = {
+    id: 'job-first-expired-1',
+    data: job(renderId(), renderId(), 'fixture'),
+    updateProgress,
+    moveToDelayed: delayed,
+  } as unknown as Job;
+  const expiredStartup = {
+    starting: true,
+    deadlineAt: Date.now() - 10,
+    jobDeadlines: new Map<string, number>(),
+  };
+  await deferPdfWhileStarting(pdfJob, 'token', expiredStartup, registry);
+  expect(delayed).not.toHaveBeenCalled();
+  expect(updateProgress).toHaveBeenCalledWith({
+    deferDeadlineAt: expect.any(Number),
+  });
+
+  const restartedDelayed = vi.fn();
+  pdfJob.moveToDelayed = restartedDelayed;
+  await deferPdfWhileStarting(
+    pdfJob,
+    'token',
+    { starting: true, deadlineAt: Date.now() + 60_000, jobDeadlines: new Map<string, number>() },
+    registry,
+  );
+  expect(restartedDelayed).not.toHaveBeenCalled();
+});
+
+it('times out hung updateProgress within opTimeoutMs without mutating job state', async () => {
+  const registry = new DocumentSourceRegistry();
+  registry.register('fixture', { load: async () => '<p>ok</p>' });
+  const delayed = vi.fn();
+  const pdfJob = {
+    id: 'job-redis-hang-1',
+    data: job(renderId(), renderId(), 'fixture'),
+    updateProgress: () => new Promise<void>(() => undefined),
+    moveToDelayed: delayed,
+  } as unknown as Job;
+  const startup = {
+    starting: true,
+    deadlineAt: Date.now() + 60_000,
+    jobDeadlines: new Map<string, number>(),
+    opTimeoutMs: 30,
+  };
+  await expect(deferPdfWhileStarting(pdfJob, 'token', startup, registry)).rejects.toBeInstanceOf(
+    DocumentRenderTimeoutError,
+  );
+  expect((pdfJob as { progress?: unknown }).progress).toBeUndefined();
+  expect(startup.jobDeadlines.size).toBe(0);
+  expect(delayed).not.toHaveBeenCalled();
 });

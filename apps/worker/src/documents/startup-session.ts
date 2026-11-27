@@ -1,20 +1,17 @@
 import type { DocumentRenderer } from '@pospay/documents';
-import type { Worker } from 'bullmq';
-import type { Redis } from 'ioredis';
 
 import type { RendererLiveness } from './liveness.ts';
+import {
+  closeRendererWithinGrace,
+  DRAIN_GRACE_MS,
+  releaseStartupSlot,
+  waitForGrace,
+  type HeldQueue,
+  type LiveQueue,
+  type RendererCloseOutcome,
+} from './startup-release.ts';
 
-export interface LiveQueue {
-  worker: Worker;
-  connection: Redis;
-  liveness?: RendererLiveness;
-}
-
-/** طابور اتبنى ولسه مستنّى Redis. المهلة بتقفله قبل ما يبقى live. */
-export interface HeldQueue {
-  worker: Worker;
-  connection: Redis;
-}
+export { DRAIN_GRACE_MS, type HeldQueue, type LiveQueue, type RendererCloseOutcome } from './startup-release.ts';
 
 export interface AttemptBinder {
   cancelled(): boolean;
@@ -32,6 +29,7 @@ interface Slot {
   renderer?: DocumentRenderer | undefined;
   live?: LiveQueue | undefined;
   queue?: HeldQueue | undefined;
+  queueStopped?: boolean | undefined;
 }
 
 interface SessionState {
@@ -42,13 +40,12 @@ interface SessionState {
   settled: boolean;
   timer?: ReturnType<typeof setTimeout>;
   wake?: (() => void) | undefined;
+  pendingExit?: Promise<void> | undefined;
   current: Slot;
   resolveStart: () => void;
 }
 
 const CLOSE_GRACE_MS = 5_000;
-/** مهلة تفريغ الطابور في الإغلاق الطبيعي تغطّي حد الوظيفة (30 ثانية) مع كتابة الحالة. */
-export const DRAIN_GRACE_MS = 35_000;
 
 export interface StartupSessionInput {
   readonly startupMs: number;
@@ -76,134 +73,32 @@ function succeed(state: SessionState): void {
   state.resolveStart();
 }
 
-async function closeHeld(worker: Worker, connection: Redis, force: boolean): Promise<void> {
-  await worker.close(force).catch(() => undefined);
-  connection.disconnect();
-}
-
-const KILL_WAIT_MS = 500;
-
-async function waitForKill(killResult: void | Promise<void>): Promise<void> {
-  if (killResult === undefined) return;
-  const done = Promise.resolve(killResult).catch(() => undefined);
-  const grace = waitForGrace(KILL_WAIT_MS);
-  await Promise.race([done, grace.done]);
-  grace.stop();
-}
-
-/**
- * بيقفل المتصفح جوّه مهلة السماح، وبيقتله إلا لو close خلّص.
- * القفل المعلّق ما بيأجلش المحاولة الجاية، والقتل هو اللي يفك Chromium المعلّق.
- */
-async function closeRendererWithinGrace(renderer: DocumentRenderer, graceMs: number): Promise<void> {
-  let finished = false;
-  let closing: Promise<unknown>;
-  try {
-    closing = renderer.close();
-  } catch {
-    closing = Promise.reject(new Error('close failed'));
-  }
-  const pending = closing.then(
-    () => {
-      finished = true;
-    },
-    () => undefined,
-  );
-  const grace = waitForGrace(graceMs);
-  await Promise.race([pending, grace.done]);
-  grace.stop();
-  // القفل اللي خلص في نفس اللحظة يبقى مغلوق، وما نقتلش متصفح سليم.
-  await Promise.resolve();
-  if (finished) return;
-  try {
-    await waitForKill(renderer.kill?.());
-  } catch {
-    // القتل اختياري؛ المحاولة الجاية ليها متصفح جديد.
-  }
-}
-
-async function releaseQueue(
-  live: LiveQueue | undefined,
-  queue: HeldQueue | undefined,
-): Promise<void> {
-  if (live !== undefined) {
-    await live.liveness?.stop().catch(() => undefined);
-    // BullMQ بيخزّن promise أول close()، فبنوقف السحب ونفرّغ بـ pause قبل close عشان close(true) يفضل هو أول close في كل الحالات.
-    if (typeof live.worker.pause === 'function') {
-      await live.worker.pause(false).catch(() => undefined);
-    }
-    await closeHeld(live.worker, live.connection, true);
-    return;
-  }
-  if (queue !== undefined) {
-    // لسه مش جاهز وماسكش وظيفة، فالقوة بتقطع إعادة اتصال Redis
-    await closeHeld(queue.worker, queue.connection, true);
-  }
-}
-
-async function boundedQueueRelease(
-  live: LiveQueue | undefined,
-  queue: HeldQueue | undefined,
-  graceMs: number,
-): Promise<void> {
-  if (live === undefined && queue === undefined) return;
-  let completed = false;
-  const releasing = releaseQueue(live, queue)
-    .then(() => {
-      completed = true;
-    })
-    .catch(() => undefined);
-  const grace = waitForGrace(graceMs);
-  await Promise.race([releasing, grace.done]);
-  grace.stop();
-  if (completed) return;
-  // القفل خلص مهلته فبنفصل اتصال Redis ونبعت قفل إجباري بدل ما يفضل يعيد الاتصال.
-  if (live !== undefined) {
-    void live.worker.close(true).catch(() => undefined);
-    live.connection.disconnect();
-  } else if (queue !== undefined) {
-    void queue.worker.close(true).catch(() => undefined);
-    queue.connection.disconnect();
-  }
-}
-
-async function release(
-  slot: Slot,
-  graceMs: number,
-  boundQueue = false,
-  drainGraceMs = graceMs,
-): Promise<void> {
-  const live = slot.live;
-  const queue = slot.queue;
-  const renderer = slot.renderer;
-  slot.live = undefined;
-  slot.queue = undefined;
-  slot.renderer = undefined;
-  if (boundQueue) {
-    // تنظيف المحاولة الفاشلة بالتوازي وبحدّ مهلة عشان الإعادة الجاية ما تتأخرش.
-    await Promise.all([
-      boundedQueueRelease(live, queue, graceMs),
-      renderer === undefined ? Promise.resolve() : closeRendererWithinGrace(renderer, graceMs),
-    ]);
-    return;
-  }
-  // الإغلاق الطبيعي بيدي تفريغ الطابور مهلة تغطّي حد الوظيفة، وبعدين يقفل Chromium بمهلة القفل.
-  await boundedQueueRelease(live, queue, drainGraceMs);
-  if (renderer !== undefined) await closeRendererWithinGrace(renderer, graceMs);
-}
-
-function waitForGrace(ms: number): { done: Promise<void>; stop: () => void } {
-  if (!(ms > 0)) return { done: Promise.resolve(), stop: () => undefined };
-  let timer: ReturnType<typeof setTimeout> | undefined;
-  const done = new Promise<void>((resolve) => {
-    timer = setTimeout(resolve, ms);
+function trackPendingExit(state: SessionState, outcome: RendererCloseOutcome): void {
+  if (outcome.confirmed) return;
+  const prev = state.pendingExit;
+  const next = prev === undefined ? outcome.exit : prev.then(() => outcome.exit);
+  const wrapped = next.finally(() => {
+    if (state.pendingExit === wrapped) state.pendingExit = undefined;
   });
-  return {
-    done,
-    stop: () => {
-      if (timer !== undefined) clearTimeout(timer);
-    },
-  };
+  state.pendingExit = wrapped;
+}
+
+function waitPendingExit(state: SessionState, stopped: () => boolean): Promise<void> {
+  const pending = state.pendingExit;
+  if (pending === undefined || state.closed || !state.accept || stopped()) {
+    return Promise.resolve();
+  }
+  return new Promise<void>((resolve) => {
+    let done = false;
+    const finish = (): void => {
+      if (done) return;
+      done = true;
+      if (state.wake === finish) state.wake = undefined;
+      resolve();
+    };
+    state.wake = finish;
+    void pending.then(finish, finish);
+  });
 }
 
 function pause(
@@ -224,9 +119,13 @@ function pause(
   });
 }
 
-/** متصفح وصل بعد إلغاء المحاولة. القفل متسقوف زي مهلة الإغلاق عشان close المعلّق ما يمسكش الإيقاف. */
-function closeAbandoned(renderer: DocumentRenderer, graceMs: number): void {
-  void closeRendererWithinGrace(renderer, graceMs);
+/** متصفح وصل بعد إلغاء المحاولة. القفل متسقوف وخروجه متسجل عشان المحاولة الجاية ما تفتحش فوقه. */
+function closeAbandoned(state: SessionState, renderer: DocumentRenderer, graceMs: number): void {
+  const tracked = closeRendererWithinGrace(renderer, graceMs).then((outcome) => {
+    if (!outcome.confirmed) return outcome.exit;
+    return undefined;
+  });
+  trackPendingExit(state, { confirmed: false, exit: tracked });
 }
 
 function binder(state: SessionState, slot: Slot, graceMs: number): AttemptBinder {
@@ -237,7 +136,7 @@ function binder(state: SessionState, slot: Slot, graceMs: number): AttemptBinder
     setRenderer: (renderer) => {
       // التخزين بعد الإلغاء بيسيب متصفح من غير حد يقفله.
       if (cancelled()) {
-        closeAbandoned(renderer, graceMs);
+        closeAbandoned(state, renderer, graceMs);
         return;
       }
       slot.renderer = renderer;
@@ -301,13 +200,17 @@ async function fail(
   slot.controller.abort();
   if (state.timer !== undefined) clearTimeout(state.timer);
   input.onFailed(error);
-  // تنظيف الطابور ومتصفح المحاولة الفاشلة يشتغلوا بالتوازي؛ المتصفح بيتقتل جوّه مهلة السماح قبل أي إطلاق جديد.
-  await release(slot, input.closeGraceMs ?? CLOSE_GRACE_MS, true);
+  // تنظيف الطابور ومتصفح المحاولة الفاشلة يشتغلوا بالتوازي؛ أي إطلاق جديد مستنّي تأكيد خروج القديم.
+  trackPendingExit(
+    state,
+    await releaseStartupSlot(slot, input.closeGraceMs ?? CLOSE_GRACE_MS, true),
+  );
   if (state.closed || !state.accept || input.stopped()) return;
   const last = input.retryDelaysMs.length - 1;
   const delay = input.retryDelaysMs[Math.min(state.attempt, last)] ?? 60_000;
   state.attempt += 1;
   await pause(state, delay, input.sleep);
+  await waitPendingExit(state, input.stopped);
   if (state.closed || !state.accept || input.stopped()) return;
   arm(state, input);
 }
@@ -322,6 +225,7 @@ async function stopSession(
   state.wake?.();
   const live = state.current.live;
   if (live === undefined) return;
+  state.current.queueStopped = true;
   // المفتاح لو فضل بعد قفل المستهلك، الطلب الجاي هيلاقي متصفح من غير حد يستقبل.
   // Chromium بيفضل عشان الرندر الجاري، وبيتقفل آخر حاجة في close.
   await live.liveness?.stop().catch(() => undefined);
@@ -354,7 +258,12 @@ async function closeSession(state: SessionState, input: StartupSessionInput): Pr
   state.wake?.();
   succeed(state);
   const closeGraceMs = input.closeGraceMs ?? CLOSE_GRACE_MS;
-  await release(state.current, closeGraceMs, false, input.drainGraceMs ?? input.closeGraceMs ?? DRAIN_GRACE_MS);
+  await releaseStartupSlot(
+    state.current,
+    closeGraceMs,
+    false,
+    input.drainGraceMs ?? input.closeGraceMs ?? DRAIN_GRACE_MS,
+  );
 }
 
 /** إقلاع القدرة. البطء والفشل بيتأجلوا؛ الإيقاف هو اللي بيقفل المحاولة نهائي. */
