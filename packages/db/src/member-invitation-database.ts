@@ -57,11 +57,12 @@ export interface MemberInvitationQueries {
   createInvitedMember(input: InvitedMemberRow): Promise<'created' | 'conflict'>;
   /**
    * بيصدر رابط الدعوة في معاملة واحدة تحت قفل صف المستخدم وصف حساب الدخول: بيرفض لو
-   * المستخدم مش مدعوّ من الشركة دي أو كلمة مروره اتحطت، وبيبطل الروابط القديمة قبل الكتابة.
+   * المستخدم مش مدعوّ من الشركة دي أو كلمة مروره اتحطت، وبيبطل الروابط القديمة قبل الكتابة،
+   * ويرجّع لحظة الإصدار المتزايدة بترتيب القفل على المستخدم.
    *
-   * @returns true لما الرابط اتكتب، وfalse لما الإصدار مرفوض
+   * @returns لحظة الإصدار عند الكتابة، أو null لما الإصدار مرفوض
    */
-  issueInvitationLink(input: InvitationLinkRow): Promise<boolean>;
+  issueInvitationLink(input: InvitationLinkRow): Promise<Date | null>;
   /**
    * بيمسح حساب اتنشأ من عملية دعوة معيّنة لشركة معيّنة، بس لو لسه من غير كلمة مرور: بيقفل صف
    * اليوزر وحسابه، ويمسح الروابط الحية، ويمسح اليوزر. بيتكرر بأمان: لو اليوزر اتمسح قبل كده يرجّع
@@ -166,7 +167,28 @@ const createInvitedMember = async (
     return 'created';
   });
 
-const issueInvitationLink = async (db: Database, input: InvitationLinkRow): Promise<boolean> =>
+function nextInvitationWindow(
+  input: Pick<InvitationLinkRow, 'now' | 'expiresAt'>,
+  login: { readonly createdAt: Date; readonly updatedAt: Date },
+  existingLinks: readonly { readonly createdAt: Date }[],
+) {
+  const prevAccountMs =
+    login.updatedAt.getTime() !== login.createdAt.getTime() ? login.updatedAt.getTime() : 0;
+  const prevLinkMaxMs = existingLinks.reduce(
+    (maxMs, row) => Math.max(maxMs, row.createdAt.getTime()),
+    prevAccountMs,
+  );
+  const baseMs =
+    prevLinkMaxMs > 0 ? Math.max(input.now.getTime(), prevLinkMaxMs + 1) : input.now.getTime();
+  const issuedAt = new Date(baseMs === login.createdAt.getTime() ? baseMs + 1 : baseMs);
+  const lifetimeMs = Math.max(0, input.expiresAt.getTime() - input.now.getTime());
+  return {
+    issuedAt,
+    expiresAt: new Date(issuedAt.getTime() + lifetimeMs),
+  };
+}
+
+const issueInvitationLink = async (db: Database, input: InvitationLinkRow): Promise<Date | null> =>
   db.transaction(async (tx) => {
     // القفل على صف المستخدم وصف حساب الدخول معاً: تعيين كلمة المرور في Better Auth بيحدّث صف
     // الحساب، فبيستنى هنا. استهلاك الرابط (password-reset-database) بياخد نفس القفلين بنفس الترتيب
@@ -176,13 +198,32 @@ const issueInvitationLink = async (db: Database, input: InvitationLinkRow): Prom
       .from(user)
       .where(eq(user.id, input.userId))
       .for('update');
-    if (owner === undefined || owner.invitedByCompanyId !== input.companyId) return false;
+    if (owner === undefined || owner.invitedByCompanyId !== input.companyId) return null;
     const [login] = await tx
-      .select({ password: account.password })
+      .select({
+        password: account.password,
+        createdAt: account.createdAt,
+        updatedAt: account.updatedAt,
+      })
       .from(account)
       .where(and(eq(account.userId, input.userId), eq(account.providerId, 'credential')))
       .for('update');
-    if (login === undefined || login.password !== null) return false;
+    if (login === undefined || login.password !== null) return null;
+    const existingLinks = await tx
+      .select({ createdAt: verification.createdAt })
+      .from(verification)
+      .where(
+        and(
+          eq(verification.value, input.userId),
+          like(verification.identifier, `${RESET_LINK_PREFIX}%`),
+        ),
+      );
+    const { issuedAt, expiresAt } = nextInvitationWindow(input, login, existingLinks);
+    await tx.update(user).set({ updatedAt: issuedAt }).where(eq(user.id, input.userId));
+    await tx
+      .update(account)
+      .set({ updatedAt: issuedAt })
+      .where(and(eq(account.userId, input.userId), eq(account.providerId, 'credential')));
     await tx
       .delete(verification)
       .where(
@@ -195,11 +236,11 @@ const issueInvitationLink = async (db: Database, input: InvitationLinkRow): Prom
       id: input.id,
       identifier: input.identifier,
       value: input.userId,
-      expiresAt: input.expiresAt,
-      createdAt: input.now,
-      updatedAt: input.now,
+      expiresAt,
+      createdAt: issuedAt,
+      updatedAt: issuedAt,
     });
-    return true;
+    return issuedAt;
   });
 
 const discardInvitedMember = async (

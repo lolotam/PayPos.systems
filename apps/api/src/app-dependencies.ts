@@ -56,6 +56,11 @@ export interface AppDependencies {
    * الرابط (AC-G1-2). من غير الأصل مسارات الدعوة بترد NOT_READY.
    */
   readonly memberInvitations?: { readonly adminOrigin: string; readonly clock?: { now(): Date } };
+  /**
+   * مفتاح ختم إيميلات الترحيب: نفس مفتاح بصمة البريد في الـ worker. من غيره (أو من غير مفتاح صالح)
+   * مفيش بريد ترحيب ولا بريد دعوة — والمنح نفسه بيفضل شغال.
+   */
+  readonly onboardingEmailKey?: string | null;
   readonly readiness: readonly ReadinessCheck[];
   /** Releases what main.ts opened (pools, clients). Runs on app.close() and on SIGTERM/SIGINT. */
   readonly onShutdown?: () => Promise<void>;

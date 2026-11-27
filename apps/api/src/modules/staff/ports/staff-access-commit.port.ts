@@ -1,7 +1,38 @@
-import type { GrantBeginScope } from './staff-access-begin.port.ts';
-import type { StaffAccessRole } from './staff-access-begin.port.ts';
-import type { StaffAccessIds, StaffAccessActor } from './staff-access-begin.port.ts';
-import type { StaffAccessOverrideTerms } from './staff-access-begin.port.ts';
+import type {
+  GrantBeginScope,
+  StaffAccessActor,
+  StaffAccessIds,
+  StaffAccessOverrideTerms,
+  StaffAccessRole,
+} from './staff-access-begin.port.ts';
+
+/**
+ * أمر تمرير الرقم السري المؤقت لبريد الترحيب عند نجاح «إعطاء الدخول»؛
+ * يميّز بين `userId` (المدير المانح للدخول ومستلِم نسخة المدير) و`employeeId` (الموظفة المستلِمة).
+ */
+export interface StaffWelcomePinCommand {
+  /** معرّف الشركة. */
+  readonly companyId: string;
+  /** معرّف النشاط التجاري. */
+  readonly businessId: string;
+  /** معرّف الموظفة الممنوحة للدخول والمستلِمة لنسختها من الرقم السري. */
+  readonly employeeId: string;
+  /** معرّف المدير المانح للدخول ومستلِم نسخة المدير من الرقم السري. */
+  readonly userId: string;
+  /** الرقم السري المؤقت في الذاكرة فقط قبل الختم. */
+  readonly pin: string;
+}
+
+/** منفذ تمرير الرقم السري المؤقت لخطوة الترحيب بدون استيراد طبقة الحفظ داخل الـ use case. */
+export interface StaffWelcomePinContextPort {
+  /**
+   * يشغّل عملية المنح ضمن سياق يحفظ الرقم المؤقت لختم بريد الترحيب عند نجاح المنح.
+   *
+   * @param command بيانات الموظفة والرقم السري المؤقت للمنح الجاري
+   * @param work    تنفيذ عملية المنح داخل السياق
+   */
+  runWithPin<T>(command: StaffWelcomePinCommand, work: () => Promise<T>): Promise<T>;
+}
 
 /**
  * نطاق الخطوة الثالثة داخل معاملة الشركة: إعادة الفحص تحت القفل ثم العضوية والربط والرقم المؤقت
@@ -83,9 +114,7 @@ export interface GrantCommitScope {
       readonly branchId: string;
       readonly roleCode: StaffAccessRole;
     }[];
-  }): Promise<
-    readonly { membershipId: string; branchId: string; role: StaffAccessRole }[]
-  >;
+  }): Promise<readonly { membershipId: string; branchId: string; role: StaffAccessRole }[]>;
   /**
    * يكتب استثناءات الصلاحية المضمّنة على العضويات الممنوحة (080-b) — أول استثناء مرفوض بيرمي
    * عشان المعاملة كلها تتراجع.
