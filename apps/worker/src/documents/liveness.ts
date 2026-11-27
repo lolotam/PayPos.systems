@@ -78,20 +78,17 @@ interface PublishState {
   timer: ReturnType<typeof setInterval> | undefined;
 }
 
-/** آخر ناشر ممسوك لكل عميل Redis، عشان ناشر قديم ما يمسحش نبضة ناشر حيّ بديله. */
-const activePublishers = new WeakMap<Redis, PublishState>();
+/** آخر ناشر حيّ على مستوى العملية، عشان ناشر أقدم على أي اتصال Redis ما يمسحش نبضة ناشر أحدث. */
+let activePublisher: PublishState | undefined;
 let nextOrder = 0;
 
 function isLive(state: PublishState): boolean {
-  // الناشر المسبوق ما يكتبش ولا يعتبر حيّ بعد ما ناشر أحدث ياخد نفس عميل Redis.
-  return (
-    !state.stopped && activePublishers.get(state.redis) === state && state.renderer.isAvailable()
-  );
+  // الناشر المسبوق ما يكتبش ولا يعتبر حيّ بعد ما ناشر أحدث ياخد الإشراف على المفتاح.
+  return !state.stopped && activePublisher === state && state.renderer.isAvailable();
 }
 
 function shouldDeleteAliveKey(state: PublishState): boolean {
-  const active = activePublishers.get(state.redis);
-  return active === undefined || active === state || !isLive(active);
+  return activePublisher === undefined || activePublisher === state || !isLive(activePublisher);
 }
 
 /**
@@ -174,7 +171,7 @@ function stopLiveness(state: PublishState): Promise<void> {
   const hook = hooks.get(state.renderer);
   if (hook !== undefined && hook.target === state) hook.target = undefined;
   state.stopped = true;
-  if (activePublishers.get(state.redis) === state) activePublishers.delete(state.redis);
+  if (activePublisher === state) activePublisher = undefined;
   return haltPublish(state);
 }
 
@@ -210,8 +207,7 @@ export async function startRendererLiveness(input: {
   attachHooks(input.renderer, state);
   try {
     await whenRedisReady(input.redis, input.readyTimeoutMs ?? READY_TIMEOUT_MS);
-    const active = activePublishers.get(input.redis);
-    if (active === undefined || active.order < state.order) activePublishers.set(input.redis, state);
+    if (activePublisher === undefined || activePublisher.order < state.order) activePublisher = state;
     await publishOnce(state);
   } catch (error) {
     // الناشر الفاشل ما ياخدش الملكية ولا يطرد المستمع السليم اللي قبله.

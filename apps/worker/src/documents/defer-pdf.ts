@@ -1,4 +1,5 @@
 import { documentRenderJob } from '@pospay/contracts';
+import type { DocumentRenderer } from '@pospay/documents';
 import { DelayedError, type Job } from 'bullmq';
 
 import type { DocumentSourceRegistry } from './source-registry.ts';
@@ -53,10 +54,7 @@ export async function deferPdfWhileStarting(
   const parsed = documentRenderJob.safeParse(job.data);
   const jobKey = jobKeyOf(job, parsed.success ? parsed.data : undefined);
   const now = Date.now();
-  if (!startup.starting) {
-    if (jobKey !== undefined) startup.jobDeadlines?.delete(jobKey);
-    return;
-  }
+  if (!startup.starting) return;
   if (!parsed.success) return;
   const source = registry.get(parsed.data.kind);
   if (source === undefined || source.output === 'bytes') return;
@@ -76,4 +74,21 @@ export async function deferPdfWhileStarting(
   }
   await job.moveToDelayed(now + PDF_DEFER_MS, token);
   throw new DelayedError();
+}
+
+/** يربط إقلاع وتعطّل المتصفح بسقف تأجيل PDF أثناء التشغيل والإنعاش. */
+export function armRecoveryDeferral(
+  renderer: DocumentRenderer,
+  cancelled: () => boolean,
+  startup: RendererStartup,
+): void {
+  renderer.onAvailable(() => {
+    if (!cancelled()) startup.starting = false;
+  });
+  renderer.onUnavailable(() => {
+    if (cancelled() || startup.starting) return;
+    startup.starting = true;
+    startup.deadlineAt = Date.now() + PDF_DEFER_WINDOW_MS;
+  });
+  if (!cancelled() && renderer.isAvailable()) startup.starting = false;
 }

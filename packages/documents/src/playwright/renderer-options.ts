@@ -19,6 +19,9 @@ export interface RendererOptions {
   /** التأخير بيرجع لأول درجة بعد ما المتصفح يفضل قائم المدة دي. */
   readonly stableForMs?: number;
   readonly onLaunchError?: (error: unknown) => void;
+  /** مهلة تأكيد خروج العملية بعد مهلة الإطلاق أو التقاعد، وبعدها بنصعّد لإعادة تشغيل العامل. */
+  readonly unconfirmedExitTimeoutMs?: number;
+  readonly onUnconfirmedExit?: (error: Error) => void;
   /** لقطة DOM بعد التحميل. للاختبار؛ مش بتتسجل. */
   readonly onDocumentHtml?: (outerHtml: string) => void;
 }

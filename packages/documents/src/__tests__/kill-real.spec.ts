@@ -16,6 +16,6 @@ it.skipIf(browser === false)('kill() terminates the real Chromium process', asyn
     });
   });
   expect(browser.kill).toBeTypeOf('function');
-  browser.kill?.();
+  await expect(Promise.resolve(browser.kill?.())).resolves.toBeUndefined();
   await expect(gone).resolves.toBeUndefined();
 });

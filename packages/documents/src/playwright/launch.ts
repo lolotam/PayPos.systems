@@ -99,3 +99,18 @@ export function waitGate(gate: Promise<void> | null, signal?: AbortSignal): Prom
     void gate.then(finish, finish);
   });
 }
+
+/** بيصعّد لو بوابة خروج المتصفح فضلت معلّقة بعد المهلة المحددة. */
+export function watchUnconfirmedExit(
+  gate: Promise<void>,
+  timeoutMs: number,
+  onTimeout: () => void,
+): void {
+  if (!(timeoutMs > 0)) return;
+  const timer = setTimeout(onTimeout, timeoutMs);
+  timer.unref?.();
+  void gate.then(
+    () => clearTimeout(timer),
+    () => clearTimeout(timer),
+  );
+}

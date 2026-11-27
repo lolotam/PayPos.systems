@@ -5,7 +5,7 @@ import type { PdfBrowser, PdfBrowserFactory, PdfContext } from './browser.ts';
 import { closeContextOnce } from './context-guards.ts';
 import { asRendererError, isTimeoutError, raceDeadline } from './deadline.ts';
 import { DEFAULT_CHROMIUM_LAUNCH_TIMEOUT_MS, playwrightFactory } from './factory.ts';
-import { closeOrKill, launchWithinTimeout, waitGate } from './launch.ts';
+import { closeOrKill, launchWithinTimeout, waitGate, watchUnconfirmedExit } from './launch.ts';
 import { renderPage, type RenderPageHooks } from './render-page.ts';
 import type { RendererOptions } from './renderer-options.ts';
 import { closeAfterTimeout, dropRetiredBrowser } from './retire.ts';
@@ -15,13 +15,9 @@ export type { RendererOptions } from './renderer-options.ts';
 const DEFAULT_BACKOFF_MS = [250, 500, 1000, 2000, 5000] as const;
 const CLOSE_GRACE_MS = 5_000;
 const LAUNCH_TIMEOUT_MS = 40_000;
+const UNCONFIRMED_EXIT_TIMEOUT_MS = 10_000;
 const CONTEXT = { javaScriptEnabled: false, offline: true, serviceWorkers: 'block' } as const;
-
-function delay(ms: number): Promise<void> {
-  return new Promise((resolve) => {
-    setTimeout(resolve, ms);
-  });
-}
+const delay = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms));
 
 /**
  * Chromium واحد للعملية. كل رندر سياق جديد من غير جافاسكربت ومن غير شبكة.
@@ -38,7 +34,9 @@ export class PlaywrightDocumentRenderer implements DocumentRenderer {
   readonly #closeGraceMs: number;
   readonly #launchTimeoutMs: number;
   readonly #stableForMs: number;
+  readonly #unconfirmedExitTimeoutMs: number;
   readonly #onLaunchError: ((error: unknown) => void) | undefined;
+  readonly #onUnconfirmedExit: ((error: Error) => void) | undefined;
   readonly #onDocumentHtml: ((outerHtml: string) => void) | undefined;
   #browser: PdfBrowser | null = null;
   #closingBrowser: PdfBrowser | null = null;
@@ -66,7 +64,9 @@ export class PlaywrightDocumentRenderer implements DocumentRenderer {
     this.#browserCloseGraceMs = options.browserCloseGraceMs ?? 1_000;
     this.#closeGraceMs = options.closeGraceMs ?? CLOSE_GRACE_MS;
     this.#stableForMs = options.stableForMs ?? 30_000;
+    this.#unconfirmedExitTimeoutMs = options.unconfirmedExitTimeoutMs ?? UNCONFIRMED_EXIT_TIMEOUT_MS;
     this.#onLaunchError = options.onLaunchError;
+    this.#onUnconfirmedExit = options.onUnconfirmedExit;
     this.#onDocumentHtml = options.onDocumentHtml;
     const playwrightTimeoutMs =
       this.#launchTimeoutMs === LAUNCH_TIMEOUT_MS
@@ -197,6 +197,12 @@ export class PlaywrightDocumentRenderer implements DocumentRenderer {
             if (this.#pendingCancel === settling) this.#pendingCancel = null;
           });
           this.#pendingCancel = settling;
+          watchUnconfirmedExit(settling, this.#unconfirmedExitTimeoutMs, () => {
+            if (this.#closing) return;
+            const err = new Error('DOCUMENT_LAUNCH_CANCEL_UNCONFIRMED');
+            this.#onLaunchError?.(err);
+            this.#onUnconfirmedExit?.(err);
+          });
         }
         if (outcome.kind === 'timeout') {
           this.#onLaunchError?.(new Error('DOCUMENT_LAUNCH_TIMEOUT'));
@@ -262,15 +268,13 @@ export class PlaywrightDocumentRenderer implements DocumentRenderer {
   }
 
   #scheduleRelaunch(): void {
-    if (
+    const busy =
       this.#closing ||
       this.#available ||
       this.#starting !== null ||
       this.#relaunching !== null ||
-      this.#retiring !== null
-    ) {
-      return;
-    }
+      this.#retiring !== null;
+    if (busy) return;
     this.#relaunchNeeded = false;
     this.#relaunching = this.#relaunchLoop().finally(() => {
       this.#relaunching = null;
@@ -367,7 +371,11 @@ export class PlaywrightDocumentRenderer implements DocumentRenderer {
       const retiring = dropRetiredBrowser(browser, this.#browserCloseGraceMs, this.#sleep).then(
         (outcome) => {
           if (!outcome.confirmed && !this.#closing) {
-            this.#onLaunchError?.(new Error('DOCUMENT_RETIRE_UNCONFIRMED'));
+            const err = new Error('DOCUMENT_RETIRE_UNCONFIRMED');
+            this.#onLaunchError?.(err);
+            watchUnconfirmedExit(outcome.exit, this.#unconfirmedExitTimeoutMs, () => {
+              if (!this.#closing) this.#onUnconfirmedExit?.(err);
+            });
             return outcome.exit;
           }
           return undefined;

@@ -193,6 +193,10 @@ it('enforces a job-level deferral deadline across disconnects and BullMQ retries
   startup.deadlineAt = Date.now() + 60_000;
   await new Promise((resolve) => setTimeout(resolve, 60));
   await deferPdfWhileStarting(pdfJob, 'token', startup, registry);
+  startup.starting = false;
+  await deferPdfWhileStarting(pdfJob, 'token', startup, registry);
+  startup.starting = true;
+  startup.deadlineAt = Date.now() + 60_000;
   await deferPdfWhileStarting(pdfJob, 'token', startup, registry);
   expect(delayed).toHaveBeenCalledTimes(1);
   expect(startup.jobDeadlines.has('job-flap-1')).toBe(true);

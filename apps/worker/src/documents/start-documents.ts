@@ -9,6 +9,7 @@ import { Worker } from 'bullmq';
 import { Redis } from 'ioredis';
 
 import {
+  armRecoveryDeferral,
   clearJobDeferralDeadline,
   deferPdfWhileStarting,
   PDF_DEFER_WINDOW_MS,
@@ -48,6 +49,9 @@ export interface StartDocumentsInput {
   readonly sleep?: (ms: number) => Promise<void>;
   /** مهلة قفل المتصفح وتنظيف المحاولة الفاشلة. نفس الرقم للاتنين. */
   readonly closeGraceMs?: number;
+  /** مهلة تفريغ الطابور في الإغلاق الطبيعي قبل القفل الإجباري. */
+  readonly drainGraceMs?: number;
+  readonly onUnconfirmedExit?: (error: Error) => void;
   readonly lockDurationMs?: number;
   readonly stalledIntervalMs?: number;
   readonly maxStalledCount?: number;
@@ -96,10 +100,19 @@ async function openRenderer(input: StartDocumentsInput): Promise<DocumentRendere
   }
   if (input.renderer !== undefined) return input.renderer;
   const { PlaywrightDocumentRenderer } = await import('@pospay/documents');
+  const escalate =
+    input.onUnconfirmedExit ??
+    (() => {
+      process.kill(process.pid, 'SIGTERM');
+    });
   const renderer = new PlaywrightDocumentRenderer({
     ...(input.browserFactory === undefined ? {} : { factory: input.browserFactory }),
     ...(input.closeGraceMs === undefined ? {} : { closeGraceMs: input.closeGraceMs }),
     onLaunchError: (error) => logUnavailable(input.logger, 'LAUNCH_FAILED', error),
+    onUnconfirmedExit: (error) => {
+      logUnavailable(input.logger, 'UNCONFIRMED_EXIT', error);
+      escalate(error);
+    },
   });
   bindAvailableLog(input.logger, renderer);
   return renderer;
@@ -241,23 +254,6 @@ async function retryRendererStart(
   }
 }
 
-function armRecoveryDeferral(
-  renderer: DocumentRenderer,
-  attempt: AttemptBinder,
-  startup: RendererStartup,
-): void {
-  // التأجيل بيقفل لما المتصفح يبقى متاح، وبيتعاد تسليحه لما يقع أثناء التشغيل ضمن نفس سقف الانتظار.
-  renderer.onAvailable(() => {
-    if (!attempt.cancelled()) startup.starting = false;
-  });
-  renderer.onUnavailable(() => {
-    if (attempt.cancelled() || startup.starting) return;
-    startup.starting = true;
-    startup.deadlineAt = Date.now() + PDF_DEFER_WINDOW_MS;
-  });
-  if (!attempt.cancelled() && renderer.isAvailable()) startup.starting = false;
-}
-
 /**
  * إقلاع Chromium بعد ما الطابور بقى live. الإقلاع له مهلة واحدة، وناشر الحياة بيعيد
  * المحاولة لو Redis مش جاهز: الطابور ما بيتقفلش، ولو start() رفضت بنعيد المحاولة في الخلفية.
@@ -327,7 +323,7 @@ async function bringUp(
   const renderer = await openRenderer(input);
   attempt.setRenderer(renderer);
   if (halted(input, attempt)) return false;
-  armRecoveryDeferral(renderer, attempt, startup);
+  armRecoveryDeferral(renderer, attempt.cancelled, startup);
   const opened = await openWorker(input, registry, renderer, attempt, startup);
   if (halted(input, attempt)) {
     await opened.worker.close().catch(() => undefined);
@@ -356,6 +352,7 @@ export function beginDocumentRendering(input: StartDocumentsInput): DocumentRend
     retryDelaysMs: input.retryDelaysMs ?? RETRY_DELAYS_MS,
     sleep: input.sleep ?? delay,
     ...(input.closeGraceMs === undefined ? {} : { closeGraceMs: input.closeGraceMs }),
+    ...(input.drainGraceMs === undefined ? {} : { drainGraceMs: input.drainGraceMs }),
     stopped: () => input.isStopping?.() === true,
     onFailed: (error) => logUnavailable(input.logger, 'SETUP_FAILED', error),
     run: (attempt) => bringUp(input, registry, attempt, startup),

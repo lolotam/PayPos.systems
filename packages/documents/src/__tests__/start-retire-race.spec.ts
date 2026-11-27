@@ -257,3 +257,31 @@ it('reports unconfirmed retirement and keeps replacement gated until close finis
   expect(renderer.isAvailable()).toBe(true);
   await renderer.close();
 });
+
+it('escalates onUnconfirmedExit when retirement exit never confirms while keeping replacement blocked', async () => {
+  let launches = 0;
+  const escalated: Error[] = [];
+  const spy = delayedLaunchFactory(async () => {
+    launches += 1;
+    return {
+      newContext: () => new Promise(() => undefined),
+      close: () => new Promise<void>(() => undefined),
+      on: () => undefined,
+    };
+  });
+  const renderer = new PlaywrightDocumentRenderer({
+    factory: spy.factory,
+    sleep: async () => undefined,
+    backoffMs: [0],
+    overallTimeoutMs: 15,
+    browserCloseGraceMs: 10,
+    unconfirmedExitTimeoutMs: 30,
+    onUnconfirmedExit: (err) => escalated.push(err),
+  });
+  await renderer.start();
+  await expect(renderer.render('<p>x</p>')).rejects.toThrow();
+  await new Promise((resolve) => setTimeout(resolve, 560));
+  expect(launches).toBe(1);
+  expect(escalated.map((e) => e.message)).toContain('DOCUMENT_RETIRE_UNCONFIRMED');
+  await renderer.close();
+});

@@ -4,7 +4,7 @@ import { Queue, Worker } from 'bullmq';
 import { Redis } from 'ioredis';
 import { expect, it } from 'vitest';
 
-import { trackDocumentStartup } from '../startup-session.ts';
+import { DRAIN_GRACE_MS, trackDocumentStartup } from '../startup-session.ts';
 import { redisUrl } from './render-harness.ts';
 
 function wait(ms: number): Promise<void> {
@@ -97,3 +97,48 @@ it('escalates a real BullMQ worker via close(true) when close grace expires duri
     queueConnection.disconnect();
   }
 }, 15_000);
+
+it('gives normal close drainGraceMs (default 35 s > 30 s budget) while keeping short browser closeGraceMs', async () => {
+  expect(DRAIN_GRACE_MS).toBeGreaterThan(30_000);
+  const events: string[] = [];
+  let releaseWorker: (() => void) | undefined;
+  const session = trackDocumentStartup({
+    startupMs: 500,
+    closeGraceMs: 25,
+    drainGraceMs: 120,
+    retryDelaysMs: [0],
+    sleep: wait,
+    stopped: () => false,
+    onFailed: () => undefined,
+    run: async (attempt) => {
+      attempt.setLive({
+        worker: {
+          close: () =>
+            new Promise<void>((resolve) => {
+              events.push('worker-close-start');
+              releaseWorker = () => {
+                events.push('worker-close-done');
+                resolve();
+              };
+            }),
+        } as never,
+        connection: { disconnect: () => events.push('redis-disconnect') } as never,
+      });
+      attempt.setRenderer(hangingCloseRenderer(events));
+      return true;
+    },
+  });
+  await session.started;
+  const closing = session.close();
+  await new Promise((resolve) => setTimeout(resolve, 60));
+  expect(events).toEqual(['worker-close-start']);
+  releaseWorker?.();
+  await closing;
+  expect(events).toEqual([
+    'worker-close-start',
+    'worker-close-done',
+    'redis-disconnect',
+    'renderer-close',
+    'renderer-kill',
+  ]);
+});

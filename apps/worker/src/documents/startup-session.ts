@@ -47,6 +47,8 @@ interface SessionState {
 }
 
 const CLOSE_GRACE_MS = 5_000;
+/** مهلة تفريغ الطابور في الإغلاق الطبيعي تغطّي حد الوظيفة (30 ثانية) مع كتابة الحالة. */
+export const DRAIN_GRACE_MS = 35_000;
 
 export interface StartupSessionInput {
   readonly startupMs: number;
@@ -57,6 +59,8 @@ export interface StartupSessionInput {
   readonly onFailed: (error: Error) => void;
   /** أقصى انتظار لتنظيف محاولة فاشلة قبل جدولة اللي بعدها. */
   readonly closeGraceMs?: number;
+  /** مهلة تفريغ الطابور في الإغلاق الطبيعي قبل قفل BullMQ إجبارياً. */
+  readonly drainGraceMs?: number;
 }
 
 export interface StartupSession {
@@ -163,7 +167,12 @@ async function boundedQueueRelease(
   }
 }
 
-async function release(slot: Slot, graceMs: number, boundQueue = false): Promise<void> {
+async function release(
+  slot: Slot,
+  graceMs: number,
+  boundQueue = false,
+  drainGraceMs = graceMs,
+): Promise<void> {
   const live = slot.live;
   const queue = slot.queue;
   const renderer = slot.renderer;
@@ -178,8 +187,8 @@ async function release(slot: Slot, graceMs: number, boundQueue = false): Promise
     ]);
     return;
   }
-  // الإغلاق الطبيعي يفرّغ الطابور الأول بحدّ مهلة عشان قفل Redis المعلّق ما يمنعش قفل Chromium.
-  await boundedQueueRelease(live, queue, graceMs);
+  // الإغلاق الطبيعي بيدي تفريغ الطابور مهلة تغطّي حد الوظيفة، وبعدين يقفل Chromium بمهلة القفل.
+  await boundedQueueRelease(live, queue, drainGraceMs);
   if (renderer !== undefined) await closeRendererWithinGrace(renderer, graceMs);
 }
 
@@ -324,7 +333,8 @@ async function closeSession(state: SessionState, input: StartupSessionInput): Pr
   if (state.timer !== undefined) clearTimeout(state.timer);
   state.wake?.();
   succeed(state);
-  await release(state.current, input.closeGraceMs ?? CLOSE_GRACE_MS);
+  const closeGraceMs = input.closeGraceMs ?? CLOSE_GRACE_MS;
+  await release(state.current, closeGraceMs, false, input.drainGraceMs ?? input.closeGraceMs ?? DRAIN_GRACE_MS);
 }
 
 /** إقلاع القدرة. البطء والفشل بيتأجلوا؛ الإيقاف هو اللي بيقفل المحاولة نهائي. */

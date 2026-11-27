@@ -352,3 +352,27 @@ it('waits past 500 ms for a late browser kill to finish before launching replace
   expect(launches).toBe(2);
   await renderer.close();
 });
+
+it('escalates onUnconfirmedExit when timed-out launch never settles while holding replacement', async () => {
+  let launches = 0;
+  const escalated: Error[] = [];
+  const factory: PdfBrowserFactory = {
+    launch: async () => {
+      launches += 1;
+      return new Promise<PdfBrowser>(() => undefined);
+    },
+  };
+  const renderer = new PlaywrightDocumentRenderer({
+    factory,
+    launchTimeoutMs: 20,
+    backoffMs: [0],
+    sleep: async () => undefined,
+    unconfirmedExitTimeoutMs: 30,
+    onUnconfirmedExit: (err) => escalated.push(err),
+  });
+  await renderer.start();
+  await new Promise((resolve) => setTimeout(resolve, 60));
+  expect(launches).toBe(1);
+  expect(escalated.map((e) => e.message)).toContain('DOCUMENT_LAUNCH_CANCEL_UNCONFIRMED');
+  await renderer.close();
+});

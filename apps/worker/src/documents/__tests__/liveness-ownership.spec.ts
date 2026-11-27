@@ -177,3 +177,59 @@ it('re-arms restored publisher when renderer recovers during a failing replaceme
   expect(sets).toBeGreaterThan(before);
   await prev.stop();
 });
+
+it('prevents a stale publisher on a separate Redis client from deleting the active heartbeat', async () => {
+  let stored: string | null = null;
+  let releaseOldSet: (() => void) | undefined;
+  let dels = 0;
+  const makeClient = (delayFirstSet: boolean) =>
+    ({
+      status: 'ready',
+      on() {
+        return this;
+      },
+      off() {
+        return this;
+      },
+      set(_key: string, value: string) {
+        if (delayFirstSet) {
+          delayFirstSet = false;
+          return new Promise((resolve) => {
+            releaseOldSet = () => {
+              stored = value;
+              resolve('OK');
+            };
+          });
+        }
+        stored = value;
+        return Promise.resolve('OK');
+      },
+      async del() {
+        dels += 1;
+        stored = null;
+        return 1;
+      },
+    }) as unknown as Redis;
+  const oldRenderer = new ToggleRenderer();
+  const newRenderer = new ToggleRenderer();
+  const liveOld = await startRendererLiveness({
+    redis: makeClient(true),
+    renderer: oldRenderer,
+    intervalMs: 60_000,
+    readyTimeoutMs: 1_000,
+    commandTimeoutMs: 5,
+  });
+  const liveNew = await startRendererLiveness({
+    redis: makeClient(false),
+    renderer: newRenderer,
+    intervalMs: 60_000,
+    readyTimeoutMs: 1_000,
+  });
+  await liveOld.stop();
+  dels = 0;
+  releaseOldSet?.();
+  await new Promise((resolve) => setTimeout(resolve, 20));
+  expect(dels).toBe(0);
+  expect(stored).toBe('1');
+  await liveNew.stop();
+});
