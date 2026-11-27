@@ -1,7 +1,12 @@
 import { createHash } from 'node:crypto';
 import { parseArgs } from 'node:util';
 
-import { approvePhoneBinding, createAuth, createPlatformUser } from '@pospay/auth';
+import {
+  approvePhoneBinding,
+  createAuth,
+  createPlatformUser,
+  PhoneBindingRefusedError,
+} from '@pospay/auth';
 import { readStagingStaffIdentity } from '@pospay/auth/operator/staging-staff';
 import { canonicalStaffPhone } from '@pospay/contracts';
 import {
@@ -206,7 +211,7 @@ async function reconcilePhoneBinding(
     });
     out(`phone binding: ${outcome}`);
   } catch (error) {
-    if (error instanceof Error && error.message === 'PHONE_BINDING_REFUSED') {
+    if (error instanceof PhoneBindingRefusedError) {
       throw new IdentityConflictError();
     }
     throw error;

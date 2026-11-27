@@ -101,10 +101,13 @@ it('samples the clock after acquiring FOR UPDATE so a concurrent waiter observes
   await firstAtBarrier;
 
   const p2 = second.execute(cmd);
-  await waitForLockWaiter();
-  // بعد انتظار القفل وقت التاني بقى أكبر من وقت الفائز، مع إنه كان أصغر قبل الدخول.
-  secondClock = secondAfterLockNow;
-  releaseFirst();
+  try {
+    await waitForLockWaiter();
+    // بعد انتظار القفل وقت التاني بقى أكبر من وقت الفائز، مع إنه كان أصغر قبل الدخول.
+    secondClock = secondAfterLockNow;
+  } finally {
+    releaseFirst();
+  }
 
   const [r1, r2] = await Promise.all([p1, p2]);
   expect(r1.ends_at).toBe(firstNow.toISOString());
@@ -130,6 +133,13 @@ it('applies +1 ms floor only for same-millisecond starts_at and never fabricates
     }).execute({ companyId: company, actorUserId: ownerId, membershipId });
 
   expect((await endAt(sameMsId, instant)).ends_at).toBe('2026-11-28T12:00:00.001Z');
+  // إعادة المحاولة في نفس الملليثانية بعد +1 ms ترجّع القيمة نفسها بلا أثر تدقيق ثانٍ (#1315).
+  expect((await endAt(sameMsId, instant)).ends_at).toBe('2026-11-28T12:00:00.001Z');
+  expect(
+    await h.owner`
+      SELECT 1 FROM audit_log
+      WHERE company_id = ${company} AND action = 'membership.ended' AND entity_id = ${sameMsId}`,
+  ).toHaveLength(1);
   expect((await endAt(laterMsId, '2026-11-28T12:00:00.250Z')).ends_at).toBe(
     '2026-11-28T12:00:00.250Z',
   );

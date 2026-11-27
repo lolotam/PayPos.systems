@@ -1,17 +1,14 @@
 import type { StaffDeviceContext } from '@pospay/auth';
-import { StaffProofChanged, STAFF_LOGIN_CONCURRENCY } from '@pospay/auth';
+import { StaffProofChanged } from '@pospay/auth';
 import type { Clock } from '../../../../shared/ports/clock.port.ts';
 import type { IdGenerator } from '../../../../shared/ports/id-generator.port.ts';
 import { StaffPinError } from '../staff-pin-error.ts';
-import {
-  createStaffPinComparisonGate,
-  type StaffPinComparisonGate,
-} from '../../domain/staff-pin-comparison-gate.ts';
 import { staffPinProofExpiresAt } from '../../domain/staff-pin-proof.ts';
 import { pinState } from '../../domain/staff-pin-state.ts';
 import type { PinAttempts, PinHasher } from '../../ports/cashier-pins.port.ts';
 import type {
   StaffPinAuthority,
+  StaffPinComparisonGate,
   StaffPinProofIssuer,
   StaffPinRecord,
   StaffPinTransactions,
@@ -28,9 +25,7 @@ export class SignInStaffPin {
     private readonly clock: Clock,
     private readonly ids: IdGenerator,
     private readonly staffAccessRoutes: boolean,
-    private readonly gate: StaffPinComparisonGate = createStaffPinComparisonGate(
-      STAFF_LOGIN_CONCURRENCY,
-    ),
+    private readonly gate: StaffPinComparisonGate,
   ) {}
 
   /** الجهاز متحقق مسبقاً، والربط العالمي المعتمد يحدد صاحب الإثبات. */

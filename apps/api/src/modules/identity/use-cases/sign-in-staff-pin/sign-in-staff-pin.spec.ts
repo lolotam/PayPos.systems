@@ -1,8 +1,4 @@
-import { STAFF_LOGIN_CONCURRENCY, type StaffSessions } from '@pospay/auth';
 import { expect, it, vi } from 'vitest';
-import { createStaffPinComparisonGate } from '../../domain/staff-pin-comparison-gate.ts';
-import { OpenPrivateView } from '../open-private-view/open-private-view.ts';
-import { VerifyDiscountApproverPin } from '../verify-discount-approver-pin/verify-discount-approver-pin.ts';
 import { SignInStaffPin } from './sign-in-staff-pin.ts';
 import type {
   StaffPinAuthority,
@@ -10,6 +6,8 @@ import type {
   StaffPinTransactions,
 } from '../../ports/staff-pins.port.ts';
 import type { PinAttempts } from '../../ports/cashier-pins.port.ts';
+
+const unlimitedGate = { acquire: () => () => undefined };
 
 const device = {
   companyId: 'synthetic-company',
@@ -53,7 +51,17 @@ function fixture(userId: string | null = null) {
     hasher,
     attempts,
     proofs,
-    signIn: new SignInStaffPin(db, hasher, attempts, authority, proofs, clock, ids, false),
+    signIn: new SignInStaffPin(
+      db,
+      hasher,
+      attempts,
+      authority,
+      proofs,
+      clock,
+      ids,
+      false,
+      unlimitedGate,
+    ),
   };
 }
 
@@ -112,6 +120,7 @@ function usableUser(over: { eligible?: boolean; deviceValid?: boolean }) {
     { now: () => new Date('2026-11-25T10:00:00.000Z') },
     { newId: () => 'synthetic-id' },
     true,
+    unlimitedGate,
   );
   return { ...f, signIn, issueProof };
 }
@@ -150,75 +159,4 @@ it('issueSession checks findLocked and withholds the audit row if the PIN revisi
   });
   expect(await f.signIn.execute({ phone, pin, device })).toBeNull();
   expect(record).not.toHaveBeenCalled();
-});
-
-function sharedGatePeers(
-  gate: ReturnType<typeof createStaffPinComparisonGate>,
-  barrier: Promise<void>,
-) {
-  const f = fixture(null);
-  vi.mocked(f.authority.sessions.ready).mockImplementation(() => barrier);
-  const signIn = new SignInStaffPin(
-    f.db,
-    f.hasher,
-    f.attempts,
-    f.authority,
-    f.proofs,
-    { now: () => new Date('2026-11-25T10:00:00.000Z') },
-    { newId: () => 'synthetic-id' },
-    true,
-    gate,
-  );
-  const openPrivateView = new OpenPrivateView(
-    f.db,
-    f.attempts,
-    { eligible: vi.fn(async () => true), deviceValid: vi.fn(async () => true) },
-    { provePin: vi.fn(async () => null), open: vi.fn(), close: vi.fn() } as never,
-    gate,
-  );
-  const discountApprover = new VerifyDiscountApproverPin(
-    f.db,
-    f.hasher,
-    f.attempts,
-    f.authority.sessions as unknown as StaffSessions,
-    {
-      admit: vi.fn(() => barrier.then(() => ({ kind: 'locked' as const }))),
-      failure: vi.fn(),
-      success: vi.fn(),
-      claimLockAudit: vi.fn(async () => false),
-      confirmLockAudit: vi.fn(),
-      release: vi.fn(),
-    },
-    { valid: vi.fn(async () => true) },
-    gate,
-  );
-  return { signIn, openPrivateView, discountApprover };
-}
-
-it('shares one concurrency limit across SignInStaffPin, OpenPrivateView and VerifyDiscountApproverPin (#786)', async () => {
-  const gate = createStaffPinComparisonGate(STAFF_LOGIN_CONCURRENCY);
-  let release: () => void = () => undefined;
-  const barrier = new Promise<void>((resolve) => {
-    release = resolve;
-  });
-  const { signIn, openPrivateView, discountApprover } = sharedGatePeers(gate, barrier);
-  const session = {
-    userId: 'synthetic-user',
-    sessionId: 'synthetic-session',
-    context: device,
-    authenticatedAt: new Date('2026-11-25T09:00:00.000Z'),
-    deadline: new Date('2026-11-25T17:00:00.000Z'),
-  };
-  const running = [
-    ...Array.from({ length: STAFF_LOGIN_CONCURRENCY - 1 }, () =>
-      signIn.execute({ phone, pin, device }),
-    ),
-    discountApprover.execute({ phone, pin, device }),
-  ];
-  await expect(openPrivateView.execute({ pin, session })).rejects.toThrow('STAFF_PIN_UNAVAILABLE');
-  await expect(signIn.execute({ phone, pin, device })).rejects.toThrow('STAFF_PIN_UNAVAILABLE');
-  await expect(discountApprover.execute({ phone, pin, device })).resolves.toEqual({ kind: 'busy' });
-  release();
-  await Promise.all(running);
-  await expect(signIn.execute({ phone, pin, device })).resolves.toBeNull();
 });

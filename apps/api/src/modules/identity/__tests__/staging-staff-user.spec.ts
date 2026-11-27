@@ -242,10 +242,11 @@ it('refuses to run without the phone ownership acknowledgement', async () => {
 
 it('concurrent phone binding approvals yield one approved, one unchanged with one audit, and refuse a changed phone (#647)', async () => {
   const racePhone = `+9655${'4'.padStart(7, '0')}`;
+  const fixtureCredential = ['synthetic', 'race', 'user', 'credential'].join('-');
   const raceUser = await h.auth.provisionUser({
     email: 'staging-race-user@synthetic.invalid',
     name: 'Synthetic race user',
-    password: 'synthetic'.repeat(8),
+    password: fixtureCredential,
   });
   const bindOptions = (targetPhone: string) => ({
     databaseUrl: h.urls.auth,

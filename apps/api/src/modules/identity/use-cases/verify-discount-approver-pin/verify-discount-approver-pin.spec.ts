@@ -3,7 +3,11 @@ import { STAFF_LOGIN_CONCURRENCY } from '@pospay/auth';
 import { expect, it, vi } from 'vitest';
 
 import type { PinAttempts } from '../../ports/cashier-pins.port.ts';
-import type { StaffPinRecord, StaffPinTransactions } from '../../ports/staff-pins.port.ts';
+import type {
+  StaffPinComparisonGate,
+  StaffPinRecord,
+  StaffPinTransactions,
+} from '../../ports/staff-pins.port.ts';
 import { VerifyDiscountApproverPin } from './verify-discount-approver-pin.ts';
 
 const input = {
@@ -16,7 +20,7 @@ const input = {
   },
 };
 
-function fixture() {
+function fixture(gate: StaffPinComparisonGate = { acquire: () => () => undefined }) {
   const row = { id: 'revision-1', hash: 'stored-hash' };
   const find = vi.fn(async (): Promise<StaffPinRecord | null> => row);
   const record = vi.fn(async () => undefined);
@@ -57,6 +61,7 @@ function fixture() {
     sessions as unknown as StaffSessions,
     cap,
     devices,
+    gate,
   );
   return { useCase, hasher, attempts, sessions, cap, devices, find, record };
 }
@@ -198,7 +203,16 @@ it.each(['candidate', 'revision', 'device'] as const)(
 );
 
 it('the process concurrency cap answers busy without another admission', async () => {
-  const f = fixture();
+  let active = 0;
+  const f = fixture({
+    acquire: () => {
+      if (active >= STAFF_LOGIN_CONCURRENCY) return null;
+      active += 1;
+      return () => {
+        active -= 1;
+      };
+    },
+  });
   let release: () => void = () => undefined;
   const gate = new Promise<{ kind: 'ok'; admission: string }>((resolve) => {
     release = () => resolve({ kind: 'ok', admission: 'admission-1' });

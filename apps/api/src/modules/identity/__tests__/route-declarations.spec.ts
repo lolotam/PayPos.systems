@@ -11,6 +11,8 @@ import { API_CONTROLLERS, createApp } from '../../../app.ts';
 import { Public } from '../../../shared/public.decorator.ts';
 import { Authenticated, Require } from '../../../shared/access.decorators.ts';
 import { PERSONAL_ROUTE } from '../../../shared/personal-authentication.ts';
+import { PRIVATE_VIEW_ROUTE } from '../../../shared/private-view.guard.ts';
+import { CLOSED_COMPANY_DEVICE_OTP } from '../../../shared/session.guard.ts';
 import { SIGN_OUT_ROUTE } from '../../../shared/sign-out.guard.ts';
 import { STAFF_ROUTE } from '../../../shared/staff-authentication.ts';
 import {
@@ -109,7 +111,13 @@ const repoRoot = join(dirname(fileURLToPath(import.meta.url)), '../../../../../.
 const ROUTE_MARKERS: Readonly<
   Record<
     string,
-    { personal?: true | 'staff'; staff?: 'device' | 'staff'; signOut?: 'staff' | 'personal' }
+    {
+      personal?: true | 'staff';
+      staff?: 'device' | 'staff';
+      signOut?: 'staff' | 'personal';
+      privateView?: true;
+      allowClosedOtp?: true;
+    }
   >
 > = {
   'ClockAttendanceController.challenge': { personal: true },
@@ -122,15 +130,15 @@ const ROUTE_MARKERS: Readonly<
   'PersonalOtpController.signOut': { signOut: 'personal' },
   'PrivateViewController.close': { staff: 'staff' },
   'PrivateViewController.open': { staff: 'staff' },
-  'PrivateViewController.touch': { staff: 'staff' },
+  'PrivateViewController.touch': { staff: 'staff', privateView: true },
   'PushSubscriptionController.register': { personal: true },
   'PushSubscriptionController.revoke': { personal: true },
-  'StaffOtpController.request': { staff: 'device' },
+  'StaffOtpController.request': { staff: 'device', allowClosedOtp: true },
   'StaffOtpController.signOut': { signOut: 'staff' },
   'StaffOtpController.verify': { staff: 'device' },
   'StaffPinController.change': { staff: 'device' },
   'StaffPinController.signIn': { staff: 'device' },
-  'StaffPinResetController.request': { staff: 'device' },
+  'StaffPinResetController.request': { staff: 'device', allowClosedOtp: true },
   'StaffPinResetController.reset': { staff: 'device' },
 };
 const PERSONAL_GUARD = 'apps/api/src/shared/personal-session.guard.ts#personalSessionRequest';
@@ -290,8 +298,12 @@ describe('the mounted allowlist', () => {
       const personal: unknown = Reflect.getMetadata(PERSONAL_ROUTE, handler);
       const staff: unknown = Reflect.getMetadata(STAFF_ROUTE, handler);
       const signOut: unknown = Reflect.getMetadata(SIGN_OUT_ROUTE, handler);
+      const privateView: unknown = Reflect.getMetadata(PRIVATE_VIEW_ROUTE, handler);
+      const allowClosedOtp: unknown = Reflect.getMetadata(CLOSED_COMPANY_DEVICE_OTP, handler);
       // كل علامة يقرؤها حارس الجلسة مثبتة هنا على جميع مسارات الكتابة في القائمة، وليس PERSONAL/DEVICE_ONLY فقط، فإسقاطها أو تعديلها أو تسربها لمسار RECORD_SCOPED يفشل الفحص.
-      expect({ personal, staff, signOut }, key).toEqual(ROUTE_MARKERS[key] ?? {});
+      expect({ personal, staff, signOut, privateView, allowClosedOtp }, key).toEqual(
+        ROUTE_MARKERS[key] ?? {},
+      );
       if (entry.access !== 'DEVICE_ONLY' && entry.access !== 'PERSONAL') continue;
       // حارس الشخصي هو الفحص الكامل فقط عندما يمر كل طلب عبره؛ أما PERSONAL_ROUTE 'staff' فيسمح بمسار بديل عند وجود Authorization.
       expect(entry.checkedIn === PERSONAL_GUARD, key).toBe(personal === true);

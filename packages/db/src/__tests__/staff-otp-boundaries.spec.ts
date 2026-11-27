@@ -168,10 +168,12 @@ it('sweeps expired private-view windows and orphaned or deadline-passed counter 
   await f.db.cleanup(100);
   const remaining = await f.owner<{ identifier: string }[]>`
     SELECT identifier FROM verification ORDER BY identifier`;
-  expect(remaining.map((row) => row.identifier)).toEqual([
-    'reset-password:synthetic-keep',
-    `staff-private-view-seq:v1:${expiredWindowLiveSession}`,
-    `staff-private-view-seq:v1:${liveSession}`,
-    `staff-private-view:v1:${liveSession}`,
-  ]);
+  expect(remaining.map((row) => row.identifier)).toEqual(
+    [
+      'reset-password:synthetic-keep',
+      `staff-private-view-seq:v1:${expiredWindowLiveSession}`,
+      `staff-private-view-seq:v1:${liveSession}`,
+      `staff-private-view:v1:${liveSession}`,
+    ].sort(),
+  );
 });

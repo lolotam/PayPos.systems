@@ -1,12 +1,11 @@
 import type { PrivateViewProof, PrivateViewScope, StaffSession } from '@pospay/auth';
-import { STAFF_LOGIN_CONCURRENCY } from '@pospay/auth';
-import {
-  createStaffPinComparisonGate,
-  type StaffPinComparisonGate,
-} from '../../domain/staff-pin-comparison-gate.ts';
 import type { PinAttempts, PinTarget } from '../../ports/cashier-pins.port.ts';
 import type { PrivateViewAuthority } from '../../ports/private-view.port.ts';
-import type { StaffPinAuthority, StaffPinTransactions } from '../../ports/staff-pins.port.ts';
+import type {
+  StaffPinAuthority,
+  StaffPinComparisonGate,
+  StaffPinTransactions,
+} from '../../ports/staff-pins.port.ts';
 
 /** نافذة العرض الخاص المفتوحة؛ القيم بتتساوب مع اللي في العقد. */
 export interface OpenPrivateViewOpened {
@@ -50,9 +49,7 @@ export class OpenPrivateView {
     private readonly attempts: PinAttempts,
     private readonly authority: Pick<StaffPinAuthority, 'eligible' | 'deviceValid'>,
     private readonly privateView: PrivateViewAuthority,
-    private readonly gate: StaffPinComparisonGate = createStaffPinComparisonGate(
-      STAFF_LOGIN_CONCURRENCY,
-    ),
+    private readonly gate: StaffPinComparisonGate,
   ) {}
 
   /**

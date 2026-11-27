@@ -3,7 +3,11 @@ import type { PrivateViewOpenResult, PrivateViewProof } from '@pospay/auth';
 import { OpenPrivateView } from './open-private-view.ts';
 import type { PinAttempts } from '../../ports/cashier-pins.port.ts';
 import type { PrivateViewAuthority } from '../../ports/private-view.port.ts';
-import type { StaffPinAuthority, StaffPinTransactions } from '../../ports/staff-pins.port.ts';
+import type {
+  StaffPinAuthority,
+  StaffPinComparisonGate,
+  StaffPinTransactions,
+} from '../../ports/staff-pins.port.ts';
 
 const device = {
   companyId: 'synthetic-company',
@@ -116,7 +120,7 @@ function fakePrivateView() {
   return { clock, provePin, openWindow, closeWindow, privateView };
 }
 
-function fixture() {
+function fixture(gate: StaffPinComparisonGate = { acquire: () => () => undefined }) {
   const store = fakeTransactions();
   const attempts = fakeAttempts();
   const staff = fakeStaffEligibility();
@@ -142,6 +146,7 @@ function fixture() {
       attempts.attempts,
       staff.authority,
       privateView.privateView,
+      gate,
     ),
   };
 }
@@ -319,7 +324,16 @@ it('a proof older than its age cannot open a window', async () => {
 });
 
 it('the work above the concurrency limit is refused before any comparison', async () => {
-  const f = fixture();
+  let active = 0;
+  const f = fixture({
+    acquire: () => {
+      if (active >= 8) return null;
+      active += 1;
+      return () => {
+        active -= 1;
+      };
+    },
+  });
   let release = (): void => undefined;
   const gate = new Promise<void>((resolve) => {
     release = resolve;

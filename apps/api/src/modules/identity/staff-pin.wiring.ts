@@ -6,10 +6,6 @@ import type { Redis } from 'ioredis';
 
 import type { Clock } from '../../shared/ports/clock.port.ts';
 import { AUTH_SERVICE } from '../../shared/session.guard.ts';
-import {
-  createStaffPinComparisonGate,
-  type StaffPinComparisonGate,
-} from './domain/staff-pin-comparison-gate.ts';
 import { PRIVATE_VIEW_WINDOWS } from './http/private-view.controller.ts';
 import {
   STAFF_PIN_CHANGE_ENABLED,
@@ -20,8 +16,10 @@ import { authPinHasher } from './persistence/auth-pin-hasher.ts';
 import { createRedisDevicePinCap } from './persistence/redis-device-pin-cap.ts';
 import { createRedisPinAttempts } from './persistence/redis-pin-attempts.ts';
 import { createStaffEligibility } from './persistence/staff-eligibility.ts';
+import { createStaffPinComparisonGate } from './persistence/staff-pin-comparison-gate.ts';
 import { createStaffPinProofIssuer } from './persistence/staff-pin-proofs.ts';
 import { createStaffPinTransactions } from './persistence/staff-pin-transactions.ts';
+import type { StaffPinComparisonGate } from './ports/staff-pins.port.ts';
 import { ChangeTemporaryStaffPin } from './use-cases/change-temporary-staff-pin/change-temporary-staff-pin.ts';
 import { OpenPrivateView } from './use-cases/open-private-view/open-private-view.ts';
 import { ResetStaffPin } from './use-cases/reset-staff-pin/reset-staff-pin.ts';
@@ -35,7 +33,7 @@ export const VERIFY_DISCOUNT_APPROVER_PIN = Symbol('VERIFY_DISCOUNT_APPROVER_PIN
  * ربط مسارات الرقم السري للموظفات والعرض الخاص واعتماد الخصم على بوابة تزامن عملية واحدة
  * (STAFF_LOGIN_CONCURRENCY)؛ فصلته عن identity.module التزاماً بحد الـ 300/400 سطر.
  *
- * @param options تبعيات قاعدة البيانات وRedis وجلسات الموظفات والساعة وبوابة التزامن
+ * @param options تبعيات قاعدة البيانات وRedis وجلسات الموظفات والساعة لتكوين بوابة التزامن المشتركة
  * @param options.database          مغلفات قاعدة بيانات الشركة، أو undefined قبل التهيئة
  * @param options.ids               مولّد الـ UUID v7
  * @param options.redis             عميل Redis لمحاولات الـ PIN وسقف الجهاز

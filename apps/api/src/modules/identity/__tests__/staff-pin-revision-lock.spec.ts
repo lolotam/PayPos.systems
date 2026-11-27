@@ -60,7 +60,7 @@ beforeAll(async () => {
   userId = await h.auth.provisionUser({
     email: 'pin-lock-user@synthetic.invalid',
     name: 'Synthetic staff',
-    password: 'synthetic'.repeat(8),
+    password: ['synthetic', 'pin', 'lock', 'user'].join('-'),
   });
   await h.owner`UPDATE "user" SET phone_number=${phone} WHERE id=${userId}`;
   await h.owner`UPDATE "user" SET phone_binding_approved_at=clock_timestamp() WHERE id=${userId}`;
@@ -166,11 +166,13 @@ it('OpenPrivateView holds FOR SHARE on cashier_pins until commit, blocking a con
     },
     afterTxCommit: () => events.push('tx:committed'),
   });
+  const unlimitedGate = { acquire: () => () => undefined };
   const useCase = new OpenPrivateView(
     db,
     createRedisPinAttempts(h.redis, ids),
     createStaffEligibility(h.app.get(DATABASE)),
     present(h.auth.privateView),
+    unlimitedGate,
   );
   const session = present(
     await present(h.auth.staff).resolve(new Headers({ cookie: staffCookie }), deviceContext()),
@@ -204,11 +206,13 @@ it('OpenPrivateView waits on a concurrent PIN reset, observes the new revision, 
   });
   const auditsBefore =
     await h.owner`SELECT count(*)::int AS n FROM audit_log WHERE company_id=${company} AND action='staff.private_view_opened'`;
+  const unlimitedGate = { acquire: () => () => undefined };
   const useCase = new OpenPrivateView(
     db,
     createRedisPinAttempts(h.redis, ids),
     createStaffEligibility(h.app.get(DATABASE)),
     present(h.auth.privateView),
+    unlimitedGate,
   );
   const session = present(
     await present(h.auth.staff).resolve(new Headers({ cookie: staffCookie }), deviceContext()),
@@ -253,6 +257,7 @@ it('SignInStaffPin holds FOR SHARE on cashier_pins until commit, blocking a conc
     { now: () => new Date() },
     ids,
     true,
+    { acquire: () => () => undefined },
   );
   const signingIn = useCase.execute({ phone, pin: ownPin, device: deviceContext() });
   try {
@@ -294,6 +299,7 @@ it('SignInStaffPin waits on a concurrent PIN reset, sees the new revision, and r
     { now: () => new Date() },
     ids,
     true,
+    { acquire: () => () => undefined },
   );
   const resetTx = locker.begin(async (tx) => {
     await tx`UPDATE cashier_pins SET id=${randomUUID()} WHERE company_id=${company} AND user_id=${userId}`;

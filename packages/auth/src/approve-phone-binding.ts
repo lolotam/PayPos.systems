@@ -1,4 +1,17 @@
-import { createStaffOtpDatabase } from '@pospay/db';
+import {
+  createStaffOtpDatabase,
+  StaffPhoneBindingConflictError,
+  StaffPhoneTakenError,
+} from '@pospay/db';
+
+/** رفض متوقع لربط الهاتف (مدخل غير صالح أو تضارب ملكية/تغيير تحت القفل)، بخلاف أعطال البنية التحتية (#647). */
+export class PhoneBindingRefusedError extends Error {
+  override readonly name = 'PhoneBindingRefusedError';
+  readonly code = 'PHONE_BINDING_REFUSED';
+  constructor() {
+    super('PHONE_BINDING_REFUSED');
+  }
+}
 
 /**
  * ربط الهوية العامة عملية منصة مراجعة؛ لا endpoint للموظف أو مدير الشركة يستدعيها.
@@ -26,7 +39,7 @@ export async function approvePhoneBinding(options: {
     !options.isCanonicalPhone(options.phone) ||
     !/^[a-f0-9-]{36}$/.test(options.userId)
   )
-    throw new Error('PHONE_BINDING_REFUSED');
+    throw new PhoneBindingRefusedError();
   const database = createStaffOtpDatabase({
     url: options.databaseUrl,
     phoneLockKey: options.phoneLockKey,
@@ -39,8 +52,11 @@ export async function approvePhoneBinding(options: {
       auditId: options.ids.newId(),
       at: options.clock.now(),
     });
-  } catch {
-    throw new Error('PHONE_BINDING_REFUSED');
+  } catch (error) {
+    if (error instanceof StaffPhoneTakenError || error instanceof StaffPhoneBindingConflictError) {
+      throw new PhoneBindingRefusedError();
+    }
+    throw error;
   } finally {
     await database.close();
   }

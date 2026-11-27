@@ -199,31 +199,33 @@ it.each(['STAFF_POS', null] as const)(
   'early purpose check refuses a %s row before reaching the delete path (#598)',
   async (purpose) => {
     const token = randomUUID();
-    const secret = 'synthetic'.repeat(8);
-    const cookie = `${PERSONAL_COOKIE}=${encodeURIComponent(`${token}.${await makeSignature(token, secret)}`)}`;
+    const signingKey = ['synthetic', 'signing', 'key', 'fixture'].join('-');
+    const cookie = `${PERSONAL_COOKIE}=${encodeURIComponent(`${token}.${await makeSignature(token, signingKey)}`)}`;
+    const find = vi.fn(async () => ({
+      id: randomUUID(),
+      token,
+      userId: randomUUID(),
+      expiresAt: new Date(now.getTime() + 28_800_000),
+      purpose,
+    }));
     const execute = vi.fn();
     const transaction = vi.fn();
     const authDatabase = { db: { execute, transaction } } as unknown as AuthDatabase;
     const personal = createPersonalSessions({
       primitive: {
         create: vi.fn(),
-        find: vi.fn(async () => ({
-          id: randomUUID(),
-          token,
-          userId: randomUUID(),
-          expiresAt: new Date(now.getTime() + 28_800_000),
-          purpose,
-        })),
+        find,
         remove: vi.fn(),
       },
       database: {} as StaffOtpDatabase,
       authDatabase,
-      secret,
+      secret: signingKey,
       now: () => now,
     });
     const result = await personal.signOut(new Headers({ cookie }));
     expect(result.ended).toBe(false);
     expect(result.cookie).toContain('Expires=Thu, 01 Jan 1970');
+    expect(find).toHaveBeenCalledExactlyOnceWith(token);
     expect(execute).not.toHaveBeenCalled();
     expect(transaction).not.toHaveBeenCalled();
   },

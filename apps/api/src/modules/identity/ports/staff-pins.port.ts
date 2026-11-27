@@ -1,7 +1,16 @@
 import type { StaffDeviceContext, StaffSessions } from '@pospay/auth';
 import type { AuditTrail } from '../../../shared/ports/audit-trail.port.ts';
 import type { OutboxWriter } from '../../../shared/ports/outbox-writer.port.ts';
-export type { StaffPinComparisonGate } from '../domain/staff-pin-comparison-gate.ts';
+
+/** بوابة تزامن عملية واحدة تحدّ من عدد مقارنات الـ PIN الجارية في الوقت نفسه (#786). */
+export interface StaffPinComparisonGate {
+  /**
+   * يحجز خانة لمقارنة PIN واحد، أو يرجّع null لو السقف ممتلئ.
+   *
+   * @returns دالة تحرير الخانة لمرة واحدة (idempotent)، أو null عند امتلاء البوابة
+   */
+  acquire(): (() => void) | null;
+}
 
 /** اعتماد المستخدم الموجود في الشركة؛ لا يمثل سجلاً في staff أو إثبات حضور. */
 export interface StaffPinRecord {

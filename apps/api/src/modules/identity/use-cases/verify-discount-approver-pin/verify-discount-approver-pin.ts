@@ -1,10 +1,5 @@
 import type { StaffSessions } from '@pospay/auth';
-import { STAFF_LOGIN_CONCURRENCY } from '@pospay/auth';
 
-import {
-  createStaffPinComparisonGate,
-  type StaffPinComparisonGate,
-} from '../../domain/staff-pin-comparison-gate.ts';
 import type { PinAttempts, PinHasher } from '../../ports/cashier-pins.port.ts';
 import type {
   ApproverPinDevice,
@@ -12,7 +7,11 @@ import type {
   DevicePinCap,
   DeviceValidity,
 } from '../../ports/discount-approver-pin.port.ts';
-import type { StaffPinRecord, StaffPinTransactions } from '../../ports/staff-pins.port.ts';
+import type {
+  StaffPinComparisonGate,
+  StaffPinRecord,
+  StaffPinTransactions,
+} from '../../ports/staff-pins.port.ts';
 
 // بيتحقق من PIN اعتماد الخصم على جهاز مقترن (ADR-0051 §3، D-10): نفس منشأة دخول الموظفين بالظبط، من غير
 // جلسة ومن غير شرط login:staff — إثبات لإجراء واحد بس. وسقف الجهاز (D-15) بيقفل الاعتماد كله لو الجهاز
@@ -25,9 +24,7 @@ export class VerifyDiscountApproverPin {
     private readonly sessions: StaffSessions,
     private readonly cap: DevicePinCap,
     private readonly devices: DeviceValidity,
-    private readonly gate: StaffPinComparisonGate = createStaffPinComparisonGate(
-      STAFF_LOGIN_CONCURRENCY,
-    ),
+    private readonly gate: StaffPinComparisonGate,
   ) {}
 
   /**
