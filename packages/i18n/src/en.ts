@@ -128,7 +128,7 @@ export const en = {
     endMembership: 'End membership',
     endMembershipTitle: 'Confirm ending membership',
     endMembershipLead:
-      'This membership will end immediately and the member will lose access to this company without affecting their other companies.',
+      'This membership will end immediately and the member will lose the access it grants without affecting their other memberships or companies.',
     endMembershipConfirm: 'Confirm end',
     endMembershipCancel: 'Cancel',
     noOverrides: 'No overrides on this page.',

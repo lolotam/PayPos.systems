@@ -133,3 +133,45 @@ it('deleting a user clears its active MAC and prevents every later proof or work
   ).toBeNull();
   expect(await f.db.materialize(id, randomUUID(), randomUUID())).toBeNull();
 });
+
+it('sweeps expired private-view windows and orphaned or deadline-passed counter rows without deleting live rows', async () => {
+  const sweepUser = randomUUID();
+  await f.owner`INSERT INTO "user"(id,name,email,email_verified,phone_number,phone_number_verified,phone_binding_approved_at)
+    VALUES(${sweepUser},'synthetic-pv','synthetic-pv@otp.invalid',true,'+99900000099',false,clock_timestamp())`;
+  const liveSession = randomUUID();
+  const expiredWindowLiveSession = randomUUID();
+  const deadSession = randomUUID();
+  const orphanSession = randomUUID();
+  await f.owner`INSERT INTO session(id,user_id,token,expires_at,purpose,staff_device_context,staff_authenticated_at,staff_absolute_deadline)
+    VALUES
+      (${liveSession},${sweepUser},'synthetic-live-pv',statement_timestamp()+interval '4 hours','STAFF_POS',${f.owner.json(device)},statement_timestamp()-interval '4 hours',statement_timestamp()+interval '4 hours'),
+      (${expiredWindowLiveSession},${sweepUser},'synthetic-idle-pv',statement_timestamp()+interval '4 hours','STAFF_POS',${f.owner.json(device)},statement_timestamp()-interval '4 hours',statement_timestamp()+interval '4 hours'),
+      (${deadSession},${sweepUser},'synthetic-dead-pv',statement_timestamp()-interval '1 hour','STAFF_POS',${f.owner.json(device)},statement_timestamp()-interval '9 hours',statement_timestamp()-interval '1 hour')`;
+  const [id0, id1, id2, id3, id4, id5, id6] = [
+    randomUUID(),
+    randomUUID(),
+    randomUUID(),
+    randomUUID(),
+    randomUUID(),
+    randomUUID(),
+    randomUUID(),
+  ] as const;
+  await f.owner`INSERT INTO verification(id,identifier,value,expires_at,created_at,updated_at)
+    VALUES
+      (${id0},${`staff-private-view:v1:${liveSession}`},'{}',statement_timestamp()+interval '5 minutes',statement_timestamp(),statement_timestamp()),
+      (${id1},${`staff-private-view-seq:v1:${liveSession}`},'1',statement_timestamp()+interval '4 hours',statement_timestamp(),statement_timestamp()),
+      (${id2},${`staff-private-view:v1:${expiredWindowLiveSession}`},'{}',statement_timestamp()-interval '1 second',statement_timestamp()-interval '6 minutes',statement_timestamp()-interval '6 minutes'),
+      (${id3},${`staff-private-view-seq:v1:${expiredWindowLiveSession}`},'2',statement_timestamp()+interval '4 hours',statement_timestamp(),statement_timestamp()),
+      (${id4},${`staff-private-view-seq:v1:${deadSession}`},'3',statement_timestamp()-interval '1 minute',statement_timestamp()-interval '9 hours',statement_timestamp()),
+      (${id5},${`staff-private-view-seq:v1:${orphanSession}`},'4',statement_timestamp()+interval '2 hours',statement_timestamp(),statement_timestamp()),
+      (${id6},'reset-password:synthetic-keep','token',statement_timestamp()-interval '1 hour',statement_timestamp()-interval '2 hours',statement_timestamp()-interval '2 hours')`;
+  await f.db.cleanup(100);
+  const remaining = await f.owner<{ identifier: string }[]>`
+    SELECT identifier FROM verification ORDER BY identifier`;
+  expect(remaining.map((row) => row.identifier)).toEqual([
+    'reset-password:synthetic-keep',
+    `staff-private-view-seq:v1:${expiredWindowLiveSession}`,
+    `staff-private-view-seq:v1:${liveSession}`,
+    `staff-private-view:v1:${liveSession}`,
+  ]);
+});

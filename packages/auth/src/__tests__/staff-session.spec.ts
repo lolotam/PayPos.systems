@@ -158,8 +158,12 @@ it('only the approved operator binding becomes a candidate, with no phone in its
   await expect(approvePhoneBinding({ ...options, ownershipVerified: false })).rejects.toThrow(
     'PHONE_BINDING_REFUSED',
   );
+  // تغيير هاتف مربوط بالفعل بهاتف مختلف لازم يترفض تحت القفل (#647).
+  await expect(approvePhoneBinding(options)).rejects.toThrow('PHONE_BINDING_REFUSED');
+  await owner`UPDATE "user" SET phone_number=NULL,phone_binding_approved_at=NULL WHERE id=${userId}`;
   expect(await staff.candidate(phone)).toBeNull();
-  await approvePhoneBinding(options);
+  expect(await approvePhoneBinding(options)).toBe('approved');
+  expect(await approvePhoneBinding(options)).toBe('unchanged');
   expect(await staff.candidate(phone)).toBe(userId);
   const rows =
     await owner`SELECT actor,action,details FROM platform_audit_log WHERE target_user_id=${userId}`;
@@ -280,26 +284,36 @@ it('session resolution rechecks approval even if eligibility remains valid', asy
   await owner`UPDATE "user" SET phone_binding_approved_at=${now} WHERE id=${userId}`;
 });
 
-it('reapproving the same binding supersedes ACTIVE challenges and revokes only staff sessions atomically', async () => {
-  const issued = await auth.staff.issue(userId, device, async () => true);
+async function seedActiveChallenge(hashByte: number, macByte: number) {
   const challengeId = randomUUID();
   await owner`INSERT INTO auth_otp_challenges(id,recipient_hash,hash_key_id,user_id,device_context,
     code_mac,derivation_key_id,verification_key_id,status,created_at,expires_at,updated_at)
-    VALUES(${challengeId},${Buffer.alloc(32, 11)},'synthetic-h',${userId},${owner.json(device)},
-      ${Buffer.alloc(32, 13)},'synthetic-d','synthetic-v','ACTIVE',${now},${new Date(now.getTime() + 300000)},${now})`;
-  const [bound] = await owner`SELECT phone_number FROM "user" WHERE id=${userId}`;
-  await approvePhoneBinding({
+    VALUES(${challengeId},${Buffer.alloc(32, hashByte)},'synthetic-h',${userId},${owner.json(device)},
+      ${Buffer.alloc(32, macByte)},'synthetic-d','synthetic-v','ACTIVE',${now},${new Date(now.getTime() + 300000)},${now})`;
+  return challengeId;
+}
+
+const approvePhone = (phone: string) =>
+  approvePhoneBinding({
     databaseUrl: test.authUrl,
     userId,
-    phone: bound?.['phone_number'],
+    phone,
     operator: 'synthetic-operator',
     ownershipVerified: true,
     approved: true,
     ids: systemUuidV7(),
     phoneLockKey,
     clock: { now: () => now },
-    isCanonicalPhone: (phone) => canonicalStaffPhone.safeParse(phone).success,
+    isCanonicalPhone: (value) => canonicalStaffPhone.safeParse(value).success,
   });
+
+it('reapproving the same binding supersedes ACTIVE challenges and revokes only staff sessions atomically', async () => {
+  await owner`UPDATE "user" SET phone_binding_approved_at=NULL WHERE id=${userId}`;
+  const issued = await auth.staff.issue(userId, device, async () => true);
+  const challengeId = await seedActiveChallenge(11, 13);
+  const [bound] = await owner`SELECT phone_number FROM "user" WHERE id=${userId}`;
+  const boundPhone = String(bound?.['phone_number'] ?? '');
+  expect(await approvePhone(boundPhone)).toBe('approved');
   expect(
     await owner`SELECT status,code_mac FROM auth_otp_challenges WHERE id=${challengeId}`,
   ).toEqual([{ status: 'SUPERSEDED', code_mac: null }]);
@@ -312,4 +326,17 @@ it('reapproving the same binding supersedes ACTIVE challenges and revokes only s
   expect(
     await owner`SELECT id FROM session WHERE user_id=${userId} AND purpose IS NULL`,
   ).not.toEqual([]);
+  // تكرار الاعتماد للهاتف المعتمد بالفعل يرجّع unchanged ولا يبطل جلسة أو تحدياً جديداً (#647).
+  const kept = await auth.staff.issue(userId, device, async () => true);
+  const keptChallengeId = await seedActiveChallenge(12, 14);
+  const auditsBefore =
+    await owner`SELECT id FROM platform_audit_log WHERE target_user_id=${userId}`;
+  expect(await approvePhone(boundPhone)).toBe('unchanged');
+  expect(await owner`SELECT id FROM session WHERE id=${kept.session.sessionId}`).toHaveLength(1);
+  expect(await owner`SELECT status FROM auth_otp_challenges WHERE id=${keptChallengeId}`).toEqual([
+    { status: 'ACTIVE' },
+  ]);
+  expect(
+    await owner`SELECT id FROM platform_audit_log WHERE target_user_id=${userId}`,
+  ).toHaveLength(auditsBefore.length);
 });

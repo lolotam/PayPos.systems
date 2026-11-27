@@ -181,18 +181,18 @@ async function ensureUser(
   }
 }
 
-async function run(
+async function reconcilePhoneBinding(
+  user: { id: string; phone: string | null; phoneApproved: boolean },
   input: CliInput,
   env: NodeJS.ProcessEnv,
   out: (line: string) => void,
-): Promise<number> {
-  const identity = await ensureUser(input, env, derivedEmail(input), out);
-  const user = identity.emailUser;
-  if (user === null) throw new Error('IDENTITY_RECONCILIATION_FAILED');
+): Promise<void> {
   if (user.phone === input.phone && user.phoneApproved) {
     out('phone binding: unchanged');
-  } else {
-    await approvePhoneBinding({
+    return;
+  }
+  try {
+    const outcome = await approvePhoneBinding({
       databaseUrl: env['AUTH_DATABASE_URL'] ?? '',
       userId: user.id,
       phone: input.phone,
@@ -204,8 +204,24 @@ async function run(
       clock: { now: () => new Date() },
       isCanonicalPhone: (phone) => canonicalStaffPhone.safeParse(phone).success,
     });
-    out('phone binding: approved');
+    out(`phone binding: ${outcome}`);
+  } catch (error) {
+    if (error instanceof Error && error.message === 'PHONE_BINDING_REFUSED') {
+      throw new IdentityConflictError();
+    }
+    throw error;
   }
+}
+
+async function run(
+  input: CliInput,
+  env: NodeJS.ProcessEnv,
+  out: (line: string) => void,
+): Promise<number> {
+  const identity = await ensureUser(input, env, derivedEmail(input), out);
+  const user = identity.emailUser;
+  if (user === null) throw new Error('IDENTITY_RECONCILIATION_FAILED');
+  await reconcilePhoneBinding(user, input, env, out);
   const membership = await ensureStaffBranchMembership({
     appUrl: env['DATABASE_URL'] ?? '',
     authUrl: env['AUTH_DATABASE_URL'] ?? '',

@@ -1,6 +1,7 @@
 import type { StaffDeviceContext, StaffSessions } from '@pospay/auth';
 import type { AuditTrail } from '../../../shared/ports/audit-trail.port.ts';
 import type { OutboxWriter } from '../../../shared/ports/outbox-writer.port.ts';
+export type { StaffPinComparisonGate } from '../domain/staff-pin-comparison-gate.ts';
 
 /** اعتماد المستخدم الموجود في الشركة؛ لا يمثل سجلاً في staff أو إثبات حضور. */
 export interface StaffPinRecord {
@@ -66,6 +67,12 @@ export interface StaffPinScope {
    * @param userId صاحب الاعتماد
    */
   find(userId: string): Promise<StaffPinRecord | null>;
+  /**
+   * قراءة مقفولة بـ `SELECT … FOR SHARE` لصف الاعتماد داخل المعاملة، فتُرى أي إعادة تعيين التزمت قبلها وتنتظر أي إعادة تعيين متزامنة حتى انتهاء التحقق والأثر.
+   *
+   * @param userId صاحب الاعتماد
+   */
+  findLocked(userId: string): Promise<StaffPinRecord | null>;
   /**
    * يتبدل id مع كل reset كي لا يقبل إصدار الجلسة مقارنة لاعتماد قديم.
    * الرقم بيتخزن مؤقتاً (ينتهي بعد 24 ساعة) لو صاحب الاعتماد عنده سجل «إعطاء الدخول»

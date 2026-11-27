@@ -1,6 +1,10 @@
 import type { StaffSessions } from '@pospay/auth';
 import { STAFF_LOGIN_CONCURRENCY } from '@pospay/auth';
 
+import {
+  createStaffPinComparisonGate,
+  type StaffPinComparisonGate,
+} from '../../domain/staff-pin-comparison-gate.ts';
 import type { PinAttempts, PinHasher } from '../../ports/cashier-pins.port.ts';
 import type {
   ApproverPinDevice,
@@ -14,8 +18,6 @@ import type { StaffPinRecord, StaffPinTransactions } from '../../ports/staff-pin
 // جلسة ومن غير شرط login:staff — إثبات لإجراء واحد بس. وسقف الجهاز (D-15) بيقفل الاعتماد كله لو الجهاز
 // جرّب أرقام كتير من أي هاتف.
 export class VerifyDiscountApproverPin {
-  private active = 0;
-
   constructor(
     private readonly db: StaffPinTransactions,
     private readonly hasher: PinHasher,
@@ -23,6 +25,9 @@ export class VerifyDiscountApproverPin {
     private readonly sessions: StaffSessions,
     private readonly cap: DevicePinCap,
     private readonly devices: DeviceValidity,
+    private readonly gate: StaffPinComparisonGate = createStaffPinComparisonGate(
+      STAFF_LOGIN_CONCURRENCY,
+    ),
   ) {}
 
   /**
@@ -37,12 +42,12 @@ export class VerifyDiscountApproverPin {
     pin: string;
     device: ApproverPinDevice;
   }): Promise<ApproverPinOutcome> {
-    if (this.active >= STAFF_LOGIN_CONCURRENCY) return { kind: 'busy' };
-    this.active++;
+    const release = this.gate.acquire();
+    if (release === null) return { kind: 'busy' };
     try {
       return await this.verify(input);
     } finally {
-      this.active--;
+      release();
     }
   }
 
@@ -69,10 +74,7 @@ export class VerifyDiscountApproverPin {
     }
     const target = {
       companyId: input.device.companyId,
-      employeeId:
-        row === null
-          ? this.sessions.pinCounterKey(input.phone)
-          : `staff-user:${userId}`,
+      employeeId: row === null ? this.sessions.pinCounterKey(input.phone) : `staff-user:${userId}`,
     };
     const reserved = await this.attempts.reserve(target);
     if (reserved.kind !== 'ok') {

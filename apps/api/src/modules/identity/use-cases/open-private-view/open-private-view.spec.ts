@@ -39,12 +39,14 @@ function fakeTransactions() {
       work: (scope: unknown) => Promise<unknown>,
     ) => {
       const pending: AuditEntry[] = [];
+      const find = async () => ({
+        id: credential.id,
+        hash: 'synthetic-hash',
+        temporary: credential.temporary,
+      });
       const value = await work({
-        find: async () => ({
-          id: credential.id,
-          hash: 'synthetic-hash',
-          temporary: credential.temporary,
-        }),
+        find,
+        findLocked: find,
         audit: {
           record: async (entry: AuditEntry) => {
             pending.push(entry);
@@ -155,9 +157,11 @@ it('a refused reservation burns one comparison and never reads the stored hash',
 
 it('a wrong PIN counts a failure and opens nothing', async () => {
   const f = fixture();
+  const findWrong = async () => ({ id: 'synthetic-record', hash: 'synthetic-other-hash' });
   f.run.mockImplementation(async (_company, _actor, work: (scope: unknown) => Promise<unknown>) =>
     work({
-      find: async () => ({ id: 'synthetic-record', hash: 'synthetic-other-hash' }),
+      find: findWrong,
+      findLocked: findWrong,
       audit: { record: f.record },
     }),
   );

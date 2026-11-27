@@ -1,10 +1,13 @@
+import { randomUUID } from 'node:crypto';
+import type { AuthDatabase, StaffOtpDatabase } from '@pospay/db';
+import { makeSignature } from 'better-auth/crypto';
 import postgres from 'postgres';
-import { afterAll, beforeAll, expect, it } from 'vitest';
+import { afterAll, beforeAll, expect, it, vi } from 'vitest';
 import { systemUuidV7 } from '@pospay/ids';
 import { present } from '../../../db/test/present.ts';
 import { createTestDatabase, type TestDatabase } from '../../../db/test/test-database.ts';
 import { createAuth, type AuthService } from '../index.ts';
-import { PERSONAL_COOKIE } from '../personal-sessions.ts';
+import { createPersonalSessions, PERSONAL_COOKIE } from '../personal-sessions.ts';
 import { STAFF_COOKIE } from '../staff-sessions.ts';
 
 const ids = systemUuidV7();
@@ -191,3 +194,37 @@ it('ends a personal session of a user whose phone approval was removed', async (
   }
   expect(await rowsOf(issued.session.sessionId)).toEqual([]);
 });
+
+it.each(['STAFF_POS', null] as const)(
+  'early purpose check refuses a %s row before reaching the delete path (#598)',
+  async (purpose) => {
+    const token = randomUUID();
+    const secret = 'synthetic'.repeat(8);
+    const cookie = `${PERSONAL_COOKIE}=${encodeURIComponent(`${token}.${await makeSignature(token, secret)}`)}`;
+    const execute = vi.fn();
+    const transaction = vi.fn();
+    const authDatabase = { db: { execute, transaction } } as unknown as AuthDatabase;
+    const personal = createPersonalSessions({
+      primitive: {
+        create: vi.fn(),
+        find: vi.fn(async () => ({
+          id: randomUUID(),
+          token,
+          userId: randomUUID(),
+          expiresAt: new Date(now.getTime() + 28_800_000),
+          purpose,
+        })),
+        remove: vi.fn(),
+      },
+      database: {} as StaffOtpDatabase,
+      authDatabase,
+      secret,
+      now: () => now,
+    });
+    const result = await personal.signOut(new Headers({ cookie }));
+    expect(result.ended).toBe(false);
+    expect(result.cookie).toContain('Expires=Thu, 01 Jan 1970');
+    expect(execute).not.toHaveBeenCalled();
+    expect(transaction).not.toHaveBeenCalled();
+  },
+);

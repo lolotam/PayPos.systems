@@ -5,7 +5,7 @@ import { createStaffOtpDatabase } from '@pospay/db';
  * الإثبات والموافقة من operator خارج الشركة، والتعديل مع الإبطال والتدقيق في معاملة واحدة.
  *
  * @param options اتصال الهوية وإثبات ملكية الهاتف وموافقة المنصة دون بيانات عميل غير موثوقة
- * @returns انتهاء الربط المعتمد أو رفض عام بدون echo للبيانات
+ * @returns حالة الاعتماد: تم الاعتماد أم كان معتمداً بالهاتف نفسه من قبل، أو رفض عام بدون echo للبيانات
  */
 export async function approvePhoneBinding(options: {
   databaseUrl: string;
@@ -18,7 +18,7 @@ export async function approvePhoneBinding(options: {
   phoneLockKey(hash: Uint8Array): bigint;
   clock: { now(): Date };
   isCanonicalPhone(phone: string): boolean;
-}): Promise<void> {
+}): Promise<'approved' | 'unchanged'> {
   if (
     !options.approved ||
     !options.ownershipVerified ||
@@ -32,7 +32,7 @@ export async function approvePhoneBinding(options: {
     phoneLockKey: options.phoneLockKey,
   });
   try {
-    await database.approvePhone({
+    return await database.approvePhone({
       userId: options.userId,
       phone: options.phone,
       actor: options.operator,

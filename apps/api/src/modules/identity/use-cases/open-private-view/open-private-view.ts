@@ -1,5 +1,9 @@
 import type { PrivateViewProof, PrivateViewScope, StaffSession } from '@pospay/auth';
 import { STAFF_LOGIN_CONCURRENCY } from '@pospay/auth';
+import {
+  createStaffPinComparisonGate,
+  type StaffPinComparisonGate,
+} from '../../domain/staff-pin-comparison-gate.ts';
 import type { PinAttempts, PinTarget } from '../../ports/cashier-pins.port.ts';
 import type { PrivateViewAuthority } from '../../ports/private-view.port.ts';
 import type { StaffPinAuthority, StaffPinTransactions } from '../../ports/staff-pins.port.ts';
@@ -41,12 +45,14 @@ interface ProvenPin {
 
 /** يفتح نافذة العرض الخاص بعد PIN جديد، بنفس عدّاد محاولات دخول الموظف. */
 export class OpenPrivateView {
-  private active = 0;
   constructor(
     private readonly db: StaffPinTransactions,
     private readonly attempts: PinAttempts,
     private readonly authority: Pick<StaffPinAuthority, 'eligible' | 'deviceValid'>,
     private readonly privateView: PrivateViewAuthority,
+    private readonly gate: StaffPinComparisonGate = createStaffPinComparisonGate(
+      STAFF_LOGIN_CONCURRENCY,
+    ),
   ) {}
 
   /**
@@ -54,12 +60,12 @@ export class OpenPrivateView {
    * @returns النافذة المفتوحة أو رفض
    */
   async execute(input: { pin: string; session: StaffSession }): Promise<OpenPrivateViewResult> {
-    if (this.active >= STAFF_LOGIN_CONCURRENCY) throw new Error('STAFF_PIN_UNAVAILABLE');
-    this.active++;
+    const release = this.gate.acquire();
+    if (release === null) throw new Error('STAFF_PIN_UNAVAILABLE');
     try {
       return await this.open(input);
     } finally {
-      this.active--;
+      release();
     }
   }
 
@@ -133,9 +139,9 @@ export class OpenPrivateView {
     // مخزن النافذة وPostgres ما يشاركوش معاملة واحدة، فسطر التدقيق أولاً وفشل الـ commit يقفل النافذة عشان مفيش نافذة تعيش بلا سطر تدقيقها.
     try {
       await this.db.run(session.context.companyId, session.userId, async (read) => {
-        // إعادة تعيين الـ PIN أثناء المقارنة بتغيّر id السجل؛ المقارنة على اعتماد ملغى ما تفتحش نافذة.
-        // والرقم المؤقت مرفوض في نفس اللحظة، حتى لو اتغيّر بعد المقارنة.
-        const current = await read.find(session.userId);
+        // إعادة تعيين الـ PIN أثناء المقارنة بتغيّر id السجل؛ قفل FOR SHARE يمنع reset متزامن
+        // من أن يلتزم أثناء فتح النافذة أو يتجاهله الفحص قبل كتابة الأثر والنافذة.
+        const current = await read.findLocked(session.userId);
         if (current === null || current.id !== revision || current.temporary === true)
           throw new OpeningRefused({ kind: 'refused' });
         await read.audit.record({

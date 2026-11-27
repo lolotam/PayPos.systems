@@ -11,6 +11,7 @@ export {
   deleteStaffPrivateViewRows,
   staffPrivateViewIdentifier,
   staffPrivateViewSequenceIdentifier,
+  sweepStaffPrivateViewRows,
 } from './staff-private-view/identifiers.ts';
 export {
   openStaffPrivateView,
