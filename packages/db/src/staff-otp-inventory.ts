@@ -55,11 +55,24 @@ export async function assertOtpInventory(tx: Pick<Tx, 'execute'>): Promise<void>
     AND proconfig=ARRAY['search_path=pg_catalog, pg_temp'] AND has_function_privilege(current_user,oid,'EXECUTE')
     AND NOT EXISTS(SELECT 1 FROM aclexplode(proacl) WHERE grantee=0) AS valid
     FROM pg_proc WHERE oid='public.platform_whatsapp_is_suppressed(bytea)'::regprocedure`);
+  // الاعتماد بالإيميل بيتحقق من نفس الحظر العام للإيميل، فـ EXECUTE بتاعه لازم يكون موجود.
+  const [emailSuppression] = await tx.execute<{
+    valid: boolean;
+  }>(sql`SELECT has_function_privilege(current_user,oid,'EXECUTE') AS valid
+    FROM pg_proc WHERE oid='public.platform_email_is_suppressed(bytea)'::regprocedure`);
   const [constraint] = await tx.execute<{
     valid: boolean;
   }>(sql`SELECT convalidated AND pg_get_expr(conbin,conrelid)='(opted_back_in_at IS NULL)' AS valid
     FROM pg_constraint WHERE conrelid='public.platform_whatsapp_suppressions'::regclass AND conname='platform_whatsapp_suppressions_null_only'`);
   if (suppression?.valid !== true || constraint?.valid !== true) fail();
+  if (emailSuppression?.valid !== true) fail();
+  // جداول الإيميل العامة ما بتتفتحش للاعتماد: البصمة بس عن طريق دالة الحظر.
+  const emailTables =
+    await tx.execute(sql`SELECT c.oid FROM pg_class c WHERE relnamespace='public'::regnamespace
+    AND relname IN ('platform_email_suppressions','platform_email_feedback_inbox','platform_email_audit')
+    AND (has_table_privilege(current_user,c.oid,'SELECT,INSERT,UPDATE,DELETE,TRUNCATE,REFERENCES,TRIGGER')
+      OR has_any_column_privilege(current_user,c.oid,'SELECT,INSERT,UPDATE,REFERENCES'))`);
+  if (emailTables.length !== 0) fail();
   const forbidden =
     await tx.execute(sql`SELECT c.oid FROM pg_class c WHERE relnamespace='public'::regnamespace
     AND relname IN ('memberships','permission_overrides','devices','cashier_pins','companies','branches','businesses','platform_whatsapp_suppressions','platform_whatsapp_inbox','platform_whatsapp_audit')

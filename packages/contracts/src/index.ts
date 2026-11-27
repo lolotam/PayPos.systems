@@ -130,10 +130,14 @@ export {
 export {
   confirmPasswordInput,
   loginInput,
+  passwordResetRequestForm,
+  passwordResetVerifyForm,
   setPasswordInput,
   totpCodeInput,
   type ConfirmPasswordInput,
   type LoginInput,
+  type PasswordResetRequestForm,
+  type PasswordResetVerifyForm,
   type SetPasswordInput,
   type TotpCodeInput,
 } from './identity/session.js';
@@ -230,6 +234,7 @@ export {
 // مسارات دخول الموظف (OTP والرقم السري) في ملف واحد: التصدير بنجمة بيخلي البرميل تحت حد الـ400
 // سطر من غير ما ننسى اسماً.
 export * from './identity/staff-otp.js';
+export * from './identity/password-reset-otp.js';
 export {
   PRIVATE_VIEW_WINDOW_HEADER,
   PRIVATE_VIEW_IDLE_REMAINING_HEADER,

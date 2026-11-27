@@ -53,7 +53,11 @@ export const authOtpChallenges = pgTable(
     ),
     check(
       'auth_otp_challenges_expiry',
-      sql`${t.expiresAt} = ${t.createdAt} + interval '300 seconds'`,
+      // الاعتماد بالواتساب يعيش خمس دقايق، وكل اعتماد الاسترجاع عشرة — والقطر لا يمدّ أيّاً منهما.
+      sql`((${t.deviceContext}->>'purpose' IN ('PASSWORD_RESET','STAFF_PIN_RESET')
+          AND ${t.expiresAt} = ${t.createdAt} + interval '600 seconds')
+        OR (((${t.deviceContext}->>'purpose' IS NULL) OR (${t.deviceContext}->>'purpose' = 'STAFF_PERSONAL'))
+          AND ${t.expiresAt} = ${t.createdAt} + interval '300 seconds'))`,
     ),
     check(
       'auth_otp_challenges_terminal',
@@ -61,16 +65,28 @@ export const authOtpChallenges = pgTable(
     ),
     check(
       'auth_otp_challenges_context',
-      sql`jsonb_typeof(${t.deviceContext}) = 'object'
-        AND (${t.deviceContext}->>'companyId') ~ '^[a-f0-9-]{36}$'
-        AND (${t.deviceContext}->>'businessId') ~ '^[a-f0-9-]{36}$'
-        AND ((${t.deviceContext} ?& ARRAY['companyId','businessId','branchId','deviceId']
+      // كل غرض من أغرض الاعتماد له شكل واحد معروف؛ واليوم الطويل أو العامل أو الإيميل ما يتخلطوش.
+      sql`(jsonb_typeof(${t.deviceContext}) = 'object' AND (
+        (${t.deviceContext} ?& ARRAY['companyId','businessId','branchId','deviceId']
           AND ${t.deviceContext} - ARRAY['companyId','businessId','branchId','deviceId'] = '{}'::jsonb
+          AND (${t.deviceContext}->>'companyId') ~ '^[a-f0-9-]{36}$'
+          AND (${t.deviceContext}->>'businessId') ~ '^[a-f0-9-]{36}$'
           AND (${t.deviceContext}->>'branchId') ~ '^[a-f0-9-]{36}$'
           AND (${t.deviceContext}->>'deviceId') ~ '^[a-f0-9-]{36}$')
         OR (${t.deviceContext} ?& ARRAY['purpose','companyId','businessId']
           AND ${t.deviceContext} - ARRAY['purpose','companyId','businessId'] = '{}'::jsonb
-          AND ${t.deviceContext}->>'purpose' = 'STAFF_PERSONAL'))`,
+          AND (${t.deviceContext}->>'companyId') ~ '^[a-f0-9-]{36}$'
+          AND (${t.deviceContext}->>'businessId') ~ '^[a-f0-9-]{36}$'
+          AND ${t.deviceContext}->>'purpose' = 'STAFF_PERSONAL')
+        OR (${t.deviceContext} = '{"purpose":"PASSWORD_RESET"}'::jsonb)
+        OR (${t.deviceContext} ?& ARRAY['purpose','companyId','businessId','branchId','deviceId','channel']
+          AND ${t.deviceContext} - ARRAY['purpose','companyId','businessId','branchId','deviceId','channel'] = '{}'::jsonb
+          AND ${t.deviceContext}->>'purpose' = 'STAFF_PIN_RESET'
+          AND (${t.deviceContext}->>'companyId') ~ '^[a-f0-9-]{36}$'
+          AND (${t.deviceContext}->>'businessId') ~ '^[a-f0-9-]{36}$'
+          AND (${t.deviceContext}->>'branchId') ~ '^[a-f0-9-]{36}$'
+          AND (${t.deviceContext}->>'deviceId') ~ '^[a-f0-9-]{36}$'
+          AND ${t.deviceContext}->>'channel' IN ('EMAIL','WHATSAPP'))))`,
     ),
     index('auth_otp_challenges_phone_idx').on(t.recipientHash, t.status, t.createdAt, t.id),
     index('auth_otp_challenges_user_idx').on(t.userId),
@@ -116,7 +132,14 @@ export const authNotificationAttempts = pgTable(
     ),
     check(
       'auth_notification_attempts_template',
-      sql`${t.channel} = 'WHATSAPP' AND ${t.templateKey} = 'staff_otp' AND ${t.templateRevision} = 1 AND ${t.locale} IN ('ar','en')`,
+      // بريد الاعتماد بلا اسم قالب المزوّد: الاسم المزوّد ده خاص بالواتساب بس.
+      sql`(((${t.channel} = 'WHATSAPP')
+          AND (${t.templateKey} IN ('staff_otp','staff_pin_reset_otp'))
+          AND ${t.templateRevision} = 1 AND ${t.locale} IN ('ar','en'))
+        OR ((${t.channel} = 'EMAIL')
+          AND (${t.templateKey} IN ('password_reset_otp','staff_pin_reset_otp'))
+          AND ${t.templateRevision} = 1 AND ${t.locale} IN ('ar','en')
+          AND ${t.providerTemplateName} IS NULL))`,
     ),
     check(
       'auth_notification_attempts_hash',
@@ -140,7 +163,11 @@ export const authNotificationAttempts = pgTable(
     ),
     check(
       'auth_notification_attempts_deadline',
-      sql`${t.preparationDeadline} = ${t.createdAt} + interval '200 milliseconds' AND ${t.sendDeadline} = ${t.createdAt} + interval '300 seconds'`,
+      // مهلة الاعتماد بالواتساب خمس دقايق، واعتماد الاسترجاع عشرة — من وقت الإنشاء مش من وقت الإرسال.
+      sql`(${t.preparationDeadline} = ${t.createdAt} + interval '200 milliseconds'
+        AND ((${t.templateKey} = 'staff_otp' AND ${t.sendDeadline} = ${t.createdAt} + interval '300 seconds')
+          OR (${t.templateKey} IN ('password_reset_otp','staff_pin_reset_otp')
+            AND ${t.sendDeadline} = ${t.createdAt} + interval '600 seconds')))`,
     ),
     index('auth_notification_attempts_challenge_idx').on(
       t.challengeId,

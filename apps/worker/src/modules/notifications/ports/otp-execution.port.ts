@@ -4,6 +4,8 @@ export interface OtpPending {
   readonly challengeId: string;
   readonly recipientHash: Uint8Array;
   readonly locale: 'ar' | 'en';
+  /** قناة المحاولة: واتساب أو إيميل — بتحدد القالب ودالة الحظر. */
+  readonly channel: 'EMAIL' | 'WHATSAPP';
   readonly providerTemplateName: string | null;
   readonly status: string;
   readonly sendDeadline: Date;
@@ -57,7 +59,13 @@ export interface OtpExecution {
     challengeId: string,
     attemptId: string,
     executionId: string,
-  ): Promise<{ phone: string; code: string; deadline: Date } | null>;
+  ): Promise<{
+    /** الوجهة: تليفون لواتساب، أو بريد للإيميل. */
+    readonly destination: string;
+    readonly code: string;
+    readonly deadline: Date;
+    readonly executionId: string;
+  } | null>;
   /** يعيد تسجيل النتيجة نفسها دون استعادة الإرسال.
    *
    * @param challengeId معرف التحدي الثابت
@@ -84,7 +92,6 @@ export interface OtpWorkerCapability {
   /** يعاد قبل claim والتكوين وHTTP لأن الطابور قد يحتوي عملاً قديماً. */
   ready(): Promise<boolean>;
 }
-
 /** مؤقت خارج المعاملة لا يعيد بدء نافذة التجهيز. */
 export interface OtpWait {
   /** الانتظار خارج كل connection أو lock، بلا إعادة بدء المهلة.
@@ -112,6 +119,8 @@ export interface OtpDiagnostics {
 
 /** قناة خاصة بالتكوين المؤقت المعتمد للمصادقة فقط. */
 export interface OtpChannel {
+  /** القناة اللي بتخدمها — بتحدد القالب ومزوّد الإرسال. */
+  readonly channel: 'EMAIL' | 'WHATSAPP';
   /** يفحص locale والاسم المعتمد قبل حجز السعة ولا يولّد code.
    *
    * @param attempt السجل الخالي من الاعتماد
@@ -127,7 +136,10 @@ export interface OtpChannel {
 
 /** مادة عابرة في الذاكرة لطلب HTTPS واحد بعد fence معتمد. */
 export interface OtpMaterial {
-  readonly phone: string;
+  /** الوجهة: تليفون لواتساب، أو بريد للإيميل. */
+  readonly destination: string;
   readonly code: string;
   readonly deadline: Date;
+  /** fence التنفيذ المؤكد — بيتبعت وسم التتبع للمزوّد. */
+  readonly executionId: string;
 }

@@ -109,6 +109,11 @@ export interface AuthService {
   /** بيعمل مستخدم بباسورد — للسكريبت بتاع الـ operator بس (التسجيل مقفول). */
   provisionUser(input: { email: string; name: string; password: string }): Promise<string>;
   /**
+   * بيحسب hash لكلمة المرور بمُجزّئ Better Auth — للاكتفاء بالإيميل بس. مفيش أي مسار تاني
+   * بيقدر يعمل hash لكلمة مرور (CLAUDE.md §8).
+   */
+  hashPassword(password: string): Promise<string>;
+  /**
    * رابط يستخدمه اليوزر مرة واحدة يحط بيه الباسورد بتاعه — للسكريبت بتاع الـ operator بس. الرابط فيه token، فبيتسلم
    * للـ operator ومبيتكتبش في أي log.
    */

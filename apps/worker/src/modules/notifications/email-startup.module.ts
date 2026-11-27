@@ -5,6 +5,7 @@ import {
 } from '@pospay/db';
 import {
   createEmailIdentity,
+  createProviderMessageDigest,
   createResendEmailRetriever,
   EMAIL_FEEDBACK_QUEUE,
   emailFeedbackJob,
@@ -27,6 +28,10 @@ import {
   createEmailFeedbackInboxRepository,
   createEmailFeedbackTenantRepository,
 } from './persistence/drizzle-email-feedback-inbox.repository.ts';
+import {
+  createAuthEmailFeedbackRepository,
+  type AuthAttemptReconciler,
+} from './persistence/auth-email-feedback.repository.ts';
 import { ClearEmailFeedbackPayloads } from './use-cases/clear-email-feedback-payloads/clear-email-feedback-payloads.ts';
 import { ReconcileEmailFeedback } from './use-cases/reconcile-email-feedback/reconcile-email-feedback.ts';
 import { RecoverEmailFeedback } from './use-cases/recover-email-feedback/recover-email-feedback.ts';
@@ -45,6 +50,11 @@ export interface EmailStartupOptions {
   readonly clock: Clock;
   readonly appDatabase?: Pick<TenantWrappers, 'withTenant'>;
   readonly redisUrl?: string;
+  /**
+   * مصالحة سجل الاعتماد — من جذر التركيب. من غيرها ردّ المزود لبريد الاسترجاع
+   * بيتعطّل بدل ما يتسوّى.
+   */
+  readonly authReconciler?: AuthAttemptReconciler | undefined;
 }
 
 /** تهيئة قناة البريد: الموديول وموارد ردّ المزود وعدد الصفوف المعطّلة. */
@@ -274,9 +284,19 @@ function createFeedbackWorkers(
       new ReconcileEmailFeedback(
         inbox,
         createEmailFeedbackTenantRepository(appDatabase),
+        // المصالحة على سجل الاعتماد: من غير واجهة محصورة ردّ المزود بيسيب الصف شارد.
+        createAuthEmailFeedbackRepository(
+          options.authReconciler ?? {
+            reconcileAuthAttempt: async () => ({
+              kind: 'refused' as const,
+              reason: 'EXECUTION_MISSING' as const,
+            }),
+          },
+        ),
         createResendEmailRetriever({ apiKey: keys.apiKey, identify: keys.identify }),
         options.clock,
         options.ids,
+        keys.digest,
       ),
     ),
     { connection, concurrency: 4 },
@@ -309,12 +329,17 @@ function feedbackKeys(env: NodeJS.ProcessEnv) {
       env['NOTIFICATION_EMAIL_HASH_KEY'] ?? '',
       env['NOTIFICATION_EMAIL_HASH_KEY_ID'] ?? '',
     );
+    const digest = createProviderMessageDigest(
+      env['NOTIFICATION_MESSAGE_ID_HASH_KEY'] ?? '',
+      env['NOTIFICATION_EMAIL_HASH_KEY_ID'] ?? '',
+    );
     return {
       apiKey,
       identify: (c: string) => {
         const h = id.identify(c);
         return { hash: h.hash, keyId: h.hashKeyId };
       },
+      digest,
     };
   } catch {
     return null;

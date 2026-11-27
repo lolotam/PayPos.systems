@@ -67,7 +67,7 @@ it('authorization winning STOP keeps its acknowledged permission under ADR-0013'
     await tx`INSERT INTO platform_whatsapp_suppressions(recipient_hash,hash_key_id,source,first_opted_out_at,last_opted_out_at)
       VALUES(${p.challenge.recipientHash},'synthetic-h','STOP',clock_timestamp(),clock_timestamp())`;
   });
-  expect(await f.db.claim(p.challenge.id, p.attemptId, randomUUID())).toBe(true);
+  expect(await f.db.claim(p.challenge.id, p.attemptId, randomUUID(), async () => true)).toBe(true);
 });
 
 it('an acknowledged or unknown-to-the-caller committed STOP blocks the same auth ledger without materializing a code', async () => {
@@ -87,7 +87,7 @@ it('an acknowledged or unknown-to-the-caller committed STOP blocks the same auth
   p = input(p.challenge.recipientHash);
   expect(await f.db.prepare({ ...p, materializeMac: materialize })).toBe(false);
   expect(await f.db.find(p.challenge.id)).toMatchObject({ status: 'SUPPRESSED', codeMac: null });
-  expect(await f.db.claim(p.challenge.id, p.attemptId, randomUUID())).toBe(false);
+  expect(await f.db.claim(p.challenge.id, p.attemptId, randomUUID(), async () => true)).toBe(false);
 });
 
 it('a blocked preparation cancels and drains before the window ends, with no late challenge', async () => {

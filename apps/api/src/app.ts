@@ -19,6 +19,7 @@ import {
   assertAuthenticatedWritesDeclared,
   assertEveryRouteGuarded,
   identityProviders,
+  passwordResetProviders,
   readCommissionPlanAccess,
   readCommissionPlanListAccess,
   readCommissionFeatureEnabled,
@@ -228,6 +229,7 @@ class AppModule {
           deps.staffAccessRoutes === true,
           deps.staffPinClock,
         ),
+        ...passwordResetProviders(deps.passwordReset ?? null, deps.corsOrigins ?? []),
         { provide: RATE_LIMITER, useValue: limiter },
         { provide: DATABASE, useValue: deps.database ?? null },
         ...tenancyProviders(deps.database, deps.ids ?? systemUuidV7()),
@@ -283,7 +285,10 @@ export async function createApp(
   mountResendSecurity(adapter, deps.resend, deps.redis);
   mountMemberInvitationGate(adapter.getInstance(), deps.staffAccessRoutes === true);
   adapter.getInstance().addHook('onRoute', (route) => {
-    if (/^\/v1\/devices\/me\/staff-(otp\/(request|verify)|pin\/sign-in)$/.test(route.url))
+    if (
+      /^\/v1\/devices\/me\/staff-(otp\/(request|verify)|pin\/sign-in)$/.test(route.url) ||
+      /^\/v1\/auth\/password-reset\/otp\/(request|reset)$/.test(route.url)
+    )
       route.bodyLimit = 1024;
     // المسارات العامة للتقييم: الحد والترويسات بتتحط قبل أي handler، عشان كل رد يطلع من المسار ده
     // يحملها — حتى الردود اللي بتترفض قبل ما يوصل المسار.

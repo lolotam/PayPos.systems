@@ -124,3 +124,45 @@ it('hides thrown transport diagnostics and validates the sender domain', async (
       }),
   ).toThrow('EMAIL_PROVIDER_CONFIG_INVALID');
 });
+
+const CHALLENGE = '01920000-0000-7000-8000-000000000005';
+
+it('tags a recovery email with the auth challenge, never the company', async () => {
+  const base = { ...EMAIL_REQUEST, companyId: undefined };
+  const result = await h.channel().send({
+    ...base,
+    locale: 'en',
+    templateKey: 'password_reset_otp',
+    templateRevision: 1,
+    safeParameters: ['123456'],
+    authChallengeId: CHALLENGE,
+  });
+  expect(result).toEqual({ kind: 'accepted', providerMessageId: PROVIDER_ID });
+  expect(h.state.body['tags']).toEqual([
+    { name: 'auth_challenge_id', value: CHALLENGE },
+    { name: 'attempt_id', value: EMAIL_REQUEST.attemptId },
+    { name: 'execution_id', value: EMAIL_REQUEST.executionId },
+  ]);
+  expect(h.state.body['text']).toContain('123456');
+  expect(h.state.body['subject']).toBe('PosPay password reset code');
+});
+
+it('refuses a recovery email whose code is not six digits, without calling the provider', async () => {
+  const base = { ...EMAIL_REQUEST, companyId: undefined };
+  await expect(
+    h.channel().send({
+      ...base,
+      templateKey: 'password_reset_otp',
+      templateRevision: 1,
+      safeParameters: ['12345'],
+      authChallengeId: CHALLENGE,
+    }),
+  ).rejects.toThrow('EMAIL_REQUEST_INVALID');
+  expect(h.state.calls).toBe(0);
+});
+
+it('refuses a request with neither a company nor an auth challenge', async () => {
+  const base = { ...EMAIL_REQUEST, companyId: undefined };
+  await expect(h.channel().send(base)).rejects.toThrow('EMAIL_REQUEST_INVALID');
+  expect(h.state.calls).toBe(0);
+});

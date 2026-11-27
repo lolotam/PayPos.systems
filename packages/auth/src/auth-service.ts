@@ -60,6 +60,7 @@ export function assembleAuthService(
       };
     },
     provisionUser: async (input) => provision(await auth.$context, input),
+    hashPassword: async (password) => (await auth.$context).password.hash(password),
     issuePasswordSetLink: async (userId, redirectTo) =>
       issueSetPasswordLink({
         options,

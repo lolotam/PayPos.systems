@@ -8,6 +8,8 @@ export const API_LOG_EVENTS = [
   'staff OTP capability',
   'rating links capability',
   'staff OTP preparation outcome',
+  'password reset capability',
+  'password reset preparation outcome',
   'api failed to start',
   'auth library event',
   'redis connection error',

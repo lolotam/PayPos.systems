@@ -50,6 +50,7 @@ import {
   startCustomersImportWorker,
 } from './modules/customers/index.ts';
 import { closeOptional, optionalWithin } from './shared/optional-capability.ts';
+import { createOtpDelivery } from './otp-delivery.ts';
 import {
   beginDocumentRendering,
   startCoreBeforeDocuments,
@@ -119,6 +120,14 @@ const customerImports = startCustomersImportWorker(app, systemUuidV7(), {
 const catalog = startCatalogWorker(app, systemUuidV7(), config.REDIS_URL, {
   now: () => new Date(),
 });
+// ADR-0019: قدر الاعتماد محجوز وبيملكه الجذر؛ مصالحة ردّ المزود بتاخد منه نفس واجهة الهوية.
+const otpDelivery = createOtpDelivery({
+  env: process.env,
+  logger,
+  redis,
+  redisUrl: config.REDIS_URL,
+  stopping: () => stopping,
+});
 const email = await startEmailCapability({
   env: process.env,
   production,
@@ -127,6 +136,7 @@ const email = await startEmailCapability({
   clock: { now: () => new Date() },
   appDatabase: app,
   redisUrl: config.REDIS_URL,
+  authReconciler: otpDelivery.reconciler,
 });
 // ADR-0052 قرار 2: جاهزية الدفع في العامل وحدها بتفعّل كتابة المحاولات؛ من غيرها مفيش دفع.
 // وأحداث الإذن بتقعد في الـ outbox لحد ما الدفع يتفعّل، وبعد آخر محاولة في السياسة بتتوقف زي أي حدث سام.
@@ -356,6 +366,7 @@ async function startWorkerCore(): Promise<void> {
     logger,
     notifications,
     emailSend,
+    delivery: otpDelivery,
     redisUrl: config.REDIS_URL,
     businessDeliver,
     intakeUrl: config.PLATFORM_NOTIFICATIONS_DATABASE_URL,

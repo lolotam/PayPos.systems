@@ -20,15 +20,17 @@ const attempt: OtpPending = {
   challengeId: 'synthetic-challenge',
   recipientHash: Buffer.alloc(32),
   locale: 'ar',
+  channel: 'WHATSAPP',
   providerTemplateName: 'synthetic_ar',
   status: 'SENDING',
   preparationDeadline: new Date(200),
   sendDeadline: new Date(300000),
 };
 const material = {
-  phone: '+99900000001',
+  destination: '+99900000001',
   code: String(7).padStart(6, '0'),
   deadline: new Date(300000),
+  executionId: 'synthetic-execution',
 };
 
 it.each(['accepted', '4xx', '429', '5xx', 'timeout'] as FakeOutcome[])(
@@ -47,7 +49,7 @@ it.each(['accepted', '4xx', '429', '5xx', 'timeout'] as FakeOutcome[])(
     expect(fake.calls).toBe(1);
     expect(result.status).toBe(outcome === 'accepted' ? 'SENT' : 'FAILED');
     if (outcome === 'accepted') expect(result.providerMessageDigest).toHaveLength(32);
-    expect(JSON.stringify(result)).not.toContain(material.phone);
+    expect(JSON.stringify(result)).not.toContain(material.destination);
     expect(JSON.stringify(result)).not.toContain(material.code);
     expect(JSON.stringify(result)).not.toContain('fake-message-id');
   },
