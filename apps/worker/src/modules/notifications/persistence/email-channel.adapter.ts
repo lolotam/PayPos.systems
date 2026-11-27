@@ -79,6 +79,7 @@ export function createEmailChannelAdapter(
   return {
     failure: (attempt) =>
       configurationFailure(channel, attempt, onboardingOf(attempt), adminOrigin),
+    shouldVerify: (attempt) => verifyOnboarding !== undefined && onboardingOf(attempt) !== null,
     verify: async (attempt, scope) => {
       const onboarding = onboardingOf(attempt);
       if (onboarding === null || verifyOnboarding === undefined) return true;

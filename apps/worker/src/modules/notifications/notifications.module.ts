@@ -169,6 +169,8 @@ function routeChannels(
         attempt.channel === 'email'
           ? (email.adapter.verify?.(attempt, scope) ?? Promise.resolve(true))
           : Promise.resolve(true),
+      shouldVerify: (attempt: Parameters<typeof adapter.failure>[0]) =>
+        attempt.channel === 'email' && (email.adapter.shouldVerify?.(attempt) ?? false),
     },
     destinations: {
       matches: (value: string, stored: PhoneIdentity, attempt?: Attempt) =>
@@ -301,6 +303,8 @@ export function createEmailSendModule(options: {
       options.email.adapter.failure(attempt),
     verify: (attempt: Parameters<typeof options.email.adapter.failure>[0], scope?: unknown) =>
       options.email.adapter.verify?.(attempt, scope) ?? Promise.resolve(true),
+    shouldVerify: (attempt: Parameters<typeof options.email.adapter.failure>[0]) =>
+      options.email.adapter.shouldVerify?.(attempt) ?? false,
   };
   const send = new SendNotification(
     attempts,

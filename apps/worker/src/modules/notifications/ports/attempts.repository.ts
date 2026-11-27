@@ -31,8 +31,10 @@ export interface AuthorizationRepository {
 export interface ClaimVerification {
   /** دالة التحقق داخل نفس المعاملة؛ تُشغَّل بعد قفل الصف بالـ FOR UPDATE. */
   readonly verify: (scope: unknown) => Promise<boolean>;
-  /** معرّف حدث الفشل عند رفض الحيازة لبطلان الوجهة. */
+  /** معرّف حدث الفشل عند رفض الحيازة لبطلان الوجهة أو انقضاء الموعد. */
   readonly rejectEventId: string;
+  /** يرجع وقت القرار الحالي بعد إتمام التحقق وقبل التحديث إلى SENDING. */
+  readonly decisionTime?: () => Date;
 }
 
 export interface AttemptsRepository {

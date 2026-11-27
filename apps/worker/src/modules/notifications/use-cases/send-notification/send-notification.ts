@@ -73,44 +73,72 @@ export class SendNotification {
     return null;
   }
 
+  private buildVerification(
+    attempt: Attempt,
+    verifyFn: NonNullable<SendConfiguration['verify']>,
+    onError: () => void,
+    onDecisionTime: (now: Date) => void,
+  ): ClaimVerification {
+    return {
+      rejectEventId: this.ids.newId(),
+      decisionTime: () => {
+        const current = this.clock.now();
+        onDecisionTime(current);
+        return current;
+      },
+      verify: async (scope) => {
+        try {
+          return await verifyFn(attempt, scope);
+        } catch (error) {
+          onError();
+          throw error;
+        }
+      },
+    };
+  }
+
   private async claimAttempt(
     attempt: Attempt,
     initialReservedAtMs: number,
   ): Promise<{ readonly executionId: string; readonly now: Date } | null> {
     let reservedAtMs = initialReservedAtMs;
     const verifyFn = this.configuration.verify;
+    const needsVerify =
+      verifyFn !== undefined && (this.configuration.shouldVerify?.(attempt) ?? true);
     for (let tryCount = 1; ; tryCount += 1) {
+      const executionId = this.ids.newId();
+      if (
+        tryCount > 1 &&
+        this.clock.now().getTime() - reservedAtMs >= ADMISSION_RESERVATION_WINDOW_MS
+      ) {
+        const renewedAtMs = await this.reserveAdmission(attempt);
+        if (renewedAtMs === null) return null;
+        reservedAtMs = renewedAtMs;
+      }
       // نفس اللحظة للفحص وللـ claim: لو اتحسبوا مرتين، الموعد ممكن يعدّي بينهم والـ claim يترفض في صمت،
       // فالمحاولة تفضل PENDING ومعاها الرقم ومن غير نتيجة EXPIRED.
-      const executionId = this.ids.newId();
       const now = this.clock.now();
       if (!mayStart(attempt.deadline, now)) {
         await this.reject(attempt, refusedResult('DEADLINE_EXPIRED'));
         return null;
       }
-      if (tryCount > 1 && now.getTime() - reservedAtMs >= ADMISSION_RESERVATION_WINDOW_MS) {
-        const renewedAtMs = await this.reserveAdmission(attempt);
-        if (renewedAtMs === null) return null;
-        reservedAtMs = renewedAtMs;
-      }
+      let claimNow = now;
       let failedDuringVerify = false;
-      const verification: ClaimVerification | undefined =
-        verifyFn === undefined
-          ? undefined
-          : {
-              rejectEventId: this.ids.newId(),
-              verify: async (scope) => {
-                try {
-                  return await verifyFn(attempt, scope);
-                } catch (error) {
-                  failedDuringVerify = true;
-                  throw error;
-                }
-              },
-            };
+      const verification = !needsVerify
+        ? undefined
+        : this.buildVerification(
+            attempt,
+            verifyFn,
+            () => {
+              failedDuringVerify = true;
+            },
+            (current) => {
+              claimNow = current;
+            },
+          );
       try {
         const claimed = await this.attempts.claim(attempt, executionId, now, verification);
-        return claimed ? { executionId, now } : null;
+        return claimed ? { executionId, now: claimNow } : null;
       } catch (error) {
         const canRetry =
           (failedDuringVerify || isPreClaimVerifyError(error)) &&

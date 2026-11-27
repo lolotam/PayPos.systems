@@ -2,7 +2,7 @@ import { appendAuditLog, type TenantWrappers, type Tx } from '@pospay/db';
 import { sql } from 'drizzle-orm';
 
 import { refusedResult, type Attempt, type TerminalResult } from '../domain/attempt-status.ts';
-import { mayClearDestination } from '../domain/send-deadline.ts';
+import { mayClearDestination, mayStart } from '../domain/send-deadline.ts';
 import type {
   AttemptsRepository,
   ClaimVerification,
@@ -131,18 +131,30 @@ async function claimWithVerification(
   };
   const fresh = await verification.verify(txScope);
   onVerified();
+  const claimNow = verification.decisionTime?.() ?? now;
   if (!fresh) {
     await record(
       tx,
       attempt,
       refusedResult('DESTINATION_INVALID'),
       verification.rejectEventId,
-      now,
+      claimNow,
       true,
     );
     return false;
   }
-  return claimRow(tx, attempt, executionId, now);
+  if (!mayStart(attempt.deadline, claimNow)) {
+    await record(
+      tx,
+      attempt,
+      refusedResult('DEADLINE_EXPIRED'),
+      verification.rejectEventId,
+      claimNow,
+      true,
+    );
+    return false;
+  }
+  return claimRow(tx, attempt, executionId, claimNow);
 }
 
 export function createAttemptsRepository(

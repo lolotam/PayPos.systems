@@ -33,6 +33,11 @@ export interface SendConfiguration {
    * @param scope   نطاق المعاملة الحالية لتشغيل القراءة تحت نفس القفل، إن وُجد
    */
   verify?(attempt: Attempt, scope?: unknown): Promise<boolean>;
+  /** يحدد إن كانت المحاولة تحتاج فحص حداثة تحت قفل الصف قبل الحيازة.
+   *
+   * @param attempt لقطة المحاولة قبل المطالبة
+   */
+  shouldVerify?(attempt: Attempt): boolean;
 }
 
 /** مشتق رابط التقييم في الذاكرة وقت الإرسال فقط؛ الرابط لا يُخزَّن ولا يُسجَّل ولا يدخل outbox. */

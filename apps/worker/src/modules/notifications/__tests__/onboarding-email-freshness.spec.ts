@@ -373,3 +373,40 @@ it('refuses an owner invitation copy after owner email change or lost ownership'
   });
   expect(channel.requests).toHaveLength(0);
 });
+
+it('records DEADLINE_EXPIRED under the attempt lock when verification crosses send_deadline', async () => {
+  const staff = await seedActiveStaff(h);
+  const { id, event } = await queueStaffWelcomeNotice(h, NOW.getTime() + 2_000, {
+    email: staff.email,
+    employeeId: staff.employeeId,
+    operationId: staff.attemptId,
+    pinRevision: staff.pinRevision,
+  });
+  const base = h.module.send;
+  const pendingAttempt = await base.attempts.pending(event.companyId, id);
+  if (pendingAttempt === null) throw new Error('TEST_ATTEMPT_MISSING');
+  expect(base.configuration.shouldVerify?.(pendingAttempt)).toBe(true);
+  const sendCrossingDeadline = new SendNotification(
+    base.attempts,
+    base.channel,
+    base.admission,
+    base.identity,
+    {
+      ...base.configuration,
+      verify: async (attempt, scope) => {
+        const ok = await (base.configuration.verify?.(attempt, scope) ?? Promise.resolve(true));
+        h.advance(new Date(NOW.getTime() + 3_000));
+        return ok;
+      },
+    },
+    base.clock,
+    base.ids,
+  );
+  await sendCrossingDeadline.execute(event.companyId, id);
+  expect(await h.read(id)).toMatchObject({
+    status: 'EXPIRED',
+    failure_code: 'DEADLINE_EXPIRED',
+    recipient_email: null,
+  });
+  expect(channel.requests).toHaveLength(0);
+});
