@@ -1,7 +1,13 @@
-import { createDatabase, createPlatformEmailDatabase, type Database, type PlatformEmailDatabase } from '@pospay/db';
+import {
+  createDatabase,
+  createPlatformEmailDatabase,
+  type Database,
+  type PlatformEmailDatabase,
+} from '@pospay/db';
 import { systemUuidV7 } from '@pospay/ids';
 import {
   createEmailIdentity,
+  createProviderMessageDigest,
   createResendEventDigest,
   EMAIL_FEEDBACK_QUEUE,
 } from '@pospay/notifications';
@@ -13,6 +19,7 @@ import { createTestDatabase } from '../../../../../../packages/db/test/test-data
 import { createEmailFeedbackInboxRepository as createIntake } from '../../../../../api/src/modules/notifications/persistence/drizzle-email-feedback.repository.ts';
 import type { EmailRetrievalPort } from '../ports/email-feedback.port.ts';
 import { createAttemptsRepository } from '../persistence/drizzle-attempts.repository.ts';
+import { createAuthEmailFeedbackRepository } from '../persistence/auth-email-feedback.repository.ts';
 import {
   createEmailFeedbackInboxRepository,
   createEmailFeedbackTenantRepository,
@@ -28,6 +35,10 @@ export const NOW = new Date('2026-11-24T10:00:00Z');
 export const identity = createEmailIdentity('synthetic-feedback-identity'.repeat(3), KEY_ID);
 export const HASH = identity.identify(EMAIL).hash;
 const digest = createResendEventDigest(Buffer.from('synthetic-feedback-digest'.repeat(2), 'utf8'));
+export const messageDigest = createProviderMessageDigest(
+  'synthetic-message-digest'.repeat(2),
+  'email-test-v1',
+);
 export const ids = systemUuidV7();
 // The compose Redis (T2): REDIS_URL when set, otherwise built from REDIS_PASSWORD as CI writes it.
 const redisUrl =
@@ -57,7 +68,7 @@ function attemptSeeder(owner: postgres.Sql) {
   };
 }
 
-function inboxAcceptor(platform: PlatformEmailDatabase) {
+export function inboxAcceptor(platform: PlatformEmailDatabase) {
   return async (
     eventType: string,
     bounceClass: 'PERMANENT' | 'TRANSIENT' | null,
@@ -87,6 +98,7 @@ function foundProvider(seed: Seed, overrides: Record<string, unknown> = {}): Ema
       id: PROVIDER_ID,
       tags: {
         companyId: COMPANY,
+        authChallengeId: null,
         attemptId: seed.id,
         executionId: seed.executionId,
       },
@@ -103,8 +115,7 @@ function readers(owner: postgres.Sql) {
       (await owner`SELECT * FROM platform_email_feedback_inbox WHERE id = ${id}`)[0],
     evidence: async () =>
       owner`SELECT company_id, attempt_id, event_type FROM notification_attempt_feedback`,
-    suppressions: async () =>
-      owner`SELECT recipient_hash, source FROM platform_email_suppressions`,
+    suppressions: async () => owner`SELECT recipient_hash, source FROM platform_email_suppressions`,
     audits: async () => owner`SELECT source, reason, action FROM platform_email_audit`,
   };
 }
@@ -164,7 +175,20 @@ export async function emailFeedbackHarness(): Promise<EmailFeedbackHarness> {
     acceptInbox: inboxAcceptor(platform),
     found: foundProvider,
     useCase: (retrieval, tenantPort = tenant, inboxPort = inbox) =>
-      new ReconcileEmailFeedback(inboxPort, tenantPort, retrieval, { now: () => NOW }, ids),
+      new ReconcileEmailFeedback(
+        inboxPort,
+        tenantPort,
+        createAuthEmailFeedbackRepository({
+          reconcileAuthAttempt: async () => ({
+            kind: 'refused' as const,
+            reason: 'EXECUTION_MISSING' as const,
+          }),
+        }),
+        retrieval,
+        { now: () => NOW },
+        ids,
+        (providerMessageId: string) => messageDigest(providerMessageId),
+      ),
     ...read,
     close: async () => {
       await queue.close();

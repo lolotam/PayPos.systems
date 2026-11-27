@@ -35,3 +35,22 @@ export type LoginInput = z.infer<typeof loginInput>;
 export type TotpCodeInput = z.infer<typeof totpCodeInput>;
 export type ConfirmPasswordInput = z.infer<typeof confirmPasswordInput>;
 export type SetPasswordInput = z.infer<typeof setPasswordInput>;
+
+// شاشة «نسيت كلمة المرور؟» (spec 079 PR-b): الخطوة الأولى بتطلب الإيميل بس، والتانية الكود ثم كلمة المرور الجديدة.
+export const passwordResetRequestForm = z
+  .object({
+    email: z.email(),
+  })
+  .strict();
+
+export const passwordResetVerifyForm = z
+  .object({
+    code: z.string().regex(/^\d{6}$/),
+    password: z.string().min(8).max(128),
+    confirm: z.string().min(1),
+  })
+  .strict()
+  .refine((input) => input.password === input.confirm, { path: ['confirm'] });
+
+export type PasswordResetRequestForm = z.infer<typeof passwordResetRequestForm>;
+export type PasswordResetVerifyForm = z.infer<typeof passwordResetVerifyForm>;

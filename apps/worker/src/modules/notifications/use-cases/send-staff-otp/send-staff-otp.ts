@@ -18,7 +18,7 @@ export class SendStaffOtp {
     private readonly auth: OtpExecution,
     private readonly capability: OtpWorkerCapability,
     private readonly admission: SendAdmission,
-    private readonly channel: OtpChannel,
+    private readonly channels: readonly OtpChannel[],
     private readonly clock: Clock,
     private readonly ids: IdGenerator,
     private readonly wait: OtpWait,
@@ -35,7 +35,12 @@ export class SendStaffOtp {
       this.diagnostics?.record('MISSING_OR_TERMINAL');
       return;
     }
-    if (this.clock.now() >= attempt.sendDeadline || !this.channel.valid(attempt)) {
+    const channel = this.channels.find((item) => item.channel === attempt.channel);
+    if (
+      channel === undefined ||
+      this.clock.now() >= attempt.sendDeadline ||
+      !channel.valid(attempt)
+    ) {
       await this.auth.finish(challengeId, attemptId, null, refused('CONFIG_INVALID'));
       return;
     }
@@ -70,7 +75,7 @@ export class SendStaffOtp {
     }
     let result: OtpResult;
     try {
-      result = await this.channel.send(attempt, material);
+      result = await channel.send(attempt, material);
     } catch {
       result = { status: 'FAILED', failureCode: 'PROVIDER_UNKNOWN', outcomeKnown: false };
     }

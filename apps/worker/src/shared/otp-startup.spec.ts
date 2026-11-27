@@ -51,6 +51,7 @@ vi.mock('@pospay/auth', () => ({
   createStaffOtpExecution: () => resources.execution,
   createStaffOtpMaintenance: resources.maintenance,
   readStaffOtpConfiguration: () => resources.configuration,
+  readEmailOtpConfiguration: () => ({ state: 'DISABLED' as const }),
 }));
 vi.mock('@pospay/observability', () => ({ createLogger: () => resources.logger }));
 vi.mock('ioredis', () => ({

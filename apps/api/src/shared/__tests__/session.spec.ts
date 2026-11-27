@@ -87,6 +87,7 @@ const fakeAuth: AuthService = {
     };
   },
   provisionUser: async () => USER,
+  hashPassword: async () => 'synthetic-hash',
   issuePasswordSetLink: async () => 'http://api.test/unused',
   recordPlatformAction: async () => undefined,
   discardUser: async () => undefined,

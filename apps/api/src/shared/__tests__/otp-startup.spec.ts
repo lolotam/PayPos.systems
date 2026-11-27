@@ -23,6 +23,7 @@ const resources = vi.hoisted(() => ({
     workerFingerprint: vi.fn(async () => 'synthetic-worker'),
   },
   logger: { info: vi.fn(), warn: vi.fn(), fatal: vi.fn() },
+  passwordReset: vi.fn<(options: unknown) => null>(() => null),
 }));
 vi.mock('@pospay/db', () => ({
   createDatabase: () => resources.database,
@@ -77,6 +78,8 @@ vi.mock('../../modules/notifications/index.ts', () => ({
   createWhatsappIntake: () => resources.intake,
 }));
 vi.mock('../../modules/identity/index.ts', () => ({
+  // استرجاع كلمة المرور بالإيميل خارج نطاق هذا الاختبار: القدرة مقفولة فمفيش خدمة تتبنى.
+  createPasswordResetCapability: (options: unknown) => resources.passwordReset(options),
   membershipCompanies: vi.fn(async () => []),
   staffOtpDependencies: () => ({ transport: resources.transport, rates: {}, eligibility: {} }),
 }));
@@ -209,4 +212,36 @@ it('a failing optional intake is diagnosed and isolated from ordinary API readin
     },
     'staff OTP capability',
   );
+});
+
+it('password reset stays closed in production without a trusted proxy and opens with one', async () => {
+  const { startPasswordReset } = await import('../../password-reset-startup.ts');
+  const shared = {
+    env: {
+      NOTIFICATION_EMAIL_HASH_KEY: 'synthetic-email'.repeat(6),
+      NOTIFICATION_EMAIL_HASH_KEY_ID: 'synthetic-e',
+    },
+    redis: {} as never,
+    redisUrl: 'synthetic',
+    ids: {} as never,
+    service: { hashPassword: vi.fn() },
+    logger: resources.logger as never,
+    production: true,
+  };
+  expect(startPasswordReset({ ...shared, trustedProxy: [] })).toBeNull();
+  expect(resources.passwordReset).not.toHaveBeenCalled();
+  expect(resources.logger.info).toHaveBeenCalledWith(
+    {
+      capability: {
+        name: 'PASSWORD_RESET_OTP',
+        state: 'UNAVAILABLE',
+        reason: 'NO_TRUSTED_PROXY',
+      },
+    },
+    'password reset capability',
+  );
+  startPasswordReset({ ...shared, trustedProxy: ['127.0.0.1/32'] });
+  expect(resources.passwordReset).toHaveBeenCalledOnce();
+  startPasswordReset({ ...shared, production: false, trustedProxy: [] });
+  expect(resources.passwordReset).toHaveBeenCalledTimes(2);
 });

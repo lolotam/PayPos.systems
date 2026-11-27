@@ -1020,3 +1020,42 @@ the design advice in issue #682.
 not allow a manager's own PIN to sign anyone in. Spec 071's 071-4 implements it and merges before or with 071-3. An
 employee who sent STOP before her first sign-in has no phone binding and so no PIN at all (issue #686). If Abu Salem
 picks the WhatsApp-code option of DV-Q9, this addendum is replaced before 071-4 ships.
+
+## Addendum 2026-11-26 — email recovery proofs on the same ledger (spec 079 PR-b)
+
+**Context.** Spec 079 adds self-service recovery by a six-digit code sent to the user's email: a password reset for
+owner, manager and accountant accounts (PR-b), and later a staff PIN reset (PR-c1). The proof, the rate caps and the
+execution fence are the ones this ADR already settled; the staff login code stays on WhatsApp and unchanged.
+
+**Decision (Waleed, 2026-11-26, `docs/specs/079-auth-otp-recovery-and-brand-logo`; classification in ADR-0003 §6a).**
+- No parallel table. `auth_otp_challenges` and `auth_notification_attempts` carry the new proofs. The challenge context
+  is `{"purpose":"PASSWORD_RESET"}`, and the PR-c1 shape `STAFF_PIN_RESET` with its `channel` is allowed by the same
+  migration (0267) so the constraint changes once. The attempt row has `channel='EMAIL'` and `template_key`
+  `password_reset_otp` or `staff_pin_reset_otp`, revision 1, `ar` or `en`, and no provider template name.
+- Lifetimes: the recovery proof lives 600 seconds from creation, the attempt `send_deadline` is the same instant, and
+  the 200 ms preparation window is unchanged. The staff login proof stays 300 seconds. A queue delay never extends a
+  deadline.
+- The grants of §3 are unchanged: the same column-level `INSERT` and `UPDATE` lists and the same bounded `DELETE`.
+  `pospay_auth` gets exactly one new privilege, `EXECUTE` on `platform_email_is_suppressed(bytea)`, because an
+  email-channel release must test the global email suppression under the same recipient lock, as the WhatsApp channel
+  tests its own. It gets no privilege on any `platform_email_*` table.
+- The code is derived and verified with the same keyed derivation and verification keys, under its own domain tag
+  `pospay:password-reset-otp:context:v1`, so a staff code and a recovery code never share a MAC input. At most five
+  wrong codes: the fifth ends the challenge as `EXHAUSTED` and clears `code_mac`. A new request for the same recipient
+  supersedes the earlier active challenge.
+- Rate caps are the §6 caps on `redisOtpRates`, keyed by the email hash instead of the phone hash: five requests per
+  recipient and twenty per network per hour with a 60 second cooldown, twenty-five and one hundred verification
+  attempts per hour. Before any lookup, so a limited request reads nothing.
+- Every request answers the same `202` body and takes the same 200 ms window for an unknown address, a staff account,
+  a suppressed address and an eligible owner. The worker alone sends, through the Resend channel with the correlation
+  tags `auth_challenge_id`, `attempt_id` and `execution_id`; the API holds no sending key.
+
+**What does not change.** A reset creates no session and no cookie. It deletes the user's sessions and pending reset
+links and leaves `two_factor` untouched, so the next sign-in still requires the second factor. A staff account
+(`staff_access_operation_id` set, or a synthetic staff email) cannot start or consume a reset: the check runs again
+under the user row lock.
+
+**Tests added with it.** Constraint tests for each purpose and its lifetime, grant tests proving `pospay_auth` cannot
+update `device_context`, `recipient_hash`, `created_at`, `channel` or `template_key`, and cannot read or write any
+`platform_email_*` table, a concurrency test with one winner, session and reset-link deletion with `two_factor` kept,
+and the provider-feedback reconciliation on the auth tags (spec 075 `ReconcileEmailFeedback`).

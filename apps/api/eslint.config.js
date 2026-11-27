@@ -26,7 +26,7 @@ export default [
     },
   },
   {
-    files: ['src/main.ts'],
+    files: ['src/main.ts', 'src/email-feedback-startup.ts'],
     ...allowDatabaseFacade(['createPlatformWhatsappDatabase', 'createPlatformEmailDatabase']),
   },
   { files: ['scripts/staging-staff-user.ts'], ...allowDatabaseFacade([], { operator: true }) },

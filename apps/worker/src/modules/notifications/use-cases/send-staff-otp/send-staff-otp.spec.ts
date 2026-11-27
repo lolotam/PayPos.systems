@@ -15,6 +15,7 @@ function pendingRow(): OtpPending {
     challengeId: 'challenge',
     recipientHash: Buffer.alloc(32, 4),
     locale: 'ar',
+    channel: 'WHATSAPP',
     providerTemplateName: 'synthetic_ar',
     status: 'PREPARED',
     preparationDeadline: new Date(200),
@@ -39,9 +40,10 @@ function execution(state: FixtureState, row: OtpPending): OtpExecution {
       return true;
     }),
     materialize: vi.fn(async () => ({
-      phone: '+99900000001',
+      destination: '+99900000001',
       code: String(7).padStart(6, '0'),
       deadline: row.sendDeadline,
+      executionId: 'execution',
     })),
     finish: vi.fn(async () => {
       state.status = 'SENT';
@@ -69,7 +71,7 @@ function fixture() {
     auth,
     { ready, available: () => state.active },
     { reserve },
-    { valid: () => true, send },
+    [{ channel: 'WHATSAPP', valid: () => true, send }],
     { now: () => new Date(state.now) },
     { newId: () => 'execution' },
     { pause },

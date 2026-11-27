@@ -6,21 +6,31 @@ import {
 import { session, user } from '../schema/identity-auth.ts';
 import { otpChallenges } from './staff-otp-challenges.ts';
 import { otpAttempts } from './staff-otp-attempts.ts';
-import { createOtpRuntime } from './staff-otp-runtime.ts';
+import { createOtpRuntime, type OtpRuntime } from './staff-otp-runtime.ts';
 import { translatingPhoneRace } from './staff-access-database.ts';
 import type { OtpDeviceContext } from './staff-otp-types.ts';
 import { assertOtpInventory } from './staff-otp-inventory.ts';
 import { deleteStaffPrivateViewRows } from './staff-private-view.ts';
+import { passwordResetOtpQueries, type CredentialAccountRule } from './password-reset-otp.ts';
+import { authAttemptFeedbackQueries } from './auth-attempt-feedback.ts';
+
+/** الأهلية الافتراضية لاسترجاع كلمة المرور: أي حساب مش حساب موظف. */
+const nonStaffAccount: CredentialAccountRule = (_email, staffAccessOperationId) =>
+  staffAccessOperationId === null;
 
 /** وصول عالمي خاص بالاعتماد؛ لا عميل خام ولا بيانات شركة أو جسر. */
 export function createStaffOtpDatabase(options: {
   url: string;
   phoneLockKey(hash: Uint8Array): bigint;
+  /** قاعدة أهلية استعادة كلمة المرور: حساب الاعتماد غير الموظف. */
+  credentialAccount?: CredentialAccountRule;
 }) {
   const runtime = createOtpRuntime(options.url, options.phoneLockKey);
   return {
     ...otpChallenges(runtime),
     ...otpAttempts(runtime),
+    ...passwordResetOtpQueries(runtime, options.credentialAccount ?? nonStaffAccount),
+    ...authAttemptFeedbackQueries(runtime),
     ping: () => otpPing(runtime),
     warm: () => runtime.warm(),
     // الاتصالات مملوكة للعملية المحدودة نفسها، فتغلق في finally قبل عودة نتيجتها.
@@ -48,20 +58,7 @@ export function createStaffOtpDatabase(options: {
         new Date(Date.now() + 5000),
       ),
     bindingValid: (userId: string, authenticatedAt: Date) =>
-      runtime.run(async (tx) => {
-        const [bound] = await tx
-          .select({ id: user.id })
-          .from(user)
-          .where(
-            and(
-              eq(user.id, userId),
-              isNotNull(user.phoneNumber),
-              isNotNull(user.phoneBindingApprovedAt),
-              lte(user.phoneBindingApprovedAt, authenticatedAt),
-            ),
-          );
-        return bound !== undefined;
-      }),
+      otpBindingValid(runtime, userId, authenticatedAt),
     approvePhone: (input: {
       userId: string;
       phone: string;
@@ -72,6 +69,23 @@ export function createStaffOtpDatabase(options: {
     cleanup: (limit: number) => otpCleanup(runtime, limit),
   };
 }
+
+/** الربط ما زال صالح: رقم الهاتف موجود ومعتمد قبل وقت المصادقة. */
+const otpBindingValid = (runtime: OtpRuntime, userId: string, authenticatedAt: Date) =>
+  runtime.run(async (tx) => {
+    const [bound] = await tx
+      .select({ id: user.id })
+      .from(user)
+      .where(
+        and(
+          eq(user.id, userId),
+          isNotNull(user.phoneNumber),
+          isNotNull(user.phoneBindingApprovedAt),
+          lte(user.phoneBindingApprovedAt, authenticatedAt),
+        ),
+      );
+    return bound !== undefined;
+  });
 
 export type StaffOtpDatabase = ReturnType<typeof createStaffOtpDatabase>;
 

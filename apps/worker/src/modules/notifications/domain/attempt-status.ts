@@ -14,6 +14,15 @@ export type FailureCode =
   | 'PROVIDER_5XX'
   | 'NETWORK_UNKNOWN'
   | 'RESPONSE_INVALID';
+/**
+ * قوالب اعتماد الدخول والاسترجاع: بتطلع من سجل الاعتماد على pospay_auth بس، ومحجوزة
+ * عن أحداث الشركات عشان حدث شركة ما يقدرش يزوّر رسالة كود.
+ */
+const RESERVED_AUTH_TEMPLATES: ReadonlySet<string> = new Set([
+  'password_reset_otp',
+  'staff_pin_reset_otp',
+]);
+
 /** لغة صريحة مدعومة بلا اختيار بديل. */
 export type Locale = 'ar' | 'en';
 /** قيمة مرتبة اجتازت قائمة القالب الآمنة بلا كود أو رابط حامل. */
@@ -128,6 +137,8 @@ export function authorizationDecision(
   if (input.locale !== 'ar' && input.locale !== 'en')
     return { status: 'FAILED', locale: null, failureCode: 'LOCALE_UNSUPPORTED' };
   const locale = input.locale;
+  if (RESERVED_AUTH_TEMPLATES.has(input.templateKey))
+    return { status: 'FAILED', locale, failureCode: 'CONFIG_INVALID' };
   if (input.deadline !== null && now.getTime() >= input.deadline.getTime())
     return { status: 'EXPIRED', locale, failureCode: 'DEADLINE_EXPIRED' };
   if (!input.identity.valid)

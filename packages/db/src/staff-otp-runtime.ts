@@ -16,7 +16,7 @@ export interface OtpRuntime {
   /** ساعة جديدة بعد اكتمال الأقفال؛ الانتظار لا يمد صلاحية الاعتماد. */
   now(tx: Tx): Promise<Date>;
   /** لقطة statement جديدة بعد القفل تمنع تفويت STOP المعتمد. */
-  suppressed(tx: Tx, hash: Uint8Array): Promise<boolean>;
+  suppressed(tx: Tx, hash: Uint8Array, channel?: 'EMAIL' | 'WHATSAPP'): Promise<boolean>;
 }
 
 export function createOtpRuntime(
@@ -57,9 +57,13 @@ export function createOtpRuntime(
       }
       return databaseNow(tx);
     },
-    suppressed: async (tx, hash) => {
-      const [row] = await tx.execute<{ blocked: boolean }>(sql`
-        SELECT public.platform_whatsapp_is_suppressed(${Buffer.from(hash)}::bytea) AS blocked`);
+    suppressed: async (tx, hash, channel = 'WHATSAPP') => {
+      // لكل قناة دالة حظرها هي: الاعتماد بالإيميل بيتحقق من حظر الإيميل، مش من حظر الواتساب.
+      const [row] = await tx.execute<{ blocked: boolean }>(
+        channel === 'EMAIL'
+          ? sql`SELECT public.platform_email_is_suppressed(${Buffer.from(hash)}::bytea) AS blocked`
+          : sql`SELECT public.platform_whatsapp_is_suppressed(${Buffer.from(hash)}::bytea) AS blocked`,
+      );
       if (typeof row?.blocked !== 'boolean') throw new Error('OTP_SUPPRESSION_UNAVAILABLE');
       return row.blocked;
     },

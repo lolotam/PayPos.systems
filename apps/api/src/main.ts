@@ -16,11 +16,7 @@ import {
   readOtpTemplateApproval,
   readPushApiConfiguration,
 } from '@pospay/notifications';
-import {
-  createDatabase,
-  createPlatformEmailDatabase,
-  createPlatformWhatsappDatabase,
-} from '@pospay/db';
+import { createDatabase, createPlatformWhatsappDatabase } from '@pospay/db';
 import { systemUuidV7 } from '@pospay/ids';
 import { createLogger } from '@pospay/observability';
 import { Redis } from 'ioredis';
@@ -28,12 +24,18 @@ import { readEmailConfiguration } from '@pospay/notifications';
 
 import { createApp } from './app.ts';
 import { filesRuntime } from './modules/files/index.ts';
-import { createResendIntake, createWhatsappIntake } from './modules/notifications/index.ts';
+import { createWhatsappIntake } from './modules/notifications/index.ts';
 import { API_LOG_EVENTS } from './shared/log-events.ts';
 import { createActivePasskeyBindings, createPersonalEligibility } from './modules/staff/index.ts';
-import { membershipCompanies, staffOtpDependencies } from './modules/identity/index.ts';
+import {
+  membershipCompanies,
+  staffOtpDependencies,
+  type PasswordResetCapability,
+} from './modules/identity/index.ts';
 import { readConfig, memberInvitationsDependency } from './shared/config.ts';
 import { closeOptional, optionalWithin } from './shared/optional-capability.ts';
+import { startPasswordReset } from './password-reset-startup.ts';
+import { startEmailFeedbackIntake, type EmailFeedbackIntake } from './email-feedback-startup.ts';
 import { staffAccessRoutesEnabled } from './shared/staff-access-routes.ts';
 import { staffNativeOriginsFrom } from './shared/staff-origin.token.ts';
 
@@ -59,15 +61,16 @@ let otp: StaffOtpApi | undefined;
 let personalOtp:
   ReturnType<typeof createStaffOtpApi<PersonalWorkspace, PersonalSession>> | undefined;
 let otpDependencies: ReturnType<typeof staffOtpDependencies> | undefined;
+let passwordReset: PasswordResetCapability | null = null;
 let otpInitializing = true;
 let otpSetupFailed = false;
 const otpConfiguration = () =>
   readStaffOtpConfiguration(process.env, 'api', readOtpTemplateApproval(process.env));
 const intakeUrl = config.PLATFORM_NOTIFICATIONS_DATABASE_URL;
 let globalDatabase: ReturnType<typeof createPlatformWhatsappDatabase> | undefined;
-let emailDatabase: ReturnType<typeof createPlatformEmailDatabase> | undefined;
+let emailDatabase: EmailFeedbackIntake['database'] | undefined;
 let whatsapp: ReturnType<typeof createWhatsappIntake> | undefined;
-let resend: ReturnType<typeof createResendIntake> | undefined;
+let resend: EmailFeedbackIntake['resend'] | undefined;
 
 // No offline queue: while Redis is down a command fails at once, so /ready reports it instead of hanging.
 const redis = new Redis(config.REDIS_URL, {
@@ -103,6 +106,7 @@ const release = async (): Promise<void> => {
       otp?.close(),
       personalOtp?.close(),
       otpDependencies?.transport.close(true),
+      passwordReset?.close(),
       redis.quit(),
     ]),
     deadline,
@@ -147,52 +151,16 @@ try {
       'staff OTP capability',
     );
   }
-  // The email feedback intake rides on the same restricted notifications database, but it needs its
-  // own webhook secret: without it the route answers NOT_READY and stores nothing.
-  if (intakeUrl !== undefined) {
-    try {
-      // بلا proxy موثوق في الإنتاج كل الطلبات بتوصل من عنوان الـ proxy نفسه، فحد المزوّد لكل IP
-      // بيبقى دلو واحدة، والـ 503 هو السلوك المتعمد (spec 075 FR-001).
-      if (process.env['NODE_ENV'] === 'production' && config.TRUSTED_PROXY_CIDRS.length === 0)
-        throw new Error('EMAIL_FEEDBACK_CAPABILITY_UNAVAILABLE');
-      emailDatabase = createPlatformEmailDatabase({ url: intakeUrl });
-      const intake = createResendIntake(emailDatabase, config.REDIS_URL, process.env, logger);
-      resend = intake;
-      await optionalWithin(() => intake.ready());
-      logger.info(
-        { capability: { name: 'EMAIL_FEEDBACK_INTAKE', state: 'READY' } },
-        'email feedback intake capability',
-      );
-    } catch (error) {
-      logger.warn(
-        {
-          capability: {
-            name: 'EMAIL_FEEDBACK_INTAKE',
-            state: 'UNAVAILABLE',
-            reason:
-              error instanceof Error && error.message === 'RESEND_EVENT_DIGEST_KEY_INVALID'
-                ? 'EVENT_DIGEST_KEY_MISSING_OR_INVALID'
-                : 'SETUP_FAILED',
-          },
-        },
-        'email feedback intake capability',
-      );
-      await closeOptional([() => resend?.close(true), () => emailDatabase?.close(true)]);
-      resend = undefined;
-      emailDatabase = undefined;
-    }
-  } else {
-    logger.info(
-      {
-        capability: {
-          name: 'EMAIL_FEEDBACK_INTAKE',
-          state: 'DISABLED',
-          reason: 'NOT_CONFIGURED',
-        },
-      },
-      'email feedback intake capability',
-    );
-  }
+  const emailIntake = await startEmailFeedbackIntake({
+    intakeUrl,
+    production: process.env['NODE_ENV'] === 'production',
+    trustedProxy: config.TRUSTED_PROXY_CIDRS,
+    redisUrl: config.REDIS_URL,
+    env: process.env,
+    logger,
+  });
+  resend = emailIntake?.resend;
+  emailDatabase = emailIntake?.database;
   auth = await createAuth({
     passkeyBindings: createActivePasskeyBindings(database, {
       forUser: (userId) => membershipCompanies(database, userId),
@@ -212,6 +180,17 @@ try {
     },
   });
   const service = auth;
+  // استرجاع كلمة المرور بالإيميل مستقل عن اعتماد الواتساب: بيعتمد على الإيميل وRedis وقاعدة الهوية بس.
+  passwordReset = startPasswordReset({
+    env: process.env,
+    redis,
+    redisUrl: config.REDIS_URL,
+    ids: systemUuidV7(),
+    service,
+    logger,
+    production: process.env['NODE_ENV'] === 'production',
+    trustedProxy: config.TRUSTED_PROXY_CIDRS,
+  });
   const initialOtp = otpConfiguration();
   if (initialOtp.state === 'READY' && whatsapp !== undefined) {
     try {
@@ -395,6 +374,7 @@ try {
         origin: process.env['STAFF_OTP_POS_ORIGIN'] || null,
         nativeOrigins: staffNativeOriginsFrom(process.env['STAFF_NATIVE_ORIGINS']),
       },
+      passwordReset: passwordReset?.api ?? null,
       database,
       files,
       redis,

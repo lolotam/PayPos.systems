@@ -23,18 +23,34 @@ export function challengeContext(
   challenge: Pick<OtpChallenge, 'id' | 'recipientHash' | 'deviceContext'>,
 ): Buffer {
   const d = challenge.deviceContext;
-  if ('purpose' in d)
+  const recipient = Buffer.from(challenge.recipientHash).toString('hex');
+  if ('purpose' in d) {
+    // لكل غرض دومين خاص بيه، فبصمة الاعتماد ما بتتكررش بين الأغراض ولا مع اعتماد الواتساب.
+    if (d.purpose === 'PASSWORD_RESET')
+      return encode(['pospay:password-reset-otp:context:v1', challenge.id, recipient]);
+    if (d.purpose === 'STAFF_PIN_RESET')
+      return encode([
+        'pospay:staff-pin-reset-otp:context:v1',
+        challenge.id,
+        recipient,
+        d.companyId,
+        d.businessId,
+        d.branchId,
+        d.deviceId,
+        d.channel,
+      ]);
     return encode([
       'pospay:personal-otp:context:v1',
       challenge.id,
-      Buffer.from(challenge.recipientHash).toString('hex'),
+      recipient,
       d.companyId,
       d.businessId,
     ]);
+  }
   return encode([
     'pospay:staff-otp:context:v1',
     challenge.id,
-    Buffer.from(challenge.recipientHash).toString('hex'),
+    recipient,
     d.companyId,
     d.businessId,
     d.branchId,

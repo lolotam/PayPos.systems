@@ -11,7 +11,10 @@ const HASH_BYTES = 32;
 
 /** الوسوم الثلاثة التي يربطها محوّل الإرسال بكل إيميل (spec 075 FR-010). */
 export interface RetrievedEmailTags {
-  readonly companyId: string;
+  /** وسم الشركة — بريد الشركات بس. */
+  readonly companyId: string | null;
+  /** وسم الاعتماد — بريد الاسترجاع بس. */
+  readonly authChallengeId: string | null;
   readonly attemptId: string;
   readonly executionId: string;
 }
@@ -170,12 +173,19 @@ function singleRecipient(value: unknown): string | null {
 function readTags(value: unknown): RetrievedEmailTags | null {
   const entries = tagEntries(value);
   if (entries === null) return null;
-  const companyId = entries['company_id'];
   const attemptId = entries['attempt_id'];
   const executionId = entries['execution_id'];
-  if (companyId === undefined || attemptId === undefined || executionId === undefined) return null;
-  if (!UUID.test(companyId) || !UUID.test(attemptId) || !UUID.test(executionId)) return null;
-  return { companyId, attemptId, executionId };
+  if (attemptId === undefined || executionId === undefined) return null;
+  if (!UUID.test(attemptId) || !UUID.test(executionId)) return null;
+  const companyId = entries['company_id'];
+  if (companyId !== undefined) {
+    if (!UUID.test(companyId)) return null;
+    return { companyId, authChallengeId: null, attemptId, executionId };
+  }
+  // بريد الاعتماد بيتربّط بسجل الاعتماد: وسم الشركة غايب ووسم الاعتماد موجود.
+  const authChallengeId = entries['auth_challenge_id'];
+  if (authChallengeId === undefined || !UUID.test(authChallengeId)) return null;
+  return { companyId: null, authChallengeId, attemptId, executionId };
 }
 
 function tagEntries(value: unknown): Record<string, string> | null {

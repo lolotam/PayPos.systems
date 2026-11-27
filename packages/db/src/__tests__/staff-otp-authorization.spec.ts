@@ -25,12 +25,16 @@ describe('PREPARED is never permission; fresh STOP and immutable deadline gate r
   it('cannot claim before release, and duplicate processors have one acknowledged fence', async () => {
     const p = f.input();
     expect(await f.db.prepare(p)).toBe(true);
-    expect(await f.db.claim(p.challenge.id, p.attemptId, randomUUID())).toBe(false);
+    expect(await f.db.claim(p.challenge.id, p.attemptId, randomUUID(), async () => true)).toBe(
+      false,
+    );
     expect(
       await f.db.release(p.challenge.id, p.attemptId, p.preparationDeadline, async () => true),
     ).toBe(true);
     const results = await Promise.all(
-      Array.from({ length: 4 }, () => f.db.claim(p.challenge.id, p.attemptId, randomUUID())),
+      Array.from({ length: 4 }, () =>
+        f.db.claim(p.challenge.id, p.attemptId, randomUUID(), async () => true),
+      ),
     );
     expect(results.filter(Boolean)).toHaveLength(1);
     const live =
@@ -51,13 +55,17 @@ describe('PREPARED is never permission; fresh STOP and immutable deadline gate r
     await expect(
       f.db.release(p.challenge.id, p.attemptId, p.preparationDeadline, async () => true),
     ).rejects.toThrow();
-    expect(await f.db.claim(p.challenge.id, p.attemptId, randomUUID())).toBe(false);
+    expect(await f.db.claim(p.challenge.id, p.attemptId, randomUUID(), async () => true)).toBe(
+      false,
+    );
   });
   it('a failure/unknown enqueue leaves any externally created job unable to claim', async () => {
     const p = f.input();
     await f.db.prepare(p);
     await f.db.failPreparation(p.challenge.id, p.attemptId, p.preparationDeadline);
-    expect(await f.db.claim(p.challenge.id, p.attemptId, randomUUID())).toBe(false);
+    expect(await f.db.claim(p.challenge.id, p.attemptId, randomUUID(), async () => true)).toBe(
+      false,
+    );
     expect(await f.db.pending(p.challenge.id, p.attemptId)).toMatchObject({ status: 'FAILED' });
   });
 });
@@ -70,7 +78,9 @@ describe('PREPARED is never permission; fresh STOP and immutable deadline gate r
       await f.db.release(p.challenge.id, p.attemptId, p.preparationDeadline, async () => true),
     ).toBe(false);
     expect(await f.db.find(p.challenge.id)).toMatchObject({ status: 'SUPPRESSED', codeMac: null });
-    expect(await f.db.claim(p.challenge.id, p.attemptId, randomUUID())).toBe(false);
+    expect(await f.db.claim(p.challenge.id, p.attemptId, randomUUID(), async () => true)).toBe(
+      false,
+    );
   });
   it('STOP winning initial preparation with no user generates no code and retains only terminal metadata', async () => {
     await stop();
@@ -91,6 +101,8 @@ describe('PREPARED is never permission; fresh STOP and immutable deadline gate r
       await f.owner`SELECT recipient_hash FROM platform_whatsapp_suppressions WHERE recipient_hash=${hash}`,
     ).toHaveLength(1);
     expect(await f.db.pending(randomUUID(), randomUUID())).toBeNull();
-    expect(await f.db.claim(randomUUID(), randomUUID(), randomUUID())).toBe(false);
+    expect(await f.db.claim(randomUUID(), randomUUID(), randomUUID(), async () => true)).toBe(
+      false,
+    );
   });
 });
