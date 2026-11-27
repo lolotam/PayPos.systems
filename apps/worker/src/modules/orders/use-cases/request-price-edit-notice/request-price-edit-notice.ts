@@ -1,4 +1,4 @@
-import { bellDelivery } from '../../domain/alert-rule-bell.ts';
+import { teamAlertDelivery, teamAlertRecipientGroups, type AlertChannel } from '@pospay/domain';
 import {
   assertPriceEditEventValues,
   priceEditEditorLabel,
@@ -6,7 +6,6 @@ import {
   priceEditRecipientGroups,
   type PriceEditEditorLabel,
   type PriceEditNameFallback,
-  type PriceEditParameters,
 } from '../../domain/price-edit-notice.ts';
 import type {
   Clock,
@@ -14,6 +13,7 @@ import type {
   PriceEditNoticeLine,
   PriceEditNoticePorts,
 } from '../../ports/price-edit-notice.port.ts';
+import { readRequiredTeamAlertContacts } from '../read-team-alert-contacts.ts';
 
 /** يطلب جرس تعديل السعر مرة لكل (سطر، مراجعة) داخل معاملة المستهلك. */
 export class RequestPriceEditNotice {
@@ -29,7 +29,7 @@ export class RequestPriceEditNotice {
     if (!(await this.ports.repository.matchesLine(input)))
       throw new Error('PRICE_EDIT_EVENT_INVALID');
     if (!(await this.ports.recipients.companyOpen(input.companyId))) return;
-    const { roles, channel } = bellDelivery(
+    const { roles, channels } = teamAlertDelivery(
       await this.ports.rules.rule(
         input.companyId,
         { businessId: input.businessId, branchId: input.branchId },
@@ -70,18 +70,18 @@ export class RequestPriceEditNotice {
       decidedAt,
       recipientCount,
     });
-    // قاعدة مقفولة معناها قناة null وأدوار فاضية، فهي قرار صفر مستلمين زي «لا مدير في النطاق»؛
-    // الشرط ده بيحافظ على نوع القناة من غير cast.
-    if (!won || branch === null || recipientCount === 0 || channel === null) return;
-    await this.publish(input, branch, editor, groups, channel);
+    // قاعدة مقفولة أو من غير قنوات معناها قنوات فاضية وأدوار فاضية، فهي قرار صفر مستلمين زي «لا مدير في النطاق».
+    if (!won || branch === null || recipientCount === 0 || channels.length === 0) return;
+    await this.publish(input, branch, editor, groups.flat(), channels, decidedAt);
   }
 
   private async publish(
     input: PriceEditNoticeInput,
     branch: Parameters<typeof priceEditNoticeParameters>[0]['branch'],
     editor: PriceEditEditorLabel,
-    groups: readonly (readonly string[])[],
-    channel: 'IN_APP',
+    userIds: readonly string[],
+    channels: readonly AlertChannel[],
+    decidedAt: Date,
   ): Promise<void> {
     const context = await this.ports.repository.readLineContext(input);
     if (context === null) throw new Error('PRICE_EDIT_EVENT_INVALID');
@@ -94,16 +94,34 @@ export class RequestPriceEditNotice {
       editor,
       fallback: this.fallback,
     });
-    for (const group of groups)
-      await this.append(input, context.businessTimezone, group, parameters, channel);
+    const contacts = await readRequiredTeamAlertContacts({
+      channels,
+      userIds,
+      companyId: input.companyId,
+      at: decidedAt,
+      contacts: this.ports.contacts,
+    });
+    const recipientGroups = teamAlertRecipientGroups({
+      channels,
+      userIds,
+      templateKey: 'service_line_price_edited',
+      contacts,
+      inApp: (user_id) => ({
+        channel: 'IN_APP' as const,
+        user_id,
+        locale: 'ar' as const,
+        template_key: 'service_line_price_edited' as const,
+        template_revision: 1 as const,
+        safe_parameters: parameters,
+      }),
+    });
+    for (const group of recipientGroups) await this.append(input, context.businessTimezone, group);
   }
 
   private async append(
     input: PriceEditNoticeInput,
     businessTimezone: string,
-    group: readonly string[],
-    parameters: PriceEditParameters,
-    channel: 'IN_APP',
+    group: Parameters<PriceEditNoticePorts['outbox']['append']>[1]['notification_recipients'],
   ): Promise<void> {
     await this.ports.outbox.append(this.ids.newId(), {
       schema_version: 1,
@@ -114,14 +132,7 @@ export class RequestPriceEditNotice {
       branch_id: input.branchId,
       business_date: input.businessDate,
       business_timezone: businessTimezone,
-      notification_recipients: group.map((user_id) => ({
-        channel,
-        user_id,
-        locale: 'ar' as const,
-        template_key: 'service_line_price_edited' as const,
-        template_revision: 1 as const,
-        safe_parameters: parameters,
-      })),
+      notification_recipients: group,
     });
   }
 }

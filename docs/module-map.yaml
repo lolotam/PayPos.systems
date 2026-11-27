@@ -169,6 +169,10 @@ reads:
   - { from: staff, to: identity, symbol: readAttendanceChangeAccess, file: apps/api/src/modules/staff/persistence/attendance-change-context.adapter.ts }
   - { from: staff, to: identity, symbol: readAttendanceChangeApprovers, file: apps/api/src/modules/staff/persistence/attendance-change-context.adapter.ts }
   - { from: staff, to: identity, symbol: readBranchRoleHolders, file: apps/api/src/modules/staff/persistence/attendance-change-alert-rule.adapter.ts }
+  - { from: staff, to: identity, symbol: teamAlertRecipientContacts, file: apps/api/src/modules/staff/persistence/attendance-change-alert-rule.adapter.ts }
+  - { from: orders, to: identity, symbol: teamAlertRecipientContacts, file: apps/worker/src/modules/orders/persistence/team-contacts.adapter.ts }
+  - { from: customers, to: identity, symbol: teamAlertRecipientContacts, file: apps/worker/src/modules/customers/persistence/team-contacts.adapter.ts }
+  - { from: staff, to: identity, symbol: teamAlertRecipientContacts, file: apps/worker/src/modules/staff/persistence/team-contacts.adapter.ts }
   - { from: staff, to: tenancy, symbol: describeWorkspaces, file: apps/api/src/modules/staff/persistence/attendance-change-context.adapter.ts }
   - { from: staff, to: identity, symbol: personalMemberships, file: apps/api/src/modules/staff/persistence/attendance-context.adapter.ts }
   - { from: staff, to: tenancy, symbol: attendanceBranch, file: apps/api/src/modules/staff/persistence/attendance-context.adapter.ts }

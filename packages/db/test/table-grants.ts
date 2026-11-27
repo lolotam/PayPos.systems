@@ -249,6 +249,8 @@ export const ALLOWED_TABLE_GRANTS: Record<string, string[]> = {
   pospay_dispatcher: ['operational_recovery_flags:SELECT', 'outbox:SELECT'],
   // دور دالة عدّ الاعتماد (ADR-0012 §2): لا صلاحية جدول ولا sequence إطلاقًا؛ قراءته أعمدة محدّدة فقط، في APPROVAL_READER_COLUMN_GRANTS.
   pospay_approval_reader: [],
+  // دور دالة قراءة جهات اتصال تنبيهات الفريق (ADR-0003 §6a، AL-Q6): لا صلاحية جدول؛ قراءته أعمدة محدّدة في TEAM_CONTACT_READER_COLUMN_GRANTS.
+  pospay_team_contact_reader: [],
   // دور دوال إثبات تغطية العمولات (ADR-0054 إضافة 2026-11-22): يقرأ ويُدرج في جدولي الإثبات فقط؛ تحديث صف الحالة بأعمدة
   // ثلاثة في COVERAGE_ISSUER_COLUMN_GRANTS، وقراءاته من جداول أخرى بأعمدة محدّدة في القائمة نفسها.
   pospay_coverage_issuer: [

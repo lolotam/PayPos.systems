@@ -16,6 +16,7 @@ import { statementReminderAlertRules } from '../modules/commissions/persistence/
 import {
   commissionStatementRecipients,
   readExplicitCompanyFeature,
+  teamAlertRecipientContacts,
 } from '../modules/identity/index.ts';
 import { companyBusinesses, companyFeatureEnabled } from '../modules/tenancy/index.ts';
 
@@ -61,13 +62,14 @@ beforeEach(async () => {
 });
 
 /** المسار الحقيقي: محوّل القاعدة بيقرا Postgres على معاملة الشركة، والمفتاح العام مطبّق. */
-const transactions = () =>
+const transactions = (withContacts = true) =>
   createStatementReminderTransactions(app, ids, {
     businesses: companyBusinesses,
     feature: (tx, id) => companyFeatureEnabled(tx, id, 'commissions'),
     recipients: commissionStatementRecipients,
     alertRules: statementReminderAlertRules,
     switch: readExplicitCompanyFeature,
+    ...(withContacts ? { contacts: teamAlertRecipientContacts } : {}),
   });
 
 const run = () => remindCommissionStatements({ transactions: transactions(), clock: DAY_THREE }, A.company);
@@ -143,4 +145,41 @@ it('RT-26: turning the business alerts master switch off stops both reminders', 
   expect(result.reminders).toBe(0);
   expect(await ledgerKinds()).toEqual([]);
   expect(await noticeEvents()).toEqual([]);
+});
+
+async function setChannels(kind: string, channels: string[]): Promise<void> {
+  await owner`INSERT INTO alert_rules (company_id, id, business_id, branch_id, kind, enabled,
+      recipient_roles, channels, delay_minutes, lead_minutes, updated_by, revision)
+    VALUES (${A.company}, ${ids.newId()}, ${A.business}, NULL, ${kind}, true,
+      ARRAY['owner']::text[], ${owner.array(channels)}, NULL, NULL, ${ownerUserId}, 1)`;
+}
+
+it('62b-1: an email-only approval rule writes a parameterless email recipient for the verified owner and no bell', async () => {
+  await owner`UPDATE "user" SET email_verified = true WHERE id = ${ownerUserId}`;
+  await setChannels('STATEMENT_AWAITING_APPROVAL', ['EMAIL']);
+  await disableKind('STATEMENT_AWAITING_REVIEW');
+  const result = await run();
+
+  expect(result.reminders).toBe(1);
+  const [row] = await owner`SELECT payload FROM outbox
+    WHERE company_id = ${A.company} AND event_type = 'StatementAwaitingApproval'`;
+  const payload = row?.['payload'] as { notification_recipients: Record<string, unknown>[] };
+  expect(payload.notification_recipients).toEqual([
+    {
+      channel: 'email',
+      email: `${ownerUserId}@example.test`,
+      locale: 'ar',
+      template_key: 'statement_awaiting_approval',
+      template_revision: 1,
+      safe_parameters: [],
+    },
+  ]);
+});
+
+it('62b-1: an external channel without a wired contact reader fails loudly instead of dropping the email', async () => {
+  await setChannels('STATEMENT_AWAITING_APPROVAL', ['EMAIL']);
+  await disableKind('STATEMENT_AWAITING_REVIEW');
+  await expect(
+    remindCommissionStatements({ transactions: transactions(false), clock: DAY_THREE }, A.company),
+  ).rejects.toThrow('TEAM_ALERT_CONTACTS_UNAVAILABLE');
 });

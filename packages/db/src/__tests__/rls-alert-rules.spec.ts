@@ -141,7 +141,7 @@ it('a LOW_RATING rule and its branch override are stored (61-1d widened alert_ru
   await asA(sql`DELETE FROM alert_rules WHERE id=${branchRule}`);
 });
 
-it('checks refuse an unknown kind or role, a non-app channel and a document lead', async () => {
+it('checks refuse an unknown kind, role or channel and a document lead', async () => {
   await rejected(asA(insert(A.company, A.business, null, 'NOT_A_KIND')), '23514', 'alert_rules_kind');
   await rejected(
     asA(insert(A.company, A.business, null, 'LATE_SERVICE_SESSION', ids.newId(), { roles: "ARRAY['cashier']::text[]" })),
@@ -149,7 +149,7 @@ it('checks refuse an unknown kind or role, a non-app channel and a document lead
     'alert_rules_recipient_roles',
   );
   await rejected(
-    asA(insert(A.company, A.business, null, 'LATE_SERVICE_SESSION', ids.newId(), { channels: "ARRAY['EMAIL']::text[]" })),
+    asA(insert(A.company, A.business, null, 'LATE_SERVICE_SESSION', ids.newId(), { channels: "ARRAY['SMS']::text[]" })),
     '23514',
     'alert_rules_channels',
   );
@@ -158,6 +158,22 @@ it('checks refuse an unknown kind or role, a non-app channel and a document lead
     '23514',
     'alert_rules_document_lead',
   );
+});
+
+it('accepts the email and WhatsApp channels beside the in-app one (AL-Q6, 62b-1) and the constraint is validated', async () => {
+  const cases = [
+    ['SERVICE_LINE_EDITED', "ARRAY['EMAIL']::text[]"],
+    ['SERVICE_LINE_CANCELLED', "ARRAY['WHATSAPP']::text[]"],
+    ['SERVICE_LINE_PERFORMERS_CHANGED', "ARRAY['IN_APP','EMAIL','WHATSAPP']::text[]"],
+  ] as const;
+  for (const [kind, channels] of cases) {
+    const id = ids.newId();
+    await asA(insert(A.company, A.business, null, kind, id, { channels }));
+    await asA(sql`DELETE FROM alert_rules WHERE id=${id}`);
+  }
+  const [row] = await owner<{ convalidated: boolean }[]>`SELECT convalidated FROM pg_constraint
+    WHERE conrelid='alert_rules'::regclass AND conname='alert_rules_channels'`;
+  expect(row).toEqual({ convalidated: true });
 });
 
 it('no context, failed transaction, reused pool and concurrent tenants never leak', async () => {

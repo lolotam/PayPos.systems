@@ -27,7 +27,7 @@ it('test 4: the same event twice, then again without its consumed mark, keeps on
   expect(requests).toHaveLength(1);
   const parsed = serviceLineEditNoticeRequested.parse(requests[0]?.['payload']);
   expect(parsed.business_timezone).toBe('Asia/Kuwait');
-  expect(parsed.notification_recipients.map((recipient) => recipient.user_id)).toEqual([USER]);
+  expect(parsed.notification_recipients.flatMap((recipient) => ('user_id' in recipient ? [recipient.user_id] : []))).toEqual([USER]);
   expect(parsed.notification_recipients[0]).toMatchObject({
     channel: 'IN_APP',
     locale: 'ar',

@@ -1,25 +1,28 @@
 import type { Tx } from '@pospay/db';
-import { inAppAlertRoles } from '../domain/alert-rule-plan.ts';
+import { alertRoles } from '../domain/alert-rule-plan.ts';
 import {
   attendanceExceptionParameters,
   type AttendanceExceptionParameter,
 } from '../domain/attendance-exception-notice.ts';
 import type { NameFallback } from '../domain/not-clocked-in.ts';
+import type { TeamAlertAudience } from '../domain/team-alert-groups.ts';
 import { withoutAbsentEmployee } from '../domain/not-clocked-in.ts';
 import type { LockedMissedOutSession } from '../ports/missed-out.port.ts';
 import { alertRules } from './alert-rule.adapter.ts';
 import { branchManagerRecipientsAdapter } from './branch-manager-recipients.adapter.ts';
 import { branchPlaceAdapter } from './branch-place.adapter.ts';
+import { readTeamAlertAudience } from './team-contacts.adapter.ts';
 
 /** مستلمو جرس استثناء الحضور ومعاملاته كما تخرج من القواعد. */
 export interface AttendanceExceptionRecipients {
   readonly userIds: readonly string[];
+  readonly audience: TeamAlertAudience;
   readonly parameters: readonly AttendanceExceptionParameter[];
 }
 
 /**
  * من يصل جرس استثناء الحضور: مديرو فرع البصمة بالأدوار التي تختارها قاعدة نوع ATTENDANCE_EXCEPTION،
- * إلا الموظفة نفسها. والقاعدة المقفولة أو بلا قناة داخل التطبيق أو بلا مديرين معناها ولا جرس (issue #457).
+ * إلا الموظفة نفسها. والقاعدة المقفولة أو بلا أي قناة أو بلا مديرين معناها ولا تنبيه (issue #457).
  *
  * @param tx معاملة الشركة بعد قفل State
  * @param companyId الشركة
@@ -41,7 +44,7 @@ export async function attendanceExceptionRecipients(
     { businessId: session.businessId, branchId: session.branchId },
     'ATTENDANCE_EXCEPTION',
   );
-  const roles = inAppAlertRoles(rule);
+  const roles = alertRoles(rule);
   if (roles.length === 0) return null;
   const place = await branchPlaceAdapter.forBranch(
     tx,
@@ -70,5 +73,6 @@ export async function attendanceExceptionRecipients(
     fallback,
   );
   if (parameters === null) return null;
-  return { userIds, parameters };
+  const audience = await readTeamAlertAudience(tx, companyId, rule.channels, userIds, at);
+  return { userIds, audience, parameters };
 }

@@ -70,7 +70,10 @@ it('hides role checkboxes on statement rows and shows the fixed permission recip
   renderPage();
   await screen.findByRole('switch', { name: t('en', 'alertRules.masterLabel') });
   for (const kind of kinds) {
-    expect(within(kindRow(kind)).queryAllByRole('checkbox')).toHaveLength(0);
+    const row = within(kindRow(kind));
+    expect(row.queryByRole('group', { name: t('en', 'alertRules.recipientsTitle') })).toBeNull();
+    // القنوات بس هي المربعات الباقية: الجرس والإيميل والواتساب.
+    expect(row.getAllByRole('checkbox')).toHaveLength(3);
   }
   expect(
     within(kindRow('STATEMENT_AWAITING_REVIEW')).getByText(

@@ -1,7 +1,7 @@
 import { appendAuditLog, appendOutboxEvent, appendOutboxEvents, type IdGenerator, type Tx } from '@pospay/db';
 import { sql } from 'drizzle-orm';
-import type { AttendanceExceptionParameter } from '../domain/attendance-exception-notice.ts';
-import { inAppRecipientGroups, type NameFallback } from '../domain/not-clocked-in.ts';
+import type { NameFallback } from '../domain/not-clocked-in.ts';
+import { teamAlertGroups } from '../domain/team-alert-groups.ts';
 import type { LockedMissedOutSession } from '../ports/missed-out.port.ts';
 import { attendanceExceptionRecipients } from './attendance-exception-notice.ts';
 
@@ -56,7 +56,19 @@ async function appendExceptionEvents(
 ): Promise<void> {
   const recipients = await attendanceExceptionRecipients(tx, companyId, session, at, fallback);
   if (recipients === null) return;
-  const groups = inAppRecipientGroups(recipients.userIds);
+  const groups = teamAlertGroups(
+    recipients.userIds,
+    recipients.audience,
+    'attendance_exception_raised',
+    (userId) => ({
+      channel: 'IN_APP' as const,
+      user_id: userId,
+      locale: 'ar' as const,
+      template_key: 'attendance_exception_raised' as const,
+      template_revision: 1 as const,
+      safe_parameters: recipients.parameters,
+    }),
+  );
   await appendOutboxEvents(
     tx,
     groups.map((group) => ({
@@ -67,25 +79,11 @@ async function appendExceptionEvents(
         eventType: 'AttendanceExceptionRaised',
         payload: {
           ...payload,
-          notification_recipients: recipientsFor(group, recipients.parameters),
+          notification_recipients: group,
         },
       },
     })),
   );
-}
-
-function recipientsFor(
-  userIds: readonly string[],
-  parameters: readonly AttendanceExceptionParameter[],
-) {
-  return userIds.map((userId) => ({
-    channel: 'IN_APP' as const,
-    user_id: userId,
-    locale: 'ar' as const,
-    template_key: 'attendance_exception_raised' as const,
-    template_revision: 1 as const,
-    safe_parameters: parameters,
-  }));
 }
 
 export async function closeMissedOut(

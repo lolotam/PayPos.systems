@@ -31,6 +31,7 @@ import { statementReminderAlertRules } from './modules/commissions/persistence/a
 import {
   commissionStatementRecipients,
   readExplicitCompanyFeature,
+  teamAlertRecipientContacts,
 } from './modules/identity/index.ts';
 import { companyBusinesses, companyFeatureEnabled } from './modules/tenancy/index.ts';
 
@@ -141,14 +142,14 @@ export function startCommissionReminderWiring(
     recipients: commissionStatementRecipients,
     alertRules: statementReminderAlertRules,
     switch: readExplicitCompanyFeature,
+    contacts: teamAlertRecipientContacts,
   });
   const worker = startCommissionReminderWorker(options.redisUrl, (companyId) =>
     remindCommissionStatements({ transactions, clock: { now: () => new Date() } }, companyId),
   );
   const heartbeat = setInterval(() => {
     void recoverCommissionReminders(recoveryDeps, { mode: 'DETECT' }).catch(() => undefined);
-  }, 60_000);
-  heartbeat.unref?.();
+  }, 60_000).unref();
   const coverage = startCoverageSweep({ database, store, schedule, logger });
   const startup = new AbortController();
   void runStartupRecovery(() => recoverCommissionReminders(recoveryDeps, { mode: 'STARTUP' }), {

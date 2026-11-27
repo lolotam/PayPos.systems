@@ -84,6 +84,18 @@ it('keeps null concurrency values for the first rule at this scope', () => {
   expect(entry?.expected_rule_id).toBeNull();
 });
 
+it('sends a rule whose only change is its channels, whatever the order they were picked in (62b-1)', () => {
+  const view = server();
+  const draft = buildAlertRulesDraft(view);
+  firstRule(draft).channels = ['IN_APP', 'EMAIL', 'WHATSAPP'];
+  expect(alertRulesSaveBody(view, draft)).toEqual({
+    rules: [{ ...firstRule(draft), expected_revision: 4, expected_rule_id: ruleId }],
+  });
+  const reordered = buildAlertRulesDraft(server({ channels: ['IN_APP', 'EMAIL'] }));
+  firstRule(reordered).channels = ['EMAIL', 'IN_APP'];
+  expect(alertRulesSaveBody(server({ channels: ['IN_APP', 'EMAIL'] }), reordered)).toBeNull();
+});
+
 it('builds the draft from server values without read-only fields', () => {
   const draft = buildAlertRulesDraft(server());
   expect(draft.rules[0]).toEqual({

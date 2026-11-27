@@ -1,9 +1,11 @@
+import type { TeamAlertContact } from '@pospay/domain';
 import type {
   BreakNoticeParameter,
   BreakReturn,
   SuppressedBreakKind,
 } from '../domain/break-not-returned.ts';
 import type { LeaveInterval } from '../domain/not-clocked-in.ts';
+import type { TeamAlertAudience } from '../domain/team-alert-groups.ts';
 import type { AlertRulesPort } from './alert-rule.port.ts';
 import type { LockedShift, NotClockedInCursor } from './not-clocked-in.port.ts';
 
@@ -30,6 +32,8 @@ export interface BreakNoticeWrite {
   readonly alertAt: Date;
   readonly detectedAt: Date;
   readonly recipients: readonly string[];
+  /** قنوات التنبيه وجهات اتصال المستلمين (62b-1)؛ غيابه معناه الجرس وحده. */
+  readonly audience?: TeamAlertAudience;
   readonly parameters: readonly BreakNoticeParameter[];
 }
 
@@ -111,6 +115,17 @@ export interface LockedBreakNotReturned {
     branchId: string,
     roles: readonly string[],
   ): Promise<readonly string[]>;
+  /**
+   * جهات اتصال المستلمين للبريد والواتساب من دالة القراءة المحدودة (AL-Q6)؛ مطلوبة لما قناة خارجية تتفعّل بس.
+   *
+   * @param userIds المستلمين
+   * @param at لحظة نافذة العضوية
+   * @returns جهة اتصال لكل مستخدم عنده وجهة صالحة
+   */
+  contacts?(
+    userIds: readonly string[],
+    at: Date,
+  ): Promise<ReadonlyMap<string, TeamAlertContact>>;
   /**
    * يدرج نتيجة البريك مرة واحدة مع التدقيق وحدث لكل مجموعة مستلمين لا تتجاوز مئة، في نفس المعاملة.
    *

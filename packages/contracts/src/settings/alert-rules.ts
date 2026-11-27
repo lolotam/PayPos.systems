@@ -29,8 +29,8 @@ export type AlertKindCode = z.infer<typeof alertKind>;
 export const alertRecipientRole = z
   .enum(['owner', 'general_manager', 'business_manager', 'branch_manager'])
   .meta({ id: 'AlertRecipientRole' });
-// IN_APP بس لحد البند 62b (AL-Q6).
-export const alertChannel = z.enum(['IN_APP']).meta({ id: 'AlertChannel' });
+// القنوات الثلاث (AL-Q6، البند 62b-1)؛ الإرسال الفعلي بالواتساب بيفضل مقفول لحد ضبط قوالب Meta (ADR-0018 §11).
+export const alertChannel = z.enum(['IN_APP', 'EMAIL', 'WHATSAPP']).meta({ id: 'AlertChannel' });
 
 const minutes = z.number().int().min(1).max(1440);
 // الدومين هو اللي يملك مدى الدقايق (1..1440)، فالسكيما في الطلب بتفضل رقم صحيح بس:
@@ -87,7 +87,7 @@ export const alertRuleInput = z
     kind: alertKind,
     enabled: z.boolean(),
     recipient_roles: z.array(alertRecipientRole).max(4),
-    channels: z.array(alertChannel).max(1),
+    channels: z.array(alertChannel).max(3),
     delay_minutes: minutesInput.nullable(),
     lead_minutes: minutesInput.nullable(),
     // رقم النسخة اللي العميل قراها قبل الحفظ (null = متوقع مفيش قاعدة مخزنة في النطاق ده بعد)؛

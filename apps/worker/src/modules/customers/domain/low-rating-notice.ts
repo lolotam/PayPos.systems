@@ -1,4 +1,4 @@
-import type { AlertRecipientRole, EffectiveAlertRule } from '@pospay/domain';
+import type { AlertChannel, AlertRecipientRole, EffectiveAlertRule } from '@pospay/domain';
 import { displaySafeName } from './display-name.ts';
 import { phoneLast3 } from './phone-last3.ts';
 
@@ -89,16 +89,18 @@ export function ratingMatchesEvent(event: LowRatingFacts, stored: LowRatingFacts
 }
 
 /**
- * يحدد من يستلم الجرس من القاعدة الفعلية لحظة القرار: القاعدة المقفولة أو بلا قناة داخل التطبيق لا تُصدر شيئًا (BR-B5).
+ * يحدد من يستلم التنبيه ومن أي قناة من القاعدة الفعلية لحظة القرار: القاعدة المقفولة أو بلا أي قناة لا تُصدر شيئًا (BR-B5).
+ * قاعدة إيميل أو واتساب وحدها فعّالة، فالأدوار ما بتتوقفش على وجود الجرس داخل التطبيق (AL-Q6).
  *
  * @param rule القاعدة الفعلية لنوع LOW_RATING بعد المفتاح العام
- * @returns أدوار المستلمين وهل القاعدة فعّالة؛ الأدوار فارغة لما لا جرس
+ * @returns أدوار المستلمين والقنوات وهل القاعدة فعّالة؛ فارغتان لما لا تنبيه
  */
 export function lowRatingDelivery(
   rule: Pick<EffectiveAlertRule, 'enabled' | 'recipientRoles' | 'channels'>,
-): { active: boolean; roles: readonly AlertRecipientRole[] } {
-  if (!rule.enabled || !rule.channels.includes('IN_APP')) return { active: false, roles: [] };
-  return { active: true, roles: rule.recipientRoles };
+): { active: boolean; roles: readonly AlertRecipientRole[]; channels: readonly AlertChannel[] } {
+  if (!rule.enabled || rule.channels.length === 0)
+    return { active: false, roles: [], channels: [] };
+  return { active: true, roles: rule.recipientRoles, channels: rule.channels };
 }
 
 /**

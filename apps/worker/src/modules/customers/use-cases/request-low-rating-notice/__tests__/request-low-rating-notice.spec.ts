@@ -171,7 +171,9 @@ describe('composition and emission', () => {
     expect(t.appended).toHaveLength(1);
     expect(t.appended[0]).toMatchObject({ ratingId: EVENT.ratingId });
     expect(
-      t.appended[0]?.payload.notification_recipients.map((r) => [r.user_id, r.template_key]),
+      t.appended[0]?.payload.notification_recipients.flatMap((r) =>
+      'user_id' in r ? [[r.user_id, r.template_key]] : [],
+    ),
     ).toEqual([
       [uuid(10), 'low_rating'],
       [uuid(11), 'low_rating'],

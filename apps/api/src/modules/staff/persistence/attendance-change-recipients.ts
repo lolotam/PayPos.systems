@@ -1,6 +1,11 @@
 import type { AttendanceChangeRequest } from '@pospay/contracts';
 import type { Tx } from '@pospay/db';
 import {
+  needsTeamAlertContacts,
+  type AlertChannel,
+  type TeamAlertContact,
+} from '@pospay/domain';
+import {
   attendanceChangeAlertPlan,
   attendanceChangeRoleRecipients,
   type AttendanceChangeAlertKind,
@@ -16,12 +21,14 @@ import {
   attendanceChangeAuthority,
 } from './attendance-change-context.adapter.ts';
 
-/** المستلمون وقناة الإشعار اللي بتتكتب في حدث طلب تعديل الحضور أو قراره. */
+/** المستلمون وقنوات الإشعار وجهات اتصالهم اللي بتتكتب في حدث طلب تعديل الحضور أو قراره. */
 export interface AttendanceChangeNotice {
   /** معرّفات المستلمين؛ الفرز وإزالة التكرار في attendanceChangeRecipientGroups. */
   readonly users: string[];
-  /** قناة الإشعار؛ null = الحدث بلا إشعار. */
-  readonly channel: 'IN_APP' | null;
+  /** قنوات الإشعار المفعّلة؛ فاضية = الحدث بلا إشعار. */
+  readonly channels: readonly AlertChannel[];
+  /** جهات الاتصال للإيميل والواتساب (AL-Q6)؛ فاضية لقاعدة جرس وحده. */
+  readonly contacts: ReadonlyMap<string, TeamAlertContact>;
 }
 
 /**
@@ -65,9 +72,11 @@ export async function attendanceChangeNoticeRecipients(
           plan.roles,
           now,
         );
+  const users = [...fixed, ...attendanceChangeRoleRecipients(holders, actor.userId, employeeUserId)];
   return {
-    users: [...fixed, ...attendanceChangeRoleRecipients(holders, actor.userId, employeeUserId)],
-    channel: plan.channel,
+    users,
+    channels: plan.channels,
+    contacts: await readContacts(tx, actor.companyId, users, plan.channels, now, alertRules),
   };
 }
 
@@ -114,4 +123,29 @@ async function fixedRecipients(
     actor.userId,
     employeeUserId,
   );
+}
+
+/**
+ * جهات اتصال المستلمين للإيميل والواتساب، وبس لما قناة خارجية مفعّلة ويكون في مستلمين.
+ * غياب القارئ مع قناة خارجية خطأ تركيب ظاهر مش إيميل بيضيع في صمت.
+ *
+ * @param tx         معاملة الشركة
+ * @param companyId  الشركة
+ * @param users      المستلمين
+ * @param channels   القنوات المفعّلة
+ * @param now        لحظة سريان العضوية
+ * @param alertRules بورت قواعد التنبيه
+ * @returns جهة اتصال لكل مستخدم عنده وجهة صالحة
+ */
+async function readContacts(
+  tx: Tx,
+  companyId: string,
+  users: readonly string[],
+  channels: readonly AlertChannel[],
+  now: Date,
+  alertRules: AlertRulesPort,
+): Promise<ReadonlyMap<string, TeamAlertContact>> {
+  if (!needsTeamAlertContacts(channels) || users.length === 0) return new Map();
+  if (alertRules.contacts === undefined) throw new Error('TEAM_ALERT_CONTACTS_UNAVAILABLE');
+  return alertRules.contacts(tx, companyId, [...new Set(users)], now);
 }

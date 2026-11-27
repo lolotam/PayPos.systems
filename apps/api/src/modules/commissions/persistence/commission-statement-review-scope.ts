@@ -6,7 +6,11 @@ import {
   type IdGenerator,
   type Tx,
 } from '@pospay/db';
-import { commissionStatementNoticeGroupSize } from '@pospay/contracts';
+import {
+  needsTeamAlertContacts,
+  teamAlertRecipientGroups,
+  type TeamAlertContact,
+} from '@pospay/domain';
 import { sql } from 'drizzle-orm';
 
 import type { AlertRulesPort } from '../ports/alert-rules.port.ts';
@@ -21,7 +25,7 @@ import type { BusinessCalendarPort } from '../ports/business-calendar.port.ts';
 import type { CommissionStatementReturnRecord } from '../domain/statement-return-plan.ts';
 import type { CommissionStatementReviewTransition } from '../domain/statement-review-plan.ts';
 import type { StatementFingerprints } from '../domain/statement-change-cause.ts';
-import { groupStatementNoticeRecipients, statementNoticeRecipients } from '../domain/statement-notice.ts';
+import { statementNoticeRecipient } from '../domain/statement-notice.ts';
 import { APPROVAL_SWITCH_FLAG } from './approval-coverage-gate.ts';
 import { readCommissionStatementSource } from './commission-statement-source.ts';
 
@@ -51,6 +55,13 @@ export interface CommissionStatementReviewReaders {
   readonly actorMembership: CommissionActorMembershipReader;
   readonly approvers: CommissionApproversReader;
   readonly alertRules: AlertRulesPort;
+  /** جهات اتصال البريد والواتساب (AL-Q6): مربوطة في الجذر؛ مطلوبة لما قاعدة تفعّل قناة خارجية، وغيابها معها خطأ ظاهر. */
+  readonly contacts?: (
+    tx: Tx,
+    companyId: string,
+    userIds: readonly string[],
+    at: Date,
+  ) => Promise<ReadonlyMap<string, TeamAlertContact>>;
   /** قارئ المفتاح الصريح للشركة: الاعتماد المقفول يخلّي المطالبة بلا معنى (53-2-B2a-FR030-1). */
   readonly explicitFeature: ExplicitFeatureReader;
 }
@@ -224,9 +235,22 @@ async function appendApprovalNotice(
     { businessId, branchId: null },
     'STATEMENT_AWAITING_APPROVAL',
   );
-  if (!rule.enabled || !rule.channels.includes('IN_APP')) return;
+  if (!rule.enabled || rule.channels.length === 0) return;
   const holders = await readers.approvers(tx, actor.companyId, businessId);
-  const groups = groupStatementNoticeRecipients(holders, commissionStatementNoticeGroupSize);
+  const userIds = [...new Set(holders)].sort();
+  const at = new Date(decision.at);
+  let contacts: ReadonlyMap<string, TeamAlertContact> = new Map();
+  if (needsTeamAlertContacts(rule.channels) && userIds.length > 0) {
+    if (readers.contacts === undefined) throw new Error('TEAM_ALERT_CONTACTS_UNAVAILABLE');
+    contacts = await readers.contacts(tx, actor.companyId, userIds, at);
+  }
+  const groups = teamAlertRecipientGroups({
+    channels: rule.channels,
+    userIds,
+    templateKey: 'statement_awaiting_approval',
+    contacts,
+    inApp: (userId) => statementNoticeRecipient(userId, period),
+  });
   for (const [index, group] of groups.entries()) {
     await appendOutboxEvent(tx, ids.newId(), {
       aggregateType: 'commission_statement',
@@ -238,7 +262,7 @@ async function appendApprovalNotice(
         statement_id: statementId,
         period,
         group_index: index,
-        notification_recipients: statementNoticeRecipients(group, period),
+        notification_recipients: group,
       },
     });
   }

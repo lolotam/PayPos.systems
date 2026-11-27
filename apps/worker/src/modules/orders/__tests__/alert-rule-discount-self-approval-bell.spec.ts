@@ -52,7 +52,7 @@ async function branchManager(scope: ApprovalScope): Promise<string> {
 
 function recipientIds(rows: Record<string, unknown>[]): string[] {
   const payload = discountSelfApprovalNoticeRequested.parse(rows[0]?.['payload']);
-  return payload.notification_recipients.map((recipient) => recipient.user_id);
+  return payload.notification_recipients.flatMap((recipient) => ('user_id' in recipient ? [recipient.user_id] : []));
 }
 
 it('uses the default owner recipient without a saved rule or master row', async () => {

@@ -32,10 +32,20 @@ export const ALERT_RECIPIENT_ROLES = [
 /** دور مستلم. */
 export type AlertRecipientRole = (typeof ALERT_RECIPIENT_ROLES)[number];
 
-/** القنوات القابلة للاختيار؛ داخل التطبيق بس لحد البند 62b (AL-Q6). */
-export const ALERT_CHANNELS = ['IN_APP'] as const;
+/**
+ * القنوات القابلة للاختيار (AL-Q6، البند 62b-1): داخل التطبيق، والإيميل، والواتساب.
+ * الواتساب قناة في العقد والـ SQL والشاشة، لكن الإرسال الفعلي بيفضل مقفول لحد ضبط قوالب Meta المعتمدة (ADR-0018 §11).
+ */
+export const ALERT_CHANNELS = ['IN_APP', 'EMAIL', 'WHATSAPP'] as const;
 /** قناة تنبيه. */
 export type AlertChannel = (typeof ALERT_CHANNELS)[number];
+
+/**
+ * مفتاح GR-003(d): هل إيميل التنبيه التشغيلي بيتبعت للمدعو اللي عضويته نشطة وإيميله لسه مش موثّق؟
+ * true = لأ، الإيميل غير الموثّق ما بيتعرضش للمُرسِل (الافتراضي الآمن لحد ما وليد يأكد القرار)؛ false = المدعو النشط بياخد الإيميل.
+ * القيمة بتتمرر لدالة team_alert_recipient_contacts في SQL، والدالة بتتختبر في الحالتين.
+ */
+export const TEAM_ALERT_REQUIRE_VERIFIED_EMAIL = true;
 
 /**
  * مستلم ثابت للنوع، مش بيتختار من الشاشة: أصحاب صلاحية، أو شخص من سياق الحدث، أو إشعار الموبايل للموظفة نفسها.

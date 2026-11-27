@@ -30,7 +30,9 @@ it('shows the low-rating row with its English label and an editable default swit
   })) as HTMLInputElement;
   expect(toggle.checked).toBe(true);
   expect(toggle.disabled).toBe(false);
-  const roles = within(kindRow('LOW_RATING')).getAllByRole('checkbox') as HTMLInputElement[];
+  const roles = within(
+    within(kindRow('LOW_RATING')).getByRole('group', { name: t('en', 'alertRules.recipientsTitle') }),
+  ).getAllByRole('checkbox') as HTMLInputElement[];
   expect(roles.map((role) => role.checked)).toEqual([true, true, true, true]);
 });
 

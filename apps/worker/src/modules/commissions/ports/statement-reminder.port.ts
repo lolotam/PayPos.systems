@@ -1,4 +1,4 @@
-import type { AlertKind, EffectiveAlertRule } from '@pospay/domain';
+import type { AlertChannel, AlertKind, EffectiveAlertRule, TeamAlertContact } from '@pospay/domain';
 import type { CommissionActionPermission } from '@pospay/domain';
 
 /** نشاط من أنشطة الشركة مع منطقته الزمنية (FR-053). */
@@ -32,6 +32,10 @@ export interface NoticeEventInput {
   readonly period: string;
   readonly recipients: readonly string[];
   readonly templateKey: 'statement_awaiting_approval' | 'statement_awaiting_review';
+  /** قنوات القاعدة الفعلية (62b-1)؛ غيابها معناه الجرس داخل التطبيق وحده. */
+  readonly channels?: readonly AlertChannel[];
+  /** لحظة القرار لنافذة العضوية عند قراءة جهات الاتصال؛ غيابها معناه لحظة المعاملة. */
+  readonly at?: Date;
 }
 
 /**
@@ -118,3 +122,13 @@ export type StatementReminderSwitchReader<Transaction> = (
   flag: string,
   decisionAt: Date,
 ) => Promise<boolean>;
+
+/**
+ * قارئ جهات الاتصال: دالة AL-Q6 المحدودة على معاملة الشركة، مربوطة في الجذر (لا سهم استيراد)؛ مطلوب لما قناة خارجية تتفعّل.
+ */
+export type StatementReminderContactsReader<Transaction> = (
+  tx: Transaction,
+  companyId: string,
+  userIds: readonly string[],
+  at: Date,
+) => Promise<ReadonlyMap<string, TeamAlertContact>>;

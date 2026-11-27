@@ -9,7 +9,10 @@ export type {
   NotificationDelivered,
   NotificationFailed,
 } from './events/published.ts';
-export { createInAppNotificationModule, startWhatsappInbound } from './notifications.module.ts';
+export { createInAppNotificationModule } from './notifications.module.ts';
+export { startWhatsappInbound } from './whatsapp-inbound.module.ts';
+export { readPhoneHashConfiguration } from './team-alert-whatsapp.ts';
+export type { PhoneHashConfiguration } from './team-alert-whatsapp.ts';
 export type { Inbound } from './inbound.ts';
 export { createEmailSendModule } from './notifications.module.ts';
 export { startStaffOtpWorker } from './otp.module.ts';

@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { id } from '../scalars/id.js';
 import { statementAwaitingReviewRecipient } from '../statement-notifications.js';
 import { commissionPeriod } from '../statement-notifications.js';
+import { withTeamAlertChannels } from '../team-alert-recipients.js';
 import { commissionStatementNoticeGroupSize } from './statement-awaiting-approval.js';
 
 /**
@@ -19,7 +20,12 @@ export const commissionStatementAwaitingReviewRequested = z
     period: commissionPeriod,
     group_index: z.number().int().nonnegative(),
     notification_recipients: z
-      .array(statementAwaitingReviewRecipient.extend({ locale: z.literal('ar') }))
+      .array(
+        withTeamAlertChannels(
+          statementAwaitingReviewRecipient.extend({ locale: z.literal('ar') }),
+          'statement_awaiting_review',
+        ),
+      )
       .min(1)
       .max(commissionStatementNoticeGroupSize),
   })

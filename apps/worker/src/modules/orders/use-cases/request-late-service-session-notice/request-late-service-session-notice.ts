@@ -1,4 +1,8 @@
-import { bellDelivery } from '../../domain/alert-rule-bell.ts';
+import {
+  teamAlertDelivery,
+  teamAlertRecipientGroups,
+  type AlertChannel,
+} from '@pospay/domain';
 import {
   qualifiesForLateNotice,
   lateNoticeParameters,
@@ -11,6 +15,7 @@ import type {
   LateNoticePorts,
   LateNoticeSession,
 } from '../../ports/late-service-session-notice.port.ts';
+import { readRequiredTeamAlertContacts } from '../read-team-alert-contacts.ts';
 
 /** يطلب جرس الزيارة المتأخرة مرة واحدة لكل مستلم داخل معاملة المستهلك. */
 export class RequestLateServiceSessionNotice {
@@ -32,7 +37,7 @@ export class RequestLateServiceSessionNotice {
     if (!(await this.ports.repository.matchesSession(input)))
       throw new Error('LATE_SESSION_EVENT_INVALID');
     if (!(await this.ports.recipients.companyOpen(input.companyId))) return;
-    const { roles, channel } = bellDelivery(
+    const { roles, channels } = teamAlertDelivery(
       await this.ports.rules.rule(
         input.companyId,
         { businessId: input.businessId, branchId: input.branchId },
@@ -51,11 +56,41 @@ export class RequestLateServiceSessionNotice {
       decidedAt,
       recipientCount,
     });
-    // قاعدة مقفولة معناها قناة null وأدوار فاضية، فهي قرار صفر مستلمين زي «لا مدير في النطاق»؛
-    // الشرط ده بيحافظ على نوع القناة من غير cast.
-    if (!won || branch === null || recipientCount === 0 || channel === null) return;
+    // قاعدة مقفولة أو من غير قنوات معناها قنوات فاضية وأدوار فاضية، فهي قرار صفر مستلمين زي «لا مدير في النطاق».
+    if (!won || branch === null || recipientCount === 0 || channels.length === 0) return;
+    await this.publish(input, branch, groups.flat(), channels, decidedAt);
+  }
+
+  private async publish(
+    input: LateNoticeSession,
+    branch: { nameAr: string | null; nameEn: string },
+    userIds: readonly string[],
+    channels: readonly AlertChannel[],
+    decidedAt: Date,
+  ): Promise<void> {
     const parameters = lateNoticeParameters(branch, input.businessDate, this.fallback);
-    for (const group of groups)
+    const contacts = await readRequiredTeamAlertContacts({
+      channels,
+      userIds,
+      companyId: input.companyId,
+      at: decidedAt,
+      contacts: this.ports.contacts,
+    });
+    const recipientGroups = teamAlertRecipientGroups({
+      channels,
+      userIds,
+      templateKey: 'late_service_session',
+      contacts,
+      inApp: (user_id) => ({
+        channel: 'IN_APP' as const,
+        user_id,
+        locale: 'ar' as const,
+        template_key: 'late_service_session' as const,
+        template_revision: 1 as const,
+        safe_parameters: parameters,
+      }),
+    });
+    for (const group of recipientGroups)
       await this.ports.outbox.append(this.ids.newId(), {
         schema_version: 1,
         session_id: input.sessionId,
@@ -63,14 +98,7 @@ export class RequestLateServiceSessionNotice {
         branch_id: input.branchId,
         business_date: input.businessDate,
         business_timezone: input.businessTimezone,
-        notification_recipients: group.map((user_id) => ({
-          channel,
-          user_id,
-          locale: 'ar',
-          template_key: 'late_service_session',
-          template_revision: 1,
-          safe_parameters: parameters,
-        })),
+        notification_recipients: group,
       });
   }
 }

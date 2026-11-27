@@ -1,7 +1,7 @@
 import type { IdGenerator, Tx } from '@pospay/db';
 import { sql } from 'drizzle-orm';
 import type { SuppressedBreakKind } from '../domain/break-not-returned.ts';
-import { inAppRecipientGroups } from '../domain/not-clocked-in.ts';
+import { distinctRecipients } from '../domain/team-alert-groups.ts';
 import type { BreakNoticeWrite, LockedBreakShift } from '../ports/break-not-returned.port.ts';
 import { writeBreakNotice } from './break-not-returned-writes.ts';
 
@@ -52,11 +52,11 @@ export async function convertBreakNotReturned(
   companyId: string,
   notice: BreakNoticeWrite,
 ): Promise<boolean> {
-  const groups = inAppRecipientGroups(notice.recipients);
+  const recipientCount = distinctRecipients(notice.recipients).length;
   const { shift } = notice;
   const updated = await tx.execute<{ id: string }>(sql`
     UPDATE attendance_break_not_returned_notices
-    SET suppressed_at = NULL, suppressed_kind = NULL, recipient_count = ${groups.reduce((total, group) => total + group.length, 0)},
+    SET suppressed_at = NULL, suppressed_kind = NULL, recipient_count = ${recipientCount},
       alert_due_at = ${notice.alertAt.toISOString()}, notified_at = ${notice.detectedAt.toISOString()}
     WHERE company_id = ${companyId} AND employee_id = ${shift.employeeId}
       AND shift_starts_at = ${shift.startsAt.toISOString()}

@@ -98,11 +98,15 @@ it('BR-B4/RT-Q17: the comment reaches readers as written and the DENY-holder get
   const events = await f.received(row.ratingId);
   expect(events).toHaveLength(2);
   const [withComment, plain] = events.map((event) => lowRatingReceived.parse(event['payload']));
-  expect(withComment?.notification_recipients.map((r) => [r.user_id, r.template_key])).toEqual(
+  expect(withComment?.notification_recipients.flatMap((r) =>
+      'user_id' in r ? [[r.user_id, r.template_key]] : [],
+    )).toEqual(
     sorted(f.users.owner, f.users.holder).map((id) => [id, 'low_rating_with_comment']),
   );
   expect(JSON.stringify(withComment)).toContain(COMMENT);
-  expect(plain?.notification_recipients.map((r) => [r.user_id, r.template_key])).toEqual([
+  expect(plain?.notification_recipients.flatMap((r) =>
+      'user_id' in r ? [[r.user_id, r.template_key]] : [],
+    )).toEqual([
     [f.users.denied, 'low_rating'],
   ]);
   expect(JSON.stringify(plain)).not.toContain('99887766');
@@ -116,10 +120,13 @@ it('RT-Q17: a stored comment the current public rule would refuse (link, markup,
   const events = await f.received(row.ratingId);
   expect(events).toHaveLength(2);
   const [withComment, plain] = events.map((event) => lowRatingReceived.parse(event['payload']));
-  expect(withComment?.notification_recipients.map((r) => [r.user_id, r.template_key])).toEqual(
+  expect(withComment?.notification_recipients.flatMap((r) =>
+      'user_id' in r ? [[r.user_id, r.template_key]] : [],
+    )).toEqual(
     sorted(f.users.owner, f.users.holder).map((id) => [id, 'low_rating_with_comment']),
   );
-  expect(withComment?.notification_recipients[0]?.safe_parameters[0].value).toMatchObject({
+  const bell = withComment?.notification_recipients.find((r) => r.channel === 'IN_APP');
+  expect(bell?.channel === 'IN_APP' ? bell.safe_parameters[0].value : null).toMatchObject({
     comment: written,
   });
   expect(plain?.notification_recipients.map((r) => r.template_key)).toEqual(['low_rating']);

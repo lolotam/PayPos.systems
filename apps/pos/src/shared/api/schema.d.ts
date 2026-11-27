@@ -7243,7 +7243,7 @@ export interface components {
         /** @enum {string} */
         AlertRecipientRole: "owner" | "general_manager" | "business_manager" | "branch_manager";
         /** @enum {string} */
-        AlertChannel: "IN_APP";
+        AlertChannel: "IN_APP" | "EMAIL" | "WHATSAPP";
         AlertFixedRecipient: {
             /** @enum {string} */
             selector: "PERMISSION_HOLDERS" | "CONTEXT" | "EMPLOYEE_PUSH";
@@ -7992,7 +7992,7 @@ export interface components {
             /** Format: date */
             business_date: string;
             business_timezone: string;
-            notification_recipients: {
+            notification_recipients: ({
                 /** @enum {string} */
                 channel: "IN_APP";
                 /** Format: uuid */
@@ -8023,7 +8023,29 @@ export interface components {
                     /** Format: date */
                     value: string;
                 })[];
-            }[];
+            } | {
+                email: string;
+                /** @enum {string} */
+                locale: "ar";
+                /** @enum {string} */
+                channel: "email";
+                /** @enum {string} */
+                template_key: "late_service_session";
+                /** @enum {number} */
+                template_revision: 1;
+                safe_parameters: unknown[];
+            } | {
+                phone: string;
+                /** @enum {string} */
+                locale: "ar";
+                /** @enum {string} */
+                channel: "whatsapp";
+                /** @enum {string} */
+                template_key: "late_service_session";
+                /** @enum {number} */
+                template_revision: 1;
+                safe_parameters: unknown[];
+            })[];
         };
         ServiceLineEditNoticeRequested: {
             /** @enum {number} */
@@ -8040,7 +8062,7 @@ export interface components {
             /** Format: date */
             business_date: string;
             business_timezone: string;
-            notification_recipients: {
+            notification_recipients: ({
                 /** @enum {string} */
                 channel: "IN_APP";
                 /** Format: uuid */
@@ -8107,7 +8129,29 @@ export interface components {
                     type: "text";
                     value: string;
                 })[];
-            }[];
+            } | {
+                email: string;
+                /** @enum {string} */
+                locale: "ar";
+                /** @enum {string} */
+                channel: "email";
+                /** @enum {string} */
+                template_key: "service_line_price_edited";
+                /** @enum {number} */
+                template_revision: 1;
+                safe_parameters: unknown[];
+            } | {
+                phone: string;
+                /** @enum {string} */
+                locale: "ar";
+                /** @enum {string} */
+                channel: "whatsapp";
+                /** @enum {string} */
+                template_key: "service_line_price_edited";
+                /** @enum {number} */
+                template_revision: 1;
+                safe_parameters: unknown[];
+            })[];
         };
         ServiceLineCancelNoticeRequested: {
             /** @enum {number} */
@@ -8124,7 +8168,7 @@ export interface components {
             /** Format: date */
             business_date: string;
             business_timezone: string;
-            notification_recipients: {
+            notification_recipients: ({
                 /** @enum {string} */
                 channel: "IN_APP";
                 /** Format: uuid */
@@ -8173,7 +8217,29 @@ export interface components {
                     type: "text";
                     value: string;
                 })[];
-            }[];
+            } | {
+                email: string;
+                /** @enum {string} */
+                locale: "ar";
+                /** @enum {string} */
+                channel: "email";
+                /** @enum {string} */
+                template_key: "service_line_cancelled";
+                /** @enum {number} */
+                template_revision: 1;
+                safe_parameters: unknown[];
+            } | {
+                phone: string;
+                /** @enum {string} */
+                locale: "ar";
+                /** @enum {string} */
+                channel: "whatsapp";
+                /** @enum {string} */
+                template_key: "service_line_cancelled";
+                /** @enum {number} */
+                template_revision: 1;
+                safe_parameters: unknown[];
+            })[];
         };
         ServiceLinePerformersNoticeRequested: {
             /** @enum {number} */
@@ -8190,7 +8256,7 @@ export interface components {
             /** Format: date */
             business_date: string;
             business_timezone: string;
-            notification_recipients: {
+            notification_recipients: ({
                 /** @enum {string} */
                 channel: "IN_APP";
                 /** Format: uuid */
@@ -8239,7 +8305,29 @@ export interface components {
                     type: "text";
                     value: string;
                 })[];
-            }[];
+            } | {
+                email: string;
+                /** @enum {string} */
+                locale: "ar";
+                /** @enum {string} */
+                channel: "email";
+                /** @enum {string} */
+                template_key: "service_line_performers_changed";
+                /** @enum {number} */
+                template_revision: 1;
+                safe_parameters: unknown[];
+            } | {
+                phone: string;
+                /** @enum {string} */
+                locale: "ar";
+                /** @enum {string} */
+                channel: "whatsapp";
+                /** @enum {string} */
+                template_key: "service_line_performers_changed";
+                /** @enum {number} */
+                template_revision: 1;
+                safe_parameters: unknown[];
+            })[];
         };
         SessionTipEntry: {
             /** Format: uuid */
@@ -9265,7 +9353,7 @@ export interface components {
             /** Format: uuid */
             branch_id: string;
             proposal_ids: string[];
-            notification_recipients: {
+            notification_recipients: ({
                 /** @enum {string} */
                 channel: "IN_APP";
                 /** Format: uuid */
@@ -9319,7 +9407,29 @@ export interface components {
                     type: "text";
                     value: string;
                 })[];
-            }[];
+            } | {
+                email: string;
+                /** @enum {string} */
+                locale: "ar";
+                /** @enum {string} */
+                channel: "email";
+                /** @enum {string} */
+                template_key: "discount_self_approved";
+                /** @enum {number} */
+                template_revision: 1;
+                safe_parameters: unknown[];
+            } | {
+                phone: string;
+                /** @enum {string} */
+                locale: "ar";
+                /** @enum {string} */
+                channel: "whatsapp";
+                /** @enum {string} */
+                template_key: "discount_self_approved";
+                /** @enum {number} */
+                template_revision: 1;
+                safe_parameters: unknown[];
+            })[];
         };
         AttendanceQrToken: {
             /** Format: uuid */

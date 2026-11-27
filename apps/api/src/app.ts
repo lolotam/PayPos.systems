@@ -26,6 +26,7 @@ import {
   readCommissionReviewAccess,
   readCommissionActorMembership,
   readCommissionApprovers,
+  teamAlertRecipientContacts,
   readCommissionReturnAccess,
   readCommissionScope,
   readCommissionRequesterMembership,
@@ -157,6 +158,8 @@ function commissionBindings(deps: AppDependencies) {
       actorMembership: readCommissionActorMembership,
       approvers: readCommissionApprovers,
       alertRules: commissionAlertRules,
+      // جهات اتصال البريد والواتساب لإشعار الاعتماد (AL-Q6): دالة القراءة المحدودة على معاملة الشركة.
+      contacts: teamAlertRecipientContacts,
       // اعتماد الكشف (53-2): صلاحيته ومفتاحه وتواريخ العمل والعدّاد.
       ...commissionApprovalBindings,
     },

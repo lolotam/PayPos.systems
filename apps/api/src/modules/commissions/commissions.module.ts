@@ -134,6 +134,8 @@ export interface CommissionStatementBindings {
   readonly approvers: CommissionStatementReviewReaders['approvers'];
   /** قواعد التنبيه: بتشغيل النوع وقناته بس (DR-008). */
   readonly alertRules: CommissionStatementReviewReaders['alertRules'];
+  /** جهات اتصال مستلمي إشعار الاعتماد للبريد والواتساب (AL-Q6)، مربوطة في الجذر من identity. */
+  readonly contacts?: CommissionStatementReviewReaders['contacts'];
   /** اعتماد الكشف (53-2): فحص `approve:commissions:business` من identity، ومفتاح الاعتماد الصريح، وتواريخ عمل الموظفات من staff. */
   readonly approveAccess: CommissionStatementApproveReaders['approveAccess'];
   readonly explicitFeature: CommissionStatementApproveReaders['explicitFeature'];
@@ -250,6 +252,7 @@ function commissionStatementReviewProviders(
       actorMembership: statement.actorMembership,
       approvers: statement.approvers,
       alertRules: statement.alertRules,
+      ...(statement.contacts === undefined ? {} : { contacts: statement.contacts }),
       explicitFeature: statement.explicitFeature,
     });
   return [

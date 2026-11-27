@@ -1,4 +1,9 @@
 import type {
+  TeamAlertContactsPort,
+  TeamAlertEmailRecipient,
+  TeamAlertWhatsappRecipient,
+} from '@pospay/domain';
+import type {
   PerformersChangeHistory,
   PerformersChangeParameters,
 } from '../domain/performers-change-notice.ts';
@@ -106,14 +111,18 @@ export interface PerformersChangeNoticeRequest {
   readonly branch_id: string;
   readonly business_date: string;
   readonly business_timezone: string;
-  readonly notification_recipients: readonly {
-    channel: 'IN_APP';
-    user_id: string;
-    locale: 'ar';
-    template_key: 'service_line_performers_changed';
-    template_revision: 1;
-    safe_parameters: PerformersChangeParameters;
-  }[];
+  readonly notification_recipients: readonly (
+    | {
+        channel: 'IN_APP';
+        user_id: string;
+        locale: 'ar';
+        template_key: 'service_line_performers_changed';
+        template_revision: 1;
+        safe_parameters: PerformersChangeParameters;
+      }
+    | TeamAlertEmailRecipient
+    | TeamAlertWhatsappRecipient
+  )[];
 }
 /** الأثر نحو الإشعارات يمر عبر الأوتبوكس فقط. */
 export interface PerformersChangeNoticeOutbox {
@@ -132,4 +141,6 @@ export interface PerformersChangeNoticePorts {
   readonly repository: PerformersChangeNoticeRepository;
   readonly outbox: PerformersChangeNoticeOutbox;
   readonly rules: AlertRulesPort;
+  /** جهات اتصال البريد والواتساب (AL-Q6)؛ مطلوب لما قناة خارجية تتفعّل، وغيابه معها خطأ تركيب. */
+  readonly contacts?: TeamAlertContactsPort;
 }

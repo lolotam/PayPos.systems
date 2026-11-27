@@ -1,17 +1,17 @@
-import { bellDelivery } from '../../domain/alert-rule-bell.ts';
+import { teamAlertDelivery, teamAlertRecipientGroups, type AlertChannel } from '@pospay/domain';
 import {
   assertDiscountSelfApprovalEventValues,
   discountSelfApprovalRecipientGroups,
   maxSelfApprovalEffectiveBps,
   selfApprovalNoticeParameters,
   type DiscountSelfApprovalNoticeNameFallback,
-  type DiscountSelfApprovalNoticeParameters,
 } from '../../domain/discount-self-approval-notice.ts';
 import type { Clock, IdGenerator } from '../../ports/late-service-session-notice.port.ts';
 import type {
   DiscountSelfApprovalNoticeEvent,
   DiscountSelfApprovalNoticePorts,
 } from '../../ports/discount-self-approval-notice.port.ts';
+import { readRequiredTeamAlertContacts } from '../read-team-alert-contacts.ts';
 
 /** يطلب جرس موافقة الموافِق على عمله مرة واحدة لكل حدث مصدر داخل معاملة المستهلك. */
 export class RequestDiscountSelfApprovalNotice {
@@ -27,7 +27,7 @@ export class RequestDiscountSelfApprovalNotice {
     if (!(await this.ports.repository.matchesProposals(input)))
       throw new Error('DISCOUNT_SELF_APPROVAL_EVENT_INVALID');
     if (!(await this.ports.recipients.companyOpen(input.companyId))) return;
-    const { roles, channel } = bellDelivery(
+    const { roles, channels } = teamAlertDelivery(
       await this.ports.rules.rule(
         input.companyId,
         { businessId: input.businessId, branchId: input.branchId },
@@ -49,18 +49,18 @@ export class RequestDiscountSelfApprovalNotice {
       decidedAt,
       recipientCount,
     });
-    // قاعدة مقفولة معناها قناة null وأدوار فاضية، فهي قرار صفر مستلمين زي «لا مالك في النطاق»؛
-    // الشرط ده بيحافظ على نوع القناة من غير cast.
-    if (!won || branch === null || recipientCount === 0 || channel === null) return;
-    await this.publish(input, ledgerRowId, branch, groups, channel);
+    // قاعدة مقفولة أو من غير قنوات معناها قنوات فاضية وأدوار فاضية، فهي قرار صفر مستلمين زي «لا مالك في النطاق».
+    if (!won || branch === null || recipientCount === 0 || channels.length === 0) return;
+    await this.publish(input, ledgerRowId, branch, groups.flat(), channels, decidedAt);
   }
 
   private async publish(
     input: DiscountSelfApprovalNoticeEvent,
     ledgerRowId: string,
     branch: { nameAr: string | null; nameEn: string },
-    groups: readonly (readonly string[])[],
-    channel: 'IN_APP',
+    userIds: readonly string[],
+    channels: readonly AlertChannel[],
+    decidedAt: Date,
   ): Promise<void> {
     const service = input.proposals[0];
     if (service === undefined) throw new Error('DISCOUNT_SELF_APPROVAL_EVENT_INVALID');
@@ -71,29 +71,41 @@ export class RequestDiscountSelfApprovalNotice {
       maxEffectiveBps: maxSelfApprovalEffectiveBps(input.proposals),
       fallback: this.fallback,
     });
-    for (const group of groups) await this.append(input, ledgerRowId, group, parameters, channel);
+    const contacts = await readRequiredTeamAlertContacts({
+      channels,
+      userIds,
+      companyId: input.companyId,
+      at: decidedAt,
+      contacts: this.ports.contacts,
+    });
+    const recipientGroups = teamAlertRecipientGroups({
+      channels,
+      userIds,
+      templateKey: 'discount_self_approved',
+      contacts,
+      inApp: (user_id) => ({
+        channel: 'IN_APP' as const,
+        user_id,
+        locale: 'ar' as const,
+        template_key: 'discount_self_approved' as const,
+        template_revision: 1 as const,
+        safe_parameters: parameters,
+      }),
+    });
+    for (const group of recipientGroups) await this.append(input, ledgerRowId, group);
   }
 
   private async append(
     input: DiscountSelfApprovalNoticeEvent,
     ledgerRowId: string,
-    group: readonly string[],
-    parameters: DiscountSelfApprovalNoticeParameters,
-    channel: 'IN_APP',
+    group: Parameters<DiscountSelfApprovalNoticePorts['outbox']['append']>[2]['notification_recipients'],
   ): Promise<void> {
     await this.ports.outbox.append(this.ids.newId(), ledgerRowId, {
       schema_version: 1,
       business_id: input.businessId,
       branch_id: input.branchId,
       proposal_ids: input.proposals.map((proposal) => proposal.id),
-      notification_recipients: group.map((user_id) => ({
-        channel,
-        user_id,
-        locale: 'ar' as const,
-        template_key: 'discount_self_approved' as const,
-        template_revision: 1 as const,
-        safe_parameters: parameters,
-      })),
+      notification_recipients: group,
     });
   }
 }

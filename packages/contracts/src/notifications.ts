@@ -61,7 +61,7 @@ export const whatsappRecipient = z.strictObject({
   safe_parameters: z.array(notificationParameter).max(20),
   send_deadline: timestamp.nullish(),
 });
-const emailRecipient = z.strictObject({
+export const emailRecipient = z.strictObject({
   email: z.string().max(254),
   locale: z.string().max(32).nullish(),
   channel: z.literal('email'),

@@ -18,6 +18,7 @@ import { editorLabel, safeDisplayName, t } from '@pospay/i18n';
 import type { OutboxConsumer } from '../../outbox/consumer.ts';
 import type { Clock, IdGenerator } from './ports/late-service-session-notice.port.ts';
 import { alertRules } from './persistence/alert-rule.adapter.ts';
+import { teamContacts } from './persistence/team-contacts.adapter.ts';
 import { lateNoticeRecipients } from './persistence/branch-manager-recipients.adapter.ts';
 import { lateNoticePlace } from './persistence/branch-place.adapter.ts';
 import {
@@ -90,6 +91,7 @@ export function createLateServiceSessionNoticeConsumer(
         repository: lateNoticeRepository(tx),
         outbox: lateNoticeOutbox(tx),
         rules: alertRules(tx),
+        contacts: teamContacts(tx),
       },
       ids,
       clock,
@@ -110,6 +112,7 @@ export function createPriceEditNoticeConsumer(ids: IdGenerator, clock: Clock): O
         repository: priceEditRepository(tx),
         outbox: priceEditOutbox(tx),
         rules: alertRules(tx),
+        contacts: teamContacts(tx),
       },
       ids,
       clock,
@@ -130,6 +133,7 @@ export function createLineCancelNoticeConsumer(ids: IdGenerator, clock: Clock): 
         repository: lineCancelRepository(tx),
         outbox: lineCancelOutbox(tx),
         rules: alertRules(tx),
+        contacts: teamContacts(tx),
       },
       ids,
       clock,
@@ -153,6 +157,7 @@ export function createPerformersChangeNoticeConsumer(
         repository: performersChangeRepository(tx),
         outbox: performersChangeOutbox(tx),
         rules: alertRules(tx),
+        contacts: teamContacts(tx),
       },
       ids,
       clock,
@@ -198,6 +203,7 @@ export function createDiscountSelfApprovalNoticeConsumer(
         repository: discountSelfApprovalRepository(tx),
         outbox: discountSelfApprovalOutbox(tx),
         rules: alertRules(tx),
+        contacts: teamContacts(tx),
       },
       ids,
       clock,

@@ -13,6 +13,7 @@ import { knownEventTypes } from './outbox/known-event-types.ts';
 import {
   createNotificationModule,
   createInAppNotificationModule,
+  readPhoneHashConfiguration,
   createEmailSendModule,
   readNotificationConfiguration,
   startEmailCapability,
@@ -180,6 +181,8 @@ const inApp =
         clock,
         email: email.module,
         push: { enabled: push.enabled },
+        // واتساب تنبيهات الفريق مقفول؛ مفتاح البصمة بيخلّي المحاولة تتسجّل FAILED / CONFIG_INVALID بدل ما تتخطّى (ADR-0018 §11).
+        phoneConfiguration: readPhoneHashConfiguration(process.env),
       })
     : null;
 if (production)

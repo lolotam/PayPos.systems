@@ -1,5 +1,11 @@
 import { appendAuditLog, appendOutboxEvents, type IdGenerator, type Tx } from '@pospay/db';
 import type { AttendanceChangeRequest } from '@pospay/contracts';
+import {
+  buildTeamAlertRecipients,
+  chunkTeamAlertRecipients,
+  type AlertChannel,
+  type TeamAlertContact,
+} from '@pospay/domain';
 import { t } from '@pospay/i18n';
 import { sql } from 'drizzle-orm';
 import {
@@ -173,7 +179,7 @@ async function events(
   alertRules: AlertRulesPort,
 ) {
   const pending = row.status === 'PENDING';
-  const { users, channel } = await attendanceChangeNoticeRecipients(
+  const { users, channels, contacts } = await attendanceChangeNoticeRecipients(
     tx,
     actor,
     row,
@@ -181,7 +187,7 @@ async function events(
     context.employeeUserId,
     alertRules,
   );
-  const groups = attendanceChangeRecipientGroups(users);
+  const groups = noticeGroups(row, { users, channels, contacts });
   const facts = {
     request_id: row.id,
     kind: row.kind,
@@ -195,7 +201,6 @@ async function events(
     aggregateId: row.id,
     eventType: pending ? 'AttendanceChangeRequested' : 'AttendanceChangeDecided',
   };
-  const safe = noticeText(row);
   await appendOutboxEvents(
     tx,
     (groups.length ? groups : [[]]).map((group) => ({
@@ -204,23 +209,41 @@ async function events(
         ...event,
         payload: {
           ...facts,
-          ...(group.length && channel === 'IN_APP'
-            ? {
-                notification_recipients: group.map((user_id) => ({
-                  channel,
-                  user_id,
-                  locale: 'ar',
-                  template_revision: 1,
-                  template_key: pending
-                    ? 'attendance_change_requested'
-                    : 'attendance_change_decided',
-                  safe_parameters: attendanceChangeNoticeParameters(safe, row, user_id),
-                })),
-              }
-            : {}),
+          ...(group.length ? { notification_recipients: group } : {}),
         },
       },
     })),
+  );
+}
+/**
+ * مجموعات مستلمي الحدث (مئة على الأكثر): الجرس بمعاملاته لكل مستلم، والإيميل والواتساب من قالب النوع نفسه بلا معاملات.
+ *
+ * @param row     صف الطلب المحفوظ
+ * @param notice  المستلمون والقنوات وجهات الاتصال
+ * @returns مجموعات غير فاضية؛ فارغة لما مفيش مستلم
+ */
+function noticeGroups(
+  row: AttendanceChangeRequest,
+  notice: { users: string[]; channels: readonly AlertChannel[]; contacts: ReadonlyMap<string, TeamAlertContact> },
+) {
+  const templateKey =
+    row.status === 'PENDING' ? 'attendance_change_requested' : 'attendance_change_decided';
+  const safe = noticeText(row);
+  return chunkTeamAlertRecipients(
+    buildTeamAlertRecipients({
+      channels: notice.channels,
+      userIds: attendanceChangeRecipientGroups(notice.users).flat(),
+      contacts: notice.contacts,
+      templateKey,
+      inApp: (user_id) => ({
+        channel: 'IN_APP' as const,
+        user_id,
+        locale: 'ar' as const,
+        template_revision: 1 as const,
+        template_key: templateKey,
+        safe_parameters: attendanceChangeNoticeParameters(safe, row, user_id),
+      }),
+    }),
   );
 }
 function noticeText(row: AttendanceChangeRequest) {

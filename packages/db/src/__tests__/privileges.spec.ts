@@ -103,8 +103,22 @@ const RECOVERY_ROLE_COLUMN_GRANTS = [
   'operational_recovery_flags.id:pospay_dispatcher:INSERT',
   'operational_recovery_flags.raised_at:pospay_dispatcher:INSERT',
 ];
+// قراءة جهات اتصال تنبيهات الفريق (ADR-0003 §6a، AL-Q6): ستة أعمدة من user وأربعة من memberships، بلا أي صلاحية جدول كامل.
+const TEAM_CONTACT_READER_COLUMN_GRANTS = [
+  'memberships.company_id:pospay_team_contact_reader:SELECT',
+  'memberships.ends_at:pospay_team_contact_reader:SELECT',
+  'memberships.starts_at:pospay_team_contact_reader:SELECT',
+  'memberships.user_id:pospay_team_contact_reader:SELECT',
+  'user.email:pospay_team_contact_reader:SELECT',
+  'user.email_verified:pospay_team_contact_reader:SELECT',
+  'user.id:pospay_team_contact_reader:SELECT',
+  'user.phone_binding_approved_at:pospay_team_contact_reader:SELECT',
+  'user.phone_number:pospay_team_contact_reader:SELECT',
+  'user.staff_access_company_id:pospay_team_contact_reader:SELECT',
+];
 const REVIEWED_COLUMN_GRANTS = [
   ...APPROVAL_READER_COLUMN_GRANTS,
+  ...TEAM_CONTACT_READER_COLUMN_GRANTS,
   ...COVERAGE_ISSUER_COLUMN_GRANTS,
   ...RECOVERY_ROLE_COLUMN_GRANTS,
   ...COMMISSION_TIP_SALARY_COLUMN_GRANTS,
@@ -152,6 +166,7 @@ const APP_ROLES = [
   'pospay_auth',
   'pospay_dispatcher',
   'pospay_approval_reader',
+  'pospay_team_contact_reader',
   'pospay_coverage_issuer',
   'pospay_recovery_company_reader',
   'pospay_recovery_flag_clearer',
@@ -312,12 +327,12 @@ describe('no application role can switch to another role', () => {
 
 describe('effective access', () => {
   testAttendanceDecisionPrivileges(() => owner);
-  it('neither pospay_app, pospay_dispatcher, pospay_approval_reader nor pospay_coverage_issuer can reach a global-identity table', async () => {
+  it('neither pospay_app, pospay_dispatcher, pospay_approval_reader, pospay_coverage_issuer nor pospay_team_contact_reader can reach a global-identity table as a whole', async () => {
     const rows = await withClusterRoleLock(
       'shared',
       () => owner<{ role: string; table: string }[]>`
       SELECT r AS role, t AS table
-      FROM unnest(${['pospay_app', 'pospay_dispatcher', 'pospay_approval_reader', 'pospay_coverage_issuer']}::text[]) AS r, unnest(${IDENTITY_TABLES}::text[]) AS t
+      FROM unnest(${['pospay_app', 'pospay_dispatcher', 'pospay_approval_reader', 'pospay_coverage_issuer', 'pospay_team_contact_reader']}::text[]) AS r, unnest(${IDENTITY_TABLES}::text[]) AS t
       WHERE has_table_privilege(r, quote_ident(t), 'SELECT, INSERT, UPDATE, DELETE, TRUNCATE, REFERENCES, TRIGGER')`,
     );
     expect(rows).toEqual([]);

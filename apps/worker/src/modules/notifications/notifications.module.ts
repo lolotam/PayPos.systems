@@ -1,13 +1,7 @@
-import {
-  WHATSAPP_INBOUND_QUEUE,
-  WHATSAPP_INBOX_ID,
-  whatsappInboundJob,
-} from '@pospay/notifications';
 import { notificationRedisOptions } from '@pospay/notifications';
 import type {
   ClaimedEvent,
   DeliveryOutcome,
-  PlatformWhatsappDatabase,
   TenantWrappers,
   Tx,
 } from '@pospay/db';
@@ -21,7 +15,7 @@ import {
   type NotificationConfiguration,
 } from '@pospay/notifications';
 import type { Logger } from '@pospay/observability';
-import { Worker, type Job, type Queue } from 'bullmq';
+import { Worker, type Job } from 'bullmq';
 import type { Redis } from 'ioredis';
 
 import type { Clock } from './ports/clock.port.ts';
@@ -52,14 +46,12 @@ import {
 } from './jobs/publish-authorized-notification.ts';
 import { notificationProcessor } from './jobs/send-notification.processor.ts';
 import { destinationCleanupProcessor } from './jobs/clear-abandoned-destination.processor.ts';
-import { createWhatsappInboxRepository } from './persistence/drizzle-whatsapp-inbox.repository.ts';
-import { ProcessWhatsappInbox } from './use-cases/process-whatsapp-inbox/process-whatsapp-inbox.ts';
-import { RecoverWhatsappInbox } from './use-cases/recover-whatsapp-inbox/recover-whatsapp-inbox.ts';
-import { ClearWhatsappPayloads } from './use-cases/clear-whatsapp-payloads/clear-whatsapp-payloads.ts';
-import { whatsappInboundProcessor } from './jobs/whatsapp-inbound.processor.ts';
-import { whatsappMaintenanceProcessor } from './jobs/whatsapp-maintenance.processor.ts';
 import { createEmailModule, type EmailModuleOptions } from './email.module.ts';
 import { notificationQueue } from './jobs/notification-queue.ts';
+import {
+  productionClosedTeamAlertWhatsapp,
+  type PhoneHashConfiguration,
+} from './team-alert-whatsapp.ts';
 
 export interface NotificationModuleOptions {
   readonly database: Pick<TenantWrappers, 'withTenant'>;
@@ -107,16 +99,9 @@ export function createNotificationModule(options: NotificationModuleOptions) {
   const attempts = createAttemptsRepository(options.database);
   const admission = options.admission ?? { reserve: async () => true };
   const send = new SendNotification(attempts, routed, admission, destinations, routed, clock, ids);
+  const authorizeNotification = authorizerOf(options);
   const consumer = notificationRequestConsumer(
-    (tx) =>
-      new AuthorizeNotification(
-        createAuthorizationRepository(tx),
-        options.production || configuration.mode === 'live'
-          ? createSuppressionGate(tx)
-          : (options.suppression?.(tx) ?? createSuppressionGate(tx)),
-        clock,
-        ids,
-      ),
+    authorizeNotification,
     identity,
     registry,
     (tx) => new StoreInAppNotification(createInAppRepository(tx), clock, ids),
@@ -126,6 +111,8 @@ export function createNotificationModule(options: NotificationModuleOptions) {
       enabled: options.push?.enabled === true,
       store: (tx) => new StorePushAttempts(createPushAttemptsRepository(tx), clock, ids),
     },
+    // واتساب تنبيهات الفريق بيفضل مقفول لحد قوالب Meta: محاولة FAILED / CONFIG_INVALID ظاهرة (ADR-0018 §11).
+    { authorize: authorizeNotification, identity },
   );
   return {
     consumer,
@@ -143,6 +130,18 @@ export function createNotificationModule(options: NotificationModuleOptions) {
       'PushSendAuthorized',
     ],
   };
+}
+
+/** بوابة التفويض على معاملة المصدر: الإنتاج والوضع الحي بالبوابة الحقيقية، والاختبار ممكن يحقن بوابته. */
+function authorizerOf(options: NotificationModuleOptions) {
+  const live = options.production || options.configuration.mode === 'live';
+  return (tx: Tx) =>
+    new AuthorizeNotification(
+      createAuthorizationRepository(tx),
+      live ? createSuppressionGate(tx) : (options.suppression?.(tx) ?? createSuppressionGate(tx)),
+      options.clock,
+      options.ids,
+    );
 }
 
 /** مدخلات رابط التقييم: المشتق في الذاكرة والأصل المتحقق منه؛ الأصل https صريح في الإنتاج أو الوضع الحي. */
@@ -225,7 +224,7 @@ export function createInAppNotificationModule(
   options: Pick<
     NotificationModuleOptions,
     'database' | 'ids' | 'clock' | 'emailConfiguration' | 'email' | 'push'
-  >,
+  > & { readonly phoneConfiguration?: PhoneHashConfiguration | null },
 ) {
   const email =
     options.email ??
@@ -255,6 +254,7 @@ export function createInAppNotificationModule(
       store: (tx) =>
         new StorePushAttempts(createPushAttemptsRepository(tx), options.clock, options.ids),
     },
+    productionClosedTeamAlertWhatsapp(options),
   );
   return {
     consumer,
@@ -306,124 +306,4 @@ export function createEmailSendModule(options: {
     options.ids,
   );
   return { process: notificationProcessor(send) };
-}
-
-export function startWhatsappInbound(
-  database: PlatformWhatsappDatabase,
-  redisUrl: string,
-  logger: Logger,
-) {
-  const connection = notificationRedisOptions(redisUrl);
-  const error = () => logger.warn({}, 'whatsapp inbox queue error');
-  const resource = notificationQueue(WHATSAPP_INBOUND_QUEUE, connection, error);
-  const maintenanceResource = notificationQueue(
-    'notifications-inbound-maintenance',
-    connection,
-    error,
-  );
-  const queue = resource.queue,
-    maintenanceQueue = maintenanceResource.queue;
-  const { worker, maintenanceWorker } = bindWhatsappProcessors(database, queue, connection);
-  logWhatsappQueues([queue, maintenanceQueue], [worker, maintenanceWorker], logger);
-  let scheduled = false;
-  let closed = false;
-  return {
-    ready: async () => {
-      if (closed) throw new Error('WHATSAPP_CAPABILITY_UNAVAILABLE');
-      await database.ping();
-      await Promise.all([
-        queue.waitUntilReady(),
-        maintenanceQueue.waitUntilReady(),
-        worker.waitUntilReady(),
-        maintenanceWorker.waitUntilReady(),
-      ]);
-      if (closed) throw new Error('WHATSAPP_CAPABILITY_UNAVAILABLE');
-      if (!scheduled) {
-        await scheduleWhatsappMaintenance(maintenanceQueue, () => closed);
-        scheduled = true;
-      }
-    },
-    stop: async () => {
-      await Promise.all([worker.close(), maintenanceWorker.close()]);
-    },
-    close: async (force = false) => {
-      closed = true;
-      await Promise.allSettled([
-        worker.close(force),
-        maintenanceWorker.close(force),
-        resource.close(force),
-        maintenanceResource.close(force),
-      ]);
-    },
-  };
-}
-
-async function scheduleWhatsappMaintenance(queue: Queue, closed: () => boolean) {
-  await queue.upsertJobScheduler(
-    'recover-inbox',
-    { every: 30_000 },
-    {
-      name: 'recover-inbox',
-      data: {},
-      opts: { attempts: 1, removeOnComplete: true, removeOnFail: true },
-    },
-  );
-  if (closed()) throw new Error('WHATSAPP_CAPABILITY_UNAVAILABLE');
-  await queue.upsertJobScheduler(
-    'clear-payloads',
-    { every: 60 * 60 * 1000 },
-    {
-      name: 'clear-payloads',
-      data: {},
-      opts: { attempts: 1, removeOnComplete: true, removeOnFail: true },
-    },
-  );
-}
-
-function bindWhatsappProcessors(
-  database: PlatformWhatsappDatabase,
-  queue: Queue,
-  connection: ReturnType<typeof notificationRedisOptions>,
-) {
-  const inbox = createWhatsappInboxRepository(database);
-  const clock = { now: () => new Date() };
-  const recover = new RecoverWhatsappInbox(
-    inbox,
-    {
-      enqueue: async (id) => {
-        const job = whatsappInboundJob(id);
-        await queue.add(job.name, job.data, job.options);
-      },
-    },
-    clock,
-  );
-  const worker = new Worker(
-    WHATSAPP_INBOUND_QUEUE,
-    whatsappInboundProcessor(new ProcessWhatsappInbox(inbox, clock)),
-    { connection, concurrency: 4 },
-  );
-  const maintenanceWorker = new Worker(
-    'notifications-inbound-maintenance',
-    whatsappMaintenanceProcessor(recover, new ClearWhatsappPayloads(inbox, clock)),
-    { connection, concurrency: 1 },
-  );
-  return { worker, maintenanceWorker };
-}
-
-function logWhatsappQueues(queues: Queue[], workers: Worker[], logger: Logger): void {
-  const error = () => logger.warn({}, 'whatsapp inbox queue error');
-  for (const source of queues) source.on('error', error);
-  for (const source of workers) source.on('error', error);
-  for (const source of workers)
-    source.on('failed', (job, error) =>
-      logger.warn(
-        {
-          event: {
-            id: job?.id !== undefined && WHATSAPP_INBOX_ID.test(job.id) ? job.id : undefined,
-          },
-          err: error,
-        },
-        'whatsapp inbox job failed',
-      ),
-    );
 }

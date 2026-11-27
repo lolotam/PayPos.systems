@@ -40,9 +40,11 @@ it('shows the editable default rule and saves its visible off state', async () =
   const toggle = (await screen.findByRole('switch', { name: englishLabel })) as HTMLInputElement;
   expect(toggle.checked).toBe(true);
   expect(toggle.disabled).toBe(false);
-  const roles = within(kindRow('DISCOUNT_SELF_APPROVED')).getAllByRole(
-    'checkbox',
-  ) as HTMLInputElement[];
+  const roles = within(
+    within(kindRow('DISCOUNT_SELF_APPROVED')).getByRole('group', {
+      name: t('en', 'alertRules.recipientsTitle'),
+    }),
+  ).getAllByRole('checkbox') as HTMLInputElement[];
   expect(roles.map((role) => role.checked)).toEqual([true, false, false, false]);
 
   fireEvent.click(toggle);
