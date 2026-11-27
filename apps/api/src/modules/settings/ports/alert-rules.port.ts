@@ -101,14 +101,16 @@ export interface AlertRulesScope {
     kind: AlertKind,
   ): Promise<StoredAlertRule | null>;
   /**
-   * المفتاح العام المخزن مقفول (null = شغّال، أو مفيش صف إعدادات لسه).
+   * المفتاح العام المخزن مقفول (null = شغّال، أو مفيش صف إعدادات لسه). القفل هنا استشاري على مستوى
+   * الـ transaction، فالقراءة دي ماتعملش صف إعدادات: النشاط اللي مالوش صف بيفضل من غير صف.
    *
    * @param businessId النشاط
    * @returns القيمة المخزنة؛ null = شغّال
    */
   lockMaster(businessId: string): Promise<boolean | null>;
   /**
-   * بيكتب المفتاح العام للنشاط بعد lockMaster. مابيلمسش updated_at بتاع الإعدادات المتخزنة في الـ cache؛ مين ومتى في التدقيق.
+   * بيكتب المفتاح العام للنشاط بعد lockMaster. بيعمل صف الإعدادات لو مش موجود، والصف الموجود بيتغير فيه
+   * المفتاح بس من غير ما updated_at يتلمس؛ مين ومتى في التدقيق.
    *
    * @param businessId النشاط
    * @param enabled    القيمة الجديدة

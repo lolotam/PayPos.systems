@@ -23,9 +23,11 @@ import {
 
 /** المستلمون وقنوات الإشعار وجهات اتصالهم اللي بتتكتب في حدث طلب تعديل الحضور أو قراره. */
 export interface AttendanceChangeNotice {
+  /** القاعدة الفعلية شغّالة؛ false = النوع مقفول أو تعديل الفرع أو المفتاح العام مقفول، فلا يُكتب صف outbox (#457). */
+  readonly enabled: boolean;
   /** معرّفات المستلمين؛ الفرز وإزالة التكرار في attendanceChangeRecipientGroups. */
   readonly users: string[];
-  /** قنوات الإشعار المفعّلة؛ فاضية = الحدث بلا إشعار. */
+  /** قنوات الإشعار المفعّلة؛ فاضية لقاعدة شغّالة = حدث الواقعة بلا إشعار. */
   readonly channels: readonly AlertChannel[];
   /** جهات الاتصال للإيميل والواتساب (AL-Q6)؛ فاضية لقاعدة جرس وحده. */
   readonly contacts: ReadonlyMap<string, TeamAlertContact>;
@@ -34,7 +36,9 @@ export interface AttendanceChangeNotice {
 /**
  * بيحسب مستلمي الحدث وقناته من القاعدة الفعلية للنوع: المستلم الثابت (حازمو صلاحية القرار أو صاحب الطلب)
  * وأدوار القاعدة اللي بتزود مستلمين فوقيه. كل واحد بيتحسب لوحده: القاعدة اللي ما جابتش المستلم الثابت
- * ما بتقراش حازمين القرار، والقاعدة المقفولة ما بتقراش حاجة خالص، والحدث بيفضل موجود.
+ * ما بتقراش حازمين القرار، والقاعدة المقفولة (النوع مطفي، أو تعديل الفرع مطفي، أو المفتاح العام مقفول)
+ * بترجّع enabled: false وقنوات فاضية، فمفيش سطر في الـ outbox خالص (#457). القاعدة الشغّالة (حتى لو
+ * بلا قنوات أو كل المستلمين استُثنوا كفاعل) بترجّع enabled: true، فحدثها بيتكتب بالواقعة بلا إشعار.
  *
  * @param tx              معاملة الشركة بتاعة المُرسِل
  * @param actor           الفاعل بتاع الحدث
@@ -42,7 +46,7 @@ export interface AttendanceChangeNotice {
  * @param now             لحظة قراءة السلطة
  * @param employeeUserId  حساب الموظفة أو null
  * @param alertRules      بورت قواعد التنبيه
- * @returns المستلمون وقناة الإشعار
+ * @returns حالة القاعدة والمستلمون وقنوات الإشعار
  */
 export async function attendanceChangeNoticeRecipients(
   tx: Tx,
@@ -74,6 +78,7 @@ export async function attendanceChangeNoticeRecipients(
         );
   const users = [...fixed, ...attendanceChangeRoleRecipients(holders, actor.userId, employeeUserId)];
   return {
+    enabled: plan.enabled,
     users,
     channels: plan.channels,
     contacts: await readContacts(tx, actor.companyId, users, plan.channels, now, alertRules),
