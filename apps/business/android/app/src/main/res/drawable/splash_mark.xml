@@ -1,25 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- لوجو PosPay البرتقالي على شاشة الفتح من أندرويد 12 (APP-Q11، APP-Q25)؛ الحرف P البرتقالي والنقطة مرسومين
-     جوّه الملف ده كمصدر مستقل، ومتصغّرين جوّه دايرة الـ 72 من 108 اللي النظام بيقصّ عليها، عشان أركان المربع ما
-     تتقصّش. مطابقة الأيقونة دي مع فافيكونات Souk Tiles للويب شغل بعدين. -->
-<vector xmlns:android="http://schemas.android.com/apk/res/android"
-    android:width="288dp"
-    android:height="288dp"
-    android:viewportWidth="108"
-    android:viewportHeight="108">
-    <group
-        android:translateX="29"
-        android:translateY="29"
-        android:scaleX="0.78125"
-        android:scaleY="0.78125">
-        <path
-            android:fillColor="#FF6421"
-            android:pathData="M11.52,0H52.48A11.52,11.52 0,0 1,64 11.52V52.48A11.52,11.52 0,0 1,52.48 64H11.52A11.52,11.52 0,0 1,0 52.48V11.52A11.52,11.52 0,0 1,11.52 0Z" />
-        <path
-            android:fillColor="#0D1522"
-            android:pathData="M16,12H36C47,12 52,19 52,27S46,42 35,42H27V53H16Z" />
-        <path
-            android:fillColor="#F7F1E8"
-            android:pathData="M26.5,27a6.5,6.5 0,1 1,13 0a6.5,6.5 0,1 1,-13 0" />
-    </group>
-</vector>
+<!-- لوجو شاشة الفتح من أندرويد 12 (APP-Q11، APP-Q25): بلاطة Souk Tiles P منقوشة من assets/brand/splash.svg،
+     يعني نفس رسم أيقونة التطبيق من غير دايرة «B» وشريط «تجربة». البلاطة نفسها في
+     drawable-xxxhdpi/splash_mark_tile.png بمقاس 432 بكسل (108 dp)، والـ inset 26.85% بيحطّها في نفس المنطقة
+     الآمنة 29..79 من 108 اللي كان فيها اللوجو القديم، عشان أركان المربع ما تتقصّش في القصّ الدائري
+     اللي النظام بيعمله على أيقونة شاشة الفتح. -->
+<inset xmlns:android="http://schemas.android.com/apk/res/android"
+    android:drawable="@drawable/splash_mark_tile"
+    android:inset="26.85%" />
