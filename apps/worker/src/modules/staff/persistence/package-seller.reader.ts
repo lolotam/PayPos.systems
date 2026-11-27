@@ -13,13 +13,17 @@ type SellerRow = {
 };
 
 // النسخة العاملة من apps/api/src/modules/staff/persistence/session-performers.reader.ts لقفل بائعة الباقة وقراءتها.
+// الترتيب ثابت: الموظفة أولاً ثم ربطها بفرع البيع، مثل كاتبي الـ API (الموظفة قبل employee_branches)، فلا انقلاب قفل بينهما.
 export async function lockPackageSeller(
   tx: Tx,
   companyId: string,
   businessId: string,
+  branchId: string,
   employeeId: string,
 ): Promise<void> {
   await tx.execute(sql`SELECT id FROM employees WHERE company_id=${companyId} AND business_id=${businessId} AND id=ANY(ARRAY[${employeeId}]::uuid[]) ORDER BY id FOR SHARE`);
+  // القراءة اللاحقة تجمع ربط الفرع في استعلام فرعي لا يقبل قفل صفوف؛ فيُقفل هنا حتى لا ينتهي الربط بين الفحص والإدخال (#1037).
+  await tx.execute(sql`SELECT id FROM employee_branches WHERE company_id=${companyId} AND business_id=${businessId} AND employee_id=${employeeId} AND branch_id=${branchId} ORDER BY id FOR SHARE`);
 }
 
 export async function readPackageSeller(

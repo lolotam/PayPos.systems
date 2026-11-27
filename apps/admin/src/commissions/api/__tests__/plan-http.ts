@@ -100,7 +100,33 @@ export function routeGet(
   );
 }
 
+/** تصحيح موقوف بالشكل اللي القائمة بترجّعه؛ الافتراضي مفتوح بكود NO_PLAN. */
+export function blockedCorrectionItem(
+  id: string,
+  employeeId: string,
+  overrides: Record<string, unknown> = {},
+) {
+  return {
+    id,
+    employee_id: employeeId,
+    source_period: '2026-09',
+    code: 'NO_PLAN',
+    target_period: '2026-11',
+    created_at: '2026-11-03T09:00:00Z',
+    resolved_at: null,
+    ...overrides,
+  };
+}
+
+export function blockedCorrectionPage(items: unknown[], nextCursor: string | null) {
+  return { items, next_cursor: nextCursor };
+}
+
 export const employeesPath = '/v1/businesses/{businessId}/commission-plan-employees';
+export const blockedCorrectionsPath =
+  '/v1/businesses/{businessId}/commission-blocked-corrections';
+export const periodRepairsPath =
+  '/v1/businesses/{businessId}/employees/{employeeId}/commission-period-repairs';
 export const versionsPath =
   '/v1/businesses/{businessId}/employees/{employeeId}/commission-plan-versions';
 export const staffEmployeesPath = '/v1/businesses/{businessId}/employees';

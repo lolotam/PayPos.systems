@@ -5,7 +5,7 @@ import { Card, Label } from '@pospay/ui';
 import type { ReactNode } from 'react';
 import { useFormContext } from 'react-hook-form';
 import { useLocale } from '@/shared/locale/locale-context';
-import type { PlanDraft } from '../model/plan-draft';
+import type { RepairPlanDraft } from '../model/plan-draft';
 
 export type BlockRoot = 'base' | 'tiers' | 'packageSale';
 
@@ -29,7 +29,7 @@ export function PlanSwitchBlock({
   children: ReactNode;
 }) {
   const locale = useLocale();
-  const { formState, register, watch } = useFormContext<PlanDraft>();
+  const { formState, register, watch } = useFormContext<RepairPlanDraft>();
   const enabled = watch(`${block}.enabled`);
   const blockError = formState.errors[block]?.message;
   const message = serverAlert ?? (typeof blockError === 'string' ? blockError : null);

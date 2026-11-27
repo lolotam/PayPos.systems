@@ -9,6 +9,12 @@ export function packageSaleRecoveryTransactions(
   const withTenant = <T>(companyId: string, work: (tx: Tx) => Promise<T>) =>
     database.withTenant(companyId, work, options);
   return {
+    hasPending: (companyId) =>
+      withTenant(companyId, async (tx) => {
+        const rows = await tx.execute(sql`
+          SELECT 1 FROM package_sale_requests WHERE company_id=${companyId} AND status='pending' LIMIT 1`);
+        return rows.length > 0;
+      }),
     candidates: (companyId, before) =>
       withTenant(companyId, async (tx) => {
         const rows = await tx.execute<{ id: string }>(sql`

@@ -68,6 +68,8 @@ export interface StatementEmployeeLabel {
   readonly employeeNumber: number;
   readonly nameAr: string | null;
   readonly nameEn: string;
+  /** سابت الشغل قبل الشهر: عقدها أو حذفها قبل أول يوم فيه؛ علامة عرض بس ومش بتدخل أي صف مجمّد (CM-50). */
+  readonly departed?: boolean;
 }
 
 /** اسم بالعربي (اختياري) والإنجليزي. */

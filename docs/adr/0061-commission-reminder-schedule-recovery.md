@@ -578,3 +578,7 @@ Recorded in `owner-questions.ar.md` §62 (CS-Q53), `ANSWERED`: «اعتمد ال
 5. **(v) The audit texts:** `actor = 'system:worker'`, `action = 'recovery.flag_cleared'`.
 6. **(vi) The closing window across Redis and PostgreSQL (point 4):** accepted as described there (choice 1), and only
    as described: no wider exception.
+
+## Addendum (2026-11-27): package-recovery discovery (#1035)
+
+`apps/worker/src/package-recovery-discovery.ts` (spec 058 rows 42 and 47-2, issue `#1035`) reuses `dispatcher.companyIdPage` (`public.recovery_company_ids`) to list live company IDs at startup and every 2 minutes when Redis loses repeatable recovery schedules (`package-sale` and `package-import-commit`). No new grant, role, pool, column or table read is added: `recovery_company_ids` still returns live company IDs only (`pospay_recovery_company_reader` under `companies_recovery_select`), and each per-company pending check runs inside a short `withTenant(companyId)` transaction on `pospay_app` with existing indexes. Technical operational extension; not published on the owner decisions site.

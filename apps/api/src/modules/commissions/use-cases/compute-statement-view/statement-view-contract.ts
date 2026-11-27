@@ -56,6 +56,7 @@ export function employeeContract(employee: StatementViewEmployee): CommissionSta
     name_ar: employee.nameAr,
     name_en: employee.nameEn,
     partial: employee.partial,
+    departed: employee.departed,
     commission_subtotal: totalToString(employee.payable.commissionSubtotal),
     tip_side: totalToString(employee.payable.tipSide),
     payable: totalToString(employee.payable.payable),
@@ -66,6 +67,23 @@ export function employeeContract(employee: StatementViewEmployee): CommissionSta
       source_period: issue.sourcePeriod,
     })),
   };
+}
+
+/**
+ * معرّفات الموظفات اللي سابت الشغل قبل الشهر، من بطاقات مصادر الكشف الحية (CM-50). العلامة مش مخزّنة في
+ * الصفوف المجمّدة، فالكشف المغلق كمان بيقراها من هنا.
+ *
+ * @param source مصادر الكشف الحية
+ * @returns مجموعة معرّفات من سابت الشغل
+ */
+export function departedEmployeeIds(
+  source: Pick<CommissionStatementSource, 'employees' | 'unlisted'>,
+): ReadonlySet<string> {
+  return new Set(
+    [...source.employees, ...source.unlisted]
+      .filter((label) => label.departed === true)
+      .map((label) => label.employeeId),
+  );
 }
 
 /** ما بيلزم لبناء الردّين: الكشف المحسوب ومصادره ونطاق القارئ. */
@@ -146,5 +164,6 @@ function projectEmployees(context: StatementViewContext): CommissionStatementEmp
     blocked: context.source.blocked,
     unlisted: context.source.unlisted,
     scope: context.scope,
+    departed: departedEmployeeIds(context.source),
   }).map(employeeContract);
 }

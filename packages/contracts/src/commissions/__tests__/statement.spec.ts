@@ -16,6 +16,7 @@ const employee = {
   name_ar: null,
   name_en: 'Rana',
   partial: false,
+  departed: false,
   commission_subtotal: '-3.000',
   tip_side: '2.500',
   payable: '2.500',

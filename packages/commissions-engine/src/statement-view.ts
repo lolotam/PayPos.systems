@@ -49,6 +49,8 @@ export interface StatementViewEmployee {
   /** في صف من شهرها برا نطاق القارئ، فأرقامها مجموع جزء من الشهر (CS-Q23). */
   readonly partial: boolean;
   readonly issues: readonly StatementViewIssue[];
+  /** الموظفة سابت الشغل قبل شهر الكشف، فبتتعلّم في قسم تصحيحات الشهور السابقة (CM-50). */
+  readonly departed: boolean;
 }
 
 /** ما بيحتاجه إسقاط العرض: صفوف الباني بكل موظفينه، والمشاكل، ونطاق القارئ. */
@@ -59,6 +61,8 @@ export interface StatementViewInput {
   /** موظفات برا مجموعة الكشف وعليهن تصحيح موقوف مفتوح، بطاقاتهن؛ بيظهروا لقارئ النشاط كله بس. */
   readonly unlisted: readonly StatementEmployeeLabel[];
   readonly scope: StatementViewScope;
+  /** معرّفات الموظفات اللي سابت الشغل قبل الشهر؛ غايبة = ولا واحدة (CM-50). */
+  readonly departed?: ReadonlySet<string>;
 }
 
 /**
@@ -135,6 +139,7 @@ function projectEmployee(
     payable: computeStatementPayable(visible),
     partial: visible.length < sources.length,
     issues: issuesOf(employeeId, input),
+    departed: input.departed?.has(employeeId) ?? false,
   };
 }
 
@@ -159,6 +164,7 @@ function unlistedEmployee(
     payable: computeStatementPayable([]),
     partial: false,
     issues: issuesOf(label.employeeId, input),
+    departed: input.departed?.has(label.employeeId) ?? false,
   };
 }
 

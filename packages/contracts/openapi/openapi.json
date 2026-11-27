@@ -28837,6 +28837,10 @@
           "partial": {
             "type": "boolean"
           },
+          "departed": {
+            "default": false,
+            "type": "boolean"
+          },
           "commission_subtotal": {
             "$ref": "#/components/schemas/CommissionStatementTotalMoney"
           },
