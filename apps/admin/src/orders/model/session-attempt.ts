@@ -15,6 +15,8 @@ export type SessionAttempt = (
 };
 export const SESSION_ATTEMPT_RETENTION_MS = 24 * 60 * 60 * 1000;
 export const SESSION_ATTEMPT_SAFETY_MARGIN_MS = 60 * 60 * 1000;
+/** الخادم يحفظ مفتاح منع التكرار 24 ساعة من أول تنفيذ، فتُغلق نافذة المتصفح قبلها بهامش أمان ساعة واحدة (23 ساعة من الإنشاء، #221). */
+export const SESSION_ATTEMPT_RETRY_WINDOW_MS = SESSION_ATTEMPT_RETENTION_MS - SESSION_ATTEMPT_SAFETY_MARGIN_MS;
 
 export const freezeSessionAttemptScope = (scope: SessionAttemptScope): SessionAttemptScope => Object.freeze({
   companyId: id.parse(scope.companyId), businessId: id.parse(scope.businessId), branchId: id.parse(scope.branchId), userId: id.parse(scope.userId),

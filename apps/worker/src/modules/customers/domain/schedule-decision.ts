@@ -36,7 +36,7 @@ export function outsideBootstrapWindow(
  * @param placeByBranch مواعيد ومنطقة كل فرع
  * @param now لحظة اتخاذ القرار المحقونة
  * @param bootstrapCutoff حد تاريخ bootstrap؛ غيابه يحافظ على سلوك الأحداث الحية
- * @returns غياب البنود أو انتهاء الموعد أو بيانات الجدولة من أحدث زيارة
+ * @returns غياب البنود أو وقوع الزيارة خارج نافذة bootstrap (`OUTSIDE_BOOTSTRAP_WINDOW`) أو انتهاء الموعد أو بيانات الجدولة من أحدث زيارة
  */
 export function decideRequest(
   sessions: readonly DaySession[],
