@@ -77,7 +77,38 @@ async function closeHeld(worker: Worker, connection: Redis, force: boolean): Pro
   connection.disconnect();
 }
 
-async function release(slot: Slot): Promise<void> {
+/**
+ * بيقفل المتصفح جوّه مهلة السماح، وبيقتله إلا لو close خلّص.
+ * القفل المعلّق ما بيأجلش المحاولة الجاية، والقتل هو اللي يفك Chromium المعلّق.
+ */
+async function closeRendererWithinGrace(renderer: DocumentRenderer, graceMs: number): Promise<void> {
+  let finished = false;
+  let closing: Promise<unknown>;
+  try {
+    closing = renderer.close();
+  } catch {
+    closing = Promise.reject(new Error('close failed'));
+  }
+  const pending = closing.then(
+    () => {
+      finished = true;
+    },
+    () => undefined,
+  );
+  const grace = waitForGrace(graceMs);
+  await Promise.race([pending, grace.done]);
+  grace.stop();
+  // القفل اللي خلص في نفس اللحظة يبقى مغلوق، وما نقتلش متصفح سليم.
+  await Promise.resolve();
+  if (finished) return;
+  try {
+    renderer.kill?.();
+  } catch {
+    // القتل اختياري؛ المحاولة الجاية ليها متصفح جديد.
+  }
+}
+
+async function release(slot: Slot, graceMs: number): Promise<void> {
   const live = slot.live;
   const queue = slot.queue;
   const renderer = slot.renderer;
@@ -91,7 +122,7 @@ async function release(slot: Slot): Promise<void> {
     // لسه مش جاهز وماسكش وظيفة، فالقوة بتقطع إعادة اتصال Redis
     await closeHeld(queue.worker, queue.connection, true);
   }
-  await renderer?.close().catch(() => undefined);
+  if (renderer !== undefined) await closeRendererWithinGrace(renderer, graceMs);
 }
 
 function waitForGrace(ms: number): { done: Promise<void>; stop: () => void } {
@@ -128,11 +159,7 @@ function pause(
 
 /** متصفح وصل بعد إلغاء المحاولة. القفل متسقوف زي مهلة الإغلاق عشان close المعلّق ما يمسكش الإيقاف. */
 function closeAbandoned(renderer: DocumentRenderer, graceMs: number): void {
-  const closing = renderer.close().catch(() => undefined);
-  const grace = waitForGrace(graceMs);
-  void Promise.race([closing, grace.done]).finally(() => {
-    grace.stop();
-  });
+  void closeRendererWithinGrace(renderer, graceMs);
 }
 
 function binder(state: SessionState, slot: Slot, graceMs: number): AttemptBinder {
@@ -208,7 +235,7 @@ async function fail(
   if (state.timer !== undefined) clearTimeout(state.timer);
   input.onFailed(error);
   // تنظيف المتصفح المعلّق ما يؤجّلش المحاولة الجاية. القفل يكمل لو عدّى المهلة.
-  const cleaning = release(slot);
+  const cleaning = release(slot, input.closeGraceMs ?? CLOSE_GRACE_MS);
   const grace = waitForGrace(input.closeGraceMs ?? CLOSE_GRACE_MS);
   await Promise.race([cleaning.catch(() => undefined), grace.done]);
   grace.stop();
@@ -233,7 +260,7 @@ async function stopSession(state: SessionState, force: boolean): Promise<void> {
   await live.worker.close(force).catch(() => undefined);
 }
 
-async function closeSession(state: SessionState): Promise<void> {
+async function closeSession(state: SessionState, input: StartupSessionInput): Promise<void> {
   if (state.closed) return;
   state.closed = true;
   state.accept = false;
@@ -242,7 +269,7 @@ async function closeSession(state: SessionState): Promise<void> {
   if (state.timer !== undefined) clearTimeout(state.timer);
   state.wake?.();
   succeed(state);
-  await release(state.current);
+  await release(state.current, input.closeGraceMs ?? CLOSE_GRACE_MS);
 }
 
 /** إقلاع القدرة. البطء والفشل بيتأجلوا؛ الإيقاف هو اللي بيقفل المحاولة نهائي. */
@@ -264,6 +291,6 @@ export function trackDocumentStartup(input: StartupSessionInput): StartupSession
   return {
     started,
     stop: (force = false) => stopSession(state, force),
-    close: () => closeSession(state),
+    close: () => closeSession(state, input),
   };
 }

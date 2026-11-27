@@ -93,7 +93,7 @@ it('writes FAILED only on the final attempt', async () => {
     expect(calls).toBe(2);
     expect((await statusOf(opened, companyId, id))['state']).toBe('READY');
   });
-});
+}, 35_000);
 
 it('fails an unknown kind without storing bytes', async () => {
   await useRender(async (opened) => {
@@ -292,7 +292,7 @@ it('AC-08 retries once the renderer relaunches after a disconnect', async () => 
     async (opened) => {
       const companyId = renderId();
       const id = renderId();
-      expect(documentRenderJobOptions(id).backoff).toEqual({ type: 'fixed', delay: 5000 });
+      expect(documentRenderJobOptions(id).backoff).toEqual({ type: 'fixed', delay: 15000 });
       opened.registry.register('fixture', { load: async () => '<p>again</p>' });
       await seedQueued(opened, companyId, id);
       await finishJob(opened, job(companyId, id, 'fixture'), id);
@@ -302,7 +302,7 @@ it('AC-08 retries once the renderer relaunches after a disconnect', async () => 
     },
     { renderer },
   );
-}, 15_000);
+}, 35_000);
 
 it.skipIf(!chromiumReady)(
   'AC-01 renders a fixture source through the real browser',

@@ -170,6 +170,15 @@ async function untilPending(gate: Gate, count: number): Promise<void> {
   expect(gate.pending()).toBeGreaterThanOrEqual(count);
 }
 
+/** المتصفح المتقاعد لازم يتقتل الأول، وبعدين بس يطلق المتصفح الجاي. */
+async function untilKilled(scene: Scene): Promise<void> {
+  const deadline = Date.now() + 1_000;
+  while (scene.kills() === 0 && Date.now() < deadline) {
+    await new Promise((resolve) => setImmediate(resolve));
+  }
+  expect(scene.kills()).toBeGreaterThanOrEqual(1);
+}
+
 async function untilAvailable(renderer: PlaywrightDocumentRenderer): Promise<void> {
   const deadline = Date.now() + 1_000;
   while (!renderer.isAvailable() && Date.now() < deadline) {
@@ -218,6 +227,11 @@ it('retires a browser whose newContext and close never settle', async () => {
     expect(scene.kills()).toBe(0);
     expect(scene.launches()).toBe(1);
     scene.gate.release();
+    await untilKilled(scene);
+    // القتل خلص، والمتصفح الجاي لسه ما طلعش.
+    expect(scene.kills()).toBe(1);
+    expect(scene.launches()).toBe(1);
+    await untilPending(scene.gate, 1);
     scene.gate.release();
     await untilAvailable(scene.renderer);
     expect(scene.kills()).toBe(1);
@@ -243,6 +257,10 @@ it('retires a browser whose context close never settles', async () => {
     expect(scene.kills()).toBe(0);
     expect(scene.launches()).toBe(1);
     scene.gate.release();
+    await untilKilled(scene);
+    expect(scene.kills()).toBe(1);
+    expect(scene.launches()).toBe(1);
+    await untilPending(scene.gate, 1);
     scene.gate.release();
     await untilAvailable(scene.renderer);
     expect(scene.kills()).toBe(1);

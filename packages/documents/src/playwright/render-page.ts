@@ -1,4 +1,4 @@
-import { DocumentRenderTimeoutError } from '../domain/errors.ts';
+import { DocumentRenderTimeoutError, isTimeoutError } from '../domain/errors.ts';
 import type { PdfContext, PdfPage } from './browser.ts';
 
 export interface RenderPageHooks {
@@ -84,6 +84,7 @@ export async function renderPage(
     await route.abort();
   });
   const page = await context.newPage();
+  let timedOut = false;
   try {
     await page.setContent(html, { timeout: timeouts.contentMs, waitUntil: 'load' });
     await settleFonts(page);
@@ -99,7 +100,12 @@ export async function renderPage(
       timeouts.pdfMs,
       timeouts.signal,
     );
+  } catch (error) {
+    timedOut = isTimeoutError(error) || timeouts.signal?.aborted === true;
+    throw error;
   } finally {
-    await page.close().catch(() => undefined);
+    // قفل الصفحة المعلّق بيستهلك مهلة الطباعة، فبنبلّغه ونرميه؛ المتصفح بيتقفل من فوق.
+    if (timedOut) void page.close().catch(() => undefined);
+    else await page.close().catch(() => undefined);
   }
 }

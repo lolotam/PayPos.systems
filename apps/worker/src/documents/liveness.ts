@@ -81,9 +81,19 @@ function isLive(state: PublishState): boolean {
   return !state.stopped && state.renderer.isAvailable();
 }
 
-function watchSet(state: PublishState, set: Promise<unknown>): void {
+/**
+ * SET خلص بعد ما الوقت عدّى؛ المفتاح اتكتب متأخر فبنمسحه لو epoch اتغيّر أو المتصفح واقع.
+ * المسح بيتبعت بعد ما الأمر نفسه يخلّص، عشان الرد المتأخر ما يعلنش متصفح ميت.
+ */
+function watchSet(state: PublishState, set: Promise<unknown>, token: number): void {
   void settled(set).finally(() => {
     state.busy = false;
+    if (token === state.epoch && isLive(state)) return;
+    try {
+      void boundCommand(state.redis.del(DOCUMENT_RENDERER_ALIVE_KEY), state.commandTimeoutMs);
+    } catch {
+      // Redis مقفول؛ المفتاح بينتهي لوحده بعد مدة صلاحيته.
+    }
   });
 }
 
@@ -96,7 +106,7 @@ async function publishOnce(state: PublishState): Promise<void> {
   state.busy = true;
   const token = state.epoch;
   const set = state.redis.set(DOCUMENT_RENDERER_ALIVE_KEY, '1', 'EX', state.ttlSeconds);
-  watchSet(state, set);
+  watchSet(state, set, token);
   await boundCommand(set, state.commandTimeoutMs);
   if (token !== state.epoch || !isLive(state)) {
     await boundCommand(state.redis.del(DOCUMENT_RENDERER_ALIVE_KEY), state.commandTimeoutMs);

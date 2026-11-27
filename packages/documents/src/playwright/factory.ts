@@ -10,6 +10,12 @@ import {
 import type { PdfBrowser, PdfBrowserFactory, PdfContext, PdfPage, PdfRoute } from './browser.ts';
 
 /**
+ * مهلة إطلاق Chromium.
+ * الإطلاق المعلّق بيتحسب فشل بدل ما يفضل شغّال للأبد.
+ */
+export const DEFAULT_CHROMIUM_LAUNCH_TIMEOUT_MS = 40_000;
+
+/**
  * إشارات الإيقاف بتوصل للوركر. Playwright لو قفل Chromium معاها، الوظيفة الجارية بتتقص قبل ما الطابور يخلّص.
  */
 export const chromiumLaunchOptions: LaunchOptions = {
@@ -18,6 +24,7 @@ export const chromiumLaunchOptions: LaunchOptions = {
   handleSIGINT: false,
   handleSIGTERM: false,
   handleSIGHUP: false,
+  timeout: DEFAULT_CHROMIUM_LAUNCH_TIMEOUT_MS,
 };
 
 function wrapRoute(route: Route): PdfRoute {
@@ -98,9 +105,17 @@ function wrapBrowser(browser: Browser): PdfBrowser {
   };
 }
 
-/** متصفح العملية. المسار بييجي من PLAYWRIGHT_BROWSERS_PATH ومن غير تنزيل وقت التشغيل. */
-export function playwrightFactory(): PdfBrowserFactory {
+/**
+ * متصفح العملية. المسار بييجي من PLAYWRIGHT_BROWSERS_PATH ومن غير تنزيل وقت التشغيل.
+ *
+ * @param timeoutMs مهلة إطلاق Chromium بالميلي ثانية
+ * @returns مصنع متصفح بيحترم المهلة
+ */
+export function playwrightFactory(
+  timeoutMs = DEFAULT_CHROMIUM_LAUNCH_TIMEOUT_MS,
+): PdfBrowserFactory {
   return {
-    launch: async () => wrapBrowser(await chromium.launch(chromiumLaunchOptions)),
+    launch: async () =>
+      wrapBrowser(await chromium.launch({ ...chromiumLaunchOptions, timeout: timeoutMs })),
   };
 }

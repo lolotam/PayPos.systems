@@ -188,6 +188,74 @@ it('keeps a single SET pending when redis never answers', async () => {
   expect(dels).toBe(1);
 });
 
+it('drops a liveness key written by a SET that settles after the publisher stopped', async () => {
+  let stored: string | null = null;
+  let release: (() => void) | undefined;
+  const redis = redisStub('ready');
+  redis.set = () =>
+    new Promise((resolve) => {
+      release = () => {
+        stored = '1';
+        resolve('OK');
+      };
+    });
+  redis.del = async () => {
+    stored = null;
+    return 1;
+  };
+  const renderer = new FakeRenderer();
+  const live = await startRendererLiveness({
+    redis,
+    renderer,
+    intervalMs: 10,
+    commandTimeoutMs: 20,
+    readyTimeoutMs: 1_000,
+  });
+  await new Promise((resolve) => setTimeout(resolve, 60));
+  await live.stop();
+  expect(stored).toBeNull();
+  if (release === undefined) throw new Error('missing pending set');
+  release();
+  await new Promise((resolve) => setImmediate(resolve));
+  await new Promise((resolve) => setImmediate(resolve));
+  expect(stored).toBeNull();
+});
+
+it('drops a liveness key written by a SET that settles after the renderer went away', async () => {
+  let stored: string | null = null;
+  let release: (() => void) | undefined;
+  const redis = redisStub('ready');
+  redis.set = () =>
+    new Promise((resolve) => {
+      release = () => {
+        stored = '1';
+        resolve('OK');
+      };
+    });
+  redis.del = async () => {
+    stored = null;
+    return 1;
+  };
+  const renderer = new FakeRenderer();
+  const live = await startRendererLiveness({
+    redis,
+    renderer,
+    intervalMs: 10,
+    commandTimeoutMs: 20,
+    readyTimeoutMs: 1_000,
+  });
+  await new Promise((resolve) => setTimeout(resolve, 60));
+  renderer.available = false;
+  await renderer.close();
+  expect(stored).toBeNull();
+  if (release === undefined) throw new Error('missing pending set');
+  release();
+  await new Promise((resolve) => setImmediate(resolve));
+  await new Promise((resolve) => setImmediate(resolve));
+  expect(stored).toBeNull();
+  await live.stop();
+});
+
 it('leaves nothing armed when the liveness start fails', async () => {
   const { redis, sets } = recordingRedisStub('end');
   const renderer = new FakeRenderer();

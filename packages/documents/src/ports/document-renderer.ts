@@ -29,6 +29,13 @@ export interface DocumentRenderer {
   close(): Promise<void>;
 
   /**
+   * بيقتل عملية المتصفح فوراً لما إغلاق البروتوكول يعلّق بعد مهلة السماح.
+   *
+   * @returns لا شيء
+   */
+  kill?(): void;
+
+  /**
    * بيقول لو في متصفح جاهز يستقبل صفحة.
    *
    * @returns صح لما Chromium متوصل

@@ -17,6 +17,13 @@ export const DOCUMENT_BYTES_TTL_SECONDS = 120;
 /** Refreshed about once a second while Chromium is up. A crash drops it within 3s. */
 export const DOCUMENT_RENDERER_ALIVE_TTL_SECONDS = 3;
 
+/**
+ * مهلة إعادة محاولة الرندر.
+ * لازم تكون أعلى من أطول تأخير في إعادة إطلاق Chromium (5000 ms) زائد مهلة الإطلاق،
+ * عشان المحاولة الجاية ما تقعش لسه Chromium واقع.
+ */
+export const DOCUMENT_RENDER_RETRY_DELAY_MS = 15_000;
+
 /** UTF-8 byte cap of the HTML handed to Chromium. */
 export const DOCUMENT_HTML_MAX_BYTES = 4 * 1024 * 1024;
 
@@ -103,20 +110,20 @@ export function documentBytesKey(companyId: string, renderId: string): string {
 
 /**
  * Producer options. jobId is the render id, so a double enqueue is one job.
- * The fixed 5s delay is longer than the renderer's relaunch backoff, so the
- * second attempt does not land while Chromium is still down.
+ * The fixed 15s delay is longer than the renderer's relaunch backoff (5s max) plus the
+ * launch allowance, so the second attempt does not land while Chromium is still down.
  */
 export function documentRenderJobOptions(renderId: string): {
   readonly jobId: string;
   readonly attempts: 2;
-  readonly backoff: { readonly type: 'fixed'; readonly delay: 5000 };
+  readonly backoff: { readonly type: 'fixed'; readonly delay: 15000 };
   readonly removeOnComplete: true;
   readonly removeOnFail: true;
 } {
   return {
     jobId: renderId,
     attempts: 2,
-    backoff: { type: 'fixed', delay: 5000 },
+    backoff: { type: 'fixed', delay: DOCUMENT_RENDER_RETRY_DELAY_MS },
     removeOnComplete: true,
     removeOnFail: true,
   };

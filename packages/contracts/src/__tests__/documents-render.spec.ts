@@ -2,11 +2,13 @@ import { expect, it } from 'vitest';
 
 import {
   DOCUMENT_PDF_MIME_TYPE,
+  DOCUMENT_RENDER_RETRY_DELAY_MS,
   DOCUMENT_XLSX_MIME_TYPE,
   documentKindMimeType,
   documentKindNeedsRenderer,
   documentRenderErrorCode,
   documentRenderJob,
+  documentRenderJobOptions,
 } from '../documents-render.js';
 
 it('requires the renderer only for PDF kinds', () => {
@@ -51,4 +53,12 @@ it('keeps document kinds as non-empty free strings up to 64 characters', () => {
 it('accepts the empty-statement error code', () => {
   expect(documentRenderErrorCode.safeParse('STATEMENT_EMPTY').success).toBe(true);
   expect(documentRenderErrorCode.options).toContain('STATEMENT_EMPTY');
+});
+
+it('waits longer than the Chromium relaunch backoff before a retry', () => {
+  expect(DOCUMENT_RENDER_RETRY_DELAY_MS).toBe(15_000);
+  const options = documentRenderJobOptions('00000000-0000-7000-8000-000000000002');
+  expect(options.backoff).toEqual({ type: 'fixed', delay: 15_000 });
+  expect(options.backoff.delay).toBeGreaterThan(5000);
+  expect(options.backoff.delay).toBeGreaterThanOrEqual(DOCUMENT_RENDER_RETRY_DELAY_MS);
 });
