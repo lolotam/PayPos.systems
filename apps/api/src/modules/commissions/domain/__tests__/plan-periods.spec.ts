@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import {
   assertCommissionPlanDateBeforeLocks,
   assertCommissionPlanEffectiveFrom,
+  assertCommissionRepairPeriodAllowed,
   commissionPlanMonthsStillToLock,
   commissionPlanMonthsToLock,
   nextCommissionPlanVersion,
@@ -189,6 +190,50 @@ describe('commissionPlanMonthsStillToLock', () => {
     expect(commissionPlanMonthsStillToLock('2026-10-01', '2026-11-01', ['2026-10'])).toEqual([
       '2026-11',
     ]);
+  });
+});
+
+describe('assertCommissionRepairPeriodAllowed', () => {
+  const window = { businessStartMonth: '2026-08', currentMonth: '2026-10' };
+
+  it('accepts the business start month, the first month a repair may touch', () => {
+    expect(() =>
+      assertCommissionRepairPeriodAllowed({ ...window, period: '2026-08' }),
+    ).not.toThrow();
+  });
+
+  it('accepts a month inside the window', () => {
+    expect(() =>
+      assertCommissionRepairPeriodAllowed({ ...window, period: '2026-09' }),
+    ).not.toThrow();
+  });
+
+  it.each([
+    ['a month before the business start', '2026-07'],
+    ['the current month itself', '2026-10'],
+    ['a future month', '2026-11'],
+  ] as const)('refuses %s', (_case, period) => {
+    expect(() => assertCommissionRepairPeriodAllowed({ ...window, period })).toThrowError(
+      expect.objectContaining({ code: 'COMMISSION_REPAIR_NOT_ALLOWED' }),
+    );
+  });
+
+  it('crosses the year boundary: December 2025 is the only allowed month before January 2026', () => {
+    const boundary = { businessStartMonth: '2025-12', currentMonth: '2026-01' };
+    expect(() =>
+      assertCommissionRepairPeriodAllowed({ ...boundary, period: '2025-12' }),
+    ).not.toThrow();
+    for (const period of ['2026-01', '2025-11']) {
+      expect(() => assertCommissionRepairPeriodAllowed({ ...boundary, period })).toThrowError(
+        expect.objectContaining({ code: 'COMMISSION_REPAIR_NOT_ALLOWED' }),
+      );
+    }
+  });
+
+  it('refuses a malformed month with the range error of the other validators', () => {
+    expect(() => assertCommissionRepairPeriodAllowed({ ...window, period: '2026-13' })).toThrow(
+      RangeError,
+    );
   });
 });
 

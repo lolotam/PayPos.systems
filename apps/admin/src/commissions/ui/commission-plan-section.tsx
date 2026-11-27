@@ -23,29 +23,34 @@ function sectionDraft(newest: CommissionPlanVersion | null, timeZone: string): P
   return newest !== null ? draftFromVersion(newest) : emptyPlanDraft(timeZone, new Date());
 }
 
-/** المسودة بتتثبّت مرة واحدة بعد نجاح أول صفحة تاريخ وبذرة مش أقدم من أحدث نسخة عادية فيها (غير كده البذرة بتتجدد). */
+/**
+ * المسودة بتتثبّت مرة واحدة بعد نجاح البذرة وأول صفحة تاريخ مع بعض: أحدث نسخة عادية في
+ * الصفحة (لو اتقدّمت على البذرة) هي الأساس، وإلا بذرة `kind=ordinary` هي الأساس.
+ * مفيش إعادة جلب: البذرة الأقدم ما بتستنىش، لأنها بتتقفل بقراءة الصفحة نفسها.
+ */
 function useInitialDraft(
-  seed: Pick<UseQueryResult<CommissionPlanVersion | null>, 'data' | 'refetch'>,
+  seed: Pick<UseQueryResult<CommissionPlanVersion | null>, 'data'>,
   firstPage: CommissionPlanVersionList | undefined,
   timeZone: string,
 ): PlanDraft | null {
   const [initial, setInitial] = useState<PlanDraft | null>(null);
-  const { data, refetch } = seed;
-  const newest = firstPage?.items.find((item) => item.repair_period === null)?.version ?? 0;
-  const stale = data !== undefined && newest > (data?.version ?? 0);
-  useEffect(() => {
-    if (initial === null && stale) void refetch();
-  }, [initial, stale, refetch]);
-  if (initial === null && data !== undefined && firstPage !== undefined && !stale) {
-    setInitial(sectionDraft(data, timeZone));
+  const { data } = seed;
+  if (initial === null && data !== undefined && firstPage !== undefined) {
+    // أول صفحة تاريخ ممكن تبقى كلها إصلاحات، فالنسخة العادية من جواها هي المرجع الأحدث.
+    const ordinary = firstPage.items.find((item) => item.repair_period === null);
+    if (ordinary !== undefined && (data === null || ordinary.version > data.version)) {
+      setInitial(draftFromVersion(ordinary));
+    } else {
+      setInitial(sectionDraft(data, timeZone));
+    }
   }
   return initial;
 }
 
 /**
- * بلوك موظفة واحدة: المحرّر بيركب بس بعد نجاح قراءة أحدث نسخة عادية (مش من أول صفحة تاريخ، لأنها
- * ممكن تبقى كلها إصلاحات)، وفشل القراءة بيظهر رسالة من غير محرّر، وقيم النموذج بتعيش جوّه الفورم
- * نفسها فما بتتأثرش بإعادة جلب ولا تحميل صفحات أكتر؛ الحفظ الناجح بس هو اللي بيرجّع يركّب المحرّر.
+ * بلوك موظفة واحدة: المحرّر بيركب بعد نجاح قراءة أحدث نسخة عادية (من البذرة أو من أول صفحة
+ * تاريخ لما تكون أحدث منها)، وفشل القراءة بيظهر رسالة من غير محرّر، وقيم النموذج بتعيش جوّه
+ * الفورم نفسها فما بتتأثرش بإعادة جلب ولا تحميل صفحات أكتر؛ الحفظ الناجح بس هو اللي بيرجّع يركّب المحرّر.
  */
 export function CommissionPlanSection({
   scope,

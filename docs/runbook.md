@@ -367,6 +367,23 @@ land, approval stays closed. Never reset or delete `published_at`, `attempts`, `
    by itself, `packages/db/src/dispatcher.ts`); a parked `CommissionPeriodRepairSaved` can stay parked without losing anything
    today, and re-queuing one later is a reviewed one-off, not a documented step.
 
+   **Inspecting a parked repair event.** Read the parked rows of this type and their last error as `pospay_owner`, newest first:
+
+   ```sql
+   SELECT id, company_id, aggregate_id, attempts, parked_at, last_error
+   FROM outbox
+   WHERE event_type = 'CommissionPeriodRepairSaved' AND parked_at IS NOT NULL
+   ORDER BY parked_at DESC;
+   ```
+
+   Reading is safe and complete on its own: a parked row is parked, never deleted, and the repair it announces is already
+   committed — the version, the recompute and the posted correction were written in the request's own transaction, with their
+   audit row. So a parked event loses no business effect, which is exactly why it may stay parked today: no consumer
+   subscribes to `CommissionPeriodRepairSaved`, and the type is not one of the six counted by ADR-0012, so the approval gate
+   never reads it. If a consumer is added for this type later, re-queuing a parked row becomes a real operation and it needs
+   a reviewed operator script with its own backup and verification — never an ad-hoc edit of `parked_at`, `attempts`,
+   `published_at` or `consumed_events`.
+
    One refusal remains (FR-015):
    `COMMISSION_PERIOD_CLOSED` when no DRAFT target month exists after the source, or when the tips bootstrap touches a closed month
    (CS-Q45); live dispatch retries it and then parks it. Keep the two paths apart: **the replay never mutates the dispatcher lifecycle** —
