@@ -49,6 +49,7 @@ export class PlaywrightDocumentRenderer implements DocumentRenderer {
   #stableTimer: ReturnType<typeof setTimeout> | undefined;
   #starting: Promise<void> | null = null;
   #launchInFlight: Promise<void> | null = null;
+  #pendingCancel: Promise<void> | null = null;
   #relaunching: Promise<void> | null = null;
   #retiring: Promise<void> | null = null;
   #unavailable: Array<() => void> = [];
@@ -99,7 +100,14 @@ export class PlaywrightDocumentRenderer implements DocumentRenderer {
     const starting = this.#launchOnce(options?.signal).finally(() => {
       detachAbort();
       if (this.#starting === starting) this.#starting = null;
-      if (!this.#available && !this.#closing && this.#retiring === null) this.#scheduleRelaunch();
+      if (
+        !this.#available &&
+        !this.#closing &&
+        this.#retiring === null &&
+        !options?.signal?.aborted
+      ) {
+        this.#scheduleRelaunch();
+      }
     });
     this.#starting = starting;
     return starting;
@@ -165,8 +173,9 @@ export class PlaywrightDocumentRenderer implements DocumentRenderer {
   }
 
   async #runSingleLaunch(signal?: AbortSignal): Promise<void> {
-    // المتصفح المتقاعد لازم يتقفل أو يتقتل الأول، عشان متصفحين ما يبقوش شغالين مع بعض.
+    // المتصفح المتقاعد والإلغاء المعلّق لازم يخلصوا الأول، عشان متصفحين ما يبقوش شغالين مع بعض.
     if (this.#retiring !== null) await this.#retiring;
+    if (this.#pendingCancel !== null) await this.#pendingCancel;
     if (this.#closing || signal?.aborted) return;
     const controller = new AbortController();
     this.#launchController = controller;
@@ -177,7 +186,15 @@ export class PlaywrightDocumentRenderer implements DocumentRenderer {
         this.#closeGraceMs,
         controller.signal,
       );
-      if (outcome.kind === 'cancelled') return;
+      if (outcome.kind === 'cancelled') {
+        if (!this.#closing) {
+          const settling = outcome.settled.finally(() => {
+            if (this.#pendingCancel === settling) this.#pendingCancel = null;
+          });
+          this.#pendingCancel = settling;
+        }
+        return;
+      }
       if (outcome.kind === 'timeout') {
         this.#onLaunchError?.(new Error('DOCUMENT_LAUNCH_TIMEOUT'));
         this.#markUnavailable();
@@ -331,21 +348,32 @@ export class PlaywrightDocumentRenderer implements DocumentRenderer {
   #retire(browser: PdfBrowser): void {
     if (this.#browser !== browser) return;
     this.#browser = null;
-    this.#markUnavailable();
-    // لو مهلة القتل خلصت قبل تأكيد خروج العملية، إعادة الإطلاق بتستنى خروجها عشان متصفحين ما يتفتحوش.
-    const retiring = dropRetiredBrowser(browser, this.#browserCloseGraceMs, this.#sleep).then(
-      (outcome) => {
-        if (!outcome.confirmed && !this.#closing) return outcome.exit;
-        return undefined;
-      },
-    );
-    this.#retiring = retiring;
-    void retiring
-      .catch(() => undefined)
-      .finally(() => {
-        if (this.#retiring === retiring) this.#retiring = null;
-        if (!this.#closing && !this.#available) this.#scheduleRelaunch();
-      });
+    let releaseGate: () => void = () => undefined;
+    const gate = new Promise<void>((resolve) => {
+      releaseGate = resolve;
+    });
+    this.#retiring = gate;
+    try {
+      // بنحط حارس التقاعد قبل إشعار المستمعين عشان نداء start() المتزامن يستنى نهاية التقاعد.
+      this.#markUnavailable();
+      const retiring = dropRetiredBrowser(browser, this.#browserCloseGraceMs, this.#sleep).then(
+        (outcome) => {
+          if (!outcome.confirmed && !this.#closing) return outcome.exit;
+          return undefined;
+        },
+      );
+      void retiring
+        .catch(() => undefined)
+        .finally(() => {
+          releaseGate();
+          if (this.#retiring === gate) this.#retiring = null;
+          if (!this.#closing && !this.#available) this.#scheduleRelaunch();
+        });
+    } catch (error) {
+      releaseGate();
+      if (this.#retiring === gate) this.#retiring = null;
+      throw error;
+    }
   }
 
   #hooks(onAborted: RenderOptions['onAbortedRequest']): RenderPageHooks {

@@ -14,7 +14,7 @@ export type RendererStart = {
  * نداء واحد بس؛ الرفض المتأخر بيتبلع جوّه عشان ما يبقاش رفض غير متعامل.
  */
 export async function startWithin(
-  renderer: Pick<DocumentRenderer, 'start'>,
+  renderer: Pick<DocumentRenderer, 'start'> & Partial<Pick<DocumentRenderer, 'isAvailable'>>,
   timeoutMs: number,
   signal: AbortSignal,
 ): Promise<RendererStart> {
@@ -22,20 +22,20 @@ export async function startWithin(
   if (signal.aborted) return { state: 'pending' };
   const attemptController = new AbortController();
   const forwardAbort = (): void => attemptController.abort();
+  const detachForward = (): void => signal.removeEventListener('abort', forwardAbort);
   signal.addEventListener('abort', forwardAbort, { once: true });
   const launched = Promise.resolve().then(() =>
     renderer.start({ signal: attemptController.signal }),
   );
   let timer: ReturnType<typeof setTimeout> | undefined;
   let onAbort: (() => void) | undefined;
-  const guarded = launched
-    .finally(() => {
-      signal.removeEventListener('abort', forwardAbort);
-    })
-    .then(
-      () => ({ state: 'started' as const }),
-      (error: unknown) => ({ state: 'failed' as const, error }),
-    );
+  const guarded = launched.finally(detachForward).then(
+    () =>
+      attemptController.signal.aborted && renderer.isAvailable?.() !== true
+        ? ({ state: 'failed', error: new Error('DOCUMENT_START_CANCELLED') } as const)
+        : ({ state: 'started' } as const),
+    (error: unknown) => ({ state: 'failed' as const, error }),
+  );
   const expiry = new Promise<{ readonly state: 'pending' }>((resolve) => {
     timer = setTimeout(() => resolve({ state: 'pending' }), timeoutMs);
     if (signal.aborted) {
@@ -52,7 +52,10 @@ export async function startWithin(
     return {
       state: 'pending',
       pending: guarded,
-      cancelPending: () => attemptController.abort(),
+      cancelPending: () => {
+        detachForward();
+        attemptController.abort();
+      },
     };
   }
   return outcome;

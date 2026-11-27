@@ -177,17 +177,16 @@ async function waitPendingStart(
   if (signal.aborted) return { state: 'pending' };
   let timer: ReturnType<typeof setTimeout> | undefined;
   let onAbort: (() => void) | undefined;
-  const gate = new Promise<RendererStart>((resolve) => {
+  const aborted = new Promise<RendererStart>((resolve) => {
     onAbort = () => resolve({ state: 'pending' });
     signal.addEventListener('abort', onAbort, { once: true });
-    // انتظار الإقلاع المعلّق لازم يخلص بمهلة، وإلا محاولات الإعادة تقف تمامًا.
+    // بنلغي الانتظار المعلّق عند المهلة وبنستنى اعتراف المحوّل بالإلغاء قبل أي start() تانية.
     timer = setTimeout(() => {
       cancelPending?.();
-      resolve({ state: 'failed', error: new Error('DOCUMENT_START_SETTLE_TIMEOUT') });
     }, settleMs);
   });
   try {
-    return await Promise.race([pending, gate]);
+    return await Promise.race([pending, aborted]);
   } finally {
     if (timer !== undefined) clearTimeout(timer);
     if (onAbort !== undefined) signal.removeEventListener('abort', onAbort);

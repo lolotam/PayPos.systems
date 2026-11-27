@@ -63,3 +63,19 @@ it('resolves failed when the renderer start rejects', async () => {
   expect(outcome.error).toBe(error);
   expect(vi.getTimerCount()).toBe(0);
 });
+
+it('detaches shutdown listener on cancelPending when start never settles', async () => {
+  vi.useFakeTimers();
+  const controller = new AbortController();
+  const removeSpy = vi.spyOn(controller.signal, 'removeEventListener');
+  const starting = startWithin(
+    { start: () => new Promise<void>(() => undefined) },
+    50,
+    controller.signal,
+  );
+  await vi.advanceTimersByTimeAsync(50);
+  const outcome = await starting;
+  expect(outcome.state).toBe('pending');
+  outcome.cancelPending?.();
+  expect(removeSpy).toHaveBeenCalled();
+});

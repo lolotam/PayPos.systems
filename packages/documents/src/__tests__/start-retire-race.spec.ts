@@ -56,3 +56,91 @@ it('does not overlap manual start during retirement with post-retirement relaunc
   expect(renderer.isAvailable()).toBe(true);
   await renderer.close();
 });
+
+it('waits for retirement when an onUnavailable listener calls start synchronously', async () => {
+  const events: string[] = [];
+  const spy = delayedLaunchFactory(async (attempt) => {
+    events.push(`launch-${attempt}`);
+    if (attempt === 1) {
+      return {
+        newContext: () => new Promise(() => undefined),
+        close: async () => {
+          await new Promise((resolve) => setTimeout(resolve, 45));
+          events.push('retire-closed');
+        },
+        on: () => undefined,
+      };
+    }
+    return okBrowser();
+  });
+  const renderer = new PlaywrightDocumentRenderer({
+    factory: spy.factory,
+    sleep: (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
+    backoffMs: [10],
+    overallTimeoutMs: 15,
+    browserCloseGraceMs: 100,
+  });
+  renderer.onUnavailable(() => {
+    void renderer.start();
+  });
+  await renderer.start();
+  await expect(renderer.render('<p>x</p>')).rejects.toThrow();
+  for (let i = 0; i < 30 && !renderer.isAvailable(); i += 1) {
+    await new Promise((resolve) => setTimeout(resolve, 10));
+  }
+  expect(spy.launches()).toBe(2);
+  expect(events).toEqual(['launch-1', 'retire-closed', 'launch-2']);
+  await renderer.close();
+});
+
+it('does not schedule background relaunch when an external start signal aborts', async () => {
+  const spy = delayedLaunchFactory(() => new Promise<PdfBrowser>(() => undefined));
+  const renderer = new PlaywrightDocumentRenderer({
+    factory: spy.factory,
+    sleep: (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
+    backoffMs: [10],
+  });
+  const controller = new AbortController();
+  const first = renderer.start({ signal: controller.signal });
+  controller.abort();
+  await first;
+  await new Promise((resolve) => setTimeout(resolve, 40));
+  expect(spy.launches()).toBe(1);
+  await renderer.close();
+});
+
+it('keeps launch guard until a cancelled attempt closes its late browser', async () => {
+  const events: string[] = [];
+  let releaseFirst: ((b: PdfBrowser) => void) | undefined;
+  const spy = delayedLaunchFactory((attempt) => {
+    events.push(`launch-${attempt}`);
+    if (attempt === 1) {
+      return new Promise<PdfBrowser>((resolve) => {
+        releaseFirst = resolve;
+      });
+    }
+    return Promise.resolve(okBrowser());
+  });
+  const renderer = new PlaywrightDocumentRenderer({
+    factory: spy.factory,
+    closeGraceMs: 80,
+    backoffMs: [10],
+  });
+  const controller = new AbortController();
+  const cancelled = renderer.start({ signal: controller.signal });
+  controller.abort();
+  setTimeout(() => {
+    releaseFirst?.({
+      newContext: () => new Promise(() => undefined),
+      close: async () => {
+        await new Promise((resolve) => setTimeout(resolve, 35));
+        events.push('late-closed');
+      },
+      on: () => undefined,
+    });
+  }, 15);
+  await cancelled;
+  await renderer.start();
+  expect(events).toEqual(['launch-1', 'late-closed', 'launch-2']);
+  await renderer.close();
+});

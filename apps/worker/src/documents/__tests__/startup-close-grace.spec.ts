@@ -385,6 +385,6 @@ it('closes Chromium within grace on normal close even when worker close never se
   await session.started;
   const startedAt = Date.now();
   await session.close();
-  expect(events).toEqual(['renderer-close', 'renderer-kill']);
+  expect(events).toEqual(['redis-disconnect', 'renderer-close', 'renderer-kill']);
   expect(Date.now() - startedAt).toBeLessThan(1_000);
 });

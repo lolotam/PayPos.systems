@@ -80,3 +80,52 @@ it('blocks superseded publisher interval writes while the replacement is tempora
   await liveNew.stop();
   expect(stored).toBeNull();
 });
+
+it('retains previous publisher ownership when a replacement fails readiness', async () => {
+  let stored: string | null = null;
+  let sets = 0;
+  const status: { current: string } = { current: 'ready' };
+  const redis = {
+    get status() {
+      return status.current;
+    },
+    on() {
+      return this;
+    },
+    off() {
+      return this;
+    },
+    set: async (_key: string, value: string) => {
+      sets += 1;
+      stored = value;
+      return 'OK';
+    },
+    del: async () => {
+      stored = null;
+      return 1;
+    },
+  } as unknown as Redis;
+  const prevRenderer = new ToggleRenderer();
+  const prev = await startRendererLiveness({
+    redis,
+    renderer: prevRenderer,
+    intervalMs: 15,
+    readyTimeoutMs: 1_000,
+  });
+  status.current = 'end';
+  await expect(
+    startRendererLiveness({
+      redis,
+      renderer: new ToggleRenderer(),
+      intervalMs: 15,
+      readyTimeoutMs: 1_000,
+    }),
+  ).rejects.toThrow('redis ended');
+  status.current = 'ready';
+  const before = sets;
+  await new Promise((resolve) => setTimeout(resolve, 60));
+  expect(sets).toBeGreaterThan(before);
+  expect(stored).toBe('1');
+  await prev.stop();
+  expect(stored).toBeNull();
+});

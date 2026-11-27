@@ -5,7 +5,7 @@ type LaunchOutcome =
   | { readonly kind: 'browser'; readonly browser: PdfBrowser }
   | { readonly kind: 'error'; readonly error: unknown }
   | { readonly kind: 'timeout' }
-  | { readonly kind: 'cancelled' };
+  | { readonly kind: 'cancelled'; readonly settled: Promise<void> };
 
 /**
  * إطلاق المتصفح بمهلة. إطلاق معلّق بيتحسب فشل، والوعد المتروك بيتبلع جوّه:
@@ -21,34 +21,36 @@ export async function launchWithinTimeout(
   let abandoned = false;
   let timer: ReturnType<typeof setTimeout> | undefined;
   let onAbort: (() => void) | undefined;
-  const guarded = launching.then(
-    (browser) => {
+  const guarded: Promise<LaunchOutcome> = launching.then(
+    async (browser) => {
       if (!abandoned) return { kind: 'browser', browser } as const;
-      void closeOrKill(browser, graceMs);
-      return { kind: 'cancelled' } as const;
+      await closeOrKill(browser, graceMs).catch(() => undefined);
+      return { kind: 'cancelled', settled: Promise.resolve() } as const;
     },
     (error: unknown) => ({ kind: 'error', error }) as const,
   );
-  const expiry = new Promise<{ readonly kind: 'timeout' } | { readonly kind: 'cancelled' }>(
-    (resolve) => {
-      timer = setTimeout(() => {
-        abandoned = true;
-        resolve({ kind: 'timeout' });
-      }, timeoutMs);
-      if (signal === undefined) return;
-      const cancel = (): void => {
-        abandoned = true;
-        if (timer !== undefined) clearTimeout(timer);
-        resolve({ kind: 'cancelled' });
-      };
-      if (signal.aborted) {
-        cancel();
-        return;
-      }
-      onAbort = cancel;
-      signal.addEventListener('abort', onAbort, { once: true });
-    },
+  const settled = guarded.then(
+    () => undefined,
+    () => undefined,
   );
+  const expiry = new Promise<LaunchOutcome>((resolve) => {
+    timer = setTimeout(() => {
+      abandoned = true;
+      resolve({ kind: 'timeout' });
+    }, timeoutMs);
+    if (signal === undefined) return;
+    const cancel = (): void => {
+      abandoned = true;
+      if (timer !== undefined) clearTimeout(timer);
+      resolve({ kind: 'cancelled', settled });
+    };
+    if (signal.aborted) {
+      cancel();
+      return;
+    }
+    onAbort = cancel;
+    signal.addEventListener('abort', onAbort, { once: true });
+  });
   const outcome = await Promise.race([guarded, expiry]);
   if (timer !== undefined) clearTimeout(timer);
   if (onAbort !== undefined) signal?.removeEventListener('abort', onAbort);

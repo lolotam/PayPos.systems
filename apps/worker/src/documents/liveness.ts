@@ -66,6 +66,7 @@ function boundCommand(work: Promise<unknown>, ms: number): Promise<void> {
 }
 
 interface PublishState {
+  order: number;
   redis: Redis;
   renderer: DocumentRenderer;
   ttlSeconds: number;
@@ -79,6 +80,7 @@ interface PublishState {
 
 /** آخر ناشر ممسوك لكل عميل Redis، عشان ناشر قديم ما يمسحش نبضة ناشر حيّ بديله. */
 const activePublishers = new WeakMap<Redis, PublishState>();
+let nextOrder = 0;
 
 function isLive(state: PublishState): boolean {
   // الناشر المسبوق ما يكتبش ولا يعتبر حيّ بعد ما ناشر أحدث ياخد نفس عميل Redis.
@@ -189,6 +191,7 @@ export async function startRendererLiveness(input: {
   readonly commandTimeoutMs?: number;
 }): Promise<RendererLiveness> {
   const state: PublishState = {
+    order: (nextOrder += 1),
     redis: input.redis,
     renderer: input.renderer,
     ttlSeconds: input.ttlSeconds ?? DOCUMENT_RENDERER_ALIVE_TTL_SECONDS,
@@ -199,13 +202,24 @@ export async function startRendererLiveness(input: {
     busy: false,
     timer: undefined,
   };
-  activePublishers.set(input.redis, state);
+  const existingHookTarget = hooks.get(input.renderer)?.target;
   attachHooks(input.renderer, state);
   try {
     await whenRedisReady(input.redis, input.readyTimeoutMs ?? READY_TIMEOUT_MS);
+    const active = activePublishers.get(input.redis);
+    if (active === undefined || active.order < state.order) activePublishers.set(input.redis, state);
     await publishOnce(state);
   } catch (error) {
-    // الناشر الفاشل لازم يقف من غير ما يسيب مستمع يسلّح تيك من بعده.
+    // الناشر الفاشل ما ياخدش الملكية ولا يطرد المستمع السليم اللي قبله.
+    const hook = hooks.get(state.renderer);
+    if (
+      hook !== undefined &&
+      hook.target === state &&
+      existingHookTarget !== undefined &&
+      !existingHookTarget.stopped
+    ) {
+      hook.target = existingHookTarget;
+    }
     await stopLiveness(state).catch(() => undefined);
     throw error;
   }

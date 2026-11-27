@@ -139,9 +139,24 @@ async function boundedQueueRelease(
   graceMs: number,
 ): Promise<void> {
   if (live === undefined && queue === undefined) return;
+  let completed = false;
+  const releasing = releaseQueue(live, queue)
+    .then(() => {
+      completed = true;
+    })
+    .catch(() => undefined);
   const grace = waitForGrace(graceMs);
-  await Promise.race([releaseQueue(live, queue).catch(() => undefined), grace.done]);
+  await Promise.race([releasing, grace.done]);
   grace.stop();
+  if (completed) return;
+  // القفل خلص مهلته فبنفصل اتصال Redis ونبعت قفل إجباري بدل ما يفضل يعيد الاتصال.
+  if (live !== undefined) {
+    void live.worker.close(true).catch(() => undefined);
+    live.connection.disconnect();
+  } else if (queue !== undefined) {
+    void queue.worker.close(true).catch(() => undefined);
+    queue.connection.disconnect();
+  }
 }
 
 async function release(slot: Slot, graceMs: number, boundQueue = false): Promise<void> {
