@@ -162,3 +162,113 @@ describe('nativeStaffFetch mutation serialization', () => {
     });
   });
 });
+
+describe('nativeStaffFetch atomic simultaneous mutation turn reservation', () => {
+  beforeEach(() => {
+    vi.stubEnv('VITE_API_URL', 'http://127.0.0.1:3000');
+    requestMock.mockReset();
+  });
+
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
+  it('serializes two simultaneous POST mutations even when the first has an async body read', async () => {
+    let settleFirst!: () => void;
+    requestMock
+      .mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            settleFirst = () => resolve(nativeResponse());
+          }),
+      )
+      .mockResolvedValueOnce(nativeResponse());
+
+    const first = nativeStaffFetch(
+      new Request('http://127.0.0.1:3000/v1/staff/personal-otp/verify', {
+        method: 'POST',
+        body: JSON.stringify({ phone: '50000001' }),
+      }),
+    );
+    const second = nativeStaffFetch(
+      new Request('http://127.0.0.1:3000/v1/staff/personal-session/sign-out', {
+        method: 'POST',
+      }),
+    );
+
+    await vi.waitFor(() => expect(requestMock).toHaveBeenCalledTimes(1));
+    await Promise.resolve();
+    expect(requestMock).toHaveBeenCalledTimes(1);
+    expect(requestMock.mock.calls[0]?.[0]).toMatchObject({
+      url: 'http://127.0.0.1:3000/v1/staff/personal-otp/verify',
+    });
+
+    settleFirst();
+    expect((await first).status).toBe(200);
+    expect((await second).status).toBe(200);
+    expect(requestMock).toHaveBeenCalledTimes(2);
+    expect(requestMock.mock.calls[1]?.[0]).toMatchObject({
+      url: 'http://127.0.0.1:3000/v1/staff/personal-session/sign-out',
+    });
+  });
+});
+
+describe('nativeStaffFetch multi-waiter queue after abort fence release', () => {
+  beforeEach(() => {
+    vi.stubEnv('VITE_API_URL', 'http://127.0.0.1:3000');
+    requestMock.mockReset();
+  });
+
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
+  it('keeps a second waiting POST queued when two POSTs share an abort fence release', async () => {
+    let settleAborted!: () => void;
+    let settleSecond!: () => void;
+    requestMock
+      .mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            settleAborted = () => resolve(nativeResponse());
+          }),
+      )
+      .mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            settleSecond = () => resolve(nativeResponse());
+          }),
+      )
+      .mockResolvedValueOnce(nativeResponse());
+
+    const controller = new AbortController();
+    const aborted = nativeStaffFetch(
+      new Request('http://127.0.0.1:3000/v1/devices/me/staff-session', {
+        method: 'DELETE',
+        signal: controller.signal,
+      }),
+    );
+    await vi.waitFor(() => expect(requestMock).toHaveBeenCalledTimes(1));
+    controller.abort();
+    await expect(aborted).rejects.toMatchObject({ name: 'AbortError' });
+
+    const queuedOne = nativeStaffFetch(
+      new Request('http://127.0.0.1:3000/v1/staff/personal-otp/verify', { method: 'POST' }),
+    );
+    const queuedTwo = nativeStaffFetch(
+      new Request('http://127.0.0.1:3000/v1/staff/personal-session/sign-out', { method: 'POST' }),
+    );
+    await Promise.resolve();
+    expect(requestMock).toHaveBeenCalledTimes(1);
+
+    settleAborted();
+    await vi.waitFor(() => expect(requestMock).toHaveBeenCalledTimes(2));
+    await Promise.resolve();
+    expect(requestMock).toHaveBeenCalledTimes(2);
+
+    settleSecond();
+    expect((await queuedOne).status).toBe(200);
+    expect((await queuedTwo).status).toBe(200);
+    expect(requestMock).toHaveBeenCalledTimes(3);
+  });
+});

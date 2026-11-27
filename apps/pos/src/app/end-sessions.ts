@@ -66,13 +66,11 @@ function waitOrAbort(work: Promise<unknown>, signal?: AbortSignal): Promise<'don
 
 const PERSONAL_SIGN_OUT_PATH = '/v1/staff/personal-session/sign-out';
 
-function parseSignOutPayload(data: unknown): unknown {
-  if (typeof data !== 'string') return data;
-  try {
-    return JSON.parse(data);
-  } catch {
-    return null;
-  }
+function decodeLateJsonResponse(response: LateAbortedNativeResponse): unknown {
+  const contentType = response.headers.get('content-type')?.toLowerCase() ?? '';
+  if (!contentType.includes('json')) return undefined;
+  // Capacitor يقدّم application/json مفكوكة مرة واحدة بالفعل؛ لا نعيد JSON.parse على نص مزدوج الترميز.
+  return response.data;
 }
 
 function isConfirmedLateSignOut(response: LateAbortedNativeResponse): boolean {
@@ -83,7 +81,7 @@ function isConfirmedLateSignOut(response: LateAbortedNativeResponse): boolean {
   } catch {
     return false;
   }
-  return signOutResult.safeParse(parseSignOutPayload(response.data)).success;
+  return signOutResult.safeParse(decodeLateJsonResponse(response)).success;
 }
 
 onLateAbortedNativeResponse((response) => {

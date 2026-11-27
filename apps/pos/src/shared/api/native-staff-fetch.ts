@@ -104,18 +104,58 @@ export const NATIVE_FENCE_TIMEOUT_MS = 15_000;
 // طلب أصلي اتلغى من ناحية JS ممكن يكون لسه شغال ويمسح كوكي أحدث لما يرجع:
 // بنوقّف الطلب الأصلي اللي بعده لحد ما اللي اتلغى يخلص من نظام التشغيل أو يخلص بمهلة السياج.
 let pendingAbortedNativeCall: Promise<void> | null = null;
-// طلبات التعديل الأصلية تشارك مخزن كوكيز واحد على الجسر الأصلي، فلازم تتنفذ بالترتيب.
-let inFlightNativeMutation: Promise<void> | null = null;
+// طلبات التعديل الأصلية تشارك مخزن كوكيز واحد على الجسر الأصلي، فكل طلب بيحجز دوره فوراً بترتيب FIFO.
+let mutationQueueTail: Promise<void> | null = null;
 
-function activeFenceBlocker(waitForMutation: boolean): Promise<void> | null {
-  if (pendingAbortedNativeCall !== null) return pendingAbortedNativeCall;
-  if (waitForMutation && inFlightNativeMutation !== null) return inFlightNativeMutation;
-  return null;
+interface MutationTurn {
+  previous: Promise<void> | null;
+  releaseIfUnstarted: () => void;
+  releaseAfter: (settled: Promise<void>) => void;
 }
 
-async function waitForNativeTurn(waitForMutation: boolean, aborted: AbortRace): Promise<void> {
-  let blocker = activeFenceBlocker(waitForMutation);
-  if (blocker === null) return;
+function reserveMutationTurn(): MutationTurn {
+  const previous = mutationQueueTail;
+  let handedOff = false;
+  let released = false;
+  let resolveTurn!: () => void;
+  const ownTurn = new Promise<void>((resolve) => {
+    resolveTurn = resolve;
+  });
+  mutationQueueTail = ownTurn;
+  const finishRelease = (): void => {
+    if (mutationQueueTail === ownTurn) mutationQueueTail = null;
+    resolveTurn();
+  };
+  const releaseOnce = (): void => {
+    if (released) return;
+    released = true;
+    if (previous === null) finishRelease();
+    else void previous.then(finishRelease);
+  };
+  return {
+    previous,
+    releaseIfUnstarted: () => {
+      if (!handedOff) releaseOnce();
+    },
+    releaseAfter: (settled: Promise<void>) => {
+      handedOff = true;
+      void settled.finally(releaseOnce);
+    },
+  };
+}
+
+async function waitForNativeTurn(
+  previousTurn: Promise<void> | null,
+  aborted: AbortRace,
+): Promise<void> {
+  let previousDone = previousTurn === null;
+  const trackedPrevious =
+    previousTurn === null
+      ? null
+      : previousTurn.then(() => {
+          previousDone = true;
+        });
+  if (previousDone && pendingAbortedNativeCall === null) return;
   let timer: ReturnType<typeof setTimeout> | undefined;
   const timeout = new Promise<never>((_resolve, reject) => {
     timer = setTimeout(
@@ -124,10 +164,11 @@ async function waitForNativeTurn(waitForMutation: boolean, aborted: AbortRace): 
     );
   });
   try {
-    // السياج ممكن يكبر بطلب تاني اتلغى أو mutation شغال، فبنعيد الفحص بعد كل تسوية تحت مهلة واحدة.
-    while (blocker !== null) {
+    // السياج ممكن يكبر بطلب تاني اتلغى أو دور سابق شغال، فبنعيد الفحص بعد كل تسوية تحت مهلة واحدة.
+    while (!previousDone || pendingAbortedNativeCall !== null) {
+      const blocker = pendingAbortedNativeCall ?? trackedPrevious;
+      if (blocker === null) break;
       await Promise.race([blocker, aborted.rejected, timeout]);
-      blocker = activeFenceBlocker(waitForMutation);
     }
   } finally {
     if (timer !== undefined) clearTimeout(timer);
@@ -167,32 +208,13 @@ function enqueueAbortedCall(settled: Promise<void>): void {
   });
 }
 
-function trackInFlightMutation(settled: Promise<void>): void {
-  inFlightNativeMutation = settled;
-  void settled.finally(() => {
-    if (inFlightNativeMutation === settled) inFlightNativeMutation = null;
-  });
-}
-
-/**
- * بيستنى أي طلب أصلي سابق اتلغى أو mutation شغال قبل ما يفتح طلب جديد، ولو الطلب الجديد
- * اتلغى قبل ما الإضافة الأصلية تخلص بيحجز اللي بعده لحد ما المكالمة الجارية تهدأ.
- */
-async function sendFencedNativeRequest(
-  client: NativeHttpClient,
+async function raceWithAbortFence(
+  requestPromise: Promise<NativeHttpResponse>,
   options: NativeHttpOptions,
+  settled: Promise<void>,
   signal: AbortSignal,
   aborted: AbortRace,
 ): Promise<NativeHttpResponse> {
-  const waitForMutation = isNativeMutation(options.method);
-  await waitForNativeTurn(waitForMutation, aborted);
-  throwIfAborted(signal);
-  const requestPromise = client.request(options);
-  const settled = requestPromise.then(
-    () => undefined,
-    () => undefined,
-  );
-  if (waitForMutation) trackInFlightMutation(settled);
   let finished = false;
   let fenced = false;
   const enterFence = (): void => {
@@ -217,6 +239,28 @@ async function sendFencedNativeRequest(
   }
 }
 
+/**
+ * بيستنى دور التعديل المحجوز وأي طلب أصلي سابق اتلغى قبل ما يفتح طلب جديد، ولو الطلب الجديد
+ * اتلغى قبل ما الإضافة الأصلية تخلص بيحجز اللي بعده لحد ما المكالمة الجارية تهدأ.
+ */
+async function sendFencedNativeRequest(
+  client: NativeHttpClient,
+  options: NativeHttpOptions,
+  signal: AbortSignal,
+  aborted: AbortRace,
+  mutationTurn: MutationTurn | null,
+): Promise<NativeHttpResponse> {
+  await waitForNativeTurn(mutationTurn?.previous ?? null, aborted);
+  throwIfAborted(signal);
+  const requestPromise = client.request(options);
+  const settled = requestPromise.then(
+    () => undefined,
+    () => undefined,
+  );
+  mutationTurn?.releaseAfter(settled);
+  return raceWithAbortFence(requestPromise, options, settled, signal, aborted);
+}
+
 // الـ web view على iOS مابيبعتش كوكي مضيف الـ API من `capacitor://localhost` والمتصفح بيسقط `Origin`، فالطلبات دي بتعدي أصلية.
 let capacitorHttpClient: Promise<NativeHttpClient> | null = null;
 
@@ -233,42 +277,59 @@ function loadCapacitorHttp(): Promise<NativeHttpClient> {
   return capacitorHttpClient;
 }
 
+function buildNativeOptions(
+  request: Request,
+  headers: Record<string, string>,
+  body: string,
+): NativeHttpOptions {
+  return {
+    url: request.url,
+    method: request.method,
+    headers,
+    ...(body === '' ? {} : { data: body }),
+    disableRedirects: true,
+    connectTimeout: 15000,
+    readTimeout: 15000,
+    responseType: 'text',
+  };
+}
+
 export async function nativeStaffFetch(request: Request): Promise<Response> {
   assertApiOrigin(request.url);
   throwIfAborted(request.signal);
-  const headers = {
-    ...Object.fromEntries(request.headers.entries()),
-    Origin: 'capacitor://localhost',
-  };
-  const body = request.method === 'GET' || request.method === 'HEAD' ? '' : await request.text();
-  throwIfAborted(request.signal);
-  const client = await loadCapacitorHttp();
-  throwIfAborted(request.signal);
-  const aborted = untilAborted(request.signal);
+  const mutationTurn = isNativeMutation(request.method) ? reserveMutationTurn() : null;
   try {
-    const nativeResponse = await sendFencedNativeRequest(
-      client,
-      {
-        url: request.url,
-        method: request.method,
-        headers,
-        ...(body === '' ? {} : { data: body }),
-        disableRedirects: true,
-        connectTimeout: 15000,
-        readTimeout: 15000,
-        responseType: 'text',
-      },
-      request.signal,
-      aborted,
-    );
+    const headers = {
+      ...Object.fromEntries(request.headers.entries()),
+      Origin: 'capacitor://localhost',
+    };
+    const body = request.method === 'GET' || request.method === 'HEAD' ? '' : await request.text();
     throwIfAborted(request.signal);
-    const responseHeaders = safeResponseHeaders(nativeResponse.headers);
-    const empty = request.method === 'HEAD' || [204, 205, 304].includes(nativeResponse.status);
-    const responseBody = empty
-      ? null
-      : responseBodyText(nativeResponse.data, responseHeaders.get('content-type') ?? '');
-    return new Response(responseBody, { status: nativeResponse.status, headers: responseHeaders });
+    const client = await loadCapacitorHttp();
+    throwIfAborted(request.signal);
+    const aborted = untilAborted(request.signal);
+    try {
+      const nativeResponse = await sendFencedNativeRequest(
+        client,
+        buildNativeOptions(request, headers, body),
+        request.signal,
+        aborted,
+        mutationTurn,
+      );
+      throwIfAborted(request.signal);
+      const responseHeaders = safeResponseHeaders(nativeResponse.headers);
+      const empty = request.method === 'HEAD' || [204, 205, 304].includes(nativeResponse.status);
+      const responseBody = empty
+        ? null
+        : responseBodyText(nativeResponse.data, responseHeaders.get('content-type') ?? '');
+      return new Response(responseBody, {
+        status: nativeResponse.status,
+        headers: responseHeaders,
+      });
+    } finally {
+      aborted.release();
+    }
   } finally {
-    aborted.release();
+    mutationTurn?.releaseIfUnstarted();
   }
 }

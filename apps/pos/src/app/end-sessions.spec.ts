@@ -174,3 +174,48 @@ describe('endPersonalSession late non-2xx native response', () => {
     expect(announcePersonalChange).not.toHaveBeenCalled();
   });
 });
+
+describe('endPersonalSession late double-encoded sign-out rejection', () => {
+  beforeEach(() => {
+    vi.stubEnv('VITE_API_URL', 'http://127.0.0.1:3000');
+    requestMock.mockReset();
+  });
+
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
+  it('ignores double-encoded JSON sign-out strings just like normal sign-out', async () => {
+    let settleString!: (value: {
+      status: number;
+      data: unknown;
+      headers: Record<string, string>;
+    }) => void;
+    requestMock.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          settleString = resolve;
+        }),
+    );
+    const controller = new AbortController();
+    const pending = nativeStaffFetch(
+      new Request('http://127.0.0.1:3000/v1/staff/personal-session/sign-out', {
+        method: 'POST',
+        signal: controller.signal,
+      }),
+    );
+    await vi.waitFor(() => expect(requestMock).toHaveBeenCalledTimes(1));
+
+    controller.abort();
+    await expect(pending).rejects.toMatchObject({ name: 'AbortError' });
+
+    settleString({
+      status: 200,
+      data: JSON.stringify({ status: 'SIGNED_OUT' }),
+      headers: { 'Content-Type': 'application/json' },
+    });
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(announcePersonalChange).not.toHaveBeenCalled();
+  });
+});
