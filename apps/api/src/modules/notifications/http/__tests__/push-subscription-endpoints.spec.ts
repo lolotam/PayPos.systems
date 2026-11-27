@@ -1,4 +1,4 @@
-import { installationHash } from '@pospay/notifications';
+import { installationHash, subscriberRef } from '@pospay/notifications';
 import { afterAll, beforeAll, expect, it } from 'vitest';
 
 import { pushFixture, type PushFixture } from './push-subscription.fixture.ts';
@@ -13,12 +13,16 @@ const subscription = (endpoint: string) => ({
 });
 const body = (over: Record<string, unknown> = {}) => ({
   installation_id: nextId(),
+  subscriber_ref: subscriberRef(f.userId),
   vapid_key_id: f.config.keyId,
   delivery_token: nextId(),
   subscription: subscription(`https://fcm.googleapis.com/fcm/send/${nextId()}`),
   locale: 'ar',
   ...over,
 });
+// جسم التسجيل بمرجع مشترك الجلسة اللي هتبعته، زي ما التطبيق بيبعت مرجع صاحب الجلسة.
+const bodyFor = (session: { userId: string }, over: Record<string, unknown> = {}) =>
+  body({ subscriber_ref: subscriberRef(session.userId), ...over });
 const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 const liveCountFor = async (userId: string) =>
   Number(
@@ -95,7 +99,7 @@ it('moves an endpoint to the second employee and revokes the first row as OWNER_
   expect(
     (
       await f.send('PUT', '/v1/staff/push/subscription', {
-        body: body({ subscription: subscription(endpoint) }),
+        body: bodyFor(colleague, { subscription: subscription(endpoint) }),
         headers: colleague.headers,
       })
     ).status,
@@ -181,7 +185,7 @@ it('answers NOT_READY and stores nothing when push is not configured', async () 
 
 it('keeps five live rows when eight registrations race, and never leaves a duplicate endpoint', async () => {
   const racer = await f.seedStaff('Synthetic racer');
-  const bodies = Array.from({ length: 8 }, () => body());
+  const bodies = Array.from({ length: 8 }, () => bodyFor(racer));
   const results = await Promise.all(
     bodies.map((value) =>
       f.send('PUT', '/v1/staff/push/subscription', { body: value, headers: racer.headers }),
@@ -210,7 +214,7 @@ it('stores no raw installation id and scopes the hash to the company', async () 
   expect(
     (
       await f.send('PUT', '/v1/staff/push/subscription', {
-        body: body({ installation_id: installation }),
+        body: bodyFor(other, { installation_id: installation }),
         headers: other.headers,
       })
     ).status,
@@ -232,6 +236,23 @@ it('refuses a registration made under another key and stores nothing', async () 
   expect(result.status).toBe(409);
   expect(result.body['code']).toBe('PUSH_KEY_STALE');
   expect(await ownCount()).toBe(before);
+});
+
+it('refuses a registration made for another subscriber before any limit or write', async () => {
+  const before = await ownCount();
+  const colleague = await f.seedStaff('Synthetic swapped session');
+  const result = await f.send('PUT', '/v1/staff/push/subscription', {
+    body: body({ subscriber_ref: subscriberRef(colleague.userId) }),
+  });
+  expect(result.status).toBe(409);
+  expect(result.body['code']).toBe('PUSH_SESSION_MISMATCH');
+  expect(await ownCount()).toBe(before);
+  expect(await liveCountFor(colleague.userId)).toBe(0);
+  const malformed = await f.send('PUT', '/v1/staff/push/subscription', {
+    body: body({ subscriber_ref: 'not-a-reference' }),
+  });
+  expect(malformed.status).toBe(400);
+  expect(malformed.body['code']).toBe('VALIDATION_FAILED');
 });
 
 it('serves the caller own subscriber reference', async () => {
@@ -274,7 +295,7 @@ it('answers 204 for an unknown install id and never revokes another employee row
   expect(
     (
       await f.send('PUT', '/v1/staff/push/subscription', {
-        body: body({ installation_id: theirInstallation }),
+        body: bodyFor(stranger, { installation_id: theirInstallation }),
         headers: stranger.headers,
       })
     ).status,

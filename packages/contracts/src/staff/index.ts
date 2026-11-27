@@ -1,6 +1,7 @@
 export * from './attendance-monthly-report.js';
 export * from './attendance-report-inputs.js';
 export * from './attendance-statement.js';
+export * from './attendance-statement-employees.js';
 export * from './attendance-statement-shifts.js';
 export * from './staff-access.js';
 export * from './employee-app-link.js';

@@ -102,6 +102,7 @@ it('never registers the old person under the new shared-phone session', async ()
   model.callerRef = PERSON_A;
   registerOnServer(model, {
     installation_id: INSTALLATION,
+    subscriber_ref: model.callerRef,
     vapid_key_id: CONFIG.vapid_key_id,
     delivery_token: EXISTING,
     subscription: {

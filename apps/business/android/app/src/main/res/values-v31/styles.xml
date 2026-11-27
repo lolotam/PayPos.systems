@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <!-- من أندرويد 12 النظام هو اللي بيرسم شاشة الفتح، فالاسم تحت اللوجو بيتحط هنا (APP-Q11، APP-Q25). -->
+    <!-- من أندرويد 12 النظام هو اللي بيرسم شاشة الفتح، فالاسم تحت اللوجو بيتحط هنا (APP-Q11، APP-Q25).
+         الأيقونة المتحركة هي drawable/splash_mark.xml وبيشير لبلاطة Souk Tiles P (#1103). -->
     <style name="AppTheme.NoActionBarLaunch" parent="Theme.SplashScreen">
         <item name="android:background">@drawable/splash</item>
         <item name="windowSplashScreenBackground">@color/splash_background</item>

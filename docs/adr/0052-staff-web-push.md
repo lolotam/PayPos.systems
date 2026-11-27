@@ -137,14 +137,20 @@ Owned by the API `notifications` module (`http/`), under `/v1/staff/push`, all `
   configured. `subscriber_ref` is `SHA-256('pospay.push.subscriber.v1' | the caller's global user id)`, hex: **the same in
   every company** the person works for, and not reversible to a name (the id is a random UUID). `company_id` is the company
   of the caller's current session, so the client can tell a person's session in company A from the same person's session in
-  company B (`subscriber_ref` is the same in every company). It is returned to the caller about herself only, and its sole
-  use is the shared-phone check of decision 7. This is a read: it is served by a `queries/` file, not a use case (`CLAUDE.md` §6).
+  company B (`subscriber_ref` is the same in every company). It is returned to the caller about herself only. The client
+  uses it for the shared-phone check of decision 7 and echoes it back on `PUT /v1/staff/push/subscription`, so the server
+  rejects a session mismatch with `409 PUSH_SESSION_MISMATCH`. This is a read: it is served by a `queries/` file, not a use case (`CLAUDE.md` §6).
 - `PUT  /v1/staff/push/subscription` → upsert the caller's subscription for an `installation_id`; body `{ installation_id,
-  vapid_key_id, delivery_token, subscription: { endpoint, keys: { p256dh, auth } }, locale }`; `PUSH_KEY_STALE` (409)
-  when `vapid_key_id` is not the current key. The server hashes the install id (decision 3) and stores only the hash. It is naturally idempotent (upsert on the unique key), so
+  subscriber_ref, vapid_key_id, delivery_token, subscription: { endpoint, keys: { p256dh, auth } }, locale }`;
+  `PUSH_KEY_STALE` (409) when `vapid_key_id` is not the current key; `PUSH_SESSION_MISMATCH` (409) when `subscriber_ref`
+  (the reference the app confirmed from `GET config`) is not the signed-in caller's, checked before the rate limit and any write. The server hashes the install id (decision 3) and stores only the hash. It is naturally idempotent (upsert on the unique key), so
   it takes no `Idempotency-Key` (§6 asks for one on money and stock effects only). It is also the "I opened the app"
   refresh: it updates `locale` and `last_seen_at`. The app sends it **only from a session of the company it enabled
   notifications for** (the local record names that company, decision 7); an open in any other company sends nothing.
+  **Rollout compatibility.** `subscriber_ref` is required on the `PUT` (the contract enforces the session binding at the
+  boundary). An already-installed older POS bundle whose service worker has not yet updated sends the `PUT` without it and
+  receives `400 VALIDATION_FAILED` until the PWA update loads. VAPID keys must not be rotated during that client rollout
+  window: the un-updated client's rotation catch path (`push-refresh.ts`) would unsubscribe and clear its local record.
 - `POST /v1/staff/push/subscription/revoke` → body `{ installation_id }`; revoke the caller's own subscription for that
   install (`UNSUBSCRIBED`). An unknown or foreign id answers the same as an own one, as the in-app read does
   (ADR-0018 §6). It is a `POST` with a body (so the route coverage guard classes it as a write and it is declared), **not** a `DELETE` with a query string: the raw install id must never be part
@@ -274,12 +280,22 @@ so the push service never sees the text, but the text is still treated as visibl
   the personal-phone assumption cover.
 - **The control.** On the personal staff screen (`apps/pos/src/personal-staff/`), a toggle that calls
   `PushManager.subscribe({ userVisibleOnly: true, applicationServerKey })` from a user gesture, then `PUT`s the result with
-  the install id, the key id, the new token and the locale, and stores the record with the current `subscriber_ref`.
+  the install id, key id, new token, locale and subscriber reference, and stores the record with the current `subscriber_ref`.
   Switching it off unsubscribes, deletes the record and calls `revoke`. An **explicit sign-out** does the same, best
   effort for the network call and certain for the local record. A session that is merely **replaced or expired** (Mona
   signing in on her second phone invalidates the first phone's session, ADR-0027) does **not** unsubscribe: the first
   phone keeps receiving, because it is still her own phone and the next sign-in finds the same `subscriber_ref`. The state
   it can show is exactly one of: unsupported, install-first (iOS), blocked-in-browser, off, on.
+- **Aborted and mismatched writes.**
+  - A known-aborted IndexedDB write (`PushRecordAbortedError` from `onabort`) tears down our own registration only if
+    re-reading the store confirms the record still carries the start token and revision; open and read failures and
+    overwritten records are left untouched. An unchanged previous record whose browser subscription was replaced is
+    removed under the same token and revision guard.
+  - A server `409 PUSH_SESSION_MISMATCH` on `PUT` suspends the record (sparing the current session owner's record unless
+    it was orphaned during turn-on) and returns `session-changed`, so the control refetches `/config`.
+  - A session mismatch detected during turn-on after the browser subscription swap drops the replacement subscription
+    (`dropSubscription`, which also notifies other tabs), removes the new session owner's now-orphaned active record
+    under `removeIfMatches`, and leaves foreign records suspended.
 - **One subscriber per phone (WP-Q4).** A browser holds one push subscription per service worker. When a person
   **enables** notifications in a company, the app replaces the browser subscription first, so the company she enabled last
   is the one that receives; the earlier company's row dies at its next 410. Merely opening another company changes

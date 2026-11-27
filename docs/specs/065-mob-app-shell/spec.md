@@ -249,10 +249,14 @@ start screen again.
   (its sub-PR 067-2) adds it, with who counts set by spec 067 BR-003; until 067-2 lands the line is not shown to
   anyone.
 - **FR-018**: The app's identity follows APP-Q10, Q11, Q13 and APP-Q21 … Q25 (batch 69; Waleed, 2026-10-24; Abu
-  Salem picked the same on 2026-10-24 except APP-Q25, where his pick binds). Both flavours show the name «PosPay Business» under the icon (APP-Q24). The icon is today's PosPay
-  icon with a navy circle holding a «B» in its corner (APP-Q21); the staging icon adds a purple diagonal ribbon
-  reading «تجربة» across its top corner (APP-Q22). The splash is light cream with the orange PosPay logo and «PosPay Business» under
-  it in navy (APP-Q11, APP-Q25), on Android before and from 12 and on iOS. Every screen of the staging native app starts with a
+  Salem picked the same on 2026-10-24 except APP-Q25, where his pick binds). Both flavours show the name «PosPay Business» under the icon (APP-Q24). The icon is the
+  Souk Tiles P logo — the base design adopted for every frontend and mobile app under PP-193.1
+  (`docs/owner-decisions.ar.md` §113, ADR-0059; DS-3 A3 #1081) — with a navy circle holding a «B» in its corner
+  (APP-Q21); the staging icon adds a purple diagonal ribbon
+  reading «تجربة» across its top corner (APP-Q22). The splash background is light cream `#FCFAF6` (APP-Q25), and the
+  splash shows the Souk Tiles P logo (PP-193.1; #1103) — the app icon
+  without its «B» mark — and «PosPay Business» under
+  it in navy (APP-Q11), on Android before and from 12 and on iOS. Every screen of the staging native app starts with a
   purple strip reading «نسخة تجربة» / «Test version» that stays at the top while the page scrolls and below the status
   bar (APP-Q23); the production app and the web app (any host) show no strip.
 

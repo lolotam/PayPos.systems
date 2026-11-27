@@ -3677,6 +3677,118 @@
         }
       }
     },
+    "/v1/businesses/{businessId}/branches/{branchId}/attendance-statement-employees": {
+      "get": {
+        "operationId": "attendanceStatementEmployees",
+        "description": "Human read:attendance:branch permission, staff feature and tenant membership required. Lists the employees with coverage in the period, sorted by employee number. Returns 404 for a branch outside the business and 422 for a period that is inverted, longer than 366 days, or past the current month in the branch time zone.",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "x-company-id",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "in": "path",
+            "name": "businessId",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "in": "path",
+            "name": "branchId",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "in": "query",
+            "name": "from",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "date"
+            }
+          },
+          {
+            "in": "query",
+            "name": "to",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "date"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Employees with attendance coverage in the period",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "employees": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "employee_id": {
+                            "type": "string",
+                            "format": "uuid",
+                            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                          },
+                          "name_ar": {
+                            "nullable": true,
+                            "type": "string"
+                          },
+                          "name_en": {
+                            "type": "string"
+                          },
+                          "employee_number": {
+                            "type": "integer",
+                            "minimum": 1,
+                            "maximum": 999999
+                          }
+                        },
+                        "required": [
+                          "employee_id",
+                          "name_ar",
+                          "name_en",
+                          "employee_number"
+                        ],
+                        "additionalProperties": false
+                      }
+                    }
+                  },
+                  "required": [
+                    "employees"
+                  ]
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Bilingual refusal",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/v1/businesses/{businessId}/branches/{branchId}/attendance-report": {
       "get": {
         "operationId": "attendanceMonthlyReport",
@@ -25368,7 +25480,7 @@
         },
         "responses": {
           "204": {
-            "description": "Registers or refreshes the caller subscription, answered no-store. VALIDATION_FAILED 400 for a refused endpoint or key; PUSH_KEY_STALE 409 when the key id is not the current one; PUSH_REGISTRATION_BUSY 409 when another registration for the same device is in progress; RATE_LIMITED 429 after twenty registrations an hour per user; NOT_READY 503 when push is not configured."
+            "description": "Registers or refreshes the caller subscription, answered no-store. VALIDATION_FAILED 400 for a refused endpoint or key; PUSH_KEY_STALE 409 when the key id is not the current one; PUSH_SESSION_MISMATCH 409 when the subscriber_ref sent is not the signed-in caller, checked before any limit or write; PUSH_REGISTRATION_BUSY 409 when another registration for the same device is in progress; RATE_LIMITED 429 after twenty registrations an hour per user; NOT_READY 503 when push is not configured."
           },
           "default": {
             "description": "The API error envelope",
@@ -53722,6 +53834,10 @@
             "format": "uuid",
             "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$"
           },
+          "subscriber_ref": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          },
           "vapid_key_id": {
             "type": "string",
             "pattern": "^[0-9a-f]{16}$"
@@ -53776,6 +53892,7 @@
         },
         "required": [
           "installation_id",
+          "subscriber_ref",
           "vapid_key_id",
           "delivery_token",
           "subscription",

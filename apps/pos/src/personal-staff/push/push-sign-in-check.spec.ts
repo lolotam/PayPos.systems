@@ -352,3 +352,33 @@ it('removes the record and the subscription when the suspend write fails', async
   expect(fakes.state.unsubscribed).toBe(1);
   expect(fakes.state.record).toBeNull();
 });
+
+it('keeps the record of the session owner when the guarded suspend write fails', async () => {
+  fakes.state.writeFails = true;
+
+  await suspendPushForSignIn(RECORD.subscriber_ref);
+
+  expect(fakes.state.removed).toBe(0);
+  expect(fakes.state.unsubscribed).toBe(0);
+  expect(fakes.state.record).toEqual(RECORD);
+});
+
+it('removes a confirmed foreign record and its subscription when the guarded suspend write fails', async () => {
+  fakes.state.writeFails = true;
+
+  await suspendPushForSignIn('another-subscriber');
+
+  expect(fakes.state.removed).toBe(1);
+  expect(fakes.state.unsubscribed).toBe(1);
+  expect(fakes.state.record).toBeNull();
+});
+
+it('does nothing destructive when the guarded suspend write fails and no record is stored', async () => {
+  fakes.state.writeFails = true;
+  fakes.state.record = null;
+
+  await suspendPushForSignIn('another-subscriber');
+
+  expect(fakes.state.removed).toBe(0);
+  expect(fakes.state.unsubscribed).toBe(0);
+});

@@ -38,6 +38,38 @@ function changeableSystemTheme(matches = false) {
   };
 }
 
+type LegacySystemThemeListener = (event: { matches: boolean }) => void;
+
+/**
+ * بديل قديم: المتصفحات والـ WebViews القديمة (زي سفاري و iOS 13 وأقدم) — الـ MediaQueryList
+ * فيها لسه مش وريث من EventTarget، فبتعرض addListener و removeListener بس ومن غير
+ * addEventListener خالص. فالتطبيق لازم يشتغل بالطريقتين عشان تغيير النظام يوصل للصفحة على
+ * الأجهزة دي.
+ */
+function legacySystemTheme(matches = false) {
+  const state = { matches };
+  const listeners: LegacySystemThemeListener[] = [];
+  const removeListener = vi.fn((listener: LegacySystemThemeListener) => {
+    const index = listeners.indexOf(listener);
+    if (index >= 0) listeners.splice(index, 1);
+  });
+  vi.stubGlobal('matchMedia', () => ({
+    get matches() {
+      return state.matches;
+    },
+    addListener: (listener: LegacySystemThemeListener) => listeners.push(listener),
+    removeListener,
+  }));
+  return {
+    listeners,
+    removeListener,
+    change(next: boolean) {
+      state.matches = next;
+      for (const listener of [...listeners]) listener({ matches: next });
+    },
+  };
+}
+
 function systemThemeColors() {
   return [...document.querySelectorAll('meta[name="theme-color"]:not([data-pospay-theme])')].map(
     (meta) => meta.getAttribute('content'),
@@ -162,6 +194,59 @@ describe('system theme changes', () => {
     localStorage.removeItem(THEME_STORAGE_KEY);
     system.change(false);
     expect(document.documentElement.classList.contains('dark')).toBe(false);
+  });
+});
+
+describe('legacy WebViews without addEventListener', () => {
+  it('the boot script subscribes through addListener and follows the system from light to dark to light', () => {
+    const system = legacySystemTheme();
+    new Function(THEME_BOOT_SCRIPT)();
+    expect(system.listeners).toHaveLength(1);
+
+    system.change(true);
+    expect(document.documentElement.classList.contains('dark')).toBe(true);
+
+    system.change(false);
+    expect(document.documentElement.classList.contains('dark')).toBe(false);
+  });
+
+  it('a legacy WebView hands the theme back to the system once the stored key is cleared', () => {
+    const system = legacySystemTheme();
+    localStorage.setItem(THEME_STORAGE_KEY, 'dark');
+    new Function(THEME_BOOT_SCRIPT)();
+    expect(document.documentElement.classList.contains('dark')).toBe(true);
+
+    localStorage.removeItem(THEME_STORAGE_KEY);
+    system.change(false);
+    expect(document.documentElement.classList.contains('dark')).toBe(false);
+  });
+
+  it('disposing the runtime detaches the legacy listener', () => {
+    const system = legacySystemTheme();
+    new Function(THEME_BOOT_SCRIPT)();
+    expect(system.listeners).toHaveLength(1);
+
+    window.__pospayTheme?.dispose();
+    expect(system.removeListener).toHaveBeenCalledTimes(1);
+    expect(system.listeners).toHaveLength(0);
+  });
+
+  it('the runtime keeps one legacy listener and stops reacting to the system after dispose', () => {
+    const system = legacySystemTheme();
+    const listener = vi.fn();
+    const unsubscribe = subscribeToThemePreference(listener);
+
+    setThemePreference('dark');
+    expect(listener).toHaveBeenCalledTimes(1);
+    expect(system.listeners).toHaveLength(1);
+    expect(document.documentElement.classList.contains('dark')).toBe(true);
+
+    window.__pospayTheme?.dispose();
+    expect(system.removeListener).toHaveBeenCalledTimes(1);
+
+    system.change(false);
+    expect(document.documentElement.classList.contains('dark')).toBe(true);
+    unsubscribe();
   });
 });
 

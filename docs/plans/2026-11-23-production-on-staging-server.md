@@ -86,7 +86,7 @@ logical backup and restore check (`deploy/backup/`); the operator scripts `platf
 | A plan row on a fresh database — only the seed inserts it (`packages/db/src/seed.ts:33,47-50`) and `migrate` does not run it | the `seed` service in PR-A |
 | Separate session cookie names | PR-B |
 | A page for the one-time set-password link — `apps/admin/app/` has no `set-password` route, while the link points there (`packages/auth/scripts/create-user.ts:35`) | PR-D |
-| An image that can run `platform:create-user` (not known) | rehearsal step 1; PR-E if needed |
+| An image that can run `platform:create-user` | PR-E: the `ops` image target, `ghcr.io/lolotam/pospay-ops:<sha>` (rehearsal step 1 checks it) |
 | A user, membership and PIN for an employee; a second admin user — no use case or route creates either (`apps/api/src/modules/identity/use-cases/`; `persistence/onboarding-transactions.ts:26` is the only product membership insert) | PR-F, PR-G (`2026-11-23-staff-sign-in-gap.md`) |
 | A screen that creates the company | PR-H (optional for one salon) |
 | Email sending — the adapter exists but the capability is a constant `false` (`packages/notifications/src/email-configuration.ts:10-12`) | PR-C1, PR-C2 |
@@ -116,7 +116,7 @@ logical backup and restore check (`deploy/backup/`); the operator scripts `platf
    attendance cannot start. **PR-C1 → PR-C2** (email) run beside them and do not block go-live unless Waleed says
    email must work on day one. **PR-G** (second admin) and **PR-H** (create-company screen) follow.
 6. **M:** the first-owner rehearsal on staging (`2026-11-23-first-owner-rehearsal.md`) as soon as PR-D is on staging;
-   step 1 of it can run today and decides whether PR-E is needed.
+   step 1 checks the `pospay-ops` image from PR-E.
 
 **Phase C — stand up production (after PR-A and PR-B merge and run on staging)**
 

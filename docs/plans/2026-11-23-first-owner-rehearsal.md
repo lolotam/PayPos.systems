@@ -35,40 +35,44 @@ Read against `origin/main@dc5b78786`. Commands marked **(to confirm)** were deri
 | G1 | No admin page at `/set-password` | `apps/admin/app/` holds `login`, `security`, `(dashboard)` only | **PR-D** (brief in `briefs/2026-11-23-prod/`) |
 | G2 | No admin screen calls `POST /v1/companies` | no reference to `v1/companies` under `apps/admin` | **PR-H**: a "create company" form for a signed-in user holding the grant (about 180 lines). Without it step 8 is a browser-console call, acceptable only with the manager present |
 | G3 | A fresh database has no plan row | point 6 above | the `seed` one-shot service in PR-A |
-| G4 | It is not known which image can run `platform:create-user` | the script lives in `packages/auth/scripts/`; the `migrate` image is built from `packages/db` only (`deploy/Dockerfile.api:12-13`) | step 1 decides; if none can, **PR-E**: an `ops` image target (the build stage with `pnpm`), about 30 lines in `deploy/Dockerfile.api` and `ci.yml` |
+| G4 | No image could run `platform:create-user` (the script lives in `packages/auth/scripts/`; `migrate` is built from `packages/db` only) | `deploy/Dockerfile.api` before PR-E | **Closed by PR-E**: the `ops` target, published as `ghcr.io/lolotam/pospay-ops:<sha>`, holds `scripts/create-user.ts` (`@pospay/auth`) and, under `db/`, `platform-grant.ts`, `seed.ts` and `platform-commission-approval.ts` (`@pospay/db`). Step 1 only checks it |
 
 ## Procedure
 
 **0. Prepare.** Note the staging SHA that is live. Pick a test email (`owner-rehearsal+<date>@…` on a domain Waleed
 controls). Have the staging admin and API hosts at hand.
 
-**1. Find the image that runs the scripts (G4).** On the server, read-only:
+**Loading variables (steps 2, 3 and 7).** The `--env NAME` commands below require each variable to be **exported** in
+your current shell (`export VAR=...` after `read -rs`, as in Method B of `docs/runbook.md` «First-owner operator
+scripts»). If you use the mode-600 temporary file instead (Method A of `docs/runbook.md`), replace the `--env NAME`
+flags in steps 2, 3 and 7 with `--env-file "$envf"` inside the cleanup-trapped subshell. On staging the network is
+`--network dokploy-network`; in production it is `--network pospay-prod-internal`.
+
+**1. Check the operator image (G4, closed by PR-E).** On the server, read-only; `<sha>` is a SHA published after PR-E merged:
 
 ```sh
-docker run --rm ghcr.io/lolotam/pospay-migrate:<sha> ls scripts
-docker run --rm ghcr.io/lolotam/pospay-api:<sha> sh -c 'ls node_modules/@pospay/auth/scripts 2>/dev/null; ls scripts 2>/dev/null'
+docker run --rm ghcr.io/lolotam/pospay-ops:<sha> sh -c 'ls scripts db/scripts'
 ```
 
-Expected from the Dockerfile: the `migrate` image lists `platform-grant.ts` and `seed.ts`. If `create-user.ts` is
-not runnable from any image (Node does not run TypeScript from inside `node_modules`), stop here, record G4 as
-confirmed, and ask for PR-E. Do not copy files into a container by hand.
+Expected: `create-user.ts` under `scripts`; `platform-grant.ts`, `seed.ts` and `platform-commission-approval.ts` under `db/scripts`. If the image does not exist, the SHA predates PR-E: stop and pick a newer one. Do not copy files into a container by hand.
 
 **2. Reference data (this step writes).** It re-applies the plan row and the access catalog on staging; skip it if
 a read-only `SELECT id FROM plans` as the migration owner already returns the provisional plan:
 
 ```sh
-docker run --rm --network dokploy-network --env MIGRATION_DATABASE_URL ghcr.io/lolotam/pospay-migrate:<sha> node scripts/seed.ts
+docker run --rm --network dokploy-network --env MIGRATION_DATABASE_URL ghcr.io/lolotam/pospay-ops:<sha> node db/scripts/seed.ts
 ```
 
 **(to confirm)** — the seed is written to be re-runnable (`ON CONFLICT`, `packages/db/src/seed.ts:47-50`). Expected
 output: `reference data seeded`.
 
-**3. Create the user.** With the image from step 1 and the same auth variables the `api` container has
+**3. Create the user.** With the `pospay-ops` image and the same auth variables the `api` container has
 (`AUTH_DATABASE_URL`, `BETTER_AUTH_SECRET`, `BETTER_AUTH_URL`, `AUTH_TRUSTED_ORIGINS`; the exact list is in
-`packages/auth/scripts/create-user.ts:40-62`):
+`packages/auth/scripts/create-user.ts:40-62`), passed by name so no value appears on the command line:
 
 ```sh
-pnpm platform:create-user --email <test email> --name "Rehearsal Owner" --operator <manager name>
+docker run --rm --network dokploy-network --env AUTH_DATABASE_URL --env BETTER_AUTH_SECRET --env BETTER_AUTH_URL --env AUTH_TRUSTED_ORIGINS \
+  ghcr.io/lolotam/pospay-ops:<sha> node scripts/create-user.ts --email <test email> --name "Rehearsal Owner" --operator <manager name>
 ```
 
 Expected: `user created: <id>` and one link. Record the user id; keep the link private; note the time (one hour).
@@ -107,12 +111,12 @@ Expected: 403 with the error envelope. The plan id is the constant at `packages/
 **7. Grant, short-lived.**
 
 ```sh
-docker run --rm --network dokploy-network --env MIGRATION_DATABASE_URL ghcr.io/lolotam/pospay-migrate:<sha> \
-  node scripts/platform-grant.ts --email <test email> --permission create:companies:platform \
+docker run --rm --network dokploy-network --env MIGRATION_DATABASE_URL ghcr.io/lolotam/pospay-ops:<sha> \
+  node db/scripts/platform-grant.ts --email <test email> --permission create:companies:platform \
   --operator <manager name> --expires <ISO time, one hour ahead>
 ```
 
-**(to confirm)** the script runs this way from the image, as `migrate.ts` does.
+The script runs as `pospay_owner` (`MIGRATION_DATABASE_URL`), the same role `migrate` uses.
 
 **8. Create the company.** Repeat the console call of step 6 with a **new** idempotency key. Expected: 201 and a
 company whose `owner_user_id` is the user id from step 3. Send the same request again with the same key: expected

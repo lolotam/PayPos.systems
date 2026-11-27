@@ -1,4 +1,3 @@
-import type { AttendanceMonthlyReport } from '@pospay/contracts';
 import { boardId, boardScope } from './attendance-board.fixture';
 
 export const statementScope = { ...boardScope };
@@ -12,43 +11,31 @@ export const statementShifts = {
   ],
 };
 
-export const statementReport: AttendanceMonthlyReport = {
-  business_id: boardId,
-  branch_id: boardId,
-  month: statementMonth,
-  rows: [
-    {
-      employee_id: boardId,
-      name_ar: null,
-      name_en: 'Synthetic employee',
-      employee_number: 15,
-      days_present: 20,
-      worked_minutes: 9605,
-      scheduled_minutes: 10080,
-      contracted_minutes: 10200,
-      leave: [],
-      difference_minutes: -595,
-      late_count: 2,
-      late_minutes: 27,
-      missing_clock_out: 1,
-      manual_days: 3,
-    },
+/**
+ * موظفة تغطيتها وردية جدولة بس: من غير بصمة ولا عقد، وبتظهر في المنتقي
+ * لأن مسار كشف الحضور بيرجّعها بالتغطية دي.
+ */
+export const statementScheduleOnlyEmployee = {
+  employee_id: '01920000-0000-7000-8000-0000000000c3',
+  name_ar: null,
+  name_en: 'Schedule only employee',
+  employee_number: 17,
+};
+
+/**
+ * موظفات الفرع في الفترة زي ما مسار كشف الحضور بيرجّعها: مرشحو تقرير 27b
+ * والموظفات المجدول بس، مرتبين برقم الموظفة.
+ */
+export const statementEmployees = {
+  employees: [
+    { employee_id: boardId, name_ar: null, name_en: 'Synthetic employee', employee_number: 15 },
     {
       employee_id: '01920000-0000-7000-8000-0000000000c2',
       name_ar: null,
       name_en: 'Other synthetic employee',
       employee_number: 16,
-      days_present: 21,
-      worked_minutes: 9700,
-      scheduled_minutes: 9600,
-      contracted_minutes: 9600,
-      leave: [],
-      difference_minutes: 100,
-      late_count: 0,
-      late_minutes: 0,
-      missing_clock_out: 0,
-      manual_days: 0,
     },
+    statementScheduleOnlyEmployee,
   ],
 };
 
