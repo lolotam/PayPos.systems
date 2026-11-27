@@ -105,14 +105,16 @@ env value; its build runs each script once with no arguments to prove the TypeSc
 command line. Use one of two methods; both keep passwords out of arguments and shell history:
 
 ```sh
-# A. Temporary mode-600 env file, deleted right after the run
-umask 077; envf="$(mktemp)"
-read -rs -p 'owner password: ' PW; echo
-printf 'MIGRATION_DATABASE_URL=postgres://pospay_owner:%s@postgres:5432/<DB_NAME>\n' "$PW" > "$envf"; unset PW
-docker run --rm --network pospay-prod-internal --env-file "$envf" \
-  ghcr.io/lolotam/pospay-ops:<sha> node db/scripts/platform-grant.ts --email <email> \
-  --permission create:companies:platform --operator <name> --expires <ISO time>
-rm -f "$envf"
+# A. Temporary mode-600 env file, removed on exit or interruption even under set -e
+(
+  umask 077; envf="$(mktemp)"
+  trap 'rm -f "$envf"' EXIT INT TERM
+  read -rs -p 'owner password: ' PW; echo
+  printf 'MIGRATION_DATABASE_URL=postgres://pospay_owner:%s@postgres:5432/<DB_NAME>\n' "$PW" > "$envf"; unset PW
+  docker run --rm --network pospay-prod-internal --env-file "$envf" \
+    ghcr.io/lolotam/pospay-ops:<sha> node db/scripts/platform-grant.ts --email <email> \
+    --permission create:companies:platform --operator <name> --expires <ISO time>
+)
 
 # B. Prompt and export, then unset (the value lives only in this shell; --env NAME copies it in by name)
 read -rs -p 'owner password: ' PW; echo

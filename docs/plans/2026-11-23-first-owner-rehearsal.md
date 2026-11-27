@@ -42,10 +42,11 @@ Read against `origin/main@dc5b78786`. Commands marked **(to confirm)** were deri
 **0. Prepare.** Note the staging SHA that is live. Pick a test email (`owner-rehearsal+<date>@…` on a domain Waleed
 controls). Have the staging admin and API hosts at hand.
 
-**Loading variables (steps 2, 3 and 7).** The `--env NAME` commands below assume the variable is already in your shell
-or in a mode-600 temporary `--env-file` that you delete after the run. Build each `*_DATABASE_URL` from its password with
-`read -rs` (never on the command line), as `docs/runbook.md` «First-owner operator scripts» shows. On staging the
-network is `--network dokploy-network`; in production it is `--network pospay-prod-internal`.
+**Loading variables (steps 2, 3 and 7).** The `--env NAME` commands below require each variable to be **exported** in
+your current shell (`export VAR=...` after `read -rs`, as in Method B of `docs/runbook.md` «First-owner operator
+scripts»). If you use the mode-600 temporary file instead (Method A of `docs/runbook.md`), replace the `--env NAME`
+flags in steps 2, 3 and 7 with `--env-file "$envf"` inside the cleanup-trapped subshell. On staging the network is
+`--network dokploy-network`; in production it is `--network pospay-prod-internal`.
 
 **1. Check the operator image (G4, closed by PR-E).** On the server, read-only; `<sha>` is a SHA published after PR-E merged:
 
