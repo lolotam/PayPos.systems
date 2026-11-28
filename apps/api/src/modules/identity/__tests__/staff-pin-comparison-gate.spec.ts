@@ -132,11 +132,14 @@ it('shares one concurrency limit across SignInStaffPin, OpenPrivateView and Veri
     openPrivateView.execute({ pin, session }),
     discountApprover.execute({ phone, pin, device }),
   ];
-  await expect(openPrivateView.execute({ pin, session })).rejects.toThrow('STAFF_PIN_UNAVAILABLE');
-  await expect(signIn.execute({ phone, pin, device })).rejects.toThrow('STAFF_PIN_UNAVAILABLE');
-  await expect(discountApprover.execute({ phone, pin, device })).resolves.toEqual({ kind: 'busy' });
+  // ربط تأكيدات الفائض قبل فك الحاجز حتى يكشف أي تسرب فوراً بدل التعليق على نفس الحاجز.
+  const overflow = Promise.all([
+    expect(openPrivateView.execute({ pin, session })).rejects.toThrow('STAFF_PIN_UNAVAILABLE'),
+    expect(signIn.execute({ phone, pin, device })).rejects.toThrow('STAFF_PIN_UNAVAILABLE'),
+    expect(discountApprover.execute({ phone, pin, device })).resolves.toEqual({ kind: 'busy' }),
+  ]);
   releaseBarrier();
-  await Promise.all(running);
+  await Promise.all([overflow, ...running]);
   await expect(signIn.execute({ phone, pin, device })).resolves.toBeNull();
   await expect(openPrivateView.execute({ pin, session })).resolves.toEqual({ kind: 'refused' });
   await expect(discountApprover.execute({ phone, pin, device })).resolves.toEqual({

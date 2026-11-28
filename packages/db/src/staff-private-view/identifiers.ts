@@ -83,5 +83,6 @@ export async function sweepStaffPrivateViewRows(
       )
       ORDER BY v.expires_at, v.id
       LIMIT ${limit}
+      FOR UPDATE OF v SKIP LOCKED
     )`);
 }

@@ -178,17 +178,19 @@ it('sweeps expired private-view windows and orphaned or deadline-passed counter 
   );
 });
 
-it('private-view sweep failure does not roll back OTP retention cleanup (#776)', async () => {
+it('private-view sweep skips locked rows so unlocked rows and OTP retention commit (#776)', async () => {
   const expiredChallengeId = randomUUID();
   const lockedRowId = randomUUID();
+  const unlockedRowId = randomUUID();
   await f.owner`INSERT INTO auth_otp_challenges(id,recipient_hash,hash_key_id,user_id,device_context,status,
     created_at,expires_at,finished_at,updated_at)
     VALUES(${expiredChallengeId},${hash},'synthetic-h',null,${f.owner.json(device)},'EXPIRED',
       statement_timestamp()-interval '31 days 300 seconds',statement_timestamp()-interval '31 days',
       statement_timestamp()-interval '31 days',statement_timestamp()-interval '31 days')`;
   await f.owner`INSERT INTO verification(id,identifier,value,expires_at,created_at,updated_at)
-    VALUES(${lockedRowId},${`staff-private-view:v1:${randomUUID()}`},'{}',
-      statement_timestamp()-interval '1 second',statement_timestamp()-interval '6 minutes',statement_timestamp()-interval '6 minutes')`;
+    VALUES
+      (${lockedRowId},${`staff-private-view:v1:${randomUUID()}`},'{}',statement_timestamp()-interval '1 second',statement_timestamp()-interval '6 minutes',statement_timestamp()-interval '6 minutes'),
+      (${unlockedRowId},${`staff-private-view:v1:${randomUUID()}`},'{}',statement_timestamp()-interval '1 second',statement_timestamp()-interval '6 minutes',statement_timestamp()-interval '6 minutes')`;
 
   let markLocked: () => void = () => undefined;
   const lockReady = new Promise<void>((resolve) => {
@@ -205,10 +207,15 @@ it('private-view sweep failure does not roll back OTP retention cleanup (#776)',
   });
   try {
     await lockReady;
-    await expect(f.db.cleanup(100)).rejects.toThrow(/^OTP_DATABASE_UNAVAILABLE_(?:55P03|57014)$/);
+    await expect(f.db.cleanup(100)).resolves.toBe(1);
+    expect(await f.db.find(expiredChallengeId)).toBeNull();
+    expect(
+      await f.owner`SELECT id FROM verification WHERE id IN (${lockedRowId}, ${unlockedRowId})`,
+    ).toEqual([{ id: lockedRowId }]);
   } finally {
     releaseLock();
     await holder;
   }
-  expect(await f.db.find(expiredChallengeId)).toBeNull();
+  await expect(f.db.cleanup(100)).resolves.toBe(0);
+  expect(await f.owner`SELECT id FROM verification WHERE id=${lockedRowId}`).toEqual([]);
 });
