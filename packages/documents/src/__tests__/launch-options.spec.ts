@@ -130,17 +130,26 @@ it('holds root and verified ancestors when root or grandchild fingerprint is tra
     expect([rootKills, signaled, isPidAlive(childPid, procDir), isPidAlive(grandPid, procDir)]).toEqual([0, [], true, true]);
 
     const closingRoot = { pid: rootPid, exitCode: null as number | null, signalCode: null, kill: () => { rootKills += 1; closingRoot.exitCode = 0; return true; } };
+    rmSync(join(procDir, String(grandPid)), { recursive: true, force: true });
+    writeFileSync(join(procDir, String(childPid), 'task', String(childPid), 'children'), '');
+    writeFileSync(join(procDir, String(childPid), 'stat'), `${childPid} (child) S ${rootPid} ${childPid} 1 0 -1 0 0 0 0 0 0 0 0 0 0 0 1 0 222\n`);
     captureOwnedDescendants(closingRoot, procDir);
     closingRoot.exitCode = 0;
     rmSync(join(procDir, String(rootPid)), { recursive: true, force: true });
     rmSync(join(procDir, String(childPid), 'stat'));
     await expect(Promise.resolve(killProcessTree(closingRoot, procDir, signalPid))).rejects.toThrow('DESCENDANT_IDENTITY_UNVERIFIED');
-    expect([rootKills, signaled, isPidAlive(childPid, procDir), isPidAlive(grandPid, procDir)]).toEqual([0, [], true, true]);
+    expect([rootKills, signaled, isPidAlive(childPid, procDir)]).toEqual([0, [], true]);
 
-    writeFileSync(join(procDir, String(childPid), 'stat'), `${childPid} (child) S 1 1 1 0 -1 0 0 0 0 0 0 0 0 0 0 0 1 0 222\n`);
-    writeFileSync(join(procDir, String(grandPid), 'stat'), `${grandPid} (grand) S ${childPid} 1 1 0 -1 0 0 0 0 0 0 0 0 0 0 0 1 0 333\n`);
-    await expect(Promise.resolve(killProcessTree(closingRoot, procDir, signalPid))).resolves.toBeUndefined();
-    expect([rootKills, new Set(signaled), isPidAlive(childPid, procDir), isPidAlive(grandPid, procDir)]).toEqual([0, new Set([childPid, grandPid]), false, false]);
+    writeFileSync(join(procDir, String(childPid), 'stat'), `${childPid} (child) S 1 ${childPid} 1 0 -1 0 0 0 0 0 0 0 0 0 0 0 1 0 222\n`);
+    const signalWithLateFork = (pid: number): Error | undefined => {
+      if (pid === childPid) {
+        mkdirSync(join(procDir, String(grandPid)), { recursive: true });
+        writeFileSync(join(procDir, String(grandPid), 'stat'), `${grandPid} (grand) S 1 ${childPid} 1 0 -1 0 0 0 0 0 0 0 0 0 0 0 1 0 333\n`);
+      }
+      return signalPid(pid);
+    };
+    await expect(Promise.resolve(killProcessTree(closingRoot, procDir, signalWithLateFork))).resolves.toBeUndefined();
+    expect([rootKills, signaled, isPidAlive(childPid, procDir), isPidAlive(grandPid, procDir)]).toEqual([0, [childPid, grandPid], false, false]);
   } finally {
     for (const s of [sRoot, sChild, sGrand]) try { s.kill('SIGKILL'); } catch { /* exited */ }
     rmSync(procDir, { recursive: true, force: true });
