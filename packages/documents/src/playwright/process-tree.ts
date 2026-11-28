@@ -177,6 +177,13 @@ export function takeLaunchedProcess(launchMarker: string): KillableProcess | nul
   return proc;
 }
 
+/** ينشئ مقبض عملية بديل مرتبط بوسم الإطلاق لتتبّع وقتل توابع Chromium عند غياب مقبض العملية المباشر. */
+export function createMarkerProcess(launchMarker: string): KillableProcess {
+  const proc: KillableProcess = { exitCode: 0, kill: () => true };
+  launchedMarkers.set(proc, launchMarker);
+  return proc;
+}
+
 function collectDescendantPids(rootPids: readonly number[], procRoot = '/proc'): Map<number, number> {
   const parentOf = new Map<number, number>(rootPids.map((pid) => [pid, pid]));
   const queue = [...rootPids];
@@ -275,14 +282,7 @@ function isParentLinkLive(childPid: number, parentPid: number, liveParents: Read
   return (process.platform === 'linux' || procRoot !== '/proc') && directLinuxChildren(parentPid, procRoot).includes(childPid);
 }
 
-function hasVerifiedAncestry(
-  pid: number,
-  parentOf: ReadonlyMap<number, number>,
-  seedFps: ReadonlyMap<number, string>,
-  liveParents: ReadonlyMap<number, number>,
-  proc: KillableProcess,
-  procRoot: string,
-): boolean {
+function hasVerifiedAncestry(pid: number, parentOf: ReadonlyMap<number, number>, seedFps: ReadonlyMap<number, string>, liveParents: ReadonlyMap<number, number>, proc: KillableProcess, procRoot: string): boolean {
   const seen = new Set<number>();
   let cur = pid;
   while (!seen.has(cur)) {
@@ -300,20 +300,20 @@ function hasVerifiedAncestry(
   return false;
 }
 
-function buildSeedFingerprints(
-  proc: KillableProcess,
-  rootPid: number | undefined,
-  markedSet: ReadonlySet<number>,
-  retainedSet: ReadonlySet<number>,
-  marker: string | undefined,
-  seeds: readonly number[],
-  procRoot: string,
-): { seedFps: Map<number, string>; seedErr: Error | undefined } {
+function readVerifiedFingerprint(pid: number, procRoot = '/proc'): string | null | undefined {
+  for (let i = 0; i < 2; i += 1) {
+    const fp = readPidFingerprint(pid, procRoot);
+    if (fp !== null) return fp;
+  }
+  return readPidFingerprint(pid, procRoot);
+}
+
+function buildSeedFingerprints(proc: KillableProcess, rootPid: number | undefined, markedSet: ReadonlySet<number>, retainedSet: ReadonlySet<number>, marker: string | undefined, seeds: readonly number[], procRoot: string): { seedFps: Map<number, string>; seedErr: Error | undefined } {
   const prior = retainedDescendants.get(proc);
   const seedFps = new Map<number, string>();
   let seedErr: Error | undefined;
   for (const seed of seeds) {
-    const fp = readPidFingerprint(seed, procRoot);
+    const fp = readVerifiedFingerprint(seed, procRoot);
     if (fp === undefined) continue;
     if (fp === null) { seedErr ??= markUnconfirmedDescendants(new Error('DESCENDANT_IDENTITY_UNVERIFIED')); continue; }
     const okRoot = seed === rootPid && !hasExited(proc);
@@ -324,12 +324,7 @@ function buildSeedFingerprints(
   return { seedFps, seedErr };
 }
 
-function signalVerifiedDescendants(
-  verified: ReadonlyArray<readonly [number, string]>,
-  retained: Map<number, string>,
-  initialError: Error | undefined,
-  procRoot: string,
-): { waitPids: number[]; signalError: Error | undefined } {
+function signalVerifiedDescendants(verified: ReadonlyArray<readonly [number, string]>, retained: Map<number, string>, initialError: Error | undefined, procRoot: string): { waitPids: number[]; signalError: Error | undefined } {
   if (procRoot !== '/proc') return { waitPids: verified.map(([pid]) => pid), signalError: initialError };
   const waitPids: number[] = [];
   let signalError = initialError;
@@ -360,7 +355,7 @@ function terminateOwnedDescendants(proc: KillableProcess, procRoot = '/proc'): {
   const candidates: Array<readonly [number, string | null]> = [];
   for (const pid of parentOf.keys()) {
     if (pid === rootPid) continue;
-    const fp = readPidFingerprint(pid, procRoot);
+    const fp = readVerifiedFingerprint(pid, procRoot);
     if (fp === undefined) retained.delete(pid);
     else candidates.push([pid, fp]);
   }
@@ -417,8 +412,8 @@ export function killProcessTree(proc: KillableProcess): Promise<void> | void {
     try { return killProcessTree(child)?.catch((e: unknown) => { throw toErr(e); }); } catch (e) { return Promise.reject(toErr(e)); }
   });
   const { waitPids, signalError } = terminateOwnedDescendants(proc);
-  killLaunchProcessGroup(proc);
-  const rootWait = safeKillSingle(proc);
+  const holdRootForAncestry = [...(retainedDescendants.get(proc)?.values() ?? [])].includes('');
+  const rootWait = holdRootForAncestry ? undefined : (killLaunchProcessGroup(proc), safeKillSingle(proc));
   const waits: Array<Promise<void>> = childTree.filter((item): item is Promise<void> => item !== undefined);
   const waitTargets = waitPids.map((pid) => [pid, retainedDescendants.get(proc)?.get(pid) ?? ''] as const);
   if (waitTargets.length > 0) {

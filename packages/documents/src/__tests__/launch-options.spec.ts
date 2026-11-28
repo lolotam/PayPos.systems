@@ -43,7 +43,7 @@ it('forwards an explicit timeout argument in playwrightFactory(timeoutMs)', asyn
   }
 });
 
-it('keeps missing-PID launch cleanup tied directly to a single browser.close() call', async () => {
+it('keeps missing-PID cleanup single-flight while pending and allows sequential retry after rejection', async () => {
   const launchMissing = async (close: () => Promise<void>): Promise<unknown> => {
     const spy = vi.spyOn(chromium, 'launch').mockResolvedValue({ newContext: async () => ({}) as never, close, on: () => undefined, process: () => null } as never);
     try { await playwrightFactory(50).launch(); return undefined; } catch (err) { return err; } finally { spy.mockRestore(); }
@@ -53,24 +53,23 @@ it('keeps missing-PID launch cleanup tied directly to a single browser.close() c
   const okErr = await launchMissing(async () => { closed = true; });
   expect((okErr as Error).message).toBe('CHROMIUM_PROCESS_UNAVAILABLE');
   expect(closed).toBe(true);
-  expect(getLaunchCleanupRetry(okErr)).toBeUndefined();
   await expect(getLaunchCleanup(okErr)).resolves.toBeUndefined();
 
   let closeTries = 0;
-  const rejErr = await launchMissing(() => { closeTries += 1; return Promise.reject(new Error('CLOSE_FAIL')); });
-  expect(getLaunchCleanupRetry(rejErr)).toBeUndefined();
+  const rejErr = await launchMissing(() => (++closeTries === 1 ? Promise.reject(new Error('CLOSE_FAIL')) : Promise.resolve()));
   await expect(getLaunchCleanup(rejErr)).rejects.toThrow('CLOSE_FAIL');
-  expect(closeTries).toBe(1);
+  await expect(Promise.resolve(getLaunchCleanupRetry(rejErr)?.())).resolves.toBeUndefined();
+  expect(closeTries).toBe(2);
 
   let hungTries = 0;
   let releaseClose!: () => void;
   let closeHungDone = false;
   const hungErr = await launchMissing(() => { hungTries += 1; return new Promise<void>((r) => { releaseClose = r; }); });
-  expect(getLaunchCleanupRetry(hungErr)).toBeUndefined();
   void getLaunchCleanup(hungErr)?.then(() => { closeHungDone = true; });
+  const concurrentRetry = Promise.resolve(getLaunchCleanupRetry(hungErr)?.());
   await new Promise((r) => setTimeout(r, 20));
   expect([closeHungDone, hungTries]).toEqual([false, 1]);
   releaseClose();
-  await expect(getLaunchCleanup(hungErr)).resolves.toBeUndefined();
-  expect(closeHungDone).toBe(true);
+  await Promise.all([expect(getLaunchCleanup(hungErr)).resolves.toBeUndefined(), concurrentRetry]);
+  expect([closeHungDone, hungTries]).toEqual([true, 1]);
 });

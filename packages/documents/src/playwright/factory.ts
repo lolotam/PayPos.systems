@@ -10,6 +10,7 @@ import {
 import type { PdfBrowser, PdfBrowserFactory, PdfContext, PdfPage, PdfRoute } from './browser.ts';
 import {
   beginLaunchProcessCapture,
+  createMarkerProcess,
   getLaunchCleanup,
   killProcessTree,
   LAUNCH_MARKER_ENV,
@@ -143,6 +144,24 @@ function launchEnvWithMarker(launchMarker: string): Record<string, string> {
  * @param timeoutMs مهلة إطلاق Chromium بالميلي ثانية
  * @returns مصنع متصفح بيحترم المهلة
  */
+function createMissingPidCleanup(browser: Browser, launchMarker: string): () => Promise<void> {
+  const markerProc = createMarkerProcess(launchMarker);
+  let inFlight: Promise<void> | undefined;
+  let disconnected = false;
+  browser.on('disconnected', () => { disconnected = true; });
+  return () => (inFlight ??= (async () => {
+    try {
+      await browser.close();
+    } catch (closeErr) {
+      const lateProc = chromiumProcess(browser);
+      if (hasVerifiablePid(lateProc)) { await Promise.resolve(killProcessTree(lateProc)); return; }
+      if (process.platform === 'linux' && disconnected) { await Promise.resolve(killProcessTree(markerProc)); return; }
+      throw closeErr;
+    }
+    await Promise.resolve(killProcessTree(chromiumProcess(browser) ?? markerProc));
+  })().finally(() => { inFlight = undefined; }));
+}
+
 export function playwrightFactory(
   timeoutMs = DEFAULT_CHROMIUM_LAUNCH_TIMEOUT_MS,
 ): PdfBrowserFactory {
@@ -160,8 +179,8 @@ export function playwrightFactory(
         const rawCaptured = takeLaunchedProcess(launchMarker);
         const captured = hasVerifiablePid(rawCaptured) ? rawCaptured : chromiumProcess(browser);
         if (!hasVerifiablePid(captured)) {
-          const closeOnce = Promise.resolve().then(() => browser.close());
-          throw withLaunchCleanup(new Error('CHROMIUM_PROCESS_UNAVAILABLE'), closeOnce);
+          const retryCleanup = createMissingPidCleanup(browser, launchMarker);
+          throw withLaunchCleanup(new Error('CHROMIUM_PROCESS_UNAVAILABLE'), retryCleanup(), retryCleanup);
         }
         return wrapBrowser(browser, captured);
       } catch (error) {
