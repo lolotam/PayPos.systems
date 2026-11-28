@@ -22,3 +22,16 @@ export function sessionPlace(
     branchTimezone: async () => packageSalePlace(tx, companyId, businessId, branchId),
   };
 }
+
+export async function sessionRecordingPlace(
+  tx: Tx,
+  companyId: string,
+  businessId: string,
+  branchId: string,
+): Promise<{ timezone: string; branchTimezone: string } | null> {
+  const currentPlace = sessionPlace(tx, companyId, businessId, branchId);
+  const business = await currentPlace.read();
+  if (business === null) return null;
+  const branchTimezone = await currentPlace.branchTimezone();
+  return branchTimezone === null ? null : { timezone: business.timezone, branchTimezone };
+}

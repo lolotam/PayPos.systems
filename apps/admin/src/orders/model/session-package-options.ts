@@ -24,12 +24,14 @@ export type PackageList = {
 
 /**
  * يرشّح الباقات الصالحة في تاريخ الزيارة التي تغطي الخدمة ويخصم اختيارات المسودات الأخرى من رصيدها.
+ * يستبعد أيضًا الباقات المبيعة بعد لحظة الزيارة عندما تتوفر لحظة البيع ولحظة الزيارة.
  * الخيار المستنزف داخل المسودة يبقى ظاهرًا ليتم تعطيله بدل اختفاء اختيار المستخدم.
  *
  * @param items الباقات المحمّلة للزبونة
  * @param serviceId الخدمة المطلوبة في السطر الحالي
  * @param otherPicks اختيارات الباقات في السطور الأخرى
  * @param visitDate تاريخ الزيارة المحلي للفرع بصيغة YYYY-MM-DD
+ * @param visitInstant لحظة الزيارة بصيغة ISO لاستبعاد الباقات المبيعة بعدها عند الترجيع الزمني
  * @returns خيارات الخدمة بترتيب القائمة الأصلي
  */
 export function packageOptionsForService(
@@ -37,9 +39,12 @@ export function packageOptionsForService(
   serviceId: string,
   otherPicks: { entitlement_id: string; service_id: string }[],
   visitDate: string,
+  visitInstant?: string,
 ): PackageOption[] {
+  const visitMs = visitInstant === undefined ? Number.NaN : Date.parse(visitInstant);
   return items.flatMap((item) => {
     if (item.used_up || !packageUsableOn(visitDate, item.expires_on)) return [];
+    if (item.sold_at != null && Number.isFinite(visitMs) && visitMs < Date.parse(item.sold_at)) return [];
     const component = item.components.find((row) => row.service_id === serviceId && row.remaining > 0);
     if (!component) return [];
     const picked = otherPicks.filter((row) => row.entitlement_id === item.id && row.service_id === serviceId).length;

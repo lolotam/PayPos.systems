@@ -50,6 +50,7 @@ export type DiscountApprovalNoticeRequested = z.infer<typeof discountApprovalNot
  */
 export const discountApprovedByPerformer = z.strictObject({
   schema_version: z.literal(1),
+  decision_id: id,
   business_id: id,
   branch_id: id,
   decided_by: id,
@@ -57,6 +58,7 @@ export const discountApprovedByPerformer = z.strictObject({
   decider_label_en: z.string().min(1).max(255),
   decider_label_ar: z.string().min(1).max(255),
   decided_via: z.enum(['PIN', 'REMOTE']),
+  decided_at: timestamp,
   proposals: z.array(z.strictObject({
     id, ...serviceName.shape, effective_bps: z.number().int().min(1).max(10000),
   })).min(1).max(20),

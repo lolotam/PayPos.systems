@@ -32,11 +32,11 @@ const context = {
 const complete = { ...response, outcome: 'COMPLETE' as const, rejected_lines: [] };
 let active: SessionRecordingController | null = null;
 
-function Harness() {
+function Harness({ contextOverride = context }: { contextOverride?: RecordingContext }) {
   const recording = useSessionRecording(scope);
   useEffect(() => { active = recording; }, [recording]);
   useEffect(() => { recording.selectCustomer(customer); }, [recording.selectCustomer]);
-  return <RecordServiceSessionForm scope={scope} context={context} online recording={recording}
+  return <RecordServiceSessionForm scope={scope} context={contextOverride} online recording={recording}
     onRefreshScope={() => undefined} />;
 }
 
@@ -44,15 +44,15 @@ function lineGroup() {
   return screen.getByRole('group', { name: t('en', 'serviceSessions.lineNumber').replace('{n}', '1') });
 }
 
-async function mount() {
+async function mount(contextOverride: RecordingContext = context) {
   state.get.mockImplementation((path: string) => Promise.resolve({
-    data: String(path).endsWith('/recording-context') ? context
+    data: String(path).endsWith('/recording-context') ? contextOverride
       : String(path).endsWith('/packages') ? { items: [packageItem], next_cursor: null }
         : { items: String(path).endsWith('/performer-options') ? [performer] : [service], next_cursor: null },
   }));
   state.post.mockResolvedValue({ data: complete, response: { status: 201 } });
   const client = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
-  render(<QueryClientProvider client={client}><Harness /></QueryClientProvider>);
+  render(<QueryClientProvider client={client}><Harness contextOverride={contextOverride} /></QueryClientProvider>);
   expect(await screen.findByText(customer.name)).toBeTruthy();
   const serviceSelect = screen.getByLabelText(t('en', 'serviceSessions.service'));
   await waitFor(() => expect(serviceSelect.querySelector(`option[value="${service.id}"]`)).toBeTruthy());
@@ -84,4 +84,14 @@ it('expires the suggested package when the implied visit date crosses local midn
   expect(await within(lineGroup()).findByText(t('en', 'serviceSessions.packageNoneUsable'), {}, { timeout: 4000 })).toBeTruthy();
   expect(within(lineGroup()).queryByRole('radio')).toBeNull();
   expect(await within(lineGroup()).findByText(t('en', 'serviceSessions.packageRequired'))).toBeTruthy();
+});
+
+it('uses branch_timezone rather than business_timezone to compute the package visit date (#961)', async () => {
+  // 2026-10-15T20:59:50Z is 2026-10-15 in Asia/Kuwait (valid on expires_on 2026-10-15),
+  // but already 2026-10-16 in Pacific/Auckland (expired).
+  await mount({ ...context, branch_timezone: 'Pacific/Auckland' });
+  fireEvent.click(screen.getByRole('button', { name: t('en', 'serviceSessions.fromPackage') }));
+
+  expect(await within(lineGroup()).findByText(t('en', 'serviceSessions.packageNoneUsable'))).toBeTruthy();
+  expect(within(lineGroup()).queryByRole('radio')).toBeNull();
 });

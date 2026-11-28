@@ -141,8 +141,9 @@ export function RecordServiceSessionForm({ scope, context, online, recording, on
   const { hideCustomer, hiddenPackageDraft, denyCustomer } = useCustomerDenial({ scope, result, recording, form, lastKnownCustomerId });
   const draftedAt = useWatch({ control: form.control, name: 'occurred_at' });
   const occurredAt = savedAt ?? draftedAt;
-  const impliedDate = useServerAnchoredValue(context.generated_at, (instant) => sessionLocalTime(instant, context.business_timezone).slice(0, 10));
-  const visitDate = occurredAt ? sessionLocalTime(occurredAt, context.business_timezone).slice(0, 10) : impliedDate;
+  const packageTimezone = context.branch_timezone ?? context.business_timezone;
+  const impliedDate = useServerAnchoredValue(context.generated_at, (instant) => sessionLocalTime(instant, packageTimezone).slice(0, 10));
+  const visitDate = occurredAt ? sessionLocalTime(occurredAt, packageTimezone).slice(0, 10) : impliedDate;
   useDraftReset(form.reset, result.drafts, savedAt);
   const rootError = form.formState.errors.root?.message;
   const unknownLeave = leaveFailure?.source === result ? leaveFailure.feedback : null;

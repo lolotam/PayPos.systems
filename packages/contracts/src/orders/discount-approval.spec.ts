@@ -159,10 +159,12 @@ it('passes the notifications consumer parser for both bells', () => {
 it('names the performer approval for the owner bell with distinct proposals only', () => {
   const proposal = { id: A, service_id: C, name_en: 'Colour', name_ar: 'صبغة', effective_bps: 3000 };
   const event = {
-    schema_version: 1, business_id: B, branch_id: C, decided_by: A, decider_label_en: 'Heba', decider_label_ar: 'هبة',
-    decided_via: 'PIN', proposals: [proposal],
+    schema_version: 1, decision_id: A, business_id: B, branch_id: C, decided_by: A, decider_label_en: 'Heba', decider_label_ar: 'هبة',
+    decided_via: 'PIN', decided_at: '2026-10-21T10:00:00.000Z', proposals: [proposal],
   };
   expect(discountApprovedByPerformer.safeParse(event).success).toBe(true);
+  expect(discountApprovedByPerformer.safeParse({ ...event, decision_id: undefined }).success).toBe(false);
+  expect(discountApprovedByPerformer.safeParse({ ...event, decided_at: undefined }).success).toBe(false);
   expect(discountApprovedByPerformer.safeParse({ ...event, proposals: [proposal, proposal] }).success).toBe(false);
   expect(discountApprovedByPerformer.safeParse({ ...event, decided_via: 'DEVICE' }).success).toBe(false);
 });

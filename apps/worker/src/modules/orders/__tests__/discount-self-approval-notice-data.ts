@@ -135,12 +135,14 @@ function eventPayload(
   if (spec.extraEventProposal && first) proposals.push({ ...first, id: context.ids.newId() });
   return {
     schema_version: 1 as const,
+    decision_id: proposals[0]?.id ?? context.ids.newId(),
     business_id: spec.eventBusiness ?? scope.business,
     branch_id: spec.eventBranch ?? scope.branch,
     decided_by: spec.eventDecidedBy ?? stored[0]?.decidedBy.userId ?? decidedBy.userId,
     decider_label_en: 'Synthetic owner',
     decider_label_ar: 'مالك تجريبي',
     decided_via: spec.eventVia ?? ('REMOTE' as const),
+    decided_at: context.at.toISOString(),
     proposals,
   };
 }

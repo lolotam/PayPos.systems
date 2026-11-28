@@ -71,21 +71,28 @@ export function discountApprovedByPerformerEvent(
   const flaggedIds = new Set(
     plan.proposals.filter((proposal) => proposal.approver_is_performer === true).map((proposal) => proposal.id),
   );
+  const proposals = locked
+    .filter((proposal) => flaggedIds.has(proposal.id))
+    .map((proposal) => ({
+      id: proposal.id,
+      service_id: proposal.service_id,
+      name_en: proposal.service_name_en,
+      name_ar: proposal.service_name_ar,
+      effective_bps: proposal.effective_bps,
+    }));
+  const lead = proposals[0];
+  if (lead === undefined) return null;
   return {
     schema_version: 1 as const,
+    decision_id: lead.id,
     business_id: context.business_id,
     branch_id: context.branch_id,
     decided_by: plan.decided_by,
     decider_label_en: context.decider_label_en,
     decider_label_ar: context.decider_label_ar,
     decided_via: context.decided_via,
-    proposals: locked.filter((proposal) => flaggedIds.has(proposal.id)).map((proposal) => ({
-      id: proposal.id,
-      service_id: proposal.service_id,
-      name_en: proposal.service_name_en,
-      name_ar: proposal.service_name_ar,
-      effective_bps: proposal.effective_bps,
-    })),
+    decided_at: plan.decided_at.toISOString(),
+    proposals,
   };
 }
 

@@ -16,7 +16,7 @@ it('record permission alone returns only own context and an advisory limit witho
   const response = await get();
   expect(response.status).toBe(200);
   const result = recordingContext.parse(response.body);
-  expect(result).toEqual({ generated_at: result.generated_at, business_timezone: 'Asia/Kuwait',
+  expect(result).toEqual({ generated_at: result.generated_at, business_timezone: 'Asia/Kuwait', branch_timezone: 'Asia/Kuwait',
     recorder_membership_ids: [f.membership], recorder_membership_id: f.membership, discount_limit: { source: 'PERSON', bps: 1000 } });
   expect(Number.isFinite(Date.parse(result.generated_at))).toBe(true);
   expect(f.h.calls.statements.every(({ sql: statement }) => !/\b(INSERT|UPDATE|DELETE)\b/i.test(statement))).toBe(true);
@@ -120,5 +120,18 @@ it('requires a signed-in admin rather than either staff-session purpose', async 
     expect((await get('', cookie)).status).toBe(401);
     const renamed = `${must(f.cookie.split('=')[0])}=${cookie.slice(cookie.indexOf('=') + 1)}`;
     expect((await get('', renamed)).status).toBe(401);
+  }
+});
+
+it('exposes the branch-effective timezone in branch_timezone while keeping business_timezone (#961)', async () => {
+  await f.h.owner`UPDATE branches SET timezone='Europe/London' WHERE company_id=${f.company} AND id=${f.branch}`;
+  try {
+    const response = await get();
+    expect(response.status).toBe(200);
+    const result = recordingContext.parse(response.body);
+    expect(result.business_timezone).toBe('Asia/Kuwait');
+    expect(result.branch_timezone).toBe('Europe/London');
+  } finally {
+    await f.h.owner`UPDATE branches SET timezone=NULL WHERE company_id=${f.company} AND id=${f.branch}`;
   }
 });

@@ -47,6 +47,7 @@ export const customerPackageListItem = responseObject({
   provenance: z.enum(['SOLD', 'IMPORTED']),
   name_en: z.string(),
   name_ar: z.string().nullable(),
+  sold_at: timestamp.nullable().optional(),
   expires_on: businessDate,
   expired: z.boolean(),
   used_up: z.boolean(),

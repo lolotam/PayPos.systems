@@ -42,7 +42,7 @@ export function SessionDraftLineRow({ scope, customerId, index, localId, occurre
             setValue(`lines.${index}.price`, next.price, { shouldDirty: true, shouldValidate: true });
           }} /> } />
       <input type="hidden" {...register(`lines.${index}.service_id`)} />
-      <SessionPackageToggle scope={scope} customerId={customerId} index={index} visitDate={visitDate} packages={packages} disabled={disabled} />
+      <SessionPackageToggle scope={scope} customerId={customerId} index={index} occurredAt={occurredAt} visitDate={visitDate} packages={packages} disabled={disabled} />
       {errors.lines?.[index]?.service_id?.message ? <p role="alert">{errors.lines[index]?.service_id?.message}</p> : null}
       {!fromPackage ? <>
         <Label htmlFor={`${localId}-price`}>{t(locale, 'serviceSessions.price')}</Label>

@@ -117,7 +117,7 @@ export function customerPackagesStatement(
     ? sql`TRUE`
     : sql`(page.rank, page.expires_on, page.id) > (${after.rank}, ${after.expires_on}::date, ${after.id}::uuid)`;
   return sql`WITH flags AS (
-    SELECT e.id, e.provenance, e.name_en, e.name_ar, e.expires_on, e.price_paid, e.refunded_amount,
+    SELECT e.id, e.provenance, e.name_en, e.name_ar, e.sold_at, e.expires_on, e.price_paid, e.refunded_amount,
       e.company_id, e.business_id,
       ((${now.toISOString()}::timestamptz AT TIME ZONE ${timezone})::date > e.expires_on) AS expired,
       NOT EXISTS (
@@ -136,6 +136,8 @@ export function customerPackagesStatement(
     'provenance', page.provenance,
     'name_en', page.name_en,
     'name_ar', page.name_ar,
+    'sold_at', CASE WHEN page.sold_at IS NULL THEN NULL
+      ELSE to_char(page.sold_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') END,
     'expires_on', to_char(page.expires_on, 'YYYY-MM-DD'),
     'expired', page.expired,
     'used_up', page.used_up,

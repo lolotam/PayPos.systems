@@ -166,7 +166,10 @@ it('DP-19 approver is performer sets approver_is_performer true and emits Discou
     const events = await fetchOutboxEvents(f);
     const decisionEvent = events.find((e) => (e['payload'] as Record<string, unknown>)?.['decided_by'] === f.performerUserId);
     expect(decisionEvent).toBeDefined();
-    const payload = decisionEvent?.['payload'] as { proposals: Array<{ id: string }> };
+    expect(decisionEvent?.['aggregate_id']).toBe(p1.id);
+    const payload = decisionEvent?.['payload'] as { decision_id: string; decided_at: string; proposals: Array<{ id: string }> };
+    expect(payload.decision_id).toBe(p1.id);
+    expect(Number.isFinite(Date.parse(payload.decided_at))).toBe(true);
     expect(payload.proposals).toHaveLength(1);
     expect(payload.proposals[0]?.id).toBe(p1.id);
   } finally {

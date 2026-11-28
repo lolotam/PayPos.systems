@@ -91,11 +91,12 @@ function assemble(
       await appendAuditLogs(tx, entries.map((entry) => ({ id: ids.newId(), entry })));
     },
     emit: async (payload) => {
+      const parsed = discountApprovedByPerformer.parse(payload);
       await appendOutboxEvent(tx, ids.newId(), {
         aggregateType: 'discount_approval_decision',
-        aggregateId: ids.newId(),
+        aggregateId: parsed.decision_id,
         eventType: 'DiscountApprovedByPerformer',
-        payload: discountApprovedByPerformer.parse(payload),
+        payload: parsed,
       });
     },
   };
