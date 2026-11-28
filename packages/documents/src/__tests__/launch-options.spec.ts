@@ -91,13 +91,34 @@ it('keeps missing-PID cleanup single-flight while pending and allows sequential 
   let lateProc: { pid: number; kill: () => boolean; exitCode: number | null } | null = null;
   let lateKilled = false;
   let lateCloseTries = 0;
+  let lateTimer: ReturnType<typeof setTimeout> | undefined;
+  const sLate = spawn(process.execPath, ['-e', 'setTimeout(() => {}, 10_000)'], { detached: true, stdio: 'ignore' });
+  const origSetTimeout = globalThis.setTimeout;
+  const pollTimers: Array<ReturnType<typeof setTimeout>> = [];
+  const timeoutSpy = vi.spyOn(globalThis, 'setTimeout').mockImplementation(((fn: (...a: unknown[]) => void, ms?: number, ...args: unknown[]) => {
+    const timer = origSetTimeout(fn, ms, ...args);
+    if (ms === 10) pollTimers.push(timer);
+    return timer;
+  }) as typeof setTimeout);
   const lateSpy = vi.spyOn(chromium, 'launch').mockResolvedValue({ newContext: async () => ({}) as never, close: () => { lateCloseTries += 1; return new Promise<void>(() => undefined); }, on: () => undefined, process: () => lateProc } as never);
   let lateErr: unknown;
   try { await playwrightFactory(50).launch(); } catch (err) { lateErr = err; } finally { lateSpy.mockRestore(); }
-  lateProc = { pid: 2_147_483_000, exitCode: null, kill: () => { lateKilled = true; if (lateProc !== null) lateProc.exitCode = 0; return true; } };
-  await expect(Promise.resolve(getLaunchCleanupRetry(lateErr)?.())).resolves.toBeUndefined();
-  expect([lateKilled, lateCloseTries]).toEqual([true, 1]);
+  try {
+    (getLaunchCleanup(lateErr) as { unref?: () => void } | undefined)?.unref?.();
+    lateProc = { pid: sLate.pid ?? 2_147_483_000, exitCode: null, kill: () => { lateKilled = true; lateTimer = origSetTimeout(() => { if (lateProc !== null) lateProc.exitCode = 0; }, 15); return true; } };
+    const retryPromise = Promise.resolve(getLaunchCleanupRetry(lateErr)?.());
+    (retryPromise as { unref?: () => void }).unref?.();
+    expect(pollTimers.at(-1)?.hasRef()).toBe(false);
+    await expect(retryPromise).resolves.toBeUndefined();
+    expect([lateKilled, lateCloseTries]).toEqual([true, 1]);
+  } finally {
+    timeoutSpy.mockRestore();
+    if (lateTimer !== undefined) clearTimeout(lateTimer);
+    try { sLate.kill('SIGKILL'); } catch { /* exited */ }
+  }
 });
+
+const spawnSleeper = () => spawn(process.execPath, ['-e', 'setTimeout(() => {}, 10_000)'], { detached: true, stdio: 'ignore' });
 
 function writeLinuxStat(procDir: string, pid: number, state: string, ppid: number, pgrp: number, starttime: number): void {
   const fields = Array<string>(20).fill('0');
@@ -107,7 +128,6 @@ function writeLinuxStat(procDir: string, pid: number, state: string, ppid: numbe
 
 it('holds root and verified ancestors when root or grandchild fingerprint is transiently unreadable', async () => {
   const procDir = mkdtempSync(join(tmpdir(), 'pospay-proc-'));
-  const spawnSleeper = () => spawn(process.execPath, ['-e', 'setTimeout(() => {}, 10_000)'], { detached: true, stdio: 'ignore' });
   const [sRoot, sChild, sGrand] = [spawnSleeper(), spawnSleeper(), spawnSleeper()];
   const [rootPid, childPid, grandPid] = [sRoot.pid ?? 0, sChild.pid ?? 0, sGrand.pid ?? 0];
   expect(Math.min(rootPid, childPid, grandPid)).toBeGreaterThan(0);
@@ -167,7 +187,6 @@ it('holds root and verified ancestors when root or grandchild fingerprint is tra
 
 it('walks children of reparented group members across distinct process groups', async () => {
   const procDir = mkdtempSync(join(tmpdir(), 'pospay-proc-grp-'));
-  const spawnSleeper = () => spawn(process.execPath, ['-e', 'setTimeout(() => {}, 10_000)'], { detached: true, stdio: 'ignore' });
   const [sRoot, sChild, sHelper, sGrand] = [spawnSleeper(), spawnSleeper(), spawnSleeper(), spawnSleeper()];
   const [rootPid, childPid, helperPid, grandPid] = [sRoot.pid ?? 0, sChild.pid ?? 0, sHelper.pid ?? 0, sGrand.pid ?? 0];
   const writeChildren = (pid: number, kids: readonly number[]): void => {
@@ -226,7 +245,6 @@ it('walks children of reparented group members across distinct process groups', 
 
 it('falls back to live process-group ownership when parent exits between discovery and verification', async () => {
   const procDir = mkdtempSync(join(tmpdir(), 'pospay-proc-race-'));
-  const spawnSleeper = () => spawn(process.execPath, ['-e', 'setTimeout(() => {}, 10_000)'], { detached: true, stdio: 'ignore' });
   const [sRoot, sChild, sGrand] = [spawnSleeper(), spawnSleeper(), spawnSleeper()];
   const [rootPid, childPid, grandPid] = [sRoot.pid ?? 0, sChild.pid ?? 0, sGrand.pid ?? 0];
   const writeChildren = (pid: number, kids: readonly number[]): void => {
@@ -266,7 +284,6 @@ it('falls back to live process-group ownership when parent exits between discove
 
 it('handles ESRCH, false kill returns, and reused root PIDs on post-exit rescan', async () => {
   const procDir = mkdtempSync(join(tmpdir(), 'pospay-proc-empty-'));
-  const spawnSleeper = () => spawn(process.execPath, ['-e', 'setTimeout(() => {}, 10_000)'], { detached: true, stdio: 'ignore' });
   const [sRoot, sEscaped, sHelper] = [spawnSleeper(), spawnSleeper(), spawnSleeper()];
   const [rootPid, escapedPid, helperPid] = [sRoot.pid ?? 0, sEscaped.pid ?? 0, sHelper.pid ?? 0];
   const esrchError = () => Object.assign(new Error('kill ESRCH'), { code: 'ESRCH' });
@@ -327,7 +344,6 @@ it('handles ESRCH, false kill returns, and reused root PIDs on post-exit rescan'
 
 it('waits for root exit after true kill return without once before rescanning marked descendants', async () => {
   const procDir = mkdtempSync(join(tmpdir(), 'pospay-proc-poll-'));
-  const spawnSleeper = () => spawn(process.execPath, ['-e', 'setTimeout(() => {}, 10_000)'], { detached: true, stdio: 'ignore' });
   const [sRoot, sOther, sEscaped] = [spawnSleeper(), spawnSleeper(), spawnSleeper()];
   const [rootPid, otherPid, escapedPid] = [sRoot.pid ?? 0, sOther.pid ?? 0, sEscaped.pid ?? 0];
   let exitTimer: ReturnType<typeof setTimeout> | undefined;
@@ -378,7 +394,6 @@ it('waits for root exit after true kill return without once before rescanning ma
 
 it('aborts descendant signaling immediately when identity changes mid-loop', async () => {
   const procDir = mkdtempSync(join(tmpdir(), 'pospay-proc-recheck-'));
-  const spawnSleeper = () => spawn(process.execPath, ['-e', 'setTimeout(() => {}, 10_000)'], { detached: true, stdio: 'ignore' });
   const [sRoot, sChild, sGrand] = [spawnSleeper(), spawnSleeper(), spawnSleeper()];
   const [rootPid, childPid, grandPid] = [sRoot.pid ?? 0, sChild.pid ?? 0, sGrand.pid ?? 0];
   expect(Math.min(rootPid, childPid, grandPid)).toBeGreaterThan(0);

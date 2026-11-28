@@ -19,7 +19,8 @@ const PID_POLL_MS = 10;
 export const LAUNCH_MARKER_ENV = 'POSPAY_CHROMIUM_LAUNCH_ID';
 const [backgroundPolls, procPollTimers] = [new WeakSet<KillableProcess>(), new WeakMap<KillableProcess, Set<ReturnType<typeof setTimeout>>>()];
 
-function unrefProcessPolls(proc: KillableProcess): void {
+/** يحوّل استطلاع خروج العملية وتوابعها للخلفية ويفكّ مرجع مؤقتاتها الحالية والمستقبلية. */
+export function unrefProcessPolls(proc: KillableProcess): void {
   backgroundPolls.add(proc);
   for (const child of proc.children ?? []) unrefProcessPolls(child);
   for (const timer of procPollTimers.get(proc) ?? []) timer.unref();
