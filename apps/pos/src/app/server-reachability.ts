@@ -13,25 +13,6 @@ function hasOkStatus(body: unknown): boolean {
   );
 }
 
-function readContentType(headers: Record<string, string> | undefined): string {
-  if (!headers) return '';
-  for (const [name, value] of Object.entries(headers)) {
-    if (name.toLowerCase() === 'content-type') return value.toLowerCase();
-  }
-  return '';
-}
-
-function parseNativePayload(data: unknown, headers: Record<string, string> | undefined): unknown {
-  // Capacitor 8.5.3 يفك application/json قبل responseType، فالنص هنا يعني حمولة مزدوجة الترميز.
-  if (readContentType(headers).includes('application/json')) return data;
-  if (typeof data !== 'string') return data;
-  try {
-    return JSON.parse(data);
-  } catch {
-    return null;
-  }
-}
-
 async function readHealthViaFetch(healthUrl: string, signal: AbortSignal): Promise<boolean> {
   const request = new Request(healthUrl, {
     method: 'GET',
@@ -48,6 +29,7 @@ async function readHealthViaFetch(healthUrl: string, signal: AbortSignal): Promi
 // فحص `/health` لا يحمل كوكي ولا يمر بسياج الطلبات المصرحة حتى لا تُعطِّل المهلة إعادة المحاولة (PR #1389).
 async function readHealthViaNativeHttp(healthUrl: string): Promise<boolean> {
   const { CapacitorHttp } = await import('@capacitor/core');
+  // responseType: 'json' يفوّض فك JSON لطبقة Capacitor الأصلية مرة واحدة بغض النظر عن حالة ترويسة Content-Type.
   const response = await CapacitorHttp.request({
     url: healthUrl,
     method: 'GET',
@@ -58,10 +40,9 @@ async function readHealthViaNativeHttp(healthUrl: string): Promise<boolean> {
     disableRedirects: true,
     connectTimeout: FIRST_SAVE_REACHABILITY_WAIT_MS,
     readTimeout: FIRST_SAVE_REACHABILITY_WAIT_MS,
-    responseType: 'text',
+    responseType: 'json',
   });
-  if (response.status !== 200) return false;
-  return hasOkStatus(parseNativePayload(response.data, response.headers));
+  return response.status === 200 && hasOkStatus(response.data);
 }
 
 /**

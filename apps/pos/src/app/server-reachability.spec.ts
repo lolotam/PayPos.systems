@@ -87,14 +87,14 @@ it('returns false on network error and aborts after the bounded timeout (#566)',
   expect(seenSignal?.aborted).toBe(true);
 });
 
-it('uses direct no-cache CapacitorHttp on iOS and allows immediate retry after timeout (#566)', async () => {
+it('uses direct no-cache CapacitorHttp responseType json on iOS and retries immediately after timeout (#566)', async () => {
   vi.mocked(usesNativeStaffTransport).mockReturnValue(true);
   vi.useFakeTimers();
   nativeRequestMock
     .mockImplementationOnce(() => new Promise(() => undefined))
     .mockResolvedValueOnce({
       status: 200,
-      headers: { 'Content-Type': 'application/json; charset=utf-8' },
+      headers: { 'Content-Type': 'Application/JSON; charset=utf-8' },
       data: { status: 'ok' },
     });
 
@@ -114,7 +114,7 @@ it('uses direct no-cache CapacitorHttp on iOS and allows immediate retry after t
     disableRedirects: true,
     connectTimeout: FIRST_SAVE_REACHABILITY_WAIT_MS,
     readTimeout: FIRST_SAVE_REACHABILITY_WAIT_MS,
-    responseType: 'text',
+    responseType: 'json',
   });
 });
 
@@ -123,13 +123,13 @@ it('rejects double-encoded JSON, captive portal HTML, and 302 redirects on iOS (
   nativeRequestMock
     .mockResolvedValueOnce({
       status: 200,
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'Application/JSON' },
       data: JSON.stringify({ status: 'ok' }),
     })
     .mockResolvedValueOnce({
       status: 200,
       headers: { 'content-type': 'text/plain' },
-      data: JSON.stringify(JSON.stringify({ status: 'ok' })),
+      data: JSON.stringify({ status: 'ok' }),
     })
     .mockResolvedValueOnce({
       status: 200,
