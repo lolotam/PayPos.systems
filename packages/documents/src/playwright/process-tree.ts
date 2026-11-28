@@ -177,9 +177,20 @@ export function takeLaunchedProcess(launchMarker: string): KillableProcess | nul
   return proc;
 }
 
-/** ينشئ مقبض عملية بديل أو يربط مقبض عملية متأخر بوسم الإطلاق لتتبّع وقتل توابع Chromium. */
-export function createMarkerProcess(launchMarker: string, target?: KillableProcess): KillableProcess {
-  const proc: KillableProcess = target ?? { exitCode: 0, kill: () => true };
+/** ينشئ مقبض عملية موحّد مرتبط بوسم الإطلاق يفوّض لمقبض العملية الفعلي متى توفّر دون فقدان التوابع المحتجزة. */
+export function createMarkerProcess(launchMarker: string, resolveTarget?: () => KillableProcess | null): KillableProcess {
+  let bound: KillableProcess | null = null;
+  const target = (): KillableProcess | null => (bound ??= resolveTarget?.() ?? null);
+  const proc = Object.defineProperties({
+    kill: (sig: NodeJS.Signals) => { const t = target(); return t === null ? true : t.kill(sig); },
+  }, {
+    pid: { get: () => target()?.pid, enumerable: true },
+    children: { get: () => target()?.children, enumerable: true },
+    exitCode: { get: () => { const t = target(); return t === null ? 0 : t.exitCode; }, enumerable: true },
+    signalCode: { get: () => target()?.signalCode, enumerable: true },
+    once: { get: () => { const t = target(); return typeof t?.once === 'function' ? t.once.bind(t) : undefined; }, enumerable: true },
+    off: { get: () => { const t = target(); return typeof t?.off === 'function' ? t.off.bind(t) : undefined; }, enumerable: true },
+  }) as KillableProcess;
   launchedMarkers.set(proc, launchMarker);
   return proc;
 }
@@ -426,8 +437,7 @@ export function killProcessTree(proc: KillableProcess): Promise<void> | void {
   }
   if (signalError !== undefined) waits.push(Promise.reject(signalError));
   if (rootWait === undefined && waits.length === 0) return undefined;
-  const all = rootWait === undefined ? waits : [rootWait, ...waits];
-  return Promise.allSettled(all).then((results) => {
+  return Promise.allSettled(rootWait === undefined ? waits : [rootWait, ...waits]).then((results) => {
     const rejected = results.filter((item): item is PromiseRejectedResult => item.status === 'rejected');
     const chosen = rejected.find((item) => hasUnconfirmedDescendants(item.reason)) ?? rejected[0];
     if (chosen !== undefined) throw chosen.reason;

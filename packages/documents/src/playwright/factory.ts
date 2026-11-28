@@ -139,30 +139,30 @@ function launchEnvWithMarker(launchMarker: string): Record<string, string> {
 }
 
 function createMissingPidCleanup(browser: Browser, launchMarker: string): () => Promise<void> {
-  const markerProc = createMarkerProcess(launchMarker);
-  let closeInFlight: Promise<void> | undefined;
-  let disconnected = false;
-  browser.on('disconnected', () => { disconnected = true; });
-  const resolveForceTarget = (): KillableProcess | null => {
+  const resolveLateProc = (): KillableProcess | null => {
     const lateProc = chromiumProcess(browser);
-    if (hasVerifiablePid(lateProc)) return createMarkerProcess(launchMarker, lateProc);
-    return process.platform === 'linux' && disconnected ? markerProc : null;
+    return hasVerifiablePid(lateProc) ? lateProc : null;
   };
+  const cleanupProc = createMarkerProcess(launchMarker, resolveLateProc);
+  let closeInFlight: Promise<void> | undefined;
   return () => {
-    const forceTarget = closeInFlight !== undefined ? resolveForceTarget() : null;
-    if (forceTarget !== null) return Promise.resolve(killProcessTree(forceTarget));
-    return (closeInFlight ??= (async () => {
+    if (closeInFlight !== undefined) {
+      if (hasVerifiablePid(cleanupProc)) return Promise.resolve(killProcessTree(cleanupProc));
+      void Promise.resolve(killProcessTree(cleanupProc)).catch(() => undefined);
+      return closeInFlight;
+    }
+    return (closeInFlight = (async () => {
       try {
         await browser.close();
       } catch (closeErr) {
-        const fallback = resolveForceTarget();
-        if (fallback === null) throw closeErr;
-        await Promise.resolve(killProcessTree(fallback));
-        return;
+        if (hasVerifiablePid(cleanupProc)) {
+          await Promise.resolve(killProcessTree(cleanupProc));
+          return;
+        }
+        void Promise.resolve(killProcessTree(cleanupProc)).catch(() => undefined);
+        throw closeErr;
       }
-      const lateProc = chromiumProcess(browser);
-      const target = hasVerifiablePid(lateProc) ? createMarkerProcess(launchMarker, lateProc) : markerProc;
-      await Promise.resolve(killProcessTree(target));
+      await Promise.resolve(killProcessTree(cleanupProc));
     })().finally(() => { closeInFlight = undefined; }));
   };
 }
@@ -193,7 +193,7 @@ export function playwrightFactory(
           const retryCleanup = createMissingPidCleanup(browser, launchMarker);
           throw withLaunchCleanup(new Error('CHROMIUM_PROCESS_UNAVAILABLE'), retryCleanup(), retryCleanup);
         }
-        return wrapBrowser(browser, createMarkerProcess(launchMarker, captured));
+        return wrapBrowser(browser, createMarkerProcess(launchMarker, () => captured));
       } catch (error) {
         const captured = takeLaunchedProcess(launchMarker);
         if (getLaunchCleanup(error) !== undefined || !hasVerifiablePid(captured)) throw error;
