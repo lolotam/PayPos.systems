@@ -9,10 +9,11 @@ import {
 
 import type { PdfBrowser, PdfBrowserFactory, PdfContext, PdfPage, PdfRoute } from './browser.ts';
 import {
+  extractLaunchedPids,
   getLaunchCleanup,
   killPidsAndWait,
   killProcessTree,
-  snapshotOwnChildPids,
+  LAUNCH_ENV_KEY,
   withLaunchCleanup,
   type KillableProcess,
 } from './process-tree.ts';
@@ -131,6 +132,16 @@ function wrapBrowser(browser: Browser): PdfBrowser {
   };
 }
 
+let launchSequence = 0;
+
+function launchEnvWithToken(launchToken: string): Record<string, string> {
+  const base = Object.fromEntries(
+    Object.entries(process.env).filter((entry): entry is [string, string] => entry[1] !== undefined),
+  );
+  base[LAUNCH_ENV_KEY] = launchToken;
+  return base;
+}
+
 /**
  * متصفح العملية. المسار بييجي من PLAYWRIGHT_BROWSERS_PATH ومن غير تنزيل وقت التشغيل.
  *
@@ -142,14 +153,21 @@ export function playwrightFactory(
 ): PdfBrowserFactory {
   return {
     launch: async () => {
-      const existingChildren = snapshotOwnChildPids();
+      launchSequence += 1;
+      const launchToken = `pospay-${process.pid}-${Date.now()}-${launchSequence}`;
       try {
-        return wrapBrowser(await chromium.launch({ ...chromiumLaunchOptions, timeout: timeoutMs }));
+        return wrapBrowser(
+          await chromium.launch({
+            ...chromiumLaunchOptions,
+            timeout: timeoutMs,
+            env: launchEnvWithToken(launchToken),
+          }),
+        );
       } catch (error) {
         if (getLaunchCleanup(error) !== undefined) throw error;
-        const spawned = [...snapshotOwnChildPids()].filter((pid) => !existingChildren.has(pid));
-        if (spawned.length === 0) throw error;
-        throw withLaunchCleanup(error, killPidsAndWait(spawned));
+        const ownedPids = extractLaunchedPids(error, launchToken);
+        if (ownedPids.length === 0) throw error;
+        throw withLaunchCleanup(error, killPidsAndWait(ownedPids));
       }
     },
   };

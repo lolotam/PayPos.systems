@@ -116,11 +116,11 @@ async function waitKillOutcome(
   closing: Promise<unknown>,
   killCall: Promise<void> | undefined,
 ): Promise<RetireResult> {
-  // رفض close أو فشل القتل ما يثبتش خروج العملية، فانتظار الخروج يعتمد على حل close أو kill بس.
+  // لو القتل شغال (بما فيه انتظار توابع العملية)، قفل البروتوكول لوحده ما يكفيش؛ السقوط لـ cleanClose بس لو القتل نفسه فشل.
   const never = (): Promise<void> => new Promise<void>(() => undefined);
   const cleanClose = closing.then(() => undefined, never);
-  const killExit = killCall === undefined ? Promise.resolve() : killCall.then(() => undefined, never);
-  const exit = Promise.race([cleanClose, killExit]);
+  const exit =
+    killCall === undefined ? Promise.resolve() : killCall.then(() => undefined, () => cleanClose);
   let settled = false;
   const confirmed = exit.then(() => {
     settled = true;
@@ -171,11 +171,19 @@ function markShutdownConfirmed(state: ShutdownState, fromClose: boolean): void {
 }
 
 function ensureClosing(state: ShutdownState): Promise<unknown> {
-  return (state.closing ??= safeCloseBrowser(state.browser, () => markShutdownConfirmed(state, true)));
+  return (state.closing ??= safeCloseBrowser(state.browser, () => {
+    state.closeFinished = true;
+    if (!state.killAttempted || state.killError !== undefined || state.killConfirmed) {
+      markShutdownConfirmed(state, true);
+    }
+  }));
 }
 
 function runKillAttempt(state: ShutdownState, fromExternal: boolean): Promise<void> | undefined {
-  if (state.closeFinished || state.killConfirmed) return undefined;
+  if (state.closeFinished && (!state.killAttempted || state.killError !== undefined || state.killConfirmed)) {
+    return undefined;
+  }
+  if (state.killConfirmed) return undefined;
   if (state.killAttempted && state.killError === undefined) return state.killResult;
   if (!fromExternal) {
     if (state.fallbackAttempted) return Promise.reject(state.killError);
@@ -188,6 +196,7 @@ function runKillAttempt(state: ShutdownState, fromExternal: boolean): Promise<vo
     () => markShutdownConfirmed(state, false),
     (err) => {
       state.killError = err;
+      if (state.closeFinished) markShutdownConfirmed(state, true);
     },
   );
   return state.killResult;

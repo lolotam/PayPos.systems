@@ -1,4 +1,5 @@
 import type { PdfBrowser } from './browser.ts';
+import { getLaunchCleanup } from './process-tree.ts';
 import {
   createBrowserShutdown,
   dropRetiredBrowser,
@@ -21,6 +22,35 @@ export function waitRetiredExit(browser: PdfBrowser, graceMs: number): Promise<v
     .catch(() => undefined);
 }
 
+function armLaunchExpiry(
+  timeoutMs: number,
+  signal: AbortSignal | undefined,
+  settled: Promise<void>,
+  onTriggered: () => void,
+): { promise: Promise<LaunchOutcome>; disarm: () => void } {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  let onAbort: (() => void) | undefined;
+  const promise = new Promise<LaunchOutcome>((resolve) => {
+    const trigger = (kind: 'timeout' | 'cancelled'): void => {
+      if (timer !== undefined) clearTimeout(timer);
+      onTriggered();
+      resolve({ kind, settled });
+    };
+    timer = setTimeout(() => trigger('timeout'), timeoutMs);
+    if (signal === undefined) return;
+    if (signal.aborted) return trigger('cancelled');
+    onAbort = () => trigger('cancelled');
+    signal.addEventListener('abort', onAbort, { once: true });
+  });
+  return {
+    promise,
+    disarm: () => {
+      if (timer !== undefined) clearTimeout(timer);
+      if (onAbort !== undefined) signal?.removeEventListener('abort', onAbort);
+    },
+  };
+}
+
 /**
  * إطلاق المتصفح بمهلة. إطلاق معلّق بيتحسب فشل، والوعد المتروك بيتبلع جوّه:
  * رفض متأخر ما يبقاش رفض غير متعامل، ومتصفح وصل بعد المهلة أو الإلغاء بيتقفل قبل فكّ الحارس.
@@ -36,55 +66,34 @@ export async function launchWithinTimeout(
   let cancelled = false;
   let landedBrowser: PdfBrowser | undefined;
   let cleanup: Promise<void> | undefined;
-  let timer: ReturnType<typeof setTimeout> | undefined;
-  let onAbort: (() => void) | undefined;
-  const closeOnce = (browser: PdfBrowser): Promise<void> => {
-    cleanup ??= (closeLate ?? ((late) => waitRetiredExit(late, graceMs)))(browser);
-    return cleanup;
-  };
+  const closeOnce = (browser: PdfBrowser): Promise<void> =>
+    (cleanup ??= (closeLate ?? ((late) => waitRetiredExit(late, graceMs)))(browser));
   const guarded: Promise<LaunchOutcome> = launching.then(
     (browser) => {
       landedBrowser = browser;
-      if (!cancelled && !(signal?.aborted ?? false)) {
-        return { kind: 'browser', browser } as const;
-      }
-      return closeOnce(browser).then(
-        () => ({ kind: 'cancelled', settled: Promise.resolve() }) as const,
-      );
+      if (!cancelled && !(signal?.aborted ?? false)) return { kind: 'browser', browser } as const;
+      return closeOnce(browser).then(() => ({ kind: 'cancelled', settled: Promise.resolve() }) as const);
     },
-    (error: unknown) => ({ kind: 'error', error }) as const,
+    (error: unknown) => {
+      const lateCleanup = getLaunchCleanup(error);
+      if (lateCleanup !== undefined) cleanup ??= lateCleanup.catch(() => undefined);
+      return { kind: 'error', error } as const;
+    },
   );
-  const settled = guarded.then(
-    () => cleanup ?? Promise.resolve(),
-    () => cleanup ?? Promise.resolve(),
-  );
-  const expiry = new Promise<LaunchOutcome>((resolve) => {
-    timer = setTimeout(() => {
-      cancelled = true;
-      if (landedBrowser !== undefined) void closeOnce(landedBrowser);
-      resolve({ kind: 'timeout', settled });
-    }, timeoutMs);
-    if (signal === undefined) return;
-    const cancel = (): void => {
-      cancelled = true;
-      if (timer !== undefined) clearTimeout(timer);
-      if (landedBrowser !== undefined) void closeOnce(landedBrowser);
-      resolve({ kind: 'cancelled', settled });
-    };
-    if (signal.aborted) {
-      cancel();
-      return;
-    }
-    onAbort = cancel;
-    signal.addEventListener('abort', onAbort, { once: true });
+  const settled = guarded.then(() => cleanup ?? Promise.resolve(), () => cleanup ?? Promise.resolve());
+  const expiry = armLaunchExpiry(timeoutMs, signal, settled, () => {
+    cancelled = true;
+    if (landedBrowser !== undefined) void closeOnce(landedBrowser);
   });
-  const outcome = await Promise.race([guarded, expiry]);
-  if (timer !== undefined) clearTimeout(timer);
-  if (onAbort !== undefined) signal?.removeEventListener('abort', onAbort);
-  if (outcome.kind === 'browser' && (cancelled || (signal?.aborted ?? false))) {
-    return { kind: 'cancelled', settled: closeOnce(outcome.browser) };
+  try {
+    const outcome = await Promise.race([guarded, expiry.promise]);
+    if (outcome.kind === 'browser' && (cancelled || (signal?.aborted ?? false))) {
+      return { kind: 'cancelled', settled: closeOnce(outcome.browser) };
+    }
+    return outcome;
+  } finally {
+    expiry.disarm();
   }
-  return outcome;
 }
 
 /**

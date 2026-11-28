@@ -13,6 +13,7 @@ export type KillableProcess = {
 
 const CLEANUP_KEY = Symbol('launchCleanup');
 const PID_POLL_MS = 10;
+export const LAUNCH_ENV_KEY = 'POSPAY_CHROMIUM_LAUNCH_ID';
 
 function errorWithCleanup(error: unknown): Error {
   if (error instanceof Error) return error;
@@ -40,90 +41,139 @@ export function hasExited(proc: KillableProcess): boolean {
   );
 }
 
-function isPidAlive(pid: number): boolean {
-  try {
-    process.kill(pid, 0);
-    return true;
-  } catch (error) {
-    return (error as NodeJS.ErrnoException | null)?.code === 'EPERM';
-  }
+/** يميز حالة الزومبي أو الخروج في `/proc/<pid>/stat` عشان التنظيف ما يعلّقش من غير reaper. */
+export function isLinuxStatZombie(statText: string): boolean {
+  const closeParen = statText.lastIndexOf(')');
+  if (closeParen === -1) return false;
+  const state = statText.slice(closeParen + 1).trimStart()[0];
+  return state === 'Z' || state === 'X' || state === 'x';
 }
 
-function directLinuxChildren(pid: number): number[] {
-  const found = new Set<number>();
+function isPidAlive(pid: number, procRoot = '/proc'): boolean {
   try {
-    for (const tid of readdirSync(`/proc/${pid}/task`)) {
-      const text = readFileSync(`/proc/${pid}/task/${tid}/children`, 'utf8').trim();
+    process.kill(pid, 0);
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException | null)?.code !== 'EPERM') return false;
+  }
+  if (process.platform === 'linux') {
+    try {
+      return !isLinuxStatZombie(readFileSync(`${procRoot}/${pid}/stat`, 'utf8'));
+    } catch {
+      return false;
+    }
+  }
+  if (process.platform === 'darwin') {
+    try {
+      const state = execFileSync('ps', ['-o', 'state=', '-p', String(pid)], {
+        encoding: 'utf8',
+        timeout: 1_000,
+      }).trim();
+      return state.length > 0 && !state.startsWith('Z');
+    } catch {
+      return false;
+    }
+  }
+  return true;
+}
+
+/** يقرأ أرقام التوابع المباشرة لخيط العملية في procfs ويتجاهل الخيوط اللي خرجت أثناء المسح. */
+export function directLinuxChildren(pid: number, procRoot = '/proc'): number[] {
+  let tids: string[];
+  try {
+    tids = readdirSync(`${procRoot}/${pid}/task`);
+  } catch {
+    return [];
+  }
+  const found = new Set<number>();
+  for (const tid of tids) {
+    try {
+      const text = readFileSync(`${procRoot}/${pid}/task/${tid}/children`, 'utf8').trim();
       for (const token of text.split(/\s+/)) {
         const child = Number(token);
         if (Number.isInteger(child) && child > 0) found.add(child);
       }
+    } catch {
+      // الخيط خرج أثناء القراءة؛ نحتفظ بباقي الخيوط والتوابع المجمّعة.
     }
-    return [...found];
+  }
+  return [...found];
+}
+
+function readLinuxProcessPairs(procRoot = '/proc'): Array<{ pid: number; ppid: number }> {
+  let entries: string[];
+  try {
+    entries = readdirSync(procRoot);
+  } catch {
+    return [];
+  }
+  const rows: Array<{ pid: number; ppid: number }> = [];
+  for (const entry of entries) {
+    if (!/^\d+$/.test(entry)) continue;
+    try {
+      const stat = readFileSync(`${procRoot}/${entry}/stat`, 'utf8');
+      if (isLinuxStatZombie(stat)) continue;
+      const closeParen = stat.lastIndexOf(')');
+      if (closeParen === -1) continue;
+      const fields = stat.slice(closeParen + 2).trim().split(/\s+/);
+      const ppid = Number(fields[1]);
+      const pid = Number(entry);
+      if (Number.isInteger(pid) && pid > 0 && Number.isInteger(ppid) && ppid > 0) rows.push({ pid, ppid });
+    } catch {
+      // العملية خرجت أثناء قراءة stat؛ نكمل باقي العمليات.
+    }
+  }
+  return rows;
+}
+
+function readProcessTablePairs(procRoot = '/proc'): Array<{ pid: number; ppid: number }> {
+  if (process.platform === 'linux' || procRoot !== '/proc') return readLinuxProcessPairs(procRoot);
+  if (process.platform !== 'darwin') return [];
+  try {
+    const output = execFileSync('ps', ['-eo', 'pid=,ppid='], { encoding: 'utf8', timeout: 1_000 });
+    return output
+      .split('\n')
+      .map((line) => line.trim().split(/\s+/))
+      .map(([p, pp]) => ({ pid: Number(p), ppid: Number(pp) }))
+      .filter((r) => Number.isInteger(r.pid) && r.pid > 0 && Number.isInteger(r.ppid) && r.ppid > 0);
   } catch {
     return [];
   }
 }
 
-function readProcessTablePairs(): Array<{ pid: number; ppid: number }> {
-  if (process.platform === 'linux') {
-    const rows: Array<{ pid: number; ppid: number }> = [];
-    try {
-      for (const entry of readdirSync('/proc')) {
-        if (!/^\d+$/.test(entry)) continue;
-        const stat = readFileSync(`/proc/${entry}/stat`, 'utf8');
-        const closeParen = stat.lastIndexOf(')');
-        if (closeParen === -1) continue;
-        const fields = stat.slice(closeParen + 2).trim().split(/\s+/);
-        const ppid = Number(fields[1]);
-        const pid = Number(entry);
-        if (Number.isInteger(pid) && pid > 0 && Number.isInteger(ppid) && ppid > 0) {
-          rows.push({ pid, ppid });
-        }
+/** يستخرج PIDs اللي Playwright طبعها صراحةً للـ launch ده أو اللي بتحمل وسم البيئة بتاعه على Linux. */
+export function extractLaunchedPids(error: unknown, launchToken?: string, procRoot = '/proc'): number[] {
+  const pids = new Set<number>();
+  if (error instanceof Error) {
+    for (const match of error.message.matchAll(/<launched>\s+pid=(\d+)/g)) {
+      const pid = Number(match[1]);
+      if (Number.isInteger(pid) && pid > 0) pids.add(pid);
+    }
+  }
+  if (launchToken !== undefined && (process.platform === 'linux' || procRoot !== '/proc')) {
+    const marker = `${LAUNCH_ENV_KEY}=${launchToken}`;
+    for (const row of readLinuxProcessPairs(procRoot)) {
+      try {
+        const envText = readFileSync(`${procRoot}/${row.pid}/environ`, 'utf8');
+        if (envText.split('\0').includes(marker)) pids.add(row.pid);
+      } catch {
+        // تجاهل العمليات اللي ما قدرناش نقرأ بيئتها أو خرجت.
       }
-      return rows;
-    } catch {
-      return [];
     }
   }
-  if (process.platform === 'darwin') {
-    try {
-      const output = execFileSync('ps', ['-eo', 'pid=,ppid='], { encoding: 'utf8', timeout: 1_000 });
-      return output
-        .split('\n')
-        .map((line) => line.trim().split(/\s+/))
-        .map(([p, pp]) => ({ pid: Number(p), ppid: Number(pp) }))
-        .filter((r) => Number.isInteger(r.pid) && r.pid > 0 && Number.isInteger(r.ppid) && r.ppid > 0);
-    } catch {
-      return [];
-    }
-  }
-  return [];
+  return [...pids];
 }
 
-/** يلتقط أرقام العمليات التابعة المباشرة للعملية الحالية قبل الإطلاق على Linux/macOS. */
-export function snapshotOwnChildPids(): ReadonlySet<number> {
-  if (process.platform === 'linux') {
-    const direct = directLinuxChildren(process.pid);
-    if (direct.length > 0) return new Set(direct);
-  }
-  const rows = readProcessTablePairs();
-  return new Set(rows.filter((r) => r.ppid === process.pid).map((r) => r.pid));
-}
-
-function collectDescendantPids(rootPids: readonly number[]): number[] {
+function collectDescendantPids(rootPids: readonly number[], procRoot = '/proc'): number[] {
   const result: number[] = [];
   const seen = new Set<number>(rootPids);
   const queue = [...rootPids];
-  const table = process.platform === 'linux' ? null : readProcessTablePairs();
+  const table = readProcessTablePairs(procRoot);
   while (queue.length > 0) {
     const current = queue.shift();
     if (current === undefined) break;
-    const children =
-      process.platform === 'linux'
-        ? directLinuxChildren(current)
-        : (table ?? []).filter((row) => row.ppid === current).map((row) => row.pid);
-    for (const child of children) {
+    const fromTasks = process.platform === 'linux' || procRoot !== '/proc' ? directLinuxChildren(current, procRoot) : [];
+    const fromTable = table.filter((row) => row.ppid === current).map((row) => row.pid);
+    for (const child of new Set([...fromTasks, ...fromTable])) {
       if (seen.has(child)) continue;
       seen.add(child);
       result.push(child);
@@ -141,11 +191,11 @@ function killPidSafely(pid: number): void {
   }
 }
 
-/** يقتل مجموعة PIDs وتوابعها وينتظر خروجها من نظام التشغيل. */
+/** يقتل PIDs التابعة لإطلاق فاشل وشجرتها وينتظر خروجها الفعلي (بما فيها حالات الزومبي). */
 export async function killPidsAndWait(pids: readonly number[]): Promise<void> {
   const all = [...new Set([...collectDescendantPids(pids), ...pids])];
   for (const pid of all) killPidSafely(pid);
-  while (all.some(isPidAlive)) {
+  while (all.some((pid) => isPidAlive(pid))) {
     await new Promise((resolve) => setTimeout(resolve, PID_POLL_MS));
   }
 }
@@ -196,7 +246,7 @@ export function killProcessTree(proc: KillableProcess): Promise<void> | void {
   if (osDescendants.length > 0) {
     waits.push(
       (async () => {
-        while (osDescendants.some(isPidAlive)) {
+        while (osDescendants.some((pid) => isPidAlive(pid))) {
           await new Promise((resolve) => setTimeout(resolve, PID_POLL_MS));
         }
       })(),
