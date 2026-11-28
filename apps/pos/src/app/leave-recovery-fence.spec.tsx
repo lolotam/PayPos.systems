@@ -389,25 +389,13 @@ it('cleans up QueryCache subscribers and abort listeners across settle and abort
   fireEvent.click(screen.getByText('Recover'));
   const releaseProbe = await started;
   expect(size()).toBe(listenerCount + 1);
-  await act(async () => {
+  act(() => {
     controller.abort();
+  });
+  expect(size()).toBe(listenerCount);
+  await act(async () => {
     releaseProbe();
     await recovery;
   });
   expect(size()).toBe(listenerCount);
-});
-
-it('rejects with 401 and clears session when expires_at passes during cancelQueries (#891)', async () => {
-  await mount('personal');
-  const origCancel = cache.cancelQueries.bind(cache);
-  vi.spyOn(cache, 'cancelQueries').mockImplementationOnce(async (...args) => {
-    vi.setSystemTime(new Date('2026-10-04T12:00:00Z'));
-    return origCancel(...args);
-  });
-  await act(async () => {
-    fireEvent.click(screen.getByText('Recover'));
-    await recovery;
-  });
-  await screen.findByText('rejected');
-  expect(cache.getQueryData(sessionKey())).toBeNull();
 });

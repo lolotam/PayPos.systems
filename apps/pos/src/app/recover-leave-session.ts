@@ -66,11 +66,18 @@ function isIrrelevantCacheEvent(event: QueryCacheNotifyEvent): boolean {
   );
 }
 
+interface FenceState {
+  revision: number;
+  invalidated: boolean;
+  expectedSelfRevision: number | null;
+  sawMatchingPoll: boolean;
+}
+
 function subscribeToFenceEvents(
   cache: QueryClient,
   query: { state: { dataUpdateCount: number } },
   context: LeaveContext,
-  state: { revision: number; invalidated: boolean; selfPublishing: boolean },
+  state: FenceState,
   invalidate: () => void,
 ) {
   return cache.getQueryCache().subscribe((event) => {
@@ -80,12 +87,19 @@ function subscribeToFenceEvents(
       return;
     }
     if (isIrrelevantCacheEvent(event)) return;
-    if (event.type === 'updated' && event.action.type === 'success' && state.selfPublishing) {
+    if (
+      event.type === 'updated' &&
+      event.action.type === 'success' &&
+      state.expectedSelfRevision !== null &&
+      query.state.dataUpdateCount === state.expectedSelfRevision
+    ) {
       state.revision = query.state.dataUpdateCount;
+      state.expectedSelfRevision = null;
       return;
     }
     if (isMatchingNetworkPoll(event, query, context, state.revision)) {
       state.revision = query.state.dataUpdateCount;
+      state.sawMatchingPoll = true;
       return;
     }
     invalidate();
@@ -103,10 +117,11 @@ function recoveryFence(
   if (signal.aborted || !query || !matchesLeaveContext(context, query.state.data)) {
     throw new DOMException('Recovery context superseded', 'AbortError');
   }
-  const state = {
+  const state: FenceState = {
     revision: query.state.dataUpdateCount,
     invalidated: false,
-    selfPublishing: false,
+    expectedSelfRevision: null,
+    sawMatchingPoll: false,
   };
   let disposed = false;
   let unsubscribe: () => void = () => undefined;
@@ -134,14 +149,14 @@ function recoveryFence(
     }
   };
   const publish = (nextData: unknown) => {
-    state.selfPublishing = true;
+    state.expectedSelfRevision = query.state.dataUpdateCount + 1;
     try {
       cache.setQueryData(sessionKey, nextData);
     } finally {
-      state.selfPublishing = false;
+      state.expectedSelfRevision = null;
     }
   };
-  return { requireCurrent, publish, dispose };
+  return { requireCurrent, publish, dispose, sawMatchingPoll: () => state.sawMatchingPoll };
 }
 
 function outerIdentityMatches(
@@ -185,7 +200,12 @@ export async function recoverLeaveSession(
     context.mode === 'personal' ? 'personal-session' : 'staff-session',
     context.sessionEpoch,
   ];
-  const { requireCurrent, publish, dispose } = recoveryFence(cache, sessionKey, signal, context);
+  const { requireCurrent, publish, dispose, sawMatchingPoll } = recoveryFence(
+    cache,
+    sessionKey,
+    signal,
+    context,
+  );
   try {
     requireCurrent();
     const session = await (context.mode === 'personal'
@@ -202,6 +222,10 @@ export async function recoverLeaveSession(
     await cache.cancelQueries({ queryKey: sessionKey, exact: true }, { revert: false });
     requireCurrent();
     if (!accepted || !parsed.success || Date.parse(parsed.data.expires_at) <= Date.now()) {
+      // poll لاحق أكّد نفس الجلسة الحيّة قبل المهلة الأصلية: الـ 401 المتأخر لا يمسحها.
+      if (sawMatchingPoll() && Date.parse(context.expires_at) > Date.now()) {
+        throw new DOMException('Recovery superseded', 'AbortError');
+      }
       publish(null);
       throw new LeaveHttpError('UNAUTHENTICATED', 401);
     }
