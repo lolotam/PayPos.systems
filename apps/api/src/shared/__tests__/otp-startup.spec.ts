@@ -314,3 +314,17 @@ it('password reset stays closed in production without a trusted proxy and opens 
   startPasswordReset({ ...shared, production: false, trustedProxy: [] });
   expect(resources.passwordReset).toHaveBeenCalledTimes(2);
 });
+
+it('wires trimmed staff POS and native origins from env into createApp (#666)', async () => {
+  vi.stubEnv('STAFF_OTP_POS_ORIGIN', '  https://pos.synthetic.invalid  ');
+  vi.stubEnv('STAFF_NATIVE_ORIGINS', ' capacitor://localhost ');
+  await import('../../main.ts');
+  expect(resources.appOptions).toHaveBeenCalledWith(
+    expect.objectContaining({
+      staff: expect.objectContaining({
+        origin: 'https://pos.synthetic.invalid',
+        nativeOrigins: ['capacitor://localhost'],
+      }),
+    }),
+  );
+});

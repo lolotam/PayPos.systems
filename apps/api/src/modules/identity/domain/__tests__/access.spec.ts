@@ -254,7 +254,18 @@ describe('mergeGrantConstraints — most restrictive wins (#10)', () => {
       manual_edit: false,
     });
   });
+});
 
+const HIGH_BOUNDS = {
+  max_amount: 1_000_000n,
+  max_variance: 50_000n,
+  backdate_days: 14,
+  max_rows: 500,
+};
+const LOW_BOUNDS = { max_amount: 250_000n, max_variance: 10_000n, backdate_days: 3, max_rows: 100 };
+const ZERO_BOUNDS = { max_amount: 0n, max_variance: 0n, backdate_days: 0, max_rows: 0 };
+
+describe('mergeGrantConstraints — paired bounds and non-plain objects (#10)', () => {
   it('rejects non-plain objects such as Date and Map instead of treating them as unrestricted', () => {
     for (const nonPlain of [new Date(), new Map()]) {
       const parsed = parsePermissionConstraints(nonPlain);
@@ -265,6 +276,21 @@ describe('mergeGrantConstraints — most restrictive wins (#10)', () => {
         atBranch(BRANCH_1),
       );
       expect(merged).toBeNull();
+    }
+  });
+
+  it('merges paired covering max_amount, max_variance, backdate_days, and max_rows in both orders, including zero', () => {
+    for (const [first, second, expected] of [
+      [HIGH_BOUNDS, LOW_BOUNDS, LOW_BOUNDS],
+      [LOW_BOUNDS, HIGH_BOUNDS, LOW_BOUNDS],
+      [HIGH_BOUNDS, ZERO_BOUNDS, ZERO_BOUNDS],
+      [ZERO_BOUNDS, HIGH_BOUNDS, ZERO_BOUNDS],
+    ] as const) {
+      const grants = [
+        grant({ scopeType: 'COMPANY', scopeId: COMPANY, constraints: first }),
+        grant({ scopeType: 'BUSINESS', scopeId: BUSINESS, constraints: second }),
+      ];
+      expect(mergeGrantConstraints(grants, P, atBranch(BRANCH_1))).toEqual(expected);
     }
   });
 });
