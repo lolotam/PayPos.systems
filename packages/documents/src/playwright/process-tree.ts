@@ -399,9 +399,13 @@ function killSingleAndWait(proc: KillableProcess, procRoot = '/proc'): Promise<v
   const once = proc.once;
   if (typeof once !== 'function') {
     killLaunchProcessGroup(proc, procRoot);
-    try { const ok = proc.kill('SIGKILL'); if (isRootGone(proc, procRoot)) { confirmedExits.add(proc); return; } if (ok) return; }
+    let ok: boolean;
+    try { ok = proc.kill('SIGKILL'); }
     catch (e) { if (isEsrch(e) || isRootGone(proc, procRoot)) { confirmedExits.add(proc); return; } throw e; }
-    throw new Error('SIGKILL_REJECTED');
+    if (isRootGone(proc, procRoot)) { confirmedExits.add(proc); return; }
+    if (!ok) throw new Error('SIGKILL_REJECTED');
+    if (typeof proc.pid !== 'number' || proc.pid <= 0) return;
+    return (async () => { while (!isRootGone(proc, procRoot)) await new Promise((r) => setTimeout(r, PID_POLL_MS)); confirmedExits.add(proc); })();
   }
   return new Promise<void>((resolve, reject) => {
     let settled = false;
