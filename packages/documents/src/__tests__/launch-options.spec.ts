@@ -11,7 +11,7 @@ import {
   getLaunchCleanup,
   playwrightFactory,
 } from '../playwright/factory.ts';
-import { captureOwnedDescendants, getLaunchCleanupRetry, isPidAlive, killProcessTree } from '../playwright/process-tree.ts';
+import { captureOwnedDescendants, createMarkerProcess, getLaunchCleanupRetry, isPidAlive, killProcessTree, LAUNCH_MARKER_ENV } from '../playwright/process-tree.ts';
 
 it('leaves process signals to the worker', () => {
   expect(chromiumLaunchOptions.handleSIGINT).toBe(false);
@@ -129,22 +129,23 @@ it('holds root and verified ancestors when root or grandchild fingerprint is tra
     await expect(Promise.resolve(killProcessTree(root, procDir, signalPid))).rejects.toThrow('DESCENDANT_IDENTITY_UNVERIFIED');
     expect([rootKills, signaled, isPidAlive(childPid, procDir), isPidAlive(grandPid, procDir)]).toEqual([0, [], true, true]);
 
-    const closingRoot = { pid: rootPid, exitCode: null as number | null, signalCode: null, kill: () => { rootKills += 1; closingRoot.exitCode = 0; return true; } };
+    const closingTarget = { pid: rootPid, exitCode: null as number | null, signalCode: null, kill: () => { rootKills += 1; closingTarget.exitCode = 0; return true; } };
+    const closingRoot = createMarkerProcess('closing-marker', () => closingTarget);
     rmSync(join(procDir, String(grandPid)), { recursive: true, force: true });
     writeFileSync(join(procDir, String(childPid), 'task', String(childPid), 'children'), '');
-    writeFileSync(join(procDir, String(childPid), 'stat'), `${childPid} (child) S ${rootPid} ${childPid} 1 0 -1 0 0 0 0 0 0 0 0 0 0 0 1 0 222\n`);
     captureOwnedDescendants(closingRoot, procDir);
-    closingRoot.exitCode = 0;
+    closingTarget.exitCode = 0;
     rmSync(join(procDir, String(rootPid)), { recursive: true, force: true });
     rmSync(join(procDir, String(childPid), 'stat'));
     await expect(Promise.resolve(killProcessTree(closingRoot, procDir, signalPid))).rejects.toThrow('DESCENDANT_IDENTITY_UNVERIFIED');
     expect([rootKills, signaled, isPidAlive(childPid, procDir)]).toEqual([0, [], true]);
 
-    writeFileSync(join(procDir, String(childPid), 'stat'), `${childPid} (child) S 1 ${childPid} 1 0 -1 0 0 0 0 0 0 0 0 0 0 0 1 0 222\n`);
+    writeFileSync(join(procDir, String(childPid), 'stat'), `${childPid} (child) S 1 1 1 0 -1 0 0 0 0 0 0 0 0 0 0 0 1 0 222\n`);
     const signalWithLateFork = (pid: number): Error | undefined => {
       if (pid === childPid) {
         mkdirSync(join(procDir, String(grandPid)), { recursive: true });
-        writeFileSync(join(procDir, String(grandPid), 'stat'), `${grandPid} (grand) S 1 ${childPid} 1 0 -1 0 0 0 0 0 0 0 0 0 0 0 1 0 333\n`);
+        writeFileSync(join(procDir, String(grandPid), 'environ'), `${LAUNCH_MARKER_ENV}=closing-marker\0`);
+        writeFileSync(join(procDir, String(grandPid), 'stat'), `${grandPid} (grand) S 1 1 1 0 -1 0 0 0 0 0 0 0 0 0 0 0 1 0 333\n`);
       }
       return signalPid(pid);
     };
