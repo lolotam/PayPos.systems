@@ -27,8 +27,10 @@ it('maps a conflict and an outage away from a bad card, and shows a simple wait'
   const signal = new AbortController().signal;
   post.mockResolvedValue({ response: new Response(null, { status: 409 }), error: {} });
   expect(await clockByCard('SYNTHETIC-CARD', signal)).toEqual({ kind: 'unavailable' });
-  post.mockResolvedValue({ response: new Response(null, { status: 503 }), error: {} });
+  post.mockResolvedValue({ response: new Response(null, { status: 500 }), error: {} });
   expect(await clockByCard('SYNTHETIC-CARD', signal)).toEqual({ kind: 'unavailable' });
+  post.mockResolvedValue({ response: new Response(null, { status: 503 }), error: {} });
+  expect(await clockByCard('SYNTHETIC-CARD', signal)).toEqual({ kind: 'not-ready' });
   post.mockResolvedValue({
     response: new Response(null, {
       status: 429,

@@ -13,7 +13,7 @@ iOS simulator UI test) and #648 (a staging-only test-user CLI) are test tooling 
 **Before you start / قبل ما تبدأ:**
 - A **staging** build of the app on an iOS simulator or an Android device, built as `apps/business/README.md`
   describes (`build:native` with `FLAVOUR=staging`, then `pnpm --filter @pospay/business sync:staging`).
-- A fresh install (no remembered choice), with the network on.
+- A fresh install (no remembered choice); keep the network on for normal setup (or disconnect / simulate a captive portal for step 11).
 - A manager's employee link for the demo business, from [68](68-employee-app-link-qr.md).
 
 ## العربي
@@ -37,10 +37,12 @@ iOS simulator UI test) and #648 (a staging-only test-user CLI) are test tooling 
    حاجة، حاولي تاني.** وزرار **حاولي تاني**.
 10. **اللغة والدوران:** أول فتح بياخد لغة الموبايل (عربي لو الموبايل عربي، وإنجليزي لأي لغة تانية)، والشاشات بتتبع
     دوران الجهاز.
+11. **أول حفظ من غير نت أو خلف بوابة واي فاي:** لو لسه مفيش اختيار محفوظ والجهاز أوفلاين أو فشل فحص السيرفر (`GET /health`
+    خلال 5 ثواني)، اختيار **جهاز الكاونتر** أو **حسابي كموظفة** بيفضل على شاشة البداية ويظهر **أول مرة محتاجة نت** ومفيش دور بيتحفظ.
 
 **ممنوع يحصل:**
 - شاشات النشاط القديم تظهر بعد تبديل الصالون.
-- تبديل الصالون أو تغيير الدور يتم من غير نت.
+- أول حفظ للدور أو تبديل الصالون أو تغيير الدور يتم من غير نت أو خلف captive portal.
 - جهاز كاونتر يتحوّل لحساب موظفة لمجرد فتح لينك.
 - رقم موبايل أو كود أو توكن جلسة يتخزّن في التطبيق.
 - شريط **نسخة تجربة** يظهر في نسخة الـ production.
@@ -69,10 +71,12 @@ iOS simulator UI test) and #648 (a staging-only test-user CLI) are test tooling 
    **We could not sign you out. Nothing was changed; try again.** with a **Try again** button.
 10. **Language and rotation:** the first launch takes the phone's language (Arabic on an Arabic phone, English for
     any other), and the screens follow the device's rotation.
+11. **First choice offline or behind a captive portal:** when no choice is stored yet and the device is offline or the
+    bounded `GET /health` reachability check fails/times out within 5 seconds, tapping **Counter device** or **My employee account** keeps the start screen, shows **The first time needs the internet.**, and saves nothing.
 
 **Must NOT happen:**
 - The old business's screens shown after a switch.
-- A business switch or a role change completing offline.
+- A first device-role save, business switch, or role change completing offline or behind a captive portal.
 - A counter device turning into an employee account just because a link was opened.
 - A phone number, a code or a session token stored by the app.
 - The **Test version** strip in the production build.
@@ -82,15 +86,18 @@ iOS simulator UI test) and #648 (a staging-only test-user CLI) are test tooling 
 - **Where it runs:** only the native build (`vite build --mode native`, output `apps/pos/dist-native`); no web URL.
   App ids: `systems.pospay.business.staging` and `systems.pospay.business` (`apps/business/README.md`). The iOS
   simulator test `testStartScreenAndEmployeeChoiceSurviveRestart` covers steps 1 and 3 for the employee choice.
-- **Text:** `packages/i18n/src/native-shell-catalog.ts` (`nativeShell.title`, `counter`, `employee`, `pasteLabel`,
-  `pasteSubmit`, `counterDevice`, `switchBusinessConfirm`, `roleChangeOffline`, `roleChangeFailed`, `stagingStrip`,
-  `startOver`).
-- **Code:** `apps/pos/src/app/start-screen.tsx`, `native-entry.tsx`, `paste-link-form.tsx`,
+- **Text:** `packages/i18n/src/native-shell-catalog.ts` (`nativeShell.title`, `counter`, `employee`, `needsInternet`,
+  `pasteLabel`, `pasteSubmit`, `counterDevice`, `switchBusinessConfirm`, `roleChangeOffline`, `roleChangeFailed`,
+  `stagingStrip`, `startOver`).
+- **Code:** `apps/pos/src/app/start-screen.tsx`, `native-entry.tsx`, `server-reachability.ts`, `paste-link-form.tsx`,
   `switch-business-panel.tsx`, `foreign-session-notice.tsx`, `staging-strip.tsx`, `start-over-button.tsx`,
   `link-rules.ts`, `apps/pos/src/shared/platform/native-shell.ts`.
 - **The link:** `https://<pos host>/personal?company=<COMPANY_ID>&business=<BUSINESS_ID>`; only that host and path are
   accepted, parsed with the `personalWorkspace` schema of `packages/contracts`; every other parameter is ignored.
-- **Assertions:** the native build registers no service worker (spec 065 FR-005); a sign-out attempt waits at most 10
-  seconds; the sign-out routes answer 200 `SIGNED_OUT` or 200 `NO_SESSION` ([66](66-staff-sign-out.md)).
+- **Assertions:** the native build registers no service worker (spec 065 FR-005); before saving a first device role,
+  `checkServerReachable()` calls `GET ${apiOrigin()}/health` (browser `fetch` with `cache: 'no-store'`, `credentials: 'omit'`, `redirect: 'error'`; on native iOS, direct `CapacitorHttp.request` with `Cache-Control: no-cache, no-store, max-age=0`, `Pragma: no-cache`, `disableRedirects: true`, and `responseType: 'json'`, bypassing `nativeStaffFetch`'s session abort fence) bounded to
+  `FIRST_SAVE_REACHABILITY_WAIT_MS = 5000` ms and requiring HTTP `200` with
+  `{ status: 'ok' }`, otherwise keeping `StartScreen` with `nativeShell.needsInternet` without persisting a role; a
+  sign-out attempt waits at most 10 seconds; the sign-out routes answer 200 `SIGNED_OUT` or 200 `NO_SESSION` ([66](66-staff-sign-out.md)).
 - **Sources:** `docs/specs/065-mob-app-shell/spec.md` (FR-001, FR-008, FR-012, FR-015, FR-016, FR-018),
   `docs/adr/0055-store-apps-capacitor-shell.md`, `apps/business/README.md`.

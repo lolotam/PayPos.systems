@@ -10,6 +10,7 @@ import {
   type DeviceRole,
 } from './device-role';
 import type { PersonalWorkspace } from './manager-link';
+import { checkServerReachable } from './server-reachability';
 
 /** تنبيهات شاشة البداية: حفظ فشل، أو نت، أو لينك مش مقبول. */
 export type StartAlert = 'saveFailed' | 'needsInternet' | 'linkRequired';
@@ -300,7 +301,9 @@ export function stateWithoutPending(current: NativeState): NativeState {
 export async function resolveChoice(role: DeviceRole): Promise<NativeState> {
   const [stored, business] = await Promise.all([readDeviceRole(), readRememberedBusiness()]);
   if (stored !== null) return { kind: 'flow', role: stored, business };
-  if (!navigator.onLine) return { kind: 'start', business: null, alert: 'needsInternet' };
+  if (!navigator.onLine || !(await checkServerReachable())) {
+    return { kind: 'start', business: null, alert: 'needsInternet' };
+  }
   try {
     await saveDeviceRole(role);
     return { kind: 'flow', role, business };

@@ -40,17 +40,16 @@ and showing a Cashier staff-login DENY on the permissions screen (D5).
    في التدقيق صف إلغاء وصف إصدار في نفس المعاملة. الكارت القديم ما بقاش يسجل حضور.
 5. **كود مع موظف تاني:** كود نشط مع موظف تاني في نفس الشركة (حتى في نشاط تاني) ← **كود الكارت مستخدم بالفعل لموظف
    نشط آخر في الشركة.** (409) ومفيش أي تغيير.
-6. **الإلغاء:** **إلغاء الكارت** (من غير رسالة تأكيد) ← **لا يوجد كارت نشط.** وصف تدقيق. إلغاء كارت ملغي قبل كده، أو
+6. **الإلغاء:** **إلغاء الكارت** ← رسالة تأكيد (**إلغاء كارت الحضور؟**) ← **تأكيد الإلغاء** ← **لا يوجد كارت نشط.** وصف تدقيق. إلغاء كارت ملغي قبل كده، أو
    كارت موظف تاني ← **المسار غير موجود** (404). الإلغاء مالوش حد، وشغال حتى لو Redis واقف.
 7. **حد الإصدار:** 30 محاولة في الساعة لكل شركة ومستخدم. الإصدار الناجح والـ 409 بيتحسبوا؛ نفس الطلب بنفس المفتاح بعد ما
-   خلص مش بيتحسب. المحاولة رقم 31 ← **طلبات كثيرة، حاول بعد قليل** (429) ومفيش كارت ولا تدقيق؛ عدد الثواني الباقية في
-   هيدر `Retry-After` بس، الشاشة بتعرض الرسالة العامة. مستخدم تاني ليه عدّاده. Redis واقف ← **الخدمة غير جاهزة حالياً**.
+   خلص مش بيتحسب. المحاولة رقم 31 ← **طلبات كثيرة. انتظر {seconds} ثانية ثم أعد المحاولة.** عند وجود ترويسة `Retry-After` (وإلا رسالة الرد العامة) ومفيش كارت ولا تدقيق. مستخدم تاني ليه عدّاده. Redis واقف ← **الخدمة غير جاهزة حالياً**.
 8. **شاشة الاستقبال:** افتح الكاشير على الجهاز المربوط. قبل ما المشغّل يدخل، مكان الكارت فيه **تم تسجيل خروج المشغّل.
    سجّل الدخول مجددًا قبل مسح الكارت.** بعد الدخول ([08](08-staff-login-pos.md)) ← **تسجيل الحضور بالكارت** و**مرّر كارت
    الحضور على ماسح الاستقبال، أو اكتب الكود واضغط Enter.** وحقل **كود كارت الحضور** وزرار **تسجيل**.
 9. **المسح:** امسح `CARD-TEST-0002` ← الحقل يتمسح فورًا ويتقفل لحد الرد، ومسح تاني وهو مستني بيتجاهل. أثناء الانتظار
-   بيظهر نفس سطر المسار الشخصي **افتح مفتاح المرور لتسجيل الحركة…** (مفيش مفتاح مرور فعلًا في الكارت). القبول ←
-   **تم تسجيل الحضور** وتحتها (في أي حركة جديدة بالكارت) **تم التسجيل مع استثناء للموقع: موقع الهاتف أو إحداثيات الفرع غير متاحة.** لأن جهاز
+   بيظهر **جارٍ تسجيل الحركة…**. القبول ←
+   **تم تسجيل الحضور** وتحتها (عند غياب موقع الهاتف كما في حركة الكارت أو إعادة نتيجة موبايل بلا موقع) **تم التسجيل دون موقع الهاتف.** لأن جهاز
    الاستقبال ما بيبعتش موقع (CB-Q1). لو الكارت اتمسح خلال 5 دقايق من حركة بالموبايل، بترجع نتيجة الموبايل زي ما هي (الخطوة 10). مسح بعدها ← **تم تسجيل الانصراف**. الحركة بتتسجل بالجهاز والمشغّل.
 10. **نفس قواعد [26](26-clock-attendance.md):** مسح تاني خلال أقل من 5 دقايق ← نفس النتيجة الأولى من غير حركة جديدة،
     والقاعدة دي **مشتركة** مع مسح QR من الموبايل (كارت ثم QR أو العكس). قاعدة الـ 16 ساعة ← **أُغلقت الجلسة السابقة
@@ -60,7 +59,7 @@ and showing a Cashier staff-login DENY on the permissions screen (D5).
     حاجة بتتكتب.
 12. **حد المسح الغلط:** 10 مسحات مرفوضة في 10 دقايق لكل جهاز. المسح الناجح مش بيتحسب، ولا الكود اللي شكله غلط من الأساس (أقل من 4 أو أكتر من 64 حرف، أو حروف مش ظاهرة): ده بيترفض 400 قبل العدّ. المسحات بالترتيب (واحد ورا التاني): بعد العاشرة ← **مسحات خاطئة كثيرة.
     انتظر {seconds} ثانية ثم أعد المحاولة.** بالثواني الباقية (مثلاً **انتظر 420 ثانية**)، وحتى الكارت الصح في مسح جديد بيترفض لحد ما
-    الفترة تخلص (إعادة نفس الطلب اللي نجح قبل كده بنفس المفتاح بترجّع نتيجته المحفوظة 200). لو كذا مسح اتبعتوا في نفس اللحظة، ممكن يعدّوا الحد بواحد أو اتنين (مقصود ومكتوب في المواصفات). جهاز تاني ومسح QR مش بيتأثروا. Redis واقف ← **تعذّر الوصول إلى الخادم. حاول مرة أخرى.**
+    الفترة تخلص (إعادة نفس الطلب اللي نجح قبل كده بنفس المفتاح بترجّع نتيجته المحفوظة 200). لو كذا مسح اتبعتوا في نفس اللحظة، ممكن يعدّوا الحد بواحد أو اتنين (مقصود ومكتوب في المواصفات). جهاز تاني ومسح QR مش بيتأثروا. Redis واقف (503) ← **تسجيل الحضور بالكارت غير متاح مؤقتًا. امسح رمز QR للفرع أو اطلب من المدير.**
 13. **أوفلاين:** اقفل الإنترنت ← القسم كله بيتبدل بـ **تسجيل الحضور بالكارت يحتاج اتصالاً بالإنترنت. اتصل وأعد المسح.**
     وأي مسح مستني بيتلغي والحقل يتمسح. مفيش طابور ولا حفظ على الجهاز. رجّع الإنترنت ← الحقل يرجع.
 14. **خروج المشغّل:** المشغّل يخرج أو جلسته تتبدل أو تنتهي ← الحقل والنتيجة يتمسحوا ويظهر سطر الخروج. لو خرج والمسح لسه
@@ -95,20 +94,17 @@ and showing a Cashier staff-login DENY on the permissions screen (D5).
    **••••0002**; the audit log gets one revoked row and one issued row in the same transaction. The old card no longer clocks.
 5. **A code held by another employee:** a code active for another employee in the same company (even in another business)
    → "This card code is already active for another employee in the company." (409); nothing changes.
-6. **Revoke:** **Revoke card** (no confirmation) → "No active card." and an audit row. Revoking an already-revoked card, or
+6. **Revoke:** **Revoke card** → confirmation dialog (**Revoke attendance card?**) → **Confirm revoke** → "No active card." and an audit row. Revoking an already-revoked card, or
    another employee's card → "Not found" (404). Revoke has no limit and works even when Redis is down.
 7. **Issue limit:** 30 attempts per hour per company and user. A success and a 409 both count; replaying a completed
-   request with the same key does not. The 31st → "Too many requests — try again shortly" (429), no card and no audit; the
-   seconds left are only in the `Retry-After` header, the screen shows the generic message. Another user has their own
+   request with the same key does not. The 31st → "Too many requests. Wait {seconds} seconds and try again." when `Retry-After` is present (otherwise the envelope message), no card and no audit. Another user has their own
    counter. Redis down → "The service is not ready".
 8. **Reception screen:** open the POS on the paired device. Before an operator signs in, the card area shows "The operator
    is signed out. Sign in again before scanning a card." After sign-in ([08](08-staff-login-pos.md)) → **Clock by card**,
    "Scan the attendance card with the reception scanner, or type its code and press Enter.", the **Attendance card code**
    field and the **Clock** button.
 9. **Scan:** scan `CARD-TEST-0002` → the field clears at once and stays disabled until the answer; a second scan while
-   waiting is ignored. While waiting the personal-path line "Unlock your passkey to record attendance…" shows (no passkey is
-   actually asked for a card). Accepted → "Clocked in" and, on every fresh card movement, "Recorded with a location exception: no usable location or
-   branch coordinates." because the reception device sends no location (CB-Q1). A card scan within 5 minutes of a phone
+   waiting is ignored. While waiting **Recording attendance…** shows. Accepted → "Clocked in" and, with no phone location (as on fresh card scans or a deduplicated no-location phone scan), "Recorded without phone location." because the reception device sends no location (CB-Q1). A card scan within 5 minutes of a phone
    movement returns that phone result unchanged (step 10). A later scan → "Clocked out". The movement
    records the device and the operator.
 10. **Same rules as [26](26-clock-attendance.md):** a second scan under 5 minutes → the first result again, no new movement,
@@ -122,8 +118,7 @@ and showing a Cashier staff-login DENY on the permissions screen (D5).
     wrong scans. Wait {seconds} seconds and try again." with the seconds left (for example "Wait 420 seconds"), and even a
     valid card in a new scan is refused until the window ends (a replay of an earlier successful request with the same
     `Idempotency-Key` and body still returns its stored 200). Scans sent at the same moment can slightly exceed 10 (allowed by the spec:
-    the check does not reserve a slot). Another device and QR clocking are unaffected. Redis down → "The server
-    could not be reached. Try again."
+    the check does not reserve a slot). Another device and QR clocking are unaffected. Redis down (503) → "Card clocking is temporarily unavailable. Use the branch QR or ask a manager."
 13. **Offline:** disconnect → the whole section is replaced by "Card clocking needs an internet connection. Connect and scan
     again."; a pending scan is cancelled and the field cleared. Nothing is queued or stored on the device. Back online → the
     field returns.
@@ -154,11 +149,10 @@ and showing a Cashier staff-login DENY on the permissions screen (D5).
   404, code-in-use 409) stores nothing, so repeating it runs again and counts again. Every other outcome below is for a
   fresh key, a changed body, or a request that was refused before.
 
-- Admin: `http://localhost:3001/staff` → **Edit** → the **Attendance card** section; code input `#employee-card-code`
-  (class `card-code-mask`); buttons and status by exact text; errors are `role=alert`, "Card issued." is `role=status`.
+- Admin: `http://localhost:3001/staff` → **Edit** → **Hours and card** tab → **Attendance card** section; code input `#employee-card-code`
+  (class `card-code-mask`); buttons and status by exact text; errors are `role=alert`, "Card issued." is `role=status`. Revoking requires confirming the `employeeCard.revokeConfirmTitle` modal (**Confirm revoke** / **Cancel**); HTTP `429` with a positive integer `Retry-After` header displays `employeeCard.issueLimitedFor` ("Too many requests. Wait {seconds} seconds and try again.", otherwise the error envelope message).
 - POS: `http://localhost:5173` on a paired device with an operator signed in. Input `#card-code`, labelled **Attendance card
-  code**; results are `role=status` (accepted) or `role=alert` (refused). Emulate offline in the browser and assert the
-  offline notice replaces the form and no request is sent.
+  code**; while submitting, `role=status` shows `pos.cardPending` ("Recording attendance…"). Results are `role=status` (accepted; `NONE` renders source-neutral `pos.cardNoLocation` — "Recorded without phone location.") or `role=alert` (refused; HTTP `503` renders `pos.cardNotReady` — "Card clocking is temporarily unavailable. Use the branch QR or ask a manager."). Emulate offline in the browser and assert the offline notice replaces the form and no request is sent.
 - API, admin (session cookie + `x-company-id`; feature `staff`):
   - `GET /v1/businesses/<BUSINESS_ID>/employees/<EMPLOYEE_ID>/cards` → `{ active: { id, employee_id, card_code_suffix, issued_at, revoked_at } | null, can_manage: true }`, or 404 `NOT_FOUND` for a missing employee or a caller without management on every employee branch.
   - `POST .../cards` with `Idempotency-Key` and `{ "card_code": "CARD-TEST-0001" }` → 200 card; 409 `EMPLOYEE_CARD_CODE_UNAVAILABLE` (the same generic refusal whether the code is held in this business or another); 429 `TOO_MANY_REQUESTS` + `Retry-After`; 503 `NOT_READY` without Redis; same key with another code → 422 `IDEMPOTENCY_KEY_REUSED` while the limiter admits it (a changed body counts as an attempt, so at the limit it is 429).

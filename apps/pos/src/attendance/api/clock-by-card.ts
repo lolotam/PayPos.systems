@@ -11,6 +11,7 @@ export type CardClockOutcome =
   | { kind: 'invalid' }
   | { kind: 'limited'; retryAfter?: number }
   | { kind: 'offline' }
+  | { kind: 'not-ready' }
   | { kind: 'unavailable' };
 
 // الحضور بالكارت online-only: لا طابور ولا تخزين محلي للمسح، مثل مسح الموظف بpasskey.
@@ -40,6 +41,7 @@ function mapped(failure: Extract<Failure, { kind: 'http' }>): CardClockOutcome {
   if (failure.status === 400 || failure.status === 404 || failure.status === 422) {
     return { kind: 'invalid' };
   }
+  if (failure.status === 503) return { kind: 'not-ready' };
   if (failure.status !== 429) return { kind: 'unavailable' };
   return failure.retryAfter === undefined
     ? { kind: 'limited' }

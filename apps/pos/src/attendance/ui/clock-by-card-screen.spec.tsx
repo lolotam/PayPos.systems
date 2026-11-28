@@ -78,6 +78,35 @@ describe('clock by card reception screen', () => {
 });
 
 it.each(['ar', 'en'] as const)(
+  'displays card-specific location wording for NONE and unavailability text on 503 in %s',
+  async (locale) => {
+    clock.mockResolvedValueOnce({
+      kind: 'accepted',
+      result: {
+        session_id: '01920000-0000-7000-8000-000000000001',
+        operation: 'CLOCK_IN',
+        working_date: '2026-10-05',
+        accepted_at: '2026-10-05T08:00:00.000Z',
+        exceptions: ['NONE'],
+        late_minutes: 0,
+        missed_session_id: null,
+      },
+    });
+    clock.mockResolvedValueOnce({ kind: 'not-ready' });
+    show(locale);
+    const input = screen.getByLabelText(t(locale, 'pos.cardLabel'));
+    fireEvent.change(input, { target: { value: 'CARD-1' } });
+    fireEvent.submit(input.closest('form') as HTMLFormElement);
+    expect(await screen.findByText(t(locale, 'pos.cardNoLocation'))).not.toBeNull();
+    expect(screen.queryByText(t(locale, 'personalAttendance.noLocation'))).toBeNull();
+
+    fireEvent.change(input, { target: { value: 'CARD-1' } });
+    fireEvent.submit(input.closest('form') as HTMLFormElement);
+    expect(await screen.findByText(t(locale, 'pos.cardNotReady'))).not.toBeNull();
+  },
+);
+
+it.each(['ar', 'en'] as const)(
   'names the wait in seconds when a scan is limited in %s',
   async (locale) => {
     clock.mockResolvedValue({ kind: 'limited', retryAfter: 42 });

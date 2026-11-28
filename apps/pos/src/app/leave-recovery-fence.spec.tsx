@@ -307,3 +307,95 @@ it.each(['personal', 'reception'] as const)(
     }
   },
 );
+
+it.each(['personal', 'reception'] as const)(
+  '%s matching network poll preserves first-try Retry recovery while cleaning up fence listeners (#891)',
+  async (currentMode) => {
+    await mount(currentMode);
+    held = true;
+    probeStarted = undefined;
+    const started = new Promise<() => void>((resolve) => {
+      probeStarted = resolve;
+    });
+    const addSpy = vi.spyOn(controller.signal, 'addEventListener');
+    const removeSpy = vi.spyOn(controller.signal, 'removeEventListener');
+    fireEvent.click(screen.getByText('Recover'));
+    const releaseProbe = await started;
+    const fenceAbortHandler = addSpy.mock.calls[0]?.[1];
+
+    held = false;
+    await act(async () => {
+      await cache.refetchQueries({ queryKey: sessionKey(), exact: true });
+      releaseProbe();
+      await recovery;
+    });
+    await screen.findByText('recovered');
+    expect(cache.getQueryData(sessionKey())).toEqual(currentMode === 'personal' ? personal : staff);
+    expect(removeSpy).toHaveBeenCalledWith('abort', fenceAbortHandler);
+  },
+);
+
+it.each(['personal', 'reception'] as const)(
+  '%s rejects ABA identity bounce and external manual setQueryData during recovery (#891)',
+  async (currentMode) => {
+    for (const kind of ['aba-null', 'aba-context', 'manual-same'] as const) {
+      await mount(currentMode);
+      held = true;
+      probeStarted = undefined;
+      const started = new Promise<() => void>((resolve) => {
+        probeStarted = resolve;
+      });
+      fireEvent.click(screen.getByText('Recover'));
+      const releaseProbe = await started;
+
+      held = false;
+      const base = currentMode === 'personal' ? personal : staff;
+      if (kind === 'manual-same') {
+        act(() => {
+          cache.setQueryData(sessionKey(), { ...base });
+        });
+      } else {
+        response = kind === 'aba-null' ? null : { ...base, user_id: id(9) };
+        await act(async () => {
+          await cache.refetchQueries({ queryKey: sessionKey(), exact: true });
+        });
+        response = base;
+        await act(async () => {
+          await cache.refetchQueries({ queryKey: sessionKey(), exact: true });
+        });
+      }
+      await act(async () => {
+        releaseProbe();
+        await recovery;
+      });
+      await screen.findByText('rejected');
+      cleanup();
+      cache.clear();
+      held = false;
+      controller = new AbortController();
+    }
+  },
+);
+
+it('cleans up QueryCache subscribers and abort listeners across settle and abort (#891)', async () => {
+  await mount('personal');
+  const size = () =>
+    (cache.getQueryCache() as unknown as { listeners: Set<unknown> }).listeners.size;
+  const listenerCount = size();
+  held = true;
+  const started = new Promise<() => void>((resolve) => {
+    probeStarted = resolve;
+  });
+  fireEvent.click(screen.getByText('Recover'));
+  const releaseProbe = await started;
+  expect(size()).toBe(listenerCount + 1);
+  act(() => {
+    controller.abort();
+  });
+  expect(size()).toBe(listenerCount);
+  await act(async () => {
+    releaseProbe();
+    await recovery;
+  });
+  expect(size()).toBe(listenerCount);
+});

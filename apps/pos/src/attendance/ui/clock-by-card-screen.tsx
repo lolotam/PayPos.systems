@@ -21,7 +21,7 @@ export function ClockByCardScreen({ onRejected }: { onRejected?: () => Promise<v
         onChange={state.setCode}
         onSubmit={state.submit}
       />
-      {state.pending ? <p role="status">{t(locale, 'personalAttendance.pending')}</p> : null}
+      {state.pending ? <p role="status">{t(locale, 'pos.cardPending')}</p> : null}
       {state.outcome ? <ClockByCardResult outcome={state.outcome} /> : null}
     </Card>
   );

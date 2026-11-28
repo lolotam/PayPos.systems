@@ -1,10 +1,198 @@
 import { personalSessionContext, staffSessionContext } from '@pospay/contracts';
-import type { QueryClient } from '@tanstack/react-query';
+import type { QueryCacheNotifyEvent, QueryClient } from '@tanstack/react-query';
 import { personalCalls } from '@/personal-staff/api/personal-calls';
-import { probeStaffSession } from '@/staff-login/api/staff-calls';
+import { probeStaffSessionWithStatus } from '@/staff-login/api/staff-calls';
 import type { LeaveContext } from '@/my-leave/model/context';
 import { LeaveHttpError } from '@/my-leave/model/read-error';
 import { leaveCalls } from '@/my-leave/api/leave-calls';
+
+function matchesLeaveContext(context: LeaveContext, value: unknown): boolean {
+  if (typeof value !== 'object' || value === null) return false;
+  const record = value as Record<string, unknown>;
+  const fields = [
+    'user_id',
+    'company_id',
+    'business_id',
+    'expires_at',
+    ...(context.mode === 'personal' ? ['employee_id'] : ['branch_id', 'device_id']),
+  ] as const;
+  return !fields.some((field) => record[field] !== context[field as keyof LeaveContext]);
+}
+
+function hasValidSessionContract(context: LeaveContext, value: unknown): boolean {
+  const parsed =
+    context.mode === 'personal'
+      ? personalSessionContext.safeParse(value)
+      : staffSessionContext.safeParse(value);
+  return parsed.success && Date.parse(parsed.data.expires_at) > Date.now();
+}
+
+function isMatchingNetworkPoll(
+  event: QueryCacheNotifyEvent,
+  query: unknown,
+  context: LeaveContext,
+  revision: number | undefined,
+): boolean {
+  if (event.type !== 'updated' || event.query !== query) return false;
+  if (event.action.type !== 'success' || event.action.manual === true) return false;
+  if (revision === undefined || event.query.state.dataUpdateCount !== revision + 1) return false;
+  return (
+    matchesLeaveContext(context, event.query.state.data) &&
+    hasValidSessionContract(context, event.query.state.data)
+  );
+}
+
+function isIrrelevantCacheEvent(event: QueryCacheNotifyEvent): boolean {
+  if (event.type === 'observerAdded' || event.type === 'observerRemoved') return true;
+  if (event.type === 'observerResultsUpdated' || event.type === 'observerOptionsUpdated')
+    return true;
+  if (event.type !== 'updated') return false;
+  const kind = event.action.type;
+  // فشل إعادة الجلب أو إلغاء cancelQueries ({ revert: false }) لا يغيّر الجلسة المؤكدة أو عداد التحديث.
+  if (
+    kind === 'fetch' ||
+    kind === 'pause' ||
+    kind === 'continue' ||
+    kind === 'invalidate' ||
+    kind === 'failed' ||
+    kind === 'error'
+  ) {
+    return true;
+  }
+  return (
+    kind === 'setState' &&
+    !('data' in event.action.state) &&
+    !('dataUpdateCount' in event.action.state)
+  );
+}
+
+interface FenceState {
+  revision: number;
+  invalidated: boolean;
+  expectedSelfRevision: number | null;
+  sawMatchingPoll: boolean;
+}
+
+function subscribeToFenceEvents(
+  cache: QueryClient,
+  query: { state: { dataUpdateCount: number } },
+  context: LeaveContext,
+  state: FenceState,
+  invalidate: () => void,
+) {
+  return cache.getQueryCache().subscribe((event) => {
+    if (event.query !== query || state.invalidated) return;
+    if (event.type === 'removed') {
+      invalidate();
+      return;
+    }
+    if (isIrrelevantCacheEvent(event)) return;
+    if (
+      event.type === 'updated' &&
+      event.action.type === 'success' &&
+      state.expectedSelfRevision !== null &&
+      query.state.dataUpdateCount === state.expectedSelfRevision
+    ) {
+      state.revision = query.state.dataUpdateCount;
+      state.expectedSelfRevision = null;
+      return;
+    }
+    if (isMatchingNetworkPoll(event, query, context, state.revision)) {
+      state.revision = query.state.dataUpdateCount;
+      state.sawMatchingPoll = true;
+      return;
+    }
+    invalidate();
+  });
+}
+
+function recoveryFence(
+  cache: QueryClient,
+  sessionKey: (string | number)[],
+  signal: AbortSignal,
+  context: LeaveContext,
+) {
+  // العداد يميز تحديثين في نفس الملّي ثانية، والاشتراك يكشف ABA ويميز poll الشبكة المطابق من التعديل اليدوي.
+  const query = cache.getQueryCache().find({ queryKey: sessionKey, exact: true });
+  if (signal.aborted || !query || !matchesLeaveContext(context, query.state.data)) {
+    throw new DOMException('Recovery context superseded', 'AbortError');
+  }
+  const state: FenceState = {
+    revision: query.state.dataUpdateCount,
+    invalidated: false,
+    expectedSelfRevision: null,
+    sawMatchingPoll: false,
+  };
+  let disposed = false;
+  let unsubscribe: () => void = () => undefined;
+  const dispose = () => {
+    if (disposed) return;
+    disposed = true;
+    unsubscribe();
+    signal.removeEventListener('abort', invalidate);
+  };
+  const invalidate = () => {
+    state.invalidated = true;
+    dispose();
+  };
+  unsubscribe = subscribeToFenceEvents(cache, query, context, state, invalidate);
+  signal.addEventListener('abort', invalidate, { once: true });
+  const requireCurrent = () => {
+    if (
+      state.invalidated ||
+      signal.aborted ||
+      cache.getQueryCache().find({ queryKey: sessionKey, exact: true }) !== query ||
+      query.state.dataUpdateCount !== state.revision
+    ) {
+      dispose();
+      throw new DOMException('Recovery superseded', 'AbortError');
+    }
+  };
+  const publish = (nextData: unknown) => {
+    state.expectedSelfRevision = query.state.dataUpdateCount + 1;
+    try {
+      cache.setQueryData(sessionKey, nextData);
+    } finally {
+      state.expectedSelfRevision = null;
+    }
+  };
+  return { requireCurrent, publish, dispose, sawMatchingPoll: () => state.sawMatchingPoll };
+}
+
+function outerIdentityMatches(
+  context: LeaveContext,
+  data: { user_id: string; company_id: string; business_id: string; expires_at: string },
+): boolean {
+  return (
+    data.user_id === context.user_id &&
+    data.company_id === context.company_id &&
+    data.business_id === context.business_id &&
+    Date.parse(data.expires_at) > Date.now()
+  );
+}
+
+function sessionMatchesOuter(
+  context: LeaveContext,
+  data:
+    ReturnType<typeof personalSessionContext.parse> | ReturnType<typeof staffSessionContext.parse>,
+): boolean {
+  if (
+    context.mode === 'reception' &&
+    (!context.branch_id ||
+      !context.device_id ||
+      !('device_id' in data) ||
+      data.branch_id !== context.branch_id ||
+      data.device_id !== context.device_id)
+  ) {
+    return false;
+  }
+  if (data.expires_at !== context.expires_at) return false;
+  return !('employee_id' in data) || data.employee_id === context.employee_id;
+}
+
+async function probeRecoverySession(mode: LeaveContext['mode']) {
+  return mode === 'personal' ? personalCalls.sessionWithStatus() : probeStaffSessionWithStatus();
+}
 
 export async function recoverLeaveSession(
   context: LeaveContext,
@@ -16,89 +204,54 @@ export async function recoverLeaveSession(
     context.mode === 'personal' ? 'personal-session' : 'staff-session',
     context.sessionEpoch,
   ];
-  const { requireCurrent, advance } = recoveryFence(cache, sessionKey, signal, context);
-  requireCurrent();
-  const session = await (context.mode === 'personal'
-    ? personalCalls.session()
-    : probeStaffSession());
-  requireCurrent();
-  const parsed =
-    context.mode === 'personal'
-      ? personalSessionContext.safeParse(session)
-      : staffSessionContext.safeParse(session);
-  // نجاح جلسة مختلفة لا يعيد بيانات الهوية القديمة، حتى لو تغيّر الكوكي أثناء المحاولة.
-  const accepted =
-    parsed.success &&
-    Date.parse(parsed.data.expires_at) > Date.now() &&
-    ['user_id', 'company_id', 'business_id'].every(
-      (key) => parsed.data[key as keyof typeof parsed.data] === context[key as keyof LeaveContext],
-    );
-  // قراءة قديمة قيد التنفيذ لا يجوز أن تستبدل السياق الذي تحققنا منه للتو.
-  await cache.cancelQueries({ queryKey: sessionKey, exact: true }, { revert: false });
-  requireCurrent();
-  if (!accepted || !parsed.success || Date.parse(parsed.data.expires_at) <= Date.now()) {
-    cache.setQueryData(sessionKey, null);
-    throw new LeaveHttpError('UNAUTHENTICATED', 401);
-  }
-  // السياق الخارجي يملك مؤقت الجلسة؛ الرد الموثق يحدّثه قبل إتاحة أي بيانات إجازات.
-  cache.setQueryData(sessionKey, parsed.data);
-  advance();
-  // تغيير الأجل أو الموظفة يعيد تركيب الشاشة من السياق الجديد، ولا يفك قفل السياق القديم.
-  if (
-    (context.mode === 'reception' &&
-      (!context.branch_id ||
-        !context.device_id ||
-        !('device_id' in parsed.data) ||
-        parsed.data.branch_id !== context.branch_id ||
-        parsed.data.device_id !== context.device_id)) ||
-    parsed.data.expires_at !== context.expires_at ||
-    ('employee_id' in parsed.data && parsed.data.employee_id !== context.employee_id)
-  )
-    throw new LeaveHttpError('UNAUTHENTICATED', 401);
-  if (context.mode === 'personal') {
+  const { requireCurrent, publish, dispose, sawMatchingPoll } = recoveryFence(
+    cache,
+    sessionKey,
+    signal,
+    context,
+  );
+  try {
     requireCurrent();
-    const branches = await leaveCalls.branches(signal);
+    const probe = await probeRecoverySession(context.mode);
     requireCurrent();
-    if (branch && !branches.items.some((item) => item.id === branch)) return '';
+    const session = probe.kind === 'ok' ? probe.data : null;
+    const isUnauthenticated401 = probe.kind === 'unauthenticated';
+    const parsed =
+      context.mode === 'personal'
+        ? personalSessionContext.safeParse(session)
+        : staffSessionContext.safeParse(session);
+    // نجاح جلسة مختلفة لا يعيد بيانات الهوية القديمة، حتى لو تغيّر الكوكي أثناء المحاولة.
+    const accepted = parsed.success && outerIdentityMatches(context, parsed.data);
+    // قراءة قديمة قيد التنفيذ لا يجوز أن تستبدل السياق الذي تحققنا منه للتو.
+    await cache.cancelQueries({ queryKey: sessionKey, exact: true }, { revert: false });
+    requireCurrent();
+    if (!accepted || !parsed.success || Date.parse(parsed.data.expires_at) <= Date.now()) {
+      // الاستثناء للرد 401 المتأخر فقط عندما يؤكد poll لاحق الجلسة؛ الرفض بـ 403/404 أو جسم 200 غير الصالح أو تبدّل الهوية/المهلة يمسح الجلسة فوراً.
+      if (
+        isUnauthenticated401 &&
+        sawMatchingPoll() &&
+        Date.parse(context.expires_at) > Date.now()
+      ) {
+        throw new DOMException('Recovery superseded', 'AbortError');
+      }
+      publish(null);
+      throw new LeaveHttpError('UNAUTHENTICATED', 401);
+    }
+    // السياق الخارجي يملك مؤقت الجلسة؛ الرد الموثق يحدّثه قبل إتاحة أي بيانات إجازات.
+    publish(parsed.data);
+    if (!sessionMatchesOuter(context, parsed.data))
+      throw new LeaveHttpError('UNAUTHENTICATED', 401);
+    if (context.mode === 'personal') {
+      requireCurrent();
+      const branches = await leaveCalls.branches(signal);
+      requireCurrent();
+      if (branch && !branches.items.some((item) => item.id === branch)) return '';
+    }
+    requireCurrent();
+    if (branch) await leaveCalls.list(context.mode, branch, undefined, signal);
+    requireCurrent();
+    return branch;
+  } finally {
+    dispose();
   }
-  requireCurrent();
-  if (branch) await leaveCalls.list(context.mode, branch, undefined, signal);
-  requireCurrent();
-  return branch;
-}
-
-function recoveryFence(
-  cache: QueryClient,
-  sessionKey: (string | number)[],
-  signal: AbortSignal,
-  context: LeaveContext,
-) {
-  // العداد يميز تحديثين في نفس الملّي ثانية، وهوية الـ query تمنع إحياء epoch اتشال بالخروج.
-  const query = cache.getQueryCache().find({ queryKey: sessionKey, exact: true });
-  const snapshot = query?.state.data as Record<string, unknown> | null | undefined;
-  const fields = [
-    'user_id',
-    'company_id',
-    'business_id',
-    'expires_at',
-    ...(context.mode === 'personal' ? ['employee_id'] : ['branch_id', 'device_id']),
-  ];
-  if (!snapshot || fields.some((field) => snapshot[field] !== context[field as keyof LeaveContext]))
-    throw new DOMException('Recovery context superseded', 'AbortError');
-  let revision = query?.state.dataUpdateCount;
-  const requireCurrent = () => {
-    if (
-      signal.aborted ||
-      !query ||
-      cache.getQueryCache().find({ queryKey: sessionKey, exact: true }) !== query ||
-      query.state.dataUpdateCount !== revision
-    )
-      throw new DOMException('Recovery superseded', 'AbortError');
-  };
-  return {
-    requireCurrent,
-    advance: () => {
-      revision = query?.state.dataUpdateCount;
-    },
-  };
 }

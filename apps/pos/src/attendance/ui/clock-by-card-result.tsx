@@ -8,6 +8,7 @@ const rejectionMessages = {
   refused: 'pos.cardForbidden',
   'signed-out': 'pos.cardSignedOut',
   invalid: 'pos.cardInvalid',
+  'not-ready': 'pos.cardNotReady',
   unavailable: 'pos.networkError',
 } as const;
 
@@ -48,12 +49,7 @@ export function ClockByCardResult({ outcome }: { outcome: CardClockOutcome }) {
       </p>
       {result.exceptions.map((exception) => (
         <p key={exception}>
-          {t(
-            locale,
-            exception === 'NONE'
-              ? 'personalAttendance.noLocation'
-              : 'personalAttendance.outOfRange',
-          )}
+          {t(locale, exception === 'NONE' ? 'pos.cardNoLocation' : 'personalAttendance.outOfRange')}
         </p>
       ))}
       {result.missed_session_id ? <p>{t(locale, 'personalAttendance.missedOut')}</p> : null}

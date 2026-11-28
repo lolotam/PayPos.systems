@@ -109,6 +109,7 @@ const rejections = [
   [401, 'pos.cardSignedOut'],
   [403, 'pos.cardForbidden'],
   [429, 'pos.cardLimited'],
+  [503, 'pos.cardNotReady'],
 ] as const;
 
 it.each(
@@ -150,7 +151,7 @@ it('suppresses a second populated scan while the actual transport is pending', a
   show();
   const input = scan();
   await requestAt();
-  expect(screen.getByText(t('en', 'personalAttendance.pending'))).not.toBeNull();
+  expect(screen.getByText(t('en', 'pos.cardPending'))).not.toBeNull();
   expect(input.value).toBe('');
   expect(input.disabled).toBe(true);
   scan('en', 'SECOND-SYNTHETIC-CARD');
