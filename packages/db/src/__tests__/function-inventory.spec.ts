@@ -31,16 +31,21 @@ async function listPublicFunctions() {
         AND d.deptype='e' AND e.extname='btree_gist') ORDER BY proname`;
 }
 
+/** يطابق مسافات محلّل PostgreSQL فقط (ASCII whitespace) دون مسافات Unicode غير القابلة للكسر. */
+function isPgSpace(ch: string | undefined): boolean {
+  return ch === ' ' || ch === '\t' || ch === '\n' || ch === '\r' || ch === '\f' || ch === '\v';
+}
+
 /** يقرأ معرّف PostgreSQL واحداً من قائمة search_path ويفك الاقتباس إن وُجد. */
 function readSearchPathToken(raw: string, start: number): { ident: string; next: number } | null {
   let i = start;
-  while (i < raw.length && /\s/.test(raw[i] ?? '')) i += 1;
+  while (i < raw.length && isPgSpace(raw[i])) i += 1;
   if (i >= raw.length) return null;
   if (raw[i] !== '"') {
     const tokenStart = i;
-    while (i < raw.length && raw[i] !== ',' && raw[i] !== '"' && !/\s/.test(raw[i] ?? '')) i += 1;
+    while (i < raw.length && raw[i] !== ',' && raw[i] !== '"' && !isPgSpace(raw[i])) i += 1;
     const ident = raw.slice(tokenStart, i).toLowerCase();
-    while (i < raw.length && /\s/.test(raw[i] ?? '')) i += 1;
+    while (i < raw.length && isPgSpace(raw[i])) i += 1;
     return ident.length > 0 ? { ident, next: i } : null;
   }
   i += 1;
@@ -53,7 +58,7 @@ function readSearchPathToken(raw: string, start: number): { ident: string; next:
     }
     if (raw[i] === '"') {
       i += 1;
-      while (i < raw.length && /\s/.test(raw[i] ?? '')) i += 1;
+      while (i < raw.length && isPgSpace(raw[i])) i += 1;
       return ident.length > 0 ? { ident, next: i } : null;
     }
     ident += raw[i] ?? '';
@@ -91,10 +96,12 @@ function hasTrailingPgTemp(proconfig: readonly string[] | null): boolean {
 }
 
 describe('hasTrailingPgTemp', () => {
-  it('accepts trailing pg_temp once and refuses earlier, duplicate, quoted, empty or solo pg_temp entries', () => {
+  it('accepts trailing pg_temp once and refuses earlier, duplicate, quoted, NBSP, empty or solo entries', () => {
     expect(hasTrailingPgTemp(['search_path=pg_catalog, pg_temp'])).toBe(true);
     expect(hasTrailingPgTemp(['search_path=pg_catalog, public, pg_temp'])).toBe(true);
     expect(hasTrailingPgTemp(['search_path=pg_catalog, "pg,temp", pg_temp'])).toBe(true);
+    expect(hasTrailingPgTemp(['search_path=pg_catalog, \u00a0pg_temp'])).toBe(false);
+    expect(hasTrailingPgTemp(['search_path=pg_catalog, public\u00a0, pg_temp'])).toBe(true);
     expect(hasTrailingPgTemp(['search_path=pg_temp, public, pg_temp'])).toBe(false);
     expect(hasTrailingPgTemp(['search_path=pg_temp, public'])).toBe(false);
     expect(hasTrailingPgTemp(['search_path="pg_temp", public'])).toBe(false);
