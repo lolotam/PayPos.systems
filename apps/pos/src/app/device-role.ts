@@ -5,20 +5,28 @@ import type { PersonalWorkspace } from './manager-link';
 
 export type DeviceRole = 'counter' | 'employee';
 
+/** سطر الدور المحفوظ على الجهاز. */
 interface DeviceRoleRow {
   id: 'current';
   role: string;
 }
 
+/** سطر النشاط المتذكر على الجهاز. */
 interface RememberedBusinessRow {
   id: 'current';
   company_id: string;
   business_id: string;
 }
 
-// الدور بيتخزن في قاعدة IndexedDB لوحدها: قاعدة 'pospay-pos' بتاعت الـ PWA ما تتلمسش
-// (ADR-0055 قرار 2)، ومفيش حاجة شخصية بتتخزن هنا (FR-009).
-class NativeShellDatabase extends Dexie {
+/**
+ * قاعدة الشاشة: الدور في جدول لوحده والنشاط المتذكر في جدول تاني.
+ *
+ * الدور بيتخزن في قاعدة IndexedDB لوحدها: قاعدة 'pospay-pos' بتاعت الـ PWA ما تتلمسش
+ * (ADR-0055 قرار 2)، ومفيش حاجة شخصية بتتخزن هنا (FR-009).
+ * جدولين بأرقام إصدارات: الأول للدور بس، والتاني بيضيف النشاط جنبه بنفس المفتاح عشان
+ * السطرين يتكتبوا مع بعض في معاملة واحدة.
+ */
+export class NativeShellDatabase extends Dexie {
   role!: Table<DeviceRoleRow, 'current'>;
   business!: Table<RememberedBusinessRow, 'current'>;
 

@@ -8,7 +8,9 @@ import type { DeviceScreenState } from './screen-state';
 // السؤال عن الجهاز برّه طابور الكتابة؛ مسح التوكن المرفوض بس هو اللي بيعدّي عليه، وبشرط إن التوكن لسه هو المحفوظ.
 export async function bootDevice(queryClient: QueryClient): Promise<DeviceScreenState> {
   // من غير Web Locks مفيش طريقة تمنع تابين يطالبوا بنفس التسجيل (claim-loop.ts)، فالجهاز ما يتربطش أصلاً.
-  if (globalThis.navigator?.locks === undefined) return { kind: 'unsupported' };
+  if (globalThis.navigator?.locks === undefined) {
+    return { kind: 'unsupported', canStartOver: await canStartOver() };
+  }
   const row = await deviceDb.credentials.get(CURRENT_DEVICE);
   if (row?.device_token) return identityScreen(queryClient, row.device_token);
   if (row?.claim_secret) {
@@ -16,6 +18,21 @@ export async function bootDevice(queryClient: QueryClient): Promise<DeviceScreen
     return { kind: 'waiting', ...(row.check_code ? { checkCode: row.check_code } : {}) };
   }
   return { kind: 'pairing', notice: null };
+}
+
+/**
+ * الجهاز غير المقترن يقدر يرجع لاختيار نوع الجهاز؛ المقترن ما يقدرش.
+ *
+ * القراءة بس: مسح الاعتماد أو تعديله هنا يبقى غلط، لأن الجهاز ما يقدرش يقرا ولا يكمّل.
+ */
+async function canStartOver(): Promise<boolean> {
+  try {
+    const row = await deviceDb.credentials.get(CURRENT_DEVICE);
+    return !(row?.device_token || row?.claim_secret);
+  } catch {
+    // قراءة الاعتماد فشلت: ما نقدرش نجزم إن الجهاز مقترن، فبنقفل باب الرجوع.
+    return false;
+  }
 }
 
 async function identityScreen(queryClient: QueryClient, token: string): Promise<DeviceScreenState> {

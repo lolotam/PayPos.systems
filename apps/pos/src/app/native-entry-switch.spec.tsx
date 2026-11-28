@@ -1,16 +1,18 @@
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { t } from '@pospay/i18n';
 import { DirectionProvider } from '@pospay/ui';
+import type { ReactNode } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { readDeviceRole, readRememberedBusiness, rememberBusiness } from '@/app/device-role';
 import { endPersonalSession } from '@/app/end-sessions';
 import { usePersonalSession } from '@/personal-staff/api/use-personal-session';
 import { LocaleProvider } from '@/shared/locale/locale-context';
-import { readLaunchLink } from '@/shared/platform/launch-links';
+import { markLaunchLinkHandled, readLaunchLink } from '@/shared/platform/launch-links';
 import type * as NativeShellModule from '@/shared/platform/native-shell';
 
 import { NativeEntry } from './native-entry';
+import { START_OVER_SIGN_OUT_WAIT_MS } from './link-rules';
 
 const opened = vi.hoisted(() => ({ listener: null as ((url: string) => void) | null }));
 
@@ -25,21 +27,34 @@ vi.mock('@/app/end-sessions', () => ({
   endPersonalSession: vi.fn(),
 }));
 vi.mock('@/app/device-screen', () => ({
-  DeviceScreen: () => <h2>device screen</h2>,
+  DeviceScreen: ({ notice }: { notice?: ReactNode }) => (
+    <>
+      <h2>device screen</h2>
+      {notice}
+    </>
+  ),
 }));
 vi.mock('@/personal-staff/api/use-personal-session', () => ({
   usePersonalSession: vi.fn(),
 }));
 vi.mock('@/personal-staff/ui/personal-screen', () => ({
-  PersonalScreen: ({ workspace }: { workspace?: { company_id: string; business_id: string } }) => (
+  PersonalScreen: ({
+    workspace,
+    notice,
+  }: {
+    workspace?: { company_id: string; business_id: string };
+    notice?: ReactNode;
+  }) => (
     <>
       <h2>personal screen</h2>
       {workspace ? <p>{`${workspace.company_id} ${workspace.business_id}`}</p> : null}
+      {notice}
     </>
   ),
 }));
 vi.mock('@/shared/platform/launch-links', () => ({
   readLaunchLink: vi.fn(),
+  markLaunchLinkHandled: vi.fn(),
   onLinkOpened: vi.fn((listener: (url: string) => void) => {
     opened.listener = listener;
     return () => undefined;
@@ -88,6 +103,7 @@ function prepare() {
 }
 
 afterEach(() => {
+  vi.useRealTimers();
   vi.restoreAllMocks();
 });
 
@@ -117,6 +133,7 @@ describe('NativeEntry business switch', () => {
     expect(screen.getByText(`${COMPANY} ${BUSINESS}`)).not.toBeNull();
     expect(endPersonalSession).not.toHaveBeenCalled();
     expect(rememberBusiness).not.toHaveBeenCalled();
+    expect(markLaunchLinkHandled).not.toHaveBeenCalled();
   });
 
   it('signs out first and only then remembers the new business', async () => {
@@ -139,6 +156,7 @@ describe('NativeEntry business switch', () => {
       company_id: COMPANY,
       business_id: OTHER_BUSINESS,
     });
+    expect(markLaunchLinkHandled).toHaveBeenCalled();
   });
 
   it('keeps the old business and the session when the employee cancels', async () => {
@@ -150,6 +168,7 @@ describe('NativeEntry business switch', () => {
     expect(screen.getByText(`${COMPANY} ${BUSINESS}`)).not.toBeNull();
     expect(endPersonalSession).not.toHaveBeenCalled();
     expect(rememberBusiness).not.toHaveBeenCalled();
+    expect(markLaunchLinkHandled).toHaveBeenCalled();
   });
 });
 
@@ -168,6 +187,7 @@ describe('NativeEntry business switch that does not happen', () => {
     expect(screen.getByText(`${COMPANY} ${BUSINESS}`)).not.toBeNull();
     expect(endPersonalSession).not.toHaveBeenCalled();
     expect(rememberBusiness).not.toHaveBeenCalled();
+    expect(markLaunchLinkHandled).not.toHaveBeenCalled();
   });
 
   it('keeps the old business and says nothing changed when the sign-out is refused', async () => {
@@ -181,6 +201,7 @@ describe('NativeEntry business switch that does not happen', () => {
     expect(screen.getByText(t('ar', 'nativeShell.switchBusinessConfirm'))).not.toBeNull();
     expect(screen.getByText(`${COMPANY} ${BUSINESS}`)).not.toBeNull();
     expect(rememberBusiness).not.toHaveBeenCalled();
+    expect(markLaunchLinkHandled).not.toHaveBeenCalled();
   });
 
   it('keeps the old business and warns when the new one cannot be stored', async () => {
@@ -206,6 +227,50 @@ describe('NativeEntry business switch that does not happen', () => {
     });
     expect(screen.getByText(`${COMPANY} ${BUSINESS}`)).not.toBeNull();
     expect(endPersonalSession).not.toHaveBeenCalled();
+    expect(rememberBusiness).not.toHaveBeenCalled();
+  });
+});
+
+describe('NativeEntry business switch with a stalled sign-out', () => {
+  beforeEach(prepare);
+
+  it('aborts a stalled sign-out and keeps the old business on screen', async () => {
+    let received: AbortSignal | undefined;
+    let resolveLate: (value: 'done' | 'failed') => void = () => undefined;
+    vi.mocked(endPersonalSession).mockImplementation((signal?: AbortSignal) => {
+      received = signal;
+      return new Promise<'done' | 'failed'>((resolve) => {
+        resolveLate = resolve;
+      });
+    });
+    await mountWithPanel();
+
+    vi.useFakeTimers();
+    fireEvent.click(screen.getByRole('button', { name: t('ar', 'nativeShell.confirm') }));
+    // الخطوة بتتادي في الطابور: النداء الأول للعدادات بيسمّع الخطوة ويجدول المهلة.
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(0);
+    });
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(START_OVER_SIGN_OUT_WAIT_MS);
+    });
+    vi.useRealTimers();
+
+    expect(received).toBeInstanceOf(AbortSignal);
+    expect(received?.aborted).toBe(true);
+    const alert = await screen.findByRole('alert');
+    expect(alert.textContent).toContain(t('ar', 'nativeShell.roleChangeFailed'));
+    expect(screen.getByText(`${COMPANY} ${BUSINESS}`)).not.toBeNull();
+    expect(rememberBusiness).not.toHaveBeenCalled();
+
+    // الرد المتأخر بعد الإلغاء ما يغيّرش النتيجة.
+    await act(async () => {
+      resolveLate('done');
+    });
+    expect(screen.getByRole('alert').textContent).toContain(
+      t('ar', 'nativeShell.roleChangeFailed'),
+    );
+    expect(screen.getByText(`${COMPANY} ${BUSINESS}`)).not.toBeNull();
     expect(rememberBusiness).not.toHaveBeenCalled();
   });
 });

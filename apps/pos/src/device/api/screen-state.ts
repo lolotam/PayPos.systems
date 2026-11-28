@@ -5,7 +5,7 @@ export type DeviceScreenState =
   | { kind: 'pairing'; notice: PairingNotice | null }
   | { kind: 'waiting'; checkCode?: string }
   | { kind: 'offline' }
-  | { kind: 'unsupported' }
+  | { kind: 'unsupported'; canStartOver?: boolean }
   | { kind: 'ready'; branchId: string; deviceId?: string };
 
 export type MeResult =
