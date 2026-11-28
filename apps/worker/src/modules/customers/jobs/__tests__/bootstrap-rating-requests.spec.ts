@@ -24,6 +24,7 @@ it('retries the transaction once with persistedDay when SessionRequestDayMismatc
                   customerId: '01920000-0000-7000-8000-0000000000e5',
                   branchId: '01920000-0000-7000-8000-0000000000d4',
                   occurredAt: new Date('2026-10-05T10:00:00Z'),
+                  recordedAt: new Date('2026-10-05T10:05:00Z'),
                   requestDay: null,
                 },
               ]
@@ -34,6 +35,7 @@ it('retries the transaction once with persistedDay when SessionRequestDayMismatc
       schedule: {
         execute: async (_tx, input) => {
           attempts.push(input.requestDay);
+          expect(input.recordedAt).toEqual(new Date('2026-10-05T10:05:00Z'));
           count += 1;
           if (count === 1)
             throw new SessionRequestDayMismatchError(sessionId, '2026-10-05', '2026-10-04');

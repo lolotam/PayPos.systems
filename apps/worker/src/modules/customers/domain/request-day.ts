@@ -1,6 +1,9 @@
 import { clockMinutes, crossesMidnight, type OpeningHoursValue } from './opening-hours.ts';
 import { addCivilDays, instantOf, isoWeekdayOf, localParts } from './zoned-time.ts';
 
+const LEGACY_OVERNIGHT_DELAY_MS = 60 * 60 * 1000;
+const LEGACY_OVERNIGHT_GRACE_MS = 30 * 60 * 1000;
+
 /**
  * ينسب الزيارة ليوم تقييم واحد بتوقيت فرعها؛ ذيل فترة الليل قبل الإغلاق يتبع يوم بدايتها.
  *
@@ -82,4 +85,45 @@ export class SessionRequestDayMismatchError extends Error {
     super('SESSION_REQUEST_DAY_MISMATCH');
     this.name = 'SessionRequestDayMismatchError';
   }
+}
+
+/** بيانات طلب اليوم المدني السابق اللازمة للتحقق من شمول زيارة ليلية قديمة قبل تعديل المواعيد. */
+export interface PreviousDayOvernightRequest {
+  readonly businessDate: string;
+  readonly dueAt: Date;
+  readonly sendDeadline: Date | null;
+  readonly claimedAt?: Date | null;
+}
+
+/**
+ * يتحقق مما إذا كانت زيارة غير موسومة بيوم طلب قد شملها طلب اليوم المدني السابق فعلياً قبل إزالة الساعات الليلية.
+ *
+ * @param visit لحظة حدوث الزيارة ولحظة تسجيلها إن توفرت
+ * @param visit.occurredAt لحظة حدوث الزيارة
+ * @param visit.recordedAt لحظة تسجيل الزيارة إن توفرت
+ * @param request بيانات طلب التقييم لليوم المدني السابق
+ * @param requestBranchTimeZone المنطقة الفعّالة لفرع ذلك الطلب
+ * @returns true فقط عندما يثبت الموعد والإغلاق الليلي شمول الزيارة في ذلك الطلب دون امتصاص زيارات جديدة
+ */
+export function isCoveredByPreviousDayOvernightRequest(
+  visit: { readonly occurredAt: Date; readonly recordedAt?: Date | undefined },
+  request: PreviousDayOvernightRequest,
+  requestBranchTimeZone: string,
+): boolean {
+  if (request.sendDeadline === null) return false;
+  const closeMs = request.sendDeadline.getTime() - LEGACY_OVERNIGHT_GRACE_MS;
+  if (localParts(new Date(closeMs), requestBranchTimeZone).date <= request.businessDate)
+    return false;
+  const occurredMs = visit.occurredAt.getTime();
+  if (occurredMs >= closeMs) return false;
+  const minExpectedDueMs = Math.min(occurredMs + LEGACY_OVERNIGHT_DELAY_MS, closeMs);
+  if (request.dueAt.getTime() < minExpectedDueMs) return false;
+  if (
+    visit.recordedAt !== undefined &&
+    request.claimedAt !== undefined &&
+    request.claimedAt !== null &&
+    visit.recordedAt.getTime() > request.claimedAt.getTime()
+  )
+    return false;
+  return true;
 }

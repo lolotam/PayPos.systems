@@ -1,7 +1,11 @@
 import type { Tx } from '@pospay/db';
 import { decideRequest, outsideBootstrapWindow } from '../../domain/schedule-decision.ts';
 import { ratingSchedule } from '../../domain/rating-schedule.ts';
-import { requestDayOf, SessionRequestDayMismatchError } from '../../domain/request-day.ts';
+import {
+  isCoveredByPreviousDayOvernightRequest,
+  requestDayOf,
+  SessionRequestDayMismatchError,
+} from '../../domain/request-day.ts';
 import {
   dayWindow,
   sessionsOfDay,
@@ -10,8 +14,9 @@ import {
   type ActiveLine,
   type BranchSchedule,
   type DaySession,
+  type LegacyOvernightCoverage,
 } from '../../domain/sessions-of-day.ts';
-import { localParts } from '../../domain/zoned-time.ts';
+import { addCivilDays } from '../../domain/zoned-time.ts';
 import type { BranchScheduleHoursPort } from '../../ports/branch-schedule-hours.port.ts';
 import type { Clock, IdGenerator } from '../../ports/clock.port.ts';
 import type { DaySessionsPort } from '../../ports/day-sessions.port.ts';
@@ -38,6 +43,7 @@ export interface ScheduleRatingRequestInput {
   readonly customerId: string;
   readonly branchId: string;
   readonly occurredAt: Date;
+  readonly recordedAt?: Date;
   readonly sessionId?: string;
   readonly requestDay?: string | null;
   readonly bootstrapCutoff?: Date;
@@ -108,7 +114,7 @@ export class ScheduleRatingRequest {
       return 'LEFT_AS_IS';
     }
     const extraSessionIdToAssign = storedDay === null ? input.sessionId : undefined;
-    const state = await this.loadDayState(tx, input, day, place, true, extraSessionIdToAssign);
+    const state = await this.loadDayState(tx, input, day, place, true, extraSessionIdToAssign, row);
     const now = this.clock.now();
     const decision = decideRequest(state.sessions, state.placeByBranch, now, input.bootstrapCutoff);
     if (decision.kind === 'OUTSIDE_BOOTSTRAP_WINDOW') return 'LEFT_AS_IS';
@@ -131,18 +137,29 @@ export class ScheduleRatingRequest {
     input: ScheduleRatingRequestInput,
     place: BranchSchedule,
   ): Promise<string> {
-    const coveredDay =
-      this.ports.requests.findCoveringRequestDay !== undefined
-        ? await this.ports.requests.findCoveringRequestDay(tx, {
-            companyId: input.companyId,
-            businessId: input.businessId,
-            customerId: input.customerId,
-            branchId: input.branchId,
-            occurredAt: input.occurredAt,
-            localDate: localParts(input.occurredAt, place.timeZone).date,
-          })
-        : null;
-    return coveredDay ?? requestDayOf(input.occurredAt, place.timeZone, place.openingHours);
+    const computedDay = requestDayOf(input.occurredAt, place.timeZone, place.openingHours);
+    if (this.ports.requests.findPreviousDayRequest === undefined) return computedDay;
+    const previous = await this.ports.requests.findPreviousDayRequest(tx, {
+      companyId: input.companyId,
+      businessId: input.businessId,
+      customerId: input.customerId,
+      previousDate: addCivilDays(computedDay, -1),
+    });
+    if (previous === null) return computedDay;
+    const requestPlace =
+      previous.branchId === input.branchId
+        ? place
+        : await this.ports.hours.hours(tx, input.companyId, previous.branchId);
+    if (requestPlace === null) throw new Error('RATING_BRANCH_NOT_FOUND');
+    return isCoveredByPreviousDayOvernightRequest(
+      input.recordedAt === undefined
+        ? { occurredAt: input.occurredAt }
+        : { occurredAt: input.occurredAt, recordedAt: input.recordedAt },
+      previous,
+      requestPlace.timeZone,
+    )
+      ? previous.businessDate
+      : computedDay;
   }
 
   private async lockOrInsert(
@@ -207,6 +224,7 @@ export class ScheduleRatingRequest {
     place: BranchSchedule,
     assignMissingDays: boolean,
     extraSessionIdToAssign?: string,
+    requestRow?: RatingRequestRow,
   ): Promise<DayState> {
     const window = dayWindow(day);
     const lines = await this.ports.daySessions.activeLines(
@@ -230,6 +248,13 @@ export class ScheduleRatingRequest {
       }
     }
     const placeByBranch = await this.loadBranchSchedules(tx, input, place, lines);
+    const legacyOvernight = await this.legacyOvernightForRow(
+      tx,
+      input.companyId,
+      day,
+      placeByBranch,
+      requestRow,
+    );
     const resolvedLines = assignMissingDays
       ? await this.assignPendingSessionDays(
           tx,
@@ -238,12 +263,35 @@ export class ScheduleRatingRequest {
           lines,
           placeByBranch,
           extraSessionIdToAssign,
+          legacyOvernight,
         )
       : lines;
     return {
-      sessions: sessionsOfDay(resolvedLines, placeByBranch, day),
+      sessions: sessionsOfDay(resolvedLines, placeByBranch, day, requestRow?.sendDeadline),
       placeByBranch,
       lines: resolvedLines,
+    };
+  }
+
+  private async legacyOvernightForRow(
+    tx: Tx,
+    companyId: string,
+    day: string,
+    placeByBranch: ReadonlyMap<string, BranchSchedule>,
+    requestRow?: RatingRequestRow,
+  ): Promise<LegacyOvernightCoverage | undefined> {
+    if (requestRow === undefined || requestRow.sendDeadline === null) return undefined;
+    const requestPlace =
+      placeByBranch.get(requestRow.branchId) ??
+      (await this.ports.hours.hours(tx, companyId, requestRow.branchId));
+    if (requestPlace === null) throw new Error('RATING_BRANCH_NOT_FOUND');
+    return {
+      request: {
+        businessDate: day,
+        dueAt: requestRow.dueAt,
+        sendDeadline: requestRow.sendDeadline,
+      },
+      requestBranchTimeZone: requestPlace.timeZone,
     };
   }
 
@@ -270,6 +318,7 @@ export class ScheduleRatingRequest {
     lines: readonly ActiveLine[],
     placeByBranch: ReadonlyMap<string, BranchSchedule>,
     extraSessionIdToAssign?: string,
+    legacyOvernight?: LegacyOvernightCoverage,
   ): Promise<readonly ActiveLine[]> {
     const assign = this.ports.daySessions.assignRequestDay;
     if (assign === undefined) return lines;
@@ -278,6 +327,7 @@ export class ScheduleRatingRequest {
       placeByBranch,
       day,
       extraSessionIdToAssign,
+      legacyOvernight,
     );
     if (pendingSessionIds.length === 0) return lines;
     const assignedBySessionId = new Map<string, string>();

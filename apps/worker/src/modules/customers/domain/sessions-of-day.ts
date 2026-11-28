@@ -1,6 +1,10 @@
 import { isLateEntry } from './late-entry.ts';
 import type { OpeningHoursValue } from './opening-hours.ts';
-import { requestDayOf } from './request-day.ts';
+import {
+  isCoveredByPreviousDayOvernightRequest,
+  requestDayOf,
+  type PreviousDayOvernightRequest,
+} from './request-day.ts';
 import { addCivilDays } from './zoned-time.ts';
 
 const MAX_POSITIVE_OFFSET_MS = 14 * 60 * 60 * 1000;
@@ -22,6 +26,12 @@ export interface ActiveLine {
 export interface BranchSchedule {
   readonly openingHours: OpeningHoursValue | null;
   readonly timeZone: string;
+}
+
+/** سياق طلب لليوم السابق يسمح بإسناد الزيارات الليلية القديمة غير الموسومة بعد إزالة الساعات الليلية. */
+export interface LegacyOvernightCoverage {
+  readonly request: PreviousDayOvernightRequest;
+  readonly requestBranchTimeZone: string;
 }
 
 /** زيارة واحدة مجمعة من بنودها النشطة بعد تطبيق قواعد يوم التقييم. */
@@ -55,12 +65,14 @@ export function dayWindow(day: string): { from: Date; to: Date } {
  * @param lines البنود النشطة داخل نافذة البحث الواسعة
  * @param placeByBranch مواعيد ومنطقة كل فرع ظاهر في البنود
  * @param day يوم الطلب بصيغة YYYY-MM-DD
+ * @param historicalSendDeadline الموعد النهائي التاريخي للطلب القائم لحفظ السماح الليلي بعد مسح الساعات
  * @returns الزيارات تصاعدياً بوقت الحدوث ثم sessionId؛ آخر عنصر هو الأحدث
  */
 export function sessionsOfDay(
   lines: readonly ActiveLine[],
   placeByBranch: ReadonlyMap<string, BranchSchedule>,
   day: string,
+  historicalSendDeadline?: Date | null | undefined,
 ): DaySession[] {
   const grouped = new Map<string, ActiveLine[]>();
   for (const line of lines) {
@@ -77,7 +89,17 @@ export function sessionsOfDay(
     const sessionDay =
       first.requestDay ?? requestDayOf(first.occurredAt, place.timeZone, place.openingHours);
     if (sessionDay !== day) continue;
-    if (isLateEntry(first.recordedAt, day, place.timeZone, place.openingHours)) continue;
+    if (
+      isLateEntry(
+        first.recordedAt,
+        day,
+        place.timeZone,
+        place.openingHours,
+        first.occurredAt,
+        historicalSendDeadline,
+      )
+    )
+      continue;
     sessions.push({
       sessionId,
       branchId: first.branchId,
@@ -101,6 +123,7 @@ export function sessionsOfDay(
  * @param placeByBranch خريطة مواعيد ومنطقة كل فرع ظاهر في البنود
  * @param day يوم الطلب بصيغة YYYY-MM-DD
  * @param extraSessionId زيارة محفِّزة لم يظهر لها يوم محفوظ بعد عند الحاجة لإدراجها في الترتيب
+ * @param legacyOvernight سياق الطلب القائم لاسترداد الزيارات الليلية القديمة غير الموسومة بعد تعديل الساعات
  * @returns معرّفات الزيارات الفريدة مرتبة تصاعدياً لتفادي تعارض ترتيب الأقفال
  */
 export function unassignedSessionIdsOfDay(
@@ -108,9 +131,11 @@ export function unassignedSessionIdsOfDay(
   placeByBranch: ReadonlyMap<string, BranchSchedule>,
   day: string,
   extraSessionId?: string,
+  legacyOvernight?: LegacyOvernightCoverage,
 ): string[] {
   const pendingSessionIds = new Set<string>();
   const alreadyAssignedIds = new Set<string>();
+  const nextCivilDay = addCivilDays(day, 1);
   for (const line of lines) {
     if (line.requestDay != null) {
       alreadyAssignedIds.add(line.sessionId);
@@ -119,7 +144,17 @@ export function unassignedSessionIdsOfDay(
     if (pendingSessionIds.has(line.sessionId)) continue;
     const place = placeByBranch.get(line.branchId);
     if (place === undefined) throw new RangeError('BRANCH_SCHEDULE_MISSING');
-    if (requestDayOf(line.occurredAt, place.timeZone, place.openingHours) === day) {
+    const computed = requestDayOf(line.occurredAt, place.timeZone, place.openingHours);
+    const matchesLegacyOvernight =
+      legacyOvernight !== undefined &&
+      legacyOvernight.request.businessDate === day &&
+      computed === nextCivilDay &&
+      isCoveredByPreviousDayOvernightRequest(
+        { occurredAt: line.occurredAt, recordedAt: line.recordedAt },
+        legacyOvernight.request,
+        legacyOvernight.requestBranchTimeZone,
+      );
+    if (computed === day || matchesLegacyOvernight) {
       pendingSessionIds.add(line.sessionId);
     }
   }

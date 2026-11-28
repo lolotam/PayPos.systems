@@ -18,6 +18,15 @@ export interface RatingRequestRow {
   readonly sendDeadline: Date | null;
 }
 
+/** صف طلب اليوم السابق اللازم للتحقق في طبقة النطاق من تغطية زيارة ليلية قديمة بعد تعديل المواعيد. */
+export interface PreviousDayRatingRequestRow {
+  readonly businessDate: string;
+  readonly branchId: string;
+  readonly dueAt: Date;
+  readonly sendDeadline: Date | null;
+  readonly claimedAt: Date | null;
+}
+
 /** تخزين طلب التقييم على معاملة المستهلك نفسها. */
 export interface RatingRequestRepository {
   /**
@@ -79,27 +88,23 @@ export interface RatingRequestRepository {
     at: Date,
   ): Promise<void>;
   /**
-   * يبحث عن طلب قائم يغطي لحظة زيارة قديمة لم يُحفظ يومها بعد، لتجنب فتح طلب مكرر بعد تعديل المواعيد.
+   * يقرأ طلب التقييم لليوم المدني السابق (إن وُجد بمهلة إرسال) للتحقق في طبقة النطاق من تغطية الزيارات الليلية القديمة.
    *
    * @param tx معاملة المستأجر
-   * @param key هوية العميل والفرع ولحظة الزيارة وتاريخها المحلي
+   * @param key هوية الشركة والنشاط والعميل والتاريخ المدني السابق
    * @param key.companyId معرف الشركة
    * @param key.businessId معرف النشاط
    * @param key.customerId معرف العميل
-   * @param key.branchId معرف فرع الزيارة
-   * @param key.occurredAt لحظة الزيارة
-   * @param key.localDate التاريخ المحلي للزيارة بصيغة YYYY-MM-DD
-   * @returns يوم الطلب المغطي بصيغة YYYY-MM-DD أو null عند عدم وجوده
+   * @param key.previousDate التاريخ المدني السابق بصيغة YYYY-MM-DD
+   * @returns صف الطلب السابق أو null عند عدم وجوده
    */
-  findCoveringRequestDay?(
+  findPreviousDayRequest?(
     tx: Tx,
     key: {
-      companyId: string;
-      businessId: string;
-      customerId: string;
-      branchId: string;
-      occurredAt: Date;
-      localDate: string;
+      readonly companyId: string;
+      readonly businessId: string;
+      readonly customerId: string;
+      readonly previousDate: string;
     },
-  ): Promise<string | null>;
+  ): Promise<PreviousDayRatingRequestRow | null>;
 }

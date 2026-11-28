@@ -13,6 +13,7 @@ export interface BootstrapSessionRead {
   readonly customerId: string;
   readonly branchId: string;
   readonly occurredAt: Date;
+  readonly recordedAt: Date;
   readonly requestDay: string | null;
 }
 
@@ -22,6 +23,7 @@ type BootstrapSessionRow = {
   readonly customer_id: string;
   readonly branch_id: string;
   readonly occurred_at: Date | string;
+  readonly recorded_at: Date | string;
   readonly rating_request_day: string | null;
 };
 
@@ -59,7 +61,7 @@ export function sessionsSinceStatement(
 ): SQL {
   const after = afterSessionId === null ? sql`TRUE` : sql`s.id > ${afterSessionId}::uuid`;
   return sql`SELECT s.id AS session_id, s.business_id, s.customer_id, s.branch_id, s.occurred_at,
-      s.rating_request_day::text AS rating_request_day
+      s.recorded_at, s.rating_request_day::text AS rating_request_day
     FROM service_sessions s
     WHERE s.company_id = ${companyId} AND s.company_id = app_company_id()
       AND s.occurred_at >= ${range.cutoff.toISOString()}::timestamptz
@@ -89,6 +91,9 @@ export async function listSessionsSince(
     branchId: row.branch_id,
     occurredAt: new Date(
       row.occurred_at instanceof Date ? row.occurred_at.getTime() : row.occurred_at,
+    ),
+    recordedAt: new Date(
+      row.recorded_at instanceof Date ? row.recorded_at.getTime() : row.recorded_at,
     ),
     requestDay: row.rating_request_day,
   }));

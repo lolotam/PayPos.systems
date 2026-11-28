@@ -104,6 +104,7 @@ async function processPage(
       sessionId: session.sessionId,
       requestDay: session.requestDay ?? null,
       occurredAt: session.occurredAt,
+      ...(session.recordedAt === undefined ? {} : { recordedAt: session.recordedAt }),
       bootstrapCutoff: params.cutoff,
     };
     try {

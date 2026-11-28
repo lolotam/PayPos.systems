@@ -80,6 +80,7 @@ async function expectScheduledOnce(
     branchId: IDENTITY.branch_id,
     sessionId: SESSION,
     occurredAt: new Date(IDENTITY.occurred_at),
+    recordedAt: new Date(IDENTITY.recorded_at),
   });
 }
 

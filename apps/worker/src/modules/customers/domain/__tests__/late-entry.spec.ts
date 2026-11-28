@@ -45,4 +45,32 @@ describe('isLateEntry', () => {
     expect(isLateEntry(new Date('2026-10-05T21:30:00Z'), DAY, KUWAIT, emptyList)).toBe(false);
     expect(isLateEntry(new Date('2026-10-05T21:31:00Z'), DAY, KUWAIT, emptyList)).toBe(true);
   });
+
+  it('PP-286 T-3: keeps an anchored 00:45 overnight visit eligible after hours are cleared or shortened', () => {
+    const occurredAt = new Date('2026-10-05T21:45:00Z');
+    const recordedLive = new Date('2026-10-05T21:45:00Z');
+    const recordedLaterWithinOvernight = new Date('2026-10-05T22:50:00Z');
+    const historicalSendDeadline = new Date('2026-10-05T23:30:00Z');
+    expect(isLateEntry(recordedLive, DAY, KUWAIT, null, occurredAt)).toBe(false);
+    expect(
+      isLateEntry(
+        recordedLaterWithinOvernight,
+        DAY,
+        KUWAIT,
+        null,
+        occurredAt,
+        historicalSendDeadline,
+      ),
+    ).toBe(false);
+    expect(
+      isLateEntry(
+        new Date('2026-10-05T23:31:00Z'),
+        DAY,
+        KUWAIT,
+        null,
+        occurredAt,
+        historicalSendDeadline,
+      ),
+    ).toBe(true);
+  });
 });

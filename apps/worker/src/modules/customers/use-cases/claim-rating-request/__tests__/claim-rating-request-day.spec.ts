@@ -204,3 +204,78 @@ it('assigns missing same-day sessions in ascending sessionId order without touch
   expect(await claim.execute(tx, { companyId, request: stored })).toBe('CLAIMED');
   expect(assignedIds).toEqual(['session-a', 'session-b']);
 });
+
+it('recovers and assigns an unassigned legacy overnight session at claim time when overnight hours were removed', async () => {
+  const assignedIds: string[] = [];
+  const base = basePorts();
+  const legacyStored: DueRatingRequest = {
+    ...stored,
+    dueAt: new Date('2026-10-05T22:15:00Z'),
+    sendDeadline: new Date('2026-10-05T23:30:00Z'),
+  };
+  let seq = 0;
+  const claim = new ClaimRatingRequest(
+    basePorts({
+      claims: { ...base.claims, lockRequest: async () => legacyStored },
+      daySessions: {
+        ...base.daySessions,
+        activeLines: async () => [
+          {
+            lineId: 'line-legacy-overnight',
+            sessionId: 'session-legacy-overnight',
+            branchId,
+            occurredAt: new Date('2026-10-05T21:15:00Z'),
+            recordedAt: new Date('2026-10-05T21:15:00Z'),
+            businessTimezone: 'Asia/Kuwait',
+            requestDay: null,
+            performers: [{ employeeId, shareBps: 10_000 }],
+          },
+        ],
+        assignRequestDay: async (_tx, _cId, _bId, sessionId, requestDay) => {
+          assignedIds.push(`${sessionId}:${requestDay}`);
+          return requestDay;
+        },
+      },
+    }),
+    { newId: () => `01920000-0000-7000-8000-${String(seq++).padStart(12, '0')}` },
+    { now: () => new Date('2026-10-05T21:20:00Z') },
+  );
+
+  expect(await claim.execute(tx, { companyId, request: legacyStored })).toBe('CLAIMED');
+  expect(assignedIds).toEqual(['session-legacy-overnight:2026-10-05']);
+});
+
+it('keeps an anchored 00:45 overnight visit eligible for claim when opening hours are cleared before claim', async () => {
+  const base = basePorts();
+  const overnightStored: DueRatingRequest = {
+    ...stored,
+    dueAt: new Date('2026-10-05T22:45:00Z'),
+    sendDeadline: new Date('2026-10-05T23:30:00Z'),
+  };
+  let seq = 0;
+  const claim = new ClaimRatingRequest(
+    basePorts({
+      hours: { hours: async () => ({ openingHours: null, timeZone: 'Asia/Kuwait' }) },
+      claims: { ...base.claims, lockRequest: async () => overnightStored },
+      daySessions: {
+        ...base.daySessions,
+        activeLines: async () => [
+          {
+            lineId: 'line-overnight-0045',
+            sessionId: 'session-overnight-0045',
+            branchId,
+            occurredAt: new Date('2026-10-05T21:45:00Z'),
+            recordedAt: new Date('2026-10-05T21:45:00Z'),
+            businessTimezone: 'Asia/Kuwait',
+            requestDay: '2026-10-05',
+            performers: [{ employeeId, shareBps: 10_000 }],
+          },
+        ],
+      },
+    }),
+    { newId: () => `01920000-0000-7000-8000-${String(seq++).padStart(12, '0')}` },
+    { now: () => new Date('2026-10-05T22:45:00Z') },
+  );
+
+  expect(await claim.execute(tx, { companyId, request: overnightStored })).toBe('CLAIMED');
+});

@@ -15,6 +15,7 @@ import {
   withAssignedRequestDays,
   type BranchSchedule,
   type DaySession,
+  type LegacyOvernightCoverage,
 } from '../../domain/sessions-of-day.ts';
 import { ratingRequestReadyPayload } from '../../events/published.ts';
 import type { BranchScheduleHoursPort } from '../../ports/branch-schedule-hours.port.ts';
@@ -336,8 +337,49 @@ export class ClaimRatingRequest<Transaction = unknown> {
       if (branch === null) throw new Error('RATING_BRANCH_NOT_FOUND');
       placeByBranch.set(branchId, branch);
     }
+    const resolvedLines = await this.assignMissingDayLines(
+      tx,
+      companyId,
+      request,
+      lines,
+      place,
+      placeByBranch,
+    );
+    return {
+      sessions: sessionsOfDay(
+        resolvedLines,
+        placeByBranch,
+        request.businessDate,
+        request.sendDeadline,
+      ),
+      placeByBranch,
+    };
+  }
+
+  private async assignMissingDayLines(
+    tx: Transaction,
+    companyId: string,
+    request: DueRatingRequest,
+    lines: Awaited<ReturnType<DaySessionsPort<Transaction>['activeLines']>>,
+    place: BranchSchedule,
+    placeByBranch: ReadonlyMap<string, BranchSchedule>,
+  ) {
+    const legacyOvernight: LegacyOvernightCoverage = {
+      request: {
+        businessDate: request.businessDate,
+        dueAt: request.dueAt,
+        sendDeadline: request.sendDeadline,
+      },
+      requestBranchTimeZone: place.timeZone,
+    };
     const assign = this.ports.daySessions.assignRequestDay;
-    const pendingSessionIds = unassignedSessionIdsOfDay(lines, placeByBranch, request.businessDate);
+    const pendingSessionIds = unassignedSessionIdsOfDay(
+      lines,
+      placeByBranch,
+      request.businessDate,
+      undefined,
+      legacyOvernight,
+    );
     const assignedBySessionId = new Map<string, string>();
     if (assign !== undefined && pendingSessionIds.length > 0) {
       for (const sessionId of pendingSessionIds) {
@@ -347,10 +389,6 @@ export class ClaimRatingRequest<Transaction = unknown> {
         );
       }
     }
-    const resolvedLines = withAssignedRequestDays(lines, assignedBySessionId);
-    return {
-      sessions: sessionsOfDay(resolvedLines, placeByBranch, request.businessDate),
-      placeByBranch,
-    };
+    return withAssignedRequestDays(lines, assignedBySessionId);
   }
 }

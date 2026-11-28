@@ -194,3 +194,48 @@ it('withAssignedRequestDays populates requestDay only on previously unassigned s
   expect(updated[0]?.requestDay).toBe('2026-10-05');
   expect(updated[1]?.requestDay).toBe('2026-10-04');
 });
+
+it('PP-286 T-3: keeps an anchored 00:45 overnight visit in sessionsOfDay when hours are cleared and recovers unassigned overnight sessions cleanly', () => {
+  const clearedSchedule: BranchSchedule = { timeZone: 'Asia/Kuwait', openingHours: null };
+  const anchored0045: ActiveLine = {
+    ...line('overnight-0045', 'line-0045', '2026-10-05T21:45:00Z'),
+    requestDay: '2026-10-05',
+  };
+  expect(sessionsOfDay([anchored0045], places(clearedSchedule), '2026-10-05')).toHaveLength(1);
+
+  const legacyUnassigned = line('legacy-0030', 'line-legacy', '2026-10-05T21:30:00Z');
+  const postEveningSentNew = line('new-0015', 'line-new', '2026-10-05T21:15:00Z');
+  const legacyCoverage = {
+    request: {
+      businessDate: '2026-10-05',
+      dueAt: new Date('2026-10-05T22:30:00Z'),
+      sendDeadline: new Date('2026-10-05T23:30:00Z'),
+    },
+    requestBranchTimeZone: 'Asia/Kuwait',
+  };
+  expect(
+    unassignedSessionIdsOfDay(
+      [legacyUnassigned],
+      places(clearedSchedule),
+      '2026-10-05',
+      undefined,
+      legacyCoverage,
+    ),
+  ).toEqual(['legacy-0030']);
+  expect(
+    unassignedSessionIdsOfDay(
+      [postEveningSentNew],
+      places(clearedSchedule),
+      '2026-10-05',
+      undefined,
+      {
+        request: {
+          businessDate: '2026-10-05',
+          dueAt: new Date('2026-10-05T18:00:00Z'),
+          sendDeadline: new Date('2026-10-05T23:30:00Z'),
+        },
+        requestBranchTimeZone: 'Asia/Kuwait',
+      },
+    ),
+  ).toEqual([]);
+});

@@ -14,6 +14,7 @@ export interface BootstrapSession {
   readonly customerId: string;
   readonly branchId: string;
   readonly occurredAt: Date;
+  readonly recordedAt?: Date | undefined;
   readonly requestDay?: string | null;
 }
 

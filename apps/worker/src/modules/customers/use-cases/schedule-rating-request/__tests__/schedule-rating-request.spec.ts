@@ -248,3 +248,73 @@ it('throws SessionRequestDayMismatchError when assignRequestDay returns a differ
     persistedDay: '2026-10-04',
   });
 });
+
+function postEveningSentHarness(newVisit0015: Date) {
+  const assignedDays: string[] = [];
+  let lockedKey: string | undefined;
+  const nextDayRow: RatingRequestRow = {
+    ...scheduledRow,
+    id: '01920000-0000-7000-8000-000000000202',
+    dueAt: new Date('2026-10-05T22:15:00Z'),
+    sendDeadline: new Date('2026-10-06T20:59:00Z'),
+  };
+  const daytime = [1, 2].map((weekday) => ({
+    weekday,
+    intervals: [{ opens: '10:00', closes: '23:59' }],
+  }));
+  const line0015 = {
+    lineId: 'line-0015',
+    sessionId,
+    branchId,
+    occurredAt: newVisit0015,
+    recordedAt: newVisit0015,
+    businessTimezone: 'Asia/Kuwait',
+    requestDay: null,
+    performers: [{ employeeId, shareBps: 10_000 }],
+  };
+  const useCase = createUseCase({
+    hours: { hours: async () => ({ openingHours: daytime, timeZone: 'Asia/Kuwait' }) },
+    daySessions: {
+      activeLines: async () => [line0015],
+      readRequestDay: async () => null,
+      assignRequestDay: async (_tx, _c, _b, _id, requestDay) => (
+        assignedDays.push(requestDay),
+        requestDay
+      ),
+      sessionsSince: async () => [],
+      countSince: async () => 0,
+      watermark: async () => null,
+    },
+    requests: {
+      lock: async (_tx, key) => ((lockedKey = key.businessDate), nextDayRow),
+      insertIfAbsent: async () => undefined,
+      schedule: async () => undefined,
+      cancel: async () => undefined,
+      findPreviousDayRequest: async () => ({
+        businessDate: '2026-10-05',
+        branchId,
+        dueAt: new Date('2026-10-05T18:00:00Z'),
+        sendDeadline: new Date('2026-10-05T23:30:00Z'),
+        claimedAt: new Date('2026-10-05T18:00:00Z'),
+      }),
+    },
+  });
+  return { useCase, assignedDays, lockedKeyOf: () => lockedKey };
+}
+
+it('PP-286 T-3: ignores an earlier evening SENT overnight request for a brand-new 00:15 visit after hours change', async () => {
+  const newVisit0015 = new Date('2026-10-05T21:15:00Z');
+  const { useCase, assignedDays, lockedKeyOf } = postEveningSentHarness(newVisit0015);
+  const outcome = await useCase.execute(tx, {
+    companyId,
+    businessId,
+    customerId,
+    branchId,
+    sessionId,
+    occurredAt: newVisit0015,
+    recordedAt: newVisit0015,
+  });
+  expect(outcome).toBe('SCHEDULED');
+  expect(lockedKeyOf()).toBe('2026-10-06');
+  expect(assignedDays).toEqual(['2026-10-06']);
+});
