@@ -156,8 +156,8 @@ function tipFormActions(
 
 export function useSessionTipsForm(props: SessionTipsFormProps) {
   const locale = useLocale();
-  const mutation = useRecordSessionTips(props.scope, props.memory);
   const restored = props.memory.current?.get(props.sessionId) ?? null;
+  const mutation = useRecordSessionTips(props.scope, props.memory, restored);
   const flags = useTipFlags(restored);
   const retain = useRef<RecordSessionTipsInput | null>(restored?.body ?? null);
   const form = useForm<SessionTipFormInput, unknown, RecordSessionTipsInput>({

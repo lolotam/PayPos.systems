@@ -46,7 +46,10 @@ it('strips unknown top-level envelope keys while unknown scope keys still throw'
   expect(() => parseSessionJournalEnvelope({ ...envelope, scope: { ...scope, extra: 'y' } })).toThrow('SESSION_JOURNAL_INVALID');
 });
 
-it.each(['phone', 'customerPhone', 'Email', 'otp'] as const)('PII-shaped unknown key %s on PARTIAL envelope throws SESSION_JOURNAL_INVALID', (key) => {
+it.each([
+  'phone', 'customerPhone', 'Email', 'otp', 'customerName', 'CustomerName',
+  'verificationCode', 'vErIfIcAtIoNcOdE', 'customerphone', 'cUsToMeRpHoNe', 'customerPin',
+] as const)('PII-shaped unknown key %s on PARTIAL envelope throws SESSION_JOURNAL_INVALID', (key) => {
   const envelope = { version: 1 as const, state: 'PARTIAL' as const, scope, sessionId: id(12) };
   expect(() => parseSessionJournalEnvelope({ ...envelope, [key]: 'secret' })).toThrow('SESSION_JOURNAL_INVALID');
 });
@@ -54,4 +57,18 @@ it.each(['phone', 'customerPhone', 'Email', 'otp'] as const)('PII-shaped unknown
 it.each(['errorCode', 'displayName', 'filename'] as const)('drops unknown harmless key %s from PARTIAL envelope', (key) => {
   const envelope = { version: 1 as const, state: 'PARTIAL' as const, scope, sessionId: id(12) };
   expect(parseSessionJournalEnvelope({ ...envelope, [key]: 'x' })).toEqual(envelope);
+});
+
+it('handles deeply nested and wide neutral extensions without overflow and still rejects deeply nested PII', () => {
+  const envelope = { version: 1 as const, state: 'PARTIAL' as const, scope, sessionId: id(12) };
+  let neutral: Record<string, unknown> = { leaf: 'ok' };
+  let pii: Record<string, unknown> = { customerPhone: 'secret' };
+  for (let depth = 0; depth < 2000; depth += 1) {
+    neutral = { nested: neutral };
+    pii = { nested: pii };
+  }
+  const wide = Array.from({ length: 150_000 }, () => 'ok');
+  expect(parseSessionJournalEnvelope({ ...envelope, futureMeta: neutral })).toEqual(envelope);
+  expect(parseSessionJournalEnvelope({ ...envelope, wide })).toEqual(envelope);
+  expect(() => parseSessionJournalEnvelope({ ...envelope, futureMeta: pii })).toThrow('SESSION_JOURNAL_INVALID');
 });

@@ -2,7 +2,7 @@ import { formatInstant, t } from '@pospay/i18n';
 import { onlineManager, QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
-import { SESSION_ATTEMPT_RETENTION_MS, SESSION_ATTEMPT_SAFETY_MARGIN_MS } from '../model/session-attempt';
+import { SESSION_ATTEMPT_RETRY_WINDOW_MS } from '../model/session-attempt';
 import { createSessionAttemptJournal } from '../model/session-attempt-journal';
 import { sessionLocalTime } from '../model/session-local-time';
 import { id, inputLine, instant, response, scope } from '../model/session-recording-result.fixture';
@@ -221,7 +221,7 @@ it('shows only the forbidden message when an unresolved attempt meets a refused 
   });
 });
 
-const retention = SESSION_ATTEMPT_RETENTION_MS + SESSION_ATTEMPT_SAFETY_MARGIN_MS;
+const retention = SESSION_ATTEMPT_RETRY_WINDOW_MS;
 const recoveryPage = { items: [], next_cursor: null, attempt: { business_date: '2026-10-13', business_timezone: 'Pacific/Auckland', issued_at: instant, expires_at: '2026-10-14T08:00:00.000Z' } };
 
 async function seedExpired(sent: boolean) {

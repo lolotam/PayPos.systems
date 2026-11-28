@@ -1,10 +1,12 @@
 import { useCallback, useRef, useState } from 'react';
 
+import { markLaunchLinkHandled } from '@/shared/platform/launch-links';
+
 import { switchBusiness, type SwitchOutcome } from './business-switch';
 import { rememberBusiness, type DeviceRole } from './device-role';
-import { endPersonalSession } from './end-sessions';
 import {
   endEmployeeSessionFirst,
+  endPersonalSessionWithTimeout,
   resolveChoice,
   resolveLink,
   resolveStartOver,
@@ -13,17 +15,30 @@ import {
   stateForRole,
   stateFromLink,
   stateWithoutPending,
+  type KnownShellState,
   type NativeState,
 } from './link-rules';
 import type { PersonalWorkspace } from './manager-link';
+import { notifyColdLinkSupersededAndRetired } from './use-native-link';
 import { useStepQueue } from './use-step-queue';
+
+function retireLaunchLink(coldRetired: { current: boolean }): void {
+  coldRetired.current = true;
+  markLaunchLinkHandled();
+  notifyColdLinkSupersededAndRetired();
+}
 
 /** حالة شاشة النسخة الأصلية وخطواتها. */
 export interface NativeFlow {
   state: NativeState;
   busy: boolean;
-  onStart: (role: DeviceRole | null, saved: PersonalWorkspace | null) => void;
-  onLink: (workspace: PersonalWorkspace | null) => Promise<void>;
+  onStart: (
+    role: DeviceRole | null,
+    saved: PersonalWorkspace | null,
+    readFailed?: boolean,
+    businessUnreadable?: boolean,
+  ) => void;
+  onLink: (workspace: PersonalWorkspace | null, fallback?: KnownShellState) => Promise<boolean>;
   choose: (role: DeviceRole) => void;
   /** بيرجع لاختيار نوع الجهاز لما مفيش اقتران ولا جلسة (FR-001). */
   startOver: () => void;
@@ -45,32 +60,32 @@ export function useNativeFlow(): NativeFlow {
   // نسخة من الحالة بتتحدّث مع كل تغيير: الخطوة اللي في الطابور بتشوف الحالة
   // الراهنة من غير ما تقرا حالة React.
   const latest = useRef<NativeState>(state);
+  const coldRetired = useRef(false);
   const apply = useCallback((next: NativeState | ((current: NativeState) => NativeState)) => {
     const value = typeof next === 'function' ? next(latest.current) : next;
     latest.current = value;
     setState(value);
   }, []);
   const onError = useCallback(() => {
-    apply(stateAfterFailure(latest.current, null, null));
+    apply(stateAfterFailure(latest.current, null, null, true));
   }, [apply]);
   const { busy, queue } = useStepQueue(onError);
 
   const onStart = useCallback(
-    (role: DeviceRole | null, saved: PersonalWorkspace | null) => {
-      apply((current: NativeState) =>
-        current.kind === 'loading' ? stateForRole(role, saved) : current,
-      );
+    (
+      role: DeviceRole | null,
+      saved: PersonalWorkspace | null,
+      readFailed?: boolean,
+      businessUnreadable?: boolean,
+    ) => {
+      apply((current) => startState(current, role, saved, readFailed, businessUnreadable));
     },
     [apply],
   );
 
   const onLink = useCallback(
-    async (workspace: PersonalWorkspace | null) => {
-      queue(async () => {
-        const outcome = await resolveLink(workspace);
-        apply((current: NativeState) => stateFromLink(current, outcome));
-      });
-    },
+    (workspace: PersonalWorkspace | null, fallback?: KnownShellState): Promise<boolean> =>
+      runQueuedLink(queue, apply, coldRetired, workspace, fallback),
     [apply, queue],
   );
 
@@ -92,18 +107,14 @@ export function useNativeFlow(): NativeFlow {
   }, [apply, queue]);
 
   const confirm = useCallback(
-    (pending: PersonalWorkspace) => {
-      queue(async () => {
-        const outcome = await switchStep(pending, latest.current);
-        if (outcome === null) return;
-        apply((current: NativeState) => stateAfterSwitch(current, outcome, pending));
-      });
-    },
+    (pending: PersonalWorkspace) => runQueuedConfirm(queue, apply, latest, coldRetired, pending),
     [apply, queue],
   );
 
   const cancel = useCallback(() => {
     apply(stateWithoutPending(latest.current));
+    // رفض التبديل بيقفل اللينك الافتتاحي عشان إعادة التحميل ما تفتحش نفس اللوحة تاني.
+    retireLaunchLink(coldRetired);
   }, [apply]);
 
   return { state, busy, onStart, onLink, choose, startOver, confirm, cancel };
@@ -125,8 +136,87 @@ async function switchStep(
   if (!sameBusiness(current.pending, pending)) return null;
   return switchBusiness(pending, {
     isOnline: () => navigator.onLine,
-    endPersonalSession,
+    // الخروج ليه مهلة: طلب واقف ما يبقاش بيحجز الشاشة على شاشتها القديمة للأبد.
+    endPersonalSession: endPersonalSessionWithTimeout,
     rememberBusiness,
+  });
+}
+
+/** حالة البداية بعد قراءة التخزين: بتتطبق بس لو الشاشة لسه في مرحلة التحميل. */
+function startState(
+  current: NativeState,
+  role: DeviceRole | null,
+  saved: PersonalWorkspace | null,
+  readFailed?: boolean,
+  businessUnreadable?: boolean,
+): NativeState {
+  if (current.kind !== 'loading') return current;
+  // قراءة فاشلة: الشاشة بتفضل على اللي معروف، والتنبيه بيقول إن القراءة فشلت.
+  if (readFailed === true) return stateAfterFailure(current, role, saved, businessUnreadable);
+  return stateForRole(role, saved);
+}
+
+/** ينفّذ تطبيق لينك جوه طابور الخطوات ويرجع هل اللينك اتطبّق ومش محتاج إعادة. */
+function runQueuedLink(
+  queue: (step: () => Promise<void>) => void,
+  apply: (next: NativeState | ((current: NativeState) => NativeState)) => void,
+  coldRetired: { current: boolean },
+  workspace: PersonalWorkspace | null,
+  fallback?: KnownShellState,
+): Promise<boolean> {
+  return new Promise<boolean>((resolve) => {
+    let handled = false;
+    queue(async () => {
+      try {
+        if (fallback !== undefined && coldRetired.current) {
+          // اللينك البارد اللي سبق ودخل الطابور قبل ما اللصق أو التبديل يخلص يتقفل بلا تنفيذ.
+          handled = true;
+          return;
+        }
+        const outcome = await resolveLink(workspace, fallback);
+        apply((current: NativeState) => stateFromLink(current, outcome));
+        const hasPendingSwitch =
+          outcome.kind === 'state' &&
+          outcome.state.kind === 'flow' &&
+          outcome.state.pending !== undefined;
+        // الفشل المؤقت زي انقطاع النت أو فشل إنهاء الجلسة أو انتظار تأكيد التبديل ما بيقفلش اللينك.
+        const settledState =
+          outcome.kind === 'state' && outcome.state.kind !== 'loading' ? outcome.state : null;
+        const transientFailure =
+          settledState?.alert === 'needsInternet' ||
+          settledState?.alert === 'saveFailed' ||
+          settledState?.alert === 'roleChangeFailed';
+        const settled = settledState !== null && !transientFailure && !hasPendingSwitch;
+        // اللينك الدافي المرفوض أو على جهاز كاونتر ما يستهلكش لينك افتتاحي قديم قابل للإعادة.
+        const applied =
+          workspace !== null &&
+          settled &&
+          settledState.kind === 'flow' &&
+          settledState.role === 'employee' &&
+          settledState.alert === undefined;
+        if (applied) retireLaunchLink(coldRetired);
+        handled = fallback === undefined ? applied : settled;
+      } finally {
+        resolve(handled);
+      }
+    });
+  });
+}
+
+/** ينفّذ تأكيد تبديل النشاط جوه الطابور ويقفل اللينك الافتتاحي عند نجاح التبديل فقط. */
+function runQueuedConfirm(
+  queue: (step: () => Promise<void>) => void,
+  apply: (next: NativeState | ((current: NativeState) => NativeState)) => void,
+  latest: { current: NativeState },
+  coldRetired: { current: boolean },
+  pending: PersonalWorkspace,
+): void {
+  queue(async () => {
+    const outcome = await switchStep(pending, latest.current);
+    if (outcome === null) return;
+    apply((current: NativeState) => stateAfterSwitch(current, outcome, pending));
+    // اللينك الافتتاحي المعلّق ما بيتقفلش غير لما التبديل يكمل فعلًا، ولو فشل بيفضل قابل للإعادة.
+    if (outcome === 'switched') retireLaunchLink(coldRetired);
   });
 }
 

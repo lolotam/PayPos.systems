@@ -5,15 +5,25 @@ import {
   type RendererOptions,
 } from '@pospay/documents';
 import type { Logger } from '@pospay/observability';
-import { Worker } from 'bullmq';
+import { Worker, type Job } from 'bullmq';
 import { Redis } from 'ioredis';
 
-import { deferPdfWhileStarting, PDF_DEFER_WINDOW_MS, type RendererStartup } from './defer-pdf.ts';
+import {
+  armRecoveryDeferral,
+  clearJobDeferralDeadline,
+  deferPdfWhileStarting,
+  PDF_DEFER_WINDOW_MS,
+  type RendererStartup,
+} from './defer-pdf.ts';
 import { startRendererLiveness } from './liveness.ts';
-import type { EpochClock } from './process-job.ts';
+import type {
+  EpochClock,
+  ProcessDocumentDeps,
+  processDocumentJob as processDocumentJobFn,
+} from './process-job.ts';
 import { DocumentSourceRegistry } from './source-registry.ts';
 import { trackDocumentStartup, type AttemptBinder, type HeldQueue } from './startup-session.ts';
-import { startWithin, waitOrAbort } from './startup-wait.ts';
+import { startWithin, waitOrAbort, type RendererStart } from './startup-wait.ts';
 
 const LOCK_MS = 45_000;
 const STARTUP_MS = 30_000;
@@ -43,6 +53,11 @@ export interface StartDocumentsInput {
   readonly sleep?: (ms: number) => Promise<void>;
   /** مهلة قفل المتصفح وتنظيف المحاولة الفاشلة. نفس الرقم للاتنين. */
   readonly closeGraceMs?: number;
+  /** مهلة تفريغ الطابور في الإغلاق الطبيعي قبل القفل الإجباري. */
+  readonly drainGraceMs?: number;
+  /** مهلة أوامر Redis جوه تأجيل PDF قبل تمرير الفشل لـ BullMQ. */
+  readonly deferOpTimeoutMs?: number;
+  readonly onUnconfirmedExit?: (error: Error) => void;
   readonly lockDurationMs?: number;
   readonly stalledIntervalMs?: number;
   readonly maxStalledCount?: number;
@@ -95,6 +110,11 @@ async function openRenderer(input: StartDocumentsInput): Promise<DocumentRendere
     ...(input.browserFactory === undefined ? {} : { factory: input.browserFactory }),
     ...(input.closeGraceMs === undefined ? {} : { closeGraceMs: input.closeGraceMs }),
     onLaunchError: (error) => logUnavailable(input.logger, 'LAUNCH_FAILED', error),
+    onUnconfirmedExit: (error) => {
+      // المتصفح قدرة اختيارية (ADR-0049 §3.6): ما نبعتش SIGTERM للـ worker المشترك عشان الإشعارات والـ Excel ما يقفوش.
+      logUnavailable(input.logger, 'UNCONFIRMED_EXIT', error);
+      input.onUnconfirmedExit?.(error);
+    },
   });
   bindAvailableLog(input.logger, renderer);
   return renderer;
@@ -109,6 +129,23 @@ function openQueueConnection(redisUrl: string): Redis {
   return connection;
 }
 
+async function runQueuedJob(
+  job: Job,
+  token: string | undefined,
+  startup: RendererStartup,
+  deps: ProcessDocumentDeps,
+  process: typeof processDocumentJobFn,
+  deadlineMs: number,
+): Promise<void> {
+  const startedAtMs = Date.now();
+  // بنسيب أي خطأ من التأجيل يطلع لـ BullMQ عشان ما نكتبش FAILED بالخطأ على وظيفة Redis نقّلها delayed فعلاً.
+  await deferPdfWhileStarting(job, token, startup, deps.registry);
+  await process(job, {
+    ...deps,
+    deadlineMs: Math.max(1, deadlineMs - (Date.now() - startedAtMs)),
+  });
+}
+
 async function openWorker(
   input: StartDocumentsInput,
   registry: DocumentSourceRegistry,
@@ -116,29 +153,20 @@ async function openWorker(
   attempt: AttemptBinder,
   startup: RendererStartup,
 ): Promise<{ worker: Worker; connection: Redis }> {
-  const { processDocumentJob, recordExternalJobFailure } = await import('./process-job.ts');
+  const jobs = await import('./process-job.ts');
   const connection = openQueueConnection(input.redisUrl);
   let worker: Worker | undefined;
   try {
+    const deps: ProcessDocumentDeps = { redis: input.redis, registry, renderer, clock: input.clock, logger: input.logger };
     worker = new Worker(
       DOCUMENTS_RENDER_QUEUE,
-      async (job, token) => {
-        await deferPdfWhileStarting(job, token, startup, registry);
-        return processDocumentJob(job, {
-          redis: input.redis,
-          registry,
-          renderer,
-          clock: input.clock,
-          logger: input.logger,
-        });
-      },
+      (job, token) =>
+        runQueuedJob(job, token, startup, deps, jobs.processDocumentJob, jobs.JOB_DEADLINE_MS),
       {
         connection,
         concurrency: 2,
         lockDuration: input.lockDurationMs ?? LOCK_MS,
-        ...(input.stalledIntervalMs === undefined
-          ? {}
-          : { stalledInterval: input.stalledIntervalMs }),
+        ...(input.stalledIntervalMs === undefined ? {} : { stalledInterval: input.stalledIntervalMs }),
         ...(input.maxStalledCount === undefined ? {} : { maxStalledCount: input.maxStalledCount }),
         ...(input.prefix === undefined ? {} : { prefix: input.prefix }),
       },
@@ -147,13 +175,15 @@ async function openWorker(
     attempt.holdQueue({ worker, connection });
     input.onQueueConstructed?.({ worker, connection });
     worker.on('error', (error: Error) => logUnavailable(input.logger, 'QUEUE_FAILED', error));
-    worker.on('failed', (job) => {
+    worker.on('completed', (job) => {
+      if (job != null) clearJobDeferralDeadline(job, startup);
+    });
+    worker.on('failed', (job, error) => {
       if (job == null) return;
-      void recordExternalJobFailure(job, {
-        redis: input.redis,
-        logger: input.logger,
-        clock: input.clock,
-      }).catch(() => undefined);
+      if (jobs.isTerminalJobFailure(job)) clearJobDeferralDeadline(job, startup);
+      void jobs
+        .recordExternalJobFailure(job, { redis: input.redis, logger: input.logger, clock: input.clock }, error)
+        .catch(() => undefined);
     });
     await worker.waitUntilReady();
     return { worker, connection };
@@ -168,9 +198,71 @@ function halted(input: StartDocumentsInput, attempt: AttemptBinder): boolean {
   return attempt.cancelled() || input.isStopping?.() === true;
 }
 
+async function waitPendingStart(
+  pending: Promise<RendererStart>,
+  settleMs: number,
+  signal: AbortSignal,
+  cancelPending?: () => void,
+): Promise<RendererStart> {
+  if (signal.aborted) return { state: 'pending' };
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  let onAbort: (() => void) | undefined;
+  const aborted = new Promise<RendererStart>((resolve) => {
+    onAbort = () => resolve({ state: 'pending' });
+    signal.addEventListener('abort', onAbort, { once: true });
+    // بنلغي الانتظار المعلّق عند المهلة وبنستنى اعتراف المحوّل بالإلغاء قبل أي start() تانية.
+    timer = setTimeout(() => {
+      cancelPending?.();
+    }, settleMs);
+  });
+  try {
+    return await Promise.race([pending, aborted]);
+  } finally {
+    if (timer !== undefined) clearTimeout(timer);
+    if (onAbort !== undefined) signal.removeEventListener('abort', onAbort);
+  }
+}
+
+async function retryRendererStart(
+  input: StartDocumentsInput,
+  renderer: DocumentRenderer,
+  attempt: AttemptBinder,
+  initial?: { readonly pending?: Promise<RendererStart>; readonly cancel?: () => void },
+): Promise<void> {
+  const startupMs = input.startupMs ?? STARTUP_MS;
+  const settleMs = startupMs * 2;
+  if (initial?.pending !== undefined) {
+    const settled = await waitPendingStart(initial.pending, settleMs, attempt.signal, initial.cancel);
+    if (halted(input, attempt) || settled.state === 'started') return;
+    if (settled.state !== 'failed') return;
+    logUnavailable(input.logger, 'SETUP_FAILED', settled.error);
+  }
+  const delays = input.retryDelaysMs ?? RETRY_DELAYS_MS;
+  for (let attemptNo = 0; !halted(input, attempt); attemptNo += 1) {
+    const delayMs = delays[Math.min(attemptNo, delays.length - 1)] ?? 60_000;
+    await waitOrAbort(delayMs, attempt.signal, input.sleep);
+    if (halted(input, attempt)) return;
+    try {
+      let outcome = await startWithin(renderer, startupMs, attempt.signal);
+      if (outcome.state === 'pending' && outcome.pending !== undefined) {
+        outcome = await waitPendingStart(
+          outcome.pending,
+          settleMs,
+          attempt.signal,
+          outcome.cancelPending,
+        );
+      }
+      if (halted(input, attempt) || outcome.state === 'started') return;
+      logUnavailable(input.logger, 'SETUP_FAILED', outcome.error);
+    } catch (error) {
+      logUnavailable(input.logger, 'SETUP_FAILED', error);
+    }
+  }
+}
+
 /**
  * إقلاع Chromium بعد ما الطابور بقى live. الإقلاع له مهلة واحدة، وناشر الحياة بيعيد
- * المحاولة لو Redis مش جاهز: الطابور ما بيتقفلش، والمتصفح الحقيقي بيرجع لوحده.
+ * المحاولة لو Redis مش جاهز: الطابور ما بيتقفلش، ولو start() رفضت بنعيد المحاولة في الخلفية.
  */
 async function startRenderer(
   input: StartDocumentsInput,
@@ -179,7 +271,17 @@ async function startRenderer(
 ): Promise<void> {
   try {
     const start = await startWithin(renderer, input.startupMs ?? STARTUP_MS, attempt.signal);
-    if (start.state !== 'started') logUnavailable(input.logger, 'SETUP_FAILED', start.error);
+    if (halted(input, attempt)) return;
+    if (start.state === 'failed') {
+      logUnavailable(input.logger, 'SETUP_FAILED', start.error);
+      void retryRendererStart(input, renderer, attempt);
+    } else if (start.state === 'pending') {
+      logUnavailable(input.logger, 'SETUP_FAILED', start.error);
+      void retryRendererStart(input, renderer, attempt, {
+        ...(start.pending === undefined ? {} : { pending: start.pending }),
+        ...(start.cancelPending === undefined ? {} : { cancel: start.cancelPending }),
+      });
+    }
     await publishLiveness(input, renderer, attempt);
   } catch (error) {
     logUnavailable(input.logger, 'SETUP_FAILED', error);
@@ -227,11 +329,7 @@ async function bringUp(
   const renderer = await openRenderer(input);
   attempt.setRenderer(renderer);
   if (halted(input, attempt)) return false;
-  // التأجيل بيقفل لما المتصفح يبقى متاح، مش بمهلة الإقلاع.
-  renderer.onAvailable(() => {
-    if (!attempt.cancelled()) startup.starting = false;
-  });
-  if (!attempt.cancelled() && renderer.isAvailable()) startup.starting = false;
+  armRecoveryDeferral(renderer, attempt.cancelled, startup);
   const opened = await openWorker(input, registry, renderer, attempt, startup);
   if (halted(input, attempt)) {
     await opened.worker.close().catch(() => undefined);
@@ -249,13 +347,19 @@ async function bringUp(
  */
 export function beginDocumentRendering(input: StartDocumentsInput): DocumentRendering {
   const registry = input.registry ?? new DocumentSourceRegistry();
-  const startup: RendererStartup = { starting: false, deadlineAt: 0 };
+  const startup: RendererStartup = {
+    starting: false,
+    deadlineAt: 0,
+    jobDeadlines: new Map(),
+    ...(input.deferOpTimeoutMs === undefined ? {} : { opTimeoutMs: input.deferOpTimeoutMs }),
+  };
   if (input.renderer !== undefined) bindAvailableLog(input.logger, input.renderer);
   const runtime = trackDocumentStartup({
     startupMs: input.startupMs ?? STARTUP_MS,
     retryDelaysMs: input.retryDelaysMs ?? RETRY_DELAYS_MS,
     sleep: input.sleep ?? delay,
     ...(input.closeGraceMs === undefined ? {} : { closeGraceMs: input.closeGraceMs }),
+    ...(input.drainGraceMs === undefined ? {} : { drainGraceMs: input.drainGraceMs }),
     stopped: () => input.isStopping?.() === true,
     onFailed: (error) => logUnavailable(input.logger, 'SETUP_FAILED', error),
     run: (attempt) => bringUp(input, registry, attempt, startup),

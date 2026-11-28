@@ -24,6 +24,25 @@ export async function openWithinGrace(
   return { settled, context };
 }
 
+const contextCloses = new WeakMap<PdfContext, Promise<void>>();
+
+/**
+ * يضمن وعد إغلاق واحد لكل سياق: تكرار close() وقت انتهاء المهلة يرجّع نفس الوعد المعلّق
+ * بدل ما استدعاء تاني يرجّع نجاح فوري على سياق لسه محشور.
+ */
+export function closeContextOnce(context: PdfContext): Promise<void> {
+  const existing = contextCloses.get(context);
+  if (existing !== undefined) return existing;
+  let closing: Promise<void>;
+  try {
+    closing = context.close();
+  } catch {
+    closing = Promise.reject(new Error('close failed'));
+  }
+  contextCloses.set(context, closing);
+  return closing;
+}
+
 /** قفل السياق جوّه المهلة يسيب المتصفح. اللي ما خلّصش بيتقاعد من برّه، من غير close بلا حد. */
 export async function closeHungContext(
   context: PdfContext,
@@ -31,13 +50,7 @@ export async function closeHungContext(
   sleep: (ms: number) => Promise<void>,
 ): Promise<boolean> {
   let finished = false;
-  let closing: Promise<unknown>;
-  try {
-    closing = context.close();
-  } catch {
-    closing = Promise.reject(new Error('close failed'));
-  }
-  const pending = closing.then(
+  const pending = closeContextOnce(context).then(
     () => {
       finished = true;
     },

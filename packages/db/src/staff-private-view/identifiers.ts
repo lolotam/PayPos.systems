@@ -43,3 +43,46 @@ export async function deleteStaffPrivateViewRows(
       sql`, `,
     )})`);
 }
+
+/**
+ * يمسح صفوف نوافذ العرض الخاص المنتهية وصفوف عدّاداتها التي انتهى موعد جلستها المطلق أو حُذفت،
+ * بالحدّ نفسه المستخدم في تنظيف تحديات OTP حتى تتّبع الاحتفاظ الموحّد دون جدول أو صلاحية جديدة (#776).
+ *
+ * @param tx معاملة pospay_auth المفتوحة بالفعل
+ * @param limit الحد الأقصى لعدد الصفوف المحذوفة في الدورة الواحدة (بين 1 و 100)
+ * @returns وعد بلا نتيجة بعد تنظيف الدفعة
+ */
+export async function sweepStaffPrivateViewRows(
+  tx: Pick<PostgresJsDatabase, 'execute'>,
+  limit: number,
+): Promise<void> {
+  if (!Number.isInteger(limit) || limit < 1 || limit > 100) {
+    throw new Error('OTP_RETENTION_INVALID');
+  }
+  await tx.execute(sql`
+    DELETE FROM verification
+    WHERE id IN (
+      SELECT v.id
+      FROM verification v
+      WHERE (
+        v.identifier LIKE 'staff-private-view:v1:%'
+        AND v.expires_at < clock_timestamp()
+      )
+      OR (
+        v.identifier LIKE 'staff-private-view-seq:v1:%'
+        AND NOT EXISTS (
+          SELECT 1
+          FROM session s
+          WHERE s.id = substring(
+            v.identifier
+            FROM '^staff-private-view-seq:v1:([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})$'
+          )::uuid
+            AND s.purpose = 'STAFF_POS'
+            AND s.staff_absolute_deadline > clock_timestamp()
+        )
+      )
+      ORDER BY v.expires_at, v.id
+      LIMIT ${limit}
+      FOR UPDATE OF v SKIP LOCKED
+    )`);
+}

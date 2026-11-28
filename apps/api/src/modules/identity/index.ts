@@ -155,7 +155,18 @@ export {
 } from './persistence/discount-approval-device.ts';
 export { createGrantInvalidator } from './persistence/grant-invalidator.ts';
 export type { GrantInvalidator } from './ports/permission-overrides.port.ts';
-export { STAFF_ACCESS_ROLES, staffAccessSystemRole } from './domain/staff-access-roles.ts';
+export {
+  INVITABLE_ROLES,
+  memberInvitationLinkExpiresAt,
+  selectMemberInvitationNoticeRecipients,
+  type InvitationNoticeRecipientSpec,
+} from './domain/invitable-roles.ts';
+export {
+  STAFF_ACCESS_ROLES,
+  staffAccessSystemRole,
+  TEMPORARY_STAFF_PIN_TTL_MS,
+  temporaryStaffPinExpiresAt,
+} from './domain/staff-access-roles.ts';
 export type { StaffAccessRole } from './domain/staff-access-roles.ts';
 export { StaffUserRefused } from './domain/staff-access-errors.ts';
 export type { StaffUserFacade } from './ports/staff-users.port.ts';

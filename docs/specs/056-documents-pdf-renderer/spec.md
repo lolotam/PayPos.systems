@@ -41,7 +41,7 @@ document. 27g then adds the first real document.
 - **FR-005** A render that exceeds its timeouts (`setContent` 10 s, `pdf` 20 s, 30 s overall, which starts before
   the source loads) sets `FAILED` with `DOCUMENT_RENDER_TIMEOUT`; its context (or a hung browser) is closed in the
   background.
-- **FR-006** A failure on the first attempt is retried once, 5 s later (`attempts: 2`); `FAILED` is written only after
+- **FR-006** A failure on the first attempt is retried once, 15 s later (`attempts: 2`, with bounded worker deferral while Chromium is starting or recovering); `FAILED` is written only after
   the last attempt. `DOCUMENT_KIND_UNKNOWN` and `DOCUMENT_TOO_LARGE` are final at once. Every status change is one
   atomic Redis script guarded by the current state, so a retry never republishes bytes after `READY`.
 - **FR-007** No PDF byte, HTML, template data, Redis key value or tenant field is written to a log line, the job's

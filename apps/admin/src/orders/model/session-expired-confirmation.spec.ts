@@ -1,11 +1,11 @@
 import { afterEach, expect, it, vi } from 'vitest';
-import { SESSION_ATTEMPT_RETENTION_MS, SESSION_ATTEMPT_SAFETY_MARGIN_MS } from './session-attempt';
+import { SESSION_ATTEMPT_RETRY_WINDOW_MS } from './session-attempt';
 import { createSessionAttemptJournal, type SessionAttemptJournal } from './session-attempt-journal';
 import { confirmExpiredRecording, emptySessionRecordingResult, sessionResultCommand, sessionResultFrozen, transitionSessionRecordingResult as transition } from './session-recording-result';
 import { attempt, id, initial, inputLine, instant, recordAttempt, response, scope } from './session-recording-result.fixture';
 
 const journals: SessionAttemptJournal[] = [];
-const retention = SESSION_ATTEMPT_RETENTION_MS + SESSION_ATTEMPT_SAFETY_MARGIN_MS;
+const retention = SESSION_ATTEMPT_RETRY_WINDOW_MS;
 const expiredEntry = { version: 1 as const, state: 'EXPIRED' as const, scope, key: attempt.key, createdAt: attempt.createdAt, lastSentAt: attempt.createdAt };
 afterEach(() => {
   journals.splice(0).forEach((journal) => { journal.changeScope(null); journal.dispose(); });

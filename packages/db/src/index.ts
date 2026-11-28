@@ -158,7 +158,11 @@ export {
   PlatformStorageUnavailableError,
   type PlatformEmailDatabase,
 } from './platform-email-database.ts';
-export { createStaffOtpDatabase, type StaffOtpDatabase } from './staff-otp-database.ts';
+export {
+  createStaffOtpDatabase,
+  StaffPhoneBindingConflictError,
+  type StaffOtpDatabase,
+} from './staff-otp-database.ts';
 export {
   checkStaffPrivateView,
   closeStaffPrivateView,

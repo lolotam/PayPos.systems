@@ -187,13 +187,21 @@ it('does not rebuild the day query when a pending edit answers 409 stale after a
   await waitFor(() => expect(state.patch).toHaveBeenCalledTimes(1));
   denied = true;
   await act(async () => { await view.client.refetchQueries({ queryKey: ['branch-day-sessions'] }); });
-  await waitFor(() => expect(screen.getByRole('alert').textContent).toContain('Denied EN'));
+  await waitFor(() => {
+    expectGone('Denied EN');
+    expect(view.client.getQueryCache().findAll({ queryKey: ['branch-day-sessions'] })).toHaveLength(0);
+    expect(view.client.isFetching()).toBe(0);
+  });
   const dayReads = reads(false);
   await act(async () => {
     answerPatch({ error: { code: 'SESSION_LINE_REVISION_STALE', message_ar: 'Stale AR', message_en: 'Stale EN', details: { current_revision: 4 } }, response: { status: 409 } });
-    await Promise.resolve();
+  });
+  await waitFor(() => {
+    expect(view.client.isMutating()).toBe(0);
+    expect(view.client.isFetching()).toBe(0);
   });
   expect(reads(false)).toBe(dayReads);
+  expect(view.client.getQueryCache().findAll({ queryKey: ['branch-day-sessions'] })).toHaveLength(0);
   expectGone('Denied EN');
 });
 it('ignores a late day refetch success after a denial until Retry', async () => {

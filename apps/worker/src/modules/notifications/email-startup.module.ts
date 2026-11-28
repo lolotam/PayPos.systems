@@ -78,6 +78,8 @@ export async function startEmailCapability(
   activate: () => Promise<EmailActivation> = () => activateEmail(options),
 ) {
   const fallback = createEmailModule({
+    ...(options.appDatabase === undefined ? {} : { database: options.appDatabase }),
+    env: options.env,
     production: options.production,
     clock: options.clock,
     ids: options.ids,
@@ -151,6 +153,8 @@ function capabilityView(state: EmailCapabilityState) {
 async function activateEmail(options: EmailStartupOptions): Promise<EmailActivation> {
   const feedback = await startFeedback(options);
   const module = createEmailModule({
+    ...(options.appDatabase === undefined ? {} : { database: options.appDatabase }),
+    env: options.env,
     production: options.production,
     clock: options.clock,
     ids: options.ids,

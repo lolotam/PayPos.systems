@@ -1,5 +1,6 @@
 import { UnrecoverableError, type Job } from 'bullmq';
 import {
+  documentRenderErrorCode,
   documentRenderJob,
   type DocumentRenderErrorCode,
   type DocumentRenderJob,
@@ -20,7 +21,7 @@ import type { DocumentSourceRegistry } from './source-registry.ts';
 import { markFailed, markRendering, storeReady } from './status-store.ts';
 import { AttendanceStatementEmptyError } from './statement-empty-error.ts';
 
-const JOB_DEADLINE_MS = 30_000;
+export const JOB_DEADLINE_MS = 30_000;
 /** بعد المهلة، كتابة الفشل لسه بتاخد محاولة قصيرة ومقفولة. */
 const MARK_FAILED_FLOOR_MS = 1_000;
 
@@ -246,24 +247,76 @@ async function runGuarded(
   }
 }
 
-/** فشل BullMQ من غير ما المعالج يتنده، زي تجاوز maxStalledCount. الحالة بتتقفل لو الانتقال مسموح. */
+function externalErrorCode(job: Job, error?: unknown): DocumentRenderErrorCode {
+  if (error instanceof DocumentRenderTimeoutError) return 'DOCUMENT_RENDER_TIMEOUT';
+  const message = error instanceof Error ? error.message : job.failedReason;
+  const known = documentRenderErrorCode.safeParse(message);
+  if (known.success) return known.data;
+  if (message === 'DOCUMENT_RENDER_TIMEOUT' || message === 'Document render timed out') {
+    return 'DOCUMENT_RENDER_TIMEOUT';
+  }
+  return 'DOCUMENT_RENDER_FAILED';
+}
+
+const MARK_FAILED_RETRY_DELAYS_MS = [50, 150] as const;
+
+async function writeTerminalFailureStatus(
+  redis: Redis,
+  companyId: string,
+  renderId: string,
+  code: DocumentRenderErrorCode,
+): Promise<{ readonly wrote?: boolean; readonly error?: unknown }> {
+  let lastError: unknown;
+  for (let attempt = 0; attempt <= MARK_FAILED_RETRY_DELAYS_MS.length; attempt += 1) {
+    try {
+      const wrote = await withinBudget(MARK_FAILED_FLOOR_MS, () =>
+        markFailed(redis, companyId, renderId, code),
+      );
+      return { wrote };
+    } catch (error) {
+      lastError = error;
+      const delayMs = MARK_FAILED_RETRY_DELAYS_MS[attempt];
+      if (delayMs === undefined) break;
+      await new Promise<void>((resolve) => setTimeout(resolve, delayMs));
+    }
+  }
+  return { error: lastError };
+}
+
+/** فشل BullMQ من غير ما المعالج يتنده، زي تجاوز maxStalledCount أو مهلة التأجيل. الحالة بتتقفل مع إعادة محاولة محدودة لو Redis تعثّر. */
 export async function recordExternalJobFailure(
   job: Job,
   deps: Pick<ProcessDocumentDeps, 'redis' | 'logger' | 'clock'>,
+  error?: unknown,
 ): Promise<void> {
   if (!isTerminalJobFailure(job)) return;
   const parsed = documentRenderJob.safeParse(job.data);
   if (!parsed.success) return;
   const { company_id, render_id, kind } = parsed.data;
-  const failed = await markFailed(deps.redis, company_id, render_id, 'DOCUMENT_RENDER_FAILED');
-  if (!failed) return;
+  const code = externalErrorCode(job, error);
   const processedOn = job.processedOn ?? deps.clock.now();
+  const outcome = await writeTerminalFailureStatus(deps.redis, company_id, render_id, code);
+  if (outcome.error !== undefined) {
+    deps.logger.warn(
+      {
+        capability: { name: 'DOCUMENTS', state: 'UNAVAILABLE', reason: 'STATUS_WRITE_FAILED' },
+        company_id,
+        render_id,
+        kind,
+        error_code: code,
+        error_class: rendererFailureText(outcome.error).error_class,
+      },
+      'document renderer unavailable',
+    );
+    return;
+  }
+  if (outcome.wrote !== true) return;
   logOutcome(deps.logger, {
     company_id,
     render_id,
     kind,
     state: 'FAILED',
     duration_ms: deps.clock.now() - processedOn,
-    error_code: 'DOCUMENT_RENDER_FAILED',
+    error_code: code,
   });
 }

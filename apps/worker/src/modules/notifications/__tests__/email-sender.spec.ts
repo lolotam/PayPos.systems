@@ -18,6 +18,7 @@ afterAll(async () => {
 });
 beforeEach(() => {
   h.advance(NOW);
+  h.clearSuppressions();
   h.emailChannel.outcome = 'accepted';
 });
 
@@ -289,4 +290,38 @@ it('suppression seam refuses email independently of WhatsApp with no authorizati
     tx.execute(sql`SELECT id FROM notification_attempts WHERE id = ${id}`),
   );
   expect(rows).toHaveLength(1);
+});
+
+it('skips freshness verification on direct claims for phone and non-onboarding emails', async () => {
+  const { event, id } = await authorize();
+  const phoneEvent = await h.request();
+  await h.deliver(phoneEvent);
+  const phoneId = await h.attempt(phoneEvent);
+  const base = h.module.send;
+  const emailAttempt = await base.attempts.pending(event.companyId, id);
+  const phoneAttempt = await base.attempts.pending(phoneEvent.companyId, phoneId);
+  if (emailAttempt === null || phoneAttempt === null) throw new Error('TEST_ATTEMPT_MISSING');
+  expect(base.configuration.shouldVerify?.(emailAttempt)).toBe(false);
+  expect(base.configuration.shouldVerify?.(phoneAttempt)).toBe(false);
+  let verifyCalls = 0;
+  const counted = new SendNotification(
+    base.attempts,
+    base.channel,
+    base.admission,
+    base.identity,
+    {
+      ...base.configuration,
+      verify: async (attempt, scope) => {
+        verifyCalls += 1;
+        return base.configuration.verify?.(attempt, scope) ?? true;
+      },
+    },
+    base.clock,
+    base.ids,
+  );
+  await counted.execute(event.companyId, id);
+  await counted.execute(phoneEvent.companyId, phoneId);
+  expect(verifyCalls).toBe(0);
+  expect(await h.read(id)).toMatchObject({ status: 'SENT' });
+  expect(await h.read(phoneId)).toMatchObject({ status: 'SENT' });
 });

@@ -15,9 +15,13 @@ type ForeignSession = NonNullable<ReturnType<typeof usePersonalSession>['session
 /** خانات شاشة الموظفة: النشاط المتذكر، والنشاط الجديد، والشاشة الشخصية. */
 export interface EmployeeFlowProps {
   business: PersonalWorkspace | null;
+  /** قراءة النشاط المتذكر فشلت: الشاشات الخاصة بتفضل مخفية والجلسة الحية ما بتتخرجش. */
+  businessUnreadable?: boolean;
   pending: PersonalWorkspace | null;
   busy: boolean;
   connect: ReactNode;
+  /** تنبيه الشاشة: بينزل جوه إطار الشاشة الشخصية مش فوق الشاشة كلها. */
+  notice?: ReactNode;
   startOver?: ReactNode;
   onConfirm: (pending: PersonalWorkspace) => void;
   onCancel: () => void;
@@ -29,12 +33,18 @@ export interface EmployeeFlowProps {
  *
  * الشاشة الشخصية هي اللي بتقرا الجلسة، فالبوابة بتتبعت ليها: لو الجلسة فاضلة من
  * نشاط تاني بتعرض تنبيه بيخلّصها بدل شاشات الصالون القديم (FR-012).
+ *
+ * من غير نشاط متذكر مؤكد غيابه، أي جلسة شخصية حية بتعتبر غريبة وبتتخلّص مرة واحدة.
+ * أما لو قراءة النشاط من التخزين هي اللي فشلت، فالشاشات الخاصة بتتخفي وتظهر خانة الربط
+ * من غير ما نخرج الجلسة الحية.
  */
 export function EmployeeFlow({
   business,
+  businessUnreadable = false,
   pending,
   busy,
   connect,
+  notice,
   startOver,
   onConfirm,
   onCancel,
@@ -49,13 +59,9 @@ export function EmployeeFlow({
   }, []);
   const sessionGate = useCallback(
     (session: ForeignSession): ReactNode | null => {
-      if (business === null) return null;
-      if (
-        session.company_id === business.company_id &&
-        session.business_id === business.business_id
-      ) {
-        return null;
-      }
+      // قراءة النشاط فشلت: نخفي الشاشات الخاصة بس من غير ما نخرج جلسة ممكن تكون صح.
+      if (businessUnreadable) return <>{connect}</>;
+      if (sameBusiness(business, session)) return null;
       const key = foreignSessionKey(session);
       return (
         <ForeignSessionNotice
@@ -66,13 +72,14 @@ export function EmployeeFlow({
         />
       );
     },
-    [business, report],
+    [business, businessUnreadable, connect, report],
   );
   const screenProps = {
     connect,
     sessionGate,
     locked: busy,
     ...(startOver === undefined ? {} : { startOver }),
+    ...(notice === undefined ? {} : { notice }),
   };
   return (
     <>
@@ -90,6 +97,16 @@ export function EmployeeFlow({
         <PersonalScreen ownLeave={personalLeave} {...screenProps} />
       )}
     </>
+  );
+}
+
+/** هل الجلسة الحالية تابعة لنفس النشاط المتذكر على الجهاز؟ (FR-012) */
+function sameBusiness(business: PersonalWorkspace | null, session: ForeignSession): boolean {
+  // من غير نشاط متذكر مفيش مقارنة، فأي جلسة حية بتعتبر غريبة.
+  return (
+    business !== null &&
+    session.company_id === business.company_id &&
+    session.business_id === business.business_id
   );
 }
 

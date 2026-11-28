@@ -241,10 +241,22 @@ export interface MemberInvitationTransactions {
   ): Promise<{ readonly userId: string } | { readonly refusal: ReissueRefusal }>;
   /**
    * بيختم وقت الإصدار الفعلي بعد كتابة التوكن، ويسجّل تدقيق «link.issued» بمعرّف الدعوة من غير أي سر.
+   * وبيرسل بريد الدعوة لو الـ userId والرابط موجودين: الرابط بيتختم قبل ما يوصل للـ outbox.
    *
    * @param input الفاعل ومعرف الدعوة ووقت الإصدار
+   * @param input.userId المستخدم المدعو، لو الدعوة ليها حساب
+   * @param input.link رابط تعيين كلمة المرور، لو اتصدر
+   * @param input.email إيميل المدعو، وقت ما الطلب لسه شايفه صريح
    */
-  stampLink(input: InvitationActor & { invitationId: string; at: Date }): Promise<void>;
+  stampLink(
+    input: InvitationActor & {
+      invitationId: string;
+      at: Date;
+      userId?: string | undefined;
+      link?: string | undefined;
+      email?: string | undefined;
+    },
+  ): Promise<void>;
 }
 
 /** حدود جداول الهوية لعملية الدعوة — الخدمة الوحيدة اللي تقدر تلمس جداول Better Auth. */
@@ -295,12 +307,25 @@ export interface MemberAccounts {
   discardInvitedMember(input: { operationId: string; companyId: string }): Promise<boolean>;
   /**
    * يصدر رابط تعيين كلمة مرور بقفل صف اليوزر: يرفض لو اليوزر مش مدعوّ من الشركة دي أو
-   * كلمة مروره اتحطت، ويبطل الروابط القديمة (P1-c).
+   * كلمة مروره اتحطت، ويبطل الروابط القديمة (P1-c) ويرجّع لحظة الإصدار المعتمدة من القفل.
    *
    * @param input اليوزر والشركة وصفحة set-password وعمر الرابط ووقت الإصدار
-   * @returns الرابط مرة واحدة — فيه token، فبيتسلم للطلب ولا يتكتبش في log
+   * @returns الرابط ولحظة الإصدار المعتمدة لترتيب الختم عبر المثيلات
    */
-  issueLink(input: LinkIssueInput): Promise<string>;
+  issueLink(input: LinkIssueInput): Promise<{ readonly link: string; readonly issuedAt: Date }>;
+}
+
+/** منسّق توزيع إصدار وختم رابط الدعوة عبر مثيلات الـ API لنفس الدعوة. */
+export interface InvitationLinkCoordinator {
+  /**
+   * ينفّذ إصدار الرابط وختمه حصرياً لدعوة محددة داخل الشركة حتى لا تتداخل عمليات الإصدار وإعادة الإصدار.
+   *
+   * @param companyId معرف الشركة
+   * @param invitationId معرف الدعوة
+   * @param work العمل المراد تسلسله
+   * @returns نتيجة العمل
+   */
+  run<T>(companyId: string, invitationId: string, work: () => Promise<T>): Promise<T>;
 }
 
 /** حدّ معدّل الدعوات لكل مالك في ساعة. */

@@ -9,10 +9,7 @@ Design advice: Codex astra 6 and Claude Fable 5.1 (pipeline step 2), both propos
 
 ## Context
 
-The admin journal (`apps/admin/src/orders/model/session-attempt-journal.ts`) marks a save EXPIRED when the outcome is
-still unknown 25 h after the last send (`SESSION_ATTEMPT_RETENTION_MS` 24 h + `SESSION_ATTEMPT_SAFETY_MARGIN_MS`
-1 h). After a reload the EXPIRED envelope keeps `key`, `scope`, `createdAt`, `lastSentAt?` and, for an append,
-`sessionId` — but no request body.
+The admin journal (`apps/admin/src/orders/model/session-attempt-journal.ts`) originally marked a save EXPIRED 25 h after the last send. Under **PP-286 T-1 (`#221`)**, it now marks a save EXPIRED **23 h after attempt creation (`createdAt`)** (`SESSION_ATTEMPT_RETRY_WINDOW_MS = SESSION_ATTEMPT_RETENTION_MS - SESSION_ATTEMPT_SAFETY_MARGIN_MS`, 24 h - 1 h), and retries (`lastSentAt`) do not extend this client window. After a reload the EXPIRED envelope keeps `key`, `scope`, `createdAt`, `lastSentAt?` and, for an append, `sessionId` — but no request body.
 
 `idempotency_keys` (packages/db/src/idempotency.ts) is written only when the business write commits: the claim, the
 effect and the stored response share one transaction, and a rollback leaves nothing. Its `expires_at` is fixed at
@@ -99,9 +96,11 @@ the observability redaction list.
 ### 2. Lifetime and gates (engineering constants)
 
 - `expires_at` = last server receipt + 72 h, never later than `issued_at + 168 h` (a CHECK enforces the cap), so
-  resending the same key cannot keep a proof alive. The client shows EXPIRED at last send + 25 h, so a proof whose
-  last send reached the server within 96 h of the first stays readable at least 47 h after the panel appears (#209);
-  later than that, the panel shows WINDOW_ENDED.
+  resending the same key cannot keep a proof alive. Under `#221` (PP-286 T-1), the client shows EXPIRED at
+  `createdAt + 23 h` (`SESSION_ATTEMPT_RETRY_WINDOW_MS`), 1 h before the server's 24 h idempotency retention so it never
+  resends an expired key (#209, #221); between `createdAt + 23 h` and `last_seen_at + 24 h`, the read answers
+  `SESSION_RECOVERY_NOT_YET` (while both confirmation buttons stay enabled), and after `last_seen_at + 24 h` a proof
+  stays readable until `expires_at` (up to `issued_at + 168 h`); later than that, the panel shows WINDOW_ENDED.
 - Not-before gate: `last_seen_at + 24 h`. Before it, the right path is a same-key replay, so the read answers
   `SESSION_RECOVERY_NOT_YET`.
 - After `expires_at` or after a revoke the read answers `SESSION_RECOVERY_CLOSED` (`EXPIRED` | `REVOKED`).
@@ -193,8 +192,7 @@ lines of that date until the deadline.
   35c-13a-1 is deployed, the read returns the outcome; the panel states it and pre-selects the matching button,
   the list stays visible, and the recorder still presses confirm herself (SS-Q18). The date still comes from the
   linked `session_id`.
-- A pre-existing gap, not changed here: the server keeps a committed key for 24 h from its claim, while the client may
-  retry until 25 h after its last send (#221).
+- Server idempotency retention remains 24 h from claim; the `#221` client-window mismatch was resolved under PP-286 T-1 by closing the admin retry window at 23 h from `createdAt` without server changes.
 
 ## Consequences
 

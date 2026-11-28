@@ -27,12 +27,17 @@ function build(outcome: EndMembershipOutcome, invalidate = vi.fn().mockResolvedV
 
 describe('EndMembership', () => {
   it('ends with the injected clock, then invalidates the grants, and answers id + ends_at', async () => {
-    const { useCase, end, wrapped, calls } = build({ id: 'membership-1', endsAt: NOW.toISOString() });
+    const { useCase, end, wrapped, calls } = build({
+      id: 'membership-1',
+      endsAt: NOW.toISOString(),
+    });
     await expect(useCase.execute(command)).resolves.toEqual({
       id: 'membership-1',
       ends_at: NOW.toISOString(),
     });
-    expect(end).toHaveBeenCalledWith(command, NOW);
+    expect(end).toHaveBeenCalledWith(command, expect.any(Function));
+    const readClock = (end.mock.calls[0] as unknown[] | undefined)?.[1];
+    expect(typeof readClock === 'function' ? (readClock as () => Date)() : null).toBe(NOW);
     expect(wrapped).toHaveBeenCalledWith('company-1', 'membership-1');
     expect(calls).toEqual(['end', 'invalidate']);
   });
@@ -42,14 +47,17 @@ describe('EndMembership', () => {
     ['NOT_FOUND', 404],
     ['LAST_OWNER', 409],
     ['STAFF_ACCESS_MANAGED_MEMBERSHIP', 409],
-  ] as const)('maps the %s refusal to an ApiError and never invalidates', async (refusal, status) => {
-    const { useCase, wrapped } = build({ refusal });
-    const error = await useCase.execute(command).catch((e: unknown) => e);
-    expect(error).toBeInstanceOf(ApiError);
-    expect((error as ApiError).code).toBe(refusal);
-    expect((error as ApiError).status).toBe(status);
-    expect(wrapped).not.toHaveBeenCalled();
-  });
+  ] as const)(
+    'maps the %s refusal to an ApiError and never invalidates',
+    async (refusal, status) => {
+      const { useCase, wrapped } = build({ refusal });
+      const error = await useCase.execute(command).catch((e: unknown) => e);
+      expect(error).toBeInstanceOf(ApiError);
+      expect((error as ApiError).code).toBe(refusal);
+      expect((error as ApiError).status).toBe(status);
+      expect(wrapped).not.toHaveBeenCalled();
+    },
+  );
 
   it('still answers success when the best-effort invalidation fails', async () => {
     const { useCase } = build(

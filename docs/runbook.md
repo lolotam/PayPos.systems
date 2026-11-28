@@ -1125,8 +1125,8 @@ node scripts/test-db/lane.mjs status               # lane containers, and which 
   running. When the owner file cannot be moved back (a persistent Windows `EPERM`/`EBUSY`), it is copied
   into the new lock directory instead, so a live owner keeps its lock; only if the copy fails too is the empty
   lock directory it just made removed (only if it is still the same directory: inode and creation time), and
-  the parked folder left as such an orphan, so an ownerless lock never blocks later starts. Only the owner's token releases the lock. The code is `scripts/test-db/lane-lock.mjs` and
-  `lane-process.mjs`, tested by `lane-lock.test.mjs`.
+  the parked folder left as such an orphan, so an ownerless lock never blocks later starts. Only the owner's token releases the lock. The code is `scripts/test-db/lane-lock.mjs` (with the lock-restore half in
+  `lane-lock-restore.mjs`) and `lane-process.mjs`, tested by `lane-lock.test.mjs` and `lane-lock-restore.test.mjs`.
 - `up` on a running lane waits for readiness, rewrites the override and reprints the port. A lane container
   that exists but is not plainly running (created, exited, paused, restarting) is removed and started fresh.
 - `up` writes `.env.test.local` at the worktree root (git-ignored by `.env.*`) with only
@@ -1240,7 +1240,9 @@ It is an operator run, once per company — not a BullMQ job — and it never se
    eligibility. Cancellation therefore cannot change the population being checked. The final count
    `verifiedExpected` must also equal the frozen `expected`: a transaction with an old recording time may commit
    after the initial count and behind the page cursor. On this mismatch, rerun the frozen range without a checkpoint
-   so the newly visible sessions are processed; do not continue from the last cursor.
+   so the newly visible sessions are processed; do not continue from the last cursor. This final recount detects
+   transactions that became visible up to verification — it is not an MVCC snapshot across every page. Any transaction
+   committing after verification is covered by the already-running live consumer (step 1) and the atomic session-and-outbox write.
 6. **Until 59-2 ships**, the rating-request switch is off for every business, so the bootstrap schedules nothing
    yet; it only proves the frozen range and the coverage.
 
@@ -1486,6 +1488,14 @@ Rotate `NOTIFICATION_EMAIL_HASH_KEY` / `NOTIFICATION_EMAIL_HASH_KEY_ID` **only o
    ```
 
    Wait until `count` is `0` (and in-flight `SENDING` / unsettled email attempts under the old `hash_key_id` have passed their feedback window).
-2. **Roll key material and new `NOTIFICATION_EMAIL_HASH_KEY_ID` together.** While `EMAIL_FROM_ADDRESS` stays unset, update both the new 32+ character `NOTIFICATION_EMAIL_HASH_KEY` and a distinct new `NOTIFICATION_EMAIL_HASH_KEY_ID` across every worker replica in one release/restart. Never reuse a previous `NOTIFICATION_EMAIL_HASH_KEY_ID` with different key bytes.
+2. **Roll key material and new `NOTIFICATION_EMAIL_HASH_KEY_ID` together.** While `EMAIL_FROM_ADDRESS` stays unset, update both the new 32+ character `NOTIFICATION_EMAIL_HASH_KEY` and a distinct new `NOTIFICATION_EMAIL_HASH_KEY_ID` across every worker **and API** replica (`079-b` password-reset OTP uses the same hash key in `apps/api`) in one release/restart. Never reuse a previous `NOTIFICATION_EMAIL_HASH_KEY_ID` with different key bytes.
 3. **Preserve existing email suppressions before re-opening outbound sends.** Because `platform_email_suppressions` stores only the irreversible 32-byte `recipient_hash` (never raw addresses) and `public.platform_email_is_suppressed` checks only the current key's hash, re-hashing stored rows from the table alone is impossible. Export the active suppressed/bounced/complained addresses from Resend's suppression list, compute their canonical SHA-256 HMAC digests with the new `NOTIFICATION_EMAIL_HASH_KEY`, and upsert them into `public.platform_email_suppressions` with `hash_key_id = '<new_key_id>'` (recording audit entries in `public.platform_email_audit`). Verify `SELECT count(*) FROM public.platform_email_suppressions WHERE hash_key_id = '<new_key_id>';` covers every exported suppression before re-enabling sends.
 4. **Restore `EMAIL_FROM_ADDRESS` and verify post-rotation state.** Restore `EMAIL_FROM_ADDRESS`, restart every worker replica, and confirm the `EMAIL` capability log reports `state: 'READY', enabled: true`. Any late callback arriving for a pre-rotation attempt quarantines with `quarantine_reason = 'HASH_MISMATCH'` (surfaced via `quarantinedCount` in the worker `EMAIL` capability log) rather than mutating tenant state.
+
+### 3. Controlled `ONBOARDING_EMAIL_ENVELOPE_KEY` rotation (`079-c2`)
+
+`ONBOARDING_EMAIL_ENVELOPE_KEY` (32+ chars) seals `staff_welcome_pin` and `member_invitation` payloads in `apps/api` and unseals them in `apps/worker`. Rotating this key invalidates in-flight onboarding envelopes sealed under the old key (`PARAMETERS_INVALID`):
+
+1. **Quiesce onboarding producers first** (or run inside a maintenance window with staff-access / member-invitation writes halted across API replicas) so no new old-key notices enter `outbox`.
+2. **Confirm both unpublished outbox events and worker attempts have drained** (`count = 0` for `outbox` rows where `published_at IS NULL AND event_type IN ('StaffWelcomePinNoticeRequested', 'MemberInvitationNoticeRequested')`, and `count = 0` for `notification_attempts` where `template_key IN ('staff_welcome_pin', 'member_invitation') AND status IN ('PENDING', 'SENDING')`).
+3. **Rotate `ONBOARDING_EMAIL_ENVELOPE_KEY` in lockstep across every API and worker replica.** Never fall back to `NOTIFICATION_EMAIL_HASH_KEY` or `BETTER_AUTH_SECRET`.

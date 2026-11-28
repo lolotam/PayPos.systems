@@ -11,6 +11,8 @@ import { API_CONTROLLERS, createApp } from '../../../app.ts';
 import { Public } from '../../../shared/public.decorator.ts';
 import { Authenticated, Require } from '../../../shared/access.decorators.ts';
 import { PERSONAL_ROUTE } from '../../../shared/personal-authentication.ts';
+import { PRIVATE_VIEW_ROUTE } from '../../../shared/private-view.guard.ts';
+import { CLOSED_COMPANY_DEVICE_OTP } from '../../../shared/session.guard.ts';
 import { SIGN_OUT_ROUTE } from '../../../shared/sign-out.guard.ts';
 import { STAFF_ROUTE } from '../../../shared/staff-authentication.ts';
 import {
@@ -105,15 +107,22 @@ describe('inherited handlers', () => {
 
 const silent = { logger: createLogger('silent') };
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), '../../../../../..');
-// What SessionGuard reads on each PERSONAL / DEVICE_ONLY write. A route absent here carries neither marker.
+// ما يقرؤه SessionGuard على كل مسار كتابة مُوثّق (PERSONAL أو DEVICE_ONLY أو علامات إضافية على RECORD_SCOPED).
 const ROUTE_MARKERS: Readonly<
   Record<
     string,
-    { personal?: true | 'staff'; staff?: 'device' | 'staff'; signOut?: 'staff' | 'personal' }
+    {
+      personal?: true | 'staff';
+      staff?: 'device' | 'staff';
+      signOut?: 'staff' | 'personal';
+      privateView?: true;
+      allowClosedOtp?: true;
+    }
   >
 > = {
   'ClockAttendanceController.challenge': { personal: true },
   'ClockAttendanceController.submit': { personal: true },
+  'ClockByCardController.submit': { staff: 'staff' },
   'OwnLeaveController.cancelRequest': { personal: 'staff', staff: 'staff' },
   'OwnLeaveController.request': { personal: 'staff', staff: 'staff' },
   'PasskeysController.registrationOptions': { personal: true },
@@ -121,15 +130,15 @@ const ROUTE_MARKERS: Readonly<
   'PersonalOtpController.signOut': { signOut: 'personal' },
   'PrivateViewController.close': { staff: 'staff' },
   'PrivateViewController.open': { staff: 'staff' },
-  'PrivateViewController.touch': { staff: 'staff' },
+  'PrivateViewController.touch': { staff: 'staff', privateView: true },
   'PushSubscriptionController.register': { personal: true },
   'PushSubscriptionController.revoke': { personal: true },
-  'StaffOtpController.request': { staff: 'device' },
+  'StaffOtpController.request': { staff: 'device', allowClosedOtp: true },
   'StaffOtpController.signOut': { signOut: 'staff' },
   'StaffOtpController.verify': { staff: 'device' },
   'StaffPinController.change': { staff: 'device' },
   'StaffPinController.signIn': { staff: 'device' },
-  'StaffPinResetController.request': { staff: 'device' },
+  'StaffPinResetController.request': { staff: 'device', allowClosedOtp: true },
   'StaffPinResetController.reset': { staff: 'device' },
 };
 const PERSONAL_GUARD = 'apps/api/src/shared/personal-session.guard.ts#personalSessionRequest';
@@ -280,23 +289,29 @@ describe('the mounted allowlist', () => {
     }
   });
 
-  it('a personal or device route keeps the marker its guard reads', () => {
+  it('every authenticated write keeps the marker its guard reads and holds no stale table entry', () => {
+    for (const key of Object.keys(ROUTE_MARKERS)) {
+      expect(AUTHENTICATED_WRITES[key], key).toBeDefined();
+    }
     for (const [key, entry] of Object.entries(AUTHENTICATED_WRITES)) {
-      if (entry.access !== 'DEVICE_ONLY' && entry.access !== 'PERSONAL') continue;
       const handler = mountedHandler(key);
       const personal: unknown = Reflect.getMetadata(PERSONAL_ROUTE, handler);
       const staff: unknown = Reflect.getMetadata(STAFF_ROUTE, handler);
       const signOut: unknown = Reflect.getMetadata(SIGN_OUT_ROUTE, handler);
-      // The personal guard is the whole check only when every request goes through it. PERSONAL_ROUTE 'staff'
-      // lets a request with an Authorization header take another path, so such a route cites a check on both.
+      const privateView: unknown = Reflect.getMetadata(PRIVATE_VIEW_ROUTE, handler);
+      const allowClosedOtp: unknown = Reflect.getMetadata(CLOSED_COMPANY_DEVICE_OTP, handler);
+      // كل علامة يقرؤها حارس الجلسة مثبتة هنا على جميع مسارات الكتابة في القائمة، وليس PERSONAL/DEVICE_ONLY فقط، فإسقاطها أو تعديلها أو تسربها لمسار RECORD_SCOPED يفشل الفحص.
+      expect({ personal, staff, signOut, privateView, allowClosedOtp }, key).toEqual(
+        ROUTE_MARKERS[key] ?? {},
+      );
+      if (entry.access !== 'DEVICE_ONLY' && entry.access !== 'PERSONAL') continue;
+      // حارس الشخصي هو الفحص الكامل فقط عندما يمر كل طلب عبره؛ أما PERSONAL_ROUTE 'staff' فيسمح بمسار بديل عند وجود Authorization.
       expect(entry.checkedIn === PERSONAL_GUARD, key).toBe(personal === true);
-      // The sign-out policy is the whole check only on the route that carries its marker.
+      // سياسة تسجيل الخروج هي الفحص الكامل فقط على المسار الذي يحمل علامتها.
       expect(entry.checkedIn === SIGN_OUT_GUARD, key).toBe(signOut !== undefined);
       if (entry.checkedIn === STAFF_GUARD) {
         expect(staff, key).toBe(entry.access === 'DEVICE_ONLY' ? 'device' : 'staff');
       }
-      // Every marker the session guard reads is pinned, so dropping or changing one fails here.
-      expect({ personal, staff, signOut }, key).toEqual(ROUTE_MARKERS[key] ?? {});
     }
   });
 

@@ -1,5 +1,7 @@
 import { renderEmailLayout } from './email-layout.ts';
+import { MEMBER_INVITATION_KEY, renderMemberInvitationEmail } from './member-invitation.ts';
 import { PASSWORD_RESET_OTP_KEY, renderPasswordResetEmail } from './password-reset-otp.ts';
+import { STAFF_WELCOME_PIN_KEY, renderStaffWelcomePinEmail } from './staff-welcome-pin.ts';
 import { renderStaffPinResetEmail, STAFF_PIN_RESET_OTP_KEY } from './staff-pin-reset-otp.ts';
 
 export interface EmailContent {
@@ -277,6 +279,20 @@ export function renderOperationalEmail(
   if (key === STAFF_PIN_RESET_OTP_KEY) {
     const reset = renderStaffPinResetEmail(revision, locale, parameters[0], adminOrigin);
     return reset === null ? null : { subject: reset.subject, text: reset.text, html: reset.html };
+  }
+  if (key === STAFF_WELCOME_PIN_KEY) {
+    if (!ADMIN_ORIGINS.includes(adminOrigin)) return null;
+    const welcome = renderStaffWelcomePinEmail(revision, locale, parameters[0], adminOrigin);
+    return welcome === null
+      ? null
+      : { subject: welcome.subject, text: welcome.text, html: welcome.html };
+  }
+  if (key === MEMBER_INVITATION_KEY) {
+    if (!ADMIN_ORIGINS.includes(adminOrigin)) return null;
+    const invitation = renderMemberInvitationEmail(revision, locale, parameters[0], adminOrigin);
+    return invitation === null
+      ? null
+      : { subject: invitation.subject, text: invitation.text, html: invitation.html };
   }
   if (revision !== 1 || parameters.length !== 0) return null;
   if (locale !== 'ar' && locale !== 'en') return null;
