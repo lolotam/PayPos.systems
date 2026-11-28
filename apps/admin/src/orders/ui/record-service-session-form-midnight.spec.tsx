@@ -146,13 +146,19 @@ it('rechecks edited draft time against current server-anchored clock after cross
     sold_at: '2026-10-15T21:00:00Z',
   };
   await mount(context, [midnightPackage]);
+  fireEvent.change(screen.getByLabelText(t('en', 'serviceSessions.occurredAt')), {
+    target: { value: '2026-10-16T00:00:05' },
+  });
   elapsed = 15000;
+  fireEvent.change(screen.getByLabelText(t('en', 'serviceSessions.occurredAt')), {
+    target: { value: '2026-10-16T00:00:02' },
+  });
   fireEvent.click(screen.getByRole('button', { name: t('en', 'serviceSessions.fromPackage') }));
   const initialOption = await within(lineGroup()).findByRole('radio', {}, { timeout: 4000 });
   await waitFor(() => expect((initialOption as HTMLInputElement).checked).toBe(true));
 
   fireEvent.change(screen.getByLabelText(t('en', 'serviceSessions.occurredAt')), {
-    target: { value: '2026-10-16T00:00:02' },
+    target: { value: '2026-10-16T00:00:05' },
   });
   const optionAfterEdit = within(lineGroup()).getByRole('radio') as HTMLInputElement;
   expect(optionAfterEdit.checked).toBe(true);

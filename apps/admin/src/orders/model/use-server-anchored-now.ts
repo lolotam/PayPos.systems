@@ -27,32 +27,44 @@ export function useServerAnchoredValue<T>(
   const keyRef = useRef(key);
   keyRef.current = key;
   const startedRef = useRef({ source: generatedAt, startedAt: performance.now() });
-  const [clock, setClock] = useState(() => ({
-    source: generatedAt,
-    key,
-    value: project(generatedAt),
-  }));
+  if (startedRef.current.source !== generatedAt) {
+    startedRef.current = { source: generatedAt, startedAt: performance.now() };
+  }
+  const cacheRef = useRef<{ source: string; key: unknown; value: T } | null>(null);
+  if (
+    cacheRef.current === null ||
+    cacheRef.current.source !== generatedAt ||
+    !Object.is(cacheRef.current.key, key)
+  ) {
+    cacheRef.current = {
+      source: generatedAt,
+      key,
+      value: project(anchorInstant(generatedAt, startedRef.current.startedAt)),
+    };
+  }
+  const [, setClock] = useState(cacheRef.current);
   useEffect(() => {
-    const startedAt = performance.now();
+    const startedAt =
+      startedRef.current.source === generatedAt ? startedRef.current.startedAt : performance.now();
     startedRef.current = { source: generatedAt, startedAt };
     const timer = setInterval(() => {
       const instant = anchorInstant(generatedAt, startedAt);
       const activeKey = keyRef.current;
-      setClock((previous) => {
-        const value = projectRef.current(instant);
-        return previous.source === generatedAt &&
-          Object.is(previous.key, activeKey) &&
-          Object.is(previous.value, value)
-          ? previous
-          : { source: generatedAt, key: activeKey, value };
-      });
+      const value = projectRef.current(instant);
+      const current = cacheRef.current;
+      if (
+        current !== null &&
+        current.source === generatedAt &&
+        Object.is(current.key, activeKey) &&
+        Object.is(current.value, value)
+      ) {
+        return;
+      }
+      const next = { source: generatedAt, key: activeKey, value };
+      cacheRef.current = next;
+      setClock(next);
     }, 1000);
     return () => clearInterval(timer);
   }, [generatedAt]);
-  if (clock.source === generatedAt && Object.is(clock.key, key)) {
-    return clock.value;
-  }
-  const startedAt =
-    startedRef.current.source === generatedAt ? startedRef.current.startedAt : performance.now();
-  return project(anchorInstant(generatedAt, startedAt));
+  return cacheRef.current.value;
 }
