@@ -341,12 +341,26 @@ it('reapproving the same binding supersedes ACTIVE challenges and revokes only s
   ).toHaveLength(auditsBefore.length);
 });
 
-it('approvePhoneBinding refuses phone conflicts with PhoneBindingRefusedError while letting DB outages propagate (#647)', async () => {
+it('approvePhoneBinding refuses phone conflicts and malformed 36-char user IDs with PhoneBindingRefusedError while letting DB outages propagate (#647)', async () => {
   const [bound] = await owner`SELECT phone_number FROM "user" WHERE id=${userId}`;
   const conflict = approvePhone(
     String(bound?.['phone_number'] ?? '').replace(/.$/, (digit) => (digit === '9' ? '8' : '9')),
   );
   await expect(conflict).rejects.toBeInstanceOf(PhoneBindingRefusedError);
+
+  const malformedId = approvePhoneBinding({
+    databaseUrl: 'postgres://pospay_auth:wrong@127.0.0.1:1/none',
+    userId: '------------------------------------',
+    phone: String(bound?.['phone_number'] ?? ''),
+    operator: 'synthetic-operator',
+    ownershipVerified: true,
+    approved: true,
+    ids: systemUuidV7(),
+    phoneLockKey,
+    clock: { now: () => now },
+    isCanonicalPhone: (value) => canonicalStaffPhone.safeParse(value).success,
+  });
+  await expect(malformedId).rejects.toBeInstanceOf(PhoneBindingRefusedError);
 
   const outage = approvePhoneBinding({
     databaseUrl: 'postgres://pospay_auth:wrong@127.0.0.1:1/none',

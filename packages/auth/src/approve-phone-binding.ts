@@ -4,6 +4,8 @@ import {
   StaffPhoneTakenError,
 } from '@pospay/db';
 
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
+
 /** رفض متوقع لربط الهاتف (مدخل غير صالح أو تضارب ملكية/تغيير تحت القفل)، بخلاف أعطال البنية التحتية (#647). */
 export class PhoneBindingRefusedError extends Error {
   override readonly name = 'PhoneBindingRefusedError';
@@ -37,7 +39,7 @@ export async function approvePhoneBinding(options: {
     !options.ownershipVerified ||
     !/^[a-zA-Z][a-zA-Z0-9_.-]{1,63}$/.test(options.operator) ||
     !options.isCanonicalPhone(options.phone) ||
-    !/^[a-f0-9-]{36}$/.test(options.userId)
+    !UUID_RE.test(options.userId)
   )
     throw new PhoneBindingRefusedError();
   const database = createStaffOtpDatabase({

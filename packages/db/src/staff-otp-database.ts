@@ -227,11 +227,11 @@ const otpApprovePhone = async (
   }
 };
 
-const otpCleanup = async (runtime: ReturnType<typeof createOtpRuntime>, limit: number) =>
-  runtime.run(
+const otpCleanup = async (runtime: ReturnType<typeof createOtpRuntime>, limit: number) => {
+  if (!Number.isInteger(limit) || limit < 1 || limit > 100)
+    throw new Error('OTP_RETENTION_INVALID');
+  const removed = await runtime.run(
     async (tx) => {
-      if (!Number.isInteger(limit) || limit < 1 || limit > 100)
-        throw new Error('OTP_RETENTION_INVALID');
       const expired = await tx
         .select({ id: challenges.id, hash: challenges.recipientHash })
         .from(challenges)
@@ -261,8 +261,16 @@ const otpCleanup = async (runtime: ReturnType<typeof createOtpRuntime>, limit: n
         await tx.delete(attempts).where(eq(attempts.challengeId, row.id));
         await tx.delete(challenges).where(eq(challenges.id, row.id));
       }
-      await sweepStaffPrivateViewRows(tx, limit);
       return old.length;
     },
     new Date(Date.now() + 1000),
   );
+  // مسح صفوف العرض الخاص في معاملة محدودة مستقلة حتى لا يلغي تعثرها تنظيف تحديات OTP (#776).
+  await runtime.run(
+    async (tx) => {
+      await sweepStaffPrivateViewRows(tx, limit);
+    },
+    new Date(Date.now() + 1000),
+  );
+  return removed;
+};

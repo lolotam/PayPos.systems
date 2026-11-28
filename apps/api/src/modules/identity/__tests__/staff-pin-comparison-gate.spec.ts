@@ -1,17 +1,17 @@
-import { STAFF_LOGIN_CONCURRENCY, type StaffSessions } from '@pospay/auth';
+import type { ValueProvider } from '@nestjs/common';
+import { STAFF_LOGIN_CONCURRENCY, type AuthService, type StaffSessions } from '@pospay/auth';
+import type { TenantWrappers } from '@pospay/db';
+import type { Redis } from 'ioredis';
 import { expect, it, vi } from 'vitest';
 
+import { STAFF_PIN_USE_CASES, type StaffPinUseCases } from '../http/staff-pin.controller.ts';
 import { createStaffPinComparisonGate } from '../persistence/staff-pin-comparison-gate.ts';
-import type { PinAttempts, PinHasher } from '../ports/cashier-pins.port.ts';
-import type {
-  StaffPinAuthority,
-  StaffPinComparisonGate,
-  StaffPinProofIssuer,
-  StaffPinTransactions,
-} from '../ports/staff-pins.port.ts';
+import {
+  staffPinAndPrivateViewProviders,
+  VERIFY_DISCOUNT_APPROVER_PIN,
+} from '../staff-pin.wiring.ts';
 import { OpenPrivateView } from '../use-cases/open-private-view/open-private-view.ts';
-import { SignInStaffPin } from '../use-cases/sign-in-staff-pin/sign-in-staff-pin.ts';
-import { VerifyDiscountApproverPin } from '../use-cases/verify-discount-approver-pin/verify-discount-approver-pin.ts';
+import type { VerifyDiscountApproverPin } from '../use-cases/verify-discount-approver-pin/verify-discount-approver-pin.ts';
 
 const device = {
   companyId: 'synthetic-company',
@@ -22,63 +22,58 @@ const device = {
 const phone = '+99900000001';
 const pin = String(10).padStart(4, '0');
 
-function sharedGatePeers(gate: StaffPinComparisonGate, barrier: Promise<void>) {
+function wiredGatePeers(barrier: Promise<void>) {
+  let step = 0;
+  const database = { withTenant: vi.fn() } as unknown as TenantWrappers;
+  const redis = {
+    eval: vi.fn(async () => {
+      await barrier;
+      return 'locked';
+    }),
+    del: vi.fn(async () => 0),
+  } as unknown as Redis;
   const sessions = {
     ready: vi.fn(() => barrier),
     candidate: vi.fn(async () => null),
     pinCounterKey: vi.fn(() => 'counter-key'),
     issue: vi.fn(),
   } as unknown as StaffSessions;
-  const authority = {
+  const auth = {
+    privateView: { provePin: vi.fn(async () => null), open: vi.fn(), close: vi.fn() },
+  } as unknown as AuthService;
+
+  const providers = staffPinAndPrivateViewProviders({
+    database,
+    ids: { newId: () => `synthetic-id-${++step}` },
+    redis,
     sessions,
-    deviceValid: vi.fn(async () => true),
-    eligible: vi.fn(async () => true),
-  } as unknown as StaffPinAuthority;
-  const db = { run: vi.fn() } as StaffPinTransactions;
-  const hasher: PinHasher = { hash: vi.fn(), verify: vi.fn(async () => false) };
-  const attempts = {
-    reserve: vi.fn(async () => ({ kind: 'ok' as const, reservation: 'synthetic' })),
-    failed: vi.fn(),
-    succeeded: vi.fn(),
-    release: vi.fn(),
-  } as unknown as PinAttempts;
-  const proofs = { issue: vi.fn(), digest: vi.fn() } as unknown as StaffPinProofIssuer;
+    staffAccessRoutes: true,
+    clock: { now: () => new Date('2026-11-25T10:00:00.000Z') },
+  });
+  const staffPinUseCases = (
+    providers.find(
+      (p) => 'provide' in p && p.provide === STAFF_PIN_USE_CASES,
+    ) as ValueProvider<StaffPinUseCases>
+  ).useValue;
+  const discountApprover = (
+    providers.find(
+      (p) => 'provide' in p && p.provide === VERIFY_DISCOUNT_APPROVER_PIN,
+    ) as ValueProvider<VerifyDiscountApproverPin>
+  ).useValue;
+  const openPrivateViewFactory = providers.find(
+    (
+      p,
+    ): p is {
+      provide: typeof OpenPrivateView;
+      useFactory: (auth: AuthService) => OpenPrivateView;
+    } => 'provide' in p && p.provide === OpenPrivateView && 'useFactory' in p,
+  );
+  if (!openPrivateViewFactory) throw new Error('OpenPrivateView provider missing');
 
   return {
-    signIn: new SignInStaffPin(
-      db,
-      hasher,
-      attempts,
-      authority,
-      proofs,
-      { now: () => new Date('2026-11-25T10:00:00.000Z') },
-      { newId: () => 'synthetic-id' },
-      true,
-      gate,
-    ),
-    openPrivateView: new OpenPrivateView(
-      db,
-      attempts,
-      authority,
-      { provePin: vi.fn(async () => null), open: vi.fn(), close: vi.fn() } as never,
-      gate,
-    ),
-    discountApprover: new VerifyDiscountApproverPin(
-      db,
-      hasher,
-      attempts,
-      sessions,
-      {
-        admit: vi.fn(() => barrier.then(() => ({ kind: 'locked' as const }))),
-        failure: vi.fn(),
-        success: vi.fn(),
-        claimLockAudit: vi.fn(async () => false),
-        confirmLockAudit: vi.fn(),
-        release: vi.fn(),
-      },
-      { valid: vi.fn(async () => true) },
-      gate,
-    ),
+    signIn: staffPinUseCases.signIn,
+    openPrivateView: openPrivateViewFactory.useFactory(auth),
+    discountApprover,
   };
 }
 
@@ -115,13 +110,13 @@ it('createStaffPinComparisonGate caps concurrency and makes release idempotent (
   b?.();
 });
 
-it('shares one concurrency limit across SignInStaffPin, OpenPrivateView and VerifyDiscountApproverPin (#786)', async () => {
-  const gate = createStaffPinComparisonGate(STAFF_LOGIN_CONCURRENCY);
+it('shares one concurrency limit across SignInStaffPin, OpenPrivateView and VerifyDiscountApproverPin via production wiring (#786)', async () => {
+  expect(STAFF_LOGIN_CONCURRENCY).toBeGreaterThanOrEqual(3);
   let releaseBarrier: () => void = () => undefined;
   const barrier = new Promise<void>((resolve) => {
     releaseBarrier = resolve;
   });
-  const { signIn, openPrivateView, discountApprover } = sharedGatePeers(gate, barrier);
+  const { signIn, openPrivateView, discountApprover } = wiredGatePeers(barrier);
   const session = {
     userId: 'synthetic-user',
     sessionId: 'synthetic-session',
@@ -129,10 +124,12 @@ it('shares one concurrency limit across SignInStaffPin, OpenPrivateView and Veri
     authenticatedAt: new Date('2026-11-25T09:00:00.000Z'),
     deadline: new Date('2026-11-25T17:00:00.000Z'),
   };
+  // تعبئة الحد عبر الثلاثة مسارات من المزوّد الإنتاجي نفسه تضمن كشف أي بوابة منفصلة لأي مسار.
   const running = [
-    ...Array.from({ length: STAFF_LOGIN_CONCURRENCY - 1 }, () =>
+    ...Array.from({ length: STAFF_LOGIN_CONCURRENCY - 2 }, () =>
       signIn.execute({ phone, pin, device }),
     ),
+    openPrivateView.execute({ pin, session }),
     discountApprover.execute({ phone, pin, device }),
   ];
   await expect(openPrivateView.execute({ pin, session })).rejects.toThrow('STAFF_PIN_UNAVAILABLE');
@@ -141,4 +138,8 @@ it('shares one concurrency limit across SignInStaffPin, OpenPrivateView and Veri
   releaseBarrier();
   await Promise.all(running);
   await expect(signIn.execute({ phone, pin, device })).resolves.toBeNull();
+  await expect(openPrivateView.execute({ pin, session })).resolves.toEqual({ kind: 'refused' });
+  await expect(discountApprover.execute({ phone, pin, device })).resolves.toEqual({
+    kind: 'locked',
+  });
 });

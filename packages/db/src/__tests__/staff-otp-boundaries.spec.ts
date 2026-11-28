@@ -167,8 +167,8 @@ it('sweeps expired private-view windows and orphaned or deadline-passed counter 
       (${id6},'reset-password:synthetic-keep','token',statement_timestamp()-interval '1 hour',statement_timestamp()-interval '2 hours',statement_timestamp()-interval '2 hours')`;
   await f.db.cleanup(100);
   const remaining = await f.owner<{ identifier: string }[]>`
-    SELECT identifier FROM verification ORDER BY identifier`;
-  expect(remaining.map((row) => row.identifier)).toEqual(
+    SELECT identifier FROM verification`;
+  expect(remaining.map((row) => row.identifier).sort()).toEqual(
     [
       'reset-password:synthetic-keep',
       `staff-private-view-seq:v1:${expiredWindowLiveSession}`,
@@ -176,4 +176,39 @@ it('sweeps expired private-view windows and orphaned or deadline-passed counter 
       `staff-private-view:v1:${liveSession}`,
     ].sort(),
   );
+});
+
+it('private-view sweep failure does not roll back OTP retention cleanup (#776)', async () => {
+  const expiredChallengeId = randomUUID();
+  const lockedRowId = randomUUID();
+  await f.owner`INSERT INTO auth_otp_challenges(id,recipient_hash,hash_key_id,user_id,device_context,status,
+    created_at,expires_at,finished_at,updated_at)
+    VALUES(${expiredChallengeId},${hash},'synthetic-h',null,${f.owner.json(device)},'EXPIRED',
+      statement_timestamp()-interval '31 days 300 seconds',statement_timestamp()-interval '31 days',
+      statement_timestamp()-interval '31 days',statement_timestamp()-interval '31 days')`;
+  await f.owner`INSERT INTO verification(id,identifier,value,expires_at,created_at,updated_at)
+    VALUES(${lockedRowId},${`staff-private-view:v1:${randomUUID()}`},'{}',
+      statement_timestamp()-interval '1 second',statement_timestamp()-interval '6 minutes',statement_timestamp()-interval '6 minutes')`;
+
+  let markLocked: () => void = () => undefined;
+  const lockReady = new Promise<void>((resolve) => {
+    markLocked = resolve;
+  });
+  let releaseLock: () => void = () => undefined;
+  const lockGate = new Promise<void>((resolve) => {
+    releaseLock = resolve;
+  });
+  const holder = f.owner.begin(async (tx) => {
+    await tx`SELECT 1 FROM verification WHERE id=${lockedRowId} FOR UPDATE`;
+    markLocked();
+    await lockGate;
+  });
+  try {
+    await lockReady;
+    await expect(f.db.cleanup(100)).rejects.toThrow(/^OTP_DATABASE_UNAVAILABLE_(?:55P03|57014)$/);
+  } finally {
+    releaseLock();
+    await holder;
+  }
+  expect(await f.db.find(expiredChallengeId)).toBeNull();
 });
