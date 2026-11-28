@@ -28,6 +28,14 @@ it('only a confirmed 401 invalidates a session; unavailable validation throws', 
     new Response('{}', { status: 503, headers: { 'content-type': 'application/json' } }),
   );
   await expect(personalCalls.session()).rejects.toThrow('PERSONAL_SESSION_UNAVAILABLE');
+  fetcher.mockResolvedValueOnce(
+    new Response(null, { status: 200, headers: { 'content-length': '0' } }),
+  );
+  await expect(personalCalls.sessionWithStatus()).resolves.toEqual({ kind: 'invalid' });
+  fetcher.mockResolvedValueOnce(
+    new Response(null, { status: 200, headers: { 'content-length': '0' } }),
+  );
+  await expect(personalCalls.session()).rejects.toThrow('PERSONAL_SESSION_UNAVAILABLE');
 });
 it('cancelled registration sends no verification and never calls generic auth', async () => {
   fetcher.mockResolvedValue(

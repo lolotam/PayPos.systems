@@ -196,6 +196,16 @@ it.each([
   { mode: 'reception', label: '403', makeResponse: () => Response.json({}, { status: 403 }) },
   { mode: 'reception', label: '404', makeResponse: () => Response.json({}, { status: 404 }) },
   { mode: 'reception', label: '200 null', makeResponse: () => Response.json(null) },
+  {
+    mode: 'personal',
+    label: 'empty 200',
+    makeResponse: () => new Response(null, { status: 200, headers: { 'content-length': '0' } }),
+  },
+  {
+    mode: 'reception',
+    label: 'empty 200',
+    makeResponse: () => new Response(null, { status: 200, headers: { 'content-length': '0' } }),
+  },
 ] as const)(
   'clears $mode session when delayed probe returns $label even after a matching poll (#891)',
   async ({ mode, makeResponse }) => {
