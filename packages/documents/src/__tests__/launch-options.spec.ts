@@ -7,6 +7,7 @@ import {
   getLaunchCleanup,
   playwrightFactory,
 } from '../playwright/factory.ts';
+import { getLaunchCleanupRetry } from '../playwright/process-tree.ts';
 
 it('leaves process signals to the worker', () => {
   expect(chromiumLaunchOptions.handleSIGINT).toBe(false);
@@ -42,24 +43,31 @@ it('forwards an explicit timeout argument in playwrightFactory(timeoutMs)', asyn
   }
 });
 
-it('rejects with bounded launch cleanup when launched browser exposes no verifiable PID handle', async () => {
+it('keeps missing-PID launch cleanup tied directly to browser.close() outcomes', async () => {
+  const launchMissing = async (close: () => Promise<void>): Promise<unknown> => {
+    const spy = vi.spyOn(chromium, 'launch').mockResolvedValue({ newContext: async () => ({}) as never, close, on: () => undefined, process: () => null } as never);
+    try { await playwrightFactory(50).launch(); return undefined; } catch (err) { return err; } finally { spy.mockRestore(); }
+  };
+
   let closed = false;
-  const spy = vi.spyOn(chromium, 'launch').mockResolvedValue({
-    newContext: async () => ({}) as never,
-    close: async () => { closed = true; },
-    on: () => undefined,
-    process: () => null,
-  } as never);
-  let caught: unknown;
-  try {
-    await playwrightFactory(50).launch();
-  } catch (err) {
-    caught = err;
-  } finally {
-    spy.mockRestore();
-  }
-  expect(caught).toBeInstanceOf(Error);
-  expect((caught as Error).message).toBe('CHROMIUM_PROCESS_UNAVAILABLE');
+  const okErr = await launchMissing(async () => { closed = true; });
+  expect((okErr as Error).message).toBe('CHROMIUM_PROCESS_UNAVAILABLE');
   expect(closed).toBe(true);
-  await expect(getLaunchCleanup(caught)).resolves.toBeUndefined();
+  await expect(getLaunchCleanup(okErr)).resolves.toBeUndefined();
+
+  let closeTries = 0;
+  const rejErr = await launchMissing(() => (++closeTries === 1 ? Promise.reject(new Error('CLOSE_FAIL')) : Promise.resolve()));
+  await expect(getLaunchCleanup(rejErr)).rejects.toThrow('CLOSE_FAIL');
+  await expect(Promise.resolve(getLaunchCleanupRetry(rejErr)?.())).resolves.toBeUndefined();
+  expect(closeTries).toBe(2);
+
+  let releaseClose!: () => void;
+  let closeHungDone = false;
+  const hungErr = await launchMissing(() => new Promise<void>((r) => { releaseClose = r; }));
+  void getLaunchCleanup(hungErr)?.then(() => { closeHungDone = true; });
+  await new Promise((r) => setTimeout(r, 20));
+  expect(closeHungDone).toBe(false);
+  releaseClose();
+  await expect(getLaunchCleanup(hungErr)).resolves.toBeUndefined();
+  expect(closeHungDone).toBe(true);
 });

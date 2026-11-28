@@ -160,12 +160,8 @@ export function playwrightFactory(
         const rawCaptured = takeLaunchedProcess(launchMarker);
         const captured = hasVerifiablePid(rawCaptured) ? rawCaptured : chromiumProcess(browser);
         if (!hasVerifiablePid(captured)) {
-          let timer: ReturnType<typeof setTimeout> | undefined;
-          const cleanup = Promise.race([
-            Promise.resolve().then(() => browser.close()).catch(() => undefined),
-            new Promise<void>((r) => { timer = setTimeout(r, Math.min(timeoutMs, 5_000)); timer.unref?.(); }),
-          ]).finally(() => { if (timer !== undefined) clearTimeout(timer); });
-          throw withLaunchCleanup(new Error('CHROMIUM_PROCESS_UNAVAILABLE'), cleanup);
+          const retryClose = (): Promise<void> => Promise.resolve().then(() => browser.close());
+          throw withLaunchCleanup(new Error('CHROMIUM_PROCESS_UNAVAILABLE'), retryClose(), retryClose);
         }
         return wrapBrowser(browser, captured);
       } catch (error) {
