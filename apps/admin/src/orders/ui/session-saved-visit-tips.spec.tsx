@@ -254,11 +254,13 @@ it('isolates 401 tip denials across operator switches including late 401 save re
   await waitFor(() => expect(api.put).toHaveBeenCalledTimes(1));
 
   view.rerender(frame({ ...scope, userId: id(98) }));
+  view.rerender(frame(scope));
   await act(async () => { resolveFirst(unauth); });
   expect(screen.queryByRole('alert')).toBeNull();
   expect(screen.getByText('Synthetic service')).toBeTruthy();
   expect(screen.getByRole('button', { name: t('en', 'sessionTips.open') })).toBeTruthy();
 
+  view.rerender(frame({ ...scope, userId: id(98) }));
   await submitQuickTip();
   expect(await screen.findByRole('alert')).toBeTruthy();
   expect(screen.queryByText('Synthetic service')).toBeNull();
@@ -308,4 +310,26 @@ it('hides stale snapshot figures after an operator switch following a line edit 
   expect(screen.getByText(t('en', 'serviceLineEdit.figuresHidden'))).toBeTruthy();
   expect(screen.queryByText('7.125')).toBeNull();
   expect(screen.queryByText('6.412')).toBeNull();
+});
+
+it('ignores a late 403 onClose from a superseded operator without closing the current line editor (#406)', async () => {
+  api.get.mockResolvedValue({ error: { code: 'SESSION_NOT_FOUND', message_ar: 'x', message_en: 'x' }, response: { status: 404 } });
+  let resolveForbidden: (value: unknown) => void = () => undefined;
+  api.patch.mockImplementationOnce(() => new Promise((resolve) => { resolveForbidden = resolve; }));
+  const stubJournal = { leaveVisit: () => undefined };
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  const frame = (activeScope: typeof scope) => (
+    <QueryClientProvider client={client}><SessionSavedResult result={result as SessionRecordingResult} journal={stubJournal} onNewVisit={() => undefined} scope={activeScope} online /></QueryClientProvider>
+  );
+  const view = render(frame(scope));
+  startLineEdit('Operator A 403');
+  await waitFor(() => expect(api.patch).toHaveBeenCalledTimes(1));
+
+  view.rerender(frame({ ...scope, userId: id(98) }));
+  fireEvent.click(screen.getByRole('button', { name: t('en', 'serviceLineEdit.edit') }));
+  fireEvent.change(screen.getByLabelText(t('en', 'serviceLineEdit.reason')), { target: { value: 'Operator B active draft' } });
+
+  await act(async () => { resolveForbidden(forbidden); });
+  expect((screen.getByLabelText(t('en', 'serviceLineEdit.reason')) as HTMLInputElement).value).toBe('Operator B active draft');
+  expect(screen.queryByRole('alert')).toBeNull();
 });
