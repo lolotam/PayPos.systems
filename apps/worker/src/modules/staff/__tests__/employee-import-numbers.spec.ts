@@ -1,8 +1,11 @@
-import { assignEmployeeNumber } from '@pospay/db';
-import { sql } from 'drizzle-orm';
+import { assignEmployeeNumber, type TenantWrappers, type Tx } from '@pospay/db';
+import { sql, type SQL } from 'drizzle-orm';
+import { PgDialect } from 'drizzle-orm/pg-core';
 import { afterAll, beforeAll, expect, it } from 'vitest';
 
 import { employeeImportFixture, type EmployeeImportFixture } from './employee-import.fixture.ts';
+import { employeeImportTransactions } from '../persistence/employee-import.transactions.ts';
+import { CommitEmployeeImport } from '../use-cases/commit-employee-import/commit-employee-import.ts';
 
 let f: EmployeeImportFixture;
 beforeAll(async () => {
@@ -98,4 +101,78 @@ it('an import and a create-employee assignment serialise on the counter', async 
   const numbers = [...(await numbersNamed('Race import')), ...(await numbersNamed('Race created'))];
   expect(numbers.sort((left, right) => left - right)).toEqual([7000, 7001, 7002, 7003]);
   expect(await readCounter()).toBe(7004);
+});
+
+it('allocates a multi-row import with O(1) counter and used-number SQL statements', async () => {
+  const dialect = new PgDialect();
+  async function countStatements(rowCount: number) {
+    const queries: string[] = [];
+    const spiedDb: Pick<TenantWrappers, 'withTenant'> = {
+      withTenant: (companyId, work, options) =>
+        f.db.withTenant(
+          companyId,
+          (tx) => {
+            const execute = tx.execute.bind(tx);
+            const spiedTx = new Proxy(tx, {
+              get(target, prop, receiver) {
+                if (prop === 'execute') {
+                  return (query: SQL) => {
+                    queries.push(dialect.sqlToQuery(query).sql);
+                    return execute(query);
+                  };
+                }
+                return Reflect.get(target, prop, receiver);
+              },
+            }) as Tx;
+            return work(spiedTx);
+          },
+          options,
+        ),
+    };
+    const worker = new CommitEmployeeImport(employeeImportTransactions(spiedDb, f.ids), f.ids, {
+      now: () => f.clock.value,
+    });
+    const id = await f.requested(`SqlCount ${rowCount}`, { count: rowCount });
+    await worker.execute(f.company, id);
+    return queries;
+  }
+
+  await setCounter(20_000);
+  const smallQueries = await countStatements(2);
+  await setCounter(21_000);
+  const batchQueries = await countStatements(25);
+
+  expect(batchQueries).toHaveLength(smallQueries.length);
+  const counterQueries = batchQueries.filter((q) => q.includes('employee_number_sequences'));
+  const usedNumberQueries = batchQueries.filter((q) =>
+    q.includes('SELECT employee_number FROM employees'),
+  );
+  expect(counterQueries).toHaveLength(3);
+  expect(usedNumberQueries).toHaveLength(1);
+  expect(await numbersNamed('SqlCount 25')).toEqual(
+    Array.from({ length: 25 }, (_, i) => 21_000 + i),
+  );
+  expect(await readCounter()).toBe(21_025);
+});
+
+it('succeeds at the exact 999999 boundary and rolls back when a gap pushes the batch past 999999', async () => {
+  await setCounter(999_998);
+  const exactId = await f.requested('Exact', { names: ['Exact A', 'Exact B'] });
+  await f.worker.execute(f.company, exactId);
+  expect(await numbersNamed('Exact A')).toEqual([999_998]);
+  expect(await numbersNamed('Exact B')).toEqual([999_999]);
+  expect(await readCounter()).toBe(1_000_000);
+
+  await setCounter(999_997);
+  const before = await readCounter();
+  const failId = await f.requested('BoundaryFail', { names: ['Gap A', 'Gap B', 'Gap C'] });
+  await f.worker.execute(f.company, failId);
+  const [status] = await f.owner`SELECT status, error_code, created_count FROM import_previews WHERE id=${failId}`;
+  expect(status).toMatchObject({
+    status: 'failed',
+    error_code: 'IMPORT_COMMIT_FAILED',
+    created_count: 0,
+  });
+  expect(await numbersNamed('Gap A')).toEqual([]);
+  expect(await readCounter()).toBe(before);
 });

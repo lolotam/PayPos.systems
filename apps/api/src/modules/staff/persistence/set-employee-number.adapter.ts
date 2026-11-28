@@ -142,7 +142,7 @@ async function save(
     UPDATE employees SET employee_number=${change.after.employee_number}
     WHERE company_id=${companyId} AND id=${employeeId} AND deleted_at IS NULL`);
   await appendAuditLog(tx, ids.newId(), {
-    entity: 'employees',
+    entity: 'employee',
     entityId: employeeId,
     action: 'employee_number.changed',
     before: change.before,

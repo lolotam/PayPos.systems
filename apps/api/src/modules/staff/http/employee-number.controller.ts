@@ -1,7 +1,7 @@
 import { Body, Controller, Inject, Param, Put, Req } from '@nestjs/common';
 import { employeeNumberView, id, setEmployeeNumberInput, type SetEmployeeNumberInput } from '@pospay/contracts';
 import type { FastifyRequest } from 'fastify';
-import { Require } from '../../../shared/access.decorators.ts';
+import { Require, RequiresFeature } from '../../../shared/access.decorators.ts';
 import { actorOf } from '../../../shared/actor.ts';
 import { ApiError } from '../../../shared/errors.ts';
 import { ZodValidationPipe } from '../../../shared/zod-validation.pipe.ts';
@@ -13,6 +13,7 @@ export class EmployeeNumberController {
 
   @Put('employee-number')
   @Require('manage:employee-number:company')
+  @RequiresFeature('staff')
   async set(
     @Param('businessId', new ZodValidationPipe(id)) businessId: string,
     @Param('employeeId', new ZodValidationPipe(id)) employeeId: string,

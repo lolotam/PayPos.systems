@@ -31,8 +31,11 @@ export class CommitEmployeeImport {
         const branches = new Set(await scope.branches(preview.business_id));
         requireImportBranches(preview.rows, branches);
         const at = this.clock.now().toISOString();
+        const employeeNumbers = await scope.assignEmployeeNumbers(preview.rows.length);
         const records: ImportedEmployeeRecord[] = [];
-        for (const row of preview.rows) {
+        for (const [index, row] of preview.rows.entries()) {
+          const employeeNumber = employeeNumbers[index];
+          if (employeeNumber === undefined) throw new ImportCommitError('IMPORT_COMMIT_FAILED');
           records.push({
             id: this.ids.newId(),
             business_id: preview.business_id,
@@ -46,7 +49,7 @@ export class CommitEmployeeImport {
             contract_end: row.contract_end,
             user_id: null,
             created_at: at,
-            employee_number: await scope.assignEmployeeNumber(),
+            employee_number: employeeNumber,
           });
         }
         await scope.insert(records);

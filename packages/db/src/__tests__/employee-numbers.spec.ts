@@ -77,6 +77,17 @@ async function counter(tenant: Tenant): Promise<number | undefined> {
   return row?.next_number;
 }
 
+async function waitForBlockedBackend(): Promise<void> {
+  for (let waits = 0; waits < 200; waits++) {
+    const [blocked] = await owner<{ n: number }[]>`
+      SELECT count(*)::int AS n FROM pg_stat_activity
+      WHERE datname = current_database() AND wait_event_type = 'Lock'`;
+    if ((blocked?.n ?? 0) > 0) return;
+    await new Promise((resolve) => setTimeout(resolve, 25));
+  }
+  throw new Error('the backfill never blocked on a lock');
+}
+
 it('EN-01 numbers by hire date, then creation time, deleted included, and starts the counter after the last', async () => {
   await insert(A, { name: 'Reem', hire: '2026-10-01' });
   await insert(A, { name: 'Bea', hire: '2025-05-01', created: '2026-01-02T00:00:00Z' });
@@ -141,13 +152,7 @@ it('does not overwrite a number written after the batch was read, and keeps goin
     });
     await lockTaken;
     const run = assignEmployeeNumbers(owner, app, 1);
-    for (let waits = 0; waits < 200; waits++) {
-      const [blocked] = await owner<{ n: number }[]>`
-        SELECT count(*)::int AS n FROM pg_stat_activity
-        WHERE datname = current_database() AND wait_event_type = 'Lock'`;
-      if ((blocked?.n ?? 0) > 0) break;
-      await new Promise((resolve) => setTimeout(resolve, 25));
-    }
+    await waitForBlockedBackend();
     release();
     await writer;
     const counts = await run;
@@ -155,7 +160,73 @@ it('does not overwrite a number written after the batch was read, and keeps goin
   } finally {
     await locker.end();
   }
-  expect(await numbers(A)).toEqual({ Raced: 500, After: 2 });
+  expect(await numbers(A)).toEqual({ Raced: 500, After: 1 });
+  expect(await counter(A)).toBe(2);
+});
+
+it('a row numbered by another transaction does not move the counter, so the next row still gets the last number (#306, #310)', async () => {
+  await owner`INSERT INTO employee_number_sequences(company_id,next_number) VALUES (${A.company},999999)`;
+  await insert(A, { name: 'Raced', hire: '2025-01-01' });
+  await insert(A, { name: 'After', hire: '2025-02-01' });
+  const locker = postgres(testDb.ownerUrl, { max: 1, onnotice: () => undefined });
+  try {
+    let locked!: () => void;
+    let release!: () => void;
+    const lockTaken = new Promise<void>((resolve) => (locked = resolve));
+    const mayCommit = new Promise<void>((resolve) => (release = resolve));
+    const writer = locker.begin(async (tx) => {
+      await tx`UPDATE employees SET employee_number = 500 WHERE company_id = ${A.company} AND name_en = 'Raced'`;
+      locked();
+      await mayCommit;
+    });
+    await lockTaken;
+    const run = assignEmployeeNumbers(owner, app);
+    await waitForBlockedBackend();
+    release();
+    await writer;
+    const counts = await run;
+    expect(counts).toMatchObject({ read: 2, assigned: 1, exhausted: 0 });
+  } finally {
+    await locker.end();
+  }
+  expect(await numbers(A)).toEqual({ Raced: 500, After: 999999 });
+  expect(await counter(A)).toBe(1000000);
+});
+
+it('a hand number committed after the read is retried inside a savepoint, and only the written rows move the counter (#308, #309, #310)', async () => {
+  await insert(A, { name: 'Hand', hire: '2025-01-01', number: 5 });
+  await insert(A, { name: 'First', hire: '2025-02-01' });
+  await insert(A, { name: 'Second', hire: '2025-03-01' });
+  const locker = postgres(testDb.ownerUrl, { max: 1, onnotice: () => undefined });
+  try {
+    let locked!: () => void;
+    let release!: () => void;
+    const lockTaken = new Promise<void>((resolve) => (locked = resolve));
+    const mayCommit = new Promise<void>((resolve) => (release = resolve));
+    const writer = locker.begin(async (tx) => {
+      await tx`UPDATE employees SET employee_number = 1 WHERE company_id = ${A.company} AND name_en = 'Hand'`;
+      locked();
+      await mayCommit;
+    });
+    await lockTaken;
+    const run = assignEmployeeNumbers(owner, app);
+    await waitForBlockedBackend();
+    release();
+    await writer;
+    const counts = await run;
+    expect(counts).toMatchObject({ read: 2, assigned: 2, exhausted: 0 });
+  } finally {
+    await locker.end();
+  }
+  expect(await numbers(A)).toEqual({ Hand: 1, First: 2, Second: 3 });
+  expect(await counter(A)).toBe(4);
+});
+
+it.each([0, -1, 1.5])('refuses a batchSize of %s before reading or writing anything (#311)', async (batchSize) => {
+  await insert(A, { name: 'Untouched', hire: '2025-01-01' });
+  await expect(assignEmployeeNumbers(owner, app, batchSize)).rejects.toThrow(RangeError);
+  expect(await numbers(A)).toEqual({ Untouched: null });
+  expect(await counter(A)).toBeUndefined();
 });
 
 it('skips a hand-typed number without letting it move the counter', async () => {

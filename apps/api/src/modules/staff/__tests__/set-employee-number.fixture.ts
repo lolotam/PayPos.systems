@@ -37,7 +37,18 @@ export async function putNumber(
 
 export function numberAudits(f: EmployeeFixture, employeeId: string) {
   return f.h.owner`SELECT before, after FROM audit_log
-    WHERE company_id=${f.company} AND entity='employees' AND action='employee_number.changed' AND entity_id=${employeeId}`;
+    WHERE company_id=${f.company} AND entity='employee' AND action='employee_number.changed' AND entity_id=${employeeId}`;
+}
+
+export function numberAuditEntities(f: EmployeeFixture, employeeId: string) {
+  return f.h.owner`SELECT entity FROM audit_log
+    WHERE company_id=${f.company} AND action='employee_number.changed' AND entity_id=${employeeId}`;
+}
+
+export async function numberAuditCount(f: EmployeeFixture, employeeId: string) {
+  const [row] = await f.h.owner`SELECT count(*)::int AS n FROM audit_log
+    WHERE company_id=${f.company} AND entity_id=${employeeId}`;
+  return row === undefined ? 0 : Number(row['n']);
 }
 
 export async function grantNumber(

@@ -11,9 +11,12 @@ export interface ImportCommitScope {
    */
   branches(businessId: string): Promise<readonly string[]>;
   /**
-   * يسند الرقم التالي بعد قفل المعاينة وقبل إدخال صف الموظف، حتى لا يُقفل موظف قبل العدّاد.
+   * يسند أرقام الدفعة كلها بعد قفل المعاينة وقبل إدخال صفوف الموظفين، حتى لا يُقفل موظف قبل العدّاد.
+   *
+   * @param count عدد الصفوف المطلوب ترقيمها بترتيب الملف
+   * @returns الأرقام الوظيفية المسنَدة بالترتيب نفسه
    */
-  assignEmployeeNumber(): Promise<number>;
+  assignEmployeeNumbers(count: number): Promise<readonly number[]>;
   /**
    * يكتب الموظفين والارتباطات والتدقيق والأحداث في الدفعة نفسها.
    *

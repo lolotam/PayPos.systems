@@ -1,4 +1,8 @@
-import { firstFreeEmployeeNumber, nextEmployeeNumberCounter } from '@pospay/domain';
+import {
+  allocateEmployeeNumberBatch,
+  firstFreeEmployeeNumber,
+  nextEmployeeNumberCounter,
+} from '@pospay/domain';
 import { sql } from 'drizzle-orm';
 
 import type { Tx } from './with-tenant.ts';
@@ -56,6 +60,39 @@ export async function assignEmployeeNumber(tx: Tx, companyId: string): Promise<n
     SET next_number = GREATEST(next_number, ${nextEmployeeNumberCounter(assigned)}), updated_at = now()
     WHERE company_id = ${companyId}`);
   return assigned;
+}
+
+/**
+ * يسند دفعة أرقام وظيفية متتالية في معاملة واحدة: يقفل العدّاد مرة واحدة، ويقرأ الأرقام المستخدمة مرة واحدة،
+ * ويخصّص جميع الأرقام في الذاكرة بالترتيب نفسه، ثم يحدّث العدّاد مرة واحدة.
+ *
+ * @param tx معاملة الشركة المفتوحة
+ * @param companyId الشركة التي تُحجز أرقامها
+ * @param count عدد الأرقام المطلوب إسنادها
+ * @returns الأرقام المسنَدة بالترتيب نفسه
+ */
+export async function assignEmployeeNumberBatch(
+  tx: Tx,
+  companyId: string,
+  count: number,
+): Promise<number[]> {
+  if (!Number.isInteger(count) || count < 0) {
+    throw new RangeError('count must be a non-negative integer');
+  }
+  if (count === 0) return [];
+  // ترتيب الأقفال (TD-4): معاينة الاستيراد -> صف العدّاد -> صفوف الموظفين.
+  const nextNumber = await lockEmployeeNumberCounter(tx, companyId);
+  const usedRows = await tx.execute<{ employee_number: number }>(sql`
+    SELECT employee_number FROM employees
+    WHERE company_id = ${companyId} AND employee_number >= ${nextNumber}`);
+  const used = new Set(usedRows.map((row) => row.employee_number));
+  const allocation = allocateEmployeeNumberBatch(nextNumber, count, used);
+  if (allocation === null) throw new EmployeeNumberExhaustedError();
+  await tx.execute(sql`
+    UPDATE employee_number_sequences
+    SET next_number = GREATEST(next_number, ${allocation.nextCounter}), updated_at = now()
+    WHERE company_id = ${companyId}`);
+  return [...allocation.numbers];
 }
 
 async function firstUnused(tx: Tx, companyId: string, start: number): Promise<number | null> {

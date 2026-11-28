@@ -156,7 +156,7 @@ Seeing and searching the number on other screens is [54](54-employee-number-ever
   - `employee_number_sequences.next_number` = last automatic number + 1; a typed or edited number leaves it unchanged; a refused
     create leaves it unchanged.
   - Two concurrent creates get two different, consecutive numbers.
-  - A hand edit writes one `audit_log` row (entity `employees`, action `employee_number.changed`, before/after); the same number
+  - A hand edit writes one `audit_log` row (entity `employee`, action `employee_number.changed`, before/after); the same number
     writes none. The start writes one row (entity `employee_number_sequences`, entity id = the company id, action
     `employee_number.start_set`).
   - A typed number under a DENY → 403 and no employee row; the same request without the field → 201.

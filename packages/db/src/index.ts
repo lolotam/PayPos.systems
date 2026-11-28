@@ -87,6 +87,7 @@ export {
 export { branchToday, currentAttachment, type BranchDay } from './employee-branch-links.ts';
 export {
   assignEmployeeNumber,
+  assignEmployeeNumberBatch,
   EmployeeNumberExhaustedError,
   lockEmployeeNumberCounter,
 } from './employee-number-allocator.ts';

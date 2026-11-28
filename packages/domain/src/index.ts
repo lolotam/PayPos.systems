@@ -82,10 +82,12 @@ export {
 export { computeAttendanceMonthlyReport } from './attendance-monthly-report.js';
 export {
   EMPLOYEE_NUMBER_MAX,
+  allocateEmployeeNumberBatch,
   employeeNumberCounterAfterStart,
   firstFreeEmployeeNumber,
   nextEmployeeNumberCounter,
   parseEmployeeNumber,
+  type EmployeeNumberBatch,
 } from './employee-number.js';
 export {
   ALERT_CHANNELS,
