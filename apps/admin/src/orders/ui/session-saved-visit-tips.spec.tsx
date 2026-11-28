@@ -214,3 +214,41 @@ it('closes an open tip dialog and resets local draft when operator scope changes
   const reopened = (await screen.findByLabelText(t('en', 'sessionTips.total'))) as HTMLInputElement;
   expect(reopened.value).not.toBe('2.000');
 });
+
+async function submitQuickTip() {
+  fireEvent.click(screen.getByRole('button', { name: t('en', 'sessionTips.open') }));
+  await screen.findByLabelText(t('en', 'sessionTips.total'));
+  fireEvent.change(screen.getByLabelText(t('en', 'sessionTips.total')), { target: { value: '1.000' } });
+  fireEvent.click(screen.getByRole('button', { name: t('en', 'sessionTips.useSuggestion') }));
+  fireEvent.click(screen.getByRole('button', { name: t('en', 'sessionTips.save') }));
+}
+
+it('isolates 401 tip denials across operator switches including late 401 save responses (#406)', async () => {
+  const unauth = { error: { code: 'UNAUTHENTICATED', message_ar: 'Unauth AR', message_en: 'Unauth EN' }, response: { status: 401 } };
+  api.get.mockResolvedValue({ data: { revision: 0, tips: [], total_cash: '0.000', total_card: '0.000' }, response: { status: 200 } });
+  let resolveFirst: (value: unknown) => void = () => undefined;
+  api.put.mockImplementationOnce(() => new Promise((resolve) => { resolveFirst = resolve; })).mockResolvedValueOnce(unauth);
+  const stubJournal = { leaveVisit: () => undefined };
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  const frame = (activeScope: typeof scope) => (
+    <QueryClientProvider client={client}><SessionSavedResult result={result as SessionRecordingResult} journal={stubJournal} onNewVisit={() => undefined} scope={activeScope} online /></QueryClientProvider>
+  );
+  const view = render(frame(scope));
+  await submitQuickTip();
+  await waitFor(() => expect(api.put).toHaveBeenCalledTimes(1));
+
+  view.rerender(frame({ ...scope, userId: id(98) }));
+  await act(async () => { resolveFirst(unauth); });
+  expect(screen.queryByRole('alert')).toBeNull();
+  expect(screen.getByText('Synthetic service')).toBeTruthy();
+  expect(screen.getByRole('button', { name: t('en', 'sessionTips.open') })).toBeTruthy();
+
+  await submitQuickTip();
+  expect(await screen.findByRole('alert')).toBeTruthy();
+  expect(screen.queryByText('Synthetic service')).toBeNull();
+
+  view.rerender(frame({ ...scope, userId: id(99) }));
+  expect(screen.queryByRole('alert')).toBeNull();
+  expect(screen.getByText('Synthetic service')).toBeTruthy();
+  expect(screen.getByRole('button', { name: t('en', 'sessionTips.open') })).toBeTruthy();
+});
