@@ -10,6 +10,7 @@ import {
 import type { PdfBrowser, PdfBrowserFactory, PdfContext, PdfPage, PdfRoute } from './browser.ts';
 import {
   beginLaunchProcessCapture,
+  captureOwnedDescendants,
   createMarkerProcess,
   getLaunchCleanup,
   killProcessTree,
@@ -120,7 +121,11 @@ function wrapBrowser(browser: Browser, capturedProc: KillableProcess | null = nu
   const launchedProc = capturedProc ?? chromiumProcess(browser);
   return {
     newContext: async (options) => wrapContext(await browser.newContext(options)),
-    close: () => browser.close(),
+    close: () => {
+      const target = launchedProc ?? chromiumProcess(browser);
+      if (target !== null) captureOwnedDescendants(target);
+      return browser.close();
+    },
     kill: () => killAndWait(launchedProc ?? chromiumProcess(browser)),
     on: (event, listener) => {
       browser.on(event, listener);
@@ -153,6 +158,7 @@ function createMissingPidCleanup(browser: Browser, launchMarker: string): () => 
     }
     return (closeInFlight = (async () => {
       try {
+        captureOwnedDescendants(cleanupProc);
         await browser.close();
       } catch (closeErr) {
         if (hasVerifiablePid(cleanupProc)) {
