@@ -14,6 +14,7 @@ import {
   type DeviceRole,
 } from '@/app/device-role';
 import { endPersonalSession } from '@/app/end-sessions';
+import { checkServerReachable } from '@/app/server-reachability';
 import { usePersonalSession } from '@/personal-staff/api/use-personal-session';
 import { LocaleProvider } from '@/shared/locale/locale-context';
 import { readLaunchLink } from '@/shared/platform/launch-links';
@@ -32,11 +33,15 @@ vi.mock('@/app/device-role', () => ({
   rememberBusiness: vi.fn(),
   connectEmployee: vi.fn(),
 }));
-vi.mock('@/app/end-sessions', () => ({
-  endPersonalSession: vi.fn(),
-}));
+vi.mock('@/app/end-sessions', () => ({ endPersonalSession: vi.fn() }));
+vi.mock('@/app/server-reachability', () => ({ checkServerReachable: vi.fn() }));
+type ScreenProps = {
+  workspace?: { company_id: string; business_id: string };
+  startOver?: ReactNode;
+  notice?: ReactNode;
+};
 vi.mock('@/app/device-screen', () => ({
-  DeviceScreen: ({ startOver, notice }: { startOver?: ReactNode; notice?: ReactNode }) => (
+  DeviceScreen: ({ startOver, notice }: ScreenProps) => (
     <>
       <h2>device screen</h2>
       {notice}
@@ -44,19 +49,9 @@ vi.mock('@/app/device-screen', () => ({
     </>
   ),
 }));
-vi.mock('@/personal-staff/api/use-personal-session', () => ({
-  usePersonalSession: vi.fn(),
-}));
+vi.mock('@/personal-staff/api/use-personal-session', () => ({ usePersonalSession: vi.fn() }));
 vi.mock('@/personal-staff/ui/personal-screen', () => ({
-  PersonalScreen: ({
-    workspace,
-    startOver,
-    notice,
-  }: {
-    workspace?: { company_id: string; business_id: string };
-    startOver?: ReactNode;
-    notice?: ReactNode;
-  }) => (
+  PersonalScreen: ({ workspace, startOver, notice }: ScreenProps) => (
     <>
       <h2>personal screen</h2>
       {workspace ? <p>{`${workspace.company_id} ${workspace.business_id}`}</p> : null}
@@ -111,6 +106,7 @@ function prepare() {
   vi.mocked(rememberBusiness).mockResolvedValue(undefined);
   vi.mocked(connectEmployee).mockResolvedValue(undefined);
   vi.mocked(endPersonalSession).mockResolvedValue('done');
+  vi.mocked(checkServerReachable).mockResolvedValue(true);
   vi.mocked(usePersonalSession).mockReturnValue({
     epoch: 0,
     online: true,

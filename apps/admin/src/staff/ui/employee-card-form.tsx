@@ -1,9 +1,28 @@
 'use client';
-import { t } from '@pospay/i18n';
+import { t, type Locale } from '@pospay/i18n';
 import { Button, Input, Label } from '@pospay/ui';
 import { useState } from 'react';
 import { envelopeMessage } from '@/shared/api/api-error';
 import { useLocale } from '@/shared/locale/locale-context';
+
+function issueErrorMessage(error: unknown, locale: Locale): string {
+  if (typeof error === 'object' && error !== null) {
+    const body = error as { status?: unknown; code?: unknown; retryAfter?: unknown };
+    const limited = body.status === 429 || body.code === 'TOO_MANY_REQUESTS';
+    if (
+      limited &&
+      typeof body.retryAfter === 'number' &&
+      Number.isInteger(body.retryAfter) &&
+      body.retryAfter > 0
+    ) {
+      const seconds = new Intl.NumberFormat(locale, { numberingSystem: 'latn' }).format(
+        body.retryAfter,
+      );
+      return t(locale, 'employeeCard.issueLimitedFor').replace('{seconds}', seconds);
+    }
+  }
+  return envelopeMessage(error, locale);
+}
 
 // نموذج إصدار كارت: يكتب/يمسح الكود ثم يرسل الإصدار للإدارة.
 export function EmployeeCardForm({
@@ -42,7 +61,7 @@ export function EmployeeCardForm({
       <Button type="submit" disabled={pending}>
         {t(locale, 'employeeCard.issueAction')}
       </Button>
-      {error ? <p role="alert">{envelopeMessage(error, locale)}</p> : null}
+      {error ? <p role="alert">{issueErrorMessage(error, locale)}</p> : null}
     </form>
   );
 }
