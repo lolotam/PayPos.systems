@@ -31,7 +31,7 @@ async function listPublicFunctions() {
         AND d.deptype='e' AND e.extname='btree_gist') ORDER BY proname`;
 }
 
-/** يتأكد إن search_path فيه مخطط واحد على الأقل قبل pg_temp وإن آخر عنصر هو pg_temp. */
+/** يتأكد إن search_path فيه مخطط واحد على الأقل قبل pg_temp وإن pg_temp يظهر مرة واحدة في الآخر بس. */
 function hasTrailingPgTemp(proconfig: readonly string[] | null): boolean {
   const searchPath = (proconfig ?? []).find((entry) => entry.startsWith('search_path='));
   const schemas =
@@ -39,8 +39,25 @@ function hasTrailingPgTemp(proconfig: readonly string[] | null): boolean {
       ?.slice('search_path='.length)
       .split(',')
       .map((s) => s.trim()) ?? [];
-  return schemas.length >= 2 && schemas.at(-1) === 'pg_temp';
+  return (
+    schemas.length >= 2 &&
+    schemas.every((s) => s.length > 0) &&
+    schemas.filter((s) => s === 'pg_temp').length === 1 &&
+    schemas.at(-1) === 'pg_temp'
+  );
 }
+
+describe('hasTrailingPgTemp', () => {
+  it('accepts trailing pg_temp once and refuses earlier, duplicate, empty or solo pg_temp entries', () => {
+    expect(hasTrailingPgTemp(['search_path=pg_catalog, pg_temp'])).toBe(true);
+    expect(hasTrailingPgTemp(['search_path=pg_catalog, public, pg_temp'])).toBe(true);
+    expect(hasTrailingPgTemp(['search_path=pg_temp, public, pg_temp'])).toBe(false);
+    expect(hasTrailingPgTemp(['search_path=pg_temp, public'])).toBe(false);
+    expect(hasTrailingPgTemp(['search_path=pg_temp'])).toBe(false);
+    expect(hasTrailingPgTemp(['search_path=, pg_temp'])).toBe(false);
+    expect(hasTrailingPgTemp(null)).toBe(false);
+  });
+});
 
 describe('function inventory', () => {
   it('lists every function; the one SECURITY DEFINER pins its search_path', async () => {
