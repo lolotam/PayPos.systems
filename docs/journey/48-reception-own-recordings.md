@@ -3,7 +3,7 @@
 **Status / الحالة:** the panel and the two confirm buttons shipped in #233 (row 35c-13, merged). Underneath: the recovery proof
 written before every save in #230 (35c-13a-1), the recovery read and confirm endpoints in #231 (35c-13a-2), and one error mapping for
 them in #234 (no visible change). All merged. Since #533 (2026-10-23) the admin runs on staging with demo data only, so the panel can
-be reached there, but only after a save stays unresolved **25 hours in the same open tab** (see below). No browser test covers it yet.
+be reached there, but only after a save stays unresolved **23 hours from the first attempt in the same open tab** (see below). No browser test covers it yet.
 
 This finishes [47](47-record-visit-reception.md): a save whose answer never came back used to stay stuck. Your decisions apply: SS-Q18 (the
 recorder confirms it herself, no manager), SS-Q19 (she sees only her own visits of that day, inside the recording screen) and SS-Q20 (the
@@ -18,14 +18,14 @@ screen states the outcome and pre-selects the matching button; Waleed's pick, Ab
   - If the request reached the server, the panel later shows the server's outcome (step 3); if it never left, you get the "no
     record" state (step 4).
   - By hand: switch the network off right after pressing save. An agent can let the request through and drop the response.
-- **Wait 25 hours from the last send, with the same tab open.** The attempt lives in the tab's `sessionStorage`: reloading keeps it,
+- **Wait 23 hours from the first attempt (`createdAt`), with the same tab open** (retries do not extend the 23-hour window, `#221`). The attempt lives in the tab's `sessionStorage`: reloading keeps it,
   closing the tab loses it.
 - On a freshly migrated local database, attempts made in the first 48 hours after migration `0135` show **no outcome and no
   pre-selection** (#226). The list still shows. The same may apply on staging if its database took `0135` recently.
 
 ## العربي
 
-1. **الرسالة:** افتحي **تسجيل زيارة** في نفس التبويب بعد الـ 25 ساعة.
+1. **الرسالة:** افتحي **تسجيل زيارة** في نفس التبويب بعد الـ 23 ساعة من أول محاولة.
    - بيظهر **التسجيل غير محسوم. راجعي زياراتك في اليوم ده، وبعدين أكدي اتسجلت ولا لأ.**
    - وتحته **محاولة الحفظ كانت الساعة …** بتوقيت النشاط.
 2. **القايمة:** بتظهر الزيارات اللي **إنتِ** سجلتيها في **الفرع ده** في **يوم المحاولة**:
@@ -62,7 +62,7 @@ screen states the outcome and pre-selects the matching button; Waleed's pick, Ab
 
 ## English
 
-1. **The message:** open **Record a visit** in the same tab after the 25 hours.
+1. **The message:** open **Record a visit** in the same tab after the 23 hours from the first attempt.
    - It shows **Recording is unresolved. Check your own visits for that day, then confirm whether it was saved.**
    - Under it **Save attempted at …** in the business time zone.
 2. **The list:** the visits **you** recorded in **this branch** on **the attempt's day**:
@@ -104,7 +104,7 @@ screen states the outcome and pre-selects the matching button; Waleed's pick, Ab
   - The expired message is a `role="alert"`; the panel's lead text and any later-page notice are `role="status"`.
   - Buttons by visible text: **اتأكدت — اتسجلت** / **Confirmed — it was saved**, **اتأكدت — متسجلتش** / **Confirmed — it was not saved**,
     **زيارات تانية** / **More visits**. The pre-selected one has `aria-pressed="true"`.
-  - Faking the browser clock 25 h ahead reaches EXPIRED, but the server still answers NOT_YET until 24 h after it last saw the key.
+  - Faking the browser clock 23 h ahead of attempt creation (`createdAt`) reaches EXPIRED, while the server still answers `SESSION_RECOVERY_NOT_YET` until 24 h after `last_seen_at` (with both confirm buttons enabled).
 - **API** (session cookie + `x-company-id`; the key only in the `x-recovery-key` header, never in the URL):
   - `GET /v1/businesses/<B>/branches/<BR>/service-sessions/recovery?operation=record-service-session|append-service-session-lines[&cursor=…]`
     (`record:service-sessions:branch`, feature `orders`) → `{ attempt: { business_date, business_timezone, outcome? }, items, next_cursor }`,

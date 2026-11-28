@@ -5,7 +5,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { act, renderHook } from '@testing-library/react';
 import { afterEach, expect, it, vi } from 'vitest';
 import { createSessionAttemptJournal } from '../model/session-attempt-journal';
-import { parseSessionJournalEnvelope, SESSION_ATTEMPT_RETENTION_MS, SESSION_ATTEMPT_SAFETY_MARGIN_MS, type SessionAttempt, type SessionAttemptCommand } from '../model/session-attempt';
+import { parseSessionJournalEnvelope, SESSION_ATTEMPT_RETRY_WINDOW_MS, SESSION_ATTEMPT_SAFETY_MARGIN_MS, type SessionAttempt, type SessionAttemptCommand } from '../model/session-attempt';
 import { useRecordServiceSession } from './use-record-service-session';
 import { useAppendServiceSessionLines } from './use-append-service-session-lines';
 
@@ -150,14 +150,14 @@ it('purges on a cross-tab identity signal, including a scheduled send', async ()
 
 it.each(['companyId', 'businessId', 'branchId', 'userId', 'logout'] as const)('blocks expired recovery across reload until %s changes', async (field) => {
   const store = journal(), attempt = store.begin({ kind: 'record', body }, rows);
-  now += SESSION_ATTEMPT_RETENTION_MS + SESSION_ATTEMPT_SAFETY_MARGIN_MS - 1; expect(store.read()).toEqual({ version: 1, state: 'PENDING', attempt }); now += 1;
+  now += SESSION_ATTEMPT_RETRY_WINDOW_MS - 1; expect(store.read()).toEqual({ version: 1, state: 'PENDING', attempt }); now += 1;
   const expired = { version: 1, state: 'EXPIRED', scope, key: attempt.key, createdAt: attempt.createdAt };
   expect(store.read()).toEqual(expired); expect(storedRaw()).toBe(JSON.stringify(expired));
   const recovered = await reload(); expect(recovered.read()).toEqual(expired);
   expect(() => recovered.begin({ kind: 'record', body }, rows)).toThrow('UNRESOLVED');
   await expect(recovered.run(attempt, vi.fn())).rejects.toThrow('UNAVAILABLE');
   expect(() => recovered.leaveVisit()).toThrow('UNRESOLVED');
-  now += 7 * SESSION_ATTEMPT_RETENTION_MS;
+  now += 7 * SESSION_ATTEMPT_RETRY_WINDOW_MS;
   expect(() => recovered.begin({ kind: 'append', sessionId: id(12), body: { lines: body.lines } }, rows)).toThrow('UNRESOLVED');
   expect(recovered.read()).toEqual(expired); expect(runtime.newId).toHaveBeenCalledTimes(1);
   recovered.changeScope(field === 'logout' ? null : { ...scope, [field]: id(99) });
@@ -174,20 +174,20 @@ it('rejects PII before storing and purges malformed journals', async () => {
   expect((await reload()).read()).toBeNull(); expect(sessionStorage.length).toBe(0);
 });
 
-it.each(['record', 'append'] as const)('extends %s recovery through last replay plus 25 hours, including reload', async (kind) => {
+it.each(['record', 'append'] as const)('closes %s retry window at 23h from attempt creation even after a late replay, including reload', async (kind) => {
   const command: SessionAttemptCommand = kind === 'record' ? { kind, body: { ...body, occurred_at: instant } } : { kind, sessionId: id(12), body: { lines: body.lines } };
   const store = journal(), attempt = store.begin(command, rows), hook = hooks(store);
   post.mockRejectedValue(new TypeError('Response lost'));
   await act(async () => { await expect(hook.send(attempt)).rejects.toThrow('Response lost'); });
-  now += SESSION_ATTEMPT_RETENTION_MS + SESSION_ATTEMPT_SAFETY_MARGIN_MS - 1;
+  now += 20 * SESSION_ATTEMPT_SAFETY_MARGIN_MS;
   await act(async () => { await expect(hook.send(attempt)).rejects.toThrow('Response lost'); });
-  const lastSentAt = now; now += 1;
+  const lastSentAt = now;
   const recovered = await reload(); expect(recovered.read()).toEqual({ version: 1, state: 'PENDING', attempt, lastSentAt });
   expect(post.mock.calls[1]).toEqual(post.mock.calls[0]); expect(runtime.newId).toHaveBeenCalledTimes(1);
-  now = lastSentAt + SESSION_ATTEMPT_RETENTION_MS;
+  now = attempt.createdAt + SESSION_ATTEMPT_RETRY_WINDOW_MS - 1;
   expect(recovered.read()?.state).toBe('PENDING'); expect(() => recovered.begin(command, rows)).toThrow('UNRESOLVED');
-  now += SESSION_ATTEMPT_SAFETY_MARGIN_MS - 1; expect(recovered.read()?.state).toBe('PENDING'); now += 1;
-  expect(recovered.read()).toMatchObject({ state: 'EXPIRED', key: attempt.key, lastSentAt });
+  now += 1;
+  expect(recovered.read()).toMatchObject({ state: 'EXPIRED', key: attempt.key, createdAt: attempt.createdAt, lastSentAt });
   expect(() => recovered.begin(command, rows)).toThrow('UNRESOLVED');
 });
 
@@ -211,10 +211,10 @@ it.each(['PENDING', 'PARTIAL', 'SAVED_DISPLAY_FAILED'] as const)('retains %s acr
 
 it('retains an EXPIRED marker across backward and forward clock corrections', async () => {
   const store = journal(); store.begin({ kind: 'record', body }, rows);
-  now += SESSION_ATTEMPT_RETENTION_MS + SESSION_ATTEMPT_SAFETY_MARGIN_MS; expect(store.read()?.state).toBe('EXPIRED');
-  now -= SESSION_ATTEMPT_RETENTION_MS + 2 * SESSION_ATTEMPT_SAFETY_MARGIN_MS;
+  now += SESSION_ATTEMPT_RETRY_WINDOW_MS; expect(store.read()?.state).toBe('EXPIRED');
+  now -= SESSION_ATTEMPT_RETRY_WINDOW_MS + SESSION_ATTEMPT_SAFETY_MARGIN_MS;
   const recovered = await reload(); expect(recovered.read()?.state).toBe('EXPIRED'); expect(() => recovered.begin({ kind: 'record', body }, rows)).toThrow('UNRESOLVED');
-  now += SESSION_ATTEMPT_RETENTION_MS + 2 * SESSION_ATTEMPT_SAFETY_MARGIN_MS; expect(recovered.read()?.state).toBe('EXPIRED');
+  now += SESSION_ATTEMPT_RETRY_WINDOW_MS + SESSION_ATTEMPT_SAFETY_MARGIN_MS; expect(recovered.read()?.state).toBe('EXPIRED');
   expect(() => recovered.begin({ kind: 'record', body }, rows)).toThrow('UNRESOLVED');
 });
 
@@ -321,7 +321,7 @@ it('accepts a definite 201 by key after expiry and permits explicit leave after 
   const store = journal(), attempt = store.begin({ kind: 'record', body }, rows);
   let release!: (value: { status: number; data: RecordServiceSessionResponse }) => void;
   const result = store.run(attempt, () => new Promise<{ status: number; data: RecordServiceSessionResponse }>((resolve) => { release = resolve; }));
-  await Promise.resolve(); now += SESSION_ATTEMPT_RETENTION_MS + SESSION_ATTEMPT_SAFETY_MARGIN_MS; expect(store.read()?.state).toBe('EXPIRED');
+  await Promise.resolve(); now += SESSION_ATTEMPT_RETRY_WINDOW_MS; expect(store.read()?.state).toBe('EXPIRED');
   expect(() => store.begin({ kind: 'record', body }, rows)).toThrow('UNRESOLVED');
   release({ status: 201, data: response }); await expect(result).resolves.toMatchObject({ status: 201 });
   expect(store.read()).toMatchObject({ state: 'PARTIAL', sessionId: id(12) }); store.leaveVisit();

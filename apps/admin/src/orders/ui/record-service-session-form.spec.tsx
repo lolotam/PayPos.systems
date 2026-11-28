@@ -4,7 +4,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { useState } from 'react';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
-import { SESSION_ATTEMPT_RETENTION_MS, SESSION_ATTEMPT_SAFETY_MARGIN_MS } from '../model/session-attempt';
+import { SESSION_ATTEMPT_RETRY_WINDOW_MS } from '../model/session-attempt';
 import { createSessionAttemptJournal, type SessionAttemptJournal } from '../model/session-attempt-journal';
 import { createSessionDraft, type SessionDraftForm } from '../model/session-drafts';
 import { emptySessionRecordingResult, sessionResultCommand, transitionSessionRecordingResult, type SessionRecordingResult } from '../model/session-recording-result';
@@ -274,7 +274,7 @@ it('confirms an expired attempt from the panel and revokes once through the head
   journals.push(journal);
   const started = journal.begin({ kind: 'record', body: { customer_id: id(7), lines: [inputLine] } }, [id(9)]);
   await expect(journal.run(started, () => Promise.reject(new Error('offline')))).rejects.toThrow('offline');
-  now += SESSION_ATTEMPT_RETENTION_MS + SESSION_ATTEMPT_SAFETY_MARGIN_MS;
+  now += SESSION_ATTEMPT_RETRY_WINDOW_MS;
   const entry = journal.read();
   if (entry?.state !== 'EXPIRED') throw new Error('expected EXPIRED');
   state.post.mockResolvedValue({ response: { status: 204 } });
@@ -310,7 +310,7 @@ async function expireUntilClearFails() {
   journals.push(journal);
   const started = journal.begin({ kind: 'record', body: { customer_id: id(7), lines: [inputLine] } }, [id(9)]);
   await expect(journal.run(started, () => Promise.reject(new Error('offline')))).rejects.toThrow('offline');
-  now += SESSION_ATTEMPT_RETENTION_MS + SESSION_ATTEMPT_SAFETY_MARGIN_MS;
+  now += SESSION_ATTEMPT_RETRY_WINDOW_MS;
   if (journal.read()?.state !== 'EXPIRED') throw new Error('expected EXPIRED');
   return journal;
 }
@@ -335,7 +335,7 @@ async function expireReloadedAppend() {
   journals.push(journal);
   const started = journal.begin({ kind: 'append', sessionId: id(12), body: { lines: [inputLine] } }, [id(9)]);
   await expect(journal.run(started, () => Promise.reject(new Error('offline')))).rejects.toThrow('offline');
-  now += SESSION_ATTEMPT_RETENTION_MS + SESSION_ATTEMPT_SAFETY_MARGIN_MS;
+  now += SESSION_ATTEMPT_RETRY_WINDOW_MS;
   const entry = journal.read();
   if (entry?.state !== 'EXPIRED') throw new Error('expected EXPIRED');
   return { journal, entry };
