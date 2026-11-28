@@ -180,7 +180,7 @@ it('a row numbered by another transaction does not move the counter, so the next
       await mayCommit;
     });
     await lockTaken;
-    const run = assignEmployeeNumbers(owner, app, 1);
+    const run = assignEmployeeNumbers(owner, app);
     await waitForBlockedBackend();
     release();
     await writer;

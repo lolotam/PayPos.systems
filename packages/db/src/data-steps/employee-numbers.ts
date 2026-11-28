@@ -63,16 +63,21 @@ interface BatchPlan {
   readonly exhausted: number;
 }
 
-/** نتيجة دفعة: ما قُرئ وما رُقّم وما لم يتسع له النطاق. */
+/** نتيجة دفعة: ما قُرئ وما رُقّم وما لم يتسع له النطاق، وهل اكتملت الشركة. */
 interface BatchCounts {
   readonly read: number;
   readonly assigned: number;
   readonly exhausted: number;
+  readonly done: boolean;
 }
 
-/** نتيجة محاولة واحدة: إسناد ناجح، أو تصادم مفتاح فريد يستوجب إعادة القراءة والتخطيط. */
+/** علامة خاصة ترجع بها المحاولة عند سباق على صف سبق ترقيمه، حتى يتراجع الـ savepoint ويعيد قراءة الدفعة. */
+const SKIPPED_ROW_ROLLBACK = Symbol('employeeNumbersSkippedRow');
+
+/** نتيجة محاولة واحدة: إسناد ناجح، أو صف سبق ترقيمه في الدفعة، أو تصادم مفتاح فريد يستوجب إعادة القراءة والتخطيط. */
 type BatchAttempt =
   | { readonly kind: 'assigned'; readonly rows: readonly AssignedRow[] }
+  | { readonly kind: 'skipped' }
   | { readonly kind: 'conflict'; readonly error: unknown };
 
 /**
@@ -103,14 +108,15 @@ export async function assignEmployeeNumbers(
   const companies = await owner<{ id: string }[]>`SELECT id FROM companies ORDER BY id`;
   const counts = { companies: companies.length, read: 0, assigned: 0, exhausted: 0 };
   for (const { id: companyId } of companies) {
+    const seen = new Set<string>();
     for (;;) {
       const batch = await app.withTenant(companyId, (tx) =>
-        numberOneBatch(tx, companyId, batchSize),
+        numberOneBatch(tx, companyId, batchSize, seen),
       );
       counts.read += batch.read;
       counts.assigned += batch.assigned;
       counts.exhausted += batch.exhausted;
-      if (batch.read === 0 || batch.exhausted > 0) break;
+      if (batch.done || batch.exhausted > 0) break;
     }
   }
   if (counts.exhausted > 0) throw new EmployeeNumbersExhaustedError();
@@ -127,24 +133,44 @@ export async function assignEmployeeNumbers(
  * @param batchSize أقصى عدد صفوف
  * @returns ما قُرئ وما رُقّم وما لم يتسع له النطاق
  */
-async function numberOneBatch(tx: Tx, companyId: string, batchSize: number): Promise<BatchCounts> {
+async function numberOneBatch(
+  tx: Tx,
+  companyId: string,
+  batchSize: number,
+  seen: Set<string>,
+): Promise<BatchCounts> {
   await ensureSequence(tx, companyId);
   const [sequence] = await tx.execute<{ next_number: number }>(
     sql`SELECT next_number FROM employee_number_sequences WHERE company_id = ${companyId} FOR UPDATE`,
   );
-  if (sequence === undefined) return { read: 0, assigned: 0, exhausted: 0 };
+  if (sequence === undefined) return { read: 0, assigned: 0, exhausted: 0, done: true };
   const counter = sequence.next_number;
-  const seen = new Set<string>();
+  let newRead = 0;
   let attempt = 0;
   for (;;) {
-    attempt += 1;
     const rows = await readNullBatch(tx, companyId, batchSize);
-    for (const row of rows) seen.add(row.id);
-    if (rows.length === 0) return { read: seen.size, assigned: 0, exhausted: 0 };
+    for (const row of rows) {
+      if (!seen.has(row.id)) {
+        seen.add(row.id);
+        newRead += 1;
+      }
+    }
+    const firstRow = rows[0];
+    if (firstRow === undefined) return { read: newRead, assigned: 0, exhausted: 0, done: true };
     const used = await readUsed(tx, companyId, counter);
     const plan = planAssignments(rows, counter, used);
+    if (plan.assignments.length === 0) {
+      const locked = await tx.execute<{ id: string }>(sql`
+        SELECT id FROM employees
+        WHERE company_id = ${companyId} AND id = ${firstRow.id} AND employee_number IS NULL
+        FOR NO KEY UPDATE`);
+      if (locked.length === 0) continue;
+      return { read: newRead, assigned: 0, exhausted: plan.exhausted, done: true };
+    }
     const attemptResult = await applyBatch(tx, companyId, plan.assignments);
+    if (attemptResult.kind === 'skipped') continue;
     if (attemptResult.kind === 'conflict') {
+      attempt += 1;
       if (attempt < MAX_BATCH_ATTEMPTS) continue;
       throw attemptResult.error;
     }
@@ -152,7 +178,7 @@ async function numberOneBatch(tx: Tx, companyId: string, batchSize: number): Pro
     if (updated.length > 0) {
       await advanceCounter(tx, companyId, Math.max(counter, highestNumber(updated) + 1));
     }
-    return { read: seen.size, assigned: updated.length, exhausted: plan.exhausted };
+    return { read: newRead, assigned: updated.length, exhausted: 0, done: false };
   }
 }
 
@@ -245,15 +271,18 @@ async function applyBatch(
 ): Promise<BatchAttempt> {
   if (assignments.length === 0) return { kind: 'assigned', rows: [] };
   try {
-    const rows = await tx.transaction((nested) =>
-      nested.execute<AssignedRow>(sql`
+    const rows = await tx.transaction(async (nested) => {
+      const updated = await nested.execute<AssignedRow>(sql`
         UPDATE employees e SET employee_number = v.n
         FROM jsonb_to_recordset(${JSON.stringify(assignments)}::jsonb) AS v(id uuid, n integer)
         WHERE e.company_id = ${companyId} AND e.id = v.id AND e.employee_number IS NULL
-        RETURNING e.id, e.employee_number`),
-    );
+        RETURNING e.id, e.employee_number`);
+      if (updated.length !== assignments.length) throw SKIPPED_ROW_ROLLBACK;
+      return updated;
+    });
     return { kind: 'assigned', rows };
   } catch (error) {
+    if (error === SKIPPED_ROW_ROLLBACK) return { kind: 'skipped' };
     if (isUniqueViolation(error)) return { kind: 'conflict', error };
     throw error;
   }

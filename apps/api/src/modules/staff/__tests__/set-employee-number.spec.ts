@@ -7,6 +7,7 @@ import {
   clearNumberGrants,
   executeCreate,
   grantNumber,
+  numberAuditCount,
   numberAuditEntities,
   numberAudits,
   numberDevice,
@@ -103,6 +104,26 @@ it('EN-10 returns the same number without an audit and audits one real change', 
     { before: { employee_number: employee.employee_number }, after: { employee_number: 90_000 } },
   ]);
   expect((await numberAuditEntities(f, employee.id)).map((row) => row['entity'])).toEqual(['employee']);
+});
+
+it('a disabled staff feature refuses the number change and writes nothing (#542)', async () => {
+  const employee = await executeCreate(f, 'EN-11 disabled feature');
+  const counterBefore = await readCounter(f);
+  const auditsBefore = await numberAuditCount(f, employee.id);
+  await f.h.owner`INSERT INTO company_feature_overrides(company_id,flag,enabled,reason,set_by)
+    VALUES (${f.company},'staff',false,'Synthetic disabled',${f.userId})`;
+  try {
+    const refused = await putNumber(f, employee.id, { employee_number: 95_000 }, { cookie: f.ownerCookie });
+    expect(refused.status).toBe(403);
+    expect(refused.body['code']).toBe('FEATURE_DISABLED');
+    const [stored] = await f.h.owner`SELECT employee_number FROM employees WHERE company_id=${f.company} AND id=${employee.id}`;
+    expect(Number(stored?.['employee_number'])).toBe(employee.employee_number);
+    expect(await readCounter(f)).toBe(counterBefore);
+    expect(await numberAuditCount(f, employee.id)).toBe(auditsBefore);
+    expect(await numberAudits(f, employee.id)).toEqual([]);
+  } finally {
+    await f.h.owner`DELETE FROM company_feature_overrides WHERE company_id=${f.company} AND flag='staff'`;
+  }
 });
 
 it('D-5 hides a deleted employee and an employee addressed through another business', async () => {
