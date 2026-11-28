@@ -78,4 +78,28 @@ export interface RatingRequestRepository {
     reason: 'NO_ACTIVE_LINE' | 'PAST_DEADLINE',
     at: Date,
   ): Promise<void>;
+  /**
+   * يبحث عن طلب قائم يغطي لحظة زيارة قديمة لم يُحفظ يومها بعد، لتجنب فتح طلب مكرر بعد تعديل المواعيد.
+   *
+   * @param tx معاملة المستأجر
+   * @param key هوية العميل والفرع ولحظة الزيارة وتاريخها المحلي
+   * @param key.companyId معرف الشركة
+   * @param key.businessId معرف النشاط
+   * @param key.customerId معرف العميل
+   * @param key.branchId معرف فرع الزيارة
+   * @param key.occurredAt لحظة الزيارة
+   * @param key.localDate التاريخ المحلي للزيارة بصيغة YYYY-MM-DD
+   * @returns يوم الطلب المغطي بصيغة YYYY-MM-DD أو null عند عدم وجوده
+   */
+  findCoveringRequestDay?(
+    tx: Tx,
+    key: {
+      companyId: string;
+      businessId: string;
+      customerId: string;
+      branchId: string;
+      occurredAt: Date;
+      localDate: string;
+    },
+  ): Promise<string | null>;
 }

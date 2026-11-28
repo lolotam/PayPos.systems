@@ -3,6 +3,7 @@ import { expect, it } from 'vitest';
 import type { RatingRequestRow } from '../../../ports/rating-request.repository.ts';
 import {
   ScheduleRatingRequest,
+  SessionRequestDayMismatchError,
   type ScheduleRatingRequestPorts,
 } from '../schedule-rating-request.ts';
 
@@ -117,8 +118,8 @@ it('reads stored day before lock and writes service_sessions only after locking 
     'activeLines',
     'requests.insertIfAbsent',
     'requests.lock',
-    `assignRequestDay:${sessionId}`,
     'activeLines',
+    `assignRequestDay:${sessionId}`,
     'requests.schedule',
   ]);
 });
@@ -168,4 +169,82 @@ it('persists session rating_request_day when no active lines exist to schedule',
   });
   expect(outcome).toBe('NOTHING_TO_SCHEDULE');
   expect(empty.assigned).toEqual([sessionId]);
+});
+
+it('assigns triggering session and unassigned same-day sessions in ascending sessionId order', async () => {
+  const earlierId = '01920000-0000-7000-8000-000000000001';
+  const laterId = '01920000-0000-7000-8000-0000000000ff';
+  const assigned: string[] = [];
+  const lineOf = (id: string) => ({
+    lineId: `line-${id}`,
+    sessionId: id,
+    branchId,
+    occurredAt: new Date('2026-10-05T10:00:00Z'),
+    recordedAt: new Date('2026-10-05T10:00:00Z'),
+    businessTimezone: 'Asia/Kuwait',
+    requestDay: null,
+    performers: [{ employeeId, shareBps: 10_000 }],
+  });
+  const useCase = createUseCase({
+    daySessions: {
+      activeLines: async () => [lineOf(laterId), lineOf(sessionId), lineOf(earlierId)],
+      readRequestDay: async () => null,
+      assignRequestDay: async (_tx, _c, _b, id, requestDay) => {
+        assigned.push(id);
+        return requestDay;
+      },
+      sessionsSince: async () => [],
+      countSince: async () => 0,
+      watermark: async () => null,
+    },
+  });
+  const outcome = await useCase.execute(tx, {
+    companyId,
+    businessId,
+    customerId,
+    branchId,
+    sessionId,
+    occurredAt: new Date('2026-10-05T10:00:00Z'),
+  });
+  expect(outcome).toBe('SCHEDULED');
+  expect(assigned).toEqual([earlierId, sessionId, laterId]);
+});
+
+it('throws SessionRequestDayMismatchError when assignRequestDay returns a different persisted day', async () => {
+  const useCase = createUseCase({
+    daySessions: {
+      activeLines: async () => [
+        {
+          lineId: 'line-1',
+          sessionId,
+          branchId,
+          occurredAt: new Date('2026-10-05T10:00:00Z'),
+          recordedAt: new Date('2026-10-05T10:00:00Z'),
+          businessTimezone: 'Asia/Kuwait',
+          requestDay: null,
+          performers: [{ employeeId, shareBps: 10_000 }],
+        },
+      ],
+      readRequestDay: async () => null,
+      assignRequestDay: async () => '2026-10-04',
+      sessionsSince: async () => [],
+      countSince: async () => 0,
+      watermark: async () => null,
+    },
+  });
+  const execution = useCase.execute(tx, {
+    companyId,
+    businessId,
+    customerId,
+    branchId,
+    sessionId,
+    occurredAt: new Date('2026-10-05T10:00:00Z'),
+  });
+  await expect(execution).rejects.toBeInstanceOf(SessionRequestDayMismatchError);
+  await expect(execution).rejects.toMatchObject<Partial<SessionRequestDayMismatchError>>({
+    name: 'SessionRequestDayMismatchError',
+    sessionId,
+    expectedDay: '2026-10-05',
+    persistedDay: '2026-10-04',
+  });
 });

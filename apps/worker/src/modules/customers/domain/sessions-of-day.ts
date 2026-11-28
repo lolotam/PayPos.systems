@@ -93,3 +93,57 @@ export function sessionsOfDay(
       left.sessionId.localeCompare(right.sessionId),
   );
 }
+
+/**
+ * يستخرج معرّفات الزيارات غير المثبَّت يومها والتابعة ليوم الطلب المطلوب بترتيب قفل موحّد.
+ *
+ * @param lines البنود النشطة داخل نافذة البحث
+ * @param placeByBranch خريطة مواعيد ومنطقة كل فرع ظاهر في البنود
+ * @param day يوم الطلب بصيغة YYYY-MM-DD
+ * @param extraSessionId زيارة محفِّزة لم يظهر لها يوم محفوظ بعد عند الحاجة لإدراجها في الترتيب
+ * @returns معرّفات الزيارات الفريدة مرتبة تصاعدياً لتفادي تعارض ترتيب الأقفال
+ */
+export function unassignedSessionIdsOfDay(
+  lines: readonly ActiveLine[],
+  placeByBranch: ReadonlyMap<string, BranchSchedule>,
+  day: string,
+  extraSessionId?: string,
+): string[] {
+  const pendingSessionIds = new Set<string>();
+  const alreadyAssignedIds = new Set<string>();
+  for (const line of lines) {
+    if (line.requestDay != null) {
+      alreadyAssignedIds.add(line.sessionId);
+      continue;
+    }
+    if (pendingSessionIds.has(line.sessionId)) continue;
+    const place = placeByBranch.get(line.branchId);
+    if (place === undefined) throw new RangeError('BRANCH_SCHEDULE_MISSING');
+    if (requestDayOf(line.occurredAt, place.timeZone, place.openingHours) === day) {
+      pendingSessionIds.add(line.sessionId);
+    }
+  }
+  if (extraSessionId !== undefined && !alreadyAssignedIds.has(extraSessionId)) {
+    pendingSessionIds.add(extraSessionId);
+  }
+  return [...pendingSessionIds].sort();
+}
+
+/**
+ * يعكس أيام الطلب المثبَّتة حديثاً على البنود النشطة غير المحفوظ يومها بعد.
+ *
+ * @param lines البنود النشطة المقروءة داخل المعاملة
+ * @param assignedBySessionId خريطة يوم الطلب المخزَّن لكل معرّف زيارة جرى تثبيته
+ * @returns البنود مع تعبئة requestDay للزيارات المثبَّتة حديثاً
+ */
+export function withAssignedRequestDays(
+  lines: readonly ActiveLine[],
+  assignedBySessionId: ReadonlyMap<string, string>,
+): readonly ActiveLine[] {
+  if (assignedBySessionId.size === 0) return lines;
+  return lines.map((line) =>
+    line.requestDay != null || !assignedBySessionId.has(line.sessionId)
+      ? line
+      : { ...line, requestDay: assignedBySessionId.get(line.sessionId) ?? null },
+  );
+}

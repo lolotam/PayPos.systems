@@ -64,3 +64,22 @@ export function dayEnd(
 ): Date {
   return dayClose(day, timeZone, openingHours) ?? instantOf(addCivilDays(day, 1), 0, timeZone);
 }
+
+/** رفض مؤقت عند اكتشاف تثبيت مسبق ليوم طلب مختلف للزيارة نفسه أثناء جدولة متزامنة. */
+export class SessionRequestDayMismatchError extends Error {
+  /**
+   * يحفظ معرّف الزيارة واليوم المتوقع واليوم المثبَّت لإعادة الجدولة على اليوم الصحيح.
+   *
+   * @param sessionId معرف الزيارة
+   * @param expectedDay يوم الطلب الذي بدأت المعاملة قفله
+   * @param persistedDay يوم الطلب المثبَّت فعلياً للزيارة
+   */
+  constructor(
+    readonly sessionId: string,
+    readonly expectedDay: string,
+    readonly persistedDay: string,
+  ) {
+    super('SESSION_REQUEST_DAY_MISMATCH');
+    this.name = 'SessionRequestDayMismatchError';
+  }
+}

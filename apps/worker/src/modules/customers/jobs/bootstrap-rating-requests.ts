@@ -1,8 +1,9 @@
 import type { Tx } from '@pospay/db';
 
-import type {
-  ScheduleRatingRequest,
-  ScheduleRatingRequestPorts,
+import {
+  SessionRequestDayMismatchError,
+  type ScheduleRatingRequest,
+  type ScheduleRatingRequestPorts,
 } from '../use-cases/schedule-rating-request/schedule-rating-request.ts';
 
 // طبقة الـ jobs بتوصل لطبقة الـ use-cases بس، فأنواع منفذ الزيارات والساعة بتيجي من حزمة منافذ
@@ -95,19 +96,25 @@ async function processPage(
   page: SessionPage,
 ): Promise<void> {
   for (const session of page) {
-    // نفس مسار التسليم الحي: كل زيارة في معاملتها الخاصة، وأي خطأ بيوقف المهمة عند آخر checkpoint.
-    await deps.db.withTenant(params.companyId, (tx) =>
-      deps.schedule.execute(tx, {
-        companyId: params.companyId,
-        businessId: session.businessId,
-        customerId: session.customerId,
-        branchId: session.branchId,
-        sessionId: session.sessionId,
-        requestDay: session.requestDay ?? null,
-        occurredAt: session.occurredAt,
-        bootstrapCutoff: params.cutoff,
-      }),
-    );
+    const input = {
+      companyId: params.companyId,
+      businessId: session.businessId,
+      customerId: session.customerId,
+      branchId: session.branchId,
+      sessionId: session.sessionId,
+      requestDay: session.requestDay ?? null,
+      occurredAt: session.occurredAt,
+      bootstrapCutoff: params.cutoff,
+    };
+    try {
+      // نفس مسار التسليم الحي: كل زيارة في معاملتها الخاصة، وأي خطأ بيوقف المهمة عند آخر checkpoint.
+      await deps.db.withTenant(params.companyId, (tx) => deps.schedule.execute(tx, input));
+    } catch (error) {
+      if (!(error instanceof SessionRequestDayMismatchError)) throw error;
+      await deps.db.withTenant(params.companyId, (tx) =>
+        deps.schedule.execute(tx, { ...input, requestDay: error.persistedDay }),
+      );
+    }
   }
 }
 

@@ -1,6 +1,11 @@
 import { expect, it } from 'vitest';
 import type { ActiveLine, BranchSchedule } from '../sessions-of-day.ts';
-import { dayWindow, sessionsOfDay } from '../sessions-of-day.ts';
+import {
+  dayWindow,
+  sessionsOfDay,
+  unassignedSessionIdsOfDay,
+  withAssignedRequestDays,
+} from '../sessions-of-day.ts';
 
 function line(
   sessionId: string,
@@ -156,4 +161,36 @@ it('PP-286 T-3 (#452): uses persisted requestDay even after overnight opening ho
     { sessionId: 'overnight-visit', requestDay: '2026-10-05' },
   ]);
   expect(sessionsOfDay([persistedLine], places(dayWithoutOvernight), '2026-10-06')).toEqual([]);
+});
+
+it('unassignedSessionIdsOfDay collects same-day unassigned sessions and extraSessionId in sorted order', () => {
+  const schedule: BranchSchedule = { timeZone: 'Asia/Kuwait', openingHours: null };
+  const lines: ActiveLine[] = [
+    line('session-c', 'line-c', '2026-10-05T10:00:00Z'),
+    { ...line('session-a', 'line-a', '2026-10-05T09:00:00Z'), requestDay: '2026-10-05' },
+    line('session-other', 'line-o', '2026-10-06T10:00:00Z'),
+  ];
+  expect(unassignedSessionIdsOfDay(lines, places(schedule), '2026-10-05', 'session-b')).toEqual([
+    'session-b',
+    'session-c',
+  ]);
+  expect(unassignedSessionIdsOfDay(lines, places(schedule), '2026-10-05', 'session-a')).toEqual([
+    'session-c',
+  ]);
+});
+
+it('withAssignedRequestDays populates requestDay only on previously unassigned sessions', () => {
+  const lines: ActiveLine[] = [
+    line('session-b', 'line-b', '2026-10-05T10:00:00Z'),
+    { ...line('session-a', 'line-a', '2026-10-05T09:00:00Z'), requestDay: '2026-10-04' },
+  ];
+  const updated = withAssignedRequestDays(
+    lines,
+    new Map([
+      ['session-b', '2026-10-05'],
+      ['session-a', '2026-10-05'],
+    ]),
+  );
+  expect(updated[0]?.requestDay).toBe('2026-10-05');
+  expect(updated[1]?.requestDay).toBe('2026-10-04');
 });

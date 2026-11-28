@@ -1,8 +1,17 @@
 import type { Tx } from '@pospay/db';
 import { decideRequest, outsideBootstrapWindow } from '../../domain/schedule-decision.ts';
 import { ratingSchedule } from '../../domain/rating-schedule.ts';
-import { requestDayOf } from '../../domain/request-day.ts';
-import type { BranchSchedule, DaySession } from '../../domain/sessions-of-day.ts';
+import { requestDayOf, SessionRequestDayMismatchError } from '../../domain/request-day.ts';
+import {
+  dayWindow,
+  sessionsOfDay,
+  unassignedSessionIdsOfDay,
+  withAssignedRequestDays,
+  type ActiveLine,
+  type BranchSchedule,
+  type DaySession,
+} from '../../domain/sessions-of-day.ts';
+import { localParts } from '../../domain/zoned-time.ts';
 import type { BranchScheduleHoursPort } from '../../ports/branch-schedule-hours.port.ts';
 import type { Clock, IdGenerator } from '../../ports/clock.port.ts';
 import type { DaySessionsPort } from '../../ports/day-sessions.port.ts';
@@ -12,7 +21,8 @@ import type {
   RatingRequestRow,
 } from '../../ports/rating-request.repository.ts';
 import type { RatingRequestsSwitchPort } from '../../ports/rating-requests-switch.port.ts';
-import { resolveDayState } from '../resolve-day-state/resolve-day-state.ts';
+
+export { SessionRequestDayMismatchError };
 
 export type ScheduleOutcome =
   | 'SWITCH_OFF'
@@ -43,6 +53,7 @@ export interface ScheduleRatingRequestPorts {
 interface DayState {
   readonly sessions: readonly DaySession[];
   readonly placeByBranch: ReadonlyMap<string, BranchSchedule>;
+  readonly lines: readonly ActiveLine[];
 }
 
 function sameSchedule(
@@ -70,7 +81,6 @@ export class ScheduleRatingRequest {
       return 'SWITCH_OFF';
     const place = await this.ports.hours.hours(tx, input.companyId, input.branchId);
     if (place === null) throw new Error('RATING_BRANCH_NOT_FOUND');
-    const computedDay = requestDayOf(input.occurredAt, place.timeZone, place.openingHours);
     const storedDay =
       input.requestDay ??
       (input.sessionId !== undefined && this.ports.daySessions.readRequestDay !== undefined
@@ -81,7 +91,7 @@ export class ScheduleRatingRequest {
             input.sessionId,
           )
         : null);
-    const day = storedDay ?? computedDay;
+    const day = storedDay ?? (await this.resolveUnassignedDay(tx, input, place));
     const key: RatingRequestKey = {
       companyId: input.companyId,
       businessId: input.businessId,
@@ -90,13 +100,15 @@ export class ScheduleRatingRequest {
     };
     const row = await this.lockOrInsert(tx, input, key, place, storedDay);
     if (row === null) return 'NOTHING_TO_SCHEDULE';
-    await this.persistInputSessionDay(tx, input, storedDay, day);
     if (
       row.status !== 'SCHEDULED' &&
       !(row.status === 'CANCELLED' && row.cancelReason === 'NO_ACTIVE_LINE')
-    )
+    ) {
+      await this.persistSingleInputSessionDay(tx, input, storedDay, day);
       return 'LEFT_AS_IS';
-    const state = await this.dayState(tx, input, day, place, true);
+    }
+    const extraSessionIdToAssign = storedDay === null ? input.sessionId : undefined;
+    const state = await this.loadDayState(tx, input, day, place, true, extraSessionIdToAssign);
     const now = this.clock.now();
     const decision = decideRequest(state.sessions, state.placeByBranch, now, input.bootstrapCutoff);
     if (decision.kind === 'OUTSIDE_BOOTSTRAP_WINDOW') return 'LEFT_AS_IS';
@@ -114,6 +126,25 @@ export class ScheduleRatingRequest {
     return 'SCHEDULED';
   }
 
+  private async resolveUnassignedDay(
+    tx: Tx,
+    input: ScheduleRatingRequestInput,
+    place: BranchSchedule,
+  ): Promise<string> {
+    const coveredDay =
+      this.ports.requests.findCoveringRequestDay !== undefined
+        ? await this.ports.requests.findCoveringRequestDay(tx, {
+            companyId: input.companyId,
+            businessId: input.businessId,
+            customerId: input.customerId,
+            branchId: input.branchId,
+            occurredAt: input.occurredAt,
+            localDate: localParts(input.occurredAt, place.timeZone).date,
+          })
+        : null;
+    return coveredDay ?? requestDayOf(input.occurredAt, place.timeZone, place.openingHours);
+  }
+
   private async lockOrInsert(
     tx: Tx,
     input: ScheduleRatingRequestInput,
@@ -123,17 +154,17 @@ export class ScheduleRatingRequest {
   ): Promise<RatingRequestRow | null> {
     const existing = await this.ports.requests.lock(tx, key);
     if (existing !== null) return existing;
-    const initial = await this.dayState(tx, input, key.businessDate, place, false);
+    const initial = await this.loadDayState(tx, input, key.businessDate, place, false);
     const latest = initial.sessions.at(-1);
     if (latest === undefined) {
-      await this.persistInputSessionDay(tx, input, storedDay, key.businessDate);
+      await this.persistSingleInputSessionDay(tx, input, storedDay, key.businessDate);
       return null;
     }
     const latestPlace = initial.placeByBranch.get(latest.branchId);
     if (latestPlace === undefined) throw new RangeError('BRANCH_SCHEDULE_MISSING');
     const schedule = ratingSchedule(latest, latestPlace.openingHours, latestPlace.timeZone);
     if (outsideBootstrapWindow(latest.occurredAt, schedule.sendDeadline, input.bootstrapCutoff)) {
-      await this.persistInputSessionDay(tx, input, storedDay, key.businessDate);
+      await this.persistSingleInputSessionDay(tx, input, storedDay, key.businessDate);
       return null;
     }
     await this.ports.requests.insertIfAbsent(tx, key, {
@@ -146,7 +177,7 @@ export class ScheduleRatingRequest {
     return inserted;
   }
 
-  private async persistInputSessionDay(
+  private async persistSingleInputSessionDay(
     tx: Tx,
     input: ScheduleRatingRequestInput,
     storedDay: string | null,
@@ -158,32 +189,105 @@ export class ScheduleRatingRequest {
       this.ports.daySessions.assignRequestDay === undefined
     )
       return;
-    await this.ports.daySessions.assignRequestDay(
+    const persisted = await this.ports.daySessions.assignRequestDay(
       tx,
       input.companyId,
       input.businessId,
       input.sessionId,
       day,
     );
+    if (persisted !== day)
+      throw new SessionRequestDayMismatchError(input.sessionId, day, persisted);
   }
 
-  private async dayState(
+  private async loadDayState(
     tx: Tx,
     input: ScheduleRatingRequestInput,
     day: string,
     place: BranchSchedule,
-    persistMissingDays: boolean,
+    assignMissingDays: boolean,
+    extraSessionIdToAssign?: string,
   ): Promise<DayState> {
-    return resolveDayState({
+    const window = dayWindow(day);
+    const lines = await this.ports.daySessions.activeLines(
       tx,
-      companyId: input.companyId,
-      businessId: input.businessId,
-      customerId: input.customerId,
+      input.companyId,
+      input.businessId,
+      input.customerId,
+      window.from,
+      window.to,
+    );
+    if (input.sessionId !== undefined) {
+      const assignedInputLine = lines.find(
+        (line) => line.sessionId === input.sessionId && line.requestDay != null,
+      );
+      if (assignedInputLine?.requestDay != null && assignedInputLine.requestDay !== day) {
+        throw new SessionRequestDayMismatchError(
+          input.sessionId,
+          day,
+          assignedInputLine.requestDay,
+        );
+      }
+    }
+    const placeByBranch = await this.loadBranchSchedules(tx, input, place, lines);
+    const resolvedLines = assignMissingDays
+      ? await this.assignPendingSessionDays(
+          tx,
+          input,
+          day,
+          lines,
+          placeByBranch,
+          extraSessionIdToAssign,
+        )
+      : lines;
+    return {
+      sessions: sessionsOfDay(resolvedLines, placeByBranch, day),
+      placeByBranch,
+      lines: resolvedLines,
+    };
+  }
+
+  private async loadBranchSchedules(
+    tx: Tx,
+    input: ScheduleRatingRequestInput,
+    place: BranchSchedule,
+    lines: readonly ActiveLine[],
+  ): Promise<Map<string, BranchSchedule>> {
+    const placeByBranch = new Map<string, BranchSchedule>([[input.branchId, place]]);
+    for (const branchId of new Set(lines.map((line) => line.branchId))) {
+      if (placeByBranch.has(branchId)) continue;
+      const branch = await this.ports.hours.hours(tx, input.companyId, branchId);
+      if (branch === null) throw new Error('RATING_BRANCH_NOT_FOUND');
+      placeByBranch.set(branchId, branch);
+    }
+    return placeByBranch;
+  }
+
+  private async assignPendingSessionDays(
+    tx: Tx,
+    input: ScheduleRatingRequestInput,
+    day: string,
+    lines: readonly ActiveLine[],
+    placeByBranch: ReadonlyMap<string, BranchSchedule>,
+    extraSessionIdToAssign?: string,
+  ): Promise<readonly ActiveLine[]> {
+    const assign = this.ports.daySessions.assignRequestDay;
+    if (assign === undefined) return lines;
+    const pendingSessionIds = unassignedSessionIdsOfDay(
+      lines,
+      placeByBranch,
       day,
-      initialBranches: new Map<string, BranchSchedule>([[input.branchId, place]]),
-      hours: this.ports.hours,
-      daySessions: this.ports.daySessions,
-      persistMissingDays,
-    });
+      extraSessionIdToAssign,
+    );
+    if (pendingSessionIds.length === 0) return lines;
+    const assignedBySessionId = new Map<string, string>();
+    for (const sid of pendingSessionIds) {
+      const persisted = await assign(tx, input.companyId, input.businessId, sid, day);
+      if (sid === input.sessionId && persisted !== day) {
+        throw new SessionRequestDayMismatchError(sid, day, persisted);
+      }
+      assignedBySessionId.set(sid, persisted);
+    }
+    return withAssignedRequestDays(lines, assignedBySessionId);
   }
 }
