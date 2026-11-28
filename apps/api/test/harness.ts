@@ -345,11 +345,13 @@ function concreteOperatorOrigin(origins: readonly string[]): string {
       if (/[*?]/.test(origin)) return false;
       try {
         const parsed = new URL(origin);
-        return parsed.protocol === 'http:' || parsed.protocol === 'https:';
+        return (
+          (parsed.protocol === 'http:' || parsed.protocol === 'https:') && parsed.origin === origin
+        );
       } catch {
         return false;
       }
-    }) ?? ORIGIN
+    }) ?? BASE
   );
 }
 
