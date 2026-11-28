@@ -16,6 +16,7 @@ const CLEANUP_KEY = Symbol('launchCleanup');
 const RETRY_KEY = Symbol('launchCleanupRetry');
 const UNCONFIRMED_DESCENDANT_KEY = Symbol('unconfirmedDescendantKill');
 const PID_POLL_MS = 10;
+const pollTick = (): Promise<void> => new Promise((r) => { setTimeout(r, PID_POLL_MS).unref(); });
 export const LAUNCH_MARKER_ENV = 'POSPAY_CHROMIUM_LAUNCH_ID';
 
 function markUnconfirmedDescendants(error: Error): Error {
@@ -221,7 +222,7 @@ function checkPidStatus(pid: number, expectedFp: string, procRoot = '/proc'): 'e
 }
 
 async function waitForPidsExit(targets: ReadonlyArray<readonly [number, string]>, procRoot = '/proc'): Promise<void> {
-  while (targets.some(([pid, fp]) => checkPidStatus(pid, fp, procRoot) !== 'exited')) await new Promise((r) => setTimeout(r, PID_POLL_MS));
+  while (targets.some(([pid, fp]) => checkPidStatus(pid, fp, procRoot) !== 'exited')) await pollTick();
 }
 
 function killLaunchProcessGroup(proc: KillableProcess, procRoot = '/proc'): void {
@@ -405,7 +406,7 @@ function killSingleAndWait(proc: KillableProcess, procRoot = '/proc'): Promise<v
     if (isRootGone(proc, procRoot)) { confirmedExits.add(proc); return; }
     if (!ok) throw new Error('SIGKILL_REJECTED');
     if (typeof proc.pid !== 'number' || proc.pid <= 0) return;
-    return (async () => { while (!isRootGone(proc, procRoot)) await new Promise((r) => setTimeout(r, PID_POLL_MS)); confirmedExits.add(proc); })();
+    return (async () => { while (!isRootGone(proc, procRoot)) await pollTick(); confirmedExits.add(proc); })();
   }
   return new Promise<void>((resolve, reject) => {
     let settled = false;

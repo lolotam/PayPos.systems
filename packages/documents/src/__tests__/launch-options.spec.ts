@@ -330,6 +330,7 @@ it('waits for root exit after true kill return without once before rescanning ma
   const spawnSleeper = () => spawn(process.execPath, ['-e', 'setTimeout(() => {}, 10_000)'], { detached: true, stdio: 'ignore' });
   const [sRoot, sEscaped] = [spawnSleeper(), spawnSleeper()];
   const [rootPid, escapedPid] = [sRoot.pid ?? 0, sEscaped.pid ?? 0];
+  let exitTimer: ReturnType<typeof setTimeout> | undefined;
   expect(Math.min(rootPid, escapedPid)).toBeGreaterThan(0);
   try {
     mkdirSync(join(procDir, String(rootPid)), { recursive: true });
@@ -341,7 +342,7 @@ it('waits for root exit after true kill return without once before rescanning ma
       exitCode: null as number | null,
       signalCode: null,
       kill: () => {
-        setTimeout(() => {
+        exitTimer = setTimeout(() => {
           writeLinuxStat(procDir, rootPid, 'Z', 1, 1, 0);
           mkdirSync(join(procDir, String(escapedPid)), { recursive: true });
           writeLinuxStat(procDir, escapedPid, 'S', 1, escapedPid, 555);
@@ -353,6 +354,7 @@ it('waits for root exit after true kill return without once before rescanning ma
     await expect(Promise.resolve(killProcessTree(createMarkerProcess('poll-root-marker', () => delayedExitRoot), procDir, signalPid))).resolves.toBeUndefined();
     expect([signaled, isPidAlive(escapedPid, procDir)]).toEqual([[escapedPid], false]);
   } finally {
+    if (exitTimer !== undefined) clearTimeout(exitTimer);
     for (const s of [sRoot, sEscaped]) try { s.kill('SIGKILL'); } catch { /* exited */ }
     rmSync(procDir, { recursive: true, force: true });
   }
