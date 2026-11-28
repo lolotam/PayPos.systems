@@ -102,6 +102,8 @@ async function processPage(
         businessId: session.businessId,
         customerId: session.customerId,
         branchId: session.branchId,
+        sessionId: session.sessionId,
+        requestDay: session.requestDay ?? null,
         occurredAt: session.occurredAt,
         bootstrapCutoff: params.cutoff,
       }),

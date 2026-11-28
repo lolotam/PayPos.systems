@@ -139,3 +139,21 @@ it('dayWindow covers UTC+14 through the overnight tail at UTC-12', () => {
   expect(window.from.toISOString()).toBe('2026-10-04T10:00:00.000Z');
   expect(window.to.toISOString()).toBe('2026-10-07T12:00:00.000Z');
 });
+
+it('PP-286 T-3 (#452): uses persisted requestDay even after overnight opening hours are removed', () => {
+  const dayWithoutOvernight: BranchSchedule = {
+    timeZone: 'Asia/Kuwait',
+    openingHours: [
+      { weekday: 1, intervals: [{ opens: '18:00', closes: '23:59' }] },
+      { weekday: 2, intervals: [{ opens: '10:00', closes: '22:00' }] },
+    ],
+  };
+  const persistedLine: ActiveLine = {
+    ...line('overnight-visit', 'line-1', '2026-10-05T21:15:00Z'),
+    requestDay: '2026-10-05',
+  };
+  expect(sessionsOfDay([persistedLine], places(dayWithoutOvernight), '2026-10-05')).toMatchObject([
+    { sessionId: 'overnight-visit', requestDay: '2026-10-05' },
+  ]);
+  expect(sessionsOfDay([persistedLine], places(dayWithoutOvernight), '2026-10-06')).toEqual([]);
+});

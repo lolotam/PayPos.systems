@@ -82,3 +82,10 @@ it('deferred invoker trigger rejects a line with no performers, wrong sum, or wa
   const functions = await owner`SELECT proname,prosecdef FROM pg_proc WHERE proname IN ('orders_check_performers','orders_performer_consistency')`;
   expect(functions).toHaveLength(2); expect(functions.every((r) => r['prosecdef'] === false)).toBe(true);
 });
+it('PP-286 T-3: pospay_app may set rating_request_day once, and overwriting or clearing it is refused', async () => {
+  await asA(sql`UPDATE service_sessions SET rating_request_day = '2026-10-05'::date WHERE id = ${ids.session}`);
+  const stored = await asA(sql`SELECT rating_request_day::text AS day FROM service_sessions WHERE id = ${ids.session}`);
+  expect(stored[0]?.['day']).toBe('2026-10-05');
+  await rejected(asA(sql`UPDATE service_sessions SET rating_request_day = '2026-10-06'::date WHERE id = ${ids.session}`), /rating_request_day is immutable/);
+  await rejected(asA(sql`UPDATE service_sessions SET rating_request_day = NULL WHERE id = ${ids.session}`), /rating_request_day is immutable/);
+});

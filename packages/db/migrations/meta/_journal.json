@@ -1898,6 +1898,13 @@
       "when": 1795860000000,
       "tag": "0272_2026-11-28_function-search-path-pg-temp",
       "breakpoints": true
+    },
+    {
+      "idx": 273,
+      "version": "7",
+      "when": 1795856676605,
+      "tag": "0273_2026-11-28_service-session-rating-request-day",
+      "breakpoints": true
     }
   ]
 }

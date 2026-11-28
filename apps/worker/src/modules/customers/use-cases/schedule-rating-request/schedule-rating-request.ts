@@ -2,12 +2,7 @@ import type { Tx } from '@pospay/db';
 import { decideRequest, outsideBootstrapWindow } from '../../domain/schedule-decision.ts';
 import { ratingSchedule } from '../../domain/rating-schedule.ts';
 import { requestDayOf } from '../../domain/request-day.ts';
-import {
-  dayWindow,
-  sessionsOfDay,
-  type BranchSchedule,
-  type DaySession,
-} from '../../domain/sessions-of-day.ts';
+import type { BranchSchedule, DaySession } from '../../domain/sessions-of-day.ts';
 import type { BranchScheduleHoursPort } from '../../ports/branch-schedule-hours.port.ts';
 import type { Clock, IdGenerator } from '../../ports/clock.port.ts';
 import type { DaySessionsPort } from '../../ports/day-sessions.port.ts';
@@ -17,6 +12,7 @@ import type {
   RatingRequestRow,
 } from '../../ports/rating-request.repository.ts';
 import type { RatingRequestsSwitchPort } from '../../ports/rating-requests-switch.port.ts';
+import { resolveDayState } from '../resolve-day-state.ts';
 
 export type ScheduleOutcome =
   | 'SWITCH_OFF'
@@ -32,6 +28,8 @@ export interface ScheduleRatingRequestInput {
   readonly customerId: string;
   readonly branchId: string;
   readonly occurredAt: Date;
+  readonly sessionId?: string;
+  readonly requestDay?: string | null;
   readonly bootstrapCutoff?: Date;
 }
 
@@ -72,7 +70,18 @@ export class ScheduleRatingRequest {
       return 'SWITCH_OFF';
     const place = await this.ports.hours.hours(tx, input.companyId, input.branchId);
     if (place === null) throw new Error('RATING_BRANCH_NOT_FOUND');
-    const day = requestDayOf(input.occurredAt, place.timeZone, place.openingHours);
+    const computedDay = requestDayOf(input.occurredAt, place.timeZone, place.openingHours);
+    const day =
+      input.requestDay ??
+      (input.sessionId !== undefined && this.ports.daySessions.assignRequestDay !== undefined
+        ? await this.ports.daySessions.assignRequestDay(
+            tx,
+            input.companyId,
+            input.businessId,
+            input.sessionId,
+            computedDay,
+          )
+        : computedDay);
     const key: RatingRequestKey = {
       companyId: input.companyId,
       businessId: input.businessId,
@@ -136,23 +145,15 @@ export class ScheduleRatingRequest {
     day: string,
     place: BranchSchedule,
   ): Promise<DayState> {
-    const window = dayWindow(day);
-    const lines = await this.ports.daySessions.activeLines(
+    return resolveDayState({
       tx,
-      input.companyId,
-      input.businessId,
-      input.customerId,
-      window.from,
-      window.to,
-    );
-    const placeByBranch = new Map<string, BranchSchedule>([[input.branchId, place]]);
-    const branchIds = new Set(lines.map((line) => line.branchId));
-    for (const branchId of branchIds) {
-      if (placeByBranch.has(branchId)) continue;
-      const branch = await this.ports.hours.hours(tx, input.companyId, branchId);
-      if (branch === null) throw new Error('RATING_BRANCH_NOT_FOUND');
-      placeByBranch.set(branchId, branch);
-    }
-    return { sessions: sessionsOfDay(lines, placeByBranch, day), placeByBranch };
+      companyId: input.companyId,
+      businessId: input.businessId,
+      customerId: input.customerId,
+      day,
+      initialBranches: new Map<string, BranchSchedule>([[input.branchId, place]]),
+      hours: this.ports.hours,
+      daySessions: this.ports.daySessions,
+    });
   }
 }

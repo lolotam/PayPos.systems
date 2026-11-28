@@ -243,3 +243,40 @@ it('RT-07 a business with the switch off schedules nothing and schedules on the 
   expect(rows).toHaveLength(1);
   expect(rows[0]?.['status']).toBe('SCHEDULED');
 });
+
+it('PP-286 T-3 changing overnight hours keeps the stored rating_request_day across reschedule and bootstrap', async () => {
+  const branchId = await f.branch({ timezone: KUWAIT, openingHours: OVERNIGHT });
+  const customer = await f.customer();
+  const visit = await f.session({
+    customerId: customer,
+    branchId,
+    occurredAt: new Date('2026-06-14T21:15:00.000Z'),
+  });
+  await f.deliver(await f.event(visit.sessionId, 'ServiceSessionRecorded'));
+
+  const storedSessions =
+    await f.owner`SELECT rating_request_day::text AS day FROM service_sessions WHERE id=${visit.sessionId}`;
+  expect(storedSessions[0]?.['day']).toBe('2026-06-14');
+
+  const daytime2359 = everyDay([{ opens: '10:00', closes: '23:59' }]);
+  await f.owner`UPDATE branches
+    SET opening_hours=${f.owner.json(daytime2359 as unknown as Parameters<typeof f.owner.json>[0])}
+    WHERE company_id=${f.tenant.company} AND id=${branchId}`;
+
+  f.clock.at = new Date('2026-06-14T21:20:00.000Z');
+  await f.deliver(await f.event(visit.sessionId, 'ServiceLineChanged'));
+  const afterReschedule = await f.requests(customer);
+  expect(afterReschedule).toHaveLength(1);
+  expect(afterReschedule[0]?.['day']).toBe('2026-06-14');
+  expect(afterReschedule[0]?.['status']).toBe('SCHEDULED');
+
+  const bootstrap = await f.bootstrap(() => undefined)({
+    companyId: f.tenant.company,
+    cutoff: new Date('2026-06-14T00:00:00.000Z'),
+  });
+  expect(bootstrap.complete).toBe(true);
+  const afterBootstrap = await f.requests(customer);
+  expect(afterBootstrap).toHaveLength(1);
+  expect(afterBootstrap[0]?.['day']).toBe('2026-06-14');
+  expect(afterBootstrap[0]?.['status']).toBe('SCHEDULED');
+});

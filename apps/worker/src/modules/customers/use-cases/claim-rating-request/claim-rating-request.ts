@@ -8,8 +8,9 @@ import {
 import { displaySafeFirstWord } from '../../domain/display-name.ts';
 import { performerLabel } from '../../domain/performer-label.ts';
 import { expiresAt } from '../../domain/rating-link-expiry.ts';
-import { dayWindow, sessionsOfDay, type BranchSchedule } from '../../domain/sessions-of-day.ts';
+import type { BranchSchedule, DaySession } from '../../domain/sessions-of-day.ts';
 import { ratingRequestReadyPayload } from '../../events/published.ts';
+import { resolveDayState } from '../resolve-day-state.ts';
 import type { BranchScheduleHoursPort } from '../../ports/branch-schedule-hours.port.ts';
 import type { BusinessNamesPort } from '../../ports/business-names.port.ts';
 import type { Clock, IdGenerator } from '../../ports/clock.port.ts';
@@ -308,27 +309,20 @@ export class ClaimRatingRequest<Transaction = unknown> {
     companyId: string,
     request: DueRatingRequest,
   ): Promise<{
-    sessions: ReturnType<typeof sessionsOfDay>;
+    sessions: readonly DaySession[];
     placeByBranch: ReadonlyMap<string, BranchSchedule>;
   }> {
     const place = await this.ports.hours.hours(tx, companyId, request.branchId);
     if (place === null) throw new Error('RATING_BRANCH_NOT_FOUND');
-    const window = dayWindow(request.businessDate);
-    const lines = await this.ports.daySessions.activeLines(
+    return resolveDayState({
       tx,
       companyId,
-      request.businessId,
-      request.customerId,
-      window.from,
-      window.to,
-    );
-    const placeByBranch = new Map<string, BranchSchedule>([[request.branchId, place]]);
-    for (const branchId of new Set(lines.map((line) => line.branchId))) {
-      if (placeByBranch.has(branchId)) continue;
-      const branch = await this.ports.hours.hours(tx, companyId, branchId);
-      if (branch === null) throw new Error('RATING_BRANCH_NOT_FOUND');
-      placeByBranch.set(branchId, branch);
-    }
-    return { sessions: sessionsOfDay(lines, placeByBranch, request.businessDate), placeByBranch };
+      businessId: request.businessId,
+      customerId: request.customerId,
+      day: request.businessDate,
+      initialBranches: new Map([[request.branchId, place]]),
+      hours: this.ports.hours,
+      daySessions: this.ports.daySessions,
+    });
   }
 }

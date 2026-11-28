@@ -1,4 +1,7 @@
-import { listActiveLinesOfCustomer } from './queries/day-sessions.query.ts';
+import {
+  assignSessionRequestDay,
+  listActiveLinesOfCustomer,
+} from './queries/day-sessions.query.ts';
 import {
   countSessionsSince,
   latestSessionWatermark,
@@ -17,6 +20,7 @@ export {
 
 export const daySessionsReader = {
   activeLines: listActiveLinesOfCustomer,
+  assignRequestDay: assignSessionRequestDay,
   sessionsSince: listSessionsSince,
   countSince: countSessionsSince,
   watermark: latestSessionWatermark,

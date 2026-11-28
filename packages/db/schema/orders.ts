@@ -18,6 +18,8 @@ export const serviceSessions = pgTable('service_sessions', {
   // الاسم والهاتف المقنّع لقطة عرض آمنة؛ لا نحتاج قراءة سياق العملاء لبناء زيارة محفوظة.
   customerName: text('customer_name').notNull(), customerPhoneMasked: text('customer_phone_masked').notNull(),
   occurredAt: timestamp('occurred_at', { withTimezone: true }).notNull(), businessDate: date('business_date').notNull(),
+  // يوم طلب التقييم يُحفظ مرة واحدة عند أول حساب حتى لا يغيّر تعديل ساعات العمل الليلية يوم زيارة قائمة.
+  ratingRequestDay: date('rating_request_day', { mode: 'string' }),
   // تاريخ المحاسبة ثابت حتى لو تغيّرت منطقة النشاط لاحقاً.
   businessTimezone: text('business_timezone').notNull(), createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [

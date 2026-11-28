@@ -348,3 +348,29 @@ it('a newer visit moves the due time and the claim reschedules instead of claimi
   expect(claimed?.['status']).toBe('SENDING');
   expect(await f.readyEvents()).toHaveLength(1);
 });
+
+it('PP-286 T-3 claim reuses the stored rating_request_day after overnight hours are removed', async () => {
+  const overnight = everyDay([{ opens: '18:00', closes: '02:00' }]);
+  const branchId = await f.branch({ timezone: KUWAIT, openingHours: overnight });
+  const customer = await f.customer();
+  await visit({
+    customerId: customer,
+    branchId,
+    at: new Date('2026-06-14T21:15:00.000Z'),
+  });
+  const request = await requestId(customer);
+
+  const daytime2359 = everyDay([{ opens: '10:00', closes: '23:59' }]);
+  await f.owner`UPDATE branches
+    SET opening_hours=${f.owner.json(daytime2359 as unknown as Parameters<typeof f.owner.json>[0])}
+    WHERE company_id=${f.company} AND id=${branchId}`;
+
+  // With rating_request_day anchored on 2026-06-14, the 23:59 Kuwait close recomputes to 20:59Z instead of cancelling as NO_ACTIVE_VISITS.
+  f.clock.at = new Date('2026-06-14T21:20:00.000Z');
+  await f.claimOne(request);
+  const row = await f.request(customer);
+  expect(row?.['status']).toBe('SENDING');
+  expect(row?.['due_at']).toEqual(new Date('2026-06-14T20:59:00.000Z'));
+  expect(row?.['send_deadline']).toEqual(new Date('2026-06-14T21:29:00.000Z'));
+  expect(await f.readyEvents()).toHaveLength(1);
+});

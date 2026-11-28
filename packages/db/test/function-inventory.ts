@@ -73,6 +73,7 @@ export const FUNCTION_INVENTORY = [
     prosecdef: false,
     proconfig: ['search_path=pg_catalog, pg_temp'],
   },
+  { proname: 'enforce_service_session_rating_request_day_set_once', prosecdef: false, proconfig: ['search_path=pg_catalog, pg_temp'] },
   {
     proname: 'enforce_staff_otp_attempt',
     prosecdef: false,

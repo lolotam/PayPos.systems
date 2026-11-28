@@ -1,19 +1,22 @@
 // التطبيق يغيّر مسار الطلب وأعمدة الرابط فقط؛ الهوية ودليلا المعاملة لا يُكتبان بمنح الأعمدة.
 export const RATING_REQUEST_COLUMN_GRANTS = [
-  'branch_id',
-  'due_at',
-  'send_deadline',
-  'status',
-  'cancel_reason',
-  'token_hash',
-  'token_key_version',
-  'expires_at',
-  'claimed_at',
-  'ready_event_id',
-  'sent_at',
-  'consumed_at',
-  'updated_at',
-].map((column) => `rating_requests.${column}:pospay_app:UPDATE`);
+  ...[
+    'branch_id',
+    'due_at',
+    'send_deadline',
+    'status',
+    'cancel_reason',
+    'token_hash',
+    'token_key_version',
+    'expires_at',
+    'claimed_at',
+    'ready_event_id',
+    'sent_at',
+    'consumed_at',
+    'updated_at',
+  ].map((column) => `rating_requests.${column}:pospay_app:UPDATE`),
+  'service_sessions.rating_request_day:pospay_app:UPDATE',
+];
 
 // مفتاح طلبات التقييم: التطبيق يبدّل القيمة ومن نفّذ التغيير ولحظة التغيير ورقم المراجعة بس؛ الحذف ممنوع.
 export const RATING_SETTINGS_COLUMN_GRANTS = [

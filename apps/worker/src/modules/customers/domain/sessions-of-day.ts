@@ -14,6 +14,7 @@ export interface ActiveLine {
   readonly occurredAt: Date;
   readonly recordedAt: Date;
   readonly businessTimezone: string;
+  readonly requestDay?: string | null;
   readonly performers: readonly { readonly employeeId: string; readonly shareBps: number }[];
 }
 
@@ -29,6 +30,7 @@ export interface DaySession {
   readonly branchId: string;
   readonly occurredAt: Date;
   readonly recordedAt: Date;
+  readonly requestDay?: string;
   readonly lines: readonly ActiveLine[];
 }
 
@@ -72,13 +74,16 @@ export function sessionsOfDay(
     if (first === undefined) continue;
     const place = placeByBranch.get(first.branchId);
     if (place === undefined) throw new RangeError('BRANCH_SCHEDULE_MISSING');
-    if (requestDayOf(first.occurredAt, place.timeZone, place.openingHours) !== day) continue;
+    const sessionDay =
+      first.requestDay ?? requestDayOf(first.occurredAt, place.timeZone, place.openingHours);
+    if (sessionDay !== day) continue;
     if (isLateEntry(first.recordedAt, day, place.timeZone, place.openingHours)) continue;
     sessions.push({
       sessionId,
       branchId: first.branchId,
       occurredAt: first.occurredAt,
       recordedAt: first.recordedAt,
+      requestDay: sessionDay,
       lines: sessionLines,
     });
   }

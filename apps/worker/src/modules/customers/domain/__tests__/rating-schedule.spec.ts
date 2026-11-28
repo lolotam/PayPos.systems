@@ -108,3 +108,19 @@ it('exports the one-hour delay and thirty-minute grace in milliseconds', () => {
   expect(RATING_DELAY_MS).toBe(3_600_000);
   expect(SEND_GRACE_MS).toBe(1_800_000);
 });
+
+it('reuses a persisted requestDay even after overnight hours are removed', () => {
+  const daytimeOnly: OpeningHoursValue = [
+    { weekday: 1, intervals: [{ opens: '09:00', closes: '22:00' }] },
+  ];
+  expect(
+    ratingSchedule(
+      { occurredAt: new Date('2026-10-05T22:30:00Z'), requestDay: '2026-10-05' },
+      daytimeOnly,
+      KUWAIT,
+    ),
+  ).toEqual({
+    dueAt: new Date('2026-10-05T19:00:00.000Z'),
+    sendDeadline: new Date('2026-10-05T19:30:00.000Z'),
+  });
+});
