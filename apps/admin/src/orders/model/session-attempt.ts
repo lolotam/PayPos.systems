@@ -74,11 +74,42 @@ function strictFields(value: unknown, required: string[], optional: string[] = [
 
 const journalEnvelopeFields = ['version', 'state', 'attempt', 'scope', 'key', 'createdAt', 'lastSentAt', 'sessionId', 'occurredAt', 'customerId'];
 const journalPiiKeyTokens = new Set(['phone', 'mobile', 'msisdn', 'email', 'otp', 'pin', 'passcode', 'password', 'secret', 'token', 'iban', 'challenge']);
+const journalPiiCompactFragments = [
+  'phone', 'mobile', 'msisdn', 'email', 'passcode', 'password', 'secret', 'token', 'iban', 'challenge',
+  'whatsapp', 'nationalnumber', 'callingcode', 'birthday', 'birthdate',
+  'customername', 'clientname', 'personname', 'staffname', 'employeename', 'username', 'fullname', 'firstname', 'lastname', 'middlename', 'surname', 'nickname',
+  'verificationcode', 'verifycode', 'authcode', 'securitycode', 'recoverycode', 'pairingcode', 'confirmcode', 'confirmationcode', 'accesscode', 'logincode', 'resetcode',
+  'otpcode', 'pincode', 'customerotp', 'customerpin', 'userotp', 'userpin', 'verifyotp', 'smsotp', 'authotp',
+];
 
-// الدليل كلمة كاملة من قائمة محددة؛ الاسم والكود عامّان ومش دليل بيانات حساسة لوحدهما.
+// الدليل كلمة كاملة أو مقطع ملزوق أو اسم/كود شخصي سياقي بأي حالة حروف؛ errorCode و displayName و filename عامّة ومش بيانات عميل.
 export function isJournalPiiKey(key: string): boolean {
   const tokens = key.match(/[A-Z]+(?![a-z])|[A-Z]?[a-z]+|[0-9]+/g) ?? [];
-  return tokens.some((token) => journalPiiKeyTokens.has(token.toLowerCase()));
+  if (tokens.some((token) => journalPiiKeyTokens.has(token.toLowerCase()))) return true;
+  const compact = key.toLowerCase().replace(/[^a-z0-9]/g, '');
+  return journalPiiCompactFragments.some((fragment) => compact.includes(fragment))
+    || compact.endsWith('otp')
+    || compact.endsWith('pin');
+}
+
+/** يفحص المفاتيح المتداخلة تكرارياً داخل الكائنات والمصفوفات لاكتشاف أي حقل حساس مخفي دون استنفاد المكدس. */
+export function hasNestedJournalPiiKey(value: unknown): boolean {
+  const stack: unknown[] = [value];
+  while (stack.length > 0) {
+    const current = stack.pop();
+    if (!current || typeof current !== 'object') continue;
+    if (Array.isArray(current)) {
+      for (const item of current) {
+        if (item && typeof item === 'object') stack.push(item);
+      }
+      continue;
+    }
+    for (const [key, child] of Object.entries(current)) {
+      if (isJournalPiiKey(key)) return true;
+      if (child && typeof child === 'object') stack.push(child);
+    }
+  }
+  return false;
 }
 
 // الـ slot store يحتاج يميّز النسخة الخام ذات الحقول الزائدة ليعيد كتابتها بعد تنقيتها.
@@ -88,11 +119,11 @@ export function hasUnknownJournalFields(value: unknown): boolean {
 
 /**
  * التخزين ليس مصدراً موثوقاً: المخطط بإصدار صريح ويتحقق من الحقول المعروفة قبل استعادة أي طلب أو معرف زيارة.
- * الحقول غير المعروفة تُحذف لسلامة rollback؛ والمفتاح المجهول اللي فيه كلمة حساسة كاملة من قائمة محددة يرفض المدخل حتى لا يبقى هاتف العميل في التخزين (35c).
+ * الحقول غير المعروفة تُحذف لسلامة rollback؛ وأي مفتاح مجهول يطابق مصنّف المفاتيح الحساسة (كلمة كاملة أو مقطع مدمج أو لاحقة otp/pin) يرفض المدخل حتى لا تبقى بيانات العميل في التخزين (35c).
  */
 export function parseSessionJournalEnvelope(value: unknown): SessionJournalEnvelope {
   if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('SESSION_JOURNAL_INVALID');
-  if (Object.keys(value).some((key) => !journalEnvelopeFields.includes(key) && isJournalPiiKey(key))) throw new Error('SESSION_JOURNAL_INVALID');
+  if (Object.entries(value).some(([key, child]) => !journalEnvelopeFields.includes(key) && (isJournalPiiKey(key) || hasNestedJournalPiiKey(child)))) throw new Error('SESSION_JOURNAL_INVALID');
   value = Object.fromEntries(Object.entries(value).filter(([key]) => journalEnvelopeFields.includes(key)));
   strictFields(value, ['version', 'state'], journalEnvelopeFields.filter((key) => key !== 'version' && key !== 'state'));
   if (value.version !== 1) throw new Error('SESSION_JOURNAL_VERSION_INVALID');
