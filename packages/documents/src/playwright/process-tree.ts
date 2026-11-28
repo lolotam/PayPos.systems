@@ -146,34 +146,75 @@ function readProcessTablePairs(procRoot = '/proc'): Array<{ pid: number; ppid: n
   }
 }
 
-function hasLaunchMarker(pid: number, marker: string, procRoot: string): boolean {
+type MarkerInspection = 'matched' | 'mismatched' | 'unavailable';
+
+function inspectDarwinMarker(pid: number, marker: string): MarkerInspection {
   try {
-    const stat = readFileSync(`${procRoot}/${pid}/stat`, 'utf8');
-    if (isLinuxStatZombie(stat)) return false;
-    const envText = readFileSync(`${procRoot}/${pid}/environ`, 'utf8');
-    return envText.split('\0').includes(marker);
+    const out = execFileSync('ps', ['eww', '-o', 'state=,command=', '-p', String(pid)], {
+      encoding: 'utf8',
+      timeout: 1_000,
+    }).trim();
+    if (out.length === 0) return osPidExists(pid) ? 'unavailable' : 'mismatched';
+    if (out.startsWith('Z')) return 'mismatched';
+    return out.includes(marker) ? 'matched' : 'mismatched';
   } catch {
-    return false;
+    return osPidExists(pid) ? 'unavailable' : 'mismatched';
   }
+}
+
+function inspectLaunchMarker(pid: number, marker: string, procRoot: string): MarkerInspection {
+  if (process.platform === 'linux' || procRoot !== '/proc') {
+    try {
+      if (isLinuxStatZombie(readFileSync(`${procRoot}/${pid}/stat`, 'utf8'))) return 'mismatched';
+    } catch {
+      return osPidExists(pid) ? 'unavailable' : 'mismatched';
+    }
+    try {
+      const envText = readFileSync(`${procRoot}/${pid}/environ`, 'utf8');
+      return envText.split('\0').includes(marker) ? 'matched' : 'mismatched';
+    } catch {
+      return osPidExists(pid) ? 'unavailable' : 'mismatched';
+    }
+  }
+  if (process.platform === 'darwin') return inspectDarwinMarker(pid, marker);
+  return osPidExists(pid) ? 'unavailable' : 'mismatched';
+}
+
+function analyzeLaunchedPids(
+  error: unknown,
+  launchMarker?: string,
+  procRoot = '/proc',
+): { ownedPids: number[]; unverifiedPids: number[] } {
+  const logged = new Set<number>();
+  if (error instanceof Error) {
+    for (const match of error.message.matchAll(/<launched>\s+pid=(\d+)/g)) {
+      const pid = Number(match[1]);
+      if (Number.isInteger(pid) && pid > 0) logged.add(pid);
+    }
+  }
+  if (launchMarker === undefined) {
+    return { ownedPids: [], unverifiedPids: [...logged].filter((pid) => isPidAlive(pid, procRoot)) };
+  }
+  const marker = `${LAUNCH_MARKER_ENV}=${launchMarker}`;
+  const candidates = new Set<number>(logged);
+  if (process.platform === 'linux' || procRoot !== '/proc') {
+    for (const row of readLinuxProcessPairs(procRoot)) candidates.add(row.pid);
+  } else if (process.platform === 'darwin') {
+    for (const pid of collectDescendantPids([process.pid], procRoot)) candidates.add(pid);
+  }
+  const ownedPids: number[] = [];
+  const unverifiedPids: number[] = [];
+  for (const pid of candidates) {
+    const status = inspectLaunchMarker(pid, marker, procRoot);
+    if (status === 'matched') ownedPids.push(pid);
+    else if (status === 'unavailable' && logged.has(pid) && isPidAlive(pid, procRoot)) unverifiedPids.push(pid);
+  }
+  return { ownedPids, unverifiedPids };
 }
 
 /** يستخرج PIDs التابعة لإطلاق فاشل بعد التحقق من وسم البيئة لمنع إرسال إشارة لرقم عملية أُعيد تدويره. */
 export function extractLaunchedPids(error: unknown, launchMarker?: string, procRoot = '/proc'): number[] {
-  if (launchMarker === undefined || (process.platform !== 'linux' && procRoot === '/proc')) {
-    return [];
-  }
-  const marker = `${LAUNCH_MARKER_ENV}=${launchMarker}`;
-  const candidates = new Set<number>();
-  if (error instanceof Error) {
-    for (const match of error.message.matchAll(/<launched>\s+pid=(\d+)/g)) {
-      const pid = Number(match[1]);
-      if (Number.isInteger(pid) && pid > 0) candidates.add(pid);
-    }
-  }
-  for (const row of readLinuxProcessPairs(procRoot)) {
-    candidates.add(row.pid);
-  }
-  return [...candidates].filter((pid) => hasLaunchMarker(pid, marker, procRoot));
+  return analyzeLaunchedPids(error, launchMarker, procRoot).ownedPids;
 }
 
 function collectDescendantPids(rootPids: readonly number[], procRoot = '/proc'): number[] {
@@ -204,13 +245,31 @@ function killPidSafely(pid: number): void {
   }
 }
 
-/** يقتل PIDs التابعة لإطلاق فاشل وشجرتها وينتظر خروجها الفعلي (بما فيها حالات الزومبي). */
-export async function killPidsAndWait(pids: readonly number[]): Promise<void> {
-  const all = [...new Set([...collectDescendantPids(pids), ...pids])];
-  for (const pid of all) killPidSafely(pid);
-  while (all.some((pid) => isPidAlive(pid))) {
+async function waitForPidsExit(pids: readonly number[], procRoot = '/proc'): Promise<void> {
+  while (pids.some((pid) => isPidAlive(pid, procRoot))) {
     await new Promise((resolve) => setTimeout(resolve, PID_POLL_MS));
   }
+}
+
+/** يقتل PIDs التابعة لإطلاق فاشل وشجرتها وينتظر خروجها الفعلي (بما فيها حالات الزومبي). */
+export async function killPidsAndWait(pids: readonly number[], procRoot = '/proc'): Promise<void> {
+  const all = [...new Set([...collectDescendantPids(pids, procRoot), ...pids])];
+  for (const pid of all) killPidSafely(pid);
+  await waitForPidsExit(all, procRoot);
+}
+
+/** ينظف عمليات الإطلاق الفاشل المؤكدة ويمسك بوابة الخروج لو تعذر التحقق من ملكية عملية حيّة مسجلة. */
+export function cleanupFailedLaunch(
+  error: unknown,
+  launchMarker?: string,
+  procRoot = '/proc',
+): Promise<void> | undefined {
+  const { ownedPids, unverifiedPids } = analyzeLaunchedPids(error, launchMarker, procRoot);
+  if (ownedPids.length === 0 && unverifiedPids.length === 0) return undefined;
+  const tasks: Array<Promise<void>> = [];
+  if (ownedPids.length > 0) tasks.push(killPidsAndWait(ownedPids, procRoot));
+  if (unverifiedPids.length > 0) tasks.push(waitForPidsExit(unverifiedPids, procRoot));
+  return Promise.all(tasks).then(() => undefined);
 }
 
 function killSingleAndWait(proc: KillableProcess): Promise<void> | void {
@@ -249,22 +308,35 @@ function killSingleAndWait(proc: KillableProcess): Promise<void> | void {
   });
 }
 
+function safeKillSingle(proc: KillableProcess): Promise<void> | undefined {
+  try {
+    const res = killSingleAndWait(proc);
+    return res === undefined ? undefined : res;
+  } catch (error) {
+    return Promise.reject(error instanceof Error ? error : new Error('SIGKILL_FAILED'));
+  }
+}
+
 /** يقتل عملية Chromium الجذر وكل شجرة توابعها قبل فكّ قفل إعادة الإطلاق. */
 export function killProcessTree(proc: KillableProcess): Promise<void> | void {
-  const childTree = (proc.children ?? []).map((child) => killProcessTree(child));
+  const childTree = (proc.children ?? []).map((child) => {
+    try {
+      return killProcessTree(child);
+    } catch (error) {
+      return Promise.reject(error instanceof Error ? error : new Error('SIGKILL_FAILED'));
+    }
+  });
   const osDescendants = typeof proc.pid === 'number' && proc.pid > 0 ? collectDescendantPids([proc.pid]) : [];
   for (const pid of osDescendants) killPidSafely(pid);
-  const rootWait = killSingleAndWait(proc);
+  const rootWait = safeKillSingle(proc);
   const waits: Array<Promise<void>> = childTree.filter((item): item is Promise<void> => item !== undefined);
   if (osDescendants.length > 0) {
-    waits.push(
-      (async () => {
-        while (osDescendants.some((pid) => isPidAlive(pid))) {
-          await new Promise((resolve) => setTimeout(resolve, PID_POLL_MS));
-        }
-      })(),
-    );
+    waits.push(waitForPidsExit(osDescendants));
   }
   if (rootWait === undefined && waits.length === 0) return undefined;
-  return Promise.all([rootWait, ...waits]).then(() => undefined);
+  const all = rootWait === undefined ? waits : [rootWait, ...waits];
+  return Promise.allSettled(all).then((results) => {
+    const rejected = results.find((item): item is PromiseRejectedResult => item.status === 'rejected');
+    if (rejected !== undefined) throw rejected.reason;
+  });
 }

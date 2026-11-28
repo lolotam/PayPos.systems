@@ -9,9 +9,8 @@ import {
 
 import type { PdfBrowser, PdfBrowserFactory, PdfContext, PdfPage, PdfRoute } from './browser.ts';
 import {
-  extractLaunchedPids,
+  cleanupFailedLaunch,
   getLaunchCleanup,
-  killPidsAndWait,
   killProcessTree,
   LAUNCH_MARKER_ENV,
   withLaunchCleanup,
@@ -165,9 +164,9 @@ export function playwrightFactory(
         );
       } catch (error) {
         if (getLaunchCleanup(error) !== undefined) throw error;
-        const ownedPids = extractLaunchedPids(error, launchMarker);
-        if (ownedPids.length === 0) throw error;
-        throw withLaunchCleanup(error, killPidsAndWait(ownedPids));
+        const cleanup = cleanupFailedLaunch(error, launchMarker);
+        if (cleanup === undefined) throw error;
+        throw withLaunchCleanup(error, cleanup);
       }
     },
   };

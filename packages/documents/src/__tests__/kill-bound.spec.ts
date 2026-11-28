@@ -6,7 +6,7 @@ import { expect, it } from 'vitest';
 
 import type { PdfBrowser } from '../playwright/browser.ts';
 import { killAndWait, withLaunchCleanup } from '../playwright/factory.ts';
-import { directLinuxChildren, extractLaunchedPids, isLinuxStatZombie, isPidAlive } from '../playwright/process-tree.ts';
+import { cleanupFailedLaunch, directLinuxChildren, extractLaunchedPids, isLinuxStatZombie, isPidAlive } from '../playwright/process-tree.ts';
 import { PlaywrightDocumentRenderer } from '../playwright/renderer.ts';
 import { dropRetiredBrowser } from '../playwright/retire.ts';
 
@@ -261,23 +261,15 @@ it('keeps shared launch alive for a second caller when first caller aborts its o
 it('retains retired browser handle after failed kill so renderer.kill() can finish retirement', async () => {
   let kills = 0;
   const renderer = new PlaywrightDocumentRenderer({
-    factory: {
-      launch: async () =>
-        fakeBrowser({
-          kill: () => {
-            kills += 1;
-            return kills === 1 ? Promise.reject(new Error('EPERM')) : Promise.resolve();
-          },
-        }),
-    },
-    sleep: (ms) => new Promise((r) => setTimeout(r, ms)),
+    factory: { launch: async () => fakeBrowser({ kill: () => (++kills === 1 ? Promise.reject(new Error('EPERM')) : Promise.resolve()) }) },
+    sleep: wait,
     backoffMs: [0],
     overallTimeoutMs: 15,
     browserCloseGraceMs: 10,
   });
   await renderer.start();
   await expect(renderer.render('<p>x</p>')).rejects.toThrow();
-  await new Promise((r) => setTimeout(r, 60));
+  await wait(60);
   expect(kills).toBe(1);
   expect(renderer.unconfirmedExit).not.toBeNull();
   await Promise.resolve(renderer.kill());
@@ -285,7 +277,7 @@ it('retains retired browser handle after failed kill so renderer.kill() can fini
   expect(renderer.unconfirmedExit).toBeNull();
 });
 
-it('treats procfs zombies as exited, ignores disappearing threads, and attributes launched PIDs', () => {
+it('treats procfs zombies as exited, ignores disappearing threads, and retains gate for unverifiable logged PIDs', async () => {
   expect(isLinuxStatZombie('12 (chr) b) Z 1 12')).toBe(true);
   expect(isLinuxStatZombie('12 (chrome) S 1 12')).toBe(false);
   const procDir = mkdtempSync(join(tmpdir(), 'pospay-proc-'));
@@ -303,6 +295,10 @@ it('treats procfs zombies as exited, ignores disappearing threads, and attribute
     expect(directLinuxChildren(100, procDir)).toEqual([101, 103]);
     expect(isPidAlive(process.pid, procDir)).toBe(true);
     expect(extractLaunchedPids(new Error('log <launched> pid=55 <launched> pid=303'), 'id-1', procDir)).toEqual([303, 202]);
+    const gate = cleanupFailedLaunch(new Error(`log <launched> pid=${process.pid}`), 'id-1', procDir);
+    expect(gate).toBeDefined();
+    writeProc(String(process.pid), { stat: `${process.pid} (node) Z 1 ${process.pid}\n` });
+    await gate;
   } finally {
     rmSync(procDir, { recursive: true, force: true });
   }
@@ -383,5 +379,36 @@ it('keeps close() gated on active external kill even if browser.close() resolves
   child.exitCode = 0;
   child.emit('exit');
   await Promise.all([closing, killing]);
+  expect(renderer.unconfirmedExit).toBeNull();
+});
+
+it('keeps root-rejected process tree waiting for descendants and keeps close gated during kill retries', async () => {
+  const { root, child } = createFakeProcessTree();
+  root.kill = () => { throw new Error('EPERM'); };
+  let treeDone = false;
+  const treeKill = Promise.resolve(killAndWait(root)).catch(() => { treeDone = true; });
+  await wait(20);
+  expect(treeDone).toBe(false);
+  child.exitCode = 0;
+  child.emit('exit');
+  await treeKill;
+  expect(treeDone).toBe(true);
+
+  let kills = 0;
+  let releaseClose!: () => void;
+  let releaseRetry!: () => void;
+  const renderer = new PlaywrightDocumentRenderer({
+    factory: { launch: async () => fakeBrowser({ close: () => new Promise<void>((r) => (releaseClose = r)), kill: () => (++kills === 1 ? Promise.reject(new Error('EPERM')) : new Promise<void>((r) => (releaseRetry = r))) }) },
+    closeGraceMs: 10,
+  });
+  await renderer.start();
+  await renderer.close();
+  expect(renderer.unconfirmedExit).not.toBeNull();
+  const retry = Promise.resolve(renderer.kill());
+  releaseClose();
+  await wait(20);
+  expect(renderer.unconfirmedExit).not.toBeNull();
+  releaseRetry();
+  await retry;
   expect(renderer.unconfirmedExit).toBeNull();
 });

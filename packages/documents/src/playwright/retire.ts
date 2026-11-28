@@ -70,11 +70,13 @@ interface ShutdownState {
   killAttempted: boolean;
   killConfirmed: boolean;
   fallbackAttempted: boolean;
+  killSeq: number;
   killError: unknown;
   killResult: Promise<void> | undefined;
   closeInFlight: Promise<RetireResult> | null;
   inFlightUsesSleep: boolean;
   readonly cancels: Set<() => void>;
+  readonly confirmedPromise: Promise<void>;
   readonly releaseConfirmed: () => void;
 }
 
@@ -113,25 +115,25 @@ function trackKillCall(
 }
 
 async function waitKillOutcome(
-  closing: Promise<unknown>,
+  state: ShutdownState,
   killCall: Promise<void> | undefined,
 ): Promise<RetireResult> {
-  // لو القتل شغال (بما فيه انتظار توابع العملية)، قفل البروتوكول لوحده ما يكفيش؛ السقوط لـ cleanClose بس لو القتل نفسه فشل.
-  const never = (): Promise<void> => new Promise<void>(() => undefined);
-  const cleanClose = closing.then(() => undefined, never);
-  const exit =
-    killCall === undefined ? Promise.resolve() : killCall.then(() => undefined, () => cleanClose);
-  let settled = false;
-  const confirmed = exit.then(() => {
-    settled = true;
-  });
+  if (killCall === undefined || isShutdownConfirmed(state)) {
+    markShutdownConfirmed(state, state.closeFinished);
+    return { confirmed: true, exit: Promise.resolve() };
+  }
+  const settledAttempt = killCall.then(
+    () => undefined,
+    () => undefined,
+  );
   const killGrace = armGrace(KILL_WAIT_MS);
   try {
-    await Promise.race([confirmed, killGrace.done]);
+    await Promise.race([state.confirmedPromise, settledAttempt, killGrace.done]);
   } finally {
     killGrace.stop();
   }
-  return { confirmed: settled, exit };
+  const confirmed = isShutdownConfirmed(state);
+  return { confirmed, exit: confirmed ? Promise.resolve() : state.confirmedPromise };
 }
 
 function safeCloseBrowser(browser: PdfBrowser, onFinished: () => void): Promise<unknown> {
@@ -197,10 +199,14 @@ function runKillAttempt(state: ShutdownState, fromExternal: boolean): Promise<vo
   }
   state.killAttempted = true;
   state.killError = undefined;
+  const seq = (state.killSeq += 1);
   state.killResult = trackKillCall(
     state.browser,
-    () => markShutdownConfirmed(state, false),
+    () => {
+      if (state.killSeq === seq) markShutdownConfirmed(state, false);
+    },
     (err) => {
+      if (state.killSeq !== seq) return;
       state.killError = err;
       if (state.closeFinished) markShutdownConfirmed(state, true);
     },
@@ -221,7 +227,7 @@ async function executeCloseAttempt(
   const killCall = runKillAttempt(state, false);
   return isShutdownConfirmed(state)
     ? { confirmed: true, exit: Promise.resolve() }
-    : waitKillOutcome(activeClose, killCall);
+    : waitKillOutcome(state, killCall);
 }
 
 /** بيبني منسّق إغلاق وقتل واحد لنفس المتصفح يتشارك بين المُصيّر والعامل. */
@@ -237,11 +243,13 @@ export function createBrowserShutdown(browser: PdfBrowser): BrowserShutdown {
     killAttempted: false,
     killConfirmed: false,
     fallbackAttempted: false,
+    killSeq: 0,
     killError: undefined,
     killResult: undefined,
     closeInFlight: null,
     inFlightUsesSleep: false,
     cancels: new Set(),
+    confirmedPromise: confirmed,
     releaseConfirmed,
   };
   return {
