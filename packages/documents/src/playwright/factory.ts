@@ -111,6 +111,10 @@ function chromiumProcess(browser: Browser): KillableProcess | null {
   }
 }
 
+function hasVerifiablePid(proc: KillableProcess | null): proc is KillableProcess {
+  return proc !== null && typeof proc.pid === 'number' && proc.pid > 0;
+}
+
 function wrapBrowser(browser: Browser, capturedProc: KillableProcess | null = null): PdfBrowser {
   const launchedProc = capturedProc ?? chromiumProcess(browser);
   return {
@@ -153,10 +157,20 @@ export function playwrightFactory(
           timeout: timeoutMs,
           env: launchEnvWithMarker(launchMarker),
         });
-        return wrapBrowser(browser, takeLaunchedProcess(launchMarker));
+        const rawCaptured = takeLaunchedProcess(launchMarker);
+        const captured = hasVerifiablePid(rawCaptured) ? rawCaptured : chromiumProcess(browser);
+        if (!hasVerifiablePid(captured)) {
+          let timer: ReturnType<typeof setTimeout> | undefined;
+          const cleanup = Promise.race([
+            Promise.resolve().then(() => browser.close()).catch(() => undefined),
+            new Promise<void>((r) => { timer = setTimeout(r, Math.min(timeoutMs, 5_000)); timer.unref?.(); }),
+          ]).finally(() => { if (timer !== undefined) clearTimeout(timer); });
+          throw withLaunchCleanup(new Error('CHROMIUM_PROCESS_UNAVAILABLE'), cleanup);
+        }
+        return wrapBrowser(browser, captured);
       } catch (error) {
         const captured = takeLaunchedProcess(launchMarker);
-        if (getLaunchCleanup(error) !== undefined || captured === null) throw error;
+        if (getLaunchCleanup(error) !== undefined || !hasVerifiablePid(captured)) throw error;
         const retryKill = (): Promise<void> | void => killProcessTree(captured);
         const cleanup = retryKill();
         if (cleanup === undefined) throw error;

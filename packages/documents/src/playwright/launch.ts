@@ -1,6 +1,7 @@
 import type { PdfBrowser } from './browser.ts';
 import { getLaunchCleanup, getLaunchCleanupRetry } from './process-tree.ts';
 import {
+  consumeFreshKill,
   createBrowserShutdown,
   dropRetiredBrowser,
   type BrowserShutdown,
@@ -165,16 +166,57 @@ export function waitGate(
 
 const activeRetryDrivers = new WeakSet<BrowserShutdown>();
 
-async function waitRetryAttempt(attempt: Promise<void>, delayMs: number, gateSignal: AbortSignal, closeSignal: AbortSignal): Promise<void> {
+async function waitRetryAttempt(
+  attempt: Promise<boolean>,
+  delayMs: number,
+  gateSignal: AbortSignal,
+  closeSignal: AbortSignal,
+): Promise<boolean> {
+  if (gateSignal.aborted) return true;
+  let settled = false;
+  const tracked = attempt.then(() => { settled = true; });
   let timer: ReturnType<typeof setTimeout> | undefined;
   const target = closeSignal.aborted
-    ? Promise.race([attempt, new Promise<void>((r) => { timer = setTimeout(r, Math.max(delayMs, 50)); timer.unref?.(); })])
-    : attempt;
+    ? Promise.race([tracked, new Promise<void>((r) => { timer = setTimeout(r, Math.max(delayMs, 50)); timer.unref?.(); })])
+    : tracked;
   await waitGate(target, gateSignal, closeSignal.aborted ? undefined : closeSignal);
+  if (timer !== undefined) clearTimeout(timer);
+  return settled;
+}
+
+function trackRetryAttempt(
+  retry: Promise<void>,
+  gateAbort: AbortController,
+  onError?: (err: unknown) => void,
+): Promise<boolean> {
+  return retry.then(
+    () => false,
+    (err: unknown) => {
+      if (err instanceof Error && err.message === 'DOCUMENT_BROWSER_KILL_UNSUPPORTED') {
+        gateAbort.abort();
+        return false;
+      }
+      if (!gateAbort.signal.aborted) onError?.(err);
+      return true;
+    },
+  );
+}
+
+async function sleepRetryBackoff(
+  delayMs: number,
+  postClose: boolean,
+  sleep: (ms: number) => Promise<void>,
+  gateSignal: AbortSignal,
+  closeSignal: AbortSignal,
+): Promise<void> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const floor = new Promise<void>((r) => { timer = setTimeout(r, Math.max(delayMs, 5)); timer.unref?.(); });
+  const safeSleep = delayMs > 0 && !postClose ? Promise.resolve().then(() => sleep(delayMs)).catch(() => undefined) : Promise.resolve();
+  await waitGate(Promise.all([safeSleep, floor]).then(() => undefined), gateSignal, postClose ? undefined : closeSignal);
   if (timer !== undefined) clearTimeout(timer);
 }
 
-/** يعيد محاولة قتل المتصفح المعلّق بتدرّج التراجع لحد تأكيد الخروج، مع محاولتين محدودتين بمؤقّت غير مُرجعي بعد بدء الإغلاق. */
+/** يعيد محاولة قتل المتصفح المعلّق بتدرّج التراجع لحد تأكيد الخروج، مع محاولتين جديدتين بعد بدء الإغلاق. */
 export async function driveShutdownRetries(
   gate: Promise<void>,
   getShutdown: () => BrowserShutdown | null,
@@ -182,6 +224,7 @@ export async function driveShutdownRetries(
   sleep: (ms: number) => Promise<void>,
   closeSignal: AbortSignal,
   onError?: (err: unknown) => void,
+  initialBudget = 2,
 ): Promise<void> {
   const initial = getShutdown();
   if (initial === null || activeRetryDrivers.has(initial)) return;
@@ -190,32 +233,45 @@ export async function driveShutdownRetries(
   const stop = (): void => gateAbort.abort();
   void gate.then(stop, stop);
   let attempts = 0;
-  let shutdownBudget = 2;
+  let shutdownBudget = initialBudget;
+  let postCloseWaits = 0;
+  let lastRetry: Promise<void> | undefined;
+  let lastAttempt: Promise<boolean> = Promise.resolve(false);
+  let pendingLate: Promise<boolean> | undefined;
   try {
     while (!gateAbort.signal.aborted && (!closeSignal.aborted || shutdownBudget > 0)) {
       const postClose = closeSignal.aborted;
-      if (postClose) shutdownBudget -= 1;
       const delayMs = backoff[Math.min(attempts, backoff.length - 1)] ?? 0;
       attempts += 1;
-      let floorTimer: ReturnType<typeof setTimeout> | undefined;
-      const floor = new Promise<void>((r) => { floorTimer = setTimeout(r, Math.max(delayMs, 5)); floorTimer.unref?.(); });
-      const safeSleep = delayMs > 0 && !postClose ? Promise.resolve().then(() => sleep(delayMs)).catch(() => undefined) : Promise.resolve();
-      await waitGate(Promise.all([safeSleep, floor]).then(() => undefined), gateAbort.signal, postClose ? undefined : closeSignal);
-      if (floorTimer !== undefined) clearTimeout(floorTimer);
+      await sleepRetryBackoff(delayMs, postClose, sleep, gateAbort.signal, closeSignal);
       if (gateAbort.signal.aborted) return;
       if (!postClose && closeSignal.aborted) continue;
       const shutdown = getShutdown();
       if (shutdown === null) return;
       const retry = shutdown.kill();
       if (retry === undefined) { await Promise.resolve(); continue; }
-      const attempt = retry.catch((err: unknown) => {
-        if (err instanceof Error && err.message === 'DOCUMENT_BROWSER_KILL_UNSUPPORTED') { gateAbort.abort(); return; }
-        if (!gateAbort.signal.aborted) onError?.(err);
-      });
-      await waitRetryAttempt(attempt, delayMs, gateAbort.signal, closeSignal);
+      const postCloseNow = closeSignal.aborted;
+      if (consumeFreshKill(retry)) {
+        postCloseWaits = 0;
+        if (postCloseNow) shutdownBudget -= 1;
+      }
+      if (retry !== lastRetry) {
+        lastRetry = retry;
+        lastAttempt = trackRetryAttempt(retry, gateAbort, onError);
+      }
+      const settled = await waitRetryAttempt(lastAttempt, delayMs, gateAbort.signal, closeSignal);
+      if (!settled && postCloseNow && (postCloseWaits += 1) >= 2) {
+        if (shutdownBudget > 0) pendingLate = lastAttempt;
+        break;
+      }
     }
   } finally {
     activeRetryDrivers.delete(initial);
+    if (pendingLate !== undefined) {
+      void pendingLate.then((rejected) => {
+        if (rejected && !gateAbort.signal.aborted) void driveShutdownRetries(gate, getShutdown, backoff, sleep, closeSignal, onError, shutdownBudget);
+      });
+    }
   }
 }
 

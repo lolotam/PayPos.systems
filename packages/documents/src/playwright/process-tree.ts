@@ -229,28 +229,33 @@ export function takeLaunchedProcess(launchMarker: string): KillableProcess | nul
   return proc;
 }
 
-function collectDescendantPids(rootPids: readonly number[], procRoot = '/proc'): number[] {
-  const result: number[] = [];
-  const seen = new Set<number>(rootPids);
+function collectDescendantPids(rootPids: readonly number[], procRoot = '/proc'): Map<number, number> {
+  const seedOf = new Map<number, number>(rootPids.map((pid) => [pid, pid]));
   const queue = [...rootPids];
   const table = readProcessTablePairs(procRoot);
   while (queue.length > 0) {
     const current = queue.shift();
     if (current === undefined) break;
+    const origin = seedOf.get(current) ?? current;
     const fromTasks = process.platform === 'linux' || procRoot !== '/proc' ? directLinuxChildren(current, procRoot) : [];
     const fromTable = table.filter((row) => row.ppid === current).map((row) => row.pid);
     for (const child of new Set([...fromTasks, ...fromTable])) {
-      if (seen.has(child)) continue;
-      seen.add(child);
-      result.push(child);
+      if (seedOf.has(child)) continue;
+      seedOf.set(child, origin);
       queue.push(child);
     }
   }
-  return result;
+  return seedOf;
 }
 
-async function waitForPidsExit(pids: readonly number[], procRoot = '/proc'): Promise<void> {
-  while (pids.some((pid) => isPidAlive(pid, procRoot))) {
+function checkPidStatus(pid: number, expectedFp: string, procRoot = '/proc'): 'exited' | 'same' | 'unverified' {
+  const cur = readPidFingerprint(pid, procRoot);
+  if (cur === undefined || (expectedFp !== '' && cur !== null && cur !== expectedFp)) return 'exited';
+  return expectedFp !== '' && cur === expectedFp ? 'same' : 'unverified';
+}
+
+async function waitForPidsExit(targets: ReadonlyArray<readonly [number, string]>, procRoot = '/proc'): Promise<void> {
+  while (targets.some(([pid, fp]) => checkPidStatus(pid, fp, procRoot) !== 'exited')) {
     await new Promise((resolve) => setTimeout(resolve, PID_POLL_MS));
   }
 }
@@ -309,10 +314,10 @@ function revalidateRetained(proc: KillableProcess, procRoot: string): { pids: nu
   const pids: number[] = [];
   let unverifiedError: Error | undefined;
   for (const [pid, expectedFp] of prior) {
-    const cur = readPidFingerprint(pid, procRoot);
-    if (cur === undefined || (expectedFp !== '' && cur !== null && cur !== expectedFp)) { prior.delete(pid); continue; }
-    if (expectedFp !== '' && cur === expectedFp) { pids.push(pid); continue; }
-    unverifiedError ??= markUnconfirmedDescendants(new Error('DESCENDANT_IDENTITY_UNVERIFIED'));
+    const status = checkPidStatus(pid, expectedFp, procRoot);
+    if (status === 'exited') prior.delete(pid);
+    else if (status === 'same') pids.push(pid);
+    else unverifiedError ??= markUnconfirmedDescendants(new Error('DESCENDANT_IDENTITY_UNVERIFIED'));
   }
   if (prior.size === 0) retainedDescendants.delete(proc);
   return { pids, unverifiedError };
@@ -331,10 +336,11 @@ function terminateOwnedDescendants(
   if (seeds.length === 0) return { waitPids: [], signalError: unverifiedError };
   const markedSet = new Set(markedPids);
   const retainedSet = new Set(retainedPids);
-  const candidates = [...new Set([...markedPids, ...retainedPids, ...collectDescendantPids(seeds, procRoot)])];
-  const ownedPids = candidates.filter(
-    (pid) => pid !== rootPid && (rootAlive || retainedSet.has(pid) || markedSet.has(pid) || (marker !== undefined && hasMatchingMarkerInProc(pid, marker, procRoot))),
-  );
+  const seedOf = collectDescendantPids(seeds, procRoot);
+  const ownedPids = [...seedOf.keys()].filter((pid) => {
+    const origin = seedOf.get(pid);
+    return pid !== rootPid && ((origin === rootPid && rootAlive) || (origin !== undefined && (retainedSet.has(origin) || markedSet.has(origin))) || (marker !== undefined && hasMatchingMarkerInProc(pid, marker, procRoot)));
+  });
   const retained = retainedDescendants.get(proc) ?? new Map<number, string>();
   for (const pid of ownedPids) {
     if (!retained.has(pid) || retained.get(pid) === '') {
@@ -416,11 +422,12 @@ export function killProcessTree(proc: KillableProcess): Promise<void> | void {
   killLaunchProcessGroup(proc);
   const rootWait = safeKillSingle(proc);
   const waits: Array<Promise<void>> = childTree.filter((item): item is Promise<void> => item !== undefined);
-  if (waitPids.length > 0) {
-    waits.push(waitForPidsExit(waitPids).then(() => {
+  const waitTargets = waitPids.map((pid) => [pid, retainedDescendants.get(proc)?.get(pid) ?? ''] as const);
+  if (waitTargets.length > 0) {
+    waits.push(waitForPidsExit(waitTargets).then(() => {
       const retained = retainedDescendants.get(proc);
       if (retained === undefined) return;
-      for (const pid of waitPids) retained.delete(pid);
+      for (const [pid] of waitTargets) retained.delete(pid);
       if (retained.size === 0) retainedDescendants.delete(proc);
     }));
   }

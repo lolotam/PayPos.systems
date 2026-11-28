@@ -163,18 +163,28 @@ async function waitCloseGrace(
   graceMs: number,
   sleep: ((ms: number) => Promise<void>) | undefined,
   cancels: Set<() => void>,
+  isKillActive: () => boolean,
 ): Promise<void> {
   const grace = armCancellableGrace(graceMs, sleep);
   cancels.add(grace.cancel);
   // لو القتل شغال، نجاح close() لوحده ما يفكش السماح؛ نصحى بدري بس لو close اترفض أو markShutdownConfirmed لغى المؤقت.
   const never = (): Promise<void> => new Promise<void>(() => undefined);
-  const rejected = activeClose.then(never, () => undefined);
+  const settled = activeClose.then(() => (isKillActive() ? never() : undefined), () => undefined);
   try {
-    await Promise.race([rejected, grace.done]).catch(() => undefined);
+    await Promise.race([settled, grace.done]).catch(() => undefined);
   } finally {
     cancels.delete(grace.cancel);
     grace.stop();
   }
+}
+
+const freshExternalKills = new WeakSet<Promise<void>>();
+
+/** يتحقق إن كان وعد القتل الحالي محاولة خارجية جديدة لم تُحتسب بعد ضمن ميزانية الإغلاق. */
+export function consumeFreshKill(attempt: Promise<void>): boolean {
+  const fresh = freshExternalKills.has(attempt);
+  freshExternalKills.delete(attempt);
+  return fresh;
 }
 
 function markShutdownConfirmed(state: ShutdownState, fromClose: boolean): void {
@@ -237,6 +247,7 @@ function runKillAttempt(state: ShutdownState, fromExternal: boolean): Promise<vo
     resolveShared();
     return undefined;
   }
+  if (fromExternal) freshExternalKills.add(shared);
   callResult.catch(() => undefined);
   return shared;
 }
@@ -245,13 +256,13 @@ async function executeCloseAttempt(
   state: ShutdownState,
   graceMs: number,
   sleep?: (ms: number) => Promise<void>,
-  requireKill = false,
+  skipGrace = false,
 ): Promise<RetireResult> {
-  const mustKill = (requireKill || state.descendantUnconfirmed) && typeof state.browser.kill === 'function';
-  if (mustKill) state.descendantUnconfirmed = true;
+  const skipWait = skipGrace && typeof state.browser.kill === 'function';
+  if (skipWait) state.descendantUnconfirmed = true;
   const activeClose = ensureClosing(state);
-  if (!mustKill && !isShutdownConfirmed(state)) {
-    await waitCloseGrace(activeClose, graceMs, sleep, state.cancels);
+  if (!skipWait && !isShutdownConfirmed(state)) {
+    await waitCloseGrace(activeClose, graceMs, sleep, state.cancels, () => state.killAttempted && !state.killFailed);
   }
   if (isShutdownConfirmed(state)) return { confirmed: true, exit: Promise.resolve() };
   const killCall = runKillAttempt(state, false);

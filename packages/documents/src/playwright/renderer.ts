@@ -407,7 +407,7 @@ export class PlaywrightDocumentRenderer implements DocumentRenderer {
     if (this.#browser !== browser) return;
     this.#browser = null;
     this.#relaunchNeeded = true;
-    const shutdown = createBrowserShutdown(browser, !useInjectedSleep);
+    const shutdown = createBrowserShutdown(browser, true);
     this.#shutdown = shutdown;
     let releaseGate = (): void => undefined;
     const gate = new Promise<void>((resolve) => { releaseGate = resolve; });

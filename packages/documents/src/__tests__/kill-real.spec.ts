@@ -23,31 +23,19 @@ const browser = await playwrightFactory()
 
 it.skipIf(browser === false)('kill() terminates the real Chromium process', async () => {
   if (browser === false) return;
-  const gone = new Promise<void>((resolve) => {
-    browser.on('disconnected', () => {
-      resolve();
-    });
-  });
+  const gone = new Promise<void>((resolve) => { browser.on('disconnected', () => resolve()); });
   expect(browser.kill).toBeTypeOf('function');
   await expect(Promise.resolve(browser.kill?.())).resolves.toBeUndefined();
   await expect(gone).resolves.toBeUndefined();
 });
 
 it.skipIf(browser === false)('attaches launch cleanup when pinned Playwright launcher fails after spawn', async () => {
-  const pw = chromium as unknown as {
-    _connection: { toImpl: (target: unknown) => { connectToTransport: (...a: unknown[]) => Promise<unknown> } };
-  };
+  const pw = chromium as unknown as { _connection: { toImpl: (t: unknown) => { connectToTransport: (...a: unknown[]) => Promise<unknown> } } };
   const impl = pw._connection.toImpl(chromium);
   const orig = impl.connectToTransport;
   impl.connectToTransport = async () => { throw new Error('POST_SPAWN_TEST_FAIL'); };
   let caught: unknown;
-  try {
-    await playwrightFactory().launch();
-  } catch (err) {
-    caught = err;
-  } finally {
-    impl.connectToTransport = orig;
-  }
+  try { await playwrightFactory().launch(); } catch (err) { caught = err; } finally { impl.connectToTransport = orig; }
   expect(caught).toBeInstanceOf(Error);
   const cleanup = getLaunchCleanup(caught);
   expect(cleanup).toBeDefined();
@@ -80,28 +68,14 @@ it('retries failed launch cleanup automatically on backoff and relaunches once c
   let kills = 0;
   const errors: string[] = [];
   const renderer = new PlaywrightDocumentRenderer({
-    factory: {
-      launch: () => {
-        launches += 1;
-        if (launches > 1) return Promise.resolve(fakeBrowser({ close: () => Promise.resolve() }));
-        return Promise.reject(withLaunchCleanup(new Error('spawn fail'), Promise.reject(new Error('SIGKILL_REJECTED')), () => {
-          kills += 1;
-          if (kills === 1) throw new Error('EPERM');
-        }));
-      },
-    },
-    launchTimeoutMs: 200,
-    sleep: wait,
-    backoffMs: [10, 10],
+    factory: { launch: () => (++launches > 1 ? Promise.resolve(fakeBrowser({ close: () => Promise.resolve() })) : Promise.reject(withLaunchCleanup(new Error('spawn fail'), Promise.reject(new Error('SIGKILL_REJECTED')), () => { if (++kills === 1) throw new Error('EPERM'); }))) },
+    launchTimeoutMs: 200, sleep: wait, backoffMs: [10, 10],
     onLaunchError: (err) => { if (err instanceof Error) errors.push(err.message); },
   });
   await renderer.start();
   for (let i = 0; i < 40 && !renderer.isAvailable(); i += 1) await wait(10);
-  expect(renderer.isAvailable()).toBe(true);
-  expect(launches).toBe(2);
-  expect(kills).toBe(2);
+  expect([renderer.isAvailable(), launches, kills, renderer.unconfirmedExit]).toEqual([true, 2, 2, null]);
   expect(errors).toEqual(expect.arrayContaining(['SIGKILL_REJECTED', 'EPERM']));
-  expect(renderer.unconfirmedExit).toBeNull();
   await renderer.close();
 });
 
@@ -109,24 +83,12 @@ it('unblocks a hung launch cleanup gate as soon as retryKill confirms', async ()
   let kills = 0;
   let launches = 0;
   const renderer = new PlaywrightDocumentRenderer({
-    factory: {
-      launch: () => {
-        launches += 1;
-        return launches === 1
-          ? Promise.reject(withLaunchCleanup(new Error('hung'), new Promise<void>(() => undefined), () => { kills += 1; }))
-          : Promise.resolve(fakeBrowser({ close: () => Promise.resolve() }));
-      },
-    },
-    launchTimeoutMs: 200,
-    sleep: wait,
-    backoffMs: [10],
+    factory: { launch: () => (++launches === 1 ? Promise.reject(withLaunchCleanup(new Error('hung'), new Promise<void>(() => undefined), () => { kills += 1; })) : Promise.resolve(fakeBrowser({ close: () => Promise.resolve() }))) },
+    launchTimeoutMs: 200, sleep: wait, backoffMs: [10],
   });
   await renderer.start();
   for (let i = 0; i < 40 && !renderer.isAvailable(); i += 1) await wait(10);
-  expect(renderer.isAvailable()).toBe(true);
-  expect(kills).toBe(1);
-  expect(launches).toBe(2);
-  expect(renderer.unconfirmedExit).toBeNull();
+  expect([renderer.isAvailable(), kills, launches, renderer.unconfirmedExit]).toEqual([true, 1, 2, null]);
   await renderer.close();
 });
 
@@ -134,27 +96,12 @@ it('unblocks relaunch when initial cleanup resolves after a hung retryKill', asy
   let kills = 0;
   let launches = 0;
   const renderer = new PlaywrightDocumentRenderer({
-    factory: {
-      launch: () => {
-        launches += 1;
-        return launches === 1
-          ? Promise.reject(withLaunchCleanup(new Error('slow cleanup'), wait(35), () => {
-            kills += 1;
-            return new Promise<void>(() => undefined);
-          }))
-          : Promise.resolve(fakeBrowser({ close: () => Promise.resolve() }));
-      },
-    },
-    launchTimeoutMs: 200,
-    sleep: wait,
-    backoffMs: [10],
+    factory: { launch: () => (++launches === 1 ? Promise.reject(withLaunchCleanup(new Error('slow cleanup'), wait(35), () => { kills += 1; return new Promise<void>(() => undefined); })) : Promise.resolve(fakeBrowser({ close: () => Promise.resolve() }))) },
+    launchTimeoutMs: 200, sleep: wait, backoffMs: [10],
   });
   await renderer.start();
   for (let i = 0; i < 40 && !renderer.isAvailable(); i += 1) await wait(10);
-  expect(renderer.isAvailable()).toBe(true);
-  expect(kills).toBe(1);
-  expect(launches).toBe(2);
-  expect(renderer.unconfirmedExit).toBeNull();
+  expect([renderer.isAvailable(), kills, launches, renderer.unconfirmedExit]).toEqual([true, 1, 2, null]);
   await renderer.close();
 });
 
@@ -225,14 +172,20 @@ function spawnDetachedParent(count: number) {
 function readChildPids(proc: ReturnType<typeof spawnDetachedParent>): Promise<number[]> {
   let buf = '';
   return new Promise<number[]>((resolve, reject) => {
-    proc.stdout.on('data', (chunk: Buffer) => {
+    const cleanup = () => { proc.stdout.off('data', onData); proc.off('error', onError); proc.off('close', onClose); };
+    const onData = (chunk: Buffer) => {
       buf += chunk.toString('utf8');
       if (!buf.includes('\n')) return;
+      cleanup();
       const pids = buf.trim().split(',').map(Number);
       if (pids.every((p) => Number.isInteger(p) && p > 0)) resolve(pids);
       else reject(new Error(`INVALID_PID:${buf}`));
-    });
-    proc.once('error', reject);
+    };
+    const onError = (err: Error) => { cleanup(); reject(err); };
+    const onClose = () => { cleanup(); reject(new Error(`PID_HANDSHAKE_INCOMPLETE:${buf}`)); };
+    proc.stdout.on('data', onData);
+    proc.on('error', onError);
+    proc.on('close', onClose);
   });
 }
 
@@ -380,6 +333,16 @@ it('retains shutdown handle for abandoned late browsers, escalates late cleanup,
   resolveShut(fakeBrowser({ kill: () => (++shutKills === 1 ? Promise.reject(new Error('EPERM')) : Promise.resolve()) }));
   await Promise.all([sShut, kShut]);
   expect([shutKills, rShut.unconfirmedExit]).toEqual([2, null]);
+
+  let releaseLateSlow!: (b: PdfBrowser) => void;
+  let lateSlowKills = 0;
+  const rLate = new PlaywrightDocumentRenderer({ factory: { launch: () => new Promise((r) => (releaseLateSlow = r)) }, backoffMs: [10], closeGraceMs: 10 });
+  const sLate = rLate.start();
+  const kLate = Promise.resolve(rLate.kill());
+  await wait(15);
+  releaseLateSlow(fakeBrowser({ kill: () => { const n = ++lateSlowKills; return n === 1 ? Promise.reject(new Error('E1')) : n === 2 ? wait(180).then(() => Promise.reject(new Error('E2'))) : Promise.resolve(); } }));
+  await Promise.all([sLate, kLate]);
+  expect([lateSlowKills, rLate.unconfirmedExit]).toEqual([3, null]);
 });
 
 it('keeps retirement gated on failed descendant kill after browser.close resolves and gates disconnect launches', async () => {
@@ -423,4 +386,21 @@ it('keeps retirement gated on failed descendant kill after browser.close resolve
   expect(dcLaunches).toBe(2);
   expect(r2.isAvailable()).toBe(true);
   await r2.close();
+
+  let tmLaunches = 0;
+  let tmDc!: () => void;
+  let tmClose!: () => void;
+  let releaseTmKill!: () => void;
+  const r3 = new PlaywrightDocumentRenderer({ factory: { launch: async () => (++tmLaunches === 1 ? fakeBrowser({ close: () => new Promise<void>((r) => (tmClose = r)), kill: () => new Promise<void>((r) => (releaseTmKill = r)), on: (ev, cb) => { if (ev === 'disconnected') tmDc = cb; } }) : closedBrowser()) }, sleep: wait, backoffMs: [5], overallTimeoutMs: 15, browserCloseGraceMs: 10 });
+  await r3.start();
+  await expect(r3.render('<p>x</p>')).rejects.toThrow();
+  tmDc();
+  tmClose();
+  await wait(35);
+  expect(tmLaunches).toBe(1);
+  expect(r3.isAvailable()).toBe(false);
+  releaseTmKill();
+  await waitUntil(() => r3.isAvailable());
+  expect(tmLaunches).toBe(2);
+  await r3.close();
 });
