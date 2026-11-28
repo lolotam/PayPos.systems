@@ -1,45 +1,13 @@
 'use client';
 import { t } from '@pospay/i18n';
-import { Button, Card, CardContent } from '@pospay/ui';
+import { Card, CardContent } from '@pospay/ui';
 import { useState } from 'react';
 import { envelopeMessage } from '@/shared/api/api-error';
 import { useLocale } from '@/shared/locale/locale-context';
 import { useEmployeeCards } from '../api/use-employee-cards';
+import { ActiveCardStatus } from './active-card-status';
 import { EmployeeCardForm } from './employee-card-form';
 import { EmployeeCardRevokeDialog } from './employee-card-revoke-dialog';
-
-function ActiveCardStatus({
-  active,
-  canManage,
-  revoking,
-  onStartRevoke,
-}: {
-  active: { id: string; card_code_suffix?: string | null } | null;
-  canManage: boolean;
-  revoking: boolean;
-  onStartRevoke: (cardId: string) => void;
-}) {
-  const locale = useLocale();
-  if (active === null) return <p>{t(locale, 'employeeCard.none')}</p>;
-  return (
-    <div className="flex items-center justify-between gap-3">
-      <span>
-        {t(locale, 'employeeCard.active')}
-        {active.card_code_suffix ? `: ••••${active.card_code_suffix}` : ''}
-      </span>
-      {canManage ? (
-        <Button
-          variant="destructive"
-          size="sm"
-          disabled={revoking}
-          onClick={() => onStartRevoke(active.id)}
-        >
-          {t(locale, 'employeeCard.revoke')}
-        </Button>
-      ) : null}
-    </div>
-  );
-}
 
 // قسم كارت الحضور داخل شاشة الموظف: الإصدار يستبدل النشط، والإلغاء يحتاج الإدارة.
 export function EmployeeCardSection({

@@ -379,23 +379,35 @@ it.each(['personal', 'reception'] as const)(
 
 it('cleans up QueryCache subscribers and abort listeners across settle and abort (#891)', async () => {
   await mount('personal');
-  const listenerCount = (cache.getQueryCache() as unknown as { listeners: Set<unknown> }).listeners
-    .size;
+  const size = () =>
+    (cache.getQueryCache() as unknown as { listeners: Set<unknown> }).listeners.size;
+  const listenerCount = size();
   held = true;
   const started = new Promise<() => void>((resolve) => {
     probeStarted = resolve;
   });
   fireEvent.click(screen.getByText('Recover'));
   const releaseProbe = await started;
-  expect((cache.getQueryCache() as unknown as { listeners: Set<unknown> }).listeners.size).toBe(
-    listenerCount + 1,
-  );
+  expect(size()).toBe(listenerCount + 1);
   await act(async () => {
     controller.abort();
     releaseProbe();
     await recovery;
   });
-  expect((cache.getQueryCache() as unknown as { listeners: Set<unknown> }).listeners.size).toBe(
-    listenerCount,
-  );
+  expect(size()).toBe(listenerCount);
+});
+
+it('rejects with 401 and clears session when expires_at passes during cancelQueries (#891)', async () => {
+  await mount('personal');
+  const origCancel = cache.cancelQueries.bind(cache);
+  vi.spyOn(cache, 'cancelQueries').mockImplementationOnce(async (...args) => {
+    vi.setSystemTime(new Date('2026-10-04T12:00:00Z'));
+    return origCancel(...args);
+  });
+  await act(async () => {
+    fireEvent.click(screen.getByText('Recover'));
+    await recovery;
+  });
+  await screen.findByText('rejected');
+  expect(cache.getQueryData(sessionKey())).toBeNull();
 });

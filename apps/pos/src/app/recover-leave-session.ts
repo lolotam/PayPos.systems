@@ -201,7 +201,7 @@ export async function recoverLeaveSession(
     // قراءة قديمة قيد التنفيذ لا يجوز أن تستبدل السياق الذي تحققنا منه للتو.
     await cache.cancelQueries({ queryKey: sessionKey, exact: true }, { revert: false });
     requireCurrent();
-    if (!accepted || !parsed.success) {
+    if (!accepted || !parsed.success || Date.parse(parsed.data.expires_at) <= Date.now()) {
       publish(null);
       throw new LeaveHttpError('UNAUTHENTICATED', 401);
     }

@@ -49,7 +49,7 @@ and showing a Cashier staff-login DENY on the permissions screen (D5).
    الحضور على ماسح الاستقبال، أو اكتب الكود واضغط Enter.** وحقل **كود كارت الحضور** وزرار **تسجيل**.
 9. **المسح:** امسح `CARD-TEST-0002` ← الحقل يتمسح فورًا ويتقفل لحد الرد، ومسح تاني وهو مستني بيتجاهل. أثناء الانتظار
    بيظهر **جارٍ تسجيل الحركة…**. القبول ←
-   **تم تسجيل الحضور** وتحتها (في أي حركة جديدة بالكارت) **تم التسجيل من جهاز الاستقبال (دون موقع الهاتف).** لأن جهاز
+   **تم تسجيل الحضور** وتحتها (عند غياب موقع الهاتف كما في حركة الكارت أو إعادة نتيجة موبايل بلا موقع) **تم التسجيل دون موقع الهاتف.** لأن جهاز
    الاستقبال ما بيبعتش موقع (CB-Q1). لو الكارت اتمسح خلال 5 دقايق من حركة بالموبايل، بترجع نتيجة الموبايل زي ما هي (الخطوة 10). مسح بعدها ← **تم تسجيل الانصراف**. الحركة بتتسجل بالجهاز والمشغّل.
 10. **نفس قواعد [26](26-clock-attendance.md):** مسح تاني خلال أقل من 5 دقايق ← نفس النتيجة الأولى من غير حركة جديدة،
     والقاعدة دي **مشتركة** مع مسح QR من الموبايل (كارت ثم QR أو العكس). قاعدة الـ 16 ساعة ← **أُغلقت الجلسة السابقة
@@ -104,7 +104,7 @@ and showing a Cashier staff-login DENY on the permissions screen (D5).
    "Scan the attendance card with the reception scanner, or type its code and press Enter.", the **Attendance card code**
    field and the **Clock** button.
 9. **Scan:** scan `CARD-TEST-0002` → the field clears at once and stays disabled until the answer; a second scan while
-   waiting is ignored. While waiting **Recording attendance…** shows. Accepted → "Clocked in" and, on every fresh card movement, "Recorded at the reception device (without phone location)." because the reception device sends no location (CB-Q1). A card scan within 5 minutes of a phone
+   waiting is ignored. While waiting **Recording attendance…** shows. Accepted → "Clocked in" and, with no phone location (as on fresh card scans or a deduplicated no-location phone scan), "Recorded without phone location." because the reception device sends no location (CB-Q1). A card scan within 5 minutes of a phone
    movement returns that phone result unchanged (step 10). A later scan → "Clocked out". The movement
    records the device and the operator.
 10. **Same rules as [26](26-clock-attendance.md):** a second scan under 5 minutes → the first result again, no new movement,
@@ -152,7 +152,7 @@ and showing a Cashier staff-login DENY on the permissions screen (D5).
 - Admin: `http://localhost:3001/staff` → **Edit** → **Hours and card** tab → **Attendance card** section; code input `#employee-card-code`
   (class `card-code-mask`); buttons and status by exact text; errors are `role=alert`, "Card issued." is `role=status`. Revoking requires confirming the `employeeCard.revokeConfirmTitle` modal (**Confirm revoke** / **Cancel**); HTTP `429` with a positive integer `Retry-After` header displays `employeeCard.issueLimitedFor` ("Too many requests. Wait {seconds} seconds and try again.", otherwise the error envelope message).
 - POS: `http://localhost:5173` on a paired device with an operator signed in. Input `#card-code`, labelled **Attendance card
-  code**; while submitting, `role=status` shows `pos.cardPending` ("Recording attendance…"). Results are `role=status` (accepted; fresh card movements append `pos.cardNoLocation` — "Recorded at the reception device (without phone location).") or `role=alert` (refused; HTTP `503` renders `pos.cardNotReady` — "Card clocking is temporarily unavailable. Use the branch QR or ask a manager."). Emulate offline in the browser and assert the offline notice replaces the form and no request is sent.
+  code**; while submitting, `role=status` shows `pos.cardPending` ("Recording attendance…"). Results are `role=status` (accepted; `NONE` renders source-neutral `pos.cardNoLocation` — "Recorded without phone location.") or `role=alert` (refused; HTTP `503` renders `pos.cardNotReady` — "Card clocking is temporarily unavailable. Use the branch QR or ask a manager."). Emulate offline in the browser and assert the offline notice replaces the form and no request is sent.
 - API, admin (session cookie + `x-company-id`; feature `staff`):
   - `GET /v1/businesses/<BUSINESS_ID>/employees/<EMPLOYEE_ID>/cards` → `{ active: { id, employee_id, card_code_suffix, issued_at, revoked_at } | null, can_manage: true }`, or 404 `NOT_FOUND` for a missing employee or a caller without management on every employee branch.
   - `POST .../cards` with `Idempotency-Key` and `{ "card_code": "CARD-TEST-0001" }` → 200 card; 409 `EMPLOYEE_CARD_CODE_UNAVAILABLE` (the same generic refusal whether the code is held in this business or another); 429 `TOO_MANY_REQUESTS` + `Retry-After`; 503 `NOT_READY` without Redis; same key with another code → 422 `IDEMPOTENCY_KEY_REUSED` while the limiter admits it (a changed body counts as an attempt, so at the limit it is 429).

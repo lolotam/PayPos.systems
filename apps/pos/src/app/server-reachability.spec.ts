@@ -1,12 +1,13 @@
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 
-import { nativeStaffFetch } from '@/shared/api/native-staff-fetch';
 import { usesNativeStaffTransport } from '@/shared/platform/native-shell';
 
 import { checkServerReachable, FIRST_SAVE_REACHABILITY_WAIT_MS } from './server-reachability';
 
-vi.mock('@/shared/api/native-staff-fetch', () => ({
-  nativeStaffFetch: vi.fn(),
+const nativeRequestMock = vi.hoisted(() => vi.fn());
+
+vi.mock('@capacitor/core', () => ({
+  CapacitorHttp: { request: nativeRequestMock },
 }));
 vi.mock('@/shared/platform/native-shell', () => ({
   usesNativeStaffTransport: vi.fn(),
@@ -38,6 +39,7 @@ it('returns true only when /health responds 200 with status ok (#566)', async ()
   expect(req.method).toBe('GET');
   expect(req.cache).toBe('no-store');
   expect(req.credentials).toBe('omit');
+  expect(req.redirect).toBe('error');
 });
 
 it('rejects captive-portal HTML or mismatched JSON payloads (#566)', async () => {
@@ -85,12 +87,41 @@ it('returns false on network error and aborts after the bounded timeout (#566)',
   expect(seenSignal?.aborted).toBe(true);
 });
 
-it('uses nativeStaffFetch when the iOS native transport is active (#566)', async () => {
+it('uses direct no-cache CapacitorHttp on iOS and allows immediate retry after timeout (#566)', async () => {
   vi.mocked(usesNativeStaffTransport).mockReturnValue(true);
-  vi.mocked(nativeStaffFetch).mockResolvedValue(Response.json({ status: 'ok' }, { status: 200 }));
+  vi.useFakeTimers();
+  nativeRequestMock
+    .mockImplementationOnce(() => new Promise(() => undefined))
+    .mockResolvedValueOnce({ status: 200, data: JSON.stringify({ status: 'ok' }) });
+
+  const firstAttempt = checkServerReachable();
+  await vi.advanceTimersByTimeAsync(FIRST_SAVE_REACHABILITY_WAIT_MS);
+  await expect(firstAttempt).resolves.toBe(false);
 
   await expect(checkServerReachable()).resolves.toBe(true);
-  expect(nativeStaffFetch).toHaveBeenCalledTimes(1);
+  expect(nativeRequestMock).toHaveBeenCalledTimes(2);
+  expect(nativeRequestMock.mock.calls[1]?.[0]).toEqual({
+    url: 'https://api.staging.pospay.systems/health',
+    method: 'GET',
+    headers: {
+      'Cache-Control': 'no-cache, no-store, max-age=0',
+      Pragma: 'no-cache',
+    },
+    disableRedirects: true,
+    connectTimeout: FIRST_SAVE_REACHABILITY_WAIT_MS,
+    readTimeout: FIRST_SAVE_REACHABILITY_WAIT_MS,
+    responseType: 'text',
+  });
+});
+
+it('rejects native captive portal HTML and 302 redirects on iOS (#566)', async () => {
+  vi.mocked(usesNativeStaffTransport).mockReturnValue(true);
+  nativeRequestMock
+    .mockResolvedValueOnce({ status: 200, data: '<html>portal</html>' })
+    .mockResolvedValueOnce({ status: 302, data: '' });
+
+  await expect(checkServerReachable()).resolves.toBe(false);
+  await expect(checkServerReachable()).resolves.toBe(false);
 });
 
 it('propagates missing VITE_API_URL config errors instead of showing needsInternet (#566)', async () => {

@@ -95,8 +95,8 @@ iOS simulator UI test) and #648 (a staging-only test-user CLI) are test tooling 
 - **The link:** `https://<pos host>/personal?company=<COMPANY_ID>&business=<BUSINESS_ID>`; only that host and path are
   accepted, parsed with the `personalWorkspace` schema of `packages/contracts`; every other parameter is ignored.
 - **Assertions:** the native build registers no service worker (spec 065 FR-005); before saving a first device role,
-  `checkServerReachable()` sends `GET ${apiOrigin()}/health` (`cache: 'no-store'`, `credentials: 'omit'`, bounded to
-  `FIRST_SAVE_REACHABILITY_WAIT_MS = 5000` ms, using `nativeStaffFetch` on native iOS) and requires HTTP `200` with
+  `checkServerReachable()` calls `GET ${apiOrigin()}/health` (browser `fetch` with `cache: 'no-store'`, `credentials: 'omit'`, `redirect: 'error'`; on native iOS, direct `CapacitorHttp.request` with `Cache-Control: no-cache, no-store, max-age=0`, `Pragma: no-cache`, and `disableRedirects: true`, bypassing `nativeStaffFetch`'s session abort fence) bounded to
+  `FIRST_SAVE_REACHABILITY_WAIT_MS = 5000` ms and requiring HTTP `200` with
   `{ status: 'ok' }`, otherwise keeping `StartScreen` with `nativeShell.needsInternet` without persisting a role; a
   sign-out attempt waits at most 10 seconds; the sign-out routes answer 200 `SIGNED_OUT` or 200 `NO_SESSION` ([66](66-staff-sign-out.md)).
 - **Sources:** `docs/specs/065-mob-app-shell/spec.md` (FR-001, FR-008, FR-012, FR-015, FR-016, FR-018),
