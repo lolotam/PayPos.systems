@@ -135,9 +135,15 @@ async function publishSavedTips(
   client.setQueryData(key, data);
 }
 
-export function useRecordSessionTips(scope: SessionServiceScope, memory?: AttemptMemory) {
+export function useRecordSessionTips(
+  scope: SessionServiceScope,
+  memory?: AttemptMemory,
+  initialHeld: Held | null = null,
+) {
   const client = useQueryClient();
-  const held = useRef<Held | null>(null);
+  const held = useRef<Held | null>(
+    initialHeld ? { key: initialHeld.key, fingerprint: initialHeld.fingerprint } : null,
+  );
   return useMutation({
     mutationKey: ['record-session-tips', scope],
     retry: false,

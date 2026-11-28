@@ -59,7 +59,7 @@ it.each(['errorCode', 'displayName', 'filename'] as const)('drops unknown harmle
   expect(parseSessionJournalEnvelope({ ...envelope, [key]: 'x' })).toEqual(envelope);
 });
 
-it('handles deeply nested neutral extensions without stack overflow and still rejects deeply nested PII', () => {
+it('handles deeply nested and wide neutral extensions without overflow and still rejects deeply nested PII', () => {
   const envelope = { version: 1 as const, state: 'PARTIAL' as const, scope, sessionId: id(12) };
   let neutral: Record<string, unknown> = { leaf: 'ok' };
   let pii: Record<string, unknown> = { customerPhone: 'secret' };
@@ -67,6 +67,8 @@ it('handles deeply nested neutral extensions without stack overflow and still re
     neutral = { nested: neutral };
     pii = { nested: pii };
   }
+  const wide = Array.from({ length: 150_000 }, () => 'ok');
   expect(parseSessionJournalEnvelope({ ...envelope, futureMeta: neutral })).toEqual(envelope);
+  expect(parseSessionJournalEnvelope({ ...envelope, wide })).toEqual(envelope);
   expect(() => parseSessionJournalEnvelope({ ...envelope, futureMeta: pii })).toThrow('SESSION_JOURNAL_INVALID');
 });

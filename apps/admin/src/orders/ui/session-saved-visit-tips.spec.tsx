@@ -157,3 +157,60 @@ it('preserves an unresolved tip retry on visit A through empty New Visit and vis
   expect(api.put.mock.calls[1]?.[1].params.header['Idempotency-Key']).toBe(api.put.mock.calls[0]?.[1].params.header['Idempotency-Key']);
   expect(api.put.mock.calls[1]?.[1].body).toEqual(api.put.mock.calls[0]?.[1].body);
 });
+
+it('retains the restored Idempotency-Key on replay if the original in-flight PUT settles late (#406)', async () => {
+  const savedTips = { revision: 1, tips: [{ employee_id: id(6), method: 'CASH' as const, amount: '1.000' }], total_cash: '1.000', total_card: '0.000' };
+  api.get.mockImplementation((path: string) =>
+    Promise.resolve(
+      path === sessionTipsPath
+        ? { data: { revision: 0, tips: [], total_cash: '0.000', total_card: '0.000' }, response: { status: 200 } }
+        : { error: { code: 'SESSION_NOT_FOUND', message_ar: 'x', message_en: 'x' }, response: { status: 404 } },
+    ),
+  );
+  let resolveFirst: (value: unknown) => void = () => undefined;
+  api.put.mockImplementationOnce(() => new Promise((resolve) => { resolveFirst = resolve; }))
+    .mockResolvedValueOnce({ data: savedTips, response: { status: 200 } });
+  const visitA = result as SessionRecordingResult;
+  const visitB = { ...visitA, sessionId: id(99), session: visitA.session ? { ...visitA.session, id: id(99) } : null };
+  const stubJournal = { leaveVisit: () => undefined };
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  const frame = (current: SessionRecordingResult) => (
+    <QueryClientProvider client={client}><SessionSavedResult result={current} journal={stubJournal} onNewVisit={() => undefined} scope={scope} online /></QueryClientProvider>
+  );
+  const view = render(frame(visitA));
+  fireEvent.click(screen.getByRole('button', { name: t('en', 'sessionTips.open') }));
+  await screen.findByLabelText(t('en', 'sessionTips.total'));
+  fireEvent.change(screen.getByLabelText(t('en', 'sessionTips.total')), { target: { value: '1.000' } });
+  fireEvent.click(screen.getByRole('button', { name: t('en', 'sessionTips.useSuggestion') }));
+  fireEvent.click(screen.getByRole('button', { name: t('en', 'sessionTips.save') }));
+  await waitFor(() => expect(api.put).toHaveBeenCalledTimes(1));
+
+  view.rerender(frame(visitB));
+  view.rerender(frame(visitA));
+  fireEvent.click(screen.getByRole('button', { name: t('en', 'sessionTips.open') }));
+  const retryButton = await screen.findByRole('button', { name: t('en', 'sessionTips.retrySame') });
+  await act(async () => { resolveFirst({ data: savedTips, response: { status: 200 } }); });
+  fireEvent.click(retryButton);
+  await waitFor(() => expect(api.put).toHaveBeenCalledTimes(2));
+  expect(api.put.mock.calls[1]?.[1].params.header['Idempotency-Key']).toBe(api.put.mock.calls[0]?.[1].params.header['Idempotency-Key']);
+});
+
+it('closes an open tip dialog and resets local draft when operator scope changes (#406)', async () => {
+  api.get.mockResolvedValue({ data: { revision: 0, tips: [], total_cash: '0.000', total_card: '0.000' }, response: { status: 200 } });
+  const stubJournal = { leaveVisit: () => undefined };
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  const frame = (activeScope: typeof scope) => (
+    <QueryClientProvider client={client}><SessionSavedResult result={result as SessionRecordingResult} journal={stubJournal} onNewVisit={() => undefined} scope={activeScope} online /></QueryClientProvider>
+  );
+  const view = render(frame(scope));
+  fireEvent.click(screen.getByRole('button', { name: t('en', 'sessionTips.open') }));
+  const input = (await screen.findByLabelText(t('en', 'sessionTips.total'))) as HTMLInputElement;
+  fireEvent.change(input, { target: { value: '2.000' } });
+  expect(input.value).toBe('2.000');
+
+  view.rerender(frame({ ...scope, userId: id(98) }));
+  expect(screen.queryByLabelText(t('en', 'sessionTips.total'))).toBeNull();
+  fireEvent.click(screen.getByRole('button', { name: t('en', 'sessionTips.open') }));
+  const reopened = (await screen.findByLabelText(t('en', 'sessionTips.total'))) as HTMLInputElement;
+  expect(reopened.value).not.toBe('2.000');
+});

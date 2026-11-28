@@ -98,7 +98,12 @@ export function hasNestedJournalPiiKey(value: unknown): boolean {
   while (stack.length > 0) {
     const current = stack.pop();
     if (!current || typeof current !== 'object') continue;
-    if (Array.isArray(current)) { stack.push(...current); continue; }
+    if (Array.isArray(current)) {
+      for (const item of current) {
+        if (item && typeof item === 'object') stack.push(item);
+      }
+      continue;
+    }
     for (const [key, child] of Object.entries(current)) {
       if (isJournalPiiKey(key)) return true;
       if (child && typeof child === 'object') stack.push(child);
