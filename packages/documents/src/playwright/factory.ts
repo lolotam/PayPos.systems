@@ -9,10 +9,11 @@ import {
 
 import type { PdfBrowser, PdfBrowserFactory, PdfContext, PdfPage, PdfRoute } from './browser.ts';
 import {
-  cleanupFailedLaunch,
+  beginLaunchProcessCapture,
   getLaunchCleanup,
   killProcessTree,
   LAUNCH_MARKER_ENV,
+  takeLaunchedProcess,
   withLaunchCleanup,
   type KillableProcess,
 } from './process-tree.ts';
@@ -110,8 +111,8 @@ function chromiumProcess(browser: Browser): KillableProcess | null {
   }
 }
 
-function wrapBrowser(browser: Browser): PdfBrowser {
-  const launchedProc = chromiumProcess(browser);
+function wrapBrowser(browser: Browser, capturedProc: KillableProcess | null = null): PdfBrowser {
+  const launchedProc = capturedProc ?? chromiumProcess(browser);
   let disconnected = false;
   browser.on('disconnected', () => {
     disconnected = true;
@@ -154,17 +155,18 @@ export function playwrightFactory(
     launch: async () => {
       launchSequence += 1;
       const launchMarker = [process.pid, Date.now(), launchSequence].join(':');
+      beginLaunchProcessCapture(launchMarker);
       try {
-        return wrapBrowser(
-          await chromium.launch({
-            ...chromiumLaunchOptions,
-            timeout: timeoutMs,
-            env: launchEnvWithMarker(launchMarker),
-          }),
-        );
+        const browser = await chromium.launch({
+          ...chromiumLaunchOptions,
+          timeout: timeoutMs,
+          env: launchEnvWithMarker(launchMarker),
+        });
+        return wrapBrowser(browser, takeLaunchedProcess(launchMarker));
       } catch (error) {
-        if (getLaunchCleanup(error) !== undefined) throw error;
-        const cleanup = cleanupFailedLaunch(error, launchMarker);
+        const captured = takeLaunchedProcess(launchMarker);
+        if (getLaunchCleanup(error) !== undefined || captured === null) throw error;
+        const cleanup = killProcessTree(captured);
         if (cleanup === undefined) throw error;
         throw withLaunchCleanup(error, cleanup);
       }

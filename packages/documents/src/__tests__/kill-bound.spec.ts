@@ -6,7 +6,15 @@ import { expect, it } from 'vitest';
 
 import type { PdfBrowser } from '../playwright/browser.ts';
 import { killAndWait, withLaunchCleanup } from '../playwright/factory.ts';
-import { cleanupFailedLaunch, directLinuxChildren, extractLaunchedPids, isLinuxStatZombie, isPidAlive } from '../playwright/process-tree.ts';
+import {
+  beginLaunchProcessCapture,
+  directLinuxChildren,
+  isLinuxStatZombie,
+  isPidAlive,
+  LAUNCH_MARKER_ENV,
+  recordLaunchedProcess,
+  takeLaunchedProcess,
+} from '../playwright/process-tree.ts';
 import { PlaywrightDocumentRenderer } from '../playwright/renderer.ts';
 import { dropRetiredBrowser } from '../playwright/retire.ts';
 
@@ -277,31 +285,30 @@ it('retains retired browser handle after failed kill so renderer.kill() can fini
   expect(renderer.unconfirmedExit).toBeNull();
 });
 
-it('treats procfs zombies as exited, ignores disappearing threads, and retains gate for unverifiable logged PIDs', async () => {
+it('treats procfs zombies as exited, ignores disappearing threads, and captures launched process handles', () => {
   expect(isLinuxStatZombie('12 (chr) b) Z 1 12')).toBe(true);
   expect(isLinuxStatZombie('12 (chrome) S 1 12')).toBe(false);
   const procDir = mkdtempSync(join(tmpdir(), 'pospay-proc-'));
+  const parentPid = process.pid === 100 ? 104 : 100;
   const writeProc = (id: string, files: Record<string, string>) => {
     mkdirSync(join(procDir, id), { recursive: true });
     for (const [name, body] of Object.entries(files)) writeFileSync(join(procDir, id, name), body);
   };
   try {
-    mkdirSync(join(procDir, '100', 'task', '999'), { recursive: true });
-    writeProc('100/task/100', { children: '101\n' });
-    writeProc('100/task/102', { children: '103\n' });
-    writeProc('55', { stat: '55 (other) S 1 55\n', environ: 'A=1\0' });
-    writeProc('202', { stat: '202 (chrome) S 1 202\n', environ: 'A=1\0POSPAY_CHROMIUM_LAUNCH_ID=id-1\0' });
-    writeProc('303', { stat: '303 (chrome) S 1 303\n', environ: 'A=1\0POSPAY_CHROMIUM_LAUNCH_ID=id-1\0' });
-    expect(directLinuxChildren(100, procDir)).toEqual([101, 103]);
+    mkdirSync(join(procDir, String(parentPid), 'task', '999'), { recursive: true });
+    writeProc(`${parentPid}/task/${parentPid}`, { children: '101\n' });
+    writeProc(`${parentPid}/task/102`, { children: '103\n' });
+    expect(directLinuxChildren(parentPid, procDir)).toEqual([101, 103]);
     expect(isPidAlive(process.pid, procDir)).toBe(true);
-    expect(extractLaunchedPids(new Error('log <launched> pid=55 <launched> pid=303'), 'id-1', procDir)).toEqual([303, 202]);
-    const gate = cleanupFailedLaunch(new Error(`log <launched> pid=${process.pid}`), 'id-unverified', procDir);
-    expect(gate).toBeDefined();
-    writeProc(String(process.pid), { stat: `${process.pid} (node) S 1 ${process.pid}\n`, environ: 'A=1\0' });
-    await gate;
   } finally {
     rmSync(procDir, { recursive: true, force: true });
   }
+  const { root } = createFakeProcessTree();
+  beginLaunchProcessCapture('m-1');
+  recordLaunchedProcess({ [LAUNCH_MARKER_ENV]: 'other' }, createFakeProcessTree().root);
+  recordLaunchedProcess({ [LAUNCH_MARKER_ENV]: 'm-1' }, root);
+  expect(takeLaunchedProcess('m-1')).toBe(root);
+  expect(takeLaunchedProcess('m-1')).toBeNull();
 });
 
 it('holds launch gate when late post-timeout factory rejection carries withLaunchCleanup', async () => {

@@ -1,5 +1,6 @@
 import { execFileSync } from 'node:child_process';
 import { readdirSync, readFileSync } from 'node:fs';
+import { createRequire } from 'node:module';
 
 export type KillableProcess = {
   kill(signal: NodeJS.Signals): boolean;
@@ -146,58 +147,51 @@ function readProcessTablePairs(procRoot = '/proc'): Array<{ pid: number; ppid: n
   }
 }
 
-type MarkerInspection = 'matched' | 'mismatched' | 'unavailable';
+const pendingLaunches = new Map<string, KillableProcess | null>();
+let spawnHookInstalled = false;
 
-function inspectLaunchMarker(pid: number, marker: string, procRoot: string): MarkerInspection {
-  if (process.platform === 'linux' || procRoot !== '/proc') {
-    try {
-      if (isLinuxStatZombie(readFileSync(`${procRoot}/${pid}/stat`, 'utf8'))) return 'mismatched';
-    } catch {
-      return osPidExists(pid) ? 'unavailable' : 'mismatched';
-    }
-    try {
-      const envText = readFileSync(`${procRoot}/${pid}/environ`, 'utf8');
-      return envText.split('\0').includes(marker) ? 'matched' : 'mismatched';
-    } catch {
-      return osPidExists(pid) ? 'unavailable' : 'mismatched';
-    }
+/** يسجل مقبض العملية الذي أطلقه Playwright تحت وسم الإطلاق المقابل. */
+export function recordLaunchedProcess(
+  env: Record<string, unknown> | undefined,
+  proc: KillableProcess,
+): void {
+  const marker = typeof env?.[LAUNCH_MARKER_ENV] === 'string' ? env[LAUNCH_MARKER_ENV] : undefined;
+  if (marker !== undefined && pendingLaunches.has(marker)) {
+    pendingLaunches.set(marker, proc);
   }
-  return osPidExists(pid) ? 'unavailable' : 'mismatched';
 }
 
-function analyzeLaunchedPids(
-  error: unknown,
-  launchMarker?: string,
-  procRoot = '/proc',
-): { ownedPids: number[]; unverifiedPids: number[] } {
-  const logged = new Set<number>();
-  if (error instanceof Error) {
-    for (const match of error.message.matchAll(/<launched>\s+pid=(\d+)/g)) {
-      const pid = Number(match[1]);
-      if (Number.isInteger(pid) && pid > 0) logged.add(pid);
-    }
-  }
-  if (launchMarker === undefined) {
-    return { ownedPids: [], unverifiedPids: [...logged].filter((pid) => isPidAlive(pid, procRoot)) };
-  }
-  const marker = `${LAUNCH_MARKER_ENV}=${launchMarker}`;
-  const candidates = new Set<number>(logged);
-  if (process.platform === 'linux' || procRoot !== '/proc') {
-    for (const row of readLinuxProcessPairs(procRoot)) candidates.add(row.pid);
-  }
-  const ownedPids: number[] = [];
-  const unverifiedPids: number[] = [];
-  for (const pid of candidates) {
-    const status = inspectLaunchMarker(pid, marker, procRoot);
-    if (status === 'matched') ownedPids.push(pid);
-    else if (status === 'unavailable' && logged.has(pid) && isPidAlive(pid, procRoot)) unverifiedPids.push(pid);
-  }
-  return { ownedPids, unverifiedPids };
+function ensureSpawnHook(): void {
+  if (spawnHookInstalled) return;
+  spawnHookInstalled = true;
+  const require = createRequire(import.meta.url);
+  const cp = require('node:child_process') as {
+    spawn: (...args: unknown[]) => KillableProcess;
+  };
+  const originalSpawn = cp.spawn;
+  cp.spawn = function patchedSpawn(this: unknown, ...args: unknown[]): KillableProcess {
+    const proc = originalSpawn.apply(this, args);
+    const maybeOptions = args.length >= 3 ? args[2] : Array.isArray(args[1]) ? undefined : args[1];
+    const env =
+      maybeOptions !== null && typeof maybeOptions === 'object'
+        ? (maybeOptions as { env?: Record<string, unknown> }).env
+        : undefined;
+    recordLaunchedProcess(env, proc);
+    return proc;
+  };
 }
 
-/** يستخرج PIDs التابعة لإطلاق فاشل بعد التحقق من وسم البيئة لمنع إرسال إشارة لرقم عملية أُعيد تدويره. */
-export function extractLaunchedPids(error: unknown, launchMarker?: string, procRoot = '/proc'): number[] {
-  return analyzeLaunchedPids(error, launchMarker, procRoot).ownedPids;
+/** يبدأ تتبّع مقبض العملية الفعلي للإطلاق الحالي قبل استدعاء Playwright. */
+export function beginLaunchProcessCapture(launchMarker: string): void {
+  ensureSpawnHook();
+  pendingLaunches.set(launchMarker, null);
+}
+
+/** يسحب مقبض العملية الفعلي الذي أنشأه Playwright لهذا الإطلاق ويمسح التتبّع. */
+export function takeLaunchedProcess(launchMarker: string): KillableProcess | null {
+  const proc = pendingLaunches.get(launchMarker) ?? null;
+  pendingLaunches.delete(launchMarker);
+  return proc;
 }
 
 function collectDescendantPids(rootPids: readonly number[], procRoot = '/proc'): number[] {
@@ -220,74 +214,28 @@ function collectDescendantPids(rootPids: readonly number[], procRoot = '/proc'):
   return result;
 }
 
-function killPidSafely(pid: number, procRoot = '/proc'): void {
-  if (procRoot !== '/proc') return;
-  try {
-    process.kill(pid, 'SIGKILL');
-  } catch {
-    // ESRCH يعني خرجت بالفعل؛ تجاهلها وانتظر التحقق.
-  }
-}
-
 async function waitForPidsExit(pids: readonly number[], procRoot = '/proc'): Promise<void> {
   while (pids.some((pid) => isPidAlive(pid, procRoot))) {
     await new Promise((resolve) => setTimeout(resolve, PID_POLL_MS));
   }
 }
 
-/** يقتل PIDs التابعة لإطلاق فاشل وشجرتها وينتظر خروجها الفعلي (بما فيها حالات الزومبي). */
-export async function killPidsAndWait(pids: readonly number[], procRoot = '/proc'): Promise<void> {
-  const all = [...new Set([...collectDescendantPids(pids, procRoot), ...pids])];
-  for (const pid of all) killPidSafely(pid, procRoot);
-  await waitForPidsExit(all, procRoot);
-}
-
-async function waitForUnverifiedPids(
-  pids: readonly number[],
-  launchMarker: string | undefined,
-  procRoot = '/proc',
-): Promise<void> {
-  const pending = new Set<number>(pids);
-  const marker = launchMarker === undefined ? undefined : `${LAUNCH_MARKER_ENV}=${launchMarker}`;
-  const matchedKills: Array<Promise<void>> = [];
-  while (pending.size > 0) {
-    for (const pid of [...pending]) {
-      if (!isPidAlive(pid, procRoot)) {
-        pending.delete(pid);
-        continue;
-      }
-      if (marker === undefined) continue;
-      const status = inspectLaunchMarker(pid, marker, procRoot);
-      if (status === 'mismatched') {
-        pending.delete(pid);
-      } else if (status === 'matched') {
-        pending.delete(pid);
-        matchedKills.push(killPidsAndWait([pid], procRoot));
-      }
-    }
-    if (pending.size > 0) await new Promise((resolve) => setTimeout(resolve, PID_POLL_MS));
+function killLaunchProcessGroup(proc: KillableProcess): void {
+  if (process.platform === 'win32' || hasExited(proc)) return;
+  if (typeof proc.pid !== 'number' || proc.pid <= 0) return;
+  try {
+    // Playwright بيطلق Chromium بـ detached: true على الأنظمة غير Windows فبيكون قائد مجموعة عمليات (-pid).
+    process.kill(-proc.pid, 'SIGKILL');
+  } catch {
+    // لو العملية مش قائد مجموعة أو خرجت، proc.kill('SIGKILL') بيتكفل بيها.
   }
-  if (matchedKills.length > 0) await Promise.all(matchedKills);
-}
-
-/** ينظف عمليات الإطلاق الفاشل المؤكدة ويمسك بوابة الخروج لو تعذر التحقق من ملكية عملية حيّة مسجلة. */
-export function cleanupFailedLaunch(
-  error: unknown,
-  launchMarker?: string,
-  procRoot = '/proc',
-): Promise<void> | undefined {
-  const { ownedPids, unverifiedPids } = analyzeLaunchedPids(error, launchMarker, procRoot);
-  if (ownedPids.length === 0 && unverifiedPids.length === 0) return undefined;
-  const tasks: Array<Promise<void>> = [];
-  if (ownedPids.length > 0) tasks.push(killPidsAndWait(ownedPids, procRoot));
-  if (unverifiedPids.length > 0) tasks.push(waitForUnverifiedPids(unverifiedPids, launchMarker, procRoot));
-  return Promise.all(tasks).then(() => undefined);
 }
 
 function killSingleAndWait(proc: KillableProcess): Promise<void> | void {
   if (hasExited(proc)) return Promise.resolve();
   const once = proc.once;
   if (typeof once !== 'function') {
+    killLaunchProcessGroup(proc);
     const signaled = proc.kill('SIGKILL');
     if (signaled || hasExited(proc)) return;
     throw new Error('SIGKILL_REJECTED');
@@ -309,6 +257,7 @@ function killSingleAndWait(proc: KillableProcess): Promise<void> | void {
     once.call(proc, 'exit', finish);
     if (hasExited(proc)) return finish();
     try {
+      killLaunchProcessGroup(proc);
       const signaled = proc.kill('SIGKILL');
       if (hasExited(proc)) finish();
       else if (!signaled) fail(new Error('SIGKILL_REJECTED'));
@@ -329,7 +278,7 @@ function safeKillSingle(proc: KillableProcess): Promise<void> | undefined {
   }
 }
 
-/** يقتل عملية Chromium الجذر وكل شجرة توابعها قبل فكّ قفل إعادة الإطلاق. */
+/** يقتل عملية Chromium الجذر ومجموعتها وكل شجرة توابعها قبل فكّ قفل إعادة الإطلاق. */
 export function killProcessTree(proc: KillableProcess): Promise<void> | void {
   const childTree = (proc.children ?? []).map((child) => {
     try {
@@ -338,8 +287,8 @@ export function killProcessTree(proc: KillableProcess): Promise<void> | void {
       return Promise.reject(error instanceof Error ? error : new Error('SIGKILL_FAILED'));
     }
   });
-  const osDescendants = typeof proc.pid === 'number' && proc.pid > 0 ? collectDescendantPids([proc.pid]) : [];
-  for (const pid of osDescendants) killPidSafely(pid);
+  const osDescendants =
+    !hasExited(proc) && typeof proc.pid === 'number' && proc.pid > 0 ? collectDescendantPids([proc.pid]) : [];
   const rootWait = safeKillSingle(proc);
   const waits: Array<Promise<void>> = childTree.filter((item): item is Promise<void> => item !== undefined);
   if (osDescendants.length > 0) {
