@@ -333,3 +333,64 @@ it('ignores a late 403 onClose from a superseded operator without closing the cu
   expect((screen.getByLabelText(t('en', 'serviceLineEdit.reason')) as HTMLInputElement).value).toBe('Operator B active draft');
   expect(screen.queryByRole('alert')).toBeNull();
 });
+
+it('does not cancel a reopened tip GET or spoof open state when a superseded PUT settles late (#406)', async () => {
+  let resolvePut: (value: unknown) => void = () => undefined;
+  let resolveReopenedGet: (value: unknown) => void = () => undefined;
+  let tipsGets = 0;
+  api.get.mockImplementation((path: string) => {
+    if (path !== sessionTipsPath) return Promise.resolve({ error: { code: 'SESSION_NOT_FOUND', message_ar: 'x', message_en: 'x' }, response: { status: 404 } });
+    tipsGets += 1;
+    if (tipsGets === 1) return Promise.resolve({ data: { revision: 0, tips: [], total_cash: '0.000', total_card: '0.000' }, response: { status: 200 } });
+    return new Promise((resolve) => { resolveReopenedGet = resolve; });
+  });
+  api.put.mockImplementationOnce(() => new Promise((resolve) => { resolvePut = resolve; }));
+  const stubJournal = { leaveVisit: () => undefined };
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  const frame = (activeScope: typeof scope) => (
+    <QueryClientProvider client={client}><SessionSavedResult result={result as SessionRecordingResult} journal={stubJournal} onNewVisit={() => undefined} scope={activeScope} online /></QueryClientProvider>
+  );
+  const view = render(frame(scope));
+  await submitQuickTip();
+  await waitFor(() => expect(api.put).toHaveBeenCalledTimes(1));
+
+  view.rerender(frame({ ...scope, userId: id(98) }));
+  view.rerender(frame(scope));
+  fireEvent.click(screen.getByRole('button', { name: t('en', 'sessionTips.open') }));
+  expect(await screen.findByText(t('en', 'admin.loading'))).toBeTruthy();
+
+  await act(async () => {
+    resolvePut({ data: { revision: 1, tips: [{ employee_id: id(6), method: 'CASH' as const, amount: '1.000' }], total_cash: '1.000', total_card: '0.000' }, response: { status: 200 } });
+  });
+  expect(screen.getByText(t('en', 'admin.loading'))).toBeTruthy();
+  expect(screen.queryByLabelText(t('en', 'sessionTips.total'))).toBeNull();
+
+  await act(async () => { resolveReopenedGet(forbidden); });
+  expect((await screen.findByRole('alert')).textContent).toContain(t('en', 'errors.FORBIDDEN'));
+  expect(screen.queryByRole('button', { name: t('en', 'sessionTips.open') })).toBeNull();
+});
+
+it('keeps a confirmed revision-3 edit when snapshot is at revision 2 and a late revision-2 PATCH settles (#406)', async () => {
+  api.get.mockResolvedValue({ error: { code: 'SESSION_NOT_FOUND', message_ar: 'x', message_en: 'x' }, response: { status: 404 } });
+  let resolveLateRev2: (value: unknown) => void = () => undefined;
+  api.patch
+    .mockImplementationOnce(() => new Promise((resolve) => { resolveLateRev2 = resolve; }))
+    .mockResolvedValueOnce({ data: { line: { ...savedLine, revision: 3, price: '9.000', discount: '0.000', net: '9.000', edited: true }, session: { id: session.id, total_net: '9.000' } }, response: { status: 200 } });
+  const stubJournal = { leaveVisit: () => undefined };
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  const rev2Result = { ...result, session: { ...session, lines: [{ ...savedLine, revision: 2 }] } } as SessionRecordingResult;
+  const frame = (activeResult: SessionRecordingResult, activeScope: typeof scope) => (
+    <QueryClientProvider client={client}><SessionSavedResult result={activeResult} journal={stubJournal} onNewVisit={() => undefined} scope={activeScope} online /></QueryClientProvider>
+  );
+  const view = render(frame(result as SessionRecordingResult, scope));
+  startLineEdit('Operator A late rev2');
+  await waitFor(() => expect(api.patch).toHaveBeenCalledTimes(1));
+
+  view.rerender(frame(rev2Result, { ...scope, userId: id(98) }));
+  startLineEdit('Operator B rev3');
+  await waitFor(() => expect(screen.getAllByText('9.000').length).toBeGreaterThan(0));
+
+  await act(async () => { resolveLateRev2({ data: { saved: true, edited: true }, response: { status: 200 } }); });
+  expect(screen.getAllByText('9.000').length).toBeGreaterThan(0);
+  expect(screen.queryByText(t('en', 'serviceLineEdit.figuresHidden'))).toBeNull();
+});

@@ -36,6 +36,7 @@ function nextHeldAfterLineSave(current: Held | null, latest: ServiceSession, lin
   const snapshotRevision = latest.lines.find((line) => line.id === lineId)?.revision ?? 0;
   if (snapshotRevision >= answered) {
     const base = reconcileSavedVisit(current?.visit ?? emptySavedVisit(latest.id, latest.total_net), latest);
+    if ((base.lines[lineId]?.revision ?? 0) > snapshotRevision) return { snapshot: latest, visit: base };
     return { snapshot: latest, visit: { ...base, lines: { ...base.lines, [lineId]: { edited: true, revision: snapshotRevision, figures: 'SNAPSHOT' } } } };
   }
   const base = current?.snapshot === latest ? current.visit : reconcileSavedVisit(current?.visit ?? emptySavedVisit(latest.id, latest.total_net), latest);

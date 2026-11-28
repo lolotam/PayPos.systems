@@ -1,7 +1,7 @@
 'use client';
 import { sessionTips, type RecordSessionTipsInput, type SessionTips } from '@pospay/contracts';
 import { useMutation, useQueryClient, type QueryClient } from '@tanstack/react-query';
-import { useRef, type RefObject } from 'react';
+import { useEffect, useRef, type RefObject } from 'react';
 import { apiClient } from '@/shared/api/client';
 import { tipOutcomeKnown } from '../model/session-tip-outcome';
 import { sessionTipsKey, sessionTipsPath } from './use-session-tips';
@@ -117,14 +117,15 @@ async function publishSavedTips(
   scope: SessionServiceScope,
   sessionId: string,
   data: SessionTips,
+  isActive: () => boolean,
 ) {
   const key = sessionTipsKey(scope, sessionId);
-  // الرد المتأخر بعد مسح الكاش ممنوع يرجّع مجموعة الإكرامية اللي الشاشة شالتها.
-  if (!client.getQueryCache().find({ queryKey: key, exact: true })) return;
+  // الرد المتأخر بعد مسح الكاش أو قفل النموذج ممنوع يلغي قراءة جديدة أو يرجّع مجموعة الإكرامية القديمة.
+  if (!isActive() || !client.getQueryCache().find({ queryKey: key, exact: true })) return;
   const before = client.getQueryData<SessionTips>(key);
   // قراءة أقدم لسه في الطريق لو خلّصت بعد الحفظ بترجّع مراجعتها القديمة فوق الرد.
   await client.cancelQueries({ queryKey: key, exact: true });
-  if (!client.getQueryCache().find({ queryKey: key, exact: true })) return;
+  if (!isActive() || !client.getQueryCache().find({ queryKey: key, exact: true })) return;
   const current = client.getQueryData<SessionTips>(key);
   const kept = newerTips(before, current);
   // إعادة المفتاح القديم بترجع المراجعة الأصلية؛ مراجعة أحدث من كاشير تاني بتفضل.
@@ -141,6 +142,13 @@ export function useRecordSessionTips(
   initialHeld: Held | null = null,
 ) {
   const client = useQueryClient();
+  const active = useRef(true);
+  useEffect(() => {
+    active.current = true;
+    return () => {
+      active.current = false;
+    };
+  }, []);
   const held = useRef<Held | null>(
     initialHeld ? { key: initialHeld.key, fingerprint: initialHeld.fingerprint } : null,
   );
@@ -151,7 +159,7 @@ export function useRecordSessionTips(
     networkMode: 'always',
     mutationFn: (attempt: Attempt) => putTips(scope, attempt, held, memory),
     onSuccess: async (data, { sessionId }) => {
-      await publishSavedTips(client, scope, sessionId, data);
+      await publishSavedTips(client, scope, sessionId, data, () => active.current);
     },
   });
 }
