@@ -153,11 +153,11 @@ export function RecordServiceSessionForm({ scope, context, online, recording, on
         onAccessDenied={() => { denyCustomer(); onRefreshScope(); }} />
       {timeUnknown ? <div className="grid gap-2">
         <p role="alert">{t(locale, 'serviceSessions.unknownVisitTime')}</p>
-        <Button type="button" variant="outline" disabled={!journal || editBusy} onClick={() => { if (editBusy) return; leaveUnknownTimeVisit(result, journal, recording.replaceResult, (feedback) => setLeaveFailure({ source: result, feedback }), hideCustomer); }}>{t(locale, 'serviceSessions.newVisitSameCustomer')}</Button>
+        <Button type="button" variant="outline" disabled={!journal || editBusy} onClick={() => { if (editBusy) return; leaveUnknownTimeVisit(result, journal, recording.replaceResult, (feedback) => setLeaveFailure({ source: result, feedback }), hideCustomer); }}>{t(locale, hideCustomer ? 'serviceSessions.newVisit' : 'serviceSessions.newVisitSameCustomer')}</Button>
         {unknownLeave ? <SessionWriteFeedback result={{ ...result, feedback: unknownLeave, attempt: null }} /> : null}
       </div> : <SessionTimeField context={context} disabled={locked} />}
       <SessionRecordingHeader scope={scope} disabled={!online || frozen} readOnly={membershipFixed} onLimitChange={onLimitChange} />
-      <SessionDraftLines scope={scope} customerId={result.customerId} {...(occurredAt !== undefined ? { occurredAt } : {})} visitDate={visitDate} disabled={!online || frozen || timeUnknown} />
+      <SessionDraftLines scope={scope} customerId={hideCustomer ? null : result.customerId} {...(occurredAt !== undefined ? { occurredAt } : {})} visitDate={visitDate} disabled={!online || frozen || timeUnknown} />
       <SessionRejectedLines result={result} onEdit={focusDraftPrice} scope={scope} online={online} />
       {rootError ? <p role="alert">{rootError}</p> : null}
       <SessionWriteFeedback result={result} onRefreshScope={onRefreshScope} {...(online && !editBusy ? { onReplay: () => { void recording.retry(); } } : {})}

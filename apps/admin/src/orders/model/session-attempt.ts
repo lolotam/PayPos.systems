@@ -92,6 +92,13 @@ export function isJournalPiiKey(key: string): boolean {
     || compact.endsWith('pin');
 }
 
+/** يفحص المفاتيح المتداخلة داخل الكائنات والمصفوفات لاكتشاف أي حقل حساس مخفي في امتداد مجهول. */
+export function hasNestedJournalPiiKey(value: unknown): boolean {
+  if (!value || typeof value !== 'object') return false;
+  if (Array.isArray(value)) return value.some((item) => hasNestedJournalPiiKey(item));
+  return Object.entries(value).some(([key, child]) => isJournalPiiKey(key) || hasNestedJournalPiiKey(child));
+}
+
 // الـ slot store يحتاج يميّز النسخة الخام ذات الحقول الزائدة ليعيد كتابتها بعد تنقيتها.
 export function hasUnknownJournalFields(value: unknown): boolean {
   return !!value && typeof value === 'object' && !Array.isArray(value) && Object.keys(value).some((key) => !journalEnvelopeFields.includes(key));
@@ -99,11 +106,11 @@ export function hasUnknownJournalFields(value: unknown): boolean {
 
 /**
  * التخزين ليس مصدراً موثوقاً: المخطط بإصدار صريح ويتحقق من الحقول المعروفة قبل استعادة أي طلب أو معرف زيارة.
- * الحقول غير المعروفة تُحذف لسلامة rollback؛ والمفتاح المجهول اللي فيه كلمة حساسة كاملة من قائمة محددة يرفض المدخل حتى لا يبقى هاتف العميل في التخزين (35c).
+ * الحقول غير المعروفة تُحذف لسلامة rollback؛ وأي مفتاح مجهول يطابق مصنّف المفاتيح الحساسة (كلمة كاملة أو مقطع مدمج أو لاحقة otp/pin) يرفض المدخل حتى لا تبقى بيانات العميل في التخزين (35c).
  */
 export function parseSessionJournalEnvelope(value: unknown): SessionJournalEnvelope {
   if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('SESSION_JOURNAL_INVALID');
-  if (Object.keys(value).some((key) => !journalEnvelopeFields.includes(key) && isJournalPiiKey(key))) throw new Error('SESSION_JOURNAL_INVALID');
+  if (Object.entries(value).some(([key, child]) => !journalEnvelopeFields.includes(key) && (isJournalPiiKey(key) || hasNestedJournalPiiKey(child)))) throw new Error('SESSION_JOURNAL_INVALID');
   value = Object.fromEntries(Object.entries(value).filter(([key]) => journalEnvelopeFields.includes(key)));
   strictFields(value, ['version', 'state'], journalEnvelopeFields.filter((key) => key !== 'version' && key !== 'state'));
   if (value.version !== 1) throw new Error('SESSION_JOURNAL_VERSION_INVALID');

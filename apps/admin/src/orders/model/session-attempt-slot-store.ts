@@ -1,4 +1,4 @@
-import { hasUnknownJournalFields, isJournalPiiKey, parseSessionJournalEnvelope, sameSessionScope, type SessionAttemptScope, type SessionJournalEnvelope } from './session-attempt';
+import { hasNestedJournalPiiKey, hasUnknownJournalFields, isJournalPiiKey, parseSessionJournalEnvelope, sameSessionScope, type SessionAttemptScope, type SessionJournalEnvelope } from './session-attempt';
 
 const key = 'pospay:service-session-attempt';
 const slots = [`${key}:a`, `${key}:b`] as const;
@@ -15,11 +15,11 @@ function parseSlot(slotKey: string, raw: string): Slot {
   if (!value || typeof value !== 'object' || !('generation' in value) || !('envelope' in value) ||
     !Number.isSafeInteger(value.generation) || typeof value.generation !== 'number' || value.generation < 1) throw new Error('SESSION_SLOT_INVALID');
   // حقل غلاف حساس يرفض الخانة؛ أي حقل غلاف تاني بيتجاهل عشان ما يمسحش زيارة سليمة.
-  if (Object.keys(value).some((field) => field !== 'generation' && field !== 'envelope' && isJournalPiiKey(field))) throw new Error('SESSION_SLOT_INVALID');
+  if (Object.entries(value).some(([field, child]) => field !== 'generation' && field !== 'envelope' && (isJournalPiiKey(field) || hasNestedJournalPiiKey(child)))) throw new Error('SESSION_SLOT_INVALID');
   const envelope = value.envelope;
   if (isIdleEnvelope(envelope)) {
-    // مسودة IDLE من إصدار أحدث ممكن تشيل حقول زيادة؛ الحساس يرفض الخانة والمحايد يتنقى عند الاسترداد.
-    if (Object.keys(envelope).some((field) => field !== 'version' && field !== 'state' && isJournalPiiKey(field))) throw new Error('SESSION_SLOT_INVALID');
+    // مسودة IDLE من إصدار أحدث ممكن تشيل حقول زيادة؛ الحساس (مباشر أو متداخل) يرفض الخانة والمحايد يتنقى عند الاسترداد.
+    if (Object.entries(envelope).some(([field, child]) => field !== 'version' && field !== 'state' && (isJournalPiiKey(field) || hasNestedJournalPiiKey(child)))) throw new Error('SESSION_SLOT_INVALID');
     return { key: slotKey, generation: value.generation, raw, envelope: null };
   }
   return { key: slotKey, generation: value.generation, raw, envelope: parseSessionJournalEnvelope(envelope) };

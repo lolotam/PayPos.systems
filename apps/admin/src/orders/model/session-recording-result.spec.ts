@@ -68,10 +68,10 @@ it('idempotency reuse with rejection-looking details remains an atomic error on 
 it('clears a PARTIAL visit left elsewhere or switches to a different saved visit', () => {
   const old = recorded(), empty = transition(old, { type: 'JOURNAL', entry: null });
   expect(empty).toEqual(emptySessionRecordingResult(old.customer)); expect(sessionResultCommand(empty, [inputLine]).kind).toBe('record');
-  const switched = transition(old, { type: 'JOURNAL', entry: { version: 1, state: 'PARTIAL', scope, sessionId: id(99) } });
-  expect(switched).toEqual({ ...emptySessionRecordingResult(null), sessionId: id(99), visitTimeUnknown: true });
-  const sameCustomer = transition(old, { type: 'JOURNAL', entry: { version: 1, state: 'PARTIAL', scope, sessionId: id(99), customerId: id(77) } });
-  expect(sameCustomer).toEqual({ ...emptySessionRecordingResult(null), sessionId: id(99), customerId: id(77), visitTimeUnknown: true });
+  for (const [customerId, expectedCustomer] of [[undefined, null], [id(77), null], [id(7), old.customer]] as const) {
+    expect(transition(old, { type: 'JOURNAL', entry: { version: 1, state: 'PARTIAL', scope, sessionId: id(99), ...(customerId ? { customerId } : {}) } }))
+      .toEqual({ ...emptySessionRecordingResult(expectedCustomer), sessionId: id(99), ...(customerId ? { customerId } : {}), visitTimeUnknown: true });
+  }
 });
 it.each(['NOT_PERSISTED', 'SAVING', 'UNRESOLVED'] as const)('a matching partial journal restores stale %s feedback', (kind) => {
   const stale = { ...recorded(), attempt, feedback: { kind }, persistenceWarning: 'NOT_PERSISTED' as const };

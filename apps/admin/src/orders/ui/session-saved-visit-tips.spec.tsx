@@ -18,8 +18,8 @@ import {
 } from '../model/session-recording-result';
 import { SessionSavedVisit } from './session-saved-visit';
 
-const api = vi.hoisted(() => ({ get: vi.fn() }));
-vi.mock('@/shared/api/client', () => ({ apiClient: () => ({ GET: api.get }) }));
+const api = vi.hoisted(() => ({ get: vi.fn(), put: vi.fn() }));
+vi.mock('@/shared/api/client', () => ({ apiClient: () => ({ GET: api.get, PUT: api.put }) }));
 vi.mock('@/shared/locale/locale-context', () => ({ useLocale: () => 'en' }));
 
 const session = { ...response.session, lines: [savedLine] };
@@ -53,6 +53,7 @@ beforeEach(() => {
     this.removeAttribute('open');
   });
   api.get.mockReset();
+  api.put.mockReset();
 });
 
 it('disables Record tip while an edit is busy and keeps that editor after a tips refusal', async () => {
@@ -114,4 +115,50 @@ it('shows Record tip again when switching to visit B after a 403 hid it on visit
   );
   expect(screen.getByRole('button', { name: t('en', 'sessionTips.open') })).toBeTruthy();
   expect(screen.queryByRole('alert')).toBeNull();
+});
+
+it('preserves an unresolved tip retry on visit A when switching to visit B and back (#406)', async () => {
+  api.get.mockImplementation((path: string) =>
+    Promise.resolve(
+      path === sessionTipsPath
+        ? { data: { revision: 0, tips: [], total_cash: '0.000', total_card: '0.000' }, response: { status: 200 } }
+        : { error: { code: 'SESSION_NOT_FOUND', message_ar: 'x', message_en: 'x' }, response: { status: 404 } },
+    ),
+  );
+  api.put.mockRejectedValueOnce(new TypeError('Failed to fetch'));
+  const visitA = result as SessionRecordingResult;
+  const visitB = {
+    ...visitA,
+    sessionId: id(99),
+    session: visitA.session ? { ...visitA.session, id: id(99) } : null,
+  };
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  const view = render(
+    <QueryClientProvider client={client}>
+      <SessionSavedVisit result={visitA} scope={scope} online />
+    </QueryClientProvider>,
+  );
+  fireEvent.click(screen.getByRole('button', { name: t('en', 'sessionTips.open') }));
+  await screen.findByLabelText(t('en', 'sessionTips.total'));
+  fireEvent.change(screen.getByLabelText(t('en', 'sessionTips.total')), { target: { value: '1.000' } });
+  fireEvent.click(screen.getByRole('button', { name: t('en', 'sessionTips.useSuggestion') }));
+  fireEvent.click(screen.getByRole('button', { name: t('en', 'sessionTips.save') }));
+  expect(await screen.findByText(t('en', 'sessionTips.outcomeUnknown'))).toBeTruthy();
+  expect(screen.getByRole('button', { name: t('en', 'sessionTips.retrySame') })).toBeTruthy();
+
+  view.rerender(
+    <QueryClientProvider client={client}>
+      <SessionSavedVisit result={visitB} scope={scope} online />
+    </QueryClientProvider>,
+  );
+  expect(screen.queryByRole('button', { name: t('en', 'sessionTips.retrySame') })).toBeNull();
+
+  view.rerender(
+    <QueryClientProvider client={client}>
+      <SessionSavedVisit result={visitA} scope={scope} online />
+    </QueryClientProvider>,
+  );
+  fireEvent.click(screen.getByRole('button', { name: t('en', 'sessionTips.open') }));
+  expect(await screen.findByRole('button', { name: t('en', 'sessionTips.retrySame') })).toBeTruthy();
+  expect(screen.getByText(t('en', 'sessionTips.outcomeUnknown'))).toBeTruthy();
 });

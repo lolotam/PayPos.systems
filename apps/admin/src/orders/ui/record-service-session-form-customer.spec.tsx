@@ -260,7 +260,8 @@ it('starts a new unselected visit when leaving a completed or unknown-time visit
   const first = render(<QueryClientProvider client={client}><TransitionHarness /></QueryClientProvider>);
   await waitFor(() => expectCustomerHidden());
   fireEvent.click(screen.getByRole('button', { name: 'Go offline' }));
-  fireEvent.click(screen.getByRole('button', { name: t('en', 'serviceSessions.newVisitSameCustomer') }));
+  expect(screen.queryByRole('button', { name: t('en', 'serviceSessions.newVisitSameCustomer') })).toBeNull();
+  fireEvent.click(screen.getByRole('button', { name: t('en', 'serviceSessions.newVisit') }));
   expectCustomerHidden();
   expect(active?.result.customer).toBeNull();
   first.unmount();
@@ -268,7 +269,8 @@ it('starts a new unselected visit when leaving a completed or unknown-time visit
   mode = 'unknown';
   render(<QueryClientProvider client={client}><TransitionHarness /></QueryClientProvider>);
   await waitFor(() => expectCustomerHidden());
-  fireEvent.click(screen.getByRole('button', { name: t('en', 'serviceSessions.newVisitSameCustomer') }));
+  expect(screen.queryByRole('button', { name: t('en', 'serviceSessions.newVisitSameCustomer') })).toBeNull();
+  fireEvent.click(screen.getByRole('button', { name: t('en', 'serviceSessions.newVisit') }));
   expectCustomerHidden();
   expect(active?.result.customer).toBeNull();
 });

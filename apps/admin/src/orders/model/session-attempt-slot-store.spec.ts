@@ -157,12 +157,19 @@ it('slot carrying PENDING envelope with extra errorCode rewrites without errorCo
   keys.forEach((key) => expect(sessionStorage.getItem(key) ?? '').not.toContain('errorCode'));
 });
 
-it('IDLE tombstone with a harmless futureField recovers as null and rewrites cleanly', async () => {
-  sessionStorage.setItem(keys[0], JSON.stringify({ generation: 1, envelope: { version: 1, state: 'IDLE', futureField: 'x' } }));
+it.each([
+  { version: 1, state: 'IDLE', futureField: 'x' },
+  { version: 1, state: 'IDLE', futureMeta: { mode: 'v2', flags: ['a'] } },
+])('IDLE tombstone with neutral extension %o recovers as null and rewrites cleanly', async (envelope) => {
+  sessionStorage.setItem(keys[0], JSON.stringify({ generation: 1, envelope }));
   const journal = await reload();
   expect(journal.read()).toBeNull();
   expect(journal.persistenceWarning).toBeNull();
-  keys.forEach((key) => expect(sessionStorage.getItem(key) ?? '').not.toContain('futureField'));
+  keys.forEach((key) => {
+    const raw = sessionStorage.getItem(key) ?? '';
+    expect(raw).not.toContain('futureField');
+    expect(raw).not.toContain('futureMeta');
+  });
   expect((await reload()).read()).toBeNull();
 });
 
@@ -177,3 +184,15 @@ it.each(['customerName', 'verificationCode', 'customerphone', 'cUsToMeRpHoNe'] a
     expect(sessionStorage.getItem(keys[1])).toBeNull();
   },
 );
+
+it.each([
+  { version: 1, state: 'IDLE', futureMeta: { customerPhone: 'secret' } },
+  { version: 1, state: 'IDLE', items: [{ verificationCode: 'secret' }] },
+])('IDLE tombstone carrying nested PII %o rejects the slot', async (envelope) => {
+  seed(partial);
+  sessionStorage.setItem(keys[1], JSON.stringify({ generation: 2, envelope }));
+  const journal = await reload();
+  expect(journal.read()).toEqual(partial);
+  expect(journal.persistenceWarning).toBe('NOT_PERSISTED');
+  expect(sessionStorage.getItem(keys[1])).toBeNull();
+});

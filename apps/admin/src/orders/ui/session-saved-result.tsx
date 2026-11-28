@@ -36,7 +36,7 @@ export function SessionSavedResult({ result, journal, onNewVisit, scope, online 
     {leaveFeedback ? <SessionWriteFeedback result={{ ...result, feedback: leaveFeedback, attempt: null }} /> : null}
     {complete ? <div className="flex flex-wrap gap-2">
       <Button type="button" disabled={editBusy} onClick={() => leave(false)}>{t(locale, 'serviceSessions.newVisit')}</Button>
-      <Button type="button" variant="outline" disabled={editBusy} onClick={() => leave(true)}>{t(locale, 'serviceSessions.newVisitSameCustomer')}</Button>
+      {hideCustomer ? null : <Button type="button" variant="outline" disabled={editBusy} onClick={() => leave(true)}>{t(locale, 'serviceSessions.newVisitSameCustomer')}</Button>}
     </div> : null}
   </Card>;
 }

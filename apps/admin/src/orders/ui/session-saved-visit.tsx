@@ -11,6 +11,7 @@ import { savedVisitTipSource } from '../model/session-saved-tip-source';
 import { sessionResultFrozen, type SessionRecordingResult } from '../model/session-recording-result';
 import { SessionSavedLine } from './session-saved-line';
 import { SessionTipsLauncher } from './session-tips-launcher';
+import { useTipAttemptMemory } from './use-tip-attempt-memory';
 
 const kwd = (value: string) => formatKwd(parseMoney(value));
 type Held = { snapshot: ServiceSession; visit: SavedVisitEdit };
@@ -37,6 +38,7 @@ export function SessionSavedVisit({ result, scope, online, editBusy = false, onR
   const [denial, setDenial] = useState<Denial | null>(null);
   const sessionRef = useRef(session);
   useEffect(() => { sessionRef.current = session; }, [session]);
+  const tipMemory = useTipAttemptMemory(scope?.companyId ?? '', scope?.businessId ?? '', scope?.branchId ?? '', scope?.userId ?? '');
   // المحرر المعلّق اللي اتبقّى بعد استبدال السناب شوت يتثبّت على الجديد، فرفض معروف بعد القفل يفضل ظاهر مش بيختفي.
   if (editBusy && session && open && open.snapshot.id === session.id && open.snapshot !== session) setOpen({ snapshot: session, lineId: open.lineId });
   if (!session) return null;
@@ -76,7 +78,7 @@ export function SessionSavedVisit({ result, scope, online, editBusy = false, onR
   return <>
     {visit.total === 'UNKNOWN' ? null : <p>{t(locale, 'serviceSessions.savedTotal')} <bdi>{kwd(visit.total === 'FROM_RESPONSE' ? visit.totalNet : session.total_net)}</bdi></p>}
     {refusalText ? <p role="alert">{refusalText}</p> : null}
-    {scope ? <SessionTipsLauncher key={session.id} scope={scope} sessionId={session.id} {...savedVisitTipSource(session.lines, visit)} online={online} disabled={editBusy} onForbidden={(message) => { setRefusal({ sessionId: session.id, message }); }} onAccessDenied={(message) => { setDenial({ sessionId: session.id, message }); setOpen(null); }} /> : null}
+    {scope ? <SessionTipsLauncher key={session.id} scope={scope} sessionId={session.id} memory={tipMemory} {...savedVisitTipSource(session.lines, visit)} online={online} disabled={editBusy} onForbidden={(message) => { setRefusal({ sessionId: session.id, message }); }} onAccessDenied={(message) => { setDenial({ sessionId: session.id, message }); setOpen(null); }} /> : null}
     <ul className="grid gap-3">{session.lines.map((line) => {
       const edit = visit.lines[line.id];
       return <SessionSavedLine key={line.id} line={line} locale={locale} when={when} sessionId={session.id} online={online}
