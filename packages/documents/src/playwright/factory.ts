@@ -16,6 +16,7 @@ import {
   killProcessTree,
   LAUNCH_MARKER_ENV,
   takeLaunchedProcess,
+  unrefKillPromise,
   withLaunchCleanup,
   type KillableProcess,
 } from './process-tree.ts';
@@ -152,30 +153,37 @@ function createMissingPidCleanup(browser: Browser, launchMarker: string): () => 
   };
   const cleanupProc = createMarkerProcess(launchMarker, resolveLateProc);
   let closeInFlight: Promise<void> | undefined;
+  let activeKill: unknown;
+  const trackKill = (attempt: Promise<void> | void): Promise<void> | void => {
+    activeKill = attempt;
+    return attempt;
+  };
+  const withUnref = (p: Promise<void>): Promise<void> =>
+    Object.defineProperty(p, 'unref', { value: () => unrefKillPromise(activeKill), configurable: true });
   return () => {
     if (closeInFlight !== undefined) {
-      if (hasVerifiablePid(cleanupProc)) return Promise.resolve(killProcessTree(cleanupProc));
-      const markerCleanup = killProcessTree(cleanupProc);
-      return markerCleanup ?? closeInFlight;
+      if (hasVerifiablePid(cleanupProc)) return withUnref(Promise.resolve(trackKill(killProcessTree(cleanupProc))));
+      const markerCleanup = trackKill(killProcessTree(cleanupProc));
+      return markerCleanup !== undefined ? withUnref(markerCleanup) : closeInFlight;
     }
-    return (closeInFlight = (async () => {
+    return (closeInFlight = withUnref((async () => {
       try {
         captureOwnedDescendants(cleanupProc);
         await browser.close();
       } catch (closeErr) {
         if (hasVerifiablePid(cleanupProc)) {
-          await Promise.resolve(killProcessTree(cleanupProc));
+          await Promise.resolve(trackKill(killProcessTree(cleanupProc)));
           return;
         }
-        const markerCleanup = killProcessTree(cleanupProc);
+        const markerCleanup = trackKill(killProcessTree(cleanupProc));
         if (markerCleanup !== undefined) {
           await markerCleanup;
           return;
         }
         throw closeErr;
       }
-      await Promise.resolve(killProcessTree(cleanupProc));
-    })().finally(() => { closeInFlight = undefined; }));
+      await Promise.resolve(trackKill(killProcessTree(cleanupProc)));
+    })().finally(() => { activeKill = undefined; closeInFlight = undefined; })));
   };
 }
 

@@ -17,19 +17,23 @@ const RETRY_KEY = Symbol('launchCleanupRetry');
 const UNCONFIRMED_DESCENDANT_KEY = Symbol('unconfirmedDescendantKill');
 const PID_POLL_MS = 10;
 export const LAUNCH_MARKER_ENV = 'POSPAY_CHROMIUM_LAUNCH_ID';
-const [backgroundPolls, activePolledProcs, activePollTimers] = [new WeakSet<KillableProcess>(), new Set<KillableProcess>(), new Set<ReturnType<typeof setTimeout>>()];
+const [backgroundPolls, procPollTimers] = [new WeakSet<KillableProcess>(), new WeakMap<KillableProcess, Set<ReturnType<typeof setTimeout>>>()];
 
-/** يحوّل استطلاع خروج العمليات المعلّقة للخلفية بعد انتهاء مهلة الإغلاق المحدودة دون إبقاء حلقة الحدث حيّة وحدها. */
-export function unrefActiveProcessPolls(proc?: KillableProcess): void {
-  if (proc !== undefined) backgroundPolls.add(proc);
-  else for (const p of activePolledProcs) backgroundPolls.add(p);
-  for (const timer of activePollTimers) timer.unref();
+function unrefProcessPolls(proc: KillableProcess): void {
+  backgroundPolls.add(proc);
+  for (const child of proc.children ?? []) unrefProcessPolls(child);
+  for (const timer of procPollTimers.get(proc) ?? []) timer.unref();
 }
+
+/** يفكّ مرجع مؤقتات الاستطلاع المرتبطة بوعد قتل معلّق عند تحوّل الإغلاق للخلفية. */
+export function unrefKillPromise(target: unknown): void { (target as { unref?: () => void } | null)?.unref?.(); }
 
 function pollTick(proc?: KillableProcess): Promise<void> {
   return new Promise((resolve) => {
-    const timer = setTimeout(() => { activePollTimers.delete(timer); resolve(); }, PID_POLL_MS);
-    activePollTimers.add(timer);
+    const timers = proc !== undefined ? (procPollTimers.get(proc) ?? new Set<ReturnType<typeof setTimeout>>()) : undefined;
+    if (proc !== undefined && timers !== undefined) procPollTimers.set(proc, timers);
+    const timer = setTimeout(() => { timers?.delete(timer); resolve(); }, PID_POLL_MS);
+    timers?.add(timer);
     if (proc !== undefined && backgroundPolls.has(proc)) timer.unref();
   });
 }
@@ -49,6 +53,7 @@ export function withLaunchCleanup(error: unknown, cleanup: Promise<void>, retryK
   const wrapped = error instanceof Error ? error : new Error(typeof error === 'string' ? error : 'DOCUMENT_LAUNCH_FAILED');
   const safeCleanup = cleanup.then(() => undefined, (err: unknown) => { throw err instanceof Error ? err : new Error('DOCUMENT_LAUNCH_CLEANUP_FAILED'); });
   safeCleanup.catch(() => undefined);
+  Object.defineProperty(safeCleanup, 'unref', { value: () => unrefKillPromise(cleanup), configurable: true });
   Object.defineProperty(wrapped, CLEANUP_KEY, { value: safeCleanup, enumerable: false, configurable: true });
   if (retryKill !== undefined) Object.defineProperty(wrapped, RETRY_KEY, { value: retryKill, enumerable: false, configurable: true });
   return wrapped;
@@ -431,13 +436,8 @@ function safeKillSingle(proc: KillableProcess, procRoot = '/proc'): Promise<void
 export function captureOwnedDescendants(proc: KillableProcess, procRoot = '/proc'): void { terminateOwnedDescendants(proc, procRoot, undefined); }
 
 /** يقتل عملية Chromium الجذر ومجموعتها وكل شجرة توابعها مع توابع الإطلاق المؤكَّدة قبل فكّ قفل إعادة الإطلاق. */
-export function killProcessTree(proc: KillableProcess, procRoot = '/proc', signalPid: ((pid: number) => Error | undefined) | undefined = procRoot === '/proc' ? signalDescendantPid : undefined, rescan = false): Promise<void> | void {
-  if (!rescan) { backgroundPolls.delete(proc); activePolledProcs.add(proc); }
-  const wrap = (res: Promise<void> | void): Promise<void> | void => {
-    if (rescan) return res;
-    if (res === undefined) { activePolledProcs.delete(proc); backgroundPolls.delete(proc); return undefined; }
-    return Object.defineProperty(res.finally(() => { activePolledProcs.delete(proc); backgroundPolls.delete(proc); }), 'unref', { value: () => unrefActiveProcessPolls(proc), configurable: true });
-  };
+export function killProcessTree(proc: KillableProcess, procRoot = '/proc', signalPid: ((pid: number) => Error | undefined) | undefined = procRoot === '/proc' ? signalDescendantPid : undefined): Promise<void> | void {
+  const withUnref = (res: Promise<void> | void): Promise<void> | void => (res === undefined ? undefined : Object.defineProperty(res, 'unref', { value: () => unrefProcessPolls(proc), configurable: true }));
   const toErr = (e: unknown): Error => markUnconfirmedDescendants(e instanceof Error ? e : new Error('SIGKILL_FAILED'));
   const childTree = (proc.children ?? []).map((child) => { try { return killProcessTree(child, procRoot, signalPid)?.catch((e: unknown) => { throw toErr(e); }); } catch (e) { return Promise.reject(toErr(e)); } });
   const [rootAlive, { waitPids, signalError, holdRoot }] = [!hasExited(proc), terminateOwnedDescendants(proc, procRoot, signalPid)];
@@ -448,11 +448,11 @@ export function killProcessTree(proc: KillableProcess, procRoot = '/proc', signa
   if (waitTargets.length > 0) waits.push(waitForPidsExit(waitTargets, procRoot, proc));
   if (signalError !== undefined) waits.push(Promise.reject(signalError));
   const shouldRescan = (): boolean => waitTargets.length > 0 || (rootAlive && hasExited(proc));
-  if (rootWait === undefined && waits.length === 0) return wrap(shouldRescan() ? killProcessTree(proc, procRoot, signalPid, true) : undefined);
-  return wrap(Promise.allSettled(rootWait === undefined ? waits : [rootWait, ...waits]).then((res) => {
+  if (rootWait === undefined && waits.length === 0) return withUnref(shouldRescan() ? killProcessTree(proc, procRoot, signalPid) : undefined);
+  return withUnref(Promise.allSettled(rootWait === undefined ? waits : [rootWait, ...waits]).then((res) => {
     const errs = res.filter((x): x is PromiseRejectedResult => x.status === 'rejected');
     const chosen = errs.find((x) => hasUnconfirmedDescendants(x.reason)) ?? errs[0];
     if (chosen !== undefined) throw chosen.reason;
-    return shouldRescan() ? killProcessTree(proc, procRoot, signalPid, true) : undefined;
+    return shouldRescan() ? killProcessTree(proc, procRoot, signalPid) : undefined;
   }));
 }

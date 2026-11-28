@@ -1,5 +1,5 @@
 import type { PdfBrowser } from './browser.ts';
-import { getLaunchCleanup, getLaunchCleanupRetry } from './process-tree.ts';
+import { getLaunchCleanup, getLaunchCleanupRetry, unrefKillPromise } from './process-tree.ts';
 import {
   consumeFreshKill,
   createBrowserShutdown,
@@ -260,6 +260,7 @@ export async function driveShutdownRetries(
         lastAttempt = trackRetryAttempt(retry, gateAbort, onError);
       }
       const settled = await waitRetryAttempt(lastAttempt, delayMs, gateAbort.signal, closeSignal);
+      if (!settled) unrefKillPromise(retry);
       if (!settled && postCloseNow && (postCloseWaits += 1) >= 2) {
         if (shutdownBudget > 0) pendingLate = lastAttempt;
         break;

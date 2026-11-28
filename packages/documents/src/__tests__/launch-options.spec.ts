@@ -328,8 +328,8 @@ it('handles ESRCH, false kill returns, and reused root PIDs on post-exit rescan'
 it('waits for root exit after true kill return without once before rescanning marked descendants', async () => {
   const procDir = mkdtempSync(join(tmpdir(), 'pospay-proc-poll-'));
   const spawnSleeper = () => spawn(process.execPath, ['-e', 'setTimeout(() => {}, 10_000)'], { detached: true, stdio: 'ignore' });
-  const [sRoot, sChild, sEscaped] = [spawnSleeper(), spawnSleeper(), spawnSleeper()];
-  const [rootPid, childPid, escapedPid] = [sRoot.pid ?? 0, sChild.pid ?? 0, sEscaped.pid ?? 0];
+  const [sRoot, sOther, sEscaped] = [spawnSleeper(), spawnSleeper(), spawnSleeper()];
+  const [rootPid, otherPid, escapedPid] = [sRoot.pid ?? 0, sOther.pid ?? 0, sEscaped.pid ?? 0];
   let exitTimer: ReturnType<typeof setTimeout> | undefined;
   const origSetTimeout = globalThis.setTimeout;
   const pollTimers: Array<ReturnType<typeof setTimeout>> = [];
@@ -338,16 +338,15 @@ it('waits for root exit after true kill return without once before rescanning ma
     if (ms === 10) pollTimers.push(timer);
     return timer;
   }) as typeof setTimeout);
-  expect(Math.min(rootPid, childPid, escapedPid)).toBeGreaterThan(0);
+  expect(Math.min(rootPid, otherPid, escapedPid)).toBeGreaterThan(0);
   try {
-    mkdirSync(join(procDir, String(rootPid)), { recursive: true });
-    writeLinuxStat(procDir, rootPid, 'S', 1, rootPid, 111);
+    for (const p of [rootPid, otherPid]) { mkdirSync(join(procDir, String(p)), { recursive: true }); writeLinuxStat(procDir, p, 'S', 1, p, 111); }
     const signaled: number[] = [];
     const signalPid = (pid: number): Error | undefined => { signaled.push(pid); writeLinuxStat(procDir, pid, 'Z', 1, 1, 0); return undefined; };
-    const delayedExitRoot = {
+    const delayedRoot = createMarkerProcess('poll-root-marker', () => ({
       pid: rootPid, exitCode: null as number | null, signalCode: null,
       kill: () => {
-        exitTimer = origSetTimeout(() => {
+        exitTimer ??= origSetTimeout(() => {
           writeLinuxStat(procDir, rootPid, 'Z', 1, 1, 0);
           mkdirSync(join(procDir, String(escapedPid)), { recursive: true });
           writeLinuxStat(procDir, escapedPid, 'S', 1, escapedPid, 555);
@@ -355,18 +354,24 @@ it('waits for root exit after true kill return without once before rescanning ma
         }, 30);
         return true;
       },
-    };
-    const killTask = killProcessTree(createMarkerProcess('poll-root-marker', () => delayedExitRoot), procDir, signalPid) as Promise<void> & { unref?: () => void };
-    await new Promise((r) => origSetTimeout(r, 15));
-    expect(pollTimers.at(-1)?.hasRef()).toBe(true);
+    }));
+    const otherRoot = { pid: otherPid, exitCode: null as number | null, signalCode: null, kill: () => true };
+    const killTask = killProcessTree(delayedRoot, procDir, signalPid) as Promise<void> & { unref?: () => void };
+    const timerA = pollTimers[0];
+    const otherTask = Promise.resolve(killProcessTree(otherRoot, procDir, signalPid));
+    const timerB = pollTimers[1];
+    expect([timerA?.hasRef(), timerB?.hasRef()]).toEqual([true, true]);
     killTask.unref?.();
-    expect(pollTimers.at(-1)?.hasRef()).toBe(false);
-    await expect(killTask).resolves.toBeUndefined();
+    const retryIdx = pollTimers.length;
+    const retryTask = Promise.resolve(killProcessTree(delayedRoot, procDir, signalPid));
+    expect([timerA?.hasRef(), timerB?.hasRef(), pollTimers[retryIdx]?.hasRef()]).toEqual([false, true, false]);
+    writeLinuxStat(procDir, otherPid, 'Z', 1, 1, 0);
+    await Promise.all([expect(killTask).resolves.toBeUndefined(), expect(retryTask).resolves.toBeUndefined(), expect(otherTask).resolves.toBeUndefined()]);
     expect([signaled, isPidAlive(escapedPid, procDir)]).toEqual([[escapedPid], false]);
   } finally {
     timeoutSpy.mockRestore();
     if (exitTimer !== undefined) clearTimeout(exitTimer);
-    for (const s of [sRoot, sChild, sEscaped]) try { s.kill('SIGKILL'); } catch { /* exited */ }
+    for (const s of [sRoot, sOther, sEscaped]) try { s.kill('SIGKILL'); } catch { /* exited */ }
     rmSync(procDir, { recursive: true, force: true });
   }
 });

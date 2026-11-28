@@ -1,6 +1,6 @@
 import type { PdfBrowser, PdfContext } from './browser.ts';
 import { closeHungContext, openWithinGrace } from './context-guards.ts';
-import { hasUnconfirmedDescendants, unrefActiveProcessPolls } from './process-tree.ts';
+import { hasUnconfirmedDescendants, unrefKillPromise } from './process-tree.ts';
 
 const KILL_WAIT_MS = 500;
 
@@ -110,7 +110,7 @@ function trackKillCall(
       },
     );
     tracked.catch(() => undefined);
-    Object.defineProperty(tracked, 'unref', { value: () => unrefActiveProcessPolls(), configurable: true });
+    Object.defineProperty(tracked, 'unref', { value: () => unrefKillPromise(raw), configurable: true });
     return tracked;
   } catch (error) {
     const err = error instanceof Error ? error : new Error('DOCUMENT_BROWSER_KILL_FAILED');
@@ -138,7 +138,7 @@ async function waitKillOutcome(
     killGrace.stop();
   }
   const confirmed = isShutdownConfirmed(state);
-  if (!confirmed) unrefActiveProcessPolls();
+  if (!confirmed) unrefKillPromise(killCall);
   return { confirmed, exit: confirmed ? Promise.resolve() : state.confirmedPromise };
 }
 
@@ -251,7 +251,7 @@ function runKillAttempt(state: ShutdownState, fromExternal: boolean): Promise<vo
   }
   if (fromExternal) freshExternalKills.add(shared);
   callResult.catch(() => undefined);
-  return shared;
+  return Object.defineProperty(shared, 'unref', { value: () => unrefKillPromise(callResult), configurable: true });
 }
 
 async function executeCloseAttempt(
