@@ -31,9 +31,9 @@ async function listPublicFunctions() {
         AND d.deptype='e' AND e.extname='btree_gist') ORDER BY proname`;
 }
 
-/** يطابق مسافات محلّل PostgreSQL فقط (ASCII whitespace) دون مسافات Unicode غير القابلة للكسر. */
+/** يطابق مسافات محلّل PostgreSQL فقط (`scanner_isspace`: مسافة، tab، LF، CR، FF دون `\v` أو Unicode). */
 function isPgSpace(ch: string | undefined): boolean {
-  return ch === ' ' || ch === '\t' || ch === '\n' || ch === '\r' || ch === '\f' || ch === '\v';
+  return ch === ' ' || ch === '\t' || ch === '\n' || ch === '\r' || ch === '\f';
 }
 
 /** يقرأ معرّف PostgreSQL واحداً من قائمة search_path ويفك الاقتباس إن وُجد. */
@@ -102,6 +102,8 @@ describe('hasTrailingPgTemp', () => {
     expect(hasTrailingPgTemp(['search_path=pg_catalog, "pg,temp", pg_temp'])).toBe(true);
     expect(hasTrailingPgTemp(['search_path=pg_catalog, \u00a0pg_temp'])).toBe(false);
     expect(hasTrailingPgTemp(['search_path=pg_catalog, public\u00a0, pg_temp'])).toBe(true);
+    expect(hasTrailingPgTemp(['search_path=pg_catalog, \vpg_temp'])).toBe(false);
+    expect(hasTrailingPgTemp(['search_path=pg_catalog, public\v, pg_temp'])).toBe(true);
     expect(hasTrailingPgTemp(['search_path=pg_temp, public, pg_temp'])).toBe(false);
     expect(hasTrailingPgTemp(['search_path=pg_temp, public'])).toBe(false);
     expect(hasTrailingPgTemp(['search_path="pg_temp", public'])).toBe(false);
