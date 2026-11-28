@@ -4,6 +4,9 @@ import type { DocumentRenderer } from '@pospay/documents';
 export type RendererStart = {
   readonly state: 'started' | 'failed' | 'pending';
   readonly error?: unknown;
+  /** وعد الإقلاع الجاري لما المهلة تسبق، وإلغاؤه لو علّق فوق مهلة الاستقرار. */
+  readonly pending?: Promise<RendererStart>;
+  readonly cancelPending?: () => void;
 };
 
 /**
@@ -11,17 +14,26 @@ export type RendererStart = {
  * نداء واحد بس؛ الرفض المتأخر بيتبلع جوّه عشان ما يبقاش رفض غير متعامل.
  */
 export async function startWithin(
-  renderer: Pick<DocumentRenderer, 'start'>,
+  renderer: Pick<DocumentRenderer, 'start'> & Partial<Pick<DocumentRenderer, 'isAvailable'>>,
   timeoutMs: number,
   signal: AbortSignal,
 ): Promise<RendererStart> {
   // المتصفح اتلغى قبل ما نبدأ: ما بنناديش launch بتاعه خالص.
   if (signal.aborted) return { state: 'pending' };
-  const launched = Promise.resolve().then(() => renderer.start());
+  const attemptController = new AbortController();
+  const forwardAbort = (): void => attemptController.abort();
+  const detachForward = (): void => signal.removeEventListener('abort', forwardAbort);
+  signal.addEventListener('abort', forwardAbort, { once: true });
+  const launched = Promise.resolve().then(() =>
+    renderer.start({ signal: attemptController.signal }),
+  );
   let timer: ReturnType<typeof setTimeout> | undefined;
   let onAbort: (() => void) | undefined;
-  const guarded = launched.then(
-    () => ({ state: 'started' as const }),
+  const guarded = launched.finally(detachForward).then(
+    () =>
+      attemptController.signal.aborted && renderer.isAvailable?.() !== true
+        ? ({ state: 'failed', error: new Error('DOCUMENT_START_CANCELLED') } as const)
+        : ({ state: 'started' } as const),
     (error: unknown) => ({ state: 'failed' as const, error }),
   );
   const expiry = new Promise<{ readonly state: 'pending' }>((resolve) => {
@@ -36,6 +48,16 @@ export async function startWithin(
   const outcome = await Promise.race([guarded, expiry]);
   if (timer !== undefined) clearTimeout(timer);
   if (onAbort !== undefined) signal.removeEventListener('abort', onAbort);
+  if (outcome.state === 'pending' && !signal.aborted) {
+    return {
+      state: 'pending',
+      pending: guarded,
+      cancelPending: () => {
+        detachForward();
+        attemptController.abort();
+      },
+    };
+  }
   return outcome;
 }
 

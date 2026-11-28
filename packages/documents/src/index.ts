@@ -1,4 +1,4 @@
-export type { DocumentRenderer, RenderOptions } from './ports/document-renderer.ts';
+export type { DocumentRenderer, RenderOptions, StartOptions } from './ports/document-renderer.ts';
 export {
   DocumentRenderTimeoutError,
   DocumentRendererUnavailableError,

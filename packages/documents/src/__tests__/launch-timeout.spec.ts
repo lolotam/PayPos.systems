@@ -43,12 +43,17 @@ async function untilAvailable(renderer: PlaywrightDocumentRenderer): Promise<voi
   }
 }
 
-it('relaunches after a launch that never settles', async () => {
+it('waits for a timed-out launch attempt to settle before starting the replacement', async () => {
   let launches = 0;
+  let releaseFirst: (() => void) | undefined;
   const factory: PdfBrowserFactory = {
     launch: async () => {
       launches += 1;
-      if (launches === 1) return new Promise<PdfBrowser>(() => undefined);
+      if (launches === 1) {
+        return new Promise<PdfBrowser>((_, reject) => {
+          releaseFirst = () => reject(new Error('late launch failure'));
+        });
+      }
       return browser(async () => Uint8Array.from([1]));
     },
   };
@@ -61,8 +66,13 @@ it('relaunches after a launch that never settles', async () => {
     onLaunchError: (error) => errors.push(error),
   });
   await renderer.start();
-  await untilAvailable(renderer);
   expect(errors).toHaveLength(1);
+  expect(launches).toBe(1);
+  await new Promise((resolve) => setTimeout(resolve, 30));
+  expect(launches).toBe(1);
+  expect(renderer.isAvailable()).toBe(false);
+  releaseFirst?.();
+  await untilAvailable(renderer);
   expect(renderer.isAvailable()).toBe(true);
   expect(launches).toBe(2);
   await renderer.close();
@@ -134,6 +144,24 @@ it('cancels a launch when the signal aborts', async () => {
   const outcome = await launching;
   expect(outcome.kind).toBe('cancelled');
   expect(vi.getTimerCount()).toBe(0);
+});
+
+it('closes the browser when abort runs in the same microtask turn as launch fulfillment', async () => {
+  const controller = new AbortController();
+  let closed = false;
+  const resolved = Promise.resolve(
+    browser(async () => Uint8Array.from([1]), {
+      onClose: () => {
+        closed = true;
+      },
+    }),
+  );
+  const outcomePromise = launchWithinTimeout(resolved, 30_000, 1_000, controller.signal);
+  void resolved.then(() => controller.abort());
+  const outcome = await outcomePromise;
+  expect(outcome.kind).toBe('cancelled');
+  if (outcome.kind === 'cancelled') await outcome.settled;
+  expect(closed).toBe(true);
 });
 
 async function lateBrowserKills(close: PdfBrowser['close']): Promise<number> {
@@ -265,7 +293,96 @@ it('kills a late browser whose close throws', async () => {
   expect(kills).toBe(1);
 });
 
-it('does not kill a late browser whose close finishes', async () => {
-  const kills = await lateBrowserKills(async () => undefined);
-  expect(kills).toBe(0);
+it('requires process-exit confirmation on a late browser even when close finishes', async () => {
+  const order: string[] = [];
+  let launches = 0;
+  let release!: (browser: PdfBrowser) => void;
+  const renderer = new PlaywrightDocumentRenderer({
+    factory: { launch: async () => (++launches === 1 ? new Promise<PdfBrowser>((r) => (release = r)) : new Promise<PdfBrowser>(() => undefined)) },
+    launchTimeoutMs: 20, closeGraceMs: 20, backoffMs: [0], sleep: async () => undefined,
+  });
+  await renderer.start();
+  release({ newContext: async () => context(async () => Uint8Array.from([1])), close: async () => { order.push('close'); }, kill: async () => { order.push('kill'); }, on: () => undefined });
+  await new Promise((resolve) => setTimeout(resolve, 100));
+  await renderer.close();
+  expect(order).toEqual(['close', 'kill']);
+});
+
+it('aborts the factory launch signal on launch timeout', async () => {
+  let receivedSignal: AbortSignal | undefined;
+  const factory: PdfBrowserFactory = {
+    launch: async (signal) => {
+      receivedSignal = signal;
+      return new Promise<PdfBrowser>(() => undefined);
+    },
+  };
+  const renderer = new PlaywrightDocumentRenderer({ factory, launchTimeoutMs: 20, backoffMs: [500] });
+  await renderer.start();
+  expect(receivedSignal?.aborted).toBe(true);
+  await renderer.close();
+});
+
+it('waits past 500 ms for a late browser kill to finish before launching replacement', async () => {
+  let launches = 0;
+  let releaseKill: (() => void) | undefined;
+  let releaseLate: ((b: PdfBrowser) => void) | undefined;
+  let killSettled = false;
+  const factory: PdfBrowserFactory = {
+    launch: async () => {
+      launches += 1;
+      if (launches === 1) return new Promise<PdfBrowser>((resolve) => (releaseLate = resolve));
+      return browser(async () => Uint8Array.from([1]));
+    },
+  };
+  const renderer = new PlaywrightDocumentRenderer({
+    factory,
+    launchTimeoutMs: 20,
+    closeGraceMs: 15,
+    backoffMs: [0],
+    sleep: async () => undefined,
+  });
+  await renderer.start();
+  releaseLate?.({
+    newContext: async () => context(async () => Uint8Array.from([1])),
+    close: () => new Promise<void>(() => undefined),
+    kill: () =>
+      new Promise<void>((resolve) => {
+        releaseKill = () => {
+          killSettled = true;
+          resolve();
+        };
+      }),
+    on: () => undefined,
+  });
+  await new Promise((resolve) => setTimeout(resolve, 560));
+  expect(killSettled).toBe(false);
+  expect(launches).toBe(1);
+  releaseKill?.();
+  await untilAvailable(renderer);
+  expect(launches).toBe(2);
+  await renderer.close();
+});
+
+it('escalates onUnconfirmedExit when timed-out launch never settles while holding replacement', async () => {
+  let launches = 0;
+  const escalated: Error[] = [];
+  const factory: PdfBrowserFactory = {
+    launch: async () => {
+      launches += 1;
+      return new Promise<PdfBrowser>(() => undefined);
+    },
+  };
+  const renderer = new PlaywrightDocumentRenderer({
+    factory,
+    launchTimeoutMs: 20,
+    backoffMs: [0],
+    sleep: async () => undefined,
+    unconfirmedExitTimeoutMs: 30,
+    onUnconfirmedExit: (err) => escalated.push(err),
+  });
+  await renderer.start();
+  await new Promise((resolve) => setTimeout(resolve, 60));
+  expect(launches).toBe(1);
+  expect(escalated.map((e) => e.message)).toContain('DOCUMENT_LAUNCH_CANCEL_UNCONFIRMED');
+  await renderer.close();
 });

@@ -360,3 +360,26 @@ it('times out a hanging pdf at the print deadline', async () => {
   expect(renderer.isAvailable()).toBe(true);
   await renderer.close();
 });
+
+it('coalesces concurrent start calls and skips relaunching once available', async () => {
+  let launches = 0;
+  let finishLaunch: (() => void) | undefined;
+  const factory: PdfBrowserFactory = {
+    launch: () => {
+      launches += 1;
+      return new Promise<PdfBrowser>((resolve) => {
+        finishLaunch = () => resolve(browser(async () => Uint8Array.from([1])));
+      });
+    },
+  };
+  const renderer = new PlaywrightDocumentRenderer({ factory });
+  const first = renderer.start();
+  const second = renderer.start();
+  expect(second).toBe(first);
+  finishLaunch?.();
+  await Promise.all([first, second]);
+  await renderer.start();
+  expect(launches).toBe(1);
+  expect(renderer.isAvailable()).toBe(true);
+  await renderer.close();
+});

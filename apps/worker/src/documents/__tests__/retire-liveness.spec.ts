@@ -98,12 +98,12 @@ function wedgedRenderer(): {
   };
 }
 
-async function untilPending(gate: Gate): Promise<void> {
+async function untilPending(gate: Gate, count = 1): Promise<void> {
   const deadline = Date.now() + 1_000;
-  while (gate.pending() < 1 && Date.now() < deadline) {
+  while (gate.pending() < count && Date.now() < deadline) {
     await new Promise((resolve) => setTimeout(resolve, 5));
   }
-  expect(gate.pending()).toBeGreaterThanOrEqual(1);
+  expect(gate.pending()).toBeGreaterThanOrEqual(count);
 }
 
 async function untilAvailable(renderer: PlaywrightDocumentRenderer): Promise<void> {
@@ -150,7 +150,9 @@ it('deletes the alive key when the browser is retired and republishes after rela
     await rejectOnDeadline(scene.renderer, scene.gate);
     await yieldNow();
     expect(box.value()).toBeNull();
+    // المتصفح المتقاعد يتقفل الأول، وبعدين بس يطلق المتصفح الجاي.
     scene.gate.release();
+    await untilPending(scene.gate);
     scene.gate.release();
     await untilAvailable(scene.renderer);
     await yieldNow();
