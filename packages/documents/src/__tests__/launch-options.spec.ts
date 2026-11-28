@@ -178,16 +178,31 @@ it('walks children of reparented group members across distinct process groups', 
     writeStat(rootPid, 'S', 1, rootPid, 111);
     writeChildren(childPid, []);
     writeStat(childPid, 'S', rootPid, childPid, 222);
+    writeChildren(helperPid, [grandPid]);
+    writeStat(helperPid, 'S', 1, childPid, 333);
+    mkdirSync(join(procDir, String(grandPid)), { recursive: true });
+    writeStat(grandPid, 'S', helperPid, grandPid, 444);
     const signaled: number[] = [];
     const signalPid = (pid: number): Error | undefined => { signaled.push(pid); writeStat(pid, 'Z', 1, 1, 0); return undefined; };
     const closingTarget = { pid: rootPid, exitCode: null as number | null, signalCode: null, kill: () => { closingTarget.exitCode = 0; return true; } };
-    const closingRoot = createMarkerProcess('grp-marker', () => closingTarget);
+    const closingRoot = createMarkerProcess('grp-retained-marker', () => closingTarget);
     captureOwnedDescendants(closingRoot, procDir);
     closingTarget.exitCode = 0;
+    for (const p of [rootPid, childPid, helperPid]) writeStat(p, 'Z', 1, 1, 0);
+    await expect(Promise.resolve(killProcessTree(closingRoot, procDir, signalPid))).resolves.toBeUndefined();
+    expect([signaled, isPidAlive(grandPid, procDir)]).toEqual([[grandPid], false]);
+
+    signaled.length = 0;
+    writeStat(rootPid, 'S', 1, rootPid, 111);
+    writeStat(childPid, 'S', rootPid, childPid, 222);
+    for (const p of [helperPid, grandPid]) rmSync(join(procDir, String(p)), { recursive: true, force: true });
+    const failTarget = { pid: rootPid, exitCode: null as number | null, signalCode: null, kill: () => { failTarget.exitCode = 0; return true; } };
+    const failRoot = createMarkerProcess('grp-unverified-marker', () => failTarget);
+    captureOwnedDescendants(failRoot, procDir);
+    failTarget.exitCode = 0;
     rmSync(join(procDir, String(rootPid)), { recursive: true, force: true });
     writeStat(childPid, 'S', 1, childPid, 222);
-
-    const signalWithReparented = (pid: number): Error | undefined => {
+    const signalWithLateReparented = (pid: number): Error | undefined => {
       if (pid === childPid) {
         writeChildren(helperPid, [grandPid]);
         writeStat(helperPid, 'S', 1, childPid, 333);
@@ -196,51 +211,66 @@ it('walks children of reparented group members across distinct process groups', 
       }
       return signalPid(pid);
     };
-    await expect(Promise.resolve(killProcessTree(closingRoot, procDir, signalWithReparented))).rejects.toThrow('DESCENDANT_IDENTITY_UNVERIFIED');
+    await expect(Promise.resolve(killProcessTree(failRoot, procDir, signalWithLateReparented))).rejects.toThrow('DESCENDANT_IDENTITY_UNVERIFIED');
     expect([signaled, isPidAlive(helperPid, procDir), isPidAlive(grandPid, procDir)]).toEqual([[childPid], true, true]);
-
     writeStat(helperPid, 'Z', 1, 1, 0);
-    await expect(Promise.resolve(killProcessTree(closingRoot, procDir, signalWithReparented))).rejects.toThrow('DESCENDANT_IDENTITY_UNVERIFIED');
+    await expect(Promise.resolve(killProcessTree(failRoot, procDir, signalWithLateReparented))).rejects.toThrow('DESCENDANT_IDENTITY_UNVERIFIED');
     expect([signaled, isPidAlive(helperPid, procDir), isPidAlive(grandPid, procDir)]).toEqual([[childPid], false, true]);
-
-    writeFileSync(join(procDir, String(grandPid), 'environ'), `${LAUNCH_MARKER_ENV}=grp-marker\0`);
-    await expect(Promise.resolve(killProcessTree(closingRoot, procDir, signalWithReparented))).resolves.toBeUndefined();
-    expect([signaled, isPidAlive(grandPid, procDir)]).toEqual([[childPid, grandPid], false]);
   } finally {
     for (const s of [sRoot, sChild, sHelper, sGrand]) try { s.kill('SIGKILL'); } catch { /* exited */ }
     rmSync(procDir, { recursive: true, force: true });
   }
 });
 
-it('rescans marked descendants once after root exits with no initial wait targets', async () => {
+it('rescans marked and same-group descendants after ESRCH root exit even with exit fields unset', async () => {
   const procDir = mkdtempSync(join(tmpdir(), 'pospay-proc-empty-'));
   const spawnSleeper = () => spawn(process.execPath, ['-e', 'setTimeout(() => {}, 10_000)'], { detached: true, stdio: 'ignore' });
-  const [sRoot, sEscaped] = [spawnSleeper(), spawnSleeper()];
-  const [rootPid, escapedPid] = [sRoot.pid ?? 0, sEscaped.pid ?? 0];
+  const [sRoot, sEscaped, sHelper] = [spawnSleeper(), spawnSleeper(), spawnSleeper()];
+  const [rootPid, escapedPid, helperPid] = [sRoot.pid ?? 0, sEscaped.pid ?? 0, sHelper.pid ?? 0];
   const writeStat = (pid: number, state: string, ppid: number, pgrp: number, start: number): void =>
     writeFileSync(join(procDir, String(pid), 'stat'), `${pid} (p) ${state} ${ppid} ${pgrp} 1 0 -1 0 0 0 0 0 0 0 0 0 0 0 1 0 ${start}\n`);
-  expect(Math.min(rootPid, escapedPid)).toBeGreaterThan(0);
+  expect(Math.min(rootPid, escapedPid, helperPid)).toBeGreaterThan(0);
   try {
     mkdirSync(join(procDir, String(rootPid)), { recursive: true });
     writeStat(rootPid, 'S', 1, rootPid, 111);
     const signaled: number[] = [];
     const signalPid = (pid: number): Error | undefined => { signaled.push(pid); writeStat(pid, 'Z', 1, 1, 0); return undefined; };
-    const root = {
+    const esrchError = () => Object.assign(new Error('kill ESRCH'), { code: 'ESRCH' });
+    const rootWithUnmarked = {
       pid: rootPid,
       exitCode: null as number | null,
       signalCode: null,
+      once: () => undefined,
       kill: () => {
-        root.exitCode = 0;
-        mkdirSync(join(procDir, String(escapedPid)), { recursive: true });
-        writeStat(escapedPid, 'S', 1, escapedPid, 555);
-        writeFileSync(join(procDir, String(escapedPid), 'environ'), `${LAUNCH_MARKER_ENV}=empty-wait-marker\0`);
-        return true;
+        rmSync(join(procDir, String(rootPid)), { recursive: true, force: true });
+        mkdirSync(join(procDir, String(helperPid)), { recursive: true });
+        writeStat(helperPid, 'S', 1, rootPid, 444);
+        throw esrchError();
       },
     };
-    await expect(Promise.resolve(killProcessTree(createMarkerProcess('empty-wait-marker', () => root), procDir, signalPid))).resolves.toBeUndefined();
+    await expect(Promise.resolve(killProcessTree(createMarkerProcess('esrch-group-marker', () => rootWithUnmarked), procDir, signalPid))).rejects.toThrow('DESCENDANT_IDENTITY_UNVERIFIED');
+    expect([signaled, isPidAlive(helperPid, procDir)]).toEqual([[], true]);
+
+    writeStat(helperPid, 'Z', 1, 1, 0);
+    mkdirSync(join(procDir, String(rootPid)), { recursive: true });
+    writeStat(rootPid, 'S', 1, rootPid, 111);
+    const rootWithMarked = {
+      pid: rootPid,
+      exitCode: null as number | null,
+      signalCode: null,
+      once: () => undefined,
+      kill: () => {
+        rmSync(join(procDir, String(rootPid)), { recursive: true, force: true });
+        mkdirSync(join(procDir, String(escapedPid)), { recursive: true });
+        writeStat(escapedPid, 'S', 1, escapedPid, 555);
+        writeFileSync(join(procDir, String(escapedPid), 'environ'), `${LAUNCH_MARKER_ENV}=esrch-marked-marker\0`);
+        throw esrchError();
+      },
+    };
+    await expect(Promise.resolve(killProcessTree(createMarkerProcess('esrch-marked-marker', () => rootWithMarked), procDir, signalPid))).resolves.toBeUndefined();
     expect([signaled, isPidAlive(escapedPid, procDir)]).toEqual([[escapedPid], false]);
   } finally {
-    for (const s of [sRoot, sEscaped]) try { s.kill('SIGKILL'); } catch { /* exited */ }
+    for (const s of [sRoot, sEscaped, sHelper]) try { s.kill('SIGKILL'); } catch { /* exited */ }
     rmSync(procDir, { recursive: true, force: true });
   }
 });
