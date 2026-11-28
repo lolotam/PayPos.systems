@@ -11,6 +11,7 @@ import {
   type StaffOtpDatabase,
 } from '../../../packages/db/src/staff-otp-database.ts';
 import { startHarness, type Harness } from './harness.ts';
+import type { HarnessOptions } from './harness-wiring.ts';
 import { claimPayload } from './device-claim.ts';
 
 export const origin = 'http://pos.synthetic.invalid';
@@ -35,62 +36,84 @@ interface StaffHarness {
   code(id: string): Promise<string>;
   close(): Promise<void>;
 }
-export async function staffHarness(): Promise<StaffHarness> {
-  let api: StaffOtpApi;
-  const sessionFailures: string[] = [];
-  const outcomes: string[] = [];
-  const failures: string[] = [];
-  const jobs: { challengeId: string; attemptId: string }[] = [];
-  const requestTimer = requestClock();
-  const control = { loseEnqueueAck: false };
+export async function staffHarness(
+  options: { readonly staffNativeOrigins?: readonly string[] } = {},
+): Promise<StaffHarness> {
+  const state = {
+    sessionFailures: [] as string[],
+    outcomes: [] as string[],
+    failures: [] as string[],
+    jobs: [] as { challengeId: string; attemptId: string }[],
+    requestTimer: requestClock(),
+    control: { loseEnqueueAck: false },
+  };
   const h = await startHarness({
     staffOrigin: origin,
-    staffOtpFactory: (auth, url, database, redis) => {
-      const staff = present(auth.staff);
-      api = createStaffOtpApi({
-        onFailure: (phase, failure) => failures.push(`${phase}:${failure}`),
-        onOutcome: (outcome) => outcomes.push(outcome),
-        databaseUrl: url,
-        configuration: otpConfiguration,
-        capability: {
-          ready: async (deadline) => {
-            if (deadline !== undefined) return Date.now() < deadline.getTime();
-            if ('ping' in database && typeof database.ping === 'function') await database.ping();
-            await api.readiness();
-            return true;
-          },
-        },
-        rates: redisOtpRates(redis, 'synthetic'.repeat(8), systemUuidV7()),
-        sender: syntheticSender(jobs, control),
-        strategies: { identify: identity.identify, phoneLockKey },
-        eligibility: createStaffEligibility(database),
-        sessions: observedSessions(staff, sessionFailures),
-        ids: systemUuidV7(),
-        clock: requestTimer,
-        audit: async (action, userId, device, challengeId) =>
-          auth.recordPlatformAction({
-            actor: present(userId),
-            action,
-            targetUserId: userId,
-            details: { deviceId: device.deviceId, challengeId },
-          }),
-      });
-      return api;
-    },
+    ...(options.staffNativeOrigins === undefined
+      ? {}
+      : { staffNativeOrigins: options.staffNativeOrigins }),
+    staffOtpFactory: (auth, url, database, redis) =>
+      buildStaffOtp(auth, url, database, redis, state),
   });
   const db = await observedDatabase(h);
   return {
-    control,
+    control: state.control,
     h,
-    jobs,
+    jobs: state.jobs,
     db,
-    sessionFailures,
-    outcomes,
-    failures,
-    windowStarts: requestTimer.starts,
+    sessionFailures: state.sessionFailures,
+    outcomes: state.outcomes,
+    failures: state.failures,
+    windowStarts: state.requestTimer.starts,
     code: (id) => deriveChallenge(db, id),
     close: () => closeHarness(db, h),
   };
+}
+
+function buildStaffOtp(
+  auth: Parameters<NonNullable<HarnessOptions['staffOtpFactory']>>[0],
+  url: string,
+  database: Parameters<NonNullable<HarnessOptions['staffOtpFactory']>>[2],
+  redis: Parameters<NonNullable<HarnessOptions['staffOtpFactory']>>[3],
+  state: {
+    sessionFailures: string[];
+    outcomes: string[];
+    failures: string[];
+    jobs: { challengeId: string; attemptId: string }[];
+    requestTimer: ReturnType<typeof requestClock>;
+    control: { loseEnqueueAck: boolean };
+  },
+): StaffOtpApi {
+  const staff = present(auth.staff);
+  const api = createStaffOtpApi({
+    onFailure: (phase, failure) => state.failures.push(`${phase}:${failure}`),
+    onOutcome: (outcome) => state.outcomes.push(outcome),
+    databaseUrl: url,
+    configuration: otpConfiguration,
+    capability: {
+      ready: async (deadline) => {
+        if (deadline !== undefined) return Date.now() < deadline.getTime();
+        if ('ping' in database && typeof database.ping === 'function') await database.ping();
+        await api.readiness();
+        return true;
+      },
+    },
+    rates: redisOtpRates(redis, 'synthetic'.repeat(8), systemUuidV7()),
+    sender: syntheticSender(state.jobs, state.control),
+    strategies: { identify: identity.identify, phoneLockKey },
+    eligibility: createStaffEligibility(database),
+    sessions: observedSessions(staff, state.sessionFailures),
+    ids: systemUuidV7(),
+    clock: state.requestTimer,
+    audit: async (action, userId, device, challengeId) =>
+      auth.recordPlatformAction({
+        actor: present(userId),
+        action,
+        targetUserId: userId,
+        details: { deviceId: device.deviceId, challengeId },
+      }),
+  });
+  return api;
 }
 
 async function observedDatabase(h: Harness): Promise<StaffOtpDatabase> {
@@ -153,7 +176,11 @@ export async function paired(h: Harness, cookie: string, company: string, branch
     company,
   });
   const claimed = (
-    await h.app.inject({ method: 'POST', url: '/v1/devices/claim', payload: claimPayload(registered) })
+    await h.app.inject({
+      method: 'POST',
+      url: '/v1/devices/claim',
+      payload: claimPayload(registered),
+    })
   ).json();
   return { id: registered.device_id as string, token: claimed.device_token as string };
 }

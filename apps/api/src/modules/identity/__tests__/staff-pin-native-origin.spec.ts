@@ -1,9 +1,22 @@
+import { readFileSync } from 'node:fs';
 import { randomUUID } from 'node:crypto';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import ts from 'typescript';
 
+import { PATH_METADATA } from '@nestjs/common/constants.js';
+import { API_CONTROLLERS } from '../../../app.ts';
+import { SIGN_OUT_ROUTE } from '../../../shared/sign-out.guard.ts';
+import { STAFF_ROUTE } from '../../../shared/staff-authentication.ts';
 import { present } from '../../../../../../packages/db/test/present.ts';
-import { paired, origin } from '../../../../test/staff-otp-harness.ts';
+import {
+  paired,
+  origin,
+  phone as otpPhone,
+  staffHarness,
+} from '../../../../test/staff-otp-harness.ts';
 import { startHarness, type Harness } from '../../../../test/harness.ts';
 
 // مصدر التطبيق الأصلي (capacitor://localhost) مقبول مثل مصدر الـ POS، لكنه يُقبل فقط إذا كان مُعدّاً
@@ -18,37 +31,41 @@ interface Staff {
   readonly userId: string;
 }
 
-// جهاز مقترن وموظف واحد هما PIN مضبوط، عبر نفس مسارات الـ HTTP الحقيقية التي يصنع بها المدير المستخدم.
-async function seed(h: Harness): Promise<Staff> {
-  const manager = await h.signedInOperator('pin-native-manager@synthetic.invalid');
-  const company = await h.onboard(manager, 'Synthetic native origin');
-  const businessResponse = await h.send('POST', '/v1/businesses', {
+async function seedBranchDevice(h: Harness, tag: string) {
+  const manager = await h.signedInOperator(`${tag}-manager@synthetic.invalid`);
+  const company = await h.onboard(manager, `Synthetic ${tag}`);
+  const b = await h.send('POST', '/v1/businesses', {
     cookie: manager,
     company,
-    key: 'pin-native-business',
+    key: `${tag}-b`,
     body: { vertical_type: 'salon', name_en: 'Synthetic' },
   });
-  expect(businessResponse.status).toBe(201);
-  const business = businessResponse.body['id'] as string;
-  const branchResponse = await h.send('POST', `/v1/businesses/${business}/branches`, {
+  expect(b.status).toBe(201);
+  const br = await h.send('POST', `/v1/businesses/${b.body['id'] as string}/branches`, {
     cookie: manager,
     company,
-    key: 'pin-native-branch',
+    key: `${tag}-br`,
     body: { name_en: 'Synthetic' },
   });
-  expect(branchResponse.status).toBe(201);
-  const branch = branchResponse.body['id'] as string;
-  const device = await paired(h, manager, company, branch);
+  expect(br.status).toBe(201);
+  const branch = br.body['id'] as string;
+  return { manager, company, branch, device: await paired(h, manager, company, branch) };
+}
+
+// جهاز مقترن وموظف واحد لهما PIN مضبوط بصلاحية الكاشير، عبر نفس مسارات الـ HTTP الحقيقية.
+async function seed(h: Harness): Promise<Staff> {
+  const { manager, company, branch, device } = await seedBranchDevice(h, 'pin-native');
+  const fixtureCredential = `${randomUUID()}${randomUUID()}`;
   const userId = await h.auth.provisionUser({
     email: 'pin-native-user@synthetic.invalid',
     name: 'Synthetic',
-    password: 'synthetic'.repeat(8),
+    password: fixtureCredential,
   });
   await h.owner`UPDATE "user" SET phone_number=${phone} WHERE id=${userId}`;
   await h.owner`UPDATE "user" SET phone_binding_approved_at=clock_timestamp() WHERE id=${userId}`;
   await h.owner`INSERT INTO memberships(company_id,id,user_id,role_id,role_owner_key,scope_type,scope_id)
     SELECT ${company},${randomUUID()},${userId},id,'global','BRANCH',${branch}
-    FROM roles WHERE code='staff' AND company_id IS NULL`;
+    FROM roles WHERE code='cashier' AND company_id IS NULL`;
   const reset = await h.send('POST', '/v1/staff-pins/reset', {
     cookie: manager,
     company,
@@ -68,6 +85,65 @@ const signIn = (h: Harness, device: Awaited<ReturnType<typeof paired>>, requestO
 
 const sessionCookie = (response: Awaited<ReturnType<typeof signIn>>): string =>
   String(present(response.headers['set-cookie']));
+
+const cookiePair = (setCookie: string): string => setCookie.split(';')[0] ?? '';
+
+async function assertNativeOriginPair(
+  h: Harness,
+  method: 'GET' | 'POST',
+  url: string,
+  headers: Record<string, string>,
+  allowedStatus: number,
+  payload?: Record<string, unknown>,
+) {
+  const allowed = await h.app.inject({
+    method,
+    url,
+    headers: { ...headers, origin: nativeOrigin },
+    ...(payload === undefined ? {} : { payload }),
+  });
+  expect(allowed.statusCode).toBe(allowedStatus);
+  const refused = await h.app.inject({
+    method,
+    url,
+    headers: { ...headers, origin: foreignOrigin },
+    ...(payload === undefined ? {} : { payload }),
+  });
+  expect(refused.statusCode).toBe(403);
+}
+
+async function assertClockAndLeaveNative(
+  h: Harness,
+  device: Awaited<ReturnType<typeof paired>>,
+  cookie: string,
+) {
+  const auth = { authorization: `Device ${device.token}`, cookie };
+  await assertNativeOriginPair(h, 'GET', '/v1/devices/me/staff-session', auth, 200);
+  await assertNativeOriginPair(
+    h,
+    'POST',
+    '/v1/devices/me/clock-by-card',
+    { ...auth, 'idempotency-key': 'native-card-1' },
+    404,
+    { card_code: 'SYNTH-1234' },
+  );
+  // StaffLeaveGuard runs before pipe validation: foreignOrigin throws 403, nativeOrigin reaches query pipe (400).
+  await assertNativeOriginPair(
+    h,
+    'GET',
+    '/v1/staff/me/leave-requests?branch_id=not-a-uuid',
+    auth,
+    400,
+  );
+  await assertNativeOriginPair(
+    h,
+    'POST',
+    '/v1/staff/me/leave-requests?branch_id=not-a-uuid',
+    auth,
+    400,
+    {},
+  );
+}
 
 describe('the staff PIN route with the native origin configured', () => {
   let h: Harness;
@@ -97,6 +173,238 @@ describe('the staff PIN route with the native origin configured', () => {
     expect(refused.statusCode).toBe(403);
     expect(refused.json().code).toBe('FORBIDDEN');
     expect(refused.headers['set-cookie']).toBeUndefined();
+  });
+
+  it('accepts native origin across staff session, clock-by-card, staff leave guard and sign-out (#666)', async () => {
+    const nativeSignIn = await signIn(h, staff.device, nativeOrigin);
+    expect(nativeSignIn.statusCode).toBe(200);
+    const cookie = cookiePair(sessionCookie(nativeSignIn));
+    await assertClockAndLeaveNative(h, staff.device, cookie);
+    const signOutRefused = await h.app.inject({
+      method: 'POST',
+      url: '/v1/devices/me/staff-session/sign-out',
+      headers: { origin: foreignOrigin, cookie },
+    });
+    expect(signOutRefused.statusCode).toBe(403);
+    const signOutAllowed = await h.app.inject({
+      method: 'POST',
+      url: '/v1/devices/me/staff-session/sign-out',
+      headers: { origin: nativeOrigin, cookie },
+    });
+    expect(signOutAllowed.statusCode).toBe(200);
+    expect(signOutAllowed.json().status).toBe('SIGNED_OUT');
+  });
+});
+
+describe('the staff OTP request route with the native origin configured (#666)', () => {
+  let staffOtp: Awaited<ReturnType<typeof staffHarness>>;
+  let deviceToken: string;
+
+  beforeAll(async () => {
+    staffOtp = await staffHarness({ staffNativeOrigins: [nativeOrigin] });
+    deviceToken = (await seedBranchDevice(staffOtp.h, 'otp-native')).device.token;
+  });
+
+  afterAll(async () => {
+    await staffOtp?.close();
+  });
+
+  it('accepts the configured native origin and refuses foreign origin on staff OTP request', async () => {
+    const allowed = await staffOtp.h.app.inject({
+      method: 'POST',
+      url: '/v1/devices/me/staff-otp/request',
+      headers: { authorization: `Device ${deviceToken}`, origin: nativeOrigin },
+      payload: { phone: otpPhone, locale: 'en' },
+    });
+    expect(allowed.statusCode).toBe(202);
+    expect(allowed.json().status).toBe('ACCEPTED');
+    const refused = await staffOtp.h.app.inject({
+      method: 'POST',
+      url: '/v1/devices/me/staff-otp/request',
+      headers: { authorization: `Device ${deviceToken}`, origin: foreignOrigin },
+      payload: { phone: otpPhone, locale: 'en' },
+    });
+    expect(refused.statusCode).toBe(403);
+    expect(refused.json().code).toBe('FORBIDDEN');
+  });
+});
+
+interface MethodInfo {
+  readonly name: string;
+  readonly decorators: string;
+  readonly bodyText: string;
+}
+
+const printer = ts.createPrinter({ removeComments: true });
+
+function stripComments(source: string): string {
+  const file = ts.createSourceFile('probe.ts', source, ts.ScriptTarget.Latest, true);
+  return printer.printFile(file);
+}
+
+function classInfoOf(source: string) {
+  const file = ts.createSourceFile('probe.ts', source, ts.ScriptTarget.Latest, true);
+  const methods = new Map<string, MethodInfo>();
+  let classDecorators = '';
+  const decs = (n: ts.Node) =>
+    ts.canHaveDecorators(n)
+      ? (ts
+          .getDecorators(n)
+          ?.map((d) => d.getText(file))
+          .join('\n') ?? '')
+      : '';
+  const visit = (node: ts.Node): void => {
+    if (ts.isClassDeclaration(node)) classDecorators = decs(node);
+    if (ts.isMethodDeclaration(node) && node.body !== undefined) {
+      const name = node.name.getText(file);
+      const bodyText = printer.printNode(ts.EmitHint.Unspecified, node.body, file);
+      methods.set(name, { name, decorators: decs(node), bodyText });
+    }
+    ts.forEachChild(node, visit);
+  };
+  visit(file);
+  return { classDecorators, methods };
+}
+
+const ENFORCES_STAFF_ORIGIN =
+  /if\s*\(\s*!isStaffOrigin\([^,]+,\s*request\.headers\.origin\)[\s\S]*?throw\s+new\s+ApiError\(\s*'FORBIDDEN'\s*\)/;
+
+function reachesStaffOrigin(
+  m: MethodInfo,
+  methods: ReadonlyMap<string, MethodInfo>,
+  seen = new Set<string>(),
+): boolean {
+  if (ENFORCES_STAFF_ORIGIN.test(m.bodyText)) return true;
+  if (seen.has(m.name)) return false;
+  seen.add(m.name);
+  return [...m.bodyText.matchAll(/\bthis\.([A-Za-z0-9_]+)\s*\(/g)].some(([, c]) => {
+    const h = c === undefined ? undefined : methods.get(c);
+    return h !== undefined && reachesStaffOrigin(h, methods, seen);
+  });
+}
+
+type OriginKind = 'direct' | 'leave-guard' | 'private-view';
+type StaffControllerEntry = readonly [
+  className: string,
+  moduleFile: string,
+  staff: readonly string[],
+  kind: OriginKind,
+  signOut?: readonly string[],
+];
+
+const STAFF_CONTROLLER_SPECS: readonly StaffControllerEntry[] = [
+  ['StaffPinController', 'identity/staff-pin', ['signIn', 'change'], 'direct'],
+  ['StaffPinResetController', 'identity/staff-pin-reset', ['request', 'reset'], 'direct'],
+  [
+    'StaffOtpController',
+    'identity/staff-otp',
+    ['request', 'verify', 'session'],
+    'direct',
+    ['signOut'],
+  ],
+  ['PrivateViewController', 'identity/private-view', ['open', 'touch', 'close'], 'direct'],
+  ['ClockByCardController', 'staff/clock-by-card', ['submit'], 'direct'],
+  ['OwnLeaveController', 'staff/own-leave', ['request', 'cancelRequest', 'list'], 'leave-guard'],
+  ['OwnAttendanceController', 'staff/own-attendance', ['read'], 'private-view'],
+  [
+    'OwnCommissionEstimateController',
+    'commissions/own-commission-estimate',
+    ['estimate'],
+    'private-view',
+  ],
+  ['OwnWorkController', 'orders/own-work', ['tips', 'serviceLines'], 'private-view'],
+];
+
+function discoverRegisteredStaffInventory(): Record<
+  string,
+  { readonly staff: string[]; readonly signOut: string[] }
+> {
+  const discovered: Record<string, { readonly staff: string[]; readonly signOut: string[] }> = {};
+  for (const controller of API_CONTROLLERS) {
+    const seen = new Set<string>();
+    const staff: string[] = [];
+    const signOut: string[] = [];
+    for (
+      let proto = controller.prototype as object | null;
+      proto !== null && proto !== Object.prototype;
+      proto = Object.getPrototypeOf(proto) as object | null
+    ) {
+      for (const key of Object.getOwnPropertyNames(proto)) {
+        if (key === 'constructor' || seen.has(key)) continue;
+        seen.add(key);
+        const fn = Object.getOwnPropertyDescriptor(proto, key)?.value as unknown;
+        if (typeof fn !== 'function' || Reflect.getMetadata(PATH_METADATA, fn) === undefined)
+          continue;
+        if (Reflect.getMetadata(STAFF_ROUTE, fn) !== undefined) staff.push(key);
+        if (Reflect.getMetadata(SIGN_OUT_ROUTE, fn) === 'staff') signOut.push(key);
+      }
+    }
+    if (staff.length > 0 || signOut.length > 0) {
+      discovered[controller.name] = { staff: staff.sort(), signOut: signOut.sort() };
+    }
+  }
+  return discovered;
+}
+
+function verifyStaffController(apiSrcRoot: string, entry: StaffControllerEntry): void {
+  const [, moduleFile, staff, kind] = entry;
+  const [mod = '', ctrl = ''] = moduleFile.split('/');
+  const source = readFileSync(
+    join(apiSrcRoot, 'src/modules', mod, 'http', `${ctrl}.controller.ts`),
+    'utf8',
+  );
+  expect(stripComments(source)).not.toMatch(/headers\.origin\s*[!=]==?/);
+  const { classDecorators, methods } = classInfoOf(source);
+  if (kind === 'leave-guard') {
+    expect(classDecorators).toMatch(/UseGuards\(\s*StaffLeaveGuard\b/);
+    return;
+  }
+  for (const name of staff) {
+    const handler = methods.get(name);
+    expect(handler, `${moduleFile}#${name}`).toBeDefined();
+    if (handler === undefined) continue;
+    if (kind === 'direct') {
+      expect(reachesStaffOrigin(handler, methods), `${moduleFile}#${name}`).toBe(true);
+    } else {
+      expect(handler.decorators, `${moduleFile}#${name}`).toMatch(/@PrivateViewRoute\(/);
+    }
+  }
+}
+
+describe('every staff route handler checks Origin exclusively through isStaffOrigin (#666)', () => {
+  const apiSrcRoot = join(dirname(fileURLToPath(import.meta.url)), '..', '..', '..', '..');
+
+  it('every API_CONTROLLERS staff or staff-sign-out route appears in STAFF_CONTROLLER_SPECS', () => {
+    const expected = Object.fromEntries(
+      STAFF_CONTROLLER_SPECS.map(([className, , staff, , signOut]) => [
+        className,
+        { staff: [...staff].sort(), signOut: [...(signOut ?? [])].sort() },
+      ]),
+    );
+    expect(discoverRegisteredStaffInventory()).toEqual(expected);
+  });
+
+  it.each(STAFF_CONTROLLER_SPECS.map((entry) => ({ name: entry[0], entry })))(
+    '$name enforces isStaffOrigin on all handlers',
+    ({ entry }) => {
+      verifyStaffController(apiSrcRoot, entry);
+    },
+  );
+
+  it('staff guards check Origin through isStaffOrigin without direct equality on staff routes', () => {
+    for (const rel of [
+      'src/modules/staff/http/staff-leave.guard.ts',
+      'src/shared/private-view.guard.ts',
+    ]) {
+      const code = stripComments(readFileSync(join(apiSrcRoot, rel), 'utf8'));
+      expect(code).not.toMatch(/headers\.origin\s*[!=]==?/);
+      expect(code).toMatch(ENFORCES_STAFF_ORIGIN);
+    }
+    expect(
+      stripComments(readFileSync(join(apiSrcRoot, 'src/shared/sign-out.guard.ts'), 'utf8')),
+    ).toMatch(
+      /kind === 'staff'\s*\?\s*isStaffOrigin\(wiring\.staffOrigin,\s*request\.headers\.origin\)[\s\S]*?if\s*\(!allowed\)\s*throw\s+new\s+ApiError\(\s*'FORBIDDEN'\s*\)/,
+    );
   });
 });
 

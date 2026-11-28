@@ -4,6 +4,21 @@
 export type ScopeType = 'COMPANY' | 'BUSINESS' | 'BRANCH';
 
 /**
+ * قيود الصلاحية الرقمية أو المنطقية المحمولة من role_permissions (ADR-0003 §4).
+ * المبالغ المالية (`max_amount` و `max_variance`) محفوظة بالملّيم الصحيح (`bigint`، 1 KWD = 1000n).
+ */
+export interface PermissionConstraints {
+  readonly max_pct?: number;
+  readonly max_amount?: bigint;
+  readonly max_variance?: bigint;
+  readonly backdate_days?: number;
+  readonly manual_edit?: boolean;
+  readonly max_rows?: number;
+  /** علامة فساد القيد المخزن: تمنع تحويل القيد التالف إلى صلاحية مفتوحة بلا حدود. */
+  readonly invalid?: boolean;
+}
+
+/**
  * صلاحية واحدة اتجمعت للـ principal: من role أو من override، بالـ effect بتاعها والنطاق اللي بتغطيه.
  */
 export interface AccessGrant {
@@ -11,6 +26,7 @@ export interface AccessGrant {
   readonly effect: 'ALLOW' | 'DENY';
   readonly scopeType: ScopeType;
   readonly scopeId: string;
+  readonly constraints?: PermissionConstraints;
 }
 
 /**
@@ -77,4 +93,197 @@ export function evaluateAccess(
   const applicable = grants.filter((g) => g.permission === permission && covers(g, target));
   if (applicable.some((g) => g.effect === 'DENY')) return false;
   return applicable.some((g) => g.effect === 'ALLOW');
+}
+
+const MONEY_MAX_MILLS = 99_999_999_999_999n;
+const INTEGER_CONSTRAINTS = ['backdate_days', 'max_rows'] as const;
+const MONEY_CONSTRAINTS = ['max_amount', 'max_variance'] as const;
+
+type MutableConstraints = {
+  max_pct?: number;
+  max_amount?: bigint;
+  max_variance?: bigint;
+  backdate_days?: number;
+  manual_edit?: boolean;
+  max_rows?: number;
+};
+
+const isValidPct = (value: unknown): value is number =>
+  typeof value === 'number' && Number.isFinite(value) && value >= 0 && value <= 100;
+
+const isValidNonNegInt = (value: unknown): value is number =>
+  typeof value === 'number' && Number.isSafeInteger(value) && value >= 0;
+
+function parseMills(value: unknown): bigint | null {
+  if (typeof value === 'bigint') return value >= 0n && value <= MONEY_MAX_MILLS ? value : null;
+  if (isValidNonNegInt(value)) {
+    const mills = BigInt(value);
+    return mills <= MONEY_MAX_MILLS ? mills : null;
+  }
+  if (typeof value === 'string' && /^\d+$/.test(value)) {
+    const mills = BigInt(value);
+    return mills <= MONEY_MAX_MILLS ? mills : null;
+  }
+  return null;
+}
+
+function assignConstraint(parsed: MutableConstraints, key: string, value: unknown): boolean {
+  if (key === 'max_pct') {
+    if (!isValidPct(value)) return false;
+    parsed.max_pct = value;
+    return true;
+  }
+  if (key === 'backdate_days' || key === 'max_rows') {
+    if (!isValidNonNegInt(value)) return false;
+    parsed[key] = value;
+    return true;
+  }
+  if (key === 'max_amount' || key === 'max_variance') {
+    const mills = parseMills(value);
+    if (mills === null) return false;
+    parsed[key] = mills;
+    return true;
+  }
+  if (key === 'manual_edit') {
+    if (typeof value !== 'boolean') return false;
+    parsed.manual_edit = value;
+    return true;
+  }
+  return false;
+}
+
+function parseDecimalToken(
+  source: string,
+): { readonly int: bigint; readonly hasFraction: boolean } | null {
+  const match = /^(\d+)(?:\.(\d+))?(?:[eE]([+-]?\d+))?$/.exec(source);
+  if (match === null) return null;
+  const combined = (match[1] ?? '0') + (match[2] ?? '');
+  if (!/[1-9]/.test(combined)) return { int: 0n, hasFraction: false };
+  const exp = match[3] === undefined ? 0 : Number(match[3]);
+  if (!Number.isSafeInteger(exp)) return null;
+  const shift = exp - (match[2]?.length ?? 0);
+  if (shift >= 0) {
+    if (combined.replace(/^0+/, '').length + shift > 16) return null;
+    return { int: BigInt(combined + '0'.repeat(shift)), hasFraction: false };
+  }
+  const splitAt = combined.length + shift;
+  const whole = splitAt > 0 ? combined.slice(0, splitAt) : '0';
+  const remainder = splitAt > 0 ? combined.slice(splitAt) : combined;
+  return { int: BigInt(whole), hasFraction: /[1-9]/.test(remainder) };
+}
+
+function decimalKey(source: string): string | null {
+  const match = /^(\d+)(?:\.(\d+))?(?:[eE]([+-]?\d+))?$/.exec(source);
+  if (match === null) return null;
+  const exp = match[3] === undefined ? 0 : Number(match[3]);
+  if (!Number.isSafeInteger(exp)) return null;
+  const raw = (match[1] ?? '') + (match[2] ?? '');
+  const first = raw.search(/[1-9]/);
+  if (first === -1) return '0';
+  const digits = raw.slice(first).replace(/0+$/, '');
+  const scale = (match[1] ?? '').length - first - 1 + exp;
+  return `${digits}@${scale}`;
+}
+
+function parseJsonConstraints(raw: string): unknown {
+  try {
+    return JSON.parse(raw, (key: string, value: unknown, context?: { source?: string }) => {
+      if (typeof value !== 'number' || context?.source === undefined) return value;
+      const d = parseDecimalToken(context.source);
+      if (d === null) return null;
+      if (key === 'max_amount' || key === 'max_variance') return d.hasFraction ? null : d.int;
+      if (key === 'backdate_days' || key === 'max_rows') {
+        return !d.hasFraction && d.int <= BigInt(Number.MAX_SAFE_INTEGER) ? Number(d.int) : null;
+      }
+      if (key === 'max_pct') {
+        const withinRange = d.int < 100n || (d.int === 100n && !d.hasFraction);
+        return withinRange && decimalKey(context.source) === decimalKey(String(value))
+          ? value
+          : null;
+      }
+      return value;
+    });
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * بيقرأ كائن القيود الخام من جدول role_permissions ويرجّع القيود الصالحة أو undefined لو فاضي.
+ * لو القيد تالف أو فيه مفتاح أو قيمة غير صالحة بيرجع `{ invalid: true }` عشان الدمج يرفض بأمان (fail-closed)
+ * وما يقلبش القيد المكسور لصلاحية مفتوحة بلا حدود. لو جاي نص JSON خام (`jsonb::text`) بيتقرأ بأصل رموز الأرقام
+ * قبل ما الـ JS Number يقرّب أي كسر لأقرب صحيح.
+ *
+ * @param raw القيمة الخام أو نص JSON اللي جاي من عمود constraints (jsonb::text)
+ * @returns القيود الصالحة، أو undefined لو {} فاضي، أو `{ invalid: true }` لو تالف
+ */
+export function parsePermissionConstraints(raw: unknown): PermissionConstraints | undefined {
+  const candidate = typeof raw === 'string' ? parseJsonConstraints(raw) : raw;
+  if (typeof candidate !== 'object' || candidate === null || Array.isArray(candidate))
+    return { invalid: true };
+  const proto = Object.getPrototypeOf(candidate) as unknown;
+  if (proto !== Object.prototype && proto !== null) return { invalid: true };
+  const entries = Object.entries(candidate);
+  if (entries.length === 0) return undefined;
+  const parsed: MutableConstraints = {};
+  for (const [key, value] of entries) {
+    if (!assignConstraint(parsed, key, value)) return { invalid: true };
+  }
+  return parsed;
+}
+
+function mergeOneGrant(merged: MutableConstraints, current: PermissionConstraints): boolean {
+  if (current.invalid === true) return false;
+  if (current.max_pct !== undefined) {
+    if (!isValidPct(current.max_pct)) return false;
+    merged.max_pct =
+      merged.max_pct === undefined ? current.max_pct : Math.min(merged.max_pct, current.max_pct);
+  }
+  for (const key of INTEGER_CONSTRAINTS) {
+    const value = current[key];
+    if (value === undefined) continue;
+    if (!isValidNonNegInt(value)) return false;
+    const existing = merged[key];
+    merged[key] = existing === undefined ? value : Math.min(existing, value);
+  }
+  for (const key of MONEY_CONSTRAINTS) {
+    const value = current[key];
+    if (value === undefined) continue;
+    if (typeof value !== 'bigint' || value < 0n || value > MONEY_MAX_MILLS) return false;
+    const existing = merged[key];
+    merged[key] = existing === undefined ? value : value < existing ? value : existing;
+  }
+  if (current.manual_edit !== undefined) {
+    if (typeof current.manual_edit !== 'boolean') return false;
+    merged.manual_edit =
+      merged.manual_edit === undefined
+        ? current.manual_edit
+        : merged.manual_edit && current.manual_edit;
+  }
+  return true;
+}
+
+/**
+ * بيجمع قيود المنح المغطّية لما الطلب مسموح عند الـ target (ADR-0003 §4، #10).
+ * لما كذا GRANT بتغطي نفس الصلاحية والهدف، أضيق قيد هو اللي بيكسب (أصغر رقم، و false لـ manual_edit)
+ * تماشياً مع قاعدة DENY يكسب. بيرجّع null لو الطلب مرفوض أو لو فيه قيد تالف (`invalid: true`).
+ *
+ * @param grants     كل صلاحيات الـ principal في الشركة
+ * @param permission الصلاحية المطلوبة
+ * @param target     الهدف المطلوب تقييمه
+ * @returns القيود المجمعة لو مسموح (أو {} لو من غير قيود)، أو null لو مرفوض أو تالف
+ */
+export function mergeGrantConstraints(
+  grants: readonly AccessGrant[],
+  permission: string,
+  target: AccessTarget,
+): PermissionConstraints | null {
+  if (!evaluateAccess(grants, permission, target)) return null;
+  const merged: MutableConstraints = {};
+  for (const grant of grants) {
+    if (grant.permission !== permission || grant.effect !== 'ALLOW' || !covers(grant, target))
+      continue;
+    if (grant.constraints !== undefined && !mergeOneGrant(merged, grant.constraints)) return null;
+  }
+  return merged;
 }

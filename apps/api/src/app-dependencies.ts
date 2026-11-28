@@ -72,6 +72,8 @@ export interface AppDependencies {
   readonly ids?: IdGenerator;
   /** Redis — pairing codes and rate limits. Without it those routes answer NOT_READY. */
   readonly redis?: Redis;
+  /** أصول تسجيل الدخول الموثوقة لـ Better Auth ومسارات استرجاع كلمة المرور. */
+  readonly authTrustedOrigins?: readonly string[];
   /** أصول المتصفح المسموح لها باستدعاء مسارات API المصادق عليها مع بيانات الاعتماد (admin وPOS). */
   readonly corsOrigins?: readonly string[];
   /** أصل صفحة التقييم العامة بالمطابقة التامة؛ مستقل عن ثقة تسجيل الدخول، والقيمة الفارغة تعطّل CORS للتقييم العام. */
