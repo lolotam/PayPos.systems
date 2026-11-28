@@ -23,6 +23,7 @@ interface OpeningDayValue {
 type SessionCandidateRow = {
   readonly id: string;
   readonly business_id: string;
+  readonly branch_id: string;
   readonly customer_id: string;
   readonly occurred_at: Date | string;
   readonly recorded_at: Date | string;
@@ -32,6 +33,7 @@ type SessionCandidateRow = {
 
 type CandidateRequestRow = {
   readonly business_id: string;
+  readonly branch_id: string;
   readonly customer_id: string;
   readonly business_date: string;
   readonly due_at: Date | string;
@@ -42,6 +44,7 @@ type CandidateRequestRow = {
 
 interface ParsedRequest {
   readonly businessDate: string;
+  readonly branchId: string;
   readonly dueAt: Date;
   readonly sendDeadline: Date | null;
   readonly claimedAt: Date | null;
@@ -158,17 +161,64 @@ function matchesBeforeClaim(recordedAt: Date, request: ParsedRequest): boolean {
 }
 
 function matchesOvernightFallback(
+  branchId: string,
   occurredAt: Date,
   recordedAt: Date,
   previousDate: string,
   prevReq: ParsedRequest,
 ): boolean {
+  if (prevReq.branchId !== branchId) return false;
   if (prevReq.sendDeadline === null || !matchesBeforeClaim(recordedAt, prevReq)) return false;
+  if (recordedAt.getTime() > prevReq.sendDeadline.getTime()) return false;
   const closeMs = prevReq.sendDeadline.getTime() - SEND_GRACE_MS;
   if (localParts(new Date(closeMs), prevReq.requestTimeZone).date <= previousDate) return false;
   const occurredMs = occurredAt.getTime();
   if (occurredMs >= closeMs) return false;
   return prevReq.dueAt.getTime() >= Math.min(occurredMs + RATING_DELAY_MS, closeMs);
+}
+
+function matchesDirectPreviousDay(
+  branchId: string,
+  occurredAt: Date,
+  recordedAt: Date,
+  previousDate: string,
+  prevReq: ParsedRequest,
+  hasCurrentRequest: boolean,
+): boolean {
+  const prevCutoff = (prevReq.sendDeadline ?? prevReq.dueAt).getTime();
+  const prevCloseMs =
+    prevReq.sendDeadline === null ? prevCutoff : prevReq.sendDeadline.getTime() - SEND_GRACE_MS;
+  const withinDeadline =
+    prevReq.sendDeadline === null || recordedAt.getTime() <= prevReq.sendDeadline.getTime();
+  if (
+    matchesBeforeClaim(recordedAt, prevReq) &&
+    occurredAt.getTime() <= prevCutoff &&
+    withinDeadline &&
+    prevReq.dueAt.getTime() >= Math.min(occurredAt.getTime() + RATING_DELAY_MS, prevCloseMs)
+  ) {
+    return true;
+  }
+  return (
+    !hasCurrentRequest &&
+    prevReq.branchId === branchId &&
+    prevReq.sendDeadline !== null &&
+    recordedAt.getTime() <= prevReq.sendDeadline.getTime() &&
+    localParts(new Date(prevCloseMs), prevReq.requestTimeZone).date > previousDate &&
+    occurredAt.getTime() < prevCloseMs
+  );
+}
+
+function matchesCurrentDayRequest(
+  occurredAt: Date,
+  recordedAt: Date,
+  currReq: ParsedRequest | undefined,
+): boolean {
+  if (currReq === undefined || !matchesBeforeClaim(recordedAt, currReq)) return false;
+  const cutoff = (currReq.sendDeadline ?? currReq.dueAt).getTime();
+  return (
+    occurredAt.getTime() <= cutoff &&
+    (currReq.sendDeadline === null || recordedAt.getTime() <= currReq.sendDeadline.getTime())
+  );
 }
 
 function resolveSessionDay(
@@ -186,18 +236,34 @@ function resolveSessionDay(
   const keyPrefix = `${row.business_id}|${row.customer_id}|`;
   const prevReq = byCustomerDay.get(`${keyPrefix}${previousDate}`);
   const currReq = byCustomerDay.get(`${keyPrefix}${localDate}`);
+  const currMatches = matchesCurrentDayRequest(occurredAt, recordedAt, currReq);
 
   if (prevReq !== undefined) {
-    if (branchDay === previousDate) {
+    if (matchesOvernightFallback(row.branch_id, occurredAt, recordedAt, previousDate, prevReq)) {
       return previousDate;
     }
-    if (matchesOvernightFallback(occurredAt, recordedAt, previousDate, prevReq)) {
+    if (
+      branchDay === previousDate &&
+      matchesDirectPreviousDay(
+        row.branch_id,
+        occurredAt,
+        recordedAt,
+        previousDate,
+        prevReq,
+        currReq !== undefined,
+      )
+    ) {
+      if (currMatches && currReq?.claimedAt !== null) return null;
       return previousDate;
     }
   }
-  if (branchDay === localDate && currReq !== undefined) {
-    const cutoff = (currReq.sendDeadline ?? currReq.dueAt).getTime();
-    if (occurredAt.getTime() <= cutoff) return localDate;
+  if (branchDay === localDate && currMatches) return localDate;
+  if (
+    branchDay === previousDate &&
+    currMatches &&
+    ((prevReq !== undefined && prevReq.claimedAt !== null) || currReq?.claimedAt != null)
+  ) {
+    return localDate;
   }
   return null;
 }
@@ -222,25 +288,20 @@ async function loadCandidateRequests(
     sql`, `,
   );
   const requests = await tx.execute<CandidateRequestRow>(sql`
-    SELECT r.business_id, r.customer_id, r.business_date::text AS business_date,
+    SELECT r.business_id, r.branch_id, r.customer_id, r.business_date::text AS business_date,
            r.due_at, r.send_deadline, r.claimed_at,
            COALESCE(rb.timezone, rbu.timezone) AS request_timezone
     FROM rating_requests AS r
-    JOIN branches AS rb
-      ON rb.company_id = r.company_id
-      AND rb.business_id = r.business_id
-      AND rb.id = r.branch_id
-    JOIN businesses AS rbu
-      ON rbu.company_id = rb.company_id
-      AND rbu.id = rb.business_id
-    WHERE r.company_id = ${companyId}::uuid
-      AND r.customer_id IN (${idList})
+    JOIN branches AS rb ON rb.company_id = r.company_id AND rb.business_id = r.business_id AND rb.id = r.branch_id
+    JOIN businesses AS rbu ON rbu.company_id = rb.company_id AND rbu.id = rb.business_id
+    WHERE r.company_id = ${companyId}::uuid AND r.customer_id IN (${idList})
       AND r.business_date BETWEEN ${minDate}::date AND ${maxDate}::date
   `);
   const map = new Map<string, ParsedRequest>();
   for (const req of requests) {
     map.set(`${req.business_id}|${req.customer_id}|${req.business_date}`, {
       businessDate: req.business_date,
+      branchId: req.branch_id,
       dueAt: toDate(req.due_at),
       sendDeadline: req.send_deadline === null ? null : toDate(req.send_deadline),
       claimedAt: req.claimed_at === null ? null : toDate(req.claimed_at),
@@ -250,6 +311,37 @@ async function loadCandidateRequests(
   return map;
 }
 
+async function bulkAssignSessionDays(
+  tx: Tx,
+  companyId: string,
+  updates: readonly { readonly id: string; readonly day: string }[],
+): Promise<number> {
+  if (updates.length === 0) return 0;
+  const values = sql.join(
+    updates.map((entry) => sql`(${entry.id}::uuid, ${entry.day}::date)`),
+    sql`, `,
+  );
+  const updated = await tx.execute<{ id: string }>(sql`
+    WITH target AS (
+      SELECT v.id, v.day FROM (VALUES ${values}) AS v(id, day) ORDER BY v.id ASC
+    ),
+    locked AS (
+      SELECT s.id, t.day, s.rating_request_day
+      FROM service_sessions AS s
+      JOIN target AS t ON t.id = s.id
+      WHERE s.company_id = ${companyId}::uuid AND s.rating_request_day IS NULL
+      ORDER BY s.id ASC
+      FOR NO KEY UPDATE OF s
+    )
+    UPDATE service_sessions AS s
+    SET rating_request_day = locked.day
+    FROM locked
+    WHERE s.company_id = ${companyId}::uuid AND s.id = locked.id AND s.rating_request_day IS NULL
+    RETURNING s.id
+  `);
+  return updated.length;
+}
+
 async function backfillCompanyBatch(
   tx: Tx,
   companyId: string,
@@ -257,47 +349,24 @@ async function backfillCompanyBatch(
 ): Promise<{ readonly read: number; readonly assigned: number; readonly lastId: string | null }> {
   const afterFilter = afterId === null ? sql`TRUE` : sql`s.id > ${afterId}::uuid`;
   const rows = await tx.execute<SessionCandidateRow>(sql`
-    SELECT s.id, s.business_id, s.customer_id, s.occurred_at, s.recorded_at,
+    SELECT s.id, s.business_id, s.branch_id, s.customer_id, s.occurred_at, s.recorded_at,
            b.opening_hours, COALESCE(b.timezone, bu.timezone) AS visit_timezone
     FROM service_sessions AS s
-    JOIN branches AS b
-      ON b.company_id = s.company_id
-      AND b.business_id = s.business_id
-      AND b.id = s.branch_id
-    JOIN businesses AS bu
-      ON bu.company_id = b.company_id
-      AND bu.id = b.business_id
-    WHERE s.company_id = ${companyId}::uuid
-      AND ${afterFilter}
-      AND s.rating_request_day IS NULL
+    JOIN branches AS b ON b.company_id = s.company_id AND b.business_id = s.business_id AND b.id = s.branch_id
+    JOIN businesses AS bu ON bu.company_id = b.company_id AND bu.id = b.business_id
+    WHERE s.company_id = ${companyId}::uuid AND ${afterFilter} AND s.rating_request_day IS NULL
       AND s.customer_id IS NOT NULL
-      AND EXISTS (
-        SELECT 1
-        FROM rating_requests AS r
-        WHERE r.company_id = s.company_id
-          AND r.business_id = s.business_id
-          AND r.customer_id = s.customer_id
-      )
+      AND EXISTS (SELECT 1 FROM rating_requests AS r WHERE r.company_id = s.company_id AND r.business_id = s.business_id AND r.customer_id = s.customer_id)
     ORDER BY s.id ASC
     LIMIT ${BATCH_SIZE}
   `);
   if (rows.length === 0) return { read: 0, assigned: 0, lastId: null };
-
   const requests = await loadCandidateRequests(tx, companyId, rows);
-  let assigned = 0;
-  for (const row of rows) {
+  const updates = rows.flatMap((row) => {
     const resolved = resolveSessionDay(row, requests);
-    if (resolved === null) continue;
-    const updated = await tx.execute<{ id: string }>(sql`
-      UPDATE service_sessions
-      SET rating_request_day = ${resolved}::date
-      WHERE company_id = ${companyId}::uuid
-        AND id = ${row.id}::uuid
-        AND rating_request_day IS NULL
-      RETURNING id
-    `);
-    assigned += updated.length;
-  }
+    return resolved === null ? [] : [{ id: row.id, day: resolved }];
+  });
+  const assigned = await bulkAssignSessionDays(tx, companyId, updates);
   return { read: rows.length, assigned, lastId: rows.at(-1)?.id ?? null };
 }
 

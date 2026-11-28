@@ -36,7 +36,6 @@ export async function onServiceSessionEvent(
     branchId: parsed.data.branch_id,
     sessionId: parsed.data.session_id,
     occurredAt: new Date(parsed.data.occurred_at),
-    recordedAt: new Date(parsed.data.recorded_at),
   });
 }
 

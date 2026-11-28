@@ -98,22 +98,32 @@ describe('isCoveredByPreviousDayOvernightRequest', () => {
   it('accepts a legacy overnight session scheduled by the previous day request and rejects post-hours new visits', () => {
     const legacyScheduled = {
       businessDate: '2026-10-05',
+      branchId: 'branch-a',
       dueAt: new Date('2026-10-05T22:15:00Z'),
       sendDeadline: new Date('2026-10-05T23:30:00Z'),
       claimedAt: null,
     };
     const earlierEveningSent = {
       businessDate: '2026-10-05',
+      branchId: 'branch-a',
       dueAt: new Date('2026-10-05T18:00:00Z'),
       sendDeadline: new Date('2026-10-05T23:30:00Z'),
       claimedAt: new Date('2026-10-05T18:00:00Z'),
     };
     const visit = {
+      branchId: 'branch-a',
       occurredAt: new Date('2026-10-05T21:15:00Z'),
       recordedAt: new Date('2026-10-05T21:15:00Z'),
     };
     expect(isCoveredByPreviousDayOvernightRequest(visit, legacyScheduled, KUWAIT)).toBe(true);
     expect(isCoveredByPreviousDayOvernightRequest(visit, earlierEveningSent, KUWAIT)).toBe(false);
+    expect(
+      isCoveredByPreviousDayOvernightRequest(
+        { ...visit, branchId: 'branch-dubai' },
+        { ...legacyScheduled, dueAt: new Date('2026-10-05T23:00:00Z') },
+        KUWAIT,
+      ),
+    ).toBe(false);
     expect(
       isCoveredByPreviousDayOvernightRequest(
         visit,

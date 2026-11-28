@@ -17,6 +17,7 @@ import {
   type LegacyOvernightCoverage,
 } from '../../domain/sessions-of-day.ts';
 import { addCivilDays } from '../../domain/zoned-time.ts';
+import { loadLegacyOvernightCoverage } from '../previous-day-coverage.ts';
 import type { BranchScheduleHoursPort } from '../../ports/branch-schedule-hours.port.ts';
 import type { Clock, IdGenerator } from '../../ports/clock.port.ts';
 import type { DaySessionsPort } from '../../ports/day-sessions.port.ts';
@@ -62,6 +63,13 @@ interface DayState {
   readonly lines: readonly ActiveLine[];
 }
 
+interface ResolvedUnassignedDay {
+  readonly day: string;
+  readonly computedDay: string;
+  readonly usedLegacyOvernight: boolean;
+  readonly recordedAt?: Date | undefined;
+}
+
 function sameSchedule(
   row: RatingRequestRow,
   next: { branchId: string; dueAt: Date; sendDeadline: Date | null },
@@ -87,33 +95,42 @@ export class ScheduleRatingRequest {
       return 'SWITCH_OFF';
     const place = await this.ports.hours.hours(tx, input.companyId, input.branchId);
     if (place === null) throw new Error('RATING_BRANCH_NOT_FOUND');
-    const storedDay =
-      input.requestDay ??
-      (input.sessionId !== undefined && this.ports.daySessions.readRequestDay !== undefined
+    const dbDay =
+      input.sessionId !== undefined && this.ports.daySessions.readRequestDay !== undefined
         ? await this.ports.daySessions.readRequestDay(
             tx,
             input.companyId,
             input.businessId,
             input.sessionId,
           )
-        : null);
-    const day = storedDay ?? (await this.resolveUnassignedDay(tx, input, place));
+        : null;
+    const storedDay = dbDay ?? input.requestDay ?? null;
+    const isDayPersisted =
+      dbDay !== null ||
+      (this.ports.daySessions.readRequestDay === undefined && input.requestDay != null);
+    const resolved =
+      storedDay !== null
+        ? { day: storedDay, computedDay: storedDay, usedLegacyOvernight: false }
+        : await this.resolveUnassignedDay(tx, input, place);
+    const day = resolved.day;
     const key: RatingRequestKey = {
       companyId: input.companyId,
       businessId: input.businessId,
       customerId: input.customerId,
       businessDate: day,
     };
-    const row = await this.lockOrInsert(tx, input, key, place, storedDay);
+    const storedForAssign = isDayPersisted ? storedDay : null;
+    const row = await this.lockOrInsert(tx, input, key, place, storedForAssign);
+    this.assertLockedLegacyCoverage(input, place, resolved, storedDay, row);
     if (row === null) return 'NOTHING_TO_SCHEDULE';
     if (
       row.status !== 'SCHEDULED' &&
       !(row.status === 'CANCELLED' && row.cancelReason === 'NO_ACTIVE_LINE')
     ) {
-      await this.persistSingleInputSessionDay(tx, input, storedDay, day);
+      await this.persistSingleInputSessionDay(tx, input, storedForAssign, day);
       return 'LEFT_AS_IS';
     }
-    const extraSessionIdToAssign = storedDay === null ? input.sessionId : undefined;
+    const extraSessionIdToAssign = storedForAssign === null ? input.sessionId : undefined;
     const state = await this.loadDayState(tx, input, day, place, true, extraSessionIdToAssign, row);
     const now = this.clock.now();
     const decision = decideRequest(state.sessions, state.placeByBranch, now, input.bootstrapCutoff);
@@ -132,34 +149,79 @@ export class ScheduleRatingRequest {
     return 'SCHEDULED';
   }
 
+  private assertLockedLegacyCoverage(
+    input: ScheduleRatingRequestInput,
+    place: BranchSchedule,
+    resolved: ResolvedUnassignedDay,
+    storedDay: string | null,
+    row: RatingRequestRow | null,
+  ): void {
+    if (storedDay !== null || !resolved.usedLegacyOvernight) return;
+    const visit =
+      resolved.recordedAt === undefined
+        ? { branchId: input.branchId, occurredAt: input.occurredAt }
+        : { branchId: input.branchId, occurredAt: input.occurredAt, recordedAt: resolved.recordedAt };
+    if (
+      row === null ||
+      !isCoveredByPreviousDayOvernightRequest(
+        visit,
+        {
+          businessDate: resolved.day,
+          branchId: row.branchId,
+          dueAt: row.dueAt,
+          sendDeadline: row.sendDeadline,
+          claimedAt: row.claimedAt ?? null,
+        },
+        place.timeZone,
+      )
+    ) {
+      throw new SessionRequestDayMismatchError(
+        input.sessionId ?? '',
+        resolved.day,
+        resolved.computedDay,
+      );
+    }
+  }
+
   private async resolveUnassignedDay(
     tx: Tx,
     input: ScheduleRatingRequestInput,
     place: BranchSchedule,
-  ): Promise<string> {
+  ): Promise<ResolvedUnassignedDay> {
     const computedDay = requestDayOf(input.occurredAt, place.timeZone, place.openingHours);
-    if (this.ports.requests.findPreviousDayRequest === undefined) return computedDay;
+    if (this.ports.requests.findPreviousDayRequest === undefined) {
+      return { day: computedDay, computedDay, usedLegacyOvernight: false };
+    }
     const previous = await this.ports.requests.findPreviousDayRequest(tx, {
       companyId: input.companyId,
       businessId: input.businessId,
       customerId: input.customerId,
       previousDate: addCivilDays(computedDay, -1),
     });
-    if (previous === null) return computedDay;
-    const requestPlace =
-      previous.branchId === input.branchId
-        ? place
-        : await this.ports.hours.hours(tx, input.companyId, previous.branchId);
-    if (requestPlace === null) throw new Error('RATING_BRANCH_NOT_FOUND');
-    return isCoveredByPreviousDayOvernightRequest(
-      input.recordedAt === undefined
-        ? { occurredAt: input.occurredAt }
-        : { occurredAt: input.occurredAt, recordedAt: input.recordedAt },
-      previous,
-      requestPlace.timeZone,
-    )
-      ? previous.businessDate
-      : computedDay;
+    if (previous === null || previous.branchId !== input.branchId) {
+      return { day: computedDay, computedDay, usedLegacyOvernight: false };
+    }
+    const dbRecordedAt =
+      input.sessionId !== undefined && this.ports.daySessions.readRecordedAt !== undefined
+        ? await this.ports.daySessions.readRecordedAt(
+            tx,
+            input.companyId,
+            input.businessId,
+            input.sessionId,
+          )
+        : null;
+    const recordedAt = dbRecordedAt ?? input.recordedAt;
+    const visit =
+      recordedAt === undefined
+        ? { branchId: input.branchId, occurredAt: input.occurredAt }
+        : { branchId: input.branchId, occurredAt: input.occurredAt, recordedAt };
+    const covered = isCoveredByPreviousDayOvernightRequest(visit, previous, place.timeZone);
+    return {
+      day: covered ? previous.businessDate : computedDay,
+      computedDay,
+      usedLegacyOvernight: covered,
+      ...(recordedAt === undefined ? {} : { recordedAt }),
+    };
   }
 
   private async lockOrInsert(
@@ -174,7 +236,9 @@ export class ScheduleRatingRequest {
     const initial = await this.loadDayState(tx, input, key.businessDate, place, false);
     const latest = initial.sessions.at(-1);
     if (latest === undefined) {
-      await this.persistSingleInputSessionDay(tx, input, storedDay, key.businessDate);
+      if (!initial.lines.some((line) => line.sessionId === input.sessionId)) {
+        await this.persistSingleInputSessionDay(tx, input, storedDay, key.businessDate);
+      }
       return null;
     }
     const latestPlace = initial.placeByBranch.get(latest.branchId);
@@ -228,70 +292,39 @@ export class ScheduleRatingRequest {
   ): Promise<DayState> {
     const window = dayWindow(day);
     const lines = await this.ports.daySessions.activeLines(
-      tx,
-      input.companyId,
-      input.businessId,
-      input.customerId,
-      window.from,
-      window.to,
+      tx, input.companyId, input.businessId, input.customerId, window.from, window.to,
     );
     if (input.sessionId !== undefined) {
-      const assignedInputLine = lines.find(
-        (line) => line.sessionId === input.sessionId && line.requestDay != null,
-      );
-      if (assignedInputLine?.requestDay != null && assignedInputLine.requestDay !== day) {
-        throw new SessionRequestDayMismatchError(
-          input.sessionId,
-          day,
-          assignedInputLine.requestDay,
-        );
+      const assigned = lines.find((l) => l.sessionId === input.sessionId && l.requestDay != null);
+      if (assigned?.requestDay != null && assigned.requestDay !== day) {
+        throw new SessionRequestDayMismatchError(input.sessionId, day, assigned.requestDay);
       }
     }
     const placeByBranch = await this.loadBranchSchedules(tx, input, place, lines);
-    const legacyOvernight = await this.legacyOvernightForRow(
-      tx,
-      input.companyId,
+    const legacyOvernight = await loadLegacyOvernightCoverage(tx, {
+      companyId: input.companyId,
+      businessId: input.businessId,
+      customerId: input.customerId,
       day,
+      hasUnassignedLines: lines.some((line) => line.requestDay == null),
+      ...(requestRow === undefined ? {} : { currentRequest: requestRow }),
       placeByBranch,
-      requestRow,
-    );
+      hours: this.ports.hours,
+      findPreviousDayRequest: this.ports.requests.findPreviousDayRequest,
+    });
     const resolvedLines = assignMissingDays
       ? await this.assignPendingSessionDays(
-          tx,
-          input,
-          day,
-          lines,
-          placeByBranch,
-          extraSessionIdToAssign,
-          legacyOvernight,
+          tx, input, day, lines, placeByBranch, extraSessionIdToAssign, legacyOvernight,
         )
       : lines;
+    const cutoff =
+      requestRow === undefined
+        ? undefined
+        : { branchId: requestRow.branchId, sendDeadline: requestRow.sendDeadline };
     return {
-      sessions: sessionsOfDay(resolvedLines, placeByBranch, day, requestRow?.sendDeadline),
+      sessions: sessionsOfDay(resolvedLines, placeByBranch, day, cutoff, legacyOvernight),
       placeByBranch,
       lines: resolvedLines,
-    };
-  }
-
-  private async legacyOvernightForRow(
-    tx: Tx,
-    companyId: string,
-    day: string,
-    placeByBranch: ReadonlyMap<string, BranchSchedule>,
-    requestRow?: RatingRequestRow,
-  ): Promise<LegacyOvernightCoverage | undefined> {
-    if (requestRow === undefined || requestRow.sendDeadline === null) return undefined;
-    const requestPlace =
-      placeByBranch.get(requestRow.branchId) ??
-      (await this.ports.hours.hours(tx, companyId, requestRow.branchId));
-    if (requestPlace === null) throw new Error('RATING_BRANCH_NOT_FOUND');
-    return {
-      request: {
-        businessDate: day,
-        dueAt: requestRow.dueAt,
-        sendDeadline: requestRow.sendDeadline,
-      },
-      requestBranchTimeZone: requestPlace.timeZone,
     };
   }
 

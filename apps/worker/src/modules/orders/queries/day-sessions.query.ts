@@ -99,3 +99,19 @@ export async function readSessionRequestDay(
        AND business_id = ${businessId} AND id = ${sessionId}`);
   return rows[0]?.rating_request_day ?? null;
 }
+
+/** يقرأ لحظة تسجيل الزيارة الأصلية من جدول الزيارات دون الاعتماد على وقت تعديل أو إلحاق البنود. */
+export async function readSessionRecordedAt(
+  tx: Tx,
+  companyId: string,
+  businessId: string,
+  sessionId: string,
+): Promise<Date | null> {
+  const rows = await tx.execute<{ recorded_at: Date | string }>(sql`
+    SELECT recorded_at
+      FROM service_sessions
+     WHERE company_id = ${companyId} AND company_id = app_company_id()
+       AND business_id = ${businessId} AND id = ${sessionId}`);
+  const value = rows[0]?.recorded_at;
+  return value === undefined ? null : instant(value);
+}

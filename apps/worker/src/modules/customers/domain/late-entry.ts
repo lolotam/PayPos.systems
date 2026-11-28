@@ -15,6 +15,7 @@ const RECORDING_GRACE_MS = 30 * 60 * 1000;
  * @param openingHours مواعيد الفرع أو null عند عدم ضبطها
  * @param occurredAt لحظة حدوث الزيارة لاكتشاف الزيارات الليلية المثبَّتة عبر منتصف الليل
  * @param historicalSendDeadline الموعد النهائي التاريخي للطلب القائم إن توفر لإبقاء السماح الليلي بعد مسح الساعات
+ * @param preserveAnchoredOvernight عند true يحفظ أهلية الزيارة الليلية المثبَّتة مسبقاً بعد مسح ساعات فرعها وإزالة الموعد النهائي للطلب
  * @returns true عندما يجب استبعاد الزيارة من الجدولة والإسناد
  */
 export function isLateEntry(
@@ -24,6 +25,7 @@ export function isLateEntry(
   openingHours: OpeningHoursValue | null,
   occurredAt?: Date | undefined,
   historicalSendDeadline?: Date | null | undefined,
+  preserveAnchoredOvernight?: boolean | undefined,
 ): boolean {
   const end = dayEnd(requestDay, timeZone, openingHours);
   let cutoffMs = end.getTime() + RECORDING_GRACE_MS;
@@ -36,6 +38,7 @@ export function isLateEntry(
       cutoffMs,
       occurredAt.getTime() + RECORDING_GRACE_MS,
       historicalSendDeadline?.getTime() ?? 0,
+      preserveAnchoredOvernight === true ? recordedAt.getTime() : 0,
     );
   }
   return recordedAt.getTime() > cutoffMs;

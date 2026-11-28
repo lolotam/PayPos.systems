@@ -18,6 +18,7 @@ import {
   type LegacyOvernightCoverage,
 } from '../../domain/sessions-of-day.ts';
 import { ratingRequestReadyPayload } from '../../events/published.ts';
+import { loadLegacyOvernightCoverage } from '../previous-day-coverage.ts';
 import type { BranchScheduleHoursPort } from '../../ports/branch-schedule-hours.port.ts';
 import type { BusinessNamesPort } from '../../ports/business-names.port.ts';
 import type { Clock, IdGenerator } from '../../ports/clock.port.ts';
@@ -337,23 +338,34 @@ export class ClaimRatingRequest<Transaction = unknown> {
       if (branch === null) throw new Error('RATING_BRANCH_NOT_FOUND');
       placeByBranch.set(branchId, branch);
     }
+    const legacyOvernight = await loadLegacyOvernightCoverage(tx, {
+      companyId,
+      businessId: request.businessId,
+      customerId: request.customerId,
+      day: request.businessDate,
+      hasUnassignedLines: lines.some((line) => line.requestDay == null),
+      currentRequest: request,
+      placeByBranch,
+      hours: this.ports.hours,
+      findPreviousDayRequest: this.ports.claims.findPreviousDayRequest,
+    });
     const resolvedLines = await this.assignMissingDayLines(
       tx,
       companyId,
       request,
       lines,
-      place,
       placeByBranch,
+      legacyOvernight,
     );
-    return {
-      sessions: sessionsOfDay(
-        resolvedLines,
-        placeByBranch,
-        request.businessDate,
-        request.sendDeadline,
-      ),
+    const cutoff = { branchId: request.branchId, sendDeadline: request.sendDeadline };
+    const sessions = sessionsOfDay(
+      resolvedLines,
       placeByBranch,
-    };
+      request.businessDate,
+      cutoff,
+      legacyOvernight,
+    );
+    return { sessions, placeByBranch };
   }
 
   private async assignMissingDayLines(
@@ -361,17 +373,9 @@ export class ClaimRatingRequest<Transaction = unknown> {
     companyId: string,
     request: DueRatingRequest,
     lines: Awaited<ReturnType<DaySessionsPort<Transaction>['activeLines']>>,
-    place: BranchSchedule,
     placeByBranch: ReadonlyMap<string, BranchSchedule>,
+    legacyOvernight?: LegacyOvernightCoverage,
   ) {
-    const legacyOvernight: LegacyOvernightCoverage = {
-      request: {
-        businessDate: request.businessDate,
-        dueAt: request.dueAt,
-        sendDeadline: request.sendDeadline,
-      },
-      requestBranchTimeZone: place.timeZone,
-    };
     const assign = this.ports.daySessions.assignRequestDay;
     const pendingSessionIds = unassignedSessionIdsOfDay(
       lines,

@@ -245,12 +245,12 @@ it('recovers and assigns an unassigned legacy overnight session at claim time wh
   expect(assignedIds).toEqual(['session-legacy-overnight:2026-10-05']);
 });
 
-it('keeps an anchored 00:45 overnight visit eligible for claim when opening hours are cleared before claim', async () => {
+it('keeps an anchored 00:45 overnight visit recorded at 01:50 eligible for claim after hours-clear reschedule', async () => {
   const base = basePorts();
   const overnightStored: DueRatingRequest = {
     ...stored,
     dueAt: new Date('2026-10-05T22:45:00Z'),
-    sendDeadline: new Date('2026-10-05T23:30:00Z'),
+    sendDeadline: null,
   };
   let seq = 0;
   const claim = new ClaimRatingRequest(
@@ -265,7 +265,7 @@ it('keeps an anchored 00:45 overnight visit eligible for claim when opening hour
             sessionId: 'session-overnight-0045',
             branchId,
             occurredAt: new Date('2026-10-05T21:45:00Z'),
-            recordedAt: new Date('2026-10-05T21:45:00Z'),
+            recordedAt: new Date('2026-10-05T22:50:00Z'),
             businessTimezone: 'Asia/Kuwait',
             requestDay: '2026-10-05',
             performers: [{ employeeId, shareBps: 10_000 }],
@@ -274,7 +274,7 @@ it('keeps an anchored 00:45 overnight visit eligible for claim when opening hour
       },
     }),
     { newId: () => `01920000-0000-7000-8000-${String(seq++).padStart(12, '0')}` },
-    { now: () => new Date('2026-10-05T22:45:00Z') },
+    { now: () => new Date('2026-10-05T22:55:00Z') },
   );
 
   expect(await claim.execute(tx, { companyId, request: overnightStored })).toBe('CLAIMED');

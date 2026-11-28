@@ -16,6 +16,7 @@ export interface RatingRequestRow {
   readonly branchId: string;
   readonly dueAt: Date;
   readonly sendDeadline: Date | null;
+  readonly claimedAt?: Date | null;
 }
 
 /** صف طلب اليوم السابق اللازم للتحقق في طبقة النطاق من تغطية زيارة ليلية قديمة بعد تعديل المواعيد. */

@@ -138,3 +138,27 @@ it('PP-286 T-3 rejects a post-claim late-recorded 01:50 visit on bootstrap when 
     ['2026-06-15', 'SCHEDULED'],
   ]);
 });
+
+it('PP-286 T-3: keeps RT-01b Dubai 00:10 daytime visit separate from Kuwait 23:30 overnight request', async () => {
+  const kuwaitBranch = await f.branch({ timezone: KUWAIT, openingHours: OVERNIGHT });
+  const dubaiBranch = await f.branch({ timezone: 'Asia/Dubai', openingHours: DAYTIME_2359 });
+  const customer = await f.customer();
+  const kuwaitVisit = await f.session({
+    customerId: customer,
+    branchId: kuwaitBranch,
+    occurredAt: new Date('2026-06-14T20:30:00.000Z'),
+  });
+  const dubaiVisit = await f.session({
+    customerId: customer,
+    branchId: dubaiBranch,
+    occurredAt: new Date('2026-06-14T20:10:00.000Z'),
+  });
+  f.clock.at = new Date('2026-06-14T20:35:00.000Z');
+  await f.deliver(await f.event(kuwaitVisit.sessionId, 'ServiceSessionRecorded'));
+  await f.deliver(await f.event(dubaiVisit.sessionId, 'ServiceSessionRecorded'));
+
+  expect((await f.requests(customer)).map((row) => [row['day'], row['branch_id']])).toEqual([
+    ['2026-06-14', kuwaitBranch],
+    ['2026-06-15', dubaiBranch],
+  ]);
+});

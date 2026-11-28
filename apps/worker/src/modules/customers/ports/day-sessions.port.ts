@@ -55,6 +55,21 @@ export interface DaySessionsPort<Transaction = unknown> {
     sessionId: string,
   ): Promise<string | null>;
   /**
+   * يقرأ لحظة تسجيل الزيارة الأصلية من سجل الزيارات لتفادي الاعتماد على وقت تعديل أو إضافة لاحقة للبنود.
+   *
+   * @param tx معاملة المستأجر
+   * @param companyId الشركة المالكة للزيارة
+   * @param businessId النشاط المطلوب
+   * @param sessionId معرّف الزيارة
+   * @returns لحظة تسجيل الزيارة الأصلية أو null عند عدم العثور على الزيارة
+   */
+  readRecordedAt?(
+    tx: Transaction,
+    companyId: string,
+    businessId: string,
+    sessionId: string,
+  ): Promise<Date | null>;
+  /**
    * يحفظ يوم طلب التقييم للزيارة أول مرة ويُعيد اليوم المخزَّن لها عند الاستدعاءات اللاحقة.
    *
    * @param tx معاملة المستأجر

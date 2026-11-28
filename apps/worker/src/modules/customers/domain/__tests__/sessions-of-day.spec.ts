@@ -208,6 +208,7 @@ it('PP-286 T-3: keeps an anchored 00:45 overnight visit in sessionsOfDay when ho
   const legacyCoverage = {
     request: {
       businessDate: '2026-10-05',
+      branchId: 'branch-1',
       dueAt: new Date('2026-10-05T22:30:00Z'),
       sendDeadline: new Date('2026-10-05T23:30:00Z'),
     },
@@ -231,6 +232,7 @@ it('PP-286 T-3: keeps an anchored 00:45 overnight visit in sessionsOfDay when ho
       {
         request: {
           businessDate: '2026-10-05',
+          branchId: 'branch-1',
           dueAt: new Date('2026-10-05T18:00:00Z'),
           sendDeadline: new Date('2026-10-05T23:30:00Z'),
         },
@@ -238,4 +240,69 @@ it('PP-286 T-3: keeps an anchored 00:45 overnight visit in sessionsOfDay when ho
       },
     ),
   ).toEqual([]);
+});
+
+it('excludes unstamped previous-day overnight visits on the next day and isolates branch-scoped recording cutoffs', () => {
+  const clearedSchedule: BranchSchedule = { timeZone: 'Asia/Kuwait', openingHours: null };
+  const legacyPrev = line('legacy-0030', 'line-legacy', '2026-10-05T21:30:00Z');
+  const nextMorning = line('new-0100', 'line-new', '2026-10-05T22:00:00Z');
+  const prevCoverage = {
+    previousDayRequest: {
+      businessDate: '2026-10-05',
+      branchId: 'branch-1',
+      dueAt: new Date('2026-10-05T22:30:00Z'),
+      sendDeadline: new Date('2026-10-05T23:30:00Z'),
+    },
+    previousRequestBranchTimeZone: 'Asia/Kuwait',
+  };
+  expect(
+    unassignedSessionIdsOfDay(
+      [legacyPrev, nextMorning],
+      places(clearedSchedule),
+      '2026-10-06',
+      undefined,
+      prevCoverage,
+    ),
+  ).toEqual(['new-0100']);
+  expect(
+    sessionsOfDay([legacyPrev, nextMorning], places(clearedSchedule), '2026-10-06', null, prevCoverage).map(
+      (s) => s.sessionId,
+    ),
+  ).toEqual(['new-0100']);
+
+  const anchored0045Branch1: ActiveLine = {
+    ...line('anchored-0045', 'line-1', '2026-10-05T21:45:00Z', 'branch-1', '2026-10-05T22:50:00Z'),
+    requestDay: '2026-10-05',
+  };
+  const lateOtherBranch2: ActiveLine = {
+    ...line('late-branch2', 'line-2', '2026-10-05T21:45:00Z', 'branch-2', '2026-10-05T22:45:00Z'),
+    requestDay: '2026-10-05',
+  };
+  expect(
+    sessionsOfDay([anchored0045Branch1], places(clearedSchedule), '2026-10-05', {
+      branchId: 'branch-1',
+      sendDeadline: null,
+    }).map((s) => s.sessionId),
+  ).toEqual(['anchored-0045']);
+  expect(
+    sessionsOfDay([lateOtherBranch2], places(clearedSchedule), '2026-10-05', {
+      branchId: 'branch-1',
+      sendDeadline: new Date('2026-10-05T23:30:00Z'),
+    }),
+  ).toEqual([]);
+});
+
+it('preserves anchored overnight visits when opening hours are cleared to [] or weekday is omitted', () => {
+  const anchored0045: ActiveLine = {
+    ...line('anchored-0045', 'line-1', '2026-10-05T21:45:00Z', 'branch-1', '2026-10-05T22:50:00Z'),
+    requestDay: '2026-10-05',
+  };
+  const emptyHours: BranchSchedule = { timeZone: 'Asia/Kuwait', openingHours: [] };
+  const tuesdayOnly: BranchSchedule = {
+    timeZone: 'Asia/Kuwait',
+    openingHours: [{ weekday: 2, intervals: [{ opens: '09:00', closes: '22:00' }] }],
+  };
+  const cutoff = { branchId: 'branch-1', sendDeadline: null };
+  expect(sessionsOfDay([anchored0045], places(emptyHours), '2026-10-05', cutoff).map((s) => s.sessionId)).toEqual(['anchored-0045']);
+  expect(sessionsOfDay([anchored0045], places(tuesdayOnly), '2026-10-05', cutoff).map((s) => s.sessionId)).toEqual(['anchored-0045']);
 });

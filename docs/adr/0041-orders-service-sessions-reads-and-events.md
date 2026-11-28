@@ -496,16 +496,16 @@ opening-hour edits do not move an already-visited day or duplicate a sent rating
 `GRANT UPDATE (rating_request_day) ON service_sessions TO pospay_app`, and `SECURITY INVOKER` trigger
 `enforce_service_session_rating_request_day_set_once()` (`SET search_path = pg_catalog, pg_temp`) refusing clears
 to `NULL` or edits once set. Keep `orders/queries/day-sessions.query.ts` read-only by placing
-`readSessionRequestDay` there and placing `assignSessionRequestDay` in
+`readSessionRequestDay` and `readSessionRecordedAt` there and placing `assignSessionRequestDay` in
 `orders/persistence/session-request-day.writer.ts` (atomic `COALESCE(rating_request_day, ...)` failing on 0-row
-or tenant mismatch with `SERVICE_SESSION_NOT_FOUND`). `orders/index.ts` exposes both through `daySessionsReader`,
+or tenant mismatch with `SERVICE_SESSION_NOT_FOUND`). `orders/index.ts` exposes them through `daySessionsReader`,
 which is callback-injected into `customers` via `DaySessionsPort` at the worker composition roots
 (`bootstrap-rating-requests.ts`, `recover-rating-claims.ts`, `business-consumers.ts` via `main.ts`) without adding
 any `customers → orders` compile-time import edge.
 
 **Concurrency invariant.** Scheduling reads `readRequestDay` (without locking `service_sessions`) before
 acquiring the `rating_requests` row lock, writes `service_sessions.rating_request_day` only after holding that
-`rating_requests` lock (or when no `rating_requests` row is inserted), and `resolveDayState` only fills missing
-`rating_request_day` values for active sessions whose computed day equals the locked request's `day`, sorted in
+`rating_requests` lock (or when no `rating_requests` row is inserted), and `unassignedSessionIdsOfDay` / `assignPendingSessionDays` / `assignMissingDayLines` (applied cleanly with `withAssignedRequestDays`) only fill missing
+`rating_request_day` values for eligible sessions whose resolved day equals the locked request's `day`, sorted in
 canonical `sessionId` order. Both scheduling and claiming therefore lock `rating_requests` before writing
-`service_sessions` and never touch adjacent-day sessions across the 74-hour lookup window.
+`service_sessions` and never steal adjacent-day sessions across the 74-hour lookup window.

@@ -1,6 +1,7 @@
 import { sql, type SQL } from 'drizzle-orm';
 import type { Tx } from '@pospay/db';
 import type { DueRatingRequest, RatingClaimRepository } from '../ports/rating-claim.repository.ts';
+import { ratingRequestRepository } from './rating-request.repository.ts';
 
 type StoredRequest = {
   readonly id: string;
@@ -156,4 +157,7 @@ export const ratingClaimRepository: RatingClaimRepository<Tx> = {
         ON CONFLICT (company_id, business_id, request_id, employee_id) DO NOTHING`);
     }
   },
+  ...(ratingRequestRepository.findPreviousDayRequest === undefined
+    ? {}
+    : { findPreviousDayRequest: ratingRequestRepository.findPreviousDayRequest }),
 };

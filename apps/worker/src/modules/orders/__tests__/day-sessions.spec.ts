@@ -4,6 +4,7 @@ import { TENANT } from '../../../../../../packages/db/test/tenancy-fixtures.ts';
 import { assignSessionRequestDay } from '../persistence/session-request-day.writer.ts';
 import {
   listActiveLinesOfCustomer,
+  readSessionRecordedAt,
   readSessionRequestDay,
 } from '../queries/day-sessions.query.ts';
 import { daySessionsFixture, type DaySessionsFixture } from './day-sessions.fixture.ts';
@@ -190,6 +191,27 @@ it('PP-286 T-3: assignSessionRequestDay rejects missing, wrong-business, or fore
   expect(
     await f.db.withTenant(f.tenant.company, (tx) =>
       readSessionRequestDay(tx, f.tenant.company, f.tenant.business, session.sessionId),
+    ),
+  ).toBeNull();
+});
+
+it('PP-286 T-3: readSessionRecordedAt returns the stored session recorded_at and enforces tenant/business scope', async () => {
+  const occurredAt = new Date('2026-05-10T21:30:00.000Z');
+  const recordedAt = new Date('2026-05-10T22:00:00.000Z');
+  const session = await f.session({ occurredAt, recordedAt });
+  const otherBusiness = await f.addBusiness();
+  const actual = await f.db.withTenant(f.tenant.company, (tx) =>
+    readSessionRecordedAt(tx, f.tenant.company, f.tenant.business, session.sessionId),
+  );
+  expect(actual?.toISOString()).toBe(recordedAt.toISOString());
+  expect(
+    await f.db.withTenant(f.tenant.company, (tx) =>
+      readSessionRecordedAt(tx, f.tenant.company, otherBusiness.businessId, session.sessionId),
+    ),
+  ).toBeNull();
+  expect(
+    await f.db.withTenant(TENANT.B.company, (tx) =>
+      readSessionRecordedAt(tx, TENANT.A.company, TENANT.A.business, session.sessionId),
     ),
   ).toBeNull();
 });

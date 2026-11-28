@@ -1,6 +1,7 @@
 import { isLateEntry } from './late-entry.ts';
 import type { OpeningHoursValue } from './opening-hours.ts';
 import {
+  dayClose,
   isCoveredByPreviousDayOvernightRequest,
   requestDayOf,
   type PreviousDayOvernightRequest,
@@ -28,10 +29,18 @@ export interface BranchSchedule {
   readonly timeZone: string;
 }
 
-/** سياق طلب لليوم السابق يسمح بإسناد الزيارات الليلية القديمة غير الموسومة بعد إزالة الساعات الليلية. */
+/** سياق طلبات قائمة يسمح بإسناد الزيارات الليلية القديمة غير الموسومة لليوم الصحيح ومنع امتصاصها لليوم التالي. */
 export interface LegacyOvernightCoverage {
-  readonly request: PreviousDayOvernightRequest;
-  readonly requestBranchTimeZone: string;
+  readonly request?: PreviousDayOvernightRequest | undefined;
+  readonly requestBranchTimeZone?: string | undefined;
+  readonly previousDayRequest?: PreviousDayOvernightRequest | undefined;
+  readonly previousRequestBranchTimeZone?: string | undefined;
+}
+
+/** سياق الموعد النهائي التاريخي المقيد بفرع الطلب لمنع تسرب السماح لفروع أخرى وبقائه بعد مسح الساعات. */
+export interface HistoricalBranchCutoff {
+  readonly branchId: string;
+  readonly sendDeadline: Date | null;
 }
 
 /** زيارة واحدة مجمعة من بنودها النشطة بعد تطبيق قواعد يوم التقييم. */
@@ -59,20 +68,84 @@ export function dayWindow(day: string): { from: Date; to: Date } {
   };
 }
 
+function resolveUnassignedLineDay(
+  line: ActiveLine,
+  place: BranchSchedule,
+  day: string,
+  legacyOvernight?: LegacyOvernightCoverage,
+): string {
+  const computed = requestDayOf(line.occurredAt, place.timeZone, place.openingHours);
+  const nextCivilDay = addCivilDays(day, 1);
+  const prevCivilDay = addCivilDays(day, -1);
+  const visit = {
+    branchId: line.branchId,
+    occurredAt: line.occurredAt,
+    recordedAt: line.recordedAt,
+  };
+  if (
+    computed === nextCivilDay &&
+    legacyOvernight?.request !== undefined &&
+    legacyOvernight.request.businessDate === day &&
+    isCoveredByPreviousDayOvernightRequest(
+      visit,
+      legacyOvernight.request,
+      legacyOvernight.requestBranchTimeZone ?? place.timeZone,
+    )
+  ) {
+    return day;
+  }
+  if (
+    computed === day &&
+    legacyOvernight?.previousDayRequest !== undefined &&
+    legacyOvernight.previousDayRequest.businessDate === prevCivilDay &&
+    isCoveredByPreviousDayOvernightRequest(
+      visit,
+      legacyOvernight.previousDayRequest,
+      legacyOvernight.previousRequestBranchTimeZone ?? place.timeZone,
+    )
+  ) {
+    return prevCivilDay;
+  }
+  return computed;
+}
+
+function cutoffPolicyForSession(
+  first: ActiveLine,
+  place: BranchSchedule,
+  day: string,
+  historicalCutoff: Date | HistoricalBranchCutoff | null | undefined,
+): { readonly branchDeadline: Date | null; readonly preserveAnchored: boolean } {
+  if (historicalCutoff instanceof Date) {
+    return { branchDeadline: historicalCutoff, preserveAnchored: false };
+  }
+  if (historicalCutoff == null || historicalCutoff.branchId !== first.branchId) {
+    return { branchDeadline: null, preserveAnchored: false };
+  }
+  return {
+    branchDeadline: historicalCutoff.sendDeadline,
+    preserveAnchored:
+      first.requestDay === day &&
+      historicalCutoff.sendDeadline === null &&
+      dayClose(day, place.timeZone, place.openingHours) === null,
+  };
+}
+
 /**
  * يجمع البنود في زيارات ويحتفظ بيوم الطلب المطلوب والتسجيل غير المتأخر فقط، مرتباً زمنياً.
  *
  * @param lines البنود النشطة داخل نافذة البحث الواسعة
  * @param placeByBranch مواعيد ومنطقة كل فرع ظاهر في البنود
  * @param day يوم الطلب بصيغة YYYY-MM-DD
- * @param historicalSendDeadline الموعد النهائي التاريخي للطلب القائم لحفظ السماح الليلي بعد مسح الساعات
+ * @param historicalCutoff الموعد النهائي التاريخي المقيد بفرع الطلب لحفظ السماح الليلي بعد مسح الساعات
+ * @param legacyOvernight سياق الطلبات القائمة لحسم انتماء الزيارات غير الموسومة عند تغير الساعات
  * @returns الزيارات تصاعدياً بوقت الحدوث ثم sessionId؛ آخر عنصر هو الأحدث
  */
 export function sessionsOfDay(
   lines: readonly ActiveLine[],
   placeByBranch: ReadonlyMap<string, BranchSchedule>,
   day: string,
-  historicalSendDeadline?: Date | null | undefined,
+  historicalCutoff?: Date | HistoricalBranchCutoff | null | undefined,
+  legacyOvernight?: LegacyOvernightCoverage,
 ): DaySession[] {
   const grouped = new Map<string, ActiveLine[]>();
   for (const line of lines) {
@@ -87,8 +160,9 @@ export function sessionsOfDay(
     const place = placeByBranch.get(first.branchId);
     if (place === undefined) throw new RangeError('BRANCH_SCHEDULE_MISSING');
     const sessionDay =
-      first.requestDay ?? requestDayOf(first.occurredAt, place.timeZone, place.openingHours);
+      first.requestDay ?? resolveUnassignedLineDay(first, place, day, legacyOvernight);
     if (sessionDay !== day) continue;
+    const policy = cutoffPolicyForSession(first, place, day, historicalCutoff);
     if (
       isLateEntry(
         first.recordedAt,
@@ -96,7 +170,8 @@ export function sessionsOfDay(
         place.timeZone,
         place.openingHours,
         first.occurredAt,
-        historicalSendDeadline,
+        policy.branchDeadline,
+        policy.preserveAnchored,
       )
     )
       continue;
@@ -134,9 +209,10 @@ export function unassignedSessionIdsOfDay(
   legacyOvernight?: LegacyOvernightCoverage,
 ): string[] {
   const pendingSessionIds = new Set<string>();
+  const seenSessionIds = new Set<string>();
   const alreadyAssignedIds = new Set<string>();
-  const nextCivilDay = addCivilDays(day, 1);
   for (const line of lines) {
+    seenSessionIds.add(line.sessionId);
     if (line.requestDay != null) {
       alreadyAssignedIds.add(line.sessionId);
       continue;
@@ -144,21 +220,30 @@ export function unassignedSessionIdsOfDay(
     if (pendingSessionIds.has(line.sessionId)) continue;
     const place = placeByBranch.get(line.branchId);
     if (place === undefined) throw new RangeError('BRANCH_SCHEDULE_MISSING');
-    const computed = requestDayOf(line.occurredAt, place.timeZone, place.openingHours);
-    const matchesLegacyOvernight =
-      legacyOvernight !== undefined &&
-      legacyOvernight.request.businessDate === day &&
-      computed === nextCivilDay &&
-      isCoveredByPreviousDayOvernightRequest(
-        { occurredAt: line.occurredAt, recordedAt: line.recordedAt },
-        legacyOvernight.request,
-        legacyOvernight.requestBranchTimeZone,
-      );
-    if (computed === day || matchesLegacyOvernight) {
+    const resolvedDay = resolveUnassignedLineDay(line, place, day, legacyOvernight);
+    if (resolvedDay !== day) continue;
+    const branchDeadline =
+      legacyOvernight?.request?.branchId === line.branchId
+        ? legacyOvernight.request.sendDeadline
+        : null;
+    if (
+      !isLateEntry(
+        line.recordedAt,
+        day,
+        place.timeZone,
+        place.openingHours,
+        line.occurredAt,
+        branchDeadline,
+      )
+    ) {
       pendingSessionIds.add(line.sessionId);
     }
   }
-  if (extraSessionId !== undefined && !alreadyAssignedIds.has(extraSessionId)) {
+  if (
+    extraSessionId !== undefined &&
+    !alreadyAssignedIds.has(extraSessionId) &&
+    !seenSessionIds.has(extraSessionId)
+  ) {
     pendingSessionIds.add(extraSessionId);
   }
   return [...pendingSessionIds].sort();

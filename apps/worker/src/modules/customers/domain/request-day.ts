@@ -90,26 +90,33 @@ export class SessionRequestDayMismatchError extends Error {
 /** بيانات طلب اليوم المدني السابق اللازمة للتحقق من شمول زيارة ليلية قديمة قبل تعديل المواعيد. */
 export interface PreviousDayOvernightRequest {
   readonly businessDate: string;
+  readonly branchId: string;
   readonly dueAt: Date;
   readonly sendDeadline: Date | null;
   readonly claimedAt?: Date | null;
 }
 
 /**
- * يتحقق مما إذا كانت زيارة غير موسومة بيوم طلب قد شملها طلب اليوم المدني السابق فعلياً قبل إزالة الساعات الليلية.
+ * يتحقق مما إذا كانت زيارة غير موسومة بيوم طلب قد شملها طلب اليوم المدني السابق لفرعها نفسه فعلياً قبل إزالة الساعات الليلية.
  *
- * @param visit لحظة حدوث الزيارة ولحظة تسجيلها إن توفرت
+ * @param visit هوية فرع الزيارة ولحظتا حدوثها وتسجيلها
+ * @param visit.branchId معرف فرع الزيارة
  * @param visit.occurredAt لحظة حدوث الزيارة
  * @param visit.recordedAt لحظة تسجيل الزيارة إن توفرت
  * @param request بيانات طلب التقييم لليوم المدني السابق
  * @param requestBranchTimeZone المنطقة الفعّالة لفرع ذلك الطلب
- * @returns true فقط عندما يثبت الموعد والإغلاق الليلي شمول الزيارة في ذلك الطلب دون امتصاص زيارات جديدة
+ * @returns true فقط عندما يثبت نفس الفرع والموعد والإغلاق الليلي شمول الزيارة في ذلك الطلب دون امتصاص زيارات جديدة أو فروع أخرى
  */
 export function isCoveredByPreviousDayOvernightRequest(
-  visit: { readonly occurredAt: Date; readonly recordedAt?: Date | undefined },
+  visit: {
+    readonly branchId: string;
+    readonly occurredAt: Date;
+    readonly recordedAt?: Date | undefined;
+  },
   request: PreviousDayOvernightRequest,
   requestBranchTimeZone: string,
 ): boolean {
+  if (visit.branchId !== request.branchId) return false;
   if (request.sendDeadline === null) return false;
   const closeMs = request.sendDeadline.getTime() - LEGACY_OVERNIGHT_GRACE_MS;
   if (localParts(new Date(closeMs), requestBranchTimeZone).date <= request.businessDate)
@@ -118,12 +125,15 @@ export function isCoveredByPreviousDayOvernightRequest(
   if (occurredMs >= closeMs) return false;
   const minExpectedDueMs = Math.min(occurredMs + LEGACY_OVERNIGHT_DELAY_MS, closeMs);
   if (request.dueAt.getTime() < minExpectedDueMs) return false;
-  if (
-    visit.recordedAt !== undefined &&
-    request.claimedAt !== undefined &&
-    request.claimedAt !== null &&
-    visit.recordedAt.getTime() > request.claimedAt.getTime()
-  )
-    return false;
+  if (visit.recordedAt !== undefined) {
+    const recordedMs = visit.recordedAt.getTime();
+    if (recordedMs > request.sendDeadline.getTime()) return false;
+    if (
+      request.claimedAt !== undefined &&
+      request.claimedAt !== null &&
+      recordedMs > request.claimedAt.getTime()
+    )
+      return false;
+  }
   return true;
 }
