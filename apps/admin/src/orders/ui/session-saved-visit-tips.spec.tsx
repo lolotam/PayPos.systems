@@ -20,8 +20,8 @@ import {
 import { SessionSavedResult } from './session-saved-result';
 import { SessionSavedVisit } from './session-saved-visit';
 
-const api = vi.hoisted(() => ({ get: vi.fn(), put: vi.fn() }));
-vi.mock('@/shared/api/client', () => ({ apiClient: () => ({ GET: api.get, PUT: api.put }) }));
+const api = vi.hoisted(() => ({ get: vi.fn(), put: vi.fn(), patch: vi.fn() }));
+vi.mock('@/shared/api/client', () => ({ apiClient: () => ({ GET: api.get, PUT: api.put, PATCH: api.patch }) }));
 vi.mock('@/shared/locale/locale-context', () => ({ useLocale: () => 'en' }));
 
 const session = { ...response.session, lines: [savedLine] };
@@ -56,6 +56,7 @@ beforeEach(() => {
   });
   api.get.mockReset();
   api.put.mockReset();
+  api.patch.mockReset();
 });
 
 it('disables Record tip while an edit is busy and keeps that editor after a tips refusal', async () => {
@@ -271,4 +272,40 @@ it('isolates 401 tip denials across operator switches including late 401 save re
   expect(screen.queryByRole('alert')).toBeNull();
   expect(screen.getByText('Synthetic service')).toBeTruthy();
   expect(screen.getByRole('button', { name: t('en', 'sessionTips.open') })).toBeTruthy();
+});
+
+function startLineEdit(reason: string) {
+  fireEvent.click(screen.getByRole('button', { name: t('en', 'serviceLineEdit.edit') }));
+  fireEvent.change(screen.getByLabelText(t('en', 'serviceLineEdit.reason')), { target: { value: reason } });
+  fireEvent.click(screen.getByRole('button', { name: t('en', 'serviceLineEdit.save') }));
+}
+
+it('hides stale snapshot figures after an operator switch following a line edit and stops stale PATCH retry on unmount (#406)', async () => {
+  api.get.mockResolvedValue({ error: { code: 'SESSION_NOT_FOUND', message_ar: 'x', message_en: 'x' }, response: { status: 404 } });
+  let resolveStale: (value: unknown) => void = () => undefined;
+  api.patch.mockImplementationOnce(() => new Promise((resolve) => { resolveStale = resolve; }))
+    .mockResolvedValueOnce({ data: { saved: true, edited: true }, response: { status: 200 } });
+  const stubJournal = { leaveVisit: () => undefined };
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  const frame = (activeScope: typeof scope) => (
+    <QueryClientProvider client={client}><SessionSavedResult result={result as SessionRecordingResult} journal={stubJournal} onNewVisit={() => undefined} scope={activeScope} online /></QueryClientProvider>
+  );
+  const view = render(frame(scope));
+  startLineEdit('Operator A stale retry');
+  await waitFor(() => expect(api.patch).toHaveBeenCalledTimes(1));
+
+  view.rerender(frame({ ...scope, userId: id(98) }));
+  await act(async () => {
+    resolveStale({ error: { code: 'SESSION_LINE_REVISION_STALE', message_ar: 'Stale AR', message_en: 'Stale EN', details: { current_revision: 2 } }, response: { status: 409 } });
+  });
+  expect(api.patch).toHaveBeenCalledTimes(1);
+
+  startLineEdit('Operator B narrow save');
+  expect(await screen.findByText(t('en', 'serviceLineEdit.figuresHidden'))).toBeTruthy();
+  expect(screen.queryByText('7.125')).toBeNull();
+
+  view.rerender(frame({ ...scope, userId: id(99) }));
+  expect(screen.getByText(t('en', 'serviceLineEdit.figuresHidden'))).toBeTruthy();
+  expect(screen.queryByText('7.125')).toBeNull();
+  expect(screen.queryByText('6.412')).toBeNull();
 });
