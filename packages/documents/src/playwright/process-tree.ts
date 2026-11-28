@@ -273,15 +273,18 @@ function readPidFingerprint(pid: number, procRoot = '/proc'): string | null | un
   } catch { return isPidAlive(pid, procRoot) ? null : undefined; }
 }
 
+const isUnresolvedFp = (v: string): boolean => v === '' || v.startsWith('?');
+
 function revalidateRetained(proc: KillableProcess, procRoot: string): { pids: number[]; unverifiedError: Error | undefined } {
   const prior = retainedDescendants.get(proc);
   if (prior === undefined) return { pids: [], unverifiedError: undefined };
   const pids: number[] = [];
   let unverifiedError: Error | undefined;
   for (const [pid, expectedFp] of prior) {
-    const status = checkPidStatus(pid, expectedFp, procRoot);
+    const observedFp = expectedFp.startsWith('?') ? expectedFp.slice(1) : expectedFp;
+    const status = checkPidStatus(pid, observedFp, procRoot);
     if (status === 'exited') prior.delete(pid);
-    else if (status === 'same') pids.push(pid);
+    else if (!isUnresolvedFp(expectedFp) && status === 'same') pids.push(pid);
     else unverifiedError ??= markUnconfirmedDescendants(new Error('DESCENDANT_IDENTITY_UNVERIFIED'));
   }
   if (prior.size === 0) retainedDescendants.delete(proc);
@@ -374,8 +377,13 @@ function terminateOwnedDescendants(proc: KillableProcess, procRoot = '/proc'): {
   const verified: Array<readonly [number, string]> = [];
   for (const [pid, fp] of candidates) {
     const own = (fp !== null && retainedSet.has(pid) && retained.get(pid) === fp) || (marker !== undefined && hasMatchingMarkerInProc(pid, marker, procRoot));
-    if (!own && !hasVerifiedAncestry(pid, parentOf, seedFps, liveParents, proc, procRoot)) { signalError ??= markUnconfirmedDescendants(new Error('DESCENDANT_IDENTITY_UNVERIFIED')); continue; }
-    if (fp === null) { if (!retained.has(pid)) retained.set(pid, ''); signalError ??= markUnconfirmedDescendants(new Error('DESCENDANT_IDENTITY_UNVERIFIED')); continue; }
+    if (!own && !hasVerifiedAncestry(pid, parentOf, seedFps, liveParents, proc, procRoot)) {
+      const cur = retained.get(pid);
+      if (cur === undefined || isUnresolvedFp(cur)) retained.set(pid, fp === null ? '?' : `?${fp}`);
+      signalError ??= markUnconfirmedDescendants(new Error('DESCENDANT_IDENTITY_UNVERIFIED'));
+      continue;
+    }
+    if (fp === null) { if (!retained.has(pid)) retained.set(pid, '?'); signalError ??= markUnconfirmedDescendants(new Error('DESCENDANT_IDENTITY_UNVERIFIED')); continue; }
     retained.set(pid, fp);
     verified.push([pid, fp]);
   }
@@ -423,8 +431,9 @@ export function killProcessTree(proc: KillableProcess): Promise<void> | void {
     try { return killProcessTree(child)?.catch((e: unknown) => { throw toErr(e); }); } catch (e) { return Promise.reject(toErr(e)); }
   });
   const { waitPids, signalError } = terminateOwnedDescendants(proc);
-  const holdRootForAncestry = [...(retainedDescendants.get(proc)?.values() ?? [])].includes('');
-  const rootWait = holdRootForAncestry ? undefined : (killLaunchProcessGroup(proc), safeKillSingle(proc));
+  const holdRootForAncestry = [...(retainedDescendants.get(proc)?.values() ?? [])].some((v) => v === '' || v === '?');
+  const hasRoot = typeof proc.pid === 'number' || !hasExited(proc);
+  const rootWait = holdRootForAncestry || !hasRoot ? undefined : (killLaunchProcessGroup(proc), safeKillSingle(proc));
   const waits: Array<Promise<void>> = childTree.filter((item): item is Promise<void> => item !== undefined);
   const waitTargets = waitPids.map((pid) => [pid, retainedDescendants.get(proc)?.get(pid) ?? ''] as const);
   if (waitTargets.length > 0) {

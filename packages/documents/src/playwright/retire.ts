@@ -298,10 +298,15 @@ export function createBrowserShutdown(browser: PdfBrowser, requireKill = false):
   return {
     confirmed,
     kill: () => runKillAttempt(state, true),
-    runClose: (graceMs, sleep, requireKill = false) => {
+    runClose: (graceMs, sleep, skipGrace = false) => {
       const usesSleep = sleep !== undefined;
+      if (skipGrace && typeof state.browser.kill === 'function') {
+        state.descendantUnconfirmed = true;
+        for (const cancel of state.cancels) cancel();
+        state.cancels.clear();
+      }
       if (state.closeInFlight !== null && state.inFlightUsesSleep === usesSleep) return state.closeInFlight;
-      const run = executeCloseAttempt(state, graceMs, sleep, requireKill).then((outcome) => {
+      const run = executeCloseAttempt(state, graceMs, sleep, skipGrace).then((outcome) => {
         if (state.closeInFlight === run && !outcome.confirmed) {
           state.closeInFlight = null;
           state.fallbackAttempted = false;

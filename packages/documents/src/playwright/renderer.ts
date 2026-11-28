@@ -197,7 +197,7 @@ export class PlaywrightDocumentRenderer implements DocumentRenderer {
   }
 
   #retireAbandonedBrowser(browser: PdfBrowser): Promise<void> {
-    const shutdown = createBrowserShutdown(browser);
+    const shutdown = createBrowserShutdown(browser, true);
     if (this.#closing) return this.#closeShutdown(shutdown).then(() => this.#closingExit ?? undefined);
     this.#shutdown = shutdown;
     return shutdown
@@ -307,7 +307,7 @@ export class PlaywrightDocumentRenderer implements DocumentRenderer {
       const browser = outcome.browser;
       if (this.#closing || controller.signal.aborted || (signal?.aborted ?? false)) {
         controller.abort();
-        if (this.#closing) return await this.#closeShutdown(createBrowserShutdown(browser));
+        if (this.#closing) return await this.#closeShutdown(createBrowserShutdown(browser, true));
         this.#trackPendingCancel(this.#retireAbandonedBrowser(browser));
         return;
       }

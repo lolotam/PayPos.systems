@@ -64,14 +64,15 @@ it('keeps missing-PID cleanup single-flight while pending and allows sequential 
   let hungTries = 0;
   let releaseClose!: () => void;
   let closeHungDone = false;
+  let retryDone = false;
   const hungErr = await launchMissing(() => { hungTries += 1; return new Promise<void>((r) => { releaseClose = r; }); });
   void getLaunchCleanup(hungErr)?.then(() => { closeHungDone = true; });
-  const concurrentRetry = Promise.resolve(getLaunchCleanupRetry(hungErr)?.());
+  const concurrentRetry = Promise.resolve(getLaunchCleanupRetry(hungErr)?.()).then(() => { retryDone = true; });
   await new Promise((r) => setTimeout(r, 20));
-  expect([closeHungDone, hungTries]).toEqual([false, 1]);
+  expect([closeHungDone, retryDone, hungTries]).toEqual([false, false, 1]);
   releaseClose();
   await Promise.all([expect(getLaunchCleanup(hungErr)).resolves.toBeUndefined(), concurrentRetry]);
-  expect([closeHungDone, hungTries]).toEqual([true, 1]);
+  expect([closeHungDone, retryDone, hungTries]).toEqual([true, true, 1]);
 
   let lateProc: { pid: number; kill: () => boolean; exitCode: number | null } | null = null;
   let lateKilled = false;

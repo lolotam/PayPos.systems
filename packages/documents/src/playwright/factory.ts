@@ -148,8 +148,8 @@ function createMissingPidCleanup(browser: Browser, launchMarker: string): () => 
   return () => {
     if (closeInFlight !== undefined) {
       if (hasVerifiablePid(cleanupProc)) return Promise.resolve(killProcessTree(cleanupProc));
-      void Promise.resolve(killProcessTree(cleanupProc)).catch(() => undefined);
-      return closeInFlight;
+      const markerCleanup = killProcessTree(cleanupProc);
+      return markerCleanup ?? closeInFlight;
     }
     return (closeInFlight = (async () => {
       try {
@@ -159,7 +159,11 @@ function createMissingPidCleanup(browser: Browser, launchMarker: string): () => 
           await Promise.resolve(killProcessTree(cleanupProc));
           return;
         }
-        void Promise.resolve(killProcessTree(cleanupProc)).catch(() => undefined);
+        const markerCleanup = killProcessTree(cleanupProc);
+        if (markerCleanup !== undefined) {
+          await markerCleanup;
+          return;
+        }
         throw closeErr;
       }
       await Promise.resolve(killProcessTree(cleanupProc));

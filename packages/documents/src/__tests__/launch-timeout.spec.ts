@@ -293,9 +293,19 @@ it('kills a late browser whose close throws', async () => {
   expect(kills).toBe(1);
 });
 
-it('does not kill a late browser whose close finishes', async () => {
-  const kills = await lateBrowserKills(async () => undefined);
-  expect(kills).toBe(0);
+it('requires process-exit confirmation on a late browser even when close finishes', async () => {
+  const order: string[] = [];
+  let launches = 0;
+  let release!: (browser: PdfBrowser) => void;
+  const renderer = new PlaywrightDocumentRenderer({
+    factory: { launch: async () => (++launches === 1 ? new Promise<PdfBrowser>((r) => (release = r)) : new Promise<PdfBrowser>(() => undefined)) },
+    launchTimeoutMs: 20, closeGraceMs: 20, backoffMs: [0], sleep: async () => undefined,
+  });
+  await renderer.start();
+  release({ newContext: async () => context(async () => Uint8Array.from([1])), close: async () => { order.push('close'); }, kill: async () => { order.push('kill'); }, on: () => undefined });
+  await new Promise((resolve) => setTimeout(resolve, 100));
+  await renderer.close();
+  expect(order).toEqual(['close', 'kill']);
 });
 
 it('aborts the factory launch signal on launch timeout', async () => {
