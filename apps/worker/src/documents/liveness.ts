@@ -66,6 +66,7 @@ function boundCommand(work: Promise<unknown>, ms: number): Promise<void> {
 }
 
 interface PublishState {
+  order: number;
   redis: Redis;
   renderer: DocumentRenderer;
   ttlSeconds: number;
@@ -77,13 +78,36 @@ interface PublishState {
   timer: ReturnType<typeof setInterval> | undefined;
 }
 
+/** آخر ناشر حيّ على مستوى العملية، عشان ناشر أقدم على أي اتصال Redis ما يمسحش نبضة ناشر أحدث. */
+let activePublisher: PublishState | undefined;
+let nextOrder = 0;
+
 function isLive(state: PublishState): boolean {
-  return !state.stopped && state.renderer.isAvailable();
+  // الناشر المسبوق ما يكتبش ولا يعتبر حيّ بعد ما ناشر أحدث ياخد الإشراف على المفتاح.
+  return !state.stopped && activePublisher === state && state.renderer.isAvailable();
 }
 
-function watchSet(state: PublishState, set: Promise<unknown>): void {
+function shouldDeleteAliveKey(state: PublishState): boolean {
+  return activePublisher === undefined || activePublisher === state || !isLive(activePublisher);
+}
+
+/**
+ * SET خلص بعد ما الوقت عدّى؛ لو الناشر لسه حيّ ما نمسحش المفتاح ونحدّثه لو فاتت جولة،
+ * وإلا بنمسح لو المتصفح وقع ومفيش ناشر حيّ تاني ماسك نفس العميل.
+ */
+function watchSet(state: PublishState, set: Promise<unknown>, token: number): void {
   void settled(set).finally(() => {
     state.busy = false;
+    if (isLive(state)) {
+      if (token !== state.epoch) void publishOnce(state);
+      return;
+    }
+    if (!shouldDeleteAliveKey(state)) return;
+    try {
+      void boundCommand(state.redis.del(DOCUMENT_RENDERER_ALIVE_KEY), state.commandTimeoutMs);
+    } catch {
+      // Redis مقفول؛ المفتاح بينتهي لوحده بعد مدة صلاحيته.
+    }
   });
 }
 
@@ -96,9 +120,9 @@ async function publishOnce(state: PublishState): Promise<void> {
   state.busy = true;
   const token = state.epoch;
   const set = state.redis.set(DOCUMENT_RENDERER_ALIVE_KEY, '1', 'EX', state.ttlSeconds);
-  watchSet(state, set);
+  watchSet(state, set, token);
   await boundCommand(set, state.commandTimeoutMs);
-  if (token !== state.epoch || !isLive(state)) {
+  if (!isLive(state) && shouldDeleteAliveKey(state)) {
     await boundCommand(state.redis.del(DOCUMENT_RENDERER_ALIVE_KEY), state.commandTimeoutMs);
   }
 }
@@ -107,6 +131,7 @@ async function haltPublish(state: PublishState): Promise<void> {
   state.epoch += 1;
   if (state.timer !== undefined) clearInterval(state.timer);
   state.timer = undefined;
+  if (!shouldDeleteAliveKey(state)) return;
   await boundCommand(state.redis.del(DOCUMENT_RENDERER_ALIVE_KEY), state.commandTimeoutMs);
 }
 
@@ -146,6 +171,7 @@ function stopLiveness(state: PublishState): Promise<void> {
   const hook = hooks.get(state.renderer);
   if (hook !== undefined && hook.target === state) hook.target = undefined;
   state.stopped = true;
+  if (activePublisher === state) activePublisher = undefined;
   return haltPublish(state);
 }
 
@@ -166,6 +192,7 @@ export async function startRendererLiveness(input: {
   readonly commandTimeoutMs?: number;
 }): Promise<RendererLiveness> {
   const state: PublishState = {
+    order: (nextOrder += 1),
     redis: input.redis,
     renderer: input.renderer,
     ttlSeconds: input.ttlSeconds ?? DOCUMENT_RENDERER_ALIVE_TTL_SECONDS,
@@ -176,12 +203,24 @@ export async function startRendererLiveness(input: {
     busy: false,
     timer: undefined,
   };
+  const existingHookTarget = hooks.get(input.renderer)?.target;
   attachHooks(input.renderer, state);
   try {
     await whenRedisReady(input.redis, input.readyTimeoutMs ?? READY_TIMEOUT_MS);
+    if (activePublisher === undefined || activePublisher.order < state.order) activePublisher = state;
     await publishOnce(state);
   } catch (error) {
-    // الناشر الفاشل لازم يقف من غير ما يسيب مستمع يسلّح تيك من بعده.
+    // الناشر الفاشل ما ياخدش الملكية ولا يطرد المستمع السليم اللي قبله.
+    const hook = hooks.get(state.renderer);
+    if (
+      hook !== undefined &&
+      hook.target === state &&
+      existingHookTarget !== undefined &&
+      !existingHookTarget.stopped
+    ) {
+      hook.target = existingHookTarget;
+      armInterval(existingHookTarget);
+    }
     await stopLiveness(state).catch(() => undefined);
     throw error;
   }

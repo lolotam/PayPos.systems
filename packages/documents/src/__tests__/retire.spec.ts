@@ -170,6 +170,15 @@ async function untilPending(gate: Gate, count: number): Promise<void> {
   expect(gate.pending()).toBeGreaterThanOrEqual(count);
 }
 
+/** المتصفح المتقاعد لازم يتقتل الأول، وبعدين بس يطلق المتصفح الجاي. */
+async function untilKilled(scene: Scene): Promise<void> {
+  const deadline = Date.now() + 1_000;
+  while (scene.kills() === 0 && Date.now() < deadline) {
+    await new Promise((resolve) => setImmediate(resolve));
+  }
+  expect(scene.kills()).toBeGreaterThanOrEqual(1);
+}
+
 async function untilAvailable(renderer: PlaywrightDocumentRenderer): Promise<void> {
   const deadline = Date.now() + 1_000;
   while (!renderer.isAvailable() && Date.now() < deadline) {
@@ -218,6 +227,11 @@ it('retires a browser whose newContext and close never settle', async () => {
     expect(scene.kills()).toBe(0);
     expect(scene.launches()).toBe(1);
     scene.gate.release();
+    await untilKilled(scene);
+    // القتل خلص، والمتصفح الجاي لسه ما طلعش.
+    expect(scene.kills()).toBe(1);
+    expect(scene.launches()).toBe(1);
+    await untilPending(scene.gate, 1);
     scene.gate.release();
     await untilAvailable(scene.renderer);
     expect(scene.kills()).toBe(1);
@@ -243,6 +257,10 @@ it('retires a browser whose context close never settles', async () => {
     expect(scene.kills()).toBe(0);
     expect(scene.launches()).toBe(1);
     scene.gate.release();
+    await untilKilled(scene);
+    expect(scene.kills()).toBe(1);
+    expect(scene.launches()).toBe(1);
+    await untilPending(scene.gate, 1);
     scene.gate.release();
     await untilAvailable(scene.renderer);
     expect(scene.kills()).toBe(1);
@@ -338,4 +356,52 @@ it('treats a context whose close fails as hung', async () => {
     close: async () => undefined,
   };
   expect(await closeHungContext(closing, 30, never)).toBe(false);
+});
+
+it('waits for browser kill process-exit confirmation before launching the replacement browser', async () => {
+  const gate = sleepGate();
+  let launches = 0;
+  let releaseKill: (() => void) | undefined;
+  let killFinished = false;
+  const renderer = rendererFor(
+    {
+      launch: async () => {
+        launches += 1;
+        if (launches > 1) return quietBrowser();
+        return {
+          newContext: () => new Promise(() => undefined),
+          close: () => new Promise(() => undefined),
+          kill: () =>
+            new Promise<void>((resolve) => {
+              releaseKill = () => {
+                killFinished = true;
+                resolve();
+              };
+            }),
+          on: () => undefined,
+        };
+      },
+    },
+    gate,
+  );
+  await renderer.start();
+  const rendering = expect(renderer.render(HTML)).rejects.toThrow(DocumentRenderTimeoutError);
+  for (let step = 0; step < 20 && releaseKill === undefined; step += 1) {
+    await new Promise((resolve) => setTimeout(resolve, 5));
+    gate.release();
+  }
+  await rendering;
+  await new Promise((resolve) => setTimeout(resolve, 10));
+  expect(releaseKill).toBeDefined();
+  expect(killFinished).toBe(false);
+  expect(launches).toBe(1);
+  releaseKill?.();
+  for (let step = 0; step < 20 && launches < 2; step += 1) {
+    await new Promise((resolve) => setTimeout(resolve, 5));
+    gate.releaseAll();
+  }
+  expect(killFinished).toBe(true);
+  expect(launches).toBe(2);
+  gate.releaseAll();
+  await renderer.close();
 });

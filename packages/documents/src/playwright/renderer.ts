@@ -1,131 +1,56 @@
-import { assertHtmlWithinLimit, assertPdfWithinLimit } from '../domain/limits.ts';
+import { DocumentRendererUnavailableError } from '../domain/errors.ts';
+import { assertHtmlWithinLimit } from '../domain/limits.ts';
+import type { DocumentRenderer, RenderOptions, StartOptions } from '../ports/document-renderer.ts';
+import type { PdfBrowser } from './browser.ts';
 import {
-  DocumentRenderTimeoutError,
-  DocumentRendererUnavailableError,
-  DocumentTooLargeError,
-} from '../domain/errors.ts';
-import type { DocumentRenderer, RenderOptions } from '../ports/document-renderer.ts';
-import type { PdfBrowser, PdfBrowserFactory, PdfContext } from './browser.ts';
-import { closeHungContext, openWithinGrace } from './context-guards.ts';
-import { playwrightFactory } from './factory.ts';
-import { closeOrKill, launchWithinTimeout } from './launch.ts';
-import { renderPage, type RenderPageHooks } from './render-page.ts';
+  createBrowserShutdown, createSharedStart, driveShutdownRetries, launchWithinTimeout, resolveLaunchCleanupGate, waitGate,
+  watchUnconfirmedExit, type BrowserShutdown, type SharedStart,
+} from './launch.ts';
+import { unrefKillPromise } from './process-tree.ts';
+import { renderBrowserDocument } from './render-page.ts';
+import { resolveRendererConfig, type RendererOptions, type ResolvedRendererConfig } from './renderer-options.ts';
 
-const DEFAULT_BACKOFF_MS = [250, 500, 1000, 2000, 5000] as const;
-const CLOSE_GRACE_MS = 5_000;
-const LAUNCH_TIMEOUT_MS = 40_000;
-const CONTEXT = { javaScriptEnabled: false, offline: true, serviceWorkers: 'block' } as const;
-
-export interface RendererOptions {
-  readonly factory?: PdfBrowserFactory;
-  readonly sleep?: (ms: number) => Promise<void>;
-  readonly backoffMs?: readonly number[];
-  readonly contentTimeoutMs?: number;
-  readonly pdfTimeoutMs?: number;
-  readonly overallTimeoutMs?: number;
-  readonly browserCloseGraceMs?: number;
-  /** انتظار browser.close في الإغلاق المتعمد. بعد المهلة، أو لو close رفض أو رمى، بنحاول نقتل Chromium (browser.kill لو موجودة). */
-  readonly closeGraceMs?: number;
-  /** مهلة إطلاق Chromium. الإطلاق المعلّق بيتحسب فشل وبعده بتتأجل إعادة المحاولة. */
-  readonly launchTimeoutMs?: number;
-  /** التأخير بيرجع لأول درجة بعد ما المتصفح يفضل قائم المدة دي. */
-  readonly stableForMs?: number;
-  readonly onLaunchError?: (error: unknown) => void;
-  /** لقطة DOM بعد التحميل. للاختبار؛ مش بتتسجل. */
-  readonly onDocumentHtml?: (outerHtml: string) => void;
-}
-
-function delay(ms: number): Promise<void> {
-  return new Promise((resolve) => {
-    setTimeout(resolve, ms);
-  });
-}
-
-function asRendererError(error: unknown): Error {
-  if (error instanceof DocumentRenderTimeoutError) return error;
-  if (error instanceof DocumentTooLargeError) return error;
-  if (error instanceof DocumentRendererUnavailableError) return error;
-  if (error instanceof Error && error.name === 'TimeoutError')
-    return new DocumentRenderTimeoutError();
-  if (error instanceof Error) return error;
-  return new Error('DOCUMENT_RENDER_FAILED');
-}
-
-/**
- * close على البروتوكول المعلّق ما بيرجع. السباق على sleep المحقون، وبعد المهلة بنقتل العملية.
- * الرفض المتأخر بيترمى عشان مسار الرندر ما يستناش القفل.
- */
-async function dropRetiredBrowser(
-  browser: PdfBrowser,
-  graceMs: number,
-  sleep: (ms: number) => Promise<void>,
-): Promise<void> {
-  let finished = false;
-  let closing: Promise<unknown>;
-  try {
-    closing = browser.close();
-  } catch {
-    closing = Promise.reject(new Error('close failed'));
-  }
-  const pending = closing.then(
-    () => {
-      finished = true;
-    },
-    () => undefined,
-  );
-  await Promise.race([pending, sleep(graceMs)]).catch(() => undefined);
-  if (finished) return;
-  try {
-    browser.kill?.();
-  } catch {
-    // إشارة القتل مش بتوقف إعادة الإطلاق؛ المتصفح القديم مش هو الحالي.
-  }
-}
+export type { RendererOptions } from './renderer-options.ts';
 
 /**
  * Chromium واحد للعملية. كل رندر سياق جديد من غير جافاسكربت ومن غير شبكة.
  * سقوط المتصفح بيعيد الإطلاق بتأخير قابل للحقن؛ الإغلاق المتعمد ما بيعيدش الإطلاق.
  */
 export class PlaywrightDocumentRenderer implements DocumentRenderer {
-  readonly #factory: PdfBrowserFactory;
-  readonly #sleep: (ms: number) => Promise<void>;
-  readonly #backoff: readonly number[];
-  readonly #contentTimeoutMs: number;
-  readonly #pdfTimeoutMs: number;
-  readonly #overallTimeoutMs: number;
-  readonly #browserCloseGraceMs: number;
-  readonly #closeGraceMs: number;
-  readonly #launchTimeoutMs: number;
-  readonly #stableForMs: number;
-  readonly #onLaunchError: ((error: unknown) => void) | undefined;
-  readonly #onDocumentHtml: ((outerHtml: string) => void) | undefined;
+  readonly #cfg: ResolvedRendererConfig;
   #browser: PdfBrowser | null = null;
+  #shutdown: BrowserShutdown | null = null;
   #launchController: AbortController | null = null;
+  readonly #closeAbort = new AbortController();
   #available = false;
   #closing = false;
   #launchFailures = 0;
+  #relaunchNeeded = false;
   #stableTimer: ReturnType<typeof setTimeout> | undefined;
+  #activeStart: SharedStart | null = null;
+  #launchAborted = false;
+  #launchInFlight: Promise<void> | null = null;
+  #pendingCancel: Promise<void> | null = null;
   #relaunching: Promise<void> | null = null;
+  #retiring: Promise<void> | null = null;
+  #closingPromise: Promise<void> | null = null;
+  #closingRun: Promise<void> | null = null;
+  #closingExit: Promise<void> | null = null;
+  #releaseClosingExit: (() => void) | null = null;
   #unavailable: Array<() => void> = [];
   #availableListeners: Array<() => void> = [];
 
   constructor(options: RendererOptions = {}) {
-    this.#factory = options.factory ?? playwrightFactory();
-    this.#sleep = options.sleep ?? delay;
-    this.#backoff = options.backoffMs ?? DEFAULT_BACKOFF_MS;
-    this.#contentTimeoutMs = options.contentTimeoutMs ?? 10_000;
-    this.#pdfTimeoutMs = options.pdfTimeoutMs ?? 20_000;
-    this.#overallTimeoutMs = options.overallTimeoutMs ?? 30_000;
-    this.#browserCloseGraceMs = options.browserCloseGraceMs ?? 1_000;
-    this.#closeGraceMs = options.closeGraceMs ?? CLOSE_GRACE_MS;
-    this.#launchTimeoutMs = options.launchTimeoutMs ?? LAUNCH_TIMEOUT_MS;
-    this.#stableForMs = options.stableForMs ?? 30_000;
-    this.#onLaunchError = options.onLaunchError;
-    this.#onDocumentHtml = options.onDocumentHtml;
+    this.#cfg = resolveRendererConfig(options);
   }
 
   isAvailable(): boolean {
     return this.#available;
+  }
+
+  get unconfirmedExit(): Promise<void> | null {
+    const idle = this.#closingExit === null && this.#retiring === null && this.#pendingCancel === null && this.#launchInFlight === null;
+    return idle ? null : this.#drainExitGates();
   }
 
   onUnavailable(listener: () => void): void {
@@ -136,21 +61,49 @@ export class PlaywrightDocumentRenderer implements DocumentRenderer {
     this.#availableListeners.push(listener);
   }
 
-  async start(): Promise<void> {
-    await this.#launchOnce();
-    if (!this.#available) this.#scheduleRelaunch();
+  start(options?: StartOptions): Promise<void> {
+    // الإقلاع المكرّر لو المتصفح شغّال أو لسه بيقلع أو بيعيد الإطلاق أو اتقفل ما يفتحش متصفح تاني.
+    if (this.#available || this.#closing || this.#relaunching !== null || options?.signal?.aborted) {
+      return Promise.resolve();
+    }
+    if (this.#activeStart !== null) return this.#activeStart.join(options?.signal);
+    const active = createSharedStart(() => {
+      this.#launchAborted = true;
+      this.#launchController?.abort();
+      if (this.#activeStart === active) this.#activeStart = null;
+    });
+    this.#activeStart = active;
+    const waiter = active.join(options?.signal);
+    void this.#launchOnce(active.signal).finally(() => {
+      const stillWaited = active.finish();
+      if (this.#activeStart === active) this.#activeStart = null;
+      if (stillWaited && !this.#available && !this.#closing) this.#relaunchNeeded = true;
+      const shouldRelaunch = !this.#available && !this.#closing && this.#retiring === null && this.#relaunchNeeded;
+      active.resolveWaiters();
+      if (shouldRelaunch) this.#scheduleRelaunch();
+    });
+    return waiter;
   }
 
-  async close(): Promise<void> {
-    this.#closing = true;
-    // الإطلاق المعلّق بيتلغي فورًا؛ المتصفح اللي يوصل بعدين بيتقفل في الكور.
-    this.#launchController?.abort();
-    this.#clearStable();
-    this.#markUnavailable();
-    const browser = this.#browser;
-    this.#browser = null;
-    if (browser === null) return;
-    await closeOrKill(browser, this.#closeGraceMs);
+  close(): Promise<void> {
+    this.#beginShutdown();
+    this.#closingPromise ??= this.#runClose().finally(() => {
+      this.#closingPromise = null;
+    });
+    return this.#closingPromise;
+  }
+
+  kill(): void | Promise<void> {
+    this.#beginShutdown();
+    const shutdown = this.#ensureShutdown();
+    if (shutdown === null) return this.unconfirmedExit ?? undefined;
+    this.#openClosingGate();
+    const result = shutdown.kill();
+    if (result === undefined) {
+      this.#confirmBrowserExit(shutdown);
+      return this.unconfirmedExit ?? undefined;
+    }
+    return this.#recordKillPromise(shutdown, result);
   }
 
   async render(html: string, options?: RenderOptions): Promise<Uint8Array> {
@@ -160,47 +113,226 @@ export class PlaywrightDocumentRenderer implements DocumentRenderer {
     return this.#renderOnce(browser, html, options);
   }
 
-  async #launchOnce(): Promise<void> {
+  #launchOnce(signal?: AbortSignal): Promise<void> {
+    // حارس واحد لكل إطلاق: start() وإعادة الإطلاق في الخلفية ما يفتحوش متصفحين مع بعض.
+    if (this.#launchInFlight !== null && !this.#launchAborted) return this.#launchInFlight;
+    this.#launchAborted = false;
+    const prior = this.#launchInFlight;
+    let releaseFlight!: () => void;
+    const flight = new Promise<void>((resolve) => { releaseFlight = resolve; });
+    this.#launchInFlight = flight;
+    void (async () => {
+      if (prior !== null) await prior.catch(() => undefined);
+      if (!this.#closing && !signal?.aborted) await this.#runSingleLaunch(signal);
+    })().finally(() => {
+      if (this.#launchInFlight === flight) this.#launchInFlight = null;
+      releaseFlight();
+    });
+    return flight;
+  }
+
+  async #drainExitGates(): Promise<void> {
+    while (this.#launchInFlight !== null || this.#closingExit !== null || this.#retiring !== null || this.#pendingCancel !== null) {
+      if (this.#launchInFlight !== null) {
+        await this.#launchInFlight.catch(() => undefined);
+        continue;
+      }
+      const gate = this.#closingExit ?? this.#retiring ?? this.#pendingCancel;
+      if (gate !== null) await gate;
+    }
+  }
+
+  #beginShutdown(): void {
+    this.#closing = true;
+    this.#relaunchNeeded = false;
+    this.#closeAbort.abort();
+    this.#launchController?.abort();
+    this.#clearStable();
+    this.#markUnavailable();
+  }
+
+  #openClosingGate(): Promise<void> {
+    if (this.#closingExit !== null) return this.#closingExit;
+    const gate = new Promise<void>((resolve) => {
+      this.#releaseClosingExit = resolve;
+    });
+    this.#closingExit = gate;
+    return gate;
+  }
+
+  #ensureShutdown(): BrowserShutdown | null {
+    if (this.#browser !== null) {
+      this.#shutdown = createBrowserShutdown(this.#browser);
+      this.#browser = null;
+    }
+    return this.#shutdown;
+  }
+
+  #confirmBrowserExit(shutdown: BrowserShutdown): void {
+    if (this.#shutdown === shutdown) this.#shutdown = null;
+    const release = this.#releaseClosingExit;
+    this.#closingExit = null;
+    this.#releaseClosingExit = null;
+    release?.();
+  }
+
+  async #closeShutdown(shutdown: BrowserShutdown): Promise<void> {
+    if (this.#closingRun !== null && this.#shutdown === shutdown) return this.#closingRun;
+    this.#shutdown = shutdown;
+    this.#openClosingGate();
+    const run = shutdown.runClose(this.#cfg.closeGraceMs).then((outcome) => {
+      if (this.#shutdown !== shutdown) return;
+      if (outcome.confirmed) this.#confirmBrowserExit(shutdown);
+      else this.#recordUnconfirmedClose(shutdown, outcome.exit);
+    });
+    const tracked = run.finally(() => {
+      if (this.#closingRun === tracked) this.#closingRun = null;
+    });
+    this.#closingRun = tracked;
+    return tracked;
+  }
+
+  #retryUnconfirmed(shutdown: BrowserShutdown, gate: Promise<void>): void {
+    const { backoff, sleep, onLaunchError } = this.#cfg;
+    void driveShutdownRetries(gate, () => (this.#shutdown === shutdown ? shutdown : null), backoff, sleep, this.#closeAbort.signal, onLaunchError);
+  }
+
+  #retireAbandonedBrowser(browser: PdfBrowser): Promise<void> {
+    const shutdown = createBrowserShutdown(browser, true);
+    if (this.#closing) return this.#closeShutdown(shutdown).then(() => this.#closingExit ?? undefined);
+    this.#shutdown = shutdown;
+    return shutdown
+      .runClose(this.#cfg.closeGraceMs)
+      .then((out) => {
+        if (out.confirmed) return undefined;
+        const settled = Promise.race([out.exit, shutdown.confirmed]);
+        if (!this.#closing && typeof browser.kill === 'function') this.#retryUnconfirmed(shutdown, settled);
+        return settled;
+      })
+      .catch(() => undefined)
+      .finally(() => this.#confirmBrowserExit(shutdown));
+  }
+
+  #cleanupGateForError(error: unknown): Promise<void> | undefined {
+    return resolveLaunchCleanupGate(
+      error,
+      (err) => this.#cfg.onLaunchError?.(err),
+      (shutdown, retryGate) => {
+        this.#shutdown = shutdown;
+        if (retryGate !== undefined) this.#retryUnconfirmed(shutdown, retryGate);
+      },
+      (shutdown) => this.#confirmBrowserExit(shutdown),
+      () => this.#closing,
+    );
+  }
+
+  async #runClose(): Promise<void> {
+    const priorShutdown = this.#shutdown;
+    if (this.#launchInFlight !== null) await this.#launchInFlight.catch(() => undefined);
+    const shutdown = this.#browser !== null ? this.#ensureShutdown() : (this.#shutdown ?? priorShutdown);
+    if (shutdown === null) return;
+    await this.#closeShutdown(shutdown);
+  }
+
+  #recordKillPromise(shutdown: BrowserShutdown, result: Promise<void>): Promise<void> {
+    this.#openClosingGate();
+    const recorded = result.then(async () => {
+      this.#confirmBrowserExit(shutdown);
+      await this.unconfirmedExit;
+    });
+    return Object.defineProperty(recorded, 'unref', { value: () => unrefKillPromise(result), configurable: true });
+  }
+
+  #notifyUnconfirmed(code: string, immediate: boolean): void {
+    const err = new Error(code);
+    this.#cfg.onLaunchError?.(err);
+    if (immediate) this.#cfg.onUnconfirmedExit?.(err);
+  }
+
+  #recordUnconfirmedClose(shutdown: BrowserShutdown, exit: Promise<void>): void {
+    this.#shutdown = shutdown;
+    const gate = this.#openClosingGate();
+    const pending = gate.finally(() => {
+      if (this.#pendingCancel === pending) this.#pendingCancel = null;
+    });
+    this.#pendingCancel = pending;
+    this.#retryUnconfirmed(shutdown, pending);
+    void exit.then(() => this.#confirmBrowserExit(shutdown));
+    this.#notifyUnconfirmed('DOCUMENT_CLOSE_UNCONFIRMED', true);
+  }
+
+  #watchUnconfirmed(settled: Promise<void>, code: string, includeLaunchError: boolean): void {
+    watchUnconfirmedExit(settled, this.#cfg.unconfirmedExitTimeoutMs, () => {
+      if (this.#closing) return;
+      if (includeLaunchError) this.#notifyUnconfirmed(code, true);
+      else this.#cfg.onUnconfirmedExit?.(new Error(code));
+    });
+  }
+
+  #trackPendingCancel(settled: Promise<void>): void {
+    const settling = settled.finally(() => {
+      if (this.#pendingCancel === settling) this.#pendingCancel = null;
+    });
+    this.#pendingCancel = settling;
+    this.#watchUnconfirmed(settling, 'DOCUMENT_LAUNCH_CANCEL_UNCONFIRMED', true);
+  }
+
+  async #runSingleLaunch(signal?: AbortSignal): Promise<void> {
+    // المتصفح المتقاعد والإلغاء المعلّق لازم يخلصوا الأول، عشان متصفحين ما يبقوش شغالين مع بعض.
+    if (this.#retiring !== null) await waitGate(this.#retiring, signal, this.#closeAbort.signal);
+    if (this.#pendingCancel !== null) await waitGate(this.#pendingCancel, signal, this.#closeAbort.signal);
+    if (this.#closing || signal?.aborted) return;
     const controller = new AbortController();
     this.#launchController = controller;
     try {
       const outcome = await launchWithinTimeout(
-        this.#factory.launch(),
-        this.#launchTimeoutMs,
-        this.#closeGraceMs,
+        this.#cfg.factory.launch(controller.signal),
+        this.#cfg.launchTimeoutMs,
+        this.#cfg.closeGraceMs,
         controller.signal,
+        (late) => this.#retireAbandonedBrowser(late),
+        (err) => this.#cleanupGateForError(err),
       );
-      if (outcome.kind === 'cancelled') return;
-      if (outcome.kind === 'timeout') {
-        this.#onLaunchError?.(new Error('DOCUMENT_LAUNCH_TIMEOUT'));
-        this.#markUnavailable();
+      if (outcome.kind === 'cancelled' || outcome.kind === 'timeout') {
+        if (outcome.kind === 'timeout') controller.abort();
+        this.#trackPendingCancel(outcome.settled);
+        if (outcome.kind === 'timeout') {
+          this.#cfg.onLaunchError?.(new Error('DOCUMENT_LAUNCH_TIMEOUT'));
+          this.#markUnavailable();
+        }
         return;
       }
-      if (outcome.kind === 'error') throw outcome.error;
+      if (outcome.kind === 'error') {
+        if (outcome.cleanup !== undefined) this.#trackPendingCancel(outcome.cleanup);
+        throw outcome.error;
+      }
       const browser = outcome.browser;
-      if (this.#closing) {
-        await closeOrKill(browser, this.#closeGraceMs);
+      if (this.#closing || controller.signal.aborted || (signal?.aborted ?? false)) {
+        controller.abort();
+        if (this.#closing) return await this.#closeShutdown(createBrowserShutdown(browser, true));
+        this.#trackPendingCancel(this.#retireAbandonedBrowser(browser));
         return;
       }
       this.#browser = browser;
       this.#attach(browser);
       this.#markAvailable();
     } catch (error) {
-      this.#onLaunchError?.(error);
+      this.#cfg.onLaunchError?.(error);
       this.#markUnavailable();
+    } finally {
+      if (this.#launchController === controller) this.#launchController = null;
     }
   }
 
   #attach(browser: PdfBrowser): void {
     browser.on('disconnected', () => {
       if (this.#closing || this.#browser !== browser) return;
-      this.#browser = null;
-      this.#markUnavailable();
-      this.#scheduleRelaunch();
+      this.#retire(browser, false);
     });
   }
 
   #markAvailable(): void {
+    this.#relaunchNeeded = false;
     this.#available = true;
     this.#armStable();
     for (const listener of this.#availableListeners) listener();
@@ -218,7 +350,7 @@ export class PlaywrightDocumentRenderer implements DocumentRenderer {
     this.#clearStable();
     const timer = setTimeout(() => {
       if (this.#available && !this.#closing) this.#launchFailures = 0;
-    }, this.#stableForMs);
+    }, this.#cfg.stableForMs);
     timer.unref();
     this.#stableTimer = timer;
   }
@@ -230,127 +362,83 @@ export class PlaywrightDocumentRenderer implements DocumentRenderer {
   }
 
   #scheduleRelaunch(): void {
-    if (this.#closing || this.#relaunching !== null) return;
+    const busy =
+      this.#closing || this.#available || this.#activeStart !== null || this.#relaunching !== null || this.#retiring !== null;
+    if (busy) return;
+    this.#relaunchNeeded = false;
     this.#relaunching = this.#relaunchLoop().finally(() => {
       this.#relaunching = null;
-      if (!this.#closing && !this.#available) this.#scheduleRelaunch();
+      if (!this.#closing && !this.#available && this.#activeStart === null && this.#retiring === null) {
+        this.#scheduleRelaunch();
+      }
     });
   }
 
   async #relaunchLoop(): Promise<void> {
     while (!this.#closing && !this.#available) {
-      const index = Math.min(this.#launchFailures, this.#backoff.length - 1);
-      const delayMs = this.#backoff[index] ?? 0;
+      const index = Math.min(this.#launchFailures, this.#cfg.backoff.length - 1);
+      const delayMs = this.#cfg.backoff[index] ?? 0;
       this.#launchFailures += 1;
-      await this.#sleep(delayMs);
+      await this.#cfg.sleep(delayMs);
       if (this.#closing) return;
       await this.#launchOnce();
     }
   }
 
-  async #renderOnce(
-    browser: PdfBrowser,
-    html: string,
-    options: RenderOptions | undefined,
-  ): Promise<Uint8Array> {
-    let context: PdfContext | undefined;
-    let abandoned = false;
-    const print = new AbortController();
-    const opening = browser.newContext(CONTEXT);
-    const work = opening.then(async (opened) => {
-      if (abandoned) {
-        await opened.close().catch(() => undefined);
-        throw new DocumentRenderTimeoutError();
-      }
-      context = opened;
-      try {
-        const pdf = await renderPage(
-          opened,
-          html,
-          {
-            contentMs: this.#contentTimeoutMs,
-            pdfMs: this.#pdfTimeoutMs,
-            signal: print.signal,
-          },
-          this.#hooks(options?.onAbortedRequest),
-        );
-        return assertPdfWithinLimit(pdf);
-      } finally {
-        await opened.close().catch(() => undefined);
-      }
+  #renderOnce(browser: PdfBrowser, html: string, options: RenderOptions | undefined): Promise<Uint8Array> {
+    return renderBrowserDocument(browser, html, {
+      contentMs: this.#cfg.contentTimeoutMs,
+      pdfMs: this.#cfg.pdfTimeoutMs,
+      overallMs: this.#cfg.overallTimeoutMs,
+      closeGraceMs: this.#cfg.browserCloseGraceMs,
+      sleep: this.#cfg.sleep,
+      signal: options?.signal,
+      hooks: {
+        onAbort: (url) => options?.onAbortedRequest?.(url),
+        ...(this.#cfg.onDocumentHtml === undefined ? {} : { onDocumentHtml: this.#cfg.onDocumentHtml }),
+      },
+      retire: (retired) => this.#retire(retired),
     });
-    try {
-      return await raceDeadline(work, this.#overallTimeoutMs, options?.signal);
-    } catch (error) {
-      abandoned = true;
-      // المهلة الكلية لو سبقت الطباعة بتقفل السياق هنا. نلغي مؤقّت الطباعة من غير رفض السباق
-      // عشان page.pdf المعلّق ما يقفلش السياق مرة تانية وهو بيتقفل.
-      print.abort();
-      const mapped = asRendererError(error);
-      if (mapped instanceof DocumentRenderTimeoutError) {
-        await this.#closeAfterTimeout(context, opening, browser);
-      }
-      throw mapped;
-    }
   }
 
   /**
    * الإتاحة لازم تسقط حتى لو close معلّق، وإلا مفتاح الحياة يفضل يعرض المتصفح المعلّق.
-   * القفل مش بيتستناه؛ البروتوكول المعلّق ما بيرجّع close فبعد المهلة بنقتل العملية.
+   * إعادة الإطلاق بتتأجل لحد ما المتصفح يتقفل أو يتقتل، عشان متصفحين ما يبقوش مع بعض.
    */
-  #retire(browser: PdfBrowser): void {
+  #retire(browser: PdfBrowser, useInjectedSleep = true): void {
     if (this.#browser !== browser) return;
     this.#browser = null;
-    this.#markUnavailable();
-    this.#scheduleRelaunch();
-    void dropRetiredBrowser(browser, this.#browserCloseGraceMs, this.#sleep).catch(() => undefined);
-  }
-
-  async #closeAfterTimeout(
-    context: PdfContext | undefined,
-    opening: Promise<PdfContext>,
-    browser: PdfBrowser,
-  ): Promise<void> {
-    const late =
-      context === undefined
-        ? await openWithinGrace(opening, this.#browserCloseGraceMs, this.#sleep)
-        : { settled: true, context };
-    if (late.context !== undefined) {
-      const hung = await closeHungContext(late.context, this.#browserCloseGraceMs, this.#sleep);
-      if (hung) this.#retire(browser);
-      return;
+    this.#relaunchNeeded = true;
+    const shutdown = createBrowserShutdown(browser, true);
+    this.#shutdown = shutdown;
+    let releaseGate = (): void => undefined;
+    const gate = new Promise<void>((resolve) => { releaseGate = resolve; });
+    this.#retiring = gate;
+    try {
+      // بنحط حارس التقاعد قبل إشعار المستمعين عشان نداء start() المتزامن يستنى نهاية التقاعد.
+      this.#markUnavailable();
+      const retiring = shutdown.runClose(this.#cfg.browserCloseGraceMs, useInjectedSleep ? this.#cfg.sleep : undefined, !useInjectedSleep).then((outcome) => {
+        if (outcome.confirmed) {
+          this.#confirmBrowserExit(shutdown);
+          return undefined;
+        }
+        const settled = Promise.race([outcome.exit, shutdown.confirmed]).then(() => this.#confirmBrowserExit(shutdown));
+        if (!this.#closing) {
+          this.#notifyUnconfirmed('DOCUMENT_RETIRE_UNCONFIRMED', false);
+          this.#watchUnconfirmed(settled, 'DOCUMENT_RETIRE_UNCONFIRMED', false);
+          if (typeof browser.kill === 'function') this.#retryUnconfirmed(shutdown, settled);
+        }
+        return settled;
+      });
+      void retiring.catch(() => undefined).finally(() => {
+        releaseGate();
+        if (this.#retiring === gate) this.#retiring = null;
+        if (!this.#closing && !this.#available) this.#scheduleRelaunch();
+      });
+    } catch (error) {
+      releaseGate();
+      if (this.#retiring === gate) this.#retiring = null;
+      throw error;
     }
-    if (!late.settled) this.#retire(browser);
   }
-
-  #hooks(onAborted: RenderOptions['onAbortedRequest']): RenderPageHooks {
-    return {
-      onAbort: (url) => onAborted?.(url),
-      ...(this.#onDocumentHtml === undefined ? {} : { onDocumentHtml: this.#onDocumentHtml }),
-    };
-  }
-}
-
-function raceDeadline(
-  work: Promise<Uint8Array>,
-  ms: number,
-  signal: AbortSignal | undefined,
-): Promise<Uint8Array> {
-  let timer: ReturnType<typeof setTimeout> | undefined;
-  let onAbort: (() => void) | undefined;
-  const raced = new Promise<Uint8Array>((resolve, reject) => {
-    if (signal?.aborted === true) {
-      work.catch(() => undefined);
-      reject(new DocumentRenderTimeoutError());
-      return;
-    }
-    timer = setTimeout(() => reject(new DocumentRenderTimeoutError()), ms);
-    onAbort = () => reject(new DocumentRenderTimeoutError());
-    signal?.addEventListener('abort', onAbort, { once: true });
-    work.then(resolve, reject);
-  });
-  return raced.finally(() => {
-    if (timer !== undefined) clearTimeout(timer);
-    if (onAbort !== undefined) signal?.removeEventListener('abort', onAbort);
-  });
 }

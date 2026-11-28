@@ -190,3 +190,182 @@ it('stops retrying the liveness publisher when the capability is closed', async 
     await handle.close();
   }
 });
+
+it('retries a custom renderer whose start() rejects until it becomes available', async () => {
+  const { lines, logger } = linesOf();
+  let calls = 0;
+  let stored: string | null = null;
+  let available = false;
+  let upListener: (() => void) | undefined;
+  const renderer: DocumentRenderer = {
+    start: async () => {
+      calls += 1;
+      if (calls < 3) throw new Error('transient start failure');
+      available = true;
+      upListener?.();
+    },
+    close: async () => {
+      available = false;
+    },
+    isAvailable: () => available,
+    onUnavailable: () => undefined,
+    onAvailable: (listener) => {
+      upListener = listener;
+    },
+    render: async () => new Uint8Array(),
+  };
+  const redis = {
+    status: 'ready',
+    on: () => undefined,
+    off: () => undefined,
+    set: async (_key: string, value: string) => {
+      stored = value;
+      return 'OK';
+    },
+    del: async () => {
+      stored = null;
+      return 1;
+    },
+  } as unknown as Redis;
+  const handle = await startDocumentRendering({
+    redis,
+    redisUrl,
+    logger,
+    clock: { now: () => 1 },
+    retryDelaysMs: [5],
+    sleep: async () => undefined,
+    livenessIntervalMs: 60_000,
+    renderer,
+  });
+  try {
+    const deadline = Date.now() + 2_000;
+    while ((calls < 3 || stored !== '1') && Date.now() < deadline) {
+      await new Promise((resolve) => setTimeout(resolve, 10));
+    }
+    expect(calls).toBe(3);
+    expect(available).toBe(true);
+    expect(stored).toBe('1');
+    expect(setupFailures(lines).length).toBeGreaterThanOrEqual(2);
+  } finally {
+    await handle.close();
+  }
+});
+
+function memoryRedisStub(onSet?: (value: string | null) => void): Redis {
+  return {
+    status: 'ready',
+    on: () => undefined,
+    off: () => undefined,
+    set: async (_key: string, value: string) => {
+      onSet?.(value);
+      return 'OK';
+    },
+    del: async () => {
+      onSet?.(null);
+      return 1;
+    },
+  } as unknown as Redis;
+}
+
+function delayedStartRenderer(runStart: () => Promise<boolean>): {
+  renderer: DocumentRenderer;
+  isAvailable: () => boolean;
+} {
+  let available = false;
+  let upListener: (() => void) | undefined;
+  const renderer: DocumentRenderer = {
+    start: async () => {
+      if (!(await runStart())) return;
+      available = true;
+      upListener?.();
+    },
+    close: async () => {
+      available = false;
+    },
+    isAvailable: () => available,
+    onUnavailable: () => undefined,
+    onAvailable: (listener) => {
+      upListener = listener;
+    },
+    render: async () => new Uint8Array(),
+  };
+  return { renderer, isAvailable: () => available };
+}
+
+it('awaits a slow pending start instead of calling start() a second time', async () => {
+  const { lines, logger } = linesOf();
+  let calls = 0;
+  let stored: string | null = null;
+  const { renderer, isAvailable } = delayedStartRenderer(async () => {
+    calls += 1;
+    await new Promise((resolve) => setTimeout(resolve, 45));
+    return true;
+  });
+  const handle = await startDocumentRendering({
+    redis: memoryRedisStub((v) => {
+      stored = v;
+    }),
+    redisUrl,
+    logger,
+    clock: { now: () => 1 },
+    startupMs: 25,
+    retryDelaysMs: [5],
+    sleep: async () => undefined,
+    livenessIntervalMs: 60_000,
+    renderer,
+  });
+  try {
+    const deadline = Date.now() + 2_000;
+    while ((!isAvailable() || stored !== '1') && Date.now() < deadline) {
+      await new Promise((resolve) => setTimeout(resolve, 10));
+    }
+    await new Promise((resolve) => setTimeout(resolve, 30));
+    expect(calls).toBe(1);
+    expect(isAvailable()).toBe(true);
+    expect(stored).toBe('1');
+    expect(setupFailures(lines).length).toBeGreaterThanOrEqual(1);
+  } finally {
+    await handle.close();
+  }
+});
+
+it('retries once a slow pending initial start settles with a rejection', async () => {
+  const { logger } = linesOf();
+  let calls = 0;
+  let inFlight = 0;
+  let maxInFlight = 0;
+  const { renderer, isAvailable } = delayedStartRenderer(async () => {
+    calls += 1;
+    inFlight += 1;
+    maxInFlight = Math.max(maxInFlight, inFlight);
+    try {
+      await new Promise((resolve) => setTimeout(resolve, 40));
+      if (calls === 1) throw new Error('slow launch failure');
+      return true;
+    } finally {
+      inFlight -= 1;
+    }
+  });
+  const handle = await startDocumentRendering({
+    redis: memoryRedisStub(),
+    redisUrl,
+    logger,
+    clock: { now: () => 1 },
+    startupMs: 25,
+    retryDelaysMs: [5],
+    sleep: async () => undefined,
+    livenessIntervalMs: 60_000,
+    renderer,
+  });
+  try {
+    const deadline = Date.now() + 2_000;
+    while (!isAvailable() && Date.now() < deadline) {
+      await new Promise((resolve) => setTimeout(resolve, 10));
+    }
+    expect(calls).toBe(2);
+    expect(maxInFlight).toBe(1);
+    expect(isAvailable()).toBe(true);
+  } finally {
+    await handle.close();
+  }
+});

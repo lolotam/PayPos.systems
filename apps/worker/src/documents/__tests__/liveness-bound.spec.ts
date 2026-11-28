@@ -188,6 +188,74 @@ it('keeps a single SET pending when redis never answers', async () => {
   expect(dels).toBe(1);
 });
 
+it('drops a liveness key written by a SET that settles after the publisher stopped', async () => {
+  let stored: string | null = null;
+  let release: (() => void) | undefined;
+  const redis = redisStub('ready');
+  redis.set = () =>
+    new Promise((resolve) => {
+      release = () => {
+        stored = '1';
+        resolve('OK');
+      };
+    });
+  redis.del = async () => {
+    stored = null;
+    return 1;
+  };
+  const renderer = new FakeRenderer();
+  const live = await startRendererLiveness({
+    redis,
+    renderer,
+    intervalMs: 10,
+    commandTimeoutMs: 20,
+    readyTimeoutMs: 1_000,
+  });
+  await new Promise((resolve) => setTimeout(resolve, 60));
+  await live.stop();
+  expect(stored).toBeNull();
+  if (release === undefined) throw new Error('missing pending set');
+  release();
+  await new Promise((resolve) => setImmediate(resolve));
+  await new Promise((resolve) => setImmediate(resolve));
+  expect(stored).toBeNull();
+});
+
+it('drops a liveness key written by a SET that settles after the renderer went away', async () => {
+  let stored: string | null = null;
+  let release: (() => void) | undefined;
+  const redis = redisStub('ready');
+  redis.set = () =>
+    new Promise((resolve) => {
+      release = () => {
+        stored = '1';
+        resolve('OK');
+      };
+    });
+  redis.del = async () => {
+    stored = null;
+    return 1;
+  };
+  const renderer = new FakeRenderer();
+  const live = await startRendererLiveness({
+    redis,
+    renderer,
+    intervalMs: 10,
+    commandTimeoutMs: 20,
+    readyTimeoutMs: 1_000,
+  });
+  await new Promise((resolve) => setTimeout(resolve, 60));
+  renderer.available = false;
+  await renderer.close();
+  expect(stored).toBeNull();
+  if (release === undefined) throw new Error('missing pending set');
+  release();
+  await new Promise((resolve) => setImmediate(resolve));
+  await new Promise((resolve) => setImmediate(resolve));
+  expect(stored).toBeNull();
+  await live.stop();
+});
+
 it('leaves nothing armed when the liveness start fails', async () => {
   const { redis, sets } = recordingRedisStub('end');
   const renderer = new FakeRenderer();
@@ -215,4 +283,96 @@ it('subscribes to the renderer once across failed starts', async () => {
   await renderer.start();
   await new Promise((resolve) => setTimeout(resolve, 50));
   expect(sets).toEqual([]);
+});
+
+it('keeps the alive key intact when an older publisher SET settles after a replacement publisher is live', async () => {
+  let stored: string | null = null;
+  let releaseOld: (() => void) | undefined;
+  let calls = 0;
+  const redis = redisStub('ready');
+  redis.set = (_key: string, value: string) => {
+    calls += 1;
+    if (calls === 1) {
+      return new Promise((resolve) => {
+        releaseOld = () => {
+          stored = value;
+          resolve('OK');
+        };
+      });
+    }
+    stored = value;
+    return Promise.resolve('OK');
+  };
+  redis.del = async () => {
+    stored = null;
+    return 1;
+  };
+  const oldRenderer = new FakeRenderer();
+  const newRenderer = new FakeRenderer();
+  const startingOld = startRendererLiveness({
+    redis,
+    renderer: oldRenderer,
+    intervalMs: 60_000,
+    readyTimeoutMs: 1_000,
+    commandTimeoutMs: 5,
+  });
+  await yieldNow();
+  const liveNew = await startRendererLiveness({
+    redis,
+    renderer: newRenderer,
+    intervalMs: 60_000,
+    readyTimeoutMs: 1_000,
+  });
+  expect(stored).toBe('1');
+  oldRenderer.available = false;
+  await oldRenderer.close();
+  releaseOld?.();
+  const liveOld = await startingOld;
+  await yieldNow();
+  expect(stored).toBe('1');
+  await liveOld.stop();
+  expect(stored).toBe('1');
+  await liveNew.stop();
+  expect(stored).toBeNull();
+});
+
+it('retains heartbeat ownership across transient disconnects so a superseded publisher cannot delete a recovered key', async () => {
+  let stored: string | null = null;
+  const redis = redisStub('ready');
+  redis.set = async (_key: string, value: string) => {
+    stored = value;
+    return 'OK';
+  };
+  redis.del = async () => {
+    stored = null;
+    return 1;
+  };
+  const oldRenderer = new CountingRenderer();
+  oldRenderer.available = true;
+  const newRenderer = new CountingRenderer();
+  newRenderer.available = true;
+  const liveOld = await startRendererLiveness({
+    redis,
+    renderer: oldRenderer,
+    intervalMs: 60_000,
+    readyTimeoutMs: 1_000,
+  });
+  const liveNew = await startRendererLiveness({
+    redis,
+    renderer: newRenderer,
+    intervalMs: 60_000,
+    readyTimeoutMs: 1_000,
+  });
+  expect(stored).toBe('1');
+  await newRenderer.close();
+  await yieldNow();
+  expect(stored).toBeNull();
+  newRenderer.available = true;
+  await newRenderer.start();
+  await yieldNow();
+  expect(stored).toBe('1');
+  await liveOld.stop();
+  expect(stored).toBe('1');
+  await liveNew.stop();
+  expect(stored).toBeNull();
 });
