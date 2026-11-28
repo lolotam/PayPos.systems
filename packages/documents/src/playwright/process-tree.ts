@@ -201,14 +201,16 @@ function collectDescendantPids(rootPids: readonly number[], procRoot = '/proc'):
   const queue = [...rootPids];
   const table = readProcessTablePairs(procRoot);
   while (queue.length > 0) {
-    const cur = queue.shift();
-    if (cur === undefined) break;
-    const tasks = process.platform === 'linux' || procRoot !== '/proc' ? directLinuxChildren(cur, procRoot) : [];
-    for (const child of new Set([...tasks, ...table.filter((r) => r.ppid === cur).map((r) => r.pid)])) {
-      if (!parentOf.has(child)) { parentOf.set(child, cur); queue.push(child); }
+    while (queue.length > 0) {
+      const cur = queue.shift();
+      if (cur === undefined) break;
+      const tasks = process.platform === 'linux' || procRoot !== '/proc' ? directLinuxChildren(cur, procRoot) : [];
+      for (const child of new Set([...tasks, ...table.filter((r) => r.ppid === cur).map((r) => r.pid)])) {
+        if (!parentOf.has(child)) { parentOf.set(child, cur); queue.push(child); }
+      }
     }
+    for (const g of [...parentOf.keys()]) if (g > 1 && g !== process.pid) for (const r of table) if (r.pgrp === g && !parentOf.has(r.pid)) { parentOf.set(r.pid, g); queue.push(r.pid); }
   }
-  for (const g of [...parentOf.keys()]) if (g > 1 && g !== process.pid) for (const r of table) if (r.pgrp === g && !parentOf.has(r.pid)) parentOf.set(r.pid, g);
   return parentOf;
 }
 
@@ -428,18 +430,20 @@ export function killProcessTree(proc: KillableProcess, procRoot = '/proc', signa
   const childTree = (proc.children ?? []).map((child) => {
     try { return killProcessTree(child, procRoot, signalPid)?.catch((e: unknown) => { throw toErr(e); }); } catch (e) { return Promise.reject(toErr(e)); }
   });
+  const rootAlive = !hasExited(proc);
   const { waitPids, signalError, holdRoot } = terminateOwnedDescendants(proc, procRoot, signalPid);
-  const hasRoot = typeof proc.pid === 'number' || !hasExited(proc);
+  const hasRoot = typeof proc.pid === 'number' || rootAlive;
   const rootWait = holdRoot || !hasRoot ? undefined : (killLaunchProcessGroup(proc, procRoot), safeKillSingle(proc, procRoot));
   const waits: Array<Promise<void>> = childTree.filter((item): item is Promise<void> => item !== undefined);
   const waitTargets = waitPids.map((pid) => [pid, retainedDescendants.get(proc)?.get(pid) ?? ''] as const);
   if (waitTargets.length > 0) waits.push(waitForPidsExit(waitTargets, procRoot));
   if (signalError !== undefined) waits.push(Promise.reject(signalError));
-  if (rootWait === undefined && waits.length === 0) return undefined;
+  const shouldRescan = (): boolean => waitTargets.length > 0 || (rootAlive && hasExited(proc));
+  if (rootWait === undefined && waits.length === 0) return shouldRescan() ? killProcessTree(proc, procRoot, signalPid) : undefined;
   return Promise.allSettled(rootWait === undefined ? waits : [rootWait, ...waits]).then((res) => {
     const errs = res.filter((x): x is PromiseRejectedResult => x.status === 'rejected');
     const chosen = errs.find((x) => hasUnconfirmedDescendants(x.reason)) ?? errs[0];
     if (chosen !== undefined) throw chosen.reason;
-    return waitTargets.length > 0 ? killProcessTree(proc, procRoot, signalPid) : undefined;
+    return shouldRescan() ? killProcessTree(proc, procRoot, signalPid) : undefined;
   });
 }
