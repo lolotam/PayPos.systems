@@ -264,7 +264,7 @@ class AppModule {
         // membership and the permission at the target unless @Authenticated(); then the feature flag.
         { provide: APP_GUARD, useClass: SessionGuard },
         ...onboardingProviders(deps, logger, onboardingSealer),
-        ...passwordResetProviders(deps.passwordReset ?? null, deps.corsOrigins ?? [], {
+        ...passwordResetProviders(deps.passwordReset ?? null, deps.authTrustedOrigins ?? [], {
           api: deps.staffPinReset ?? null,
           enabled: deps.staffAccessRoutes === true,
         }),

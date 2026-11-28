@@ -32,7 +32,7 @@ import {
   staffOtpDependencies,
   type PasswordResetCapability,
 } from './modules/identity/index.ts';
-import { readConfig, memberInvitationsDependency } from './shared/config.ts';
+import { corsOriginsFrom, memberInvitationsDependency, readConfig } from './shared/config.ts';
 import {
   closeOptional,
   optionalWithin,
@@ -41,7 +41,7 @@ import {
 import { startPasswordReset } from './password-reset-startup.ts';
 import { startEmailFeedbackIntake, type EmailFeedbackIntake } from './email-feedback-startup.ts';
 import { staffAccessRoutesEnabled } from './shared/staff-access-routes.ts';
-import { staffNativeOriginsFrom } from './shared/staff-origin.token.ts';
+import { staffOriginsFrom } from './shared/staff-origin.token.ts';
 
 const config = readConfig(process.env);
 const logger = createLogger(config.LOG_LEVEL, { events: API_LOG_EVENTS });
@@ -355,6 +355,7 @@ try {
       'rating links capability',
     );
   }
+  const staffOrigins = staffOriginsFrom(process.env);
   const app = await createApp(
     {
       readiness: [
@@ -376,22 +377,22 @@ try {
         origin: passkeyPolicy(
           config.BETTER_AUTH_URL,
           config.AUTH_TRUSTED_ORIGINS,
-          process.env['STAFF_OTP_POS_ORIGIN'],
+          staffOrigins.origin ?? undefined,
         ).personalOrigin,
         eligibility: createPersonalEligibility(database),
       },
       staff: {
         api: otp ?? null,
         sessions: service.staff,
-        origin: process.env['STAFF_OTP_POS_ORIGIN'] || null,
-        nativeOrigins: staffNativeOriginsFrom(process.env['STAFF_NATIVE_ORIGINS']),
+        ...staffOrigins,
       },
       passwordReset: passwordReset?.api ?? null,
       staffPinReset: passwordReset?.pinReset ?? null,
       database,
       files,
       redis,
-      corsOrigins: config.AUTH_TRUSTED_ORIGINS,
+      authTrustedOrigins: config.AUTH_TRUSTED_ORIGINS,
+      corsOrigins: corsOriginsFrom(config),
       // البوابة بتتقرأ مرة واحدة هنا عند الإقلاع: مفيش مسار من شريحة 076 يوصل قبل ما تتدمج.
       staffAccessRoutes: staffAccessRoutesEnabled(process.env),
       ...memberInvitationsDependency(config),

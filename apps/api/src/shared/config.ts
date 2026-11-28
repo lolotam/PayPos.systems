@@ -38,6 +38,10 @@ function isSingleHttpOrigin(origin: string): boolean {
   }
 }
 
+function isCorsOrigin(origin: string): boolean {
+  return origin === 'capacitor://localhost' || (!/[*?]/.test(origin) && isSingleHttpOrigin(origin));
+}
+
 const schema = z.object({
   PLATFORM_NOTIFICATIONS_DATABASE_URL: z.preprocess(
     (value) => (value === '' ? undefined : value),
@@ -60,8 +64,7 @@ const schema = z.object({
   BETTER_AUTH_SECRET: z.string().min(32),
   // The API's public URL; https makes the cookies Secure.
   BETTER_AUTH_URL: z.url({ protocol: /^https?$/ }),
-  // Comma-separated origins allowed to call the API with a cookie (admin, POS): Better Auth's trusted
-  // origins and the CORS allow-list are this one list, so they cannot drift apart (ADR-0001, consequences).
+  // Comma-separated origins allowed by Better Auth's trustedOrigins (admin, POS).
   AUTH_TRUSTED_ORIGINS: z
     .string()
     .default('')
@@ -71,6 +74,18 @@ const schema = z.object({
         .map((origin) => origin.trim())
         .filter((origin) => origin !== ''),
     ),
+  // Optional Fastify CORS allow-list; empty defaults to AUTH_TRUSTED_ORIGINS so native apps can receive CORS
+  // without widening Better Auth's session origin trust (#669). Exact origins only (http(s) or capacitor://localhost).
+  API_CORS_ORIGINS: z
+    .string()
+    .default('')
+    .transform((value) =>
+      value
+        .split(',')
+        .map((origin) => origin.trim())
+        .filter((origin) => origin !== ''),
+    )
+    .pipe(z.array(z.string().refine(isCorsOrigin))),
   RATING_PAGE_ORIGIN: z
     .string()
     .trim()
@@ -120,6 +135,29 @@ function adminOriginIsTrusted(config: ApiConfig): boolean {
   );
 }
 
+const hostOf = (origin: string): string =>
+  new URL(origin).hostname.toLowerCase().replace(/\.+$/, '');
+
+function isUnderCookieDomain(origin: string, cookieDomain: string | undefined): boolean {
+  if (origin === '' || cookieDomain === undefined) return false;
+  const domain = cookieDomain.slice(1).toLowerCase();
+  const hostname = hostOf(origin);
+  const domains = domain.endsWith('.pospay.systems') ? [domain, 'pospay.systems'] : [domain];
+  return domains.some((d) => hostname === d || hostname.endsWith(`.${d}`));
+}
+
+/**
+ * يرجّع قائمة مصادر CORS للـ API: يستعمل API_CORS_ORIGINS لو مضبوطة وإلا يقع على AUTH_TRUSTED_ORIGINS (#669).
+ *
+ * @param config الإعداد المقروء أو حقول المصادر الخاصة به
+ * @returns قائمة المصادر المسموح بها في CORS
+ */
+export function corsOriginsFrom(
+  config: Pick<ApiConfig, 'API_CORS_ORIGINS' | 'AUTH_TRUSTED_ORIGINS'>,
+): string[] {
+  return config.API_CORS_ORIGINS.length > 0 ? config.API_CORS_ORIGINS : config.AUTH_TRUSTED_ORIGINS;
+}
+
 /**
  * Parses the API's environment. The error names the missing keys but never echoes a value — the URLs
  * carry passwords.
@@ -139,18 +177,33 @@ export function readConfig(env: NodeJS.ProcessEnv): ApiConfig {
     .refine(
       (config) =>
         config.RATING_PAGE_ORIGIN === '' ||
-        (config.RATING_PAGE_ORIGIN !== new URL(config.BETTER_AUTH_URL).origin &&
+        (hostOf(config.RATING_PAGE_ORIGIN) !== hostOf(config.BETTER_AUTH_URL) &&
           !config.AUTH_TRUSTED_ORIGINS.some((pattern) =>
             matchesTrustedOrigin(config.RATING_PAGE_ORIGIN, pattern),
-          )),
+          ) &&
+          !config.API_CORS_ORIGINS.includes(config.RATING_PAGE_ORIGIN)),
       {
         path: ['RATING_PAGE_ORIGIN'],
         // نفحص العلاقة بعد صلاحية القيم حتى لا يكشف استثناء URL إعدادًا غير صالح.
-        when: (payload) =>
-          schema.pick({ BETTER_AUTH_URL: true, RATING_PAGE_ORIGIN: true }).safeParse(payload.value)
-            .success,
+        when: (payload) => {
+          const v = payload.value as { AUTH_TRUSTED_ORIGINS?: unknown; API_CORS_ORIGINS?: unknown };
+          return (
+            schema
+              .pick({ BETTER_AUTH_URL: true, RATING_PAGE_ORIGIN: true })
+              .safeParse(payload.value).success &&
+            Array.isArray(v.AUTH_TRUSTED_ORIGINS) &&
+            Array.isArray(v.API_CORS_ORIGINS)
+          );
+        },
       },
     )
+    .refine((config) => !isUnderCookieDomain(config.RATING_PAGE_ORIGIN, config.COOKIE_DOMAIN), {
+      path: ['RATING_PAGE_ORIGIN'],
+      // صفحة التقييم العامة يجب أن تستضيفها دامنة منفصلة عن COOKIE_DOMAIN (#856).
+      when: (payload) =>
+        schema.pick({ RATING_PAGE_ORIGIN: true, COOKIE_DOMAIN: true }).safeParse(payload.value)
+          .success,
+    })
     // نفس قاعدة صفحة التقييم: http مسموح في التطوير والاختبار بس.
     .refine(
       (config) =>
@@ -162,8 +215,7 @@ export function readConfig(env: NodeJS.ProcessEnv): ApiConfig {
     .refine(adminOriginIsTrusted, {
       path: ['ADMIN_ORIGIN'],
       // نفس الحارس: نقيس العلاقة بعد صلاحية القيم حتى لا يكشف استثناء URL إعدادًا غير صالح.
-      when: (payload) =>
-        schema.pick({ ADMIN_ORIGIN: true }).safeParse(payload.value).success,
+      when: (payload) => schema.pick({ ADMIN_ORIGIN: true }).safeParse(payload.value).success,
     })
     .safeParse(env);
   if (!result.success) {

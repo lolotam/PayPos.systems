@@ -24,6 +24,7 @@ import {
   HARNESS_BASE,
   HARNESS_ORIGIN,
   harnessAuth,
+  harnessAuthOrigins,
   harnessLogger,
   optionalWiring,
   personalWiring,
@@ -136,16 +137,29 @@ function recording(tx: Tx, wrapper: 'tenant' | 'user' | 'new-tenant', calls: Har
   });
 }
 
-// The compose Redis (T2): REDIS_URL when set, otherwise built from REDIS_PASSWORD as CI writes it.
+// The compose Redis (T2): REDIS_URL is required so local worktrees never fall back to shared 127.0.0.1:6379 (#1017).
 // A key prefix per harness: rate-limit counters and pairing codes never leak between spec files or runs.
-export function testRedis(): Redis {
-  const configured = process.env['REDIS_URL'];
-  const password = encodeURIComponent(process.env['REDIS_PASSWORD'] ?? '');
-  const url =
-    configured !== undefined && configured !== ''
-      ? configured
-      : `redis://:${password}@${process.env['REDIS_HOST'] ?? '127.0.0.1'}:${process.env['REDIS_PORT'] ?? '6379'}`;
-  return new Redis(url, { keyPrefix: `test:${randomBytes(6).toString('hex')}:` });
+export function requireRedisUrl(env: NodeJS.ProcessEnv = process.env): string {
+  const configured = env['REDIS_URL']?.trim();
+  if (configured === undefined || configured === '') {
+    throw new Error(
+      'REDIS_URL is not set — set REDIS_URL to the test Redis instance (see docs/runbook.md)',
+    );
+  }
+  let parsed: URL;
+  try {
+    parsed = new URL(configured);
+  } catch {
+    throw new Error('REDIS_URL must be a valid redis:// or rediss:// URL with a hostname (#1017)');
+  }
+  if ((parsed.protocol !== 'redis:' && parsed.protocol !== 'rediss:') || parsed.hostname === '') {
+    throw new Error('REDIS_URL must be a valid redis:// or rediss:// URL with a hostname (#1017)');
+  }
+  return configured;
+}
+
+export function testRedis(env: NodeJS.ProcessEnv = process.env): Redis {
+  return new Redis(requireRedisUrl(env), { keyPrefix: `test:${randomBytes(6).toString('hex')}:` });
 }
 
 // What the server says about the open transaction, not what the caller asked for.
@@ -213,26 +227,35 @@ function operatorMaker(
   auth: AuthService,
   ownerUrl: string,
   ids: IdGenerator,
+  operatorOrigin: string = ORIGIN,
 ): Harness['signedInOperator'] {
   const authPost = (path: string, payload: object) =>
-    app.inject({ method: 'POST', url: `/v1/auth${path}`, headers: { origin: ORIGIN }, payload });
+    app.inject({
+      method: 'POST',
+      url: `/v1/auth${path}`,
+      headers: { origin: operatorOrigin },
+      payload,
+    });
   return async (email) => {
     const { link } = await createPlatformUser(auth, {
       email,
       name: 'User',
       operator: 'test',
-      redirectTo: `${ORIGIN}/set-password`,
+      redirectTo: `${operatorOrigin}/set-password`,
     });
     const token = new URL(link).pathname.split('/').pop() ?? '';
-    await authPost('/reset-password', { token, newPassword: PASSWORD });
+    const resetRes = await authPost('/reset-password', { token, newPassword: PASSWORD });
+    if (resetRes.statusCode >= 400) {
+      throw new Error(`operator reset-password failed with ${resetRes.statusCode}`);
+    }
     const grant = { email, permission: 'create:companies:platform', operator: 'test' };
     await grantPlatformPermission(ownerUrl, grant, ids);
-    const cookies = (await authPost('/sign-in/email', { email, password: PASSWORD })).headers[
-      'set-cookie'
-    ];
-    return (Array.isArray(cookies) ? cookies : [cookies ?? ''])
-      .map((c) => c.split(';')[0])
-      .join('; ');
+    const signInRes = await authPost('/sign-in/email', { email, password: PASSWORD });
+    const cookies = signInRes.headers['set-cookie'];
+    if (signInRes.statusCode >= 400 || cookies === undefined) {
+      throw new Error(`operator sign-in failed with ${signInRes.statusCode}`);
+    }
+    return (Array.isArray(cookies) ? cookies : [cookies]).map((c) => c.split(';')[0]).join('; ');
   };
 }
 
@@ -288,6 +311,7 @@ async function prepareHarness(
   if (staffOtp !== undefined) cleanup.own(staffOtp, (value) => value.close());
   const pinReset = options.staffPinResetFactory?.(auth, testDb.authUrl, wrappers, redis);
   if (pinReset !== undefined) cleanup.own(pinReset, (value) => value.close());
+  const authTrustedOrigins = harnessAuthOrigins(options);
   const app = cleanup.own(
     await createApp(
       {
@@ -296,6 +320,7 @@ async function prepareHarness(
         employeeCardKey: testEmployeeCardKey,
         database: wrappers,
         ...optionalWiring(options),
+        authTrustedOrigins,
         ...(options.corsOrigins === undefined ? {} : { corsOrigins: options.corsOrigins }),
         ...staffWiring(options, staffOtp, auth),
         ...(pinReset === undefined ? {} : { staffPinReset: pinReset }),
@@ -310,7 +335,24 @@ async function prepareHarness(
     ),
     (value) => value.close(),
   );
-  return { app, owner, auth, redis, calls, ids };
+  const operatorOrigin = concreteOperatorOrigin(authTrustedOrigins);
+  return { app, owner, auth, redis, calls, ids, operatorOrigin };
+}
+
+function concreteOperatorOrigin(origins: readonly string[]): string {
+  return (
+    origins.find((origin) => {
+      if (/[*?]/.test(origin)) return false;
+      try {
+        const parsed = new URL(origin);
+        return (
+          (parsed.protocol === 'http:' || parsed.protocol === 'https:') && parsed.origin === origin
+        );
+      } catch {
+        return false;
+      }
+    }) ?? BASE
+  );
 }
 
 function describeHarness(
@@ -318,7 +360,7 @@ function describeHarness(
   resources: Awaited<ReturnType<typeof prepareHarness>>,
   cleanup: ReturnType<typeof cleanupStack>,
 ): Harness {
-  const { app, owner, auth, redis, calls, ids } = resources;
+  const { app, owner, auth, redis, calls, ids, operatorOrigin } = resources;
   const send = sender(app);
   return {
     app,
@@ -334,7 +376,7 @@ function describeHarness(
     },
     calls,
     send,
-    signedInOperator: operatorMaker(app, auth, testDb.ownerUrl, ids),
+    signedInOperator: operatorMaker(app, auth, testDb.ownerUrl, ids, operatorOrigin),
     onboard: async (cookie, name) => {
       const res = await send('POST', '/v1/companies', {
         cookie,

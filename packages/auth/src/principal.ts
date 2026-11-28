@@ -10,6 +10,21 @@ export interface MembershipScope {
 }
 
 /**
+ * قيود الصلاحية الرقمية أو المنطقية المحمولة من جدول role_permissions (ADR-0003 §4).
+ * المبالغ المالية (`max_amount` و `max_variance`) محفوظة بالملّيم الصحيح (`bigint`، 1 KWD = 1000n).
+ */
+export interface PermissionConstraints {
+  readonly max_pct?: number;
+  readonly max_amount?: bigint;
+  readonly max_variance?: bigint;
+  readonly backdate_days?: number;
+  readonly manual_edit?: boolean;
+  readonly max_rows?: number;
+  /** علامة فساد القيد المخزن: تمنع تحويل القيد التالف إلى صلاحية مفتوحة بلا حدود. */
+  readonly invalid?: boolean;
+}
+
+/**
  * صلاحية واحدة بيقيّمها الـ guard. الـ DENY بيفضل موجود ومبيتطرحش مقدماً — بيتقيّم عند الـ scope المطلوب.
  */
 export interface Grant {
@@ -18,6 +33,7 @@ export interface Grant {
   readonly source: 'role' | 'override' | 'device' | 'api-key' | 'platform';
   readonly scopeType: 'PLATFORM' | 'COMPANY' | 'BUSINESS' | 'BRANCH';
   readonly scopeId: string | null;
+  readonly constraints?: PermissionConstraints;
 }
 
 /**

@@ -1,9 +1,11 @@
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import Fastify from 'fastify';
+import type * as Auth from '@pospay/auth';
 import type * as Notifications from '@pospay/notifications';
 import { HealthController } from '../health.controller.ts';
 
 const resources = vi.hoisted(() => ({
+  configOverrides: {} as Partial<{ BETTER_AUTH_URL: string; AUTH_TRUSTED_ORIGINS: string[] }>,
   database: { close: vi.fn(async () => undefined), ping: vi.fn() },
   intake: {
     close: vi.fn(async () => undefined),
@@ -37,28 +39,31 @@ vi.mock('@pospay/db', () => ({
     },
   }),
 }));
-vi.mock('@pospay/auth', () => ({
-  deriveEmployeeCardKey: (secret: string) => {
-    resources.deriveCardKey(secret);
-    return resources.cardKey;
-  },
-  createAuth: async () => ({
-    close: vi.fn(),
-    ping: vi.fn(),
-    staff: {},
-    personal: resources.personalSessions,
-  }),
-  passkeyPolicy: () => ({ personalOrigin: null }),
-  createStaffOtpApi: (options: { capability: { ready(): Promise<boolean> } }) => {
-    resources.otpOptions(options);
-    return {
-      state: async () => ((await options.capability.ready()) ? 'READY' : 'UNAVAILABLE'),
-      readiness: vi.fn(),
-      close: vi.fn(async () => undefined),
-    };
-  },
-  readStaffOtpConfiguration: () => resources.configuration,
-}));
+vi.mock('@pospay/auth', async () => {
+  const { passkeyPolicy } = await vi.importActual<typeof Auth>('@pospay/auth');
+  return {
+    deriveEmployeeCardKey: (secret: string) => {
+      resources.deriveCardKey(secret);
+      return resources.cardKey;
+    },
+    createAuth: async () => ({
+      close: vi.fn(),
+      ping: vi.fn(),
+      staff: {},
+      personal: resources.personalSessions,
+    }),
+    passkeyPolicy,
+    createStaffOtpApi: (options: { capability: { ready(): Promise<boolean> } }) => {
+      resources.otpOptions(options);
+      return {
+        state: async () => ((await options.capability.ready()) ? 'READY' : 'UNAVAILABLE'),
+        readiness: vi.fn(),
+        close: vi.fn(async () => undefined),
+      };
+    },
+    readStaffOtpConfiguration: () => resources.configuration,
+  };
+});
 vi.mock('@pospay/observability', () => ({ createLogger: () => resources.logger }));
 vi.mock('ioredis', () => ({
   Redis: class {
@@ -103,6 +108,7 @@ vi.mock('../../modules/staff/index.ts', () => ({
 // تشغيل API وworker المبنيين مع الملفات والإعدادات الاختيارية الفارغة مغطى في files/production.spec.ts.
 vi.mock('../../modules/files/index.ts', () => ({ filesRuntime: () => null }));
 vi.mock('../config.ts', () => ({
+  corsOriginsFrom: () => [],
   memberInvitationsDependency: () => ({}),
   readConfig: () => ({
     DATABASE_URL: 'synthetic',
@@ -114,12 +120,14 @@ vi.mock('../config.ts', () => ({
     ADMIN_ORIGIN: '',
     BETTER_AUTH_URL: 'https://api.synthetic.invalid',
     BETTER_AUTH_SECRET: 'synthetic-auth-root-for-startup-tests',
+    ...resources.configOverrides,
   }),
 }));
 
 beforeEach(() => {
   vi.resetModules();
   vi.clearAllMocks();
+  resources.configOverrides = {};
   resources.configuration.state = 'DISABLED';
   resources.whatsappConfigEnv = undefined;
   resources.intake.ready.mockRejectedValue(new Error('SYNTHETIC_INTAKE_FAILURE'));
@@ -312,4 +320,23 @@ it('password reset stays closed in production without a trusted proxy and opens 
   expect(resources.passwordReset).toHaveBeenCalledOnce();
   startPasswordReset({ ...shared, production: false, trustedProxy: [] });
   expect(resources.passwordReset).toHaveBeenCalledTimes(2);
+});
+
+it('wires trimmed staff POS and native origins from env into createApp and passkeyPolicy (#666)', async () => {
+  resources.configOverrides = {
+    BETTER_AUTH_URL: 'http://localhost:3000',
+    AUTH_TRUSTED_ORIGINS: ['http://localhost:5173'],
+  };
+  vi.stubEnv('STAFF_OTP_POS_ORIGIN', '  http://localhost:5173  ');
+  vi.stubEnv('STAFF_NATIVE_ORIGINS', ' capacitor://localhost ');
+  await import('../../main.ts');
+  expect(resources.appOptions).toHaveBeenCalledWith(
+    expect.objectContaining({
+      personal: expect.objectContaining({ origin: 'http://localhost:5173' }),
+      staff: expect.objectContaining({
+        origin: 'http://localhost:5173',
+        nativeOrigins: ['capacitor://localhost'],
+      }),
+    }),
+  );
 });

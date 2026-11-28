@@ -14,7 +14,9 @@
       "dependsOn": ["^build", "build", "@pospay/db#test"]
     },
     "@pospay/api#test": {
-      "dependsOn": ["^build", "build", "@pospay/auth#test", "@pospay/worker#build"]
+      "dependsOn": ["^build", "build", "@pospay/auth#test", "@pospay/worker#build"],
+      "cache": false,
+      "passThroughEnv": ["REDIS_URL"]
     },
     "@pospay/worker#test": {
       "dependsOn": ["^build", "build", "@pospay/api#test"]
