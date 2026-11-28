@@ -349,14 +349,12 @@ it('retains shutdown handle for abandoned late browsers, escalates late cleanup,
   await wait(40);
   expect(renderer.unconfirmedExit).not.toBeNull();
   await Promise.resolve(renderer.kill());
-  expect(kills).toBe(2);
-  expect(renderer.unconfirmedExit).toBeNull();
+  expect([kills, renderer.unconfirmedExit]).toEqual([2, null]);
 
   let releaseDropClose!: () => void;
   let dropKills = 0;
   const undefRejected = await dropRetiredBrowser(fakeBrowser({ close: () => new Promise<void>((r) => (releaseDropClose = r)), kill: () => { dropKills += 1; return Promise.reject(); } }), 15);
-  expect(dropKills).toBe(1);
-  expect(undefRejected.confirmed).toBe(false);
+  expect([dropKills, undefRejected.confirmed]).toEqual([1, false]);
   releaseDropClose();
   await undefRejected.exit;
 
@@ -371,8 +369,17 @@ it('retains shutdown handle for abandoned late browsers, escalates late cleanup,
   expect(killSettled).toBe(false);
   rejectCleanup(withLaunchCleanup(new Error('late'), Promise.reject(new Error('SIGKILL_REJECTED')), () => (++escalatedKills === 1 ? Promise.reject(new Error('EPERM')) : Promise.resolve())));
   await Promise.all([starting, killing]);
-  expect(escalatedKills).toBe(2);
-  expect(lateRenderer.unconfirmedExit).toBeNull();
+  expect([escalatedKills, lateRenderer.unconfirmedExit]).toEqual([2, null]);
+
+  let resolveShut!: (b: PdfBrowser) => void;
+  let shutKills = 0;
+  const rShut = new PlaywrightDocumentRenderer({ factory: { launch: () => new Promise((r) => (resolveShut = r)) }, backoffMs: [10], closeGraceMs: 10 });
+  const sShut = rShut.start();
+  const kShut = Promise.resolve(rShut.kill());
+  await wait(15);
+  resolveShut(fakeBrowser({ kill: () => (++shutKills === 1 ? Promise.reject(new Error('EPERM')) : Promise.resolve()) }));
+  await Promise.all([sShut, kShut]);
+  expect([shutKills, rShut.unconfirmedExit]).toEqual([2, null]);
 });
 
 it('keeps retirement gated on failed descendant kill after browser.close resolves and gates disconnect launches', async () => {

@@ -113,19 +113,10 @@ function chromiumProcess(browser: Browser): KillableProcess | null {
 
 function wrapBrowser(browser: Browser, capturedProc: KillableProcess | null = null): PdfBrowser {
   const launchedProc = capturedProc ?? chromiumProcess(browser);
-  let disconnected = false;
-  browser.on('disconnected', () => {
-    disconnected = true;
-  });
   return {
     newContext: async (options) => wrapContext(await browser.newContext(options)),
     close: () => browser.close(),
-    kill: () => {
-      const proc = launchedProc ?? chromiumProcess(browser);
-      if (proc !== null) return killAndWait(proc);
-      if (disconnected) return Promise.resolve();
-      return killAndWait(null);
-    },
+    kill: () => killAndWait(launchedProc ?? chromiumProcess(browser)),
     on: (event, listener) => {
       browser.on(event, listener);
     },

@@ -163,6 +163,17 @@ export function waitGate(
   });
 }
 
+const activeRetryDrivers = new WeakSet<BrowserShutdown>();
+
+async function waitRetryAttempt(attempt: Promise<void>, delayMs: number, gateSignal: AbortSignal, closeSignal: AbortSignal): Promise<void> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const target = closeSignal.aborted
+    ? Promise.race([attempt, new Promise<void>((r) => { timer = setTimeout(r, Math.max(delayMs, 50)); timer.unref?.(); })])
+    : attempt;
+  await waitGate(target, gateSignal, closeSignal.aborted ? undefined : closeSignal);
+  if (timer !== undefined) clearTimeout(timer);
+}
+
 /** يعيد محاولة قتل المتصفح المعلّق بتدرّج التراجع لحد تأكيد الخروج، مع محاولتين محدودتين بمؤقّت غير مُرجعي بعد بدء الإغلاق. */
 export async function driveShutdownRetries(
   gate: Promise<void>,
@@ -172,41 +183,39 @@ export async function driveShutdownRetries(
   closeSignal: AbortSignal,
   onError?: (err: unknown) => void,
 ): Promise<void> {
+  const initial = getShutdown();
+  if (initial === null || activeRetryDrivers.has(initial)) return;
+  activeRetryDrivers.add(initial);
   const gateAbort = new AbortController();
   const stop = (): void => gateAbort.abort();
   void gate.then(stop, stop);
   let attempts = 0;
   let shutdownBudget = 2;
-  while (!gateAbort.signal.aborted && (!closeSignal.aborted || shutdownBudget > 0)) {
-    const postClose = closeSignal.aborted;
-    if (postClose) shutdownBudget -= 1;
-    const delayMs = backoff[Math.min(attempts, backoff.length - 1)] ?? 0;
-    attempts += 1;
-    let floorTimer: ReturnType<typeof setTimeout> | undefined;
-    const floor = new Promise<void>((resolve) => {
-      floorTimer = setTimeout(resolve, Math.max(delayMs, 5));
-      floorTimer.unref?.();
-    });
-    const safeSleep = delayMs > 0 && !postClose ? Promise.resolve().then(() => sleep(delayMs)).catch(() => undefined) : Promise.resolve();
-    const pause = Promise.all([safeSleep, floor]).then(() => undefined);
-    await waitGate(pause, gateAbort.signal, postClose ? undefined : closeSignal);
-    if (floorTimer !== undefined) clearTimeout(floorTimer);
-    if (gateAbort.signal.aborted) return;
-    const shutdown = getShutdown();
-    if (shutdown === null) return;
-    const retry = shutdown.kill();
-    if (retry === undefined) {
-      await Promise.resolve();
-      continue;
+  try {
+    while (!gateAbort.signal.aborted && (!closeSignal.aborted || shutdownBudget > 0)) {
+      const postClose = closeSignal.aborted;
+      if (postClose) shutdownBudget -= 1;
+      const delayMs = backoff[Math.min(attempts, backoff.length - 1)] ?? 0;
+      attempts += 1;
+      let floorTimer: ReturnType<typeof setTimeout> | undefined;
+      const floor = new Promise<void>((r) => { floorTimer = setTimeout(r, Math.max(delayMs, 5)); floorTimer.unref?.(); });
+      const safeSleep = delayMs > 0 && !postClose ? Promise.resolve().then(() => sleep(delayMs)).catch(() => undefined) : Promise.resolve();
+      await waitGate(Promise.all([safeSleep, floor]).then(() => undefined), gateAbort.signal, postClose ? undefined : closeSignal);
+      if (floorTimer !== undefined) clearTimeout(floorTimer);
+      if (gateAbort.signal.aborted) return;
+      if (!postClose && closeSignal.aborted) continue;
+      const shutdown = getShutdown();
+      if (shutdown === null) return;
+      const retry = shutdown.kill();
+      if (retry === undefined) { await Promise.resolve(); continue; }
+      const attempt = retry.catch((err: unknown) => {
+        if (err instanceof Error && err.message === 'DOCUMENT_BROWSER_KILL_UNSUPPORTED') { gateAbort.abort(); return; }
+        if (!gateAbort.signal.aborted) onError?.(err);
+      });
+      await waitRetryAttempt(attempt, delayMs, gateAbort.signal, closeSignal);
     }
-    const attempt = retry.catch((err: unknown) => {
-      if (err instanceof Error && err.message === 'DOCUMENT_BROWSER_KILL_UNSUPPORTED') {
-        gateAbort.abort();
-        return;
-      }
-      if (!gateAbort.signal.aborted) onError?.(err);
-    });
-    await waitGate(attempt, gateAbort.signal, closeSignal.aborted ? undefined : closeSignal);
+  } finally {
+    activeRetryDrivers.delete(initial);
   }
 }
 

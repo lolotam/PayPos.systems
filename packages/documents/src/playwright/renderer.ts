@@ -254,6 +254,7 @@ export class PlaywrightDocumentRenderer implements DocumentRenderer {
       if (this.#pendingCancel === pending) this.#pendingCancel = null;
     });
     this.#pendingCancel = pending;
+    this.#retryUnconfirmed(shutdown, pending);
     void exit.then(() => this.#confirmBrowserExit(shutdown));
     this.#notifyUnconfirmed('DOCUMENT_CLOSE_UNCONFIRMED', true);
   }
