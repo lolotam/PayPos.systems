@@ -13,7 +13,7 @@ import {
   getLaunchCleanup,
   killPidsAndWait,
   killProcessTree,
-  LAUNCH_ENV_KEY,
+  LAUNCH_MARKER_ENV,
   withLaunchCleanup,
   type KillableProcess,
 } from './process-tree.ts';
@@ -134,11 +134,11 @@ function wrapBrowser(browser: Browser): PdfBrowser {
 
 let launchSequence = 0;
 
-function launchEnvWithToken(launchToken: string): Record<string, string> {
+function launchEnvWithMarker(launchMarker: string): Record<string, string> {
   const base = Object.fromEntries(
     Object.entries(process.env).filter((entry): entry is [string, string] => entry[1] !== undefined),
   );
-  base[LAUNCH_ENV_KEY] = launchToken;
+  base[LAUNCH_MARKER_ENV] = launchMarker;
   return base;
 }
 
@@ -154,18 +154,18 @@ export function playwrightFactory(
   return {
     launch: async () => {
       launchSequence += 1;
-      const launchToken = `pospay-${process.pid}-${Date.now()}-${launchSequence}`;
+      const launchMarker = [process.pid, Date.now(), launchSequence].join(':');
       try {
         return wrapBrowser(
           await chromium.launch({
             ...chromiumLaunchOptions,
             timeout: timeoutMs,
-            env: launchEnvWithToken(launchToken),
+            env: launchEnvWithMarker(launchMarker),
           }),
         );
       } catch (error) {
         if (getLaunchCleanup(error) !== undefined) throw error;
-        const ownedPids = extractLaunchedPids(error, launchToken);
+        const ownedPids = extractLaunchedPids(error, launchMarker);
         if (ownedPids.length === 0) throw error;
         throw withLaunchCleanup(error, killPidsAndWait(ownedPids));
       }

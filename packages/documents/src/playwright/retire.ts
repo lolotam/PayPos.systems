@@ -145,6 +145,13 @@ function safeCloseBrowser(browser: PdfBrowser, onFinished: () => void): Promise<
   return closing;
 }
 
+function isShutdownConfirmed(state: ShutdownState): boolean {
+  return (
+    state.killConfirmed ||
+    (state.closeFinished && (!state.killAttempted || state.killError !== undefined))
+  );
+}
+
 async function waitCloseGrace(
   activeClose: Promise<unknown>,
   graceMs: number,
@@ -153,9 +160,11 @@ async function waitCloseGrace(
 ): Promise<void> {
   const grace = armCancellableGrace(graceMs, sleep);
   cancels.add(grace.cancel);
-  const pending = activeClose.then(() => undefined, () => undefined);
+  // لو القتل شغال، نجاح close() لوحده ما يفكش السماح؛ نصحى بدري بس لو close اترفض أو markShutdownConfirmed لغى المؤقت.
+  const never = (): Promise<void> => new Promise<void>(() => undefined);
+  const rejected = activeClose.then(never, () => undefined);
   try {
-    await Promise.race([pending, grace.done]).catch(() => undefined);
+    await Promise.race([rejected, grace.done]).catch(() => undefined);
   } finally {
     cancels.delete(grace.cancel);
     grace.stop();
@@ -173,17 +182,14 @@ function markShutdownConfirmed(state: ShutdownState, fromClose: boolean): void {
 function ensureClosing(state: ShutdownState): Promise<unknown> {
   return (state.closing ??= safeCloseBrowser(state.browser, () => {
     state.closeFinished = true;
-    if (!state.killAttempted || state.killError !== undefined || state.killConfirmed) {
+    if (isShutdownConfirmed(state)) {
       markShutdownConfirmed(state, true);
     }
   }));
 }
 
 function runKillAttempt(state: ShutdownState, fromExternal: boolean): Promise<void> | undefined {
-  if (state.closeFinished && (!state.killAttempted || state.killError !== undefined || state.killConfirmed)) {
-    return undefined;
-  }
-  if (state.killConfirmed) return undefined;
+  if (isShutdownConfirmed(state)) return undefined;
   if (state.killAttempted && state.killError === undefined) return state.killResult;
   if (!fromExternal) {
     if (state.fallbackAttempted) return Promise.reject(state.killError);
@@ -208,12 +214,14 @@ async function executeCloseAttempt(
   sleep?: (ms: number) => Promise<void>,
 ): Promise<RetireResult> {
   const activeClose = ensureClosing(state);
-  if (!state.closeFinished && !state.killConfirmed) {
+  if (!isShutdownConfirmed(state)) {
     await waitCloseGrace(activeClose, graceMs, sleep, state.cancels);
   }
-  if (state.closeFinished || state.killConfirmed) return { confirmed: true, exit: Promise.resolve() };
+  if (isShutdownConfirmed(state)) return { confirmed: true, exit: Promise.resolve() };
   const killCall = runKillAttempt(state, false);
-  return state.killConfirmed ? { confirmed: true, exit: Promise.resolve() } : waitKillOutcome(activeClose, killCall);
+  return isShutdownConfirmed(state)
+    ? { confirmed: true, exit: Promise.resolve() }
+    : waitKillOutcome(activeClose, killCall);
 }
 
 /** بيبني منسّق إغلاق وقتل واحد لنفس المتصفح يتشارك بين المُصيّر والعامل. */

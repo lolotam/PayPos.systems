@@ -13,7 +13,7 @@ export type KillableProcess = {
 
 const CLEANUP_KEY = Symbol('launchCleanup');
 const PID_POLL_MS = 10;
-export const LAUNCH_ENV_KEY = 'POSPAY_CHROMIUM_LAUNCH_ID';
+export const LAUNCH_MARKER_ENV = 'POSPAY_CHROMIUM_LAUNCH_ID';
 
 function errorWithCleanup(error: unknown): Error {
   if (error instanceof Error) return error;
@@ -49,17 +49,23 @@ export function isLinuxStatZombie(statText: string): boolean {
   return state === 'Z' || state === 'X' || state === 'x';
 }
 
-function isPidAlive(pid: number, procRoot = '/proc'): boolean {
+function osPidExists(pid: number): boolean {
   try {
     process.kill(pid, 0);
+    return true;
   } catch (error) {
-    if ((error as NodeJS.ErrnoException | null)?.code !== 'EPERM') return false;
+    return (error as NodeJS.ErrnoException | null)?.code === 'EPERM';
   }
-  if (process.platform === 'linux') {
+}
+
+/** يتحقق إن العملية لسه حيّة ومش زومبي، وما يعتبرش فشل القراءة خروجاً إلا لو فحص النواة أكد ESRCH. */
+export function isPidAlive(pid: number, procRoot = '/proc'): boolean {
+  if (!osPidExists(pid)) return false;
+  if (process.platform === 'linux' || procRoot !== '/proc') {
     try {
       return !isLinuxStatZombie(readFileSync(`${procRoot}/${pid}/stat`, 'utf8'));
     } catch {
-      return false;
+      return osPidExists(pid);
     }
   }
   if (process.platform === 'darwin') {
@@ -68,9 +74,9 @@ function isPidAlive(pid: number, procRoot = '/proc'): boolean {
         encoding: 'utf8',
         timeout: 1_000,
       }).trim();
-      return state.length > 0 && !state.startsWith('Z');
+      return state.length === 0 ? osPidExists(pid) : !state.startsWith('Z');
     } catch {
-      return false;
+      return osPidExists(pid);
     }
   }
   return true;
@@ -140,27 +146,34 @@ function readProcessTablePairs(procRoot = '/proc'): Array<{ pid: number; ppid: n
   }
 }
 
-/** يستخرج PIDs اللي Playwright طبعها صراحةً للـ launch ده أو اللي بتحمل وسم البيئة بتاعه على Linux. */
-export function extractLaunchedPids(error: unknown, launchToken?: string, procRoot = '/proc'): number[] {
-  const pids = new Set<number>();
+function hasLaunchMarker(pid: number, marker: string, procRoot: string): boolean {
+  try {
+    const stat = readFileSync(`${procRoot}/${pid}/stat`, 'utf8');
+    if (isLinuxStatZombie(stat)) return false;
+    const envText = readFileSync(`${procRoot}/${pid}/environ`, 'utf8');
+    return envText.split('\0').includes(marker);
+  } catch {
+    return false;
+  }
+}
+
+/** يستخرج PIDs التابعة لإطلاق فاشل بعد التحقق من وسم البيئة لمنع إرسال إشارة لرقم عملية أُعيد تدويره. */
+export function extractLaunchedPids(error: unknown, launchMarker?: string, procRoot = '/proc'): number[] {
+  if (launchMarker === undefined || (process.platform !== 'linux' && procRoot === '/proc')) {
+    return [];
+  }
+  const marker = `${LAUNCH_MARKER_ENV}=${launchMarker}`;
+  const candidates = new Set<number>();
   if (error instanceof Error) {
     for (const match of error.message.matchAll(/<launched>\s+pid=(\d+)/g)) {
       const pid = Number(match[1]);
-      if (Number.isInteger(pid) && pid > 0) pids.add(pid);
+      if (Number.isInteger(pid) && pid > 0) candidates.add(pid);
     }
   }
-  if (launchToken !== undefined && (process.platform === 'linux' || procRoot !== '/proc')) {
-    const marker = `${LAUNCH_ENV_KEY}=${launchToken}`;
-    for (const row of readLinuxProcessPairs(procRoot)) {
-      try {
-        const envText = readFileSync(`${procRoot}/${row.pid}/environ`, 'utf8');
-        if (envText.split('\0').includes(marker)) pids.add(row.pid);
-      } catch {
-        // تجاهل العمليات اللي ما قدرناش نقرأ بيئتها أو خرجت.
-      }
-    }
+  for (const row of readLinuxProcessPairs(procRoot)) {
+    candidates.add(row.pid);
   }
-  return [...pids];
+  return [...candidates].filter((pid) => hasLaunchMarker(pid, marker, procRoot));
 }
 
 function collectDescendantPids(rootPids: readonly number[], procRoot = '/proc'): number[] {

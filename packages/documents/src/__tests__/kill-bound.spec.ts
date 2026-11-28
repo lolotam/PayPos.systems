@@ -6,32 +6,20 @@ import { expect, it } from 'vitest';
 
 import type { PdfBrowser } from '../playwright/browser.ts';
 import { killAndWait, withLaunchCleanup } from '../playwright/factory.ts';
-import { directLinuxChildren, extractLaunchedPids, isLinuxStatZombie } from '../playwright/process-tree.ts';
+import { directLinuxChildren, extractLaunchedPids, isLinuxStatZombie, isPidAlive } from '../playwright/process-tree.ts';
 import { PlaywrightDocumentRenderer } from '../playwright/renderer.ts';
 import { dropRetiredBrowser } from '../playwright/retire.ts';
 
+const wait = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms));
+
 function fakeBrowser(overrides: Partial<PdfBrowser> = {}): PdfBrowser {
-  return {
-    newContext: () => new Promise(() => undefined),
-    close: () => new Promise(() => undefined),
-    on: () => undefined,
-    ...overrides,
-  };
+  return { newContext: () => new Promise(() => undefined), close: () => new Promise(() => undefined), on: () => undefined, ...overrides };
 }
 
 it('returns unconfirmed within the kill grace when browser.kill never settles', async () => {
   let kills = 0;
   const startedAt = Date.now();
-  const outcome = await dropRetiredBrowser(
-    fakeBrowser({
-      kill: () => {
-        kills += 1;
-        return new Promise(() => undefined);
-      },
-    }),
-    20,
-    (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
-  );
+  const outcome = await dropRetiredBrowser(fakeBrowser({ kill: () => { kills += 1; return new Promise(() => undefined); } }), 20, wait);
   expect(kills).toBe(1);
   expect(outcome.confirmed).toBe(false);
   expect(Date.now() - startedAt).toBeLessThan(1_500);
@@ -44,43 +32,35 @@ it('waits past the 500 ms kill grace until process exit is confirmed before rela
     factory: {
       launch: async () => {
         launches += 1;
-        if (launches > 1) return fakeBrowser({ close: async () => undefined });
-        return fakeBrowser({ kill: () => new Promise<void>((resolve) => (releaseKill = resolve)) });
+        return launches > 1
+          ? fakeBrowser({ close: async () => undefined })
+          : fakeBrowser({ kill: () => new Promise<void>((resolve) => (releaseKill = resolve)) });
       },
     },
-    sleep: (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
+    sleep: wait,
     backoffMs: [0],
     overallTimeoutMs: 20,
     browserCloseGraceMs: 10,
   });
   await renderer.start();
   await expect(renderer.render('<p>x</p>')).rejects.toThrow();
-  await new Promise((resolve) => setTimeout(resolve, 580));
+  await wait(580);
   expect(releaseKill).toBeDefined();
   expect(launches).toBe(1);
   releaseKill?.();
-  for (let i = 0; i < 20 && launches < 2; i += 1) {
-    await new Promise((resolve) => setTimeout(resolve, 10));
-  }
+  for (let i = 0; i < 20 && launches < 2; i += 1) await wait(10);
   expect(launches).toBe(2);
   await renderer.close();
 });
 
 it('keeps killAndWait unresolved past 500 ms until the child process emits exit', async () => {
-  const proc = new EventEmitter() as EventEmitter & {
-    kill: () => boolean;
-    exitCode: number | null;
-    signalCode: string | null;
-  };
+  const proc = new EventEmitter() as EventEmitter & { kill: () => boolean; exitCode: number | null; signalCode: string | null };
   proc.exitCode = null;
   proc.signalCode = null;
   proc.kill = () => true;
-
   let done = false;
-  const waiting = Promise.resolve(killAndWait(proc)).then(() => {
-    done = true;
-  });
-  await new Promise((resolve) => setTimeout(resolve, 600));
+  const waiting = Promise.resolve(killAndWait(proc)).then(() => { done = true; });
+  await wait(600);
   expect(done).toBe(false);
   proc.exitCode = 0;
   proc.emit('exit');
@@ -89,51 +69,32 @@ it('keeps killAndWait unresolved past 500 ms until the child process emits exit'
 });
 
 it('does not treat a failed or rejecting kill as confirmed process exit', async () => {
-  const outcome = await dropRetiredBrowser(
-    fakeBrowser({ kill: () => Promise.reject(new Error('EPERM')) }),
-    10,
-    (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
-  );
-  expect(outcome.confirmed).toBe(false);
-
-  const syncThrowOutcome = await dropRetiredBrowser(
-    fakeBrowser({ kill: () => { throw new Error('EPERM'); } }),
-    10,
-    (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
-  );
-  expect(syncThrowOutcome.confirmed).toBe(false);
+  const rejected = await dropRetiredBrowser(fakeBrowser({ kill: () => Promise.reject(new Error('EPERM')) }), 10, wait);
+  expect(rejected.confirmed).toBe(false);
+  const thrown = await dropRetiredBrowser(fakeBrowser({ kill: () => { throw new Error('EPERM'); } }), 10, wait);
+  expect(thrown.confirmed).toBe(false);
 });
 
 it('returns from direct renderer.close() within grace on unsupported or rejecting kill while exposing unconfirmedExit', async () => {
   const escalated: Error[] = [];
-  const noKillRenderer = new PlaywrightDocumentRenderer({
-    factory: { launch: async () => fakeBrowser() },
-    closeGraceMs: 20,
-    onUnconfirmedExit: (err) => escalated.push(err),
-  });
-  await noKillRenderer.start();
-  const startedNoKill = Date.now();
-  await noKillRenderer.close();
-  expect(Date.now() - startedNoKill).toBeLessThan(1_500);
-  expect(noKillRenderer.unconfirmedExit).not.toBeNull();
+  const noKill = new PlaywrightDocumentRenderer({ factory: { launch: async () => fakeBrowser() }, closeGraceMs: 20, onUnconfirmedExit: (e) => escalated.push(e) });
+  await noKill.start();
+  const t0 = Date.now();
+  await noKill.close();
+  expect(Date.now() - t0).toBeLessThan(1_500);
+  expect(noKill.unconfirmedExit).not.toBeNull();
   expect(escalated.map((e) => e.message)).toContain('DOCUMENT_CLOSE_UNCONFIRMED');
 
   let releaseSlowKill: (() => void) | undefined;
-  const slowKillRenderer = new PlaywrightDocumentRenderer({
-    factory: {
-      launch: async () =>
-        fakeBrowser({ kill: () => new Promise<void>((resolve) => (releaseSlowKill = resolve)) }),
-    },
-    closeGraceMs: 20,
-  });
-  await slowKillRenderer.start();
-  const startedSlow = Date.now();
-  await slowKillRenderer.close();
-  expect(Date.now() - startedSlow).toBeLessThan(1_500);
-  expect(slowKillRenderer.unconfirmedExit).not.toBeNull();
+  const slow = new PlaywrightDocumentRenderer({ factory: { launch: async () => fakeBrowser({ kill: () => new Promise<void>((r) => (releaseSlowKill = r)) }) }, closeGraceMs: 20 });
+  await slow.start();
+  const t1 = Date.now();
+  await slow.close();
+  expect(Date.now() - t1).toBeLessThan(1_500);
+  expect(slow.unconfirmedExit).not.toBeNull();
   releaseSlowKill?.();
-  await slowKillRenderer.unconfirmedExit;
-  expect(slowKillRenderer.unconfirmedExit).toBeNull();
+  await slow.unconfirmedExit;
+  expect(slow.unconfirmedExit).toBeNull();
 });
 
 it('exposes unconfirmedExit after close() for both a retiring browser and a cancelled launch', async () => {
@@ -328,17 +289,20 @@ it('treats procfs zombies as exited, ignores disappearing threads, and attribute
   expect(isLinuxStatZombie('12 (chr) b) Z 1 12')).toBe(true);
   expect(isLinuxStatZombie('12 (chrome) S 1 12')).toBe(false);
   const procDir = mkdtempSync(join(tmpdir(), 'pospay-proc-'));
+  const writeProc = (id: string, files: Record<string, string>) => {
+    mkdirSync(join(procDir, id), { recursive: true });
+    for (const [name, body] of Object.entries(files)) writeFileSync(join(procDir, id, name), body);
+  };
   try {
-    mkdirSync(join(procDir, '100', 'task', '100'), { recursive: true });
     mkdirSync(join(procDir, '100', 'task', '999'), { recursive: true });
-    mkdirSync(join(procDir, '100', 'task', '102'), { recursive: true });
-    writeFileSync(join(procDir, '100', 'task', '100', 'children'), '101\n');
-    writeFileSync(join(procDir, '100', 'task', '102', 'children'), '103\n');
-    mkdirSync(join(procDir, '202'), { recursive: true });
-    writeFileSync(join(procDir, '202', 'stat'), '202 (chrome) S 1 202\n');
-    writeFileSync(join(procDir, '202', 'environ'), 'A=1\0POSPAY_CHROMIUM_LAUNCH_ID=tok-1\0');
+    writeProc('100/task/100', { children: '101\n' });
+    writeProc('100/task/102', { children: '103\n' });
+    writeProc('55', { stat: '55 (other) S 1 55\n', environ: 'A=1\0' });
+    writeProc('202', { stat: '202 (chrome) S 1 202\n', environ: 'A=1\0POSPAY_CHROMIUM_LAUNCH_ID=id-1\0' });
+    writeProc('303', { stat: '303 (chrome) S 1 303\n', environ: 'A=1\0POSPAY_CHROMIUM_LAUNCH_ID=id-1\0' });
     expect(directLinuxChildren(100, procDir)).toEqual([101, 103]);
-    expect(extractLaunchedPids(new Error('log <launched> pid=55'), 'tok-1', procDir)).toEqual([55, 202]);
+    expect(isPidAlive(process.pid, procDir)).toBe(true);
+    expect(extractLaunchedPids(new Error('log <launched> pid=55 <launched> pid=303'), 'id-1', procDir)).toEqual([303, 202]);
   } finally {
     rmSync(procDir, { recursive: true, force: true });
   }
@@ -350,69 +314,74 @@ it('holds launch gate when late post-timeout factory rejection carries withLaunc
   let releaseCleanup!: () => void;
   const cleanup = new Promise<void>((resolve) => (releaseCleanup = resolve));
   const renderer = new PlaywrightDocumentRenderer({
-    factory: {
-      launch: () => {
-        launches += 1;
-        if (launches === 1) return new Promise((_, reject) => (rejectFirst = reject));
-        return Promise.resolve(fakeBrowser({ close: async () => undefined }));
-      },
-    },
+    factory: { launch: () => { launches += 1; return launches === 1 ? new Promise((_, rej) => (rejectFirst = rej)) : Promise.resolve(fakeBrowser({ close: async () => undefined })); } },
     launchTimeoutMs: 15,
-    sleep: (ms) => new Promise((r) => setTimeout(r, ms)),
+    sleep: wait,
     backoffMs: [0],
   });
   await renderer.start();
   rejectFirst(withLaunchCleanup(new Error('late'), cleanup));
-  await new Promise((r) => setTimeout(r, 40));
+  await wait(40);
   expect(launches).toBe(1);
   expect(renderer.unconfirmedExit).not.toBeNull();
   releaseCleanup();
-  for (let i = 0; i < 30 && !renderer.isAvailable(); i += 1) await new Promise((r) => setTimeout(r, 10));
+  for (let i = 0; i < 30 && !renderer.isAvailable(); i += 1) await wait(10);
   expect(launches).toBe(2);
   await renderer.close();
 });
 
 it('keeps retirement gated on descendant exit even if browser.close() resolves first', async () => {
-  type FakeProc = EventEmitter & { kill: () => boolean; exitCode: number | null; signalCode: string | null; children?: FakeProc[] };
-  const child = Object.assign(new EventEmitter(), { exitCode: null, signalCode: null, kill: () => true }) as FakeProc;
-  const root = Object.assign(new EventEmitter(), {
-    exitCode: null,
-    signalCode: null,
-    children: [child],
-    kill: () => {
-      root.exitCode = 0;
-      root.emit('exit');
-      return true;
-    },
-  }) as FakeProc;
+  const { root, child } = createFakeProcessTree();
   let launches = 0;
   let releaseClose!: () => void;
   const renderer = new PlaywrightDocumentRenderer({
     factory: {
       launch: async () => {
         launches += 1;
-        if (launches > 1) return fakeBrowser({ close: async () => undefined });
-        return fakeBrowser({
-          close: () => new Promise<void>((r) => (releaseClose = r)),
-          kill: () => killAndWait(root),
-        });
+        return launches > 1
+          ? fakeBrowser({ close: async () => undefined })
+          : fakeBrowser({ close: () => new Promise<void>((r) => (releaseClose = r)), kill: () => killAndWait(root) });
       },
     },
-    sleep: (ms) => new Promise((r) => setTimeout(r, ms)),
+    sleep: wait,
     backoffMs: [0],
     overallTimeoutMs: 15,
     browserCloseGraceMs: 10,
   });
   await renderer.start();
   await expect(renderer.render('<p>x</p>')).rejects.toThrow();
-  await new Promise((r) => setTimeout(r, 40));
+  await wait(40);
   expect(root.exitCode).toBe(0);
   releaseClose();
-  await new Promise((r) => setTimeout(r, 40));
+  await wait(40);
   expect(launches).toBe(1);
   child.exitCode = 0;
   child.emit('exit');
-  for (let i = 0; i < 30 && launches < 2; i += 1) await new Promise((r) => setTimeout(r, 10));
+  for (let i = 0; i < 30 && launches < 2; i += 1) await wait(10);
   expect(launches).toBe(2);
   await renderer.close();
+});
+
+it('keeps close() gated on active external kill even if browser.close() resolves within grace', async () => {
+  const { root, child } = createFakeProcessTree();
+  let releaseClose!: () => void;
+  const renderer = new PlaywrightDocumentRenderer({
+    factory: { launch: async () => fakeBrowser({ close: () => new Promise<void>((r) => (releaseClose = r)), kill: () => killAndWait(root) }) },
+    closeGraceMs: 120,
+  });
+  await renderer.start();
+  const closing = renderer.close();
+  let closeDone = false;
+  void closing.then(() => { closeDone = true; });
+  const killing = Promise.resolve(renderer.kill());
+  await wait(10);
+  expect(root.exitCode).toBe(0);
+  releaseClose();
+  await wait(20);
+  expect(closeDone).toBe(false);
+  expect(renderer.unconfirmedExit).not.toBeNull();
+  child.exitCode = 0;
+  child.emit('exit');
+  await Promise.all([closing, killing]);
+  expect(renderer.unconfirmedExit).toBeNull();
 });
