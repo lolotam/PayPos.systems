@@ -247,7 +247,7 @@ async function executeCloseAttempt(
   sleep?: (ms: number) => Promise<void>,
   requireKill = false,
 ): Promise<RetireResult> {
-  const mustKill = requireKill && typeof state.browser.kill === 'function';
+  const mustKill = (requireKill || state.descendantUnconfirmed) && typeof state.browser.kill === 'function';
   if (mustKill) state.descendantUnconfirmed = true;
   const activeClose = ensureClosing(state);
   if (!mustKill && !isShutdownConfirmed(state)) {
@@ -261,7 +261,7 @@ async function executeCloseAttempt(
 }
 
 /** بيبني منسّق إغلاق وقتل واحد لنفس المتصفح يتشارك بين المُصيّر والعامل. */
-export function createBrowserShutdown(browser: PdfBrowser): BrowserShutdown {
+export function createBrowserShutdown(browser: PdfBrowser, requireKill = false): BrowserShutdown {
   let releaseConfirmed!: () => void;
   const confirmed = new Promise<void>((resolve) => {
     releaseConfirmed = resolve;
@@ -273,7 +273,7 @@ export function createBrowserShutdown(browser: PdfBrowser): BrowserShutdown {
     killAttempted: false,
     killConfirmed: false,
     killFailed: false,
-    descendantUnconfirmed: false,
+    descendantUnconfirmed: requireKill && typeof browser.kill === 'function',
     fallbackAttempted: false,
     killSeq: 0,
     killError: undefined,

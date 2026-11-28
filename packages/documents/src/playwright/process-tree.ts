@@ -312,7 +312,6 @@ function revalidateRetained(proc: KillableProcess, procRoot: string): { pids: nu
     const cur = readPidFingerprint(pid, procRoot);
     if (cur === undefined || (expectedFp !== '' && cur !== null && cur !== expectedFp)) { prior.delete(pid); continue; }
     if (expectedFp !== '' && cur === expectedFp) { pids.push(pid); continue; }
-    if (cur !== null) prior.set(pid, cur);
     unverifiedError ??= markUnconfirmedDescendants(new Error('DESCENDANT_IDENTITY_UNVERIFIED'));
   }
   if (prior.size === 0) retainedDescendants.delete(proc);

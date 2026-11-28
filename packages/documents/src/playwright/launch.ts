@@ -163,7 +163,7 @@ export function waitGate(
   });
 }
 
-/** يعيد محاولة قتل المتصفح المعلّق بتدرّج التراجع لحد ما بوابة الخروج تتأكد أو الإغلاق يبدأ. */
+/** يعيد محاولة قتل المتصفح المعلّق بتدرّج التراجع لحد تأكيد الخروج، مع محاولتين محدودتين بمؤقّت غير مُرجعي بعد بدء الإغلاق. */
 export async function driveShutdownRetries(
   gate: Promise<void>,
   getShutdown: () => BrowserShutdown | null,
@@ -191,7 +191,7 @@ export async function driveShutdownRetries(
     const pause = Promise.all([safeSleep, floor]).then(() => undefined);
     await waitGate(pause, gateAbort.signal, postClose ? undefined : closeSignal);
     if (floorTimer !== undefined) clearTimeout(floorTimer);
-    if (gateAbort.signal.aborted || (!postClose && closeSignal.aborted)) return;
+    if (gateAbort.signal.aborted) return;
     const shutdown = getShutdown();
     if (shutdown === null) return;
     const retry = shutdown.kill();
@@ -206,7 +206,7 @@ export async function driveShutdownRetries(
       }
       if (!gateAbort.signal.aborted) onError?.(err);
     });
-    await waitGate(attempt, gateAbort.signal, postClose ? undefined : closeSignal);
+    await waitGate(attempt, gateAbort.signal, closeSignal.aborted ? undefined : closeSignal);
   }
 }
 
