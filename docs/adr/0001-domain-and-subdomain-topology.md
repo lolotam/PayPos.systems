@@ -88,7 +88,7 @@ Traefik بياخد شهادة مستقلة لكل subdomain عن طريق **HTTP
 ### سلبية / تكلفة
 
 - عدد أكبر من الـ DNS records والشهادات (Traefik بيديرها أوتوماتيك، فالتكلفة وقت إعداد أولي بس)
-- لازم تحديث `AUTH_TRUSTED_ORIGINS` مع أي origin جديد يحتاج ثقة Better Auth، وتحديث `API_CORS_ORIGINS` (عند تفعيلها وفق ملحق `#669` أدناه) للأصول التي تحتاج CORS فقط مثل `capacitor://localhost` — ونسيانهما بيدي رفض غامض في الـ requests
+- لازم تحديث `AUTH_TRUSTED_ORIGINS` مع أي origin جديد يحتاج ثقة Better Auth؛ وعند ضبط `API_CORS_ORIGINS` (ملحق `#669` أدناه) فهي تستبدل القائمة الافتراضية بالكامل فلازم تشمل كل الأصول التي تحتاج CORS من الـ API (أصول الويب مثل admin وPOS بالإضافة لأي أصل يحتاج CORS فقط مثل `capacitor://localhost`) — ونسيانهما بيدي رفض غامض في الـ requests
 - الانتقال لـ Gulf region بعدين (المخطط في `06` §5.15) هيحتاج تحديث كل الـ A records — عملية بسيطة بس لازم تتعمل مرة واحدة
 
 ### مخاطر مفتوحة
@@ -101,5 +101,6 @@ Traefik بياخد شهادة مستقلة لكل subdomain عن طريق **HTTP
 ## ملحق: فصل `API_CORS_ORIGINS` عن `AUTH_TRUSTED_ORIGINS` (#669)
 
 - يظل `AUTH_TRUSTED_ORIGINS` هو المصدر الافتراضي للاتنين إذا كان `API_CORS_ORIGINS` فارغاً أو غير مضبوط، حتى لا ينحرفا عن بعض في الإعداد البسيط.
-- عند الحاجة إلى منح origin معيّن صلاحية CORS من Fastify دون إضافته إلى `trustedOrigins` أو ثقة Better Auth (مثل `capacitor://localhost` لتطبيق iOS على الإنتاج)، تُضبط قائمة `API_CORS_ORIGINS` الاختيارية بأصول صريحة فقط (`http(s)` أو `capacitor://localhost` بلا wildcards).
+- عند الحاجة إلى منح origin معيّن صلاحية CORS من Fastify دون إضافته إلى `trustedOrigins` أو ثقة Better Auth (مثل `capacitor://localhost` لتطبيق iOS على الإنتاج)، تُضبط قائمة `API_CORS_ORIGINS` الاختيارية؛ ولأنها تستبدل القائمة الافتراضية بالكامل عند ضبطها، يجب أن تتضمن كل الأصول التي تحتاج CORS من الـ API (بما فيها أصول الويب المعتمدة مثل admin وPOS إلى جانب الأصل الإضافي) بأصول صريحة فقط (`http(s)` أو `capacitor://localhost` بلا wildcards).
+- يتطلب تفعيل الفصل في بيئات النشر تمرير متغير `API_CORS_ORIGINS` لحاوية `api` في ملفات Compose الخاصة بالنشر قبل الاعتماد على قائمتين منفصلتين.
 - لا يدخل `RATING_PAGE_ORIGIN` في أيٍّ من `AUTH_TRUSTED_ORIGINS` أو `API_CORS_ORIGINS` (ADR-0058).
