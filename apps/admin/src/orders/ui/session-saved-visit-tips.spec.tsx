@@ -388,9 +388,10 @@ it('keeps a confirmed revision-3 edit when snapshot is at revision 2 and a late 
 
   view.rerender(frame(rev2Result, { ...scope, userId: id(98) }));
   startLineEdit('Operator B rev3');
-  await waitFor(() => expect(screen.getAllByText('9.000').length).toBeGreaterThan(0));
+  await waitFor(() => expect(screen.getAllByText('9.000')).toHaveLength(3));
 
   await act(async () => { resolveLateRev2({ data: { saved: true, edited: true }, response: { status: 200 } }); });
-  expect(screen.getAllByText('9.000').length).toBeGreaterThan(0);
+  expect(screen.getByText(t('en', 'serviceSessions.savedTotal'), { exact: false }).textContent).toContain('9.000');
+  expect(screen.getAllByText('9.000')).toHaveLength(3);
   expect(screen.queryByText(t('en', 'serviceLineEdit.figuresHidden'))).toBeNull();
 });
