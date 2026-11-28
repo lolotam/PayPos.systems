@@ -138,14 +138,27 @@ function recording(tx: Tx, wrapper: 'tenant' | 'user' | 'new-tenant', calls: Har
 
 // The compose Redis (T2): REDIS_URL is required so local worktrees never fall back to shared 127.0.0.1:6379 (#1017).
 // A key prefix per harness: rate-limit counters and pairing codes never leak between spec files or runs.
-export function testRedis(env: NodeJS.ProcessEnv = process.env): Redis {
+export function requireRedisUrl(env: NodeJS.ProcessEnv = process.env): string {
   const configured = env['REDIS_URL']?.trim();
   if (configured === undefined || configured === '') {
     throw new Error(
       'REDIS_URL is not set — set REDIS_URL to the test Redis instance (see docs/runbook.md)',
     );
   }
-  return new Redis(configured, { keyPrefix: `test:${randomBytes(6).toString('hex')}:` });
+  let parsed: URL;
+  try {
+    parsed = new URL(configured);
+  } catch {
+    throw new Error('REDIS_URL must be a valid redis:// or rediss:// URL with a hostname (#1017)');
+  }
+  if ((parsed.protocol !== 'redis:' && parsed.protocol !== 'rediss:') || parsed.hostname === '') {
+    throw new Error('REDIS_URL must be a valid redis:// or rediss:// URL with a hostname (#1017)');
+  }
+  return configured;
+}
+
+export function testRedis(env: NodeJS.ProcessEnv = process.env): Redis {
+  return new Redis(requireRedisUrl(env), { keyPrefix: `test:${randomBytes(6).toString('hex')}:` });
 }
 
 // What the server says about the open transaction, not what the caller asked for.
@@ -296,6 +309,7 @@ async function prepareHarness(
         employeeCardKey: testEmployeeCardKey,
         database: wrappers,
         ...optionalWiring(options),
+        authTrustedOrigins: options.authTrustedOrigins ?? [ORIGIN],
         ...(options.corsOrigins === undefined ? {} : { corsOrigins: options.corsOrigins }),
         ...staffWiring(options, staffOtp, auth),
         ...(pinReset === undefined ? {} : { staffPinReset: pinReset }),

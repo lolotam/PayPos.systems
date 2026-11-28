@@ -135,10 +135,13 @@ function adminOriginIsTrusted(config: ApiConfig): boolean {
   );
 }
 
+const hostOf = (origin: string): string =>
+  new URL(origin).hostname.toLowerCase().replace(/\.+$/, '');
+
 function isUnderCookieDomain(origin: string, cookieDomain: string | undefined): boolean {
   if (origin === '' || cookieDomain === undefined) return false;
   const domain = cookieDomain.slice(1).toLowerCase();
-  const hostname = new URL(origin).hostname.toLowerCase().replace(/\.+$/, '');
+  const hostname = hostOf(origin);
   const domains = domain.endsWith('.pospay.systems') ? [domain, 'pospay.systems'] : [domain];
   return domains.some((d) => hostname === d || hostname.endsWith(`.${d}`));
 }
@@ -174,7 +177,7 @@ export function readConfig(env: NodeJS.ProcessEnv): ApiConfig {
     .refine(
       (config) =>
         config.RATING_PAGE_ORIGIN === '' ||
-        (config.RATING_PAGE_ORIGIN !== new URL(config.BETTER_AUTH_URL).origin &&
+        (hostOf(config.RATING_PAGE_ORIGIN) !== hostOf(config.BETTER_AUTH_URL) &&
           !config.AUTH_TRUSTED_ORIGINS.some((pattern) =>
             matchesTrustedOrigin(config.RATING_PAGE_ORIGIN, pattern),
           ) &&

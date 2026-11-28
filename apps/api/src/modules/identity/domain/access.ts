@@ -152,17 +152,37 @@ function assignConstraint(parsed: MutableConstraints, key: string, value: unknow
   return false;
 }
 
+function parseJsonConstraints(raw: string): unknown {
+  try {
+    return JSON.parse(raw, (key: string, value: unknown, context?: { source?: string }) => {
+      if (typeof value !== 'number' || context?.source === undefined) return value;
+      if (key === 'max_amount' || key === 'max_variance') {
+        return /^\d+$/.test(context.source) ? BigInt(context.source) : null;
+      }
+      if (key === 'backdate_days' || key === 'max_rows') {
+        return /^\d+$/.test(context.source) ? value : null;
+      }
+      return value;
+    });
+  } catch {
+    return null;
+  }
+}
+
 /**
  * بيقرأ كائن القيود الخام من جدول role_permissions ويرجّع القيود الصالحة أو undefined لو فاضي.
  * لو القيد تالف أو فيه مفتاح أو قيمة غير صالحة بيرجع `{ invalid: true }` عشان الدمج يرفض بأمان (fail-closed)
- * وما يقلبش القيد المكسور لصلاحية مفتوحة بلا حدود.
+ * وما يقلبش القيد المكسور لصلاحية مفتوحة بلا حدود. لو جاي نص JSON خام (`jsonb::text`) بيتقرأ بأصل رموز الأرقام
+ * قبل ما الـ JS Number يقرّب أي كسر لأقرب صحيح.
  *
- * @param raw القيمة الخام اللي جاية من عمود constraints (jsonb)
+ * @param raw القيمة الخام أو نص JSON اللي جاي من عمود constraints (jsonb::text)
  * @returns القيود الصالحة، أو undefined لو {} فاضي، أو `{ invalid: true }` لو تالف
  */
 export function parsePermissionConstraints(raw: unknown): PermissionConstraints | undefined {
-  if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) return { invalid: true };
-  const entries = Object.entries(raw);
+  const candidate = typeof raw === 'string' ? parseJsonConstraints(raw) : raw;
+  if (typeof candidate !== 'object' || candidate === null || Array.isArray(candidate))
+    return { invalid: true };
+  const entries = Object.entries(candidate);
   if (entries.length === 0) return undefined;
   const parsed: MutableConstraints = {};
   for (const [key, value] of entries) {

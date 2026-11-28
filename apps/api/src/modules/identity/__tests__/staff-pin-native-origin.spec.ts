@@ -80,61 +80,61 @@ const sessionCookie = (response: Awaited<ReturnType<typeof signIn>>): string =>
 
 const cookiePair = (setCookie: string): string => setCookie.split(';')[0] ?? '';
 
+async function assertNativeOriginPair(
+  h: Harness,
+  method: 'GET' | 'POST',
+  url: string,
+  headers: Record<string, string>,
+  allowedStatus: number,
+  payload?: Record<string, unknown>,
+) {
+  const allowed = await h.app.inject({
+    method,
+    url,
+    headers: { ...headers, origin: nativeOrigin },
+    ...(payload === undefined ? {} : { payload }),
+  });
+  expect(allowed.statusCode).toBe(allowedStatus);
+  const refused = await h.app.inject({
+    method,
+    url,
+    headers: { ...headers, origin: foreignOrigin },
+    ...(payload === undefined ? {} : { payload }),
+  });
+  expect(refused.statusCode).toBe(403);
+}
+
 async function assertClockAndLeaveNative(
   h: Harness,
   device: Awaited<ReturnType<typeof paired>>,
   cookie: string,
 ) {
-  const deviceHeader = `Device ${device.token}`;
-  const sessionAllowed = await h.app.inject({
-    method: 'GET',
-    url: '/v1/devices/me/staff-session',
-    headers: { authorization: deviceHeader, origin: nativeOrigin, cookie },
-  });
-  expect(sessionAllowed.statusCode).toBe(200);
-  const sessionRefused = await h.app.inject({
-    method: 'GET',
-    url: '/v1/devices/me/staff-session',
-    headers: { authorization: deviceHeader, origin: foreignOrigin, cookie },
-  });
-  expect(sessionRefused.statusCode).toBe(403);
-  const cardAllowed = await h.app.inject({
-    method: 'POST',
-    url: '/v1/devices/me/clock-by-card',
-    headers: {
-      authorization: deviceHeader,
-      origin: nativeOrigin,
-      cookie,
-      'idempotency-key': 'native-card-1',
-    },
-    payload: { card_code: 'SYNTH-1234' },
-  });
-  expect(cardAllowed.statusCode).toBe(404);
-  const cardRefused = await h.app.inject({
-    method: 'POST',
-    url: '/v1/devices/me/clock-by-card',
-    headers: {
-      authorization: deviceHeader,
-      origin: foreignOrigin,
-      cookie,
-      'idempotency-key': 'native-card-2',
-    },
-    payload: { card_code: 'SYNTH-1234' },
-  });
-  expect(cardRefused.statusCode).toBe(403);
+  const auth = { authorization: `Device ${device.token}`, cookie };
+  await assertNativeOriginPair(h, 'GET', '/v1/devices/me/staff-session', auth, 200);
+  await assertNativeOriginPair(
+    h,
+    'POST',
+    '/v1/devices/me/clock-by-card',
+    { ...auth, 'idempotency-key': 'native-card-1' },
+    404,
+    { card_code: 'SYNTH-1234' },
+  );
   // StaffLeaveGuard runs before pipe validation: foreignOrigin throws 403, nativeOrigin reaches query pipe (400).
-  const leaveAllowed = await h.app.inject({
-    method: 'GET',
-    url: '/v1/staff/me/leave-requests?branch_id=not-a-uuid',
-    headers: { authorization: deviceHeader, origin: nativeOrigin, cookie },
-  });
-  expect(leaveAllowed.statusCode).toBe(400);
-  const leaveRefused = await h.app.inject({
-    method: 'GET',
-    url: '/v1/staff/me/leave-requests?branch_id=not-a-uuid',
-    headers: { authorization: deviceHeader, origin: foreignOrigin, cookie },
-  });
-  expect(leaveRefused.statusCode).toBe(403);
+  await assertNativeOriginPair(
+    h,
+    'GET',
+    '/v1/staff/me/leave-requests?branch_id=not-a-uuid',
+    auth,
+    400,
+  );
+  await assertNativeOriginPair(
+    h,
+    'POST',
+    '/v1/staff/me/leave-requests?branch_id=not-a-uuid',
+    auth,
+    400,
+    {},
+  );
 }
 
 describe('the staff PIN route with the native origin configured', () => {
@@ -242,10 +242,30 @@ interface MethodInfo {
   readonly bodyText: string;
 }
 
-function classMethodsOf(source: string): ReadonlyMap<string, MethodInfo> {
+interface ControllerSpec {
+  readonly file: string;
+  readonly direct?: readonly string[];
+  readonly signOut?: readonly string[];
+  readonly classGuard?: string;
+  readonly guardMethods?: readonly string[];
+  readonly privateView?: readonly string[];
+}
+
+function classInfoOf(source: string): {
+  readonly classDecorators: string;
+  readonly methods: ReadonlyMap<string, MethodInfo>;
+} {
   const file = ts.createSourceFile('probe.ts', source, ts.ScriptTarget.Latest, true);
   const methods = new Map<string, MethodInfo>();
+  let classDecorators = '';
   const visit = (node: ts.Node): void => {
+    if (ts.isClassDeclaration(node) && ts.canHaveDecorators(node)) {
+      classDecorators =
+        ts
+          .getDecorators(node)
+          ?.map((d) => d.getText(file))
+          .join('\n') ?? '';
+    }
     if (ts.isMethodDeclaration(node) && node.body !== undefined) {
       const name = node.name.getText(file);
       const decorators = ts.canHaveDecorators(node)
@@ -259,7 +279,7 @@ function classMethodsOf(source: string): ReadonlyMap<string, MethodInfo> {
     ts.forEachChild(node, visit);
   };
   visit(file);
-  return methods;
+  return { classDecorators, methods };
 }
 
 function reachesStaffOrigin(
@@ -277,44 +297,93 @@ function reachesStaffOrigin(
   return false;
 }
 
+const STAFF_CONTROLLER_SPECS: readonly ControllerSpec[] = [
+  { file: 'src/modules/identity/http/staff-pin.controller.ts', direct: ['signIn', 'change'] },
+  {
+    file: 'src/modules/identity/http/staff-pin-reset.controller.ts',
+    direct: ['request', 'reset'],
+  },
+  {
+    file: 'src/modules/identity/http/staff-otp.controller.ts',
+    direct: ['request', 'verify', 'session'],
+    signOut: ['signOut'],
+  },
+  {
+    file: 'src/modules/identity/http/private-view.controller.ts',
+    direct: ['open', 'touch', 'close'],
+  },
+  { file: 'src/modules/staff/http/clock-by-card.controller.ts', direct: ['submit'] },
+  {
+    file: 'src/modules/staff/http/own-leave.controller.ts',
+    classGuard: 'StaffLeaveGuard',
+    guardMethods: ['request', 'cancelRequest', 'list'],
+  },
+  { file: 'src/modules/staff/http/own-attendance.controller.ts', privateView: ['read'] },
+  {
+    file: 'src/modules/commissions/http/own-commission-estimate.controller.ts',
+    privateView: ['estimate'],
+  },
+  { file: 'src/modules/orders/http/own-work.controller.ts', privateView: ['tips', 'serviceLines'] },
+];
+
+function verifyStaffController(apiSrcRoot: string, spec: ControllerSpec): void {
+  const source = readFileSync(join(apiSrcRoot, spec.file), 'utf8');
+  expect(source).not.toMatch(/headers\.origin\s*[!=]==?/);
+  const { classDecorators, methods } = classInfoOf(source);
+  const actualStaff = [...methods.values()]
+    .filter((m) => /SetMetadata\(\s*STAFF_ROUTE\b/.test(m.decorators))
+    .map((m) => m.name)
+    .sort();
+  const expectedStaff = [
+    ...(spec.direct ?? []),
+    ...(spec.guardMethods ?? []),
+    ...(spec.privateView ?? []),
+  ].sort();
+  expect(actualStaff, `${spec.file} STAFF_ROUTE inventory`).toEqual(expectedStaff);
+  const actualSignOut = [...methods.values()]
+    .filter((m) => /SignOutRoute\(\s*'staff'\s*\)/.test(m.decorators))
+    .map((m) => m.name)
+    .sort();
+  expect(actualSignOut, `${spec.file} SignOutRoute('staff')`).toEqual(
+    [...(spec.signOut ?? [])].sort(),
+  );
+  if (spec.classGuard !== undefined) {
+    expect(classDecorators).toMatch(new RegExp(`UseGuards\\(\\s*${spec.classGuard}\\b`));
+  }
+  for (const name of spec.direct ?? []) {
+    const handler = methods.get(name);
+    expect(handler, `${spec.file}#${name}`).toBeDefined();
+    if (handler !== undefined) {
+      expect(reachesStaffOrigin(handler, methods), `${spec.file}#${name}`).toBe(true);
+    }
+  }
+  for (const name of spec.privateView ?? []) {
+    expect(methods.get(name)?.decorators, `${spec.file}#${name}`).toMatch(/@PrivateViewRoute\(/);
+  }
+}
+
 describe('every staff route handler checks Origin exclusively through isStaffOrigin (#666)', () => {
   const apiSrcRoot = join(dirname(fileURLToPath(import.meta.url)), '..', '..', '..', '..');
-  const controllerFiles = [
-    'src/modules/identity/http/staff-pin.controller.ts',
-    'src/modules/identity/http/staff-pin-reset.controller.ts',
-    'src/modules/identity/http/staff-otp.controller.ts',
-    'src/modules/identity/http/private-view.controller.ts',
-    'src/modules/staff/http/clock-by-card.controller.ts',
-  ];
-  const guardFiles = [
-    'src/modules/staff/http/staff-leave.guard.ts',
-    'src/shared/private-view.guard.ts',
-  ];
 
-  it.each(controllerFiles)(
-    '%s checks isStaffOrigin on every STAFF_ROUTE handler',
-    (relativePath) => {
-      const source = readFileSync(join(apiSrcRoot, relativePath), 'utf8');
-      expect(source).not.toMatch(/headers\.origin\s*[!=]==?/);
-      const methods = classMethodsOf(source);
-      const staffHandlers = [...methods.values()].filter((m) =>
-        /SetMetadata\(\s*STAFF_ROUTE\b/.test(m.decorators),
-      );
-      expect(staffHandlers.length).toBeGreaterThan(0);
-      for (const handler of staffHandlers) {
-        expect(reachesStaffOrigin(handler, methods), `${relativePath}#${handler.name}`).toBe(true);
-      }
+  it.each(STAFF_CONTROLLER_SPECS)(
+    '%s enforces isStaffOrigin on its exact handler inventory',
+    (spec) => {
+      verifyStaffController(apiSrcRoot, spec);
     },
   );
 
-  it.each(guardFiles)(
-    '%s checks isStaffOrigin without direct header comparison',
-    (relativePath) => {
+  it('staff guards check Origin through isStaffOrigin without direct equality on staff routes', () => {
+    for (const relativePath of [
+      'src/modules/staff/http/staff-leave.guard.ts',
+      'src/shared/private-view.guard.ts',
+    ]) {
       const source = readFileSync(join(apiSrcRoot, relativePath), 'utf8');
       expect(source).not.toMatch(/headers\.origin\s*[!=]==?/);
       expect(source).toContain('isStaffOrigin(');
-    },
-  );
+    }
+    const signOutSource = readFileSync(join(apiSrcRoot, 'src/shared/sign-out.guard.ts'), 'utf8');
+    expect(signOutSource).toMatch(/kind === 'staff'\s*\?\s*isStaffOrigin\(/);
+  });
 });
 
 describe('the staff PIN route without the native origin configured', () => {

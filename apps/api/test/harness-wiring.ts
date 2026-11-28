@@ -43,6 +43,8 @@ export interface HarnessOptions {
   staffAccessRoutes?: boolean;
   /** الأصول المسموحة بـ CORS؛ بدونها لا يُسمح لأي أصل. */
   corsOrigins?: readonly string[];
+  /** الأصول الموثوقة لبوابات الاعتماد واستعادة كلمة المرور؛ منفصلة عن corsOrigins. */
+  authTrustedOrigins?: readonly string[];
   commissionsClock?: { now(): Date };
   /** يلفّ غلاف قاعدة التطبيق، عشان اختبار يسجّل اتصالات معاملات الطلبات الحقيقية. */
   wrapDatabase?: (database: TenantWrappers) => TenantWrappers;

@@ -29,7 +29,10 @@ function fakeApi(overrides: Partial<PasswordResetOtpApi> = {}): PasswordResetOtp
   } as PasswordResetOtpApi;
 }
 
-async function start(passwordReset: PasswordResetOtpApi | null) {
+async function start(
+  passwordReset: PasswordResetOtpApi | null,
+  origins: { readonly auth?: readonly string[]; readonly cors?: readonly string[] } = {},
+) {
   const sink = new Writable({
     write(_chunk, _encoding, done) {
       done();
@@ -39,7 +42,8 @@ async function start(passwordReset: PasswordResetOtpApi | null) {
     {
       readiness: [],
       passwordReset,
-      corsOrigins: [ORIGIN],
+      authTrustedOrigins: origins.auth ?? [ORIGIN],
+      corsOrigins: origins.cors ?? [ORIGIN],
       // مسار Better Auth المحاكى: لو الطلب وصله يبقى المسار الأخص اتخطّى.
       auth: {
         service: {
@@ -208,5 +212,15 @@ describe('the routes sit beside Better Auth, not inside it', () => {
     await start(fakeApi());
     await running().inject({ method: 'POST', url: '/v1/auth/sign-in/email', payload: {} });
     expect(authHandler).toHaveBeenCalledTimes(1);
+  });
+
+  it('allows CORS for a CORS-only origin while refusing password-reset OTP unless trusted (#669)', async () => {
+    const nativeOnly = 'capacitor://localhost';
+    const api = fakeApi();
+    await start(api, { auth: [ORIGIN], cors: [ORIGIN, nativeOnly] });
+    const response = await post('/v1/auth/password-reset/otp/request', body, nativeOnly);
+    expect(response.headers['access-control-allow-origin']).toBe(nativeOnly);
+    expect(response.statusCode).toBe(403);
+    expect(api.request).not.toHaveBeenCalled();
   });
 });

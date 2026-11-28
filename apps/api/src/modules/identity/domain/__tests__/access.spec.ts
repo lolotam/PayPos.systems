@@ -109,8 +109,9 @@ describe('permissionScope', () => {
 });
 
 describe('parsePermissionConstraints', () => {
-  it('returns undefined only for an empty plain object {}', () => {
+  it('returns undefined only for an empty plain object {} or "{}"', () => {
     expect(parsePermissionConstraints({})).toBeUndefined();
+    expect(parsePermissionConstraints('{}')).toBeUndefined();
   });
 
   it('marks non-objects, unknown keys, and malformed values as invalid so merge fails closed', () => {
@@ -125,12 +126,20 @@ describe('parsePermissionConstraints', () => {
       { max_amount: '12.5' },
       { max_amount: -5 },
       { backdate_days: 1.5 },
+      '{"max_amount": 1000.0000000000000001}',
+      '{"max_amount": 9007199254740993}',
+      '{"backdate_days": 3.0000000000000001}',
+      'not-json',
     ]) {
       expect(parsePermissionConstraints(bad)).toEqual({ invalid: true });
     }
   });
 
   it('extracts valid numeric, bigint-mills money, and boolean constraints', () => {
+    expect(parsePermissionConstraints('{"max_amount": 500000, "max_pct": 12.5}')).toEqual({
+      max_amount: 500000n,
+      max_pct: 12.5,
+    });
     expect(
       parsePermissionConstraints({
         max_pct: 10,

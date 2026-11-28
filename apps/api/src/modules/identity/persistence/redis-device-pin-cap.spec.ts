@@ -3,11 +3,12 @@ import { Redis } from 'ioredis';
 import { afterAll, beforeAll, beforeEach, expect, it } from 'vitest';
 
 import type { ApproverPinDevice, DevicePinCap } from '../ports/discount-approver-pin.port.ts';
-import { testRedis } from '../../../../test/harness.ts';
+import { requireRedisUrl, testRedis } from '../../../../test/harness.ts';
 import { createRedisDevicePinCap } from './redis-device-pin-cap.ts';
 
-let redis: Redis;
-let scanner: Redis;
+let redis: Redis | undefined;
+let scanner: Redis | undefined;
+let setupReady = false;
 let cap: DevicePinCap;
 const prefix = `test:device-pin:${randomBytes(8).toString('hex')}:`;
 const device: ApproverPinDevice = {
@@ -17,37 +18,67 @@ const device: ApproverPinDevice = {
 };
 
 const clean = async () => {
+  if (scanner === undefined) throw new Error('redis scanner not initialized');
   // Scan and delete via an unprefixed client so keyPrefix is never applied twice (#1011).
   const keys = await scanner.keys(`${prefix}*`);
   if (keys.length) await scanner.del(...keys);
 };
 
+async function closeClient(client: Redis | undefined): Promise<void> {
+  if (client === undefined) return;
+  if (client.status === 'ready') {
+    try {
+      await client.quit();
+      return;
+    } catch {
+      client.disconnect();
+      return;
+    }
+  }
+  client.disconnect();
+}
+
 beforeAll(async () => {
-  const url = process.env['REDIS_URL']?.trim();
-  if (!url) throw new Error('REDIS_URL is required for redis-device-pin-cap spec (#1017)');
-  redis = new Redis(url, { keyPrefix: prefix, enableOfflineQueue: false, maxRetriesPerRequest: 0 });
-  redis.on('error', () => undefined);
-  scanner = redis.duplicate({ keyPrefix: '' });
-  scanner.on('error', () => undefined);
-  await Promise.all([
-    new Promise<void>((resolve, reject) => {
-      redis.once('ready', resolve);
-      redis.once('error', reject);
-    }),
-    new Promise<void>((resolve, reject) => {
-      scanner.once('ready', resolve);
-      scanner.once('error', reject);
-    }),
-  ]);
-  cap = createRedisDevicePinCap(redis, { newId: randomUUID });
+  const url = requireRedisUrl(process.env);
+  try {
+    redis = new Redis(url, {
+      keyPrefix: prefix,
+      enableOfflineQueue: false,
+      maxRetriesPerRequest: 0,
+    });
+    redis.on('error', () => undefined);
+    scanner = redis.duplicate({ keyPrefix: '' });
+    scanner.on('error', () => undefined);
+    const activeRedis = redis;
+    const activeScanner = scanner;
+    await Promise.all([
+      new Promise<void>((resolve, reject) => {
+        activeRedis.once('ready', resolve);
+        activeRedis.once('error', reject);
+      }),
+      new Promise<void>((resolve, reject) => {
+        activeScanner.once('ready', resolve);
+        activeScanner.once('error', reject);
+      }),
+    ]);
+    cap = createRedisDevicePinCap(activeRedis, { newId: randomUUID });
+    setupReady = true;
+  } catch (error) {
+    await closeClient(scanner);
+    await closeClient(redis);
+    throw error;
+  }
 });
 
 beforeEach(clean);
 
 afterAll(async () => {
-  if (scanner?.status === 'ready') await clean().catch(() => undefined);
-  await scanner?.quit().catch(() => undefined);
-  await redis?.quit().catch(() => undefined);
+  try {
+    if (setupReady) await clean();
+  } finally {
+    await closeClient(scanner);
+    await closeClient(redis);
+  }
 });
 
 async function admissions(count: number) {
@@ -114,6 +145,7 @@ it('a new lock leaves one claimable audit marker until confirmed', async () => {
   await expect(cap.claimLockAudit(device)).resolves.toBe(true);
   await expect(cap.claimLockAudit(device)).resolves.toBe(false);
   const claimKey = `pindev:${device.companyId}:${device.deviceId}:lock-audit-claim`;
+  if (redis === undefined) throw new Error('redis not initialized');
   await redis.del(claimKey);
   await expect(cap.claimLockAudit(device)).resolves.toBe(true);
   await cap.confirmLockAudit(device);
@@ -157,6 +189,7 @@ it('debate #3 a success racing the tenth failure still ends locked with at most 
 
 it('an admission whose deadline passed returns expired for failure and success', async () => {
   const key = `pindev:${device.companyId}:${device.deviceId}:inflight`;
+  if (redis === undefined) throw new Error('redis not initialized');
   await redis.zadd(key, Date.now() - 1000, 'synthetic-expired');
   expect(await cap.failure(device, 'synthetic-expired')).toBe('expired');
   await redis.zadd(key, Date.now() - 1000, 'synthetic-expired');
@@ -164,6 +197,7 @@ it('an admission whose deadline passed returns expired for failure and success',
 });
 
 it('clean removes all prefixed device-pin keys from Redis (#1011)', async () => {
+  if (scanner === undefined) throw new Error('redis scanner not initialized');
   const admitted = await admissions(10);
   await Promise.all(admitted.map((admission) => cap.failure(device, admission)));
   expect((await scanner.keys(`${prefix}*`)).length).toBeGreaterThan(0);
@@ -172,7 +206,15 @@ it('clean removes all prefixed device-pin keys from Redis (#1011)', async () => 
   expect((await cap.admit(device)).kind).toBe('ok');
 });
 
-it('testRedis fails fast when REDIS_URL is missing or whitespace (#1017)', () => {
-  expect(() => testRedis({})).toThrow(/REDIS_URL/);
-  expect(() => testRedis({ REDIS_URL: '   ' })).toThrow(/REDIS_URL/);
+it('requireRedisUrl and testRedis fail fast when REDIS_URL is missing, blank, or lacks hostname (#1017)', () => {
+  for (const bad of [
+    {},
+    { REDIS_URL: '   ' },
+    { REDIS_URL: 'redis://' },
+    { REDIS_URL: 'rediss://' },
+    { REDIS_URL: 'http://127.0.0.1:6379' },
+  ]) {
+    expect(() => requireRedisUrl(bad)).toThrow(/REDIS_URL/);
+    expect(() => testRedis(bad)).toThrow(/REDIS_URL/);
+  }
 });

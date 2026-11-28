@@ -223,20 +223,20 @@ export async function readAccessTransaction(
         JOIN roles r ON r.id = m.role_id AND r.owner_key = m.role_owner_key
         WHERE m.company_id = ${companyId} AND m.user_id = ${userId} AND ${active}`);
   const grants = await tx.execute<AccessGrantRow>(sql`
-        SELECT rp.permission_code AS permission, 'ALLOW' AS effect, 'role' AS source, m.scope_type, m.scope_id, rp.constraints AS constraints
+        SELECT rp.permission_code AS permission, 'ALLOW' AS effect, 'role' AS source, m.scope_type, m.scope_id, rp.constraints::text AS constraints
         FROM memberships m
         JOIN role_permissions rp ON rp.role_id = m.role_id AND rp.role_owner_key = m.role_owner_key
         WHERE m.company_id = ${companyId} AND m.user_id = ${userId} AND ${active}
           AND rp.permission_code NOT IN (${SALARY_CODES})
           AND ${systemRoleGrantAllowedSql('m', 'rp')}
         UNION ALL
-        SELECT p.code, 'ALLOW', 'role', m.scope_type, m.scope_id, '{}'::jsonb AS constraints
+        SELECT p.code, 'ALLOW', 'role', m.scope_type, m.scope_id, '{}'::text AS constraints
         FROM memberships m
         CROSS JOIN permissions p
         WHERE m.company_id=${companyId} AND m.user_id=${userId} AND ${active} AND ${canonicalOwnerSql('m', companyId)}
           AND p.code IN (${SALARY_CODES})
         UNION ALL
-        SELECT o.permission_code, o.effect, 'override', o.scope_type, o.scope_id, '{}'::jsonb AS constraints
+        SELECT o.permission_code, o.effect, 'override', o.scope_type, o.scope_id, '{}'::text AS constraints
         FROM permission_overrides o
         JOIN memberships m ON m.company_id = o.company_id AND m.id = o.membership_id
         WHERE o.company_id = ${companyId} AND m.user_id = ${userId} AND ${active}

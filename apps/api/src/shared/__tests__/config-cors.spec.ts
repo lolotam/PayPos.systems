@@ -114,4 +114,23 @@ describe('RATING_PAGE_ORIGIN vs COOKIE_DOMAIN (#856)', () => {
       ).toBe(ratingOrigin);
     },
   );
+
+  it.each([
+    'https://api.example.test:8443',
+    'https://api.example.test.',
+    'http://api.example.test',
+  ])(
+    'refuses RATING_PAGE_ORIGIN=%s sharing BETTER_AUTH_URL hostname even when COOKIE_DOMAIN is unset',
+    (ratingOrigin) => {
+      const attempt = () =>
+        readConfig({
+          ...valid,
+          NODE_ENV: 'test',
+          BETTER_AUTH_URL: 'https://api.example.test',
+          RATING_PAGE_ORIGIN: ratingOrigin,
+        });
+      expect(attempt).toThrow(/RATING_PAGE_ORIGIN/);
+      expect(attempt).not.toThrow('api.example.test');
+    },
+  );
 });
