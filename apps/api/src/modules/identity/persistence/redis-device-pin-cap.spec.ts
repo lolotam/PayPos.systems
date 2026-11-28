@@ -20,8 +20,12 @@ const device: ApproverPinDevice = {
 const clean = async () => {
   if (scanner === undefined) throw new Error('redis scanner not initialized');
   // Scan and delete via an unprefixed client so keyPrefix is never applied twice (#1011).
-  const keys = await scanner.keys(`${prefix}*`);
-  if (keys.length) await scanner.del(...keys);
+  let cursor = '0';
+  do {
+    const [next, keys] = await scanner.scan(cursor, 'MATCH', `${prefix}*`, 'COUNT', 100);
+    cursor = next;
+    if (keys.length > 0) await scanner.del(...keys);
+  } while (cursor !== '0');
 };
 
 async function closeClient(client: Redis | undefined): Promise<void> {

@@ -88,10 +88,18 @@ Traefik بياخد شهادة مستقلة لكل subdomain عن طريق **HTTP
 ### سلبية / تكلفة
 
 - عدد أكبر من الـ DNS records والشهادات (Traefik بيديرها أوتوماتيك، فالتكلفة وقت إعداد أولي بس)
-- لازم `BETTER_AUTH_TRUSTED_ORIGINS` و `CORS_ORIGINS` يتحدثوا مع أي subdomain جديد — ونسيانه بيدي رفض غامض في الـ requests
+- لازم `AUTH_TRUSTED_ORIGINS` (وعند تفعيلها `API_CORS_ORIGINS` في ملحق `#669` أدناه) يتحدثوا مع أي origin جديد — ونسيانه بيدي رفض غامض في الـ requests
 - الانتقال لـ Gulf region بعدين (المخطط في `06` §5.15) هيحتاج تحديث كل الـ A records — عملية بسيطة بس لازم تتعمل مرة واحدة
 
 ### مخاطر مفتوحة
 
 - **اسم "PosPay":** كلمة "Pay" بتوصّل إن المنصة مزوّد مدفوعات، بينما المعمارية (`06` §5.9.1) اختارت **BYO model** تحديدًا عشان متمسكش فلوس التجار وبالتالي ما تحتاجش ترخيص **EPSP** من بنك الكويت المركزي. الاسم محتاج مراجعة قانونية قبل ما يثبت في الفواتير والـ WABA. **اتحسم 2026-09-23:** المحامي شايف إن مفيش مانع، والاسم PosPay فاضل زي ما هو (PRD D-02).
 - **مكان الـ staging:** **اتحسم 2026-09-23 (PRD D-11):** الـ staging على السيرفر الحالي مؤقتًا جنب الـ production، والاتنين هيتنقلوا على سيرفر جديد لما يتشترى.
+
+---
+
+## ملحق: فصل `API_CORS_ORIGINS` عن `AUTH_TRUSTED_ORIGINS` (#669)
+
+- يظل `AUTH_TRUSTED_ORIGINS` هو المصدر الافتراضي للاتنين إذا كان `API_CORS_ORIGINS` فارغاً أو غير مضبوط، حتى لا ينحرفا عن بعض في الإعداد البسيط.
+- عند الحاجة إلى منح origin معيّن صلاحية CORS من Fastify دون إضافته إلى `trustedOrigins` أو ثقة Better Auth (مثل `capacitor://localhost` لتطبيق iOS على الإنتاج)، تُضبط قائمة `API_CORS_ORIGINS` الاختيارية بأصول صريحة فقط (`http(s)` أو `capacitor://localhost` بلا wildcards).
+- لا يدخل `RATING_PAGE_ORIGIN` في أيٍّ من `AUTH_TRUSTED_ORIGINS` أو `API_CORS_ORIGINS` (ADR-0058).

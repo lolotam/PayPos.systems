@@ -235,6 +235,13 @@ interface MethodInfo {
   readonly bodyText: string;
 }
 
+const printer = ts.createPrinter({ removeComments: true });
+
+function stripComments(source: string): string {
+  const file = ts.createSourceFile('probe.ts', source, ts.ScriptTarget.Latest, true);
+  return printer.printFile(file);
+}
+
 function classInfoOf(source: string) {
   const file = ts.createSourceFile('probe.ts', source, ts.ScriptTarget.Latest, true);
   const methods = new Map<string, MethodInfo>();
@@ -250,7 +257,8 @@ function classInfoOf(source: string) {
     if (ts.isClassDeclaration(node)) classDecorators = decs(node);
     if (ts.isMethodDeclaration(node) && node.body !== undefined) {
       const name = node.name.getText(file);
-      methods.set(name, { name, decorators: decs(node), bodyText: node.body.getText(file) });
+      const bodyText = printer.printNode(ts.EmitHint.Unspecified, node.body, file);
+      methods.set(name, { name, decorators: decs(node), bodyText });
     }
     ts.forEachChild(node, visit);
   };
@@ -258,12 +266,15 @@ function classInfoOf(source: string) {
   return { classDecorators, methods };
 }
 
+const ENFORCES_STAFF_ORIGIN =
+  /if\s*\(\s*!isStaffOrigin\([^,]+,\s*request\.headers\.origin\)[\s\S]*?throw\s+new\s+ApiError\(\s*'FORBIDDEN'\s*\)/;
+
 function reachesStaffOrigin(
   m: MethodInfo,
   methods: ReadonlyMap<string, MethodInfo>,
   seen = new Set<string>(),
 ): boolean {
-  if (m.bodyText.includes('isStaffOrigin(')) return true;
+  if (ENFORCES_STAFF_ORIGIN.test(m.bodyText)) return true;
   if (seen.has(m.name)) return false;
   seen.add(m.name);
   return [...m.bodyText.matchAll(/\bthis\.([A-Za-z0-9_]+)\s*\(/g)].some(([, c]) => {
@@ -282,46 +293,26 @@ type StaffControllerEntry = readonly [
 ];
 
 const STAFF_CONTROLLER_SPECS: readonly StaffControllerEntry[] = [
-  ['StaffPinController', 'identity/http/staff-pin.controller.ts', ['signIn', 'change'], 'direct'],
-  [
-    'StaffPinResetController',
-    'identity/http/staff-pin-reset.controller.ts',
-    ['request', 'reset'],
-    'direct',
-  ],
+  ['StaffPinController', 'identity/staff-pin', ['signIn', 'change'], 'direct'],
+  ['StaffPinResetController', 'identity/staff-pin-reset', ['request', 'reset'], 'direct'],
   [
     'StaffOtpController',
-    'identity/http/staff-otp.controller.ts',
+    'identity/staff-otp',
     ['request', 'verify', 'session'],
     'direct',
     ['signOut'],
   ],
-  [
-    'PrivateViewController',
-    'identity/http/private-view.controller.ts',
-    ['open', 'touch', 'close'],
-    'direct',
-  ],
-  ['ClockByCardController', 'staff/http/clock-by-card.controller.ts', ['submit'], 'direct'],
-  [
-    'OwnLeaveController',
-    'staff/http/own-leave.controller.ts',
-    ['request', 'cancelRequest', 'list'],
-    'leave-guard',
-  ],
-  ['OwnAttendanceController', 'staff/http/own-attendance.controller.ts', ['read'], 'private-view'],
+  ['PrivateViewController', 'identity/private-view', ['open', 'touch', 'close'], 'direct'],
+  ['ClockByCardController', 'staff/clock-by-card', ['submit'], 'direct'],
+  ['OwnLeaveController', 'staff/own-leave', ['request', 'cancelRequest', 'list'], 'leave-guard'],
+  ['OwnAttendanceController', 'staff/own-attendance', ['read'], 'private-view'],
   [
     'OwnCommissionEstimateController',
-    'commissions/http/own-commission-estimate.controller.ts',
+    'commissions/own-commission-estimate',
     ['estimate'],
     'private-view',
   ],
-  [
-    'OwnWorkController',
-    'orders/http/own-work.controller.ts',
-    ['tips', 'serviceLines'],
-    'private-view',
-  ],
+  ['OwnWorkController', 'orders/own-work', ['tips', 'serviceLines'], 'private-view'],
 ];
 
 function discoverRegisteredStaffInventory(): Record<
@@ -357,8 +348,12 @@ function discoverRegisteredStaffInventory(): Record<
 
 function verifyStaffController(apiSrcRoot: string, entry: StaffControllerEntry): void {
   const [, moduleFile, staff, kind] = entry;
-  const source = readFileSync(join(apiSrcRoot, 'src/modules', moduleFile), 'utf8');
-  expect(source).not.toMatch(/headers\.origin\s*[!=]==?/);
+  const [mod = '', ctrl = ''] = moduleFile.split('/');
+  const source = readFileSync(
+    join(apiSrcRoot, 'src/modules', mod, 'http', `${ctrl}.controller.ts`),
+    'utf8',
+  );
+  expect(stripComments(source)).not.toMatch(/headers\.origin\s*[!=]==?/);
   const { classDecorators, methods } = classInfoOf(source);
   if (kind === 'leave-guard') {
     expect(classDecorators).toMatch(/UseGuards\(\s*StaffLeaveGuard\b/);
@@ -401,12 +396,14 @@ describe('every staff route handler checks Origin exclusively through isStaffOri
       'src/modules/staff/http/staff-leave.guard.ts',
       'src/shared/private-view.guard.ts',
     ]) {
-      const source = readFileSync(join(apiSrcRoot, rel), 'utf8');
-      expect(source).not.toMatch(/headers\.origin\s*[!=]==?/);
-      expect(source).toContain('isStaffOrigin(');
+      const code = stripComments(readFileSync(join(apiSrcRoot, rel), 'utf8'));
+      expect(code).not.toMatch(/headers\.origin\s*[!=]==?/);
+      expect(code).toMatch(ENFORCES_STAFF_ORIGIN);
     }
-    expect(readFileSync(join(apiSrcRoot, 'src/shared/sign-out.guard.ts'), 'utf8')).toMatch(
-      /kind === 'staff'\s*\?\s*isStaffOrigin\(/,
+    expect(
+      stripComments(readFileSync(join(apiSrcRoot, 'src/shared/sign-out.guard.ts'), 'utf8')),
+    ).toMatch(
+      /kind === 'staff'\s*\?\s*isStaffOrigin\(wiring\.staffOrigin,\s*request\.headers\.origin\)[\s\S]*?if\s*\(!allowed\)\s*throw\s+new\s+ApiError\(\s*'FORBIDDEN'\s*\)/,
     );
   });
 });

@@ -254,4 +254,17 @@ describe('mergeGrantConstraints — most restrictive wins (#10)', () => {
       manual_edit: false,
     });
   });
+
+  it('rejects non-plain objects such as Date and Map instead of treating them as unrestricted', () => {
+    for (const nonPlain of [new Date(), new Map()]) {
+      const parsed = parsePermissionConstraints(nonPlain);
+      expect(parsed).toEqual({ invalid: true });
+      const merged = mergeGrantConstraints(
+        [grant(parsed === undefined ? {} : { constraints: parsed })],
+        P,
+        atBranch(BRANCH_1),
+      );
+      expect(merged).toBeNull();
+    }
+  });
 });

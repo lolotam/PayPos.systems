@@ -221,6 +221,8 @@ export function parsePermissionConstraints(raw: unknown): PermissionConstraints 
   const candidate = typeof raw === 'string' ? parseJsonConstraints(raw) : raw;
   if (typeof candidate !== 'object' || candidate === null || Array.isArray(candidate))
     return { invalid: true };
+  const proto = Object.getPrototypeOf(candidate) as unknown;
+  if (proto !== Object.prototype && proto !== null) return { invalid: true };
   const entries = Object.entries(candidate);
   if (entries.length === 0) return undefined;
   const parsed: MutableConstraints = {};
