@@ -188,3 +188,47 @@ it('clears cache on shortened server expiry during cancelQueries or identity mis
     vi.setSystemTime(new Date('2026-10-04T10:00:00Z'));
   }
 });
+
+it.each([
+  { mode: 'personal', label: '403', makeResponse: () => Response.json({}, { status: 403 }) },
+  { mode: 'personal', label: '404', makeResponse: () => Response.json({}, { status: 404 }) },
+  { mode: 'personal', label: '200 null', makeResponse: () => Response.json(null) },
+  { mode: 'reception', label: '403', makeResponse: () => Response.json({}, { status: 403 }) },
+  { mode: 'reception', label: '404', makeResponse: () => Response.json({}, { status: 404 }) },
+  { mode: 'reception', label: '200 null', makeResponse: () => Response.json(null) },
+] as const)(
+  'clears $mode session when delayed probe returns $label even after a matching poll (#891)',
+  async ({ mode, makeResponse }) => {
+    const base = mode === 'personal' ? personal : reception;
+    const key = [mode === 'personal' ? 'personal-session' : 'staff-session', 0];
+    const cache = new QueryClient();
+    cache.setQueryData(key, base);
+    cache.setQueryData(['other-private'], 'stale');
+
+    let releaseProbe!: (response: Response) => void;
+    let calls = 0;
+    fetchHandler.mockImplementation(() => {
+      calls += 1;
+      return calls === 1
+        ? new Promise<Response>((resolve) => {
+            releaseProbe = resolve;
+          })
+        : Promise.resolve(Response.json(base));
+    });
+
+    const recovery = recoverLeaveSession(
+      { mode, ...base, sessionEpoch: 0 },
+      '',
+      new AbortController().signal,
+      cache,
+    );
+    await vi.waitFor(() => expect(calls).toBe(1));
+    await cache.fetchQuery({ queryKey: key, queryFn: async () => base });
+    releaseProbe(makeResponse());
+
+    const rejection = await recovery.catch((err: unknown) => err);
+    expect(rejection).toBeInstanceOf(LeaveHttpError);
+    expect(rejection).toMatchObject({ status: 401, message: 'UNAUTHENTICATED' });
+    expect(cache.getQueryData(key)).toBeNull();
+  },
+);

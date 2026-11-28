@@ -1,7 +1,7 @@
 import { personalSessionContext, staffSessionContext } from '@pospay/contracts';
 import type { QueryCacheNotifyEvent, QueryClient } from '@tanstack/react-query';
 import { personalCalls } from '@/personal-staff/api/personal-calls';
-import { probeStaffSession } from '@/staff-login/api/staff-calls';
+import { probeStaffSessionWithStatus } from '@/staff-login/api/staff-calls';
 import type { LeaveContext } from '@/my-leave/model/context';
 import { LeaveHttpError } from '@/my-leave/model/read-error';
 import { leaveCalls } from '@/my-leave/api/leave-calls';
@@ -190,6 +190,10 @@ function sessionMatchesOuter(
   return !('employee_id' in data) || data.employee_id === context.employee_id;
 }
 
+async function probeRecoverySession(mode: LeaveContext['mode']) {
+  return mode === 'personal' ? personalCalls.sessionWithStatus() : probeStaffSessionWithStatus();
+}
+
 export async function recoverLeaveSession(
   context: LeaveContext,
   branch: string,
@@ -208,10 +212,10 @@ export async function recoverLeaveSession(
   );
   try {
     requireCurrent();
-    const session = await (context.mode === 'personal'
-      ? personalCalls.session()
-      : probeStaffSession());
+    const probe = await probeRecoverySession(context.mode);
     requireCurrent();
+    const session = probe.kind === 'ok' ? probe.data : null;
+    const isUnauthenticated401 = probe.kind === 'unauthenticated';
     const parsed =
       context.mode === 'personal'
         ? personalSessionContext.safeParse(session)
@@ -222,8 +226,12 @@ export async function recoverLeaveSession(
     await cache.cancelQueries({ queryKey: sessionKey, exact: true }, { revert: false });
     requireCurrent();
     if (!accepted || !parsed.success || Date.parse(parsed.data.expires_at) <= Date.now()) {
-      // الاستثناء للرد غير المصادق المتأخر (null) فقط عندما يؤكد poll لاحق الجلسة؛ تبدّل الهوية أو انتهاء المهلة من السيرفر يمسحها فوراً.
-      if (session === null && sawMatchingPoll() && Date.parse(context.expires_at) > Date.now()) {
+      // الاستثناء للرد 401 المتأخر فقط عندما يؤكد poll لاحق الجلسة؛ الرفض بـ 403/404 أو جسم 200 غير الصالح أو تبدّل الهوية/المهلة يمسح الجلسة فوراً.
+      if (
+        isUnauthenticated401 &&
+        sawMatchingPoll() &&
+        Date.parse(context.expires_at) > Date.now()
+      ) {
         throw new DOMException('Recovery superseded', 'AbortError');
       }
       publish(null);

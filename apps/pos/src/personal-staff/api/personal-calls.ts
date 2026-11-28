@@ -10,11 +10,16 @@ import { attendanceInstallationId } from '../model/installation-id';
 // لا middleware الجهاز هنا، حتى لو كان المتصفح قد استعمل كشكاً في وقت سابق.
 const client = personalApiClient;
 export const personalCalls = {
-  session: async () => {
+  sessionWithStatus: async () => {
     const result = await client().GET('/v1/staff/personal-session');
-    if ([401, 403, 404].includes(result.response.status)) return null;
+    if (result.response.status === 401) return { kind: 'unauthenticated' as const };
+    if ([403, 404].includes(result.response.status)) return { kind: 'refused' as const };
     if (result.data === undefined) throw new Error('PERSONAL_SESSION_UNAVAILABLE');
-    return result.data;
+    return { kind: 'ok' as const, data: result.data };
+  },
+  session: async () => {
+    const outcome = await personalCalls.sessionWithStatus();
+    return outcome.kind === 'ok' ? outcome.data : null;
   },
   binding: async () => {
     const result = await client().GET('/v1/staff/passkey');
