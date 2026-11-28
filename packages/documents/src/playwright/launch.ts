@@ -176,7 +176,10 @@ export async function driveShutdownRetries(
   const stop = (): void => gateAbort.abort();
   void gate.then(stop, stop);
   let attempts = 0;
-  while (!gateAbort.signal.aborted && !closeSignal.aborted) {
+  let shutdownBudget = 2;
+  while (!gateAbort.signal.aborted && (!closeSignal.aborted || shutdownBudget > 0)) {
+    const postClose = closeSignal.aborted;
+    if (postClose) shutdownBudget -= 1;
     const delayMs = backoff[Math.min(attempts, backoff.length - 1)] ?? 0;
     attempts += 1;
     let floorTimer: ReturnType<typeof setTimeout> | undefined;
@@ -184,11 +187,11 @@ export async function driveShutdownRetries(
       floorTimer = setTimeout(resolve, Math.max(delayMs, 5));
       floorTimer.unref?.();
     });
-    const safeSleep = delayMs > 0 ? Promise.resolve().then(() => sleep(delayMs)).catch(() => undefined) : Promise.resolve();
+    const safeSleep = delayMs > 0 && !postClose ? Promise.resolve().then(() => sleep(delayMs)).catch(() => undefined) : Promise.resolve();
     const pause = Promise.all([safeSleep, floor]).then(() => undefined);
-    await waitGate(pause, gateAbort.signal, closeSignal);
+    await waitGate(pause, gateAbort.signal, postClose ? undefined : closeSignal);
     if (floorTimer !== undefined) clearTimeout(floorTimer);
-    if (gateAbort.signal.aborted || closeSignal.aborted) return;
+    if (gateAbort.signal.aborted || (!postClose && closeSignal.aborted)) return;
     const shutdown = getShutdown();
     if (shutdown === null) return;
     const retry = shutdown.kill();
@@ -201,9 +204,9 @@ export async function driveShutdownRetries(
         gateAbort.abort();
         return;
       }
-      if (!gateAbort.signal.aborted && !closeSignal.aborted) onError?.(err);
+      if (!gateAbort.signal.aborted) onError?.(err);
     });
-    await waitGate(attempt, gateAbort.signal, closeSignal);
+    await waitGate(attempt, gateAbort.signal, postClose ? undefined : closeSignal);
   }
 }
 

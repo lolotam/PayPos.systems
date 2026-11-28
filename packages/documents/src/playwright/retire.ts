@@ -60,7 +60,7 @@ export interface RetireResult {
 /** تنسيق قفل وقتل مشترك لنفس المتصفح عشان القتل ما يتكررش ومؤقت السماح يقف عند تأكيد الخروج. */
 export interface BrowserShutdown {
   readonly confirmed: Promise<void>;
-  runClose(graceMs: number, sleep?: (ms: number) => Promise<void>): Promise<RetireResult>;
+  runClose(graceMs: number, sleep?: (ms: number) => Promise<void>, requireKill?: boolean): Promise<RetireResult>;
   kill(): Promise<void> | undefined;
 }
 
@@ -245,9 +245,12 @@ async function executeCloseAttempt(
   state: ShutdownState,
   graceMs: number,
   sleep?: (ms: number) => Promise<void>,
+  requireKill = false,
 ): Promise<RetireResult> {
+  const mustKill = requireKill && typeof state.browser.kill === 'function';
+  if (mustKill) state.descendantUnconfirmed = true;
   const activeClose = ensureClosing(state);
-  if (!isShutdownConfirmed(state)) {
+  if (!mustKill && !isShutdownConfirmed(state)) {
     await waitCloseGrace(activeClose, graceMs, sleep, state.cancels);
   }
   if (isShutdownConfirmed(state)) return { confirmed: true, exit: Promise.resolve() };
@@ -284,10 +287,10 @@ export function createBrowserShutdown(browser: PdfBrowser): BrowserShutdown {
   return {
     confirmed,
     kill: () => runKillAttempt(state, true),
-    runClose: (graceMs, sleep) => {
+    runClose: (graceMs, sleep, requireKill = false) => {
       const usesSleep = sleep !== undefined;
       if (state.closeInFlight !== null && state.inFlightUsesSleep === usesSleep) return state.closeInFlight;
-      const run = executeCloseAttempt(state, graceMs, sleep).then((outcome) => {
+      const run = executeCloseAttempt(state, graceMs, sleep, requireKill).then((outcome) => {
         if (state.closeInFlight === run && !outcome.confirmed) {
           state.closeInFlight = null;
           state.fallbackAttempted = false;

@@ -60,15 +60,8 @@ it('keeps replacement launches blocked on rejected launch cleanup before and aft
     let kills = 0;
     const errors: string[] = [];
     const renderer = new PlaywrightDocumentRenderer({
-      factory: {
-        launch: () => new Promise((_, reject) => {
-          launches += 1;
-          setTimeout(() => reject(withLaunchCleanup(new Error('spawn fail'), Promise.reject(new Error('SIGKILL_REJECTED')), () => { kills += 1; })), delayMs);
-        }),
-      },
-      launchTimeoutMs: timeoutMs,
-      sleep: wait,
-      backoffMs: [250],
+      factory: { launch: () => new Promise((_, reject) => { launches += 1; setTimeout(() => reject(withLaunchCleanup(new Error('spawn fail'), Promise.reject(new Error('SIGKILL_REJECTED')), () => { kills += 1; })), delayMs); }) },
+      launchTimeoutMs: timeoutMs, sleep: wait, backoffMs: [250],
       onLaunchError: (err) => { if (err instanceof Error) errors.push(err.message); },
     });
     await renderer.start();
@@ -384,22 +377,26 @@ it('retains shutdown handle for abandoned late browsers, escalates late cleanup,
 
 it('keeps retirement gated on failed descendant kill after browser.close resolves and gates disconnect launches', async () => {
   let childKills = 0;
+  let rootKills = 0;
   let launches = 0;
   let releaseClose!: () => void;
   const child = Object.assign(new EventEmitter(), { exitCode: null as number | null, signalCode: null, kill: () => (++childKills === 1 ? (() => { throw new Error('EPERM'); })() : true) });
-  const root = Object.assign(new EventEmitter(), { exitCode: 0, signalCode: null, children: [child], kill: () => true });
+  const root = Object.assign(new EventEmitter(), {
+    exitCode: null as number | null, signalCode: null, children: [child],
+    kill: () => (++rootKills === 1 ? false : ((root.exitCode = 0), root.emit('exit'), true)),
+  });
   const r1 = new PlaywrightDocumentRenderer({ factory: { launch: async () => (++launches === 1 ? fakeBrowser({ close: () => new Promise<void>((r) => (releaseClose = r)), kill: () => killAndWait(root) }) : closedBrowser()) }, sleep: wait, backoffMs: [250], overallTimeoutMs: 15, browserCloseGraceMs: 10 });
   await r1.start();
   await expect(r1.render('<p>x</p>')).rejects.toThrow();
   await wait(25);
-  expect(childKills).toBe(1);
+  expect([childKills, rootKills, launches]).toEqual([1, 1, 1]);
   releaseClose();
   await wait(25);
   expect(launches).toBe(1);
   expect(r1.unconfirmedExit).not.toBeNull();
   const retry = Promise.resolve(r1.kill());
   await wait(10);
-  expect(childKills).toBe(2);
+  expect([childKills, rootKills]).toEqual([2, 2]);
   child.exitCode = 0;
   child.emit('exit');
   await retry;
@@ -407,14 +404,14 @@ it('keeps retirement gated on failed descendant kill after browser.close resolve
 
   let dcLaunches = 0;
   let disconnect!: () => void;
-  let releaseDcClose!: () => void;
-  const r2 = new PlaywrightDocumentRenderer({ factory: { launch: async () => (++dcLaunches === 1 ? fakeBrowser({ close: () => new Promise<void>((r) => (releaseDcClose = r)), on: (ev, cb) => { if (ev === 'disconnected') disconnect = cb; } }) : closedBrowser()) }, backoffMs: [5] });
+  let releaseDcKill!: () => void;
+  const r2 = new PlaywrightDocumentRenderer({ factory: { launch: async () => (++dcLaunches === 1 ? closedBrowser({ kill: () => new Promise<void>((r) => (releaseDcKill = r)), on: (ev, cb) => { if (ev === 'disconnected') disconnect = cb; } }) : closedBrowser()) }, backoffMs: [5] });
   await r2.start();
   disconnect();
   await wait(30);
   expect(dcLaunches).toBe(1);
   expect(r2.isAvailable()).toBe(false);
-  releaseDcClose();
+  releaseDcKill();
   await waitUntil(() => r2.isAvailable());
   expect(dcLaunches).toBe(2);
   expect(r2.isAvailable()).toBe(true);

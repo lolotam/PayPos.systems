@@ -191,9 +191,9 @@ export class PlaywrightDocumentRenderer implements DocumentRenderer {
     return tracked;
   }
 
-  #retryUnconfirmed(shutdown: BrowserShutdown, gate: Promise<void>, signal = this.#closeAbort.signal): void {
+  #retryUnconfirmed(shutdown: BrowserShutdown, gate: Promise<void>): void {
     const { backoff, sleep, onLaunchError } = this.#cfg;
-    void driveShutdownRetries(gate, () => (this.#shutdown === shutdown ? shutdown : null), backoff, sleep, signal, onLaunchError);
+    void driveShutdownRetries(gate, () => (this.#shutdown === shutdown ? shutdown : null), backoff, sleep, this.#closeAbort.signal, onLaunchError);
   }
 
   #retireAbandonedBrowser(browser: PdfBrowser): Promise<void> {
@@ -218,7 +218,7 @@ export class PlaywrightDocumentRenderer implements DocumentRenderer {
       (err) => this.#cfg.onLaunchError?.(err),
       (shutdown, retryGate) => {
         this.#shutdown = shutdown;
-        if (retryGate !== undefined) this.#retryUnconfirmed(shutdown, retryGate, new AbortController().signal);
+        if (retryGate !== undefined) this.#retryUnconfirmed(shutdown, retryGate);
       },
       (shutdown) => this.#confirmBrowserExit(shutdown),
       () => this.#closing,
@@ -414,7 +414,7 @@ export class PlaywrightDocumentRenderer implements DocumentRenderer {
     try {
       // بنحط حارس التقاعد قبل إشعار المستمعين عشان نداء start() المتزامن يستنى نهاية التقاعد.
       this.#markUnavailable();
-      const retiring = shutdown.runClose(this.#cfg.browserCloseGraceMs, useInjectedSleep ? this.#cfg.sleep : undefined).then((outcome) => {
+      const retiring = shutdown.runClose(this.#cfg.browserCloseGraceMs, useInjectedSleep ? this.#cfg.sleep : undefined, !useInjectedSleep).then((outcome) => {
         if (outcome.confirmed) {
           this.#confirmBrowserExit(shutdown);
           return undefined;

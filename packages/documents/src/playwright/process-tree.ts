@@ -256,38 +256,23 @@ async function waitForPidsExit(pids: readonly number[], procRoot = '/proc'): Pro
 }
 
 function killLaunchProcessGroup(proc: KillableProcess): void {
-  if (process.platform === 'win32' || hasExited(proc)) return;
-  if (typeof proc.pid !== 'number' || proc.pid <= 0) return;
-  try {
-    // Playwright بيطلق Chromium بـ detached: true على الأنظمة غير Windows فبيكون قائد مجموعة عمليات (-pid).
-    process.kill(-proc.pid, 'SIGKILL');
-  } catch {
-    // لو العملية مش قائد مجموعة أو خرجت، proc.kill('SIGKILL') بيتكفل بيها.
-  }
+  if (process.platform === 'win32' || hasExited(proc) || typeof proc.pid !== 'number' || proc.pid <= 0) return;
+  try { process.kill(-proc.pid, 'SIGKILL'); } catch { /* proc.kill يتكفل */ }
 }
 
 function hasMatchingMarkerInProc(pid: number, marker: string, procRoot = '/proc'): boolean {
   if (process.platform !== 'linux' && procRoot === '/proc') return false;
-  const expected = `${LAUNCH_MARKER_ENV}=${marker}`;
-  try {
-    const envText = readFileSync(`${procRoot}/${pid}/environ`, 'utf8');
-    return envText.split('\0').includes(expected);
-  } catch {
-    return false;
-  }
+  try { return readFileSync(`${procRoot}/${pid}/environ`, 'utf8').split('\0').includes(`${LAUNCH_MARKER_ENV}=${marker}`); } catch { return false; }
 }
 
 function collectMarkedLinuxPids(marker: string | undefined, procRoot = '/proc'): number[] {
   if (marker === undefined || (process.platform !== 'linux' && procRoot === '/proc')) return [];
-  return readLinuxProcessPairs(procRoot)
-    .filter((row) => hasMatchingMarkerInProc(row.pid, marker, procRoot))
-    .map((row) => row.pid);
+  return readLinuxProcessPairs(procRoot).filter((row) => hasMatchingMarkerInProc(row.pid, marker, procRoot)).map((row) => row.pid);
 }
 
 function toKillError(error: unknown): Error | undefined {
   const code = error instanceof Error && 'code' in error ? error.code : undefined;
-  if (code === 'ESRCH') return undefined;
-  return error instanceof Error ? error : new Error('SIGKILL_FAILED');
+  return code === 'ESRCH' ? undefined : (error instanceof Error ? error : new Error('SIGKILL_FAILED'));
 }
 
 function signalDescendantPid(pid: number): Error | undefined {
@@ -300,7 +285,7 @@ function signalDescendantPid(pid: number): Error | undefined {
 
 const retainedDescendants = new WeakMap<KillableProcess, Map<number, string>>();
 
-function readPidFingerprint(pid: number, procRoot = '/proc'): string | undefined {
+function readPidFingerprint(pid: number, procRoot = '/proc'): string | null | undefined {
   if (!isPidAlive(pid, procRoot)) return undefined;
   if (process.platform === 'linux' || procRoot !== '/proc') {
     try {
@@ -308,22 +293,30 @@ function readPidFingerprint(pid: number, procRoot = '/proc'): string | undefined
       if (isLinuxStatZombie(stat)) return undefined;
       const end = stat.lastIndexOf(')');
       const start = end === -1 ? undefined : stat.slice(end + 1).trim().split(/\s+/)[19];
-      return start !== undefined && start.length > 0 ? `linux:${start}` : 'alive';
-    } catch { return osPidExists(pid) ? 'alive' : undefined; }
+      return start !== undefined && start.length > 0 ? `linux:${start}` : `stat:${stat.trim()}`;
+    } catch { return isPidAlive(pid, procRoot) ? null : undefined; }
   }
   if (process.platform !== 'darwin') return 'alive';
   try {
     const lstart = execFileSync('ps', ['-o', 'lstart=', '-p', String(pid)], { encoding: 'utf8', timeout: 1_000 }).trim();
-    return lstart.length > 0 ? `darwin:${lstart}` : 'alive';
-  } catch { return osPidExists(pid) ? 'alive' : undefined; }
+    return lstart.length > 0 ? `darwin:${lstart}` : (isPidAlive(pid, procRoot) ? null : undefined);
+  } catch { return isPidAlive(pid, procRoot) ? null : undefined; }
 }
 
-function revalidateRetained(proc: KillableProcess, procRoot: string): number[] {
+function revalidateRetained(proc: KillableProcess, procRoot: string): { pids: number[]; unverifiedError: Error | undefined } {
   const prior = retainedDescendants.get(proc);
-  if (prior === undefined) return [];
-  for (const [pid, fp] of prior) if (readPidFingerprint(pid, procRoot) !== fp) prior.delete(pid);
+  if (prior === undefined) return { pids: [], unverifiedError: undefined };
+  const pids: number[] = [];
+  let unverifiedError: Error | undefined;
+  for (const [pid, expectedFp] of prior) {
+    const cur = readPidFingerprint(pid, procRoot);
+    if (cur === undefined || (expectedFp !== '' && cur !== null && cur !== expectedFp)) { prior.delete(pid); continue; }
+    if (expectedFp !== '' && cur === expectedFp) { pids.push(pid); continue; }
+    if (cur !== null) prior.set(pid, cur);
+    unverifiedError ??= markUnconfirmedDescendants(new Error('DESCENDANT_IDENTITY_UNVERIFIED'));
+  }
   if (prior.size === 0) retainedDescendants.delete(proc);
-  return [...prior.keys()];
+  return { pids, unverifiedError };
 }
 
 function terminateOwnedDescendants(
@@ -334,9 +327,9 @@ function terminateOwnedDescendants(
   const rootPid = typeof proc.pid === 'number' && proc.pid > 0 ? proc.pid : undefined;
   const rootAlive = rootPid !== undefined && !hasExited(proc);
   const markedPids = collectMarkedLinuxPids(marker, procRoot);
-  const retainedPids = revalidateRetained(proc, procRoot);
+  const { pids: retainedPids, unverifiedError } = revalidateRetained(proc, procRoot);
   const seeds = [...new Set([...(rootAlive && rootPid !== undefined ? [rootPid] : []), ...markedPids, ...retainedPids])];
-  if (seeds.length === 0) return { waitPids: [], signalError: undefined };
+  if (seeds.length === 0) return { waitPids: [], signalError: unverifiedError };
   const markedSet = new Set(markedPids);
   const retainedSet = new Set(retainedPids);
   const candidates = [...new Set([...markedPids, ...retainedPids, ...collectDescendantPids(seeds, procRoot)])];
@@ -345,14 +338,16 @@ function terminateOwnedDescendants(
   );
   const retained = retainedDescendants.get(proc) ?? new Map<number, string>();
   for (const pid of ownedPids) {
-    const fp = retained.has(pid) ? undefined : readPidFingerprint(pid, procRoot);
-    if (fp !== undefined) retained.set(pid, fp);
+    if (!retained.has(pid) || retained.get(pid) === '') {
+      const fp = readPidFingerprint(pid, procRoot);
+      if (fp !== undefined) retained.set(pid, fp ?? '');
+    }
   }
   if (retained.size > 0) retainedDescendants.set(proc, retained);
   else retainedDescendants.delete(proc);
-  if (procRoot !== '/proc') return { waitPids: ownedPids, signalError: undefined };
+  if (procRoot !== '/proc') return { waitPids: ownedPids, signalError: unverifiedError };
   const waitPids: number[] = [];
-  let signalError: Error | undefined;
+  let signalError: Error | undefined = unverifiedError;
   for (const pid of ownedPids) {
     const err = signalDescendantPid(pid);
     if (err === undefined) waitPids.push(pid);
@@ -434,7 +429,8 @@ export function killProcessTree(proc: KillableProcess): Promise<void> | void {
   if (rootWait === undefined && waits.length === 0) return undefined;
   const all = rootWait === undefined ? waits : [rootWait, ...waits];
   return Promise.allSettled(all).then((results) => {
-    const rejected = results.find((item): item is PromiseRejectedResult => item.status === 'rejected');
-    if (rejected !== undefined) throw rejected.reason;
+    const rejected = results.filter((item): item is PromiseRejectedResult => item.status === 'rejected');
+    const chosen = rejected.find((item) => hasUnconfirmedDescendants(item.reason)) ?? rejected[0];
+    if (chosen !== undefined) throw chosen.reason;
   });
 }
