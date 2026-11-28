@@ -217,97 +217,87 @@ function assertChildPid<T extends { pid?: number | undefined }>(proc: T): assert
   if (typeof proc.pid !== 'number') throw new Error('EXPECTED_CHILD_PID');
 }
 
+const raceKill = (target: NonNullable<Parameters<typeof killAndWait>[0]>): Promise<string> =>
+  Promise.race([Promise.resolve(killAndWait(target)).then(() => 'resolved', (e: unknown) => (e instanceof Error ? e.message : 'rejected')), wait(500).then(() => 'HUNG')]);
+
+function spawnDetachedParent(count: number) {
+  const defs = Array.from({ length: count }, (_, i) => `c${i}=spawn(process.execPath,["-e","setTimeout(()=>{},30000)"],{detached:true,stdio:"ignore"})`).join(',');
+  const out = Array.from({ length: count }, (_, i) => `c${i}.pid`).join(',');
+  const script = `const {spawn}=require("node:child_process"),${defs};process.stdout.write([${out}].join(",")+"\\n");setTimeout(()=>{},30000);`;
+  const proc = spawn(process.execPath, ['-e', script], { stdio: ['ignore', 'pipe', 'ignore'] });
+  assertChildPid(proc);
+  return proc;
+}
+
+function readChildPids(proc: ReturnType<typeof spawnDetachedParent>): Promise<number[]> {
+  let buf = '';
+  return new Promise<number[]>((resolve, reject) => {
+    proc.stdout.on('data', (chunk: Buffer) => {
+      buf += chunk.toString('utf8');
+      if (!buf.includes('\n')) return;
+      const pids = buf.trim().split(',').map(Number);
+      if (pids.every((p) => Number.isInteger(p) && p > 0)) resolve(pids);
+      else reject(new Error(`INVALID_PID:${buf}`));
+    });
+    proc.once('error', reject);
+  });
+}
+
 it('rejects promptly when a live root fails SIGKILL without hanging on root pid exit', async () => {
   const hold = spawn(process.execPath, ['-e', 'setTimeout(() => {}, 10_000)'], { stdio: 'ignore' });
   try {
     assertChildPid(hold);
-    const root = Object.assign(new EventEmitter(), {
-      pid: hold.pid,
-      exitCode: null as number | null,
-      signalCode: null,
-      kill: () => false,
-    });
-    const outcome = await Promise.race([
-      Promise.resolve(killAndWait(root)).then(() => 'resolved', (err: unknown) => (err instanceof Error ? err.message : 'rejected')),
-      wait(500).then(() => 'HUNG'),
-    ]);
-    expect(outcome).toBe('SIGKILL_REJECTED');
-  } finally {
-    hold.kill('SIGKILL');
-  }
+    const root = Object.assign(new EventEmitter(), { pid: hold.pid, exitCode: null as number | null, signalCode: null, kill: () => false });
+    expect(await raceKill(root)).toBe('SIGKILL_REJECTED');
+  } finally { hold.kill('SIGKILL'); }
 });
 
 it.runIf(process.platform === 'linux')('terminates detached Linux descendants outside the root process group', async () => {
-  const script = 'const { spawn } = require("node:child_process"); const c = spawn(process.execPath, ["-e", "setTimeout(() => {}, 30000)"], { detached: true, stdio: "ignore" }); process.stdout.write(String(c.pid) + "\\n"); setTimeout(() => {}, 30000);';
-  const parent = spawn(process.execPath, ['-e', script], { stdio: ['ignore', 'pipe', 'ignore'] });
+  const parent = spawnDetachedParent(1);
   let childPid = 0;
   try {
-    assertChildPid(parent);
-    childPid = await new Promise<number>((resolve, reject) => {
-      parent.stdout.once('data', (chunk: Buffer) => resolve(Number(chunk.toString('utf8').trim())));
-      parent.once('error', reject);
-    });
+    [childPid = 0] = await readChildPids(parent);
     await Promise.resolve(killAndWait(parent));
     expect(isPidAlive(childPid)).toBe(false);
   } finally {
-    if (childPid > 0) {
-      try { process.kill(childPid, 'SIGKILL'); } catch { /* exited */ }
-    }
+    if (childPid > 0) try { process.kill(childPid, 'SIGKILL'); } catch { /* exited */ }
     try { parent.kill('SIGKILL'); } catch { /* exited */ }
   }
 });
 
 it.runIf(process.platform === 'linux')('propagates non-ESRCH errors when signaling discovered descendants', async () => {
-  const script = 'const { spawn } = require("node:child_process"); const c1 = spawn(process.execPath, ["-e", "setTimeout(() => {}, 30000)"], { detached: true, stdio: "ignore" }); const c2 = spawn(process.execPath, ["-e", "setTimeout(() => {}, 30000)"], { detached: true, stdio: "ignore" }); process.stdout.write(`${c1.pid},${c2.pid}\\n`); setTimeout(() => {}, 30000);';
-  const parent = spawn(process.execPath, ['-e', script], { stdio: ['ignore', 'pipe', 'ignore'] });
-  let child1Pid = 0;
-  let child2Pid = 0;
+  const parent = spawnDetachedParent(2);
+  let pids: number[] = [];
   const origKill = process.kill.bind(process);
   try {
-    assertChildPid(parent);
-    let buf = '';
-    [child1Pid, child2Pid] = await new Promise<[number, number]>((resolve, reject) => {
-      parent.stdout.on('data', (chunk: Buffer) => {
-        buf += chunk.toString('utf8');
-        if (!buf.includes('\n')) return;
-        const parts = buf.trim().split(',').map(Number);
-        resolve([parts[0] ?? 0, parts[1] ?? 0]);
-      });
-      parent.once('error', reject);
-    });
+    pids = await readChildPids(parent);
+    const [child1Pid = 0, child2Pid = 0] = pids;
     vi.spyOn(process, 'kill').mockImplementation(((pid: number, sig?: string | number) => {
-      if (sig === 'SIGKILL' && (pid === child1Pid || pid === -child1Pid)) {
-        throw Object.assign(new Error('EPERM'), { code: 'EPERM' });
-      }
+      if (sig === 'SIGKILL' && (pid === child1Pid || pid === -child1Pid)) throw Object.assign(new Error('EPERM'), { code: 'EPERM' });
       return origKill(pid, sig);
     }) as typeof process.kill);
-    const outcome = await Promise.race([
-      Promise.resolve(killAndWait(parent)).then(() => 'resolved', (err: unknown) => (err instanceof Error ? err.message : 'rejected')),
-      wait(500).then(() => 'HUNG'),
-    ]);
-    expect(outcome).toBe('EPERM');
+    expect(await raceKill(parent)).toBe('EPERM');
     expect(isPidAlive(child1Pid)).toBe(true);
     expect(isPidAlive(child2Pid)).toBe(false);
+    vi.restoreAllMocks();
+    await Promise.resolve(killAndWait(parent));
+    expect(isPidAlive(child1Pid)).toBe(false);
   } finally {
     vi.restoreAllMocks();
-    for (const pid of [child1Pid, child2Pid]) {
-      if (pid > 0) {
-        try { origKill(pid, 'SIGKILL'); } catch { /* exited */ }
-      }
-    }
+    for (const pid of pids) if (pid > 0) try { origKill(pid, 'SIGKILL'); } catch { /* exited */ }
     try { parent.kill('SIGKILL'); } catch { /* exited */ }
   }
 });
 
-it('preserves recovery across aborted starts, handles reentrant kill inside factory, and retries undefined kill rejections', async () => {
+const closedBrowser = (overrides: Partial<PdfBrowser> = {}): PdfBrowser => fakeBrowser({ close: () => Promise.resolve(), ...overrides });
+const waitUntil = async (fn: () => boolean, limit = 40): Promise<void> => { for (let i = 0; i < limit && !fn(); i += 1) await wait(10); };
+
+it('preserves recovery across aborted starts, handles reentrant kill inside factory, and shares reentrant kill results', async () => {
   let launches = 0;
   let releaseRetireKill: (() => void) | undefined;
   const retireRenderer = new PlaywrightDocumentRenderer({
-    factory: { launch: async () => (++launches === 1 ? fakeBrowser({ kill: () => new Promise<void>((r) => (releaseRetireKill = r)) }) : fakeBrowser({ close: async () => undefined })) },
-    sleep: wait,
-    backoffMs: [0],
-    overallTimeoutMs: 15,
-    browserCloseGraceMs: 10,
+    factory: { launch: async () => (++launches === 1 ? fakeBrowser({ kill: () => new Promise<void>((r) => (releaseRetireKill = r)) }) : closedBrowser()) },
+    sleep: wait, backoffMs: [0], overallTimeoutMs: 15, browserCloseGraceMs: 10,
   });
   await retireRenderer.start();
   await expect(retireRenderer.render('<p>x</p>')).rejects.toThrow();
@@ -322,32 +312,45 @@ it('preserves recovery across aborted starts, handles reentrant kill inside fact
   await wait(15);
   ac2.abort();
   await s2;
-  for (let i = 0; i < 30 && launches < 2; i += 1) await wait(10);
+  await waitUntil(() => launches >= 2, 30);
   expect(launches).toBe(2);
   await retireRenderer.close();
 
   let releaseLate!: (b: PdfBrowser) => void;
+  let releaseLateClose!: () => void;
   let reentrantKill: Promise<void> | undefined;
   let lateClosed = false;
-  const reentrantRenderer = new PlaywrightDocumentRenderer({
-    factory: { launch: () => { reentrantKill = Promise.resolve(reentrantRenderer.kill()); return new Promise((r) => (releaseLate = r)); } },
-    closeGraceMs: 20,
-  });
-  const pendingStart = reentrantRenderer.start();
+  const rr = new PlaywrightDocumentRenderer({ factory: { launch: () => { reentrantKill = Promise.resolve(rr.kill()); return new Promise((r) => (releaseLate = r)); } }, closeGraceMs: 20 });
+  const pendingStart = rr.start();
   await wait(10);
-  releaseLate(fakeBrowser({ close: async () => { lateClosed = true; } }));
+  releaseLate(fakeBrowser({ close: () => new Promise<void>((r) => { releaseLateClose = () => { lateClosed = true; r(); }; }) }));
+  let reentrantDone = false;
+  void reentrantKill?.then(() => { reentrantDone = true; });
+  await wait(15);
+  expect(reentrantDone).toBe(false);
+  releaseLateClose();
   await Promise.all([pendingStart, reentrantKill]);
   expect(lateClosed).toBe(true);
+
+  let releaseInner!: () => void;
+  let innerKill: void | Promise<void> = undefined;
+  const shared = new PlaywrightDocumentRenderer({ factory: { launch: async () => fakeBrowser({ kill: () => { innerKill = shared.kill(); return new Promise<void>((r) => (releaseInner = r)); } }) } });
+  await shared.start();
+  const outerKill = shared.kill();
+  expect(innerKill).toBeInstanceOf(Promise);
+  let innerDone = false;
+  void Promise.resolve(innerKill).then(() => { innerDone = true; });
+  await wait(15);
+  expect(innerDone).toBe(false);
+  releaseInner();
+  await Promise.all([outerKill, innerKill]);
+  expect(innerDone).toBe(true);
 });
 
-it('retains shutdown handle for abandoned late browsers and handles undefined kill rejections', async () => {
+it('retains shutdown handle for abandoned late browsers, escalates late cleanup, and handles undefined kill rejections', async () => {
   let releaseLate!: (b: PdfBrowser) => void;
   let kills = 0;
-  const renderer = new PlaywrightDocumentRenderer({
-    factory: { launch: () => new Promise((r) => (releaseLate = r)) },
-    launchTimeoutMs: 15,
-    closeGraceMs: 15,
-  });
+  const renderer = new PlaywrightDocumentRenderer({ factory: { launch: () => new Promise((r) => (releaseLate = r)) }, launchTimeoutMs: 15, closeGraceMs: 15 });
   await renderer.start();
   releaseLate(fakeBrowser({ kill: () => (++kills === 1 ? Promise.reject() : Promise.resolve()) }));
   await wait(40);
@@ -356,6 +359,64 @@ it('retains shutdown handle for abandoned late browsers and handles undefined ki
   expect(kills).toBe(2);
   expect(renderer.unconfirmedExit).toBeNull();
 
-  const undefRejected = await dropRetiredBrowser(fakeBrowser({ close: async () => undefined, kill: () => Promise.reject() }), 20);
-  expect(undefRejected.confirmed).toBe(true);
+  let releaseDropClose!: () => void;
+  let dropKills = 0;
+  const undefRejected = await dropRetiredBrowser(fakeBrowser({ close: () => new Promise<void>((r) => (releaseDropClose = r)), kill: () => { dropKills += 1; return Promise.reject(); } }), 15);
+  expect(dropKills).toBe(1);
+  expect(undefRejected.confirmed).toBe(false);
+  releaseDropClose();
+  await undefRejected.exit;
+
+  let rejectCleanup!: (err: Error) => void;
+  let escalatedKills = 0;
+  const lateRenderer = new PlaywrightDocumentRenderer({ factory: { launch: () => new Promise((_, reject) => { rejectCleanup = reject; }) }, backoffMs: [10] });
+  const starting = lateRenderer.start();
+  const killing = Promise.resolve(lateRenderer.kill());
+  let killSettled = false;
+  void killing.then(() => { killSettled = true; });
+  await wait(15);
+  expect(killSettled).toBe(false);
+  rejectCleanup(withLaunchCleanup(new Error('late'), Promise.reject(new Error('SIGKILL_REJECTED')), () => (++escalatedKills === 1 ? Promise.reject(new Error('EPERM')) : Promise.resolve())));
+  await Promise.all([starting, killing]);
+  expect(escalatedKills).toBe(2);
+  expect(lateRenderer.unconfirmedExit).toBeNull();
+});
+
+it('keeps retirement gated on failed descendant kill after browser.close resolves and gates disconnect launches', async () => {
+  let childKills = 0;
+  let launches = 0;
+  let releaseClose!: () => void;
+  const child = Object.assign(new EventEmitter(), { exitCode: null as number | null, signalCode: null, kill: () => (++childKills === 1 ? (() => { throw new Error('EPERM'); })() : true) });
+  const root = Object.assign(new EventEmitter(), { exitCode: 0, signalCode: null, children: [child], kill: () => true });
+  const r1 = new PlaywrightDocumentRenderer({ factory: { launch: async () => (++launches === 1 ? fakeBrowser({ close: () => new Promise<void>((r) => (releaseClose = r)), kill: () => killAndWait(root) }) : closedBrowser()) }, sleep: wait, backoffMs: [250], overallTimeoutMs: 15, browserCloseGraceMs: 10 });
+  await r1.start();
+  await expect(r1.render('<p>x</p>')).rejects.toThrow();
+  await wait(25);
+  expect(childKills).toBe(1);
+  releaseClose();
+  await wait(25);
+  expect(launches).toBe(1);
+  expect(r1.unconfirmedExit).not.toBeNull();
+  const retry = Promise.resolve(r1.kill());
+  await wait(10);
+  expect(childKills).toBe(2);
+  child.exitCode = 0;
+  child.emit('exit');
+  await retry;
+  expect(r1.unconfirmedExit).toBeNull();
+
+  let dcLaunches = 0;
+  let disconnect!: () => void;
+  let releaseDcClose!: () => void;
+  const r2 = new PlaywrightDocumentRenderer({ factory: { launch: async () => (++dcLaunches === 1 ? fakeBrowser({ close: () => new Promise<void>((r) => (releaseDcClose = r)), on: (ev, cb) => { if (ev === 'disconnected') disconnect = cb; } }) : closedBrowser()) }, backoffMs: [5] });
+  await r2.start();
+  disconnect();
+  await wait(30);
+  expect(dcLaunches).toBe(1);
+  expect(r2.isAvailable()).toBe(false);
+  releaseDcClose();
+  await waitUntil(() => r2.isAvailable());
+  expect(dcLaunches).toBe(2);
+  expect(r2.isAvailable()).toBe(true);
+  await r2.close();
 });

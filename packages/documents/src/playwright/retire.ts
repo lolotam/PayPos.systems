@@ -1,5 +1,6 @@
 import type { PdfBrowser, PdfContext } from './browser.ts';
 import { closeHungContext, openWithinGrace } from './context-guards.ts';
+import { hasUnconfirmedDescendants } from './process-tree.ts';
 
 const KILL_WAIT_MS = 500;
 
@@ -70,6 +71,7 @@ interface ShutdownState {
   killAttempted: boolean;
   killConfirmed: boolean;
   killFailed: boolean;
+  descendantUnconfirmed: boolean;
   fallbackAttempted: boolean;
   killSeq: number;
   killError: unknown;
@@ -152,7 +154,7 @@ function safeCloseBrowser(browser: PdfBrowser, onFinished: () => void): Promise<
 function isShutdownConfirmed(state: ShutdownState): boolean {
   return (
     state.killConfirmed ||
-    (state.closeFinished && (!state.killAttempted || state.killFailed))
+    (state.closeFinished && !state.descendantUnconfirmed && (!state.killAttempted || state.killFailed))
   );
 }
 
@@ -177,7 +179,10 @@ async function waitCloseGrace(
 
 function markShutdownConfirmed(state: ShutdownState, fromClose: boolean): void {
   if (fromClose) state.closeFinished = true;
-  else state.killConfirmed = true;
+  else {
+    state.killConfirmed = true;
+    state.descendantUnconfirmed = false;
+  }
   for (const cancel of state.cancels) cancel();
   state.cancels.clear();
   state.releaseConfirmed();
@@ -203,19 +208,37 @@ function runKillAttempt(state: ShutdownState, fromExternal: boolean): Promise<vo
   state.killFailed = false;
   state.killError = undefined;
   const seq = (state.killSeq += 1);
-  state.killResult = trackKillCall(
+  let resolveShared!: () => void;
+  let rejectShared!: (err: unknown) => void;
+  const shared = new Promise<void>((resolve, reject) => {
+    resolveShared = resolve;
+    rejectShared = reject;
+  });
+  shared.catch(() => undefined);
+  state.killResult = shared;
+  const callResult = trackKillCall(
     state.browser,
     () => {
       if (state.killSeq === seq) markShutdownConfirmed(state, false);
+      resolveShared();
     },
     (err) => {
-      if (state.killSeq !== seq) return;
-      state.killFailed = true;
-      state.killError = err;
-      if (state.closeFinished) markShutdownConfirmed(state, true);
+      if (state.killSeq === seq) {
+        state.killFailed = true;
+        state.killError = err;
+        if (hasUnconfirmedDescendants(err)) state.descendantUnconfirmed = true;
+        if (state.closeFinished && !state.descendantUnconfirmed) markShutdownConfirmed(state, true);
+      }
+      rejectShared(err);
     },
   );
-  return state.killResult;
+  if (callResult === undefined) {
+    if (state.killResult === shared) state.killResult = undefined;
+    resolveShared();
+    return undefined;
+  }
+  callResult.catch(() => undefined);
+  return shared;
 }
 
 async function executeCloseAttempt(
@@ -247,6 +270,7 @@ export function createBrowserShutdown(browser: PdfBrowser): BrowserShutdown {
     killAttempted: false,
     killConfirmed: false,
     killFailed: false,
+    descendantUnconfirmed: false,
     fallbackAttempted: false,
     killSeq: 0,
     killError: undefined,

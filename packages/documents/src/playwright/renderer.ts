@@ -191,9 +191,9 @@ export class PlaywrightDocumentRenderer implements DocumentRenderer {
     return tracked;
   }
 
-  #retryUnconfirmed(shutdown: BrowserShutdown, gate: Promise<void>): void {
+  #retryUnconfirmed(shutdown: BrowserShutdown, gate: Promise<void>, signal = this.#closeAbort.signal): void {
     const { backoff, sleep, onLaunchError } = this.#cfg;
-    void driveShutdownRetries(gate, () => (this.#shutdown === shutdown ? shutdown : null), backoff, sleep, this.#closeAbort.signal, onLaunchError);
+    void driveShutdownRetries(gate, () => (this.#shutdown === shutdown ? shutdown : null), backoff, sleep, signal, onLaunchError);
   }
 
   #retireAbandonedBrowser(browser: PdfBrowser): Promise<void> {
@@ -218,9 +218,10 @@ export class PlaywrightDocumentRenderer implements DocumentRenderer {
       (err) => this.#cfg.onLaunchError?.(err),
       (shutdown, retryGate) => {
         this.#shutdown = shutdown;
-        if (retryGate !== undefined) this.#retryUnconfirmed(shutdown, retryGate);
+        if (retryGate !== undefined) this.#retryUnconfirmed(shutdown, retryGate, new AbortController().signal);
       },
       (shutdown) => this.#confirmBrowserExit(shutdown),
+      () => this.#closing,
     );
   }
 
@@ -323,10 +324,7 @@ export class PlaywrightDocumentRenderer implements DocumentRenderer {
   #attach(browser: PdfBrowser): void {
     browser.on('disconnected', () => {
       if (this.#closing || this.#browser !== browser) return;
-      this.#browser = null;
-      this.#relaunchNeeded = true;
-      this.#markUnavailable();
-      this.#scheduleRelaunch();
+      this.#retire(browser, false);
     });
   }
 
@@ -404,7 +402,7 @@ export class PlaywrightDocumentRenderer implements DocumentRenderer {
    * الإتاحة لازم تسقط حتى لو close معلّق، وإلا مفتاح الحياة يفضل يعرض المتصفح المعلّق.
    * إعادة الإطلاق بتتأجل لحد ما المتصفح يتقفل أو يتقتل، عشان متصفحين ما يبقوش مع بعض.
    */
-  #retire(browser: PdfBrowser): void {
+  #retire(browser: PdfBrowser, useInjectedSleep = true): void {
     if (this.#browser !== browser) return;
     this.#browser = null;
     this.#relaunchNeeded = true;
@@ -416,7 +414,7 @@ export class PlaywrightDocumentRenderer implements DocumentRenderer {
     try {
       // بنحط حارس التقاعد قبل إشعار المستمعين عشان نداء start() المتزامن يستنى نهاية التقاعد.
       this.#markUnavailable();
-      const retiring = shutdown.runClose(this.#cfg.browserCloseGraceMs, this.#cfg.sleep).then((outcome) => {
+      const retiring = shutdown.runClose(this.#cfg.browserCloseGraceMs, useInjectedSleep ? this.#cfg.sleep : undefined).then((outcome) => {
         if (outcome.confirmed) {
           this.#confirmBrowserExit(shutdown);
           return undefined;
