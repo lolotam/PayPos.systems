@@ -18,7 +18,11 @@ interface TargetRow extends Record<string, unknown> {
 
 // التريجر المؤجّل 0013 بيرفض آخر مالك وقت الـ commit بـ P0001 وhint ثابت؛ الخطأ ممكن يكون ملفوف في cause.
 function isLastOwnerRefusal(error: unknown): boolean {
-  for (let node = error, depth = 0; typeof node === 'object' && node !== null && depth < 5; depth += 1) {
+  for (
+    let node = error, depth = 0;
+    typeof node === 'object' && node !== null && depth < 5;
+    depth += 1
+  ) {
     const { code, hint, cause } = node as { code?: unknown; hint?: unknown; cause?: unknown };
     if (code === 'P0001' && hint === 'pospay:last-owner') return true;
     node = cause;
@@ -51,7 +55,7 @@ export function createEndMembershipTransactions(
 async function endInside(
   tx: Tx,
   command: EndMembershipCommand,
-  now: Date,
+  now: Date | (() => Date),
   ids: IdGenerator,
   onBeforeCommit: (() => Promise<void>) | undefined,
 ): Promise<EndMembershipOutcome> {
@@ -72,13 +76,15 @@ async function endInside(
     WHERE company_id = ${companyId} AND state <> 'STOPPED' AND ${ownerFilter}
     LIMIT 1`);
   if (staffManaged !== undefined) return { refusal: 'STAFF_ACCESS_MANAGED_MEMBERSHIP' };
+  // نقرا الساعة بعد قفل الصف FOR UPDATE عشان طلبين متزاحمين ما يكتبوش ends_at أقدم فوق الأحدث (#1315).
+  const sampled = typeof now === 'function' ? now() : now;
+  const startsAtMs = new Date(row.starts_at).getTime();
+  // Postgres now() بيرجّع مايكروثانية، فلو الاستدعاء في نفس الملليثانية لبدء العضوية بنزود 1ms فقط لتفادي كسر memberships_window.
+  const effectiveNow = sampled.getTime() === startsAtMs ? new Date(startsAtMs + 1) : sampled;
   const previousEndsAt = row.ends_at === null ? null : new Date(row.ends_at);
-  if (previousEndsAt !== null && previousEndsAt.getTime() <= now.getTime()) {
+  if (previousEndsAt !== null && previousEndsAt.getTime() <= effectiveNow.getTime()) {
     return { id: row.id, endsAt: previousEndsAt.toISOString() };
   }
-  // Postgres now() بيرجّع مايكروثانية، فلو الاستدعاء في نفس الملليثانية ممكن يكون now <= starts_at ويكسر قيد memberships_window.
-  const startsAtMs = new Date(row.starts_at).getTime();
-  const effectiveNow = now.getTime() > startsAtMs ? now : new Date(startsAtMs + 1);
   const endsAt = effectiveNow.toISOString();
   await tx.execute(sql`
     UPDATE memberships SET ends_at = ${endsAt}::timestamptz

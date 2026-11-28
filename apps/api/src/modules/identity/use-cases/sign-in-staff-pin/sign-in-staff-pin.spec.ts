@@ -7,6 +7,8 @@ import type {
 } from '../../ports/staff-pins.port.ts';
 import type { PinAttempts } from '../../ports/cashier-pins.port.ts';
 
+const unlimitedGate = { acquire: () => () => undefined };
+
 const device = {
   companyId: 'synthetic-company',
   businessId: 'synthetic-business',
@@ -49,7 +51,17 @@ function fixture(userId: string | null = null) {
     hasher,
     attempts,
     proofs,
-    signIn: new SignInStaffPin(db, hasher, attempts, authority, proofs, clock, ids, false),
+    signIn: new SignInStaffPin(
+      db,
+      hasher,
+      attempts,
+      authority,
+      proofs,
+      clock,
+      ids,
+      false,
+      unlimitedGate,
+    ),
   };
 }
 
@@ -84,15 +96,32 @@ it.each(['locked', 'busy'] as const)(
 
 function usableUser(over: { eligible?: boolean; deviceValid?: boolean }) {
   const f = fixture('synthetic-user');
-  const row = { id: 'pin-revision', hash: 'stored', temporary: true, expiresAt: new Date('2026-11-26T10:00:00.000Z') };
+  const row = {
+    id: 'pin-revision',
+    hash: 'stored',
+    temporary: true,
+    expiresAt: new Date('2026-11-26T10:00:00.000Z'),
+  };
   const issueProof = vi.fn();
-  vi.mocked(f.db.run).mockImplementation((async (_c: string, _a: string | null, work: (s: unknown) => unknown) =>
-    work({ find: async () => row, issueProof })) as never);
+  vi.mocked(f.db.run).mockImplementation((async (
+    _c: string,
+    _a: string | null,
+    work: (s: unknown) => unknown,
+  ) => work({ find: async () => row, issueProof })) as never);
   f.hasher.verify.mockResolvedValue(true);
   vi.mocked(f.authority.deviceValid).mockResolvedValue(over.deviceValid ?? true);
   vi.mocked(f.authority.eligible).mockResolvedValue(over.eligible ?? true);
-  const signIn = new SignInStaffPin(f.db, f.hasher, f.attempts, f.authority, f.proofs,
-    { now: () => new Date('2026-11-25T10:00:00.000Z') }, { newId: () => 'synthetic-id' }, true);
+  const signIn = new SignInStaffPin(
+    f.db,
+    f.hasher,
+    f.attempts,
+    f.authority,
+    f.proofs,
+    { now: () => new Date('2026-11-25T10:00:00.000Z') },
+    { newId: () => 'synthetic-id' },
+    true,
+    unlimitedGate,
+  );
   return { ...f, signIn, issueProof };
 }
 
@@ -106,4 +135,28 @@ it.each([
   expect(f.attempts.succeeded).not.toHaveBeenCalled();
   expect(f.issueProof).not.toHaveBeenCalled();
   expect(f.authority.sessions.issue).not.toHaveBeenCalled();
+});
+
+it('issueSession checks findLocked and withholds the audit row if the PIN revision changed', async () => {
+  const f = fixture('synthetic-user');
+  let revision = 'pin-revision';
+  const readRow = async () => ({ id: revision, hash: 'stored', temporary: false, expiresAt: null });
+  const record = vi.fn();
+  vi.mocked(f.db.run).mockImplementation((async (
+    _c: string,
+    _a: string | null,
+    work: (s: unknown) => unknown,
+  ) => work({ find: readRow, findLocked: readRow, audit: { record } })) as never);
+  f.hasher.verify.mockResolvedValue(true);
+  vi.mocked(f.attempts.succeeded).mockResolvedValue('ok');
+  vi.mocked(f.authority.deviceValid).mockResolvedValue(true);
+  vi.mocked(f.authority.eligible).mockResolvedValue(true);
+  vi.mocked(f.authority.sessions.issue).mockImplementation(async (_u, _d, validate) => {
+    revision = 'reset-revision';
+    const valid = await validate();
+    if (!valid) return null as never;
+    return { session: {} as never, cookie: 'cookie' };
+  });
+  expect(await f.signIn.execute({ phone, pin, device })).toBeNull();
+  expect(record).not.toHaveBeenCalled();
 });

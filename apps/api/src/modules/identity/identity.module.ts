@@ -27,7 +27,7 @@ import {
   STAFF_POS_ORIGIN,
 } from './http/staff-otp.controller.ts';
 import { createStaffEligibility } from './persistence/staff-eligibility.ts';
-import type { AuthService, PrivateViewFacade, StaffOtpApi, StaffSessions } from '@pospay/auth';
+import type { AuthService, StaffOtpApi, StaffSessions } from '@pospay/auth';
 import { redisOtpRates } from './persistence/redis-otp-rates.ts';
 import { createOtpSender } from './persistence/bullmq-otp-sender.ts';
 
@@ -58,7 +58,6 @@ import { authDeviceSecrets } from './persistence/device-secrets.ts';
 import { createDeviceTransactions } from './persistence/device-transactions.ts';
 import { createRedisPairingCodes } from './persistence/redis-pairing-codes.ts';
 import { createRedisPinAttempts } from './persistence/redis-pin-attempts.ts';
-import { createRedisDevicePinCap } from './persistence/redis-device-pin-cap.ts';
 import { createOnboardingTransactions } from './persistence/onboarding-transactions.ts';
 import { tenancyCompanyRegistry } from './persistence/tenancy-company-registry.adapter.ts';
 import { createWorkspaceNames } from './persistence/workspace-names.adapter.ts';
@@ -73,28 +72,19 @@ import { RegisterDevice } from './use-cases/register-device/register-device.ts';
 import { RevokeDevice } from './use-cases/revoke-device/revoke-device.ts';
 import { SetCashierPin } from './use-cases/set-cashier-pin/set-cashier-pin.ts';
 import { VerifyCashierPin } from './use-cases/verify-cashier-pin/verify-cashier-pin.ts';
-import { VerifyDiscountApproverPin } from './use-cases/verify-discount-approver-pin/verify-discount-approver-pin.ts';
-import {
-  StaffPinController,
-  STAFF_PIN_CHANGE_ENABLED,
-  STAFF_PIN_USE_CASES,
-  type StaffPinUseCases,
-} from './http/staff-pin.controller.ts';
-import { createStaffPinTransactions } from './persistence/staff-pin-transactions.ts';
-import { createStaffPinProofIssuer } from './persistence/staff-pin-proofs.ts';
-import { SignInStaffPin } from './use-cases/sign-in-staff-pin/sign-in-staff-pin.ts';
-import { ResetStaffPin } from './use-cases/reset-staff-pin/reset-staff-pin.ts';
-import { ChangeTemporaryStaffPin } from './use-cases/change-temporary-staff-pin/change-temporary-staff-pin.ts';
+import { StaffPinController } from './http/staff-pin.controller.ts';
 import { MemberInvitationsController } from './http/member-invitations.controller.ts';
 import { MembershipsController } from './http/memberships.controller.ts';
 import { memberInvitationProviders } from './member-invitations.wiring.ts';
-import { PrivateViewController, PRIVATE_VIEW_WINDOWS } from './http/private-view.controller.ts';
-import { OpenPrivateView } from './use-cases/open-private-view/open-private-view.ts';
+import { PrivateViewController } from './http/private-view.controller.ts';
+import {
+  staffPinAndPrivateViewProviders,
+  VERIFY_DISCOUNT_APPROVER_PIN,
+} from './staff-pin.wiring.ts';
 import { AUTH_SERVICE } from '../../shared/session.guard.ts';
 import { DISCOUNT_APPROVER_VERIFIER } from '../../shared/discount-approver-pin.ts';
 
-/** توكن التحقق من PIN اعتماد الخصم — الـ provider بيربطه بالـ use case، والـ orders بيحقنه. */
-export const VERIFY_DISCOUNT_APPROVER_PIN = Symbol('VERIFY_DISCOUNT_APPROVER_PIN');
+export { VERIFY_DISCOUNT_APPROVER_PIN };
 
 /** The controllers identity mounts. */
 export const identityControllers = [
@@ -161,8 +151,6 @@ export function identityProviders(
   /** ختم إيميلات الترحيب: من غيره مفيش بريد دعوة. */
   onboardingSealer?: OnboardingEmailSealer,
 ): Provider[] {
-  const capabilities = identityCapabilities(database, ids, redis, staffCompanyOf);
-  const reader = capabilities.reader;
   const sessions = staff?.sessions ?? null;
   return [
     ...permissionProviders(database, ids, redis),
@@ -184,10 +172,29 @@ export function identityProviders(
       provide: STAFF_POS_ORIGIN,
       useValue: staff?.origin ? { pos: staff.origin, native: staff.nativeOrigins ?? [] } : null,
     },
-    ...staffPinProviders(database, ids, redis, sessions, staffAccessRoutes, staffPinClock),
-    ...discountApproverProviders(database, ids, redis, sessions),
+    ...staffPinAndPrivateViewProviders({
+      database,
+      ids,
+      redis,
+      sessions,
+      staffAccessRoutes,
+      clock: staffPinClock,
+    }),
     { provide: DISCOUNT_APPROVER_VERIFIER, useExisting: VERIFY_DISCOUNT_APPROVER_PIN },
-    ...privateViewProviders(database, ids, redis),
+    ...coreIdentityProviders(database, ids, redis, staffCompanyOf, staffAccessRoutes),
+  ];
+}
+
+function coreIdentityProviders(
+  database: TenantWrappers | undefined,
+  ids: IdGenerator,
+  redis: Redis | undefined,
+  staffCompanyOf: (userId: string) => Promise<string | null>,
+  staffAccessRoutes: boolean,
+): Provider[] {
+  const capabilities = identityCapabilities(database, ids, redis, staffCompanyOf);
+  const reader = capabilities.reader;
+  return [
     ...meProviders(capabilities.names, staffAccessRoutes),
     { provide: OnboardCompany, useValue: capabilities.onboard },
     { provide: DEVICE_USE_CASES, useValue: capabilities.devices?.useCases ?? null },
@@ -288,35 +295,6 @@ function permissionProviders(
   ];
 }
 
-// ربط النافذة الخاصة منفصل عشان دالة تركيب الهوية ما تتضخمش؛ الأجزاء دي كلها بتستنى خدمة الاعتماد وقت التشغيل.
-function privateViewProviders(
-  database: TenantWrappers | undefined,
-  ids: IdGenerator,
-  redis: Redis | undefined,
-): Provider[] {
-  return [
-    {
-      provide: PRIVATE_VIEW_WINDOWS,
-      useFactory: (auth: AuthService | null): Pick<PrivateViewFacade, 'close'> | null =>
-        auth?.privateView ?? null,
-      inject: [AUTH_SERVICE],
-    },
-    {
-      provide: OpenPrivateView,
-      useFactory: (auth: AuthService | null): OpenPrivateView | null =>
-        database === undefined || redis === undefined || auth === null
-          ? null
-          : new OpenPrivateView(
-              createStaffPinTransactions(database, ids),
-              createRedisPinAttempts(redis, ids),
-              createStaffEligibility(database),
-              auth.privateView,
-            ),
-      inject: [AUTH_SERVICE],
-    },
-  ];
-}
-
 function deviceUseCases(database: TenantWrappers, ids: IdGenerator, redis: Redis | undefined) {
   const transactions = createDeviceTransactions(database, ids);
   const authenticate = new AuthenticateDevice(transactions, authDeviceSecrets, systemClock);
@@ -348,89 +326,6 @@ function cashierPinUseCases(
       createRedisPinAttempts(redis, ids),
     ),
   };
-}
-
-// مسارات الرقم السري للموظفات: الدخول والتغيير والإعادة. من غير داتابيز أو Redis أو جلسات
-// المسار كله بيرفض؛ والبوابة بتتاق مع شجرة 076.
-function staffPinProviders(
-  database: TenantWrappers | undefined,
-  ids: IdGenerator,
-  redis: Redis | undefined,
-  sessions: StaffSessions | null,
-  staffAccessRoutes: boolean,
-  clock: Clock,
-): Provider[] {
-  return [
-    {
-      provide: STAFF_PIN_USE_CASES,
-      useValue:
-        database === undefined
-          ? null
-          : staffPinUseCases(database, ids, redis, sessions, staffAccessRoutes, clock),
-    },
-    { provide: STAFF_PIN_CHANGE_ENABLED, useValue: staffAccessRoutes },
-  ];
-}
-
-function staffPinUseCases(
-  database: TenantWrappers,
-  ids: IdGenerator,
-  redis: Redis | undefined,
-  sessions: StaffSessions | null,
-  staffAccessRoutes: boolean,
-  clock: Clock,
-): StaffPinUseCases | null {
-  if (redis === undefined || sessions === null) return null;
-  const db = createStaffPinTransactions(database, ids);
-  const eligibility = createStaffEligibility(database);
-  const proofs = createStaffPinProofIssuer();
-  return {
-    reset: new ResetStaffPin(db, authPinHasher, clock),
-    signIn: new SignInStaffPin(
-      db,
-      authPinHasher,
-      createRedisPinAttempts(redis, ids),
-      { sessions, ...eligibility },
-      proofs,
-      clock,
-      ids,
-      staffAccessRoutes,
-    ),
-    change: new ChangeTemporaryStaffPin(
-      db,
-      authPinHasher,
-      createRedisPinAttempts(redis, ids),
-      proofs,
-      clock,
-      eligibility,
-    ),
-  };
-}
-
-// التحقق من PIN اعتماد الخصم بيحتاج داتابيز وRedis وجلسات اعتماد معاً؛ ناقص واحد منهم المسار كله بيرفض.
-function discountApproverProviders(
-  database: TenantWrappers | undefined,
-  ids: IdGenerator,
-  redis: Redis | undefined,
-  sessions: StaffSessions | null,
-): Provider[] {
-  if (database === undefined || redis === undefined || sessions === null) {
-    return [{ provide: VERIFY_DISCOUNT_APPROVER_PIN, useValue: null }];
-  }
-  const eligibility = createStaffEligibility(database);
-  return [
-    {
-      provide: VERIFY_DISCOUNT_APPROVER_PIN,
-      useValue: new VerifyDiscountApproverPin(
-        createStaffPinTransactions(database, ids),
-        authPinHasher,
-        createRedisPinAttempts(redis, ids),
-        sessions,
-        createRedisDevicePinCap(redis, ids),
-        { valid: (device) => eligibility.context(device).then((found) => found !== null) },
-      ),
-    },
-  ];
 }
 
 async function unavailableStaffCompany(): Promise<string | null> {

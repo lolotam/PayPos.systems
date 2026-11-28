@@ -1,5 +1,5 @@
 import type { StaffDeviceContext } from '@pospay/auth';
-import { StaffProofChanged, STAFF_LOGIN_CONCURRENCY } from '@pospay/auth';
+import { StaffProofChanged } from '@pospay/auth';
 import type { Clock } from '../../../../shared/ports/clock.port.ts';
 import type { IdGenerator } from '../../../../shared/ports/id-generator.port.ts';
 import { StaffPinError } from '../staff-pin-error.ts';
@@ -8,6 +8,7 @@ import { pinState } from '../../domain/staff-pin-state.ts';
 import type { PinAttempts, PinHasher } from '../../ports/cashier-pins.port.ts';
 import type {
   StaffPinAuthority,
+  StaffPinComparisonGate,
   StaffPinProofIssuer,
   StaffPinRecord,
   StaffPinTransactions,
@@ -15,7 +16,6 @@ import type {
 
 /** PIN المستخدم نفسه فقط؛ إثباته لا يستعمل employeeId العائد من المسار القديم. */
 export class SignInStaffPin {
-  private active = 0;
   constructor(
     private readonly db: StaffPinTransactions,
     private readonly hasher: PinHasher,
@@ -25,16 +25,17 @@ export class SignInStaffPin {
     private readonly clock: Clock,
     private readonly ids: IdGenerator,
     private readonly staffAccessRoutes: boolean,
+    private readonly gate: StaffPinComparisonGate,
   ) {}
 
   /** الجهاز متحقق مسبقاً، والربط العالمي المعتمد يحدد صاحب الإثبات. */
   async execute(input: { phone: string; pin: string; device: StaffDeviceContext }) {
-    if (this.active >= STAFF_LOGIN_CONCURRENCY) throw new Error('STAFF_PIN_UNAVAILABLE');
-    this.active++;
+    const release = this.gate.acquire();
+    if (release === null) throw new Error('STAFF_PIN_UNAVAILABLE');
     try {
       return await this.signIn(input);
     } finally {
-      this.active--;
+      release();
     }
   }
 
@@ -98,15 +99,23 @@ export class SignInStaffPin {
   ) {
     try {
       return await this.authority.sessions.issue(userId, input.device, async () => {
-        if (!(await this.current(userId, row.id, input))) return false;
-        await this.db.run(input.device.companyId, userId, (scope) =>
-          scope.audit.record({
+        if ((await this.authority.sessions.candidate(input.phone)) !== userId) return false;
+        if (!(await this.authority.deviceValid(input.device))) return false;
+        if (!(await this.authority.eligible(userId, input.device))) return false;
+        // قفل FOR SHARE على صف الاعتماد يمنع reset متزامن من الدخول قبل تسجيل أثر الجلسة.
+        return this.db.run(input.device.companyId, userId, async (scope) => {
+          const current = await scope.findLocked(userId);
+          if (current === null || current.id !== row.id) return false;
+          if (!this.staffAccessRoutes && current.temporary === true) return false;
+          if (this.staffAccessRoutes && pinState(current, this.clock.now()) !== 'USABLE')
+            return false;
+          await scope.audit.record({
             entity: 'cashier_pin',
             entityId: userId,
             action: 'staff.pin_signed_in',
-          }),
-        );
-        return true;
+          });
+          return true;
+        });
       });
     } catch (error) {
       if (error instanceof StaffProofChanged) return null;

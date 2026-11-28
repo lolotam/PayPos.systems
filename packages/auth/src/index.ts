@@ -87,7 +87,7 @@ export {
   type StaffSessionProof,
 } from './staff-session-fence.ts';
 export { OTP_LIFETIME_MS, OTP_RETRY_MS, STAFF_LOGIN_CONCURRENCY } from './staff-otp/policy.ts';
-export { approvePhoneBinding } from './approve-phone-binding.ts';
+export { approvePhoneBinding, PhoneBindingRefusedError } from './approve-phone-binding.ts';
 export {
   createStaffUserAccess,
   STAFF_SYNTHETIC_EMAIL_DOMAIN,
