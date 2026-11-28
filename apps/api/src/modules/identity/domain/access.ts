@@ -163,9 +163,7 @@ function parseDecimalToken(
   if (!Number.isSafeInteger(exp)) return null;
   const shift = exp - (match[2]?.length ?? 0);
   if (shift >= 0) {
-    if (combined.replace(/^0+/, '').length + shift > 16) {
-      return { int: MONEY_MAX_MILLS + 1n, hasFraction: false };
-    }
+    if (combined.replace(/^0+/, '').length + shift > 16) return null;
     return { int: BigInt(combined + '0'.repeat(shift)), hasFraction: false };
   }
   const splitAt = combined.length + shift;

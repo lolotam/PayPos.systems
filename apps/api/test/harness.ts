@@ -335,7 +335,22 @@ async function prepareHarness(
     ),
     (value) => value.close(),
   );
-  return { app, owner, auth, redis, calls, ids, operatorOrigin: authTrustedOrigins[0] ?? ORIGIN };
+  const operatorOrigin = concreteOperatorOrigin(authTrustedOrigins);
+  return { app, owner, auth, redis, calls, ids, operatorOrigin };
+}
+
+function concreteOperatorOrigin(origins: readonly string[]): string {
+  return (
+    origins.find((origin) => {
+      if (/[*?]/.test(origin)) return false;
+      try {
+        const parsed = new URL(origin);
+        return parsed.protocol === 'http:' || parsed.protocol === 'https:';
+      } catch {
+        return false;
+      }
+    }) ?? ORIGIN
+  );
 }
 
 function describeHarness(

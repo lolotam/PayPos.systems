@@ -55,10 +55,11 @@ async function seedBranchDevice(h: Harness, tag: string) {
 // جهاز مقترن وموظف واحد لهما PIN مضبوط بصلاحية الكاشير، عبر نفس مسارات الـ HTTP الحقيقية.
 async function seed(h: Harness): Promise<Staff> {
   const { manager, company, branch, device } = await seedBranchDevice(h, 'pin-native');
+  const fixtureCredential = `${randomUUID()}${randomUUID()}`;
   const userId = await h.auth.provisionUser({
     email: 'pin-native-user@synthetic.invalid',
     name: 'Synthetic',
-    password: `${randomUUID()}${randomUUID()}`,
+    password: fixtureCredential,
   });
   await h.owner`UPDATE "user" SET phone_number=${phone} WHERE id=${userId}`;
   await h.owner`UPDATE "user" SET phone_binding_approved_at=clock_timestamp() WHERE id=${userId}`;
