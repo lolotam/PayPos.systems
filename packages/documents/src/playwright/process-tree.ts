@@ -217,13 +217,11 @@ function checkPidStatus(pid: number, expectedFp: string, procRoot = '/proc'): 'e
 }
 
 async function waitForPidsExit(targets: ReadonlyArray<readonly [number, string]>, procRoot = '/proc'): Promise<void> {
-  while (targets.some(([pid, fp]) => checkPidStatus(pid, fp, procRoot) !== 'exited')) {
-    await new Promise((resolve) => setTimeout(resolve, PID_POLL_MS));
-  }
+  while (targets.some(([pid, fp]) => checkPidStatus(pid, fp, procRoot) !== 'exited')) await new Promise((r) => setTimeout(r, PID_POLL_MS));
 }
 
-function killLaunchProcessGroup(proc: KillableProcess): void {
-  if (process.platform === 'win32' || hasExited(proc) || typeof proc.pid !== 'number' || proc.pid <= 0) return;
+function killLaunchProcessGroup(proc: KillableProcess, procRoot = '/proc'): void {
+  if (procRoot !== '/proc' || process.platform === 'win32' || hasExited(proc) || typeof proc.pid !== 'number' || proc.pid <= 0 || proc.pid === process.pid) return;
   try { process.kill(-proc.pid, 'SIGKILL'); } catch { /* proc.kill يتكفل */ }
 }
 
@@ -387,17 +385,19 @@ function terminateOwnedDescendants(proc: KillableProcess, procRoot = '/proc'): {
     verified.push([pid, fp]);
   }
   if (retained.size > 0) retainedDescendants.set(proc, retained);
-  if ([...retained.values()].some(isUnresolvedFp)) signalError ??= markUnconfirmedDescendants(new Error('DESCENDANT_IDENTITY_UNVERIFIED'));
+  if ([...retained.values()].some(isUnresolvedFp)) {
+    return { waitPids: [], signalError: signalError ?? markUnconfirmedDescendants(new Error('DESCENDANT_IDENTITY_UNVERIFIED')) };
+  }
   const result = signalVerifiedDescendants(verified, retained, signalError, procRoot);
   if (retained.size === 0) retainedDescendants.delete(proc);
   return result;
 }
 
-function killSingleAndWait(proc: KillableProcess): Promise<void> | void {
+function killSingleAndWait(proc: KillableProcess, procRoot = '/proc'): Promise<void> | void {
   if (hasExited(proc)) return Promise.resolve();
   const once = proc.once;
   if (typeof once !== 'function') {
-    killLaunchProcessGroup(proc);
+    killLaunchProcessGroup(proc, procRoot);
     if (proc.kill('SIGKILL') || hasExited(proc)) return;
     throw new Error('SIGKILL_REJECTED');
   }
@@ -408,19 +408,15 @@ function killSingleAndWait(proc: KillableProcess): Promise<void> | void {
     once.call(proc, 'exit', finish);
     if (hasExited(proc)) return finish();
     try {
-      killLaunchProcessGroup(proc);
+      killLaunchProcessGroup(proc, procRoot);
       const signaled = proc.kill('SIGKILL');
-      if (hasExited(proc)) finish();
-      else if (!signaled) fail(new Error('SIGKILL_REJECTED'));
-    } catch (e) {
-      if ((e as NodeJS.ErrnoException | null)?.code === 'ESRCH' || hasExited(proc)) finish();
-      else fail(e);
-    }
+      if (hasExited(proc)) finish(); else if (!signaled) fail(new Error('SIGKILL_REJECTED'));
+    } catch (e) { if ((e as NodeJS.ErrnoException | null)?.code === 'ESRCH' || hasExited(proc)) finish(); else fail(e); }
   });
 }
 
-function safeKillSingle(proc: KillableProcess): Promise<void> | undefined {
-  try { const res = killSingleAndWait(proc); return res === undefined ? undefined : res; } catch (e) { return Promise.reject(e instanceof Error ? e : new Error('SIGKILL_FAILED')); }
+function safeKillSingle(proc: KillableProcess, procRoot = '/proc'): Promise<void> | undefined {
+  try { const res = killSingleAndWait(proc, procRoot); return res === undefined ? undefined : res; } catch (e) { return Promise.reject(e instanceof Error ? e : new Error('SIGKILL_FAILED')); }
 }
 
 /** يقتل عملية Chromium الجذر ومجموعتها وكل شجرة توابعها مع توابع الإطلاق المؤكَّدة قبل فكّ قفل إعادة الإطلاق. */
@@ -432,22 +428,22 @@ export function killProcessTree(proc: KillableProcess, procRoot = '/proc'): Prom
   const { waitPids, signalError } = terminateOwnedDescendants(proc, procRoot);
   const holdRootForAncestry = [...(retainedDescendants.get(proc)?.values() ?? [])].some(isUnresolvedFp);
   const hasRoot = typeof proc.pid === 'number' || !hasExited(proc);
-  const rootWait = holdRootForAncestry || !hasRoot ? undefined : (killLaunchProcessGroup(proc), safeKillSingle(proc));
+  const rootWait = holdRootForAncestry || !hasRoot ? undefined : (killLaunchProcessGroup(proc, procRoot), safeKillSingle(proc, procRoot));
   const waits: Array<Promise<void>> = childTree.filter((item): item is Promise<void> => item !== undefined);
   const waitTargets = waitPids.map((pid) => [pid, retainedDescendants.get(proc)?.get(pid) ?? ''] as const);
   if (waitTargets.length > 0) {
     waits.push(waitForPidsExit(waitTargets, procRoot).then(() => {
-      const retained = retainedDescendants.get(proc);
-      if (retained === undefined) return;
-      for (const [pid] of waitTargets) retained.delete(pid);
-      if (retained.size === 0) retainedDescendants.delete(proc);
+      const r = retainedDescendants.get(proc);
+      if (r === undefined) return;
+      for (const [pid] of waitTargets) r.delete(pid);
+      if (r.size === 0) retainedDescendants.delete(proc);
     }));
   }
   if (signalError !== undefined) waits.push(Promise.reject(signalError));
   if (rootWait === undefined && waits.length === 0) return undefined;
-  return Promise.allSettled(rootWait === undefined ? waits : [rootWait, ...waits]).then((results) => {
-    const rejected = results.filter((item): item is PromiseRejectedResult => item.status === 'rejected');
-    const chosen = rejected.find((item) => hasUnconfirmedDescendants(item.reason)) ?? rejected[0];
+  return Promise.allSettled(rootWait === undefined ? waits : [rootWait, ...waits]).then((res) => {
+    const errs = res.filter((x): x is PromiseRejectedResult => x.status === 'rejected');
+    const chosen = errs.find((x) => hasUnconfirmedDescendants(x.reason)) ?? errs[0];
     if (chosen !== undefined) throw chosen.reason;
   });
 }

@@ -11,7 +11,7 @@ import {
   getLaunchCleanup,
   playwrightFactory,
 } from '../playwright/factory.ts';
-import { getLaunchCleanupRetry, killProcessTree } from '../playwright/process-tree.ts';
+import { getLaunchCleanupRetry, isPidAlive, killProcessTree } from '../playwright/process-tree.ts';
 
 it('leaves process signals to the worker', () => {
   expect(chromiumLaunchOptions.handleSIGINT).toBe(false);
@@ -89,26 +89,35 @@ it('keeps missing-PID cleanup single-flight while pending and allows sequential 
   expect([lateKilled, lateCloseTries]).toEqual([true, 1]);
 });
 
-it('holds root termination when root fingerprint is transiently unreadable for a readable unmarked child', async () => {
+it('holds root and verified ancestors when root or grandchild fingerprint is transiently unreadable', async () => {
   const procDir = mkdtempSync(join(tmpdir(), 'pospay-proc-'));
-  const sleeper = spawn(process.execPath, ['-e', 'setTimeout(() => {}, 10_000)'], { stdio: 'ignore' });
-  const rootPid = process.pid;
-  const childPid = sleeper.pid ?? 0;
-  expect(childPid).toBeGreaterThan(0);
+  const spawnSleeper = () => spawn(process.execPath, ['-e', 'setTimeout(() => {}, 10_000)'], { detached: true, stdio: 'ignore' });
+  const [sRoot, sChild, sGrand] = [spawnSleeper(), spawnSleeper(), spawnSleeper()];
+  const [rootPid, childPid, grandPid] = [sRoot.pid ?? 0, sChild.pid ?? 0, sGrand.pid ?? 0];
+  expect(Math.min(rootPid, childPid, grandPid)).toBeGreaterThan(0);
   try {
-    mkdirSync(join(procDir, String(rootPid), 'task', String(rootPid)), { recursive: true });
-    mkdirSync(join(procDir, String(childPid)), { recursive: true });
-    writeFileSync(join(procDir, String(rootPid), 'task', String(rootPid), 'children'), `${childPid}\n`);
+    for (const [p, kid] of [[rootPid, childPid], [childPid, grandPid]] as const) {
+      mkdirSync(join(procDir, String(p), 'task', String(p)), { recursive: true });
+      writeFileSync(join(procDir, String(p), 'task', String(p), 'children'), `${kid}\n`);
+    }
+    mkdirSync(join(procDir, String(grandPid)), { recursive: true });
     writeFileSync(join(procDir, String(childPid), 'stat'), `${childPid} (child) S ${rootPid} 1 1 0 -1 0 0 0 0 0 0 0 0 0 0 0 1 0 222\n`);
+    writeFileSync(join(procDir, String(grandPid), 'stat'), `${grandPid} (grand) S ${childPid} 1 1 0 -1 0 0 0 0 0 0 0 0 0 0 0 1 0 333\n`);
     let rootKills = 0;
-    const root = { pid: rootPid, exitCode: null as number | null, signalCode: null, kill: () => { rootKills += 1; root.exitCode = 0; sleeper.kill('SIGKILL'); return true; } };
+    const root = { pid: rootPid, exitCode: null as number | null, signalCode: null, kill: () => { rootKills += 1; root.exitCode = 0; for (const s of [sRoot, sChild, sGrand]) s.kill('SIGKILL'); return true; } };
     await expect(Promise.resolve(killProcessTree(root, procDir))).rejects.toThrow('DESCENDANT_IDENTITY_UNVERIFIED');
-    expect([rootKills, root.exitCode]).toEqual([0, null]);
+    expect([rootKills, isPidAlive(childPid, procDir)]).toEqual([0, true]);
+
     writeFileSync(join(procDir, String(rootPid), 'stat'), `${rootPid} (root) S 1 1 1 0 -1 0 0 0 0 0 0 0 0 0 0 0 1 0 111\n`);
+    rmSync(join(procDir, String(grandPid), 'stat'));
+    await expect(Promise.resolve(killProcessTree(root, procDir))).rejects.toThrow('DESCENDANT_IDENTITY_UNVERIFIED');
+    expect([rootKills, isPidAlive(childPid, procDir), isPidAlive(grandPid, procDir)]).toEqual([0, true, true]);
+
+    writeFileSync(join(procDir, String(grandPid), 'stat'), `${grandPid} (grand) S ${childPid} 1 1 0 -1 0 0 0 0 0 0 0 0 0 0 0 1 0 333\n`);
     await expect(Promise.resolve(killProcessTree(root, procDir))).resolves.toBeUndefined();
-    expect(rootKills).toBe(1);
+    expect([rootKills, isPidAlive(childPid, procDir), isPidAlive(grandPid, procDir)]).toEqual([1, false, false]);
   } finally {
-    try { sleeper.kill('SIGKILL'); } catch { /* exited */ }
+    for (const s of [sRoot, sChild, sGrand]) try { s.kill('SIGKILL'); } catch { /* exited */ }
     rmSync(procDir, { recursive: true, force: true });
   }
 });
