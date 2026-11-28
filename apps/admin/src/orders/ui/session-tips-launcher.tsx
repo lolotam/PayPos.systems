@@ -8,6 +8,18 @@ import type { SessionServiceScope } from '../api/use-session-services';
 import type { TipSourceLine } from '../model/session-tip-source';
 import { SessionTipsDialog } from './session-tips-dialog';
 
+type SessionTipsLauncherProps = {
+  scope: SessionServiceScope;
+  sessionId: string;
+  lines: readonly TipSourceLine[];
+  online: boolean;
+  onAccessDenied: (message: string) => void;
+  onForbidden?: (message: string) => void;
+  disabled?: boolean;
+  memory?: RefObject<Map<string, UnresolvedTip>>;
+  netsKnown?: boolean;
+};
+
 export function SessionTipsLauncher({
   scope,
   sessionId,
@@ -18,26 +30,18 @@ export function SessionTipsLauncher({
   disabled = false,
   memory,
   netsKnown = true,
-}: {
-  scope: SessionServiceScope;
-  sessionId: string;
-  lines: readonly TipSourceLine[];
-  online: boolean;
-  onAccessDenied: (message: string) => void;
-  onForbidden?: (message: string) => void;
-  disabled?: boolean;
-  memory?: RefObject<Map<string, UnresolvedTip>>;
-  netsKnown?: boolean;
-}) {
+}: SessionTipsLauncherProps) {
   const locale = useLocale();
-  const [open, setOpen] = useState(false);
-  const [hidden, setHidden] = useState(false);
+  const [openForSession, setOpenForSession] = useState<string | null>(null);
+  const [hiddenForSession, setHiddenForSession] = useState<string | null>(null);
   const ownMemory = useRef(new Map<string, UnresolvedTip>());
   const attempts = memory ?? ownMemory;
-  if (hidden) return null;
+  // إخفاء زر البقشيش يخص الزيارة اللي رجّعت 403 بس، فالتبديل لزيارة تانية يفضل مظهر الزر (#406).
+  if (hiddenForSession === sessionId) return null;
+  const open = openForSession === sessionId;
   const refuse = (message: string) => {
-    setHidden(true);
-    setOpen(false);
+    setHiddenForSession(sessionId);
+    setOpenForSession(null);
     onForbidden?.(message);
   };
   return (
@@ -47,7 +51,7 @@ export function SessionTipsLauncher({
         variant="outline"
         disabled={disabled}
         onClick={() => {
-          if (!disabled) setOpen(true);
+          if (!disabled) setOpenForSession(sessionId);
         }}
       >
         {t(locale, 'sessionTips.open')}
@@ -62,7 +66,7 @@ export function SessionTipsLauncher({
           memory={attempts}
           onAccessDenied={onAccessDenied}
           onForbidden={refuse}
-          onClose={() => setOpen(false)}
+          onClose={() => setOpenForSession(null)}
         />
       ) : null}
     </>

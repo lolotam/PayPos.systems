@@ -3,7 +3,7 @@ import type { RecordingContext } from '@pospay/contracts';
 import { t } from '@pospay/i18n';
 import { Button } from '@pospay/ui';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
-import { useForm, useWatch, type UseFormReset } from 'react-hook-form';
+import { useForm, useWatch, type UseFormReset, type UseFormReturn } from 'react-hook-form';
 import { useRevokeOwnRecording } from '../api/use-own-recordings';
 import type { SessionServiceScope } from '../api/use-session-services';
 import type { ExpiredRecoveryProof, SessionAttemptJournal } from '../model/session-attempt-journal';
@@ -14,6 +14,7 @@ import { reportSessionSubmitError } from '../model/session-submit-error';
 import type { SessionRecordingController } from '../model/use-session-recording';
 import { useServerAnchoredValue } from '../model/use-server-anchored-now';
 import { useLocale } from '@/shared/locale/locale-context';
+import { changeSessionCustomer } from './record-service-session-customer';
 import { RecordVisitColumns } from './record-visit-columns';
 import { RecordVisitCustomerField } from './record-visit-customer-field';
 import { SessionDraftLines } from './session-draft-lines';
@@ -61,13 +62,54 @@ export function bindExpiredConfirm(recording: SessionRecordingController, revoke
 }
 
 // النتيجة المحفوظة بتختفي لما session تكون null، فالزر هنا هو طريق الخروج الوحيد من زيارة وقتها مش معروف.
-function leaveUnknownTimeVisit(result: SessionRecordingResult, journal: Pick<SessionAttemptJournal, 'leaveVisit'> | null, replace: (next: SessionRecordingResult) => void, report: (feedback: SessionFeedback) => void) {
+function leaveUnknownTimeVisit(
+  result: SessionRecordingResult,
+  journal: Pick<SessionAttemptJournal, 'leaveVisit'> | null,
+  replace: (next: SessionRecordingResult) => void,
+  report: (feedback: SessionFeedback) => void,
+  hideCustomer: boolean,
+) {
   if (!journal) return;
-  try { replace(leaveUnknownVisit(result, journal)); }
-  catch (error) { report(sessionLeaveFeedback(error)); }
+  try {
+    const next = leaveUnknownVisit(result, journal);
+    // رفض ملف الزبونة يمنع ترجيع بياناتها عند بدء زيارة جديدة بعد الخروج من وقت غير معروف (#1187).
+    replace(hideCustomer ? { ...next, customer: null, customerId: null } : next);
+  } catch (error) {
+    report(sessionLeaveFeedback(error));
+  }
 }
 
-// النتيجة المحفوظة بتختفي لما session تكون null، فالزر هنا هو طريق الخروج الوحيد من زيارة وقتها مش معروف.
+function useCustomerDenial({
+  scope,
+  result,
+  recording,
+  form,
+  lastKnownCustomerId,
+}: {
+  scope: SessionServiceScope;
+  result: SessionRecordingResult;
+  recording: SessionRecordingController;
+  form: UseFormReturn<SessionDraftForm>;
+  lastKnownCustomerId: { current: string | null };
+}) {
+  // رفض ملف الزبونة يرتبط بالنطاق والزبونة مش بـ sessionId، عشان يفضل محجوب عبر إكمال الحفظ الأول وتحولات الزيارة (#1187).
+  const customerKey = result.customerId === null ? null : JSON.stringify([scope.companyId, scope.userId, scope.businessId, scope.branchId, result.customerId]);
+  const [deniedCustomerKey, setDeniedCustomerKey] = useState<string | null>(null);
+  const hideCustomer = customerKey !== null && deniedCustomerKey === customerKey;
+  if (deniedCustomerKey !== null && !hideCustomer) setDeniedCustomerKey(null);
+  const lines = useWatch({ control: form.control, name: 'lines' });
+  const hiddenPackageDraft = hideCustomer && (lines?.some((line) => line.from_package) ?? false);
+  // لو الحفظ الأول اتجمد وقت رفض الملف وبعدين فشل وبقى قابل للتعديل، نسقّط الاختيار المؤقت فورًا عشان ما يتبعتش تاني (#1188).
+  const clearDeniedTransient = hideCustomer && !sessionResultFrozen(result) && result.sessionId === null && result.customerId !== null;
+  useEffect(() => {
+    if (clearDeniedTransient) changeSessionCustomer(null, result, recording, form, lastKnownCustomerId);
+  }, [clearDeniedTransient, result, recording, form, lastKnownCustomerId]);
+  return {
+    hideCustomer,
+    hiddenPackageDraft,
+    denyCustomer: () => { if (customerKey !== null) setDeniedCustomerKey(customerKey); },
+  };
+}
 
 export function RecordServiceSessionForm({ scope, context, online, recording, onRefreshScope, top }: {
   scope: SessionServiceScope; context: RecordingContext; online: boolean; recording: SessionRecordingController;
@@ -76,10 +118,6 @@ export function RecordServiceSessionForm({ scope, context, online, recording, on
   const locale = useLocale();
   const revoke = useRevokeOwnRecording();
   const { result, journal } = recording;
-  const customerKey = JSON.stringify([scope.companyId, scope.userId, scope.businessId, scope.branchId, result.sessionId, result.customerId]);
-  const [deniedCustomerKey, setDeniedCustomerKey] = useState<string | null>(null);
-  const hideCustomer = deniedCustomerKey === customerKey;
-  if (deniedCustomerKey !== null && !hideCustomer) setDeniedCustomerKey(null);
   const lastKnownCustomerId = useRef<string | null>(result.customerId);
   useEffect(() => {
     if (result.customerId !== null) lastKnownCustomerId.current = result.customerId;
@@ -100,6 +138,7 @@ export function RecordServiceSessionForm({ scope, context, online, recording, on
   const beginLineEdit = () => { setEditsInFlight((count) => count + 1); };
   const endLineEdit = () => { setEditsInFlight((count) => count - 1); };
   const form = useForm<SessionDraftForm>({ defaultValues: seed });
+  const { hideCustomer, hiddenPackageDraft, denyCustomer } = useCustomerDenial({ scope, result, recording, form, lastKnownCustomerId });
   const draftedAt = useWatch({ control: form.control, name: 'occurred_at' });
   const occurredAt = savedAt ?? draftedAt;
   const impliedDate = useServerAnchoredValue(context.generated_at, (instant) => sessionLocalTime(instant, context.business_timezone).slice(0, 10));
@@ -109,24 +148,24 @@ export function RecordServiceSessionForm({ scope, context, online, recording, on
   const unknownLeave = leaveFailure?.source === result ? leaveFailure.feedback : null;
   return <RecordVisitColumns form={form} top={top} main={(onLimitChange) => <>
     <form className="grid gap-4 text-start" noValidate onSubmit={form.handleSubmit(async (drafts) => {
-      if (editBusy) return;
+      if (editBusy || hiddenPackageDraft || (hideCustomer && drafts.lines.some((line) => line.from_package)) || (!result.sessionId && (!result.customer || hideCustomer))) return;
       try { await recording.submit(drafts); } catch (error) { reportSessionSubmitError(form.setError, error, locale); }
     })}>
       <RecordVisitCustomerField scope={scope} result={result} recording={recording} form={form}
         lastKnownCustomerId={lastKnownCustomerId} online={online} locked={locked} hideCustomer={hideCustomer}
-        onAccessDenied={() => { setDeniedCustomerKey(customerKey); onRefreshScope(); }} />
+        onAccessDenied={() => { denyCustomer(); onRefreshScope(); }} />
       {timeUnknown ? <div className="grid gap-2">
         <p role="alert">{t(locale, 'serviceSessions.unknownVisitTime')}</p>
-        <Button type="button" variant="outline" disabled={!journal || editBusy} onClick={() => { if (editBusy) return; leaveUnknownTimeVisit(result, journal, recording.replaceResult, (feedback) => setLeaveFailure({ source: result, feedback })); }}>{t(locale, 'serviceSessions.newVisitSameCustomer')}</Button>
+        <Button type="button" variant="outline" disabled={!journal || editBusy} onClick={() => { if (editBusy) return; leaveUnknownTimeVisit(result, journal, recording.replaceResult, (feedback) => setLeaveFailure({ source: result, feedback }), hideCustomer); }}>{t(locale, hideCustomer ? 'serviceSessions.newVisit' : 'serviceSessions.newVisitSameCustomer')}</Button>
         {unknownLeave ? <SessionWriteFeedback result={{ ...result, feedback: unknownLeave, attempt: null }} /> : null}
       </div> : <SessionTimeField context={context} disabled={locked} />}
       <SessionRecordingHeader scope={scope} disabled={!online || frozen} readOnly={membershipFixed} onLimitChange={onLimitChange} />
-      <SessionDraftLines scope={scope} customerId={result.customerId} {...(occurredAt !== undefined ? { occurredAt } : {})} visitDate={visitDate} disabled={!online || frozen || timeUnknown} />
+      <SessionDraftLines scope={scope} customerId={hideCustomer ? null : result.customerId} {...(occurredAt !== undefined ? { occurredAt } : {})} visitDate={visitDate} disabled={!online || frozen || timeUnknown} />
       <SessionRejectedLines result={result} onEdit={focusDraftPrice} scope={scope} online={online} />
       {rootError ? <p role="alert">{rootError}</p> : null}
       <SessionWriteFeedback result={result} onRefreshScope={onRefreshScope} {...(online && !editBusy ? { onReplay: () => { void recording.retry(); } } : {})}
         {...(journal && result.expiredAttempt && !editBusy ? { scope, timeZone: context.business_timezone, onConfirm: bindExpiredConfirm(recording, (proof) => revoke.mutateAsync(proof)) } : {})} />
-      <Button type="submit" disabled={!online || frozen || timeUnknown || editBusy || !journal || (!result.sessionId && !result.customer)} onClick={(event) => { if (editBusy) event.preventDefault(); }}>
+      <Button type="submit" disabled={!online || frozen || timeUnknown || editBusy || !journal || hiddenPackageDraft || (!result.sessionId && (!result.customer || hideCustomer))} onClick={(event) => { if (editBusy) event.preventDefault(); }}>
         {t(locale, result.sessionId ? 'serviceSessions.correctAndAppend' : 'serviceSessions.save')}
       </Button>
     </form>
