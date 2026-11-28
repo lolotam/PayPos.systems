@@ -32,17 +32,36 @@ export function resolveLaunchCleanupGate(
     on: () => undefined,
   });
   onShutdown?.(shutdown);
-  return cleanup.then(
-    () => {
-      onConfirmed?.(shutdown);
-    },
+  let settled = false;
+  const fromCleanup = cleanup.then(
+    () => undefined,
     (cleanupErr: unknown) => {
-      onCleanupError?.(cleanupErr);
-      return shutdown.confirmed.then(() => {
-        onConfirmed?.(shutdown);
-      });
+      if (!settled) onCleanupError?.(cleanupErr);
+      return shutdown.confirmed;
     },
   );
+  return Promise.race([fromCleanup, shutdown.confirmed]).then(() => {
+    settled = true;
+    onConfirmed?.(shutdown);
+  });
+}
+
+/** يعيد محاولة إنهاء المتصفح المعلّق عند إعادة الإطلاق بعد مهلة التراجع؛ يرجع true لو القتل فشل. */
+export async function retryBlockedShutdown(
+  shutdown: BrowserShutdown | null,
+  blocked: boolean,
+  onError?: (err: unknown) => void,
+): Promise<boolean> {
+  if (!blocked || shutdown === null) return false;
+  const retry = shutdown.kill();
+  if (retry === undefined) return false;
+  try {
+    await retry;
+    return false;
+  } catch (err) {
+    onError?.(err);
+    return true;
+  }
 }
 
 /** يقفل المتصفح المتقاعد ويستنى تأكيد خروج عمليته لو المهلة خلصت قبل التأكيد. */

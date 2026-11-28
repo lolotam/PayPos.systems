@@ -1,6 +1,7 @@
+import { spawn } from 'node:child_process';
 import { EventEmitter } from 'node:events';
 import { chromium } from 'playwright-core';
-import { expect, it } from 'vitest';
+import { expect, it, vi } from 'vitest';
 
 import type { PdfBrowser } from '../playwright/browser.ts';
 import { getLaunchCleanup, killAndWait, playwrightFactory, withLaunchCleanup } from '../playwright/factory.ts';
@@ -66,7 +67,7 @@ it('keeps replacement launches blocked on rejected launch cleanup before and aft
       },
       launchTimeoutMs: timeoutMs,
       sleep: wait,
-      backoffMs: [0],
+      backoffMs: [250],
       onLaunchError: (err) => { if (err instanceof Error) errors.push(err.message); },
     });
     await renderer.start();
@@ -80,6 +81,61 @@ it('keeps replacement launches blocked on rejected launch cleanup before and aft
   }
 });
 
+it('retries failed launch cleanup automatically on backoff and relaunches once confirmed', async () => {
+  let launches = 0;
+  let kills = 0;
+  const errors: string[] = [];
+  const renderer = new PlaywrightDocumentRenderer({
+    factory: {
+      launch: () => {
+        launches += 1;
+        if (launches > 1) return Promise.resolve(fakeBrowser({ close: () => Promise.resolve() }));
+        return Promise.reject(withLaunchCleanup(new Error('spawn fail'), Promise.reject(new Error('SIGKILL_REJECTED')), () => {
+          kills += 1;
+          if (kills === 1) throw new Error('EPERM');
+        }));
+      },
+    },
+    launchTimeoutMs: 200,
+    sleep: wait,
+    backoffMs: [10, 10],
+    onLaunchError: (err) => { if (err instanceof Error) errors.push(err.message); },
+  });
+  await renderer.start();
+  for (let i = 0; i < 40 && !renderer.isAvailable(); i += 1) await wait(10);
+  expect(renderer.isAvailable()).toBe(true);
+  expect(launches).toBe(2);
+  expect(kills).toBe(2);
+  expect(errors).toEqual(expect.arrayContaining(['SIGKILL_REJECTED', 'EPERM']));
+  expect(renderer.unconfirmedExit).toBeNull();
+  await renderer.close();
+});
+
+it('unblocks a hung launch cleanup gate as soon as retryKill confirms', async () => {
+  let kills = 0;
+  let launches = 0;
+  const renderer = new PlaywrightDocumentRenderer({
+    factory: {
+      launch: () => {
+        launches += 1;
+        return launches === 1
+          ? Promise.reject(withLaunchCleanup(new Error('hung'), new Promise<void>(() => undefined), () => { kills += 1; }))
+          : Promise.resolve(fakeBrowser({ close: () => Promise.resolve() }));
+      },
+    },
+    launchTimeoutMs: 200,
+    sleep: wait,
+    backoffMs: [10],
+  });
+  await renderer.start();
+  for (let i = 0; i < 40 && !renderer.isAvailable(); i += 1) await wait(10);
+  expect(renderer.isAvailable()).toBe(true);
+  expect(kills).toBe(1);
+  expect(launches).toBe(2);
+  expect(renderer.unconfirmedExit).toBeNull();
+  await renderer.close();
+});
+
 it('keeps killProcessTree pending for surviving descendants when root has already exited', async () => {
   const child = Object.assign(new EventEmitter(), { exitCode: null as number | null, signalCode: null, kill: () => true });
   const root = Object.assign(new EventEmitter(), { exitCode: 0, signalCode: null, children: [child], kill: () => true });
@@ -91,6 +147,77 @@ it('keeps killProcessTree pending for surviving descendants when root has alread
   child.emit('exit');
   await waiting;
   expect(done).toBe(true);
+});
+
+function assertChildPid<T extends { pid?: number | undefined }>(proc: T): asserts proc is T & { pid: number } {
+  if (typeof proc.pid !== 'number') throw new Error('EXPECTED_CHILD_PID');
+}
+
+it('rejects promptly when a live root fails SIGKILL without hanging on root pid exit', async () => {
+  const hold = spawn(process.execPath, ['-e', 'setTimeout(() => {}, 10_000)'], { stdio: 'ignore' });
+  try {
+    assertChildPid(hold);
+    const root = Object.assign(new EventEmitter(), {
+      pid: hold.pid,
+      exitCode: null as number | null,
+      signalCode: null,
+      kill: () => false,
+    });
+    const outcome = await Promise.race([
+      Promise.resolve(killAndWait(root)).then(() => 'resolved', (err: unknown) => (err instanceof Error ? err.message : 'rejected')),
+      wait(500).then(() => 'HUNG'),
+    ]);
+    expect(outcome).toBe('SIGKILL_REJECTED');
+  } finally {
+    hold.kill('SIGKILL');
+  }
+});
+
+it.runIf(process.platform === 'linux')('terminates detached Linux descendants outside the root process group', async () => {
+  const script = 'const { spawn } = require("node:child_process"); const c = spawn(process.execPath, ["-e", "setTimeout(() => {}, 30000)"], { detached: true, stdio: "ignore" }); process.stdout.write(String(c.pid) + "\\n"); setTimeout(() => {}, 30000);';
+  const parent = spawn(process.execPath, ['-e', script], { stdio: ['ignore', 'pipe', 'ignore'] });
+  let childPid = 0;
+  try {
+    assertChildPid(parent);
+    childPid = await new Promise<number>((resolve, reject) => {
+      parent.stdout.once('data', (chunk: Buffer) => resolve(Number(chunk.toString('utf8').trim())));
+      parent.once('error', reject);
+    });
+    await Promise.resolve(killAndWait(parent));
+    expect(() => process.kill(childPid, 0)).toThrow();
+  } finally {
+    if (childPid > 0) {
+      try { process.kill(childPid, 'SIGKILL'); } catch { /* exited */ }
+    }
+    try { parent.kill('SIGKILL'); } catch { /* exited */ }
+  }
+});
+
+it.runIf(process.platform === 'linux')('propagates non-ESRCH errors when signaling discovered descendants', async () => {
+  const script = 'const { spawn } = require("node:child_process"); const c = spawn(process.execPath, ["-e", "setTimeout(() => {}, 30000)"], { detached: true, stdio: "ignore" }); process.stdout.write(String(c.pid) + "\\n"); setTimeout(() => {}, 30000);';
+  const parent = spawn(process.execPath, ['-e', script], { stdio: ['ignore', 'pipe', 'ignore'] });
+  let childPid = 0;
+  const origKill = process.kill.bind(process);
+  try {
+    assertChildPid(parent);
+    childPid = await new Promise<number>((resolve, reject) => {
+      parent.stdout.once('data', (chunk: Buffer) => resolve(Number(chunk.toString('utf8').trim())));
+      parent.once('error', reject);
+    });
+    vi.spyOn(process, 'kill').mockImplementation(((pid: number, sig?: string | number) => {
+      if (sig === 'SIGKILL' && (pid === childPid || pid === -childPid)) {
+        throw Object.assign(new Error('EPERM'), { code: 'EPERM' });
+      }
+      return origKill(pid, sig);
+    }) as typeof process.kill);
+    await expect(Promise.resolve(killAndWait(parent))).rejects.toThrow('EPERM');
+  } finally {
+    vi.restoreAllMocks();
+    if (childPid > 0) {
+      try { origKill(childPid, 'SIGKILL'); } catch { /* exited */ }
+    }
+    try { parent.kill('SIGKILL'); } catch { /* exited */ }
+  }
 });
 
 it('preserves recovery across aborted starts, handles reentrant kill inside factory, and retries undefined kill rejections', async () => {

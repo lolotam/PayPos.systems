@@ -244,8 +244,8 @@ async function waitForPidsExit(pids: readonly number[], procRoot = '/proc'): Pro
   }
 }
 
-function killLaunchProcessGroup(proc: KillableProcess, forceGroup = false): void {
-  if (process.platform === 'win32' || (!forceGroup && hasExited(proc))) return;
+function killLaunchProcessGroup(proc: KillableProcess): void {
+  if (process.platform === 'win32' || hasExited(proc)) return;
   if (typeof proc.pid !== 'number' || proc.pid <= 0) return;
   try {
     // Playwright بيطلق Chromium بـ detached: true على الأنظمة غير Windows فبيكون قائد مجموعة عمليات (-pid).
@@ -255,19 +255,70 @@ function killLaunchProcessGroup(proc: KillableProcess, forceGroup = false): void
   }
 }
 
+function hasMatchingMarkerInProc(pid: number, marker: string, procRoot = '/proc'): boolean {
+  if (process.platform !== 'linux' && procRoot === '/proc') return false;
+  const expected = `${LAUNCH_MARKER_ENV}=${marker}`;
+  try {
+    const envText = readFileSync(`${procRoot}/${pid}/environ`, 'utf8');
+    return envText.split('\0').includes(expected);
+  } catch {
+    return false;
+  }
+}
+
 function collectMarkedLinuxPids(marker: string | undefined, procRoot = '/proc'): number[] {
   if (marker === undefined || (process.platform !== 'linux' && procRoot === '/proc')) return [];
-  const expected = `${LAUNCH_MARKER_ENV}=${marker}`;
-  const matched: number[] = [];
-  for (const row of readLinuxProcessPairs(procRoot)) {
+  return readLinuxProcessPairs(procRoot)
+    .filter((row) => hasMatchingMarkerInProc(row.pid, marker, procRoot))
+    .map((row) => row.pid);
+}
+
+function toKillError(error: unknown): Error | undefined {
+  const code = error instanceof Error && 'code' in error ? error.code : undefined;
+  if (code === 'ESRCH') return undefined;
+  return error instanceof Error ? error : new Error('SIGKILL_FAILED');
+}
+
+function signalDescendantPid(pid: number): Error | undefined {
+  if (pid <= 0 || pid === process.pid) return undefined;
+  let firstError: Error | undefined;
+  if (process.platform !== 'win32') {
     try {
-      const envText = readFileSync(`${procRoot}/${row.pid}/environ`, 'utf8');
-      if (envText.split('\0').includes(expected)) matched.push(row.pid);
-    } catch {
-      // العملية خرجت أثناء الفحص.
+      process.kill(-pid, 'SIGKILL');
+    } catch (error) {
+      firstError = toKillError(error);
     }
   }
-  return matched;
+  try {
+    process.kill(pid, 'SIGKILL');
+  } catch (error) {
+    firstError ??= toKillError(error);
+  }
+  return firstError;
+}
+
+function terminateOwnedDescendants(
+  proc: KillableProcess,
+  procRoot = '/proc',
+): { waitPids: number[]; signalError: Error | undefined } {
+  const marker = launchedMarkers.get(proc);
+  const rootPid = typeof proc.pid === 'number' && proc.pid > 0 ? proc.pid : undefined;
+  const rootAlive = rootPid !== undefined && !hasExited(proc);
+  const markedPids = collectMarkedLinuxPids(marker, procRoot);
+  const seeds = rootAlive ? [...new Set([rootPid, ...markedPids])] : markedPids;
+  if (seeds.length === 0) return { waitPids: [], signalError: undefined };
+  const markedSet = new Set(markedPids);
+  const candidates = [...new Set([...markedPids, ...collectDescendantPids(seeds, procRoot)])];
+  const waitPids = candidates.filter(
+    (pid) => pid !== rootPid && (rootAlive || markedSet.has(pid) || (marker !== undefined && hasMatchingMarkerInProc(pid, marker, procRoot))),
+  );
+  let signalError: Error | undefined;
+  if (procRoot === '/proc') {
+    for (const pid of waitPids) {
+      signalError ??= signalDescendantPid(pid);
+    }
+  }
+  return { waitPids, signalError };
 }
 
 function killSingleAndWait(proc: KillableProcess): Promise<void> | void {
@@ -317,7 +368,7 @@ function safeKillSingle(proc: KillableProcess): Promise<void> | undefined {
   }
 }
 
-/** يقتل عملية Chromium الجذر ومجموعتها وكل شجرة توابعها قبل فكّ قفل إعادة الإطلاق. */
+/** يقتل عملية Chromium الجذر ومجموعتها وكل شجرة توابعها مع توابع الإطلاق المؤكَّدة قبل فكّ قفل إعادة الإطلاق. */
 export function killProcessTree(proc: KillableProcess): Promise<void> | void {
   const childTree = (proc.children ?? []).map((child) => {
     try {
@@ -326,15 +377,12 @@ export function killProcessTree(proc: KillableProcess): Promise<void> | void {
       return Promise.reject(error instanceof Error ? error : new Error('SIGKILL_FAILED'));
     }
   });
-  const seeds = new Set<number>();
-  if (typeof proc.pid === 'number' && proc.pid > 0) seeds.add(proc.pid);
-  for (const pid of collectMarkedLinuxPids(launchedMarkers.get(proc))) seeds.add(pid);
-  const osDescendants = seeds.size > 0 ? [...new Set([...seeds, ...collectDescendantPids([...seeds])])] : [];
-  const liveDescendants = osDescendants.filter((pid) => pid !== proc.pid || !hasExited(proc));
-  killLaunchProcessGroup(proc, liveDescendants.length > 0);
+  const { waitPids, signalError } = terminateOwnedDescendants(proc);
+  killLaunchProcessGroup(proc);
   const rootWait = safeKillSingle(proc);
   const waits: Array<Promise<void>> = childTree.filter((item): item is Promise<void> => item !== undefined);
-  if (liveDescendants.length > 0) waits.push(waitForPidsExit(liveDescendants));
+  if (waitPids.length > 0) waits.push(waitForPidsExit(waitPids));
+  if (signalError !== undefined) waits.push(Promise.reject(signalError));
   if (rootWait === undefined && waits.length === 0) return undefined;
   const all = rootWait === undefined ? waits : [rootWait, ...waits];
   return Promise.allSettled(all).then((results) => {
