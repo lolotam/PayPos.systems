@@ -121,10 +121,12 @@ function wrapBrowser(browser: Browser, capturedProc: KillableProcess | null = nu
   const launchedProc = capturedProc ?? chromiumProcess(browser);
   return {
     newContext: async (options) => wrapContext(await browser.newContext(options)),
-    close: () => {
+    close: async () => {
       const target = launchedProc ?? chromiumProcess(browser);
       if (target !== null) captureOwnedDescendants(target);
-      return browser.close();
+      await browser.close();
+      const postCloseTarget = launchedProc ?? chromiumProcess(browser);
+      if (postCloseTarget !== null) await Promise.resolve(killProcessTree(postCloseTarget));
     },
     kill: () => killAndWait(launchedProc ?? chromiumProcess(browser)),
     on: (event, listener) => {

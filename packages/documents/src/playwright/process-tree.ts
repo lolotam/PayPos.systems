@@ -335,19 +335,20 @@ function buildSeedFingerprints(proc: KillableProcess, rootPid: number | undefine
   return { seedFps, seedErr };
 }
 
-function signalVerifiedDescendants(verified: ReadonlyArray<readonly [number, string]>, retained: Map<number, string>, initialError: Error | undefined, procRoot: string, signalPid: ((pid: number) => Error | undefined) | undefined): { waitPids: number[]; signalError: Error | undefined } {
-  if (signalPid === undefined) return { waitPids: verified.map(([pid]) => pid), signalError: initialError };
+function signalVerifiedDescendants(verified: ReadonlyArray<readonly [number, string]>, retained: Map<number, string>, initialError: Error | undefined, procRoot: string, signalPid: ((pid: number) => Error | undefined) | undefined): { waitPids: number[]; signalError: Error | undefined; holdRoot: boolean } {
+  if (signalPid === undefined) return { waitPids: verified.map(([pid]) => pid), signalError: initialError, holdRoot: false };
   const waitPids: number[] = [];
   let signalError = initialError;
+  let holdRoot = false;
   for (const [pid, fp] of verified) {
     const status = checkPidStatus(pid, fp, procRoot);
     if (status === 'exited') { retained.delete(pid); continue; }
-    if (status === 'unverified') { signalError ??= markUnconfirmedDescendants(new Error('DESCENDANT_IDENTITY_UNVERIFIED')); continue; }
+    if (status === 'unverified') { holdRoot = true; signalError ??= markUnconfirmedDescendants(new Error('DESCENDANT_IDENTITY_UNVERIFIED')); continue; }
     const err = signalPid(pid);
     if (err === undefined) waitPids.push(pid);
     else signalError ??= markUnconfirmedDescendants(err);
   }
-  return { waitPids, signalError };
+  return { waitPids, signalError, holdRoot };
 }
 
 function terminateOwnedDescendants(proc: KillableProcess, procRoot = '/proc', signalPid?: (pid: number) => Error | undefined): { waitPids: number[]; signalError: Error | undefined; holdRoot: boolean } {
@@ -389,7 +390,7 @@ function terminateOwnedDescendants(proc: KillableProcess, procRoot = '/proc', si
   if (holdRoot) return { waitPids: [], signalError: signalError ?? markUnconfirmedDescendants(new Error('DESCENDANT_IDENTITY_UNVERIFIED')), holdRoot };
   const result = signalVerifiedDescendants(verified, retained, signalError, procRoot, signalPid);
   if (retained.size === 0) retainedDescendants.delete(proc);
-  return { ...result, holdRoot: false };
+  return result;
 }
 
 function killSingleAndWait(proc: KillableProcess, procRoot = '/proc'): Promise<void> | void {

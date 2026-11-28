@@ -28,6 +28,8 @@ it('gives Chromium an explicit launch timeout below the outer launch bound', () 
 });
 
 it('forwards an explicit timeout argument in playwrightFactory(timeoutMs)', async () => {
+  let killedAfterClose = false;
+  const proc = { pid: 99_999, exitCode: null as number | null, kill: () => { killedAfterClose = true; proc.exitCode = 0; return true; } };
   const spy = vi.spyOn(chromium, 'launch').mockResolvedValue({
     newContext: async () =>
       ({
@@ -37,11 +39,13 @@ it('forwards an explicit timeout argument in playwrightFactory(timeoutMs)', asyn
       }) as never,
     close: async () => undefined,
     on: () => undefined,
-    process: () => ({ pid: 99_999, kill: () => true }),
+    process: () => proc,
   } as never);
   try {
-    await playwrightFactory(12_345).launch();
+    const browser = await playwrightFactory(12_345).launch();
     expect(spy).toHaveBeenCalledWith(expect.objectContaining({ timeout: 12_345 }));
+    await expect(browser.close()).resolves.toBeUndefined();
+    expect(killedAfterClose).toBe(true);
   } finally {
     spy.mockRestore();
   }
@@ -107,7 +111,7 @@ it('holds root and verified ancestors when root or grandchild fingerprint is tra
     const signaled: number[] = [];
     const signalPid = (pid: number): Error | undefined => {
       signaled.push(pid);
-      rmSync(join(procDir, String(pid)), { recursive: true, force: true });
+      writeFileSync(join(procDir, String(pid), 'stat'), `${pid} (exited) Z 1 1 1 0 -1 0 0 0 0 0 0 0 0 0 0 0 1 0 0\n`);
       return undefined;
     };
     const root = { pid: rootPid, exitCode: null as number | null, signalCode: null, kill: () => { rootKills += 1; root.exitCode = 0; return true; } };
@@ -116,19 +120,20 @@ it('holds root and verified ancestors when root or grandchild fingerprint is tra
 
     writeFileSync(join(procDir, String(rootPid), 'stat'), `${rootPid} (root) S 1 1 1 0 -1 0 0 0 0 0 0 0 0 0 0 0 1 0 111\n`);
     rmSync(join(procDir, String(grandPid), 'stat'));
-    captureOwnedDescendants(root, procDir);
     await expect(Promise.resolve(killProcessTree(root, procDir, signalPid))).rejects.toThrow('DESCENDANT_IDENTITY_UNVERIFIED');
     expect([rootKills, signaled, isPidAlive(childPid, procDir), isPidAlive(grandPid, procDir)]).toEqual([0, [], true, true]);
 
-    root.exitCode = 0;
+    const closingRoot = { pid: rootPid, exitCode: null as number | null, signalCode: null, kill: () => { rootKills += 1; closingRoot.exitCode = 0; return true; } };
+    captureOwnedDescendants(closingRoot, procDir);
+    closingRoot.exitCode = 0;
     rmSync(join(procDir, String(rootPid)), { recursive: true, force: true });
     rmSync(join(procDir, String(childPid), 'stat'));
-    await expect(Promise.resolve(killProcessTree(root, procDir, signalPid))).rejects.toThrow('DESCENDANT_IDENTITY_UNVERIFIED');
+    await expect(Promise.resolve(killProcessTree(closingRoot, procDir, signalPid))).rejects.toThrow('DESCENDANT_IDENTITY_UNVERIFIED');
     expect([rootKills, signaled, isPidAlive(childPid, procDir), isPidAlive(grandPid, procDir)]).toEqual([0, [], true, true]);
 
     writeFileSync(join(procDir, String(childPid), 'stat'), `${childPid} (child) S 1 1 1 0 -1 0 0 0 0 0 0 0 0 0 0 0 1 0 222\n`);
     writeFileSync(join(procDir, String(grandPid), 'stat'), `${grandPid} (grand) S ${childPid} 1 1 0 -1 0 0 0 0 0 0 0 0 0 0 0 1 0 333\n`);
-    await expect(Promise.resolve(killProcessTree(root, procDir, signalPid))).resolves.toBeUndefined();
+    await expect(Promise.resolve(killProcessTree(closingRoot, procDir, signalPid))).resolves.toBeUndefined();
     expect([rootKills, new Set(signaled), isPidAlive(childPid, procDir), isPidAlive(grandPid, procDir)]).toEqual([0, new Set([childPid, grandPid]), false, false]);
   } finally {
     for (const s of [sRoot, sChild, sGrand]) try { s.kill('SIGKILL'); } catch { /* exited */ }
