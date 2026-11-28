@@ -1,7 +1,12 @@
 import { describe, expect, it } from 'vitest';
 
 import { PackageRuleError } from '../packages/errors.js';
-import { assertPackageNotExpired, packageExpiryDate, packageUsableOn } from '../packages/package-expiry.js';
+import {
+  assertPackageNotExpired,
+  packageExpiryDate,
+  packageUsableAt,
+  packageUsableOn,
+} from '../packages/package-expiry.js';
 
 describe('branch-local package expiry (PKG-09/M7)', () => {
   it.each([
@@ -97,4 +102,16 @@ describe('sale expiry is a calendar addition (FR-017)', () => {
       expect(() => packageExpiryDate(day, 1)).toThrow(new PackageRuleError('INVALID_DATE'));
     },
   );
+});
+
+describe('packageUsableAt', () => {
+  it.each([
+    ['2026-10-15T10:00:00.000Z', '2026-10-15T10:00:00.000Z', true],
+    ['2026-10-15T10:00:00.001Z', '2026-10-15T10:00:00.000Z', true],
+    ['2026-10-15T09:59:59.999Z', '2026-10-15T10:00:00.000Z', false],
+    ['2026-10-15T09:00:00.000Z', null, true],
+    [undefined, '2026-10-15T10:00:00.000Z', true],
+  ] as const)('visit %s with soldAt %s is %s', (visitAt, soldAt, expected) => {
+    expect(packageUsableAt(visitAt, soldAt)).toBe(expected);
+  });
 });

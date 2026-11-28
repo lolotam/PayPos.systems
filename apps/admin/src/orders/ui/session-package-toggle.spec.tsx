@@ -83,6 +83,7 @@ type HarnessProps = {
   packages: PackageList;
   customerId?: string | null;
   serviceId?: string;
+  occurredAt?: string;
   visitDate?: string;
   lines?: SessionDraftLine[];
   index?: number;
@@ -91,7 +92,7 @@ type HarnessProps = {
 
 function Harness({
   packages, customerId: selectedCustomer = customerId, serviceId: selectedService = serviceId,
-  visitDate = '2026-06-15', lines, index = 0, onSubmit,
+  occurredAt, visitDate = '2026-06-15', lines, index = 0, onSubmit,
 }: HarnessProps) {
   const form = useForm<SessionDraftForm>({
     defaultValues: { lines: lines ?? [{ ...createSessionDraft('line'), service_id: selectedService }] },
@@ -99,7 +100,7 @@ function Harness({
   useEffect(() => { formRef = form; }, [form]);
   return <FormProvider {...form}><form noValidate onSubmit={form.handleSubmit((data) => onSubmit?.(data))}>
     <SessionPackageToggle scope={scope} customerId={selectedCustomer} index={index}
-      visitDate={visitDate} packages={packages} />
+      occurredAt={occurredAt} visitDate={visitDate} packages={packages} />
     <button type="submit">Submit fixture</button>
   </form></FormProvider>;
 }
@@ -293,4 +294,18 @@ it('keeps a recovered pick when the package list read fails and recovers it on r
   const option = await screen.findByRole('radio', { name: /Package saved/ });
   expect((option as HTMLInputElement).checked).toBe(true);
   expect(formRef?.getValues('lines.0.package_entitlement_id')).toBe(recoveredPackageId);
+});
+
+it('hides packages sold after a backdated visit instant and suggests the earliest eligible option (#962)', async () => {
+  const older = packageItem('older', '2026-12-01', { sold_at: '2026-06-15T08:00:00.000Z' });
+  const newer = packageItem('newer', '2026-11-01', { sold_at: '2026-06-15T12:00:00.000Z' });
+  renderToggle({
+    packages: packageList([newer, older]),
+    occurredAt: '2026-06-15T10:00:00.000Z',
+    visitDate: '2026-06-15',
+  });
+  fireEvent.click(toggleButton());
+
+  await waitFor(() => expect(radio('Package older').checked).toBe(true));
+  expect(screen.queryByRole('radio', { name: /Package newer/ })).toBeNull();
 });

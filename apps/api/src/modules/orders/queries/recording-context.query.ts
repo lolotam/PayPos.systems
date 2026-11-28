@@ -4,8 +4,8 @@ import type { TenantWrappers, Tx } from '@pospay/db';
 
 export interface RecordingScope { companyId: string; userId: string; businessId: string; branchId: string }
 export interface RecordingContextReads {
-  /** يثبت الفرع النشط ويعيد منطقة النشاط لنموذج التسجيل فقط. */
-  place(tx: Tx, scope: RecordingScope): Promise<{ timezone: string } | null>;
+  /** يثبت الفرع النشط ويعيد منطقة النشاط والمنطقة الفعلية للفرع لنموذج التسجيل. */
+  place(tx: Tx, scope: RecordingScope): Promise<{ timezone: string; branchTimezone?: string } | null>;
   /**
    * يعيد إذن التسجيل وعضويات المتصلة بالفرع دون كشف حدود غيرها، و`change` لما الإذن جاي من تغيير المنفّذين
    * (قايمة المحرر، PP-19.1) بعد منعه هو؛ قراءة الخدمات بتسيبه فاضي فبتفضل للتسجيل بس.
@@ -48,7 +48,9 @@ export class RecordingContextQueryHandler {
       authorize(access, query.recorder_membership_id);
       const selected = query.recorder_membership_id ?? (access.membership_ids.length === 1 ? access.membership_ids[0] : undefined);
       if (selected === undefined) return recordingContext.parse({ generated_at: initialAt.toISOString(),
-        business_timezone: initialPlace.timezone, recorder_membership_ids: access.membership_ids,
+        business_timezone: initialPlace.timezone,
+        branch_timezone: initialPlace.branchTimezone ?? initialPlace.timezone,
+        recorder_membership_ids: access.membership_ids,
         recorder_membership_id: null, discount_limit: null });
       const limit = await this.reads.limit(tx, scope, selected);
       if (limit === null) throw new RecordingContextReadError('FORBIDDEN');
@@ -58,6 +60,7 @@ export class RecordingContextQueryHandler {
       const place = await this.reads.place(tx, scope);
       if (place === null) throw new RecordingContextReadError('FORBIDDEN');
       return recordingContext.parse({ generated_at: at.toISOString(), business_timezone: place.timezone,
+        branch_timezone: place.branchTimezone ?? place.timezone,
         recorder_membership_ids: fresh.membership_ids, recorder_membership_id: selected ?? null, discount_limit: limit });
     }, { userId: scope.userId });
   }

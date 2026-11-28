@@ -22924,7 +22924,7 @@
         ],
         "responses": {
           "200": {
-            "description": "Own choices, business timezone and server instant; limit only after verified selection.",
+            "description": "Own choices, business and branch timezones, and server instant; limit only after verified selection.",
             "content": {
               "application/json": {
                 "schema": {
@@ -45453,6 +45453,12 @@
             "nullable": true,
             "type": "string"
           },
+          "sold_at": {
+            "nullable": true,
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+          },
           "expires_on": {
             "type": "string",
             "format": "date",
@@ -46623,6 +46629,10 @@
                 "type": "string",
                 "minLength": 1
               },
+              "branch_timezone": {
+                "type": "string",
+                "minLength": 1
+              },
               "recorder_membership_ids": {
                 "minItems": 1,
                 "type": "array",
@@ -46658,6 +46668,10 @@
                 "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
               },
               "business_timezone": {
+                "type": "string",
+                "minLength": 1
+              },
+              "branch_timezone": {
                 "type": "string",
                 "minLength": 1
               },
@@ -48746,102 +48760,216 @@
         "additionalProperties": false
       },
       "DiscountApprovedByPerformer": {
-        "type": "object",
-        "properties": {
-          "schema_version": {
-            "type": "number",
-            "enum": [
-              1
-            ]
-          },
-          "business_id": {
-            "type": "string",
-            "format": "uuid",
-            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
-          },
-          "branch_id": {
-            "type": "string",
-            "format": "uuid",
-            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
-          },
-          "decided_by": {
-            "type": "string",
-            "format": "uuid",
-            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
-          },
-          "decider_label_en": {
-            "type": "string",
-            "minLength": 1,
-            "maxLength": 255
-          },
-          "decider_label_ar": {
-            "type": "string",
-            "minLength": 1,
-            "maxLength": 255
-          },
-          "decided_via": {
-            "type": "string",
-            "enum": [
-              "PIN",
-              "REMOTE"
-            ]
-          },
-          "proposals": {
-            "minItems": 1,
-            "maxItems": 20,
-            "type": "array",
-            "items": {
-              "type": "object",
-              "properties": {
-                "id": {
-                  "type": "string",
-                  "format": "uuid",
-                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
-                },
-                "service_id": {
-                  "type": "string",
-                  "format": "uuid",
-                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
-                },
-                "name_en": {
-                  "type": "string",
-                  "minLength": 1,
-                  "maxLength": 255
-                },
-                "name_ar": {
-                  "nullable": true,
-                  "type": "string",
-                  "minLength": 1,
-                  "maxLength": 255
-                },
-                "effective_bps": {
-                  "type": "integer",
-                  "minimum": 1,
-                  "maximum": 10000
-                }
+        "anyOf": [
+          {
+            "type": "object",
+            "properties": {
+              "schema_version": {
+                "type": "number",
+                "enum": [
+                  1
+                ]
               },
-              "required": [
-                "id",
-                "service_id",
-                "name_en",
-                "name_ar",
-                "effective_bps"
-              ],
-              "additionalProperties": false
-            }
+              "decision_id": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+              },
+              "business_id": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+              },
+              "branch_id": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+              },
+              "decided_by": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+              },
+              "decider_label_en": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 255
+              },
+              "decider_label_ar": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 255
+              },
+              "decided_via": {
+                "type": "string",
+                "enum": [
+                  "PIN",
+                  "REMOTE"
+                ]
+              },
+              "decided_at": {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+              },
+              "proposals": {
+                "minItems": 1,
+                "maxItems": 20,
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string",
+                      "format": "uuid",
+                      "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                    },
+                    "service_id": {
+                      "type": "string",
+                      "format": "uuid",
+                      "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                    },
+                    "name_en": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 255
+                    },
+                    "name_ar": {
+                      "nullable": true,
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 255
+                    },
+                    "effective_bps": {
+                      "type": "integer",
+                      "minimum": 1,
+                      "maximum": 10000
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "service_id",
+                    "name_en",
+                    "name_ar",
+                    "effective_bps"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            },
+            "required": [
+              "schema_version",
+              "decision_id",
+              "business_id",
+              "branch_id",
+              "decided_by",
+              "decider_label_en",
+              "decider_label_ar",
+              "decided_via",
+              "decided_at",
+              "proposals"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "schema_version": {
+                "type": "number",
+                "enum": [
+                  1
+                ]
+              },
+              "business_id": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+              },
+              "branch_id": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+              },
+              "decided_by": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+              },
+              "decider_label_en": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 255
+              },
+              "decider_label_ar": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 255
+              },
+              "decided_via": {
+                "type": "string",
+                "enum": [
+                  "PIN",
+                  "REMOTE"
+                ]
+              },
+              "proposals": {
+                "minItems": 1,
+                "maxItems": 20,
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string",
+                      "format": "uuid",
+                      "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                    },
+                    "service_id": {
+                      "type": "string",
+                      "format": "uuid",
+                      "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                    },
+                    "name_en": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 255
+                    },
+                    "name_ar": {
+                      "nullable": true,
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 255
+                    },
+                    "effective_bps": {
+                      "type": "integer",
+                      "minimum": 1,
+                      "maximum": 10000
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "service_id",
+                    "name_en",
+                    "name_ar",
+                    "effective_bps"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            },
+            "required": [
+              "schema_version",
+              "business_id",
+              "branch_id",
+              "decided_by",
+              "decider_label_en",
+              "decider_label_ar",
+              "decided_via",
+              "proposals"
+            ],
+            "additionalProperties": false
           }
-        },
-        "required": [
-          "schema_version",
-          "business_id",
-          "branch_id",
-          "decided_by",
-          "decider_label_en",
-          "decider_label_ar",
-          "decided_via",
-          "proposals"
-        ],
-        "additionalProperties": false
+        ]
       },
       "DiscountSelfApprovalNoticeRequested": {
         "type": "object",

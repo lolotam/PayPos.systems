@@ -11,7 +11,7 @@ import {
 const serviceId = 'service-a';
 
 type ItemPatch = Partial<Pick<CustomerPackageListItem,
-  'name_en' | 'expires_on' | 'expired' | 'used_up'
+  'name_en' | 'sold_at' | 'expires_on' | 'expired' | 'used_up'
 >>;
 
 function packageItem(
@@ -161,4 +161,24 @@ it('clears package mode and entitlement picks on every line without changing pai
   expect(cleared[1]?.price).toBe('7.125');
   expect(packageLine.from_package).toBe(true);
   expect(packageLine.package_entitlement_id).toBe('entitlement-a');
+});
+
+it('excludes sold packages created after the visit instant while keeping older and imported packages (#962)', () => {
+  const items = [
+    packageItem('before', serviceId, 2, { sold_at: '2026-10-15T09:00:00.000Z' }),
+    packageItem('exact', serviceId, 2, { sold_at: '2026-10-15T10:00:00.000Z' }),
+    packageItem('after', serviceId, 2, { sold_at: '2026-10-15T10:01:00.000Z' }),
+    packageItem('imported', serviceId, 2, { sold_at: null }),
+  ];
+  expect(
+    packageOptionsForService(items, serviceId, [], '2026-10-15', '2026-10-15T10:00:00.000Z').map(
+      (row) => row.id,
+    ),
+  ).toEqual(['before', 'exact', 'imported']);
+  expect(packageOptionsForService(items, serviceId, [], '2026-10-15').map((row) => row.id)).toEqual([
+    'before',
+    'exact',
+    'after',
+    'imported',
+  ]);
 });

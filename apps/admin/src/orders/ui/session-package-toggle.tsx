@@ -35,10 +35,11 @@ function usePackageSuggestion(
   }, [complete, fromPackage, getValues, index, options, setValue, settled, visitDate]);
 }
 
-export function SessionPackageToggle({ scope, customerId, index, visitDate, packages, disabled = false }: {
+export function SessionPackageToggle({ scope, customerId, index, occurredAt, visitDate, packages, disabled = false }: {
   scope: SessionServiceScope;
   customerId: string | null;
   index: number;
+  occurredAt?: string | undefined;
   visitDate: string;
   packages: PackageList;
   disabled?: boolean;
@@ -49,7 +50,7 @@ export function SessionPackageToggle({ scope, customerId, index, visitDate, pack
   const line = lines[index];
   const fromPackage = line?.from_package ?? false;
   const serviceId = line?.service_id ?? '';
-  const options = packageOptionsForService(packages.items, serviceId, otherPackagePicks(lines, index), visitDate);
+  const options = packageOptionsForService(packages.items, serviceId, otherPackagePicks(lines, index), visitDate, occurredAt);
   const path = `lines.${index}.package_entitlement_id` as const;
   usePackageSuggestion(fromPackage, packages.complete || packages.truncated, packages.complete, options, visitDate, index, getValues, setValue);
   const gate = customerId === null ? 'packageNoCustomer' : !serviceId ? 'packageNoService' : null;

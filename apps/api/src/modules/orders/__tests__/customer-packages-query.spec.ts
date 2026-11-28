@@ -92,10 +92,12 @@ it('orders usable packages first by expires_on (b, a, e), then expired/used (c, 
     provenance: 'SOLD',
     price_paid: '32.500',
   });
+  expect(Number.isFinite(Date.parse(a?.sold_at ?? ''))).toBe(true);
   expect(e).toMatchObject({
     expired: false,
     used_up: false,
     provenance: 'IMPORTED',
+    sold_at: null,
     price_paid: '30.000',
   });
   expect(c).toMatchObject({

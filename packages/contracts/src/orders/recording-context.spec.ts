@@ -19,4 +19,6 @@ it('strictly distinguishes ambiguity, unlimited, explicit zero and unconfigured 
   expect(recordingContext.safeParse({ ...base, recorder_membership_id: null, discount_limit: null }).success).toBe(false);
   const clean = { ...base, recorder_membership_id: first, discount_limit: { source: 'PERSON' as const, bps: 0 } };
   expect(recordingContext.parse({ ...clean, user_id: first })).toEqual(clean);
+  expect(recordingContext.parse({ ...clean, branch_timezone: 'Europe/London' }).branch_timezone).toBe('Europe/London');
+  expect(recordingContext.safeParse({ ...clean, branch_timezone: '' }).success).toBe(false);
 });

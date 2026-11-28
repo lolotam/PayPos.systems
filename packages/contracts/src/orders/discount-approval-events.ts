@@ -44,11 +44,7 @@ export const discountApprovalNoticeRequested = z.strictObject({
 }).meta({ id: 'DiscountApprovalNoticeRequested' });
 export type DiscountApprovalNoticeRequested = z.infer<typeof discountApprovalNoticeRequested>;
 
-/**
- * DA-Q3 (وليد، 2026-10-21؛ spec 057 D-19): حدث واحد لكل معاملة موافقة فيها مقترح واحد على الأقل approver_is_performer
- * (لقطة وقت الطلب ∪ الربط الحالي)؛ proposals هي المقترحات الموسومة فقط. الرفض والموافقة بلا وسم لا يُصدرانه.
- */
-export const discountApprovedByPerformer = z.strictObject({
+const discountApprovedByPerformerFields = {
   schema_version: z.literal(1),
   business_id: id,
   branch_id: id,
@@ -57,10 +53,43 @@ export const discountApprovedByPerformer = z.strictObject({
   decider_label_en: z.string().min(1).max(255),
   decider_label_ar: z.string().min(1).max(255),
   decided_via: z.enum(['PIN', 'REMOTE']),
-  proposals: z.array(z.strictObject({
-    id, ...serviceName.shape, effective_bps: z.number().int().min(1).max(10000),
-  })).min(1).max(20),
-}).refine((event) => new Set(event.proposals.map((proposal) => proposal.id)).size === event.proposals.length)
+  proposals: z
+    .array(
+      z.strictObject({
+        id,
+        ...serviceName.shape,
+        effective_bps: z.number().int().min(1).max(10000),
+      }),
+    )
+    .min(1)
+    .max(20),
+};
+
+/**
+ * DA-Q3 (وليد، 2026-10-21؛ spec 057 D-19): حدث واحد لكل معاملة موافقة فيها مقترح واحد على الأقل approver_is_performer
+ * (لقطة وقت الطلب ∪ الربط الحالي)؛ proposals هي المقترحات الموسومة فقط. الرفض والموافقة بلا وسم لا يُصدرانه.
+ * يحمل الحدث الكامل `decision_id` (أول مقترح موسوم، ويطابق `aggregateId` في الصندوق) و`decided_at`؛
+ * وتقبل صيغة القراءة نسخة v1 الأقدم الخالية منهما معاً فقط دون قبول أحدهما منفرداً.
+ */
+export const discountApprovedByPerformer = z
+  .union([
+    z.strictObject({
+      schema_version: discountApprovedByPerformerFields.schema_version,
+      decision_id: id,
+      business_id: discountApprovedByPerformerFields.business_id,
+      branch_id: discountApprovedByPerformerFields.branch_id,
+      decided_by: discountApprovedByPerformerFields.decided_by,
+      decider_label_en: discountApprovedByPerformerFields.decider_label_en,
+      decider_label_ar: discountApprovedByPerformerFields.decider_label_ar,
+      decided_via: discountApprovedByPerformerFields.decided_via,
+      decided_at: timestamp,
+      proposals: discountApprovedByPerformerFields.proposals,
+    }),
+    z.strictObject(discountApprovedByPerformerFields),
+  ])
+  .refine(
+    (event) => new Set(event.proposals.map((proposal) => proposal.id)).size === event.proposals.length,
+  )
   .meta({ id: 'DiscountApprovedByPerformer' });
 export type DiscountApprovedByPerformer = z.infer<typeof discountApprovedByPerformer>;
 

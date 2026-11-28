@@ -160,12 +160,14 @@ describe('discountApprovedByPerformerEvent', () => {
     const event = discountApprovedByPerformerEvent(plan, locked, EVENT_CONTEXT);
     expect(event).toEqual({
       schema_version: 1,
+      decision_id: 'prop-1',
       business_id: 'biz-1',
       branch_id: 'branch-1',
       decided_by: 'user-approver',
       decider_label_en: 'Layla (Branch Manager)',
       decider_label_ar: 'ليلى (مديرة فرع)',
       decided_via: 'REMOTE',
+      decided_at: NOW.toISOString(),
       proposals: [
         {
           id: 'prop-1',

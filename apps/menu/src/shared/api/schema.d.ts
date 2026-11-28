@@ -8545,6 +8545,8 @@ export interface components {
             provenance: "SOLD" | "IMPORTED";
             name_en: string;
             name_ar: string | null;
+            /** Format: date-time */
+            sold_at?: string | null;
             /** Format: date */
             expires_on: string;
             expired: boolean;
@@ -8822,6 +8824,7 @@ export interface components {
             /** Format: date-time */
             generated_at: string;
             business_timezone: string;
+            branch_timezone?: string;
             recorder_membership_ids: string[];
             /** Format: uuid */
             recorder_membership_id: string;
@@ -8830,6 +8833,7 @@ export interface components {
             /** Format: date-time */
             generated_at: string;
             business_timezone: string;
+            branch_timezone?: string;
             recorder_membership_ids: string[];
             /** @enum {string|null} */
             recorder_membership_id: null;
@@ -9329,6 +9333,32 @@ export interface components {
             }[];
         };
         DiscountApprovedByPerformer: {
+            /** @enum {number} */
+            schema_version: 1;
+            /** Format: uuid */
+            decision_id: string;
+            /** Format: uuid */
+            business_id: string;
+            /** Format: uuid */
+            branch_id: string;
+            /** Format: uuid */
+            decided_by: string;
+            decider_label_en: string;
+            decider_label_ar: string;
+            /** @enum {string} */
+            decided_via: "PIN" | "REMOTE";
+            /** Format: date-time */
+            decided_at: string;
+            proposals: {
+                /** Format: uuid */
+                id: string;
+                /** Format: uuid */
+                service_id: string;
+                name_en: string;
+                name_ar: string | null;
+                effective_bps: number;
+            }[];
+        } | {
             /** @enum {number} */
             schema_version: 1;
             /** Format: uuid */
@@ -23980,7 +24010,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Own choices, business timezone and server instant; limit only after verified selection. */
+            /** @description Own choices, business and branch timezones, and server instant; limit only after verified selection. */
             200: {
                 headers: {
                     [name: string]: unknown;

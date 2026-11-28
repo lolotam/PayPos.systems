@@ -13,6 +13,7 @@ export const recordingDiscountLimit = z.union([
   responseObject({ source: z.literal('NOT_CONFIGURED'), bps: z.literal(0) }),
 ]).meta({ id: 'RecordingDiscountLimit' });
 const context = responseObject({ generated_at: timestamp, business_timezone: z.string().min(1),
+  branch_timezone: z.string().min(1).optional(),
   recorder_membership_ids: z.array(id).min(1) });
 export const recordingContext = z.union([
   context.extend({ recorder_membership_id: id, discount_limit: recordingDiscountLimit }),

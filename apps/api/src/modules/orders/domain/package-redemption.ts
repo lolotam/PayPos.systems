@@ -1,3 +1,4 @@
+import { packageUsableAt } from '@pospay/domain';
 import { SessionError } from './session-error.ts';
 import { prepareSessionLine, type SessionPreparationFacts } from './prepare-session-lines.ts';
 import { equalShares, performerWarnings, validateRecorderPerformers, validateShares } from './session-performers.ts';
@@ -48,7 +49,7 @@ export function assertPackageNotExpired(visitLocalDate: string, expiresOn: strin
  * @returns لا شيء؛ ترمي PACKAGE_NOT_YET_VALID إذا سبقت الزيارة البيع
  */
 export function assertPackageNotYetValid(occurredAt: Date, soldAt: Date | null): void {
-  if (soldAt !== null && occurredAt.getTime() < soldAt.getTime()) throw new SessionError('PACKAGE_NOT_YET_VALID');
+  if (!packageUsableAt(occurredAt, soldAt)) throw new SessionError('PACKAGE_NOT_YET_VALID');
 }
 
 /**

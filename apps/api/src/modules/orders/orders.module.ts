@@ -70,7 +70,11 @@ import { customerLookup } from './persistence/customer-lookup.adapter.ts';
 import { performerCheck } from './persistence/performer-check.adapter.ts';
 import { discountLimit } from './persistence/discount-limit.adapter.ts';
 import { editorName } from './persistence/editor-name.adapter.ts';
-import { sessionBranchBelongs, sessionPlace } from './persistence/session-place.adapter.ts';
+import {
+  sessionBranchBelongs,
+  sessionPlace,
+  sessionRecordingPlace,
+} from './persistence/session-place.adapter.ts';
 import {
   discountRequestAccess,
   sessionRecordAccess,
@@ -172,7 +176,7 @@ const ordersQueries = createOrdersQueryFactories({
     options: sessionPerformerOptions,
   },
   serviceOptions: { place: sessionPlace, access: recordingAccess, options: sessionServiceOptions },
-  recordingContext: { place: sessionPlace, access: pickerAccess, limit: recordingLimit },
+  recordingContext: { place: sessionRecordingPlace, access: pickerAccess, limit: recordingLimit },
   recovery: { place: sessionRecoveryPlace, record: sessionRecoveryRecord },
   sessionReads: { place: sessionBranchBelongs, read: sessionReadAccess },
   capabilities: {

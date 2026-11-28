@@ -259,3 +259,29 @@ it('defaults can_extend to false when absent and accepts boolean only', () => {
   expect(customerPackageDetail.parse({ ...validDetail, can_extend: true }).can_extend).toBe(true);
   expect(customerPackageDetail.safeParse({ ...validDetail, can_extend: 'yes' }).success).toBe(false);
 });
+
+it('accepts optional nullable ISO timestamp in customerPackageListItem.sold_at and rejects malformed strings (#962)', () => {
+  expect(customerPackagePage.parse(validPage).items[0]?.sold_at).toBeUndefined();
+  expect(
+    customerPackagePage.parse({ items: [{ ...validItem, sold_at: null }], next_cursor: null })
+      .items[0]?.sold_at,
+  ).toBeNull();
+  expect(
+    customerPackagePage.parse({
+      items: [{ ...validItem, sold_at: '2026-10-15T09:30:00.000Z' }],
+      next_cursor: null,
+    }).items[0]?.sold_at,
+  ).toBe('2026-10-15T09:30:00.000Z');
+  expect(
+    customerPackagePage.parse({
+      items: [{ ...validItem, sold_at: '2026-10-15T12:30:00+03:00' }],
+      next_cursor: null,
+    }).items[0]?.sold_at,
+  ).toBe('2026-10-15T12:30:00+03:00');
+  expect(
+    customerPackagePage.safeParse({
+      items: [{ ...validItem, sold_at: '2026-10-15T09:30:00' }],
+      next_cursor: null,
+    }).success,
+  ).toBe(false);
+});

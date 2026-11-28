@@ -33,7 +33,11 @@ import type { customerLookup } from './persistence/customer-lookup.adapter.ts';
 import type { performerCheck } from './persistence/performer-check.adapter.ts';
 import type { discountLimit } from './persistence/discount-limit.adapter.ts';
 import type { editorName } from './persistence/editor-name.adapter.ts';
-import type { sessionBranchBelongs, sessionPlace } from './persistence/session-place.adapter.ts';
+import type {
+  sessionBranchBelongs,
+  sessionPlace,
+  sessionRecordingPlace,
+} from './persistence/session-place.adapter.ts';
 import type {
   discountRequestAccess,
   sessionRecordAccess,
@@ -89,7 +93,7 @@ export interface OrdersQueryAdapters {
     options: typeof sessionServiceOptions;
   };
   recordingContext: {
-    place: typeof sessionPlace;
+    place: typeof sessionRecordingPlace;
     access: typeof pickerAccess;
     limit: typeof recordingLimit;
   };
@@ -226,11 +230,10 @@ function optionQueries(a: OrdersQueryAdapters) {
     },
     ordersRecordingContextQuery(database: TenantWrappers, clock: Clock = systemClock) {
       const options = a.recordingContext;
-      const place = branchArgs(options.place);
       return new RecordingContextQueryHandler(
         database,
         {
-          place: (tx, scope) => place(tx, scope).read(),
+          place: branchArgs(options.place),
           access: userArgs(options.access),
           limit: (tx, scope, membershipId) =>
             options.limit(tx, scope.companyId, scope.businessId, membershipId),

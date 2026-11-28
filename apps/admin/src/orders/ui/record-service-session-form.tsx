@@ -1,5 +1,6 @@
 'use client';
 import type { RecordingContext } from '@pospay/contracts';
+import { normalizeToleratedVisitInstant } from '@pospay/domain';
 import { t } from '@pospay/i18n';
 import { Button } from '@pospay/ui';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
@@ -111,6 +112,39 @@ function useCustomerDenial({
   };
 }
 
+function resolvePackageVisitAt(draftedAt: string, serverNowIso: string): string | undefined {
+  const draftedDate = new Date(draftedAt);
+  const serverNowDate = new Date(serverNowIso);
+  if (!Number.isFinite(draftedDate.getTime()) || !Number.isFinite(serverNowDate.getTime())) {
+    return undefined;
+  }
+  return normalizeToleratedVisitInstant(draftedDate, serverNowDate).toISOString();
+}
+
+function usePackageVisitWindow(
+  context: RecordingContext,
+  form: UseFormReturn<SessionDraftForm>,
+  savedAt: string | undefined,
+) {
+  const draftedAt = useWatch({ control: form.control, name: 'occurred_at' });
+  const occurredAt = savedAt ?? draftedAt;
+  const packageTimezone = context.branch_timezone ?? context.business_timezone;
+  const impliedDate = useServerAnchoredValue(context.generated_at, (instant) =>
+    sessionLocalTime(instant, packageTimezone).slice(0, 10),
+  );
+  const draftedPackageAt = useServerAnchoredValue(
+    context.generated_at,
+    (instant) =>
+      savedAt === undefined && draftedAt ? resolvePackageVisitAt(draftedAt, instant) : undefined,
+    `${savedAt ?? ''}|${draftedAt ?? ''}`,
+  );
+  const packageOccurredAt = savedAt ?? draftedPackageAt;
+  const visitDate = packageOccurredAt
+    ? sessionLocalTime(packageOccurredAt, packageTimezone).slice(0, 10)
+    : impliedDate;
+  return { occurredAt, packageOccurredAt, visitDate };
+}
+
 export function RecordServiceSessionForm({ scope, context, online, recording, onRefreshScope, top }: {
   scope: SessionServiceScope; context: RecordingContext; online: boolean; recording: SessionRecordingController;
   onRefreshScope: () => void; top?: ReactNode;
@@ -139,10 +173,7 @@ export function RecordServiceSessionForm({ scope, context, online, recording, on
   const endLineEdit = () => { setEditsInFlight((count) => count - 1); };
   const form = useForm<SessionDraftForm>({ defaultValues: seed });
   const { hideCustomer, hiddenPackageDraft, denyCustomer } = useCustomerDenial({ scope, result, recording, form, lastKnownCustomerId });
-  const draftedAt = useWatch({ control: form.control, name: 'occurred_at' });
-  const occurredAt = savedAt ?? draftedAt;
-  const impliedDate = useServerAnchoredValue(context.generated_at, (instant) => sessionLocalTime(instant, context.business_timezone).slice(0, 10));
-  const visitDate = occurredAt ? sessionLocalTime(occurredAt, context.business_timezone).slice(0, 10) : impliedDate;
+  const { occurredAt, packageOccurredAt, visitDate } = usePackageVisitWindow(context, form, savedAt);
   useDraftReset(form.reset, result.drafts, savedAt);
   const rootError = form.formState.errors.root?.message;
   const unknownLeave = leaveFailure?.source === result ? leaveFailure.feedback : null;
@@ -160,7 +191,8 @@ export function RecordServiceSessionForm({ scope, context, online, recording, on
         {unknownLeave ? <SessionWriteFeedback result={{ ...result, feedback: unknownLeave, attempt: null }} /> : null}
       </div> : <SessionTimeField context={context} disabled={locked} />}
       <SessionRecordingHeader scope={scope} disabled={!online || frozen} readOnly={membershipFixed} onLimitChange={onLimitChange} />
-      <SessionDraftLines scope={scope} customerId={hideCustomer ? null : result.customerId} {...(occurredAt !== undefined ? { occurredAt } : {})} visitDate={visitDate} disabled={!online || frozen || timeUnknown} />
+      <SessionDraftLines scope={scope} customerId={hideCustomer ? null : result.customerId} {...(occurredAt !== undefined ? { occurredAt } : {})}
+        {...(packageOccurredAt !== undefined ? { packageOccurredAt } : {})} visitDate={visitDate} disabled={!online || frozen || timeUnknown} />
       <SessionRejectedLines result={result} onEdit={focusDraftPrice} scope={scope} online={online} />
       {rootError ? <p role="alert">{rootError}</p> : null}
       <SessionWriteFeedback result={result} onRefreshScope={onRefreshScope} {...(online && !editBusy ? { onReplay: () => { void recording.retry(); } } : {})}

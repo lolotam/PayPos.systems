@@ -151,7 +151,7 @@ The consumer owns the interface. The adapter lives in the consumer's `persistenc
 | `orders` | `SessionDayAccess` (read-side callbacks) | `identity`, `tenancy` | fresh independent branch-read permission/orders feature and existing session-place ownership callback (ADR-0041 35b-1) |
 | `orders` | `SessionServiceOptionsReads` (read-side callbacks) | `catalog` | recording-form service names, list prices and revisions only; same-transaction public read under record permission (ADR-0041 35c-3) |
 | `orders` | `SessionPerformerOptionsReads` (read-side callbacks) | `staff` | dated branch eligibility, names and missing-clock/approved-leave booleans only under record permission; staff owns the working day (ADR-0041 35c-4) |
-| `orders` | `SessionPlacePort` | `tenancy` | business timezone and active branch/business relationship (ADR-0041) |
+| `orders` | `SessionPlacePort` | `tenancy` | business timezone and active branch/business relationship (`activeSessionPlace` reads business and branch-effective timezones in one snapshot) (ADR-0041) |
 | `orders` | `PackageSaleRequestTransaction.place` | `tenancy` | `packageSalePlace` proves the requested business owns the authorized branch before the pending sale insert (spec 058, 42-3b2) |
 | `orders` | `PackageSaleContextReads.access/place/options` | `identity`, `tenancy`, `staff` | sale-only authority and eligible recorders, active place/timezone, and current seller choice facts on one tenant transaction; no session-recording authority (spec 058, 42 picker R1; ADR-0041 addendum 2026-11-18) |
 | `catalog` | `SellablePackagePlace` | `tenancy` | public `packageSalePlace` validates the route's company/business/active-branch pair on the picker's transaction before catalog-only SQL (spec 058, 42 picker R1; ADR-0041 addendum 2026-11-18) |
@@ -583,6 +583,7 @@ reads:
   - orders -> identity.lockServiceSessionAccess @ apps/api/src/modules/orders/persistence/session-record-access.adapter.ts
   - orders -> identity.readServiceSessionAccess @ apps/api/src/modules/orders/persistence/session-record-access.adapter.ts
   - orders -> tenancy.activeBusinessTimeZone @ apps/api/src/modules/orders/persistence/session-place.adapter.ts
+  - orders -> tenancy.activeSessionPlace @ apps/api/src/modules/orders/persistence/session-place.adapter.ts
   - orders -> tenancy.activeBusinessTimeZone @ apps/api/src/modules/orders/persistence/session-recovery.adapter.ts
   - orders -> tenancy.describeWorkspaces @ apps/api/src/modules/orders/persistence/session-place.adapter.ts
   - orders -> tenancy.packageSalePlace @ apps/api/src/modules/orders/persistence/session-place.adapter.ts

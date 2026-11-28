@@ -10,10 +10,11 @@ import { createSessionDraft, SESSION_DRAFT_MAX, SESSION_DRAFT_MIN, type SessionD
 import type { PackageList } from '../model/session-package-options';
 import { SessionDraftLineRow } from './session-draft-line-row';
 
-export function SessionDraftLines({ scope, customerId, occurredAt, visitDate, disabled = false }: {
+export function SessionDraftLines({ scope, customerId, occurredAt, packageOccurredAt, visitDate, disabled = false }: {
   scope: SessionServiceScope;
   customerId: string | null;
   occurredAt?: string;
+  packageOccurredAt?: string;
   visitDate: string;
   disabled?: boolean;
 }) {
@@ -40,7 +41,7 @@ export function SessionDraftLines({ scope, customerId, occurredAt, visitDate, di
   return <fieldset disabled={disabled} className="grid gap-3 text-start">
     <legend>{t(locale, 'serviceSessions.service')}</legend>
     {fields.map((row, index) => <SessionDraftLineRow key={row.local_id} scope={scope} customerId={customerId}
-      index={index} localId={row.local_id} occurredAt={occurredAt ?? selectedTime} visitDate={visitDate} packages={packages} disabled={disabled}
+      index={index} localId={row.local_id} occurredAt={occurredAt ?? selectedTime} packageOccurredAt={packageOccurredAt} visitDate={visitDate} packages={packages} disabled={disabled}
       canRemove={fields.length > SESSION_DRAFT_MIN} onRemove={() => remove(index)} />)}
     <Button type="button" variant="outline" disabled={fields.length >= SESSION_DRAFT_MAX}
       onClick={() => append(createSessionDraft())}>{t(locale, 'serviceSessions.addLine')}</Button>

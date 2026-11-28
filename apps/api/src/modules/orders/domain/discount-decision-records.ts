@@ -55,7 +55,10 @@ export function discountDecisionAudits(
 
 /**
  * يبني حدث الموافقة على شغل المُوافِق من الاقتراحات المعلّمة فقط، أو `null` إن لم توجد واحدة.
- * القاعدة: حدث واحد للمعاملة، ولا يحمل إلا الخدمة والنسبة ولقب المُوافِق؛ لا عميل ولا سبب رفض ولا بيانات اتصال.
+ * القاعدة: حدث واحد للمعاملة، يحمل `decision_id` (أول مقترح معلَّم، ويطابق `aggregateId` في الصندوق) و`decided_at`
+ * والخدمة والنسبة ولقب المُوافِق؛ لا عميل ولا سبب رفض ولا بيانات اتصال.
+ * يقبل عقد القراءة نسخة v1 الأقدم دون `decision_id` و`decided_at` معاً أثناء الترحيل المتدرج،
+ * بينما يفرض الإرسال الجديد وجودهما معاً (spec 057 D-19، #481).
  *
  * @param plan خطة الموافقة التي قد تحمل علم المنفّذ
  * @param locked الاقتراحات المقفلة التي تمدّ أسماء الخدمات المخزنة
@@ -69,23 +72,32 @@ export function discountApprovedByPerformerEvent(
 ) {
   if (plan.decision !== 'APPROVE' || !plan.has_performer_flag) return null;
   const flaggedIds = new Set(
-    plan.proposals.filter((proposal) => proposal.approver_is_performer === true).map((proposal) => proposal.id),
+    plan.proposals
+      .filter((proposal) => proposal.approver_is_performer === true)
+      .map((proposal) => proposal.id),
   );
+  const proposals = locked
+    .filter((proposal) => flaggedIds.has(proposal.id))
+    .map((proposal) => ({
+      id: proposal.id,
+      service_id: proposal.service_id,
+      name_en: proposal.service_name_en,
+      name_ar: proposal.service_name_ar,
+      effective_bps: proposal.effective_bps,
+    }));
+  const lead = proposals[0];
+  if (lead === undefined) return null;
   return {
     schema_version: 1 as const,
+    decision_id: lead.id,
     business_id: context.business_id,
     branch_id: context.branch_id,
     decided_by: plan.decided_by,
     decider_label_en: context.decider_label_en,
     decider_label_ar: context.decider_label_ar,
     decided_via: context.decided_via,
-    proposals: locked.filter((proposal) => flaggedIds.has(proposal.id)).map((proposal) => ({
-      id: proposal.id,
-      service_id: proposal.service_id,
-      name_en: proposal.service_name_en,
-      name_ar: proposal.service_name_ar,
-      effective_bps: proposal.effective_bps,
-    })),
+    decided_at: plan.decided_at.toISOString(),
+    proposals,
   };
 }
 
