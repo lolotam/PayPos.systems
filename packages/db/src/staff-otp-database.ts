@@ -7,13 +7,23 @@ import { session, user } from '../schema/identity-auth.ts';
 import { otpChallenges } from './staff-otp-challenges.ts';
 import { otpAttempts } from './staff-otp-attempts.ts';
 import { createOtpRuntime, type OtpRuntime } from './staff-otp-runtime.ts';
-import { translatingPhoneRace } from './staff-access-database.ts';
+import { StaffPhoneTakenError, translatingPhoneRace } from './staff-access-database.ts';
 import type { OtpDeviceContext } from './staff-otp-types.ts';
 import { assertOtpInventory } from './staff-otp-inventory.ts';
-import { deleteStaffPrivateViewRows } from './staff-private-view.ts';
+import { deleteStaffPrivateViewRows, sweepStaffPrivateViewRows } from './staff-private-view.ts';
 import { passwordResetOtpQueries, type CredentialAccountRule } from './password-reset-otp.ts';
 import { authAttemptFeedbackQueries } from './auth-attempt-feedback.ts';
 import { staffPinResetOtpQueries } from './staff-pin-reset-otp.ts';
+
+/** رفض متوقع: ربط الهاتف مختلف عن المعتمد أو المستخدم غير موجود وقت القفل (#647). */
+export class StaffPhoneBindingConflictError extends Error {
+  override readonly name = 'StaffPhoneBindingConflictError';
+  /** كود ثابت يعبر غلاف الـ runtime كما هو حتى تفرق البوابة بين التعارض وأعطال الاتصال. */
+  readonly code = 'OTP_BINDING_REFUSED';
+  constructor() {
+    super('OTP_BINDING_REFUSED');
+  }
+}
 
 /** الأهلية الافتراضية لاسترجاع كلمة المرور: أي حساب مش حساب موظف. */
 const nonStaffAccount: CredentialAccountRule = (_email, staffAccessOperationId) =>
@@ -126,59 +136,102 @@ const otpRotate = async <T extends { id: string }>(
     new Date(Date.now() + 5000),
   );
 
+type ApprovePhoneInput = {
+  userId: string;
+  phone: string;
+  actor: string;
+  auditId: string;
+  at: Date;
+};
+type OtpTx = Parameters<Parameters<ReturnType<typeof createOtpRuntime>['run']>[0]>[0];
+
+async function applyPhoneApproval(tx: OtpTx, input: ApprovePhoneInput): Promise<void> {
+  await tx
+    .update(challenges)
+    .set({ status: 'SUPERSEDED', codeMac: null, finishedAt: input.at, updatedAt: input.at })
+    .where(and(eq(challenges.userId, input.userId), eq(challenges.status, 'ACTIVE')));
+  const removed = await tx
+    .delete(session)
+    .where(
+      and(
+        eq(session.userId, input.userId),
+        sql`${session.purpose} IN ('STAFF_POS','STAFF_PERSONAL')`,
+      ),
+    )
+    .returning({ id: session.id });
+  await deleteStaffPrivateViewRows(
+    tx,
+    removed.map((row) => row.id),
+  );
+  await translatingPhoneRace(() =>
+    tx
+      .update(user)
+      .set({ phoneNumber: input.phone, phoneNumberVerified: false })
+      .where(eq(user.id, input.userId)),
+  );
+  await tx.update(user).set({ phoneBindingApprovedAt: input.at }).where(eq(user.id, input.userId));
+  await tx.execute(sql`INSERT INTO platform_audit_log(id,actor,action,target_user_id,details)
+      VALUES(${input.auditId},${input.actor},'phone.binding_approved',${input.userId},'{}'::jsonb)`);
+}
+
 const otpApprovePhone = async (
   runtime: ReturnType<typeof createOtpRuntime>,
-  input: { userId: string; phone: string; actor: string; auditId: string; at: Date },
-) =>
-  runtime.run(async (tx) => {
-    const existing = await tx
-      .select({ hash: challenges.recipientHash })
-      .from(challenges)
-      .where(and(eq(challenges.userId, input.userId), eq(challenges.status, 'ACTIVE')))
-      .orderBy(challenges.recipientHash, challenges.id);
-    for (const row of existing) await runtime.lock(tx, row.hash);
-    const [bound] = await tx
-      .select({ id: user.id })
-      .from(user)
-      .where(eq(user.id, input.userId))
-      .for('update');
-    if (bound === undefined) throw new Error('OTP_BINDING_REFUSED');
-    await tx
-      .update(challenges)
-      .set({ status: 'SUPERSEDED', codeMac: null, finishedAt: input.at, updatedAt: input.at })
-      .where(and(eq(challenges.userId, input.userId), eq(challenges.status, 'ACTIVE')));
-    const removed = await tx
-      .delete(session)
-      .where(
-        and(
-          eq(session.userId, input.userId),
-          sql`${session.purpose} IN ('STAFF_POS','STAFF_PERSONAL')`,
-        ),
-      )
-      .returning({ id: session.id });
-    await deleteStaffPrivateViewRows(
-      tx,
-      removed.map((row) => row.id),
-    );
-    await translatingPhoneRace(() =>
-      tx
-        .update(user)
-        .set({ phoneNumber: input.phone, phoneNumberVerified: false })
-        .where(eq(user.id, input.userId)),
-    );
-    await tx
-      .update(user)
-      .set({ phoneBindingApprovedAt: input.at })
-      .where(eq(user.id, input.userId));
-    await tx.execute(sql`INSERT INTO platform_audit_log(id,actor,action,target_user_id,details)
-        VALUES(${input.auditId},${input.actor},'phone.binding_approved',${input.userId},'{}'::jsonb)`);
-  });
+  input: ApprovePhoneInput,
+): Promise<'approved' | 'unchanged'> => {
+  try {
+    return await runtime.run(async (tx) => {
+      const existing = await tx
+        .select({ hash: challenges.recipientHash })
+        .from(challenges)
+        .where(and(eq(challenges.userId, input.userId), eq(challenges.status, 'ACTIVE')))
+        .orderBy(challenges.recipientHash, challenges.id);
+      for (const row of existing) await runtime.lock(tx, row.hash);
+      const [bound] = await tx
+        .select({
+          id: user.id,
+          phone: user.phoneNumber,
+          approvedAt: user.phoneBindingApprovedAt,
+        })
+        .from(user)
+        .where(eq(user.id, input.userId))
+        .for('update');
+      if (bound === undefined) throw new StaffPhoneBindingConflictError();
+      // بعد قفل صف المستخدم: رفض تغيير الهاتف لهاتف مختلف أو تنازع هاتف مملوك لمستخدم آخر (#647).
+      if (bound.phone !== null && bound.phone !== input.phone) {
+        throw new StaffPhoneBindingConflictError();
+      }
+      const [taken] = await tx
+        .select({ id: user.id })
+        .from(user)
+        .where(and(eq(user.phoneNumber, input.phone), sql`${user.id} <> ${input.userId}`))
+        .limit(1);
+      if (taken !== undefined) throw new StaffPhoneTakenError();
+      // لو الهاتف نفسه معتمداً بالفعل وقت القفل، نرجع unchanged بلا أي أثر جانبي على الجلسات أو التحديات.
+      if (bound.phone === input.phone && bound.approvedAt !== null) {
+        return 'unchanged';
+      }
+      await applyPhoneApproval(tx, input);
+      return 'approved';
+    });
+  } catch (error) {
+    if (error instanceof Error && error.message === 'OTP_DATABASE_UNAVAILABLE_STAFF_PHONE_TAKEN') {
+      throw new StaffPhoneTakenError();
+    }
+    if (
+      error instanceof Error &&
+      error.message === 'OTP_DATABASE_UNAVAILABLE_OTP_BINDING_REFUSED'
+    ) {
+      throw new StaffPhoneBindingConflictError();
+    }
+    throw error;
+  }
+};
 
-const otpCleanup = async (runtime: ReturnType<typeof createOtpRuntime>, limit: number) =>
-  runtime.run(
+const otpCleanup = async (runtime: ReturnType<typeof createOtpRuntime>, limit: number) => {
+  if (!Number.isInteger(limit) || limit < 1 || limit > 100)
+    throw new Error('OTP_RETENTION_INVALID');
+  const removed = await runtime.run(
     async (tx) => {
-      if (!Number.isInteger(limit) || limit < 1 || limit > 100)
-        throw new Error('OTP_RETENTION_INVALID');
       const expired = await tx
         .select({ id: challenges.id, hash: challenges.recipientHash })
         .from(challenges)
@@ -212,3 +265,12 @@ const otpCleanup = async (runtime: ReturnType<typeof createOtpRuntime>, limit: n
     },
     new Date(Date.now() + 1000),
   );
+  // مسح صفوف العرض الخاص في معاملة محدودة مستقلة حتى لا يلغي تعثرها تنظيف تحديات OTP (#776).
+  await runtime.run(
+    async (tx) => {
+      await sweepStaffPrivateViewRows(tx, limit);
+    },
+    new Date(Date.now() + 1000),
+  );
+  return removed;
+};

@@ -9,7 +9,6 @@ import { cookieHeaders, privateViewFixture } from './private-view.fixture.ts';
 
 let f: Awaited<ReturnType<typeof privateViewFixture>>;
 const ids = systemUuidV7();
-let phoneSequence = 0;
 
 beforeAll(async () => {
   f = await privateViewFixture();
@@ -52,16 +51,20 @@ it('serializes concurrent openings, sequences later ones and stores only clock t
   const third = await open(session.scope, session.device);
   expect(third.windowSeq).toBe('3');
   expect((await f.rows(session.scope.sessionId)).counter[0]?.value).toBe('3');
-  expect(JSON.parse(present((await f.rows(session.scope.sessionId)).window[0]).value).window_id).toBe(
-    third.windowId,
-  );
+  expect(
+    JSON.parse(present((await f.rows(session.scope.sessionId)).window[0]).value).window_id,
+  ).toBe(third.windowId);
 });
 
 it('accepts a proof at exactly 60 seconds', async () => {
   const session = await f.issue();
   const proof = present(await f.prove(session.scope));
   f.clock.now = new Date(f.clock.now.getTime() + 60_000);
-  const opened = await f.auth.privateView.open({ proof, scope: session.scope, device: session.device });
+  const opened = await f.auth.privateView.open({
+    proof,
+    scope: session.scope,
+    device: session.device,
+  });
   expect(opened.kind).toBe('opened');
   expect((await f.rows(session.scope.sessionId)).window).toHaveLength(1);
   expect((await f.rows(session.scope.sessionId)).counter[0]?.value).toBe('1');
@@ -80,9 +83,10 @@ it.each(['stale', 'reused', 'forged', 'session', 'user', 'device'] as const)(
     if (failure === 'user') scope = { ...scope, userId: randomUUID() };
     if (failure === 'device') scope = { ...scope, deviceId: randomUUID() };
     const before = await f.rows(session.scope.sessionId);
-    expect(
-      await f.auth.privateView.open({ proof, scope, device: session.device }),
-    ).toEqual({ kind: 'refused', reason: 'proof' });
+    expect(await f.auth.privateView.open({ proof, scope, device: session.device })).toEqual({
+      kind: 'refused',
+      reason: 'proof',
+    });
     expect(await f.rows(session.scope.sessionId)).toEqual(before);
     if (failure !== 'reused') expect(before.window).toHaveLength(0);
   },
@@ -151,7 +155,9 @@ it('keeps touches every 50 seconds alive through 4:59 and closes at 5:01', async
   }
   expect((await f.rows(session.scope.sessionId)).window[0]?.updated_at).toEqual(f.clock.now);
   f.clock.now = new Date(started + 301_000);
-  expect(await f.auth.privateView.check(session.scope, opened.windowId)).toEqual({ kind: 'expired' });
+  expect(await f.auth.privateView.check(session.scope, opened.windowId)).toEqual({
+    kind: 'expired',
+  });
   expect((await f.rows(session.scope.sessionId)).window).toHaveLength(0);
   expect((await f.rows(session.scope.sessionId)).counter[0]?.value).toBe('1');
 });
@@ -195,6 +201,58 @@ it('closes only the window and retains its counter', async () => {
 
 type EndKind = 'sign-out' | 'no-lock' | 'rotate' | 'approve';
 
+async function buildRaceEnding(kind: EndKind, device: StaffDeviceContext, cookie: string) {
+  if (kind === 'rotate') return () => f.auth.staff.issue(f.userId, device, async () => true);
+  if (kind !== 'approve') return () => f.auth.staff.signOut(cookieHeaders(cookie));
+  const [row] = await f.owner`SELECT phone_number FROM "user" WHERE id=${f.userId}`;
+  const boundPhone = String(row?.['phone_number'] ?? '');
+  await f.owner`UPDATE "user" SET phone_binding_approved_at=NULL WHERE id=${f.userId}`;
+  return () =>
+    approvePhoneBinding({
+      databaseUrl: f.test.authUrl,
+      userId: f.userId,
+      phone: boundPhone,
+      operator: 'synthetic-operator',
+      ownershipVerified: true,
+      approved: true,
+      ids,
+      phoneLockKey: () => 1n,
+      clock: { now: () => f.clock.now },
+      isCanonicalPhone: () => true,
+    });
+}
+
+async function runRaceOrder(
+  endingFirst: boolean,
+  proof: PrivateViewProof,
+  scope: PrivateViewScope,
+  device: StaffDeviceContext,
+  end: () => Promise<unknown>,
+) {
+  if (!endingFirst) {
+    expect((await f.auth.privateView.open({ proof, scope, device })).kind).toBe('opened');
+    await end();
+    return;
+  }
+  const lock = await f.holdWindowLock(scope.sessionId);
+  const deadline = Date.now() + 10_000;
+  try {
+    const ending = end();
+    void ending.catch(() => undefined);
+    await f.waitForLockWaiters(1, deadline);
+    const opening = f.auth.privateView.open({ proof, scope, device });
+    void opening.catch(() => undefined);
+    await f.waitForLockWaiters(2, deadline);
+    lock.release();
+    await lock.holding;
+    expect(await opening).toEqual({ kind: 'refused', reason: 'session' });
+    await ending;
+  } finally {
+    lock.release();
+    await lock.holding;
+  }
+}
+
 async function sessionEndRace(kind: EndKind, endingFirst: boolean) {
   const session = kind === 'no-lock' ? await f.issueMalformed() : await f.issue();
   const { scope, device } = session;
@@ -206,52 +264,17 @@ async function sessionEndRace(kind: EndKind, endingFirst: boolean) {
   });
   const otherDevice = { ...f.device, deviceId: randomUUID() };
   const other = await f.auth.staff.issue(otherUser, otherDevice, async () => true);
-  const otherScope = { sessionId: other.session.sessionId, userId: otherUser, deviceId: otherDevice.deviceId };
+  const otherScope = {
+    sessionId: other.session.sessionId,
+    userId: otherUser,
+    deviceId: otherDevice.deviceId,
+  };
   await open(otherScope, otherDevice);
   const untouched = await f.rows(otherScope.sessionId);
   const cookie = 'issued' in session ? session.issued.cookie : session.cookie;
-  const end = async (): Promise<unknown> => {
-    if (kind === 'rotate') return f.auth.staff.issue(f.userId, device, async () => true);
-    if (kind === 'approve') {
-      phoneSequence += 1;
-      return approvePhoneBinding({
-        databaseUrl: f.test.authUrl,
-        userId: f.userId,
-        phone: `+999100000${String(phoneSequence).padStart(2, '0')}`,
-        operator: 'synthetic-operator',
-        ownershipVerified: true,
-        approved: true,
-        ids,
-        phoneLockKey: () => 1n,
-        clock: { now: () => f.clock.now },
-        isCanonicalPhone: () => true,
-      });
-    }
-    return f.auth.staff.signOut(cookieHeaders(cookie));
-  };
+  const end = await buildRaceEnding(kind, device, cookie);
   const proof = present(await f.prove(scope));
-  if (!endingFirst) {
-    expect((await f.auth.privateView.open({ proof, scope, device })).kind).toBe('opened');
-    await end();
-  } else {
-    const lock = await f.holdWindowLock(scope.sessionId);
-    const deadline = Date.now() + 10_000;
-    try {
-      const ending = end();
-      void ending.catch(() => undefined);
-      await f.waitForLockWaiters(1, deadline);
-      const opening = f.auth.privateView.open({ proof, scope, device });
-      void opening.catch(() => undefined);
-      await f.waitForLockWaiters(2, deadline);
-      lock.release();
-      await lock.holding;
-      expect(await opening).toEqual({ kind: 'refused', reason: 'session' });
-      await ending;
-    } finally {
-      lock.release();
-      await lock.holding;
-    }
-  }
+  await runRaceOrder(endingFirst, proof, scope, device, end);
   expect(await f.rows(scope.sessionId)).toEqual({ window: [], counter: [] });
   expect(await f.rows(otherScope.sessionId)).toEqual(untouched);
 }
@@ -265,6 +288,9 @@ it.each([
   ['rotate', true],
   ['approve', false],
   ['approve', true],
-] as const)('%s removes both rows when ending-first is %s and recreates no orphan', async (kind, endingFirst) => {
-  await sessionEndRace(kind, endingFirst);
-});
+] as const)(
+  '%s removes both rows when ending-first is %s and recreates no orphan',
+  async (kind, endingFirst) => {
+    await sessionEndRace(kind, endingFirst);
+  },
+);

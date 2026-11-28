@@ -24,6 +24,7 @@ const PUBLIC_EXPORTS = [
   'ReplayCursorError',
   'SYSTEM_ROLES',
   'StaffAuthBusyError',
+  'StaffPhoneBindingConflictError',
   'StaffPhoneTakenError',
   'StatementPeriodClosedError',
   'StatementPeriodFormatError',
