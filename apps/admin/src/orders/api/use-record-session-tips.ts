@@ -41,9 +41,12 @@ function drop(
   memory: AttemptMemory | undefined,
   sessionId: string,
   held: { current: Held | null },
+  settledKey: string,
 ) {
-  held.current = null;
-  memory?.current.delete(sessionId);
+  if (held.current?.key === settledKey) held.current = null;
+  if (memory?.current.get(sessionId)?.key === settledKey) {
+    memory.current.delete(sessionId);
+  }
 }
 
 function attemptKey(
@@ -73,10 +76,10 @@ async function putTips(
   keep(memory, attempt, key);
   try {
     const saved = await sendTips(scope, attempt.sessionId, key.key, body);
-    drop(memory, attempt.sessionId, held);
+    drop(memory, attempt.sessionId, held, key.key);
     return saved;
   } catch (error) {
-    if (tipOutcomeKnown(error)) drop(memory, attempt.sessionId, held);
+    if (tipOutcomeKnown(error)) drop(memory, attempt.sessionId, held, key.key);
     throw error;
   }
 }

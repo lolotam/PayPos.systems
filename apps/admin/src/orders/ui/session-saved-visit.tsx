@@ -2,9 +2,10 @@
 import type { ServiceSession } from '@pospay/contracts';
 import { parseMoney } from '@pospay/domain';
 import { formatInstant, formatKwd, t } from '@pospay/i18n';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, type RefObject } from 'react';
 import { useLocale } from '@/shared/locale/locale-context';
 import type { EditServiceLineResult } from '../api/use-edit-service-line';
+import type { UnresolvedTip } from '../api/use-record-session-tips';
 import type { SessionServiceScope } from '../api/use-session-services';
 import { applySavedLineEdit, emptySavedVisit, reconcileSavedVisit, type SavedVisitEdit } from '../model/session-saved-edit';
 import { savedVisitTipSource } from '../model/session-saved-tip-source';
@@ -26,9 +27,9 @@ function openLineId(open: OpenLine | null, session: ServiceSession, canEdit: boo
 type Refusal = { sessionId: string; message: string };
 type Denial = { sessionId: string; message: string };
 
-export function SessionSavedVisit({ result, scope, online, editBusy = false, onRequestStart, onRequestEnd }: {
+export function SessionSavedVisit({ result, scope, online, editBusy = false, tipMemory: externalTipMemory, onRequestStart, onRequestEnd }: {
   result: SessionRecordingResult; scope?: SessionServiceScope; online: boolean;
-  editBusy?: boolean; onRequestStart?: () => void; onRequestEnd?: () => void;
+  editBusy?: boolean; tipMemory?: RefObject<Map<string, UnresolvedTip>>; onRequestStart?: () => void; onRequestEnd?: () => void;
 }) {
   const locale = useLocale();
   const session = result.session;
@@ -38,7 +39,8 @@ export function SessionSavedVisit({ result, scope, online, editBusy = false, onR
   const [denial, setDenial] = useState<Denial | null>(null);
   const sessionRef = useRef(session);
   useEffect(() => { sessionRef.current = session; }, [session]);
-  const tipMemory = useTipAttemptMemory(scope?.companyId ?? '', scope?.businessId ?? '', scope?.branchId ?? '', scope?.userId ?? '');
+  const ownTipMemory = useTipAttemptMemory(scope?.companyId ?? '', scope?.businessId ?? '', scope?.branchId ?? '', scope?.userId ?? '');
+  const tipMemory = externalTipMemory ?? ownTipMemory;
   // المحرر المعلّق اللي اتبقّى بعد استبدال السناب شوت يتثبّت على الجديد، فرفض معروف بعد القفل يفضل ظاهر مش بيختفي.
   if (editBusy && session && open && open.snapshot.id === session.id && open.snapshot !== session) setOpen({ snapshot: session, lineId: open.lineId });
   if (!session) return null;

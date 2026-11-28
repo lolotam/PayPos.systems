@@ -97,6 +97,8 @@ function useCustomerDenial({
   const [deniedCustomerKey, setDeniedCustomerKey] = useState<string | null>(null);
   const hideCustomer = customerKey !== null && deniedCustomerKey === customerKey;
   if (deniedCustomerKey !== null && !hideCustomer) setDeniedCustomerKey(null);
+  const lines = useWatch({ control: form.control, name: 'lines' });
+  const hiddenPackageDraft = hideCustomer && (lines?.some((line) => line.from_package) ?? false);
   // لو الحفظ الأول اتجمد وقت رفض الملف وبعدين فشل وبقى قابل للتعديل، نسقّط الاختيار المؤقت فورًا عشان ما يتبعتش تاني (#1188).
   const clearDeniedTransient = hideCustomer && !sessionResultFrozen(result) && result.sessionId === null && result.customerId !== null;
   useEffect(() => {
@@ -104,6 +106,7 @@ function useCustomerDenial({
   }, [clearDeniedTransient, result, recording, form, lastKnownCustomerId]);
   return {
     hideCustomer,
+    hiddenPackageDraft,
     denyCustomer: () => { if (customerKey !== null) setDeniedCustomerKey(customerKey); },
   };
 }
@@ -135,7 +138,7 @@ export function RecordServiceSessionForm({ scope, context, online, recording, on
   const beginLineEdit = () => { setEditsInFlight((count) => count + 1); };
   const endLineEdit = () => { setEditsInFlight((count) => count - 1); };
   const form = useForm<SessionDraftForm>({ defaultValues: seed });
-  const { hideCustomer, denyCustomer } = useCustomerDenial({ scope, result, recording, form, lastKnownCustomerId });
+  const { hideCustomer, hiddenPackageDraft, denyCustomer } = useCustomerDenial({ scope, result, recording, form, lastKnownCustomerId });
   const draftedAt = useWatch({ control: form.control, name: 'occurred_at' });
   const occurredAt = savedAt ?? draftedAt;
   const impliedDate = useServerAnchoredValue(context.generated_at, (instant) => sessionLocalTime(instant, context.business_timezone).slice(0, 10));
@@ -145,7 +148,7 @@ export function RecordServiceSessionForm({ scope, context, online, recording, on
   const unknownLeave = leaveFailure?.source === result ? leaveFailure.feedback : null;
   return <RecordVisitColumns form={form} top={top} main={(onLimitChange) => <>
     <form className="grid gap-4 text-start" noValidate onSubmit={form.handleSubmit(async (drafts) => {
-      if (editBusy || (!result.sessionId && (!result.customer || hideCustomer))) return;
+      if (editBusy || hiddenPackageDraft || (hideCustomer && drafts.lines.some((line) => line.from_package)) || (!result.sessionId && (!result.customer || hideCustomer))) return;
       try { await recording.submit(drafts); } catch (error) { reportSessionSubmitError(form.setError, error, locale); }
     })}>
       <RecordVisitCustomerField scope={scope} result={result} recording={recording} form={form}
@@ -162,7 +165,7 @@ export function RecordServiceSessionForm({ scope, context, online, recording, on
       {rootError ? <p role="alert">{rootError}</p> : null}
       <SessionWriteFeedback result={result} onRefreshScope={onRefreshScope} {...(online && !editBusy ? { onReplay: () => { void recording.retry(); } } : {})}
         {...(journal && result.expiredAttempt && !editBusy ? { scope, timeZone: context.business_timezone, onConfirm: bindExpiredConfirm(recording, (proof) => revoke.mutateAsync(proof)) } : {})} />
-      <Button type="submit" disabled={!online || frozen || timeUnknown || editBusy || !journal || (!result.sessionId && (!result.customer || hideCustomer))} onClick={(event) => { if (editBusy) event.preventDefault(); }}>
+      <Button type="submit" disabled={!online || frozen || timeUnknown || editBusy || !journal || hiddenPackageDraft || (!result.sessionId && (!result.customer || hideCustomer))} onClick={(event) => { if (editBusy) event.preventDefault(); }}>
         {t(locale, result.sessionId ? 'serviceSessions.correctAndAppend' : 'serviceSessions.save')}
       </Button>
     </form>

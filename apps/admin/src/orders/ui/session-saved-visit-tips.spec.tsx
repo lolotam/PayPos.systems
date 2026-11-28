@@ -1,6 +1,6 @@
 import { t } from '@pospay/i18n';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { act, fireEvent, render, screen } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { useState } from 'react';
 import { beforeEach, expect, it, vi } from 'vitest';
 import { sessionTipsPath } from '../api/use-session-tips';
@@ -13,9 +13,11 @@ import {
   scope,
 } from '../model/session-recording-result.fixture';
 import {
+  emptySessionRecordingResult,
   transitionSessionRecordingResult as transition,
   type SessionRecordingResult,
 } from '../model/session-recording-result';
+import { SessionSavedResult } from './session-saved-result';
 import { SessionSavedVisit } from './session-saved-visit';
 
 const api = vi.hoisted(() => ({ get: vi.fn(), put: vi.fn() }));
@@ -117,7 +119,8 @@ it('shows Record tip again when switching to visit B after a 403 hid it on visit
   expect(screen.queryByRole('alert')).toBeNull();
 });
 
-it('preserves an unresolved tip retry on visit A when switching to visit B and back (#406)', async () => {
+it('preserves an unresolved tip retry on visit A through empty New Visit and visit B transitions (#406)', async () => {
+  const savedTips = { revision: 1, tips: [{ employee_id: id(6), method: 'CASH' as const, amount: '1.000' }], total_cash: '1.000', total_card: '0.000' };
   api.get.mockImplementation((path: string) =>
     Promise.resolve(
       path === sessionTipsPath
@@ -125,40 +128,32 @@ it('preserves an unresolved tip retry on visit A when switching to visit B and b
         : { error: { code: 'SESSION_NOT_FOUND', message_ar: 'x', message_en: 'x' }, response: { status: 404 } },
     ),
   );
-  api.put.mockRejectedValueOnce(new TypeError('Failed to fetch'));
+  api.put.mockRejectedValueOnce(new TypeError('Failed to fetch')).mockResolvedValueOnce({ data: savedTips, response: { status: 200 } });
   const visitA = result as SessionRecordingResult;
-  const visitB = {
-    ...visitA,
-    sessionId: id(99),
-    session: visitA.session ? { ...visitA.session, id: id(99) } : null,
-  };
+  const visitB = { ...visitA, sessionId: id(99), session: visitA.session ? { ...visitA.session, id: id(99) } : null };
+  const stubJournal = { leaveVisit: () => undefined };
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-  const view = render(
+  const frame = (current: SessionRecordingResult) => (
     <QueryClientProvider client={client}>
-      <SessionSavedVisit result={visitA} scope={scope} online />
-    </QueryClientProvider>,
+      <SessionSavedResult result={current} journal={stubJournal} onNewVisit={() => undefined} scope={scope} online />
+    </QueryClientProvider>
   );
+  const view = render(frame(visitA));
   fireEvent.click(screen.getByRole('button', { name: t('en', 'sessionTips.open') }));
   await screen.findByLabelText(t('en', 'sessionTips.total'));
   fireEvent.change(screen.getByLabelText(t('en', 'sessionTips.total')), { target: { value: '1.000' } });
   fireEvent.click(screen.getByRole('button', { name: t('en', 'sessionTips.useSuggestion') }));
   fireEvent.click(screen.getByRole('button', { name: t('en', 'sessionTips.save') }));
-  expect(await screen.findByText(t('en', 'sessionTips.outcomeUnknown'))).toBeTruthy();
-  expect(screen.getByRole('button', { name: t('en', 'sessionTips.retrySame') })).toBeTruthy();
-
-  view.rerender(
-    <QueryClientProvider client={client}>
-      <SessionSavedVisit result={visitB} scope={scope} online />
-    </QueryClientProvider>,
-  );
-  expect(screen.queryByRole('button', { name: t('en', 'sessionTips.retrySame') })).toBeNull();
-
-  view.rerender(
-    <QueryClientProvider client={client}>
-      <SessionSavedVisit result={visitA} scope={scope} online />
-    </QueryClientProvider>,
-  );
-  fireEvent.click(screen.getByRole('button', { name: t('en', 'sessionTips.open') }));
   expect(await screen.findByRole('button', { name: t('en', 'sessionTips.retrySame') })).toBeTruthy();
-  expect(screen.getByText(t('en', 'sessionTips.outcomeUnknown'))).toBeTruthy();
+
+  view.rerender(frame(emptySessionRecordingResult()));
+  expect(screen.queryByRole('button', { name: t('en', 'sessionTips.open') })).toBeNull();
+  view.rerender(frame(visitB));
+  expect(screen.queryByRole('button', { name: t('en', 'sessionTips.retrySame') })).toBeNull();
+  view.rerender(frame(visitA));
+  fireEvent.click(screen.getByRole('button', { name: t('en', 'sessionTips.open') }));
+  fireEvent.click(await screen.findByRole('button', { name: t('en', 'sessionTips.retrySame') }));
+  await waitFor(() => expect(api.put).toHaveBeenCalledTimes(2));
+  expect(api.put.mock.calls[1]?.[1].params.header['Idempotency-Key']).toBe(api.put.mock.calls[0]?.[1].params.header['Idempotency-Key']);
+  expect(api.put.mock.calls[1]?.[1].body).toEqual(api.put.mock.calls[0]?.[1].body);
 });

@@ -8,6 +8,7 @@ import type { SessionAttemptJournal } from '../model/session-attempt-journal';
 import { newSessionVisit, sessionLeaveFeedback, sessionResultFrozen, sessionResultLate, type SessionFeedback, type SessionRecordingResult } from '../model/session-recording-result';
 import { SessionSavedVisit } from './session-saved-visit';
 import { SessionWriteFeedback } from './session-write-feedback';
+import { useTipAttemptMemory } from './use-tip-attempt-memory';
 
 export function SessionSavedResult({ result, journal, onNewVisit, scope, online = true, editBusy = false, hideCustomer = false, onRequestStart, onRequestEnd }: {
   result: SessionRecordingResult; journal: Pick<SessionAttemptJournal, 'leaveVisit'>; onNewVisit: (result: SessionRecordingResult) => void;
@@ -15,6 +16,7 @@ export function SessionSavedResult({ result, journal, onNewVisit, scope, online 
 }) {
   const locale = useLocale(), session = result.session;
   const [failure, setFailure] = useState<{ source: SessionRecordingResult; feedback: SessionFeedback } | null>(null);
+  const tipMemory = useTipAttemptMemory(scope?.companyId ?? '', scope?.businessId ?? '', scope?.branchId ?? '', scope?.userId ?? '');
   if (!session) return null;
   const leaveFeedback = failure?.source === result ? failure.feedback : null;
   const leave = (sameCustomer: boolean) => {
@@ -31,7 +33,7 @@ export function SessionSavedResult({ result, journal, onNewVisit, scope, online 
     <p>{t(locale, 'serviceSessions.occurredAt')} <bdi>{when}</bdi></p>
     <p>{t(locale, 'serviceSessions.timezone')} <bdi>{session.business_timezone}</bdi></p>
     {sessionResultLate(session) ? <Badge variant="warning">{t(locale, 'serviceSessions.late')}</Badge> : null}
-    <SessionSavedVisit result={result} online={online} editBusy={editBusy} {...(scope ? { scope } : {})}
+    <SessionSavedVisit result={result} online={online} editBusy={editBusy} tipMemory={tipMemory} {...(scope ? { scope } : {})}
       {...(onRequestStart ? { onRequestStart } : {})} {...(onRequestEnd ? { onRequestEnd } : {})} />
     {leaveFeedback ? <SessionWriteFeedback result={{ ...result, feedback: leaveFeedback, attempt: null }} /> : null}
     {complete ? <div className="flex flex-wrap gap-2">

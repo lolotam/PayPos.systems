@@ -92,11 +92,19 @@ export function isJournalPiiKey(key: string): boolean {
     || compact.endsWith('pin');
 }
 
-/** يفحص المفاتيح المتداخلة داخل الكائنات والمصفوفات لاكتشاف أي حقل حساس مخفي في امتداد مجهول. */
+/** يفحص المفاتيح المتداخلة تكرارياً داخل الكائنات والمصفوفات لاكتشاف أي حقل حساس مخفي دون استنفاد المكدس. */
 export function hasNestedJournalPiiKey(value: unknown): boolean {
-  if (!value || typeof value !== 'object') return false;
-  if (Array.isArray(value)) return value.some((item) => hasNestedJournalPiiKey(item));
-  return Object.entries(value).some(([key, child]) => isJournalPiiKey(key) || hasNestedJournalPiiKey(child));
+  const stack: unknown[] = [value];
+  while (stack.length > 0) {
+    const current = stack.pop();
+    if (!current || typeof current !== 'object') continue;
+    if (Array.isArray(current)) { stack.push(...current); continue; }
+    for (const [key, child] of Object.entries(current)) {
+      if (isJournalPiiKey(key)) return true;
+      if (child && typeof child === 'object') stack.push(child);
+    }
+  }
+  return false;
 }
 
 // الـ slot store يحتاج يميّز النسخة الخام ذات الحقول الزائدة ليعيد كتابتها بعد تنقيتها.

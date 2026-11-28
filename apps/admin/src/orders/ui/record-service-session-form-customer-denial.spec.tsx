@@ -130,6 +130,10 @@ it('hides cached package choices on an active saved visit when customer profile 
   expect(screen.getByText(t('en', 'serviceSessions.packageNoCustomer'))).toBeTruthy();
   expect(screen.queryAllByText(customer.name)).toHaveLength(0);
   expect(active?.result.customerId).toBe(customer.id);
+  const appendButton = () => screen.getByRole('button', { name: t('en', 'serviceSessions.correctAndAppend') }) as HTMLButtonElement;
+  expect(appendButton().disabled).toBe(true);
+  fireEvent.click(screen.getByRole('button', { name: t('en', 'serviceSessions.fromPackage') }));
+  await waitFor(() => expect(appendButton().disabled).toBe(false));
 });
 
 it('clears a denied ID-only recovered draft after a definite save failure so another customer can be picked (#1188)', async () => {

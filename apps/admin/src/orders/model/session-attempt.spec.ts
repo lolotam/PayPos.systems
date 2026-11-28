@@ -58,3 +58,15 @@ it.each(['errorCode', 'displayName', 'filename'] as const)('drops unknown harmle
   const envelope = { version: 1 as const, state: 'PARTIAL' as const, scope, sessionId: id(12) };
   expect(parseSessionJournalEnvelope({ ...envelope, [key]: 'x' })).toEqual(envelope);
 });
+
+it('handles deeply nested neutral extensions without stack overflow and still rejects deeply nested PII', () => {
+  const envelope = { version: 1 as const, state: 'PARTIAL' as const, scope, sessionId: id(12) };
+  let neutral: Record<string, unknown> = { leaf: 'ok' };
+  let pii: Record<string, unknown> = { customerPhone: 'secret' };
+  for (let depth = 0; depth < 2000; depth += 1) {
+    neutral = { nested: neutral };
+    pii = { nested: pii };
+  }
+  expect(parseSessionJournalEnvelope({ ...envelope, futureMeta: neutral })).toEqual(envelope);
+  expect(() => parseSessionJournalEnvelope({ ...envelope, futureMeta: pii })).toThrow('SESSION_JOURNAL_INVALID');
+});
