@@ -1,5 +1,6 @@
 import { UnrecoverableError, type Job } from 'bullmq';
 import {
+  documentRenderErrorCode,
   documentRenderJob,
   type DocumentRenderErrorCode,
   type DocumentRenderJob,
@@ -249,6 +250,8 @@ async function runGuarded(
 function externalErrorCode(job: Job, error?: unknown): DocumentRenderErrorCode {
   if (error instanceof DocumentRenderTimeoutError) return 'DOCUMENT_RENDER_TIMEOUT';
   const message = error instanceof Error ? error.message : job.failedReason;
+  const known = documentRenderErrorCode.safeParse(message);
+  if (known.success) return known.data;
   if (message === 'DOCUMENT_RENDER_TIMEOUT' || message === 'Document render timed out') {
     return 'DOCUMENT_RENDER_TIMEOUT';
   }

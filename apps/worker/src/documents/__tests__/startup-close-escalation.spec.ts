@@ -1,4 +1,4 @@
-import type { DocumentRenderer } from '@pospay/documents';
+import { PlaywrightDocumentRenderer, type DocumentRenderer } from '@pospay/documents';
 import { systemUuidV7 } from '@pospay/ids';
 import { Queue, Worker } from 'bullmq';
 import { Redis } from 'ioredis';
@@ -8,10 +8,10 @@ import { DRAIN_GRACE_MS, trackDocumentStartup } from '../startup-session.ts';
 import { redisUrl } from './render-harness.ts';
 
 function wait(ms: number): Promise<void> {
-  return new Promise((resolve) => {
-    setTimeout(resolve, ms);
-  });
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
+
+const baseSession = { startupMs: 500, retryDelaysMs: [0], sleep: wait, stopped: () => false, onFailed: () => undefined } as const;
 
 async function waitUntil(ready: () => boolean, timeoutMs: number, message: string): Promise<void> {
   const deadline = Date.now() + timeoutMs;
@@ -92,7 +92,7 @@ function createStuckWorkerSession(events: string[]) {
   return { queue, worker, session, pickedUp, releaseJob: () => releaseJob?.(), queueConnection, workerConnection };
 }
 
-it('escalates a real BullMQ worker via close(true) when close grace expires during a stuck job', async () => {
+async function verifyStuckWorkerClose(stopFirst: boolean): Promise<void> {
   const events: string[] = [];
   const { queue, worker, session, pickedUp, releaseJob, queueConnection, workerConnection } =
     createStuckWorkerSession(events);
@@ -100,9 +100,10 @@ it('escalates a real BullMQ worker via close(true) when close grace expires duri
   const closed = waitForWorkerClosed(worker);
   try {
     await session.started;
-    await queue.add('stuck', {});
+    await queue.add(stopFirst ? 'stuck-stop' : 'stuck', {});
     await pickedUp;
     const startedAt = Date.now();
+    if (stopFirst) await session.stop();
     await session.close();
     expect(Date.now() - startedAt).toBeLessThan(2_000);
     expect(events).toEqual(['renderer-close', 'renderer-kill']);
@@ -117,20 +118,19 @@ it('escalates a real BullMQ worker via close(true) when close grace expires duri
     workerConnection.disconnect();
     queueConnection.disconnect();
   }
-}, 15_000);
+}
+
+it('escalates a real BullMQ worker via close(true) when close grace expires during a stuck job', () =>
+  verifyStuckWorkerClose(false), 15_000);
 
 it('gives normal close drainGraceMs (default 35 s > 30 s budget) while keeping short browser closeGraceMs', async () => {
   expect(DRAIN_GRACE_MS).toBeGreaterThan(30_000);
   const events: string[] = [];
   let releaseWorker: (() => void) | undefined;
   const session = trackDocumentStartup({
-    startupMs: 500,
+    ...baseSession,
     closeGraceMs: 25,
     drainGraceMs: 120,
-    retryDelaysMs: [0],
-    sleep: wait,
-    stopped: () => false,
-    onFailed: () => undefined,
     run: async (attempt) => {
       attempt.setLive({
         worker: {
@@ -151,7 +151,7 @@ it('gives normal close drainGraceMs (default 35 s > 30 s budget) while keeping s
   });
   await session.started;
   const closing = session.close();
-  await new Promise((resolve) => setTimeout(resolve, 60));
+  await wait(60);
   expect(events).toEqual(['worker-close-start']);
   releaseWorker?.();
   await closing;
@@ -164,43 +164,16 @@ it('gives normal close drainGraceMs (default 35 s > 30 s budget) while keeping s
   ]);
 });
 
-it('escalates a real BullMQ worker via close(true) across the production stop-then-close sequence', async () => {
-  const events: string[] = [];
-  const { queue, worker, session, pickedUp, releaseJob, queueConnection, workerConnection } =
-    createStuckWorkerSession(events);
-  const closeSpy = vi.spyOn(worker, 'close');
-  const closed = waitForWorkerClosed(worker);
-  try {
-    await session.started;
-    await queue.add('stuck-stop', {});
-    await pickedUp;
-    await session.stop();
-    await session.close();
-    expect(events).toEqual(['renderer-close', 'renderer-kill']);
-    await expect(closed).resolves.toBe(true);
-    expect(closeSpy).toHaveBeenCalledWith(true);
-    expect(closeSpy).not.toHaveBeenCalledWith(false);
-    expect(worker.isPaused()).toBe(true);
-  } finally {
-    releaseJob();
-    await worker.close(true).catch(() => undefined);
-    await queue.close().catch(() => undefined);
-    workerConnection.disconnect();
-    queueConnection.disconnect();
-  }
-}, 15_000);
+it('escalates a real BullMQ worker via close(true) across the production stop-then-close sequence', () =>
+  verifyStuckWorkerClose(true), 15_000);
 
 it('waits past 500 ms kill grace until renderer kill confirms exit before starting the next attempt', async () => {
   let attempts = 0;
   let releaseKill: (() => void) | undefined;
   let killResolved = false;
   const session = trackDocumentStartup({
-    startupMs: 500,
+    ...baseSession,
     closeGraceMs: 20,
-    retryDelaysMs: [0],
-    sleep: wait,
-    stopped: () => false,
-    onFailed: () => undefined,
     run: async (attempt) => {
       attempts += 1;
       if (attempts > 1) return true;
@@ -232,12 +205,8 @@ it('waits past 500 ms kill grace until renderer kill confirms exit before starti
 it('blocks replacement startup when renderer kill rejects while keeping session close bounded', async () => {
   let attempts = 0;
   const session = trackDocumentStartup({
-    startupMs: 500,
+    ...baseSession,
     closeGraceMs: 20,
-    retryDelaysMs: [0],
-    sleep: wait,
-    stopped: () => false,
-    onFailed: () => undefined,
     run: async (attempt) => {
       attempts += 1;
       attempt.setRenderer({
@@ -334,16 +303,11 @@ it('rechecks pendingExit when an abandoned renderer arrives while waitPendingExi
 });
 
 it('holds replacement under matching worker and PlaywrightDocumentRenderer closeGraceMs until slow kill settles', async () => {
-  const { PlaywrightDocumentRenderer } = await import('@pospay/documents');
   let launches = 0;
   let releaseKill: (() => void) | undefined;
   const session = trackDocumentStartup({
-    startupMs: 500,
+    ...baseSession,
     closeGraceMs: 20,
-    retryDelaysMs: [0],
-    sleep: wait,
-    stopped: () => false,
-    onFailed: () => undefined,
     run: async (attempt) => {
       launches += 1;
       if (launches > 1) return true;
@@ -376,41 +340,62 @@ it('holds replacement under matching worker and PlaywrightDocumentRenderer close
   }
 });
 
-it('invokes kill() at the worker closeGraceMs deadline even when PlaywrightDocumentRenderer has a longer closeGraceMs', async () => {
-  const { PlaywrightDocumentRenderer } = await import('@pospay/documents');
-  let killCalls = 0;
+async function startPlaywrightEscalation(
+  rendererCloseGraceMs: number,
+  workerCloseGraceMs: number,
+  onKill: () => Promise<void>,
+) {
+  let rendererRef!: PlaywrightDocumentRenderer;
   const session = trackDocumentStartup({
-    startupMs: 500,
-    closeGraceMs: 25,
-    retryDelaysMs: [0],
-    sleep: wait,
-    stopped: () => false,
-    onFailed: () => undefined,
+    ...baseSession,
+    closeGraceMs: workerCloseGraceMs,
     run: async (attempt) => {
       const renderer = new PlaywrightDocumentRenderer({
         factory: {
           launch: async () => ({
             newContext: () => new Promise(() => undefined),
             close: () => new Promise(() => undefined),
-            kill: async () => {
-              killCalls += 1;
-            },
+            kill: onKill,
             on: () => undefined,
           }),
         },
-        closeGraceMs: 120,
+        closeGraceMs: rendererCloseGraceMs,
         sleep: wait,
       });
+      rendererRef = renderer;
       attempt.setRenderer(renderer);
       await renderer.start();
       return true;
     },
   });
   await session.started;
-  const startedAt = Date.now();
+  return { session, renderer: rendererRef };
+}
+
+it('invokes kill() at the worker closeGraceMs deadline even when PlaywrightDocumentRenderer has a longer closeGraceMs', async () => {
+  let killCalls = 0;
+  let killElapsedMs: number | undefined;
+  let startedAt = 0;
+  const { session } = await startPlaywrightEscalation(250, 25, async () => {
+    killCalls += 1;
+    killElapsedMs = Date.now() - startedAt;
+  });
+  startedAt = Date.now();
   await session.close();
   expect(killCalls).toBe(1);
-  expect(Date.now() - startedAt).toBeLessThan(1_000);
-  await wait(180);
+  expect(killElapsedMs).toBeDefined();
+  expect(killElapsedMs ?? 999).toBeLessThan(150);
+  await wait(260);
   expect(killCalls).toBe(1);
+});
+
+it('runs renderer fallback kill at renderer closeGraceMs when worker escalation kill fails transiently', async () => {
+  let killCalls = 0;
+  const { session, renderer } = await startPlaywrightEscalation(120, 25, async () => {
+    killCalls += 1;
+    if (killCalls === 1) throw new Error('EPERM');
+  });
+  await session.close();
+  expect(killCalls).toBe(2);
+  expect(renderer.unconfirmedExit).toBeNull();
 });

@@ -58,8 +58,24 @@ export interface RetireResult {
 
 /** تنسيق قفل وقتل مشترك لنفس المتصفح عشان القتل ما يتكررش ومؤقت السماح يقف عند تأكيد الخروج. */
 export interface BrowserShutdown {
+  readonly confirmed: Promise<void>;
   runClose(graceMs: number, sleep?: (ms: number) => Promise<void>): Promise<RetireResult>;
   kill(): Promise<void> | undefined;
+}
+
+interface ShutdownState {
+  readonly browser: PdfBrowser;
+  closing: Promise<unknown> | null;
+  closeFinished: boolean;
+  killAttempted: boolean;
+  killConfirmed: boolean;
+  fallbackAttempted: boolean;
+  killError: unknown;
+  killResult: Promise<void> | undefined;
+  closeInFlight: Promise<RetireResult> | null;
+  inFlightUsesSleep: boolean;
+  readonly cancels: Set<() => void>;
+  readonly releaseConfirmed: () => void;
 }
 
 function trackKillCall(
@@ -133,66 +149,102 @@ async function waitCloseGrace(
   activeClose: Promise<unknown>,
   graceMs: number,
   sleep: ((ms: number) => Promise<void>) | undefined,
-  onCancel: (cancel: (() => void) | null) => void,
+  cancels: Set<() => void>,
 ): Promise<void> {
   const grace = armCancellableGrace(graceMs, sleep);
-  onCancel(grace.cancel);
+  cancels.add(grace.cancel);
   const pending = activeClose.then(() => undefined, () => undefined);
   try {
     await Promise.race([pending, grace.done]).catch(() => undefined);
   } finally {
-    onCancel(null);
+    cancels.delete(grace.cancel);
     grace.stop();
   }
 }
 
+function markShutdownConfirmed(state: ShutdownState, fromClose: boolean): void {
+  if (fromClose) state.closeFinished = true;
+  else state.killConfirmed = true;
+  for (const cancel of state.cancels) cancel();
+  state.cancels.clear();
+  state.releaseConfirmed();
+}
+
+function ensureClosing(state: ShutdownState): Promise<unknown> {
+  return (state.closing ??= safeCloseBrowser(state.browser, () => markShutdownConfirmed(state, true)));
+}
+
+function runKillAttempt(state: ShutdownState, fromExternal: boolean): Promise<void> | undefined {
+  if (state.closeFinished || state.killConfirmed) return undefined;
+  if (state.killAttempted && state.killError === undefined) return state.killResult;
+  if (!fromExternal) {
+    if (state.fallbackAttempted) return Promise.reject(state.killError);
+    if (state.killAttempted) state.fallbackAttempted = true;
+  }
+  state.killAttempted = true;
+  state.killError = undefined;
+  state.killResult = trackKillCall(
+    state.browser,
+    () => markShutdownConfirmed(state, false),
+    (err) => {
+      state.killError = err;
+    },
+  );
+  return state.killResult;
+}
+
+async function executeCloseAttempt(
+  state: ShutdownState,
+  graceMs: number,
+  sleep?: (ms: number) => Promise<void>,
+): Promise<RetireResult> {
+  const activeClose = ensureClosing(state);
+  if (!state.closeFinished && !state.killConfirmed) {
+    await waitCloseGrace(activeClose, graceMs, sleep, state.cancels);
+  }
+  if (state.closeFinished || state.killConfirmed) return { confirmed: true, exit: Promise.resolve() };
+  const killCall = runKillAttempt(state, false);
+  return state.killConfirmed ? { confirmed: true, exit: Promise.resolve() } : waitKillOutcome(activeClose, killCall);
+}
+
 /** بيبني منسّق إغلاق وقتل واحد لنفس المتصفح يتشارك بين المُصيّر والعامل. */
 export function createBrowserShutdown(browser: PdfBrowser): BrowserShutdown {
-  let closing: Promise<unknown> | null = null;
-  let closeFinished = false;
-  let killAttempted = false;
-  let killConfirmed = false;
-  let killError: unknown;
-  let killResult: Promise<void> | undefined;
-  let cancelGrace: (() => void) | null = null;
-
-  const ensureClosing = (): Promise<unknown> =>
-    (closing ??= safeCloseBrowser(browser, () => {
-      closeFinished = true;
-    }));
-
-  const invokeKill = (fromExternal: boolean): Promise<void> | undefined => {
-    if (fromExternal) cancelGrace?.();
-    if (closeFinished || killConfirmed) return undefined;
-    if (killAttempted && (killError === undefined || !fromExternal)) {
-      return killError === undefined ? killResult : Promise.reject(killError);
-    }
-    killAttempted = true;
-    killError = undefined;
-    killResult = trackKillCall(
-      browser,
-      () => {
-        killConfirmed = true;
-      },
-      (err) => {
-        killError = err;
-      },
-    );
-    return killResult;
+  let releaseConfirmed!: () => void;
+  const confirmed = new Promise<void>((resolve) => {
+    releaseConfirmed = resolve;
+  });
+  const state: ShutdownState = {
+    browser,
+    closing: null,
+    closeFinished: false,
+    killAttempted: false,
+    killConfirmed: false,
+    fallbackAttempted: false,
+    killError: undefined,
+    killResult: undefined,
+    closeInFlight: null,
+    inFlightUsesSleep: false,
+    cancels: new Set(),
+    releaseConfirmed,
   };
-
   return {
-    kill: () => invokeKill(true),
-    runClose: async (graceMs, sleep) => {
-      const activeClose = ensureClosing();
-      if (!killAttempted) {
-        await waitCloseGrace(activeClose, graceMs, sleep, (cancel) => {
-          cancelGrace = cancel;
-        });
+    confirmed,
+    kill: () => runKillAttempt(state, true),
+    runClose: (graceMs, sleep) => {
+      const usesSleep = sleep !== undefined;
+      if (state.closeInFlight !== null && state.inFlightUsesSleep === usesSleep) return state.closeInFlight;
+      const run = executeCloseAttempt(state, graceMs, sleep).then((outcome) => {
+        if (state.closeInFlight === run && !outcome.confirmed) {
+          state.closeInFlight = null;
+          state.fallbackAttempted = false;
+        }
+        return outcome;
+      });
+      if (state.closeInFlight === null) {
+        state.closeInFlight = run;
+        state.inFlightUsesSleep = usesSleep;
       }
-      if (closeFinished || killConfirmed) return { confirmed: true, exit: Promise.resolve() };
-      const killCall = invokeKill(false);
-      return killConfirmed ? { confirmed: true, exit: Promise.resolve() } : waitKillOutcome(activeClose, killCall);
+      return run;
     },
   };
 }

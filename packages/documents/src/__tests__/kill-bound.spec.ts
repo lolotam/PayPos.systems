@@ -1,7 +1,7 @@
 import { EventEmitter } from 'node:events';
 import { expect, it } from 'vitest';
 
-import { killAndWait } from '../playwright/factory.ts';
+import { killAndWait, withLaunchCleanup } from '../playwright/factory.ts';
 import { PlaywrightDocumentRenderer } from '../playwright/renderer.ts';
 import { dropRetiredBrowser } from '../playwright/retire.ts';
 
@@ -257,4 +257,124 @@ it('shares pending close gate across concurrent close() calls and chains kill() 
   releaseLateClose();
   await killPromise;
   expect(killResolved).toBe(true);
+});
+
+it('keeps retirement pending until descendant processes also exit after root exits', async () => {
+  type FakeProc = EventEmitter & { kill: () => boolean; exitCode: number | null; signalCode: string | null; children?: FakeProc[] };
+  const childProc = Object.assign(new EventEmitter(), { exitCode: null, signalCode: null, kill: () => true }) as FakeProc;
+  const rootProc = Object.assign(new EventEmitter(), {
+    exitCode: null,
+    signalCode: null,
+    children: [childProc],
+    kill: () => {
+      rootProc.exitCode = 0;
+      rootProc.emit('exit');
+      return true;
+    },
+  }) as FakeProc;
+  let launches = 0;
+  const renderer = new PlaywrightDocumentRenderer({
+    factory: {
+      launch: async () => {
+        launches += 1;
+        if (launches > 1) return { newContext: () => new Promise(() => undefined), close: async () => undefined, on: () => undefined };
+        return { newContext: () => new Promise(() => undefined), close: () => new Promise(() => undefined), kill: () => killAndWait(rootProc), on: () => undefined };
+      },
+    },
+    sleep: (ms) => new Promise((r) => setTimeout(r, ms)),
+    backoffMs: [0],
+    overallTimeoutMs: 15,
+    browserCloseGraceMs: 10,
+  });
+  await renderer.start();
+  await expect(renderer.render('<p>x</p>')).rejects.toThrow();
+  await new Promise((r) => setTimeout(r, 80));
+  expect(rootProc.exitCode).toBe(0);
+  expect(launches).toBe(1);
+  childProc.exitCode = 0;
+  childProc.emit('exit');
+  for (let i = 0; i < 30 && launches < 2; i += 1) await new Promise((r) => setTimeout(r, 10));
+  expect(launches).toBe(2);
+  await renderer.close();
+});
+
+it('holds launch gate closed while post-spawn launch cleanup is still running', async () => {
+  let launches = 0;
+  let releaseCleanup!: () => void;
+  const cleanup = new Promise<void>((resolve) => {
+    releaseCleanup = resolve;
+  });
+  const renderer = new PlaywrightDocumentRenderer({
+    factory: {
+      launch: async () => {
+        launches += 1;
+        if (launches === 1) throw withLaunchCleanup(new Error('launch timeout'), cleanup);
+        return { newContext: () => new Promise(() => undefined), close: async () => undefined, on: () => undefined };
+      },
+    },
+    sleep: (ms) => new Promise((r) => setTimeout(r, ms)),
+    backoffMs: [0],
+  });
+  await renderer.start();
+  await new Promise((r) => setTimeout(r, 50));
+  expect(launches).toBe(1);
+  expect(renderer.unconfirmedExit).not.toBeNull();
+  releaseCleanup();
+  for (let i = 0; i < 30 && !renderer.isAvailable(); i += 1) await new Promise((r) => setTimeout(r, 10));
+  expect(launches).toBe(2);
+  await renderer.close();
+});
+
+it('keeps shared launch alive for a second caller when first caller aborts its own signal', async () => {
+  let launches = 0;
+  let releaseLaunch!: (b: { newContext: () => Promise<never>; close: () => Promise<void>; on: () => void }) => void;
+  const renderer = new PlaywrightDocumentRenderer({
+    factory: {
+      launch: () => {
+        launches += 1;
+        return new Promise((resolve) => (releaseLaunch = resolve));
+      },
+    },
+  });
+  const ac1 = new AbortController();
+  const ac2 = new AbortController();
+  const first = renderer.start({ signal: ac1.signal });
+  const second = renderer.start({ signal: ac2.signal });
+  ac1.abort();
+  await first;
+  expect(renderer.isAvailable()).toBe(false);
+  releaseLaunch({ newContext: () => new Promise(() => undefined), close: async () => undefined, on: () => undefined });
+  await second;
+  expect(launches).toBe(1);
+  expect(renderer.isAvailable()).toBe(true);
+  await renderer.close();
+});
+
+it('retains retired browser handle after failed kill so renderer.kill() can finish retirement', async () => {
+  let kills = 0;
+  const renderer = new PlaywrightDocumentRenderer({
+    factory: {
+      launch: async () => ({
+        newContext: () => new Promise(() => undefined),
+        close: () => new Promise(() => undefined),
+        kill: () => {
+          kills += 1;
+          return kills === 1 ? Promise.reject(new Error('EPERM')) : Promise.resolve();
+        },
+        on: () => undefined,
+      }),
+    },
+    sleep: (ms) => new Promise((r) => setTimeout(r, ms)),
+    backoffMs: [0],
+    overallTimeoutMs: 15,
+    browserCloseGraceMs: 10,
+  });
+  await renderer.start();
+  await expect(renderer.render('<p>x</p>')).rejects.toThrow();
+  await new Promise((r) => setTimeout(r, 60));
+  expect(kills).toBe(1);
+  expect(renderer.unconfirmedExit).not.toBeNull();
+  await Promise.resolve(renderer.kill());
+  expect(kills).toBe(2);
+  expect(renderer.unconfirmedExit).toBeNull();
 });

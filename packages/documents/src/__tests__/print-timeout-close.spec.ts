@@ -151,3 +151,42 @@ it('reuses a single context.close() promise so overall-deadline cleanup still re
     await renderer.close();
   }
 });
+
+it('keeps DocumentRenderTimeoutError when page.close() throws synchronously after print timeout', async () => {
+  let kills = 0;
+  const page: PdfPage = {
+    setContent: async () => undefined,
+    evaluate: async () => undefined,
+    pdf: () => new Promise<Uint8Array>(() => undefined),
+    close: () => {
+      throw new Error('page close crashed');
+    },
+  };
+  const context: PdfContext = {
+    route: async () => undefined,
+    newPage: async () => page,
+    close: async () => undefined,
+  };
+  const renderer = new PlaywrightDocumentRenderer({
+    factory: {
+      launch: async () => ({
+        newContext: async () => context,
+        close: async () => undefined,
+        kill: () => {
+          kills += 1;
+        },
+        on: () => undefined,
+      }),
+    },
+    sleep,
+    backoffMs: [0],
+    pdfTimeoutMs: PDF_TIMEOUT_MS,
+    overallTimeoutMs: OVERALL_TIMEOUT_MS,
+    browserCloseGraceMs: CLOSE_GRACE_MS,
+    closeGraceMs: CLOSE_GRACE_MS,
+  });
+  await renderer.start();
+  await expect(renderer.render(HTML)).rejects.toBeInstanceOf(DocumentRenderTimeoutError);
+  expect(kills).toBe(0);
+  await renderer.close();
+});

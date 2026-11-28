@@ -8,6 +8,16 @@ import {
 } from 'playwright-core';
 
 import type { PdfBrowser, PdfBrowserFactory, PdfContext, PdfPage, PdfRoute } from './browser.ts';
+import {
+  getLaunchCleanup,
+  killPidsAndWait,
+  killProcessTree,
+  snapshotOwnChildPids,
+  withLaunchCleanup,
+  type KillableProcess,
+} from './process-tree.ts';
+
+export { getLaunchCleanup, withLaunchCleanup, type KillableProcess };
 
 /**
  * مهلة إطلاق Chromium على Playwright.
@@ -70,13 +80,14 @@ function wrapContext(context: BrowserContext): PdfContext {
   };
 }
 
-export type KillableProcess = {
-  kill(signal: NodeJS.Signals): boolean;
-  readonly exitCode?: number | null;
-  readonly signalCode?: string | null;
-  once?(event: 'exit', listener: () => void): unknown;
-  off?(event: 'exit', listener: () => void): unknown;
-};
+/**
+ * يقتل عملية Chromium وشجرة توابعها ويستنّى تأكيد الخروج الحقيقي (`exit` أو `ESRCH`) من غير مهلة مزيفة.
+ * التقاعد والإغلاق هما اللي بيحدّدوا سقف الانتظار، عشان إعادة الإطلاق ما تفتحش متصفحين مع بعض.
+ */
+export function killAndWait(proc: KillableProcess | null): Promise<void> | void {
+  if (proc === null) return Promise.reject(new Error('CHROMIUM_PROCESS_UNAVAILABLE'));
+  return killProcessTree(proc);
+}
 
 /**
  * Playwright 1.63 شال Browser.process() من الواجهة العامة.
@@ -97,63 +108,6 @@ function chromiumProcess(browser: Browser): KillableProcess | null {
   } catch {
     return null;
   }
-}
-
-function hasExited(proc: KillableProcess): boolean {
-  return (
-    (proc.exitCode !== undefined && proc.exitCode !== null) ||
-    (proc.signalCode !== undefined && proc.signalCode !== null)
-  );
-}
-
-/**
- * يقتل عملية Chromium ويستنّى تأكيد الخروج الحقيقي (`exit` أو `ESRCH`) من غير مهلة مزيفة.
- * التقاعد والإغلاق هما اللي بيحدّدوا سقف الانتظار، عشان إعادة الإطلاق ما تفتحش متصفحين مع بعض.
- */
-export function killAndWait(proc: KillableProcess | null): Promise<void> | void {
-  if (proc === null) return Promise.reject(new Error('CHROMIUM_PROCESS_UNAVAILABLE'));
-  if (hasExited(proc)) return Promise.resolve();
-  const once = proc.once;
-  if (typeof once !== 'function') {
-    const signaled = proc.kill('SIGKILL');
-    if (signaled || hasExited(proc)) return;
-    throw new Error('SIGKILL_REJECTED');
-  }
-  return new Promise<void>((resolve, reject) => {
-    let settled = false;
-    const finish = (): void => {
-      if (settled) return;
-      settled = true;
-      proc.off?.('exit', finish);
-      resolve();
-    };
-    const fail = (error: unknown): void => {
-      if (settled) return;
-      settled = true;
-      proc.off?.('exit', finish);
-      reject(error instanceof Error ? error : new Error('SIGKILL_FAILED'));
-    };
-    once.call(proc, 'exit', finish);
-    if (hasExited(proc)) {
-      finish();
-      return;
-    }
-    try {
-      const signaled = proc.kill('SIGKILL');
-      if (hasExited(proc)) {
-        finish();
-      } else if (!signaled) {
-        fail(new Error('SIGKILL_REJECTED'));
-      }
-    } catch (error) {
-      const code = (error as NodeJS.ErrnoException | null)?.code;
-      if (code === 'ESRCH' || hasExited(proc)) {
-        finish();
-      } else {
-        fail(error);
-      }
-    }
-  });
 }
 
 function wrapBrowser(browser: Browser): PdfBrowser {
@@ -187,7 +141,16 @@ export function playwrightFactory(
   timeoutMs = DEFAULT_CHROMIUM_LAUNCH_TIMEOUT_MS,
 ): PdfBrowserFactory {
   return {
-    launch: async () =>
-      wrapBrowser(await chromium.launch({ ...chromiumLaunchOptions, timeout: timeoutMs })),
+    launch: async () => {
+      const existingChildren = snapshotOwnChildPids();
+      try {
+        return wrapBrowser(await chromium.launch({ ...chromiumLaunchOptions, timeout: timeoutMs }));
+      } catch (error) {
+        if (getLaunchCleanup(error) !== undefined) throw error;
+        const spawned = [...snapshotOwnChildPids()].filter((pid) => !existingChildren.has(pid));
+        if (spawned.length === 0) throw error;
+        throw withLaunchCleanup(error, killPidsAndWait(spawned));
+      }
+    },
   };
 }

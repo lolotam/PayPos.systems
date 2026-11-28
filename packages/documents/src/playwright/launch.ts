@@ -115,6 +115,62 @@ export function waitGate(
   });
 }
 
+/** ينتظر انتهاء محاولة الإطلاق المشتركة أو إلغاء كل منتظريها بشكل مستقل لكل منادٍ. */
+export interface SharedStart {
+  readonly signal: AbortSignal;
+  join(signal: AbortSignal | undefined): Promise<void>;
+  finish(): boolean;
+  resolveWaiters(): void;
+}
+
+/** يدير منتظري start() المتداخلين بحيث لا يلغي أحدهم إقلاع الآخر إذا بقى منتظر نشط. */
+export function createSharedStart(onAllAborted: () => void): SharedStart {
+  const active = new Set<symbol>();
+  const cleanups: Array<() => void> = [];
+  const abortController = new AbortController();
+  let hasUnsigned = false;
+  let finishShared!: () => void;
+  const shared = new Promise<void>((resolve) => {
+    finishShared = resolve;
+  });
+  return {
+    signal: abortController.signal,
+    join: (signal) => {
+      if (signal === undefined) {
+        hasUnsigned = true;
+        return shared;
+      }
+      if (signal.aborted) return Promise.resolve();
+      const id = Symbol('start-waiter');
+      active.add(id);
+      return new Promise<void>((resolve) => {
+        const finish = (): void => {
+          active.delete(id);
+          signal.removeEventListener('abort', onAbort);
+          resolve();
+        };
+        const onAbort = (): void => {
+          finish();
+          if (!hasUnsigned && active.size === 0) {
+            abortController.abort();
+            onAllAborted();
+          }
+        };
+        cleanups.push(() => signal.removeEventListener('abort', onAbort));
+        signal.addEventListener('abort', onAbort, { once: true });
+        void shared.then(finish, finish);
+      });
+    },
+    finish: () => {
+      const stillWaited = hasUnsigned || active.size > 0;
+      active.clear();
+      while (cleanups.length > 0) cleanups.pop()?.();
+      return stillWaited;
+    },
+    resolveWaiters: () => finishShared(),
+  };
+}
+
 /** بيصعّد لو بوابة خروج المتصفح فضلت معلّقة بعد المهلة المحددة. */
 export function watchUnconfirmedExit(
   gate: Promise<void>,

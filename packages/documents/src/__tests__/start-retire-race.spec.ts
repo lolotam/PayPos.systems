@@ -81,9 +81,7 @@ it('waits for retirement when an onUnavailable listener calls start synchronousl
     overallTimeoutMs: 15,
     browserCloseGraceMs: 100,
   });
-  renderer.onUnavailable(() => {
-    void renderer.start();
-  });
+  renderer.onUnavailable(() => void renderer.start());
   await renderer.start();
   await expect(renderer.render('<p>x</p>')).rejects.toThrow();
   await waitAvailable(renderer);
@@ -93,7 +91,8 @@ it('waits for retirement when an onUnavailable listener calls start synchronousl
 });
 
 it('does not schedule background relaunch when an external start signal aborts', async () => {
-  const spy = delayedLaunchFactory(() => new Promise<PdfBrowser>(() => undefined));
+  let rejectFirst!: (error: Error) => void;
+  const spy = delayedLaunchFactory(() => new Promise<PdfBrowser>((_resolve, reject) => (rejectFirst = reject)));
   const renderer = new PlaywrightDocumentRenderer({
     factory: spy.factory,
     sleep: (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
@@ -103,6 +102,7 @@ it('does not schedule background relaunch when an external start signal aborts',
   const first = renderer.start({ signal: controller.signal });
   controller.abort();
   await first;
+  rejectFirst(new Error('aborted launch failed'));
   await new Promise((resolve) => setTimeout(resolve, 40));
   expect(spy.launches()).toBe(1);
   await renderer.close();
@@ -113,11 +113,7 @@ it('keeps launch guard until a cancelled attempt closes its late browser', async
   let releaseFirst: ((b: PdfBrowser) => void) | undefined;
   const spy = delayedLaunchFactory((attempt) => {
     events.push(`launch-${attempt}`);
-    if (attempt === 1) {
-      return new Promise<PdfBrowser>((resolve) => {
-        releaseFirst = resolve;
-      });
-    }
+    if (attempt === 1) return new Promise<PdfBrowser>((resolve) => (releaseFirst = resolve));
     return Promise.resolve(okBrowser());
   });
   const renderer = new PlaywrightDocumentRenderer({
@@ -149,11 +145,7 @@ it('holds the launch guard until a timed-out launch closes its late browser', as
   let releaseFirst: ((b: PdfBrowser) => void) | undefined;
   const spy = delayedLaunchFactory((attempt) => {
     events.push(`launch-${attempt}`);
-    if (attempt === 1) {
-      return new Promise<PdfBrowser>((resolve) => {
-        releaseFirst = resolve;
-      });
-    }
+    if (attempt === 1) return new Promise<PdfBrowser>((resolve) => (releaseFirst = resolve));
     return Promise.resolve(okBrowser());
   });
   const renderer = new PlaywrightDocumentRenderer({
@@ -275,11 +267,7 @@ it('closes the browser and gates replacement start when abort lands during post-
   let releaseClose: (() => void) | undefined;
   const spy = delayedLaunchFactory((attempt) => {
     events.push(`launch-${attempt}`);
-    if (attempt === 1) {
-      return new Promise<PdfBrowser>((resolve) => {
-        releaseFirst = resolve;
-      });
-    }
+    if (attempt === 1) return new Promise<PdfBrowser>((resolve) => (releaseFirst = resolve));
     return Promise.resolve(okBrowser());
   });
   const renderer = new PlaywrightDocumentRenderer({
@@ -376,12 +364,7 @@ it('allows kill() to terminate a launch-handoff browser immediately and avoids a
   let closeCalls = 0;
   let killCalls = 0;
   const renderer = new PlaywrightDocumentRenderer({
-    factory: {
-      launch: () =>
-        new Promise<PdfBrowser>((resolve) => {
-          releaseLaunch = resolve;
-        }),
-    },
+    factory: { launch: () => new Promise<PdfBrowser>((resolve) => (releaseLaunch = resolve)) },
     closeGraceMs: 120,
   });
   const starting = renderer.start();

@@ -109,8 +109,10 @@ export async function renderPage(
     throw error;
   } finally {
     // قفل الصفحة المعلّق بيستهلك مهلة الطباعة، فبنبلّغه ونرميه؛ المتصفح بيتقفل من فوق.
-    if (timedOut) void page.close().catch(() => undefined);
-    else await page.close().catch(() => undefined);
+    const closing = Promise.resolve()
+      .then(() => page.close())
+      .catch(() => undefined);
+    if (!timedOut) await closing;
   }
 }
 
