@@ -129,6 +129,8 @@ describe('parsePermissionConstraints', () => {
       '{"max_amount": 1000.0000000000000001}',
       '{"max_amount": 9007199254740993}',
       '{"backdate_days": 3.0000000000000001}',
+      '{"max_pct": 100.00000000000000001}',
+      '{"max_pct": -0.00000000000000001}',
       'not-json',
     ]) {
       expect(parsePermissionConstraints(bad)).toEqual({ invalid: true });
@@ -136,6 +138,13 @@ describe('parsePermissionConstraints', () => {
   });
 
   it('extracts valid numeric, bigint-mills money, and boolean constraints', () => {
+    expect(
+      parsePermissionConstraints('{"max_amount": 1000.0, "backdate_days": 3.0, "max_pct": 100.0}'),
+    ).toEqual({
+      max_amount: 1000n,
+      backdate_days: 3,
+      max_pct: 100,
+    });
     expect(parsePermissionConstraints('{"max_amount": 500000, "max_pct": 12.5}')).toEqual({
       max_amount: 500000n,
       max_pct: 12.5,

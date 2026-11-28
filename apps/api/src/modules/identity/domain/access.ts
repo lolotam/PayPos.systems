@@ -152,15 +152,34 @@ function assignConstraint(parsed: MutableConstraints, key: string, value: unknow
   return false;
 }
 
+function parseDecimalToken(
+  source: string,
+): { readonly int: bigint; readonly hasFraction: boolean } | null {
+  const match = /^(\d+)(?:\.(\d+))?(?:[eE]([+-]?\d+))?$/.exec(source);
+  if (match === null) return null;
+  const combined = (match[1] ?? '0') + (match[2] ?? '');
+  const exp = match[3] === undefined ? 0 : Number(match[3]);
+  if (!Number.isSafeInteger(exp) || exp > 30 || exp < -100) return null;
+  const shift = exp - (match[2]?.length ?? 0);
+  if (shift >= 0) return { int: BigInt(combined + '0'.repeat(shift)), hasFraction: false };
+  const splitAt = combined.length + shift;
+  const whole = splitAt > 0 ? combined.slice(0, splitAt) : '0';
+  const remainder = splitAt > 0 ? combined.slice(splitAt) : combined;
+  return { int: BigInt(whole), hasFraction: /[1-9]/.test(remainder) };
+}
+
 function parseJsonConstraints(raw: string): unknown {
   try {
     return JSON.parse(raw, (key: string, value: unknown, context?: { source?: string }) => {
       if (typeof value !== 'number' || context?.source === undefined) return value;
-      if (key === 'max_amount' || key === 'max_variance') {
-        return /^\d+$/.test(context.source) ? BigInt(context.source) : null;
-      }
+      const d = parseDecimalToken(context.source);
+      if (d === null) return null;
+      if (key === 'max_amount' || key === 'max_variance') return d.hasFraction ? null : d.int;
       if (key === 'backdate_days' || key === 'max_rows') {
-        return /^\d+$/.test(context.source) ? value : null;
+        return !d.hasFraction && d.int <= BigInt(Number.MAX_SAFE_INTEGER) ? Number(d.int) : null;
+      }
+      if (key === 'max_pct') {
+        return d.int < 100n || (d.int === 100n && !d.hasFraction) ? value : null;
       }
       return value;
     });

@@ -6,6 +6,9 @@ import { fileURLToPath } from 'node:url';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import ts from 'typescript';
 
+import { API_CONTROLLERS } from '../../../app.ts';
+import { SIGN_OUT_ROUTE } from '../../../shared/sign-out.guard.ts';
+import { STAFF_ROUTE } from '../../../shared/staff-authentication.ts';
 import { present } from '../../../../../../packages/db/test/present.ts';
 import {
   paired,
@@ -242,39 +245,22 @@ interface MethodInfo {
   readonly bodyText: string;
 }
 
-interface ControllerSpec {
-  readonly file: string;
-  readonly direct?: readonly string[];
-  readonly signOut?: readonly string[];
-  readonly classGuard?: string;
-  readonly guardMethods?: readonly string[];
-  readonly privateView?: readonly string[];
-}
-
-function classInfoOf(source: string): {
-  readonly classDecorators: string;
-  readonly methods: ReadonlyMap<string, MethodInfo>;
-} {
+function classInfoOf(source: string) {
   const file = ts.createSourceFile('probe.ts', source, ts.ScriptTarget.Latest, true);
   const methods = new Map<string, MethodInfo>();
   let classDecorators = '';
-  const visit = (node: ts.Node): void => {
-    if (ts.isClassDeclaration(node) && ts.canHaveDecorators(node)) {
-      classDecorators =
-        ts
-          .getDecorators(node)
+  const decs = (n: ts.Node) =>
+    ts.canHaveDecorators(n)
+      ? (ts
+          .getDecorators(n)
           ?.map((d) => d.getText(file))
-          .join('\n') ?? '';
-    }
+          .join('\n') ?? '')
+      : '';
+  const visit = (node: ts.Node): void => {
+    if (ts.isClassDeclaration(node)) classDecorators = decs(node);
     if (ts.isMethodDeclaration(node) && node.body !== undefined) {
       const name = node.name.getText(file);
-      const decorators = ts.canHaveDecorators(node)
-        ? (ts
-            .getDecorators(node)
-            ?.map((d) => d.getText(file))
-            .join('\n') ?? '')
-        : '';
-      methods.set(name, { name, decorators, bodyText: node.body.getText(file) });
+      methods.set(name, { name, decorators: decs(node), bodyText: node.body.getText(file) });
     }
     ts.forEachChild(node, visit);
   };
@@ -283,106 +269,146 @@ function classInfoOf(source: string): {
 }
 
 function reachesStaffOrigin(
-  method: MethodInfo,
+  m: MethodInfo,
   methods: ReadonlyMap<string, MethodInfo>,
   seen = new Set<string>(),
 ): boolean {
-  if (method.bodyText.includes('isStaffOrigin(')) return true;
-  if (seen.has(method.name)) return false;
-  seen.add(method.name);
-  for (const [, called] of method.bodyText.matchAll(/\bthis\.([A-Za-z0-9_]+)\s*\(/g)) {
-    const helper = called === undefined ? undefined : methods.get(called);
-    if (helper !== undefined && reachesStaffOrigin(helper, methods, seen)) return true;
-  }
-  return false;
+  if (m.bodyText.includes('isStaffOrigin(')) return true;
+  if (seen.has(m.name)) return false;
+  seen.add(m.name);
+  return [...m.bodyText.matchAll(/\bthis\.([A-Za-z0-9_]+)\s*\(/g)].some(([, c]) => {
+    const h = c === undefined ? undefined : methods.get(c);
+    return h !== undefined && reachesStaffOrigin(h, methods, seen);
+  });
 }
 
-const STAFF_CONTROLLER_SPECS: readonly ControllerSpec[] = [
-  { file: 'src/modules/identity/http/staff-pin.controller.ts', direct: ['signIn', 'change'] },
-  {
-    file: 'src/modules/identity/http/staff-pin-reset.controller.ts',
-    direct: ['request', 'reset'],
-  },
-  {
-    file: 'src/modules/identity/http/staff-otp.controller.ts',
-    direct: ['request', 'verify', 'session'],
-    signOut: ['signOut'],
-  },
-  {
-    file: 'src/modules/identity/http/private-view.controller.ts',
-    direct: ['open', 'touch', 'close'],
-  },
-  { file: 'src/modules/staff/http/clock-by-card.controller.ts', direct: ['submit'] },
-  {
-    file: 'src/modules/staff/http/own-leave.controller.ts',
-    classGuard: 'StaffLeaveGuard',
-    guardMethods: ['request', 'cancelRequest', 'list'],
-  },
-  { file: 'src/modules/staff/http/own-attendance.controller.ts', privateView: ['read'] },
-  {
-    file: 'src/modules/commissions/http/own-commission-estimate.controller.ts',
-    privateView: ['estimate'],
-  },
-  { file: 'src/modules/orders/http/own-work.controller.ts', privateView: ['tips', 'serviceLines'] },
+type OriginKind = 'direct' | 'leave-guard' | 'private-view';
+type StaffControllerEntry = readonly [
+  className: string,
+  moduleFile: string,
+  staff: readonly string[],
+  kind: OriginKind,
+  signOut?: readonly string[],
 ];
 
-function verifyStaffController(apiSrcRoot: string, spec: ControllerSpec): void {
-  const source = readFileSync(join(apiSrcRoot, spec.file), 'utf8');
-  expect(source).not.toMatch(/headers\.origin\s*[!=]==?/);
-  const { classDecorators, methods } = classInfoOf(source);
-  const actualStaff = [...methods.values()]
-    .filter((m) => /SetMetadata\(\s*STAFF_ROUTE\b/.test(m.decorators))
-    .map((m) => m.name)
-    .sort();
-  const expectedStaff = [
-    ...(spec.direct ?? []),
-    ...(spec.guardMethods ?? []),
-    ...(spec.privateView ?? []),
-  ].sort();
-  expect(actualStaff, `${spec.file} STAFF_ROUTE inventory`).toEqual(expectedStaff);
-  const actualSignOut = [...methods.values()]
-    .filter((m) => /SignOutRoute\(\s*'staff'\s*\)/.test(m.decorators))
-    .map((m) => m.name)
-    .sort();
-  expect(actualSignOut, `${spec.file} SignOutRoute('staff')`).toEqual(
-    [...(spec.signOut ?? [])].sort(),
-  );
-  if (spec.classGuard !== undefined) {
-    expect(classDecorators).toMatch(new RegExp(`UseGuards\\(\\s*${spec.classGuard}\\b`));
-  }
-  for (const name of spec.direct ?? []) {
-    const handler = methods.get(name);
-    expect(handler, `${spec.file}#${name}`).toBeDefined();
-    if (handler !== undefined) {
-      expect(reachesStaffOrigin(handler, methods), `${spec.file}#${name}`).toBe(true);
+const STAFF_CONTROLLER_SPECS: readonly StaffControllerEntry[] = [
+  ['StaffPinController', 'identity/http/staff-pin.controller.ts', ['signIn', 'change'], 'direct'],
+  [
+    'StaffPinResetController',
+    'identity/http/staff-pin-reset.controller.ts',
+    ['request', 'reset'],
+    'direct',
+  ],
+  [
+    'StaffOtpController',
+    'identity/http/staff-otp.controller.ts',
+    ['request', 'verify', 'session'],
+    'direct',
+    ['signOut'],
+  ],
+  [
+    'PrivateViewController',
+    'identity/http/private-view.controller.ts',
+    ['open', 'touch', 'close'],
+    'direct',
+  ],
+  ['ClockByCardController', 'staff/http/clock-by-card.controller.ts', ['submit'], 'direct'],
+  [
+    'OwnLeaveController',
+    'staff/http/own-leave.controller.ts',
+    ['request', 'cancelRequest', 'list'],
+    'leave-guard',
+  ],
+  ['OwnAttendanceController', 'staff/http/own-attendance.controller.ts', ['read'], 'private-view'],
+  [
+    'OwnCommissionEstimateController',
+    'commissions/http/own-commission-estimate.controller.ts',
+    ['estimate'],
+    'private-view',
+  ],
+  [
+    'OwnWorkController',
+    'orders/http/own-work.controller.ts',
+    ['tips', 'serviceLines'],
+    'private-view',
+  ],
+];
+
+function discoverRegisteredStaffInventory(): Record<
+  string,
+  { readonly staff: string[]; readonly signOut: string[] }
+> {
+  const discovered: Record<string, { readonly staff: string[]; readonly signOut: string[] }> = {};
+  for (const controller of API_CONTROLLERS) {
+    const proto = controller.prototype as Record<string, unknown>;
+    const staff: string[] = [];
+    const signOut: string[] = [];
+    for (const key of Object.getOwnPropertyNames(proto)) {
+      const fn = key === 'constructor' ? undefined : proto[key];
+      if (typeof fn !== 'function') continue;
+      if (Reflect.getMetadata(STAFF_ROUTE, fn) !== undefined) staff.push(key);
+      if (Reflect.getMetadata(SIGN_OUT_ROUTE, fn) === 'staff') signOut.push(key);
+    }
+    if (staff.length > 0 || signOut.length > 0) {
+      discovered[controller.name] = { staff: staff.sort(), signOut: signOut.sort() };
     }
   }
-  for (const name of spec.privateView ?? []) {
-    expect(methods.get(name)?.decorators, `${spec.file}#${name}`).toMatch(/@PrivateViewRoute\(/);
+  return discovered;
+}
+
+function verifyStaffController(apiSrcRoot: string, entry: StaffControllerEntry): void {
+  const [, moduleFile, staff, kind] = entry;
+  const source = readFileSync(join(apiSrcRoot, 'src/modules', moduleFile), 'utf8');
+  expect(source).not.toMatch(/headers\.origin\s*[!=]==?/);
+  const { classDecorators, methods } = classInfoOf(source);
+  if (kind === 'leave-guard') {
+    expect(classDecorators).toMatch(/UseGuards\(\s*StaffLeaveGuard\b/);
+    return;
+  }
+  for (const name of staff) {
+    const handler = methods.get(name);
+    expect(handler, `${moduleFile}#${name}`).toBeDefined();
+    if (handler === undefined) continue;
+    if (kind === 'direct') {
+      expect(reachesStaffOrigin(handler, methods), `${moduleFile}#${name}`).toBe(true);
+    } else {
+      expect(handler.decorators, `${moduleFile}#${name}`).toMatch(/@PrivateViewRoute\(/);
+    }
   }
 }
 
 describe('every staff route handler checks Origin exclusively through isStaffOrigin (#666)', () => {
   const apiSrcRoot = join(dirname(fileURLToPath(import.meta.url)), '..', '..', '..', '..');
 
-  it.each(STAFF_CONTROLLER_SPECS)(
-    '%s enforces isStaffOrigin on its exact handler inventory',
-    (spec) => {
-      verifyStaffController(apiSrcRoot, spec);
+  it('every API_CONTROLLERS staff or staff-sign-out route appears in STAFF_CONTROLLER_SPECS', () => {
+    const expected = Object.fromEntries(
+      STAFF_CONTROLLER_SPECS.map(([className, , staff, , signOut]) => [
+        className,
+        { staff: [...staff].sort(), signOut: [...(signOut ?? [])].sort() },
+      ]),
+    );
+    expect(discoverRegisteredStaffInventory()).toEqual(expected);
+  });
+
+  it.each(STAFF_CONTROLLER_SPECS.map((entry) => ({ name: entry[0], entry })))(
+    '$name enforces isStaffOrigin on all handlers',
+    ({ entry }) => {
+      verifyStaffController(apiSrcRoot, entry);
     },
   );
 
   it('staff guards check Origin through isStaffOrigin without direct equality on staff routes', () => {
-    for (const relativePath of [
+    for (const rel of [
       'src/modules/staff/http/staff-leave.guard.ts',
       'src/shared/private-view.guard.ts',
     ]) {
-      const source = readFileSync(join(apiSrcRoot, relativePath), 'utf8');
+      const source = readFileSync(join(apiSrcRoot, rel), 'utf8');
       expect(source).not.toMatch(/headers\.origin\s*[!=]==?/);
       expect(source).toContain('isStaffOrigin(');
     }
-    const signOutSource = readFileSync(join(apiSrcRoot, 'src/shared/sign-out.guard.ts'), 'utf8');
-    expect(signOutSource).toMatch(/kind === 'staff'\s*\?\s*isStaffOrigin\(/);
+    expect(readFileSync(join(apiSrcRoot, 'src/shared/sign-out.guard.ts'), 'utf8')).toMatch(
+      /kind === 'staff'\s*\?\s*isStaffOrigin\(/,
+    );
   });
 });
 

@@ -130,6 +130,13 @@ export function harnessLogger(options: HarnessOptions): Logger {
     : createLogger('info', { destination: options.logs, events: API_LOG_EVENTS });
 }
 
+/** يوحّد مصادر الاعتماد الموثوقة بين Better Auth وخدمات استعادة كلمة المرور في الاختبار (#669). */
+export function harnessAuthOrigins(options: HarnessOptions): string[] {
+  return options.authTrustedOrigins !== undefined
+    ? [...options.authTrustedOrigins]
+    : [HARNESS_ORIGIN, ...(options.staffOrigin === undefined ? [] : [options.staffOrigin])];
+}
+
 export function harnessAuth(
   authUrl: string,
   ids: IdGenerator,
@@ -141,10 +148,7 @@ export function harnessAuth(
     databaseUrl: authUrl,
     secret: 'test-secret-that-is-long-enough-for-hmac',
     baseURL: HARNESS_BASE,
-    trustedOrigins: [
-      HARNESS_ORIGIN,
-      ...(options.staffOrigin === undefined ? [] : [options.staffOrigin]),
-    ],
+    trustedOrigins: harnessAuthOrigins(options),
     ids,
     secureCookies: false,
     ...(options.cookiePrefix === undefined ? {} : { cookiePrefix: options.cookiePrefix }),

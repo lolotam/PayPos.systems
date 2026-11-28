@@ -8,6 +8,7 @@ let f: PermissionFixture;
 
 beforeAll(async () => {
   f = await permissionFixture();
+  await seedConstrainedRoles(f);
 });
 
 afterAll(async () => {
@@ -35,7 +36,6 @@ async function seedConstrainedRoles(fixture: PermissionFixture): Promise<void> {
 }
 
 it('readAccessTransaction carries role_permissions.constraints, omits {} and merges most-restrictive-wins (#10)', async () => {
-  await seedConstrainedRoles(f);
   const inspected = await createAccessReader(f.db).accessAt(
     f.company,
     f.managerId,
@@ -75,27 +75,45 @@ it('readAccessTransaction carries role_permissions.constraints, omits {} and mer
   ).toEqual({ max_pct: 10, max_amount: 500000n, manual_edit: false });
 });
 
-it('rejects fractional monetary constraints before JS JSON number rounding (#10)', async () => {
-  await f.h.owner`
-    UPDATE role_permissions SET constraints = '{"max_amount":1000.0000000000000001}'::jsonb
-    WHERE company_id = ${f.company} AND permission_code = 'approve:discounts:branch'`;
+it('preserves exact decimal-scale integers and rejects fractional or out-of-range JSONB constraints independently (#10)', async () => {
+  const isolatedUser = await f.h.auth.provisionUser({
+    email: 'fractional-grant@synthetic.invalid',
+    name: 'Synthetic fractional grant',
+    password: 'synthetic'.repeat(8),
+  });
+  const roleId = f.ids.newId();
+  const memberId = f.ids.newId();
+  await f.h.owner`INSERT INTO roles(id, company_id, code, name_en)
+    VALUES (${roleId}, ${f.company}, 'synthetic_decimal_check', 'Synthetic decimal check')`;
+  await f.h
+    .owner`INSERT INTO memberships(company_id, id, user_id, role_id, role_owner_key, scope_type, scope_id)
+    VALUES (${f.company}, ${memberId}, ${isolatedUser}, ${roleId}, ${f.company}, 'BRANCH', ${f.branch})`;
+  await f.h
+    .owner`INSERT INTO role_permissions(role_id, role_owner_key, company_id, permission_code, constraints)
+    VALUES
+      (${roleId}, ${f.company}, ${f.company}, 'approve:discounts:branch', '{"max_amount":1000.0,"backdate_days":3.0,"max_pct":100.0}'::jsonb),
+      (${roleId}, ${f.company}, ${f.company}, 'read:branches:branch', '{"max_amount":1000.0000000000000001}'::jsonb),
+      (${roleId}, ${f.company}, ${f.company}, 'read:businesses:company', '{"max_pct":100.00000000000000001}'::jsonb)`;
   const inspected = await createAccessReader(f.db).accessAt(
     f.company,
-    f.managerId,
+    isolatedUser,
     { kind: 'branch', branchId: f.branch },
     { allows: () => true },
   );
   expect(inspected).not.toBeNull();
   if (inspected === null) return;
-  const corrupted = inspected.access.grants.find(
-    (g) => g.permission === 'approve:discounts:branch',
-  );
-  expect(corrupted?.constraints).toEqual({ invalid: true });
   expect(
     mergeGrantConstraints(
       inspected.access.grants,
       'approve:discounts:branch',
       inspected.targets.target,
     ),
-  ).toBeNull();
+  ).toEqual({ max_amount: 1000n, backdate_days: 3, max_pct: 100 });
+  for (const perm of ['read:branches:branch', 'read:businesses:company']) {
+    const grant = inspected.access.grants.find((g) => g.permission === perm);
+    expect(grant?.constraints).toEqual({ invalid: true });
+    expect(
+      mergeGrantConstraints(inspected.access.grants, perm, inspected.targets.target),
+    ).toBeNull();
+  }
 });
