@@ -21,15 +21,38 @@ afterAll(async () => {
   await testDb.drop();
 });
 
+/** يرجع دوال public (عدا امتداد btree_gist) ليتحقق الجرد والحد الأمني من نفس القائمة. */
+async function listPublicFunctions() {
+  return owner<{ proname: string; prosecdef: boolean; proconfig: string[] | null }[]>`
+    SELECT proname, prosecdef, proconfig FROM pg_proc p
+    WHERE pronamespace = 'public'::regnamespace AND NOT EXISTS (
+      SELECT 1 FROM pg_depend d JOIN pg_extension e ON e.oid=d.refobjid
+      WHERE d.classid='pg_proc'::regclass AND d.objid=p.oid AND d.refclassid='pg_extension'::regclass
+        AND d.deptype='e' AND e.extname='btree_gist') ORDER BY proname`;
+}
+
+/** يتأكد إن search_path فيه مخطط واحد على الأقل قبل pg_temp وإن آخر عنصر هو pg_temp. */
+function hasTrailingPgTemp(proconfig: readonly string[] | null): boolean {
+  const searchPath = (proconfig ?? []).find((entry) => entry.startsWith('search_path='));
+  const schemas =
+    searchPath
+      ?.slice('search_path='.length)
+      .split(',')
+      .map((s) => s.trim()) ?? [];
+  return schemas.length >= 2 && schemas.at(-1) === 'pg_temp';
+}
+
 describe('function inventory', () => {
   it('lists every function; the one SECURITY DEFINER pins its search_path', async () => {
-    const rows = await owner`
-      SELECT proname, prosecdef, proconfig FROM pg_proc p
-      WHERE pronamespace = 'public'::regnamespace AND NOT EXISTS (
-        SELECT 1 FROM pg_depend d JOIN pg_extension e ON e.oid=d.refobjid
-        WHERE d.classid='pg_proc'::regclass AND d.objid=p.oid AND d.refclassid='pg_extension'::regclass
-          AND d.deptype='e' AND e.extname='btree_gist') ORDER BY proname`;
-    expect(Array.from(rows)).toEqual(FUNCTION_INVENTORY);
+    expect(Array.from(await listPublicFunctions())).toEqual(FUNCTION_INVENTORY);
+  });
+
+  // PP-286 T-9 (#984): كل دالة جديدة أو معدَّلة في public لازم ينتهي search_path بتاعها بـ pg_temp.
+  it('requires every public function search_path to end with pg_temp', async () => {
+    const missing = (await listPublicFunctions())
+      .filter((row) => !hasTrailingPgTemp(row.proconfig))
+      .map((row) => row.proname);
+    expect(missing).toEqual([]);
   });
 
   it('btree_gist is installed and its extension functions cannot acquire definer privileges', async () => {

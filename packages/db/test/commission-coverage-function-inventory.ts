@@ -20,7 +20,11 @@ export const COMMISSION_COVERAGE_FUNCTIONS = [
     prosecdef: true,
     proconfig: ['search_path=pg_catalog, pg_temp', 'row_security=on'],
   },
-  { proname: 'commission_coverage_required_version', prosecdef: false, proconfig: ['search_path=pg_catalog'] },
+  {
+    proname: 'commission_coverage_required_version',
+    prosecdef: false,
+    proconfig: ['search_path=pg_catalog, pg_temp'],
+  },
   {
     proname: 'refuse_commission_coverage_change',
     prosecdef: false,

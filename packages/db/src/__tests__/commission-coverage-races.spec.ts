@@ -49,7 +49,7 @@ afterEach(async () => {
   // (§10 اختبار 6) هجرة الإصدار ترفع النسخة المطلوبة، فترجعها هنا عشان الاختبارات اللي بعدها تبدأ من نسخة الإثبات الحالية.
   await owner.unsafe(
     `CREATE OR REPLACE FUNCTION public.commission_coverage_required_version() RETURNS integer
-      LANGUAGE sql STABLE SET search_path = pg_catalog
+      LANGUAGE sql STABLE SET search_path = pg_catalog, pg_temp
       AS $$ SELECT ${COMMISSION_COVERAGE_PROOF_VERSION} $$`,
   );
 });
@@ -352,7 +352,7 @@ describe('the release migration racing the approval gate (ADR-0054 §5 and §8)'
     const migration = await hold(owner, async (tx) => {
       await tx.unsafe(
         `CREATE OR REPLACE FUNCTION public.commission_coverage_required_version() RETURNS integer
-          LANGUAGE sql STABLE SET search_path = pg_catalog
+          LANGUAGE sql STABLE SET search_path = pg_catalog, pg_temp
           AS $$ SELECT ${COMMISSION_COVERAGE_PROOF_VERSION + 1} $$`,
       );
       await tx`UPDATE commission_coverage_state SET generation = generation + 1,

@@ -356,7 +356,7 @@ it('app credentials cannot drive the dispatcher issuance facade', async () => {
 it('a different installed rules version refuses the real command without an ensure row', async () => {
   // التغيير في نسخة ملف الاختبار فقط ويُعاد في finally؛ لا هجرة ولا تغيير على cluster مشترك.
   await owner`CREATE OR REPLACE FUNCTION public.commission_coverage_required_version() RETURNS integer
-    LANGUAGE sql STABLE SET search_path = pg_catalog AS $$ SELECT 2 $$`;
+    LANGUAGE sql STABLE SET search_path = pg_catalog, pg_temp AS $$ SELECT 2 $$`;
   try {
     const result = await activationCli('issue', urls(), await issueArgs());
     expect(result.code).toBe(1);
@@ -364,7 +364,7 @@ it('a different installed rules version refuses the real command without an ensu
     expect(await footprint()).toEqual({ states: 0, proofs: 0, switches: 0 });
   } finally {
     await owner`CREATE OR REPLACE FUNCTION public.commission_coverage_required_version() RETURNS integer
-      LANGUAGE sql STABLE SET search_path = pg_catalog AS $$ SELECT 1 $$`;
+      LANGUAGE sql STABLE SET search_path = pg_catalog, pg_temp AS $$ SELECT 1 $$`;
   }
 });
 
