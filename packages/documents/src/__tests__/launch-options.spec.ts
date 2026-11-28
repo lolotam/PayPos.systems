@@ -328,34 +328,77 @@ it('handles ESRCH, false kill returns, and reused root PIDs on post-exit rescan'
 it('waits for root exit after true kill return without once before rescanning marked descendants', async () => {
   const procDir = mkdtempSync(join(tmpdir(), 'pospay-proc-poll-'));
   const spawnSleeper = () => spawn(process.execPath, ['-e', 'setTimeout(() => {}, 10_000)'], { detached: true, stdio: 'ignore' });
-  const [sRoot, sEscaped] = [spawnSleeper(), spawnSleeper()];
-  const [rootPid, escapedPid] = [sRoot.pid ?? 0, sEscaped.pid ?? 0];
+  const [sRoot, sChild, sEscaped] = [spawnSleeper(), spawnSleeper(), spawnSleeper()];
+  const [rootPid, childPid, escapedPid] = [sRoot.pid ?? 0, sChild.pid ?? 0, sEscaped.pid ?? 0];
   let exitTimer: ReturnType<typeof setTimeout> | undefined;
-  expect(Math.min(rootPid, escapedPid)).toBeGreaterThan(0);
+  const origSetTimeout = globalThis.setTimeout;
+  const pollTimers: Array<ReturnType<typeof setTimeout>> = [];
+  const timeoutSpy = vi.spyOn(globalThis, 'setTimeout').mockImplementation(((fn: (...a: unknown[]) => void, ms?: number, ...args: unknown[]) => {
+    const timer = origSetTimeout(fn, ms, ...args);
+    if (ms === 10) pollTimers.push(timer);
+    return timer;
+  }) as typeof setTimeout);
+  expect(Math.min(rootPid, childPid, escapedPid)).toBeGreaterThan(0);
   try {
     mkdirSync(join(procDir, String(rootPid)), { recursive: true });
     writeLinuxStat(procDir, rootPid, 'S', 1, rootPid, 111);
     const signaled: number[] = [];
     const signalPid = (pid: number): Error | undefined => { signaled.push(pid); writeLinuxStat(procDir, pid, 'Z', 1, 1, 0); return undefined; };
     const delayedExitRoot = {
-      pid: rootPid,
-      exitCode: null as number | null,
-      signalCode: null,
+      pid: rootPid, exitCode: null as number | null, signalCode: null,
       kill: () => {
-        exitTimer = setTimeout(() => {
+        exitTimer = origSetTimeout(() => {
           writeLinuxStat(procDir, rootPid, 'Z', 1, 1, 0);
           mkdirSync(join(procDir, String(escapedPid)), { recursive: true });
           writeLinuxStat(procDir, escapedPid, 'S', 1, escapedPid, 555);
           writeFileSync(join(procDir, String(escapedPid), 'environ'), `${LAUNCH_MARKER_ENV}=poll-root-marker\0`);
-        }, 15);
+        }, 30);
         return true;
       },
     };
-    await expect(Promise.resolve(killProcessTree(createMarkerProcess('poll-root-marker', () => delayedExitRoot), procDir, signalPid))).resolves.toBeUndefined();
+    const killTask = killProcessTree(createMarkerProcess('poll-root-marker', () => delayedExitRoot), procDir, signalPid) as Promise<void> & { unref?: () => void };
+    await new Promise((r) => origSetTimeout(r, 15));
+    expect(pollTimers.at(-1)?.hasRef()).toBe(true);
+    killTask.unref?.();
+    expect(pollTimers.at(-1)?.hasRef()).toBe(false);
+    await expect(killTask).resolves.toBeUndefined();
     expect([signaled, isPidAlive(escapedPid, procDir)]).toEqual([[escapedPid], false]);
   } finally {
+    timeoutSpy.mockRestore();
     if (exitTimer !== undefined) clearTimeout(exitTimer);
-    for (const s of [sRoot, sEscaped]) try { s.kill('SIGKILL'); } catch { /* exited */ }
+    for (const s of [sRoot, sChild, sEscaped]) try { s.kill('SIGKILL'); } catch { /* exited */ }
+    rmSync(procDir, { recursive: true, force: true });
+  }
+});
+
+it('aborts descendant signaling immediately when identity changes mid-loop', async () => {
+  const procDir = mkdtempSync(join(tmpdir(), 'pospay-proc-recheck-'));
+  const spawnSleeper = () => spawn(process.execPath, ['-e', 'setTimeout(() => {}, 10_000)'], { detached: true, stdio: 'ignore' });
+  const [sRoot, sChild, sGrand] = [spawnSleeper(), spawnSleeper(), spawnSleeper()];
+  const [rootPid, childPid, grandPid] = [sRoot.pid ?? 0, sChild.pid ?? 0, sGrand.pid ?? 0];
+  expect(Math.min(rootPid, childPid, grandPid)).toBeGreaterThan(0);
+  try {
+    for (const [p, kid] of [[rootPid, childPid], [childPid, grandPid]] as const) {
+      mkdirSync(join(procDir, String(p), 'task', String(p)), { recursive: true });
+      writeFileSync(join(procDir, String(p), 'task', String(p), 'children'), `${kid}\n`);
+    }
+    mkdirSync(join(procDir, String(grandPid)), { recursive: true });
+    writeLinuxStat(procDir, rootPid, 'S', 1, rootPid, 111);
+    writeLinuxStat(procDir, childPid, 'S', rootPid, rootPid, 222);
+    writeLinuxStat(procDir, grandPid, 'S', childPid, rootPid, 333);
+    const signaled: number[] = [];
+    const abortMidLoop = (pid: number): Error | undefined => {
+      if (pid === childPid) rmSync(join(procDir, String(grandPid), 'stat'));
+      signaled.push(pid);
+      writeLinuxStat(procDir, pid, 'Z', 1, 1, 0);
+      return undefined;
+    };
+    let raceKills = 0;
+    const raceRoot = { pid: rootPid, exitCode: null as number | null, signalCode: null, kill: () => { raceKills += 1; raceRoot.exitCode = 0; return true; } };
+    await expect(Promise.resolve(killProcessTree(raceRoot, procDir, abortMidLoop))).rejects.toThrow('DESCENDANT_IDENTITY_UNVERIFIED');
+    expect([raceKills, signaled, isPidAlive(childPid, procDir), isPidAlive(grandPid, procDir)]).toEqual([0, [childPid], false, true]);
+  } finally {
+    for (const s of [sRoot, sChild, sGrand]) try { s.kill('SIGKILL'); } catch { /* exited */ }
     rmSync(procDir, { recursive: true, force: true });
   }
 });

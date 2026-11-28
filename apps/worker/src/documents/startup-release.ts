@@ -96,6 +96,7 @@ async function killAndTrackExit(
   } finally {
     grace.stop();
   }
+  if (!resolved) (killCall as { unref?: () => void } | null)?.unref?.();
   return { confirmed: resolved, exit };
 }
 

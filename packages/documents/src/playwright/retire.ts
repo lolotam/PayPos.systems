@@ -1,6 +1,6 @@
 import type { PdfBrowser, PdfContext } from './browser.ts';
 import { closeHungContext, openWithinGrace } from './context-guards.ts';
-import { hasUnconfirmedDescendants } from './process-tree.ts';
+import { hasUnconfirmedDescendants, unrefActiveProcessPolls } from './process-tree.ts';
 
 const KILL_WAIT_MS = 500;
 
@@ -110,6 +110,7 @@ function trackKillCall(
       },
     );
     tracked.catch(() => undefined);
+    Object.defineProperty(tracked, 'unref', { value: () => unrefActiveProcessPolls(), configurable: true });
     return tracked;
   } catch (error) {
     const err = error instanceof Error ? error : new Error('DOCUMENT_BROWSER_KILL_FAILED');
@@ -137,6 +138,7 @@ async function waitKillOutcome(
     killGrace.stop();
   }
   const confirmed = isShutdownConfirmed(state);
+  if (!confirmed) unrefActiveProcessPolls();
   return { confirmed, exit: confirmed ? Promise.resolve() : state.confirmedPromise };
 }
 

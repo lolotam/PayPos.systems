@@ -6,6 +6,7 @@ import {
   createBrowserShutdown, createSharedStart, driveShutdownRetries, launchWithinTimeout, resolveLaunchCleanupGate, waitGate,
   watchUnconfirmedExit, type BrowserShutdown, type SharedStart,
 } from './launch.ts';
+import { unrefActiveProcessPolls } from './process-tree.ts';
 import { renderBrowserDocument } from './render-page.ts';
 import { resolveRendererConfig, type RendererOptions, type ResolvedRendererConfig } from './renderer-options.ts';
 
@@ -235,10 +236,11 @@ export class PlaywrightDocumentRenderer implements DocumentRenderer {
 
   #recordKillPromise(shutdown: BrowserShutdown, result: Promise<void>): Promise<void> {
     this.#openClosingGate();
-    return result.then(async () => {
+    const recorded = result.then(async () => {
       this.#confirmBrowserExit(shutdown);
       await this.unconfirmedExit;
     });
+    return Object.defineProperty(recorded, 'unref', { value: () => unrefActiveProcessPolls(), configurable: true });
   }
 
   #notifyUnconfirmed(code: string, immediate: boolean): void {

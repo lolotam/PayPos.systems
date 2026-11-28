@@ -16,8 +16,23 @@ const CLEANUP_KEY = Symbol('launchCleanup');
 const RETRY_KEY = Symbol('launchCleanupRetry');
 const UNCONFIRMED_DESCENDANT_KEY = Symbol('unconfirmedDescendantKill');
 const PID_POLL_MS = 10;
-const pollTick = (): Promise<void> => new Promise((r) => { setTimeout(r, PID_POLL_MS).unref(); });
 export const LAUNCH_MARKER_ENV = 'POSPAY_CHROMIUM_LAUNCH_ID';
+const [backgroundPolls, activePolledProcs, activePollTimers] = [new WeakSet<KillableProcess>(), new Set<KillableProcess>(), new Set<ReturnType<typeof setTimeout>>()];
+
+/** يحوّل استطلاع خروج العمليات المعلّقة للخلفية بعد انتهاء مهلة الإغلاق المحدودة دون إبقاء حلقة الحدث حيّة وحدها. */
+export function unrefActiveProcessPolls(proc?: KillableProcess): void {
+  if (proc !== undefined) backgroundPolls.add(proc);
+  else for (const p of activePolledProcs) backgroundPolls.add(p);
+  for (const timer of activePollTimers) timer.unref();
+}
+
+function pollTick(proc?: KillableProcess): Promise<void> {
+  return new Promise((resolve) => {
+    const timer = setTimeout(() => { activePollTimers.delete(timer); resolve(); }, PID_POLL_MS);
+    activePollTimers.add(timer);
+    if (proc !== undefined && backgroundPolls.has(proc)) timer.unref();
+  });
+}
 
 function markUnconfirmedDescendants(error: Error): Error {
   Object.defineProperty(error, UNCONFIRMED_DESCENDANT_KEY, { value: true, enumerable: false, configurable: true });
@@ -29,13 +44,9 @@ export function hasUnconfirmedDescendants(error: unknown): boolean {
   return error !== null && typeof error === 'object' && (error as Record<symbol, unknown>)[UNCONFIRMED_DESCENDANT_KEY] === true;
 }
 
-function errorWithCleanup(error: unknown): Error {
-  return error instanceof Error ? error : new Error(typeof error === 'string' ? error : 'DOCUMENT_LAUNCH_FAILED');
-}
-
 /** يربط وعد تنظيف Chromium المتروك ودالة إعادة المحاولة بخطأ الإطلاق عشان المُصيّر يقفل البوابة لحين انتهاء القتل. */
 export function withLaunchCleanup(error: unknown, cleanup: Promise<void>, retryKill?: () => Promise<void> | void): Error {
-  const wrapped = errorWithCleanup(error);
+  const wrapped = error instanceof Error ? error : new Error(typeof error === 'string' ? error : 'DOCUMENT_LAUNCH_FAILED');
   const safeCleanup = cleanup.then(() => undefined, (err: unknown) => { throw err instanceof Error ? err : new Error('DOCUMENT_LAUNCH_CLEANUP_FAILED'); });
   safeCleanup.catch(() => undefined);
   Object.defineProperty(wrapped, CLEANUP_KEY, { value: safeCleanup, enumerable: false, configurable: true });
@@ -43,17 +54,17 @@ export function withLaunchCleanup(error: unknown, cleanup: Promise<void>, retryK
   return wrapped;
 }
 
+const readSymProp = (err: unknown, key: symbol): unknown => (err !== null && typeof err === 'object' ? (err as Record<symbol, unknown>)[key] : undefined);
+
 /** يقرأ وعد تنظيف Chromium المرتبط بخطأ إطلاق بعد تفرّع العملية إن وُجد. */
 export function getLaunchCleanup(error: unknown): Promise<void> | undefined {
-  if (error === null || typeof error !== 'object') return undefined;
-  const value = (error as Record<symbol, unknown>)[CLEANUP_KEY];
+  const value = readSymProp(error, CLEANUP_KEY);
   return value instanceof Promise ? (value as Promise<void>) : undefined;
 }
 
 /** يقرأ دالة إعادة قتل عملية الإطلاق الفاشل لو التنظيف الأول اترفض. */
 export function getLaunchCleanupRetry(error: unknown): (() => Promise<void> | void) | undefined {
-  if (error === null || typeof error !== 'object') return undefined;
-  const value = (error as Record<symbol, unknown>)[RETRY_KEY];
+  const value = readSymProp(error, RETRY_KEY);
   return typeof value === 'function' ? (value as () => Promise<void> | void) : undefined;
 }
 
@@ -66,13 +77,13 @@ export function hasExited(proc: KillableProcess): boolean {
 /** يميز حالة الزومبي أو الخروج في `/proc/<pid>/stat` عشان التنظيف ما يعلّقش من غير reaper. */
 export function isLinuxStatZombie(statText: string): boolean {
   const closeParen = statText.lastIndexOf(')');
-  if (closeParen === -1) return false;
-  const state = statText.slice(closeParen + 1).trimStart()[0];
+  const state = closeParen === -1 ? undefined : statText.slice(closeParen + 1).trimStart()[0];
   return state === 'Z' || state === 'X' || state === 'x';
 }
 
 function osPidExists(pid: number): boolean {
-  try { process.kill(pid, 0); return true; } catch (error) { return (error as NodeJS.ErrnoException | null)?.code === 'EPERM'; }
+  if (!Number.isInteger(pid) || pid <= 0) return false;
+  try { process.kill(pid, 0); return true; } catch (error) { return (error as NodeJS.ErrnoException | null)?.code !== 'ESRCH'; }
 }
 
 /** يتحقق إن العملية لسه حيّة ومش زومبي، وما يعتبرش فشل القراءة خروجاً إلا لو فحص النواة أكد ESRCH. */
@@ -82,10 +93,8 @@ export function isPidAlive(pid: number, procRoot = '/proc'): boolean {
     try { return !isLinuxStatZombie(readFileSync(`${procRoot}/${pid}/stat`, 'utf8')); } catch { return osPidExists(pid); }
   }
   if (process.platform === 'darwin') {
-    try {
-      const state = execFileSync('ps', ['-o', 'state=', '-p', String(pid)], { encoding: 'utf8', timeout: 1_000 }).trim();
-      return state.length === 0 ? osPidExists(pid) : !state.startsWith('Z');
-    } catch { return osPidExists(pid); }
+    try { const s = execFileSync('ps', ['-o', 'state=', '-p', String(pid)], { encoding: 'utf8', timeout: 1_000 }).trim(); return s.length === 0 ? osPidExists(pid) : !s.startsWith('Z'); }
+    catch { return osPidExists(pid); }
   }
   return true;
 }
@@ -97,8 +106,7 @@ export function directLinuxChildren(pid: number, procRoot = '/proc'): number[] {
   const found = new Set<number>();
   for (const tid of tids) {
     try {
-      const text = readFileSync(`${procRoot}/${pid}/task/${tid}/children`, 'utf8').trim();
-      for (const token of text.split(/\s+/)) {
+      for (const token of readFileSync(`${procRoot}/${pid}/task/${tid}/children`, 'utf8').trim().split(/\s+/)) {
         const child = Number(token);
         if (Number.isInteger(child) && child > 0) found.add(child);
       }
@@ -115,13 +123,10 @@ function readLinuxProcessPairs(procRoot = '/proc'): Array<{ pid: number; ppid: n
     if (!/^\d+$/.test(entry)) continue;
     try {
       const stat = readFileSync(`${procRoot}/${entry}/stat`, 'utf8');
-      if (isLinuxStatZombie(stat)) continue;
       const closeParen = stat.lastIndexOf(')');
-      if (closeParen === -1) continue;
-      const fields = stat.slice(closeParen + 2).trim().split(/\s+/);
-      const ppid = Number(fields[1]);
-      const pgrp = Number(fields[2]);
-      const pid = Number(entry);
+      if (isLinuxStatZombie(stat) || closeParen === -1) continue;
+      const [, pp, pg] = stat.slice(closeParen + 2).trim().split(/\s+/);
+      const [pid, ppid, pgrp] = [Number(entry), Number(pp), Number(pg)];
       if (Number.isInteger(pid) && pid > 0 && Number.isInteger(ppid) && ppid > 0) rows.push({ pid, ppid, pgrp: Number.isInteger(pgrp) && pgrp > 0 ? pgrp : 0 });
     } catch { /* العملية خرجت أثناء قراءة stat */ }
   }
@@ -132,10 +137,8 @@ function readProcessTablePairs(procRoot = '/proc'): Array<{ pid: number; ppid: n
   if (process.platform === 'linux' || procRoot !== '/proc') return readLinuxProcessPairs(procRoot);
   if (process.platform !== 'darwin') return [];
   try {
-    return execFileSync('ps', ['-eo', 'pid=,ppid=,pgid='], { encoding: 'utf8', timeout: 1_000 })
-      .split('\n')
-      .map((line) => line.trim().split(/\s+/))
-      .map(([p, pp, pg]) => ({ pid: Number(p), ppid: Number(pp), pgrp: Number(pg) || 0 }))
+    return execFileSync('ps', ['-eo', 'pid=,ppid=,pgid='], { encoding: 'utf8', timeout: 1_000 }).split('\n')
+      .map((line) => { const [p, pp, pg] = line.trim().split(/\s+/); return { pid: Number(p), ppid: Number(pp), pgrp: Number(pg) || 0 }; })
       .filter((r) => Number.isInteger(r.pid) && r.pid > 0 && Number.isInteger(r.ppid) && r.ppid > 0);
   } catch { return []; }
 }
@@ -221,8 +224,8 @@ function checkPidStatus(pid: number, expectedFp: string, procRoot = '/proc'): 'e
   return expectedFp !== '' && cur === expectedFp ? 'same' : 'unverified';
 }
 
-async function waitForPidsExit(targets: ReadonlyArray<readonly [number, string]>, procRoot = '/proc'): Promise<void> {
-  while (targets.some(([pid, fp]) => checkPidStatus(pid, fp, procRoot) !== 'exited')) await pollTick();
+async function waitForPidsExit(targets: ReadonlyArray<readonly [number, string]>, procRoot = '/proc', proc?: KillableProcess): Promise<void> {
+  while (targets.some(([pid, fp]) => checkPidStatus(pid, fp, procRoot) !== 'exited')) await pollTick(proc);
 }
 
 function killLaunchProcessGroup(proc: KillableProcess, procRoot = '/proc'): void {
@@ -272,15 +275,11 @@ function revalidateRetained(proc: KillableProcess, procRoot: string): { pids: nu
   const prior = retainedDescendants.get(proc);
   if (prior === undefined) return { pids: [], unverifiedError: undefined, unresolvedError: undefined };
   const pids: number[] = [];
-  let unverifiedError: Error | undefined;
-  let unresolvedError: Error | undefined;
+  let [unverifiedError, unresolvedError]: [Error | undefined, Error | undefined] = [undefined, undefined];
   for (const [pid, expectedFp] of prior) {
-    const observedFp = expectedFp.startsWith('?') ? expectedFp.slice(1) : expectedFp;
-    const status = checkPidStatus(pid, observedFp, procRoot);
-    if (status === 'exited') {
-      prior.delete(pid);
-      if (!isUnresolvedFp(expectedFp) && readPidFingerprint(pid, procRoot) === undefined) pids.push(pid);
-    } else if (!isUnresolvedFp(expectedFp) && status === 'same') pids.push(pid);
+    const status = checkPidStatus(pid, expectedFp.startsWith('?') ? expectedFp.slice(1) : expectedFp, procRoot);
+    if (status === 'exited') { prior.delete(pid); if (!isUnresolvedFp(expectedFp) && readPidFingerprint(pid, procRoot) === undefined) pids.push(pid); }
+    else if (!isUnresolvedFp(expectedFp) && status === 'same') pids.push(pid);
     else if (isUnresolvedFp(expectedFp)) unresolvedError ??= markUnconfirmedDescendants(new Error('DESCENDANT_IDENTITY_UNVERIFIED'));
     else unverifiedError ??= markUnconfirmedDescendants(new Error('DESCENDANT_IDENTITY_UNVERIFIED'));
   }
@@ -332,12 +331,14 @@ function buildSeedFingerprints(proc: KillableProcess, rootPid: number | undefine
 
 function signalVerifiedDescendants(verified: ReadonlyArray<readonly [number, string]>, retained: Map<number, string>, initialError: Error | undefined, procRoot: string, signalPid: ((pid: number) => Error | undefined) | undefined): { waitPids: number[]; signalError: Error | undefined; holdRoot: boolean } {
   if (signalPid === undefined) return { waitPids: verified.map(([pid]) => pid), signalError: initialError, holdRoot: false };
-  const statuses = verified.map(([pid, fp]) => [pid, checkPidStatus(pid, fp, procRoot)] as const);
-  if (statuses.some(([, s]) => s === 'unverified')) return { waitPids: [], signalError: initialError ?? markUnconfirmedDescendants(new Error('DESCENDANT_IDENTITY_UNVERIFIED')), holdRoot: true };
+  const statuses = verified.map(([pid, fp]) => [pid, fp, checkPidStatus(pid, fp, procRoot)] as const);
+  if (statuses.some(([, , s]) => s === 'unverified')) return { waitPids: [], signalError: initialError ?? markUnconfirmedDescendants(new Error('DESCENDANT_IDENTITY_UNVERIFIED')), holdRoot: true };
   const waitPids: number[] = [];
   let signalError = initialError;
-  for (const [pid, status] of statuses) {
-    if (status === 'exited') { retained.delete(pid); continue; }
+  for (const [pid, fp, status] of statuses) {
+    const cur = status === 'exited' ? 'exited' : checkPidStatus(pid, fp, procRoot);
+    if (cur === 'exited') { retained.delete(pid); continue; }
+    if (cur === 'unverified') return { waitPids, signalError: signalError ?? markUnconfirmedDescendants(new Error('DESCENDANT_IDENTITY_UNVERIFIED')), holdRoot: true };
     const err = signalPid(pid);
     if (err === undefined) waitPids.push(pid);
     else signalError ??= markUnconfirmedDescendants(err);
@@ -406,7 +407,7 @@ function killSingleAndWait(proc: KillableProcess, procRoot = '/proc'): Promise<v
     if (isRootGone(proc, procRoot)) { confirmedExits.add(proc); return; }
     if (!ok) throw new Error('SIGKILL_REJECTED');
     if (typeof proc.pid !== 'number' || proc.pid <= 0) return;
-    return (async () => { while (!isRootGone(proc, procRoot)) await pollTick(); confirmedExits.add(proc); })();
+    return (async () => { while (!isRootGone(proc, procRoot)) await pollTick(proc); confirmedExits.add(proc); })();
   }
   return new Promise<void>((resolve, reject) => {
     let settled = false;
@@ -430,23 +431,28 @@ function safeKillSingle(proc: KillableProcess, procRoot = '/proc'): Promise<void
 export function captureOwnedDescendants(proc: KillableProcess, procRoot = '/proc'): void { terminateOwnedDescendants(proc, procRoot, undefined); }
 
 /** يقتل عملية Chromium الجذر ومجموعتها وكل شجرة توابعها مع توابع الإطلاق المؤكَّدة قبل فكّ قفل إعادة الإطلاق. */
-export function killProcessTree(proc: KillableProcess, procRoot = '/proc', signalPid: ((pid: number) => Error | undefined) | undefined = procRoot === '/proc' ? signalDescendantPid : undefined): Promise<void> | void {
+export function killProcessTree(proc: KillableProcess, procRoot = '/proc', signalPid: ((pid: number) => Error | undefined) | undefined = procRoot === '/proc' ? signalDescendantPid : undefined, rescan = false): Promise<void> | void {
+  if (!rescan) { backgroundPolls.delete(proc); activePolledProcs.add(proc); }
+  const wrap = (res: Promise<void> | void): Promise<void> | void => {
+    if (rescan) return res;
+    if (res === undefined) { activePolledProcs.delete(proc); backgroundPolls.delete(proc); return undefined; }
+    return Object.defineProperty(res.finally(() => { activePolledProcs.delete(proc); backgroundPolls.delete(proc); }), 'unref', { value: () => unrefActiveProcessPolls(proc), configurable: true });
+  };
   const toErr = (e: unknown): Error => markUnconfirmedDescendants(e instanceof Error ? e : new Error('SIGKILL_FAILED'));
   const childTree = (proc.children ?? []).map((child) => { try { return killProcessTree(child, procRoot, signalPid)?.catch((e: unknown) => { throw toErr(e); }); } catch (e) { return Promise.reject(toErr(e)); } });
-  const rootAlive = !hasExited(proc);
-  const { waitPids, signalError, holdRoot } = terminateOwnedDescendants(proc, procRoot, signalPid);
+  const [rootAlive, { waitPids, signalError, holdRoot }] = [!hasExited(proc), terminateOwnedDescendants(proc, procRoot, signalPid)];
   const hasRoot = typeof proc.pid === 'number' || rootAlive;
   const rootWait = holdRoot || !hasRoot ? undefined : (killLaunchProcessGroup(proc, procRoot), safeKillSingle(proc, procRoot));
   const waits: Array<Promise<void>> = childTree.filter((item): item is Promise<void> => item !== undefined);
   const waitTargets = waitPids.map((pid) => [pid, retainedDescendants.get(proc)?.get(pid) ?? ''] as const);
-  if (waitTargets.length > 0) waits.push(waitForPidsExit(waitTargets, procRoot));
+  if (waitTargets.length > 0) waits.push(waitForPidsExit(waitTargets, procRoot, proc));
   if (signalError !== undefined) waits.push(Promise.reject(signalError));
   const shouldRescan = (): boolean => waitTargets.length > 0 || (rootAlive && hasExited(proc));
-  if (rootWait === undefined && waits.length === 0) return shouldRescan() ? killProcessTree(proc, procRoot, signalPid) : undefined;
-  return Promise.allSettled(rootWait === undefined ? waits : [rootWait, ...waits]).then((res) => {
+  if (rootWait === undefined && waits.length === 0) return wrap(shouldRescan() ? killProcessTree(proc, procRoot, signalPid, true) : undefined);
+  return wrap(Promise.allSettled(rootWait === undefined ? waits : [rootWait, ...waits]).then((res) => {
     const errs = res.filter((x): x is PromiseRejectedResult => x.status === 'rejected');
     const chosen = errs.find((x) => hasUnconfirmedDescendants(x.reason)) ?? errs[0];
     if (chosen !== undefined) throw chosen.reason;
-    return shouldRescan() ? killProcessTree(proc, procRoot, signalPid) : undefined;
-  });
+    return shouldRescan() ? killProcessTree(proc, procRoot, signalPid, true) : undefined;
+  }));
 }
