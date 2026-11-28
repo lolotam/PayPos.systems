@@ -198,22 +198,19 @@ export function createMarkerProcess(launchMarker: string, resolveTarget?: () => 
   return proc;
 }
 
-function collectDescendantPids(rootPids: readonly number[], procRoot = '/proc'): { parentOf: Map<number, number>; groupOf: Map<number, number> } {
-  const parentOf = new Map<number, number>(rootPids.map((pid) => [pid, pid]));
-  const groupOf = new Map<number, number>();
-  const queue = [...rootPids];
-  const table = readProcessTablePairs(procRoot);
-  while (queue.length > 0) {
+function collectDescendantPids(rootPids: readonly number[], procRoot = '/proc', groupHints: readonly number[] = []): { parentOf: Map<number, number>; groupOf: Map<number, number> } {
+  const [parentOf, groupOf, queue, table] = [new Map<number, number>(rootPids.map((pid) => [pid, pid])), new Map<number, number>(), [...rootPids], readProcessTablePairs(procRoot)];
+  do {
     while (queue.length > 0) {
       const cur = queue.shift();
       if (cur === undefined) break;
       const tasks = process.platform === 'linux' || procRoot !== '/proc' ? directLinuxChildren(cur, procRoot) : [];
       for (const child of new Set([...tasks, ...table.filter((r) => r.ppid === cur).map((r) => r.pid)])) {
-        if (!parentOf.has(child)) { groupOf.delete(child); parentOf.set(child, cur); queue.push(child); }
+        if (!parentOf.has(child)) { parentOf.set(child, cur); queue.push(child); }
       }
     }
-    for (const g of new Set([...parentOf.keys(), ...groupOf.keys()])) if (g > 1 && g !== process.pid) for (const r of table) if (r.pgrp === g && !parentOf.has(r.pid) && !groupOf.has(r.pid)) { groupOf.set(r.pid, g); queue.push(r.pid); }
-  }
+    for (const g of new Set([...parentOf.keys(), ...groupOf.keys(), ...groupHints])) if (g > 1 && g !== process.pid) for (const r of table) if (r.pgrp === g && r.pid !== g && !groupOf.has(r.pid)) { groupOf.set(r.pid, g); if (!parentOf.has(r.pid)) queue.push(r.pid); }
+  } while (queue.length > 0);
   return { parentOf, groupOf };
 }
 
@@ -242,17 +239,13 @@ function collectMarkedLinuxPids(marker: string | undefined, procRoot = '/proc'):
   return readLinuxProcessPairs(procRoot).filter((row) => hasMatchingMarkerInProc(row.pid, marker, procRoot)).map((row) => row.pid);
 }
 
-function toKillError(error: unknown): Error | undefined {
-  const code = error instanceof Error && 'code' in error ? error.code : undefined;
-  return code === 'ESRCH' ? undefined : (error instanceof Error ? error : new Error('SIGKILL_FAILED'));
-}
-
 function signalDescendantPid(pid: number): Error | undefined {
   if (pid <= 0 || pid === process.pid) return undefined;
-  try { process.kill(pid, 'SIGKILL'); return undefined; } catch (e) { return toKillError(e); }
+  try { process.kill(pid, 'SIGKILL'); return undefined; } catch (e) { return (e as { code?: unknown } | null)?.code === 'ESRCH' ? undefined : (e instanceof Error ? e : new Error('SIGKILL_FAILED')); }
 }
 
 const retainedDescendants = new WeakMap<KillableProcess, Map<number, string>>();
+const rootFingerprints = new WeakMap<KillableProcess, string>();
 
 function readPidFingerprint(pid: number, procRoot = '/proc'): string | null | undefined {
   if (!isPidAlive(pid, procRoot)) return undefined;
@@ -315,10 +308,7 @@ function hasVerifiedAncestry(pid: number, parentOf: ReadonlyMap<number, number>,
 }
 
 function readVerifiedFingerprint(pid: number, procRoot = '/proc'): string | null | undefined {
-  for (let i = 0; i < 2; i += 1) {
-    const fp = readPidFingerprint(pid, procRoot);
-    if (fp !== null) return fp;
-  }
+  for (let i = 0; i < 2; i += 1) { const fp = readPidFingerprint(pid, procRoot); if (fp !== null) return fp; }
   return readPidFingerprint(pid, procRoot);
 }
 
@@ -334,7 +324,7 @@ function buildSeedFingerprints(proc: KillableProcess, rootPid: number | undefine
     const okRoot = seed === rootPid && !hasExited(proc);
     const okRetained = retainedSet.has(seed) && prior?.get(seed) === fp;
     const okMarked = markedSet.has(seed) && marker !== undefined && hasMatchingMarkerInProc(seed, marker, procRoot);
-    if (okRoot || okRetained || okMarked) seedFps.set(seed, fp);
+    if (okRoot || okRetained || okMarked) { if (okRoot) rootFingerprints.set(proc, fp); seedFps.set(seed, fp); }
   }
   return { seedFps, seedErr };
 }
@@ -357,13 +347,14 @@ function signalVerifiedDescendants(verified: ReadonlyArray<readonly [number, str
 function terminateOwnedDescendants(proc: KillableProcess, procRoot = '/proc', signalPid?: (pid: number) => Error | undefined): { waitPids: number[]; signalError: Error | undefined; holdRoot: boolean } {
   const marker = launchedMarkers.get(proc);
   const rootPid = typeof proc.pid === 'number' && proc.pid > 0 ? proc.pid : undefined;
-  const markedPids = collectMarkedLinuxPids(marker, procRoot);
-  const { pids: retainedPids, unverifiedError, unresolvedError } = revalidateRetained(proc, procRoot);
-  const seeds = [...new Set([...(rootPid !== undefined ? [rootPid] : []), ...markedPids, ...retainedPids])];
-  if (seeds.length === 0) return { waitPids: [], signalError: unverifiedError ?? unresolvedError, holdRoot: false };
+  const [rootAlive, markedPids, { pids: retainedPids, unverifiedError, unresolvedError }] = [rootPid !== undefined && !hasExited(proc), collectMarkedLinuxPids(marker, procRoot), revalidateRetained(proc, procRoot)];
+  const rootFp = !rootAlive && rootPid !== undefined ? readPidFingerprint(rootPid, procRoot) : undefined;
+  const keepGroup = !rootAlive && rootPid !== undefined && (rootFp === undefined || (rootFp !== null && (rootFp === rootFingerprints.get(proc) || (marker !== undefined && hasMatchingMarkerInProc(rootPid, marker, procRoot)))));
+  const [seeds, groupHints] = [[...new Set([...(rootAlive && rootPid !== undefined ? [rootPid] : []), ...markedPids, ...retainedPids])], keepGroup && rootPid !== undefined ? [rootPid] : []];
+  if (seeds.length === 0 && groupHints.length === 0) return { waitPids: [], signalError: unverifiedError ?? unresolvedError, holdRoot: false };
   const { seedFps, seedErr } = buildSeedFingerprints(proc, rootPid, new Set(markedPids), new Set(retainedPids), marker, seeds, procRoot);
   let signalError: Error | undefined = unverifiedError ?? seedErr;
-  const [retainedSet, { parentOf, groupOf }] = [new Set(retainedPids), collectDescendantPids(seeds, procRoot)];
+  const [retainedSet, { parentOf, groupOf }] = [new Set(retainedPids), collectDescendantPids(seeds, procRoot, groupHints)];
   const retained = retainedDescendants.get(proc) ?? new Map<number, string>();
   const candidates: Array<readonly [number, string | null]> = [];
   for (const pid of new Set([...parentOf.keys(), ...groupOf.keys(), ...markedPids, ...retainedPids])) {
@@ -395,14 +386,21 @@ function terminateOwnedDescendants(proc: KillableProcess, procRoot = '/proc', si
   return result;
 }
 
+function isRootGone(proc: KillableProcess, procRoot: string): boolean {
+  if (hasExited(proc)) return true;
+  if (typeof proc.pid !== 'number' || proc.pid <= 0) return false;
+  const expectedFp = rootFingerprints.get(proc);
+  return expectedFp !== undefined ? checkPidStatus(proc.pid, expectedFp, procRoot) === 'exited' : !isPidAlive(proc.pid, procRoot);
+}
+
 function killSingleAndWait(proc: KillableProcess, procRoot = '/proc'): Promise<void> | void {
   if (hasExited(proc)) return Promise.resolve();
   const isEsrch = (e: unknown): boolean => (e as NodeJS.ErrnoException | null)?.code === 'ESRCH';
   const once = proc.once;
   if (typeof once !== 'function') {
     killLaunchProcessGroup(proc, procRoot);
-    try { if (proc.kill('SIGKILL') || hasExited(proc)) { if (hasExited(proc)) confirmedExits.add(proc); return; } }
-    catch (e) { if (isEsrch(e) || hasExited(proc)) { confirmedExits.add(proc); return; } throw e; }
+    try { const ok = proc.kill('SIGKILL'); if (isRootGone(proc, procRoot)) { confirmedExits.add(proc); return; } if (ok) return; }
+    catch (e) { if (isEsrch(e) || isRootGone(proc, procRoot)) { confirmedExits.add(proc); return; } throw e; }
     throw new Error('SIGKILL_REJECTED');
   }
   return new Promise<void>((resolve, reject) => {
@@ -414,8 +412,8 @@ function killSingleAndWait(proc: KillableProcess, procRoot = '/proc'): Promise<v
     try {
       killLaunchProcessGroup(proc, procRoot);
       const signaled = proc.kill('SIGKILL');
-      if (hasExited(proc)) finish(); else if (!signaled) fail(new Error('SIGKILL_REJECTED'));
-    } catch (e) { if (isEsrch(e) || hasExited(proc)) finish(); else fail(e); }
+      if (isRootGone(proc, procRoot)) finish(); else if (!signaled) fail(new Error('SIGKILL_REJECTED'));
+    } catch (e) { if (isEsrch(e) || isRootGone(proc, procRoot)) finish(); else fail(e); }
   });
 }
 
@@ -429,9 +427,7 @@ export function captureOwnedDescendants(proc: KillableProcess, procRoot = '/proc
 /** يقتل عملية Chromium الجذر ومجموعتها وكل شجرة توابعها مع توابع الإطلاق المؤكَّدة قبل فكّ قفل إعادة الإطلاق. */
 export function killProcessTree(proc: KillableProcess, procRoot = '/proc', signalPid: ((pid: number) => Error | undefined) | undefined = procRoot === '/proc' ? signalDescendantPid : undefined): Promise<void> | void {
   const toErr = (e: unknown): Error => markUnconfirmedDescendants(e instanceof Error ? e : new Error('SIGKILL_FAILED'));
-  const childTree = (proc.children ?? []).map((child) => {
-    try { return killProcessTree(child, procRoot, signalPid)?.catch((e: unknown) => { throw toErr(e); }); } catch (e) { return Promise.reject(toErr(e)); }
-  });
+  const childTree = (proc.children ?? []).map((child) => { try { return killProcessTree(child, procRoot, signalPid)?.catch((e: unknown) => { throw toErr(e); }); } catch (e) { return Promise.reject(toErr(e)); } });
   const rootAlive = !hasExited(proc);
   const { waitPids, signalError, holdRoot } = terminateOwnedDescendants(proc, procRoot, signalPid);
   const hasRoot = typeof proc.pid === 'number' || rootAlive;
