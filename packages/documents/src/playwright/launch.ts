@@ -1,5 +1,5 @@
 import type { PdfBrowser } from './browser.ts';
-import { getLaunchCleanup } from './process-tree.ts';
+import { getLaunchCleanup, getLaunchCleanupRetry } from './process-tree.ts';
 import {
   createBrowserShutdown,
   dropRetiredBrowser,
@@ -11,9 +11,39 @@ export { createBrowserShutdown, type BrowserShutdown };
 
 type LaunchOutcome =
   | { readonly kind: 'browser'; readonly browser: PdfBrowser }
-  | { readonly kind: 'error'; readonly error: unknown }
+  | { readonly kind: 'error'; readonly error: unknown; readonly cleanup: Promise<void> | undefined }
   | { readonly kind: 'timeout'; readonly settled: Promise<void> }
   | { readonly kind: 'cancelled'; readonly settled: Promise<void> };
+
+/** يبني بوابة تنظيف إطلاق فاشل تفضل مقفولة لو القتل فشل وتسمح بإعادة المحاولة عبر `BrowserShutdown`. */
+export function resolveLaunchCleanupGate(
+  error: unknown,
+  onCleanupError?: (err: unknown) => void,
+  onShutdown?: (shutdown: BrowserShutdown) => void,
+  onConfirmed?: (shutdown: BrowserShutdown) => void,
+): Promise<void> | undefined {
+  const cleanup = getLaunchCleanup(error);
+  if (cleanup === undefined) return undefined;
+  const retry = getLaunchCleanupRetry(error);
+  const shutdown = createBrowserShutdown({
+    newContext: () => Promise.reject(new Error('DOCUMENT_LAUNCH_FAILED')),
+    close: () => Promise.reject(new Error('DOCUMENT_LAUNCH_FAILED')),
+    kill: () => (retry !== undefined ? retry() : cleanup),
+    on: () => undefined,
+  });
+  onShutdown?.(shutdown);
+  return cleanup.then(
+    () => {
+      onConfirmed?.(shutdown);
+    },
+    (cleanupErr: unknown) => {
+      onCleanupError?.(cleanupErr);
+      return shutdown.confirmed.then(() => {
+        onConfirmed?.(shutdown);
+      });
+    },
+  );
+}
 
 /** يقفل المتصفح المتقاعد ويستنى تأكيد خروج عمليته لو المهلة خلصت قبل التأكيد. */
 export function waitRetiredExit(browser: PdfBrowser, graceMs: number): Promise<void> {
@@ -62,6 +92,7 @@ export async function launchWithinTimeout(
   graceMs: number,
   signal?: AbortSignal,
   closeLate?: (browser: PdfBrowser) => Promise<void>,
+  cleanupForError?: (error: unknown) => Promise<void> | undefined,
 ): Promise<LaunchOutcome> {
   let cancelled = false;
   let landedBrowser: PdfBrowser | undefined;
@@ -75,9 +106,9 @@ export async function launchWithinTimeout(
       return closeOnce(browser).then(() => ({ kind: 'cancelled', settled: Promise.resolve() }) as const);
     },
     (error: unknown) => {
-      const lateCleanup = getLaunchCleanup(error);
-      if (lateCleanup !== undefined) cleanup ??= lateCleanup.catch(() => undefined);
-      return { kind: 'error', error } as const;
+      const gate = cleanupForError !== undefined ? cleanupForError(error) : resolveLaunchCleanupGate(error);
+      if (gate !== undefined) cleanup ??= gate;
+      return { kind: 'error', error, cleanup: gate } as const;
     },
   );
   const settled = guarded.then(() => cleanup ?? Promise.resolve(), () => cleanup ?? Promise.resolve());

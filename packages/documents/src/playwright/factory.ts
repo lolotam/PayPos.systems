@@ -166,9 +166,10 @@ export function playwrightFactory(
       } catch (error) {
         const captured = takeLaunchedProcess(launchMarker);
         if (getLaunchCleanup(error) !== undefined || captured === null) throw error;
-        const cleanup = killProcessTree(captured);
+        const retryKill = (): Promise<void> | void => killProcessTree(captured);
+        const cleanup = retryKill();
         if (cleanup === undefined) throw error;
-        throw withLaunchCleanup(error, cleanup);
+        throw withLaunchCleanup(error, cleanup, retryKill);
       }
     },
   };

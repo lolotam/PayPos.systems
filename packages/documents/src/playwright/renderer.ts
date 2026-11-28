@@ -3,10 +3,9 @@ import { assertHtmlWithinLimit } from '../domain/limits.ts';
 import type { DocumentRenderer, RenderOptions, StartOptions } from '../ports/document-renderer.ts';
 import type { PdfBrowser } from './browser.ts';
 import {
-  createBrowserShutdown, createSharedStart, launchWithinTimeout, waitGate, waitRetiredExit,
+  createBrowserShutdown, createSharedStart, launchWithinTimeout, resolveLaunchCleanupGate, waitGate,
   watchUnconfirmedExit, type BrowserShutdown, type SharedStart,
 } from './launch.ts';
-import { getLaunchCleanup } from './process-tree.ts';
 import { renderBrowserDocument } from './render-page.ts';
 import { resolveRendererConfig, type RendererOptions, type ResolvedRendererConfig } from './renderer-options.ts';
 
@@ -81,8 +80,8 @@ export class PlaywrightDocumentRenderer implements DocumentRenderer {
     void this.#launchOnce(active.signal).finally(() => {
       const stillWaited = active.finish();
       if (this.#activeStart === active) this.#activeStart = null;
-      const shouldRelaunch = !this.#available && !this.#closing && this.#retiring === null && (this.#relaunchNeeded || stillWaited);
-      this.#relaunchNeeded = false;
+      if (stillWaited && !this.#available && !this.#closing) this.#relaunchNeeded = true;
+      const shouldRelaunch = !this.#available && !this.#closing && this.#retiring === null && this.#relaunchNeeded;
       active.resolveWaiters();
       if (shouldRelaunch) this.#scheduleRelaunch();
     });
@@ -122,15 +121,16 @@ export class PlaywrightDocumentRenderer implements DocumentRenderer {
     if (this.#launchInFlight !== null && !this.#launchAborted) return this.#launchInFlight;
     this.#launchAborted = false;
     const prior = this.#launchInFlight;
-    const run = async (): Promise<void> => {
-      if (prior !== null) await prior.catch(() => undefined);
-      if (this.#closing || signal?.aborted) return;
-      await this.#runSingleLaunch(signal);
-    };
-    const flight = run().finally(() => {
-      if (this.#launchInFlight === flight) this.#launchInFlight = null;
-    });
+    let releaseFlight!: () => void;
+    const flight = new Promise<void>((resolve) => { releaseFlight = resolve; });
     this.#launchInFlight = flight;
+    void (async () => {
+      if (prior !== null) await prior.catch(() => undefined);
+      if (!this.#closing && !signal?.aborted) await this.#runSingleLaunch(signal);
+    })().finally(() => {
+      if (this.#launchInFlight === flight) this.#launchInFlight = null;
+      releaseFlight();
+    });
     return flight;
   }
 
@@ -200,15 +200,30 @@ export class PlaywrightDocumentRenderer implements DocumentRenderer {
     return tracked;
   }
 
-  async #retireLateDuringClose(browser: PdfBrowser): Promise<void> {
-    await this.#closeShutdown(createBrowserShutdown(browser));
-    if (this.#closingExit !== null) await this.#closingExit;
+  #retireAbandonedBrowser(browser: PdfBrowser): Promise<void> {
+    const shutdown = createBrowserShutdown(browser);
+    if (this.#closing) return this.#closeShutdown(shutdown).then(() => this.#closingExit ?? undefined);
+    this.#shutdown = shutdown;
+    return shutdown
+      .runClose(this.#cfg.closeGraceMs)
+      .then((out) => (out.confirmed ? undefined : Promise.race([out.exit, shutdown.confirmed])))
+      .catch(() => undefined)
+      .finally(() => this.#confirmBrowserExit(shutdown));
+  }
+
+  #cleanupGateForError(error: unknown): Promise<void> | undefined {
+    return resolveLaunchCleanupGate(
+      error,
+      (err) => this.#cfg.onLaunchError?.(err),
+      (shutdown) => { this.#shutdown = shutdown; },
+      (shutdown) => this.#confirmBrowserExit(shutdown),
+    );
   }
 
   async #runClose(): Promise<void> {
     const priorShutdown = this.#shutdown;
     if (this.#launchInFlight !== null) await this.#launchInFlight.catch(() => undefined);
-    const shutdown = this.#browser !== null ? this.#ensureShutdown() : priorShutdown;
+    const shutdown = this.#browser !== null ? this.#ensureShutdown() : (this.#shutdown ?? priorShutdown);
     if (shutdown === null) return;
     await this.#closeShutdown(shutdown);
   }
@@ -267,7 +282,8 @@ export class PlaywrightDocumentRenderer implements DocumentRenderer {
         this.#cfg.launchTimeoutMs,
         this.#cfg.closeGraceMs,
         controller.signal,
-        (late) => (this.#closing ? this.#retireLateDuringClose(late) : waitRetiredExit(late, this.#cfg.closeGraceMs)),
+        (late) => this.#retireAbandonedBrowser(late),
+        (err) => this.#cleanupGateForError(err),
       );
       if (outcome.kind === 'cancelled' || outcome.kind === 'timeout') {
         if (outcome.kind === 'timeout') controller.abort();
@@ -279,15 +295,14 @@ export class PlaywrightDocumentRenderer implements DocumentRenderer {
         return;
       }
       if (outcome.kind === 'error') {
-        const cleanup = getLaunchCleanup(outcome.error);
-        if (cleanup !== undefined) this.#trackPendingCancel(cleanup);
+        if (outcome.cleanup !== undefined) this.#trackPendingCancel(outcome.cleanup);
         throw outcome.error;
       }
       const browser = outcome.browser;
       if (this.#closing || controller.signal.aborted || (signal?.aborted ?? false)) {
         controller.abort();
         if (this.#closing) return await this.#closeShutdown(createBrowserShutdown(browser));
-        this.#trackPendingCancel(waitRetiredExit(browser, this.#cfg.closeGraceMs));
+        this.#trackPendingCancel(this.#retireAbandonedBrowser(browser));
         return;
       }
       this.#browser = browser;

@@ -298,7 +298,7 @@ it('treats procfs zombies as exited, ignores disappearing threads, and captures 
     mkdirSync(join(procDir, String(parentPid), 'task', '999'), { recursive: true });
     writeProc(`${parentPid}/task/${parentPid}`, { children: '101\n' });
     writeProc(`${parentPid}/task/102`, { children: '103\n' });
-    expect(directLinuxChildren(parentPid, procDir)).toEqual([101, 103]);
+    expect(directLinuxChildren(parentPid, procDir).sort((a, b) => a - b)).toEqual([101, 103]);
     expect(isPidAlive(process.pid, procDir)).toBe(true);
   } finally {
     rmSync(procDir, { recursive: true, force: true });

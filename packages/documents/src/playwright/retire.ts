@@ -69,6 +69,7 @@ interface ShutdownState {
   closeFinished: boolean;
   killAttempted: boolean;
   killConfirmed: boolean;
+  killFailed: boolean;
   fallbackAttempted: boolean;
   killSeq: number;
   killError: unknown;
@@ -101,8 +102,9 @@ function trackKillCall(
         onConfirmed();
       },
       (err: unknown) => {
-        onError(err);
-        throw err;
+        const normalized = err instanceof Error ? err : new Error('DOCUMENT_BROWSER_KILL_FAILED');
+        onError(normalized);
+        throw normalized;
       },
     );
     tracked.catch(() => undefined);
@@ -150,7 +152,7 @@ function safeCloseBrowser(browser: PdfBrowser, onFinished: () => void): Promise<
 function isShutdownConfirmed(state: ShutdownState): boolean {
   return (
     state.killConfirmed ||
-    (state.closeFinished && (!state.killAttempted || state.killError !== undefined))
+    (state.closeFinished && (!state.killAttempted || state.killFailed))
   );
 }
 
@@ -192,12 +194,13 @@ function ensureClosing(state: ShutdownState): Promise<unknown> {
 
 function runKillAttempt(state: ShutdownState, fromExternal: boolean): Promise<void> | undefined {
   if (isShutdownConfirmed(state)) return undefined;
-  if (state.killAttempted && state.killError === undefined) return state.killResult;
+  if (state.killAttempted && !state.killFailed) return state.killResult;
   if (!fromExternal) {
     if (state.fallbackAttempted) return Promise.reject(state.killError);
     if (state.killAttempted) state.fallbackAttempted = true;
   }
   state.killAttempted = true;
+  state.killFailed = false;
   state.killError = undefined;
   const seq = (state.killSeq += 1);
   state.killResult = trackKillCall(
@@ -207,6 +210,7 @@ function runKillAttempt(state: ShutdownState, fromExternal: boolean): Promise<vo
     },
     (err) => {
       if (state.killSeq !== seq) return;
+      state.killFailed = true;
       state.killError = err;
       if (state.closeFinished) markShutdownConfirmed(state, true);
     },
@@ -242,6 +246,7 @@ export function createBrowserShutdown(browser: PdfBrowser): BrowserShutdown {
     closeFinished: false,
     killAttempted: false,
     killConfirmed: false,
+    killFailed: false,
     fallbackAttempted: false,
     killSeq: 0,
     killError: undefined,

@@ -13,6 +13,7 @@ export type KillableProcess = {
 };
 
 const CLEANUP_KEY = Symbol('launchCleanup');
+const RETRY_KEY = Symbol('launchCleanupRetry');
 const PID_POLL_MS = 10;
 export const LAUNCH_MARKER_ENV = 'POSPAY_CHROMIUM_LAUNCH_ID';
 
@@ -21,10 +22,24 @@ function errorWithCleanup(error: unknown): Error {
   return new Error(typeof error === 'string' ? error : 'DOCUMENT_LAUNCH_FAILED');
 }
 
-/** يربط وعد تنظيف Chromium المتروك بخطأ الإطلاق عشان المُصيّر يقفل البوابة لحين انتهاء القتل. */
-export function withLaunchCleanup(error: unknown, cleanup: Promise<void>): Error {
+/** يربط وعد تنظيف Chromium المتروك ودالة إعادة المحاولة بخطأ الإطلاق عشان المُصيّر يقفل البوابة لحين انتهاء القتل. */
+export function withLaunchCleanup(
+  error: unknown,
+  cleanup: Promise<void>,
+  retryKill?: () => Promise<void> | void,
+): Error {
   const wrapped = errorWithCleanup(error);
-  Object.defineProperty(wrapped, CLEANUP_KEY, { value: cleanup, enumerable: false, configurable: true });
+  const safeCleanup = cleanup.then(
+    () => undefined,
+    (err: unknown) => {
+      throw err instanceof Error ? err : new Error('DOCUMENT_LAUNCH_CLEANUP_FAILED');
+    },
+  );
+  safeCleanup.catch(() => undefined);
+  Object.defineProperty(wrapped, CLEANUP_KEY, { value: safeCleanup, enumerable: false, configurable: true });
+  if (retryKill !== undefined) {
+    Object.defineProperty(wrapped, RETRY_KEY, { value: retryKill, enumerable: false, configurable: true });
+  }
   return wrapped;
 }
 
@@ -33,6 +48,13 @@ export function getLaunchCleanup(error: unknown): Promise<void> | undefined {
   if (error === null || typeof error !== 'object') return undefined;
   const value = (error as Record<symbol, unknown>)[CLEANUP_KEY];
   return value instanceof Promise ? (value as Promise<void>) : undefined;
+}
+
+/** يقرأ دالة إعادة قتل عملية الإطلاق الفاشل لو التنظيف الأول اترفض. */
+export function getLaunchCleanupRetry(error: unknown): (() => Promise<void> | void) | undefined {
+  if (error === null || typeof error !== 'object') return undefined;
+  const value = (error as Record<symbol, unknown>)[RETRY_KEY];
+  return typeof value === 'function' ? (value as () => Promise<void> | void) : undefined;
 }
 
 export function hasExited(proc: KillableProcess): boolean {
@@ -148,6 +170,7 @@ function readProcessTablePairs(procRoot = '/proc'): Array<{ pid: number; ppid: n
 }
 
 const pendingLaunches = new Map<string, KillableProcess | null>();
+const launchedMarkers = new WeakMap<KillableProcess, string>();
 let spawnHookInstalled = false;
 
 /** يسجل مقبض العملية الذي أطلقه Playwright تحت وسم الإطلاق المقابل. */
@@ -158,6 +181,7 @@ export function recordLaunchedProcess(
   const marker = typeof env?.[LAUNCH_MARKER_ENV] === 'string' ? env[LAUNCH_MARKER_ENV] : undefined;
   if (marker !== undefined && pendingLaunches.has(marker)) {
     pendingLaunches.set(marker, proc);
+    launchedMarkers.set(proc, marker);
   }
 }
 
@@ -220,8 +244,8 @@ async function waitForPidsExit(pids: readonly number[], procRoot = '/proc'): Pro
   }
 }
 
-function killLaunchProcessGroup(proc: KillableProcess): void {
-  if (process.platform === 'win32' || hasExited(proc)) return;
+function killLaunchProcessGroup(proc: KillableProcess, forceGroup = false): void {
+  if (process.platform === 'win32' || (!forceGroup && hasExited(proc))) return;
   if (typeof proc.pid !== 'number' || proc.pid <= 0) return;
   try {
     // Playwright بيطلق Chromium بـ detached: true على الأنظمة غير Windows فبيكون قائد مجموعة عمليات (-pid).
@@ -229,6 +253,21 @@ function killLaunchProcessGroup(proc: KillableProcess): void {
   } catch {
     // لو العملية مش قائد مجموعة أو خرجت، proc.kill('SIGKILL') بيتكفل بيها.
   }
+}
+
+function collectMarkedLinuxPids(marker: string | undefined, procRoot = '/proc'): number[] {
+  if (marker === undefined || (process.platform !== 'linux' && procRoot === '/proc')) return [];
+  const expected = `${LAUNCH_MARKER_ENV}=${marker}`;
+  const matched: number[] = [];
+  for (const row of readLinuxProcessPairs(procRoot)) {
+    try {
+      const envText = readFileSync(`${procRoot}/${row.pid}/environ`, 'utf8');
+      if (envText.split('\0').includes(expected)) matched.push(row.pid);
+    } catch {
+      // العملية خرجت أثناء الفحص.
+    }
+  }
+  return matched;
 }
 
 function killSingleAndWait(proc: KillableProcess): Promise<void> | void {
@@ -287,13 +326,15 @@ export function killProcessTree(proc: KillableProcess): Promise<void> | void {
       return Promise.reject(error instanceof Error ? error : new Error('SIGKILL_FAILED'));
     }
   });
-  const osDescendants =
-    !hasExited(proc) && typeof proc.pid === 'number' && proc.pid > 0 ? collectDescendantPids([proc.pid]) : [];
+  const seeds = new Set<number>();
+  if (typeof proc.pid === 'number' && proc.pid > 0) seeds.add(proc.pid);
+  for (const pid of collectMarkedLinuxPids(launchedMarkers.get(proc))) seeds.add(pid);
+  const osDescendants = seeds.size > 0 ? [...new Set([...seeds, ...collectDescendantPids([...seeds])])] : [];
+  const liveDescendants = osDescendants.filter((pid) => pid !== proc.pid || !hasExited(proc));
+  killLaunchProcessGroup(proc, liveDescendants.length > 0);
   const rootWait = safeKillSingle(proc);
   const waits: Array<Promise<void>> = childTree.filter((item): item is Promise<void> => item !== undefined);
-  if (osDescendants.length > 0) {
-    waits.push(waitForPidsExit(osDescendants));
-  }
+  if (liveDescendants.length > 0) waits.push(waitForPidsExit(liveDescendants));
   if (rootWait === undefined && waits.length === 0) return undefined;
   const all = rootWait === undefined ? waits : [rootWait, ...waits];
   return Promise.allSettled(all).then((results) => {

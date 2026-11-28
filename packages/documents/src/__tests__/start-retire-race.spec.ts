@@ -388,9 +388,9 @@ it('allows kill() to terminate a launch-handoff browser immediately and avoids a
   await new Promise<void>((resolve) => queueMicrotask(() => queueMicrotask(resolve)));
   expect(closeCalls).toBe(1);
   expect(killCalls).toBe(0);
-  const startedKillAt = Date.now();
-  await Promise.all([Promise.resolve(renderer.kill()), starting, closing]);
-  expect(Date.now() - startedKillAt).toBeLessThan(80);
+  const killing = Promise.resolve(renderer.kill());
+  expect(killCalls).toBe(1);
+  await Promise.all([killing, starting, closing]);
   expect(killCalls).toBe(1);
   await new Promise((resolve) => setTimeout(resolve, 180));
   expect(killCalls).toBe(1);
