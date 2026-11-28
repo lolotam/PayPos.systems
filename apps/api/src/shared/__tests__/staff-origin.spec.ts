@@ -54,11 +54,20 @@ describe('staffNativeOriginsFrom', () => {
 });
 
 describe('staffOriginsFrom (#666)', () => {
-  it('wires STAFF_OTP_POS_ORIGIN and STAFF_NATIVE_ORIGINS together', () => {
+  it('wires trimmed STAFF_OTP_POS_ORIGIN and STAFF_NATIVE_ORIGINS together', () => {
     expect(staffOriginsFrom({})).toEqual({ origin: null, nativeOrigins: [] });
     expect(
       staffOriginsFrom({
-        STAFF_OTP_POS_ORIGIN: 'https://pos.staging.pospay.systems',
+        STAFF_OTP_POS_ORIGIN: '   ',
+        STAFF_NATIVE_ORIGINS: 'capacitor://localhost',
+      }),
+    ).toEqual({
+      origin: null,
+      nativeOrigins: ['capacitor://localhost'],
+    });
+    expect(
+      staffOriginsFrom({
+        STAFF_OTP_POS_ORIGIN: ' https://pos.staging.pospay.systems ',
         STAFF_NATIVE_ORIGINS: 'capacitor://localhost',
       }),
     ).toEqual({

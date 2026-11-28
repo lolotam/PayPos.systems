@@ -29,7 +29,7 @@ async function seedConstrainedRoles(fixture: PermissionFixture): Promise<void> {
   await fixture.h
     .owner`INSERT INTO role_permissions(role_id, role_owner_key, company_id, permission_code, constraints)
     VALUES
-      (${editorRole}, ${fixture.company}, ${fixture.company}, 'approve:discounts:branch', '{"max_pct":15,"max_amount":500,"manual_edit":true}'::jsonb),
+      (${editorRole}, ${fixture.company}, ${fixture.company}, 'approve:discounts:branch', '{"max_pct":15,"max_amount":500000,"manual_edit":true}'::jsonb),
       (${editorRole}, ${fixture.company}, ${fixture.company}, 'read:branches:branch', '{}'::jsonb),
       (${branchRole}, ${fixture.company}, ${fixture.company}, 'approve:discounts:branch', '{"max_pct":10,"manual_edit":false}'::jsonb)`;
 }
@@ -52,7 +52,7 @@ it('readAccessTransaction carries role_permissions.constraints, omits {} and mer
     expect.objectContaining({
       scopeType: 'COMPANY',
       scopeId: f.company,
-      constraints: { max_pct: 15, max_amount: 500, manual_edit: true },
+      constraints: { max_pct: 15, max_amount: 500000n, manual_edit: true },
     }),
   );
   expect(discountGrants).toContainEqual(
@@ -72,5 +72,5 @@ it('readAccessTransaction carries role_permissions.constraints, omits {} and mer
       'approve:discounts:branch',
       inspected.targets.target,
     ),
-  ).toEqual({ max_pct: 10, max_amount: 500, manual_edit: false });
+  ).toEqual({ max_pct: 10, max_amount: 500000n, manual_edit: false });
 });

@@ -23,11 +23,9 @@ const clean = async () => {
 };
 
 beforeAll(async () => {
-  redis = new Redis(
-    process.env['REDIS_URL'] ||
-      `redis://:${encodeURIComponent(process.env['REDIS_PASSWORD'] ?? '')}@127.0.0.1:${process.env['REDIS_PORT'] ?? '6379'}`,
-    { keyPrefix: prefix, enableOfflineQueue: false, maxRetriesPerRequest: 0 },
-  );
+  const url = process.env['REDIS_URL']?.trim();
+  if (!url) throw new Error('REDIS_URL is required for redis-device-pin-cap spec (#1017)');
+  redis = new Redis(url, { keyPrefix: prefix, enableOfflineQueue: false, maxRetriesPerRequest: 0 });
   redis.on('error', () => undefined);
   scanner = redis.duplicate({ keyPrefix: '' });
   scanner.on('error', () => undefined);
@@ -47,10 +45,9 @@ beforeAll(async () => {
 beforeEach(clean);
 
 afterAll(async () => {
-  if (redis === undefined) return;
-  await clean();
-  await scanner.quit();
-  await redis.quit();
+  if (scanner?.status === 'ready') await clean().catch(() => undefined);
+  await scanner?.quit().catch(() => undefined);
+  await redis?.quit().catch(() => undefined);
 });
 
 async function admissions(count: number) {

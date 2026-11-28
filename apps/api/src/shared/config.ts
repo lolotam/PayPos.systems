@@ -38,6 +38,10 @@ function isSingleHttpOrigin(origin: string): boolean {
   }
 }
 
+function isCorsOrigin(origin: string): boolean {
+  return origin === 'capacitor://localhost' || (!/[*?]/.test(origin) && isSingleHttpOrigin(origin));
+}
+
 const schema = z.object({
   PLATFORM_NOTIFICATIONS_DATABASE_URL: z.preprocess(
     (value) => (value === '' ? undefined : value),
@@ -71,7 +75,7 @@ const schema = z.object({
         .filter((origin) => origin !== ''),
     ),
   // Optional Fastify CORS allow-list; empty defaults to AUTH_TRUSTED_ORIGINS so native apps can receive CORS
-  // without widening Better Auth's session origin trust (#669).
+  // without widening Better Auth's session origin trust (#669). Exact origins only (http(s) or capacitor://localhost).
   API_CORS_ORIGINS: z
     .string()
     .default('')
@@ -80,7 +84,8 @@ const schema = z.object({
         .split(',')
         .map((origin) => origin.trim())
         .filter((origin) => origin !== ''),
-    ),
+    )
+    .pipe(z.array(z.string().refine(isCorsOrigin))),
   RATING_PAGE_ORIGIN: z
     .string()
     .trim()
@@ -133,8 +138,9 @@ function adminOriginIsTrusted(config: ApiConfig): boolean {
 function isUnderCookieDomain(origin: string, cookieDomain: string | undefined): boolean {
   if (origin === '' || cookieDomain === undefined) return false;
   const domain = cookieDomain.slice(1).toLowerCase();
-  const hostname = new URL(origin).hostname.toLowerCase();
-  return hostname === domain || hostname.endsWith(`.${domain}`);
+  const hostname = new URL(origin).hostname.toLowerCase().replace(/\.+$/, '');
+  const domains = domain.endsWith('.pospay.systems') ? [domain, 'pospay.systems'] : [domain];
+  return domains.some((d) => hostname === d || hostname.endsWith(`.${d}`));
 }
 
 /**
@@ -172,15 +178,20 @@ export function readConfig(env: NodeJS.ProcessEnv): ApiConfig {
           !config.AUTH_TRUSTED_ORIGINS.some((pattern) =>
             matchesTrustedOrigin(config.RATING_PAGE_ORIGIN, pattern),
           ) &&
-          !config.API_CORS_ORIGINS.some((pattern) =>
-            matchesTrustedOrigin(config.RATING_PAGE_ORIGIN, pattern),
-          )),
+          !config.API_CORS_ORIGINS.includes(config.RATING_PAGE_ORIGIN)),
       {
         path: ['RATING_PAGE_ORIGIN'],
         // نفحص العلاقة بعد صلاحية القيم حتى لا يكشف استثناء URL إعدادًا غير صالح.
-        when: (payload) =>
-          schema.pick({ BETTER_AUTH_URL: true, RATING_PAGE_ORIGIN: true }).safeParse(payload.value)
-            .success,
+        when: (payload) => {
+          const v = payload.value as { AUTH_TRUSTED_ORIGINS?: unknown; API_CORS_ORIGINS?: unknown };
+          return (
+            schema
+              .pick({ BETTER_AUTH_URL: true, RATING_PAGE_ORIGIN: true })
+              .safeParse(payload.value).success &&
+            Array.isArray(v.AUTH_TRUSTED_ORIGINS) &&
+            Array.isArray(v.API_CORS_ORIGINS)
+          );
+        },
       },
     )
     .refine((config) => !isUnderCookieDomain(config.RATING_PAGE_ORIGIN, config.COOKIE_DOMAIN), {

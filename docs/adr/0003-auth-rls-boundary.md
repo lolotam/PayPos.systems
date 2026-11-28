@@ -341,11 +341,12 @@ type Principal = {
 
 type PermissionConstraints = {
   max_pct?: number;
-  max_amount?: number;
-  max_variance?: number;
+  max_amount?: bigint; // integer mills (1 KWD = 1000n), parsed from non-negative integer mills
+  max_variance?: bigint; // integer mills (1 KWD = 1000n)
   backdate_days?: number;
   manual_edit?: boolean;
   max_rows?: number;
+  invalid?: boolean; // set when stored constraints JSON is malformed; merge fails closed (null)
 };
 
 type Grant = {
@@ -376,7 +377,7 @@ The guard evaluates `grants` only, so it has one code path for every credential.
 
 So a business-wide ALLOW with a DENY on branch 3 permits branches 1, 2, 4 and refuses branch 3.
 
-**Grant constraints (`#10`).** `role_permissions.constraints` travels on each `ALLOW` `Grant` as `constraints?: PermissionConstraints` (omitted when `{}`). When `evaluateAccess` permits a target and multiple covering `ALLOW` grants carry constraints, they merge with **the most restrictive wins** — matching `DENY` wins (`Math.min` for numeric bounds `max_pct`, `max_amount`, `max_variance`, `backdate_days`, `max_rows`; `false` wins over `true` for boolean `manual_edit`). When P2-T7 enforces constraints at an action boundary, over-limit requests route to `approval_requests` (`P2-T7.2`).
+**Grant constraints (`#10`).** `role_permissions.constraints` travels on each `ALLOW` `Grant` as `constraints?: PermissionConstraints` (omitted when `{}`). Monetary limits (`max_amount`, `max_variance`) use `bigint` mills (`1 KWD = 1000n`), never JS `number`. When `evaluateAccess` permits a target and multiple covering `ALLOW` grants carry constraints, they merge with **the most restrictive wins** — matching `DENY` wins (`Math.min` / bigint min across numeric bounds `max_pct`, `max_amount`, `max_variance`, `backdate_days`, `max_rows`; `false` wins over `true` for boolean `manual_edit`). Malformed stored `constraints` produce `{ invalid: true }` and cause `mergeGrantConstraints` to fail closed (`null`), never degrading into an unlimited `ALLOW`. When P2-T7 enforces constraints at an action boundary, over-limit requests route to `approval_requests` (`P2-T7.2`).
 
 ### 4.1 Rules
 

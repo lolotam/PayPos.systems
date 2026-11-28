@@ -390,6 +390,7 @@ try {
       database,
       files,
       redis,
+      authTrustedOrigins: config.AUTH_TRUSTED_ORIGINS,
       corsOrigins: corsOriginsFrom(config),
       // البوابة بتتقرأ مرة واحدة هنا عند الإقلاع: مفيش مسار من شريحة 076 يوصل قبل ما تتدمج.
       staffAccessRoutes: staffAccessRoutesEnabled(process.env),

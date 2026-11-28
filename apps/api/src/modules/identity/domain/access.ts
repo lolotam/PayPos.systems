@@ -5,14 +5,17 @@ export type ScopeType = 'COMPANY' | 'BUSINESS' | 'BRANCH';
 
 /**
  * قيود الصلاحية الرقمية أو المنطقية المحمولة من role_permissions (ADR-0003 §4).
+ * المبالغ المالية (`max_amount` و `max_variance`) محفوظة بالملّيم الصحيح (`bigint`، 1 KWD = 1000n).
  */
 export interface PermissionConstraints {
   readonly max_pct?: number;
-  readonly max_amount?: number;
-  readonly max_variance?: number;
+  readonly max_amount?: bigint;
+  readonly max_variance?: bigint;
   readonly backdate_days?: number;
   readonly manual_edit?: boolean;
   readonly max_rows?: number;
+  /** علامة فساد القيد المخزن: تمنع تحويل القيد التالف إلى صلاحية مفتوحة بلا حدود. */
+  readonly invalid?: boolean;
 }
 
 /**
@@ -92,58 +95,122 @@ export function evaluateAccess(
   return applicable.some((g) => g.effect === 'ALLOW');
 }
 
-const NUMERIC_CONSTRAINTS = [
-  'max_pct',
-  'max_amount',
-  'max_variance',
-  'backdate_days',
-  'max_rows',
-] as const;
+const MONEY_MAX_MILLS = 99_999_999_999_999n;
+const INTEGER_CONSTRAINTS = ['backdate_days', 'max_rows'] as const;
+const MONEY_CONSTRAINTS = ['max_amount', 'max_variance'] as const;
 
 type MutableConstraints = {
   max_pct?: number;
-  max_amount?: number;
-  max_variance?: number;
+  max_amount?: bigint;
+  max_variance?: bigint;
   backdate_days?: number;
   manual_edit?: boolean;
   max_rows?: number;
 };
 
+const isValidPct = (value: unknown): value is number =>
+  typeof value === 'number' && Number.isFinite(value) && value >= 0 && value <= 100;
+
+const isValidNonNegInt = (value: unknown): value is number =>
+  typeof value === 'number' && Number.isSafeInteger(value) && value >= 0;
+
+function parseMills(value: unknown): bigint | null {
+  if (typeof value === 'bigint') return value >= 0n && value <= MONEY_MAX_MILLS ? value : null;
+  if (isValidNonNegInt(value)) {
+    const mills = BigInt(value);
+    return mills <= MONEY_MAX_MILLS ? mills : null;
+  }
+  if (typeof value === 'string' && /^\d+$/.test(value)) {
+    const mills = BigInt(value);
+    return mills <= MONEY_MAX_MILLS ? mills : null;
+  }
+  return null;
+}
+
+function assignConstraint(parsed: MutableConstraints, key: string, value: unknown): boolean {
+  if (key === 'max_pct') {
+    if (!isValidPct(value)) return false;
+    parsed.max_pct = value;
+    return true;
+  }
+  if (key === 'backdate_days' || key === 'max_rows') {
+    if (!isValidNonNegInt(value)) return false;
+    parsed[key] = value;
+    return true;
+  }
+  if (key === 'max_amount' || key === 'max_variance') {
+    const mills = parseMills(value);
+    if (mills === null) return false;
+    parsed[key] = mills;
+    return true;
+  }
+  if (key === 'manual_edit') {
+    if (typeof value !== 'boolean') return false;
+    parsed.manual_edit = value;
+    return true;
+  }
+  return false;
+}
+
 /**
  * بيقرأ كائن القيود الخام من جدول role_permissions ويرجّع القيود الصالحة أو undefined لو فاضي.
- * المنح اللي ملهاش قيود بتفضل من غير حقل constraints عشان شكلها يفضل ثابت.
+ * لو القيد تالف أو فيه مفتاح أو قيمة غير صالحة بيرجع `{ invalid: true }` عشان الدمج يرفض بأمان (fail-closed)
+ * وما يقلبش القيد المكسور لصلاحية مفتوحة بلا حدود.
  *
  * @param raw القيمة الخام اللي جاية من عمود constraints (jsonb)
- * @returns القيود الصالحة أو undefined لو مفيش قيود
+ * @returns القيود الصالحة، أو undefined لو {} فاضي، أو `{ invalid: true }` لو تالف
  */
 export function parsePermissionConstraints(raw: unknown): PermissionConstraints | undefined {
-  if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) return undefined;
-  const record = raw as Record<string, unknown>;
+  if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) return { invalid: true };
+  const entries = Object.entries(raw);
+  if (entries.length === 0) return undefined;
   const parsed: MutableConstraints = {};
-  let hasAny = false;
-  for (const key of NUMERIC_CONSTRAINTS) {
-    const value = record[key];
-    if (typeof value === 'number' && Number.isFinite(value) && value >= 0) {
-      parsed[key] = value;
-      hasAny = true;
-    }
+  for (const [key, value] of entries) {
+    if (!assignConstraint(parsed, key, value)) return { invalid: true };
   }
-  if (typeof record['manual_edit'] === 'boolean') {
-    parsed.manual_edit = record['manual_edit'];
-    hasAny = true;
+  return parsed;
+}
+
+function mergeOneGrant(merged: MutableConstraints, current: PermissionConstraints): boolean {
+  if (current.invalid === true) return false;
+  if (current.max_pct !== undefined) {
+    if (!isValidPct(current.max_pct)) return false;
+    merged.max_pct =
+      merged.max_pct === undefined ? current.max_pct : Math.min(merged.max_pct, current.max_pct);
   }
-  return hasAny ? parsed : undefined;
+  for (const key of INTEGER_CONSTRAINTS) {
+    const value = current[key];
+    if (value === undefined) continue;
+    if (!isValidNonNegInt(value)) return false;
+    const existing = merged[key];
+    merged[key] = existing === undefined ? value : Math.min(existing, value);
+  }
+  for (const key of MONEY_CONSTRAINTS) {
+    const value = current[key];
+    if (value === undefined) continue;
+    if (typeof value !== 'bigint' || value < 0n || value > MONEY_MAX_MILLS) return false;
+    const existing = merged[key];
+    merged[key] = existing === undefined ? value : value < existing ? value : existing;
+  }
+  if (current.manual_edit !== undefined) {
+    if (typeof current.manual_edit !== 'boolean') return false;
+    merged.manual_edit =
+      merged.manual_edit === undefined
+        ? current.manual_edit
+        : merged.manual_edit && current.manual_edit;
+  }
+  return true;
 }
 
 /**
  * بيجمع قيود المنح المغطّية لما الطلب مسموح عند الـ target (ADR-0003 §4، #10).
  * لما كذا GRANT بتغطي نفس الصلاحية والهدف، أضيق قيد هو اللي بيكسب (أصغر رقم، و false لـ manual_edit)
- * تماشياً مع قاعدة DENY يكسب. بيرجّع null لو الطلب مرفوض أصلاً.
+ * تماشياً مع قاعدة DENY يكسب. بيرجّع null لو الطلب مرفوض أو لو فيه قيد تالف (`invalid: true`).
  *
  * @param grants     كل صلاحيات الـ principal في الشركة
  * @param permission الصلاحية المطلوبة
  * @param target     الهدف المطلوب تقييمه
- * @returns القيود المجمعة لو مسموح (أو {} لو من غير قيود)، أو null لو مرفوض
+ * @returns القيود المجمعة لو مسموح (أو {} لو من غير قيود)، أو null لو مرفوض أو تالف
  */
 export function mergeGrantConstraints(
   grants: readonly AccessGrant[],
@@ -155,20 +222,7 @@ export function mergeGrantConstraints(
   for (const grant of grants) {
     if (grant.permission !== permission || grant.effect !== 'ALLOW' || !covers(grant, target))
       continue;
-    const current = grant.constraints;
-    if (current === undefined) continue;
-    for (const key of NUMERIC_CONSTRAINTS) {
-      const value = current[key];
-      if (value === undefined) continue;
-      const existing = merged[key];
-      merged[key] = existing === undefined ? value : Math.min(existing, value);
-    }
-    if (current.manual_edit !== undefined) {
-      merged.manual_edit =
-        merged.manual_edit === undefined
-          ? current.manual_edit
-          : merged.manual_edit && current.manual_edit;
-    }
+    if (grant.constraints !== undefined && !mergeOneGrant(merged, grant.constraints)) return null;
   }
   return merged;
 }

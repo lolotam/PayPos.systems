@@ -11,14 +11,17 @@ export interface MembershipScope {
 
 /**
  * قيود الصلاحية الرقمية أو المنطقية المحمولة من جدول role_permissions (ADR-0003 §4).
+ * المبالغ المالية (`max_amount` و `max_variance`) محفوظة بالملّيم الصحيح (`bigint`، 1 KWD = 1000n).
  */
 export interface PermissionConstraints {
   readonly max_pct?: number;
-  readonly max_amount?: number;
-  readonly max_variance?: number;
+  readonly max_amount?: bigint;
+  readonly max_variance?: bigint;
   readonly backdate_days?: number;
   readonly manual_edit?: boolean;
   readonly max_rows?: number;
+  /** علامة فساد القيد المخزن: تمنع تحويل القيد التالف إلى صلاحية مفتوحة بلا حدود. */
+  readonly invalid?: boolean;
 }
 
 /**

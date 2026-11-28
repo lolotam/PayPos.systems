@@ -43,13 +43,37 @@ describe('API_CORS_ORIGINS (#669)', () => {
     ]);
     expect(corsOriginsFrom(cfg)).toEqual(['https://pos.example.test', 'capacitor://localhost']);
   });
+});
 
-  it('refuses RATING_PAGE_ORIGIN when matched by API_CORS_ORIGINS without echoing it', () => {
+describe('API_CORS_ORIGINS validation (#669)', () => {
+  it.each([
+    '*',
+    'https://*.example.test',
+    'https://rat?ng.example.test',
+    'capacitor://other',
+    'https://pos.example.test/path',
+  ])('rejects wildcard or non-exact API_CORS_ORIGINS entry %s without echoing it', (bad) => {
+    const attempt = () => readConfig({ ...valid, API_CORS_ORIGINS: bad });
+    expect(attempt).toThrow(/API_CORS_ORIGINS/);
+    expect(attempt).not.toThrow(bad);
+  });
+
+  it('reports API_CORS_ORIGINS without throwing TypeError when a non-string value is passed alongside RATING_PAGE_ORIGIN', () => {
+    expect(() =>
+      readConfig({
+        ...valid,
+        RATING_PAGE_ORIGIN: 'https://rating.example.test',
+        API_CORS_ORIGINS: 123 as unknown as string,
+      }),
+    ).toThrow(/Invalid API configuration:.*API_CORS_ORIGINS/);
+  });
+
+  it('refuses RATING_PAGE_ORIGIN matching an exact API_CORS_ORIGINS entry without echoing it', () => {
     const attempt = () =>
       readConfig({
         ...valid,
         RATING_PAGE_ORIGIN: 'https://rating.example.test',
-        API_CORS_ORIGINS: 'https://admin.example.test, https://*.example.test',
+        API_CORS_ORIGINS: 'https://admin.example.test, https://rating.example.test',
       });
     expect(attempt).toThrow(/RATING_PAGE_ORIGIN/);
     expect(attempt).not.toThrow('https://rating.example.test');
@@ -58,16 +82,19 @@ describe('API_CORS_ORIGINS (#669)', () => {
 
 describe('RATING_PAGE_ORIGIN vs COOKIE_DOMAIN (#856)', () => {
   it.each([
-    'https://rating.pospay.systems',
-    'https://pospay.systems',
-    'https://RATING.POSPAY.SYSTEMS:8443',
+    ['.pospay.systems', 'https://rating.pospay.systems'],
+    ['.pospay.systems', 'https://pospay.systems'],
+    ['.pospay.systems', 'https://rating.pospay.systems:8443'],
+    ['.pospay.systems', 'https://rating.pospay.systems.'],
+    ['.pospay.systems', 'https://pospay.systems.'],
+    ['.staging.pospay.systems', 'https://rating.pospay.systems'],
   ])(
-    'refuses %s under COOKIE_DOMAIN=.pospay.systems without echoing raw values',
-    (ratingOrigin) => {
+    'refuses COOKIE_DOMAIN=%s with %s without echoing raw values',
+    (cookieDomain, ratingOrigin) => {
       const attempt = () =>
         readConfig({
           ...valid,
-          COOKIE_DOMAIN: '.pospay.systems',
+          COOKIE_DOMAIN: cookieDomain,
           RATING_PAGE_ORIGIN: ratingOrigin,
         });
       expect(attempt).toThrow(/RATING_PAGE_ORIGIN/);

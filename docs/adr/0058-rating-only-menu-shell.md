@@ -52,8 +52,9 @@ or multiple origins). The template contains only a synthetic placeholder.
 HTTP origins are allowed only with explicit `NODE_ENV=development` or `NODE_ENV=test`;
 all other environments, including an unset `NODE_ENV`, require HTTPS.
 Startup also rejects a nonempty rating origin equal to `new URL(BETTER_AUTH_URL).origin`,
-matched by `AUTH_TRUSTED_ORIGINS` or `API_CORS_ORIGINS` using Better Auth's wildcard semantics (#867, #669), or hosted on or under `COOKIE_DOMAIN` (#856),
-so a misconfiguration cannot grant the public page login trust or leak session cookies from logged-in browsers.
+matched by `AUTH_TRUSTED_ORIGINS` (Better Auth wildcard semantics, #867) or present in `API_CORS_ORIGINS` (#669),
+or hosted on or under the configured `COOKIE_DOMAIN` (and `.pospay.systems` when `COOKIE_DOMAIN` sits beneath it, #856).
+Because startup validates only the running API's `COOKIE_DOMAIN`, operators must deploy the public rating host outside every deployed session-cookie domain so logged-in browsers never send session cookies or receive login trust.
 
 The public policy omits credentials and cookies, permits GET for view and POST for
 submit/opt-out (plus OPTIONS), and allows only `content-type` and `x-rating-token`.

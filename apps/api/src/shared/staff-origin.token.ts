@@ -32,8 +32,9 @@ export function staffOriginsFrom(env: NodeJS.ProcessEnv): {
   readonly origin: string | null;
   readonly nativeOrigins: readonly string[];
 } {
+  const origin = env['STAFF_OTP_POS_ORIGIN']?.trim();
   return {
-    origin: env['STAFF_OTP_POS_ORIGIN'] || null,
+    origin: origin ? origin : null,
     nativeOrigins: staffNativeOriginsFrom(env['STAFF_NATIVE_ORIGINS']),
   };
 }

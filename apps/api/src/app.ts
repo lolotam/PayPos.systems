@@ -264,10 +264,14 @@ class AppModule {
         // membership and the permission at the target unless @Authenticated(); then the feature flag.
         { provide: APP_GUARD, useClass: SessionGuard },
         ...onboardingProviders(deps, logger, onboardingSealer),
-        ...passwordResetProviders(deps.passwordReset ?? null, deps.corsOrigins ?? [], {
-          api: deps.staffPinReset ?? null,
-          enabled: deps.staffAccessRoutes === true,
-        }),
+        ...passwordResetProviders(
+          deps.passwordReset ?? null,
+          deps.authTrustedOrigins ?? deps.corsOrigins ?? [],
+          {
+            api: deps.staffPinReset ?? null,
+            enabled: deps.staffAccessRoutes === true,
+          },
+        ),
         { provide: RATE_LIMITER, useValue: limiter },
         { provide: DATABASE, useValue: deps.database ?? null },
         ...tenancyProviders(deps.database, deps.ids ?? systemUuidV7()),

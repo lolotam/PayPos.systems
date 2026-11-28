@@ -4,6 +4,7 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import ts from 'typescript';
 
 import { present } from '../../../../../../packages/db/test/present.ts';
 import {
@@ -235,22 +236,85 @@ describe('the staff OTP request route with the native origin configured (#666)',
   });
 });
 
-describe('staff route files check Origin exclusively through isStaffOrigin (#666)', () => {
+interface MethodInfo {
+  readonly name: string;
+  readonly decorators: string;
+  readonly bodyText: string;
+}
+
+function classMethodsOf(source: string): ReadonlyMap<string, MethodInfo> {
+  const file = ts.createSourceFile('probe.ts', source, ts.ScriptTarget.Latest, true);
+  const methods = new Map<string, MethodInfo>();
+  const visit = (node: ts.Node): void => {
+    if (ts.isMethodDeclaration(node) && node.body !== undefined) {
+      const name = node.name.getText(file);
+      const decorators = ts.canHaveDecorators(node)
+        ? (ts
+            .getDecorators(node)
+            ?.map((d) => d.getText(file))
+            .join('\n') ?? '')
+        : '';
+      methods.set(name, { name, decorators, bodyText: node.body.getText(file) });
+    }
+    ts.forEachChild(node, visit);
+  };
+  visit(file);
+  return methods;
+}
+
+function reachesStaffOrigin(
+  method: MethodInfo,
+  methods: ReadonlyMap<string, MethodInfo>,
+  seen = new Set<string>(),
+): boolean {
+  if (method.bodyText.includes('isStaffOrigin(')) return true;
+  if (seen.has(method.name)) return false;
+  seen.add(method.name);
+  for (const [, called] of method.bodyText.matchAll(/\bthis\.([A-Za-z0-9_]+)\s*\(/g)) {
+    const helper = called === undefined ? undefined : methods.get(called);
+    if (helper !== undefined && reachesStaffOrigin(helper, methods, seen)) return true;
+  }
+  return false;
+}
+
+describe('every staff route handler checks Origin exclusively through isStaffOrigin (#666)', () => {
   const apiSrcRoot = join(dirname(fileURLToPath(import.meta.url)), '..', '..', '..', '..');
-  const staffFiles = [
+  const controllerFiles = [
     'src/modules/identity/http/staff-pin.controller.ts',
+    'src/modules/identity/http/staff-pin-reset.controller.ts',
     'src/modules/identity/http/staff-otp.controller.ts',
     'src/modules/identity/http/private-view.controller.ts',
     'src/modules/staff/http/clock-by-card.controller.ts',
+  ];
+  const guardFiles = [
     'src/modules/staff/http/staff-leave.guard.ts',
     'src/shared/private-view.guard.ts',
   ];
 
-  it.each(staffFiles)('%s never compares request.headers.origin directly', (relativePath) => {
-    const source = readFileSync(join(apiSrcRoot, relativePath), 'utf8');
-    expect(source).not.toMatch(/headers\.origin\s*[!=]==?/);
-    expect(source).toContain('isStaffOrigin(');
-  });
+  it.each(controllerFiles)(
+    '%s checks isStaffOrigin on every STAFF_ROUTE handler',
+    (relativePath) => {
+      const source = readFileSync(join(apiSrcRoot, relativePath), 'utf8');
+      expect(source).not.toMatch(/headers\.origin\s*[!=]==?/);
+      const methods = classMethodsOf(source);
+      const staffHandlers = [...methods.values()].filter((m) =>
+        /SetMetadata\(\s*STAFF_ROUTE\b/.test(m.decorators),
+      );
+      expect(staffHandlers.length).toBeGreaterThan(0);
+      for (const handler of staffHandlers) {
+        expect(reachesStaffOrigin(handler, methods), `${relativePath}#${handler.name}`).toBe(true);
+      }
+    },
+  );
+
+  it.each(guardFiles)(
+    '%s checks isStaffOrigin without direct header comparison',
+    (relativePath) => {
+      const source = readFileSync(join(apiSrcRoot, relativePath), 'utf8');
+      expect(source).not.toMatch(/headers\.origin\s*[!=]==?/);
+      expect(source).toContain('isStaffOrigin(');
+    },
+  );
 });
 
 describe('the staff PIN route without the native origin configured', () => {

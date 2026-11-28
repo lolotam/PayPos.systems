@@ -103,6 +103,7 @@ vi.mock('../../modules/staff/index.ts', () => ({
 // تشغيل API وworker المبنيين مع الملفات والإعدادات الاختيارية الفارغة مغطى في files/production.spec.ts.
 vi.mock('../../modules/files/index.ts', () => ({ filesRuntime: () => null }));
 vi.mock('../config.ts', () => ({
+  corsOriginsFrom: () => [],
   memberInvitationsDependency: () => ({}),
   readConfig: () => ({
     DATABASE_URL: 'synthetic',

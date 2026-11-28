@@ -109,37 +109,49 @@ describe('permissionScope', () => {
 });
 
 describe('parsePermissionConstraints', () => {
-  it('returns undefined for empty objects, non-objects, or unknown keys only', () => {
+  it('returns undefined only for an empty plain object {}', () => {
     expect(parsePermissionConstraints({})).toBeUndefined();
-    expect(parsePermissionConstraints(null)).toBeUndefined();
-    expect(parsePermissionConstraints(['max_pct'])).toBeUndefined();
-    expect(parsePermissionConstraints({ unknown_key: 5 })).toBeUndefined();
   });
 
-  it('extracts valid numeric and boolean constraints while ignoring invalid entries', () => {
+  it('marks non-objects, unknown keys, and malformed values as invalid so merge fails closed', () => {
+    for (const bad of [
+      null,
+      ['max_pct'],
+      { unknown_key: 5 },
+      { max_pct: -1 },
+      { max_pct: 101 },
+      { max_pct: '10' },
+      { max_pct: 10, max_amount: 'bad' },
+      { max_amount: '12.5' },
+      { max_amount: -5 },
+      { backdate_days: 1.5 },
+    ]) {
+      expect(parsePermissionConstraints(bad)).toEqual({ invalid: true });
+    }
+  });
+
+  it('extracts valid numeric, bigint-mills money, and boolean constraints', () => {
     expect(
       parsePermissionConstraints({
         max_pct: 10,
-        max_amount: 500,
-        max_variance: 25,
+        max_amount: 500000,
+        max_variance: '25000',
         backdate_days: 3,
         max_rows: 100,
         manual_edit: false,
-        ignored: 'x',
       }),
     ).toEqual({
       max_pct: 10,
-      max_amount: 500,
-      max_variance: 25,
+      max_amount: 500000n,
+      max_variance: 25000n,
       backdate_days: 3,
       max_rows: 100,
       manual_edit: false,
     });
-    expect(parsePermissionConstraints({ max_pct: -1, max_amount: Number.NaN })).toBeUndefined();
   });
 });
 
-describe('mergeGrantConstraints (#10 — most restrictive wins)', () => {
+describe('mergeGrantConstraints — refusal and fail-closed (#10)', () => {
   it('returns null when access is refused or denied at the target', () => {
     expect(mergeGrantConstraints([], P, atBranch(BRANCH_1))).toBeNull();
     expect(
@@ -154,8 +166,36 @@ describe('mergeGrantConstraints (#10 — most restrictive wins)', () => {
     ).toBeNull();
   });
 
-  it('returns empty constraints when an unconstrained grant permits the target', () => {
+  it('fails closed (returns null) when any covering grant has invalid constraints', () => {
+    expect(
+      mergeGrantConstraints(
+        [
+          grant({}),
+          grant({ scopeType: 'BRANCH', scopeId: BRANCH_1, constraints: { invalid: true } }),
+        ],
+        P,
+        atBranch(BRANCH_1),
+      ),
+    ).toBeNull();
+    expect(
+      mergeGrantConstraints([grant({ constraints: { max_pct: -1 } })], P, atBranch(BRANCH_1)),
+    ).toBeNull();
+  });
+});
+
+describe('mergeGrantConstraints — most restrictive wins (#10)', () => {
+  it('returns empty constraints for unconstrained grants, and keeps constrained bounds beside an unconstrained ALLOW', () => {
     expect(mergeGrantConstraints([grant({})], P, atBranch(BRANCH_1))).toEqual({});
+    expect(
+      mergeGrantConstraints(
+        [
+          grant({}),
+          grant({ scopeType: 'BRANCH', scopeId: BRANCH_1, constraints: { max_pct: 10 } }),
+        ],
+        P,
+        atBranch(BRANCH_1),
+      ),
+    ).toEqual({ max_pct: 10 });
   });
 
   it('picks the most restrictive value across covering ALLOW grants and ignores uncovered ones', () => {
@@ -164,17 +204,17 @@ describe('mergeGrantConstraints (#10 — most restrictive wins)', () => {
         grant({
           scopeType: 'COMPANY',
           scopeId: COMPANY,
-          constraints: { max_pct: 25, max_amount: 1000, manual_edit: true },
+          constraints: { max_pct: 25, max_amount: 1000000n, manual_edit: true },
         }),
         grant({
           scopeType: 'BUSINESS',
           scopeId: BUSINESS,
-          constraints: { max_pct: 10, max_variance: 50, manual_edit: false },
+          constraints: { max_pct: 10, max_variance: 50000n, manual_edit: false },
         }),
         grant({
           scopeType: 'BRANCH',
           scopeId: BRANCH_3,
-          constraints: { max_pct: 1, max_amount: 10 },
+          constraints: { max_pct: 1, max_amount: 10000n },
         }),
       ],
       P,
@@ -182,8 +222,8 @@ describe('mergeGrantConstraints (#10 — most restrictive wins)', () => {
     );
     expect(merged).toEqual({
       max_pct: 10,
-      max_amount: 1000,
-      max_variance: 50,
+      max_amount: 1000000n,
+      max_variance: 50000n,
       manual_edit: false,
     });
   });
