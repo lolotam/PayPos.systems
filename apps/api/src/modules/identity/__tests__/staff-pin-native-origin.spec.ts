@@ -6,6 +6,7 @@ import { fileURLToPath } from 'node:url';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import ts from 'typescript';
 
+import { PATH_METADATA } from '@nestjs/common/constants.js';
 import { API_CONTROLLERS } from '../../../app.ts';
 import { SIGN_OUT_ROUTE } from '../../../shared/sign-out.guard.ts';
 import { STAFF_ROUTE } from '../../../shared/staff-authentication.ts';
@@ -30,31 +31,34 @@ interface Staff {
   readonly userId: string;
 }
 
-// جهاز مقترن وموظف واحد لهما PIN مضبوط بصلاحية الكاشير، عبر نفس مسارات الـ HTTP الحقيقية.
-async function seed(h: Harness): Promise<Staff> {
-  const manager = await h.signedInOperator('pin-native-manager@synthetic.invalid');
-  const company = await h.onboard(manager, 'Synthetic native origin');
-  const businessResponse = await h.send('POST', '/v1/businesses', {
+async function seedBranchDevice(h: Harness, tag: string) {
+  const manager = await h.signedInOperator(`${tag}-manager@synthetic.invalid`);
+  const company = await h.onboard(manager, `Synthetic ${tag}`);
+  const b = await h.send('POST', '/v1/businesses', {
     cookie: manager,
     company,
-    key: 'pin-native-business',
+    key: `${tag}-b`,
     body: { vertical_type: 'salon', name_en: 'Synthetic' },
   });
-  expect(businessResponse.status).toBe(201);
-  const business = businessResponse.body['id'] as string;
-  const branchResponse = await h.send('POST', `/v1/businesses/${business}/branches`, {
+  expect(b.status).toBe(201);
+  const br = await h.send('POST', `/v1/businesses/${b.body['id'] as string}/branches`, {
     cookie: manager,
     company,
-    key: 'pin-native-branch',
+    key: `${tag}-br`,
     body: { name_en: 'Synthetic' },
   });
-  expect(branchResponse.status).toBe(201);
-  const branch = branchResponse.body['id'] as string;
-  const device = await paired(h, manager, company, branch);
+  expect(br.status).toBe(201);
+  const branch = br.body['id'] as string;
+  return { manager, company, branch, device: await paired(h, manager, company, branch) };
+}
+
+// جهاز مقترن وموظف واحد لهما PIN مضبوط بصلاحية الكاشير، عبر نفس مسارات الـ HTTP الحقيقية.
+async function seed(h: Harness): Promise<Staff> {
+  const { manager, company, branch, device } = await seedBranchDevice(h, 'pin-native');
   const userId = await h.auth.provisionUser({
     email: 'pin-native-user@synthetic.invalid',
     name: 'Synthetic',
-    password: 'synthetic'.repeat(8),
+    password: `${randomUUID()}${randomUUID()}`,
   });
   await h.owner`UPDATE "user" SET phone_number=${phone} WHERE id=${userId}`;
   await h.owner`UPDATE "user" SET phone_binding_approved_at=clock_timestamp() WHERE id=${userId}`;
@@ -197,22 +201,7 @@ describe('the staff OTP request route with the native origin configured (#666)',
 
   beforeAll(async () => {
     staffOtp = await staffHarness({ staffNativeOrigins: [nativeOrigin] });
-    const manager = await staffOtp.h.signedInOperator('otp-native-manager@synthetic.invalid');
-    const company = await staffOtp.h.onboard(manager, 'Synthetic OTP native origin');
-    const b = await staffOtp.h.send('POST', '/v1/businesses', {
-      cookie: manager,
-      company,
-      key: 'otp-native-b',
-      body: { vertical_type: 'salon', name_en: 'Synthetic' },
-    });
-    const business = b.body['id'] as string;
-    const br = await staffOtp.h.send('POST', `/v1/businesses/${business}/branches`, {
-      cookie: manager,
-      company,
-      key: 'otp-native-br',
-      body: { name_en: 'Synthetic' },
-    });
-    deviceToken = (await paired(staffOtp.h, manager, company, br.body['id'] as string)).token;
+    deviceToken = (await seedBranchDevice(staffOtp.h, 'otp-native')).device.token;
   });
 
   afterAll(async () => {
@@ -340,14 +329,23 @@ function discoverRegisteredStaffInventory(): Record<
 > {
   const discovered: Record<string, { readonly staff: string[]; readonly signOut: string[] }> = {};
   for (const controller of API_CONTROLLERS) {
-    const proto = controller.prototype as Record<string, unknown>;
+    const seen = new Set<string>();
     const staff: string[] = [];
     const signOut: string[] = [];
-    for (const key of Object.getOwnPropertyNames(proto)) {
-      const fn = key === 'constructor' ? undefined : proto[key];
-      if (typeof fn !== 'function') continue;
-      if (Reflect.getMetadata(STAFF_ROUTE, fn) !== undefined) staff.push(key);
-      if (Reflect.getMetadata(SIGN_OUT_ROUTE, fn) === 'staff') signOut.push(key);
+    for (
+      let proto = controller.prototype as object | null;
+      proto !== null && proto !== Object.prototype;
+      proto = Object.getPrototypeOf(proto) as object | null
+    ) {
+      for (const key of Object.getOwnPropertyNames(proto)) {
+        if (key === 'constructor' || seen.has(key)) continue;
+        seen.add(key);
+        const fn = Object.getOwnPropertyDescriptor(proto, key)?.value as unknown;
+        if (typeof fn !== 'function' || Reflect.getMetadata(PATH_METADATA, fn) === undefined)
+          continue;
+        if (Reflect.getMetadata(STAFF_ROUTE, fn) !== undefined) staff.push(key);
+        if (Reflect.getMetadata(SIGN_OUT_ROUTE, fn) === 'staff') signOut.push(key);
+      }
     }
     if (staff.length > 0 || signOut.length > 0) {
       discovered[controller.name] = { staff: staff.sort(), signOut: signOut.sort() };

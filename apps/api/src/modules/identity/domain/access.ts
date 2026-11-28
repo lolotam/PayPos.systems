@@ -158,14 +158,33 @@ function parseDecimalToken(
   const match = /^(\d+)(?:\.(\d+))?(?:[eE]([+-]?\d+))?$/.exec(source);
   if (match === null) return null;
   const combined = (match[1] ?? '0') + (match[2] ?? '');
+  if (!/[1-9]/.test(combined)) return { int: 0n, hasFraction: false };
   const exp = match[3] === undefined ? 0 : Number(match[3]);
-  if (!Number.isSafeInteger(exp) || exp > 30 || exp < -100) return null;
+  if (!Number.isSafeInteger(exp)) return null;
   const shift = exp - (match[2]?.length ?? 0);
-  if (shift >= 0) return { int: BigInt(combined + '0'.repeat(shift)), hasFraction: false };
+  if (shift >= 0) {
+    if (combined.replace(/^0+/, '').length + shift > 16) {
+      return { int: MONEY_MAX_MILLS + 1n, hasFraction: false };
+    }
+    return { int: BigInt(combined + '0'.repeat(shift)), hasFraction: false };
+  }
   const splitAt = combined.length + shift;
   const whole = splitAt > 0 ? combined.slice(0, splitAt) : '0';
   const remainder = splitAt > 0 ? combined.slice(splitAt) : combined;
   return { int: BigInt(whole), hasFraction: /[1-9]/.test(remainder) };
+}
+
+function decimalKey(source: string): string | null {
+  const match = /^(\d+)(?:\.(\d+))?(?:[eE]([+-]?\d+))?$/.exec(source);
+  if (match === null) return null;
+  const exp = match[3] === undefined ? 0 : Number(match[3]);
+  if (!Number.isSafeInteger(exp)) return null;
+  const raw = (match[1] ?? '') + (match[2] ?? '');
+  const first = raw.search(/[1-9]/);
+  if (first === -1) return '0';
+  const digits = raw.slice(first).replace(/0+$/, '');
+  const scale = (match[1] ?? '').length - first - 1 + exp;
+  return `${digits}@${scale}`;
 }
 
 function parseJsonConstraints(raw: string): unknown {
@@ -179,7 +198,10 @@ function parseJsonConstraints(raw: string): unknown {
         return !d.hasFraction && d.int <= BigInt(Number.MAX_SAFE_INTEGER) ? Number(d.int) : null;
       }
       if (key === 'max_pct') {
-        return d.int < 100n || (d.int === 100n && !d.hasFraction) ? value : null;
+        const withinRange = d.int < 100n || (d.int === 100n && !d.hasFraction);
+        return withinRange && decimalKey(context.source) === decimalKey(String(value))
+          ? value
+          : null;
       }
       return value;
     });

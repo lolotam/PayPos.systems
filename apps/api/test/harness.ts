@@ -227,26 +227,35 @@ function operatorMaker(
   auth: AuthService,
   ownerUrl: string,
   ids: IdGenerator,
+  operatorOrigin: string = ORIGIN,
 ): Harness['signedInOperator'] {
   const authPost = (path: string, payload: object) =>
-    app.inject({ method: 'POST', url: `/v1/auth${path}`, headers: { origin: ORIGIN }, payload });
+    app.inject({
+      method: 'POST',
+      url: `/v1/auth${path}`,
+      headers: { origin: operatorOrigin },
+      payload,
+    });
   return async (email) => {
     const { link } = await createPlatformUser(auth, {
       email,
       name: 'User',
       operator: 'test',
-      redirectTo: `${ORIGIN}/set-password`,
+      redirectTo: `${operatorOrigin}/set-password`,
     });
     const token = new URL(link).pathname.split('/').pop() ?? '';
-    await authPost('/reset-password', { token, newPassword: PASSWORD });
+    const resetRes = await authPost('/reset-password', { token, newPassword: PASSWORD });
+    if (resetRes.statusCode >= 400) {
+      throw new Error(`operator reset-password failed with ${resetRes.statusCode}`);
+    }
     const grant = { email, permission: 'create:companies:platform', operator: 'test' };
     await grantPlatformPermission(ownerUrl, grant, ids);
-    const cookies = (await authPost('/sign-in/email', { email, password: PASSWORD })).headers[
-      'set-cookie'
-    ];
-    return (Array.isArray(cookies) ? cookies : [cookies ?? ''])
-      .map((c) => c.split(';')[0])
-      .join('; ');
+    const signInRes = await authPost('/sign-in/email', { email, password: PASSWORD });
+    const cookies = signInRes.headers['set-cookie'];
+    if (signInRes.statusCode >= 400 || cookies === undefined) {
+      throw new Error(`operator sign-in failed with ${signInRes.statusCode}`);
+    }
+    return (Array.isArray(cookies) ? cookies : [cookies]).map((c) => c.split(';')[0]).join('; ');
   };
 }
 
@@ -302,6 +311,7 @@ async function prepareHarness(
   if (staffOtp !== undefined) cleanup.own(staffOtp, (value) => value.close());
   const pinReset = options.staffPinResetFactory?.(auth, testDb.authUrl, wrappers, redis);
   if (pinReset !== undefined) cleanup.own(pinReset, (value) => value.close());
+  const authTrustedOrigins = harnessAuthOrigins(options);
   const app = cleanup.own(
     await createApp(
       {
@@ -310,7 +320,7 @@ async function prepareHarness(
         employeeCardKey: testEmployeeCardKey,
         database: wrappers,
         ...optionalWiring(options),
-        authTrustedOrigins: harnessAuthOrigins(options),
+        authTrustedOrigins,
         ...(options.corsOrigins === undefined ? {} : { corsOrigins: options.corsOrigins }),
         ...staffWiring(options, staffOtp, auth),
         ...(pinReset === undefined ? {} : { staffPinReset: pinReset }),
@@ -325,7 +335,7 @@ async function prepareHarness(
     ),
     (value) => value.close(),
   );
-  return { app, owner, auth, redis, calls, ids };
+  return { app, owner, auth, redis, calls, ids, operatorOrigin: authTrustedOrigins[0] ?? ORIGIN };
 }
 
 function describeHarness(
@@ -333,7 +343,7 @@ function describeHarness(
   resources: Awaited<ReturnType<typeof prepareHarness>>,
   cleanup: ReturnType<typeof cleanupStack>,
 ): Harness {
-  const { app, owner, auth, redis, calls, ids } = resources;
+  const { app, owner, auth, redis, calls, ids, operatorOrigin } = resources;
   const send = sender(app);
   return {
     app,
@@ -349,7 +359,7 @@ function describeHarness(
     },
     calls,
     send,
-    signedInOperator: operatorMaker(app, auth, testDb.ownerUrl, ids),
+    signedInOperator: operatorMaker(app, auth, testDb.ownerUrl, ids, operatorOrigin),
     onboard: async (cookie, name) => {
       const res = await send('POST', '/v1/companies', {
         cookie,

@@ -108,6 +108,27 @@ describe('permissionScope', () => {
   });
 });
 
+const INVALID_CONSTRAINT_INPUTS: readonly unknown[] = [
+  null,
+  ['max_pct'],
+  { unknown_key: 5 },
+  { max_pct: -1 },
+  { max_pct: 101 },
+  { max_pct: '10' },
+  { max_pct: 10, max_amount: 'bad' },
+  { max_amount: '12.5' },
+  { max_amount: -5 },
+  { backdate_days: 1.5 },
+  '{"max_amount": 1000.0000000000000001}',
+  '{"max_amount": 9007199254740993}',
+  '{"backdate_days": 3.0000000000000001}',
+  '{"max_pct": 100.00000000000000001}',
+  '{"max_pct": 9.9999999999999999}',
+  '{"max_pct": 1e-500}',
+  '{"max_pct": -0.00000000000000001}',
+  'not-json',
+];
+
 describe('parsePermissionConstraints', () => {
   it('returns undefined only for an empty plain object {} or "{}"', () => {
     expect(parsePermissionConstraints({})).toBeUndefined();
@@ -115,29 +136,13 @@ describe('parsePermissionConstraints', () => {
   });
 
   it('marks non-objects, unknown keys, and malformed values as invalid so merge fails closed', () => {
-    for (const bad of [
-      null,
-      ['max_pct'],
-      { unknown_key: 5 },
-      { max_pct: -1 },
-      { max_pct: 101 },
-      { max_pct: '10' },
-      { max_pct: 10, max_amount: 'bad' },
-      { max_amount: '12.5' },
-      { max_amount: -5 },
-      { backdate_days: 1.5 },
-      '{"max_amount": 1000.0000000000000001}',
-      '{"max_amount": 9007199254740993}',
-      '{"backdate_days": 3.0000000000000001}',
-      '{"max_pct": 100.00000000000000001}',
-      '{"max_pct": -0.00000000000000001}',
-      'not-json',
-    ]) {
+    for (const bad of INVALID_CONSTRAINT_INPUTS) {
       expect(parsePermissionConstraints(bad)).toEqual({ invalid: true });
     }
   });
 
   it('extracts valid numeric, bigint-mills money, and boolean constraints', () => {
+    expect(parsePermissionConstraints('{"max_pct": 1e-101}')).toEqual({ max_pct: 1e-101 });
     expect(
       parsePermissionConstraints('{"max_amount": 1000.0, "backdate_days": 3.0, "max_pct": 100.0}'),
     ).toEqual({

@@ -79,7 +79,7 @@ it('preserves exact decimal-scale integers and rejects fractional or out-of-rang
   const isolatedUser = await f.h.auth.provisionUser({
     email: 'fractional-grant@synthetic.invalid',
     name: 'Synthetic fractional grant',
-    password: 'synthetic'.repeat(8),
+    password: `${f.ids.newId()}${f.ids.newId()}`,
   });
   const roleId = f.ids.newId();
   const memberId = f.ids.newId();
