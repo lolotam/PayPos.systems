@@ -104,10 +104,10 @@ export function directLinuxChildren(pid: number, procRoot = '/proc'): number[] {
   return [...found];
 }
 
-function readLinuxProcessPairs(procRoot = '/proc'): Array<{ pid: number; ppid: number }> {
+function readLinuxProcessPairs(procRoot = '/proc'): Array<{ pid: number; ppid: number; pgrp: number }> {
   let entries: string[];
   try { entries = readdirSync(procRoot); } catch { return []; }
-  const rows: Array<{ pid: number; ppid: number }> = [];
+  const rows: Array<{ pid: number; ppid: number; pgrp: number }> = [];
   for (const entry of entries) {
     if (!/^\d+$/.test(entry)) continue;
     try {
@@ -117,21 +117,22 @@ function readLinuxProcessPairs(procRoot = '/proc'): Array<{ pid: number; ppid: n
       if (closeParen === -1) continue;
       const fields = stat.slice(closeParen + 2).trim().split(/\s+/);
       const ppid = Number(fields[1]);
+      const pgrp = Number(fields[2]);
       const pid = Number(entry);
-      if (Number.isInteger(pid) && pid > 0 && Number.isInteger(ppid) && ppid > 0) rows.push({ pid, ppid });
+      if (Number.isInteger(pid) && pid > 0 && Number.isInteger(ppid) && ppid > 0) rows.push({ pid, ppid, pgrp: Number.isInteger(pgrp) && pgrp > 0 ? pgrp : 0 });
     } catch { /* العملية خرجت أثناء قراءة stat */ }
   }
   return rows;
 }
 
-function readProcessTablePairs(procRoot = '/proc'): Array<{ pid: number; ppid: number }> {
+function readProcessTablePairs(procRoot = '/proc'): Array<{ pid: number; ppid: number; pgrp: number }> {
   if (process.platform === 'linux' || procRoot !== '/proc') return readLinuxProcessPairs(procRoot);
   if (process.platform !== 'darwin') return [];
   try {
-    return execFileSync('ps', ['-eo', 'pid=,ppid='], { encoding: 'utf8', timeout: 1_000 })
+    return execFileSync('ps', ['-eo', 'pid=,ppid=,pgid='], { encoding: 'utf8', timeout: 1_000 })
       .split('\n')
       .map((line) => line.trim().split(/\s+/))
-      .map(([p, pp]) => ({ pid: Number(p), ppid: Number(pp) }))
+      .map(([p, pp, pg]) => ({ pid: Number(p), ppid: Number(pp), pgrp: Number(pg) || 0 }))
       .filter((r) => Number.isInteger(r.pid) && r.pid > 0 && Number.isInteger(r.ppid) && r.ppid > 0);
   } catch { return []; }
 }
@@ -203,7 +204,8 @@ function collectDescendantPids(rootPids: readonly number[], procRoot = '/proc'):
     const cur = queue.shift();
     if (cur === undefined) break;
     const tasks = process.platform === 'linux' || procRoot !== '/proc' ? directLinuxChildren(cur, procRoot) : [];
-    for (const child of new Set([...tasks, ...table.filter((r) => r.ppid === cur).map((r) => r.pid)])) {
+    const byGroup = cur > 1 && cur !== process.pid ? table.filter((r) => r.pgrp === cur).map((r) => r.pid) : [];
+    for (const child of new Set([...tasks, ...table.filter((r) => r.ppid === cur).map((r) => r.pid), ...byGroup])) {
       if (!parentOf.has(child)) { parentOf.set(child, cur); queue.push(child); }
     }
   }
@@ -276,8 +278,10 @@ function revalidateRetained(proc: KillableProcess, procRoot: string): { pids: nu
   for (const [pid, expectedFp] of prior) {
     const observedFp = expectedFp.startsWith('?') ? expectedFp.slice(1) : expectedFp;
     const status = checkPidStatus(pid, observedFp, procRoot);
-    if (status === 'exited') prior.delete(pid);
-    else if (!isUnresolvedFp(expectedFp) && status === 'same') pids.push(pid);
+    if (status === 'exited') {
+      prior.delete(pid);
+      if (!isUnresolvedFp(expectedFp) && readPidFingerprint(pid, procRoot) === undefined) pids.push(pid);
+    } else if (!isUnresolvedFp(expectedFp) && status === 'same') pids.push(pid);
     else if (isUnresolvedFp(expectedFp)) unresolvedError ??= markUnconfirmedDescendants(new Error('DESCENDANT_IDENTITY_UNVERIFIED'));
     else unverifiedError ??= markUnconfirmedDescendants(new Error('DESCENDANT_IDENTITY_UNVERIFIED'));
   }
@@ -429,14 +433,7 @@ export function killProcessTree(proc: KillableProcess, procRoot = '/proc', signa
   const rootWait = holdRoot || !hasRoot ? undefined : (killLaunchProcessGroup(proc, procRoot), safeKillSingle(proc, procRoot));
   const waits: Array<Promise<void>> = childTree.filter((item): item is Promise<void> => item !== undefined);
   const waitTargets = waitPids.map((pid) => [pid, retainedDescendants.get(proc)?.get(pid) ?? ''] as const);
-  if (waitTargets.length > 0) {
-    waits.push(waitForPidsExit(waitTargets, procRoot).then(() => {
-      const r = retainedDescendants.get(proc);
-      if (r === undefined) return;
-      for (const [pid] of waitTargets) r.delete(pid);
-      if (r.size === 0) retainedDescendants.delete(proc);
-    }));
-  }
+  if (waitTargets.length > 0) waits.push(waitForPidsExit(waitTargets, procRoot));
   if (signalError !== undefined) waits.push(Promise.reject(signalError));
   if (rootWait === undefined && waits.length === 0) return undefined;
   return Promise.allSettled(rootWait === undefined ? waits : [rootWait, ...waits]).then((res) => {
