@@ -1,7 +1,11 @@
 import { beforeAll, afterAll, expect, it } from 'vitest';
 import { ORDER_IDS } from '../../../../../../packages/db/test/orders-fixture.ts';
 import { TENANT } from '../../../../../../packages/db/test/tenancy-fixtures.ts';
-import { listActiveLinesOfCustomer } from '../queries/day-sessions.query.ts';
+import { assignSessionRequestDay } from '../persistence/session-request-day.writer.ts';
+import {
+  listActiveLinesOfCustomer,
+  readSessionRequestDay,
+} from '../queries/day-sessions.query.ts';
 import { daySessionsFixture, type DaySessionsFixture } from './day-sessions.fixture.ts';
 
 let f: DaySessionsFixture;
@@ -100,6 +104,94 @@ it('never shows another tenant and reads nothing when the company is not the tra
     ),
   );
   expect(mismatch).toHaveLength(0);
+});
+
+it('PP-286 T-3: assignSessionRequestDay persists once and wins races atomically', async () => {
+  const occurredAt = new Date('2026-05-10T09:00:00.000Z');
+  const first = await f.session({ occurredAt });
+  expect(
+    await f.db.withTenant(f.tenant.company, (tx) =>
+      readSessionRequestDay(tx, f.tenant.company, f.tenant.business, first.sessionId),
+    ),
+  ).toBeNull();
+
+  const stored = await f.db.withTenant(f.tenant.company, (tx) =>
+    assignSessionRequestDay(tx, f.tenant.company, f.tenant.business, first.sessionId, '2026-05-10'),
+  );
+  expect(stored).toBe('2026-05-10');
+  expect(
+    await f.db.withTenant(f.tenant.company, (tx) =>
+      assignSessionRequestDay(tx, f.tenant.company, f.tenant.business, first.sessionId, '2026-05-11'),
+    ),
+  ).toBe('2026-05-10');
+  expect(
+    await f.db.withTenant(f.tenant.company, (tx) =>
+      readSessionRequestDay(tx, f.tenant.company, f.tenant.business, first.sessionId),
+    ),
+  ).toBe('2026-05-10');
+  const lines = await read(f.tenant.business, CUSTOMER, occurredAt, hour(occurredAt));
+  expect(lines[0]?.requestDay).toBe('2026-05-10');
+
+  const second = await f.session({ occurredAt });
+  const winners = await Promise.all([
+    f.db.withTenant(f.tenant.company, (tx) =>
+      assignSessionRequestDay(tx, f.tenant.company, f.tenant.business, second.sessionId, '2026-05-10'),
+    ),
+    f.db.withTenant(f.tenant.company, (tx) =>
+      assignSessionRequestDay(tx, f.tenant.company, f.tenant.business, second.sessionId, '2026-05-11'),
+    ),
+  ]);
+  expect(['2026-05-10', '2026-05-11']).toContain(winners[0]);
+  expect(winners[1]).toBe(winners[0]);
+  expect(
+    await f.db.withTenant(f.tenant.company, (tx) =>
+      readSessionRequestDay(tx, f.tenant.company, f.tenant.business, second.sessionId),
+    ),
+  ).toBe(winners[0]);
+});
+
+it('PP-286 T-3: assignSessionRequestDay rejects missing, wrong-business, or foreign-tenant sessions', async () => {
+  const occurredAt = new Date('2026-05-10T09:00:00.000Z');
+  const session = await f.session({ occurredAt });
+  const otherBusiness = await f.addBusiness();
+  await expect(
+    f.db.withTenant(f.tenant.company, (tx) =>
+      assignSessionRequestDay(
+        tx,
+        f.tenant.company,
+        f.tenant.business,
+        '01920000-0000-7000-8000-000000009999',
+        '2026-05-10',
+      ),
+    ),
+  ).rejects.toThrow('SERVICE_SESSION_NOT_FOUND');
+  await expect(
+    f.db.withTenant(f.tenant.company, (tx) =>
+      assignSessionRequestDay(
+        tx,
+        f.tenant.company,
+        otherBusiness.businessId,
+        session.sessionId,
+        '2026-05-10',
+      ),
+    ),
+  ).rejects.toThrow('SERVICE_SESSION_NOT_FOUND');
+  await expect(
+    f.db.withTenant(TENANT.B.company, (tx) =>
+      assignSessionRequestDay(
+        tx,
+        TENANT.A.company,
+        TENANT.A.business,
+        session.sessionId,
+        '2026-05-10',
+      ),
+    ),
+  ).rejects.toThrow('SERVICE_SESSION_NOT_FOUND');
+  expect(
+    await f.db.withTenant(f.tenant.company, (tx) =>
+      readSessionRequestDay(tx, f.tenant.company, f.tenant.business, session.sessionId),
+    ),
+  ).toBeNull();
 });
 
 function read(businessId: string, customerId: string, from: Date, to: Date) {

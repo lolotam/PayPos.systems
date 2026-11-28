@@ -1,6 +1,7 @@
+import { assignSessionRequestDay } from './persistence/session-request-day.writer.ts';
 import {
-  assignSessionRequestDay,
   listActiveLinesOfCustomer,
+  readSessionRequestDay,
 } from './queries/day-sessions.query.ts';
 import {
   countSessionsSince,
@@ -20,6 +21,7 @@ export {
 
 export const daySessionsReader = {
   activeLines: listActiveLinesOfCustomer,
+  readRequestDay: readSessionRequestDay,
   assignRequestDay: assignSessionRequestDay,
   sessionsSince: listSessionsSince,
   countSince: countSessionsSince,

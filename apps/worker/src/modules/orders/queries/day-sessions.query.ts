@@ -85,26 +85,17 @@ export async function listActiveLinesOfCustomer(
   return [...lines.values()];
 }
 
-/** يحفظ يوم طلب التقييم للزيارة أول مرة ويُعيد اليوم المخزَّن دائماً دون كتابة إذا كان محفوظاً بالفعل. */
-export async function assignSessionRequestDay(
+/** يقرأ يوم طلب التقييم المحفوظ للزيارة إن وُجد دون قفل أو تعديل. */
+export async function readSessionRequestDay(
   tx: Tx,
   companyId: string,
   businessId: string,
   sessionId: string,
-  requestDay: string,
-): Promise<string> {
-  const existing = await tx.execute<{ rating_request_day: string | null }>(sql`
+): Promise<string | null> {
+  const rows = await tx.execute<{ rating_request_day: string | null }>(sql`
     SELECT rating_request_day::text AS rating_request_day
       FROM service_sessions
      WHERE company_id = ${companyId} AND company_id = app_company_id()
        AND business_id = ${businessId} AND id = ${sessionId}`);
-  const stored = existing[0]?.rating_request_day ?? null;
-  if (stored !== null) return stored;
-  const updated = await tx.execute<{ rating_request_day: string }>(sql`
-    UPDATE service_sessions
-       SET rating_request_day = COALESCE(rating_request_day, ${requestDay}::date)
-     WHERE company_id = ${companyId} AND company_id = app_company_id()
-       AND business_id = ${businessId} AND id = ${sessionId}
-    RETURNING rating_request_day::text AS rating_request_day`);
-  return updated[0]?.rating_request_day ?? requestDay;
+  return rows[0]?.rating_request_day ?? null;
 }

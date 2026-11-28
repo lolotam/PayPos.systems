@@ -1,15 +1,15 @@
-import { requestDayOf } from '../domain/request-day.ts';
+import { requestDayOf } from '../../domain/request-day.ts';
 import {
   dayWindow,
   sessionsOfDay,
   type ActiveLine,
   type BranchSchedule,
   type DaySession,
-} from '../domain/sessions-of-day.ts';
-import type { BranchScheduleHoursPort } from '../ports/branch-schedule-hours.port.ts';
-import type { DaySessionsPort } from '../ports/day-sessions.port.ts';
+} from '../../domain/sessions-of-day.ts';
+import type { BranchScheduleHoursPort } from '../../ports/branch-schedule-hours.port.ts';
+import type { DaySessionsPort } from '../../ports/day-sessions.port.ts';
 
-/** مدخلات قراءة حالة زيارات يوم الطلب وتثبيت يوم أي زيارة لم يُحفظ يومها بعد. */
+/** مدخلات قراءة حالة زيارات يوم الطلب وتثبيت يوم أي زيارة تابعة لنفس اليوم ولم يُحفظ يومها بعد. */
 export interface ResolveDayStateInput<Transaction> {
   readonly tx: Transaction;
   readonly companyId: string;
@@ -19,10 +19,12 @@ export interface ResolveDayStateInput<Transaction> {
   readonly initialBranches: ReadonlyMap<string, BranchSchedule>;
   readonly hours: BranchScheduleHoursPort<Transaction>;
   readonly daySessions: DaySessionsPort<Transaction>;
+  /** يُعطَّل أثناء الفحص الأولي قبل قفل صف الطلب لتفادي عكس ترتيب الأقفال. */
+  readonly persistMissingDays?: boolean;
 }
 
 /**
- * يقرأ بنود اليوم النشطة ومواعيد فروعها، ويثبّت يوم الطلب لأول مرة على أي زيارة بلا يوم محفوظ.
+ * يقرأ بنود اليوم النشطة ومواعيد فروعها، ويثبّت يوم الطلب لأول مرة على زيارات اليوم غير المحفوظة.
  *
  * @param input المعاملة ومفاتيح العميل واليوم والمنافذ المطلوبة
  * @returns زيارات اليوم المصنّفة مع خريطة مواعيد الفروع
@@ -54,26 +56,35 @@ export async function resolveDayState<Transaction>(
 }
 
 async function assignMissingSessionDays<Transaction>(
-  input: Pick<ResolveDayStateInput<Transaction>, 'tx' | 'companyId' | 'businessId' | 'daySessions'>,
+  input: Pick<
+    ResolveDayStateInput<Transaction>,
+    'tx' | 'companyId' | 'businessId' | 'day' | 'daySessions' | 'persistMissingDays'
+  >,
   lines: readonly ActiveLine[],
   placeByBranch: ReadonlyMap<string, BranchSchedule>,
 ): Promise<readonly ActiveLine[]> {
+  if (input.persistMissingDays === false) return lines;
   const assign = input.daySessions.assignRequestDay;
   if (assign === undefined) return lines;
-  const sessionDayById = new Map<string, string>();
+  const pendingSessionIds = new Set<string>();
   for (const line of lines) {
-    if (line.requestDay != null || sessionDayById.has(line.sessionId)) continue;
+    if (line.requestDay != null || pendingSessionIds.has(line.sessionId)) continue;
     const place = placeByBranch.get(line.branchId);
     if (place === undefined) throw new RangeError('BRANCH_SCHEDULE_MISSING');
-    const computedDay = requestDayOf(line.occurredAt, place.timeZone, place.openingHours);
+    if (requestDayOf(line.occurredAt, place.timeZone, place.openingHours) === input.day) {
+      pendingSessionIds.add(line.sessionId);
+    }
+  }
+  if (pendingSessionIds.size === 0) return lines;
+  const sessionDayById = new Map<string, string>();
+  for (const sessionId of [...pendingSessionIds].sort()) {
     sessionDayById.set(
-      line.sessionId,
-      await assign(input.tx, input.companyId, input.businessId, line.sessionId, computedDay),
+      sessionId,
+      await assign(input.tx, input.companyId, input.businessId, sessionId, input.day),
     );
   }
-  if (sessionDayById.size === 0) return lines;
   return lines.map((line) =>
-    line.requestDay != null
+    line.requestDay != null || !sessionDayById.has(line.sessionId)
       ? line
       : { ...line, requestDay: sessionDayById.get(line.sessionId) ?? null },
   );

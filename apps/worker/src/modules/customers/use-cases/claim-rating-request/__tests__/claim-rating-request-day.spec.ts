@@ -155,3 +155,52 @@ it('reuses a stored requestDay without reassigning even when overnight hours are
     sendDeadline: new Date('2026-10-05T21:29:00Z'),
   });
 });
+
+it('assigns missing same-day sessions in ascending sessionId order without touching adjacent days', async () => {
+  const assignedIds: string[] = [];
+  const base = basePorts();
+  const claim = useCase({
+    daySessions: {
+      ...base.daySessions,
+      activeLines: async () => [
+        {
+          lineId: 'line-prev-day',
+          sessionId: 'session-0-prev',
+          branchId,
+          occurredAt: new Date('2026-10-04T11:00:00Z'),
+          recordedAt: new Date('2026-10-04T11:00:00Z'),
+          businessTimezone: 'Asia/Kuwait',
+          requestDay: null,
+          performers: [{ employeeId, shareBps: 10_000 }],
+        },
+        {
+          lineId: 'line-b',
+          sessionId: 'session-b',
+          branchId,
+          occurredAt: new Date('2026-10-05T11:00:00Z'),
+          recordedAt: new Date('2026-10-05T11:00:00Z'),
+          businessTimezone: 'Asia/Kuwait',
+          requestDay: null,
+          performers: [{ employeeId, shareBps: 10_000 }],
+        },
+        {
+          lineId: 'line-a',
+          sessionId: 'session-a',
+          branchId,
+          occurredAt: new Date('2026-10-05T11:00:00Z'),
+          recordedAt: new Date('2026-10-05T11:00:00Z'),
+          businessTimezone: 'Asia/Kuwait',
+          requestDay: null,
+          performers: [{ employeeId, shareBps: 10_000 }],
+        },
+      ],
+      assignRequestDay: async (_tx, _cId, _bId, sessionId, requestDay) => {
+        assignedIds.push(sessionId);
+        return requestDay;
+      },
+    },
+  });
+
+  expect(await claim.execute(tx, { companyId, request: stored })).toBe('CLAIMED');
+  expect(assignedIds).toEqual(['session-a', 'session-b']);
+});

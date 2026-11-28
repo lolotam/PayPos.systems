@@ -10,7 +10,7 @@ import { performerLabel } from '../../domain/performer-label.ts';
 import { expiresAt } from '../../domain/rating-link-expiry.ts';
 import type { BranchSchedule, DaySession } from '../../domain/sessions-of-day.ts';
 import { ratingRequestReadyPayload } from '../../events/published.ts';
-import { resolveDayState } from '../resolve-day-state.ts';
+import { resolveDayState } from '../resolve-day-state/resolve-day-state.ts';
 import type { BranchScheduleHoursPort } from '../../ports/branch-schedule-hours.port.ts';
 import type { BusinessNamesPort } from '../../ports/business-names.port.ts';
 import type { Clock, IdGenerator } from '../../ports/clock.port.ts';

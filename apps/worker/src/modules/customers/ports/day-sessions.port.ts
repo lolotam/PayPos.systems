@@ -39,6 +39,21 @@ export interface DaySessionsPort<Transaction = unknown> {
     toInstant: Date,
   ): Promise<readonly ActiveLine[]>;
   /**
+   * يقرأ يوم طلب التقييم المحفوظ للزيارة إن وُجد دون تعديله.
+   *
+   * @param tx معاملة المستأجر
+   * @param companyId الشركة المالكة للزيارة
+   * @param businessId النشاط المطلوب
+   * @param sessionId معرّف الزيارة
+   * @returns يوم الطلب المحفوظ أو null إذا لم يُحفظ بعد
+   */
+  readRequestDay?(
+    tx: Transaction,
+    companyId: string,
+    businessId: string,
+    sessionId: string,
+  ): Promise<string | null>;
+  /**
    * يحفظ يوم طلب التقييم للزيارة أول مرة ويُعيد اليوم المخزَّن لها عند الاستدعاءات اللاحقة.
    *
    * @param tx معاملة المستأجر

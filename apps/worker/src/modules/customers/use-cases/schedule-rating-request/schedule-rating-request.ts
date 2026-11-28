@@ -12,7 +12,7 @@ import type {
   RatingRequestRow,
 } from '../../ports/rating-request.repository.ts';
 import type { RatingRequestsSwitchPort } from '../../ports/rating-requests-switch.port.ts';
-import { resolveDayState } from '../resolve-day-state.ts';
+import { resolveDayState } from '../resolve-day-state/resolve-day-state.ts';
 
 export type ScheduleOutcome =
   | 'SWITCH_OFF'
@@ -71,31 +71,32 @@ export class ScheduleRatingRequest {
     const place = await this.ports.hours.hours(tx, input.companyId, input.branchId);
     if (place === null) throw new Error('RATING_BRANCH_NOT_FOUND');
     const computedDay = requestDayOf(input.occurredAt, place.timeZone, place.openingHours);
-    const day =
+    const storedDay =
       input.requestDay ??
-      (input.sessionId !== undefined && this.ports.daySessions.assignRequestDay !== undefined
-        ? await this.ports.daySessions.assignRequestDay(
+      (input.sessionId !== undefined && this.ports.daySessions.readRequestDay !== undefined
+        ? await this.ports.daySessions.readRequestDay(
             tx,
             input.companyId,
             input.businessId,
             input.sessionId,
-            computedDay,
           )
-        : computedDay);
+        : null);
+    const day = storedDay ?? computedDay;
     const key: RatingRequestKey = {
       companyId: input.companyId,
       businessId: input.businessId,
       customerId: input.customerId,
       businessDate: day,
     };
-    const row = await this.lockOrInsert(tx, input, key, place);
+    const row = await this.lockOrInsert(tx, input, key, place, storedDay);
     if (row === null) return 'NOTHING_TO_SCHEDULE';
+    await this.persistInputSessionDay(tx, input, storedDay, day);
     if (
       row.status !== 'SCHEDULED' &&
       !(row.status === 'CANCELLED' && row.cancelReason === 'NO_ACTIVE_LINE')
     )
       return 'LEFT_AS_IS';
-    const state = await this.dayState(tx, input, day, place);
+    const state = await this.dayState(tx, input, day, place, true);
     const now = this.clock.now();
     const decision = decideRequest(state.sessions, state.placeByBranch, now, input.bootstrapCutoff);
     if (decision.kind === 'OUTSIDE_BOOTSTRAP_WINDOW') return 'LEFT_AS_IS';
@@ -118,17 +119,23 @@ export class ScheduleRatingRequest {
     input: ScheduleRatingRequestInput,
     key: RatingRequestKey,
     place: BranchSchedule,
+    storedDay: string | null,
   ): Promise<RatingRequestRow | null> {
     const existing = await this.ports.requests.lock(tx, key);
     if (existing !== null) return existing;
-    const initial = await this.dayState(tx, input, key.businessDate, place);
+    const initial = await this.dayState(tx, input, key.businessDate, place, false);
     const latest = initial.sessions.at(-1);
-    if (latest === undefined) return null;
+    if (latest === undefined) {
+      await this.persistInputSessionDay(tx, input, storedDay, key.businessDate);
+      return null;
+    }
     const latestPlace = initial.placeByBranch.get(latest.branchId);
     if (latestPlace === undefined) throw new RangeError('BRANCH_SCHEDULE_MISSING');
     const schedule = ratingSchedule(latest, latestPlace.openingHours, latestPlace.timeZone);
-    if (outsideBootstrapWindow(latest.occurredAt, schedule.sendDeadline, input.bootstrapCutoff))
+    if (outsideBootstrapWindow(latest.occurredAt, schedule.sendDeadline, input.bootstrapCutoff)) {
+      await this.persistInputSessionDay(tx, input, storedDay, key.businessDate);
       return null;
+    }
     await this.ports.requests.insertIfAbsent(tx, key, {
       id: this.ids.newId(),
       branchId: latest.branchId,
@@ -139,11 +146,33 @@ export class ScheduleRatingRequest {
     return inserted;
   }
 
+  private async persistInputSessionDay(
+    tx: Tx,
+    input: ScheduleRatingRequestInput,
+    storedDay: string | null,
+    day: string,
+  ): Promise<void> {
+    if (
+      storedDay !== null ||
+      input.sessionId === undefined ||
+      this.ports.daySessions.assignRequestDay === undefined
+    )
+      return;
+    await this.ports.daySessions.assignRequestDay(
+      tx,
+      input.companyId,
+      input.businessId,
+      input.sessionId,
+      day,
+    );
+  }
+
   private async dayState(
     tx: Tx,
     input: ScheduleRatingRequestInput,
     day: string,
     place: BranchSchedule,
+    persistMissingDays: boolean,
   ): Promise<DayState> {
     return resolveDayState({
       tx,
@@ -154,6 +183,7 @@ export class ScheduleRatingRequest {
       initialBranches: new Map<string, BranchSchedule>([[input.branchId, place]]),
       hours: this.ports.hours,
       daySessions: this.ports.daySessions,
+      persistMissingDays,
     });
   }
 }

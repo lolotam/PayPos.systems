@@ -23,6 +23,7 @@ beforeAll(async () => {
 });
 afterAll(async () => { await db?.close(); await owner?.end(); await testDb?.drop(); });
 const asA = (query: ReturnType<typeof sql>) => db.withTenant(A.company, (tx) => tx.execute(query), { userId: USER });
+const asB = (query: ReturnType<typeof sql>) => db.withTenant(B.company, (tx) => tx.execute(query), { userId: USER });
 function insert(table: typeof tables[number], company: string, business: string, parent = ids.session, employee = ids.employee, share = 1, warning = false) {
   if (table === 'service_sessions') return sql`INSERT INTO service_sessions(company_id,id,business_id,branch_id,customer_id,customer_name,customer_phone_masked,
     recorded_by,recorded_by_membership_id,occurred_at,recorded_at,business_date,business_timezone,late)
@@ -82,7 +83,14 @@ it('deferred invoker trigger rejects a line with no performers, wrong sum, or wa
   const functions = await owner`SELECT proname,prosecdef FROM pg_proc WHERE proname IN ('orders_check_performers','orders_performer_consistency')`;
   expect(functions).toHaveLength(2); expect(functions.every((r) => r['prosecdef'] === false)).toBe(true);
 });
-it('PP-286 T-3: pospay_app may set rating_request_day once, and overwriting or clearing it is refused', async () => {
+it('PP-286 T-3: pospay_app may set rating_request_day once, respects RLS, and refuses clearing or changing it', async () => {
+  expect(
+    await asB(sql`UPDATE service_sessions SET rating_request_day = '2026-10-09'::date WHERE company_id = ${A.company} AND id = ${ids.session} RETURNING id`),
+  ).toEqual([]);
+  await asB(sql`UPDATE service_sessions SET rating_request_day = '2026-10-09'::date WHERE id = ${ids.session}`);
+  expect(await asA(sql`SELECT rating_request_day::text AS day FROM service_sessions WHERE id = ${ids.session}`)).toEqual([{ day: null }]);
+  await rejected(asA(sql`UPDATE service_sessions SET rating_request_day = NULL WHERE id = ${ids.session}`), /rating_request_day is immutable/);
+  await asA(sql`UPDATE service_sessions SET rating_request_day = '2026-10-05'::date WHERE id = ${ids.session}`);
   await asA(sql`UPDATE service_sessions SET rating_request_day = '2026-10-05'::date WHERE id = ${ids.session}`);
   const stored = await asA(sql`SELECT rating_request_day::text AS day FROM service_sessions WHERE id = ${ids.session}`);
   expect(stored[0]?.['day']).toBe('2026-10-05');
