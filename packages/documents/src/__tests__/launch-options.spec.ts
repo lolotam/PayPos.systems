@@ -5,12 +5,7 @@ import { join } from 'node:path';
 import { chromium } from 'playwright-core';
 import { expect, it, vi } from 'vitest';
 
-import {
-  DEFAULT_CHROMIUM_LAUNCH_TIMEOUT_MS,
-  chromiumLaunchOptions,
-  getLaunchCleanup,
-  playwrightFactory,
-} from '../playwright/factory.ts';
+import { DEFAULT_CHROMIUM_LAUNCH_TIMEOUT_MS, chromiumLaunchOptions, getLaunchCleanup, playwrightFactory } from '../playwright/factory.ts';
 import { captureOwnedDescendants, createMarkerProcess, getLaunchCleanupRetry, isPidAlive, killProcessTree, LAUNCH_MARKER_ENV } from '../playwright/process-tree.ts';
 
 it('leaves process signals to the worker', () => {
@@ -35,12 +30,7 @@ it('forwards an explicit timeout argument in playwrightFactory(timeoutMs)', asyn
     throw Object.assign(new Error('ESRCH'), { code: 'ESRCH' });
   });
   const spy = vi.spyOn(chromium, 'launch').mockResolvedValue({
-    newContext: async () =>
-      ({
-        route: async () => undefined,
-        newPage: async () => ({}) as never,
-        close: async () => undefined,
-      }) as never,
+    newContext: async () => ({ route: async () => undefined, newPage: async () => ({}) as never, close: async () => undefined }) as never,
     close: async () => { proc.exitCode = 0; },
     on: () => undefined,
     process: () => proc,
@@ -87,35 +77,6 @@ it('keeps missing-PID cleanup single-flight while pending and allows sequential 
   releaseClose();
   await Promise.all([expect(getLaunchCleanup(hungErr)).resolves.toBeUndefined(), concurrentRetry]);
   expect([closeHungDone, retryDone, hungTries]).toEqual([true, true, 1]);
-
-  let lateProc: { pid: number; kill: () => boolean; exitCode: number | null } | null = null;
-  let lateKilled = false;
-  let lateCloseTries = 0;
-  let lateTimer: ReturnType<typeof setTimeout> | undefined;
-  const sLate = spawn(process.execPath, ['-e', 'setTimeout(() => {}, 10_000)'], { detached: true, stdio: 'ignore' });
-  const origSetTimeout = globalThis.setTimeout;
-  const pollTimers: Array<ReturnType<typeof setTimeout>> = [];
-  const timeoutSpy = vi.spyOn(globalThis, 'setTimeout').mockImplementation(((fn: (...a: unknown[]) => void, ms?: number, ...args: unknown[]) => {
-    const timer = origSetTimeout(fn, ms, ...args);
-    if (ms === 10) pollTimers.push(timer);
-    return timer;
-  }) as typeof setTimeout);
-  const lateSpy = vi.spyOn(chromium, 'launch').mockResolvedValue({ newContext: async () => ({}) as never, close: () => { lateCloseTries += 1; return new Promise<void>(() => undefined); }, on: () => undefined, process: () => lateProc } as never);
-  let lateErr: unknown;
-  try { await playwrightFactory(50).launch(); } catch (err) { lateErr = err; } finally { lateSpy.mockRestore(); }
-  try {
-    (getLaunchCleanup(lateErr) as { unref?: () => void } | undefined)?.unref?.();
-    lateProc = { pid: sLate.pid ?? 2_147_483_000, exitCode: null, kill: () => { lateKilled = true; lateTimer = origSetTimeout(() => { if (lateProc !== null) lateProc.exitCode = 0; }, 15); return true; } };
-    const retryPromise = Promise.resolve(getLaunchCleanupRetry(lateErr)?.());
-    (retryPromise as { unref?: () => void }).unref?.();
-    expect(pollTimers.at(-1)?.hasRef()).toBe(false);
-    await expect(retryPromise).resolves.toBeUndefined();
-    expect([lateKilled, lateCloseTries]).toEqual([true, 1]);
-  } finally {
-    timeoutSpy.mockRestore();
-    if (lateTimer !== undefined) clearTimeout(lateTimer);
-    try { sLate.kill('SIGKILL'); } catch { /* exited */ }
-  }
 });
 
 const spawnSleeper = () => spawn(process.execPath, ['-e', 'setTimeout(() => {}, 10_000)'], { detached: true, stdio: 'ignore' });
@@ -126,16 +87,69 @@ function writeLinuxStat(procDir: string, pid: number, state: string, ppid: numbe
   writeFileSync(join(procDir, String(pid), 'stat'), `${pid} (p) ${fields.join(' ')}\n`);
 }
 
+function writeProcChildren(procDir: string, pid: number, kids: readonly number[]): void {
+  mkdirSync(join(procDir, String(pid), 'task', String(pid)), { recursive: true });
+  writeFileSync(join(procDir, String(pid), 'task', String(pid), 'children'), kids.join(' '));
+}
+
+function trackPollTimers() {
+  const [origSetTimeout, pollTimers] = [globalThis.setTimeout, [] as Array<ReturnType<typeof setTimeout>>];
+  const timeoutSpy = vi.spyOn(globalThis, 'setTimeout').mockImplementation(((fn: (...a: unknown[]) => void, ms?: number, ...args: unknown[]) => {
+    const t = origSetTimeout(fn, ms, ...args); if (ms === 10) pollTimers.push(t); return t;
+  }) as typeof setTimeout);
+  return { origSetTimeout, pollTimers, restore: () => timeoutSpy.mockRestore() };
+}
+
+it('propagates unref across missing-PID cleanup resumption and late-PID retries', async () => {
+  const sLate = spawnSleeper();
+  const latePid = sLate.pid ?? 0;
+  expect(latePid).toBeGreaterThan(0);
+  const [{ origSetTimeout, pollTimers, restore }, origKill] = [trackPollTimers(), process.kill.bind(process)];
+  const killSpy = vi.spyOn(process, 'kill').mockImplementation(((pid: number, sig?: string | number) => (pid === -latePid && sig === 'SIGKILL' ? true : origKill(pid, sig as NodeJS.Signals))) as typeof process.kill);
+  const timers: Array<ReturnType<typeof setTimeout>> = [];
+  try {
+    let procA: { pid: number; kill: () => boolean; exitCode: number | null } | null = null;
+    let [killedA, releaseA] = [false, (() => undefined) as () => void];
+    let errA: unknown;
+    const spyA = vi.spyOn(chromium, 'launch').mockResolvedValue({ newContext: async () => ({}) as never, close: () => new Promise<void>((r) => { releaseA = r; }), on: () => undefined, process: () => procA } as never);
+    try { await playwrightFactory(50).launch(); } catch (e) { errA = e; } finally { spyA.mockRestore(); }
+    (getLaunchCleanup(errA) as { unref?: () => void } | undefined)?.unref?.();
+    procA = { pid: latePid, exitCode: null, kill: () => { killedA = true; timers.push(origSetTimeout(() => { if (procA !== null) procA.exitCode = 0; }, 15)); return true; } };
+    const idxA = pollTimers.length;
+    releaseA();
+    await Promise.resolve();
+    expect([pollTimers.length > idxA, pollTimers[idxA]?.hasRef()]).toEqual([true, false]);
+    await expect(getLaunchCleanup(errA)).resolves.toBeUndefined();
+    expect([killedA, pollTimers.slice(idxA).every((t) => !t.hasRef())]).toEqual([true, true]);
+
+    let procB: { pid: number; kill: () => boolean; exitCode: number | null } | null = null;
+    let [killedB, closeTriesB] = [false, 0];
+    let errB: unknown;
+    const spyB = vi.spyOn(chromium, 'launch').mockResolvedValue({ newContext: async () => ({}) as never, close: () => { closeTriesB += 1; return new Promise<void>(() => undefined); }, on: () => undefined, process: () => procB } as never);
+    try { await playwrightFactory(50).launch(); } catch (e) { errB = e; } finally { spyB.mockRestore(); }
+    procB = { pid: latePid, exitCode: null, kill: () => { killedB = true; timers.push(origSetTimeout(() => { if (procB !== null) procB.exitCode = 0; }, 15)); return true; } };
+    const idxB = pollTimers.length;
+    const retryTask = getLaunchCleanupRetry(errB)?.() as Promise<void> & { unref?: () => void };
+    expect([pollTimers.length > idxB, pollTimers[idxB]?.hasRef()]).toEqual([true, true]);
+    retryTask.unref?.();
+    expect(pollTimers[idxB]?.hasRef()).toBe(false);
+    await expect(retryTask).resolves.toBeUndefined();
+    expect([killedB, closeTriesB, pollTimers.slice(idxB).every((t) => !t.hasRef())]).toEqual([true, 1, true]);
+  } finally {
+    killSpy.mockRestore();
+    restore();
+    for (const t of timers) clearTimeout(t);
+    try { sLate.kill('SIGKILL'); } catch { /* exited */ }
+  }
+});
+
 it('holds root and verified ancestors when root or grandchild fingerprint is transiently unreadable', async () => {
   const procDir = mkdtempSync(join(tmpdir(), 'pospay-proc-'));
   const [sRoot, sChild, sGrand] = [spawnSleeper(), spawnSleeper(), spawnSleeper()];
   const [rootPid, childPid, grandPid] = [sRoot.pid ?? 0, sChild.pid ?? 0, sGrand.pid ?? 0];
   expect(Math.min(rootPid, childPid, grandPid)).toBeGreaterThan(0);
   try {
-    for (const [p, kid] of [[rootPid, childPid], [childPid, grandPid]] as const) {
-      mkdirSync(join(procDir, String(p), 'task', String(p)), { recursive: true });
-      writeFileSync(join(procDir, String(p), 'task', String(p), 'children'), `${kid}\n`);
-    }
+    for (const [p, kid] of [[rootPid, childPid], [childPid, grandPid]] as const) writeProcChildren(procDir, p, [kid]);
     mkdirSync(join(procDir, String(grandPid)), { recursive: true });
     writeLinuxStat(procDir, childPid, 'S', rootPid, rootPid, 222);
     writeLinuxStat(procDir, grandPid, 'S', childPid, rootPid, 333);
@@ -189,17 +203,13 @@ it('walks children of reparented group members across distinct process groups', 
   const procDir = mkdtempSync(join(tmpdir(), 'pospay-proc-grp-'));
   const [sRoot, sChild, sHelper, sGrand] = [spawnSleeper(), spawnSleeper(), spawnSleeper(), spawnSleeper()];
   const [rootPid, childPid, helperPid, grandPid] = [sRoot.pid ?? 0, sChild.pid ?? 0, sHelper.pid ?? 0, sGrand.pid ?? 0];
-  const writeChildren = (pid: number, kids: readonly number[]): void => {
-    mkdirSync(join(procDir, String(pid), 'task', String(pid)), { recursive: true });
-    writeFileSync(join(procDir, String(pid), 'task', String(pid), 'children'), kids.join(' '));
-  };
   expect(Math.min(rootPid, childPid, helperPid, grandPid)).toBeGreaterThan(0);
   try {
-    writeChildren(rootPid, [childPid]);
+    writeProcChildren(procDir, rootPid, [childPid]);
     writeLinuxStat(procDir, rootPid, 'S', 1, rootPid, 111);
-    writeChildren(childPid, []);
+    writeProcChildren(procDir, childPid, []);
     writeLinuxStat(procDir, childPid, 'S', rootPid, childPid, 222);
-    writeChildren(helperPid, [grandPid]);
+    writeProcChildren(procDir, helperPid, [grandPid]);
     writeLinuxStat(procDir, helperPid, 'S', 1, childPid, 333);
     mkdirSync(join(procDir, String(grandPid)), { recursive: true });
     writeLinuxStat(procDir, grandPid, 'S', helperPid, grandPid, 444);
@@ -225,7 +235,7 @@ it('walks children of reparented group members across distinct process groups', 
     writeLinuxStat(procDir, childPid, 'S', 1, childPid, 222);
     const signalWithLateReparented = (pid: number): Error | undefined => {
       if (pid === childPid) {
-        writeChildren(helperPid, [grandPid]);
+        writeProcChildren(procDir, helperPid, [grandPid]);
         writeLinuxStat(procDir, helperPid, 'S', 1, childPid, 333);
         mkdirSync(join(procDir, String(grandPid)), { recursive: true });
         writeLinuxStat(procDir, grandPid, 'S', helperPid, grandPid, 444);
@@ -247,10 +257,6 @@ it('falls back to live process-group ownership when parent exits between discove
   const procDir = mkdtempSync(join(tmpdir(), 'pospay-proc-race-'));
   const [sRoot, sChild, sGrand] = [spawnSleeper(), spawnSleeper(), spawnSleeper()];
   const [rootPid, childPid, grandPid] = [sRoot.pid ?? 0, sChild.pid ?? 0, sGrand.pid ?? 0];
-  const writeChildren = (pid: number, kids: readonly number[]): void => {
-    mkdirSync(join(procDir, String(pid), 'task', String(pid)), { recursive: true });
-    writeFileSync(join(procDir, String(pid), 'task', String(pid), 'children'), kids.join(' '));
-  };
   expect(Math.min(rootPid, childPid, grandPid)).toBeGreaterThan(0);
   const origKill = process.kill.bind(process);
   let reparented = false;
@@ -264,9 +270,9 @@ it('falls back to live process-group ownership when parent exits between discove
     return origKill(pid, sig as NodeJS.Signals);
   }) as typeof process.kill);
   try {
-    writeChildren(rootPid, [childPid]);
+    writeProcChildren(procDir, rootPid, [childPid]);
     writeLinuxStat(procDir, rootPid, 'S', 1, rootPid, 111);
-    writeChildren(childPid, [grandPid]);
+    writeProcChildren(procDir, childPid, [grandPid]);
     writeLinuxStat(procDir, childPid, 'S', rootPid, rootPid, 222);
     mkdirSync(join(procDir, String(grandPid)), { recursive: true });
     writeLinuxStat(procDir, grandPid, 'S', childPid, rootPid, 333);
@@ -347,13 +353,7 @@ it('waits for root exit after true kill return without once before rescanning ma
   const [sRoot, sOther, sEscaped] = [spawnSleeper(), spawnSleeper(), spawnSleeper()];
   const [rootPid, otherPid, escapedPid] = [sRoot.pid ?? 0, sOther.pid ?? 0, sEscaped.pid ?? 0];
   let exitTimer: ReturnType<typeof setTimeout> | undefined;
-  const origSetTimeout = globalThis.setTimeout;
-  const pollTimers: Array<ReturnType<typeof setTimeout>> = [];
-  const timeoutSpy = vi.spyOn(globalThis, 'setTimeout').mockImplementation(((fn: (...a: unknown[]) => void, ms?: number, ...args: unknown[]) => {
-    const timer = origSetTimeout(fn, ms, ...args);
-    if (ms === 10) pollTimers.push(timer);
-    return timer;
-  }) as typeof setTimeout);
+  const { origSetTimeout, pollTimers, restore } = trackPollTimers();
   expect(Math.min(rootPid, otherPid, escapedPid)).toBeGreaterThan(0);
   try {
     for (const p of [rootPid, otherPid]) { mkdirSync(join(procDir, String(p)), { recursive: true }); writeLinuxStat(procDir, p, 'S', 1, p, 111); }
@@ -385,7 +385,7 @@ it('waits for root exit after true kill return without once before rescanning ma
     await Promise.all([expect(killTask).resolves.toBeUndefined(), expect(retryTask).resolves.toBeUndefined(), expect(otherTask).resolves.toBeUndefined()]);
     expect([signaled, isPidAlive(escapedPid, procDir)]).toEqual([[escapedPid], false]);
   } finally {
-    timeoutSpy.mockRestore();
+    restore();
     if (exitTimer !== undefined) clearTimeout(exitTimer);
     for (const s of [sRoot, sOther, sEscaped]) try { s.kill('SIGKILL'); } catch { /* exited */ }
     rmSync(procDir, { recursive: true, force: true });
@@ -398,10 +398,7 @@ it('aborts descendant signaling immediately when identity changes mid-loop', asy
   const [rootPid, childPid, grandPid] = [sRoot.pid ?? 0, sChild.pid ?? 0, sGrand.pid ?? 0];
   expect(Math.min(rootPid, childPid, grandPid)).toBeGreaterThan(0);
   try {
-    for (const [p, kid] of [[rootPid, childPid], [childPid, grandPid]] as const) {
-      mkdirSync(join(procDir, String(p), 'task', String(p)), { recursive: true });
-      writeFileSync(join(procDir, String(p), 'task', String(p), 'children'), `${kid}\n`);
-    }
+    for (const [p, kid] of [[rootPid, childPid], [childPid, grandPid]] as const) writeProcChildren(procDir, p, [kid]);
     mkdirSync(join(procDir, String(grandPid)), { recursive: true });
     writeLinuxStat(procDir, rootPid, 'S', 1, rootPid, 111);
     writeLinuxStat(procDir, childPid, 'S', rootPid, rootPid, 222);
