@@ -102,7 +102,7 @@ it('FORCE RLS, explicit policies, invoker functions and restricted EXECUTE match
       FROM pg_proc p WHERE proname IN ('package_redemptions_write_guard','service_lines_redemption_guard',
         'package_redemption_validate_slot','package_redemption_validate','package_redemption_complete')`;
     expect(rows).toHaveLength(5);
-    for (const row of rows) expect(row).toMatchObject({ prosecdef:false,proconfig:['search_path=pg_catalog, public'],
+    for (const row of rows) expect(row).toMatchObject({ prosecdef:false,proconfig:['search_path=pg_catalog, public, pg_temp'],
       public_execute:false,auth_execute:false,dispatcher_execute:false,app_execute:true });
   });
 });
