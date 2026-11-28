@@ -2,7 +2,7 @@ import type { ConfirmSessionRecoveryBody, RecordServiceSessionResponse, ServiceS
 import { serviceSessionErrors } from '@pospay/i18n';
 import { listenForIdentityChanges } from '@/shared/browser/load-page';
 import { freezeSessionAttempt, freezeSessionAttemptScope, sameSessionScope, sessionAttemptUnresolved,
-  SessionSavedDisplayFailure, SESSION_ATTEMPT_RETENTION_MS, SESSION_ATTEMPT_SAFETY_MARGIN_MS, type SessionAttempt, type SessionAttemptCommand,
+  SessionSavedDisplayFailure, SESSION_ATTEMPT_RETRY_WINDOW_MS, type SessionAttempt, type SessionAttemptCommand,
   type SessionAttemptRuntime, type SessionAttemptScope, type SessionJournalEnvelope } from './session-attempt';
 import { createSessionAttemptSlotStore, type JournalStorage } from './session-attempt-slot-store';
 
@@ -25,9 +25,10 @@ function confirmExpiredEntry(scope: SessionAttemptScope | null, read: () => Sess
 }
 const registry = new Map<string, { core: ReturnType<typeof createCore>; users: number }>();
 
+// السيرفر لا يمدّد صلاحية مفتاح منع التكرار عند إعادة المحاولة؛ لذلك تُحسب نافذة الـ 23 ساعة من أول محاولة لا من آخر إرسال (#221).
 function retentionElapsed(entry: Extract<SessionJournalEnvelope, { state: 'PENDING' | 'EXPIRED' }>, now: number) {
   const createdAt = entry.state === 'PENDING' ? entry.attempt.createdAt : entry.createdAt;
-  return Math.max(0, now - Math.max(createdAt, entry.lastSentAt ?? createdAt)) >= SESSION_ATTEMPT_RETENTION_MS + SESSION_ATTEMPT_SAFETY_MARGIN_MS;
+  return Math.max(0, now - createdAt) >= SESSION_ATTEMPT_RETRY_WINDOW_MS;
 }
 
 function expired(entry: SessionJournalEnvelope | null, now: number): SessionJournalEnvelope | null {

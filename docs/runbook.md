@@ -1240,7 +1240,9 @@ It is an operator run, once per company — not a BullMQ job — and it never se
    eligibility. Cancellation therefore cannot change the population being checked. The final count
    `verifiedExpected` must also equal the frozen `expected`: a transaction with an old recording time may commit
    after the initial count and behind the page cursor. On this mismatch, rerun the frozen range without a checkpoint
-   so the newly visible sessions are processed; do not continue from the last cursor.
+   so the newly visible sessions are processed; do not continue from the last cursor. This final recount detects
+   transactions that became visible up to verification — it is not an MVCC snapshot across every page. Any transaction
+   committing after verification is covered by the already-running live consumer (step 1) and the atomic session-and-outbox write.
 6. **Until 59-2 ships**, the rating-request switch is off for every business, so the bootstrap schedules nothing
    yet; it only proves the frozen range and the coverage.
 

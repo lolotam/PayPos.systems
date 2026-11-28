@@ -1,5 +1,5 @@
 import { afterEach, expect, it, vi } from 'vitest';
-import { SESSION_ATTEMPT_RETENTION_MS, SESSION_ATTEMPT_SAFETY_MARGIN_MS } from './session-attempt';
+import { SESSION_ATTEMPT_RETRY_WINDOW_MS } from './session-attempt';
 import { createSessionAttemptJournal, type SessionAttemptJournal } from './session-attempt-journal';
 import { id, inputLine, instant, response, scope } from './session-recording-result.fixture';
 
@@ -87,7 +87,7 @@ it('drops customerId after leaveVisit so a refused append for another visit carr
   expect(await refuse(journal, id(15))).toEqual({ version: 1, state: 'PARTIAL', scope, sessionId: id(15) });
 });
 
-const retention = SESSION_ATTEMPT_RETENTION_MS + SESSION_ATTEMPT_SAFETY_MARGIN_MS;
+const retention = SESSION_ATTEMPT_RETRY_WINDOW_MS;
 function clocked() {
   let now = Date.parse(instant), next = 80;
   const journal = createSessionAttemptJournal(scope, { now: () => now, newId: () => id(next++) });
