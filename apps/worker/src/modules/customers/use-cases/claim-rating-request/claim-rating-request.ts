@@ -8,8 +8,17 @@ import {
 import { displaySafeFirstWord } from '../../domain/display-name.ts';
 import { performerLabel } from '../../domain/performer-label.ts';
 import { expiresAt } from '../../domain/rating-link-expiry.ts';
-import { dayWindow, sessionsOfDay, type BranchSchedule } from '../../domain/sessions-of-day.ts';
+import {
+  dayWindow,
+  sessionsOfDay,
+  unassignedSessionIdsOfDay,
+  withAssignedRequestDays,
+  type BranchSchedule,
+  type DaySession,
+  type LegacyOvernightCoverage,
+} from '../../domain/sessions-of-day.ts';
 import { ratingRequestReadyPayload } from '../../events/published.ts';
+import { loadLegacyOvernightCoverage } from '../previous-day-coverage.ts';
 import type { BranchScheduleHoursPort } from '../../ports/branch-schedule-hours.port.ts';
 import type { BusinessNamesPort } from '../../ports/business-names.port.ts';
 import type { Clock, IdGenerator } from '../../ports/clock.port.ts';
@@ -308,7 +317,7 @@ export class ClaimRatingRequest<Transaction = unknown> {
     companyId: string,
     request: DueRatingRequest,
   ): Promise<{
-    sessions: ReturnType<typeof sessionsOfDay>;
+    sessions: readonly DaySession[];
     placeByBranch: ReadonlyMap<string, BranchSchedule>;
   }> {
     const place = await this.ports.hours.hours(tx, companyId, request.branchId);
@@ -322,13 +331,68 @@ export class ClaimRatingRequest<Transaction = unknown> {
       window.from,
       window.to,
     );
-    const placeByBranch = new Map<string, BranchSchedule>([[request.branchId, place]]);
+    const placeByBranch = new Map([[request.branchId, place]]);
     for (const branchId of new Set(lines.map((line) => line.branchId))) {
       if (placeByBranch.has(branchId)) continue;
       const branch = await this.ports.hours.hours(tx, companyId, branchId);
       if (branch === null) throw new Error('RATING_BRANCH_NOT_FOUND');
       placeByBranch.set(branchId, branch);
     }
-    return { sessions: sessionsOfDay(lines, placeByBranch, request.businessDate), placeByBranch };
+    const legacyOvernight = await loadLegacyOvernightCoverage(tx, {
+      companyId,
+      businessId: request.businessId,
+      customerId: request.customerId,
+      day: request.businessDate,
+      hasUnassignedLines: lines.some((line) => line.requestDay == null),
+      currentRequest: request,
+      placeByBranch,
+      hours: this.ports.hours,
+      findPreviousDayRequest: this.ports.claims.findPreviousDayRequest,
+    });
+    const resolvedLines = await this.assignMissingDayLines(
+      tx,
+      companyId,
+      request,
+      lines,
+      placeByBranch,
+      legacyOvernight,
+    );
+    const cutoff = { branchId: request.branchId, sendDeadline: request.sendDeadline };
+    const sessions = sessionsOfDay(
+      resolvedLines,
+      placeByBranch,
+      request.businessDate,
+      cutoff,
+      legacyOvernight,
+    );
+    return { sessions, placeByBranch };
+  }
+
+  private async assignMissingDayLines(
+    tx: Transaction,
+    companyId: string,
+    request: DueRatingRequest,
+    lines: Awaited<ReturnType<DaySessionsPort<Transaction>['activeLines']>>,
+    placeByBranch: ReadonlyMap<string, BranchSchedule>,
+    legacyOvernight?: LegacyOvernightCoverage,
+  ) {
+    const assign = this.ports.daySessions.assignRequestDay;
+    const pendingSessionIds = unassignedSessionIdsOfDay(
+      lines,
+      placeByBranch,
+      request.businessDate,
+      undefined,
+      legacyOvernight,
+    );
+    const assignedBySessionId = new Map<string, string>();
+    if (assign !== undefined && pendingSessionIds.length > 0) {
+      for (const sessionId of pendingSessionIds) {
+        assignedBySessionId.set(
+          sessionId,
+          await assign(tx, companyId, request.businessId, sessionId, request.businessDate),
+        );
+      }
+    }
+    return withAssignedRequestDays(lines, assignedBySessionId);
   }
 }

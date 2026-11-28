@@ -2,6 +2,10 @@ import { sql } from 'drizzle-orm';
 import postgres from 'postgres';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { createDatabase, type Database } from '../index.ts';
+import {
+  backfillServiceSessionRatingRequestDays,
+  ServiceSessionRatingRequestDaysRoleRefusedError,
+} from '../data-steps/service-session-rating-request-days.ts';
 import { createTestDatabase, type TestDatabase } from '../../test/test-database.ts';
 import { seedTwoTenants, TENANT, USER } from '../../test/tenancy-fixtures.ts';
 import { seedOrders, ORDER_IDS as ids } from '../../test/orders-fixture.ts';
@@ -23,6 +27,7 @@ beforeAll(async () => {
 });
 afterAll(async () => { await db?.close(); await owner?.end(); await testDb?.drop(); });
 const asA = (query: ReturnType<typeof sql>) => db.withTenant(A.company, (tx) => tx.execute(query), { userId: USER });
+const asB = (query: ReturnType<typeof sql>) => db.withTenant(B.company, (tx) => tx.execute(query), { userId: USER });
 function insert(table: typeof tables[number], company: string, business: string, parent = ids.session, employee = ids.employee, share = 1, warning = false) {
   if (table === 'service_sessions') return sql`INSERT INTO service_sessions(company_id,id,business_id,branch_id,customer_id,customer_name,customer_phone_masked,
     recorded_by,recorded_by_membership_id,occurred_at,recorded_at,business_date,business_timezone,late)
@@ -81,4 +86,135 @@ it('deferred invoker trigger rejects a line with no performers, wrong sum, or wa
   }), /Invalid performer set/);
   const functions = await owner`SELECT proname,prosecdef FROM pg_proc WHERE proname IN ('orders_check_performers','orders_performer_consistency')`;
   expect(functions).toHaveLength(2); expect(functions.every((r) => r['prosecdef'] === false)).toBe(true);
+});
+it('PP-286 T-3: pospay_app may set rating_request_day once, respects RLS, and refuses clearing or changing it', async () => {
+  expect(
+    await asB(sql`UPDATE service_sessions SET rating_request_day = '2026-10-09'::date WHERE company_id = ${A.company} AND id = ${ids.session} RETURNING id`),
+  ).toEqual([]);
+  await asB(sql`UPDATE service_sessions SET rating_request_day = '2026-10-09'::date WHERE id = ${ids.session}`);
+  expect(await asA(sql`SELECT rating_request_day::text AS day FROM service_sessions WHERE id = ${ids.session}`)).toEqual([{ day: null }]);
+  await rejected(asA(sql`UPDATE service_sessions SET rating_request_day = NULL WHERE id = ${ids.session}`), /rating_request_day is immutable/);
+  await asA(sql`UPDATE service_sessions SET rating_request_day = '2026-10-05'::date WHERE id = ${ids.session}`);
+  await asA(sql`UPDATE service_sessions SET rating_request_day = '2026-10-05'::date WHERE id = ${ids.session}`);
+  const stored = await asA(sql`SELECT rating_request_day::text AS day FROM service_sessions WHERE id = ${ids.session}`);
+  expect(stored[0]?.['day']).toBe('2026-10-05');
+  await rejected(asA(sql`UPDATE service_sessions SET rating_request_day = '2026-10-06'::date WHERE id = ${ids.session}`), /rating_request_day is immutable/);
+  await rejected(asA(sql`UPDATE service_sessions SET rating_request_day = NULL WHERE id = ${ids.session}`), /rating_request_day is immutable/);
+});
+
+async function seedBackfillScenarios(idsByCase: {
+  branchA: string; branchB: string; branchC: string;
+  customer1: string; customer2: string; customer3: string; customer4: string; customer5: string;
+  sOvernightA: string; sLaterB: string; sRemovedHours: string; sNewAfterSent: string; sPreDeployPostSentA: string; sEditedToOvernight: string;
+}) {
+  const overnightHours = [7, 1, 2, 3, 4, 5, 6].map((weekday) => ({ weekday, intervals: [{ opens: '18:00', closes: '02:00' }] }));
+  const daytimeHours = [7, 1, 2, 3, 4, 5, 6].map((weekday) => ({ weekday, intervals: [{ opens: '10:00', closes: '23:59' }] }));
+  await owner.begin(async (tx) => {
+    await tx`INSERT INTO branches (company_id, id, business_id, name_en, timezone, opening_hours) VALUES
+      (${A.company}, ${idsByCase.branchA}, ${A.business}, 'Branch A Kuwait Overnight', 'Asia/Kuwait', ${tx.json(overnightHours)}),
+      (${A.company}, ${idsByCase.branchB}, ${A.business}, 'Branch B West Evening', 'America/New_York', ${tx.json(daytimeHours)}),
+      (${A.company}, ${idsByCase.branchC}, ${A.business}, 'Branch C Daytime', 'Asia/Kuwait', ${tx.json(daytimeHours)})`;
+    await tx`INSERT INTO customers (company_id, id, name, phone, locale, created_at, updated_at) VALUES
+      (${A.company}, ${idsByCase.customer1}, 'Customer 1', '+96550000111', 'en', now(), now()),
+      (${A.company}, ${idsByCase.customer2}, 'Customer 2', '+96550000112', 'en', now(), now()),
+      (${A.company}, ${idsByCase.customer3}, 'Customer 3', '+96550000113', 'en', now(), now()),
+      (${A.company}, ${idsByCase.customer4}, 'Customer 4', '+96550000114', 'en', now(), now()),
+      (${A.company}, ${idsByCase.customer5}, 'Customer 5', '+96550000115', 'en', now(), now())`;
+    const addSession = (id: string, branchId: string, customerId: string, occurredAt: string) => tx`
+      INSERT INTO service_sessions (company_id, id, business_id, branch_id, customer_id, customer_name, customer_phone_masked,
+        recorded_by, recorded_by_membership_id, occurred_at, recorded_at, business_date, business_timezone, late)
+      VALUES (${A.company}, ${id}, ${A.business}, ${branchId}, ${customerId}, 'Customer', '***111',
+        ${USER}, ${ids.membership}, ${occurredAt}::timestamptz, ${occurredAt}::timestamptz, '2026-06-14', 'Asia/Kuwait', false)`;
+    await addSession(idsByCase.sOvernightA, idsByCase.branchA, idsByCase.customer1, '2026-06-14T21:30:00Z');
+    await addSession(idsByCase.sLaterB, idsByCase.branchB, idsByCase.customer1, '2026-06-14T21:45:00Z');
+    await addSession(idsByCase.sRemovedHours, idsByCase.branchC, idsByCase.customer2, '2026-06-14T21:30:00Z');
+    await addSession(idsByCase.sNewAfterSent, idsByCase.branchC, idsByCase.customer3, '2026-06-14T21:15:00Z');
+    await addSession(idsByCase.sPreDeployPostSentA, idsByCase.branchA, idsByCase.customer4, '2026-06-14T21:15:00Z');
+    await addSession(idsByCase.sEditedToOvernight, idsByCase.branchA, idsByCase.customer5, '2026-06-14T21:30:00Z');
+    const r3 = '01920000-0000-7000-8000-000000004134';
+    const r4 = '01920000-0000-7000-8000-000000004136';
+    const r5Prev = '01920000-0000-7000-8000-000000004137';
+    const r5Curr = '01920000-0000-7000-8000-000000004138';
+    await tx`INSERT INTO rating_requests (company_id, id, business_id, customer_id, business_date, branch_id, due_at, send_deadline, status) VALUES
+      (${A.company}, '01920000-0000-7000-8000-000000004131', ${A.business}, ${idsByCase.customer1}, '2026-06-14', ${idsByCase.branchB}, '2026-06-14T22:45:00Z', '2026-06-15T04:29:00Z', 'SCHEDULED'),
+      (${A.company}, '01920000-0000-7000-8000-000000004132', ${A.business}, ${idsByCase.customer1}, '2026-06-15', ${idsByCase.branchA}, '2026-06-15T15:00:00Z', '2026-06-15T23:30:00Z', 'SCHEDULED'),
+      (${A.company}, '01920000-0000-7000-8000-000000004133', ${A.business}, ${idsByCase.customer2}, '2026-06-14', ${idsByCase.branchC}, '2026-06-14T22:30:00Z', '2026-06-14T23:30:00Z', 'SCHEDULED'),
+      (${A.company}, ${r3}, ${A.business}, ${idsByCase.customer3}, '2026-06-14', ${idsByCase.branchC}, '2026-06-14T18:00:00Z', '2026-06-14T23:30:00Z', 'SCHEDULED'),
+      (${A.company}, ${r4}, ${A.business}, ${idsByCase.customer4}, '2026-06-14', ${idsByCase.branchA}, '2026-06-14T18:00:00Z', '2026-06-14T23:30:00Z', 'SCHEDULED'),
+      (${A.company}, ${r5Prev}, ${A.business}, ${idsByCase.customer5}, '2026-06-14', ${idsByCase.branchA}, '2026-06-14T20:59:00Z', '2026-06-14T21:29:00Z', 'SCHEDULED'),
+      (${A.company}, ${r5Curr}, ${A.business}, ${idsByCase.customer5}, '2026-06-15', ${idsByCase.branchA}, '2026-06-14T22:30:00Z', '2026-06-15T21:29:00Z', 'SCHEDULED')`;
+    await tx`UPDATE rating_requests SET status = 'SENDING', token_hash = decode(concat(replace(id::text, '-', ''), replace(id::text, '-', '')), 'hex'), token_key_version = 1,
+      claimed_at = CASE WHEN id = ${r5Curr} THEN '2026-06-14T22:30:00Z'::timestamptz ELSE '2026-06-14T18:00:00Z'::timestamptz END,
+      expires_at = CASE WHEN id = ${r5Curr} THEN '2026-06-21T22:30:00Z'::timestamptz ELSE '2026-06-21T18:00:00Z'::timestamptz END,
+      ready_event_id = id
+      WHERE company_id = ${A.company} AND id IN (${r3}, ${r4}, ${r5Prev}, ${r5Curr})`;
+    await tx`UPDATE rating_requests SET status = 'SENT', sent_at = '2026-06-14T22:31:00Z'
+      WHERE company_id = ${A.company} AND id IN (${r3}, ${r4}, ${r5Prev}, ${r5Curr})`;
+  });
+}
+
+it('PP-286 T-3: backfillServiceSessionRatingRequestDays runs under withTenant, handles multi-branch overnight sessions, and distinguishes active overnight vs post-hours SENT', async () => {
+  const idsByCase = {
+    branchA: '01920000-0000-7000-8000-000000004101',
+    branchB: '01920000-0000-7000-8000-000000004102',
+    branchC: '01920000-0000-7000-8000-000000004103',
+    customer1: '01920000-0000-7000-8000-000000004111',
+    customer2: '01920000-0000-7000-8000-000000004112',
+    customer3: '01920000-0000-7000-8000-000000004113',
+    customer4: '01920000-0000-7000-8000-000000004114',
+    customer5: '01920000-0000-7000-8000-000000004115',
+    sOvernightA: '01920000-0000-7000-8000-000000004121',
+    sLaterB: '01920000-0000-7000-8000-000000004122',
+    sRemovedHours: '01920000-0000-7000-8000-000000004123',
+    sNewAfterSent: '01920000-0000-7000-8000-000000004124',
+    sPreDeployPostSentA: '01920000-0000-7000-8000-000000004125',
+    sEditedToOvernight: '01920000-0000-7000-8000-000000004126',
+  };
+  await seedBackfillScenarios(idsByCase);
+  const nonBypassApp = postgres(testDb.appUrl, { max: 1, onnotice: () => undefined });
+  try {
+    await expect(backfillServiceSessionRatingRequestDays(nonBypassApp, db)).rejects.toBeInstanceOf(
+      ServiceSessionRatingRequestDaysRoleRefusedError,
+    );
+  } finally {
+    await nonBypassApp.end();
+  }
+  const firstRun = await backfillServiceSessionRatingRequestDays(owner, db);
+  expect(firstRun.assigned).toBeGreaterThanOrEqual(5);
+  const days = await owner<{ id: string; day: string | null }[]>`
+    SELECT id, rating_request_day::text AS day FROM service_sessions
+    WHERE company_id = ${A.company} AND id IN (${idsByCase.sOvernightA}, ${idsByCase.sLaterB}, ${idsByCase.sRemovedHours}, ${idsByCase.sNewAfterSent}, ${idsByCase.sPreDeployPostSentA}, ${idsByCase.sEditedToOvernight})
+    ORDER BY id`;
+  expect(days).toEqual([
+    { id: idsByCase.sOvernightA, day: '2026-06-14' },
+    { id: idsByCase.sLaterB, day: '2026-06-14' },
+    { id: idsByCase.sRemovedHours, day: '2026-06-14' },
+    { id: idsByCase.sNewAfterSent, day: null },
+    { id: idsByCase.sPreDeployPostSentA, day: '2026-06-14' },
+    { id: idsByCase.sEditedToOvernight, day: '2026-06-15' },
+  ]);
+  const rerun = await backfillServiceSessionRatingRequestDays(owner, db);
+  expect(rerun.assigned).toBe(0);
+});
+
+it('PP-286 T-3: backfill leaves unscheduled overnight-tail sessions unstamped when prevReq is absent and currReq is SCHEDULED', async () => {
+  const branch = '01920000-0000-7000-8000-000000004104';
+  const customer6 = '01920000-0000-7000-8000-000000004116';
+  const sUnscheduled = '01920000-0000-7000-8000-000000004127';
+  const overnightHours = [7, 1, 2, 3, 4, 5, 6].map((weekday) => ({ weekday, intervals: [{ opens: '18:00', closes: '02:00' }] }));
+  await owner.begin(async (tx) => {
+    await tx`INSERT INTO branches (company_id, id, business_id, name_en, timezone, opening_hours) VALUES
+      (${A.company}, ${branch}, ${A.business}, 'Branch Overnight Unscheduled', 'Asia/Kuwait', ${tx.json(overnightHours)})`;
+    await tx`INSERT INTO customers (company_id, id, name, phone, locale, created_at, updated_at) VALUES
+      (${A.company}, ${customer6}, 'Customer 6', '+96550000116', 'en', now(), now())`;
+    await tx`INSERT INTO service_sessions (company_id, id, business_id, branch_id, customer_id, customer_name, customer_phone_masked,
+        recorded_by, recorded_by_membership_id, occurred_at, recorded_at, business_date, business_timezone, late)
+      VALUES (${A.company}, ${sUnscheduled}, ${A.business}, ${branch}, ${customer6}, 'Customer', '***116',
+        ${USER}, ${ids.membership}, '2026-06-14T21:30:00Z'::timestamptz, '2026-06-14T21:30:00Z'::timestamptz, '2026-06-14', 'Asia/Kuwait', false)`;
+    await tx`INSERT INTO rating_requests (company_id, id, business_id, customer_id, business_date, branch_id, due_at, send_deadline, status) VALUES
+      (${A.company}, '01920000-0000-7000-8000-000000004139', ${A.business}, ${customer6}, '2026-06-15', ${branch}, '2026-06-15T15:00:00Z', '2026-06-15T23:30:00Z', 'SCHEDULED')`;
+  });
+  await backfillServiceSessionRatingRequestDays(owner, db);
+  const rows = await owner<{ day: string | null }[]>`SELECT rating_request_day::text AS day FROM service_sessions WHERE company_id = ${A.company} AND id = ${sUnscheduled}`;
+  expect(rows[0]?.day).toBeNull();
 });

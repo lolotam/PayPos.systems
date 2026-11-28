@@ -1,6 +1,9 @@
 import { clockMinutes, crossesMidnight, type OpeningHoursValue } from './opening-hours.ts';
 import { addCivilDays, instantOf, isoWeekdayOf, localParts } from './zoned-time.ts';
 
+const LEGACY_OVERNIGHT_DELAY_MS = 60 * 60 * 1000;
+const LEGACY_OVERNIGHT_GRACE_MS = 30 * 60 * 1000;
+
 /**
  * ينسب الزيارة ليوم تقييم واحد بتوقيت فرعها؛ ذيل فترة الليل قبل الإغلاق يتبع يوم بدايتها.
  *
@@ -63,4 +66,74 @@ export function dayEnd(
   openingHours: OpeningHoursValue | null,
 ): Date {
   return dayClose(day, timeZone, openingHours) ?? instantOf(addCivilDays(day, 1), 0, timeZone);
+}
+
+/** رفض مؤقت عند اكتشاف تثبيت مسبق ليوم طلب مختلف للزيارة نفسه أثناء جدولة متزامنة. */
+export class SessionRequestDayMismatchError extends Error {
+  /**
+   * يحفظ معرّف الزيارة واليوم المتوقع واليوم المثبَّت لإعادة الجدولة على اليوم الصحيح.
+   *
+   * @param sessionId معرف الزيارة
+   * @param expectedDay يوم الطلب الذي بدأت المعاملة قفله
+   * @param persistedDay يوم الطلب المثبَّت فعلياً للزيارة
+   */
+  constructor(
+    readonly sessionId: string,
+    readonly expectedDay: string,
+    readonly persistedDay: string,
+  ) {
+    super('SESSION_REQUEST_DAY_MISMATCH');
+    this.name = 'SessionRequestDayMismatchError';
+  }
+}
+
+/** بيانات طلب اليوم المدني السابق اللازمة للتحقق من شمول زيارة ليلية قديمة قبل تعديل المواعيد. */
+export interface PreviousDayOvernightRequest {
+  readonly businessDate: string;
+  readonly branchId: string;
+  readonly dueAt: Date;
+  readonly sendDeadline: Date | null;
+  readonly claimedAt?: Date | null;
+}
+
+/**
+ * يتحقق مما إذا كانت زيارة غير موسومة بيوم طلب قد شملها طلب اليوم المدني السابق لفرعها نفسه فعلياً قبل إزالة الساعات الليلية.
+ *
+ * @param visit هوية فرع الزيارة ولحظتا حدوثها وتسجيلها
+ * @param visit.branchId معرف فرع الزيارة
+ * @param visit.occurredAt لحظة حدوث الزيارة
+ * @param visit.recordedAt لحظة تسجيل الزيارة إن توفرت
+ * @param request بيانات طلب التقييم لليوم المدني السابق
+ * @param requestBranchTimeZone المنطقة الفعّالة لفرع ذلك الطلب
+ * @returns true فقط عندما يثبت نفس الفرع والموعد والإغلاق الليلي شمول الزيارة في ذلك الطلب دون امتصاص زيارات جديدة أو فروع أخرى
+ */
+export function isCoveredByPreviousDayOvernightRequest(
+  visit: {
+    readonly branchId: string;
+    readonly occurredAt: Date;
+    readonly recordedAt?: Date | undefined;
+  },
+  request: PreviousDayOvernightRequest,
+  requestBranchTimeZone: string,
+): boolean {
+  if (visit.branchId !== request.branchId) return false;
+  if (request.sendDeadline === null) return false;
+  const closeMs = request.sendDeadline.getTime() - LEGACY_OVERNIGHT_GRACE_MS;
+  if (localParts(new Date(closeMs), requestBranchTimeZone).date <= request.businessDate)
+    return false;
+  const occurredMs = visit.occurredAt.getTime();
+  if (occurredMs >= closeMs) return false;
+  const minExpectedDueMs = Math.min(occurredMs + LEGACY_OVERNIGHT_DELAY_MS, closeMs);
+  if (request.dueAt.getTime() < minExpectedDueMs) return false;
+  if (visit.recordedAt !== undefined) {
+    const recordedMs = visit.recordedAt.getTime();
+    if (recordedMs > request.sendDeadline.getTime()) return false;
+    if (
+      request.claimedAt !== undefined &&
+      request.claimedAt !== null &&
+      recordedMs > request.claimedAt.getTime()
+    )
+      return false;
+  }
+  return true;
 }

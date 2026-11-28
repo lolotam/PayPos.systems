@@ -16,6 +16,16 @@ export interface RatingRequestRow {
   readonly branchId: string;
   readonly dueAt: Date;
   readonly sendDeadline: Date | null;
+  readonly claimedAt?: Date | null;
+}
+
+/** صف طلب اليوم السابق اللازم للتحقق في طبقة النطاق من تغطية زيارة ليلية قديمة بعد تعديل المواعيد. */
+export interface PreviousDayRatingRequestRow {
+  readonly businessDate: string;
+  readonly branchId: string;
+  readonly dueAt: Date;
+  readonly sendDeadline: Date | null;
+  readonly claimedAt: Date | null;
 }
 
 /** تخزين طلب التقييم على معاملة المستهلك نفسها. */
@@ -78,4 +88,24 @@ export interface RatingRequestRepository {
     reason: 'NO_ACTIVE_LINE' | 'PAST_DEADLINE',
     at: Date,
   ): Promise<void>;
+  /**
+   * يقرأ طلب التقييم لليوم المدني السابق (إن وُجد بمهلة إرسال) للتحقق في طبقة النطاق من تغطية الزيارات الليلية القديمة.
+   *
+   * @param tx معاملة المستأجر
+   * @param key هوية الشركة والنشاط والعميل والتاريخ المدني السابق
+   * @param key.companyId معرف الشركة
+   * @param key.businessId معرف النشاط
+   * @param key.customerId معرف العميل
+   * @param key.previousDate التاريخ المدني السابق بصيغة YYYY-MM-DD
+   * @returns صف الطلب السابق أو null عند عدم وجوده
+   */
+  findPreviousDayRequest?(
+    tx: Tx,
+    key: {
+      readonly companyId: string;
+      readonly businessId: string;
+      readonly customerId: string;
+      readonly previousDate: string;
+    },
+  ): Promise<PreviousDayRatingRequestRow | null>;
 }

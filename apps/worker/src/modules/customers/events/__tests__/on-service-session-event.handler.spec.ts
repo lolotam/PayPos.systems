@@ -78,6 +78,7 @@ async function expectScheduledOnce(
     businessId: IDENTITY.business_id,
     customerId: IDENTITY.customer_id,
     branchId: IDENTITY.branch_id,
+    sessionId: SESSION,
     occurredAt: new Date(IDENTITY.occurred_at),
   });
 }

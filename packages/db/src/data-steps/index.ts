@@ -1,7 +1,14 @@
 import { systemUuidV7 } from '@pospay/ids';
 import type postgres from 'postgres';
 
-import type { DataStep, DataStepApp, DataStepCoverage, DataStepEntry, DataStepContext, DataSteps } from './coverage.ts';
+import type {
+  DataStep,
+  DataStepApp,
+  DataStepCoverage,
+  DataStepEntry,
+  DataStepContext,
+  DataSteps,
+} from './coverage.ts';
 import { buildStepApp, reviewStep } from './coverage.ts';
 import { createDatabase } from '../client.ts';
 import { createOutboxDispatcherDatabase } from '../dispatcher.ts';
@@ -19,16 +26,22 @@ import {
   discoverRatingClaims,
   RatingDiscoveryRoleRefusedError,
 } from './rating-claims-discovery.ts';
+import { clampStaffMonthsBack, StaffMonthsBackRoleRefusedError } from './staff-months-back.ts';
 import {
-  clampStaffMonthsBack,
-  StaffMonthsBackRoleRefusedError,
-} from './staff-months-back.ts';
+  backfillServiceSessionRatingRequestDays,
+  ServiceSessionRatingRequestDaysRoleRefusedError,
+} from './service-session-rating-request-days.ts';
 
 export {
   clampStaffMonthsBack,
   StaffMonthsBackRoleRefusedError,
   type StaffMonthsBackResult,
 } from './staff-months-back.ts';
+export {
+  backfillServiceSessionRatingRequestDays,
+  ServiceSessionRatingRequestDaysRoleRefusedError,
+  type ServiceSessionRatingRequestDaysResult,
+} from './service-session-rating-request-days.ts';
 
 // قاعدة لمؤلفي خطوات البيانات (ADR-0038 + ADR-0054 §5): اتصال المالك لغرضه الوحيد فقط — فحص
 // الدور وقراءة companies.id؛ كل قراءة tenant وكل كتابة تعيش داخل withTenant على الكائن الضيق
@@ -61,7 +74,8 @@ export function sanitizedStepError(step: string, error: unknown): Error {
     error instanceof EmployeeNumbersRoleRefusedError ||
     error instanceof EmployeeNumbersExhaustedError ||
     error instanceof StatementAlertRolesRoleRefusedError ||
-    error instanceof StaffMonthsBackRoleRefusedError
+    error instanceof StaffMonthsBackRoleRefusedError ||
+    error instanceof ServiceSessionRatingRequestDaysRoleRefusedError
   )
     return error;
   const codeOf = (value: unknown): unknown =>
@@ -101,8 +115,7 @@ export const REVIEWED_DATA_STEPS: Readonly<Record<string, DataStepEntry>> = {
     coverage: 'NONE',
     run: async (owner, app, context) => {
       const reader = context.openDispatcherReader?.();
-      if (reader === undefined)
-        throw new Error('RATING_CLAIMS_DISCOVERY_DISPATCHER_CONFIGURATION');
+      if (reader === undefined) throw new Error('RATING_CLAIMS_DISCOVERY_DISPATCHER_CONFIGURATION');
       let failure: Error | undefined;
       try {
         const counts = await discoverRatingClaims(owner, app, reader);
@@ -168,6 +181,24 @@ export const REVIEWED_DATA_STEPS: Readonly<Record<string, DataStepEntry>> = {
         );
       } catch (error) {
         throw sanitizedStepError('staff-months-back', error);
+      } finally {
+        await app.close();
+      }
+    },
+  },
+  'service-session-rating-request-days': {
+    coverage: 'NONE',
+    run: async (owner, app) => {
+      try {
+        const { companies, read, assigned } = await backfillServiceSessionRatingRequestDays(
+          owner,
+          app,
+        );
+        console.log(
+          `[data-step:service-session-rating-request-days] companies=${companies} read=${read} assigned=${assigned}`,
+        );
+      } catch (error) {
+        throw sanitizedStepError('service-session-rating-request-days', error);
       } finally {
         await app.close();
       }

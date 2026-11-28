@@ -18,17 +18,18 @@ export interface RatingSchedule {
  *
  * @param lastSession آخر زيارة نشطة في يوم الطلب
  * @param lastSession.occurredAt لحظة حدوث آخر زيارة
+ * @param lastSession.requestDay يوم الطلب المحفوظ للزيارة إن وُجد
  * @param openingHours مواعيد فرع آخر زيارة أو null
  * @param timeZone المنطقة الفعّالة لذلك الفرع
  * @returns dueAt وsendDeadline؛ الموعد النهائي null بلا إغلاق معروف
  */
 export function ratingSchedule(
-  lastSession: { occurredAt: Date },
+  lastSession: { occurredAt: Date; requestDay?: string | null },
   openingHours: OpeningHoursValue | null,
   timeZone: string,
 ): RatingSchedule {
   const occurredAt = lastSession.occurredAt;
-  const day = requestDayOf(occurredAt, timeZone, openingHours);
+  const day = lastSession.requestDay ?? requestDayOf(occurredAt, timeZone, openingHours);
   const close = dayClose(day, timeZone, openingHours);
   const delayed = occurredAt.getTime() + RATING_DELAY_MS;
   return {

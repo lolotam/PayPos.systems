@@ -1,4 +1,9 @@
-import { listActiveLinesOfCustomer } from './queries/day-sessions.query.ts';
+import { assignSessionRequestDay } from './persistence/session-request-day.writer.ts';
+import {
+  listActiveLinesOfCustomer,
+  readSessionRecordedAt,
+  readSessionRequestDay,
+} from './queries/day-sessions.query.ts';
 import {
   countSessionsSince,
   latestSessionWatermark,
@@ -17,6 +22,9 @@ export {
 
 export const daySessionsReader = {
   activeLines: listActiveLinesOfCustomer,
+  readRequestDay: readSessionRequestDay,
+  readRecordedAt: readSessionRecordedAt,
+  assignRequestDay: assignSessionRequestDay,
   sessionsSince: listSessionsSince,
   countSince: countSessionsSince,
   watermark: latestSessionWatermark,

@@ -8,6 +8,7 @@ export interface ActiveLineRead {
   readonly occurredAt: Date;
   readonly recordedAt: Date;
   readonly businessTimezone: string;
+  readonly requestDay: string | null;
   readonly performers: { employeeId: string; shareBps: number }[];
 }
 
@@ -18,6 +19,7 @@ type ActiveLineRow = {
   readonly occurred_at: Date | string;
   readonly recorded_at: Date | string;
   readonly business_timezone: string;
+  readonly rating_request_day: string | null;
   readonly employee_id: string;
   readonly share_bps: number;
 };
@@ -37,7 +39,8 @@ export function activeLinesOfCustomerStatement(
   const from = fromInstant.toISOString();
   const to = toInstant.toISOString();
   return sql`SELECT l.id AS line_id, s.id AS session_id, s.branch_id,
-      s.occurred_at, s.recorded_at, s.business_timezone, p.employee_id, p.share_bps
+      s.occurred_at, s.recorded_at, s.business_timezone,
+      s.rating_request_day::text AS rating_request_day, p.employee_id, p.share_bps
     FROM service_sessions s
     JOIN service_lines l ON l.company_id = s.company_id AND l.business_id = s.business_id
       AND l.session_id = s.id AND l.status = 'ACTIVE'
@@ -72,6 +75,7 @@ export async function listActiveLinesOfCustomer(
         occurredAt: instant(row.occurred_at),
         recordedAt: instant(row.recorded_at),
         businessTimezone: row.business_timezone,
+        requestDay: row.rating_request_day,
         performers: [],
       };
       lines.set(row.line_id, line);
@@ -79,4 +83,35 @@ export async function listActiveLinesOfCustomer(
     line.performers.push({ employeeId: row.employee_id, shareBps: row.share_bps });
   }
   return [...lines.values()];
+}
+
+/** يقرأ يوم طلب التقييم المحفوظ للزيارة إن وُجد دون قفل أو تعديل. */
+export async function readSessionRequestDay(
+  tx: Tx,
+  companyId: string,
+  businessId: string,
+  sessionId: string,
+): Promise<string | null> {
+  const rows = await tx.execute<{ rating_request_day: string | null }>(sql`
+    SELECT rating_request_day::text AS rating_request_day
+      FROM service_sessions
+     WHERE company_id = ${companyId} AND company_id = app_company_id()
+       AND business_id = ${businessId} AND id = ${sessionId}`);
+  return rows[0]?.rating_request_day ?? null;
+}
+
+/** يقرأ لحظة تسجيل الزيارة الأصلية من جدول الزيارات دون الاعتماد على وقت تعديل أو إلحاق البنود. */
+export async function readSessionRecordedAt(
+  tx: Tx,
+  companyId: string,
+  businessId: string,
+  sessionId: string,
+): Promise<Date | null> {
+  const rows = await tx.execute<{ recorded_at: Date | string }>(sql`
+    SELECT recorded_at
+      FROM service_sessions
+     WHERE company_id = ${companyId} AND company_id = app_company_id()
+       AND business_id = ${businessId} AND id = ${sessionId}`);
+  const value = rows[0]?.recorded_at;
+  return value === undefined ? null : instant(value);
 }

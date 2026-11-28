@@ -15,6 +15,11 @@ export const RATING_REQUEST_COLUMN_GRANTS = [
   'updated_at',
 ].map((column) => `rating_requests.${column}:pospay_app:UPDATE`);
 
+// PP-286 T-3: يوم طلب التقييم يُحفظ مرة واحدة فقط على الزيارة دون السماح بتعديله أو مسحه.
+export const RATING_SESSION_COLUMN_GRANTS = [
+  'service_sessions.rating_request_day:pospay_app:UPDATE',
+];
+
 // مفتاح طلبات التقييم: التطبيق يبدّل القيمة ومن نفّذ التغيير ولحظة التغيير ورقم المراجعة بس؛ الحذف ممنوع.
 export const RATING_SETTINGS_COLUMN_GRANTS = [
   'requests_enabled',

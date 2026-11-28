@@ -14,6 +14,8 @@ export interface BootstrapSession {
   readonly customerId: string;
   readonly branchId: string;
   readonly occurredAt: Date;
+  readonly recordedAt?: Date | undefined;
+  readonly requestDay?: string | null;
 }
 
 /** حالة الزيارات الموجودة في orders، وتصل بحقن callback حتى لا يستوردها customers. */
@@ -37,6 +39,53 @@ export interface DaySessionsPort<Transaction = unknown> {
     fromInstant: Date,
     toInstant: Date,
   ): Promise<readonly ActiveLine[]>;
+  /**
+   * يقرأ يوم طلب التقييم المحفوظ للزيارة إن وُجد دون تعديله.
+   *
+   * @param tx معاملة المستأجر
+   * @param companyId الشركة المالكة للزيارة
+   * @param businessId النشاط المطلوب
+   * @param sessionId معرّف الزيارة
+   * @returns يوم الطلب المحفوظ أو null إذا لم يُحفظ بعد
+   */
+  readRequestDay?(
+    tx: Transaction,
+    companyId: string,
+    businessId: string,
+    sessionId: string,
+  ): Promise<string | null>;
+  /**
+   * يقرأ لحظة تسجيل الزيارة الأصلية من سجل الزيارات لتفادي الاعتماد على وقت تعديل أو إضافة لاحقة للبنود.
+   *
+   * @param tx معاملة المستأجر
+   * @param companyId الشركة المالكة للزيارة
+   * @param businessId النشاط المطلوب
+   * @param sessionId معرّف الزيارة
+   * @returns لحظة تسجيل الزيارة الأصلية أو null عند عدم العثور على الزيارة
+   */
+  readRecordedAt?(
+    tx: Transaction,
+    companyId: string,
+    businessId: string,
+    sessionId: string,
+  ): Promise<Date | null>;
+  /**
+   * يحفظ يوم طلب التقييم للزيارة أول مرة ويُعيد اليوم المخزَّن لها عند الاستدعاءات اللاحقة.
+   *
+   * @param tx معاملة المستأجر
+   * @param companyId الشركة المالكة للزيارة
+   * @param businessId النشاط المطلوب
+   * @param sessionId معرّف الزيارة
+   * @param requestDay يوم الطلب المحسوب لأول مرة بصيغة YYYY-MM-DD
+   * @returns يوم الطلب المثبَّت للزيارة
+   */
+  assignRequestDay?(
+    tx: Transaction,
+    companyId: string,
+    businessId: string,
+    sessionId: string,
+    requestDay: string,
+  ): Promise<string>;
   /**
    * يرجع صفحة keyset من كل زيارات النطاق المجمد؛ الجدولة تفحص البنود النشطة عشان الإلغاء ما يغيّرش عدّ التغطية.
    *

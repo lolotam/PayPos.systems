@@ -485,3 +485,27 @@ Spec 058 row 42 authorizes exactly these four consumer-adapter/public-reader pai
 Each reader uses the caller's existing `withTenant` transaction: no nested transaction, second connection, cross-context join, or write. Orders composes authority, place, and seller facts on that transaction; catalog proves place before catalog-only SQL.
 
 Consequences: providers own their SQL and minimal projections, while consumers own the adapters. Existing macro imports suffice; sale authority and POST/worker rechecks stay unchanged, with boundary/map/cycle and tenant-isolation tests mandatory.
+
+## Addendum 2026-11-28 — PP-286 T-3 (#452 item 1) persisted session rating_request_day
+
+Owner decision PP-286 T-3 (`docs/owner-decisions.ar.md`, #452 item 1) requires each service session's
+`rating_request_day` to be stored on first calculation and reused by scheduling, bootstrap, and claiming so later
+opening-hour edits do not move an already-visited day or duplicate a sent rating request.
+
+**Decision.** Add nullable `date` column `service_sessions.rating_request_day`, column privilege
+`GRANT UPDATE (rating_request_day) ON service_sessions TO pospay_app`, and `SECURITY INVOKER` trigger
+`enforce_service_session_rating_request_day_set_once()` (`SET search_path = pg_catalog, pg_temp`) refusing clears
+to `NULL` or edits once set. Keep `orders/queries/day-sessions.query.ts` read-only by placing
+`readSessionRequestDay` and `readSessionRecordedAt` there and placing `assignSessionRequestDay` in
+`orders/persistence/session-request-day.writer.ts` (atomic `COALESCE(rating_request_day, ...)` failing on 0-row
+or tenant mismatch with `SERVICE_SESSION_NOT_FOUND`). `orders/index.ts` exposes them through `daySessionsReader`,
+which is callback-injected into `customers` via `DaySessionsPort` at the worker composition roots
+(`bootstrap-rating-requests.ts`, `recover-rating-claims.ts`, `business-consumers.ts` via `main.ts`) without adding
+any `customers → orders` compile-time import edge.
+
+**Concurrency invariant.** Scheduling reads `readRequestDay` (without locking `service_sessions`) before
+acquiring the `rating_requests` row lock, writes `service_sessions.rating_request_day` only after holding that
+`rating_requests` lock (or when no `rating_requests` row is inserted), and `unassignedSessionIdsOfDay` / `assignPendingSessionDays` / `assignMissingDayLines` (applied cleanly with `withAssignedRequestDays`) only fill missing
+`rating_request_day` values for eligible sessions whose resolved day equals the locked request's `day`, sorted in
+canonical `sessionId` order. Both scheduling and claiming therefore lock `rating_requests` before writing
+`service_sessions` and never steal adjacent-day sessions across the 74-hour lookup window.

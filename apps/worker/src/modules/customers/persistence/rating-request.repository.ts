@@ -11,6 +11,15 @@ type StoredRequestRow = {
   readonly branch_id: string;
   readonly due_at: Date | string;
   readonly send_deadline: Date | string | null;
+  readonly claimed_at: Date | string | null;
+};
+
+type PreviousRequestSqlRow = {
+  readonly business_date: string;
+  readonly branch_id: string;
+  readonly due_at: Date | string;
+  readonly send_deadline: Date | string | null;
+  readonly claimed_at: Date | string | null;
 };
 
 function instant(value: Date | string): Date {
@@ -20,7 +29,7 @@ function instant(value: Date | string): Date {
 export const ratingRequestRepository: RatingRequestRepository = {
   lock: async (tx, key) => {
     const rows = await tx.execute<StoredRequestRow>(sql`SELECT
-        id, status, cancel_reason, branch_id, due_at, send_deadline
+        id, status, cancel_reason, branch_id, due_at, send_deadline, claimed_at
       FROM rating_requests
       WHERE company_id = ${key.companyId} AND business_id = ${key.businessId}
         AND customer_id = ${key.customerId} AND business_date = ${key.businessDate}::date
@@ -34,6 +43,7 @@ export const ratingRequestRepository: RatingRequestRepository = {
       branchId: row.branch_id,
       dueAt: instant(row.due_at),
       sendDeadline: row.send_deadline === null ? null : instant(row.send_deadline),
+      claimedAt: row.claimed_at === null ? null : instant(row.claimed_at),
     };
   },
   insertIfAbsent: async (tx, key, row) => {
@@ -58,5 +68,29 @@ export const ratingRequestRepository: RatingRequestRepository = {
         status = 'CANCELLED', cancel_reason = ${reason}, updated_at = ${at.toISOString()}::timestamptz
       WHERE company_id = ${key.companyId} AND business_id = ${key.businessId}
         AND customer_id = ${key.customerId} AND business_date = ${key.businessDate}::date`);
+  },
+  findPreviousDayRequest: async (tx, key) => {
+    const rows = await tx.execute<PreviousRequestSqlRow>(sql`SELECT
+        business_date::text AS business_date,
+        branch_id,
+        due_at,
+        send_deadline,
+        claimed_at
+      FROM rating_requests
+      WHERE company_id = ${key.companyId} AND business_id = ${key.businessId}
+        AND customer_id = ${key.customerId}
+        AND business_date = ${key.previousDate}::date
+        AND status IN ('SENT', 'SENDING', 'SCHEDULED')
+        AND send_deadline IS NOT NULL
+      LIMIT 1`);
+    const row = rows[0];
+    if (row === undefined) return null;
+    return {
+      businessDate: row.business_date,
+      branchId: row.branch_id,
+      dueAt: instant(row.due_at),
+      sendDeadline: row.send_deadline === null ? null : instant(row.send_deadline),
+      claimedAt: row.claimed_at === null ? null : instant(row.claimed_at),
+    };
   },
 };

@@ -174,4 +174,30 @@ export interface RatingClaimRepository<Transaction = unknown> {
     businessId: string,
     performers: readonly { id: string; employeeId: string }[],
   ): Promise<void>;
+  /**
+   * يقرأ طلب اليوم المدني السابق اختيارياً لمنع امتصاص زياراته غير الموسومة في اليوم الحالي.
+   *
+   * @param tx معاملة المستأجر
+   * @param key هوية الشركة والنشاط والعميل والتاريخ المدني السابق
+   * @param key.companyId معرف الشركة
+   * @param key.businessId معرف النشاط
+   * @param key.customerId معرف العميل
+   * @param key.previousDate التاريخ المدني السابق بصيغة YYYY-MM-DD
+   * @returns صف الطلب السابق أو null عند غيابه
+   */
+  findPreviousDayRequest?(
+    tx: Transaction,
+    key: {
+      readonly companyId: string;
+      readonly businessId: string;
+      readonly customerId: string;
+      readonly previousDate: string;
+    },
+  ): Promise<{
+    readonly businessDate: string;
+    readonly branchId: string;
+    readonly dueAt: Date;
+    readonly sendDeadline: Date | null;
+    readonly claimedAt: Date | null;
+  } | null>;
 }

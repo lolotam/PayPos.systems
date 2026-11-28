@@ -34,6 +34,7 @@ export async function onServiceSessionEvent(
     businessId: parsed.data.business_id,
     customerId: parsed.data.customer_id,
     branchId: parsed.data.branch_id,
+    sessionId: parsed.data.session_id,
     occurredAt: new Date(parsed.data.occurred_at),
   });
 }

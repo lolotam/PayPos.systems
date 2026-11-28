@@ -247,7 +247,7 @@ The consumer owns the interface. The adapter lives in the consumer's `persistenc
 | API `staff` | `AlertRulesPort.contacts` | API `identity` | the same bounded contact read for the attendance-change request and decision alerts, on the writer's own transaction (62b-1) |
 | worker `commissions` and API `commissions` | `StatementReminderReaders.contacts`, `CommissionStatementReviewReaders.contacts` | `identity` | bound at the worker and API composition roots to `teamAlertRecipientContacts`; no import arrow; the statement review and approval alerts read contacts only when the rule enables an external channel (62b-1) |
 | worker `customers` | `BranchScheduleHoursPort` | worker `tenancy` | the branch's opening hours and effective timezone through `branchScheduleHours` on the caller's transaction, for the rating request day and closing time; adapter bound at the customers composition root, not an injected callback (ADR-0010 addendum 2026-10-21, spec 060 D-B3, 59-1) |
-| worker `customers` | `DaySessionsPort` | worker `orders` | bound by an injected callback at the worker composition root; customers does not import orders (ADR-0041, spec 060 D-B2, FR-B06, 59-1) |
+| worker `customers` | `DaySessionsPort` | worker `orders` | bound by an injected callback (`daySessionsReader`) at the worker composition roots; customers does not import orders — `readRequestDay`, `readRecordedAt`, and `activeLines`/`sessionsSince`/`countSince`/`watermark` are read-only, while `assignRequestDay` performs the bounded set-once write of `service_sessions.rating_request_day` recorded below (ADR-0041 & 2026-11-28 addendum, spec 060 D-B2, FR-B06, PP-286 T-3 / #452, 59-1) |
 | `catalog` | `ImportFileFactsPort`, `ObjectBytesReader` | `files` | verified import-file facts on the caller's tenant transaction and bounded object bytes through the files runtime; catalog-owned ports bound at `apps/api/src/app.ts`, no catalog-to-files import arrow (ADR-0034 services-import addendum, spec 072 D-4, SI-T1) |
 
 ### 3.1 The one synchronous cross-module write (ADR-0003 §5.3)
@@ -265,6 +265,13 @@ its own auth transaction (`provisionStaffUser`, `cancelStaffUser`). Only `identi
 the employee lock and end in one observable final state per operation id (FR-F1-6). Each arrow below is checked
 by `pnpm module-map:check` against the real files, and the alternative — identity writing `employees` — would put
 an HR table in identity.
+
+**The PP-286 T-3 bounded set-once write (ADR-0041 addendum 2026-11-28, #452 item 1).** Worker `customers` invokes
+the root-injected `DaySessionsPort.assignRequestDay` callback (`orders/persistence/session-request-day.writer.ts`
+`assignSessionRequestDay`, exposed on `orders/index.ts` `daySessionsReader`) inside the caller's locked
+`withTenant` transaction so `service_sessions.rating_request_day` is stamped once with `COALESCE` + DB set-once
+trigger before scheduling or claiming acts on that day's sessions; `customers` never imports `orders`, and
+`assignSessionRequestDay` fails on missing session or tenant mismatch without touching any other column.
 
 No other port may write. A second synchronous write needs its own ADR and a row here.
 

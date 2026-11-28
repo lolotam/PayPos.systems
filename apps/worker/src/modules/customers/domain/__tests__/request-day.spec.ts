@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import type { OpeningHoursValue } from '../opening-hours.ts';
-import { dayClose, dayEnd, requestDayOf } from '../request-day.ts';
+import {
+  dayClose,
+  dayEnd,
+  isCoveredByPreviousDayOvernightRequest,
+  requestDayOf,
+} from '../request-day.ts';
 
 const KUWAIT = 'Asia/Kuwait';
 
@@ -86,5 +91,55 @@ describe('dayClose and dayEnd', () => {
 
   it('uses the overnight close rather than midnight as the day end', () => {
     expect(dayEnd('2026-10-05', KUWAIT, overnight).toISOString()).toBe('2026-10-05T23:00:00.000Z');
+  });
+});
+
+describe('isCoveredByPreviousDayOvernightRequest', () => {
+  it('accepts a legacy overnight session scheduled by the previous day request and rejects post-hours new visits', () => {
+    const legacyScheduled = {
+      businessDate: '2026-10-05',
+      branchId: 'branch-a',
+      dueAt: new Date('2026-10-05T22:15:00Z'),
+      sendDeadline: new Date('2026-10-05T23:30:00Z'),
+      claimedAt: null,
+    };
+    const earlierEveningSent = {
+      businessDate: '2026-10-05',
+      branchId: 'branch-a',
+      dueAt: new Date('2026-10-05T18:00:00Z'),
+      sendDeadline: new Date('2026-10-05T23:30:00Z'),
+      claimedAt: new Date('2026-10-05T18:00:00Z'),
+    };
+    const visit = {
+      branchId: 'branch-a',
+      occurredAt: new Date('2026-10-05T21:15:00Z'),
+      recordedAt: new Date('2026-10-05T21:15:00Z'),
+    };
+    expect(isCoveredByPreviousDayOvernightRequest(visit, legacyScheduled, KUWAIT)).toBe(true);
+    expect(isCoveredByPreviousDayOvernightRequest(visit, earlierEveningSent, KUWAIT)).toBe(false);
+    expect(
+      isCoveredByPreviousDayOvernightRequest(
+        { ...visit, branchId: 'branch-dubai' },
+        { ...legacyScheduled, dueAt: new Date('2026-10-05T23:00:00Z') },
+        KUWAIT,
+      ),
+    ).toBe(false);
+    expect(
+      isCoveredByPreviousDayOvernightRequest(
+        visit,
+        {
+          ...legacyScheduled,
+          claimedAt: new Date('2026-10-05T21:00:00Z'),
+        },
+        KUWAIT,
+      ),
+    ).toBe(false);
+    expect(
+      isCoveredByPreviousDayOvernightRequest(
+        visit,
+        { ...legacyScheduled, sendDeadline: new Date('2026-10-05T20:59:00Z') },
+        KUWAIT,
+      ),
+    ).toBe(false);
   });
 });

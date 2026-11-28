@@ -243,3 +243,93 @@ it('RT-07 a business with the switch off schedules nothing and schedules on the 
   expect(rows).toHaveLength(1);
   expect(rows[0]?.['status']).toBe('SCHEDULED');
 });
+
+it('PP-286 T-3 changing overnight hours keeps the stored rating_request_day across reschedule and bootstrap', async () => {
+  const branchId = await f.branch({ timezone: KUWAIT, openingHours: OVERNIGHT });
+  const customer = await f.customer();
+  const visit = await f.session({
+    customerId: customer,
+    branchId,
+    occurredAt: new Date('2026-06-14T21:15:00.000Z'),
+  });
+  await f.deliver(await f.event(visit.sessionId, 'ServiceSessionRecorded'));
+
+  const storedSessions =
+    await f.owner`SELECT rating_request_day::text AS day FROM service_sessions WHERE id=${visit.sessionId}`;
+  expect(storedSessions[0]?.['day']).toBe('2026-06-14');
+
+  const daytime2359 = everyDay([{ opens: '10:00', closes: '23:59' }]);
+  await f.owner`UPDATE branches
+    SET opening_hours=${f.owner.json(daytime2359 as unknown as Parameters<typeof f.owner.json>[0])}
+    WHERE company_id=${f.tenant.company} AND id=${branchId}`;
+
+  f.clock.at = new Date('2026-06-14T21:20:00.000Z');
+  await f.deliver(await f.event(visit.sessionId, 'ServiceLineChanged'));
+  const afterReschedule = await f.requests(customer);
+  expect(afterReschedule).toHaveLength(1);
+  expect(afterReschedule[0]?.['day']).toBe('2026-06-14');
+  expect(afterReschedule[0]?.['status']).toBe('SCHEDULED');
+
+  const bootstrap = await f.bootstrap(() => undefined)({
+    companyId: f.tenant.company,
+    cutoff: new Date('2026-06-14T00:00:00.000Z'),
+  });
+  expect(bootstrap.complete).toBe(true);
+  const afterBootstrap = await f.requests(customer);
+  expect(afterBootstrap).toHaveLength(1);
+  expect(afterBootstrap[0]?.['day']).toBe('2026-06-14');
+  expect(afterBootstrap[0]?.['status']).toBe('SCHEDULED');
+});
+
+it('PP-286 T-3 legacy SENT overnight request anchors a NULL-day visit after overnight hours are removed', async () => {
+  const branchId = await f.branch({ timezone: KUWAIT, openingHours: OVERNIGHT });
+  const customer = await f.customer();
+  const visit = await f.session({
+    customerId: customer,
+    branchId,
+    occurredAt: new Date('2026-06-14T21:30:00.000Z'),
+  });
+  const requestId = f.ids.newId();
+  const dueAt = new Date('2026-06-14T22:30:00.000Z');
+  const sendDeadline = new Date('2026-06-14T23:30:00.000Z');
+  const expiresAt = new Date(dueAt.getTime() + 168 * 3_600_000);
+  await f.owner.begin(async (sqlTx) => {
+    await sqlTx`INSERT INTO rating_requests
+      (company_id, id, business_id, customer_id, business_date, branch_id, due_at, send_deadline, status)
+      VALUES (${f.tenant.company}, ${requestId}, ${f.tenant.business}, ${customer},
+        '2026-06-14'::date, ${branchId}, ${dueAt}, ${sendDeadline}, 'SCHEDULED')`;
+    await sqlTx`UPDATE rating_requests SET
+        status = 'SENDING',
+        token_hash = decode(repeat('ab', 32), 'hex'),
+        token_key_version = 1,
+        claimed_at = ${dueAt},
+        expires_at = ${expiresAt},
+        ready_event_id = ${f.ids.newId()}
+      WHERE company_id = ${f.tenant.company} AND id = ${requestId}`;
+    await sqlTx`UPDATE rating_requests SET
+        status = 'SENT',
+        sent_at = ${new Date('2026-06-14T22:31:00.000Z')}
+      WHERE company_id = ${f.tenant.company} AND id = ${requestId}`;
+  });
+
+  const daytime2359 = everyDay([{ opens: '10:00', closes: '23:59' }]);
+  await f.owner`UPDATE branches
+    SET opening_hours=${f.owner.json(daytime2359 as unknown as Parameters<typeof f.owner.json>[0])}
+    WHERE company_id=${f.tenant.company} AND id=${branchId}`;
+
+  f.clock.at = new Date('2026-06-14T22:40:00.000Z');
+  await f.deliver(await f.event(visit.sessionId, 'ServiceLineChanged'));
+  const bootstrap = await f.bootstrap(() => undefined)({
+    companyId: f.tenant.company,
+    cutoff: new Date('2026-06-14T00:00:00.000Z'),
+  });
+  expect(bootstrap.complete).toBe(true);
+
+  const rows = await f.requests(customer);
+  expect(rows).toHaveLength(1);
+  expect(rows[0]?.['day']).toBe('2026-06-14');
+  expect(rows[0]?.['status']).toBe('SENT');
+  const stored =
+    await f.owner`SELECT rating_request_day::text AS day FROM service_sessions WHERE id=${visit.sessionId}`;
+  expect(stored[0]?.['day']).toBe('2026-06-14');
+});

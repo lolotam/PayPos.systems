@@ -34,6 +34,7 @@ const REGISTRY_FILE: Record<string, string> = {
   'statement-alert-roles': 'statement-alert-roles.ts',
   'employee-name-keys': 'employee-name-keys.ts',
   'staff-months-back': 'staff-months-back.ts',
+  'service-session-rating-request-days': 'service-session-rating-request-days.ts',
 };
 
 const stepsDir = new URL('../data-steps/', import.meta.url);
@@ -59,9 +60,7 @@ describe('data-step coverage source scan', () => {
   it('never imports or calls lockStatementPeriods inside a data step, in any subfolder', () => {
     for (const path of allStepSources()) {
       const source = withoutComments(readFileSync(new URL(path, stepsDir), 'utf8'));
-      expect(source, `${path} mentions lockStatementPeriods`).not.toContain(
-        'lockStatementPeriods',
-      );
+      expect(source, `${path} mentions lockStatementPeriods`).not.toContain('lockStatementPeriods');
     }
   });
 
@@ -158,10 +157,12 @@ describe('the registry wiring, checked on its source and its live map', () => {
 
 describe('reviewStep', () => {
   it('accepts a reviewed entry', () => {
-    expect(() => reviewStep('step-a', { coverage: 'INVALIDATES', run: async () => undefined }))
-      .not.toThrow();
-    expect(() => reviewStep('step-b', { coverage: 'NONE', run: async () => undefined }))
-      .not.toThrow();
+    expect(() =>
+      reviewStep('step-a', { coverage: 'INVALIDATES', run: async () => undefined }),
+    ).not.toThrow();
+    expect(() =>
+      reviewStep('step-b', { coverage: 'NONE', run: async () => undefined }),
+    ).not.toThrow();
   });
 
   it.each([
@@ -181,9 +182,10 @@ describe('reviewStep', () => {
     expect(() => reviewStep('step-e', { run: async () => undefined })).toThrow(
       'Migration data step step-e carries no reviewed coverage declaration; migration aborted',
     );
-    expect(() => reviewStep('step-f', { coverage: 'invalidates', run: async () => undefined }))
-      .toThrow(
-        'Migration data step step-f carries no reviewed coverage declaration; migration aborted',
-      );
+    expect(() =>
+      reviewStep('step-f', { coverage: 'invalidates', run: async () => undefined }),
+    ).toThrow(
+      'Migration data step step-f carries no reviewed coverage declaration; migration aborted',
+    );
   });
 });
