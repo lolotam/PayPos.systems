@@ -295,9 +295,9 @@ it('treats procfs zombies as exited, ignores disappearing threads, and retains g
     expect(directLinuxChildren(100, procDir)).toEqual([101, 103]);
     expect(isPidAlive(process.pid, procDir)).toBe(true);
     expect(extractLaunchedPids(new Error('log <launched> pid=55 <launched> pid=303'), 'id-1', procDir)).toEqual([303, 202]);
-    const gate = cleanupFailedLaunch(new Error(`log <launched> pid=${process.pid}`), 'id-1', procDir);
+    const gate = cleanupFailedLaunch(new Error(`log <launched> pid=${process.pid}`), 'id-unverified', procDir);
     expect(gate).toBeDefined();
-    writeProc(String(process.pid), { stat: `${process.pid} (node) Z 1 ${process.pid}\n` });
+    writeProc(String(process.pid), { stat: `${process.pid} (node) S 1 ${process.pid}\n`, environ: 'A=1\0' });
     await gate;
   } finally {
     rmSync(procDir, { recursive: true, force: true });

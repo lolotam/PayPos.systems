@@ -390,12 +390,14 @@ it('invokes kill() at the worker closeGraceMs deadline even when PlaywrightDocum
 });
 
 it('runs renderer fallback kill at renderer closeGraceMs when worker escalation kill fails transiently', async () => {
-  let killCalls = 0;
-  const { session, renderer } = await startPlaywrightEscalation(120, 25, async () => {
-    killCalls += 1;
-    if (killCalls === 1) throw new Error('EPERM');
-  });
-  await session.close();
-  expect(killCalls).toBe(2);
-  expect(renderer.unconfirmedExit).toBeNull();
+  for (const rendererGraceMs of [120, 25]) {
+    let killCalls = 0;
+    const { session, renderer } = await startPlaywrightEscalation(rendererGraceMs, 25, async () => {
+      killCalls += 1;
+      if (killCalls === 1) throw new Error('EPERM');
+    });
+    await session.close();
+    expect(killCalls).toBe(2);
+    expect(renderer.unconfirmedExit).toBeNull();
+  }
 });

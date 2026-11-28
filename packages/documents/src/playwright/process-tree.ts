@@ -148,20 +148,6 @@ function readProcessTablePairs(procRoot = '/proc'): Array<{ pid: number; ppid: n
 
 type MarkerInspection = 'matched' | 'mismatched' | 'unavailable';
 
-function inspectDarwinMarker(pid: number, marker: string): MarkerInspection {
-  try {
-    const out = execFileSync('ps', ['eww', '-o', 'state=,command=', '-p', String(pid)], {
-      encoding: 'utf8',
-      timeout: 1_000,
-    }).trim();
-    if (out.length === 0) return osPidExists(pid) ? 'unavailable' : 'mismatched';
-    if (out.startsWith('Z')) return 'mismatched';
-    return out.includes(marker) ? 'matched' : 'mismatched';
-  } catch {
-    return osPidExists(pid) ? 'unavailable' : 'mismatched';
-  }
-}
-
 function inspectLaunchMarker(pid: number, marker: string, procRoot: string): MarkerInspection {
   if (process.platform === 'linux' || procRoot !== '/proc') {
     try {
@@ -176,7 +162,6 @@ function inspectLaunchMarker(pid: number, marker: string, procRoot: string): Mar
       return osPidExists(pid) ? 'unavailable' : 'mismatched';
     }
   }
-  if (process.platform === 'darwin') return inspectDarwinMarker(pid, marker);
   return osPidExists(pid) ? 'unavailable' : 'mismatched';
 }
 
@@ -199,8 +184,6 @@ function analyzeLaunchedPids(
   const candidates = new Set<number>(logged);
   if (process.platform === 'linux' || procRoot !== '/proc') {
     for (const row of readLinuxProcessPairs(procRoot)) candidates.add(row.pid);
-  } else if (process.platform === 'darwin') {
-    for (const pid of collectDescendantPids([process.pid], procRoot)) candidates.add(pid);
   }
   const ownedPids: number[] = [];
   const unverifiedPids: number[] = [];
@@ -237,7 +220,8 @@ function collectDescendantPids(rootPids: readonly number[], procRoot = '/proc'):
   return result;
 }
 
-function killPidSafely(pid: number): void {
+function killPidSafely(pid: number, procRoot = '/proc'): void {
+  if (procRoot !== '/proc') return;
   try {
     process.kill(pid, 'SIGKILL');
   } catch {
@@ -254,8 +238,36 @@ async function waitForPidsExit(pids: readonly number[], procRoot = '/proc'): Pro
 /** يقتل PIDs التابعة لإطلاق فاشل وشجرتها وينتظر خروجها الفعلي (بما فيها حالات الزومبي). */
 export async function killPidsAndWait(pids: readonly number[], procRoot = '/proc'): Promise<void> {
   const all = [...new Set([...collectDescendantPids(pids, procRoot), ...pids])];
-  for (const pid of all) killPidSafely(pid);
+  for (const pid of all) killPidSafely(pid, procRoot);
   await waitForPidsExit(all, procRoot);
+}
+
+async function waitForUnverifiedPids(
+  pids: readonly number[],
+  launchMarker: string | undefined,
+  procRoot = '/proc',
+): Promise<void> {
+  const pending = new Set<number>(pids);
+  const marker = launchMarker === undefined ? undefined : `${LAUNCH_MARKER_ENV}=${launchMarker}`;
+  const matchedKills: Array<Promise<void>> = [];
+  while (pending.size > 0) {
+    for (const pid of [...pending]) {
+      if (!isPidAlive(pid, procRoot)) {
+        pending.delete(pid);
+        continue;
+      }
+      if (marker === undefined) continue;
+      const status = inspectLaunchMarker(pid, marker, procRoot);
+      if (status === 'mismatched') {
+        pending.delete(pid);
+      } else if (status === 'matched') {
+        pending.delete(pid);
+        matchedKills.push(killPidsAndWait([pid], procRoot));
+      }
+    }
+    if (pending.size > 0) await new Promise((resolve) => setTimeout(resolve, PID_POLL_MS));
+  }
+  if (matchedKills.length > 0) await Promise.all(matchedKills);
 }
 
 /** ينظف عمليات الإطلاق الفاشل المؤكدة ويمسك بوابة الخروج لو تعذر التحقق من ملكية عملية حيّة مسجلة. */
@@ -268,7 +280,7 @@ export function cleanupFailedLaunch(
   if (ownedPids.length === 0 && unverifiedPids.length === 0) return undefined;
   const tasks: Array<Promise<void>> = [];
   if (ownedPids.length > 0) tasks.push(killPidsAndWait(ownedPids, procRoot));
-  if (unverifiedPids.length > 0) tasks.push(waitForPidsExit(unverifiedPids, procRoot));
+  if (unverifiedPids.length > 0) tasks.push(waitForUnverifiedPids(unverifiedPids, launchMarker, procRoot));
   return Promise.all(tasks).then(() => undefined);
 }
 
