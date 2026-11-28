@@ -31,28 +31,76 @@ async function listPublicFunctions() {
         AND d.deptype='e' AND e.extname='btree_gist') ORDER BY proname`;
 }
 
+/** يقرأ معرّف PostgreSQL واحداً من قائمة search_path ويفك الاقتباس إن وُجد. */
+function readSearchPathToken(raw: string, start: number): { ident: string; next: number } | null {
+  let i = start;
+  while (i < raw.length && /\s/.test(raw[i] ?? '')) i += 1;
+  if (i >= raw.length) return null;
+  if (raw[i] !== '"') {
+    const tokenStart = i;
+    while (i < raw.length && raw[i] !== ',' && raw[i] !== '"' && !/\s/.test(raw[i] ?? '')) i += 1;
+    const ident = raw.slice(tokenStart, i).toLowerCase();
+    while (i < raw.length && /\s/.test(raw[i] ?? '')) i += 1;
+    return ident.length > 0 ? { ident, next: i } : null;
+  }
+  i += 1;
+  let ident = '';
+  while (i < raw.length) {
+    if (raw[i] === '"' && raw[i + 1] === '"') {
+      ident += '"';
+      i += 2;
+      continue;
+    }
+    if (raw[i] === '"') {
+      i += 1;
+      while (i < raw.length && /\s/.test(raw[i] ?? '')) i += 1;
+      return ident.length > 0 ? { ident, next: i } : null;
+    }
+    ident += raw[i] ?? '';
+    i += 1;
+  }
+  return null;
+}
+
+/** يفكك قيمة search_path إلى أسماء مخططات معيارية، أو يرجع null عند صيغة مكسورة أو خانة فارغة. */
+function parseSearchPath(raw: string): string[] | null {
+  const schemas: string[] = [];
+  let cursor = 0;
+  while (cursor <= raw.length) {
+    const token = readSearchPathToken(raw, cursor);
+    if (token === null) return null;
+    schemas.push(token.ident);
+    if (token.next === raw.length) return schemas;
+    if (raw[token.next] !== ',') return null;
+    cursor = token.next + 1;
+  }
+  return null;
+}
+
 /** يتأكد إن search_path فيه مخطط واحد على الأقل قبل pg_temp وإن pg_temp يظهر مرة واحدة في الآخر بس. */
 function hasTrailingPgTemp(proconfig: readonly string[] | null): boolean {
   const searchPath = (proconfig ?? []).find((entry) => entry.startsWith('search_path='));
-  const schemas =
-    searchPath
-      ?.slice('search_path='.length)
-      .split(',')
-      .map((s) => s.trim()) ?? [];
+  if (searchPath === undefined) return false;
+  const schemas = parseSearchPath(searchPath.slice('search_path='.length));
   return (
+    schemas !== null &&
     schemas.length >= 2 &&
-    schemas.every((s) => s.length > 0) &&
     schemas.filter((s) => s === 'pg_temp').length === 1 &&
     schemas.at(-1) === 'pg_temp'
   );
 }
 
 describe('hasTrailingPgTemp', () => {
-  it('accepts trailing pg_temp once and refuses earlier, duplicate, empty or solo pg_temp entries', () => {
+  it('accepts trailing pg_temp once and refuses earlier, duplicate, quoted, empty or solo pg_temp entries', () => {
     expect(hasTrailingPgTemp(['search_path=pg_catalog, pg_temp'])).toBe(true);
     expect(hasTrailingPgTemp(['search_path=pg_catalog, public, pg_temp'])).toBe(true);
+    expect(hasTrailingPgTemp(['search_path=pg_catalog, "pg,temp", pg_temp'])).toBe(true);
     expect(hasTrailingPgTemp(['search_path=pg_temp, public, pg_temp'])).toBe(false);
     expect(hasTrailingPgTemp(['search_path=pg_temp, public'])).toBe(false);
+    expect(hasTrailingPgTemp(['search_path="pg_temp", public'])).toBe(false);
+    expect(hasTrailingPgTemp(['search_path="pg_temp", public, pg_temp'])).toBe(false);
+    expect(hasTrailingPgTemp(['search_path=PG_TEMP, public'])).toBe(false);
+    expect(hasTrailingPgTemp(['search_path="unterminated, pg_temp'])).toBe(false);
     expect(hasTrailingPgTemp(['search_path=pg_temp'])).toBe(false);
     expect(hasTrailingPgTemp(['search_path=, pg_temp'])).toBe(false);
     expect(hasTrailingPgTemp(null)).toBe(false);
