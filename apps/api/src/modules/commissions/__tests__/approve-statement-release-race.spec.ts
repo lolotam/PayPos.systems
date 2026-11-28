@@ -63,7 +63,7 @@ async function freshMonth(): Promise<{ input: string; statement: string }> {
 async function restoreRequiredVersion(): Promise<void> {
   await connections.owner.unsafe(
     `CREATE OR REPLACE FUNCTION public.commission_coverage_required_version()
-      RETURNS integer LANGUAGE sql STABLE SET search_path = pg_catalog
+      RETURNS integer LANGUAGE sql STABLE SET search_path = pg_catalog, pg_temp
       AS $$ SELECT ${COMMISSION_COVERAGE_PROOF_VERSION} $$`,
   );
 }
@@ -74,7 +74,7 @@ async function releaseMigration(tx: postgres.TransactionSql): Promise<void> {
     bumped_at = pg_catalog.clock_timestamp(), reason = 'RELEASE' WHERE company_id = ${f.company}`;
   await tx.unsafe(
     `CREATE OR REPLACE FUNCTION public.commission_coverage_required_version() RETURNS integer
-      LANGUAGE sql STABLE SET search_path = pg_catalog
+      LANGUAGE sql STABLE SET search_path = pg_catalog, pg_temp
       AS $$ SELECT ${COMMISSION_COVERAGE_PROOF_VERSION + 1} $$`,
   );
 }
