@@ -204,11 +204,11 @@ function collectDescendantPids(rootPids: readonly number[], procRoot = '/proc'):
     const cur = queue.shift();
     if (cur === undefined) break;
     const tasks = process.platform === 'linux' || procRoot !== '/proc' ? directLinuxChildren(cur, procRoot) : [];
-    const byGroup = cur > 1 && cur !== process.pid ? table.filter((r) => r.pgrp === cur).map((r) => r.pid) : [];
-    for (const child of new Set([...tasks, ...table.filter((r) => r.ppid === cur).map((r) => r.pid), ...byGroup])) {
+    for (const child of new Set([...tasks, ...table.filter((r) => r.ppid === cur).map((r) => r.pid)])) {
       if (!parentOf.has(child)) { parentOf.set(child, cur); queue.push(child); }
     }
   }
+  for (const g of [...parentOf.keys()]) if (g > 1 && g !== process.pid) for (const r of table) if (r.pgrp === g && !parentOf.has(r.pid)) parentOf.set(r.pid, g);
   return parentOf;
 }
 
