@@ -355,6 +355,7 @@ try {
       'rating links capability',
     );
   }
+  const staffOrigins = staffOriginsFrom(process.env);
   const app = await createApp(
     {
       readiness: [
@@ -376,14 +377,14 @@ try {
         origin: passkeyPolicy(
           config.BETTER_AUTH_URL,
           config.AUTH_TRUSTED_ORIGINS,
-          process.env['STAFF_OTP_POS_ORIGIN'],
+          staffOrigins.origin ?? undefined,
         ).personalOrigin,
         eligibility: createPersonalEligibility(database),
       },
       staff: {
         api: otp ?? null,
         sessions: service.staff,
-        ...staffOriginsFrom(process.env),
+        ...staffOrigins,
       },
       passwordReset: passwordReset?.api ?? null,
       staffPinReset: passwordReset?.pinReset ?? null,
