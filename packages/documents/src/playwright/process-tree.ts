@@ -242,10 +242,7 @@ function toKillError(error: unknown): Error | undefined {
 
 function signalDescendantPid(pid: number): Error | undefined {
   if (pid <= 0 || pid === process.pid) return undefined;
-  let err: Error | undefined;
-  if (process.platform !== 'win32') try { process.kill(-pid, 'SIGKILL'); } catch (e) { err = toKillError(e); }
-  try { process.kill(pid, 'SIGKILL'); } catch (e) { err ??= toKillError(e); }
-  return err;
+  try { process.kill(pid, 'SIGKILL'); return undefined; } catch (e) { return toKillError(e); }
 }
 
 const retainedDescendants = new WeakMap<KillableProcess, Map<number, string>>();
@@ -337,18 +334,17 @@ function buildSeedFingerprints(proc: KillableProcess, rootPid: number | undefine
 
 function signalVerifiedDescendants(verified: ReadonlyArray<readonly [number, string]>, retained: Map<number, string>, initialError: Error | undefined, procRoot: string, signalPid: ((pid: number) => Error | undefined) | undefined): { waitPids: number[]; signalError: Error | undefined; holdRoot: boolean } {
   if (signalPid === undefined) return { waitPids: verified.map(([pid]) => pid), signalError: initialError, holdRoot: false };
+  const statuses = verified.map(([pid, fp]) => [pid, checkPidStatus(pid, fp, procRoot)] as const);
+  if (statuses.some(([, s]) => s === 'unverified')) return { waitPids: [], signalError: initialError ?? markUnconfirmedDescendants(new Error('DESCENDANT_IDENTITY_UNVERIFIED')), holdRoot: true };
   const waitPids: number[] = [];
   let signalError = initialError;
-  let holdRoot = false;
-  for (const [pid, fp] of verified) {
-    const status = checkPidStatus(pid, fp, procRoot);
+  for (const [pid, status] of statuses) {
     if (status === 'exited') { retained.delete(pid); continue; }
-    if (status === 'unverified') { holdRoot = true; signalError ??= markUnconfirmedDescendants(new Error('DESCENDANT_IDENTITY_UNVERIFIED')); continue; }
     const err = signalPid(pid);
     if (err === undefined) waitPids.push(pid);
     else signalError ??= markUnconfirmedDescendants(err);
   }
-  return { waitPids, signalError, holdRoot };
+  return { waitPids, signalError, holdRoot: false };
 }
 
 function terminateOwnedDescendants(proc: KillableProcess, procRoot = '/proc', signalPid?: (pid: number) => Error | undefined): { waitPids: number[]; signalError: Error | undefined; holdRoot: boolean } {

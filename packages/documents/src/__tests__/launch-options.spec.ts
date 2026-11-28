@@ -29,7 +29,11 @@ it('gives Chromium an explicit launch timeout below the outer launch bound', () 
 
 it('forwards an explicit timeout argument in playwrightFactory(timeoutMs)', async () => {
   let killedAfterClose = false;
-  const proc = { pid: 99_999, exitCode: null as number | null, kill: () => { killedAfterClose = true; proc.exitCode = 0; return true; } };
+  const childProc = { exitCode: null as number | null, kill: () => { killedAfterClose = true; childProc.exitCode = 0; return true; } };
+  const proc = { pid: 99_999, exitCode: null as number | null, children: [childProc], kill: () => true };
+  const osKillSpy = vi.spyOn(process, 'kill').mockImplementation(() => {
+    throw Object.assign(new Error('ESRCH'), { code: 'ESRCH' });
+  });
   const spy = vi.spyOn(chromium, 'launch').mockResolvedValue({
     newContext: async () =>
       ({
@@ -37,7 +41,7 @@ it('forwards an explicit timeout argument in playwrightFactory(timeoutMs)', asyn
         newPage: async () => ({}) as never,
         close: async () => undefined,
       }) as never,
-    close: async () => undefined,
+    close: async () => { proc.exitCode = 0; },
     on: () => undefined,
     process: () => proc,
   } as never);
@@ -46,8 +50,10 @@ it('forwards an explicit timeout argument in playwrightFactory(timeoutMs)', asyn
     expect(spy).toHaveBeenCalledWith(expect.objectContaining({ timeout: 12_345 }));
     await expect(browser.close()).resolves.toBeUndefined();
     expect(killedAfterClose).toBe(true);
+    expect(osKillSpy).not.toHaveBeenCalledWith(expect.anything(), 'SIGKILL');
   } finally {
     spy.mockRestore();
+    osKillSpy.mockRestore();
   }
 });
 
