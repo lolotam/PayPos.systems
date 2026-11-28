@@ -43,7 +43,7 @@ it('forwards an explicit timeout argument in playwrightFactory(timeoutMs)', asyn
   }
 });
 
-it('keeps missing-PID launch cleanup tied directly to browser.close() outcomes', async () => {
+it('keeps missing-PID launch cleanup tied directly to a single browser.close() call', async () => {
   const launchMissing = async (close: () => Promise<void>): Promise<unknown> => {
     const spy = vi.spyOn(chromium, 'launch').mockResolvedValue({ newContext: async () => ({}) as never, close, on: () => undefined, process: () => null } as never);
     try { await playwrightFactory(50).launch(); return undefined; } catch (err) { return err; } finally { spy.mockRestore(); }
@@ -53,20 +53,23 @@ it('keeps missing-PID launch cleanup tied directly to browser.close() outcomes',
   const okErr = await launchMissing(async () => { closed = true; });
   expect((okErr as Error).message).toBe('CHROMIUM_PROCESS_UNAVAILABLE');
   expect(closed).toBe(true);
+  expect(getLaunchCleanupRetry(okErr)).toBeUndefined();
   await expect(getLaunchCleanup(okErr)).resolves.toBeUndefined();
 
   let closeTries = 0;
-  const rejErr = await launchMissing(() => (++closeTries === 1 ? Promise.reject(new Error('CLOSE_FAIL')) : Promise.resolve()));
+  const rejErr = await launchMissing(() => { closeTries += 1; return Promise.reject(new Error('CLOSE_FAIL')); });
+  expect(getLaunchCleanupRetry(rejErr)).toBeUndefined();
   await expect(getLaunchCleanup(rejErr)).rejects.toThrow('CLOSE_FAIL');
-  await expect(Promise.resolve(getLaunchCleanupRetry(rejErr)?.())).resolves.toBeUndefined();
-  expect(closeTries).toBe(2);
+  expect(closeTries).toBe(1);
 
+  let hungTries = 0;
   let releaseClose!: () => void;
   let closeHungDone = false;
-  const hungErr = await launchMissing(() => new Promise<void>((r) => { releaseClose = r; }));
+  const hungErr = await launchMissing(() => { hungTries += 1; return new Promise<void>((r) => { releaseClose = r; }); });
+  expect(getLaunchCleanupRetry(hungErr)).toBeUndefined();
   void getLaunchCleanup(hungErr)?.then(() => { closeHungDone = true; });
   await new Promise((r) => setTimeout(r, 20));
-  expect(closeHungDone).toBe(false);
+  expect([closeHungDone, hungTries]).toEqual([false, 1]);
   releaseClose();
   await expect(getLaunchCleanup(hungErr)).resolves.toBeUndefined();
   expect(closeHungDone).toBe(true);

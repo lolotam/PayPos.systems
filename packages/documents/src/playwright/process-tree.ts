@@ -270,23 +270,16 @@ function revalidateRetained(proc: KillableProcess, procRoot: string): { pids: nu
   return { pids, unverifiedError };
 }
 
-function isParentLinkLive(childPid: number, parentPid: number, procRoot: string): boolean {
-  if (process.platform === 'linux' || procRoot !== '/proc') {
-    try {
-      const stat = readFileSync(`${procRoot}/${childPid}/stat`, 'utf8');
-      if (isLinuxStatZombie(stat)) return false;
-      const closeParen = stat.lastIndexOf(')');
-      if (closeParen !== -1 && Number(stat.slice(closeParen + 2).trim().split(/\s+/)[1]) === parentPid) return true;
-    } catch { /* نرجع لمسح task/children */ }
-    return directLinuxChildren(parentPid, procRoot).includes(childPid);
-  }
-  return readProcessTablePairs(procRoot).some((r) => r.pid === childPid && r.ppid === parentPid);
+function isParentLinkLive(childPid: number, parentPid: number, liveParents: ReadonlyMap<number, number>, procRoot: string): boolean {
+  if (liveParents.get(childPid) === parentPid) return true;
+  return (process.platform === 'linux' || procRoot !== '/proc') && directLinuxChildren(parentPid, procRoot).includes(childPid);
 }
 
 function hasVerifiedAncestry(
   pid: number,
   parentOf: ReadonlyMap<number, number>,
   seedFps: ReadonlyMap<number, string>,
+  liveParents: ReadonlyMap<number, number>,
   proc: KillableProcess,
   procRoot: string,
 ): boolean {
@@ -301,7 +294,7 @@ function hasVerifiedAncestry(
       const expectedFp = seedFps.get(cur);
       return expectedFp !== undefined && checkPidStatus(cur, expectedFp, procRoot) === 'same';
     }
-    if (!isParentLinkLive(cur, parent, procRoot)) return false;
+    if (!isParentLinkLive(cur, parent, liveParents, procRoot)) return false;
     cur = parent;
   }
   return false;
@@ -331,38 +324,15 @@ function buildSeedFingerprints(
   return { seedFps, seedErr };
 }
 
-function terminateOwnedDescendants(proc: KillableProcess, procRoot = '/proc'): { waitPids: number[]; signalError: Error | undefined } {
-  const marker = launchedMarkers.get(proc);
-  const rootPid = typeof proc.pid === 'number' && proc.pid > 0 ? proc.pid : undefined;
-  const rootAlive = rootPid !== undefined && !hasExited(proc);
-  const markedPids = collectMarkedLinuxPids(marker, procRoot);
-  const { pids: retainedPids, unverifiedError } = revalidateRetained(proc, procRoot);
-  const seeds = [...new Set([...(rootAlive && rootPid !== undefined ? [rootPid] : []), ...markedPids, ...retainedPids])];
-  if (seeds.length === 0) return { waitPids: [], signalError: unverifiedError };
-  const markedSet = new Set(markedPids);
-  const retainedSet = new Set(retainedPids);
-  const { seedFps, seedErr } = buildSeedFingerprints(proc, rootPid, markedSet, retainedSet, marker, seeds, procRoot);
-  let signalError: Error | undefined = unverifiedError ?? seedErr;
-  const parentOf = collectDescendantPids(seeds, procRoot);
-  const retained = retainedDescendants.get(proc) ?? new Map<number, string>();
-  const verified: Array<readonly [number, string]> = [];
-  for (const pid of parentOf.keys()) {
-    if (pid === rootPid) continue;
-    const fp = readPidFingerprint(pid, procRoot);
-    if (fp === undefined) { retained.delete(pid); continue; }
-    if (fp === null) { signalError ??= markUnconfirmedDescendants(new Error('DESCENDANT_IDENTITY_UNVERIFIED')); continue; }
-    const own = (retainedSet.has(pid) && retained.get(pid) === fp) || (marker !== undefined && hasMatchingMarkerInProc(pid, marker, procRoot));
-    if (!own && !hasVerifiedAncestry(pid, parentOf, seedFps, proc, procRoot)) {
-      signalError ??= markUnconfirmedDescendants(new Error('DESCENDANT_IDENTITY_UNVERIFIED'));
-      continue;
-    }
-    retained.set(pid, fp);
-    verified.push([pid, fp]);
-  }
-  if (retained.size > 0) retainedDescendants.set(proc, retained);
-  else retainedDescendants.delete(proc);
-  if (procRoot !== '/proc') return { waitPids: verified.map(([pid]) => pid), signalError };
+function signalVerifiedDescendants(
+  verified: ReadonlyArray<readonly [number, string]>,
+  retained: Map<number, string>,
+  initialError: Error | undefined,
+  procRoot: string,
+): { waitPids: number[]; signalError: Error | undefined } {
+  if (procRoot !== '/proc') return { waitPids: verified.map(([pid]) => pid), signalError: initialError };
   const waitPids: number[] = [];
+  let signalError = initialError;
   for (const [pid, fp] of verified) {
     const status = checkPidStatus(pid, fp, procRoot);
     if (status === 'exited') { retained.delete(pid); continue; }
@@ -371,8 +341,42 @@ function terminateOwnedDescendants(proc: KillableProcess, procRoot = '/proc'): {
     if (err === undefined) waitPids.push(pid);
     else signalError ??= markUnconfirmedDescendants(err);
   }
-  if (retained.size === 0) retainedDescendants.delete(proc);
   return { waitPids, signalError };
+}
+
+function terminateOwnedDescendants(proc: KillableProcess, procRoot = '/proc'): { waitPids: number[]; signalError: Error | undefined } {
+  const marker = launchedMarkers.get(proc);
+  const rootPid = typeof proc.pid === 'number' && proc.pid > 0 ? proc.pid : undefined;
+  const rootAlive = rootPid !== undefined && !hasExited(proc);
+  const markedPids = collectMarkedLinuxPids(marker, procRoot);
+  const { pids: retainedPids, unverifiedError } = revalidateRetained(proc, procRoot);
+  const seeds = [...new Set([...(rootAlive && rootPid !== undefined ? [rootPid] : []), ...markedPids, ...retainedPids])];
+  if (seeds.length === 0) return { waitPids: [], signalError: unverifiedError };
+  const { seedFps, seedErr } = buildSeedFingerprints(proc, rootPid, new Set(markedPids), new Set(retainedPids), marker, seeds, procRoot);
+  let signalError: Error | undefined = unverifiedError ?? seedErr;
+  const retainedSet = new Set(retainedPids);
+  const parentOf = collectDescendantPids(seeds, procRoot);
+  const retained = retainedDescendants.get(proc) ?? new Map<number, string>();
+  const candidates: Array<readonly [number, string | null]> = [];
+  for (const pid of parentOf.keys()) {
+    if (pid === rootPid) continue;
+    const fp = readPidFingerprint(pid, procRoot);
+    if (fp === undefined) retained.delete(pid);
+    else candidates.push([pid, fp]);
+  }
+  const liveParents = new Map(readProcessTablePairs(procRoot).map((r) => [r.pid, r.ppid]));
+  const verified: Array<readonly [number, string]> = [];
+  for (const [pid, fp] of candidates) {
+    const own = (fp !== null && retainedSet.has(pid) && retained.get(pid) === fp) || (marker !== undefined && hasMatchingMarkerInProc(pid, marker, procRoot));
+    if (!own && !hasVerifiedAncestry(pid, parentOf, seedFps, liveParents, proc, procRoot)) { signalError ??= markUnconfirmedDescendants(new Error('DESCENDANT_IDENTITY_UNVERIFIED')); continue; }
+    if (fp === null) { if (!retained.has(pid)) retained.set(pid, ''); signalError ??= markUnconfirmedDescendants(new Error('DESCENDANT_IDENTITY_UNVERIFIED')); continue; }
+    retained.set(pid, fp);
+    verified.push([pid, fp]);
+  }
+  if (retained.size > 0) retainedDescendants.set(proc, retained);
+  const result = signalVerifiedDescendants(verified, retained, signalError, procRoot);
+  if (retained.size === 0) retainedDescendants.delete(proc);
+  return result;
 }
 
 function killSingleAndWait(proc: KillableProcess): Promise<void> | void {
