@@ -72,4 +72,14 @@ it('keeps missing-PID cleanup single-flight while pending and allows sequential 
   releaseClose();
   await Promise.all([expect(getLaunchCleanup(hungErr)).resolves.toBeUndefined(), concurrentRetry]);
   expect([closeHungDone, hungTries]).toEqual([true, 1]);
+
+  let lateProc: { pid: number; kill: () => boolean; exitCode: number | null } | null = null;
+  let lateKilled = false;
+  let lateCloseTries = 0;
+  const lateSpy = vi.spyOn(chromium, 'launch').mockResolvedValue({ newContext: async () => ({}) as never, close: () => { lateCloseTries += 1; return new Promise<void>(() => undefined); }, on: () => undefined, process: () => lateProc } as never);
+  let lateErr: unknown;
+  try { await playwrightFactory(50).launch(); } catch (err) { lateErr = err; } finally { lateSpy.mockRestore(); }
+  lateProc = { pid: 2_147_483_000, exitCode: null, kill: () => { lateKilled = true; if (lateProc !== null) lateProc.exitCode = 0; return true; } };
+  await expect(Promise.resolve(getLaunchCleanupRetry(lateErr)?.())).resolves.toBeUndefined();
+  expect([lateKilled, lateCloseTries]).toEqual([true, 1]);
 });

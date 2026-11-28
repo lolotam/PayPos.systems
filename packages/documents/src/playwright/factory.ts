@@ -138,30 +138,41 @@ function launchEnvWithMarker(launchMarker: string): Record<string, string> {
   return base;
 }
 
+function createMissingPidCleanup(browser: Browser, launchMarker: string): () => Promise<void> {
+  const markerProc = createMarkerProcess(launchMarker);
+  let closeInFlight: Promise<void> | undefined;
+  let disconnected = false;
+  browser.on('disconnected', () => { disconnected = true; });
+  const resolveForceTarget = (): KillableProcess | null => {
+    const lateProc = chromiumProcess(browser);
+    if (hasVerifiablePid(lateProc)) return createMarkerProcess(launchMarker, lateProc);
+    return process.platform === 'linux' && disconnected ? markerProc : null;
+  };
+  return () => {
+    const forceTarget = closeInFlight !== undefined ? resolveForceTarget() : null;
+    if (forceTarget !== null) return Promise.resolve(killProcessTree(forceTarget));
+    return (closeInFlight ??= (async () => {
+      try {
+        await browser.close();
+      } catch (closeErr) {
+        const fallback = resolveForceTarget();
+        if (fallback === null) throw closeErr;
+        await Promise.resolve(killProcessTree(fallback));
+        return;
+      }
+      const lateProc = chromiumProcess(browser);
+      const target = hasVerifiablePid(lateProc) ? createMarkerProcess(launchMarker, lateProc) : markerProc;
+      await Promise.resolve(killProcessTree(target));
+    })().finally(() => { closeInFlight = undefined; }));
+  };
+}
+
 /**
  * متصفح العملية. المسار بييجي من PLAYWRIGHT_BROWSERS_PATH ومن غير تنزيل وقت التشغيل.
  *
  * @param timeoutMs مهلة إطلاق Chromium بالميلي ثانية
  * @returns مصنع متصفح بيحترم المهلة
  */
-function createMissingPidCleanup(browser: Browser, launchMarker: string): () => Promise<void> {
-  const markerProc = createMarkerProcess(launchMarker);
-  let inFlight: Promise<void> | undefined;
-  let disconnected = false;
-  browser.on('disconnected', () => { disconnected = true; });
-  return () => (inFlight ??= (async () => {
-    try {
-      await browser.close();
-    } catch (closeErr) {
-      const lateProc = chromiumProcess(browser);
-      if (hasVerifiablePid(lateProc)) { await Promise.resolve(killProcessTree(lateProc)); return; }
-      if (process.platform === 'linux' && disconnected) { await Promise.resolve(killProcessTree(markerProc)); return; }
-      throw closeErr;
-    }
-    await Promise.resolve(killProcessTree(chromiumProcess(browser) ?? markerProc));
-  })().finally(() => { inFlight = undefined; }));
-}
-
 export function playwrightFactory(
   timeoutMs = DEFAULT_CHROMIUM_LAUNCH_TIMEOUT_MS,
 ): PdfBrowserFactory {
@@ -182,7 +193,7 @@ export function playwrightFactory(
           const retryCleanup = createMissingPidCleanup(browser, launchMarker);
           throw withLaunchCleanup(new Error('CHROMIUM_PROCESS_UNAVAILABLE'), retryCleanup(), retryCleanup);
         }
-        return wrapBrowser(browser, captured);
+        return wrapBrowser(browser, createMarkerProcess(launchMarker, captured));
       } catch (error) {
         const captured = takeLaunchedProcess(launchMarker);
         if (getLaunchCleanup(error) !== undefined || !hasVerifiablePid(captured)) throw error;

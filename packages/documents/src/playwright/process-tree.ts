@@ -177,9 +177,9 @@ export function takeLaunchedProcess(launchMarker: string): KillableProcess | nul
   return proc;
 }
 
-/** ينشئ مقبض عملية بديل مرتبط بوسم الإطلاق لتتبّع وقتل توابع Chromium عند غياب مقبض العملية المباشر. */
-export function createMarkerProcess(launchMarker: string): KillableProcess {
-  const proc: KillableProcess = { exitCode: 0, kill: () => true };
+/** ينشئ مقبض عملية بديل أو يربط مقبض عملية متأخر بوسم الإطلاق لتتبّع وقتل توابع Chromium. */
+export function createMarkerProcess(launchMarker: string, target?: KillableProcess): KillableProcess {
+  const proc: KillableProcess = target ?? { exitCode: 0, kill: () => true };
   launchedMarkers.set(proc, launchMarker);
   return proc;
 }
