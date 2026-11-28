@@ -132,19 +132,13 @@ function usePackageVisitWindow(
   const impliedDate = useServerAnchoredValue(context.generated_at, (instant) =>
     sessionLocalTime(instant, packageTimezone).slice(0, 10),
   );
-  const anchoredTag = useServerAnchoredValue(context.generated_at, (instant) =>
-    savedAt === undefined && draftedAt
-      ? `${draftedAt}|${resolvePackageVisitAt(draftedAt, instant) ?? ''}`
-      : '',
+  const draftedPackageAt = useServerAnchoredValue(
+    context.generated_at,
+    (instant) =>
+      savedAt === undefined && draftedAt ? resolvePackageVisitAt(draftedAt, instant) : undefined,
+    `${savedAt ?? ''}|${draftedAt ?? ''}`,
   );
-  const prefix = `${draftedAt ?? ''}|`;
-  const packageOccurredAt =
-    savedAt ??
-    (draftedAt
-      ? anchoredTag.startsWith(prefix)
-        ? anchoredTag.slice(prefix.length) || undefined
-        : resolvePackageVisitAt(draftedAt, context.generated_at)
-      : undefined);
+  const packageOccurredAt = savedAt ?? draftedPackageAt;
   const visitDate = packageOccurredAt
     ? sessionLocalTime(packageOccurredAt, packageTimezone).slice(0, 10)
     : impliedDate;

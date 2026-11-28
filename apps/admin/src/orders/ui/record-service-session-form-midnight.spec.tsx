@@ -1,4 +1,4 @@
-import type { RecordingContext } from '@pospay/contracts';
+import type { CustomerPackageListItem, RecordingContext } from '@pospay/contracts';
 import { t } from '@pospay/i18n';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
@@ -16,7 +16,7 @@ const service = { id: id(5), name_ar: null, name_en: 'Synthetic service', price:
 const performer = { id: id(6), name_ar: null, name_en: 'Synthetic performer', employee_number: 7,
   not_clocked_in_warning: false, approved_leave_warning: false };
 const customer = { id: id(7), name: 'Synthetic customer', phone: '***001' };
-const packageItem = {
+const packageItem: CustomerPackageListItem = {
   id: id(40), provenance: 'SOLD' as const, name_en: 'Synthetic package', name_ar: null,
   expires_on: '2026-10-15', expired: false, used_up: false, price_paid: '20.000', refunded_amount: '0.000',
   components: [{
@@ -44,7 +44,7 @@ function lineGroup() {
   return screen.getByRole('group', { name: t('en', 'serviceSessions.lineNumber').replace('{n}', '1') });
 }
 
-async function mount(contextOverride: RecordingContext = context, packages = [packageItem]) {
+async function mount(contextOverride: RecordingContext = context, packages: CustomerPackageListItem[] = [packageItem]) {
   state.get.mockImplementation((path: string) =>
     Promise.resolve({
       data: String(path).endsWith('/recording-context')
@@ -133,4 +133,28 @@ it('clamps tolerated future draft time to server now before checking package exp
   expect(performerCalls.at(-1)?.[1]).toMatchObject({
     params: { query: { occurred_at: '2026-10-15T21:00:05.000Z' } },
   });
+});
+
+it('rechecks edited draft time against current server-anchored clock after crossing midnight', async () => {
+  let elapsed = 0;
+  vi.spyOn(performance, 'now').mockImplementation(() => elapsed);
+  const midnightPackage: CustomerPackageListItem = {
+    ...packageItem,
+    id: id(43),
+    name_en: 'Midnight sale package',
+    expires_on: '2026-10-16',
+    sold_at: '2026-10-15T21:00:00Z',
+  };
+  await mount(context, [midnightPackage]);
+  elapsed = 15000;
+  fireEvent.click(screen.getByRole('button', { name: t('en', 'serviceSessions.fromPackage') }));
+  const initialOption = await within(lineGroup()).findByRole('radio', {}, { timeout: 4000 });
+  await waitFor(() => expect((initialOption as HTMLInputElement).checked).toBe(true));
+
+  fireEvent.change(screen.getByLabelText(t('en', 'serviceSessions.occurredAt')), {
+    target: { value: '2026-10-16T00:00:02' },
+  });
+  const optionAfterEdit = within(lineGroup()).getByRole('radio') as HTMLInputElement;
+  expect(optionAfterEdit.checked).toBe(true);
+  expect(within(lineGroup()).getByText(midnightPackage.name_en)).toBeTruthy();
 });
