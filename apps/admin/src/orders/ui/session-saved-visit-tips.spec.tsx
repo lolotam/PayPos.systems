@@ -195,14 +195,25 @@ it('retains the restored Idempotency-Key on replay if the original in-flight PUT
   expect(api.put.mock.calls[1]?.[1].params.header['Idempotency-Key']).toBe(api.put.mock.calls[0]?.[1].params.header['Idempotency-Key']);
 });
 
-it('closes an open tip dialog and resets local draft when operator scope changes (#406)', async () => {
-  api.get.mockResolvedValue({ data: { revision: 0, tips: [], total_cash: '0.000', total_card: '0.000' }, response: { status: 200 } });
+it('closes open tip and saved-line editors and resets drafts when operator scope changes (#406)', async () => {
+  api.get.mockImplementation((path: string) =>
+    Promise.resolve(
+      path === sessionTipsPath
+        ? { data: { revision: 0, tips: [], total_cash: '0.000', total_card: '0.000' }, response: { status: 200 } }
+        : { error: { code: 'SESSION_NOT_FOUND', message_ar: 'x', message_en: 'x' }, response: { status: 404 } },
+    ),
+  );
   const stubJournal = { leaveVisit: () => undefined };
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   const frame = (activeScope: typeof scope) => (
     <QueryClientProvider client={client}><SessionSavedResult result={result as SessionRecordingResult} journal={stubJournal} onNewVisit={() => undefined} scope={activeScope} online /></QueryClientProvider>
   );
   const view = render(frame(scope));
+  fireEvent.click(screen.getByRole('button', { name: t('en', 'serviceLineEdit.edit') }));
+  const reasonInput = screen.getByLabelText(t('en', 'serviceLineEdit.reason')) as HTMLInputElement;
+  fireEvent.change(reasonInput, { target: { value: 'Operator A draft' } });
+  expect(reasonInput.value).toBe('Operator A draft');
+
   fireEvent.click(screen.getByRole('button', { name: t('en', 'sessionTips.open') }));
   const input = (await screen.findByLabelText(t('en', 'sessionTips.total'))) as HTMLInputElement;
   fireEvent.change(input, { target: { value: '2.000' } });
@@ -210,6 +221,10 @@ it('closes an open tip dialog and resets local draft when operator scope changes
 
   view.rerender(frame({ ...scope, userId: id(98) }));
   expect(screen.queryByLabelText(t('en', 'sessionTips.total'))).toBeNull();
+  expect(screen.queryByLabelText(t('en', 'serviceLineEdit.reason'))).toBeNull();
+
+  fireEvent.click(screen.getByRole('button', { name: t('en', 'serviceLineEdit.edit') }));
+  expect((screen.getByLabelText(t('en', 'serviceLineEdit.reason')) as HTMLInputElement).value).toBe('');
   fireEvent.click(screen.getByRole('button', { name: t('en', 'sessionTips.open') }));
   const reopened = (await screen.findByLabelText(t('en', 'sessionTips.total'))) as HTMLInputElement;
   expect(reopened.value).not.toBe('2.000');
@@ -248,6 +263,11 @@ it('isolates 401 tip denials across operator switches including late 401 save re
   expect(screen.queryByText('Synthetic service')).toBeNull();
 
   view.rerender(frame({ ...scope, userId: id(99) }));
+  expect(screen.queryByRole('alert')).toBeNull();
+  expect(screen.getByText('Synthetic service')).toBeTruthy();
+  expect(screen.getByRole('button', { name: t('en', 'sessionTips.open') })).toBeTruthy();
+
+  view.rerender(frame({ ...scope, userId: id(98) }));
   expect(screen.queryByRole('alert')).toBeNull();
   expect(screen.getByText('Synthetic service')).toBeTruthy();
   expect(screen.getByRole('button', { name: t('en', 'sessionTips.open') })).toBeTruthy();

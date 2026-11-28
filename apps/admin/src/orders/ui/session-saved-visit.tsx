@@ -39,67 +39,79 @@ function nextHeldAfterLineSave(current: Held | null, latest: ServiceSession, lin
   return { snapshot: latest, visit: applySavedLineEdit(base, latest.id, lineId, edit.response, edit.revisionUsed) };
 }
 
-type ScopedAlert = { key: string; message: string };
+type VisitBodyProps = {
+  session: ServiceSession;
+  result: SessionRecordingResult;
+  scope?: SessionServiceScope;
+  online: boolean;
+  editBusy: boolean;
+  tipMemory: RefObject<Map<string, UnresolvedTip>>;
+  scopeKey: string;
+  onRequestStart?: () => void;
+  onRequestEnd?: () => void;
+};
 
-export function SessionSavedVisit({ result, scope, online, editBusy = false, tipMemory: externalTipMemory, onRequestStart, onRequestEnd }: {
-  result: SessionRecordingResult; scope?: SessionServiceScope; online: boolean;
-  editBusy?: boolean; tipMemory?: RefObject<Map<string, UnresolvedTip>>; onRequestStart?: () => void; onRequestEnd?: () => void;
-}) {
+function SessionSavedVisitBody({ session, result, scope, online, editBusy, tipMemory, scopeKey, onRequestStart, onRequestEnd }: VisitBodyProps) {
   const locale = useLocale();
-  const session = result.session;
   const [held, setHeld] = useState<Held | null>(null);
   const [open, setOpen] = useState<OpenLine | null>(null);
-  const [refusal, setRefusal] = useState<ScopedAlert | null>(null);
-  const [denial, setDenial] = useState<ScopedAlert | null>(null);
+  const [refusal, setRefusal] = useState<string | null>(null);
+  const [denial, setDenial] = useState<string | null>(null);
   const sessionRef = useRef(session);
+  const activeRef = useRef(true);
   useEffect(() => { sessionRef.current = session; }, [session]);
-  const currentKey = session ? visitScopeKey(scope, session.id) : '';
-  const activeKeyRef = useRef<string | null>(null);
-  useEffect(() => { activeKeyRef.current = currentKey; }, [currentKey]);
-  const ownTipMemory = useTipAttemptMemory(scope?.companyId ?? '', scope?.businessId ?? '', scope?.branchId ?? '', scope?.userId ?? '');
-  const tipMemory = externalTipMemory ?? ownTipMemory;
+  useEffect(() => { activeRef.current = true; return () => { activeRef.current = false; }; }, []);
   // المحرر المعلّق اللي اتبقّى بعد استبدال السناب شوت يتثبّت على الجديد، فرفض معروف بعد القفل يفضل ظاهر مش بيختفي.
-  if (editBusy && session && open && open.snapshot.id === session.id && open.snapshot !== session) setOpen({ snapshot: session, lineId: open.lineId });
-  if (!session) return null;
-  // 401 وإيقاف الميزة بيقفلوا الأرقام على نفس المشغّل والزيارة فقط؛ تغيير المشغّل أو زيارة جديدة يبدأ من غير الرفض.
-  const denied = denial?.key === currentKey ? denial.message : null;
-  if (denied) return <p role="alert">{denied}</p>;
+  if (editBusy && open && open.snapshot.id === session.id && open.snapshot !== session) setOpen({ snapshot: session, lineId: open.lineId });
+  // 401 وإيقاف الميزة بيقفلوا الأرقام؛ إزالة التركيب على تغيير المشغّل أو الزيارة تصفر كل حالة محلية.
+  if (denial) return <p role="alert">{denial}</p>;
   // نفس id بعد الإلحاق يحتفظ بالعلامة. المحرر الفاضي بيتقفل لأن مراجعته اتكتبت على السناب شوت السابق.
   const baseline = held?.visit ?? emptySavedVisit(session.id, session.total_net);
   const visit = held?.snapshot === session ? held.visit : reconcileSavedVisit(baseline, session);
   const canEdit = !!scope && !sessionResultFrozen(result);
   const editingId = openLineId(open, session, canEdit, editBusy);
-  const refusalText = refusal?.key === currentKey ? refusal.message : null;
   const when = formatInstant(new Date(session.occurred_at), locale, session.business_timezone);
-  const reportForbidden = (targetKey: string, message: string, closeLine = false) => {
-    if (activeKeyRef.current !== null && activeKeyRef.current !== targetKey) return;
-    setRefusal({ key: targetKey, message });
+  const reportForbidden = (message: string, closeLine = false) => {
+    if (!activeRef.current) return;
+    setRefusal(message);
     if (closeLine) setOpen(null);
   };
-  const reportDenied = (targetKey: string, message: string) => {
-    if (activeKeyRef.current !== null && activeKeyRef.current !== targetKey) return;
-    setDenial({ key: targetKey, message });
+  const reportDenied = (message: string) => {
+    if (!activeRef.current) return;
+    setDenial(message);
     setOpen(null);
   };
   const saved = (lineId: string, edit: EditServiceLineResult) => {
-    // رد طلب بدأ على زيارة تانية ما يتحسبش على الزيارة الحالية.
     const latest = sessionRef.current ?? session;
-    if (latest.id !== session.id) return;
+    if (!activeRef.current || latest.id !== session.id) return;
     setHeld((current) => nextHeldAfterLineSave(current, latest, lineId, edit));
     setOpen((current) => current?.lineId === lineId ? null : current);
   };
   return <>
     {visit.total === 'UNKNOWN' ? null : <p>{t(locale, 'serviceSessions.savedTotal')} <bdi>{kwd(visit.total === 'FROM_RESPONSE' ? visit.totalNet : session.total_net)}</bdi></p>}
-    {refusalText ? <p role="alert">{refusalText}</p> : null}
-    {scope ? <SessionTipsLauncher key={currentKey} scope={scope} sessionId={session.id} memory={tipMemory} {...savedVisitTipSource(session.lines, visit)} online={online} disabled={editBusy} onForbidden={(message) => reportForbidden(currentKey, message)} onAccessDenied={(message) => reportDenied(currentKey, message)} /> : null}
+    {refusal ? <p role="alert">{refusal}</p> : null}
+    {scope ? <SessionTipsLauncher key={scopeKey} scope={scope} sessionId={session.id} memory={tipMemory} {...savedVisitTipSource(session.lines, visit)} online={online} disabled={editBusy} onForbidden={(message) => reportForbidden(message)} onAccessDenied={reportDenied} /> : null}
     <ul className="grid gap-3">{session.lines.map((line) => {
       const edit = visit.lines[line.id];
       return <SessionSavedLine key={line.id} line={line} locale={locale} when={when} sessionId={session.id} online={online}
         open={editingId === line.id} canEdit={canEdit} added={result.addedLineIds.includes(line.id)} editBusy={editBusy}
         {...(edit ? { edit } : {})} {...(scope ? { scope } : {})} {...(onRequestStart ? { onRequestStart } : {})} {...(onRequestEnd ? { onRequestEnd } : {})}
         onOpen={() => { if (editBusy) return; setRefusal(null); setOpen({ snapshot: session, lineId: line.id }); }} onClose={() => setOpen(null)}
-        onSaved={(savedEdit) => saved(line.id, savedEdit)} onForbidden={(message) => reportForbidden(currentKey, message, true)}
-        onAccessDenied={(message) => reportDenied(currentKey, message)} />;
+        onSaved={(savedEdit) => saved(line.id, savedEdit)} onForbidden={(message) => reportForbidden(message, true)}
+        onAccessDenied={reportDenied} />;
     })}</ul>
   </>;
+}
+
+export function SessionSavedVisit({ result, scope, online, editBusy = false, tipMemory: externalTipMemory, onRequestStart, onRequestEnd }: {
+  result: SessionRecordingResult; scope?: SessionServiceScope; online: boolean;
+  editBusy?: boolean; tipMemory?: RefObject<Map<string, UnresolvedTip>>; onRequestStart?: () => void; onRequestEnd?: () => void;
+}) {
+  const ownTipMemory = useTipAttemptMemory(scope?.companyId ?? '', scope?.businessId ?? '', scope?.branchId ?? '', scope?.userId ?? '');
+  const tipMemory = externalTipMemory ?? ownTipMemory;
+  const session = result.session;
+  if (!session) return null;
+  const scopeKey = visitScopeKey(scope, session.id);
+  return <SessionSavedVisitBody key={scopeKey} session={session} result={result} online={online} editBusy={editBusy} tipMemory={tipMemory} scopeKey={scopeKey}
+    {...(scope ? { scope } : {})} {...(onRequestStart ? { onRequestStart } : {})} {...(onRequestEnd ? { onRequestEnd } : {})} />;
 }
