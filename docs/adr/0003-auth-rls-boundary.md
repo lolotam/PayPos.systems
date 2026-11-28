@@ -339,12 +339,22 @@ type Principal = {
   grants: Grant[]; // what the guard actually evaluates — see below
 };
 
+type PermissionConstraints = {
+  max_pct?: number;
+  max_amount?: number;
+  max_variance?: number;
+  backdate_days?: number;
+  manual_edit?: boolean;
+  max_rows?: number;
+};
+
 type Grant = {
   permission: string; // 'action:resource:scope'
   effect: 'ALLOW' | 'DENY'; // DENY entries are kept, never pre-subtracted
   source: 'role' | 'override' | 'device' | 'api-key' | 'platform';
   scopeType: 'PLATFORM' | 'COMPANY' | 'BUSINESS' | 'BRANCH';
   scopeId: string | null;
+  constraints?: PermissionConstraints; // carried from role_permissions.constraints when non-empty (#10)
 };
 ```
 
@@ -365,6 +375,8 @@ The guard evaluates `grants` only, so it has one code path for every credential.
 4. else → refuse (deny by default).
 
 So a business-wide ALLOW with a DENY on branch 3 permits branches 1, 2, 4 and refuses branch 3.
+
+**Grant constraints (`#10`).** `role_permissions.constraints` travels on each `ALLOW` `Grant` as `constraints?: PermissionConstraints` (omitted when `{}`). When `evaluateAccess` permits a target and multiple covering `ALLOW` grants carry constraints, they merge with **the most restrictive wins** — matching `DENY` wins (`Math.min` for numeric bounds `max_pct`, `max_amount`, `max_variance`, `backdate_days`, `max_rows`; `false` wins over `true` for boolean `manual_edit`). When P2-T7 enforces constraints at an action boundary, over-limit requests route to `approval_requests` (`P2-T7.2`).
 
 ### 4.1 Rules
 

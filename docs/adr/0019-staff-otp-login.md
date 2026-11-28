@@ -977,8 +977,9 @@ not change while the list is unset. On staging the iOS app also needs CORS, whic
 same list Better Auth trusts for its own origin checks. So staging, where the web manager set it in Dokploy on 2026-10-24 (O-1; an operations change, never code: ADR-0055
 decision 3), trusts `capacitor://localhost` on every Better Auth route, not only the staff routes. This is
 accepted for staging, since no browser can send that origin and staging holds test data only. They are one list on purpose,
-so they cannot drift apart (ADR-0001, consequences; `apps/api/src/shared/config.ts`). Whether to split the CORS list
-from Better Auth's trusted origins before any production use, which needs an ADR-0001 addendum, is issue #669.
+so they cannot drift apart (ADR-0001, consequences; `apps/api/src/shared/config.ts`). Splitting the CORS list
+from Better Auth's trusted origins is now implemented via optional `API_CORS_ORIGINS` (#669), which defaults to
+`AUTH_TRUSTED_ORIGINS` when unset so production can grant native origins CORS without adding them to `trustedOrigins`.
 
 ## Addendum 2026-10-25 (c) — a PIN set by someone else is one-time (spec 071, DV-Q8 / DV-Q9)
 

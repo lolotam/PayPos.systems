@@ -152,7 +152,7 @@ Bundled assets change the page origin, and that is the main technical risk of th
   flavour). Serving those files is an operations change (`deploy/pos-nginx.conf` and Dokploy), made by the web manager or
   Waleed; until it is green, the app hides passkey attendance and the employee clocks in through the PWA or the
   paired-device path.
-- Any change to `AUTH_TRUSTED_ORIGINS`, CORS origins or another environment value on staging is a Dokploy change owned
+- Any change to `AUTH_TRUSTED_ORIGINS`, `API_CORS_ORIGINS` (#669, optional Fastify CORS allow-list defaulting to `AUTH_TRUSTED_ORIGINS`), or another environment value on staging is a Dokploy change owned
   by the web manager (and production by Waleed). The M-1 plan lists it as an operations step, never as code here.
 
 ### 4. Identifiers and the two flavours

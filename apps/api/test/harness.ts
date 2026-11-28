@@ -136,16 +136,16 @@ function recording(tx: Tx, wrapper: 'tenant' | 'user' | 'new-tenant', calls: Har
   });
 }
 
-// The compose Redis (T2): REDIS_URL when set, otherwise built from REDIS_PASSWORD as CI writes it.
+// The compose Redis (T2): REDIS_URL is required so local worktrees never fall back to shared 127.0.0.1:6379 (#1017).
 // A key prefix per harness: rate-limit counters and pairing codes never leak between spec files or runs.
-export function testRedis(): Redis {
-  const configured = process.env['REDIS_URL'];
-  const password = encodeURIComponent(process.env['REDIS_PASSWORD'] ?? '');
-  const url =
-    configured !== undefined && configured !== ''
-      ? configured
-      : `redis://:${password}@${process.env['REDIS_HOST'] ?? '127.0.0.1'}:${process.env['REDIS_PORT'] ?? '6379'}`;
-  return new Redis(url, { keyPrefix: `test:${randomBytes(6).toString('hex')}:` });
+export function testRedis(env: NodeJS.ProcessEnv = process.env): Redis {
+  const configured = env['REDIS_URL']?.trim();
+  if (configured === undefined || configured === '') {
+    throw new Error(
+      'REDIS_URL is not set — set REDIS_URL to the test Redis instance (see docs/runbook.md)',
+    );
+  }
+  return new Redis(configured, { keyPrefix: `test:${randomBytes(6).toString('hex')}:` });
 }
 
 // What the server says about the open transaction, not what the caller asked for.

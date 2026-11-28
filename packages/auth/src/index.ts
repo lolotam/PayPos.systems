@@ -11,6 +11,7 @@ export {
   resolveUserPrincipal,
   type Grant,
   type MembershipScope,
+  type PermissionConstraints,
   type Principal,
   type ResolvedPrincipal,
 } from './principal.ts';

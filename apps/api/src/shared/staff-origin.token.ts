@@ -26,3 +26,14 @@ export function staffNativeOriginsFrom(value: string | undefined): readonly stri
     throw new Error('STAFF_NATIVE_ORIGINS accepts only capacitor://localhost');
   return origins;
 }
+
+// قراءة مصدر POS ومصادر التطبيق الأصلي معاً تمنع فقدان أي منها أثناء ربط التبعيات (#666).
+export function staffOriginsFrom(env: NodeJS.ProcessEnv): {
+  readonly origin: string | null;
+  readonly nativeOrigins: readonly string[];
+} {
+  return {
+    origin: env['STAFF_OTP_POS_ORIGIN'] || null,
+    nativeOrigins: staffNativeOriginsFrom(env['STAFF_NATIVE_ORIGINS']),
+  };
+}

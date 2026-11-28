@@ -86,11 +86,13 @@ jobs:
       - name: Local infra (Postgres 16 + Redis 7)
         run: |
           {
+            REDIS_PASSWORD="$(openssl rand -hex 24)"
             echo "POSTGRES_OWNER_PASSWORD=$(openssl rand -hex 24)"
             echo "POSTGRES_APP_PASSWORD=$(openssl rand -hex 24)"
             echo "POSTGRES_AUTH_PASSWORD=$(openssl rand -hex 24)"
             echo "POSTGRES_DISPATCHER_PASSWORD=$(openssl rand -hex 24)"
-            echo "REDIS_PASSWORD=$(openssl rand -hex 24)"
+            echo "REDIS_PASSWORD=${REDIS_PASSWORD}"
+            echo "REDIS_URL=redis://:${REDIS_PASSWORD}@127.0.0.1:6379"
           } > .env
           pnpm infra:up
 
@@ -205,11 +207,13 @@ jobs:
       - name: Local infra (Postgres 16 + Redis 7)
         run: |
           {
+            REDIS_PASSWORD="$(openssl rand -hex 24)"
             echo "POSTGRES_OWNER_PASSWORD=$(openssl rand -hex 24)"
             echo "POSTGRES_APP_PASSWORD=$(openssl rand -hex 24)"
             echo "POSTGRES_AUTH_PASSWORD=$(openssl rand -hex 24)"
             echo "POSTGRES_DISPATCHER_PASSWORD=$(openssl rand -hex 24)"
-            echo "REDIS_PASSWORD=$(openssl rand -hex 24)"
+            echo "REDIS_PASSWORD=${REDIS_PASSWORD}"
+            echo "REDIS_URL=redis://:${REDIS_PASSWORD}@127.0.0.1:6379"
           } > .env
           pnpm infra:up
 
@@ -282,11 +286,13 @@ jobs:
       - name: Local infra (Postgres 16 + Redis 7)
         run: |
           {
+            REDIS_PASSWORD="$(openssl rand -hex 24)"
             echo "POSTGRES_OWNER_PASSWORD=$(openssl rand -hex 24)"
             echo "POSTGRES_APP_PASSWORD=$(openssl rand -hex 24)"
             echo "POSTGRES_AUTH_PASSWORD=$(openssl rand -hex 24)"
             echo "POSTGRES_DISPATCHER_PASSWORD=$(openssl rand -hex 24)"
-            echo "REDIS_PASSWORD=$(openssl rand -hex 24)"
+            echo "REDIS_PASSWORD=${REDIS_PASSWORD}"
+            echo "REDIS_URL=redis://:${REDIS_PASSWORD}@127.0.0.1:6379"
           } > .env
           pnpm infra:up
 
@@ -363,11 +369,13 @@ jobs:
       - name: Local infra (Postgres 16 + Redis 7)
         run: |
           {
+            REDIS_PASSWORD="$(openssl rand -hex 24)"
             echo "POSTGRES_OWNER_PASSWORD=$(openssl rand -hex 24)"
             echo "POSTGRES_APP_PASSWORD=$(openssl rand -hex 24)"
             echo "POSTGRES_AUTH_PASSWORD=$(openssl rand -hex 24)"
             echo "POSTGRES_DISPATCHER_PASSWORD=$(openssl rand -hex 24)"
-            echo "REDIS_PASSWORD=$(openssl rand -hex 24)"
+            echo "REDIS_PASSWORD=${REDIS_PASSWORD}"
+            echo "REDIS_URL=redis://:${REDIS_PASSWORD}@127.0.0.1:6379"
           } > .env
           pnpm infra:up
 

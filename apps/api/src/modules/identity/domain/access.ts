@@ -4,6 +4,18 @@
 export type ScopeType = 'COMPANY' | 'BUSINESS' | 'BRANCH';
 
 /**
+ * قيود الصلاحية الرقمية أو المنطقية المحمولة من role_permissions (ADR-0003 §4).
+ */
+export interface PermissionConstraints {
+  readonly max_pct?: number;
+  readonly max_amount?: number;
+  readonly max_variance?: number;
+  readonly backdate_days?: number;
+  readonly manual_edit?: boolean;
+  readonly max_rows?: number;
+}
+
+/**
  * صلاحية واحدة اتجمعت للـ principal: من role أو من override، بالـ effect بتاعها والنطاق اللي بتغطيه.
  */
 export interface AccessGrant {
@@ -11,6 +23,7 @@ export interface AccessGrant {
   readonly effect: 'ALLOW' | 'DENY';
   readonly scopeType: ScopeType;
   readonly scopeId: string;
+  readonly constraints?: PermissionConstraints;
 }
 
 /**
@@ -77,4 +90,85 @@ export function evaluateAccess(
   const applicable = grants.filter((g) => g.permission === permission && covers(g, target));
   if (applicable.some((g) => g.effect === 'DENY')) return false;
   return applicable.some((g) => g.effect === 'ALLOW');
+}
+
+const NUMERIC_CONSTRAINTS = [
+  'max_pct',
+  'max_amount',
+  'max_variance',
+  'backdate_days',
+  'max_rows',
+] as const;
+
+type MutableConstraints = {
+  max_pct?: number;
+  max_amount?: number;
+  max_variance?: number;
+  backdate_days?: number;
+  manual_edit?: boolean;
+  max_rows?: number;
+};
+
+/**
+ * بيقرأ كائن القيود الخام من جدول role_permissions ويرجّع القيود الصالحة أو undefined لو فاضي.
+ * المنح اللي ملهاش قيود بتفضل من غير حقل constraints عشان شكلها يفضل ثابت.
+ *
+ * @param raw القيمة الخام اللي جاية من عمود constraints (jsonb)
+ * @returns القيود الصالحة أو undefined لو مفيش قيود
+ */
+export function parsePermissionConstraints(raw: unknown): PermissionConstraints | undefined {
+  if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) return undefined;
+  const record = raw as Record<string, unknown>;
+  const parsed: MutableConstraints = {};
+  let hasAny = false;
+  for (const key of NUMERIC_CONSTRAINTS) {
+    const value = record[key];
+    if (typeof value === 'number' && Number.isFinite(value) && value >= 0) {
+      parsed[key] = value;
+      hasAny = true;
+    }
+  }
+  if (typeof record['manual_edit'] === 'boolean') {
+    parsed.manual_edit = record['manual_edit'];
+    hasAny = true;
+  }
+  return hasAny ? parsed : undefined;
+}
+
+/**
+ * بيجمع قيود المنح المغطّية لما الطلب مسموح عند الـ target (ADR-0003 §4، #10).
+ * لما كذا GRANT بتغطي نفس الصلاحية والهدف، أضيق قيد هو اللي بيكسب (أصغر رقم، و false لـ manual_edit)
+ * تماشياً مع قاعدة DENY يكسب. بيرجّع null لو الطلب مرفوض أصلاً.
+ *
+ * @param grants     كل صلاحيات الـ principal في الشركة
+ * @param permission الصلاحية المطلوبة
+ * @param target     الهدف المطلوب تقييمه
+ * @returns القيود المجمعة لو مسموح (أو {} لو من غير قيود)، أو null لو مرفوض
+ */
+export function mergeGrantConstraints(
+  grants: readonly AccessGrant[],
+  permission: string,
+  target: AccessTarget,
+): PermissionConstraints | null {
+  if (!evaluateAccess(grants, permission, target)) return null;
+  const merged: MutableConstraints = {};
+  for (const grant of grants) {
+    if (grant.permission !== permission || grant.effect !== 'ALLOW' || !covers(grant, target))
+      continue;
+    const current = grant.constraints;
+    if (current === undefined) continue;
+    for (const key of NUMERIC_CONSTRAINTS) {
+      const value = current[key];
+      if (value === undefined) continue;
+      const existing = merged[key];
+      merged[key] = existing === undefined ? value : Math.min(existing, value);
+    }
+    if (current.manual_edit !== undefined) {
+      merged.manual_edit =
+        merged.manual_edit === undefined
+          ? current.manual_edit
+          : merged.manual_edit && current.manual_edit;
+    }
+  }
+  return merged;
 }

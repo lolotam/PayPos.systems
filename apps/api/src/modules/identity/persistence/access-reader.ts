@@ -8,7 +8,7 @@ import {
 } from '@pospay/db';
 import { sql } from 'drizzle-orm';
 
-import type { ScopeType } from '../domain/access.ts';
+import { parsePermissionConstraints, type ScopeType } from '../domain/access.ts';
 import { protectOwnerAccess } from '../domain/owner-access.ts';
 import type {
   AccessReader,
@@ -170,6 +170,27 @@ async function readRequestTargets(
   return { target: { companyId }, descendantTargets: [] };
 }
 
+type AccessGrantRow = {
+  permission: string;
+  effect: 'ALLOW' | 'DENY';
+  source: 'role' | 'override';
+  scope_type: ScopeType;
+  scope_id: string;
+  constraints: unknown;
+};
+
+function toSourcedGrant(row: AccessGrantRow): SourcedGrant {
+  const constraints = parsePermissionConstraints(row.constraints);
+  return {
+    permission: row.permission,
+    effect: row.effect,
+    source: row.source,
+    scopeType: row.scope_type,
+    scopeId: row.scope_id,
+    ...(constraints === undefined ? {} : { constraints }),
+  };
+}
+
 /**
  * عضويات المستخدم السارية ومنحه جوه transaction الشركة.
  * الفحص SELECT من غير قفل صف: مسار القراءة ممنوع يستنى أي قفل.
@@ -201,27 +222,21 @@ export async function readAccessTransaction(
         SELECT m.scope_type, m.scope_id, (${canonicalOwnerSql('m', companyId)}) AS is_owner FROM memberships m
         JOIN roles r ON r.id = m.role_id AND r.owner_key = m.role_owner_key
         WHERE m.company_id = ${companyId} AND m.user_id = ${userId} AND ${active}`);
-  const grants = await tx.execute<{
-    permission: string;
-    effect: 'ALLOW' | 'DENY';
-    source: 'role' | 'override';
-    scope_type: ScopeType;
-    scope_id: string;
-  }>(sql`
-        SELECT rp.permission_code AS permission, 'ALLOW' AS effect, 'role' AS source, m.scope_type, m.scope_id
+  const grants = await tx.execute<AccessGrantRow>(sql`
+        SELECT rp.permission_code AS permission, 'ALLOW' AS effect, 'role' AS source, m.scope_type, m.scope_id, rp.constraints AS constraints
         FROM memberships m
         JOIN role_permissions rp ON rp.role_id = m.role_id AND rp.role_owner_key = m.role_owner_key
         WHERE m.company_id = ${companyId} AND m.user_id = ${userId} AND ${active}
           AND rp.permission_code NOT IN (${SALARY_CODES})
           AND ${systemRoleGrantAllowedSql('m', 'rp')}
         UNION ALL
-        SELECT p.code, 'ALLOW', 'role', m.scope_type, m.scope_id
+        SELECT p.code, 'ALLOW', 'role', m.scope_type, m.scope_id, '{}'::jsonb AS constraints
         FROM memberships m
         CROSS JOIN permissions p
         WHERE m.company_id=${companyId} AND m.user_id=${userId} AND ${active} AND ${canonicalOwnerSql('m', companyId)}
           AND p.code IN (${SALARY_CODES})
         UNION ALL
-        SELECT o.permission_code, o.effect, 'override', o.scope_type, o.scope_id
+        SELECT o.permission_code, o.effect, 'override', o.scope_type, o.scope_id, '{}'::jsonb AS constraints
         FROM permission_overrides o
         JOIN memberships m ON m.company_id = o.company_id AND m.id = o.membership_id
         WHERE o.company_id = ${companyId} AND m.user_id = ${userId} AND ${active}
@@ -233,13 +248,7 @@ export async function readAccessTransaction(
       scopeId: row.scope_id,
     })),
     grants: protectOwnerAccess(
-      grants.map((row): SourcedGrant => ({
-        permission: row.permission,
-        effect: row.effect,
-        source: row.source,
-        scopeType: row.scope_type,
-        scopeId: row.scope_id,
-      })),
+      grants.map(toSourcedGrant),
       memberships.some((m) => m.is_owner),
     ),
   };

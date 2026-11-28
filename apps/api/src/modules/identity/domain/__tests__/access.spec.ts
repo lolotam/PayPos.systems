@@ -1,6 +1,12 @@
 import { describe, expect, it } from 'vitest';
 
-import { evaluateAccess, permissionScope, type AccessGrant } from '../access.ts';
+import {
+  evaluateAccess,
+  mergeGrantConstraints,
+  parsePermissionConstraints,
+  permissionScope,
+  type AccessGrant,
+} from '../access.ts';
 
 const COMPANY = 'c0000000-0000-7000-8000-000000000001';
 const OTHER_COMPANY = 'c0000000-0000-7000-8000-000000000002';
@@ -99,5 +105,86 @@ describe('permissionScope', () => {
     ['manage:orders:galaxy', null],
   ])('%s → %s', (permission, scope) => {
     expect(permissionScope(permission)).toBe(scope);
+  });
+});
+
+describe('parsePermissionConstraints', () => {
+  it('returns undefined for empty objects, non-objects, or unknown keys only', () => {
+    expect(parsePermissionConstraints({})).toBeUndefined();
+    expect(parsePermissionConstraints(null)).toBeUndefined();
+    expect(parsePermissionConstraints(['max_pct'])).toBeUndefined();
+    expect(parsePermissionConstraints({ unknown_key: 5 })).toBeUndefined();
+  });
+
+  it('extracts valid numeric and boolean constraints while ignoring invalid entries', () => {
+    expect(
+      parsePermissionConstraints({
+        max_pct: 10,
+        max_amount: 500,
+        max_variance: 25,
+        backdate_days: 3,
+        max_rows: 100,
+        manual_edit: false,
+        ignored: 'x',
+      }),
+    ).toEqual({
+      max_pct: 10,
+      max_amount: 500,
+      max_variance: 25,
+      backdate_days: 3,
+      max_rows: 100,
+      manual_edit: false,
+    });
+    expect(parsePermissionConstraints({ max_pct: -1, max_amount: Number.NaN })).toBeUndefined();
+  });
+});
+
+describe('mergeGrantConstraints (#10 — most restrictive wins)', () => {
+  it('returns null when access is refused or denied at the target', () => {
+    expect(mergeGrantConstraints([], P, atBranch(BRANCH_1))).toBeNull();
+    expect(
+      mergeGrantConstraints(
+        [
+          grant({ constraints: { max_pct: 15 } }),
+          grant({ effect: 'DENY', scopeType: 'BRANCH', scopeId: BRANCH_1 }),
+        ],
+        P,
+        atBranch(BRANCH_1),
+      ),
+    ).toBeNull();
+  });
+
+  it('returns empty constraints when an unconstrained grant permits the target', () => {
+    expect(mergeGrantConstraints([grant({})], P, atBranch(BRANCH_1))).toEqual({});
+  });
+
+  it('picks the most restrictive value across covering ALLOW grants and ignores uncovered ones', () => {
+    const merged = mergeGrantConstraints(
+      [
+        grant({
+          scopeType: 'COMPANY',
+          scopeId: COMPANY,
+          constraints: { max_pct: 25, max_amount: 1000, manual_edit: true },
+        }),
+        grant({
+          scopeType: 'BUSINESS',
+          scopeId: BUSINESS,
+          constraints: { max_pct: 10, max_variance: 50, manual_edit: false },
+        }),
+        grant({
+          scopeType: 'BRANCH',
+          scopeId: BRANCH_3,
+          constraints: { max_pct: 1, max_amount: 10 },
+        }),
+      ],
+      P,
+      atBranch(BRANCH_1),
+    );
+    expect(merged).toEqual({
+      max_pct: 10,
+      max_amount: 1000,
+      max_variance: 50,
+      manual_edit: false,
+    });
   });
 });

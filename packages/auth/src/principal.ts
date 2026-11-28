@@ -10,6 +10,18 @@ export interface MembershipScope {
 }
 
 /**
+ * قيود الصلاحية الرقمية أو المنطقية المحمولة من جدول role_permissions (ADR-0003 §4).
+ */
+export interface PermissionConstraints {
+  readonly max_pct?: number;
+  readonly max_amount?: number;
+  readonly max_variance?: number;
+  readonly backdate_days?: number;
+  readonly manual_edit?: boolean;
+  readonly max_rows?: number;
+}
+
+/**
  * صلاحية واحدة بيقيّمها الـ guard. الـ DENY بيفضل موجود ومبيتطرحش مقدماً — بيتقيّم عند الـ scope المطلوب.
  */
 export interface Grant {
@@ -18,6 +30,7 @@ export interface Grant {
   readonly source: 'role' | 'override' | 'device' | 'api-key' | 'platform';
   readonly scopeType: 'PLATFORM' | 'COMPANY' | 'BUSINESS' | 'BRANCH';
   readonly scopeId: string | null;
+  readonly constraints?: PermissionConstraints;
 }
 
 /**

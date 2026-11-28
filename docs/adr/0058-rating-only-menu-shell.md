@@ -51,9 +51,9 @@ Startup validation rejects a non-origin value (credentials, path, query, fragmen
 or multiple origins). The template contains only a synthetic placeholder.
 HTTP origins are allowed only with explicit `NODE_ENV=development` or `NODE_ENV=test`;
 all other environments, including an unset `NODE_ENV`, require HTTPS.
-Startup also rejects a nonempty rating origin equal to `new URL(BETTER_AUTH_URL).origin`
-or matched by `AUTH_TRUSTED_ORIGINS`, using Better Auth's wildcard semantics (#867),
-so a misconfiguration cannot grant the public page login trust.
+Startup also rejects a nonempty rating origin equal to `new URL(BETTER_AUTH_URL).origin`,
+matched by `AUTH_TRUSTED_ORIGINS` or `API_CORS_ORIGINS` using Better Auth's wildcard semantics (#867, #669), or hosted on or under `COOKIE_DOMAIN` (#856),
+so a misconfiguration cannot grant the public page login trust or leak session cookies from logged-in browsers.
 
 The public policy omits credentials and cookies, permits GET for view and POST for
 submit/opt-out (plus OPTIONS), and allows only `content-type` and `x-rating-token`.
