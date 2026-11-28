@@ -54,7 +54,7 @@ export const serviceSessionFormPaths = {
         { in: 'query', name: 'recorder_membership_id', required: false, schema: { type: 'string', format: 'uuid' } },
       ],
       responses: {
-        '200': { description: 'Own choices, business timezone and server instant; limit only after verified selection.', content: json('RecordingContext') },
+        '200': { description: 'Own choices, business and branch timezones, and server instant; limit only after verified selection.', content: json('RecordingContext') },
         '400': { description: 'Invalid strict query.', content: json('ErrorEnvelope') },
         '403': { description: 'Uniform scope/selection/permission refusal or disabled orders feature.', content: json('ErrorEnvelope') },
         default: { description: 'Bilingual authentication/readiness refusal.', content: json('ErrorEnvelope') },

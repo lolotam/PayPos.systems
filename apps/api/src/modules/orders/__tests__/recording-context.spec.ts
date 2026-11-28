@@ -125,13 +125,22 @@ it('requires a signed-in admin rather than either staff-session purpose', async 
 
 it('exposes the branch-effective timezone in branch_timezone while keeping business_timezone (#961)', async () => {
   await f.h.owner`UPDATE branches SET timezone='Europe/London' WHERE company_id=${f.company} AND id=${f.branch}`;
+  const second = ids.newId();
   try {
     const response = await get();
     expect(response.status).toBe(200);
     const result = recordingContext.parse(response.body);
     expect(result.business_timezone).toBe('Asia/Kuwait');
     expect(result.branch_timezone).toBe('Europe/London');
+
+    await f.h.owner`INSERT INTO memberships(company_id,id,user_id,role_id,role_owner_key,scope_type,scope_id,limit_bps)
+      VALUES(${f.company},${second},${f.userId},${must(SYSTEM_ROLES.find((r) => r.code === 'cashier')).id},'global','BUSINESS',${f.business},2500)`;
+    const ambiguous = recordingContext.parse((await get()).body);
+    expect(ambiguous.recorder_membership_id).toBeNull();
+    expect(ambiguous.business_timezone).toBe('Asia/Kuwait');
+    expect(ambiguous.branch_timezone).toBe('Europe/London');
   } finally {
+    await f.h.owner`DELETE FROM memberships WHERE company_id=${f.company} AND id=${second}`;
     await f.h.owner`UPDATE branches SET timezone=NULL WHERE company_id=${f.company} AND id=${f.branch}`;
   }
 });

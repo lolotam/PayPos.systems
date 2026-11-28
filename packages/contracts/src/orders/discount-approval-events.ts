@@ -50,7 +50,7 @@ export type DiscountApprovalNoticeRequested = z.infer<typeof discountApprovalNot
  */
 export const discountApprovedByPerformer = z.strictObject({
   schema_version: z.literal(1),
-  decision_id: id,
+  decision_id: id.optional(),
   business_id: id,
   branch_id: id,
   decided_by: id,
@@ -58,12 +58,14 @@ export const discountApprovedByPerformer = z.strictObject({
   decider_label_en: z.string().min(1).max(255),
   decider_label_ar: z.string().min(1).max(255),
   decided_via: z.enum(['PIN', 'REMOTE']),
-  decided_at: timestamp,
+  decided_at: timestamp.optional(),
   proposals: z.array(z.strictObject({
     id, ...serviceName.shape, effective_bps: z.number().int().min(1).max(10000),
   })).min(1).max(20),
-}).refine((event) => new Set(event.proposals.map((proposal) => proposal.id)).size === event.proposals.length)
-  .meta({ id: 'DiscountApprovedByPerformer' });
+}).refine((event) =>
+  new Set(event.proposals.map((proposal) => proposal.id)).size === event.proposals.length
+  && (event.decision_id === undefined) === (event.decided_at === undefined),
+).meta({ id: 'DiscountApprovedByPerformer' });
 export type DiscountApprovedByPerformer = z.infer<typeof discountApprovedByPerformer>;
 
 /** جرس المالك (D-19) في مجموعات ≤ 100: كل عضوية owner نشطة تغطي الفرع، والموافِق غير مستبعد (ED-Q10). */

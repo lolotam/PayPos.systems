@@ -163,6 +163,11 @@ it('names the performer approval for the owner bell with distinct proposals only
     decided_via: 'PIN', decided_at: '2026-10-21T10:00:00.000Z', proposals: [proposal],
   };
   expect(discountApprovedByPerformer.safeParse(event).success).toBe(true);
+  const legacyInFlight = {
+    schema_version: 1, business_id: B, branch_id: C, decided_by: A, decider_label_en: 'Heba', decider_label_ar: 'هبة',
+    decided_via: 'PIN', proposals: [proposal],
+  };
+  expect(discountApprovedByPerformer.safeParse(legacyInFlight).success).toBe(true);
   expect(discountApprovedByPerformer.safeParse({ ...event, decision_id: undefined }).success).toBe(false);
   expect(discountApprovedByPerformer.safeParse({ ...event, decided_at: undefined }).success).toBe(false);
   expect(discountApprovedByPerformer.safeParse({ ...event, proposals: [proposal, proposal] }).success).toBe(false);

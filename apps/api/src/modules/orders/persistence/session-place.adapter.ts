@@ -30,8 +30,10 @@ export async function sessionRecordingPlace(
   branchId: string,
 ): Promise<{ timezone: string; branchTimezone: string } | null> {
   const currentPlace = sessionPlace(tx, companyId, businessId, branchId);
-  const business = await currentPlace.read();
-  if (business === null) return null;
-  const branchTimezone = await currentPlace.branchTimezone();
-  return branchTimezone === null ? null : { timezone: business.timezone, branchTimezone };
+  const [business, branchTimezone] = await Promise.all([
+    currentPlace.read(),
+    currentPlace.branchTimezone(),
+  ]);
+  if (business === null || branchTimezone === null) return null;
+  return { timezone: business.timezone, branchTimezone };
 }

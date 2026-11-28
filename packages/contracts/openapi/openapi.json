@@ -22924,7 +22924,7 @@
         ],
         "responses": {
           "200": {
-            "description": "Own choices, business timezone and server instant; limit only after verified selection.",
+            "description": "Own choices, business and branch timezones, and server instant; limit only after verified selection.",
             "content": {
               "application/json": {
                 "schema": {
@@ -48857,14 +48857,12 @@
         },
         "required": [
           "schema_version",
-          "decision_id",
           "business_id",
           "branch_id",
           "decided_by",
           "decider_label_en",
           "decider_label_ar",
           "decided_via",
-          "decided_at",
           "proposals"
         ],
         "additionalProperties": false

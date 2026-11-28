@@ -92,6 +92,9 @@ function assemble(
     },
     emit: async (payload) => {
       const parsed = discountApprovedByPerformer.parse(payload);
+      if (parsed.decision_id === undefined || parsed.decided_at === undefined) {
+        throw new Error('DISCOUNT_APPROVED_DECISION_KEY_REQUIRED');
+      }
       await appendOutboxEvent(tx, ids.newId(), {
         aggregateType: 'discount_approval_decision',
         aggregateId: parsed.decision_id,
