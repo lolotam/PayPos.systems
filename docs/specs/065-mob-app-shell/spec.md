@@ -140,8 +140,7 @@ start screen again.
 
 - **FR-001**: The native build MUST open on a start screen with two choices, «جهاز الكاونتر» and «حسابي كموظفة», until
   one is chosen, then open that flow directly on every later launch.
-  While the chosen flow holds **no pairing and no session** (the counter flow's pairing-code screen while no pairing request is being sent (not the «not supported here» screen, which cannot tell
-  whether a pairing is stored); the
+  While the chosen flow holds **no pairing and no session** (the counter flow's pairing-code screen while no pairing request is being sent, and its «not supported here» screen only when a read-only check of stored device credentials succeeds and finds neither a device token nor a claim secret (#641); the
   employee flow's link or sign-in screen once the server has confirmed there is no session, never on a failed,
   pending or refreshing lookup, and never while a sign-in request is out), it MUST show a «رجوع لاختيار نوع الجهاز» control that clears only the remembered
   choice (the remembered business stays) and shows the start screen again. From the employee flow it first ends any
@@ -200,9 +199,11 @@ start screen again.
   `packages/contracts`, ignores every other parameter, and then: with no role or the employee role, it sets the employee
   role and remembers the business (when a different business may have a session, it first asks its own short
   confirmation «تبدّلي لصالون تاني؟», not the role-change text (#554 item 1); cancelling keeps the current business and
-  session; then it signs out the personal session as FR-008 does, and with no network the link is refused with the
-  same message, changing nothing). The business switch does not wait on the session fence of #581: the device keeps
-  the employee role, so a racing sign-in can only leave the personal session its own fresh OTP just created (spec 067
+  session; then it signs the personal session out first, and **only after that sign-out succeeds** does it remember the
+  new business — with no network the switch is refused with the same role-change message and the previous remembered
+  business stays, and a refused sign-out keeps the previous remembered business and shows that message too, exactly as
+  MOB-T16 and `apps/pos/src/app/business-switch.ts` do). The business switch does not wait on the session fence of #581:
+  the device keeps the employee role, so a racing sign-in can only leave the personal session its own fresh OTP just created (spec 067
   D-6), never a counter or another person's session left behind by the switch, and the server still decides
   eligibility on every request (BR-002); orchestrator, 2026-10-23. A sign-in racing the switch can still leave a
   live personal session for the **old** business while the device remembers the new one: when the personal session
@@ -215,7 +216,7 @@ start screen again.
   late confirmed sign-out still announces the session change, as every confirmed sign-out does, because the server has
   ended that session. The fresh read goes through the same check as every read: no session leads to the remembered
   business's sign-in, and any session of another business (for example one a racing sign-in just created) gets its
-  own notice and its own bounded sign-out, never the old business's screens. When the session
+  own notice and its own bounded sign-out, never the old business's screens. When the device holds the employee role with **no** remembered business confirmed (for example before connecting a business; never when reading the remembered business from storage failed, where private screens stay hidden with the alert without ending any live session), any live personal session also cannot match a remembered business and receives the same notice and single bounded sign-out before the employee screen shows (#604). When the session
   read clears and the same session comes back while an attempt was running, that attempt can no longer answer, so the
   notice shows the failure at once, with no new sign-out (#603). Cancelling the
   switch confirmation after a refused or offline switch also clears that switch's message (#605). With

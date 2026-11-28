@@ -106,15 +106,27 @@ const timeBaseline = async (): Promise<number> => {
 it('runs a thousand services within twice the unchanged sync close of the same run', async () => {
   const jobTimes: number[] = [];
   const baselineTimes: number[] = [];
+  // أزمنة كل جولة متقاسة: الـ ratio هو الحكم، بس الأرقام نفسها بتقول أي جولة
+  // كانت متيحة وميهبطة وكمان مين اتقاس الأول في الجولة دي.
+  const rounds: { round: number; jobFirst: boolean; jobMs: number; baselineMs: number }[] = [];
   for (let round = 0; round < ROUNDS; round++) {
     // الترتيب بيتبادل كل جولة، عشان سخونة الكاش ما تميلش لطرف واحد
     const jobFirst = round % 2 === 0;
     const first = jobFirst ? await timeJob() : await timeBaseline();
     const second = jobFirst ? await timeBaseline() : await timeJob();
     if (round === 0) continue;
-    jobTimes.push(jobFirst ? first : second);
-    baselineTimes.push(jobFirst ? second : first);
+    const jobMs = jobFirst ? first : second;
+    const baselineMs = jobFirst ? second : first;
+    rounds.push({ round, jobFirst, jobMs, baselineMs });
+    jobTimes.push(jobMs);
+    baselineTimes.push(baselineMs);
   }
 
-  expect(median(jobTimes)).toBeLessThanOrEqual(2 * median(baselineTimes) + 5);
+  const timings = rounds
+    .map(
+      (round) =>
+        `round ${round.round} jobFirst=${round.jobFirst} job=${round.jobMs.toFixed(2)}ms baseline=${round.baselineMs.toFixed(2)}ms`,
+    )
+    .join(' | ');
+  expect(median(jobTimes), timings).toBeLessThanOrEqual(2 * median(baselineTimes) + 5);
 });

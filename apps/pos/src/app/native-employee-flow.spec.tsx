@@ -16,8 +16,12 @@ vi.mock('@/app/device-role', () => ({
   rememberBusiness: vi.fn(),
   connectEmployee: vi.fn(),
 }));
+vi.mock('@/app/end-sessions', () => ({
+  endPersonalSession: vi.fn(async () => 'done' as const),
+}));
 vi.mock('@/shared/platform/launch-links', () => ({
   readLaunchLink: vi.fn(async () => null),
+  markLaunchLinkHandled: vi.fn(),
   onLinkOpened: vi.fn(() => () => undefined),
 }));
 vi.mock('@/shared/platform/native-shell', async (importOriginal) => ({

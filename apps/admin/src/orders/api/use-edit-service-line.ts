@@ -1,7 +1,7 @@
 'use client';
 import { editServiceLineResponse, type EditServiceLineInput, type EditServiceLineResponse } from '@pospay/contracts';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { useRef } from 'react';
+import { useEffect, useRef } from 'react';
 import { apiClient } from '@/shared/api/client';
 import { editAccessRevoked } from '../model/service-session-access';
 import type { SessionServiceScope } from './use-session-services';
@@ -70,10 +70,16 @@ export function editOutcomeKnown(error: unknown): boolean {
 }
 
 // محاولة واحدة زيادة لما المراجعة تتحرك؛ المفتاح بيتجدد لأن الجسم اتغير. فشل المحاولة التانية يرجع المراجعة اللي اتبعت، من غير محاولة تالتة.
-async function submitEdit(scope: SessionServiceScope, attempt: EditAttempt, held: { current: Held | null }, retryStaleOnce: boolean): Promise<EditServiceLineResult> {
+async function submitEdit(
+  scope: SessionServiceScope,
+  attempt: EditAttempt,
+  held: { current: Held | null },
+  retryStaleOnce: boolean,
+  canRetry: () => boolean,
+): Promise<EditServiceLineResult> {
   const first = await patchLine(scope, attempt.sessionId, attempt.lineId, attempt.body, held);
   if (first.ok) return first.value;
-  const next = retryStaleOnce ? staleRevision(first.error, attempt.body.expected_revision) : null;
+  const next = retryStaleOnce && canRetry() ? staleRevision(first.error, attempt.body.expected_revision) : null;
   if (next === null) throw first.error;
   let second: PatchSuccess | PatchFailure;
   try {
@@ -88,9 +94,15 @@ async function submitEdit(scope: SessionServiceScope, attempt: EditAttempt, held
 export function useEditServiceLine(scope: SessionServiceScope, retryStaleOnce = false) {
   const client = useQueryClient();
   const held = useRef<Held | null>(null);
+  const scopeKey = `${scope.companyId}:${scope.businessId}:${scope.branchId}:${scope.userId}`;
+  const activeScope = useRef<string | null>(scopeKey);
+  useEffect(() => {
+    activeScope.current = scopeKey;
+    return () => { activeScope.current = null; };
+  }, [scopeKey]);
   return useMutation({
     mutationKey: ['edit-service-line', scope, retryStaleOnce], retry: false, gcTime: 0, networkMode: 'always',
-    mutationFn: (attempt: EditAttempt) => submitEdit(scope, attempt, held, retryStaleOnce),
+    mutationFn: (attempt: EditAttempt) => submitEdit(scope, attempt, held, retryStaleOnce, () => activeScope.current === scopeKey),
     onSuccess: (_data, { sessionId, lineId }) => {
       void client.invalidateQueries({ queryKey: ['branch-day-sessions', scope.companyId, scope.businessId, scope.branchId, scope.userId] });
       void client.invalidateQueries({ queryKey: ['service-line-edits', scope.companyId, scope.businessId, scope.branchId, scope.userId, sessionId, lineId] });

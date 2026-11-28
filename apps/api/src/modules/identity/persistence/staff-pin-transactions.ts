@@ -5,6 +5,7 @@ import { temporaryStaffPinExpiresAt } from '../domain/staff-access-roles.ts';
 import { CLEARED_STAFF_PIN_HASH } from './staff-user-auth.ts';
 import type {
   StaffPinProofRecord,
+  StaffPinRecord,
   StaffPinScope,
   StaffPinTransactions,
 } from '../ports/staff-pins.port.ts';
@@ -174,6 +175,35 @@ async function recoverPin(
   return rows.length === 1 ? access.employee_id : null;
 }
 
+/** قراءة صف الاعتماد، مع قفل FOR SHARE عند الطلب لمنع دخول إعادة التعيين أثناء الفحص والأثر. */
+async function readPinRecord(
+  tx: Tx,
+  companyId: string,
+  userId: string,
+  lock: boolean,
+): Promise<StaffPinRecord | null> {
+  // الرقم المؤقت لسه بيترفض كرقم غلط لحد ما F2 يكمّل تدفق التغيير (plan §1.1): الحالة بترجع
+  // مع الصف عشان الـuse case يقرّر يطلب تغيير ولا ي-refuse.
+  const shareClause = lock ? sql`FOR SHARE` : sql``;
+  const [row] = await tx.execute<{
+    id: string;
+    hash: string;
+    temporary: boolean;
+    expires_at_ms: number | null;
+  }>(sql`SELECT id,pin_hash AS hash,temporary,
+    (extract(epoch from expires_at)*1000)::float8 AS expires_at_ms
+    FROM cashier_pins WHERE company_id=${companyId} AND user_id=${userId}
+      AND pin_hash <> ${CLEARED_STAFF_PIN_HASH}
+    ${shareClause}`);
+  if (row === undefined) return null;
+  return {
+    id: row.id,
+    hash: row.hash,
+    temporary: row.temporary,
+    expiresAt: row.expires_at_ms === null ? null : new Date(row.expires_at_ms),
+  };
+}
+
 function scope(tx: Tx, companyId: string, ids: IdGenerator): StaffPinScope {
   const writers = transactionWriters(tx, ids);
   return {
@@ -185,26 +215,8 @@ function scope(tx: Tx, companyId: string, ids: IdGenerator): StaffPinScope {
         AND (ends_at IS NULL OR ends_at>clock_timestamp()) LIMIT 1`);
       return rows.length !== 0;
     },
-    find: async (userId) => {
-      // الرقم المؤقت لسه بيترفض كرقم غلط لحد ما F2 يكمّل تدفق التغيير (plan §1.1): الحالة بترجع
-      // مع الصف عشان الـuse case يقرّر يطلب تغيير ولا ي-refuse.
-      const [row] = await tx.execute<{
-        id: string;
-        hash: string;
-        temporary: boolean;
-        expires_at_ms: number | null;
-      }>(sql`SELECT id,pin_hash AS hash,temporary,
-        (extract(epoch from expires_at)*1000)::float8 AS expires_at_ms
-        FROM cashier_pins WHERE company_id=${companyId} AND user_id=${userId}
-          AND pin_hash <> ${CLEARED_STAFF_PIN_HASH}`);
-      if (row === undefined) return null;
-      return {
-        id: row.id,
-        hash: row.hash,
-        temporary: row.temporary,
-        expiresAt: row.expires_at_ms === null ? null : new Date(row.expires_at_ms),
-      };
-    },
+    find: (userId) => readPinRecord(tx, companyId, userId, false),
+    findLocked: (userId) => readPinRecord(tx, companyId, userId, true),
     save: async (userId, hash, actor, at) => {
       // سياسة الرقم المؤقت (AC-ACT-9): موظفة عندها سجل «إعطاء الدخول» ما بتاخدش رقم دائم من المدير.
       const temporary = await hasStaffAccess(tx, companyId, userId);

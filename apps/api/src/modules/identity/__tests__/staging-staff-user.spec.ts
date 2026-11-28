@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto';
+import { approvePhoneBinding } from '@pospay/auth';
 
 import { afterAll, beforeAll, expect, it } from 'vitest';
 
@@ -237,4 +238,55 @@ it('refuses to run without the phone ownership acknowledgement', async () => {
   ).toBe(1);
   expect(refused).toEqual(['refused: phone ownership not acknowledged']);
   expect(await rowCounts()).toEqual(before);
+}, 60_000);
+
+it('concurrent phone binding approvals yield one approved, one unchanged with one audit, and refuse a changed phone (#647)', async () => {
+  const racePhone = `+9655${'4'.padStart(7, '0')}`;
+  const fixtureCredential = ['synthetic', 'race', 'user', 'credential'].join('-');
+  const raceUser = await h.auth.provisionUser({
+    email: 'staging-race-user@synthetic.invalid',
+    name: 'Synthetic race user',
+    password: fixtureCredential,
+  });
+  const bindOptions = (targetPhone: string) => ({
+    databaseUrl: h.urls.auth,
+    userId: raceUser,
+    phone: targetPhone,
+    operator: 'synthetic.operator',
+    ownershipVerified: true,
+    approved: true,
+    ids: { newId: () => randomUUID() },
+    phoneLockKey: () => 1n,
+    clock: { now: () => new Date() },
+    isCanonicalPhone: () => true,
+  });
+  const outcomes = await Promise.all([
+    approvePhoneBinding(bindOptions(racePhone)),
+    approvePhoneBinding(bindOptions(racePhone)),
+  ]);
+  expect([...outcomes].sort()).toEqual(['approved', 'unchanged']);
+  expect(
+    await h.owner`SELECT id FROM platform_audit_log WHERE target_user_id=${raceUser} AND action='phone.binding_approved'`,
+  ).toHaveLength(1);
+  // تغيير الهاتف تحت القفل يترفض بدون أي أثر إضافي.
+  await expect(approvePhoneBinding(bindOptions(`+9655${'5'.padStart(7, '0')}`))).rejects.toThrow(
+    'PHONE_BINDING_REFUSED',
+  );
+  // تشغيلان متزامنان لـ main على هاتف جديد يخرجان بنتيجة واحد approved والثاني unchanged وسطر تدقيق واحد.
+  const cliPhone = `+9655${'6'.padStart(7, '0')}`;
+  const outA: string[] = [];
+  const outB: string[] = [];
+  const codes = await Promise.all([
+    main(cliArgs({ phone: cliPhone, employee: 'drop' }), stagingEnv(), (line) => outA.push(line)),
+    main(cliArgs({ phone: cliPhone, employee: 'drop' }), stagingEnv(), (line) => outB.push(line)),
+  ]);
+  expect(codes).toEqual([0, 0]);
+  const bindingLines = [outA[1], outB[1]].sort();
+  expect(bindingLines).toEqual(['phone binding: approved', 'phone binding: unchanged']);
+  expect(
+    await h.owner`
+      SELECT l.id FROM platform_audit_log l
+      JOIN "user" u ON u.id = l.target_user_id
+      WHERE u.phone_number = ${cliPhone} AND l.action = 'phone.binding_approved'`,
+  ).toHaveLength(1);
 }, 60_000);

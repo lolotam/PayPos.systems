@@ -69,8 +69,9 @@ function applyRecordingEvent(mirror: Mirror, setState: (next: SessionRecordingRe
 
 function patchCustomer(mirror: Mirror, setState: (next: SessionRecordingResult) => void, customer: SessionRecordingResult['customer']) {
   const current = mirror.current;
-  if (sessionResultFrozen(current) || current.sessionId || current.customer === customer) return;
-  const next = { ...current, customer, customerId: customer?.id ?? null };
+  const nextCustomerId = customer?.id ?? null;
+  if (sessionResultFrozen(current) || current.sessionId || (current.customer === customer && current.customerId === nextCustomerId)) return;
+  const next = { ...current, customer, customerId: nextCustomerId };
   mirror.current = next;
   setState(next);
 }

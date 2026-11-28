@@ -9,10 +9,26 @@ async function seedExplainWorkspace(h: Awaited<ReturnType<typeof startHarness>>)
       'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',100,'read:files:business',${userId},now(),'READY')`;
   const keys = Array.from({ length: 500 }, () => ids.newId());
   const seeded = ids.newId();
+  // معاينة فيها 25 صفاً مطبّعاً: صفحة المعاينة تقرأ 20 صفاً، فالعدد لازم يتجاوز
+  // حد الصفحة عشان استعلام الصفحة يبان فيه صف تاني — والصفوف بتتخزّن JSON حقيقي
+  // (h.owner.json) مش نص JSON، عشان jsonb_array_elements يتعامل معاها كمصفوفة.
+  const previewRows = Array.from({ length: 25 }, (_value, index) => ({
+    row: index + 1,
+    name_en: `Imported service ${index + 1}`,
+    name_ar: null,
+    price: '12.500',
+    duration_minutes: 30,
+    category_id: null,
+    category_name_en: null,
+    commission_rule: { kind: 'FOLLOW_PLAN' },
+    commission_value: null,
+    commission_rule_defaulted: false,
+    counts_toward_threshold: true,
+  }));
   await h.owner`INSERT INTO import_previews
     (company_id,id,business_id,entity,file_id,created_by,created_at,expires_at,row_count,error_count,rows,errors,status)
     VALUES (${company},${seeded},${business},'services',${file},${userId},now(),
-      now() + interval '24 hours',1,0,'[]'::jsonb,'[]'::jsonb,'ready')`;
+      now() + interval '24 hours',${previewRows.length},0,${h.owner.json(previewRows)},'[]'::jsonb,'ready')`;
   await h.owner`INSERT INTO import_previews
     (company_id,id,business_id,entity,file_id,created_by,created_at,expires_at,row_count,error_count,rows,errors,status)
     SELECT p.company_id,k.id,p.business_id,p.entity,p.file_id,p.created_by,p.created_at,p.expires_at,p.row_count,p.error_count,p.rows,p.errors,p.status
@@ -23,12 +39,34 @@ async function seedExplainWorkspace(h: Awaited<ReturnType<typeof startHarness>>)
 }
 
 import { expect, it } from 'vitest';
+import { createDatabase } from '@pospay/db';
 import { systemUuidV7 } from '@pospay/ids';
+import { sql } from 'drizzle-orm';
 import keyVectors from '../domain/__tests__/service-import-key-vectors.json' with { type: 'json' };
 import { serviceCategoryKey, normalizeServiceCategoryName } from '../domain/service-category.ts';
+import { serviceImportRowsStatement } from '../queries/service-import-rows.query.ts';
 
 import { startHarness } from '../../../../test/harness.ts';
 import { seedCatalogWorkspace } from './service-import.fixture.ts';
+
+// استعلام الصفحات الإنتاجي نفسه (serviceImportRowsStatement تحت withTenant) يجب أن يمشي
+// على المفتاح (company_id, id) — الخطة إلزامية على استعلام الإنتاج نفسه لا على نسخة منسوخة.
+async function previewPagePlan(
+  database: ReturnType<typeof createDatabase>,
+  scope: { company: string; business: string; userId: string; seeded: string },
+) {
+  const { company, business, userId, seeded } = scope;
+  const statement = serviceImportRowsStatement(
+    { companyId: company, businessId: business, userId, previewId: seeded },
+    1,
+    20,
+  );
+  return database.withTenant(
+    company,
+    (tx) => tx.execute(sql`EXPLAIN (ANALYZE, FORMAT JSON) ${statement}`),
+    { userId },
+  );
+}
 
 // مفاتيح الأسماء من المطبّع المشترك، ومساواة lower() على Postgres الفعلي بمتجهات Unicode المفحوصة (A-11/A-12).
 
@@ -92,27 +130,16 @@ it('scans the scoped unique index for category matching and the business index f
        AND lower(btrim(regexp_replace(s.name_en, '[[:space:]]+', ' ', 'g'))) = i.lookup_key`;
     const nameText = JSON.stringify(namePlan?.[0] ?? namePlan);
     expect(nameText).toContain('services_company_business_id_key');
-    // استعلام الصفحات الإنتاجي نفسه (توسيع JSONB والترتيب والصفحة داخل SQL) يجب أن يمشي
-    // على المفتاح (company_id, id) — الخطة إلزامية على شكل الاستعلام الحقيقي لا على تقليده.
-    const rowsPlan = await h.owner`EXPLAIN (FORMAT JSON)
-      WITH preview AS (
-        SELECT rows FROM import_previews
-        WHERE company_id=${company} AND business_id=${business}
-          AND created_by=${userId} AND id=${seeded} AND entity='services'
-      ),
-      page_rows AS (
-        SELECT (r.value->>'row')::int AS row_no, r.value AS data
-        FROM preview p, jsonb_array_elements(p.rows) AS r(value)
-        WHERE (r.value->>'row')::int > 1
-        ORDER BY 1
-        LIMIT 21
-      )
-      SELECT
-        (SELECT EXISTS (SELECT 1 FROM preview)) AS found,
-        (SELECT COALESCE(jsonb_agg(data ORDER BY row_no), '[]'::jsonb) FROM (SELECT row_no, data FROM page_rows ORDER BY row_no LIMIT 20) t) AS items,
-        (SELECT max(row_no) FROM (SELECT row_no FROM page_rows ORDER BY row_no LIMIT 20) t) AS last_row_no,
-        EXISTS (SELECT 1 FROM page_rows OFFSET 20) AS has_more`;
-    const rowsText = JSON.stringify((rowsPlan as unknown as { 'QUERY PLAN': unknown }[])?.[0] ?? rowsPlan);
+    const db = createDatabase({ url: h.urls.app, ids: systemUuidV7() });
+    let rowsPlan: unknown;
+    try {
+      rowsPlan = await previewPagePlan(db, { company, business, userId, seeded });
+    } finally {
+      await db.close();
+    }
+    const rowsText = JSON.stringify(
+      (rowsPlan as unknown as { 'QUERY PLAN': unknown }[])?.[0] ?? rowsPlan,
+    );
     expect(rowsText).toContain('import_previews_pkey');
     const previewPlan = await h.owner`EXPLAIN ANALYZE SELECT id AS preview_id,status,created_count,error_code
       FROM import_previews

@@ -2,7 +2,7 @@
 import { useState, type RefObject } from 'react';
 import type { UnresolvedTip } from '../api/use-record-session-tips';
 
-// المحاولة المعلقة بتعيش مع الصفحة. تغيير الشركة أو الفرع أو المشغّل بس هو اللي يمسحها، مش فلتر اليوم.
+// المحاولة المعلقة بتعيش مع الصفحة. تغيير الشركة أو الفرع أو المشغّل يفتح خريطة جديدة عشان رد متأخر من نطاق قديم ما يمسحش محاولة المشغّل الجديد.
 export function useTipAttemptMemory(
   companyId: string,
   businessId: string,
@@ -10,11 +10,17 @@ export function useTipAttemptMemory(
   userId: string,
 ): RefObject<Map<string, UnresolvedTip>> {
   const scopeIdentity = `${companyId}:${businessId}:${branchId}:${userId}`;
-  const [attempts] = useState(() => ({ current: new Map<string, UnresolvedTip>() }));
-  const [seen, setSeen] = useState(scopeIdentity);
-  if (seen !== scopeIdentity) {
-    setSeen(scopeIdentity);
-    attempts.current.clear();
+  const [state, setState] = useState(() => ({
+    scope: scopeIdentity,
+    memory: { current: new Map<string, UnresolvedTip>() },
+  }));
+  if (state.scope !== scopeIdentity) {
+    const next = {
+      scope: scopeIdentity,
+      memory: { current: new Map<string, UnresolvedTip>() },
+    };
+    setState(next);
+    return next.memory;
   }
-  return attempts;
+  return state.memory;
 }

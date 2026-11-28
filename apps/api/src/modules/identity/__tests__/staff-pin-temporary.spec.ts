@@ -108,6 +108,7 @@ it('P1-8 discount approval compares the stored temporary PIN and charges the sam
     f.h.auth.staff,
     createRedisDevicePinCap(f.h.redis, ids),
     { valid: async () => true },
+    { acquire: () => () => undefined },
   );
   expect(await useCase.execute({ phone, pin: '4321', device })).toEqual({ kind: 'refused' });
   expect(await useCase.execute({ phone, pin: '1234', device })).toEqual({ kind: 'refused' });
