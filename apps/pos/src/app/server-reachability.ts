@@ -13,7 +13,17 @@ function hasOkStatus(body: unknown): boolean {
   );
 }
 
-function parseNativePayload(data: unknown): unknown {
+function readContentType(headers: Record<string, string> | undefined): string {
+  if (!headers) return '';
+  for (const [name, value] of Object.entries(headers)) {
+    if (name.toLowerCase() === 'content-type') return value.toLowerCase();
+  }
+  return '';
+}
+
+function parseNativePayload(data: unknown, headers: Record<string, string> | undefined): unknown {
+  // Capacitor 8.5.3 يفك application/json قبل responseType، فالنص هنا يعني حمولة مزدوجة الترميز.
+  if (readContentType(headers).includes('application/json')) return data;
   if (typeof data !== 'string') return data;
   try {
     return JSON.parse(data);
@@ -51,7 +61,7 @@ async function readHealthViaNativeHttp(healthUrl: string): Promise<boolean> {
     responseType: 'text',
   });
   if (response.status !== 200) return false;
-  return hasOkStatus(parseNativePayload(response.data));
+  return hasOkStatus(parseNativePayload(response.data, response.headers));
 }
 
 /**

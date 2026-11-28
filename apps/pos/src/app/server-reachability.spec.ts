@@ -92,7 +92,11 @@ it('uses direct no-cache CapacitorHttp on iOS and allows immediate retry after t
   vi.useFakeTimers();
   nativeRequestMock
     .mockImplementationOnce(() => new Promise(() => undefined))
-    .mockResolvedValueOnce({ status: 200, data: JSON.stringify({ status: 'ok' }) });
+    .mockResolvedValueOnce({
+      status: 200,
+      headers: { 'Content-Type': 'application/json; charset=utf-8' },
+      data: { status: 'ok' },
+    });
 
   const firstAttempt = checkServerReachable();
   await vi.advanceTimersByTimeAsync(FIRST_SAVE_REACHABILITY_WAIT_MS);
@@ -114,12 +118,28 @@ it('uses direct no-cache CapacitorHttp on iOS and allows immediate retry after t
   });
 });
 
-it('rejects native captive portal HTML and 302 redirects on iOS (#566)', async () => {
+it('rejects double-encoded JSON, captive portal HTML, and 302 redirects on iOS (#566)', async () => {
   vi.mocked(usesNativeStaffTransport).mockReturnValue(true);
   nativeRequestMock
-    .mockResolvedValueOnce({ status: 200, data: '<html>portal</html>' })
-    .mockResolvedValueOnce({ status: 302, data: '' });
+    .mockResolvedValueOnce({
+      status: 200,
+      headers: { 'Content-Type': 'application/json' },
+      data: JSON.stringify({ status: 'ok' }),
+    })
+    .mockResolvedValueOnce({
+      status: 200,
+      headers: { 'content-type': 'text/plain' },
+      data: JSON.stringify(JSON.stringify({ status: 'ok' })),
+    })
+    .mockResolvedValueOnce({
+      status: 200,
+      headers: { 'content-type': 'text/html' },
+      data: '<html>portal</html>',
+    })
+    .mockResolvedValueOnce({ status: 302, headers: {}, data: '' });
 
+  await expect(checkServerReachable()).resolves.toBe(false);
+  await expect(checkServerReachable()).resolves.toBe(false);
   await expect(checkServerReachable()).resolves.toBe(false);
   await expect(checkServerReachable()).resolves.toBe(false);
 });
