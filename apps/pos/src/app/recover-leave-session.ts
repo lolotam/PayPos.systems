@@ -222,8 +222,8 @@ export async function recoverLeaveSession(
     await cache.cancelQueries({ queryKey: sessionKey, exact: true }, { revert: false });
     requireCurrent();
     if (!accepted || !parsed.success || Date.parse(parsed.data.expires_at) <= Date.now()) {
-      // poll لاحق أكّد نفس الجلسة الحيّة قبل المهلة الأصلية: الـ 401 المتأخر لا يمسحها.
-      if (sawMatchingPoll() && Date.parse(context.expires_at) > Date.now()) {
+      // الاستثناء للرد غير المصادق المتأخر (null) فقط عندما يؤكد poll لاحق الجلسة؛ تبدّل الهوية أو انتهاء المهلة من السيرفر يمسحها فوراً.
+      if (session === null && sawMatchingPoll() && Date.parse(context.expires_at) > Date.now()) {
         throw new DOMException('Recovery superseded', 'AbortError');
       }
       publish(null);

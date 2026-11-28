@@ -143,3 +143,48 @@ it('rejects with 401 LeaveHttpError and clears session when expires_at passes du
   expect(rejection).toMatchObject({ status: 401, message: 'UNAUTHENTICATED' });
   expect(cache.getQueryData(key)).toBeNull();
 });
+
+it('clears cache on shortened server expiry during cancelQueries or identity mismatch even after a matching poll (#891)', async () => {
+  const key = ['personal-session', 0];
+  for (const scenario of ['shortened-expired', 'identity-mismatch'] as const) {
+    const cache = new QueryClient();
+    cache.setQueryData(key, personal);
+    cache.setQueryData(['other-private'], 'stale');
+    let releaseProbe!: (response: Response) => void;
+    let calls = 0;
+    fetchHandler.mockImplementation(() => {
+      calls += 1;
+      return calls === 1
+        ? new Promise<Response>((resolve) => {
+            releaseProbe = resolve;
+          })
+        : Promise.resolve(Response.json(personal));
+    });
+    const origCancel = cache.cancelQueries.bind(cache);
+    if (scenario === 'shortened-expired') {
+      vi.spyOn(cache, 'cancelQueries').mockImplementationOnce(async (...args) => {
+        vi.setSystemTime(new Date('2026-10-04T10:02:00Z'));
+        return origCancel(...args);
+      });
+    }
+    const recovery = recoverLeaveSession(
+      { mode: 'personal', ...personal, sessionEpoch: 0 },
+      '',
+      new AbortController().signal,
+      cache,
+    );
+    await vi.waitFor(() => expect(calls).toBe(1));
+    await cache.fetchQuery({ queryKey: key, queryFn: async () => personal });
+    const probePayload =
+      scenario === 'shortened-expired'
+        ? { ...personal, expires_at: '2026-10-04T10:01:00Z' }
+        : { ...personal, user_id: id(9) };
+    releaseProbe(Response.json(probePayload));
+
+    const rejection = await recovery.catch((err: unknown) => err);
+    expect(rejection).toBeInstanceOf(LeaveHttpError);
+    expect(rejection).toMatchObject({ status: 401, message: 'UNAUTHENTICATED' });
+    expect(cache.getQueryData(key)).toBeNull();
+    vi.setSystemTime(new Date('2026-10-04T10:00:00Z'));
+  }
+});
