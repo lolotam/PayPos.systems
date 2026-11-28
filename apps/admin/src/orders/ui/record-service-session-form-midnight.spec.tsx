@@ -1,8 +1,8 @@
 import type { CustomerPackageListItem, RecordingContext } from '@pospay/contracts';
 import { t } from '@pospay/i18n';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
-import { useEffect } from 'react';
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { Suspense, useEffect, useState, useTransition } from 'react';
 import { afterEach, expect, it, vi } from 'vitest';
 import { id, response, scope } from '../model/session-recording-result.fixture';
 import { useSessionRecording, type SessionRecordingController } from '../model/use-session-recording';
@@ -44,7 +44,10 @@ function lineGroup() {
   return screen.getByRole('group', { name: t('en', 'serviceSessions.lineNumber').replace('{n}', '1') });
 }
 
-async function mount(contextOverride: RecordingContext = context, packages: CustomerPackageListItem[] = [packageItem]) {
+function mockRecordingReads(
+  contextOverride: RecordingContext = context,
+  packages: CustomerPackageListItem[] = [packageItem],
+) {
   state.get.mockImplementation((path: string) =>
     Promise.resolve({
       data: String(path).endsWith('/recording-context')
@@ -58,8 +61,9 @@ async function mount(contextOverride: RecordingContext = context, packages: Cust
     }),
   );
   state.post.mockResolvedValue({ data: complete, response: { status: 201 } });
-  const client = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
-  render(<QueryClientProvider client={client}><Harness contextOverride={contextOverride} /></QueryClientProvider>);
+}
+
+async function selectServiceAndPerformer() {
   expect(await screen.findByText(customer.name)).toBeTruthy();
   const serviceSelect = screen.getByLabelText(t('en', 'serviceSessions.service'));
   await waitFor(() => expect(serviceSelect.querySelector(`option[value="${service.id}"]`)).toBeTruthy());
@@ -67,6 +71,13 @@ async function mount(contextOverride: RecordingContext = context, packages: Cust
   const performerSelect = screen.getByLabelText(t('en', 'serviceSessions.performerNumber').replace('{n}', '1'));
   await waitFor(() => expect(performerSelect.querySelector(`option[value="${performer.id}"]`)).toBeTruthy());
   fireEvent.change(performerSelect, { target: { value: performer.id } });
+}
+
+async function mount(contextOverride: RecordingContext = context, packages: CustomerPackageListItem[] = [packageItem]) {
+  mockRecordingReads(contextOverride, packages);
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
+  render(<QueryClientProvider client={client}><Harness contextOverride={contextOverride} /></QueryClientProvider>);
+  await selectServiceAndPerformer();
 }
 
 afterEach(() => {
@@ -135,9 +146,75 @@ it('clamps tolerated future draft time to server now before checking package exp
   });
 });
 
+function controlClockIntervals() {
+  const realSetInterval = globalThis.setInterval.bind(globalThis);
+  const realClearInterval = globalThis.clearInterval.bind(globalThis);
+  const ticks = new Set<() => void>();
+  let nextHandle = 10_000;
+  const controlled = new Map<unknown, () => void>();
+  vi.spyOn(globalThis, 'setInterval').mockImplementation(((
+    handler: TimerHandler,
+    timeout?: number,
+    ...args: unknown[]
+  ) => {
+    if (timeout === 1000 && typeof handler === 'function') {
+      const fn = () => (handler as (...a: unknown[]) => void)(...args);
+      const id = ++nextHandle;
+      controlled.set(id, fn);
+      ticks.add(fn);
+      return id as unknown as ReturnType<typeof setInterval>;
+    }
+    return realSetInterval(handler, timeout, ...args);
+  }) as typeof setInterval);
+  vi.spyOn(globalThis, 'clearInterval').mockImplementation(((id?: ReturnType<typeof setInterval>) => {
+    const fn = controlled.get(id);
+    if (fn) {
+      controlled.delete(id);
+      ticks.delete(fn);
+      return;
+    }
+    realClearInterval(id);
+  }) as typeof clearInterval);
+  return {
+    tickClock: () => {
+      act(() => {
+        for (const fn of [...ticks]) fn();
+      });
+    },
+  };
+}
+
+const pendingRefresh = new Promise<never>(() => undefined);
+
+function PendingRefreshGate({ activeRefresh }: { activeRefresh: boolean }) {
+  if (activeRefresh) throw pendingRefresh;
+  return null;
+}
+
+function RefreshableHarness({
+  onReady,
+}: {
+  onReady: (refresh: (next: RecordingContext) => void) => void;
+}) {
+  const [ctx, setCtx] = useState<RecordingContext>(context);
+  const [, startRefresh] = useTransition();
+  useEffect(() => {
+    onReady((next) => {
+      startRefresh(() => setCtx(next));
+    });
+  }, [onReady]);
+  return (
+    <Suspense fallback={null}>
+      <Harness contextOverride={ctx} />
+      <PendingRefreshGate activeRefresh={ctx.generated_at !== context.generated_at} />
+    </Suspense>
+  );
+}
+
 it('rechecks edited draft time against current server-anchored clock after crossing midnight', async () => {
   let elapsed = 0;
   vi.spyOn(performance, 'now').mockImplementation(() => elapsed);
+  const { tickClock } = controlClockIntervals();
   const midnightPackage: CustomerPackageListItem = {
     ...packageItem,
     id: id(43),
@@ -149,12 +226,15 @@ it('rechecks edited draft time against current server-anchored clock after cross
   fireEvent.change(screen.getByLabelText(t('en', 'serviceSessions.occurredAt')), {
     target: { value: '2026-10-16T00:00:05' },
   });
+  elapsed = 1000;
+  tickClock();
+
   elapsed = 15000;
   fireEvent.change(screen.getByLabelText(t('en', 'serviceSessions.occurredAt')), {
     target: { value: '2026-10-16T00:00:02' },
   });
   fireEvent.click(screen.getByRole('button', { name: t('en', 'serviceSessions.fromPackage') }));
-  const initialOption = await within(lineGroup()).findByRole('radio', {}, { timeout: 4000 });
+  const initialOption = await within(lineGroup()).findByRole('radio');
   await waitFor(() => expect((initialOption as HTMLInputElement).checked).toBe(true));
 
   fireEvent.change(screen.getByLabelText(t('en', 'serviceSessions.occurredAt')), {
@@ -162,5 +242,35 @@ it('rechecks edited draft time against current server-anchored clock after cross
   });
   const optionAfterEdit = within(lineGroup()).getByRole('radio') as HTMLInputElement;
   expect(optionAfterEdit.checked).toBe(true);
+  expect(within(lineGroup()).getByText(midnightPackage.name_en)).toBeTruthy();
+});
+
+it('keeps the committed elapsed anchor when an uncommitted context refresh interrupts before an occurred_at edit', async () => {
+  let elapsed = 0;
+  vi.spyOn(performance, 'now').mockImplementation(() => elapsed);
+  controlClockIntervals();
+  const midnightPackage: CustomerPackageListItem = {
+    ...packageItem,
+    id: id(44),
+    name_en: 'Post-midnight transition package',
+    expires_on: '2026-10-16',
+    sold_at: '2026-10-15T21:00:00Z',
+  };
+  mockRecordingReads(context, [midnightPackage]);
+  let triggerRefresh: ((next: RecordingContext) => void) | null = null;
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
+  render(<QueryClientProvider client={client}><RefreshableHarness onReady={(fn) => { triggerRefresh = fn; }} /></QueryClientProvider>);
+  await selectServiceAndPerformer();
+
+  elapsed = 15000;
+  act(() => {
+    triggerRefresh?.({ ...context, generated_at: '2026-10-15T20:59:51Z' });
+  });
+  fireEvent.change(screen.getByLabelText(t('en', 'serviceSessions.occurredAt')), {
+    target: { value: '2026-10-16T00:00:05' },
+  });
+  fireEvent.click(screen.getByRole('button', { name: t('en', 'serviceSessions.fromPackage') }));
+  const option = await within(lineGroup()).findByRole('radio');
+  await waitFor(() => expect((option as HTMLInputElement).checked).toBe(true));
   expect(within(lineGroup()).getByText(midnightPackage.name_en)).toBeTruthy();
 });
