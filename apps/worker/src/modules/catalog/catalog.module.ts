@@ -37,6 +37,39 @@ function startImportRecovery(
   );
 }
 
+/** معالج قفل وفتح التصنيفات الكبيرة مع تسجيل فشل القفل وسقوط إعادة المحاولة دون بيانات خاصة. */
+function startCategoryClosing(
+  database: Pick<TenantWrappers, 'withTenant'>,
+  ids: IdGenerator,
+  redisUrl: string,
+  clock: Clock,
+  prefix: string | undefined,
+  logger: ReturnType<typeof createLogger>,
+) {
+  return startServiceCategoryClosingProcessor(
+    new RunServiceCategoryClosing(
+      serviceCategoryClosingTransactions(
+        database,
+        ids,
+        SERVICE_CATEGORY_CLOSING_TIMEOUT_MS,
+        SERVICE_CATEGORY_CLOSING_FAILURE_TIMEOUT_MS,
+      ),
+      clock,
+      {
+        failed: ({ companyId, closingId, requestedBy, code }) =>
+          logger.error(
+            { company_id: companyId, closing_id: closingId, user_id: requestedBy, code },
+            'service category closing failed',
+          ),
+      },
+    ),
+    redisUrl,
+    prefix,
+    ({ companyId, closingId, code }) =>
+      logger.error({ company_id: companyId, closing_id: closingId, code }, 'service category closing failed'),
+  );
+}
+
 /**
  * يشغّل عامل الكتالوج في الـ worker: قفل وفتح التصنيفات الكبيرة وتثبيت استيراد الخدمات،
  * كل طلب في الطابور لعملية واحدة.
@@ -57,26 +90,7 @@ export function startCatalogWorker(
 ) {
   // اسم الحدث لازم يكون مسجّل: المراقب بيستبدل أي رسالة مش في قايمة الأحداث، فالتشخيص كان بيضيع.
   const logger = createLogger('error', { events: ['service category closing failed'] });
-  const closing = startServiceCategoryClosingProcessor(
-    new RunServiceCategoryClosing(
-      serviceCategoryClosingTransactions(
-        database,
-        ids,
-        SERVICE_CATEGORY_CLOSING_TIMEOUT_MS,
-        SERVICE_CATEGORY_CLOSING_FAILURE_TIMEOUT_MS,
-      ),
-      clock,
-      {
-        failed: ({ companyId, closingId, requestedBy, code }) =>
-          logger.error(
-            { company_id: companyId, closing_id: closingId, user_id: requestedBy, code },
-            'service category closing failed',
-          ),
-      },
-    ),
-    redisUrl,
-    prefix,
-  );
+  const closing = startCategoryClosing(database, ids, redisUrl, clock, prefix, logger);
   // المستهلك مسجّل قبل المنتج (32b-5): لا شيء يصدر ServiceImportCommitRequested بعد في الإنتاج بعد.
   const importCommit = startServiceImportProcessor(
     new CommitServiceImport(serviceImportCommitTransactions(database, ids), ids, clock),
@@ -94,9 +108,17 @@ export function startCatalogWorker(
       await recovery.ready();
     },
     close: async () => {
-      await closing.close();
-      await importCommit.close();
-      await recovery.close();
+      // المعالجات التلاتة بتتقفل كلها حتى لو واحد فيهم رفض: رفض واحد ما
+      // يعنيش إن الباقي فضل مفتوح، والخطأ الأول بيرجع بعد ما التلاتة يخلصوا.
+      const settled = await Promise.allSettled([
+        closing.close(),
+        importCommit.close(),
+        recovery.close(),
+      ]);
+      const rejected = settled.find(
+        (result): result is PromiseRejectedResult => result.status === 'rejected',
+      );
+      if (rejected !== undefined) throw rejected.reason;
     },
   };
 }

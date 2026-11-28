@@ -83,7 +83,7 @@ vi.mock('bullmq', async (original) => {
       // طوابير البيع وتثبيت استيراد الباقات والخدمات ومسحيهما وقفل التصنيفات تُبنى فعليًا؛ بدل Redis حقيقي مقبض جاهز.
       if (
         (queueName.startsWith('package-') && queueName !== 'package-import-preview') ||
-        queueName === 'service-category-closing' ||
+        queueName.startsWith('service-category-closing') ||
         /^(?:service|customer)-import-(?:commit|recovery)$/.test(queueName)
       )
         return { on: vi.fn(), waitUntilReady: async () => undefined, close: async () => undefined };
