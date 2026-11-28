@@ -309,14 +309,16 @@ function terminateOwnedDescendants(
   if (seeds.length === 0) return { waitPids: [], signalError: undefined };
   const markedSet = new Set(markedPids);
   const candidates = [...new Set([...markedPids, ...collectDescendantPids(seeds, procRoot)])];
-  const waitPids = candidates.filter(
+  const ownedPids = candidates.filter(
     (pid) => pid !== rootPid && (rootAlive || markedSet.has(pid) || (marker !== undefined && hasMatchingMarkerInProc(pid, marker, procRoot))),
   );
+  if (procRoot !== '/proc') return { waitPids: ownedPids, signalError: undefined };
+  const waitPids: number[] = [];
   let signalError: Error | undefined;
-  if (procRoot === '/proc') {
-    for (const pid of waitPids) {
-      signalError ??= signalDescendantPid(pid);
-    }
+  for (const pid of ownedPids) {
+    const err = signalDescendantPid(pid);
+    if (err === undefined) waitPids.push(pid);
+    else if (signalError === undefined) signalError = err;
   }
   return { waitPids, signalError };
 }

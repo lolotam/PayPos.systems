@@ -271,7 +271,7 @@ it('retains retired browser handle after failed kill so renderer.kill() can fini
   const renderer = new PlaywrightDocumentRenderer({
     factory: { launch: async () => fakeBrowser({ kill: () => (++kills === 1 ? Promise.reject(new Error('EPERM')) : Promise.resolve()) }) },
     sleep: wait,
-    backoffMs: [0],
+    backoffMs: [250],
     overallTimeoutMs: 15,
     browserCloseGraceMs: 10,
   });

@@ -5,6 +5,7 @@ import { expect, it, vi } from 'vitest';
 
 import type { PdfBrowser } from '../playwright/browser.ts';
 import { getLaunchCleanup, killAndWait, playwrightFactory, withLaunchCleanup } from '../playwright/factory.ts';
+import { isPidAlive } from '../playwright/process-tree.ts';
 import { PlaywrightDocumentRenderer } from '../playwright/renderer.ts';
 import { dropRetiredBrowser } from '../playwright/retire.ts';
 import { realChromiumUnavailable } from './chromium-gate.ts';
@@ -136,6 +137,69 @@ it('unblocks a hung launch cleanup gate as soon as retryKill confirms', async ()
   await renderer.close();
 });
 
+it('unblocks relaunch when initial cleanup resolves after a hung retryKill', async () => {
+  let kills = 0;
+  let launches = 0;
+  const renderer = new PlaywrightDocumentRenderer({
+    factory: {
+      launch: () => {
+        launches += 1;
+        return launches === 1
+          ? Promise.reject(withLaunchCleanup(new Error('slow cleanup'), wait(35), () => {
+            kills += 1;
+            return new Promise<void>(() => undefined);
+          }))
+          : Promise.resolve(fakeBrowser({ close: () => Promise.resolve() }));
+      },
+    },
+    launchTimeoutMs: 200,
+    sleep: wait,
+    backoffMs: [10],
+  });
+  await renderer.start();
+  for (let i = 0; i < 40 && !renderer.isAvailable(); i += 1) await wait(10);
+  expect(renderer.isAvailable()).toBe(true);
+  expect(kills).toBe(1);
+  expect(launches).toBe(2);
+  expect(renderer.unconfirmedExit).toBeNull();
+  await renderer.close();
+});
+
+it('retries failed retirement kill on backoff and relaunches once confirmed', async () => {
+  let launches = 0;
+  let kills = 0;
+  const errors: string[] = [];
+  const renderer = new PlaywrightDocumentRenderer({
+    factory: {
+      launch: () => {
+        launches += 1;
+        if (launches > 1) return Promise.resolve(fakeBrowser({ close: () => Promise.resolve() }));
+        return Promise.resolve(fakeBrowser({
+          kill: () => {
+            kills += 1;
+            if (kills <= 2) return Promise.reject(new Error('RETIRE_KILL_EPERM'));
+            return Promise.resolve();
+          },
+        }));
+      },
+    },
+    sleep: wait,
+    backoffMs: [10, 10, 10],
+    overallTimeoutMs: 15,
+    browserCloseGraceMs: 10,
+    onLaunchError: (err) => { if (err instanceof Error) errors.push(err.message); },
+  });
+  await renderer.start();
+  await expect(renderer.render('<p>x</p>')).rejects.toThrow();
+  for (let i = 0; i < 80 && !renderer.isAvailable(); i += 1) await wait(10);
+  expect(renderer.isAvailable()).toBe(true);
+  expect(kills).toBe(3);
+  expect(launches).toBe(2);
+  expect(errors).toEqual(expect.arrayContaining(['DOCUMENT_RETIRE_UNCONFIRMED', 'RETIRE_KILL_EPERM']));
+  expect(renderer.unconfirmedExit).toBeNull();
+  await renderer.close();
+});
+
 it('keeps killProcessTree pending for surviving descendants when root has already exited', async () => {
   const child = Object.assign(new EventEmitter(), { exitCode: null as number | null, signalCode: null, kill: () => true });
   const root = Object.assign(new EventEmitter(), { exitCode: 0, signalCode: null, children: [child], kill: () => true });
@@ -184,7 +248,7 @@ it.runIf(process.platform === 'linux')('terminates detached Linux descendants ou
       parent.once('error', reject);
     });
     await Promise.resolve(killAndWait(parent));
-    expect(() => process.kill(childPid, 0)).toThrow();
+    expect(isPidAlive(childPid)).toBe(false);
   } finally {
     if (childPid > 0) {
       try { process.kill(childPid, 'SIGKILL'); } catch { /* exited */ }
@@ -194,27 +258,42 @@ it.runIf(process.platform === 'linux')('terminates detached Linux descendants ou
 });
 
 it.runIf(process.platform === 'linux')('propagates non-ESRCH errors when signaling discovered descendants', async () => {
-  const script = 'const { spawn } = require("node:child_process"); const c = spawn(process.execPath, ["-e", "setTimeout(() => {}, 30000)"], { detached: true, stdio: "ignore" }); process.stdout.write(String(c.pid) + "\\n"); setTimeout(() => {}, 30000);';
+  const script = 'const { spawn } = require("node:child_process"); const c1 = spawn(process.execPath, ["-e", "setTimeout(() => {}, 30000)"], { detached: true, stdio: "ignore" }); const c2 = spawn(process.execPath, ["-e", "setTimeout(() => {}, 30000)"], { detached: true, stdio: "ignore" }); process.stdout.write(`${c1.pid},${c2.pid}\\n`); setTimeout(() => {}, 30000);';
   const parent = spawn(process.execPath, ['-e', script], { stdio: ['ignore', 'pipe', 'ignore'] });
-  let childPid = 0;
+  let child1Pid = 0;
+  let child2Pid = 0;
   const origKill = process.kill.bind(process);
   try {
     assertChildPid(parent);
-    childPid = await new Promise<number>((resolve, reject) => {
-      parent.stdout.once('data', (chunk: Buffer) => resolve(Number(chunk.toString('utf8').trim())));
+    let buf = '';
+    [child1Pid, child2Pid] = await new Promise<[number, number]>((resolve, reject) => {
+      parent.stdout.on('data', (chunk: Buffer) => {
+        buf += chunk.toString('utf8');
+        if (!buf.includes('\n')) return;
+        const parts = buf.trim().split(',').map(Number);
+        resolve([parts[0] ?? 0, parts[1] ?? 0]);
+      });
       parent.once('error', reject);
     });
     vi.spyOn(process, 'kill').mockImplementation(((pid: number, sig?: string | number) => {
-      if (sig === 'SIGKILL' && (pid === childPid || pid === -childPid)) {
+      if (sig === 'SIGKILL' && (pid === child1Pid || pid === -child1Pid)) {
         throw Object.assign(new Error('EPERM'), { code: 'EPERM' });
       }
       return origKill(pid, sig);
     }) as typeof process.kill);
-    await expect(Promise.resolve(killAndWait(parent))).rejects.toThrow('EPERM');
+    const outcome = await Promise.race([
+      Promise.resolve(killAndWait(parent)).then(() => 'resolved', (err: unknown) => (err instanceof Error ? err.message : 'rejected')),
+      wait(500).then(() => 'HUNG'),
+    ]);
+    expect(outcome).toBe('EPERM');
+    expect(isPidAlive(child1Pid)).toBe(true);
+    expect(isPidAlive(child2Pid)).toBe(false);
   } finally {
     vi.restoreAllMocks();
-    if (childPid > 0) {
-      try { origKill(childPid, 'SIGKILL'); } catch { /* exited */ }
+    for (const pid of [child1Pid, child2Pid]) {
+      if (pid > 0) {
+        try { origKill(pid, 'SIGKILL'); } catch { /* exited */ }
+      }
     }
     try { parent.kill('SIGKILL'); } catch { /* exited */ }
   }

@@ -3,7 +3,7 @@ import { assertHtmlWithinLimit } from '../domain/limits.ts';
 import type { DocumentRenderer, RenderOptions, StartOptions } from '../ports/document-renderer.ts';
 import type { PdfBrowser } from './browser.ts';
 import {
-  createBrowserShutdown, createSharedStart, launchWithinTimeout, resolveLaunchCleanupGate, retryBlockedShutdown, waitGate,
+  createBrowserShutdown, createSharedStart, driveShutdownRetries, launchWithinTimeout, resolveLaunchCleanupGate, waitGate,
   watchUnconfirmedExit, type BrowserShutdown, type SharedStart,
 } from './launch.ts';
 import { renderBrowserDocument } from './render-page.ts';
@@ -48,11 +48,7 @@ export class PlaywrightDocumentRenderer implements DocumentRenderer {
   }
 
   get unconfirmedExit(): Promise<void> | null {
-    const idle =
-      this.#closingExit === null &&
-      this.#retiring === null &&
-      this.#pendingCancel === null &&
-      this.#launchInFlight === null;
+    const idle = this.#closingExit === null && this.#retiring === null && this.#pendingCancel === null && this.#launchInFlight === null;
     return idle ? null : this.#drainExitGates();
   }
 
@@ -135,12 +131,7 @@ export class PlaywrightDocumentRenderer implements DocumentRenderer {
   }
 
   async #drainExitGates(): Promise<void> {
-    while (
-      this.#launchInFlight !== null ||
-      this.#closingExit !== null ||
-      this.#retiring !== null ||
-      this.#pendingCancel !== null
-    ) {
+    while (this.#launchInFlight !== null || this.#closingExit !== null || this.#retiring !== null || this.#pendingCancel !== null) {
       if (this.#launchInFlight !== null) {
         await this.#launchInFlight.catch(() => undefined);
         continue;
@@ -200,13 +191,23 @@ export class PlaywrightDocumentRenderer implements DocumentRenderer {
     return tracked;
   }
 
+  #retryUnconfirmed(shutdown: BrowserShutdown, gate: Promise<void>): void {
+    const { backoff, sleep, onLaunchError } = this.#cfg;
+    void driveShutdownRetries(gate, () => (this.#shutdown === shutdown ? shutdown : null), backoff, sleep, this.#closeAbort.signal, onLaunchError);
+  }
+
   #retireAbandonedBrowser(browser: PdfBrowser): Promise<void> {
     const shutdown = createBrowserShutdown(browser);
     if (this.#closing) return this.#closeShutdown(shutdown).then(() => this.#closingExit ?? undefined);
     this.#shutdown = shutdown;
     return shutdown
       .runClose(this.#cfg.closeGraceMs)
-      .then((out) => (out.confirmed ? undefined : Promise.race([out.exit, shutdown.confirmed])))
+      .then((out) => {
+        if (out.confirmed) return undefined;
+        const settled = Promise.race([out.exit, shutdown.confirmed]);
+        if (!this.#closing && typeof browser.kill === 'function') this.#retryUnconfirmed(shutdown, settled);
+        return settled;
+      })
       .catch(() => undefined)
       .finally(() => this.#confirmBrowserExit(shutdown));
   }
@@ -215,7 +216,10 @@ export class PlaywrightDocumentRenderer implements DocumentRenderer {
     return resolveLaunchCleanupGate(
       error,
       (err) => this.#cfg.onLaunchError?.(err),
-      (shutdown) => { this.#shutdown = shutdown; },
+      (shutdown, retryGate) => {
+        this.#shutdown = shutdown;
+        if (retryGate !== undefined) this.#retryUnconfirmed(shutdown, retryGate);
+      },
       (shutdown) => this.#confirmBrowserExit(shutdown),
     );
   }
@@ -376,8 +380,6 @@ export class PlaywrightDocumentRenderer implements DocumentRenderer {
       this.#launchFailures += 1;
       await this.#cfg.sleep(delayMs);
       if (this.#closing) return;
-      const blocked = this.#retiring !== null || this.#pendingCancel !== null;
-      if (await retryBlockedShutdown(this.#shutdown, blocked, this.#cfg.onLaunchError)) continue;
       await this.#launchOnce();
     }
   }
@@ -423,6 +425,7 @@ export class PlaywrightDocumentRenderer implements DocumentRenderer {
         if (!this.#closing) {
           this.#notifyUnconfirmed('DOCUMENT_RETIRE_UNCONFIRMED', false);
           this.#watchUnconfirmed(settled, 'DOCUMENT_RETIRE_UNCONFIRMED', false);
+          if (typeof browser.kill === 'function') this.#retryUnconfirmed(shutdown, settled);
         }
         return settled;
       });

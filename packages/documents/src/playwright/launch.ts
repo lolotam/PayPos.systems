@@ -19,7 +19,7 @@ type LaunchOutcome =
 export function resolveLaunchCleanupGate(
   error: unknown,
   onCleanupError?: (err: unknown) => void,
-  onShutdown?: (shutdown: BrowserShutdown) => void,
+  onShutdown?: (shutdown: BrowserShutdown, retryGate: Promise<void> | undefined) => void,
   onConfirmed?: (shutdown: BrowserShutdown) => void,
 ): Promise<void> | undefined {
   const cleanup = getLaunchCleanup(error);
@@ -31,7 +31,6 @@ export function resolveLaunchCleanupGate(
     kill: () => (retry !== undefined ? retry() : cleanup),
     on: () => undefined,
   });
-  onShutdown?.(shutdown);
   let settled = false;
   const fromCleanup = cleanup.then(
     () => undefined,
@@ -40,28 +39,12 @@ export function resolveLaunchCleanupGate(
       return shutdown.confirmed;
     },
   );
-  return Promise.race([fromCleanup, shutdown.confirmed]).then(() => {
+  const gate = Promise.race([fromCleanup, shutdown.confirmed]).then(() => {
     settled = true;
     onConfirmed?.(shutdown);
   });
-}
-
-/** يعيد محاولة إنهاء المتصفح المعلّق عند إعادة الإطلاق بعد مهلة التراجع؛ يرجع true لو القتل فشل. */
-export async function retryBlockedShutdown(
-  shutdown: BrowserShutdown | null,
-  blocked: boolean,
-  onError?: (err: unknown) => void,
-): Promise<boolean> {
-  if (!blocked || shutdown === null) return false;
-  const retry = shutdown.kill();
-  if (retry === undefined) return false;
-  try {
-    await retry;
-    return false;
-  } catch (err) {
-    onError?.(err);
-    return true;
-  }
+  onShutdown?.(shutdown, retry !== undefined ? gate : undefined);
+  return gate;
 }
 
 /** يقفل المتصفح المتقاعد ويستنى تأكيد خروج عمليته لو المهلة خلصت قبل التأكيد. */
@@ -172,6 +155,51 @@ export function waitGate(
     closeSignal?.addEventListener('abort', finish, { once: true });
     void gate.then(finish, finish);
   });
+}
+
+/** يعيد محاولة قتل المتصفح المعلّق بتدرّج التراجع لحد ما بوابة الخروج تتأكد أو الإغلاق يبدأ. */
+export async function driveShutdownRetries(
+  gate: Promise<void>,
+  getShutdown: () => BrowserShutdown | null,
+  backoff: readonly number[],
+  sleep: (ms: number) => Promise<void>,
+  closeSignal: AbortSignal,
+  onError?: (err: unknown) => void,
+): Promise<void> {
+  let settled = false;
+  const stopOnGate = gate.then(
+    () => { settled = true; },
+    () => { settled = true; },
+  );
+  let attempts = 0;
+  while (!settled && !closeSignal.aborted) {
+    const delayMs = backoff[Math.min(attempts, backoff.length - 1)] ?? 0;
+    attempts += 1;
+    let floorTimer: ReturnType<typeof setTimeout> | undefined;
+    const floor = new Promise<void>((resolve) => {
+      floorTimer = setTimeout(resolve, Math.max(delayMs, 5));
+      floorTimer.unref?.();
+    });
+    const pause = delayMs > 0 ? Promise.all([sleep(delayMs), floor]).then(() => undefined) : floor;
+    await waitGate(Promise.race([pause, stopOnGate]), undefined, closeSignal);
+    if (floorTimer !== undefined) clearTimeout(floorTimer);
+    if (settled || closeSignal.aborted) return;
+    const shutdown = getShutdown();
+    if (shutdown === null) return;
+    const retry = shutdown.kill();
+    if (retry === undefined) {
+      await Promise.resolve();
+      continue;
+    }
+    const attempt = retry.catch((err: unknown) => {
+      if (err instanceof Error && err.message === 'DOCUMENT_BROWSER_KILL_UNSUPPORTED') {
+        settled = true;
+        return;
+      }
+      if (!settled && !closeSignal.aborted) onError?.(err);
+    });
+    await waitGate(Promise.race([attempt, stopOnGate]), undefined, closeSignal);
+  }
 }
 
 /** ينتظر انتهاء محاولة الإطلاق المشتركة أو إلغاء كل منتظريها بشكل مستقل لكل منادٍ. */
