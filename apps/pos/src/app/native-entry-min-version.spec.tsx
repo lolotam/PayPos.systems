@@ -37,6 +37,7 @@ vi.mock('@/device/api/use-device-session', () => ({
 }));
 vi.mock('@/shared/platform/launch-links', () => ({
   readLaunchLink: vi.fn(async () => null),
+  markLaunchLinkHandled: vi.fn(),
   onLinkOpened: vi.fn(() => () => undefined),
 }));
 vi.mock('@/shared/platform/native-shell', async (importOriginal) => ({

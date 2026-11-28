@@ -1,6 +1,6 @@
 import { act, fireEvent, render, screen } from '@testing-library/react';
 import { t } from '@pospay/i18n';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { endPersonalSession } from '@/app/end-sessions';
 import type { PersonalWorkspace } from '@/app/manager-link';
@@ -8,6 +8,7 @@ import { usePersonalSession } from '@/personal-staff/api/use-personal-session';
 import { LocaleProvider } from '@/shared/locale/locale-context';
 
 import { EmployeeFlow } from './employee-flow';
+import { FOREIGN_SIGN_OUT_WAIT_MS } from './foreign-session-notice';
 
 vi.mock('@/app/end-sessions', () => ({
   endPersonalSession: vi.fn(),
@@ -52,10 +53,11 @@ function sessionState(session: typeof SESSION | null) {
   };
 }
 
-function flow() {
+function flow(business: PersonalWorkspace | null = REMEMBERED, businessUnreadable = false) {
   return (
     <EmployeeFlow
-      business={REMEMBERED}
+      business={business}
+      businessUnreadable={businessUnreadable}
       pending={null}
       busy={false}
       connect={<p>connect</p>}
@@ -65,10 +67,10 @@ function flow() {
   );
 }
 
-function mount() {
+function mount(business: PersonalWorkspace | null = REMEMBERED, businessUnreadable = false) {
   return render(
     <LocaleProvider locale="ar" setLocale={() => undefined}>
-      {flow()}
+      {flow(business, businessUnreadable)}
     </LocaleProvider>,
   );
 }
@@ -85,6 +87,10 @@ beforeEach(() => {
   vi.clearAllMocks();
   vi.mocked(endPersonalSession).mockResolvedValue('done');
   vi.mocked(usePersonalSession).mockReturnValue(sessionState(SESSION));
+});
+
+afterEach(() => {
+  vi.useRealTimers();
 });
 
 describe('EmployeeFlow with a session of another business', () => {
@@ -198,5 +204,58 @@ describe('EmployeeFlow with a session of the remembered business or none', () =>
 
     expect(await screen.findByText(`sign-in ${COMPANY} ${BUSINESS}`)).not.toBeNull();
     expect(endPersonalSession).not.toHaveBeenCalled();
+  });
+});
+
+describe('EmployeeFlow without a remembered business', () => {
+  it('signs the live personal session out before showing the personal screen', async () => {
+    mount(null);
+
+    expect(await screen.findByRole('status')).not.toBeNull();
+    expect(screen.queryByText(`session screen ${SESSION.employee_id}`)).toBeNull();
+    expect(endPersonalSession).toHaveBeenCalledTimes(1);
+  });
+
+  it('shows the failure and the retry instead of the old screens when the sign-out is refused', async () => {
+    vi.mocked(endPersonalSession).mockResolvedValue('failed');
+    mount(null);
+
+    const alert = await screen.findByRole('alert');
+    expect(alert.textContent).toContain(t('ar', 'nativeShell.roleChangeFailed'));
+    expect(screen.getByRole('button', { name: t('ar', 'nativeShell.retry') })).not.toBeNull();
+    expect(screen.queryByText(`session screen ${SESSION.employee_id}`)).toBeNull();
+  });
+
+  it('hides private screens without signing out when the business could not be read', async () => {
+    mount(null, true);
+
+    expect(await screen.findByText('connect')).not.toBeNull();
+    expect(screen.queryByText(`session screen ${SESSION.employee_id}`)).toBeNull();
+    expect(endPersonalSession).not.toHaveBeenCalled();
+  });
+});
+
+describe('EmployeeFlow foreign sign-out abort', () => {
+  it('aborts an in-flight foreign sign-out request when the wait timer expires', () => {
+    vi.useFakeTimers();
+    let received: AbortSignal | undefined;
+    vi.mocked(endPersonalSession).mockImplementation((signal?: AbortSignal) => {
+      received = signal;
+      return new Promise<'done' | 'failed'>(() => undefined);
+    });
+
+    mount();
+
+    expect(received).toBeInstanceOf(AbortSignal);
+    expect(received?.aborted).toBe(false);
+
+    act(() => {
+      vi.advanceTimersByTime(FOREIGN_SIGN_OUT_WAIT_MS);
+    });
+
+    expect(received?.aborted).toBe(true);
+    expect(screen.getByRole('alert').textContent).toContain(
+      t('ar', 'nativeShell.roleChangeFailed'),
+    );
   });
 });

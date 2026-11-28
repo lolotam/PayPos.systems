@@ -14,6 +14,8 @@ import { PersonalAttendanceEntry } from './own-attendance-entry';
 interface PersonalScreenProps {
   workspace?: Pick<PersonalOtpRequestInput, 'company_id' | 'business_id'>;
   connect?: ReactNode;
+  /** تنبيه الشاشة: بينزل جوه إطار الشاشة الشخصية مش فوق الشاشة كلها. */
+  notice?: ReactNode;
   ownLeave?: (
     session: NonNullable<ReturnType<typeof usePersonalSession>['session']>,
     epoch: number,
@@ -29,6 +31,7 @@ interface PersonalScreenProps {
 export function PersonalScreen({
   workspace,
   connect,
+  notice,
   sessionGate,
   ownLeave,
   startOver,
@@ -36,16 +39,11 @@ export function PersonalScreen({
 }: PersonalScreenProps) {
   const locale = useLocale();
   const state = usePersonalSession();
-  const params = new URLSearchParams(window.location.search);
-  const fromQuery = personalWorkspace.safeParse({
-    company_id: params.get('company'),
-    business_id: params.get('business'),
-  });
-  // نسخة التطبيق بتبعت النشاط المتذكر من غير query string؛ نسخة الويب بتفضل تقرأه من العنوان.
-  const hint = workspace ?? (fromQuery.success ? fromQuery.data : undefined);
+  const hint = readWorkspaceHint(workspace);
   // نسخة التطبيق بس بتبعت الرجوع، وبيظهر بعد ما السيرفر يأكد إن مفيش جلسة.
   return (
     <AppFrame brand={t(locale, 'pos.appName')} actions={<LocaleSwitch />}>
+      {notice}
       <section className="mx-auto grid w-full max-w-md gap-6">
         <h1 className="text-2xl font-semibold">{t(locale, 'personalStaff.title')}</h1>
         <p>{t(locale, 'personalStaff.lead')}</p>
@@ -63,7 +61,9 @@ export function PersonalScreen({
                 onSignOut={state.signOut}
               />
               {state.privateReady ? ownLeave?.(state.session, state.epoch) : null}
-              {state.privateReady ? <PersonalWorkEntry session={state.session} epoch={state.epoch} /> : null}
+              {state.privateReady ? (
+                <PersonalWorkEntry session={state.session} epoch={state.epoch} />
+              ) : null}
               {state.privateReady ? (
                 <PersonalAttendanceEntry session={state.session} epoch={state.epoch} />
               ) : null}
@@ -87,4 +87,15 @@ export function PersonalScreen({
       </section>
     </AppFrame>
   );
+}
+
+/** نسخة التطبيق بتبعت النشاط المتذكر من غير query string؛ نسخة الويب بتقرأه من العنوان. */
+function readWorkspaceHint(workspace: PersonalScreenProps['workspace']) {
+  if (workspace !== undefined) return workspace;
+  const params = new URLSearchParams(window.location.search);
+  const fromQuery = personalWorkspace.safeParse({
+    company_id: params.get('company'),
+    business_id: params.get('business'),
+  });
+  return fromQuery.success ? fromQuery.data : undefined;
 }
