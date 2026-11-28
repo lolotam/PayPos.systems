@@ -1,3 +1,7 @@
+import { spawn } from 'node:child_process';
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { chromium } from 'playwright-core';
 import { expect, it, vi } from 'vitest';
 
@@ -7,7 +11,7 @@ import {
   getLaunchCleanup,
   playwrightFactory,
 } from '../playwright/factory.ts';
-import { getLaunchCleanupRetry } from '../playwright/process-tree.ts';
+import { getLaunchCleanupRetry, killProcessTree } from '../playwright/process-tree.ts';
 
 it('leaves process signals to the worker', () => {
   expect(chromiumLaunchOptions.handleSIGINT).toBe(false);
@@ -83,4 +87,28 @@ it('keeps missing-PID cleanup single-flight while pending and allows sequential 
   lateProc = { pid: 2_147_483_000, exitCode: null, kill: () => { lateKilled = true; if (lateProc !== null) lateProc.exitCode = 0; return true; } };
   await expect(Promise.resolve(getLaunchCleanupRetry(lateErr)?.())).resolves.toBeUndefined();
   expect([lateKilled, lateCloseTries]).toEqual([true, 1]);
+});
+
+it('holds root termination when root fingerprint is transiently unreadable for a readable unmarked child', async () => {
+  const procDir = mkdtempSync(join(tmpdir(), 'pospay-proc-'));
+  const sleeper = spawn(process.execPath, ['-e', 'setTimeout(() => {}, 10_000)'], { stdio: 'ignore' });
+  const rootPid = process.pid;
+  const childPid = sleeper.pid ?? 0;
+  expect(childPid).toBeGreaterThan(0);
+  try {
+    mkdirSync(join(procDir, String(rootPid), 'task', String(rootPid)), { recursive: true });
+    mkdirSync(join(procDir, String(childPid)), { recursive: true });
+    writeFileSync(join(procDir, String(rootPid), 'task', String(rootPid), 'children'), `${childPid}\n`);
+    writeFileSync(join(procDir, String(childPid), 'stat'), `${childPid} (child) S ${rootPid} 1 1 0 -1 0 0 0 0 0 0 0 0 0 0 0 1 0 222\n`);
+    let rootKills = 0;
+    const root = { pid: rootPid, exitCode: null as number | null, signalCode: null, kill: () => { rootKills += 1; root.exitCode = 0; sleeper.kill('SIGKILL'); return true; } };
+    await expect(Promise.resolve(killProcessTree(root, procDir))).rejects.toThrow('DESCENDANT_IDENTITY_UNVERIFIED');
+    expect([rootKills, root.exitCode]).toEqual([0, null]);
+    writeFileSync(join(procDir, String(rootPid), 'stat'), `${rootPid} (root) S 1 1 1 0 -1 0 0 0 0 0 0 0 0 0 0 0 1 0 111\n`);
+    await expect(Promise.resolve(killProcessTree(root, procDir))).resolves.toBeUndefined();
+    expect(rootKills).toBe(1);
+  } finally {
+    try { sleeper.kill('SIGKILL'); } catch { /* exited */ }
+    rmSync(procDir, { recursive: true, force: true });
+  }
 });

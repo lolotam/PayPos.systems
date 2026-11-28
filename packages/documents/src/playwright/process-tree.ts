@@ -200,14 +200,11 @@ function collectDescendantPids(rootPids: readonly number[], procRoot = '/proc'):
   const queue = [...rootPids];
   const table = readProcessTablePairs(procRoot);
   while (queue.length > 0) {
-    const current = queue.shift();
-    if (current === undefined) break;
-    const fromTasks = process.platform === 'linux' || procRoot !== '/proc' ? directLinuxChildren(current, procRoot) : [];
-    const fromTable = table.filter((row) => row.ppid === current).map((row) => row.pid);
-    for (const child of new Set([...fromTasks, ...fromTable])) {
-      if (parentOf.has(child)) continue;
-      parentOf.set(child, current);
-      queue.push(child);
+    const cur = queue.shift();
+    if (cur === undefined) break;
+    const tasks = process.platform === 'linux' || procRoot !== '/proc' ? directLinuxChildren(cur, procRoot) : [];
+    for (const child of new Set([...tasks, ...table.filter((r) => r.ppid === cur).map((r) => r.pid)])) {
+      if (!parentOf.has(child)) { parentOf.set(child, cur); queue.push(child); }
     }
   }
   return parentOf;
@@ -275,20 +272,22 @@ function readPidFingerprint(pid: number, procRoot = '/proc'): string | null | un
 
 const isUnresolvedFp = (v: string): boolean => v === '' || v.startsWith('?');
 
-function revalidateRetained(proc: KillableProcess, procRoot: string): { pids: number[]; unverifiedError: Error | undefined } {
+function revalidateRetained(proc: KillableProcess, procRoot: string): { pids: number[]; unverifiedError: Error | undefined; unresolvedError: Error | undefined } {
   const prior = retainedDescendants.get(proc);
-  if (prior === undefined) return { pids: [], unverifiedError: undefined };
+  if (prior === undefined) return { pids: [], unverifiedError: undefined, unresolvedError: undefined };
   const pids: number[] = [];
   let unverifiedError: Error | undefined;
+  let unresolvedError: Error | undefined;
   for (const [pid, expectedFp] of prior) {
     const observedFp = expectedFp.startsWith('?') ? expectedFp.slice(1) : expectedFp;
     const status = checkPidStatus(pid, observedFp, procRoot);
     if (status === 'exited') prior.delete(pid);
     else if (!isUnresolvedFp(expectedFp) && status === 'same') pids.push(pid);
+    else if (isUnresolvedFp(expectedFp)) unresolvedError ??= markUnconfirmedDescendants(new Error('DESCENDANT_IDENTITY_UNVERIFIED'));
     else unverifiedError ??= markUnconfirmedDescendants(new Error('DESCENDANT_IDENTITY_UNVERIFIED'));
   }
   if (prior.size === 0) retainedDescendants.delete(proc);
-  return { pids, unverifiedError };
+  return { pids, unverifiedError, unresolvedError };
 }
 
 function isParentLinkLive(childPid: number, parentPid: number, liveParents: ReadonlyMap<number, number>, procRoot: string): boolean {
@@ -358,9 +357,9 @@ function terminateOwnedDescendants(proc: KillableProcess, procRoot = '/proc'): {
   const rootPid = typeof proc.pid === 'number' && proc.pid > 0 ? proc.pid : undefined;
   const rootAlive = rootPid !== undefined && !hasExited(proc);
   const markedPids = collectMarkedLinuxPids(marker, procRoot);
-  const { pids: retainedPids, unverifiedError } = revalidateRetained(proc, procRoot);
+  const { pids: retainedPids, unverifiedError, unresolvedError } = revalidateRetained(proc, procRoot);
   const seeds = [...new Set([...(rootAlive && rootPid !== undefined ? [rootPid] : []), ...markedPids, ...retainedPids])];
-  if (seeds.length === 0) return { waitPids: [], signalError: unverifiedError };
+  if (seeds.length === 0) return { waitPids: [], signalError: unverifiedError ?? unresolvedError };
   const { seedFps, seedErr } = buildSeedFingerprints(proc, rootPid, new Set(markedPids), new Set(retainedPids), marker, seeds, procRoot);
   let signalError: Error | undefined = unverifiedError ?? seedErr;
   const retainedSet = new Set(retainedPids);
@@ -388,6 +387,7 @@ function terminateOwnedDescendants(proc: KillableProcess, procRoot = '/proc'): {
     verified.push([pid, fp]);
   }
   if (retained.size > 0) retainedDescendants.set(proc, retained);
+  if ([...retained.values()].some(isUnresolvedFp)) signalError ??= markUnconfirmedDescendants(new Error('DESCENDANT_IDENTITY_UNVERIFIED'));
   const result = signalVerifiedDescendants(verified, retained, signalError, procRoot);
   if (retained.size === 0) retainedDescendants.delete(proc);
   return result;
@@ -403,8 +403,8 @@ function killSingleAndWait(proc: KillableProcess): Promise<void> | void {
   }
   return new Promise<void>((resolve, reject) => {
     let settled = false;
-    const finish = (): void => { if (settled) return; settled = true; proc.off?.('exit', finish); resolve(); };
-    const fail = (e: unknown): void => { if (settled) return; settled = true; proc.off?.('exit', finish); reject(e instanceof Error ? e : new Error('SIGKILL_FAILED')); };
+    const finish = (): void => { if (!settled) { settled = true; proc.off?.('exit', finish); resolve(); } };
+    const fail = (e: unknown): void => { if (!settled) { settled = true; proc.off?.('exit', finish); reject(e instanceof Error ? e : new Error('SIGKILL_FAILED')); } };
     once.call(proc, 'exit', finish);
     if (hasExited(proc)) return finish();
     try {
@@ -412,10 +412,9 @@ function killSingleAndWait(proc: KillableProcess): Promise<void> | void {
       const signaled = proc.kill('SIGKILL');
       if (hasExited(proc)) finish();
       else if (!signaled) fail(new Error('SIGKILL_REJECTED'));
-    } catch (error) {
-      const code = (error as NodeJS.ErrnoException | null)?.code;
-      if (code === 'ESRCH' || hasExited(proc)) finish();
-      else fail(error);
+    } catch (e) {
+      if ((e as NodeJS.ErrnoException | null)?.code === 'ESRCH' || hasExited(proc)) finish();
+      else fail(e);
     }
   });
 }
@@ -425,19 +424,19 @@ function safeKillSingle(proc: KillableProcess): Promise<void> | undefined {
 }
 
 /** يقتل عملية Chromium الجذر ومجموعتها وكل شجرة توابعها مع توابع الإطلاق المؤكَّدة قبل فكّ قفل إعادة الإطلاق. */
-export function killProcessTree(proc: KillableProcess): Promise<void> | void {
+export function killProcessTree(proc: KillableProcess, procRoot = '/proc'): Promise<void> | void {
   const toErr = (e: unknown): Error => markUnconfirmedDescendants(e instanceof Error ? e : new Error('SIGKILL_FAILED'));
   const childTree = (proc.children ?? []).map((child) => {
-    try { return killProcessTree(child)?.catch((e: unknown) => { throw toErr(e); }); } catch (e) { return Promise.reject(toErr(e)); }
+    try { return killProcessTree(child, procRoot)?.catch((e: unknown) => { throw toErr(e); }); } catch (e) { return Promise.reject(toErr(e)); }
   });
-  const { waitPids, signalError } = terminateOwnedDescendants(proc);
-  const holdRootForAncestry = [...(retainedDescendants.get(proc)?.values() ?? [])].some((v) => v === '' || v === '?');
+  const { waitPids, signalError } = terminateOwnedDescendants(proc, procRoot);
+  const holdRootForAncestry = [...(retainedDescendants.get(proc)?.values() ?? [])].some(isUnresolvedFp);
   const hasRoot = typeof proc.pid === 'number' || !hasExited(proc);
   const rootWait = holdRootForAncestry || !hasRoot ? undefined : (killLaunchProcessGroup(proc), safeKillSingle(proc));
   const waits: Array<Promise<void>> = childTree.filter((item): item is Promise<void> => item !== undefined);
   const waitTargets = waitPids.map((pid) => [pid, retainedDescendants.get(proc)?.get(pid) ?? ''] as const);
   if (waitTargets.length > 0) {
-    waits.push(waitForPidsExit(waitTargets).then(() => {
+    waits.push(waitForPidsExit(waitTargets, procRoot).then(() => {
       const retained = retainedDescendants.get(proc);
       if (retained === undefined) return;
       for (const [pid] of waitTargets) retained.delete(pid);
