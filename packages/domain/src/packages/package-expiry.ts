@@ -60,3 +60,27 @@ export function packageExpiryDate(soldBusinessDate: string, validityDays: number
   validateDate(expiresOn);
   return expiresOn;
 }
+
+function epochMs(value: Date | string | null | undefined): number {
+  if (value == null) return Number.NaN;
+  return value instanceof Date ? value.getTime() : Date.parse(value);
+}
+
+/**
+ * يحدد إن كانت لحظة الزيارة قد وقعت عند لحظة بيع الباقة أو بعدها.
+ * إذا غابت لحظة البيع (باقة مستوردة) أو لم تتوفر لحظة الزيارة فتُعد الباقة صالحة من جهة البداية.
+ *
+ * @param visitInstant لحظة الزيارة الفعلية كـ Date أو نص ISO أو undefined عند غيابها
+ * @param soldAt لحظة بيع الباقة أو null للباقات المستوردة
+ * @returns true عندما لا تسبق لحظة الزيارة لحظة البيع
+ */
+export function packageUsableAt(
+  visitInstant: Date | string | undefined,
+  soldAt: Date | string | null | undefined,
+): boolean {
+  if (soldAt == null || visitInstant === undefined) return true;
+  const visitMs = epochMs(visitInstant);
+  const soldMs = epochMs(soldAt);
+  if (!Number.isFinite(visitMs) || !Number.isFinite(soldMs)) return true;
+  return visitMs >= soldMs;
+}

@@ -44,12 +44,19 @@ function lineGroup() {
   return screen.getByRole('group', { name: t('en', 'serviceSessions.lineNumber').replace('{n}', '1') });
 }
 
-async function mount(contextOverride: RecordingContext = context) {
-  state.get.mockImplementation((path: string) => Promise.resolve({
-    data: String(path).endsWith('/recording-context') ? contextOverride
-      : String(path).endsWith('/packages') ? { items: [packageItem], next_cursor: null }
-        : { items: String(path).endsWith('/performer-options') ? [performer] : [service], next_cursor: null },
-  }));
+async function mount(contextOverride: RecordingContext = context, packages = [packageItem]) {
+  state.get.mockImplementation((path: string) =>
+    Promise.resolve({
+      data: String(path).endsWith('/recording-context')
+        ? contextOverride
+        : String(path).endsWith('/packages')
+          ? { items: packages, next_cursor: null }
+          : {
+              items: String(path).endsWith('/performer-options') ? [performer] : [service],
+              next_cursor: null,
+            },
+    }),
+  );
   state.post.mockResolvedValue({ data: complete, response: { status: 201 } });
   const client = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
   render(<QueryClientProvider client={client}><Harness contextOverride={contextOverride} /></QueryClientProvider>);
@@ -79,11 +86,17 @@ it('expires the suggested package when the implied visit date crosses local midn
   fireEvent.click(screen.getByRole('button', { name: t('en', 'serviceSessions.fromPackage') }));
   const option = await within(lineGroup()).findByRole('radio');
   await waitFor(() => expect((option as HTMLInputElement).checked).toBe(true));
+  const performerCallsBeforeTick = state.get.mock.calls.filter(([path]) =>
+    String(path).endsWith('/performer-options'),
+  ).length;
 
   elapsed = 15000;
   expect(await within(lineGroup()).findByText(t('en', 'serviceSessions.packageNoneUsable'), {}, { timeout: 4000 })).toBeTruthy();
   expect(within(lineGroup()).queryByRole('radio')).toBeNull();
   expect(await within(lineGroup()).findByText(t('en', 'serviceSessions.packageRequired'))).toBeTruthy();
+  expect(
+    state.get.mock.calls.filter(([path]) => String(path).endsWith('/performer-options')),
+  ).toHaveLength(performerCallsBeforeTick);
 });
 
 it('uses branch_timezone rather than business_timezone to compute the package visit date (#961)', async () => {
@@ -94,4 +107,30 @@ it('uses branch_timezone rather than business_timezone to compute the package vi
 
   expect(await within(lineGroup()).findByText(t('en', 'serviceSessions.packageNoneUsable'))).toBeTruthy();
   expect(within(lineGroup()).queryByRole('radio')).toBeNull();
+});
+
+it('clamps tolerated future draft time to server now before checking package expiry and sale time', async () => {
+  const soldInToleranceWindow = {
+    ...packageItem,
+    id: id(42),
+    name_en: 'Sold after server now',
+    expires_on: '2026-10-16',
+    sold_at: '2026-10-15T21:00:00Z',
+  };
+  await mount(context, [{ ...packageItem, sold_at: '2026-10-15T20:00:00Z' }, soldInToleranceWindow]);
+  fireEvent.change(screen.getByLabelText(t('en', 'serviceSessions.occurredAt')), {
+    target: { value: '2026-10-16T00:00:05' },
+  });
+  fireEvent.click(screen.getByRole('button', { name: t('en', 'serviceSessions.fromPackage') }));
+
+  const radios = await within(lineGroup()).findAllByRole('radio');
+  expect(radios).toHaveLength(1);
+  expect(within(lineGroup()).getByText(packageItem.name_en)).toBeTruthy();
+  expect(within(lineGroup()).queryByText(soldInToleranceWindow.name_en)).toBeNull();
+  const performerCalls = state.get.mock.calls.filter(([path]) =>
+    String(path).endsWith('/performer-options'),
+  );
+  expect(performerCalls.at(-1)?.[1]).toMatchObject({
+    params: { query: { occurred_at: '2026-10-15T21:00:05.000Z' } },
+  });
 });

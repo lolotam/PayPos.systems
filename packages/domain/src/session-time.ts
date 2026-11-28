@@ -1,3 +1,6 @@
+/** أقصى فرق ساعة مقبول للأمام من جهاز التسجيل قبل قصّه لوقت الخادم. */
+export const SESSION_FUTURE_TOLERANCE_MS = 120_000;
+
 /** أسباب رفض وقت الجلسة في النواة المشتركة، مستقلة عن أكواد النقل في API. */
 export type SessionTimeErrorCode = 'SESSION_TIME_INVALID' | 'SESSION_TIME_TOO_OLD' | 'SESSION_TIME_IN_FUTURE';
 
@@ -64,6 +67,26 @@ export function visitInstant(occurredAt: Date | undefined, recordedAt: Date): Da
   if (!Number.isFinite(candidate.getTime()) || !Number.isFinite(recordedAt.getTime())) throw new SessionTimeError('SESSION_TIME_INVALID');
   return candidate > recordedAt ? recordedAt : candidate;
 }
+
+/**
+ * يقصّ لحظة الزيارة لوقت الخادم فقط عندما تتقدمه ضمن نافذة التسامح المسموحة (١٢٠ ثانية)،
+ * ويُبقي اللحظات الأبعد في المستقبل دون قصّ ليتعامل معها فحص الصلاحية والرفض المعتاد.
+ *
+ * @param occurredAt لحظة الزيارة المدخلة
+ * @param recordedAt ساعة الخادم المرجعية
+ * @returns اللحظة المطبّعة إذا كانت ضمن التسامح المستقبلي، أو لحظة الزيارة كما هي
+ */
+export function normalizeToleratedVisitInstant(occurredAt: Date, recordedAt: Date): Date {
+  if (!Number.isFinite(occurredAt.getTime()) || !Number.isFinite(recordedAt.getTime())) {
+    throw new SessionTimeError('SESSION_TIME_INVALID');
+  }
+  const deltaMs = occurredAt.getTime() - recordedAt.getTime();
+  if (deltaMs > 0 && deltaMs <= SESSION_FUTURE_TOLERANCE_MS) {
+    return visitInstant(occurredAt, recordedAt);
+  }
+  return occurredAt;
+}
+
 /**
  * يسمح بفرق ساعة الجهاز حتى ١٢٠ ثانية ويطبّعه لوقت السيرفر فلا نخزن مستقبلاً.
  *
@@ -75,7 +98,7 @@ export function visitInstant(occurredAt: Date | undefined, recordedAt: Date): Da
 export function sessionTime(occurredAt: Date | undefined, recordedAt: Date, timezone: string) {
   const candidate = occurredAt ?? recordedAt;
   if (!Number.isFinite(candidate.getTime()) || !Number.isFinite(recordedAt.getTime())) throw new SessionTimeError('SESSION_TIME_INVALID');
-  if (candidate.getTime() > recordedAt.getTime() + 120000) throw new SessionTimeError('SESSION_TIME_IN_FUTURE');
+  if (candidate.getTime() > recordedAt.getTime() + SESSION_FUTURE_TOLERANCE_MS) throw new SessionTimeError('SESSION_TIME_IN_FUTURE');
   const occurred_at = visitInstant(candidate, recordedAt);
   const business_date = sessionBusinessDate(occurred_at, timezone);
   validateAppendWindow(business_date, recordedAt, timezone);

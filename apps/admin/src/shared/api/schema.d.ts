@@ -9336,7 +9336,7 @@ export interface components {
             /** @enum {number} */
             schema_version: 1;
             /** Format: uuid */
-            decision_id?: string;
+            decision_id: string;
             /** Format: uuid */
             business_id: string;
             /** Format: uuid */
@@ -9348,7 +9348,29 @@ export interface components {
             /** @enum {string} */
             decided_via: "PIN" | "REMOTE";
             /** Format: date-time */
-            decided_at?: string;
+            decided_at: string;
+            proposals: {
+                /** Format: uuid */
+                id: string;
+                /** Format: uuid */
+                service_id: string;
+                name_en: string;
+                name_ar: string | null;
+                effective_bps: number;
+            }[];
+        } | {
+            /** @enum {number} */
+            schema_version: 1;
+            /** Format: uuid */
+            business_id: string;
+            /** Format: uuid */
+            branch_id: string;
+            /** Format: uuid */
+            decided_by: string;
+            decider_label_en: string;
+            decider_label_ar: string;
+            /** @enum {string} */
+            decided_via: "PIN" | "REMOTE";
             proposals: {
                 /** Format: uuid */
                 id: string;

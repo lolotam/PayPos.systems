@@ -15,6 +15,6 @@ export {
   type CommissionBranchName,
 } from './queries/commission-branch-names.query.ts';
 export { businessNames, businessNamesByIds } from './queries/business-names.query.ts';
-export { activeBusinessTimeZone } from './queries/active-business-time-zone.query.ts';
+export { activeBusinessTimeZone, activeSessionPlace } from './queries/active-business-time-zone.query.ts';
 export { packageSalePlace } from './queries/package-sale-place.query.ts';
 export { attendanceBranch } from './queries/attendance-branch.query.ts';

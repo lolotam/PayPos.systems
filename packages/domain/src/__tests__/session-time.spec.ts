@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import {
   isLateEntry,
+  normalizeToleratedVisitInstant,
   sessionBusinessDate,
   sessionTime,
   SessionTimeError,
@@ -163,6 +164,27 @@ describe('invalid date inputs', () => {
     const now = new Date();
     expectSessionTimeError(
       () => sessionBusinessDate(now, 'Invalid/Timezone_Name'),
+      'SESSION_TIME_INVALID',
+    );
+  });
+});
+
+describe('normalizeToleratedVisitInstant', () => {
+  it('clamps future timestamps only within the 120-second tolerance window', () => {
+    const recordedAt = new Date('2026-10-15T20:59:50.000Z');
+    const past = new Date('2026-10-15T20:00:00.000Z');
+    const toleratedEdge = new Date(recordedAt.getTime() + 120_000);
+    const beyondTolerance = new Date(recordedAt.getTime() + 120_001);
+
+    expect(normalizeToleratedVisitInstant(past, recordedAt)).toEqual(past);
+    expect(normalizeToleratedVisitInstant(recordedAt, recordedAt)).toEqual(recordedAt);
+    expect(normalizeToleratedVisitInstant(toleratedEdge, recordedAt)).toEqual(recordedAt);
+    expect(normalizeToleratedVisitInstant(beyondTolerance, recordedAt)).toEqual(beyondTolerance);
+  });
+
+  it('rejects non-finite dates with SESSION_TIME_INVALID', () => {
+    expectSessionTimeError(
+      () => normalizeToleratedVisitInstant(new Date(NaN), new Date()),
       'SESSION_TIME_INVALID',
     );
   });

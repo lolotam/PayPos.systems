@@ -21,11 +21,13 @@ export {
 export { roundKwd } from './rounding.js';
 export { lineNet, discountFromPercent, effectiveDiscountBps } from './discount-money.js';
 export {
+  SESSION_FUTURE_TOLERANCE_MS,
   SessionTimeError,
   sessionBusinessDate,
   isLateEntry,
   validateAppendWindow,
   visitInstant,
+  normalizeToleratedVisitInstant,
   sessionTime,
   type SessionTimeErrorCode,
 } from './session-time.js';
@@ -130,7 +132,7 @@ export * from './packages/errors.js';
 export * from './packages/package-definition.js';
 export * from './packages/package-allocation.js';
 export * from './packages/package-slots.js';
-export { assertPackageNotExpired, packageExpiryDate, packageUsableOn } from './packages/package-expiry.js';
+export { assertPackageNotExpired, packageExpiryDate, packageUsableAt, packageUsableOn } from './packages/package-expiry.js';
 export {
   assertPackageExtensionAllowed,
   packageExtensionLimit,

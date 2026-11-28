@@ -1,4 +1,4 @@
-import { packageUsableOn, remainingAfterDraftPicks } from '@pospay/domain';
+import { packageUsableAt, packageUsableOn, remainingAfterDraftPicks } from '@pospay/domain';
 import type { CustomerPackageListItem } from '@pospay/contracts';
 import type { SessionDraftLine } from './session-drafts';
 
@@ -41,10 +41,9 @@ export function packageOptionsForService(
   visitDate: string,
   visitInstant?: string,
 ): PackageOption[] {
-  const visitMs = visitInstant === undefined ? Number.NaN : Date.parse(visitInstant);
   return items.flatMap((item) => {
     if (item.used_up || !packageUsableOn(visitDate, item.expires_on)) return [];
-    if (item.sold_at != null && Number.isFinite(visitMs) && visitMs < Date.parse(item.sold_at)) return [];
+    if (!packageUsableAt(visitInstant, item.sold_at)) return [];
     const component = item.components.find((row) => row.service_id === serviceId && row.remaining > 0);
     if (!component) return [];
     const picked = otherPicks.filter((row) => row.entitlement_id === item.id && row.service_id === serviceId).length;
